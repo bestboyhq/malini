@@ -1,0 +1,28 @@
+:root,
+[data-theme='light'] {
+	--code-plain: var(--fg-400);
+	--code-punctuation: var(--fg-200);
+	--code-comment: var(--fg-100);
+
+	--code-keyword: var(--color-purple-700);
+	--code-string: var(--color-green-700);
+	--code-number: var(--color-orange-700);
+	--code-type: var(--color-blue-800);
+	--code-function: var(--color-blue-800);
+	--code-attr: var(--color-pink-700);
+
+	--code-added: var(--color-green-700);
+	--code-removed: var(--color-red-700);
+}
+
+[data-theme='dark'] {
+	--code-keyword: var(--color-purple-300);
+	--code-string: var(--color-green-300);
+	--code-number: var(--color-orange-300);
+	--code-type: var(--color-blue-300);
+	--code-function: var(--color-blue-300);
+	--code-attr: var(--color-pink-300);
+
+	--code-added: var(--color-green-300);
+	--code-removed: var(--color-red-300);
+}

@@ -1,0 +1,23 @@
+@utility text-500 {
+	color: var(--fg-500);
+}
+
+@utility text-400 {
+	color: var(--fg-400);
+}
+
+@utility text-300 {
+	color: var(--fg-300);
+}
+
+@utility text-200 {
+	color: var(--fg-200);
+}
+
+@utility text-100 {
+	color: var(--fg-100);
+}
+
+@utility text-disabled {
+	color: var(--fg-disabled);
+}

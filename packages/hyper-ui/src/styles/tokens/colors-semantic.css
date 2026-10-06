@@ -1,0 +1,173 @@
+@theme {
+	--color-surface-root-light: var(--color-grey-200);
+	--color-surface-50-light: var(--color-grey-150);
+	--color-surface-100-light: var(--color-grey-100);
+	--color-surface-150-light: var(--color-grey-50);
+
+	--color-surface-root-dark: var(--color-black);
+	--color-surface-50-dark: var(--color-grey-950);
+	--color-surface-100-dark: var(--color-grey-900);
+	--color-surface-150-dark: var(--color-grey-850);
+
+	--color-surface-root-hover-light: var(--color-grey-250);
+	--color-surface-50-hover-light: var(--color-grey-200);
+	--color-surface-100-hover-light: var(--color-grey-150);
+	--color-surface-150-hover-light: var(--color-grey-100);
+
+	--color-surface-root-hover-dark: var(--color-grey-950);
+	--color-surface-50-hover-dark: var(--color-grey-900);
+	--color-surface-100-hover-dark: var(--color-grey-850);
+	--color-surface-150-hover-dark: var(--color-grey-800);
+
+	--color-surface-root-selected-light: var(--color-grey-300);
+	--color-surface-50-selected-light: var(--color-grey-250);
+	--color-surface-100-selected-light: var(--color-grey-200);
+	--color-surface-150-selected-light: var(--color-grey-150);
+
+	--color-surface-root-selected-dark: var(--color-grey-850);
+	--color-surface-50-selected-dark: var(--color-grey-850);
+	--color-surface-100-selected-dark: var(--color-grey-750);
+	--color-surface-150-selected-dark: var(--color-grey-700);
+
+	--color-surface-50-border-light: var(--color-grey-250);
+	--color-surface-100-border-light: var(--color-grey-250);
+	--color-surface-150-border-light: var(--color-grey-250);
+
+	--color-surface-50-border-dark: var(--color-grey-850);
+	--color-surface-100-border-dark: var(--color-grey-800);
+	--color-surface-150-border-dark: var(--color-grey-700);
+
+	--color-surface-elevated-light: var(--color-grey-50);
+	--color-surface-elevated-dark: var(--color-grey-800);
+	--color-surface-elevated-hover-light: var(--color-grey-100);
+	--color-surface-elevated-hover-dark: var(--color-grey-750);
+	--color-surface-elevated-selected-light: var(--color-grey-150);
+	--color-surface-elevated-selected-dark: var(--color-grey-700);
+	--color-surface-elevated-border-light: var(--color-grey-250);
+	--color-surface-elevated-border-dark: var(--color-grey-700);
+
+	--color-surface-modal-light: var(--color-grey-50);
+	--color-surface-modal-dark: var(--color-grey-800);
+	--color-surface-modal-border-light: var(--color-grey-250);
+	--color-surface-modal-border-dark: var(--color-grey-750);
+
+	--color-surface-tooltip-light: var(--color-grey-150);
+	--color-surface-tooltip-dark: var(--color-grey-800);
+	--color-surface-tooltip-border-light: var(--color-grey-200);
+	--color-surface-tooltip-border-dark: var(--color-grey-700);
+
+	--color-surface-toast-light: var(--color-grey-100);
+	--color-surface-toast-dark: var(--color-grey-800);
+	--color-surface-toast-border-light: var(--color-grey-300);
+	--color-surface-toast-border-dark: var(--color-grey-700);
+
+	--color-surface-input-light: var(--color-grey-100);
+	--color-surface-input-dark: var(--color-grey-950);
+	--color-surface-input-border-light: var(--color-grey-200);
+	--color-surface-input-border-dark: var(--color-grey-850);
+
+	--color-surface-invert-light: var(--color-grey-900);
+	--color-surface-invert-dark: var(--color-grey-100);
+
+	--color-status-idle-light: var(--color-grey-450);
+	--color-status-idle-dark: var(--color-grey-600);
+
+	--color-surface-composer-light: var(--color-grey-50);
+	--color-surface-composer-dark: var(--color-grey-850);
+	--color-surface-terminal-workbench-light: var(--color-grey-150);
+	--color-surface-terminal-workbench-dark: var(--color-grey-950);
+	--color-surface-send-light: var(--color-grey-900);
+	--color-surface-send-dark: var(--color-grey-900);
+
+	--color-button-primary-light: var(--color-grey-950);
+	--color-button-primary-dark: var(--color-grey-50);
+	--color-button-primary-hover-light: var(--color-grey-800);
+	--color-button-primary-hover-dark: var(--color-grey-200);
+	--color-button-primary-content-light: var(--color-grey-50);
+	--color-button-primary-content-dark: var(--color-grey-950);
+
+	--color-button-secondary-light: var(--color-grey-50);
+	--color-button-secondary-dark: var(--color-grey-800);
+	--color-button-secondary-border-light: var(--color-grey-250);
+	--color-button-secondary-border-dark: var(--color-grey-700);
+	--color-button-secondary-hover-light: var(--color-grey-100);
+	--color-button-secondary-hover-dark: var(--color-grey-750);
+
+	--color-button-primary-busy-light: var(--color-grey-600);
+	--color-button-primary-busy-dark: var(--color-grey-400);
+	--color-button-primary-busy-content-light: var(--color-grey-50);
+	--color-button-primary-busy-content-dark: var(--color-grey-950);
+	--color-button-secondary-busy-light: var(--color-grey-200);
+	--color-button-secondary-busy-dark: var(--color-grey-700);
+
+	--color-button-danger-busy-light: var(--ds-red-300-light);
+	--color-button-danger-busy-dark: var(--ds-red-300-dark);
+
+	--color-button-disabled-light: var(--color-grey-250);
+	--color-button-disabled-dark: var(--color-grey-850);
+	--color-button-disabled-content-light: var(--color-grey-450);
+	--color-button-disabled-content-dark: var(--color-grey-600);
+
+	--color-chip-light: var(--color-grey-50);
+	--color-chip-dark: var(--color-grey-800);
+	--color-chip-border-light: var(--color-grey-250);
+	--color-chip-border-dark: var(--color-grey-700);
+	--color-chip-hover-light: var(--color-grey-100);
+	--color-chip-hover-dark: var(--color-grey-750);
+
+	--color-tabs-box-light: var(--color-grey-50);
+	--color-tabs-box-dark: var(--color-grey-900);
+	--color-tab-selected-light: var(--color-grey-50);
+	--color-tab-selected-dark: var(--color-grey-850);
+	--color-tab-selected-border-light: var(--color-grey-250);
+	--color-tab-selected-border-dark: var(--color-grey-700);
+	--color-tab-hover-light: var(--color-grey-150);
+	--color-tab-hover-dark: var(--color-grey-800);
+
+	--color-border-default-light: var(--color-grey-300);
+	--color-border-default-dark: var(--color-grey-750);
+	--color-border-subtle-light: var(--color-grey-250);
+	--color-border-subtle-dark: var(--color-grey-750);
+
+	--color-fg-default-light: var(--color-grey-900);
+	--color-fg-default-dark: var(--color-grey-100);
+
+	--color-fg-agent-message-light: var(--color-grey-600);
+	--color-fg-agent-message-dark: var(--color-grey-300);
+	--color-fg-agent-message-strong-light: var(--color-grey-800);
+	--color-fg-agent-message-strong-dark: var(--color-grey-50);
+	--color-fg-secondary-light: var(--color-grey-600);
+	--color-fg-secondary-dark: var(--color-grey-450);
+	--color-fg-tertiary-light: var(--color-grey-500);
+	--color-fg-tertiary-dark: var(--color-grey-600);
+	--color-fg-placeholder-light: var(--color-grey-450);
+	--color-fg-placeholder-dark: var(--color-grey-550);
+	--color-fg-composer-placeholder-focus-light: var(--color-grey-500);
+	--color-fg-composer-placeholder-focus-dark: var(--color-grey-450);
+	--color-fg-disabled-light: var(--color-grey-400);
+	--color-fg-disabled-dark: var(--color-grey-700);
+	--color-fg-invert-light: var(--color-grey-150);
+	--color-fg-invert-dark: var(--color-grey-900);
+	--color-fg-invert-secondary-light: var(--color-grey-200);
+	--color-fg-invert-secondary-dark: var(--color-grey-800);
+	--color-fg-link-light: var(--color-grey-900);
+	--color-fg-link-dark: var(--color-grey-100);
+
+	--color-brand-light: var(--ds-blue-700-light);
+	--color-brand-dark: var(--ds-blue-700-dark);
+	--color-brand-icon-light: var(--ds-blue-900-light);
+	--color-brand-icon-dark: var(--ds-blue-900-dark);
+	--color-brand-foreground-light: var(--ds-blue-900-light);
+	--color-brand-foreground-dark: var(--ds-blue-900-dark);
+	--color-brand-content-light: var(--color-grey-50);
+	--color-brand-content-dark: var(--color-grey-50);
+
+	--color-usage-search-light: var(--color-custom-primary);
+	--color-usage-search-dark: var(--color-custom-primary);
+	--color-usage-read-light: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
+	--color-usage-read-dark: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
+	--color-usage-curate-light: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
+	--color-usage-curate-dark: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
+	--color-usage-compose-light: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
+	--color-usage-compose-dark: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
+}

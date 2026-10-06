@@ -1,0 +1,107 @@
+---
+description: Application layer rules
+globs: apps/malini/src/lib/**/application/**
+alwaysApply: false
+---
+
+# Application layer
+
+Three kinds of file: commands, queries, hooks.
+
+- Commands live under `commands/`.
+  They change state, write to infrastructure stores and aggregates, and call services for data.
+  A command returns `void`.
+  Always.
+  Never `Promise<void>`, never data.
+- Queries live under `queries/`.
+  A query returns `$derived` data read from infrastructure state.
+  A query never fetches.
+- Hooks live under `hooks/`.
+  A hook returns a tool tied to the caller's lifecycle: a cleanup function, a validator, an action handle.
+  A hook may fetch and write to an aggregate as a side effect, but it never returns the fetched data.
+
+Critical: if a function returns data, it is not a hook.
+It is a query, or a command plus a query.
+
+## Imports
+
+- Its own domain's `domain/` and `infrastructure/` (stores, aggregates, services).
+  Never its own `presentation/` (`layerImportsOutward`).
+- Never `$shared/port` (`platformAccessOutsideInfrastructure`).
+  Platform access goes through an infrastructure service.
+- Never a mapper (`mapperOutsideService`).
+- Another domain only through its api file.
+  The `app` domain may also import any domain's `application/`.
+
+## Commands
+
+- Never import a query.
+  Read infrastructure state directly.
+- Never call a mapper.
+  A service maps and returns domain types.
+- May call another command.
+- Always return `void`.
+  Async work runs fire-and-forget inside the body.
+- Never declared `async`.
+  The return type would become `Promise<void>`.
+- Never return a status the caller branches on.
+  Put the branching inside the command.
+
+```typescript
+export { saveCommentCommand };
+
+function saveCommentCommand(dto: CreateCommentDto): void {
+	const optimistic = { ...dto, id: crypto.randomUUID(), isPending: true };
+	commentsAggregate.addComment(optimistic);
+
+	void (async () => {
+		try {
+			const saved = await commentsService.saveComment(dto);
+			commentsAggregate.replaceComment(optimistic.id, saved);
+		} catch {
+			commentsAggregate.removeComment(optimistic.id);
+			toastStore.error(commentSaveFailed());
+		}
+	})();
+}
+```
+
+## Queries
+
+- A class with one property: `data`.
+  Readonly, `$derived`.
+- Granular: one piece of data per query.
+- Independent: no query depends on another query.
+- Never fetch.
+- Never expose `isLoading`, `status`, or any other field.
+
+```typescript
+export { itemByIdQuery };
+
+class ItemByIdQuery {
+	public readonly data: (id: string) => Item | null = $derived(
+		(id: string) => itemsAggregate.entities.get(id) ?? null,
+	);
+}
+
+const itemByIdQuery = new ItemByIdQuery();
+```
+
+## Hooks
+
+- Return a callable, never data.
+- Write fetched data to an aggregate so a query can read it.
+- Surface their own errors.
+  The caller does not handle them.
+- Called only from presentation and commands.
+- Never call another hook.
+
+## All
+
+- Explicit return types.
+- Early returns over nesting.
+- One command, query, or hook per file.
+- Group by bounded context.
+- No comments.
+
+File names: `do-something.command.ts` holds `doSomethingCommand`; `something.query.svelte.ts` holds `SomethingQuery`; `do-something.hook.ts` holds `doSomethingHook`.

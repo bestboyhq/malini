@@ -1,0 +1,32 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["svelte", "vite/client"],
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"paths": {
+			"$lib/*": ["./src/lib/*"],
+			"$shared/*": ["./src/lib/shared/*"],
+			"$contract/*": ["./src/contract/*"],
+			"$hyper-ui/*": ["../../packages/hyper-ui/src/*"]
+		}
+	},
+	"include": [
+		"src/renderer/**/*.ts",
+		"src/renderer/**/*.svelte",
+		"src/renderer/public/*.js",
+		"src/lib/**/*.ts",
+		"src/lib/**/*.svelte",
+		"src/preload/index.d.ts",
+		"src/contract/**/*.ts",
+		"../../packages/hyper-ui/src/**/*.ts",
+		"../../packages/hyper-ui/src/**/*.svelte",
+		"../../extensions/*/src/**/*.ts"
+	],
+	"exclude": ["src/lib/**/platform/**", "src/lib/**/*.platform.ts"]
+}

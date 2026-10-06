@@ -1,0 +1,58 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@malini/hyper-ui",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"svelte": "./src/index.ts",
+	"types": "./src/index.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"svelte": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./components/*": {
+			"types": "./src/components/*/index.ts",
+			"svelte": "./src/components/*/index.ts",
+			"default": "./src/components/*/index.ts"
+		},
+		"./icons": {
+			"types": "./src/icons/index.ts",
+			"svelte": "./src/icons/index.ts",
+			"default": "./src/icons/index.ts"
+		},
+		"./icons/*": {
+			"types": "./src/icons/*",
+			"svelte": "./src/icons/*",
+			"default": "./src/icons/*"
+		},
+		"./styles": "./src/styles/index.css",
+		"./styles/*": "./src/styles/*"
+	},
+	"dependencies": {
+		"@malini/extension-api": "workspace:*",
+		"svelte-sonner": "^1.1.1"
+	},
+	"peerDependencies": {
+		"svelte": "catalog:"
+	},
+	"devDependencies": {
+		"@malini/eslint-plugin-hyper-ui": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"eslint": "catalog:",
+		"svelte": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:",
+		"jsdom": "^30.0.0",
+		"svelte-check": "^4.7.6",
+		"typescript": "catalog:",
+		"@types/node": "catalog:"
+	},
+	"scripts": {
+		"lint": "eslint .",
+		"icons": "node scripts/icons.mjs",
+		"check": "node scripts/icons.mjs --check && svelte-check --tsconfig ./tsconfig.json"
+	}
+}

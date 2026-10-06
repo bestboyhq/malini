@@ -1,0 +1,37 @@
+---
+description: Agent behavior for malini
+alwaysApply: true
+---
+
+# Agent behavior
+
+## Working
+- Never ask "are you ready to start?". Start.
+- When a plan is confirmed, say it is done and wait for the next instruction.
+- After a change, run the gates: `corepack pnpm check`, `corepack pnpm lint`, and the tests for the package you touched. Fix failures before reporting done.
+- A claim of done needs native evidence: a screenshot of the app window and a clean console for the interaction. A unit test or a rendered component is not evidence.
+- Never put the app in front of the user: launch it only in background mode, never `pnpm dev`, unless the user asks to watch (`AGENTS.md` Rule 5).
+
+## Git
+- Never run `git commit`, `git push`, or open a pull request unless the user asks in that conversation.
+- Implementing a plan or working on a branch is not authorization to commit.
+- Do not amend, rebase, reset, or force-push unless asked.
+
+## Scratch files
+- Transient files (PR body drafts, dumps, notes) live under `.context/`.
+- Do not use `/tmp`, the repo root, or the home directory.
+
+## Comments (non-negotiable, every language)
+- Do not write comments in code. No narration, no rationale, no "why", no TODOs, no section headers.
+- Applies to `//`, `/* */`, `#`, and every other comment syntax.
+- The only exceptions:
+  - JSDoc on an exported public API symbol where a consumer genuinely needs it.
+  - A compiler or linter pragma the build requires (`eslint-disable-next-line`, `svelte-ignore`, `@ts-expect-error`).
+  - Svelte and HTML comments (`<!-- -->`) in `.svelte` markup.
+  - A single-line `ponytail:` comment on a deliberate simplification, naming its ceiling and upgrade path (see `AGENTS.md`).
+- When editing a file, remove any non-exception comment you meet. Do not keep it "for style".
+- If a comment feels needed, the code is wrong. Rename, extract, or restructure until the code explains itself.
+- If the user points out a comment you added, do not argue. Remove it.
+
+## Severity
+- Every lint rule is `error`. A warning is a rule that does not run.

@@ -1,0 +1,25 @@
+{
+	"name": "malini-workspace",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"version": "0.1.0",
+	"packageManager": "pnpm@12.4.2",
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"dev": "pnpm --filter malini dev",
+		"build": "pnpm -r --if-present build",
+		"check": "pnpm -r --if-present check",
+		"lint": "pnpm -r --if-present lint && prettier --check .",
+		"format": "prettier --write .",
+		"test": "pnpm -r --if-present test",
+		"test:e2e": "pnpm --filter malini test:e2e",
+		"dist": "pnpm --filter malini dist"
+	},
+	"devDependencies": {
+		"prettier": "catalog:",
+		"prettier-plugin-svelte": "^4.1.1",
+		"prettier-plugin-tailwindcss": "^0.8.1"
+	}
+}

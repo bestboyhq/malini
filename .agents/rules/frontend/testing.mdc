@@ -1,0 +1,31 @@
+---
+description: What automated tests may assert
+globs: apps/malini/src/**/*.test.ts,apps/malini/tests/**
+alwaysApply: false
+---
+
+# Test authoring
+
+Assert what a user can observe, not how the DOM happens to be built.
+
+- Locate elements by role and accessible name (`getByRole`, `getByLabel`), by text, or by a stable `data-testid`.
+  Never by class name, tag nesting, or DOM position.
+- Assert observable state: visible text, accessible name, `aria-current`, `aria-pressed`, `aria-expanded`, `aria-disabled`.
+- Never assert markup internals: SVG path `d`, `outerHTML`, `innerHTML`, inline `style`, class names, spacing, colors, motion timing.
+- To confirm something looks right, take a screenshot.
+  Do not string-match markup.
+- A test may read a component's source only when its subject is wiring: which command a control invokes, whether a destructive action sits behind a confirmation.
+  Name the test for that subject.
+
+## Where a test runs
+
+- `*.test.ts` under `src/main`, `src/contract`, `src/lib/**/platform/` and `*.platform.test.ts`: the `main` vitest project, on Node with real `node:sqlite` and the real filesystem.
+- Other `*.test.ts` under `src/lib` and `src/renderer`: the `renderer` project, on Node.
+  `$state` works, `$effect` does not run, `mount()` throws.
+- `*.browser.test.ts`: the `renderer-browser` project, on jsdom with the client runtime.
+  Use it for anything that mounts a component or depends on an effect.
+- `tests/e2e/*.spec.ts`: Playwright against the built app (`pnpm --filter malini test:e2e`).
+- No vitest project collects `*.spec.ts` under `src/`.
+  A file named that way never runs.
+- Renderer tests swap the platform with `setPlatformForTest(createFakePlatform(seed))` from `$shared/port`.
+  The fake answers every contract command through one `install<Domain>Fake` per domain in `$shared/port/fake/`.

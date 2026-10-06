@@ -1,0 +1,35 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@malini-extension/repository",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"main": "./dist/src/index.js",
+	"types": "./src/index.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"development": "./src/index.ts",
+			"default": "./dist/src/index.js"
+		},
+		"./manifest.json": "./manifest.json",
+		"./README.md": "./README.md"
+	},
+	"scripts": {
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+		"lint": "eslint .",
+		"check": "tsc -p tsconfig.json --noEmit",
+		"test": "pnpm run build && node --test dist/tests/*.test.js"
+	},
+	"dependencies": {
+		"@malini/extension-api": "workspace:*"
+	},
+	"devDependencies": {
+		"@malini/eslint-plugin-hyper-ui": "workspace:*",
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"jsdom": "^30.0.0",
+		"typescript": "catalog:"
+	}
+}

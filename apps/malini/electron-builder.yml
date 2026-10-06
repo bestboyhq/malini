@@ -1,0 +1,28 @@
+appId: app.malini.desktop
+productName: malini
+copyright: Copyright (C) 2026 Best Boy
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: ../../packages/agent-bridge/dist
+    to: agent-bridge
+  - from: ../../packages/agent-bridge/dist/node_modules
+    to: agent-bridge/node_modules
+  - from: ../../packages/agent-bridge/package.json
+    to: agent-bridge/package.json
+  - from: ../../LICENSE
+    to: LICENSE
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+mac:
+  category: public.app-category.developer-tools
+  icon: build/Malini.icon
+  target:
+    - dir
+  identity: null
+  hardenedRuntime: false

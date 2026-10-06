@@ -1,0 +1,32 @@
+@layer components {
+	.router-link {
+		@apply focus-visible:ring-button-primary/40 relative my-2 flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ease-in-out focus-visible:ring-2;
+	}
+
+	.router-link-active {
+		@apply bg-button-secondary-hover text-brand-icon;
+	}
+
+	.router-link-inactive {
+		@apply bg-button-secondary text-fg-secondary hover:bg-button-secondary-hover hover:text-fg-default;
+	}
+
+	.sidebar-row,
+	.thread-link {
+		@apply text-100 font-450 flex cursor-pointer items-center rounded-lg py-1.5 pr-1.5 text-sm;
+	}
+
+	.sidebar-row:not(.sidebar-row-active):hover,
+	.thread-link:not(.sidebar-row-active):hover {
+		@apply bg-surface-50-hover text-500;
+	}
+
+	.sidebar-row-text,
+	.thread-text {
+		@apply flex w-full items-center justify-between overflow-hidden leading-relaxed text-ellipsis whitespace-nowrap;
+	}
+
+	.sidebar-row-active {
+		@apply bg-surface-50-selected text-500;
+	}
+}

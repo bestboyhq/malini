@@ -1,0 +1,33 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022"],
+		"types": ["node", "electron-vite/node"],
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"paths": {
+			"$main/*": ["./src/main/*"],
+			"$lib/*": ["./src/lib/*"],
+			"$shared/*": ["./src/lib/shared/*"],
+			"$contract/*": ["./src/contract/*"]
+		}
+	},
+	"include": [
+		"electron.vite.config.ts",
+		"playwright.config.ts",
+		"vitest.config.ts",
+		"src/main/**/*.ts",
+		"src/preload/**/*.ts",
+		"src/contract/**/*.ts",
+		"src/lib/**/platform/**/*.ts",
+		"src/lib/**/domain/**/*.ts",
+		"src/lib/**/*.platform.ts",
+		"tests/**/*.ts",
+		"scripts/third-party-notices*.mjs"
+	],
+	"exclude": ["src/lib/**/domain/**/*.test.ts"]
+}

@@ -1,0 +1,211 @@
+@plugin 'daisyui/theme' {
+	name: 'dark';
+	default: false;
+	prefersdark: true;
+	color-scheme: dark;
+
+	--root-bg: var(--color-surface-root-dark);
+	--color-base-100: var(--color-base-100-dark);
+	--color-base-200: var(--color-base-200-dark);
+	--color-base-300: var(--color-base-300-dark);
+	--color-base-content: var(--color-content-on-base-dark);
+
+	--color-primary: var(--color-primary-dark);
+	--color-primary-content: var(--color-text-on-primary-dark);
+
+	--color-secondary: var(--color-secondary-dark);
+	--color-secondary-content: var(--color-text-on-secondary-dark);
+
+	--color-accent: var(--color-accent-dark);
+	--color-accent-content: var(--color-text-on-accent-dark);
+
+	--color-error: var(--color-error-dark);
+	--color-error-content: var(--color-text-on-error-dark);
+
+	--color-warning: var(--color-warning-dark);
+	--color-warning-content: var(--color-text-on-warning-dark);
+
+	--color-success: var(--color-success-dark);
+	--color-success-content: var(--color-text-on-success-dark);
+
+	--themed-color-tertiary: var(--color-tertiary-dark);
+	--themed-color-tertiary-content: var(--color-text-on-tertiary-dark);
+
+	--color-neutral: var(--color-black);
+	--color-neutral-content: var(--color-text-on-neutral-dark);
+
+	--themed-color-base-400: #1c1a1a;
+	--themed-color-root-bg: var(--color-root-bg-dark);
+	--themed-color-neutral-50: var(--color-neutral-50-dark);
+	--themed-color-neutral-100: var(--color-neutral-100-dark);
+	--themed-color-neutral-150: var(--color-neutral-150-dark);
+	--themed-color-neutral-200: var(--color-neutral-200-dark);
+	--themed-color-neutral-300: var(--color-neutral-300-dark);
+	--themed-color-neutral-400: var(--color-neutral-400-dark);
+	--themed-color-neutral-500: var(--color-neutral-500-dark);
+
+	--themed-color-custom-bg-1: #3a1f2b;
+	--themed-color-custom-bg-2: #44291f;
+	--themed-color-custom-bg-3: #5d3126;
+	--themed-color-custom-bg-4: #5e4328;
+	--themed-color-custom-bg-5: #4e562b;
+	--themed-color-custom-bg-6: #355c29;
+	--themed-color-custom-bg-7: #004437;
+	--themed-color-custom-bg-8: #1d3d43;
+	--themed-color-custom-bg-9: #1b4060;
+	--themed-color-custom-bg-10: #2d355e;
+	--themed-color-custom-bg-11: #212e55;
+	--themed-color-custom-bg-12: #2b2074;
+	--themed-color-custom-bg-13: #371e45;
+	--themed-color-custom-bg-14: #542040;
+	--themed-color-custom-bg-15: #592223;
+
+	--themed-color-custom-text-1: #c1aca0;
+	--themed-color-custom-text-2: #b69786;
+	--themed-color-custom-text-3: #c37d6c;
+	--themed-color-custom-text-4: #cbae86;
+	--themed-color-custom-text-5: #a7ba78;
+	--themed-color-custom-text-6: #8cc87a;
+	--themed-color-custom-text-7: #7ac897;
+	--themed-color-custom-text-8: #73969d;
+	--themed-color-custom-text-9: #7591a9;
+	--themed-color-custom-text-10: #8190da;
+	--themed-color-custom-text-11: #8787b0;
+	--themed-color-custom-text-12: #7e76b1;
+	--themed-color-custom-text-13: #a582ba;
+	--themed-color-custom-text-14: #bf93ae;
+	--themed-color-custom-text-15: #ce999a;
+
+	--themed-color-custom-primary: var(--ds-blue-700-dark);
+
+	--themed-color-primary: var(--color-primary-dark);
+	--themed-color-primary-content: var(--color-text-on-primary-dark);
+
+	--themed-color-accent-2-primary: #ff925c;
+	--themed-color-accent-2-secondary: #59351c;
+	--themed-color-accent-3-primary: #3abc3c;
+	--themed-color-accent-3-secondary: #214e22;
+
+	--themed-color-paper: var(--color-paper-dark);
+	--themed-color-paper-ink: var(--color-paper-ink-dark);
+	--themed-color-paper-muted: var(--color-paper-muted-dark);
+	--themed-color-paper-rule: var(--color-paper-rule-dark);
+
+	--themed-color-logo-outer: var(--color-logo-outer-dark);
+	--themed-color-logo-inner-fill: var(--color-logo-inner-fill-dark);
+	--themed-color-logo-inner-stroke: var(--color-logo-inner-stroke-dark);
+	--themed-color-logo-letter: var(--color-logo-letter-dark);
+
+	--themed-color-surface-root: var(--color-surface-root-dark);
+	--themed-color-surface-50: var(--color-surface-50-dark);
+	--themed-color-surface-100: var(--color-surface-100-dark);
+	--themed-color-surface-150: var(--color-surface-150-dark);
+
+	--themed-color-surface-root-hover: var(--color-surface-root-hover-dark);
+	--themed-color-surface-50-hover: var(--color-surface-50-hover-dark);
+	--themed-color-surface-100-hover: var(--color-surface-100-hover-dark);
+	--themed-color-surface-150-hover: var(--color-surface-150-hover-dark);
+
+	--themed-color-surface-root-selected: var(--color-surface-root-selected-dark);
+	--themed-color-surface-50-selected: var(--color-surface-50-selected-dark);
+	--themed-color-surface-100-selected: var(--color-surface-100-selected-dark);
+	--themed-color-surface-150-selected: var(--color-surface-150-selected-dark);
+
+	--themed-color-surface-50-border: var(--color-surface-50-border-dark);
+	--themed-color-surface-100-border: var(--color-surface-100-border-dark);
+	--themed-color-surface-150-border: var(--color-surface-150-border-dark);
+
+	--themed-color-surface-timeline-border: var(--color-surface-timeline-border-dark);
+	--themed-color-surface-timeline-dot: var(--color-surface-timeline-dot-dark);
+	--themed-color-surface-timeline-grid-empty-cell: var(
+		--color-surface-timeline-grid-empty-cell-dark
+	);
+	--themed-color-surface-elevated: var(--color-surface-elevated-dark);
+	--themed-color-surface-elevated-hover: var(--color-surface-elevated-hover-dark);
+	--themed-color-surface-elevated-selected: var(--color-surface-elevated-selected-dark);
+	--themed-color-surface-elevated-border: var(--color-surface-elevated-border-dark);
+	--themed-color-surface-modal: var(--color-surface-modal-dark);
+	--themed-color-surface-modal-border: var(--color-surface-modal-border-dark);
+	--themed-color-surface-tooltip: var(--color-surface-tooltip-dark);
+	--themed-color-surface-tooltip-border: var(--color-surface-tooltip-border-dark);
+	--themed-color-surface-toast: var(--color-surface-toast-dark);
+	--themed-color-surface-toast-border: var(--color-surface-toast-border-dark);
+	--themed-color-surface-invert: var(--color-surface-invert-dark);
+	--themed-color-status-idle: var(--color-status-idle-dark);
+	--themed-color-surface-input: var(--color-surface-input-dark);
+	--themed-color-surface-input-border: var(--color-surface-input-border-dark);
+	--themed-color-surface-composer: var(--color-surface-composer-dark);
+	--themed-color-surface-terminal-workbench: var(--color-surface-terminal-workbench-dark);
+	--themed-color-surface-send: var(--color-surface-send-dark);
+
+	--themed-color-button-primary: var(--color-button-primary-dark);
+	--themed-color-button-primary-hover: var(--color-button-primary-hover-dark);
+	--themed-color-button-primary-content: var(--color-button-primary-content-dark);
+	--themed-color-button-primary-busy: var(--color-button-primary-busy-dark);
+	--themed-color-button-primary-busy-content: var(--color-button-primary-busy-content-dark);
+
+	--themed-color-button-secondary: var(--color-button-secondary-dark);
+	--themed-color-button-secondary-border: var(--color-button-secondary-border-dark);
+	--themed-color-button-secondary-hover: var(--color-button-secondary-hover-dark);
+	--themed-color-button-secondary-busy: var(--color-button-secondary-busy-dark);
+	--themed-color-button-danger-busy: var(--color-button-danger-busy-dark);
+
+	--themed-color-button-disabled: var(--color-button-disabled-dark);
+	--themed-color-button-disabled-content: var(--color-button-disabled-content-dark);
+
+	--themed-color-chip: var(--color-chip-dark);
+	--themed-color-chip-border: var(--color-chip-border-dark);
+	--themed-color-chip-hover: var(--color-chip-hover-dark);
+
+	--themed-color-tabs-box: var(--color-tabs-box-dark);
+	--themed-color-tab-selected: var(--color-tab-selected-dark);
+	--themed-color-tab-selected-border: var(--color-tab-selected-border-dark);
+	--themed-color-tab-hover: var(--color-tab-hover-dark);
+
+	--themed-color-border-default: var(--color-border-default-dark);
+	--themed-color-border-subtle: var(--color-border-subtle-dark);
+
+	--fg-500: var(--color-grey-100);
+	--fg-400: var(--color-grey-250);
+	--fg-300: var(--color-grey-350);
+	--fg-200: var(--color-grey-400);
+	--fg-100: var(--color-grey-450);
+	--fg-disabled: var(--color-grey-700);
+
+	--syntax-comment: var(--color-grey-450);
+	--syntax-punctuation: var(--color-grey-500);
+	--syntax-string: var(--color-green-300);
+	--syntax-keyword: var(--color-purple-300);
+	--syntax-literal: var(--color-orange-300);
+	--syntax-entity: var(--color-blue-300);
+	--syntax-added: var(--color-green-300);
+	--syntax-modified: var(--color-orange-300);
+	--syntax-removed: var(--color-red-300);
+
+	--themed-color-fg-default: var(--color-fg-default-dark);
+	--themed-color-fg-agent-message: var(--color-fg-agent-message-dark);
+	--themed-color-fg-agent-message-strong: var(--color-fg-agent-message-strong-dark);
+	--themed-color-fg-secondary: var(--color-fg-secondary-dark);
+	--themed-color-fg-tertiary: var(--color-fg-tertiary-dark);
+	--themed-color-fg-placeholder: var(--color-fg-placeholder-dark);
+	--themed-color-fg-composer-placeholder-focus: var(--color-fg-composer-placeholder-focus-dark);
+	--themed-color-fg-disabled: var(--color-fg-disabled-dark);
+	--themed-color-fg-invert: var(--color-fg-invert-dark);
+	--themed-color-fg-invert-secondary: var(--color-fg-invert-secondary-dark);
+	--themed-color-fg-link: var(--color-fg-link-dark);
+
+	--themed-color-fluent-fg-default: var(--color-fluent-fg-default-dark);
+	--themed-color-fluent-fg-body: var(--color-fluent-fg-body-dark);
+	--themed-color-fluent-fg-muted: var(--color-fluent-fg-muted-dark);
+	--themed-color-fluent-fg-placeholder: var(--color-fluent-fg-placeholder-dark);
+
+	--themed-color-brand: var(--color-brand-dark);
+	--themed-color-brand-icon: var(--color-brand-icon-dark);
+	--themed-color-brand-foreground: var(--color-brand-foreground-dark);
+	--themed-color-brand-content: var(--color-brand-content-dark);
+
+	--themed-color-usage-search: var(--color-usage-search-dark);
+	--themed-color-usage-read: var(--color-usage-read-dark);
+	--themed-color-usage-curate: var(--color-usage-curate-dark);
+	--themed-color-usage-compose: var(--color-usage-compose-dark);
+}

@@ -1,0 +1,111 @@
+@layer components {
+	.btn {
+		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 px-2 text-sm leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+	}
+
+	.btn-compact {
+		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2.5 text-sm leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+	}
+
+	.btn-small {
+		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-1.5 text-xs font-medium whitespace-nowrap transition-colors ease-in-out;
+	}
+
+	.btn-sm {
+		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2 text-xs leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+	}
+
+	.icon-btn {
+		@apply flex aspect-square h-7 w-fit cursor-pointer items-center justify-center rounded-full p-1.5 text-sm transition-colors ease-in-out;
+	}
+
+	.btn-primary {
+		@apply bg-button-primary text-button-primary-content focus-visible:ring-button-primary/40 outline-0 focus-visible:ring-2;
+	}
+
+	.btn-primary:not(:disabled):hover {
+		@apply bg-button-primary-hover;
+	}
+
+	.btn-primary:disabled {
+		@apply bg-button-disabled text-button-disabled-content cursor-not-allowed;
+	}
+
+	.btn-secondary {
+		@apply bg-button-secondary text-fg-secondary focus-visible:ring-button-primary/40 outline-0 focus-visible:ring-2;
+	}
+
+	.btn-secondary:not(:disabled):hover {
+		@apply bg-button-secondary-hover text-fg-default;
+	}
+
+	.btn-secondary:disabled {
+		@apply bg-button-disabled text-button-disabled-content cursor-not-allowed;
+	}
+
+	.btn-danger {
+		@apply bg-error text-error-content focus-visible:ring-error-content/30 outline-0 focus-visible:ring-2;
+	}
+
+	.btn-danger:not(:disabled):hover {
+		@apply opacity-90;
+	}
+
+	.btn-danger:disabled {
+		@apply bg-button-disabled text-button-disabled-content cursor-not-allowed;
+	}
+
+	.btn-neutral {
+		@apply bg-surface-150 text-fg-secondary;
+	}
+
+	.btn-neutral:not(:disabled):hover {
+		@apply bg-surface-150-hover text-fg-default;
+	}
+
+	.btn-neutral:disabled {
+		@apply bg-button-disabled text-button-disabled-content cursor-not-allowed;
+	}
+
+	.btn-gray-border {
+		@apply border-button-secondary-border border-[0.5px];
+	}
+
+	.dropdown-item-btn {
+		@apply bg-surface-elevated text-fg-secondary flex w-full cursor-pointer items-center rounded-md px-1.5 py-1.5 text-xs transition-colors;
+	}
+
+	.dropdown-item-btn:not(:disabled):hover {
+		@apply bg-surface-elevated-hover text-fg-default;
+	}
+
+	.dropdown-item-btn:disabled {
+		@apply text-button-disabled-content cursor-not-allowed;
+	}
+
+	.btn,
+	.btn-compact,
+	.btn-small,
+	.btn-sm,
+	.icon-btn {
+		transition-property: color, background-color, border-color, scale;
+	}
+
+	.btn:not(:disabled):active,
+	.btn-compact:not(:disabled):active,
+	.btn-small:not(:disabled):active,
+	.btn-sm:not(:disabled):active,
+	.icon-btn:not(:disabled):active {
+		scale: 0.975;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.btn:not(:disabled):active,
+		.btn-compact:not(:disabled):active,
+		.btn-small:not(:disabled):active,
+		.btn-sm:not(:disabled):active,
+		.icon-btn:not(:disabled):active {
+			scale: 1;
+		}
+	}
+}

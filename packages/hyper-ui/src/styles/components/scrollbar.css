@@ -1,0 +1,16 @@
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-border-default) transparent;
+}
+
+.styled-scrollbar {
+	overscroll-behavior: contain;
+}
+
+.chat-scroller {
+	overscroll-behavior: contain;
+
+	overflow-anchor: none;
+
+	scrollbar-gutter: stable;
+}

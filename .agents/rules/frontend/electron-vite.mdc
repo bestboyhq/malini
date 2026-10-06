@@ -1,0 +1,51 @@
+---
+description: Renderer platform and rune rules
+globs: apps/malini/src/lib/**,apps/malini/src/renderer/**
+alwaysApply: false
+---
+
+# Renderer shell
+
+The renderer runs in Electron under `contextIsolation` and `sandbox`.
+It never touches Node.
+It reaches the main process only through the typed API on `window.malini`.
+
+## Imports
+
+- No `remote`, no `nodeIntegration`, no raw `ipcRenderer`.
+  The preload is the only bridge.
+- An infrastructure service calls the typed port: `invoke(command, args)` from `$shared/port/invoke` and `onPlatformEvent(channel, listener)` from `$shared/port/events`, both typed by `$contract`.
+  Nothing outside infrastructure imports the port.
+  Never reach for an Electron or Node global.
+- Tests swap the platform with `setPlatformForTest(createFakePlatform(seed))`.
+  The fake mirrors the main process: one `install<Domain>Fake` per domain in `$shared/port/fake/`, every contract command answered.
+- Within a domain, infrastructure imports domain, application imports infrastructure and domain, presentation imports application and domain.
+  Presentation never imports infrastructure.
+
+## Runes
+
+- `$state` and `$state.raw` carry an explicit type.
+- `$derived` is declared `const`.
+- `$effect` is for side effects only, never for data loading.
+
+```typescript
+let count: number = $state(0);
+let items: string[] = $state([]);
+const doubled = $derived(count * 2);
+```
+
+## Environment
+
+- Never read `import.meta.env` directly.
+  Use the typed accessor.
+
+## Rules
+
+- Tabs, single quotes, 100 columns.
+- No comments except the declared exceptions.
+- Explicit return types on every function.
+- No `.then()`.
+- One component, store, command, or query per file.
+- No barrel files.
+  Import from the source file.
+- No type assertions.

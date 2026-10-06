@@ -1,0 +1,16 @@
+node_modules
+out
+dist
+release
+coverage
+test-results
+playwright-report
+*.log
+.DS_Store
+.context
+.env
+.env.*
+!.env.example
+.vitest
+*.tsbuildinfo
+.pnpm-store

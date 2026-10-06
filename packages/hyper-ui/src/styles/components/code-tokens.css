@@ -1,0 +1,50 @@
+@layer components {
+	.code-tokens {
+		font: inherit;
+		color: var(--code-plain);
+	}
+
+	.tok-plain {
+		color: var(--code-plain);
+	}
+
+	.tok-keyword {
+		color: var(--code-keyword);
+	}
+
+	.tok-string {
+		color: var(--code-string);
+	}
+
+	.tok-comment {
+		color: var(--code-comment);
+	}
+
+	.tok-number {
+		color: var(--code-number);
+	}
+
+	.tok-type {
+		color: var(--code-type);
+	}
+
+	.tok-function {
+		color: var(--code-function);
+	}
+
+	.tok-punctuation {
+		color: var(--code-punctuation);
+	}
+
+	.tok-attr {
+		color: var(--code-attr);
+	}
+
+	.tok-added {
+		color: var(--code-added);
+	}
+
+	.tok-removed {
+		color: var(--code-removed);
+	}
+}

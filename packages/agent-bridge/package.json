@@ -1,0 +1,41 @@
+{
+	"name": "@malini/agent-bridge",
+	"version": "0.1.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"main": "./dist/index.js",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./cli": {
+			"types": "./dist/cli.d.ts",
+			"default": "./dist/cli.js"
+		}
+	},
+	"bin": {
+		"agent-bridge": "./dist/cli.js"
+	},
+	"scripts": {
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && node scripts/generate-protocol.mjs && tsc && node scripts/copy-runtime-dependencies.mjs",
+		"dev": "node scripts/generate-protocol.mjs && tsc --watch",
+		"start": "node dist/cli.js",
+		"test:unit": "node scripts/generate-protocol.mjs --check && tsc && vitest run",
+		"test": "pnpm run test:unit",
+		"lint": "eslint .",
+		"check": "node scripts/generate-protocol.mjs --check && tsc -p tsconfig.check.json"
+	},
+	"dependencies": {
+		"@anthropic-ai/claude-agent-sdk": "^0.3.288"
+	},
+	"devDependencies": {
+		"@malini/eslint-plugin-hyper-ui": "workspace:*",
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"prettier": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

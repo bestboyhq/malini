@@ -1,0 +1,47 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'extensions/*'
+
+# Two days. A version has to have survived in the registry for 48 hours before
+# pnpm will resolve to it, so a pulled or compromised release never lands here.
+minimumReleaseAge: 2880
+
+catalog:
+  svelte: ^5.57.0
+  # Held at 6.x: 7.x requires vite 8, and electron-vite 5 (latest stable)
+  # supports vite 5 to 7. Move both together when electron-vite 6 ships.
+  '@sveltejs/vite-plugin-svelte': ^6.2.4
+  # Held at 7.x for electron-vite 5, see above.
+  vite: ^7.3.6
+  vitest: ^5.0.1
+  # Held at 6.x: svelte-check (^5 || ^6) and typescript-eslint (<6.1) do not
+  # accept TypeScript 7 yet.
+  typescript: 6.0.3
+  # Matches the Node that Electron 44 bundles. Follows Electron, not npm.
+  '@types/node': ^24.13.5
+  tailwindcss: ^4.3.3
+  '@tailwindcss/vite': ^4.3.3
+  daisyui: ^5.5.0
+  eslint: ^10.10.0
+  '@eslint/js': ^10.0.1
+  typescript-eslint: ^8.70.0
+  eslint-config-prettier: ^10.1.8
+  prettier: ^3.8.0
+
+# pnpm 12 fails the install on any build script left undecided.
+allowBuilds:
+  electron: true
+  esbuild: true
+  electron-winstaller: false
+
+# The bridge always hands the SDK the user's own `claude`, so its bundled binaries are unused.
+overrides:
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-x64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-arm64-musl': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-linux-x64-musl': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64': '-'
+  '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'

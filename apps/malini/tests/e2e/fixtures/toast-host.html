@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' ws://localhost:* http://localhost:*"
+		/>
+		<title>hyper-ui toasts</title>
+	</head>
+	<body>
+		<script type="module">
+			import { mount } from 'svelte';
+			import { ToastHost, toast } from '$hyper-ui/components/toast';
+			import '../../../src/renderer/src/app.css';
+
+			mount(ToastHost, { target: document.body });
+			globalThis.toast = toast;
+		</script>
+	</body>
+</html>

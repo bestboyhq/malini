@@ -1,0 +1,142 @@
+{
+	"schemaVersion": 1,
+	"id": "malini.repository",
+	"name": "Repository",
+	"version": "1.0.0",
+	"apiVersion": 1,
+	"description": "Repository files, changes, branch context, and pull request context for malini workstreams.",
+	"publisher": "malini",
+	"entrypoint": "./dist/src/index.js",
+	"activationEvents": [
+		"onWorkstream",
+		"onCommand:malini.repository.refresh",
+		"onCommand:malini.repository.refresh-pull-request",
+		"onCommand:malini.repository.prepare-pull-request-fix",
+		"onCommand:malini.repository.todos",
+		"onEvent:malini.workstream.changed",
+		"onEvent:malini.repository.context.changed"
+	],
+	"contributes": {
+		"panels": [
+			{
+				"id": "malini.repository.files-panel",
+				"label": "Files",
+				"icon": "file",
+				"order": 20,
+				"defaultVisible": true
+			},
+			{
+				"id": "malini.repository.file",
+				"label": "File",
+				"icon": "file",
+				"instances": true
+			}
+		],
+		"commands": [
+			{
+				"id": "malini.repository.refresh",
+				"title": "Repository: Refresh",
+				"description": "Refresh the current workstream's repository files."
+			},
+			{
+				"id": "malini.repository.refresh-pull-request",
+				"title": "Repository: Refresh Pull Request",
+				"description": "Refresh only the current workstream's remote pull request and check state."
+			},
+			{
+				"id": "malini.repository.prepare-pull-request-fix",
+				"title": "Repository: Prepare Pull Request Fix",
+				"description": "Refresh the exact pull request head and read bounded diagnostics for an in-Malini agent fix. When the pull request conflicts with its target branch, merge the target branch into the workstream and leave the conflicts for the agent to resolve."
+			},
+			{
+				"id": "malini.repository.pull-latest",
+				"title": "Repository: Pull Latest Target Branch",
+				"description": "Update the workstream from its target branch, push, and refresh pull request state. A conflicting update stays in the workstream for the agent to resolve."
+			},
+			{
+				"id": "malini.repository.abort-operation",
+				"title": "Repository: Abort Merge",
+				"description": "Abort the merge in progress in the workstream and return it to the last commit."
+			},
+			{
+				"id": "malini.repository.mark-pull-request-ready",
+				"title": "Repository: Mark Pull Request Ready",
+				"description": "Move the current draft pull request into review without leaving Malini."
+			},
+			{
+				"id": "malini.repository.select-file",
+				"title": "Repository: Select File",
+				"description": "Select and read a repository file."
+			},
+			{
+				"id": "malini.repository.open-file",
+				"title": "Repository: Open File",
+				"description": "Open a repository file in a tab beside the workstream chats."
+			},
+			{
+				"id": "malini.repository.render-diff",
+				"title": "Repository: Render Diff",
+				"description": "Load and render repository diffs through the public repository service."
+			},
+			{
+				"id": "malini.repository.open-agent-session-diff",
+				"title": "Repository: Open Agent Session Diff",
+				"description": "Open an immutable, run-attributed agent session diff in Files."
+			},
+			{
+				"id": "malini.repository.status",
+				"title": "Repository: Status",
+				"description": "Return the current repository panel state."
+			},
+			{
+				"id": "malini.repository.todos",
+				"title": "Repository: Workstream Todos",
+				"description": "Return the current bounded workstream todo list for in-Malini context injection."
+			},
+			{
+				"id": "malini.repository.todo-add",
+				"title": "Repository: Add Workstream Todo",
+				"description": "Add a bounded todo to the current workstream."
+			},
+			{
+				"id": "malini.repository.todo-toggle",
+				"title": "Repository: Update Workstream Todo",
+				"description": "Mark a current workstream todo complete or open."
+			},
+			{
+				"id": "malini.repository.todo-remove",
+				"title": "Repository: Remove Workstream Todo",
+				"description": "Remove a todo from the current workstream."
+			},
+			{
+				"id": "malini.repository.warm-workstream",
+				"title": "Repository: Warm Workstream",
+				"description": "Read another workstream's repository state ahead of its first visit."
+			},
+			{
+				"id": "malini.repository.commit-and-push",
+				"title": "Repository: Commit and Push",
+				"description": "Commit the workstream's pending changes with the derived message and push its branch, without touching the pull request."
+			},
+			{
+				"id": "malini.repository.create-or-open-pull-request",
+				"title": "Repository: Create or Update Pull Request",
+				"description": "Automatically commit pending changes, push the workstream branch, and create or refresh its pull request inside Malini."
+			},
+			{
+				"id": "malini.repository.request-merge-confirmation",
+				"title": "Repository: Review Merge",
+				"description": "Refresh merge readiness, or land the pull request when the caller passes the head revision the human confirmed."
+			}
+		],
+		"settings": [
+			{
+				"id": "malini.repository.show-hidden",
+				"label": "Show hidden files",
+				"description": "Include dotfiles and files inside hidden directories in the Files panel.",
+				"type": "boolean",
+				"default": false
+			}
+		]
+	}
+}

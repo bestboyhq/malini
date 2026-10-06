@@ -1,0 +1,80 @@
+---
+description: Renderer coding conventions
+globs: apps/malini/src/lib/**,apps/malini/src/renderer/**
+alwaysApply: false
+---
+
+## 0. No comments. Ever. (non-negotiable)
+
+- Do not write comments in code.
+  Not narration, not rationale, not "why", not TODOs, not section headers.
+- Applies to `//` and `/* */`.
+  Svelte and HTML comments (`<!-- -->`) in `.svelte` markup are allowed.
+- The only exceptions are JSDoc on an exported public API symbol where a consumer genuinely needs it, a pragma the linter requires (`eslint-disable-next-line`, `svelte-ignore`, `@ts-expect-error`), and a single-line `ponytail:` comment on a deliberate simplification (see `AGENTS.md`).
+- When editing, remove non-exception comments you meet.
+- If a comment feels needed, the code is wrong.
+  Rename, extract, or restructure.
+- Every rule runs at `error`.
+  A warning is a rule that does not run.
+
+## 1. Code reads like a newspaper
+
+- The most important logic comes first.
+- Define a function or component after its use.
+- Group related logic.
+  Do not jump around a file.
+
+## 2. Architecture
+
+- A domain is a vertical slice with the layers `domain`, `infrastructure`, `application`, `presentation` in the renderer and `platform` in the main process.
+  `layout.mdc` has the tree.
+- Depend inward only: presentation imports application and domain, application imports infrastructure and domain, infrastructure imports domain.
+  Presentation never imports infrastructure.
+- Another domain is reached through its api file (`cross-domain-imports.mdc`).
+- One component, store, command, query, or mapper per file.
+- SOLID. Separate data fetching, state, business logic, and rendering.
+- Distinguish smart components from presentational ones.
+
+## 3. Types and style
+
+- Tabs, single quotes, 100 columns.
+  Prettier enforces this.
+- US English in identifiers and prose.
+- No `any`, no `@ts-ignore`, no `@ts-expect-error` without a reason the build requires.
+- No type assertions.
+  `@malini/desktop/no-as-casts`.
+  Fix the boundary instead of casting.
+- Every function has an explicit return type.
+- No `.then()`.
+  Use async/await.
+  `@malini/desktop/no-then-chains`.
+- Early returns over nested `if`.
+- `match` from `ts-pattern` over `switch`.
+- `const` over `let`.
+- Enums: name `ThisCase`, keys `THIS_CASE`, values `this-case`.
+- Distinguish DTOs from interfaces.
+- Never use `<svelte:component>`.
+  In Svelte 5, render a dynamic component directly.
+- Never use inline `import('...')` for a type annotation.
+  Import at the top.
+
+## 4. Design tokens
+
+- Import the folder module `$hyper-ui/components/<kebab-name>`, never a `.svelte` path inside it.
+- Icons are `<Icon name="…" />` from `$hyper-ui/icons`; draw a missing glyph with the `draw-icon` skill.
+- No literal colors, no raw buttons, no raw form controls, no legacy tokens.
+  Enforced by `@malini/desktop/*`.
+
+## 5. Naming
+
+- Event handlers: `onSomething`, not `handleSomething`.
+- Components: `PascalCase.svelte`.
+  Other renderer files: kebab-case.
+- A name is the user's word for the thing, not the technology.
+  `chat`, not `agentic`.
+
+## 6. Configuration
+
+- Read configuration through its typed accessor, never `import.meta.env` directly.
+
+> Write code as if you are the future maintainer and you have forgotten everything.

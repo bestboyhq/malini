@@ -1,0 +1,315 @@
+@layer utilities {
+	.fcc {
+		@apply flex items-center justify-center;
+	}
+
+	.break-word {
+		word-break: break-word;
+	}
+
+	.neutral-link-text {
+		@apply text-gray-700 hover:text-gray-900 dark:text-gray-100 dark:hover:text-white;
+	}
+
+	.shadow-inner-light {
+		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+	}
+
+	.w-128 {
+		width: 32rem;
+	}
+
+	.chat-column {
+		@apply mx-auto w-full max-w-[52rem];
+	}
+
+	.chat-stage-inset {
+		--transcript-mirror-inset: 0px;
+
+		margin-inline-start: var(--transcript-mirror-inset);
+		margin-inline-end: var(--transcript-rail-inset, 0px);
+	}
+
+	@container (min-width: 81rem) {
+		.chat-stage-inset {
+			--transcript-mirror-inset: calc(var(--transcript-rail-inset, 0px) + 0.5rem);
+		}
+	}
+
+	.prompt-clamp {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.prompt-clamp-body {
+		display: block;
+		max-height: 7.5rem;
+		overflow: hidden;
+	}
+
+	.prompt-clamp[data-clamped='true'] .prompt-clamp-body {
+		mask-image: linear-gradient(to bottom, black calc(100% - 1.75rem), transparent);
+	}
+
+	.sticky-prompt-fade::after {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		left: 0;
+		height: 0.875rem;
+		content: '';
+		pointer-events: none;
+		background: linear-gradient(to bottom, var(--color-surface-root), transparent);
+	}
+}
+
+@layer components {
+	.activity-status {
+		@apply h-[12px] w-[12px] overflow-hidden pb-[12px];
+	}
+
+	.message-editor {
+		transition: box-shadow 100ms ease;
+	}
+
+	.input {
+		@apply text-fg-default h-fit w-full rounded-md px-3 py-1.5 text-base;
+		background-color: transparent;
+	}
+
+	.input-primary {
+		@apply bg-surface-input text-fg-default border-surface-input-border placeholder:text-fg-placeholder border-[0.5px];
+	}
+	.input-primary:focus {
+		@apply ring-brand/30 ring-2 outline-none;
+	}
+	.input-primary:disabled {
+		@apply bg-surface-50 text-fg-disabled border-surface-input-border cursor-not-allowed;
+	}
+	.input-primary[aria-invalid='true'] {
+		@apply border-error-content;
+	}
+
+	.paper-grain {
+		position: relative;
+	}
+
+	.paper-grain::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: 2;
+		pointer-events: none;
+		opacity: 0.32;
+		mix-blend-mode: multiply;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+	}
+
+	[data-theme='dark'] .paper-grain::after {
+		mix-blend-mode: screen;
+		opacity: 0.14;
+	}
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes scaleIn {
+	from {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes scaleOut {
+	from {
+		opacity: 1;
+		transform: scale(1);
+	}
+	to {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+}
+
+@keyframes slideUpAndFade {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes slideDownAndFade {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes slideLeftAndFade {
+	from {
+		opacity: 0;
+		transform: translateX(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes slideRightAndFade {
+	from {
+		opacity: 0;
+		transform: translateX(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@layer utilities {
+	.animate-fadeIn {
+		animation: fadeIn 150ms ease-out both;
+	}
+
+	.animate-scaleIn {
+		animation: scaleIn 150ms ease-out both;
+	}
+
+	.animate-scaleOut {
+		animation: scaleOut 150ms ease-in both;
+	}
+
+	.animate-fadeInBottom {
+		animation: fadeInBottom 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-fadeInBottomShort {
+		animation: fadeInBottomShort 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-fadeInTop {
+		animation: fadeInTop 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-slideUpAndFade {
+		animation: slideUpAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-slideDownAndFade {
+		animation: slideDownAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	[data-side='top'].animate-slideUpAndFade {
+		animation: slideDownAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-slideLeftAndFade {
+		animation: slideLeftAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-slideRightAndFade {
+		animation: slideRightAndFade 400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+	}
+
+	.animate-fadeOut {
+		animation: fadeOut 150ms ease-in both;
+	}
+}
+
+@keyframes fadeOut {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes spin-step-clockwise-normal {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes spin-step-clockwise-faster {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(480deg);
+	}
+}
+
+@keyframes spin-step-clockwise-fastest {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(720deg);
+	}
+}
+
+@layer utilities {
+	.spin-step-clockwise-normal {
+		transform-origin: center;
+		transform-box: fill-box;
+		animation: spin-step-clockwise-normal 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
+	}
+
+	.spin-step-clockwise-faster {
+		transform-origin: center;
+		transform-box: fill-box;
+		animation: spin-step-clockwise-faster 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
+	}
+
+	.spin-step-clockwise-fastest {
+		transform-origin: center;
+		transform-box: fill-box;
+		animation: spin-step-clockwise-fastest 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
+	}
+}
+
+@layer utilities {
+	@media (prefers-reduced-motion: reduce) {
+		.animate-fadeIn,
+		.animate-scaleIn,
+		.animate-scaleOut,
+		.animate-fadeInBottom,
+		.animate-fadeInBottomShort,
+		.animate-fadeInTop,
+		.animate-slideUpAndFade,
+		[data-side='top'].animate-slideUpAndFade,
+		.animate-slideDownAndFade,
+		.animate-slideLeftAndFade,
+		.animate-slideRightAndFade,
+		.animate-fadeOut,
+		.spin-step-clockwise-normal,
+		.spin-step-clockwise-faster,
+		.spin-step-clockwise-fastest {
+			animation: none;
+		}
+	}
+}

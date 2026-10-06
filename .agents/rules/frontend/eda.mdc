@@ -1,0 +1,44 @@
+---
+description: Event rules for the main event bus and the renderer event stream
+globs: apps/malini/src/main/**,apps/malini/src/lib/**,apps/malini/src/contract/**
+alwaysApply: false
+---
+
+# Events
+
+The main process pushes events through `context.events` (`EventBus` in `$main/events`).
+It fans a frame out to every live window and to in-process subscribers.
+The renderer subscribes through `onPlatformEvent(channel, listener)` from `$shared/port/events`, called only from infrastructure services.
+Every channel and its payload type is declared in `ContractEvents` in `$contract/events`.
+
+## The one-event rule
+
+One action emits exactly one event.
+
+- Never emit several events from one action, command, handler, or UI event.
+- If two things must happen, model one event that describes the action and let each handler react.
+  Do not emit one event per downstream store.
+
+## Naming and payloads
+
+- An event describes what happened or was requested, past tense or a request: `chat:agent-event`, `repositories:workstream-created`.
+- Channel names are `<domain>:<event-kebab>`.
+  The domain is the one that emits.
+- A payload is serializable.
+  No functions, no class instances.
+- One event with a rich payload beats several near-identical events.
+
+## Handlers
+
+- Many handlers may subscribe to one event.
+  Each owns one side effect.
+- One handler may subscribe to several related events when it owns one unified reaction.
+- A handler never emits in response to an event.
+  No chains.
+  The next step is a command.
+
+## Layering
+
+- A command updates its own state and emits at most one event to notify other domains.
+- Presentation does not emit events for a multi-step action.
+  Wrap the logic in a command so the emission is centralized and testable.

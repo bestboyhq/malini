@@ -1,0 +1,162 @@
+@theme {
+	--color-neutral-50: var(--themed-color-neutral-50);
+	--color-neutral-100: var(--themed-color-neutral-100);
+	--color-neutral-150: var(--themed-color-neutral-150);
+	--color-neutral-200: var(--themed-color-neutral-200);
+	--color-neutral-300: var(--themed-color-neutral-300);
+	--color-neutral-400: var(--themed-color-neutral-400);
+	--color-neutral-500: var(--themed-color-neutral-500);
+
+	--color-base-400: var(--themed-color-base-400);
+
+	--color-root-bg: var(--themed-color-root-bg);
+
+	--color-tertiary: var(--themed-color-tertiary);
+	--color-tertiary-content: var(--themed-color-tertiary-content);
+
+	--color-custom-bg-1: var(--themed-color-custom-bg-1);
+	--color-custom-bg-2: var(--themed-color-custom-bg-2);
+	--color-custom-bg-3: var(--themed-color-custom-bg-3);
+	--color-custom-bg-4: var(--themed-color-custom-bg-4);
+	--color-custom-bg-5: var(--themed-color-custom-bg-5);
+	--color-custom-bg-6: var(--themed-color-custom-bg-6);
+	--color-custom-bg-7: var(--themed-color-custom-bg-7);
+	--color-custom-bg-8: var(--themed-color-custom-bg-8);
+	--color-custom-bg-9: var(--themed-color-custom-bg-9);
+	--color-custom-bg-10: var(--themed-color-custom-bg-10);
+	--color-custom-bg-11: var(--themed-color-custom-bg-11);
+	--color-custom-bg-12: var(--themed-color-custom-bg-12);
+	--color-custom-bg-13: var(--themed-color-custom-bg-13);
+	--color-custom-bg-14: var(--themed-color-custom-bg-14);
+	--color-custom-bg-15: var(--themed-color-custom-bg-15);
+
+	--color-custom-text-1: var(--themed-color-custom-text-1);
+	--color-custom-text-2: var(--themed-color-custom-text-2);
+	--color-custom-text-3: var(--themed-color-custom-text-3);
+	--color-custom-text-4: var(--themed-color-custom-text-4);
+	--color-custom-text-5: var(--themed-color-custom-text-5);
+	--color-custom-text-6: var(--themed-color-custom-text-6);
+	--color-custom-text-7: var(--themed-color-custom-text-7);
+	--color-custom-text-8: var(--themed-color-custom-text-8);
+	--color-custom-text-9: var(--themed-color-custom-text-9);
+	--color-custom-text-10: var(--themed-color-custom-text-10);
+	--color-custom-text-11: var(--themed-color-custom-text-11);
+	--color-custom-text-12: var(--themed-color-custom-text-12);
+	--color-custom-text-13: var(--themed-color-custom-text-13);
+	--color-custom-text-14: var(--themed-color-custom-text-14);
+	--color-custom-text-15: var(--themed-color-custom-text-15);
+
+	--color-custom-primary: var(--themed-color-custom-primary);
+
+	--color-accent-2-primary: var(--themed-color-accent-2-primary);
+	--color-accent-2-secondary: var(--themed-color-accent-2-secondary);
+	--color-accent-3-primary: var(--themed-color-accent-3-primary);
+	--color-accent-3-secondary: var(--themed-color-accent-3-secondary);
+
+	--color-paper: var(--themed-color-paper);
+	--color-paper-ink: var(--themed-color-paper-ink);
+	--color-paper-muted: var(--themed-color-paper-muted);
+	--color-paper-rule: var(--themed-color-paper-rule);
+
+	--color-logo-outer: var(--themed-color-logo-outer);
+	--color-logo-inner-fill: var(--themed-color-logo-inner-fill);
+	--color-logo-inner-stroke: var(--themed-color-logo-inner-stroke);
+	--color-logo-letter: var(--themed-color-logo-letter);
+
+	--color-surface-root: var(--themed-color-surface-root);
+	--color-surface-50: var(--themed-color-surface-50);
+	--color-surface-100: var(--themed-color-surface-100);
+	--color-surface-150: var(--themed-color-surface-150);
+
+	--color-surface-root-hover: var(--themed-color-surface-root-hover);
+	--color-surface-50-hover: var(--themed-color-surface-50-hover);
+	--color-surface-100-hover: var(--themed-color-surface-100-hover);
+	--color-surface-150-hover: var(--themed-color-surface-150-hover);
+
+	--color-surface-root-selected: var(--themed-color-surface-root-selected);
+	--color-surface-50-selected: var(--themed-color-surface-50-selected);
+	--color-surface-100-selected: var(--themed-color-surface-100-selected);
+	--color-surface-150-selected: var(--themed-color-surface-150-selected);
+
+	--color-surface-50-border: var(--themed-color-surface-50-border);
+	--color-surface-100-border: var(--themed-color-surface-100-border);
+	--color-surface-150-border: var(--themed-color-surface-150-border);
+
+	--color-surface-timeline-border: var(--themed-color-surface-timeline-border);
+	--color-surface-timeline-dot: var(--themed-color-surface-timeline-dot);
+	--color-surface-timeline-grid-empty-cell: var(--themed-color-surface-timeline-grid-empty-cell);
+	--color-surface-elevated: var(--themed-color-surface-elevated);
+	--color-surface-elevated-hover: var(--themed-color-surface-elevated-hover);
+	--color-surface-elevated-selected: var(--themed-color-surface-elevated-selected);
+	--color-surface-elevated-border: var(--themed-color-surface-elevated-border);
+	--color-surface-modal: var(--themed-color-surface-modal);
+	--color-surface-modal-border: var(--themed-color-surface-modal-border);
+	--color-surface-tooltip: var(--themed-color-surface-tooltip);
+	--color-surface-tooltip-border: var(--themed-color-surface-tooltip-border);
+	--color-surface-toast: var(--themed-color-surface-toast);
+	--color-surface-toast-border: var(--themed-color-surface-toast-border);
+	--color-surface-invert: var(--themed-color-surface-invert);
+	--color-status-idle: var(--themed-color-status-idle);
+	--color-surface-input: var(--themed-color-surface-input);
+	--color-surface-input-border: var(--themed-color-surface-input-border);
+	--color-surface-composer: var(--themed-color-surface-composer);
+	--color-surface-terminal-workbench: var(--themed-color-surface-terminal-workbench);
+	--color-surface-send: var(--themed-color-surface-send);
+
+	--color-button-primary: var(--themed-color-button-primary);
+	--color-button-primary-hover: var(--themed-color-button-primary-hover);
+	--color-button-primary-content: var(--themed-color-button-primary-content);
+	--color-button-primary-busy: var(--themed-color-button-primary-busy);
+	--color-button-primary-busy-content: var(--themed-color-button-primary-busy-content);
+
+	--color-button-secondary: var(--themed-color-button-secondary);
+	--color-button-secondary-border: var(--themed-color-button-secondary-border);
+	--color-button-secondary-hover: var(--themed-color-button-secondary-hover);
+	--color-button-secondary-busy: var(--themed-color-button-secondary-busy);
+	--color-button-danger-busy: var(--themed-color-button-danger-busy);
+
+	--color-button-disabled: var(--themed-color-button-disabled);
+	--color-button-disabled-content: var(--themed-color-button-disabled-content);
+
+	--color-chip: var(--themed-color-chip);
+	--color-chip-border: var(--themed-color-chip-border);
+	--color-chip-hover: var(--themed-color-chip-hover);
+
+	--color-tabs-box: var(--themed-color-tabs-box);
+	--color-tab-selected: var(--themed-color-tab-selected);
+	--color-tab-selected-border: var(--themed-color-tab-selected-border);
+	--color-tab-hover: var(--themed-color-tab-hover);
+
+	--color-border-default: var(--themed-color-border-default);
+	--color-border-subtle: var(--themed-color-border-subtle);
+
+	--color-fg-default: var(--themed-color-fg-default);
+	--color-fg-agent-message: var(--themed-color-fg-agent-message);
+	--color-fg-agent-message-strong: var(--themed-color-fg-agent-message-strong);
+	--color-fg-secondary: var(--themed-color-fg-secondary);
+	--color-fg-tertiary: var(--themed-color-fg-tertiary);
+	--color-fg-placeholder: var(--themed-color-fg-placeholder);
+	--color-fg-composer-placeholder-focus: var(--themed-color-fg-composer-placeholder-focus);
+	--color-fg-disabled: var(--themed-color-fg-disabled);
+	--color-fg-invert: var(--themed-color-fg-invert);
+	--color-fg-invert-secondary: var(--themed-color-fg-invert-secondary);
+	--color-fg-link: var(--themed-color-fg-link);
+
+	--color-fluent-fg-default: var(--themed-color-fluent-fg-default);
+	--color-fluent-fg-body: var(--themed-color-fluent-fg-body);
+	--color-fluent-fg-muted: var(--themed-color-fluent-fg-muted);
+	--color-fluent-fg-placeholder: var(--themed-color-fluent-fg-placeholder);
+
+	--color-primary: var(--themed-color-primary);
+	--color-primary-content: var(--themed-color-primary-content);
+
+	--color-brand: var(--themed-color-brand);
+	--color-brand-icon: var(--themed-color-brand-icon);
+	--color-brand-foreground: var(--themed-color-brand-foreground);
+	--color-brand-content: var(--themed-color-brand-content);
+
+	--color-usage-search: var(--themed-color-usage-search);
+	--color-usage-read: var(--themed-color-usage-read);
+	--color-usage-curate: var(--themed-color-usage-curate);
+	--color-usage-compose: var(--themed-color-usage-compose);
+}

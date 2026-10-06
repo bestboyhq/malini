@@ -1,0 +1,66 @@
+---
+description: Where code lives in apps/malini
+globs: apps/malini/src/**
+alwaysApply: false
+---
+
+# Layout
+
+A domain is a vertical slice.
+One folder holds the user's word for a capability, its renderer layers, and the main-process code that serves it.
+The folder name is the user's word, never a technology word.
+
+```
+apps/malini/src/
+  main/        node bootstrap only: index.ts, window.ts, context.ts, events.ts, errors.ts, modules.ts,
+               ipc/registry.ts, db/, git/, docker/, process/, fs/                  alias $main (node only)
+  preload/     index.ts, index.d.ts: window.malini, typed invoke and on from $contract
+  renderer/    index.html, public/, src/ (main.ts, app.css, styles/, vite-env.d.ts)
+  contract/    commands.ts, events.ts, ipc.ts, wire types, protocol-contract.generated.ts  alias $contract
+  lib/                                                                              alias $lib
+    app/               the consumer domain: shell, sidebar, layouts, pages, routes.ts, boot
+    chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints
+    pull-requests/     pull request state, actions, top-bar status, merge confirmation
+    routines/          drafts, routines, suggestions, gated runs
+    extensions/        runtime, host adapters, inspector, directory, configuration
+    shared/                                                                         alias $shared
+      repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle
+      providers/       SHARED DOMAIN: model catalog, model ids, provider auth, capabilities
+      port/            typed invoke(), onPlatformEvent(), setPlatformForTest(), fake/ (one fake per domain)
+      router/          hash router, current page, last route, history ledger, hrefs
+      extensions/      the extension seams other domains touch
+      auth/ env/ errors/ performance/ shell/ storage/ system/
+```
+
+Every domain, including the two shared ones:
+
+```
+<domain>/
+  <domain>.api.ts        the only file other domains import (renderer side)
+  <domain>.platform.ts   the only file other domains' platform/ imports (node side)
+  domain/                pure TS shared by BOTH processes; no svelte, no node, no electron
+  application/           renderer: commands/, queries/, hooks/
+  infrastructure/        renderer: stores/, aggregates/, services/, mappers/
+  presentation/          renderer: .svelte and pure view helpers
+  platform/              main process: register.ts, services, *.repository.ts
+```
+
+`app` has no `app.api.ts`: nothing imports it.
+`src/renderer/src/main.ts` mounts `$lib/app/presentation/App.svelte`.
+
+Rules:
+
+- No `index.ts` anywhere under `src/lib` or `src/contract`.
+  `src/main/index.ts` and `src/preload/index.ts` are entry points, not barrels.
+- No `export *`, anywhere.
+- No relative import that leaves the domain folder.
+  Cross-domain goes through an alias and an api file.
+- `domain/` is type-checked by both the web and the node project.
+  A domain file that touches `Buffer` or `document` fails one of them, which is the point.
+- Aliases: `$main` (node only), `$lib` (`src/lib`), `$shared` (`src/lib/shared`), `$contract` (`src/contract`), `$hyper-ui`.
+- `$shared/port` imports only `$contract`, its own folder, and packages.
+  Infrastructure, flat `$shared/<util>` modules and the renderer entry may import it; domain, application, presentation and api files may not.
+
+`@malini/desktop/domain-boundaries` enforces this at `error` on all of `src/**` and `tests/**`.
+Test files, fixtures and generated files are exempt.
+The per-layer rules name the check that reports each violation.

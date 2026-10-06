@@ -1,0 +1,106 @@
+@layer base {
+	html {
+		font-size: 100%;
+		height: 100%;
+		overflow: hidden;
+		overscroll-behavior: none;
+		background: var(--root-bg);
+		color: var(--color-base-content);
+		color-scheme: light;
+		font-family: var(--font-sans);
+		--native-titlebar-safe-area: 0px;
+	}
+
+	html[data-theme='dark'] {
+		color-scheme: dark;
+	}
+
+	body {
+		height: 100%;
+		overflow: hidden;
+		overscroll-behavior: none;
+		margin: 0;
+		background: var(--root-bg);
+		color: var(--color-base-content);
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	.app-scroll-root {
+		height: 100%;
+		overflow: auto;
+		overscroll-behavior: contain;
+	}
+
+	a,
+	a:hover,
+	a:active,
+	a:visited {
+		color: inherit;
+		text-decoration: none;
+	}
+
+	button:not(:disabled),
+	[role='button']:not([aria-disabled='true']) {
+		cursor: pointer;
+	}
+
+	html[data-native-shell='true'] {
+		--native-titlebar-safe-area: calc(40px / var(--native-zoom, 1));
+		--native-traffic-light-size: 14px;
+		--native-traffic-light-inset-x: 12px;
+		--native-traffic-light-inset-y: 13px;
+
+		--native-traffic-light-clearance: calc(80px / var(--native-zoom, 1));
+	}
+
+	.native-page-drag-strip {
+		display: none;
+	}
+
+	html[data-native-shell='true'] .native-page-drag-strip {
+		display: block;
+		flex: 0 0 var(--native-titlebar-safe-area);
+		width: 100%;
+		height: var(--native-titlebar-safe-area);
+		cursor: default;
+		user-select: none;
+	}
+}
+
+* {
+	@apply outline-0 outline-none;
+}
+
+.native-shell-safe-frame {
+	padding: 0;
+}
+
+.native-band-row-reserve {
+	padding-top: var(--native-titlebar-safe-area);
+}
+
+[data-native-drag-region] {
+	-webkit-app-region: drag;
+}
+
+[data-native-drag-region]
+	:is(
+		button,
+		a,
+		input,
+		textarea,
+		select,
+		label,
+		[role='button'],
+		[role='link'],
+		[role='tab'],
+		[role='menuitem'],
+		[role='option'],
+		[role='radio'],
+		[role='switch'],
+		[role='textbox'],
+		[role='combobox']
+	) {
+	-webkit-app-region: no-drag;
+}

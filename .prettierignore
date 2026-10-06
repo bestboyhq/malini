@@ -1,0 +1,13 @@
+node_modules
+out
+dist
+release
+coverage
+test-results
+playwright-report
+pnpm-lock.yaml
+*.generated.ts
+packages/agent-bridge/src/generated
+packages/extension-api/src/file-icons
+*.icon/
+.malini/
