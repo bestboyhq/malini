@@ -18,7 +18,9 @@
 		"generate:file-icons": "node scripts/generate-file-icons.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
 		"test:e2e": "electron-vite build && playwright test",
-		"dist": "pnpm --filter @malini/agent-bridge build && electron-vite build && electron-builder --mac --dir"
+		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
+		"release": "pnpm --filter \"malini^...\" build && electron-vite build && electron-builder --mac --publish never",
+		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/update-e2e.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "catalog:",
@@ -50,6 +52,7 @@
 		"dompurify": "^3.4.15",
 		"electron": "^44.4.0",
 		"electron-builder": "^26.16.1",
+		"electron-updater": "^6.8.9",
 		"electron-vite": "^5.0.0",
 		"eslint": "catalog:",
 		"eslint-config-prettier": "catalog:",

@@ -1,6 +1,7 @@
 appId: app.malini.desktop
 productName: malini
 copyright: Copyright (C) 2026 Best Boy
+forceCodeSigning: true
 directories:
   output: release
   buildResources: build
@@ -23,6 +24,13 @@ mac:
   category: public.app-category.developer-tools
   icon: build/Malini.icon
   target:
-    - dir
-  identity: null
-  hardenedRuntime: false
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+dmg:
+  sign: true
+publish:
+  provider: github
+  owner: bestboyhq
+  repo: malini

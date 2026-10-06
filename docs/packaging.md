@@ -1,6 +1,7 @@
 # Packaging
 
 `pnpm dist` builds an unsigned `.app` under `apps/malini/release/`.
+It carries no update feed, so it never updates itself.
 
 ## What ships
 
@@ -24,3 +25,25 @@ The SDK's platform binaries are overridden away in `pnpm-workspace.yaml`, becaus
 Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of every npm package whose code or assets it contains, generated at build time by `scripts/third-party-notices.mjs`.
 The build fails when a bundled package declares no license.
 The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`.
+
+## Releases
+
+Every push to `main` that passes CI runs `apps/malini/scripts/version.mjs`, which reads the Conventional Commit subjects since the last `v*` tag.
+A breaking change (`!` or a `BREAKING CHANGE:` footer) bumps the major, a `feat` the minor, a `fix` or `perf` the patch; anything else releases nothing.
+The first release is `0.1.0`, and `package.json`'s version is a placeholder CI overwrites.
+`.github/workflows/pr-title.yml` keeps PR titles in that shape, since a squash merge makes the title the subject.
+
+The `release` job signs with the Developer ID certificate, notarizes the app and the disk image, and runs `pnpm --filter malini test:update` before `gh release create` uploads the dmg, the zip and `latest-mac.yml`.
+It needs the repository secrets `CSC_LINK` (the base64 `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD`.
+`pnpm --filter malini release` builds the same artifacts locally, signed with the keychain's Developer ID and notarized only when `APPLE_KEYCHAIN_PROFILE` is set.
+
+## Updates
+
+`electron-builder.yml` publishes to GitHub Releases and bakes the feed into the app as `app-update.yml`.
+`src/lib/app/platform/updates.ts` checks on launch, every four hours and on wake, and downloads in the background; Squirrel.Mac verifies the Developer ID signature and installs the update when malini quits.
+The app menu offers Check for Updates… and, once an update is staged, Restart to Update.
+Squirrel cannot replace an app outside an Applications folder, so a packaged malini started elsewhere offers to move itself there.
+
+`pnpm --filter malini test:update` builds 0.0.1 and 0.0.2 under their own name and app id, serves 0.0.2 from a local feed, and proves both paths: quitting 0.0.1 installs 0.0.2, and Restart to Update installs and relaunches it.
+The builds carry `MALINI_BACKGROUND_WINDOW` in `LSEnvironment`, so the relaunched app stays behind every window too.
+It needs a Developer ID identity in the keychain, because Squirrel installs only signed updates.

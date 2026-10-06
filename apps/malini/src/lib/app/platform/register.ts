@@ -28,6 +28,7 @@ import { bundleIdentifierFor, createRuntimeIdentityProvider } from './runtime-id
 import { RendererSecretStore } from './secrets';
 import { listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
+import { startUpdates } from './updates';
 import { startUsageData } from './usage-data';
 import { createWindowCommands, type WindowCommands } from './window';
 
@@ -50,10 +51,12 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		host,
 		sessionModel: deps.sessionModel ?? (() => null),
 	});
+	const updates = startUpdates();
 	return {
 		...defineShutdownCommands(context, deps),
 		shutdownUsageData: () => usageData.shutdown(),
 		windowStateSaved: () => window.windowStateSaved(),
+		exit: () => updates.exit(),
 	};
 }
 

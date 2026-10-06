@@ -4,9 +4,11 @@ malini is a desktop-first product.
 The shipping surface is the Electron app in `apps/malini`: `src/main` is the Node main process, `src/preload` is the typed bridge, `src/contract` is the shared command and event contract, `src/lib` holds the domain slices, and `src/renderer` is the Svelte 5 entry point.
 Aliases: `$main` (node only), `$lib` (`src/lib`), `$shared` (`src/lib/shared`), `$contract` (`src/contract`), `$hyper-ui`.
 There is no backend service and no cloud.
-The app's one outbound call of its own is anonymous usage data to PostHog, from `src/lib/app/platform/usage-data.ts`.
+The app makes two outbound calls of its own.
+Anonymous usage data goes to PostHog, from `src/lib/app/platform/usage-data.ts`.
 It stays silent without `MAIN_VITE_POSTHOG_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
-GitHub is reached through the `gh` CLI only.
+Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
+Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.
 
@@ -88,7 +90,11 @@ pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
+pnpm --filter malini test:update   # signed builds update themselves from a local feed
 ```
+
+PR titles are Conventional Commits.
+A squash merge makes the title the commit subject, and a `feat`, `fix` or `perf` on `main` ships a release (`docs/packaging.md`).
 
 ## Dependencies
 
