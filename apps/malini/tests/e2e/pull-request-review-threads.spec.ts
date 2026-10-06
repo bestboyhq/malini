@@ -77,7 +77,10 @@ test('Commit and push replies to and resolves exactly the review threads the fix
 		github.setPullRequest({ headRefOid: pushed });
 		const detail = await openPullRequestDetail(page);
 		await detail.getByRole('button', { name: 'Refresh' }).click();
-		await expect(detail).toContainText('1 unresolved thread', { timeout: 30_000 });
+		await expect(detail).toBeHidden();
+		await expect(await openPullRequestDetail(page)).toContainText('1 unresolved thread', {
+			timeout: 30_000,
+		});
 		await page.keyboard.press('Escape');
 		await expect(
 			page.getByRole('button', { name: 'Resolve pull request review blockers #7' }),
