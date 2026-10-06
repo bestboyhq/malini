@@ -7,11 +7,18 @@ import {
 import type { MainContext } from '$main/context';
 import { IdSequence } from '../id-sequence';
 import type { AgentRunLeases } from './lifecycle';
-import { defineBridgeCommands, type SendPromptHooks } from './commands';
+import {
+	continuePausedRuns,
+	defineBridgeCommands,
+	type BridgeCommandDeps,
+	type SendPromptHooks,
+} from './commands';
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
 import { BridgeRuntime, type BridgeRuntimeHooks } from './runtime';
 import type { BridgeHealth, BridgeSupervisor } from './supervisor';
+
+const PAUSE_BUDGET_MS = 5_000;
 
 export interface AgentServiceDeps {
 	readonly processFactory?: BridgeProcessFactory;
@@ -128,7 +135,7 @@ export async function startAgentService(
 		log(`agent: ${missingBridgeScriptMessage(bridgeScriptPath)}`);
 	}
 
-	defineBridgeCommands(context.commands, {
+	const commandDeps: BridgeCommandDeps = {
 		db,
 		runtime,
 		appDataRoot: context.appDataRoot,
@@ -147,7 +154,9 @@ export async function startAgentService(
 			},
 		},
 		log,
-	});
+	};
+	defineBridgeCommands(context.commands, commandDeps);
+	if (started) await continuePausedRuns(commandDeps);
 
 	return {
 		runtime,
@@ -159,6 +168,7 @@ export async function startAgentService(
 		ensureReady: () => runtime.ensureReady(),
 		closeOpenRunsForExit,
 		async stop() {
+			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);
 			await runtime.stop();
 			await closeOpenRunsForExit();
 		},

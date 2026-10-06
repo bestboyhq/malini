@@ -14,6 +14,7 @@ const libSrc = fileURLToPath(new URL('./src/lib', import.meta.url));
 const sharedSrc = fileURLToPath(new URL('./src/lib/shared', import.meta.url));
 const contractSrc = fileURLToPath(new URL('./src/contract', import.meta.url));
 const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
+const rendererPort = Number(process.env['MALINI_RENDERER_PORT']) || undefined;
 const agentBridgeSourceRoots = ['src', 'protocol'].map((dir) =>
 	fileURLToPath(new URL(`../../packages/agent-bridge/${dir}/`, import.meta.url)),
 );
@@ -87,6 +88,7 @@ export default defineConfig({
 		},
 		server: {
 			fs: { allow: [workspaceRoot] },
+			...(rendererPort ? { port: rendererPort, strictPort: true } : {}),
 		},
 	},
 });

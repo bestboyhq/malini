@@ -1,4 +1,9 @@
-import { nextSessionStatus, type SessionStatus } from '$contract/agent-state-machine';
+import type { AgentRunProfile } from '$contract/agent';
+import {
+	nextSessionStatus,
+	PAUSED_FOR_EXIT_ERROR,
+	type SessionStatus,
+} from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { closeTerminalInteractions } from './interactions.repository';
 import { invariant } from '$main/errors';
@@ -13,6 +18,7 @@ export interface AgentRun {
 	summary: string | null;
 	error: string | null;
 	automated?: boolean;
+	profile?: AgentRunProfile;
 }
 
 export type TerminalRunStatus = 'completed' | 'failed';
@@ -42,8 +48,8 @@ function runFromRow(row: RunRow): AgentRun {
 export function insertRun(db: MaliniDatabase, agentRun: AgentRun): void {
 	const { changes } = run(
 		db,
-		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ?
+		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (SELECT 1 FROM agent_sessions WHERE id = ? AND archived_at IS NULL)`,
 		agentRun.id,
 		agentRun.sessionId,
@@ -53,6 +59,7 @@ export function insertRun(db: MaliniDatabase, agentRun: AgentRun): void {
 		agentRun.summary,
 		agentRun.error,
 		agentRun.automated === true ? 1 : 0,
+		agentRun.profile ? JSON.stringify(agentRun.profile) : null,
 		agentRun.sessionId,
 	);
 	if (changes !== 1) {
@@ -69,8 +76,8 @@ export function insertRunForWorkstream(
 ): void {
 	const { changes } = run(
 		db,
-		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ?
+		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (
 		   SELECT 1 FROM agent_sessions
 		   WHERE id = ? AND workstream_id = ? AND archived_at IS NULL
@@ -83,6 +90,7 @@ export function insertRunForWorkstream(
 		agentRun.summary,
 		agentRun.error,
 		agentRun.automated === true ? 1 : 0,
+		agentRun.profile ? JSON.stringify(agentRun.profile) : null,
 		agentRun.sessionId,
 		workstreamId,
 	);
@@ -200,6 +208,30 @@ export function listOpenRunIds(db: MaliniDatabase): string[] {
 		db,
 		'SELECT id FROM agent_runs WHERE completed_at IS NULL ORDER BY started_at ASC, id ASC',
 	);
+}
+
+export interface PausedRun {
+	runId: string;
+	sessionId: string;
+	workstreamId: string;
+	profile: unknown;
+}
+
+export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
+	return all<{ id: string; session_id: string; workstream_id: string; profile: string | null }>(
+		db,
+		`SELECT r.id, r.session_id, s.workstream_id, r.profile FROM agent_runs r
+		 JOIN agent_sessions s ON s.id = r.session_id
+		 WHERE r.error = ? AND r.obsoleted_at IS NULL AND s.archived_at IS NULL
+		   AND r.rowid = (SELECT MAX(rowid) FROM agent_runs WHERE session_id = r.session_id)
+		 ORDER BY r.started_at ASC`,
+		PAUSED_FOR_EXIT_ERROR,
+	).map((row) => ({
+		runId: row.id,
+		sessionId: row.session_id,
+		workstreamId: row.workstream_id,
+		profile: row.profile === null ? null : JSON.parse(row.profile),
+	}));
 }
 
 export function listOpenRuns(db: MaliniDatabase): Array<{ id: string; sessionId: string }> {

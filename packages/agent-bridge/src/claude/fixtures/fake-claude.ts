@@ -88,7 +88,7 @@ export function fakeClaude(
 				for (const step of script) {
 					if (step === 'wait-for-interrupt') {
 						await interrupted;
-						return;
+						continue;
 					}
 					if ('canUseTool' in step) {
 						run.permissionResults.push(await askPermission(options, step));

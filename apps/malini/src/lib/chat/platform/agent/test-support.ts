@@ -111,7 +111,7 @@ const handle = (command) => {
       return completeRun(sessionId, runId, command.resumeAt ? 'done after ' + command.resumeAt : 'done');
     }
     case 'cancel_run': {
-      event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
+      event({ type: 'run.failed', runId: command.runId, error: 'cancelled', providerCursor: 'cursor-' + command.runId });
       pendingRuns.delete(command.runId);
       return ack(command.id);
     }

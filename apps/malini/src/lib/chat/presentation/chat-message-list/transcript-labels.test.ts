@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import type { RenderItem, RunGroup } from '../render-state';
 import { formatUsage, terminalLabel, thinkingPreview, thoughtLabel } from './transcript-labels';
 
@@ -57,6 +58,11 @@ describe('how a run ended', () => {
 	it('separates an instruction the reader gave from a fault the app hit', () => {
 		expect(terminalLabel(run('cancelled'))).toBe('Run cancelled');
 		expect(terminalLabel(run('failed'))).toBe('Run failed');
+	});
+
+	it('says a run malini closed on is paused, not cancelled', () => {
+		const paused = { ...run('cancelled'), terminalText: PAUSED_FOR_EXIT_ERROR };
+		expect(terminalLabel(paused)).toBe('Run paused');
 	});
 });
 

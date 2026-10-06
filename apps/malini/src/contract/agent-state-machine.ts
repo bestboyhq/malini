@@ -85,8 +85,10 @@ export function nextSessionStatus(
 	return next === 'failed' && error !== null && isCancellationError(error) ? 'idle' : next;
 }
 
+export const PAUSED_FOR_EXIT_ERROR = 'paused: malini closed mid-run';
+
 export function isCancellationError(error: string): boolean {
-	return /\bcancell?ed\b/iu.test(error);
+	return /\bcancell?ed\b/iu.test(error) || error === PAUSED_FOR_EXIT_ERROR;
 }
 
 function extractError(event: LifecycleEnvelope['event']): string {

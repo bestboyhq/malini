@@ -27,7 +27,8 @@
 		"src/lib/**/domain/**/*.ts",
 		"src/lib/**/*.platform.ts",
 		"tests/**/*.ts",
-		"scripts/third-party-notices*.mjs"
+		"scripts/third-party-notices*.mjs",
+		"scripts/dogfood*.mjs"
 	],
 	"exclude": ["src/lib/**/domain/**/*.test.ts"]
 }

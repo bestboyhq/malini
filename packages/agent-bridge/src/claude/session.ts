@@ -342,6 +342,7 @@ export class ClaudeSession implements ProviderHandle {
 		const active = this.#active;
 		if (!active || active.runId !== runId) return;
 		active.cancelled = true;
+		active.transcript.markStoppedByUser();
 		this.#interactions.cancelRun(runId, 'run-cancelled');
 		const interrupted = active.query.interrupt().catch(() => undefined);
 		const grace = new Promise((resolve) => setTimeout(resolve, INTERRUPT_GRACE_MS).unref());

@@ -1,7 +1,7 @@
 import { readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
-const PREVIOUS_INSTANCE_EXIT_WAIT_MS = 15_000;
+const PREVIOUS_INSTANCE_EXIT_WAIT_MS = 60_000;
 const EXIT_POLL_MS = 100;
 
 export function singletonLockHolderPid(userDataPath: string): number | null {

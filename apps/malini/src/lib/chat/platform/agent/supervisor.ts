@@ -675,7 +675,7 @@ export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitUntil(condition: () => boolean, timeoutMs: number): Promise<boolean> {
+export async function waitUntil(condition: () => boolean, timeoutMs: number): Promise<boolean> {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
 		if (condition()) return true;

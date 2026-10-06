@@ -1062,6 +1062,8 @@ export const MIGRATION_0035_AGENT_RUNS_AUTOMATED = `ALTER TABLE agent_runs ADD C
 
 export const MIGRATION_0036_COMMIT_RUN_THREADS_RESOLVED_AT = `ALTER TABLE workstream_commit_runs ADD COLUMN threads_resolved_at TEXT;`;
 
+export const MIGRATION_0037_AGENT_RUNS_PROFILE = `ALTER TABLE agent_runs ADD COLUMN profile TEXT;`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1071,7 +1073,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 36;
+export const TARGET_USER_VERSION = 37;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1209,6 +1211,9 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 					'threads_resolved_at',
 					MIGRATION_0036_COMMIT_RUN_THREADS_RESOLVED_AT,
 				);
+			}
+			if (existing < 37 && tableExists(db, 'agent_runs')) {
+				addColumnIfMissing(db, 'agent_runs', 'profile', MIGRATION_0037_AGENT_RUNS_PROFILE);
 			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(

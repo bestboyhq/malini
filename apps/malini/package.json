@@ -8,9 +8,10 @@
 	"main": "./out/main/index.js",
 	"author": "Best Boy",
 	"scripts": {
-		"dev": "electron-vite dev --watch",
+		"dev": "install-electron && electron-vite dev --watch",
+		"dogfood": "node scripts/dogfood.mjs",
 		"build": "electron-vite build",
-		"start": "electron-vite preview",
+		"start": "install-electron && electron-vite preview",
 		"check": "node ../../packages/agent-bridge/scripts/generate-protocol.mjs --check && svelte-check --tsconfig ./tsconfig.web.json && tsc -p tsconfig.node.json --noEmit",
 		"lint": "pnpm run test:scripts && eslint .",
 		"test": "vitest run",

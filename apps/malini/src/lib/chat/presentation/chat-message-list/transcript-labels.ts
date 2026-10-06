@@ -1,3 +1,4 @@
+import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import type { RenderItem, RunGroup } from '../render-state';
 
 const THINKING_PREVIEW_LIMIT = 240;
@@ -14,7 +15,9 @@ export function thoughtLabel(durationSeconds: number | null): string {
 }
 
 export function terminalLabel(run: RunGroup): string {
-	if (run.terminal === 'cancelled') return 'Run cancelled';
+	if (run.terminal === 'cancelled') {
+		return run.terminalText === PAUSED_FOR_EXIT_ERROR ? 'Run paused' : 'Run cancelled';
+	}
 	return 'Run failed';
 }
 

@@ -416,6 +416,52 @@ describe('ClaudeSession', () => {
 		});
 	});
 
+	it('keeps the interrupt notice Claude Code writes into a cut-short tool out of the transcript', async () => {
+		const script = recordedScript('readAndBash');
+		const bashUse = script.findIndex(
+			(step) =>
+				typeof step !== 'string' &&
+				'type' in step &&
+				step.type === 'assistant' &&
+				JSON.stringify(step.message).includes('"name":"Bash"'),
+		);
+		const rejection: SDKMessage = {
+			type: 'user',
+			message: {
+				role: 'user',
+				content: [
+					{
+						type: 'tool_result',
+						tool_use_id: 'toolu_01WHm75S8zyxVUdsbFCJdVPk',
+						is_error: true,
+						content: "The user doesn't want to proceed with this tool use.",
+					},
+				],
+			},
+			parent_tool_use_id: null,
+			session_id: READ_AND_BASH_SESSION,
+			uuid: '0b5f2a1e-6c5d-4f7e-9a51-3d2c1b0a9f8e',
+		};
+		const { session, events } = harness(
+			[[...script.slice(0, bashUse + 1), 'wait-for-interrupt', rejection]],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'tool.started' && event.name === 'Bash') void current.cancel('run-1');
+				},
+			},
+		);
+
+		await session.sendPrompt('Run echo hi', 'run-1', profile());
+
+		expect(ofType(events, 'tool.failed')).toEqual([]);
+		expect(events.at(-1)).toEqual({
+			type: 'run.failed',
+			runId: 'run-1',
+			error: 'cancelled',
+			providerCursor: '0b5f2a1e-6c5d-4f7e-9a51-3d2c1b0a9f8e',
+		});
+	});
+
 	it('holds the run from the moment it is sent, so a second prompt or a quick cancel lands', async () => {
 		const { session, events } = harness([recordedScript('readAndBash')]);
 

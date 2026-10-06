@@ -88,6 +88,7 @@ Both are declared once in `$contract` and checked on both sides by `pnpm check`.
 corepack enable pnpm           # once; package.json pins pnpm 12 and pnpm 10 cannot self-switch to it
 pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
+pnpm dogfood                   # the user's daily malini: runs this checkout of main and applies every merge
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed

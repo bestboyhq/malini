@@ -33,6 +33,7 @@ import {
 import { get, isRecord, jsonEqual, nowIso8601, run } from '$main/db/rows';
 import {
 	activeRunWorkstreamIdentity,
+	listPausedRuns,
 	workstreamHasOpenRun,
 	type AgentRun,
 } from '../runs.repository';
@@ -98,6 +99,9 @@ const MAX_PROMPT_ELEMENT_REFERENCES = 5;
 const MAX_PROMPT_ELEMENT_URL_BYTES = 4 * 2_048;
 const MAX_PROMPT_ELEMENT_DOM_PATH_BYTES = 4 * 4_096;
 const MAX_PROMPT_ELEMENT_HTML_BYTES = 4 * 4_096;
+
+export const CONTINUE_AFTER_PAUSE_PROMPT =
+	'malini restarted while you were working and cut your last step short. Nobody rejected it: re-run whatever was interrupted and continue where you left off.';
 
 const CANCEL_TERMINAL_PERSIST_TIMEOUT_MS = 5_000;
 const CANCEL_TERMINAL_POLL_INTERVAL_MS = 10;
@@ -583,6 +587,7 @@ async function sendAgentPromptLeased(
 		summary: null,
 		error: null,
 		...(input.automated === true ? { automated: true } : {}),
+		...(input.profile ? { profile: input.profile } : {}),
 	};
 	if (input.automated !== true) nameFromUserPrompt(db, sessionId, workstreamId, prompt, hooks);
 	const verifiedAttachments = insertRunAndBindAttachments(db, {
@@ -1101,6 +1106,30 @@ export interface BridgeCommandDeps {
 	readonly ids: IdSequence;
 	readonly leases: AgentRunLeases;
 	readonly log?: (line: string) => void;
+}
+
+export async function continuePausedRuns(deps: BridgeCommandDeps): Promise<void> {
+	const { db, runtime, appDataRoot, hooks, ids, leases } = deps;
+	const log = deps.log ?? defaultLog;
+	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
+	await Promise.all(
+		listPausedRuns(db).map(async (paused) => {
+			try {
+				const supervisor = await runtime.ensureSessionReady(paused.sessionId);
+				const input: SendPromptInput = {
+					sessionId: paused.sessionId,
+					workstreamId: paused.workstreamId,
+					prompt: CONTINUE_AFTER_PAUSE_PROMPT,
+					profile: parseProfile(paused.profile),
+					automated: true,
+					worktree: resolvePromptWorktree(db, appDataRoot, paused.workstreamId, [], hooks),
+				};
+				await sendAgentPrompt(db, supervisor, input, hooks, emit, ids, leases, log);
+			} catch (error) {
+				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
+			}
+		}),
+	);
 }
 
 export const BRIDGE_COMMAND_NAMES = [

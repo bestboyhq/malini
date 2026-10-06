@@ -14,8 +14,11 @@ import { getRun } from '../runs.repository';
 import { getSession } from '../sessions.repository';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import { REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL } from '$contract/events';
+import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { CommandRegistry } from '$main/ipc/registry';
 import {
 	BRIDGE_COMMAND_NAMES,
+	CONTINUE_AFTER_PAUSE_PROMPT,
 	promptWithElementReferences,
 	promptWithWorkstreamContext,
 	type CheckpointCaptureInput,
@@ -470,7 +473,7 @@ describe('prompt round trips', () => {
 		expect(finished).toEqual([{ sessionId, runId, workstreamId: 'ws-1', reason: 'terminal' }]);
 	});
 
-	it('captures run changes for a run the app quit out from under', async () => {
+	it('pauses a run the app quits out from under and captures its changes', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		const finished: RunFinishedInput[] = [];
 		await bootTrackingChanges(finished);
@@ -481,10 +484,49 @@ describe('prompt round trips', () => {
 		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
 
 		await service.stop();
-		expect(getRun(test.db, runId)).toMatchObject({ error: 'interrupted: app closed mid-run' });
-		expect(finished).toEqual([{ sessionId, runId, workstreamId: 'ws-1', reason: 'app-exit' }]);
+		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
+		expect(finished).toEqual([{ sessionId, runId, workstreamId: 'ws-1', reason: 'terminal' }]);
 		expect(await service.closeOpenRunsForExit()).toBe(0);
 		expect(finished).toHaveLength(1);
+	});
+
+	it('continues a paused run on the next launch, from where it paused and with its profile', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const profile = { effort: 'high', mode: 'agent', access: 'full' };
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG', profile });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+
+		await service.stop();
+		expect(await invokeError('chat.send-prompt', { sessionId, prompt: 'hello' })).toContain(
+			'malini is closing',
+		);
+
+		service = await startAgentService(
+			{ ...test.context, commands: new CommandRegistry() },
+			{
+				processFactory: fake.supervisorConfig().processFactory,
+				bridgeScriptPath: fake.scriptPath,
+				spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin' }),
+				leases: new AgentRunLeases(),
+				hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
+				log: () => {},
+			},
+		);
+		const latestRun = () =>
+			get<{ prompt: string; summary: string | null; profile: string; automated: number }>(
+				test.db,
+				'SELECT prompt, summary, profile, automated FROM agent_runs WHERE session_id = ? ORDER BY rowid DESC LIMIT 1',
+				sessionId,
+			);
+		await waitFor(() => latestRun()?.summary != null, 2_000, 'the paused run to continue');
+		expect(latestRun()).toEqual({
+			prompt: CONTINUE_AFTER_PAUSE_PROMPT,
+			summary: `done after cursor-${runId}`,
+			profile: JSON.stringify(profile),
+			automated: 1,
+		});
 	});
 
 	it('lets a terminal capture finish before stop returns, so quitting never closes the database under it', async () => {

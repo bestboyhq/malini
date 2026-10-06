@@ -1,3 +1,4 @@
+import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
@@ -16,6 +17,7 @@ import {
 	activeRunWorkstreamIdentity,
 	finalizeRunLifecycle,
 	listOpenRunIds,
+	listOpenRuns,
 } from '../runs.repository';
 import { setProviderSessionId, setSessionStatus, type SessionStatus } from '../sessions.repository';
 import { get, nowIso8601 } from '$main/db/rows';
@@ -44,6 +46,7 @@ import {
 	backoffForAttempt,
 	BridgeSupervisor,
 	sleep,
+	waitUntil,
 	type BridgeSupervisorConfig,
 } from './supervisor';
 
@@ -400,6 +403,7 @@ export class BridgeRuntime {
 	private readonly recoveryFailures = new Map<string, string>();
 	private readonly pumps = new Map<number, Promise<void>>();
 	private readonly terminalCaptures = new Set<Promise<void>>();
+	private readonly pausing = new Set<string>();
 	private stopped = false;
 
 	constructor(deps: BridgeRuntimeDeps) {
@@ -423,6 +427,34 @@ export class BridgeRuntime {
 			this.log(`agent: bridge start failed: ${this.startFailure}`);
 			return false;
 		}
+	}
+
+	async pauseOpenRuns(timeoutMs: number): Promise<void> {
+		if (this.stopped) return;
+		this.stopped = true;
+		const supervisor = this.supervisor;
+		if (!supervisor?.isHealthy()) return;
+		let open: Array<{ id: string; sessionId: string }>;
+		try {
+			open = listOpenRuns(this.db);
+		} catch (error) {
+			this.log(`agent: could not list the runs to pause: ${describe(error)}`);
+			return;
+		}
+		for (const { id } of open) this.pausing.add(id);
+		await Promise.all(
+			open.map(({ id, sessionId }) =>
+				supervisor
+					.sendCommand({ cmd: 'cancel_run', id: supervisor.nextCommandId(), sessionId, runId: id })
+					.catch((error: unknown) =>
+						this.log(`agent: could not pause run \`${id}\`: ${describe(error)}`),
+					),
+			),
+		);
+		await waitUntil(
+			() => !listOpenRunIds(this.db).some((runId) => this.pausing.has(runId)),
+			timeoutMs,
+		);
 	}
 
 	async stop(): Promise<void> {
@@ -490,6 +522,8 @@ export class BridgeRuntime {
 	}
 
 	ensureReady(): Promise<BridgeSupervisor> {
+		if (this.stopped)
+			return Promise.reject(new Error('the agent bridge stopped because malini is closing'));
 		if (this.supervisor?.isHealthy()) return Promise.resolve(this.supervisor);
 		if (this.restartGate) return this.restartGate;
 		this.restartGate = this.replaceChild().finally(() => {
@@ -501,7 +535,6 @@ export class BridgeRuntime {
 	private async replaceChild(): Promise<BridgeSupervisor> {
 		const current = this.supervisor;
 		if (current?.isHealthy()) return current;
-		this.stopped = false;
 		this.restartAttempt = Math.min(this.restartAttempt + 1, 255);
 		const attempt = this.restartAttempt;
 		let replacement: BridgeSupervisor;
@@ -625,7 +658,7 @@ export class BridgeRuntime {
 	): Promise<void> {
 		await previous;
 		try {
-			await this.pumpOne(correlator, generation, event);
+			await this.pumpOne(correlator, generation, pausedForExit(event, this.pausing));
 		} catch (error) {
 			this.log(`agent: event pump failed: ${describe(error)}`);
 		}
@@ -723,6 +756,12 @@ export class BridgeRuntime {
 	get wasStopped(): boolean {
 		return this.stopped;
 	}
+}
+
+function pausedForExit(event: BridgeEvent, pausing: ReadonlySet<string>): BridgeEvent {
+	return event.type === 'run.failed' && pausing.has(event.runId)
+		? { ...event, error: PAUSED_FOR_EXIT_ERROR }
+		: event;
 }
 
 function runIdentity(
