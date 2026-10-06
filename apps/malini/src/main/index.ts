@@ -111,6 +111,7 @@ app.on('will-quit', (event) => {
 	}
 	event.preventDefault();
 	shuttingDown = true;
+	const { exit } = modules.app;
 	void modules
 		.shutdown()
 		.catch((error: unknown) => {
@@ -119,6 +120,6 @@ app.on('will-quit', (event) => {
 		.finally(() => {
 			db?.close();
 			db = undefined;
-			app.exit(0);
+			exit();
 		});
 });

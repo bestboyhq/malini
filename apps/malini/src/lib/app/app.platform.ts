@@ -5,6 +5,7 @@ export interface AppPlatform {
 	shutdownImpact(): ShutdownImpact;
 	shutdownUsageData(): Promise<void>;
 	windowStateSaved(): Promise<void>;
+	exit(): void;
 }
 
 export type { ShellHost } from './platform/shell-host';

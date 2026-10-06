@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
+	app: {},
 	ipcMain: { handle: vi.fn() },
 	BrowserWindow: { getAllWindows: () => [] },
 }));
