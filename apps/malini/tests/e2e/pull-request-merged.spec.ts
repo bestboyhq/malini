@@ -22,7 +22,6 @@ test('a merged pull request stays merged through new edits, and Continue moves t
 		).toBeVisible();
 
 		await page.getByRole('button', { name: 'Merge pull request #7' }).click();
-		await page.getByRole('button', { name: 'Confirm merge' }).click();
 
 		const merged = page
 			.getByRole('navigation', { name: 'Global actions' })

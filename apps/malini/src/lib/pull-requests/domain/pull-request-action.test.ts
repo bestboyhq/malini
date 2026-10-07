@@ -5,7 +5,7 @@ const settled = { conflictedPaths: [] };
 
 describe('pullRequestActionOutcome', () => {
 	it('announces nothing when an action simply succeeded, since the top bar already shows it', () => {
-		for (const kind of ['create', 'push', 'update', 'ready'] as const) {
+		for (const kind of ['create', 'push', 'update', 'ready', 'merge'] as const) {
 			expect(pullRequestActionOutcome(kind, settled)).toBeNull();
 		}
 	});

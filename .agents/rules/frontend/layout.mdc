@@ -20,7 +20,7 @@ apps/malini/src/
   lib/                                                                              alias $lib
     app/               the consumer domain: shell, sidebar, layouts, pages, routes.ts, boot
     chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints
-    pull-requests/     pull request state, actions, top-bar status, merge confirmation
+    pull-requests/     pull request state, actions, top-bar status, merge
     routines/          drafts, routines, suggestions, gated runs
     extensions/        runtime, host adapters, inspector, directory, configuration
     shared/                                                                         alias $shared

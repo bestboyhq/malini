@@ -1468,7 +1468,6 @@ test('panel source preserves the hierarchical visual contract with semantic toke
 class PanelTestController {
 	#state: RepositoryViewState;
 	#listeners = new Set<(state: RepositoryViewState) => void>();
-	consumedMergeConfirmationRequestIds: number[] = [];
 	selectedPaths: string[] = [];
 	loadedDiffPaths: string[] = [];
 	requestedDiffScopes: RepositoryViewState['diffScope'][] = [];
@@ -1521,13 +1520,6 @@ class PanelTestController {
 		this.#state = { ...this.#state, diffScope: scope, diff: null };
 		for (const listener of this.#listeners) listener(this.#state);
 		return this.#state;
-	}
-
-	consumeMergeConfirmationRequest(id: number): void {
-		this.consumedMergeConfirmationRequestIds.push(id);
-		if (this.#state.mergeConfirmationRequest?.id === id) {
-			this.#state = { ...this.#state, mergeConfirmationRequest: null };
-		}
 	}
 
 	async refresh(): Promise<RepositoryViewState> {
@@ -1628,7 +1620,6 @@ function repositoryPanelState(
 		pullRequestRefreshStatus: 'ready',
 		pullRequestRefreshedAt: 1,
 		pullRequestSettledAt: 1,
-		mergeConfirmationRequest: null,
 		localError: null,
 		pullRequestError: null,
 		error: null,

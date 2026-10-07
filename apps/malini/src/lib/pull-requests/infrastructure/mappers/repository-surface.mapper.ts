@@ -54,18 +54,7 @@ export class RepositorySurfaceMapper {
 	}
 
 	static outcomeFromRaw(raw: RawRepositoryViewState): RepositoryCommandOutcome {
-		const request = raw.mergeConfirmationRequest;
-		return {
-			surface: this.fromRaw(repositorySurfaceState(raw)),
-			mergeRequest:
-				request === null
-					? null
-					: {
-							pullRequestNumber: request.pullRequestNumber,
-							headSha: request.headSha,
-							mergeMethod: request.mergeMethod,
-						},
-		};
+		return { surface: this.fromRaw(repositorySurfaceState(raw)) };
 	}
 
 	private static pullRequestFromRaw(raw: RawPullRequest): SurfacePullRequest {

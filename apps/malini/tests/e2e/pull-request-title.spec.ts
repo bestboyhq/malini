@@ -102,7 +102,4 @@ async function mergeFromTheTopBar(page: Page, github: FakeGithub): Promise<void>
 	const merge = page.getByRole('button', { name: 'Merge pull request #7' });
 	await expect(merge).toBeEnabled({ timeout: 30_000 });
 	await merge.click();
-	const confirm = page.getByRole('button', { name: 'Confirm merge' });
-	await expect(confirm).toBeEnabled({ timeout: 30_000 });
-	await confirm.click();
 }

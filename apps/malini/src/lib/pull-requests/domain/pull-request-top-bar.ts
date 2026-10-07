@@ -199,8 +199,6 @@ function pullRequestNextAction(
 			tooltip: 'Move this draft pull request into review',
 			disabled: false,
 			tone: 'primary',
-			confirmLabel: null,
-			confirmBusyLabel: null,
 		};
 	}
 
@@ -339,13 +337,11 @@ function openPullRequestNextAction(
 	return {
 		kind: 'merge',
 		label: 'Merge',
-		busyLabel: 'Checking merge…',
+		busyLabel: 'Merging…',
 		ariaLabel: pullRequestNumberLabel('Merge pull request', pullRequest.number),
-		tooltip: `${pullRequest.checksHeadline}. ${mergeMethodInstruction(mergeMethod)}, after one confirming click. Escape cancels it`,
+		tooltip: `${pullRequest.checksHeadline}. ${mergeMethodInstruction(mergeMethod)}`,
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: 'Confirm merge',
-		confirmBusyLabel: 'Merging…',
 	};
 }
 
@@ -380,8 +376,6 @@ function push(state: RepositorySurface, pullRequest: SurfacePullRequest | null):
 		tooltip: published ? work : `${work}, then open a pull request`,
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -395,8 +389,6 @@ function operationInProgress(operation: Exclude<WorktreeOperation, 'merge'>): Ne
 		tooltip: `A ${operation} stopped part-way in this workstream. Finish it in a terminal, or abort it from the pull request menu`,
 		disabled: true,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -412,8 +404,6 @@ function update(state: RepositorySurface, pullRequest: SurfacePullRequest | null
 				: 'Pull the target branch, push the result, and refresh checks',
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -429,8 +419,6 @@ function create(pullRequest: SurfacePullRequest | null): NextAction {
 			: 'Push this workstream and open a pull request',
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -443,8 +431,6 @@ function todos(pullRequest: SurfacePullRequest, tooltip: string): NextAction {
 		tooltip,
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -457,8 +443,6 @@ function open(pullRequest: SurfacePullRequest, tooltip: string): NextAction {
 		tooltip,
 		disabled: pullRequest.url === null,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -485,8 +469,6 @@ function merged(state: RepositorySurface, pullRequest: SurfacePullRequest): Next
 			: 'The pull request merged. Archive this workstream',
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -499,8 +481,6 @@ function fix(label: string, busyLabel: string, ariaLabel: string, tooltip: strin
 		tooltip,
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -516,8 +496,6 @@ function checking(pullRequest: SurfacePullRequest, tooltip: string): NextAction 
 		tooltip,
 		disabled: true,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -531,8 +509,6 @@ function noChanges(): NextAction {
 			'There is nothing to open a pull request for yet. Change a file in this workstream to publish it',
 		disabled: true,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -546,8 +522,6 @@ function agentRunning(): NextAction {
 			'The agent is still changing this workstream. Pull request actions return once it finishes',
 		disabled: true,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -561,8 +535,6 @@ function reconnect(): NextAction {
 			'GitHub no longer accepts the stored sign-in. Sign in with GitHub again to restore this workstream',
 		disabled: false,
 		tone: 'primary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -575,8 +547,6 @@ function retry(tooltip: string, number: number | null | undefined): NextAction {
 		tooltip,
 		disabled: false,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 
@@ -594,8 +564,6 @@ function unavailable(
 		tooltip,
 		disabled: true,
 		tone: 'secondary',
-		confirmLabel: null,
-		confirmBusyLabel: null,
 	};
 }
 

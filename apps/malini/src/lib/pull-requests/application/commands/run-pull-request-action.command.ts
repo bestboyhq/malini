@@ -8,12 +8,12 @@ import { goto } from '$shared/router/navigation';
 import {
 	REPOSITORY_EXTENSION_COMMANDS,
 	pullRequestActionCommandId,
-	type PullRequestActionKind,
 	type PullRequestTopBarPresentation,
 	pullRequestActionFailureDetail,
 	pullRequestActionOutcome,
 	pullRequestActionRefreshesGitStatus,
 	pullRequestAvailabilityOf,
+	pullRequestMergeInput,
 	reviewThreadsLeftOpenMessage,
 } from '$lib/pull-requests/domain/pull-request-action';
 import {
@@ -21,18 +21,13 @@ import {
 	type PullRequestActionScope,
 } from '$lib/pull-requests/domain/pull-request-action-scope';
 import {
-	liveMergeConfirmation,
-	mergeConfirmationDetail,
-	mergeConfirmationInput,
-} from '$lib/pull-requests/domain/merge-confirmation';
-import {
 	pullRequestFixPromptToSend,
 	type PullRequestFixDiagnostics,
 } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import { pullRequestTopBarPresentation } from '$lib/pull-requests/domain/pull-request-top-bar';
 import type {
 	RepositoryCommandOutcome,
-	RepositorySurface,
+	SurfacePullRequest,
 } from '$lib/pull-requests/domain/repository-surface';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { externalUrlService } from '$shared/system/external-url.service';
@@ -88,15 +83,9 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 	}
 
 	const pullRequest = surface?.pullRequest ?? null;
-	const confirmedMerge =
-		kind === 'merge'
-			? liveMergeConfirmation(pullRequestActionStore.mergeRequest, pullRequest)
-			: null;
-	const scope = pullRequestScopeStore.claim(
-		(confirmedMerge ? presentation.confirmBusyLabel : null) ?? presentation.busyLabel,
-	);
+	const scope = pullRequestScopeStore.claim(presentation.busyLabel);
 	if (!scope) {
-		if (origin === 'clicked') deferUntilTheScopeIsReady(presentation, seams);
+		if (origin === 'clicked') deferUntilTheScopeIsReady(presentation, pullRequest, seams);
 		return;
 	}
 
@@ -105,7 +94,7 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 		worktreeFailed: Boolean(surface?.localError),
 	});
 	const evidence = kind === 'create' || kind === 'push' ? seams.chatEvidence() : null;
-	const input = evidence ?? (kind === 'merge' ? mergeConfirmationInput(confirmedMerge) : undefined);
+	const input = evidence ?? (kind === 'merge' ? pullRequestMergeInput(pullRequest) : undefined);
 
 	void (async () => {
 		try {
@@ -124,9 +113,6 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 
 			const nextSurface = outcome.surface;
 			repositorySurfaceAggregate.accept(scope.workstreamId, nextSurface);
-			if (kind === 'merge') {
-				pullRequestActionStore.holdMergeRequest(outcome.mergeRequest);
-			}
 
 			const prompt =
 				kind === 'fix' ? pullRequestFixPromptToSend(nextSurface, result.diagnostics) : null;
@@ -136,13 +122,10 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 				if (!pullRequestScopeStore.isCurrent(scope)) return;
 			}
 
-			announceOutcome(
-				scope.workstreamId,
-				kind,
-				confirmedMerge !== null,
-				nextSurface,
-				resolvedThreads,
-			);
+			const announced = pullRequestActionOutcome(kind, nextSurface, resolvedThreads);
+			if (announced) {
+				toast[announced.level](announced.message, aboutWorkstream(scope.workstreamId));
+			}
 			if (pullRequestActionRefreshesGitStatus(kind)) seams.onGitStatusStale();
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;
@@ -158,6 +141,7 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 
 function deferUntilTheScopeIsReady(
 	presentation: PullRequestTopBarPresentation,
+	pullRequest: SurfacePullRequest | null,
 	seams: PullRequestActionSeams,
 ): void {
 	const workstreamId = pullRequestScopeStore.workstreamId;
@@ -170,6 +154,7 @@ function deferUntilTheScopeIsReady(
 				label: presentation.label,
 				ariaLabel: presentation.ariaLabel,
 				clickedAt: Date.now(),
+				headSha: pullRequest?.headSha ?? null,
 			},
 			replay: () => runPullRequestAction(seams, 'replayed'),
 		},
@@ -229,27 +214,4 @@ async function runAction(
 		repositoryExtensionService.execute(scope.workstreamId, commandId, input),
 		() => pullRequestScopeStore.snapshot(),
 	);
-}
-
-function announceOutcome(
-	workstreamId: string,
-	kind: PullRequestActionKind,
-	merged: boolean,
-	after: RepositorySurface,
-	resolvedReviewThreads: number,
-): void {
-	if (kind === 'merge') {
-		const mergeNoteId = `merge:${workstreamId}`;
-		const pending = pullRequestActionStore.mergeRequest;
-		if (merged) toast.dismiss(mergeNoteId);
-		else if (pending) {
-			toast.info(
-				`Ready to merge · ${mergeConfirmationDetail(pending)}. Confirm on the top bar to land it.`,
-				aboutWorkstream(workstreamId, { id: mergeNoteId }),
-			);
-		}
-		return;
-	}
-	const outcome = pullRequestActionOutcome(kind, after, resolvedReviewThreads);
-	if (outcome) toast[outcome.level](outcome.message, aboutWorkstream(workstreamId));
 }

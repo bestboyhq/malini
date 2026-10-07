@@ -34,7 +34,7 @@ test('activates, registers declared contributions, reloads, and cleans up', asyn
 			'malini.repository.status',
 			'malini.repository.commit-and-push',
 			'malini.repository.create-or-open-pull-request',
-			'malini.repository.request-merge-confirmation',
+			'malini.repository.merge-pull-request',
 			'malini.repository.todos',
 			'malini.repository.todo-add',
 			'malini.repository.todo-toggle',
@@ -161,30 +161,34 @@ test('uses only the public extension API boundary', async () => {
 	assert.match(await readFile('src/index.ts', 'utf8'), /from '@malini\/extension-api'/u);
 });
 
-test('rejects a merge confirmation that does not carry the confirmed head revision', async () => {
+test('rejects a merge that does not carry the pull request head revision', async () => {
 	const host = await createTestHost({
 		manifest,
-		fixtureRepository: { name: 'merge-confirmation-contract', files: { 'README.md': 'x' } },
+		fixtureRepository: { name: 'merge-input-contract', files: { 'README.md': 'x' } },
 	});
 	try {
 		await host.activate(extension);
 		await assert.rejects(
-			host.invokeCommand('malini.repository.request-merge-confirmation', { mergeMethod: 'squash' }),
-			/confirmed pull request head revision/u,
+			host.invokeCommand('malini.repository.merge-pull-request'),
+			/Merge input must be an object/u,
 		);
 		await assert.rejects(
-			host.invokeCommand('malini.repository.request-merge-confirmation', {
+			host.invokeCommand('malini.repository.merge-pull-request', { mergeMethod: 'squash' }),
+			/pull request head revision/u,
+		);
+		await assert.rejects(
+			host.invokeCommand('malini.repository.merge-pull-request', {
 				expectedHeadSha: 'head-1',
 				mergeMethod: 'octopus',
 			}),
 			/supported GitHub merge method/u,
 		);
 		await assert.rejects(
-			host.invokeCommand('malini.repository.request-merge-confirmation', {
+			host.invokeCommand('malini.repository.merge-pull-request', {
 				expectedHeadSha: 'head-1',
 				pullRequestNumber: 7,
 			}),
-			/Unsupported merge confirmation field/u,
+			/Unsupported merge input field/u,
 		);
 	} finally {
 		await host.cleanup();

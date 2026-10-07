@@ -6,17 +6,12 @@
 		globalTopBarGithubStatus,
 		type GlobalTopBarGithubStatus,
 	} from '$shared/shell/global-topbar-actions.svelte';
-	import {
-		mergeConfirmationDetail,
-		mergeConfirmationKey,
-	} from '$lib/pull-requests/domain/merge-confirmation';
 	import { refreshRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/refresh-repository-surface.command';
 	import { runPullRequestAbortOperationCommand } from '$lib/pull-requests/application/commands/run-pull-request-abort-operation.command';
 	import { runPullRequestUpdateBranchCommand } from '$lib/pull-requests/application/commands/run-pull-request-update-branch.command';
 	import { runPullRequestActionCommand } from '$lib/pull-requests/application/commands/run-pull-request-action.command';
 	import { runPullRequestContinueCommand } from '$lib/pull-requests/application/commands/run-pull-request-continue.command';
 	import { followPullRequestScopeHook } from '$lib/pull-requests/application/hooks/follow-pull-request-scope.hook.svelte';
-	import { mergeConfirmationQuery } from '$lib/pull-requests/application/queries/merge-confirmation.query.svelte';
 	import { pullRequestGithubStatusQuery } from '$lib/pull-requests/application/queries/pull-request-github-status.query.svelte';
 	import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
 	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
@@ -68,7 +63,6 @@
 	const surface = $derived(repositorySurfaceQuery.data);
 	const githubStatus = $derived(pullRequestGithubStatusQuery.data);
 	const presentation = $derived(pullRequestTopBarQuery.data);
-	const confirmation = $derived(mergeConfirmationQuery.data);
 	const busy = $derived(pullRequestBusyQuery.data);
 	const claimedBusyLabel = $derived(pullRequestBusyQuery.label);
 	const pullRequestStates = $derived(pullRequestStatesQuery.data);
@@ -110,11 +104,6 @@
 		});
 	}
 
-	function onArm(): void {
-		if (confirmation) return;
-		onAction();
-	}
-
 	function onContinue(): void {
 		runPullRequestContinueCommand(ongitstatusstale);
 	}
@@ -122,16 +111,13 @@
 	function pullRequestStatus(): GlobalTopBarGithubStatus | null {
 		if (!githubStatus) return null;
 		const operation = surface?.operationInProgress ?? null;
-		const busyLabel =
-			claimedBusyLabel ??
-			(confirmation ? presentation?.confirmBusyLabel : null) ??
-			presentation?.busyLabel ??
-			'';
+		const busyLabel = claimedBusyLabel ?? presentation?.busyLabel ?? '';
 		return {
 			...githubStatus,
 			headline: headline
 				? {
 						...headline,
+						tone: presentation?.kind === 'merge' ? 'success' : headline.tone,
 						detail: headlineCarriesAction
 							? (presentation?.tooltip ?? null)
 							: githubStatus.checksSummary || null,
@@ -149,13 +135,6 @@
 					}
 				: null,
 			remoteFailure: presentation?.remoteFailure ?? null,
-			mergeConfirmation: confirmation
-				? {
-						pullRequestNumber: confirmation.pullRequestNumber,
-						headSha: confirmation.headSha,
-						detail: mergeConfirmationDetail(confirmation),
-					}
-				: null,
 			detailActions: [
 				...(presentation?.kind !== 'update' &&
 				!surface?.mergeInProgress &&
@@ -202,18 +181,11 @@
 					? {
 							label: busy ? busyLabel : presentation.label,
 							ariaLabel: busy ? busyLabel : presentation.ariaLabel,
-							tooltip: confirmation
-								? mergeConfirmationDetail(confirmation)
-								: busy
-									? 'Repository action in progress'
-									: presentation.tooltip,
+							tooltip: busy ? 'Repository action in progress' : presentation.tooltip,
 							tone: presentation.tone,
+							icon: presentation.kind === 'merge' ? 'pr-merged' : null,
 							disabled: presentation.disabled || busy,
 							busy: busy || presentation.kind === 'agent-running',
-							confirmLabel: presentation.confirmLabel,
-							confirmKey:
-								presentation.kind === 'merge' ? mergeConfirmationKey(surface?.pullRequest) : null,
-							onArm,
 							onInvoke: onAction,
 						}
 					: null,

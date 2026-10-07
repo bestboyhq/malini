@@ -3,6 +3,7 @@
 	import { marked } from 'marked';
 	import { maskSensitiveHtml, revealSensitiveTarget } from '$hyper-ui/components/sensitive';
 	import { linkifyFileMentions } from './file-mention-links';
+	import { holdWorkstreamImages } from './workstream-images';
 	import {
 		sanitizedMarkdownHtmlCache,
 		sanitizedMarkdownHtmlCacheKey,
@@ -245,7 +246,9 @@
 	): string {
 		if (tailCharacters > 0) {
 			return decorateStreamingTail(
-				maskSensitiveHtml(linkifyFileMentions(renderSanitizedHtml(chunkSource, mode))),
+				maskSensitiveHtml(
+					linkifyFileMentions(holdWorkstreamImages(renderSanitizedHtml(chunkSource, mode))),
+				),
 				tailCharacters,
 			);
 		}
@@ -255,7 +258,7 @@
 		if (cached !== undefined) return cached;
 
 		const sanitized = maskSensitiveHtml(
-			linkifyFileMentions(renderSanitizedHtml(chunkSource, mode)),
+			linkifyFileMentions(holdWorkstreamImages(renderSanitizedHtml(chunkSource, mode))),
 		);
 		sanitizedMarkdownHtmlCache.set(cacheKey, sanitized);
 		return sanitized;
@@ -563,6 +566,7 @@
 		type FileMentionTarget,
 	} from './file-mention-links';
 	import MarkdownCodeBlock from './MarkdownCodeBlock.svelte';
+	import { showWorkstreamImages } from './workstream-images';
 
 	interface Props {
 		text: string;
@@ -581,6 +585,7 @@
 		 */
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
+		imagesrc?: ((path: string) => string | null) | undefined;
 	}
 
 	let {
@@ -590,10 +595,12 @@
 		streamingTailCharacters = 0,
 		onopenfile,
 		canopenfile,
+		imagesrc,
 	}: Props = $props();
 
 	type MarkdownTextUpdate = StreamingMarkdownUpdate & {
 		canOpenFile: ((path: string) => boolean) | undefined;
+		imageSource: ((path: string) => string | null) | undefined;
 	};
 
 	function mountManagedCodeBlock(
@@ -628,9 +635,10 @@
 			container: node,
 			mountCodeBlock: mountManagedCodeBlock,
 		});
-		const render = ({ canOpenFile, ...update }: MarkdownTextUpdate): void => {
+		const render = ({ canOpenFile, imageSource, ...update }: MarkdownTextUpdate): void => {
 			renderer.update(update);
 			markOpenableFileMentions(node, canOpenFile);
+			showWorkstreamImages(node, imageSource);
 		};
 		render(initial);
 		return {
@@ -698,7 +706,13 @@
 	data-streaming={streamingTailCharacters > 0 ? 'true' : undefined}
 	data-testid="markdown-text"
 	use:markdownLinks
-	use:streamingMarkdown={{ text, mode, streamingTailCharacters, canOpenFile: canopenfile }}
+	use:streamingMarkdown={{
+		text,
+		mode,
+		streamingTailCharacters,
+		canOpenFile: canopenfile,
+		imageSource: imagesrc,
+	}}
 ></div>
 
 <style>

@@ -112,7 +112,6 @@ function viewState(from: RepositorySurfaceState): RepositoryViewState {
 		todoStatus: from.todoStatus,
 		todosObservedAt: 1,
 		todoError: from.todoError,
-		mergeConfirmationRequest: null,
 	};
 }
 
@@ -271,64 +270,54 @@ describe('running the top bar pull request action', () => {
 		expect(extension.calls[0]?.args).toEqual([{ context: { sessionTitle: 'Ship it' } }]);
 	});
 
-	it('asks for a merge confirmation first and replays the confirmed head revision next', async () => {
-		const confirmation = {
-			id: 1,
-			pullRequestNumber: 42,
-			headSha: 'head-42',
-			mergeMethod: 'squash',
-		} as const;
-		const extension = connectExtension(() => ({
-			...viewState(surface()),
-			mergeConfirmationRequest: confirmation,
-		}));
-		releaseExtension = extension.release;
-		focus();
-		acceptSurface(WORKSTREAM_ID, surface());
-
-		runPullRequestActionCommand(seams());
-		await settle();
-		expect(extension.calls).toEqual([
-			{ commandId: 'malini.repository.request-merge-confirmation', args: [] },
-		]);
-
-		runPullRequestActionCommand(seams());
-		await settle();
-		expect(extension.calls[1]).toEqual({
-			commandId: 'malini.repository.request-merge-confirmation',
-			args: [{ expectedHeadSha: 'head-42', mergeMethod: 'squash' }],
-		});
-	});
-
-	it('clears the Ready to merge note once the merge lands, without a toast of its own', async () => {
-		const extension = connectExtension(() => ({
-			...viewState(surface()),
-			mergeConfirmationRequest: {
-				id: 1,
-				pullRequestNumber: 42,
-				headSha: 'head-42',
-				mergeMethod: 'squash',
-			},
-		}));
+	it('merges on the first click, at the head the top bar shows, without a toast of its own', async () => {
+		const extension = connectExtension(() =>
+			viewState(surface({ pullRequest: { ...MERGEABLE_PULL_REQUEST, state: 'merged' } })),
+		);
 		releaseExtension = extension.release;
 		focus();
 		acceptSurface(WORKSTREAM_ID, surface());
 		const info = vi.spyOn(toast, 'info');
 		const success = vi.spyOn(toast, 'success');
-		const dismiss = vi.spyOn(toast, 'dismiss');
 
 		runPullRequestActionCommand(seams());
 		await settle();
-		runPullRequestActionCommand(seams());
-		await settle();
 
-		const [ready, readyOptions] = info.mock.calls[0] ?? [];
-		expect(ready).toMatch(/^Ready to merge/u);
-		expect(readyOptions?.id).toBeDefined();
-		expect(dismiss).toHaveBeenCalledWith(readyOptions?.id);
-		expect(info).toHaveBeenCalledTimes(1);
+		expect(extension.calls).toEqual([
+			{
+				commandId: 'malini.repository.merge-pull-request',
+				args: [{ expectedHeadSha: 'head-42', mergeMethod: 'squash' }],
+			},
+		]);
+		expect(info).not.toHaveBeenCalled();
 		expect(success).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		{ held: 'replays', headSha: 'head-42', calls: 1 },
+		{ held: 'drops', headSha: 'head-43', calls: 0 },
+	])(
+		'$held a merge clicked before the workstream was ready when the head reads $headSha',
+		async ({ headSha, calls }) => {
+			const extension = connectExtension(() => viewState(surface()));
+			releaseExtension = extension.release;
+			focus({ extensionReady: false });
+			acceptSurface(WORKSTREAM_ID, surface());
+
+			runPullRequestActionCommand(seams());
+			focus();
+			acceptSurface(
+				WORKSTREAM_ID,
+				surface({
+					pullRequest: { ...MERGEABLE_PULL_REQUEST, headSha },
+					pullRequestRefreshedAt: Date.now() + 1_000,
+				}),
+			);
+			await settle();
+
+			expect(extension.calls).toHaveLength(calls);
+		},
+	);
 
 	it('falls back to the local status read when the fix context carries no state', async () => {
 		const failing = surface({

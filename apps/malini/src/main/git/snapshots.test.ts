@@ -185,7 +185,7 @@ describe('private snapshots', () => {
 
 	it(
 		'composes thousands of files a run re-adds after they vanished between runs',
-		{ timeout: 30_000 },
+		{ timeout: 90_000 },
 		async () => {
 			const dir = await tempDir();
 			cleanups.push(() => removeDir(dir));

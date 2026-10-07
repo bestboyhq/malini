@@ -114,6 +114,7 @@
 			revealOnMount={!transcript.transcriptSettled()}
 			onopenfile={transcript.openFileMention}
 			canopenfile={transcript.canOpenFileMention}
+			imagesrc={transcript.markdownImageSource}
 		/>
 	</div>
 {:else if item.kind === 'handoff'}

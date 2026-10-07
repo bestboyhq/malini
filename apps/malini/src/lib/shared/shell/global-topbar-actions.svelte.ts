@@ -1,4 +1,5 @@
 import { getContext, setContext } from 'svelte';
+import type { IconName } from '$hyper-ui/icons';
 
 export type GlobalTopBarAction = Readonly<{
 	id: string;
@@ -9,23 +10,10 @@ export type GlobalTopBarAction = Readonly<{
 	disabled?: boolean;
 	busy?: boolean;
 	tone?: 'primary' | 'secondary';
+	icon?: IconName | null;
 	testId?: string;
-	confirmLabel?: string | null;
-	confirmKey?: string | null;
-	onArm?(): void | Promise<void>;
 	onInvoke(): void | Promise<void>;
 }>;
-
-export function armedConfirmationSurvives(
-	armedActionId: string | null,
-	armedConfirmKey: string | null,
-	actions: readonly Pick<GlobalTopBarAction, 'id' | 'confirmLabel' | 'confirmKey'>[],
-): boolean {
-	if (!armedActionId) return false;
-	const action = actions.find((candidate) => candidate.id === armedActionId);
-	if (!action?.confirmLabel) return false;
-	return (action.confirmKey ?? null) === armedConfirmKey;
-}
 
 export type GlobalTopBarActionScope = Readonly<{
 	pathPrefix: string;
@@ -124,11 +112,9 @@ export type GlobalTopBarStatusAction = Readonly<{
 	ariaLabel: string;
 	tooltip: string;
 	tone: 'primary' | 'secondary';
+	icon?: IconName | null;
 	disabled: boolean;
 	busy: boolean;
-	confirmLabel?: string | null;
-	confirmKey?: string | null;
-	onArm?(): void | Promise<void>;
 	onInvoke(): void | Promise<void>;
 }>;
 
@@ -138,12 +124,6 @@ export type GlobalTopBarStatusDetailAction = Readonly<{
 	disabled?: boolean;
 	confirmLabel?: string | null;
 	onInvoke(): void | Promise<void>;
-}>;
-
-export type GlobalTopBarMergeConfirmation = Readonly<{
-	pullRequestNumber: number;
-	headSha: string;
-	detail: string;
 }>;
 
 export type GlobalTopBarGithubStatus = Readonly<{
@@ -156,7 +136,6 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	review: GlobalTopBarStatusNote | null;
 	todos: GlobalTopBarStatusNote | null;
 	changes?: GlobalTopBarStatusNote | null;
-	mergeConfirmation?: GlobalTopBarMergeConfirmation | null;
 	headline?: GlobalTopBarStatusHeadline | null;
 	secondaryAction?: GlobalTopBarStatusAction | null;
 	action: GlobalTopBarStatusAction | null;

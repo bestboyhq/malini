@@ -155,7 +155,6 @@ function viewState(workstreamId: string, read: Read): RepositoryViewState {
 		todoStatus: 'ready',
 		todosObservedAt: 1,
 		todoError: null,
-		mergeConfirmationRequest: null,
 	};
 }
 

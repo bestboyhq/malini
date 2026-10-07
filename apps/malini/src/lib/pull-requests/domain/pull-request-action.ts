@@ -1,5 +1,6 @@
 import type { WorktreeOperation } from '$contract/repositories';
-import type { RepositorySurface } from './repository-surface';
+import type { PullRequestMergeMethod } from './pull-request';
+import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
 
 export type PullRequestActionKind =
 	| 'unavailable'
@@ -30,8 +31,6 @@ export type PullRequestTopBarPresentation = Readonly<{
 	tooltip: string;
 	disabled: boolean;
 	tone: 'primary' | 'secondary';
-	confirmLabel: string | null;
-	confirmBusyLabel: string | null;
 	remoteFailure: string | null;
 }>;
 
@@ -50,7 +49,7 @@ export const REPOSITORY_EXTENSION_COMMANDS = Object.freeze({
 	pullLatest: 'malini.repository.pull-latest',
 	continueAfterMerge: 'malini.repository.continue-after-merge',
 	abortOperation: 'malini.repository.abort-operation',
-	requestMergeConfirmation: 'malini.repository.request-merge-confirmation',
+	mergePullRequest: 'malini.repository.merge-pull-request',
 	markPullRequestReady: 'malini.repository.mark-pull-request-ready',
 	todos: 'malini.repository.todos',
 	filesPanel: 'malini.repository.files-panel',
@@ -85,10 +84,22 @@ export function pullRequestActionCommandId(
 		return REPOSITORY_EXTENSION_COMMANDS.createOrOpenPullRequest;
 	}
 	if (kind === 'update') return REPOSITORY_EXTENSION_COMMANDS.pullLatest;
-	if (kind === 'merge') return REPOSITORY_EXTENSION_COMMANDS.requestMergeConfirmation;
+	if (kind === 'merge') return REPOSITORY_EXTENSION_COMMANDS.mergePullRequest;
 	if (kind === 'retry' && context.worktreeFailed) return REPOSITORY_EXTENSION_COMMANDS.refresh;
 	if (kind === 'ready') return REPOSITORY_EXTENSION_COMMANDS.markPullRequestReady;
 	return REPOSITORY_EXTENSION_COMMANDS.refreshPullRequest;
+}
+
+export type PullRequestMergeInput = Readonly<{
+	expectedHeadSha: string;
+	mergeMethod: PullRequestMergeMethod;
+}>;
+
+export function pullRequestMergeInput(
+	pullRequest: SurfacePullRequest | null,
+): PullRequestMergeInput | undefined {
+	if (!pullRequest?.headSha || !pullRequest.mergeMethod) return undefined;
+	return { expectedHeadSha: pullRequest.headSha, mergeMethod: pullRequest.mergeMethod };
 }
 
 export type PullRequestActionOutcome = Readonly<{

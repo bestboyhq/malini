@@ -1,6 +1,5 @@
 import type { WorktreeOperation } from '$contract/repositories';
 import type { PullRequestActivity } from '$shared/repositories/domain/workstream-freshness';
-import type { MergeConfirmation } from './merge-confirmation';
 import type { PullRequestAvailability } from './pull-request-action';
 import type {
 	PullRequestChecksState,
@@ -111,7 +110,6 @@ export type RepositorySurface = Readonly<{
 
 export type RepositoryCommandOutcome = Readonly<{
 	surface: RepositorySurface;
-	mergeRequest: MergeConfirmation | null;
 }>;
 
 export function surfaceGithubStatus(

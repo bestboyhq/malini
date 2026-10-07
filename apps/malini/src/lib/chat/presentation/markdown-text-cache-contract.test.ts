@@ -20,7 +20,7 @@ describe('MarkdownText sanitized HTML cache contract', () => {
 
 		const render = segmentHtmlSource();
 		expect(render.replace(/\s+/gu, ' ')).toContain(
-			'const sanitized = maskSensitiveHtml( linkifyFileMentions(renderSanitizedHtml(chunkSource, mode)), );',
+			'const sanitized = maskSensitiveHtml( linkifyFileMentions(holdWorkstreamImages(renderSanitizedHtml(chunkSource, mode))), );',
 		);
 		expect(render).toContain('sanitizedMarkdownHtmlCache.set(cacheKey, sanitized);');
 	});
@@ -29,7 +29,9 @@ describe('MarkdownText sanitized HTML cache contract', () => {
 		const render = segmentHtmlSource();
 		expect(render.match(/linkifyFileMentions\(/gu)).toHaveLength(2);
 		expect(
-			render.match(/linkifyFileMentions\(renderSanitizedHtml\(chunkSource, mode\)\)/gu),
+			render.match(
+				/linkifyFileMentions\(holdWorkstreamImages\(renderSanitizedHtml\(chunkSource, mode\)\)\)/gu,
+			),
 		).toHaveLength(2);
 		expect(markdown).toContain("import { linkifyFileMentions } from './file-mention-links';");
 	});
@@ -58,8 +60,8 @@ describe('MarkdownText sanitized HTML cache contract', () => {
 		expect(markdown).not.toContain('{@html html}');
 		expect(markdown).not.toContain('use:managedCodeBlocks');
 		expect(markdown.match(/data-testid="markdown-text"/gu)).toHaveLength(1);
-		expect(markdown).toContain(
-			'use:streamingMarkdown={{ text, mode, streamingTailCharacters, canOpenFile: canopenfile }}',
+		expect(markdown.replace(/\s+/gu, ' ')).toContain(
+			'use:streamingMarkdown={{ text, mode, streamingTailCharacters, canOpenFile: canopenfile, imageSource: imagesrc, }}',
 		);
 	});
 });

@@ -98,9 +98,7 @@ test('a pull request without checks says so on Merge and in its detail, never th
 		const merge = page.getByRole('button', { name: 'Merge pull request #7' });
 		await expect(merge).toBeVisible({ timeout: 30_000 });
 		await merge.hover();
-		await expect(page.getByRole('tooltip')).toHaveText(
-			'No checks configured. Squash and merge, after one confirming click. Escape cancels it',
-		);
+		await expect(page.getByRole('tooltip')).toHaveText('No checks configured. Squash and merge');
 
 		const detail = await openPullRequestDetail(page);
 		await expect(detail).toContainText('No checks configured');

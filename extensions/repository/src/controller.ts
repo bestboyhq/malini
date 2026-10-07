@@ -58,13 +58,6 @@ export type RepositoryTodosSnapshot = Readonly<{
 	todos: readonly RepositoryTodo[];
 }>;
 
-export type RepositoryMergeConfirmationRequest = Readonly<{
-	id: number;
-	pullRequestNumber: number;
-	headSha: string;
-	mergeMethod: ExtensionPullRequestMergeMethod;
-}>;
-
 export type RepositoryDiffScope = ExtensionRepositoryDiffScope;
 
 export type RepositoryChangeSlice = Readonly<{
@@ -99,7 +92,6 @@ export type RepositoryViewState = {
 	todoStatus: RepositoryTodoStatus;
 	todosObservedAt: number | null;
 	todoError: string | null;
-	mergeConfirmationRequest: RepositoryMergeConfirmationRequest | null;
 };
 
 export type RepositoryPullRequestFixContext = Readonly<{
@@ -272,7 +264,6 @@ export class RepositoryController {
 	#pullRequestBindingRevision = 0;
 	#pullRequestBindingMutationTail: Promise<void> = Promise.resolve();
 	#workstreamGeneration = 0;
-	#mergeConfirmationSequence = 0;
 	#todoSequence = 0;
 	#todoMutationTail: Promise<void> = Promise.resolve();
 	readonly #activeMutationWorkstreams = new Set<string>();
@@ -752,7 +743,6 @@ export class RepositoryController {
 							pullRequestError: slices.pullRequest
 								? 'The repository branch changed during refresh; retry after the workstream context updates'
 								: null,
-							mergeConfirmationRequest: null,
 						};
 					}
 					refreshed = true;
@@ -1312,30 +1302,6 @@ export class RepositoryController {
 		});
 	}
 
-	async requestMergeConfirmation(
-		preferredMergeMethod?: ExtensionPullRequestMergeMethod,
-	): Promise<RepositoryViewState> {
-		return this.#runWorkstreamOperation(async (operation) => {
-			this.#assertNoActiveMutation(operation.workstream.id);
-			return this.#withFreshTodosForMerge(operation, async (todos) => {
-				const preflight = await this.#loadMergePreflight(operation, preferredMergeMethod, todos);
-				const request: RepositoryMergeConfirmationRequest = {
-					id: ++this.#mergeConfirmationSequence,
-					pullRequestNumber: preflight.pullRequest.number,
-					headSha: preflight.pullRequest.headSha,
-					mergeMethod: preflight.mergeMethod,
-				};
-				this.#publishMergePreflight(operation, preflight, request);
-				return this.snapshot();
-			});
-		});
-	}
-
-	consumeMergeConfirmationRequest(id: number): void {
-		if (this.#state.mergeConfirmationRequest?.id !== id) return;
-		this.#state = { ...this.#state, mergeConfirmationRequest: null };
-	}
-
 	async mergePullRequest(
 		preferredMergeMethod: ExtensionPullRequestMergeMethod | undefined,
 		expectedHeadSha: string,
@@ -1352,13 +1318,13 @@ export class RepositoryController {
 					);
 				}
 				const preflight = await this.#loadMergePreflight(operation, preferredMergeMethod, todos);
-				this.#publishMergePreflight(operation, preflight, null);
+				this.#publishMergePreflight(operation, preflight);
 				if (preflight.pullRequest.headSha !== expectedHeadSha) {
 					this.#throwOperationError(
 						operation,
 						'pullRequest',
 						new Error(
-							'The pull request changed after confirmation; review the latest head and retry',
+							'The pull request changed since it was last read; review the latest head and retry',
 						),
 					);
 				}
@@ -1502,7 +1468,6 @@ export class RepositoryController {
 	#publishMergePreflight(
 		operation: WorkstreamOperation,
 		preflight: PullRequestMergePreflight,
-		request: RepositoryMergeConfirmationRequest | null,
 	): void {
 		this.#publish(
 			withSynchronizedErrors({
@@ -1518,7 +1483,6 @@ export class RepositoryController {
 				pullRequestSettledAt: this.#api.clock.now(),
 				pullRequestRefreshedAt: this.#api.clock.now(),
 				pullRequestError: null,
-				mergeConfirmationRequest: request,
 			}),
 		);
 	}
@@ -2034,7 +1998,6 @@ export class RepositoryController {
 					...rememberedIdentity,
 					...(context.repositoryFullName ? { repositoryFullName: context.repositoryFullName } : {}),
 				},
-				mergeConfirmationRequest: null,
 			};
 		}
 		return null;
@@ -2618,7 +2581,6 @@ function createInitialState(context: RepositoryContext | null): RepositoryViewSt
 		todoStatus: context ? 'loading' : 'error',
 		todosObservedAt: null,
 		todoError: context ? null : 'Workstream context is unavailable',
-		mergeConfirmationRequest: null,
 	};
 }
 
@@ -2660,9 +2622,6 @@ function cloneState(state: RepositoryViewState): RepositoryViewState {
 						diff: cloneRepositoryDiff(turn.diff),
 					})),
 				}
-			: null,
-		mergeConfirmationRequest: state.mergeConfirmationRequest
-			? { ...state.mergeConfirmationRequest }
 			: null,
 	};
 }

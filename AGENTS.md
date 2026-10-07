@@ -56,7 +56,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | ---------------------- | --------------------------------------------------------------------- |
 | `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain    |
 | `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints    |
-| `pull-requests`        | pull request state, actions, top-bar status, merge confirmation       |
+| `pull-requests`        | pull request state, actions, top-bar status, merge                    |
 | `routines`             | drafts, routines, suggestions, gated runs                             |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle  |
