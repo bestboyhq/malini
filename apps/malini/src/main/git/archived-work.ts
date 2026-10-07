@@ -5,15 +5,15 @@ import { retryingVanishedFileRace, withTemporaryIndex } from './diff';
 import { ensureStagingPrecondition } from './excludes';
 import { WORKTREE_CONTENT_PATHSPEC, validateWorkstreamId } from './paths';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from './run';
-import { SNAPSHOT_REF_ROOT } from './snapshots';
+import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 
 export const ARCHIVED_WORK_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}archived/`;
 
 const ARCHIVE_COMMIT_IDENTITY: GitEnv = {
-	GIT_AUTHOR_NAME: 'malini',
-	GIT_AUTHOR_EMAIL: 'agent@malini.local',
-	GIT_COMMITTER_NAME: 'malini',
-	GIT_COMMITTER_EMAIL: 'agent@malini.local',
+	GIT_AUTHOR_NAME: AGENT_IDENTITY.name,
+	GIT_AUTHOR_EMAIL: AGENT_IDENTITY.email,
+	GIT_COMMITTER_NAME: AGENT_IDENTITY.name,
+	GIT_COMMITTER_EMAIL: AGENT_IDENTITY.email,
 };
 
 const GITLINK_MODE = '160000';

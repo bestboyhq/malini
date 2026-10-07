@@ -20,15 +20,16 @@ import {
 	REQUIRE_TLS_VERIFICATION_CONFIG,
 	runGit,
 } from './run';
+import { AGENT_IDENTITY } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
 const AGENT_COMMIT_CONFIG = [
 	'-c',
 	'commit.gpgsign=false',
 	'-c',
-	'user.email=agent@malini.local',
+	`user.email=${AGENT_IDENTITY.email}`,
 	'-c',
-	'user.name=malini',
+	`user.name=${AGENT_IDENTITY.name}`,
 ] as const;
 
 export const MAX_ADDED_FILES_PER_COMMIT = 2_000;
