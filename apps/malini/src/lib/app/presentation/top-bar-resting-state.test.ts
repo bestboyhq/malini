@@ -34,8 +34,12 @@ describe('the resting global top bar', () => {
 		expect(source).not.toContain(banned);
 	});
 
+	it('names the pull request in the resting bar and opens it on GitHub', () => {
+		expect(restingState).toContain('data-testid="global-topbar-github-reference"');
+		expect(restingState).toContain('onclick={() => openPullRequestUrl(url)}');
+	});
+
 	it.each([
-		'githubStatus.reference',
 		'githubPanelHeadline',
 		'githubStatus.branch',
 		'githubStatus.checks',

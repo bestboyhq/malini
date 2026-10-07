@@ -346,6 +346,28 @@ describe('desktop public repository service', () => {
 		await expect(repository.commit('  ')).rejects.toThrow('cannot be empty');
 	});
 
+	it('restarts a merged workstream on its base through the workstream-scoped platform command', async () => {
+		const platform = installFake();
+		const restartCommand = vi.fn(async () => 'abc1234');
+		platform.define('repositories.restart-workstream-on-base', restartCommand);
+		const repository = repositoryFor();
+		const mergedHeadSha = 'a'.repeat(40);
+
+		await expect(repository.restartOnBase?.({ baseBranch: ' ', mergedHeadSha })).resolves.toBe(
+			'abc1234',
+		);
+		expect(restartCommand).toHaveBeenCalledWith({
+			workstreamId: 'workstream-1',
+			baseBranch: 'main',
+			mergedHeadSha,
+			expectedRepositoryFullName: 'rabbits/hutch',
+		});
+		await expect(
+			repository.restartOnBase?.({ baseBranch: 'main', mergedHeadSha: 'HEAD~1' }),
+		).rejects.toThrow('full Git object ID');
+		expect(restartCommand).toHaveBeenCalledTimes(1);
+	});
+
 	it('returns explicit unavailable pull-request context until the host supplies GitHub data', async () => {
 		installFake();
 		const repository = repositoryFor();

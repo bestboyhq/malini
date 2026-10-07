@@ -238,6 +238,17 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		return input.baseBranch;
 	});
 
+	bridge.define('repositories.restart-workstream-on-base', async (input) => {
+		const branch =
+			state.workstreams.find((entry) => entry.id === input.workstreamId)?.branch ??
+			`malini/${input.workstreamId}`;
+		const { pullRequests } = fakeGithubState(bridge);
+		for (const [key, status] of pullRequests) {
+			if (key.endsWith(`:${branch}`) && status.state === 'merged') pullRequests.delete(key);
+		}
+		return branch;
+	});
+
 	bridge.define('repositories.abort-workstream-operation', async (input) => {
 		const status = state.workstreamStatuses[input.workstreamId];
 		if (!status) return;

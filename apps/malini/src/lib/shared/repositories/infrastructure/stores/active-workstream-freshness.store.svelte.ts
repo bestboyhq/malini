@@ -342,7 +342,7 @@ function positiveInterval(value: number | undefined, fallback: number): number {
 
 function defaultIsForeground(): boolean {
 	if (typeof document === 'undefined') return false;
-	return document.visibilityState === 'visible' && document.hasFocus();
+	return document.visibilityState === 'visible';
 }
 
 function defaultSubscribeForeground(listener: () => void): () => void {

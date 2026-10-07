@@ -1,3 +1,4 @@
+import { randomUUID, type UUID } from 'node:crypto';
 import {
 	query as sdkQuery,
 	type CanUseTool,
@@ -129,14 +130,15 @@ export class ClaudeSession implements ProviderHandle {
 		const abort = new AbortController();
 		let settle!: () => void;
 		const finished = new Promise<void>((resolve) => (settle = resolve));
+		const promptId = randomUUID();
 		const query = this.#query({
-			prompt: openUserTurn(this.#promptWithSeed(prompt), finished),
+			prompt: openUserTurn(this.#promptWithSeed(prompt), promptId, finished),
 			options: this.#options(executable, runId, profile, resumeAt, abort),
 		});
 		const active: ActiveRun = { runId, query, abort, finished, transcript, cancelled: false };
 		this.#active = active;
 		try {
-			const result = await this.#consume(query, transcript);
+			const result = await this.#consume(query, transcript, promptId);
 			if (resumed && !this.#initialized && !active.cancelled && result?.is_error) {
 				return 'transcript-missing';
 			}
@@ -161,11 +163,12 @@ export class ClaudeSession implements ProviderHandle {
 	async #consume(
 		query: ClaudeQuery,
 		transcript: ClaudeTranscript,
+		promptId: string,
 	): Promise<SDKResultMessage | null> {
 		for await (const message of query) {
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
 			transcript.accept(message);
-			if (message.type === 'result') return message;
+			if (message.type === 'result' && answersPrompt(message, promptId)) return message;
 		}
 		return null;
 	}
@@ -381,13 +384,25 @@ export class ClaudeSession implements ProviderHandle {
 	}
 }
 
-async function* openUserTurn(text: string, finished: Promise<void>): AsyncIterable<SDKUserMessage> {
+async function* openUserTurn(
+	text: string,
+	promptId: UUID,
+	finished: Promise<void>,
+): AsyncIterable<SDKUserMessage> {
 	yield {
 		type: 'user',
+		uuid: promptId,
 		message: { role: 'user', content: text },
 		parent_tool_use_id: null,
 	};
 	await finished;
+}
+
+function answersPrompt(result: SDKResultMessage, promptId: string): boolean {
+	const answered =
+		result.user_message_uuids ?? (result.user_message_uuid ? [result.user_message_uuid] : []);
+	if (answered.length > 0) return answered.includes(promptId);
+	return result.subtype !== 'success' || result.is_error || result.num_turns > 0;
 }
 
 function cursor(transcript: ClaudeTranscript): { providerCursor?: string } {

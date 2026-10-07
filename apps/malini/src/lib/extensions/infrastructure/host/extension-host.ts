@@ -11,6 +11,7 @@ import type {
 	ExtensionPullRequestMetadataUpdate,
 	ExtensionPullRequestQuery,
 	ExtensionPullRequestReadyForReviewInput,
+	ExtensionRestartOnBaseInput,
 	ExtensionPullRequestReviewFeedback,
 	ExtensionWorkstreamEnsureInput,
 	ExtensionWorkstreamNavigationInput,
@@ -76,6 +77,10 @@ type DesktopExtensionHostOptions = {
 	) => Promise<ExtensionPullRequestCheckDiagnostics>;
 	pushRepository?: (workstreamId: string) => Promise<string>;
 	pullRepository?: (workstreamId: string, baseBranch: string) => Promise<string>;
+	restartRepositoryOnBase?: (
+		workstreamId: string,
+		request: ExtensionRestartOnBaseInput,
+	) => Promise<string>;
 	refreshRepository?: (workstreamId: string) => Promise<void>;
 	listWorkstreams?: () => Promise<readonly ExtensionWorkstreamSummary[]>;
 	ensureWorkstream?: (input: ExtensionWorkstreamEnsureInput) => Promise<ExtensionWorkstreamSummary>;
@@ -129,6 +134,9 @@ export class DesktopExtensionHost {
 				: {}),
 			...(this.#options.pushRepository ? { push: this.#options.pushRepository } : {}),
 			...(this.#options.pullRepository ? { pull: this.#options.pullRepository } : {}),
+			...(this.#options.restartRepositoryOnBase
+				? { restartOnBase: this.#options.restartRepositoryOnBase }
+				: {}),
 			...(this.#options.refreshRepository ? { refresh: this.#options.refreshRepository } : {}),
 		});
 		const contributionAPI = this.contributions.createAPI(manifest, lifecycle);

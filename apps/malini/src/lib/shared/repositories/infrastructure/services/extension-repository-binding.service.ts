@@ -9,6 +9,7 @@ import type {
 	ExtensionPullRequestQuery,
 	ExtensionPullRequestReadyForReviewInput,
 	ExtensionPullRequestReviewFeedback,
+	ExtensionRestartOnBaseInput,
 } from '@malini/extension-api';
 import type { ExtensionRepositoryBinding } from '$shared/extensions/bindings';
 import {
@@ -237,6 +238,21 @@ export class ExtensionRepositoryBindingService implements ExtensionRepositoryBin
 		return this.#mutatePullRequest('Pulling base branch', workstreamId, async () => {
 			resolveRepository(workstreamId);
 			return workstreamsService.pull(workstreamId, baseBranch);
+		});
+	}
+
+	restartRepositoryOnBase(
+		workstreamId: string,
+		request: ExtensionRestartOnBaseInput,
+	): Promise<string> {
+		return this.#mutatePullRequest('Continuing on the base branch', workstreamId, async () => {
+			const resolved = resolveRepository(workstreamId);
+			return workstreamsService.restartOnBase(
+				workstreamId,
+				request.baseBranch,
+				request.mergedHeadSha,
+				resolved.context.repo.fullName,
+			);
 		});
 	}
 

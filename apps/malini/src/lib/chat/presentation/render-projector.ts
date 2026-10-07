@@ -117,14 +117,13 @@ export class IncrementalRenderProjector {
 	#supersededRanges: { fromSeq: number; toSeq: number }[] = [];
 	#obsoletedRunIds = new Set<string>();
 	#terminal: 'completed' | 'failed' | null = null;
-	#lastUsage: RenderItem | null = null;
 	#seenInteractions = new Set<string>();
 	#sourceLength = 0;
 	#lastEnvelopeKey: string | null = null;
 	#sourceReference: readonly EventEnvelope[] | null = null;
 	#processedEnvelopeCount = 0;
 	#rebuildCount = 0;
-	#snapshot: RenderState = { runs: [], terminal: null, lastUsage: null };
+	#snapshot: RenderState = { runs: [], terminal: null };
 
 	project(envelopes: readonly EventEnvelope[]): RenderState {
 		if (this.#sourceUnchanged(envelopes)) return this.#snapshot;
@@ -146,7 +145,6 @@ export class IncrementalRenderProjector {
 		this.#snapshot = {
 			runs: this.#visibleRuns(),
 			terminal: this.#terminal,
-			lastUsage: this.#lastUsage,
 		};
 		return this.#snapshot;
 	}
@@ -163,7 +161,7 @@ export class IncrementalRenderProjector {
 		this.#sourceLength = 0;
 		this.#lastEnvelopeKey = null;
 		this.#sourceReference = null;
-		this.#snapshot = { runs: [], terminal: null, lastUsage: null };
+		this.#snapshot = { runs: [], terminal: null };
 	}
 
 	#canAppend(envelopes: readonly EventEnvelope[]): boolean {
@@ -202,7 +200,6 @@ export class IncrementalRenderProjector {
 		this.#supersededRanges = [];
 		this.#obsoletedRunIds.clear();
 		this.#terminal = null;
-		this.#lastUsage = null;
 		this.#seenInteractions.clear();
 	}
 
@@ -504,19 +501,16 @@ export class IncrementalRenderProjector {
 					path: event.path,
 				});
 				return;
-			case 'usage.updated': {
-				const item: RenderItem = {
+			case 'usage.updated':
+				this.#push(runId, {
 					kind: 'usage',
 					key,
 					seq: envelope.seq,
 					inputTokens: event.inputTokens ?? null,
 					outputTokens: event.outputTokens ?? null,
 					costUsd: event.costUsd ?? null,
-				};
-				this.#push(runId, item);
-				this.#lastUsage = item;
+				});
 				return;
-			}
 			case 'approval.requested':
 			case 'question.requested': {
 				const item = renderInteractionItem(envelope);

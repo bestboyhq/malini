@@ -94,6 +94,7 @@ async function fakeGithubFor(
 	await git(state, ['init', '-q', '--bare', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
 	await git(seeded.worktree, ['push', '-q', remote, `HEAD:refs/heads/${branch}`]);
+	await git(seeded.basePath, ['push', '-q', remote, 'main:refs/heads/main']);
 	await git(seeded.worktree, ['update-ref', `refs/remotes/origin/${branch}`, 'HEAD']);
 	await git(seeded.basePath, ['config', `branch.${branch}.remote`, 'origin']);
 	await git(seeded.basePath, ['config', `branch.${branch}.merge`, `refs/heads/${branch}`]);
@@ -165,9 +166,12 @@ function installStub(path: string, script: string): void {
 function gitShim(remote: string): string {
 	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	return `#!/bin/sh
+fetching=
 for arg do
   shift
+  [ "$arg" = "fetch" ] && fetching=1
   [ "$arg" = "${GITHUB_URL}" ] && arg="${remote}"
+  [ -n "$fetching" ] && [ "$arg" = "origin" ] && arg="${remote}"
   set -- "$@" "$arg"
 done
 exec "${realGit}" -c protocol.file.allow=always "$@"
@@ -297,7 +301,23 @@ if (command === 'auth' && sub === 'status') {
 	save({ ...read(), ...(title === undefined ? {} : { title }), ...(body === undefined ? {} : { body }) });
 	out(read().url + '\\n');
 } else if (command === 'pr' && sub === 'merge') {
-	save({ ...read(), state: 'MERGED' });
+	const pullRequest = read();
+	const onRemote = (...gitArgs) =>
+		execFileSync('git', ['-C', ${JSON.stringify(remote)}, ...gitArgs], { encoding: 'utf8' }).trim();
+	const remoteMain = () => {
+		try {
+			return onRemote('rev-parse', '--verify', '--quiet', 'refs/heads/main');
+		} catch {
+			return '${baseOid}';
+		}
+	};
+	const squash = onRemote(
+		'-c', 'user.name=GitHub', '-c', 'user.email=noreply@github.com',
+		'commit-tree', pullRequest.headRefOid + '^{tree}', '-p', remoteMain(),
+		'-m', pullRequest.title + ' (#' + pullRequest.number + ')',
+	);
+	onRemote('update-ref', 'refs/heads/main', squash);
+	save({ ...pullRequest, state: 'MERGED', mergeCommit: { oid: squash } });
 }
 `;
 }

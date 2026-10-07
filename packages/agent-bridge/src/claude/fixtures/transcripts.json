@@ -1594,5 +1594,137 @@
 			"uuid": "04e8d2e8-4b59-4d1a-81c7-0f07601cb5a2",
 			"errors": ["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null"]
 		}
+	],
+	"orphanedTask": [
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "a5918dc56c2ab80c0",
+			"status": "stopped",
+			"output_file": "/tmp/claude/work-repo/4efd3cbb-54fb-4441-b020-662d430411ed/tasks/a5918dc56c2ab80c0.output",
+			"summary": "Background agent \"Sleep probe\" didn't finish before the previous session ended",
+			"uuid": "775d8577-2b5d-407f-a2e9-3c661031936f",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"model": "claude-haiku-4-5-20251001",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "8aeae3ff-e171-454f-8c6d-2f769f20eef1"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 0,
+			"result": "",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"total_cost_usd": 0.014190600000000001,
+			"usage": {
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0
+			},
+			"modelUsage": {
+				"claude-haiku-4-5-20251001": {
+					"inputTokens": 28,
+					"outputTokens": 515,
+					"cacheReadInputTokens": 40086,
+					"cacheCreationInputTokens": 5177,
+					"contextWindow": 200000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "efb5bf2f-e706-4101-bd07-e7c1ca872ee6"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"model": "claude-haiku-4-5-20251001",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "80ca4df6-7da4-43b2-9edd-0ca2f151e2a2"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfnTcfY3PRT9aDiySFcMh",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 817,
+					"cache_read_input_tokens": 17380,
+					"output_tokens": 4
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"uuid": "72950944-a9c3-4740-a309-c5396e6b953c",
+			"user_message_uuid": "8620fdda-cc8b-4f24-88fb-af21cc5a55a5",
+			"user_message_uuids": ["8620fdda-cc8b-4f24-88fb-af21cc5a55a5"]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfnTcfY3PRT9aDiySFcMh",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "ok"
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 817,
+					"cache_read_input_tokens": 17380,
+					"output_tokens": 4
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"uuid": "7b53c876-2740-4b2e-81bb-d031a9b0c63c"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 1,
+			"result": "ok",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"total_cost_usd": 0.017942600000000003,
+			"usage": {
+				"input_tokens": 10,
+				"cache_creation_input_tokens": 817,
+				"cache_read_input_tokens": 17380,
+				"output_tokens": 74
+			},
+			"modelUsage": {
+				"claude-haiku-4-5-20251001": {
+					"inputTokens": 38,
+					"outputTokens": 589,
+					"cacheReadInputTokens": 57466,
+					"cacheCreationInputTokens": 5994,
+					"contextWindow": 200000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "685ed418-c3e3-40e2-80a8-500e090a2f7c",
+			"user_message_uuid": "8620fdda-cc8b-4f24-88fb-af21cc5a55a5",
+			"user_message_uuids": ["8620fdda-cc8b-4f24-88fb-af21cc5a55a5"]
+		}
 	]
 }

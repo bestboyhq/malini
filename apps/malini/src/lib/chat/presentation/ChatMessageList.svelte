@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
-	import { subscriptionBillingQuery } from '$shared/providers/providers.api';
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { forkToNewChatCommand } from '$lib/chat/application/commands/fork-to-new-chat.command';
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
@@ -70,7 +69,7 @@
 		setTranscriptContext,
 		type TranscriptComposerControls,
 	} from './chat-message-list/transcript-context';
-	import { formatUsage, thinkingPreview } from './chat-message-list/transcript-labels';
+	import { thinkingPreview } from './chat-message-list/transcript-labels';
 	import { createTranscriptScroll } from './chat-message-list/transcript-scroll.svelte';
 	import { createTranscriptSettleGate } from './chat-message-list/transcript-settle';
 
@@ -92,8 +91,6 @@
 
 	const requestOutcome = $derived(chatRequestQuery.data);
 	const implementationModelLabel = $derived(implementationModelLabelQuery.data);
-
-	const showsUsageCost = $derived(!subscriptionBillingQuery.data);
 
 	const sessionProjectors = $derived(sessionProjectorCache.acquire(sessionId));
 	const renderState = $derived<RenderState>(sessionProjectors.render.project(envelopes));
@@ -136,7 +133,6 @@
 			},
 		];
 	});
-	const lastUsage = $derived(renderState.lastUsage);
 
 	const branchedFrom = $derived.by(() => {
 		for (const envelope of envelopes) {
@@ -947,24 +943,6 @@
 				</ol>
 			</div>
 		</div>
-
-		{#if lastUsage && isLatestRunOpen}
-			<Tooltip
-				content="Tokens sent to the model and generated during this run"
-				placement="top"
-				class="absolute right-3 bottom-[calc(0.5rem+var(--chat-footer-inset,0px))]"
-			>
-				<div
-					class="bg-surface-100/90 text-2xs flex items-center gap-1.5 rounded-md px-2 py-1 tabular-nums backdrop-blur-sm select-none"
-					aria-label={`Run token usage: ${formatUsage(lastUsage, showsUsageCost)}`}
-					data-testid="chat-usage-footer"
-				>
-					<span class="text-fg-tertiary">Run tokens</span>
-					<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
-					<span class="text-fg-secondary">{formatUsage(lastUsage, showsUsageCost)}</span>
-				</div>
-			</Tooltip>
-		{/if}
 	{/if}
 	<FileMentionChooser
 		open={fileMentionChooserOpen}

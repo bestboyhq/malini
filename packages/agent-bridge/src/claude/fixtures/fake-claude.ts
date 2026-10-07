@@ -7,6 +7,7 @@ import type {
 	PermissionUpdate,
 	SDKControlInitializeResponse,
 	SDKMessage,
+	SDKResultMessage,
 	SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import { isRecord } from '../../type-guards.js';
@@ -26,7 +27,8 @@ export interface CanUseToolStep {
 
 export type ScriptStep = SDKMessage | CanUseToolStep | 'wait-for-interrupt';
 
-export type RecordedScenario = 'readAndBash' | 'write' | 'ask' | 'plan' | 'bashFailure' | 'deny';
+export type RecordedScenario =
+	'readAndBash' | 'write' | 'ask' | 'plan' | 'bashFailure' | 'deny' | 'orphanedTask';
 
 export interface FakeRun {
 	readonly options: Options;
@@ -74,9 +76,10 @@ export function fakeClaude(
 		const script = scripts[runs.length] ?? [];
 		let release!: () => void;
 		const interrupted = new Promise<void>((resolve) => (release = resolve));
+		const sent = firstMessage(prompt);
 		const run: FakeRun = {
 			options,
-			prompt: firstPrompt(prompt),
+			prompt: promptText(sent),
 			permissionResults: [],
 			permissionModes: [],
 			interrupted: false,
@@ -94,7 +97,7 @@ export function fakeClaude(
 						run.permissionResults.push(await askPermission(options, step));
 						continue;
 					}
-					yield step;
+					yield step.type === 'result' ? echoPrompt(step, (await sent)?.uuid) : step;
 				}
 			},
 			async interrupt() {
@@ -128,12 +131,21 @@ async function askPermission(
 	return canUseTool(toolName, input, { ...opts, signal });
 }
 
-async function firstPrompt(prompt: AsyncIterable<SDKUserMessage>): Promise<string> {
-	for await (const message of prompt) {
-		const content = message.message.content;
-		return typeof content === 'string' ? content : '';
-	}
-	return '';
+async function firstMessage(
+	prompt: AsyncIterable<SDKUserMessage>,
+): Promise<SDKUserMessage | undefined> {
+	for await (const message of prompt) return message;
+	return undefined;
+}
+
+async function promptText(sent: Promise<SDKUserMessage | undefined>): Promise<string> {
+	const content = (await sent)?.message.content;
+	return typeof content === 'string' ? content : '';
+}
+
+function echoPrompt(result: SDKResultMessage, promptId: string | undefined): SDKResultMessage {
+	if (!promptId || !result.user_message_uuids) return result;
+	return { ...result, user_message_uuid: promptId, user_message_uuids: [promptId] };
 }
 
 function isMessage(step: ScriptStep): step is SDKMessage {

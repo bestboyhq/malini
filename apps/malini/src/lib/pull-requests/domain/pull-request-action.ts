@@ -12,6 +12,7 @@ export type PullRequestActionKind =
 	| 'ready'
 	| 'todos'
 	| 'merge'
+	| 'merged'
 	| 'open'
 	| 'agent-running'
 	| 'checking'
@@ -47,6 +48,7 @@ export const REPOSITORY_EXTENSION_COMMANDS = Object.freeze({
 	commitAndPush: 'malini.repository.commit-and-push',
 	createOrOpenPullRequest: 'malini.repository.create-or-open-pull-request',
 	pullLatest: 'malini.repository.pull-latest',
+	continueAfterMerge: 'malini.repository.continue-after-merge',
 	abortOperation: 'malini.repository.abort-operation',
 	requestMergeConfirmation: 'malini.repository.request-merge-confirmation',
 	markPullRequestReady: 'malini.repository.mark-pull-request-ready',

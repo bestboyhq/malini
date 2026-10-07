@@ -63,6 +63,11 @@ const repositoryExtension: ExtensionModule = {
 				'commands',
 				'malini.repository.pull-latest',
 			);
+			const continueAfterMergeCommand = requireContribution(
+				api,
+				'commands',
+				'malini.repository.continue-after-merge',
+			);
 			const abortOperationCommand = requireContribution(
 				api,
 				'commands',
@@ -136,6 +141,10 @@ const repositoryExtension: ExtensionModule = {
 				api.commands.register({
 					...pullLatestCommand,
 					handler: () => controller.pullLatest(),
+				}),
+				api.commands.register({
+					...continueAfterMergeCommand,
+					handler: () => controller.continueAfterMerge(),
 				}),
 				api.commands.register({
 					...abortOperationCommand,

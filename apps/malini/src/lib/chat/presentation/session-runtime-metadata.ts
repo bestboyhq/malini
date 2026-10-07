@@ -30,6 +30,30 @@ export type SessionRuntimeMetadata = {
 	mcpServers: McpServerSnapshot[] | null;
 };
 
+export type RunTokenUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number | null;
+};
+
+export function lastRunUsage(envelopes: readonly EventEnvelope[]): RunTokenUsage | null {
+	for (let index = envelopes.length - 1; index >= 0; index -= 1) {
+		const event = envelopes[index]?.event;
+		if (event?.type !== 'usage.updated' || event.interim === true) continue;
+		return {
+			inputTokens: event.inputTokens ?? 0,
+			outputTokens: event.outputTokens ?? 0,
+			costUsd: event.costUsd ?? null,
+		};
+	}
+	return null;
+}
+
+export function formatRunUsage(usage: RunTokenUsage, showsCost: boolean): string {
+	const tokens = `${usage.inputTokens.toLocaleString()} input · ${usage.outputTokens.toLocaleString()} output`;
+	return showsCost && usage.costUsd !== null ? `${tokens} · $${usage.costUsd.toFixed(2)}` : tokens;
+}
+
 export function deriveSessionRuntimeMetadata(
 	envelopes: readonly EventEnvelope[],
 	liveContext: LiveContextOverride | null = null,

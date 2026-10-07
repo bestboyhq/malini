@@ -203,6 +203,11 @@ export type ExtensionPullRequestMergeInput = {
 	mergeMethod?: ExtensionPullRequestMergeMethod;
 };
 
+export type ExtensionRestartOnBaseInput = Readonly<{
+	baseBranch: string;
+	mergedHeadSha: string;
+}>;
+
 export type ExtensionPullRequestDiagnosticsQuery = Readonly<{
 	number: number;
 	expectedHeadSha: string;
@@ -392,6 +397,7 @@ export type ExtensionAPI = {
 		commit(message: string, workstreamId?: string, run?: ExtensionCommitRun): Promise<string>;
 		push(workstreamId?: string): Promise<string>;
 		pullLatest(baseBranch?: string, workstreamId?: string): Promise<string>;
+		restartOnBase?(input: ExtensionRestartOnBaseInput, workstreamId?: string): Promise<string>;
 		abortOperation?(workstreamId?: string): Promise<void>;
 	};
 	readonly panels: {

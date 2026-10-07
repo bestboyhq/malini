@@ -49,7 +49,7 @@ describe('ActiveWorkstreamFreshnessStore', () => {
 		await settle();
 
 		const pullRequestReadsAt = await pullRequestReadSeconds(harness, 180);
-		expect(pullRequestReadsAt).toEqual([0, 20, 60, 120, 180]);
+		expect(pullRequestReadsAt).toEqual([0, 20, 50, 80, 110, 140, 170]);
 
 		harness.setActivity('running');
 		expect(await pullRequestReadSeconds(harness, 30)).toEqual([10, 20, 30]);

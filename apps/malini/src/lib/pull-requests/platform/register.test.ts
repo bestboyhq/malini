@@ -417,6 +417,101 @@ describe('pull request commands', () => {
 		expect(await checksFor('0'.repeat(40))).toBe('none');
 	});
 
+	it('reads local git state from the workstream checkout, not the connected clone', async () => {
+		seedRepository();
+		const worktree = workstreamPath(context.appDataRoot, 'ws-1');
+		mkdirSync(join(worktree, '.github', 'workflows'), { recursive: true });
+		execFileSync('git', ['init', '-q', '-b', 'malini/ws-1', worktree]);
+		writeFileSync(join(worktree, '.github', 'workflows', 'ci.yml'), 'on:\n  pull_request:\n');
+		execFileSync('git', ['-C', worktree, 'add', '-A']);
+		execFileSync('git', [
+			'-C',
+			worktree,
+			'-c',
+			'user.name=t',
+			'-c',
+			'user.email=t@t',
+			'commit',
+			'-qm',
+			'c',
+		]);
+		const head = execFileSync('git', ['-C', worktree, 'rev-parse', 'HEAD']).toString().trim();
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at)
+			  VALUES ('p-1', 'p', '${root}', 'main', '2026-10-02T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at)
+			  VALUES ('ws-1', 'p-1', 'w', '${worktree}', 'malini/ws-1', 'main', 'active', '2026-10-02T00:00:00Z');
+		`);
+		const { run } = fakeRunner((args) => {
+			if (args[0] === 'pr') {
+				const view = { number: 9, state: 'OPEN', headRefOid: head, statusCheckRollup: [] };
+				return ok(JSON.stringify(args[1] === 'list' ? [view] : view));
+			}
+			return ok('');
+		});
+		registerPullRequests(context, { runner: run });
+		const checksState = async (workstream: { workstreamId?: string }) =>
+			(
+				await invoke<{ checksState: string }>('pull-requests.status', {
+					repoId: 'repo-1',
+					head: 'malini/ws-1',
+					...workstream,
+				})
+			).checksState;
+
+		expect(await checksState({ workstreamId: 'ws-1' })).toBe('pending');
+		expect(await checksState({})).toBe('none');
+	});
+
+	it('leaves a merged pull request behind once the branch builds on its merge commit', async () => {
+		const checkout = seedRepository();
+		const commit = (message: string): string => {
+			execFileSync('git', [
+				'-C',
+				checkout,
+				'-c',
+				'user.name=t',
+				'-c',
+				'user.email=t@t',
+				'commit',
+				'-q',
+				'--allow-empty',
+				'-m',
+				message,
+			]);
+			return execFileSync('git', ['-C', checkout, 'rev-parse', 'HEAD']).toString().trim();
+		};
+		const base = commit('base');
+		const pullRequestHead = commit('work');
+		execFileSync('git', ['-C', checkout, 'branch', 'malini/ws-1', pullRequestHead]);
+		execFileSync('git', ['-C', checkout, 'reset', '-q', '--hard', base]);
+		const mergeCommit = commit('work (#5)');
+		const { run } = fakeRunner((args) => {
+			if (args[0] === 'pr') {
+				const view = {
+					number: 5,
+					state: 'MERGED',
+					headRefOid: pullRequestHead,
+					mergeCommit: { oid: mergeCommit },
+				};
+				return ok(JSON.stringify(args[1] === 'list' ? [view] : view));
+			}
+			return ok('', 1, 'Not Found');
+		});
+		registerPullRequests(context, { runner: run });
+		const state = async () =>
+			(
+				await invoke<{ state: string }>('pull-requests.status', {
+					repoId: 'repo-1',
+					head: 'malini/ws-1',
+				})
+			).state;
+
+		expect(await state()).toBe('merged');
+		execFileSync('git', ['-C', checkout, 'branch', '-f', 'malini/ws-1', mergeCommit]);
+		expect(await state()).toBe('not_open');
+	});
+
 	it('tells whether a merged pull request already holds the local branch head', async () => {
 		const checkout = seedRepository();
 		execFileSync('git', [

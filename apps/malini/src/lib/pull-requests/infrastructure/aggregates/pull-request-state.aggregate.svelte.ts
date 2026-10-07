@@ -87,6 +87,14 @@ export class PullRequestStateAggregate {
 		return this.#startBatch([workstreamId]);
 	}
 
+	observe(workstreamId: string, state: PullRequestState): void {
+		if (!this.#targets.has(workstreamId)) return;
+		this.#invalidate(workstreamId);
+		this.stateByWorkstream = { ...this.stateByWorkstream, [workstreamId]: state };
+		this.lastErrorByWorkstream = { ...this.lastErrorByWorkstream, [workstreamId]: null };
+		this.loadingByWorkstream = { ...this.loadingByWorkstream, [workstreamId]: false };
+	}
+
 	startPolling(intervalMs = PULL_REQUEST_STATE_POLL_INTERVAL_MS): () => void {
 		this.stopPolling();
 		const safeIntervalMs =

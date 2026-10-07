@@ -9,6 +9,7 @@ import type {
 	ExtensionPullRequestQuery,
 	ExtensionPullRequestReadyForReviewInput,
 	ExtensionPullRequestReviewFeedback,
+	ExtensionRestartOnBaseInput,
 	ExtensionWorkstreamEnsureInput,
 	ExtensionWorkstreamNavigationInput,
 	ExtensionWorkstreamSummary,
@@ -45,6 +46,10 @@ export type ExtensionRepositoryBinding = Readonly<{
 	): Promise<ExtensionPullRequestCheckDiagnostics>;
 	pushRepository(workstreamId: string): Promise<string>;
 	pullRepository(workstreamId: string, baseBranch: string): Promise<string>;
+	restartRepositoryOnBase(
+		workstreamId: string,
+		request: ExtensionRestartOnBaseInput,
+	): Promise<string>;
 	refreshRepository(workstreamId: string): Promise<void>;
 }>;
 

@@ -173,6 +173,23 @@ describe('PullRequestStateAggregate', () => {
 		expect(aggregate.stateByWorkstream.retargeted).toBe('ready');
 	});
 
+	it('takes a merge the open workstream observed over a stale read still in flight', async () => {
+		const resolvers: Array<(states: Record<string, PullRequestState>) => void> = [];
+		const aggregate = new PullRequestStateAggregate(
+			() => new Promise((resolve) => resolvers.push(resolve)),
+		);
+		const tracked = aggregate.track([target()]);
+
+		aggregate.observe('workstream-a', 'merged');
+		aggregate.observe('untracked', 'merged');
+		resolverAt(resolvers, 0)({ 'workstream-a': 'open' });
+		await tracked;
+
+		expect(aggregate.stateFor('workstream-a')).toBe('merged');
+		expect(aggregate.loadingByWorkstream['workstream-a']).toBe(false);
+		expect(aggregate.stateByWorkstream).not.toHaveProperty('untracked');
+	});
+
 	it('keeps the last trustworthy state when a later read fails', async () => {
 		let shouldFail = false;
 		const aggregate = new PullRequestStateAggregate(async (targets) => {

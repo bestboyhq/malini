@@ -11,6 +11,7 @@ import type {
 	ExtensionPullRequestReadyForReviewInput,
 	ExtensionPullRequestReviewFeedback,
 	ExtensionRepositoryDiff,
+	ExtensionRestartOnBaseInput,
 	ExtensionRepositoryDiffScope,
 	ExtensionWorkstream,
 } from '@malini/extension-api';
@@ -55,6 +56,7 @@ export function createDesktopExtensionRepository(input: {
 	) => Promise<ExtensionPullRequestCheckDiagnostics>;
 	push?: (workstreamId: string) => Promise<string>;
 	pull?: (workstreamId: string, baseBranch: string) => Promise<string>;
+	restartOnBase?: (workstreamId: string, request: ExtensionRestartOnBaseInput) => Promise<string>;
 	refresh?: (workstreamId: string) => Promise<void>;
 }): ExtensionAPI['repository'] {
 	const workstream = (requested?: string): ExtensionWorkstream => {
@@ -248,6 +250,27 @@ export function createDesktopExtensionRepository(input: {
 			return invoke('repositories.pull-workstream', {
 				workstreamId: current.id,
 				baseBranch: target,
+			});
+		},
+		restartOnBase: async (request, workstreamId) => {
+			const current = workstream(workstreamId);
+			const expectedRepositoryFullName = current.repositoryFullName?.trim();
+			if (!expectedRepositoryFullName) {
+				throw new Error('Continuing after a merge requires a resolved GitHub repository identity');
+			}
+			assertExpectedHeadSha(request.mergedHeadSha);
+			const baseBranch = request.baseBranch.trim() || current.baseBranch;
+			if (input.restartOnBase) {
+				return input.restartOnBase(current.id, {
+					baseBranch,
+					mergedHeadSha: request.mergedHeadSha,
+				});
+			}
+			return invoke('repositories.restart-workstream-on-base', {
+				workstreamId: current.id,
+				baseBranch,
+				mergedHeadSha: request.mergedHeadSha,
+				expectedRepositoryFullName,
 			});
 		},
 		abortOperation: async (workstreamId) => {

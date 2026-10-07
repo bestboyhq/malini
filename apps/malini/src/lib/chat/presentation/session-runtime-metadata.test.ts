@@ -7,6 +7,8 @@ import {
 	contextUnavailableMessage,
 	contextUsagePercent,
 	deriveSessionRuntimeMetadata,
+	formatRunUsage,
+	lastRunUsage,
 	mcpUnavailableMessage,
 	mcpServerDisplayName,
 } from './session-runtime-metadata';
@@ -237,5 +239,42 @@ describe('session runtime metadata', () => {
 		expect(mcpUnavailableMessage()).toBe(
 			'MCP status appears after the agent starts the first response.',
 		);
+	});
+});
+
+describe('last run token usage', () => {
+	it('reads the totals of the newest finished run, skipping interim per-message usage', () => {
+		const usage = lastRunUsage([
+			envelope(1, { type: 'usage.updated', runId: 'run-1', inputTokens: 50, outputTokens: 5 }),
+			envelope(2, { type: 'run.completed', runId: 'run-1', summary: '' }),
+			envelope(3, {
+				type: 'usage.updated',
+				runId: 'run-2',
+				inputTokens: 12345,
+				outputTokens: 678,
+				costUsd: 0.5,
+			}),
+			envelope(4, { type: 'usage.updated', runId: 'run-3', inputTokens: 9, interim: true }),
+		]);
+		expect(usage).toEqual({ inputTokens: 12345, outputTokens: 678, costUsd: 0.5 });
+	});
+
+	it('has nothing to show before any run reported usage', () => {
+		expect(
+			lastRunUsage([envelope(1, { type: 'run.started', runId: 'run-1', sessionId: 'session-1' })]),
+		).toBeNull();
+	});
+
+	it('reads out both directions with thousands separators', () => {
+		expect(formatRunUsage({ inputTokens: 12345, outputTokens: 678, costUsd: null }, false)).toBe(
+			'12,345 input · 678 output',
+		);
+	});
+
+	it('adds the cost only where the reader is actually billed per run', () => {
+		const usage = { inputTokens: 1, outputTokens: 2, costUsd: 0.5 };
+		expect(formatRunUsage(usage, true)).toContain('$0.50');
+		expect(formatRunUsage(usage, false)).not.toContain('$');
+		expect(formatRunUsage({ ...usage, costUsd: null }, true)).not.toContain('$');
 	});
 });

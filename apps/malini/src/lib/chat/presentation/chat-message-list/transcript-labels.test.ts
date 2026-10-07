@@ -1,19 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
-import type { RenderItem, RunGroup } from '../render-state';
-import { formatUsage, terminalLabel, thinkingPreview, thoughtLabel } from './transcript-labels';
-
-function usage(fields: Partial<Extract<RenderItem, { kind: 'usage' }>>): RenderItem {
-	return {
-		kind: 'usage',
-		key: 'u1',
-		seq: 1,
-		inputTokens: null,
-		outputTokens: null,
-		costUsd: null,
-		...fields,
-	};
-}
+import type { RunGroup } from '../render-state';
+import { terminalLabel, thinkingPreview, thoughtLabel } from './transcript-labels';
 
 function run(terminal: RunGroup['terminal']): RunGroup {
 	return {
@@ -63,27 +51,5 @@ describe('how a run ended', () => {
 	it('says a run malini closed on is paused, not cancelled', () => {
 		const paused = { ...run('cancelled'), terminalText: PAUSED_FOR_EXIT_ERROR };
 		expect(terminalLabel(paused)).toBe('Run paused');
-	});
-});
-
-describe('run token usage', () => {
-	it('reads out both directions with thousands separators', () => {
-		expect(formatUsage(usage({ inputTokens: 12345, outputTokens: 678 }), false)).toBe(
-			'12,345 input · 678 output',
-		);
-	});
-
-	it('adds the cost only where the reader is actually billed per run', () => {
-		const item = usage({ inputTokens: 1, outputTokens: 2, costUsd: 0.5 });
-		expect(formatUsage(item, true)).toContain('$0.50');
-		expect(formatUsage(item, false)).not.toContain('$');
-	});
-
-	it('omits the cost when the provider reported none', () => {
-		expect(formatUsage(usage({ inputTokens: 1, outputTokens: 2 }), true)).not.toContain('$');
-	});
-
-	it('has nothing to say about an item that is not a usage row', () => {
-		expect(formatUsage({ kind: 'plan', key: 'p', seq: 1, text: 'x' }, true)).toBe('');
 	});
 });

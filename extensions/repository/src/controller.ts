@@ -237,6 +237,7 @@ type RepositoryControllerRepositoryHost = Pick<
 	| 'commit'
 	| 'push'
 	| 'pullLatest'
+	| 'restartOnBase'
 	| 'abortOperation'
 	| 'baseFiles'
 >;
@@ -1019,9 +1020,8 @@ export class RepositoryController {
 		}
 		const discovered = await this.#api.repository.pullRequest(operation.workstream.id);
 		this.#assertCurrentWorkstreamOperation(operation);
-		const pullRequest = isTerminalPullRequest(discovered)
-			? notOpenPullRequest(operation.workstream)
-			: discovered;
+		const pullRequest =
+			discovered.state === 'closed' ? notOpenPullRequest(operation.workstream) : discovered;
 		this.#assertPullRequestMatchesWorkstream(operation, pullRequest);
 		await this.#reconcilePullRequestBinding(operation, pullRequest, null, bindingRequest);
 		return pullRequest;
@@ -1578,6 +1578,30 @@ export class RepositoryController {
 		});
 	}
 
+	async continueAfterMerge(): Promise<RepositoryViewState> {
+		const restart = this.#api.repository.restartOnBase;
+		if (!restart) throw new Error('Continuing after a merge is unavailable in this host');
+		return this.#runWorkstreamMutation(async (operation) => {
+			const status = await this.#loadMutationStatus(operation);
+			const pullRequest = await this.#fetchPullRequestForStatus(operation, status);
+			const mergedHeadSha = pullRequest.state === 'merged' ? pullRequest.headSha : null;
+			if (!mergedHeadSha) {
+				this.#throwOperationError(
+					operation,
+					'pullRequest',
+					new Error('This workstream has no merged pull request to continue from'),
+				);
+			}
+			await this.#runOperationStep(operation, 'local', () =>
+				restart(
+					{ baseBranch: pullRequest.baseBranch || status.baseBranch, mergedHeadSha },
+					operation.workstream.id,
+				),
+			);
+			return this.refresh();
+		});
+	}
+
 	async abortOperation(): Promise<RepositoryViewState> {
 		const abort = this.#api.repository.abortOperation;
 		if (!abort)
@@ -2110,10 +2134,7 @@ export class RepositoryController {
 			(pullRequest.headBranch === workstream.branch &&
 				pullRequest.baseBranch === workstream.baseBranch);
 		if (!describesBranch) return null;
-		if (
-			isTerminalPullRequest(pullRequest) &&
-			hasChangesAfterTerminalPullRequest(status, pullRequest)
-		) {
+		if (pullRequest.state === 'closed' && hasChangesAfterTerminalPullRequest(status, pullRequest)) {
 			return null;
 		}
 		return pullRequest;

@@ -71,7 +71,8 @@ const NEXT_ACTION_VOCABULARY: Readonly<Record<PullRequestActionKind, readonly st
 	ready: ['Ready for review'],
 	todos: ['Review todos'],
 	merge: ['Merge'],
-	open: ['Open PR', 'Merged', "CI didn't start"],
+	merged: ['Archive'],
+	open: ['Open PR', "CI didn't start"],
 	checking: ['Checking…'],
 	operation: ['Rebase in progress', 'Cherry-pick in progress', 'Revert in progress'],
 	'agent-running': ['Agent working…'],
@@ -224,7 +225,7 @@ describe('the next action a workstream is asking for', () => {
 				pullRequest: { ...state().pullRequest!, state: 'merged', number: 11, url: 'u' },
 			}),
 			availability: 'ready' as const,
-			expected: { kind: 'open', label: 'Merged', disabled: false },
+			expected: { kind: 'merged', label: 'Archive', disabled: false },
 		},
 		{
 			branch: 'the previous pull request closed unmerged',
@@ -356,20 +357,28 @@ describe('the next action a workstream is asking for', () => {
 		});
 	});
 
-	it.each(['merged', 'closed'] as const)(
-		'names the commit before the pull request when the previous one is %s',
-		(terminal) => {
-			const pullRequest = { ...state().pullRequest!, state: terminal, number: 11, url: 'u' };
-			expect(
-				nextAction(state({ dirtyPaths: ['src/new-work.ts'], changedFiles: 1, pullRequest })),
-			).toMatchObject({ kind: 'push', label: 'Commit and push' });
-			expect(nextAction(state({ pullRequest }))).toMatchObject(
-				terminal === 'merged'
-					? { kind: 'open', label: 'Merged' }
-					: { kind: 'create', label: 'Create PR' },
-			);
-		},
-	);
+	it('names the commit before the pull request when the previous one closed unmerged', () => {
+		const pullRequest = { ...state().pullRequest!, state: 'closed' as const, number: 11, url: 'u' };
+		expect(
+			nextAction(state({ dirtyPaths: ['src/new-work.ts'], changedFiles: 1, pullRequest })),
+		).toMatchObject({ kind: 'push', label: 'Commit and push' });
+		expect(nextAction(state({ pullRequest }))).toMatchObject({
+			kind: 'create',
+			label: 'Create PR',
+		});
+	});
+
+	it.each([
+		{ work: 'uncommitted edits', overrides: { dirtyPaths: ['src/new-work.ts'], changedFiles: 1 } },
+		{ work: 'a commit made after the merge', overrides: { ahead: 1, changedFiles: 1 } },
+	])('keeps a merged pull request merged through $work', ({ overrides }) => {
+		const pullRequest = { ...state().pullRequest!, state: 'merged' as const, number: 11, url: 'u' };
+		expect(nextAction(state({ ...overrides, pullRequest }))).toMatchObject({
+			kind: 'merged',
+			label: 'Archive',
+			tooltip: expect.stringContaining('saved ref'),
+		});
+	});
 
 	it('keeps optional check failures out of the blocking verdict', () => {
 		const optionalFailure = {
@@ -679,7 +688,7 @@ describe('a workstream with nothing to ship', () => {
 					pullRequest: { ...state().pullRequest!, state: 'merged', number: 11, url: 'u' },
 				}),
 			),
-		).toMatchObject({ kind: 'open', label: 'Merged' });
+		).toMatchObject({ kind: 'merged', label: 'Archive' });
 	});
 
 	it('leaves an open pull request to its own verbs', () => {

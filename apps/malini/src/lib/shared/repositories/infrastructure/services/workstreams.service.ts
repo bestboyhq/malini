@@ -98,6 +98,20 @@ class WorkstreamsService {
 		return invoke('repositories.pull-workstream', { workstreamId, baseBranch });
 	}
 
+	restartOnBase(
+		workstreamId: WorkstreamId,
+		baseBranch: string,
+		mergedHeadSha: string,
+		expectedRepositoryFullName: string,
+	): Promise<string> {
+		return invoke('repositories.restart-workstream-on-base', {
+			workstreamId,
+			baseBranch,
+			mergedHeadSha,
+			expectedRepositoryFullName,
+		});
+	}
+
 	gitStatus(workstreamId: WorkstreamId): Promise<WorkstreamGitStatus> {
 		return invoke('repositories.workstream-status', { workstreamId });
 	}

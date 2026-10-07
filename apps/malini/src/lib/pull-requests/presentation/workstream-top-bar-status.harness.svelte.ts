@@ -30,6 +30,7 @@ export function mountWorkstreamTopBarStatus(route: TopBarStatusRoute): TopBarSta
 		chatEvidence: () => ({}),
 		onpanelrequested: (): void => undefined,
 		ongitstatusstale: (): void => undefined,
+		onarchive: (): void => undefined,
 	});
 	const app = mount(WorkstreamTopBarStatus, { target: host, props });
 	flushSync();
@@ -93,6 +94,7 @@ export function mountWorkstreamTopBarStatusOnTheRuntime(
 			chatEvidence: () => ({}),
 			onpanelrequested: (): void => undefined,
 			ongitstatusstale: (): void => undefined,
+			onarchive: (): void => undefined,
 		},
 	});
 	flushSync();

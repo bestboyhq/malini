@@ -33,4 +33,4 @@ API v1 still needs the following public capabilities:
     The current DOM mount contract can prove registration and semantics but cannot guarantee native visual parity without rebuilding host UI.
 3.  A panel interaction test surface in `createTestHost()` for mounting, querying, clicking, and asserting captured panel state without a private browser harness.
 4.  Typed branch, remotes and history reads, if those surfaces are in the parity scope.
-    API v1 exposes status, diff, pull request, refresh, commit, push and pull-latest, but not those reads.
+    API v1 exposes status, diff, pull request, refresh, commit, push, pull-latest and restart-on-base, but not those reads.

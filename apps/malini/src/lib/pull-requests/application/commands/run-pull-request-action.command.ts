@@ -73,7 +73,7 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 	if (pullRequestActionStore.busy || !presentation || presentation.disabled) return;
 
 	const kind = presentation.kind;
-	if (kind === 'unavailable') return;
+	if (kind === 'unavailable' || kind === 'merged') return;
 	if (kind === 'open') {
 		const url = surface?.pullRequest?.url;
 		if (url) void externalUrlService.open(url).catch(() => undefined);

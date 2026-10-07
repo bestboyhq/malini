@@ -378,10 +378,7 @@
 		opacity: 0;
 	}
 
-	.prompt-editor-host :global(.ProseMirror:focus p.is-editor-empty:first-child::before),
-	:global(.group\/composer:hover)
-		.prompt-editor-host
-		:global(.ProseMirror p.is-editor-empty:first-child::before) {
+	.prompt-editor-host :global(.ProseMirror:focus p.is-editor-empty:first-child::before) {
 		color: var(--color-fg-composer-placeholder-focus);
 	}
 

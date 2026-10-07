@@ -2,7 +2,7 @@ export const ACTIVE_WORKSTREAM_TOTALS_REFRESH_INTERVAL_MS = 15_000;
 
 export const ACTIVE_WORKSTREAM_PULL_REQUEST_REFRESH_INTERVAL_MS = 10_000;
 
-export const ACTIVE_WORKSTREAM_PULL_REQUEST_IDLE_REFRESH_LIMIT_MS = 60_000;
+export const ACTIVE_WORKSTREAM_PULL_REQUEST_IDLE_REFRESH_LIMIT_MS = 30_000;
 
 export type ActiveWorkstreamFreshnessPhase = 'idle' | 'deferred' | 'released-after-paint';
 
