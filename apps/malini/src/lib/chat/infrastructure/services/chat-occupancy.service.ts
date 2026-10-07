@@ -1,6 +1,10 @@
+import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionId } from '$lib/chat/domain/session';
-import type { SessionRecord } from '$lib/chat/domain/session-record';
-import type { SubmissionSessionCandidate } from '$lib/chat/domain/submission-session-target';
+import {
+	resolveSubmissionSessionTarget,
+	type SubmissionSessionCandidate,
+	type SubmissionSessionTarget,
+} from '$lib/chat/domain/submission-session-target';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { readChatModelSnapshot } from '$lib/chat/infrastructure/services/model-preferences.storage';
@@ -22,20 +26,6 @@ class ChatOccupancyService {
 		);
 	}
 
-	runBlocker(workstreamId: string, excludeSessionId: SessionId | null): SessionRecord | null {
-		let running: SessionRecord | null = null;
-		for (const session of sessionsAggregate.listSessions()) {
-			if (session.id === excludeSessionId) continue;
-			if ((transcriptAggregate.ownerOf(session.id) ?? session.workstreamId) !== workstreamId) {
-				continue;
-			}
-			if (!this.sessionIsBusy(session.id)) continue;
-			if (session.status === 'waiting_for_approval') return session;
-			running ??= session;
-		}
-		return running;
-	}
-
 	submissionCandidates(
 		role: ModelRole,
 		selection: ModelSelection,
@@ -47,6 +37,15 @@ class ChatOccupancyService {
 			matchesTurn: this.#sessionMatchesTurn(candidate.id, role, selection),
 			busy: this.sessionIsBusy(candidate.id),
 		}));
+	}
+
+	queuedTurnTarget(workstreamId: string, entry: QueuedPrompt): SubmissionSessionTarget<SessionId> {
+		return resolveSubmissionSessionTarget({
+			workstreamId,
+			capturedSessionId: entry.targetSessionId,
+			forceFreshSession: entry.forceFreshSession,
+			candidates: this.submissionCandidates(entry.role, { model: entry.model }),
+		});
 	}
 
 	freshSessionRequired(

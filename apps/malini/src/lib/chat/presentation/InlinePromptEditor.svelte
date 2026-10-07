@@ -218,7 +218,7 @@
 			editorProps: {
 				attributes: {
 					class:
-						'inline-prompt-editor min-h-12 min-w-0 w-full overflow-x-hidden break-words border-0 bg-transparent p-3 pr-4 text-[15px] leading-6 text-fg-default outline-none transition-colors select-text',
+						'inline-prompt-editor min-h-18 min-w-0 w-full overflow-x-hidden break-words border-0 bg-transparent p-3 pr-4 text-[15px] leading-6 text-fg-default outline-none transition-colors select-text',
 					role: 'textbox',
 					'aria-multiline': 'true',
 					'aria-label': 'Chat prompt',

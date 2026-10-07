@@ -631,8 +631,8 @@ function describe(error: unknown): string {
 	return String(error);
 }
 
-export interface RunChangeCaptureLeases {
-	acquireRunChangeCapture(workstreamId: string): Lease;
+export interface RunChangeRecoveryLeases {
+	acquireRunChangeRecovery(workstreamId: string): Lease;
 }
 
 export interface CheckpointService {
@@ -660,7 +660,7 @@ export interface CheckpointService {
 export function createCheckpointService(
 	context: CheckpointContext,
 	events: EventBus,
-	leases: RunChangeCaptureLeases,
+	leases: RunChangeRecoveryLeases,
 	emit: SupersedeEmit = () => {},
 ): CheckpointService {
 	const { db } = context;
@@ -671,7 +671,7 @@ export function createCheckpointService(
 		if (missing.length === 0) return;
 		let lease: Lease;
 		try {
-			lease = leases.acquireRunChangeCapture(workstreamId);
+			lease = leases.acquireRunChangeRecovery(workstreamId);
 		} catch {
 			return;
 		}

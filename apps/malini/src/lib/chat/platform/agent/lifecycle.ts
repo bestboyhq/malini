@@ -46,7 +46,7 @@ export class LifecycleError extends Error {
 			case 'not_a_repository':
 				return 'repository checkout is not a git repository';
 			case 'already_running':
-				return `work stream \`${detail}\` already has an active run`;
+				return `\`${detail}\` already has an active run`;
 			case 'workstream_teardown_pending':
 				return `work stream \`${detail}\` is being archived or deleted`;
 			case 'workstream_teardown_blocked':
@@ -162,21 +162,21 @@ export interface Lease {
 	release(): void;
 }
 
-function lease(set: Set<string>, workstreamId: string): Lease {
+function lease(workstreamId: string, onRelease: () => void): Lease {
 	let active = true;
 	return {
 		workstreamId,
 		release() {
 			if (!active) return;
 			active = false;
-			set.delete(workstreamId);
+			onRelease();
 		},
 	};
 }
 
 export class AgentRunLeases {
-	private readonly running = new Set<string>();
-	private readonly capturing = new Set<string>();
+	private readonly dispatching = new Map<string, string>();
+	private readonly capturing = new Map<string, number>();
 	private readonly tearingDown = new Set<string>();
 	private readonly cancelledDispatches = new Map<string, string>();
 
@@ -190,51 +190,56 @@ export class AgentRunLeases {
 		return true;
 	}
 
-	acquireRun(db: MaliniDatabase, workstreamId: string): Lease {
+	acquireRun(db: MaliniDatabase, workstreamId: string, sessionId: string): Lease {
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
-		if (this.running.has(workstreamId) || this.capturing.has(workstreamId)) {
+		if (this.capturing.has(workstreamId)) {
 			throw new LifecycleError('already_running', workstreamId);
 		}
-		if (activeRunRows(db, workstreamId).length > 0) {
-			throw new LifecycleError('already_running', workstreamId);
+		if (this.dispatching.has(sessionId) || listActiveRunIdsForSession(db, sessionId).length > 0) {
+			throw new LifecycleError('already_running', sessionId);
 		}
 		repairSessionStatusesWithoutOpenRuns(db, workstreamId);
 		const busy = scalar(
 			db,
 			`SELECT COUNT(*) FROM agent_sessions
-			 WHERE workstream_id = ? AND archived_at IS NULL
-			   AND status IN ('running', 'waiting_for_approval')`,
-			workstreamId,
+			 WHERE id = ? AND status IN ('running', 'waiting_for_approval')`,
+			sessionId,
 		);
 		if (busy > 0) {
-			throw new LifecycleError('already_running', workstreamId);
+			throw new LifecycleError('already_running', sessionId);
 		}
-		this.running.add(workstreamId);
-		return lease(this.running, workstreamId);
+		this.dispatching.set(sessionId, workstreamId);
+		return lease(workstreamId, () => this.dispatching.delete(sessionId));
 	}
 
 	acquireRunChangeCapture(workstreamId: string): Lease {
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
-		if (this.running.has(workstreamId) || this.capturing.has(workstreamId)) {
-			throw new LifecycleError('already_running', workstreamId);
-		}
-		this.capturing.add(workstreamId);
-		return lease(this.capturing, workstreamId);
+		this.capturing.set(workstreamId, (this.capturing.get(workstreamId) ?? 0) + 1);
+		return lease(workstreamId, () => {
+			const remaining = (this.capturing.get(workstreamId) ?? 1) - 1;
+			if (remaining > 0) this.capturing.set(workstreamId, remaining);
+			else this.capturing.delete(workstreamId);
+		});
+	}
+
+	acquireRunChangeRecovery(workstreamId: string): Lease {
+		if (this.isBusy(workstreamId)) throw new LifecycleError('already_running', workstreamId);
+		return this.acquireRunChangeCapture(workstreamId);
 	}
 
 	acquireWorkstreamTeardown(db: MaliniDatabase, workstreamId: string): Lease {
-		if (this.running.has(workstreamId) || this.capturing.has(workstreamId)) {
+		if (this.isBusy(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_blocked', workstreamId, [workstreamId]);
 		}
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
 		this.tearingDown.add(workstreamId);
-		const guard = lease(this.tearingDown, workstreamId);
+		const guard = lease(workstreamId, () => this.tearingDown.delete(workstreamId));
 		const activeRunIds = activeRunRows(db, workstreamId);
 		if (activeRunIds.length > 0) {
 			guard.release();
@@ -243,8 +248,10 @@ export class AgentRunLeases {
 		return guard;
 	}
 
-	runningCount(): number {
-		return this.running.size;
+	private isBusy(workstreamId: string): boolean {
+		return (
+			this.capturing.has(workstreamId) || [...this.dispatching.values()].includes(workstreamId)
+		);
 	}
 }
 

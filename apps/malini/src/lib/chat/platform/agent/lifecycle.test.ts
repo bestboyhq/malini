@@ -82,26 +82,28 @@ describe('envelopes', () => {
 });
 
 describe('leases', () => {
-	it('rejects a run while the workstream has an open row, and while another send holds it', () => {
+	it('rejects a run while its own chat runs or sends, and lets a sibling chat run beside it', () => {
 		seedRunning();
-		expect(() => leases.acquireRun(test.db, 'ws-1')).toThrow(
-			'work stream `ws-1` already has an active run',
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow(
+			'`sess-1` already has an active run',
 		);
-		seedWorkstream(test.db, test.appDataRoot, 'ws-2');
-		const lease = leases.acquireRun(test.db, 'ws-2');
-		expect(leases.runningCount()).toBe(1);
-		expect(() => leases.acquireRun(test.db, 'ws-2')).toThrow(LifecycleError);
-		expect(() => leases.acquireRunChangeCapture('ws-2')).toThrow('already has an active run');
-		expect(() => leases.acquireWorkstreamTeardown(test.db, 'ws-2')).toThrow(
-			'work stream `ws-2` has active agent runs; stop them before archiving or deleting: ws-2',
+		seedSession(test.db, 'sess-2', 'ws-1', 'idle');
+		const sibling = leases.acquireRun(test.db, 'ws-1', 'sess-2');
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-2')).toThrow(LifecycleError);
+		expect(() => leases.acquireRunChangeRecovery('ws-1')).toThrow('already has an active run');
+		expect(() => leases.acquireWorkstreamTeardown(test.db, 'ws-1')).toThrow(
+			'work stream `ws-1` has active agent runs; stop them before archiving or deleting: ws-1',
 		);
-		lease.release();
-		lease.release();
-		expect(leases.runningCount()).toBe(0);
-		const capture = leases.acquireRunChangeCapture('ws-2');
-		expect(() => leases.acquireRun(test.db, 'ws-2')).toThrow('already has an active run');
+		const capture = leases.acquireRunChangeCapture('ws-1');
+		sibling.release();
+		sibling.release();
+		const overlapping = leases.acquireRunChangeCapture('ws-1');
 		capture.release();
-		expect(leases.acquireRun(test.db, 'ws-2').workstreamId).toBe('ws-2');
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-2')).toThrow(
+			'`ws-1` already has an active run',
+		);
+		overlapping.release();
+		expect(leases.acquireRun(test.db, 'ws-1', 'sess-2').workstreamId).toBe('ws-1');
 	});
 
 	it('refuses teardown of a workstream with a persisted open run without leaking its fence', () => {
@@ -111,7 +113,7 @@ describe('leases', () => {
 		);
 		run(test.db, 'UPDATE agent_runs SET completed_at = ? WHERE id = ?', 'now', 'run-1');
 		const teardown = leases.acquireWorkstreamTeardown(test.db, 'ws-1');
-		expect(() => leases.acquireRun(test.db, 'ws-1')).toThrow(
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow(
 			'work stream `ws-1` is being archived or deleted',
 		);
 		expect(() => leases.acquireWorkstreamTeardown(test.db, 'ws-1')).toThrow(

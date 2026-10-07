@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
+	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import type { RenderState } from './render-state';
 	import { deriveRunStatus } from './run-status';
@@ -18,15 +20,11 @@
 	});
 
 	let nowMs = $state(Date.now());
-	let observedRunStartMs = $state<Record<string, number>>({});
+	const runStartedAtMs = $derived(openRun ? runStartedAtQuery.data(openRun.runId) : null);
 
 	$effect(() => {
-		const runId = openRun?.runId;
-		if (!runId || observedRunStartMs[runId]) return;
-		observedRunStartMs[runId] = Date.now();
+		if (openRun) observeRunStartCommand(openRun.runId);
 	});
-
-	const runStartedAtMs = $derived(openRun ? (observedRunStartMs[openRun.runId] ?? null) : null);
 
 	const TICK_MS = 100;
 

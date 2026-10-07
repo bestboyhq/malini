@@ -10,7 +10,7 @@ import { SnapshotRefNamespace } from '../snapshot-refs';
 import {
 	createCheckpointService,
 	type CheckpointService,
-	type RunChangeCaptureLeases,
+	type RunChangeRecoveryLeases,
 } from './service';
 
 export const CHECKPOINT_COMMAND_NAMES = [
@@ -23,7 +23,7 @@ export const CHECKPOINT_COMMAND_NAMES = [
 
 export interface CheckpointDeps {
 	readonly resolver: CheckoutResolver;
-	readonly leases: RunChangeCaptureLeases;
+	readonly leases: RunChangeRecoveryLeases;
 }
 
 export function installCheckpoints(context: MainContext, deps: CheckpointDeps): CheckpointService {

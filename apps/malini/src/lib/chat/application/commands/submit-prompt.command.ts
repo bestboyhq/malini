@@ -1,14 +1,12 @@
 import { tick } from 'svelte';
 import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
 import { enqueuePromptCommand } from '$lib/chat/application/commands/enqueue-prompt.command';
-import { preemptWaitingChatCommand } from '$lib/chat/application/commands/preempt-waiting-chat.command';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { promptDispatchStage } from '$lib/chat/domain/prompt-dispatch-error';
 import { classifyPromptDispatchFailure } from '$lib/chat/domain/prompt-dispatch-failure';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { PromptRequest, PromptTurn } from '$lib/chat/domain/prompt-submission';
 import type { SessionId } from '$lib/chat/domain/session';
-import { routeWorkstreamSubmission } from '$lib/chat/domain/submission-routing';
 import {
 	resolveSubmissionSessionTarget,
 	shouldForceFreshSessionAfterQueuedTurn,
@@ -83,25 +81,10 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	}
 	const optimisticSessionId = target.targetSessionId;
 	const targetQueue = agentPromptQueue.entriesForSession(workstreamId, target.queueTargetSessionId);
-	const blocker = chatOccupancy.runBlocker(workstreamId, target.queueTargetSessionId);
-	const route = routeWorkstreamSubmission({
-		targetIsBusy: target.targetIsBusy,
-		targetQueuedTurns: targetQueue.length,
-		blocker: blocker
-			? {
-					sessionId: blocker.id,
-					waitingForUser: blocker.status === 'waiting_for_approval',
-				}
-			: null,
-	});
-	if (route.kind === 'queue') {
+	if (target.targetIsBusy || targetQueue.length > 0) {
 		enqueuePromptCommand({ ...turn, sessionId: target.queueTargetSessionId });
 		consumeFreshSessionIntent(workstreamId, forceFreshSession);
-		if (route.preemptSessionId && blocker) {
-			preemptWaitingChatCommand(workstreamId, blocker);
-		} else if (!target.targetIsBusy && !blocker && targetQueue.length > 0) {
-			drainPromptQueueCommand(workstreamId);
-		}
+		if (!target.targetIsBusy) drainPromptQueueCommand(workstreamId);
 		return;
 	}
 	if (optimisticSessionId) {
@@ -152,9 +135,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	if (sessionBusy || queuedForSession.length > 0) {
 		pendingPromptStore.clearForSession(sessionId);
 		enqueuePromptCommand(targetedTurn);
-		if (!sessionBusy && !chatOccupancy.runBlocker(workstreamId, sessionId)) {
-			drainPromptQueueCommand(workstreamId);
-		}
+		if (!sessionBusy) drainPromptQueueCommand(workstreamId);
 		return;
 	}
 

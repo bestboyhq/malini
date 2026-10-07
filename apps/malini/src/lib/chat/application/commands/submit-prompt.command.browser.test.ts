@@ -220,7 +220,7 @@ describe('submitting while a run is active', () => {
 		]);
 	});
 
-	it('queues behind a sibling run instead of starting a second run in the workstream', async () => {
+	it('sends to the captured chat while a sibling chat runs', async () => {
 		await openPromptPipeline([chat('s-a1'), chat('s-a2', { status: 'running' })]);
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
@@ -228,10 +228,27 @@ describe('submitting while a run is active', () => {
 
 		await submit(submission({ sessionId: 's-a1' }));
 
-		expect(sends()).toEqual([]);
-		expect(agentPromptQueue.entriesFor(WORKSTREAM)).toEqual([
-			expect.objectContaining({ targetSessionId: 's-a1' }),
-		]);
+		expect(sends()).toEqual([expect.objectContaining({ sessionId: 's-a1' })]);
+		expect(queuedPrompts()).toEqual([]);
+	});
+
+	it('sends a queued prompt of an idle chat while a sibling chat runs with its own backlog', async () => {
+		await openPromptPipeline([chat('s-a1'), chat('s-a2')]);
+		rememberChatTurn('s-a1');
+		rememberChatTurn('s-a2');
+		chatSessionStore.sessionId = 's-a1';
+		startRun('s-a1');
+		startRun('s-a2');
+		await submit(submission({ sessionId: 's-a2', prompt: 'For A2' }));
+		await submit(submission({ sessionId: 's-a1', prompt: 'For A1' }));
+		const sends = recordPromptDelivery();
+
+		completeRun('s-a1');
+
+		await vi.waitFor(() =>
+			expect(sends()).toEqual([expect.objectContaining({ sessionId: 's-a1', prompt: 'For A1' })]),
+		);
+		await vi.waitFor(() => expect(queuedPrompts()).toEqual(['For A2']));
 	});
 
 	it('ignores a sibling chat backlog when the captured chat is free', async () => {
@@ -254,54 +271,19 @@ describe('submitting while a run is active', () => {
 		expect(queuedPromptsQuery.data).toEqual([]);
 	});
 
-	it('interrupts a sibling chat that waits for an answer, then sends the prompt', async () => {
+	it('sends without interrupting a sibling chat that waits for an answer', async () => {
 		const { platform } = await openPromptPipeline([
 			chat('s-a1'),
 			chat('s-a2', { status: 'waiting_for_approval', displayName: 'Refactor' }),
 		]);
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
-		const info = vi.spyOn(toast, 'info');
 		const sends = recordPromptDelivery();
 
-		await submit(submission({ sessionId: 's-a1', prompt: 'Take over' }));
+		await submit(submission({ sessionId: 's-a1', prompt: 'Side task' }));
 
-		await vi.waitFor(() =>
-			expect(sends()).toEqual([
-				expect.objectContaining({ sessionId: 's-a1', prompt: 'Take over' }),
-			]),
-		);
-		expect(platform.calls).toContainEqual({
-			command: 'chat.cancel-run',
-			args: { sessionId: 's-a2' },
-		});
-		expect(info).toHaveBeenCalledWith('Interrupted Refactor · it was waiting for your answer', {
-			context: { workstream: WORKSTREAM },
-		});
-	});
-
-	it('keeps the prompt queued and says why when the waiting sibling chat cannot be stopped', async () => {
-		const { platform } = await openPromptPipeline([
-			chat('s-a1'),
-			chat('s-a2', { status: 'waiting_for_approval', displayName: 'Refactor' }),
-		]);
-		rememberChatTurn('s-a1');
-		chatSessionStore.sessionId = 's-a1';
-		platform.define('chat.cancel-run', async () => {
-			throw new Error('bridge unreachable');
-		});
-		const error = vi.spyOn(toast, 'error');
-		const sends = recordPromptDelivery();
-
-		await submit(submission({ sessionId: 's-a1', prompt: 'Take over' }));
-
-		await vi.waitFor(() =>
-			expect(error).toHaveBeenCalledWith('bridge unreachable', {
-				context: { workstream: WORKSTREAM },
-			}),
-		);
-		expect(sends()).toEqual([]);
-		expect(queuedPrompts()).toEqual(['Take over']);
+		expect(sends()).toEqual([expect.objectContaining({ sessionId: 's-a1', prompt: 'Side task' })]);
+		expect(platform.calls.map(({ command }) => command)).not.toContain('chat.cancel-run');
 	});
 
 	it('queues into the submitted workstream even when the route shows another one', async () => {
@@ -320,8 +302,8 @@ describe('submitting while a run is active', () => {
 });
 
 describe('starting a fresh chat', () => {
-	it('waits for the running chat, then sends the prompt to a new chat', async () => {
-		await openPromptPipeline([chat('s-a1')]);
+	it('sends the prompt to a new chat while the other chat keeps running', async () => {
+		const { platform } = await openPromptPipeline([chat('s-a1')]);
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
 		startRun('s-a1');
@@ -331,19 +313,13 @@ describe('starting a fresh chat', () => {
 
 		await submit(submission({ sessionId: null, forceFreshSession: true, prompt: 'Clean slate' }));
 
-		expect(agentPromptQueue.entriesFor(WORKSTREAM)).toEqual([
-			expect.objectContaining({ targetSessionId: null, forceFreshSession: true }),
-		]);
-		expect(chatSessionStore.emptySessionMode).toBe('setup');
-		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(false);
-
-		completeRun('s-a1');
-
-		await vi.waitFor(() => expect(sends()).toHaveLength(1));
+		expect(sends()).toEqual([expect.objectContaining({ prompt: 'Clean slate' })]);
 		const fresh = sends()[0]?.sessionId;
 		expect(fresh).not.toBe('s-a1');
-		expect(sends()[0]).toMatchObject({ prompt: 'Clean slate' });
 		expect(chatSessionStore.sessionId).toBe(fresh);
+		expect(queuedPrompts()).toEqual([]);
+		expect(chatSessionStore.emptySessionMode).toBe('setup');
+		expect(platform.calls.map(({ command }) => command)).not.toContain('chat.cancel-run');
 	});
 
 	it('sends the next prompt to a new chat after the model changes mid-chat', async () => {

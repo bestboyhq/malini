@@ -15,7 +15,7 @@ import type { PromptDispatch } from '$lib/chat/domain/prompt-submission';
 import type { QueueDrainOutcome } from '$lib/chat/domain/queue-drain-outcome';
 import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionId } from '$lib/chat/domain/session';
-import { resolveSubmissionSessionTarget } from '$lib/chat/domain/submission-session-target';
+import type { SubmissionSessionTarget } from '$lib/chat/domain/submission-session-target';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { agentEventStream } from '$lib/chat/infrastructure/services/agent-event-stream.service';
@@ -195,15 +195,9 @@ class PromptDeliveryService {
 		) {
 			return 'skipped';
 		}
-		const next = agentPromptQueue.entriesFor(workstreamId)[0];
-		if (!next) return 'skipped';
-		const target = resolveSubmissionSessionTarget({
-			workstreamId,
-			capturedSessionId: next.targetSessionId,
-			forceFreshSession: next.forceFreshSession,
-			candidates: chatOccupancy.submissionCandidates(next.role, { model: next.model }),
-		});
-		if (target.targetIsBusy) return 'skipped';
+		const deliverable = nextDeliverable(workstreamId);
+		if (!deliverable) return 'skipped';
+		const { next, target } = deliverable;
 
 		const lock = queueDrainStore.lock(workstreamId);
 		let dispatchSessionId = target.targetSessionId;
@@ -242,6 +236,7 @@ class PromptDeliveryService {
 				elementReferences: next.elementReferences,
 				queueId: next.id,
 			});
+			this.scheduleDrain(workstreamId);
 			return 'dispatched';
 		} catch (error) {
 			const message = errorMessage(error, 'Failed to send queued prompt');
@@ -334,7 +329,7 @@ class PromptDeliveryService {
 		if (queueInterruptRecoveryStore.get(workstreamId) !== recovery) return;
 		const outcome = await this.drain(workstreamId);
 		if (queueInterruptRecoveryStore.get(workstreamId) !== recovery) return;
-		if (outcome === 'dispatched' || outcome === 'failed') {
+		if (outcome === 'failed' || !queuedPromptById(workstreamId, recovery.entryId)) {
 			this.disarmInterruptRecovery(workstreamId);
 			return;
 		}
@@ -351,6 +346,19 @@ class PromptDeliveryService {
 function isTransientDispatchFailure(stage: PromptDispatchStage, error: unknown): boolean {
 	const failure = classifyPromptDispatchFailure({ stage, message: error });
 	return failure === 'already-running' || failure === 'cancel-race';
+}
+
+function nextDeliverable(
+	workstreamId: string,
+): { next: QueuedPrompt; target: SubmissionSessionTarget<SessionId> } | null {
+	const waitingChats = new Set<SessionId | null>();
+	for (const entry of agentPromptQueue.entriesFor(workstreamId)) {
+		if (waitingChats.has(entry.targetSessionId)) continue;
+		waitingChats.add(entry.targetSessionId);
+		const target = chatOccupancy.queuedTurnTarget(workstreamId, entry);
+		if (!target.targetIsBusy) return { next: entry, target };
+	}
+	return null;
 }
 
 function queuedPromptById(workstreamId: string, id: string): QueuedPrompt | null {
