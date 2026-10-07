@@ -76,7 +76,7 @@ describe('a transcript while it opens', () => {
 	it('opens on its last row', () => {
 		const transcript = transcriptOf([200, 300]);
 
-		transcript.scroll.openAtBottom();
+		transcript.scroll.open('opening-chat');
 
 		expect(transcript.distanceFromBottom()).toBe(0);
 		expect(transcript.gapBelowLastRow()).toBe(0);
@@ -84,7 +84,7 @@ describe('a transcript while it opens', () => {
 
 	it('stays on its last row, reserving nothing below it, when its rows shrink as they mount', async () => {
 		const transcript = transcriptOf([200, 300]);
-		transcript.scroll.openAtBottom();
+		transcript.scroll.open('opening-chat');
 
 		transcript.replaceLastRow(220);
 		await mutationsDelivered();
@@ -95,7 +95,7 @@ describe('a transcript while it opens', () => {
 
 	it('stays on its last row, before the next frame, when its rows grow as they mount', async () => {
 		const transcript = transcriptOf([200, 300]);
-		transcript.scroll.openAtBottom();
+		transcript.scroll.open('opening-chat');
 
 		transcript.replaceLastRow(420);
 		await mutationsDelivered();
@@ -105,7 +105,7 @@ describe('a transcript while it opens', () => {
 
 	it('stays on its last row when the space below it is sized later in the update that opened it', async () => {
 		const transcript = transcriptOf([200, 300]);
-		transcript.scroll.openAtBottom();
+		transcript.scroll.open('opening-chat');
 
 		transcript.reserveBelow(110);
 		await mutationsDelivered();

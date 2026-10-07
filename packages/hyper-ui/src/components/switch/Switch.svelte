@@ -34,7 +34,7 @@
 	bind:this={element}
 	{disabled}
 	class={[
-		'focus-visible:ring-border-default/50 relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40',
+		'focus-visible:ring-border-default/50 relative inline-flex h-6 w-10 shrink-0 items-center rounded-full focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40',
 		checked ? 'bg-brand' : 'bg-button-secondary-border',
 		disabled ? 'cursor-not-allowed' : 'cursor-pointer',
 		className,

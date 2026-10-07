@@ -73,7 +73,7 @@
 			</span>
 			<Button
 				bare
-				class="text-2xs text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 h-5 shrink-0 cursor-pointer rounded px-1.5 font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+				class="text-2xs text-fg-secondary hover:text-fg-default focus-visible:ring-border-default/50 h-5 shrink-0 cursor-pointer rounded px-1.5 font-medium transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
 				data-testid="chat-run-undo-dismiss"
 				disabled={busy}
 				onclick={() => runUndo.disarm()}
@@ -105,7 +105,7 @@
 			<Tooltip content={blocked ? OPEN_RUN_BLOCKS_RESTORE : warning} placement="top">
 				<Button
 					bare
-					class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+					class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
 					data-testid="chat-run-undo-arm"
 					disabled={blocked}
 					onclick={undoThisTurn}
@@ -134,7 +134,7 @@
 		>
 			<Button
 				bare
-				class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+				class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
 				data-testid="chat-run-fork"
 				ariaLabel="Fork to new chat"
 				ariaBusy={forking}

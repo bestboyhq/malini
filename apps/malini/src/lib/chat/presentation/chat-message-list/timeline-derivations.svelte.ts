@@ -29,7 +29,6 @@ export type TimelineDerivations = {
 		isLastRun: boolean,
 	): readonly GroupedRunTimelineItem[];
 	revealOlderTimeline(runId: string): void;
-	resetForSession(): void;
 };
 
 export function createTimelineDerivations(input: {
@@ -127,10 +126,6 @@ export function createTimelineDerivations(input: {
 					(visibleTimelineLimitByRun[runId] ?? INITIAL_RUN_TIMELINE_WINDOW_SIZE) +
 					RUN_TIMELINE_REVEAL_INCREMENT,
 			};
-		},
-
-		resetForSession(): void {
-			visibleTimelineLimitByRun = {};
 		},
 	};
 }

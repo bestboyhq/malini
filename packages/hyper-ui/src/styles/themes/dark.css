@@ -28,7 +28,7 @@
 	--color-success: var(--color-success-dark);
 	--color-success-content: var(--color-text-on-success-dark);
 
-	--color-merged-content: var(--color-purple-300);
+	--themed-color-merged-content: #c472fb;
 
 	--themed-color-tertiary: var(--color-tertiary-dark);
 	--themed-color-tertiary-content: var(--color-text-on-tertiary-dark);

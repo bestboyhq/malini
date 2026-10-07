@@ -22,9 +22,19 @@ const PATH_KEYS = [
 	'notebookPath',
 ] as const;
 
+const BRIDGE_IMAGE_OUTPUT = '[image]';
+
+const IMAGE_MEDIA_TYPES: Readonly<Record<string, string>> = {
+	png: 'image/png',
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	gif: 'image/gif',
+	webp: 'image/webp',
+};
+
 export function toolImageRead(name: string, input: unknown, output: unknown): ToolImageRead | null {
 	if (toolActionKind(name, input) !== 'read') return null;
-	const record = asRecord(output);
+	const record = typeof output === 'string' ? bridgeImageOutput(output, input) : asRecord(output);
 	if (!record || record.kind !== 'image') return null;
 
 	const mediaType = stringAt(record, ['mediaType', 'media_type']);
@@ -42,6 +52,13 @@ export function toolImageRead(name: string, input: unknown, output: unknown): To
 		note: stringAt(record, ['note']),
 		previewable: !relative.startsWith('/') && !relative.startsWith('~'),
 	};
+}
+
+function bridgeImageOutput(output: string, input: unknown): Record<string, unknown> | null {
+	if (output.trim() !== BRIDGE_IMAGE_OUTPUT) return null;
+	const path = stringAt(asRecord(input), PATH_KEYS);
+	const mediaType = IMAGE_MEDIA_TYPES[path?.split('.').pop()?.toLowerCase() ?? ''];
+	return mediaType ? { kind: 'image', mediaType } : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

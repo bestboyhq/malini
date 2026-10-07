@@ -12,7 +12,7 @@ import { isRecord } from '../type-guards.js';
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS']);
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
-const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch']);
+const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch', 'SandboxNetworkAccess']);
 
 export const MALINI_OWNED_GIT_COMMANDS = [
 	'git commit',
@@ -74,7 +74,11 @@ export function permissionDescriptor(
 		};
 	}
 	if (NETWORK_TOOLS.has(toolName)) {
-		const target = stringField(input, 'url') ?? stringField(input, 'query') ?? toolName;
+		const target =
+			stringField(input, 'url') ??
+			stringField(input, 'query') ??
+			stringField(input, 'host') ??
+			toolName;
 		return {
 			capability: 'network',
 			resources: [{ kind: 'url', value: target, boundary: 'external' }],

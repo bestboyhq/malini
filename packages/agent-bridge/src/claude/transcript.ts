@@ -1,4 +1,8 @@
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type {
+	SDKMessage,
+	SDKTaskNotificationMessage,
+	SDKTaskStartedMessage,
+} from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent } from '../types.js';
 import { isRecord } from '../type-guards.js';
 
@@ -18,6 +22,7 @@ export class ClaudeTranscript {
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #blockCounts = new Map<string, number>();
+	readonly #backgroundAgents = new Set<string>();
 	#streamMessageId = '';
 	#cursor: string | null = null;
 	#usage: RunUsage | null = null;
@@ -60,10 +65,56 @@ export class ClaudeTranscript {
 				return;
 			case 'system':
 				if (message.subtype === 'compact_boundary' && message.uuid) this.#cursor = message.uuid;
+				if (message.subtype === 'task_started') this.#acceptTaskStarted(message);
+				if (message.subtype === 'task_notification') this.#acceptTaskNotification(message);
 				return;
 			default:
 				return;
 		}
+	}
+
+	stopBackgroundAgents(): void {
+		for (const toolCallId of this.#backgroundAgents) {
+			this.#emit({
+				type: 'tool.failed',
+				runId: this.#runId,
+				name: this.#toolNames.get(toolCallId)?.name ?? '',
+				toolCallId,
+				error: 'Background agent stopped when the run ended.',
+			});
+		}
+		this.#backgroundAgents.clear();
+	}
+
+	#acceptTaskStarted(message: SDKTaskStartedMessage): void {
+		if (!message.tool_use_id || !message.is_backgrounded || message.task_type !== 'local_agent') {
+			return;
+		}
+		if (message.ambient || message.skip_transcript) return;
+		this.#backgroundAgents.add(message.tool_use_id);
+	}
+
+	#acceptTaskNotification(message: SDKTaskNotificationMessage): void {
+		const toolCallId = message.tool_use_id;
+		if (!toolCallId || !this.#backgroundAgents.delete(toolCallId)) return;
+		const name = this.#toolNames.get(toolCallId)?.name ?? '';
+		if (message.status === 'completed') {
+			this.#emit({
+				type: 'tool.completed',
+				runId: this.#runId,
+				name,
+				toolCallId,
+				output: message.summary,
+			});
+			return;
+		}
+		this.#emit({
+			type: 'tool.failed',
+			runId: this.#runId,
+			name,
+			toolCallId,
+			error: message.summary || `Background agent ${message.status}`,
+		});
 	}
 
 	#acceptStreamEvent(event: unknown): void {
@@ -188,6 +239,10 @@ export class ClaudeTranscript {
 			const toolCallId = block['tool_use_id'];
 			if (typeof toolCallId !== 'string') continue;
 			if (this.#stoppedByUser && block['is_error'] === true) continue;
+			if (this.#backgroundAgents.has(toolCallId)) {
+				if (block['is_error'] !== true) continue;
+				this.#backgroundAgents.delete(toolCallId);
+			}
 			const tool = this.#toolNames.get(toolCallId);
 			const name = tool?.name ?? '';
 			const handedOffPlan = name === 'ExitPlanMode';

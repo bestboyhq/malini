@@ -52,9 +52,7 @@
 	<div class="native-shell-safe-frame flex h-full w-full">
 		<div class="relative flex min-w-0 flex-1">
 			<div class="flex min-w-0 flex-1">
-				<div
-					class="styled-scrollbar relative z-10 flex h-full w-full overflow-auto sm:overflow-hidden"
-				>
+				<div class="styled-scrollbar relative flex h-full w-full overflow-auto sm:overflow-hidden">
 					<div class="flex h-full w-full flex-col gap-1 sm:gap-3">
 						<div
 							class="bg-surface-root flex h-full w-full overflow-hidden"

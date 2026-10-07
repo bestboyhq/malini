@@ -13,6 +13,7 @@
 
 	--color-tertiary: var(--themed-color-tertiary);
 	--color-tertiary-content: var(--themed-color-tertiary-content);
+	--color-merged-content: var(--themed-color-merged-content);
 
 	--color-custom-bg-1: var(--themed-color-custom-bg-1);
 	--color-custom-bg-2: var(--themed-color-custom-bg-2);

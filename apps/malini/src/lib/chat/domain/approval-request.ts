@@ -13,9 +13,9 @@ export function approvalHeadline(
 	if (permission?.capability === 'read') return `Claude wants to read ${fileNoun}`;
 	if (permission?.capability === 'write') return `Claude wants to edit ${fileNoun}`;
 	if (permission?.capability === 'network') {
-		return toolName === 'WebSearch'
-			? 'Claude wants to search the web'
-			: 'Claude wants to fetch a web page';
+		if (toolName === 'WebSearch') return 'Claude wants to search the web';
+		if (toolName === 'WebFetch') return 'Claude wants to fetch a web page';
+		return 'Claude wants to reach the network';
 	}
 	if (permission?.capability === 'external-service') {
 		const service = resources.find((resource) => resource.kind === 'service')?.value;

@@ -27,7 +27,7 @@
 >
 	<details class="group/activity w-full text-sm" bind:open={expandedActivityGroups[group.key]}>
 		<summary
-			class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-colors"
+			class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 			aria-label={`${group.verb} ${group.detail}`}
 			data-testid="chat-activity-group-summary"
 		>

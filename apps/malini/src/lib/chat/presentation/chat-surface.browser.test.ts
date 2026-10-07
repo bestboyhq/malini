@@ -34,6 +34,7 @@ import type { AgentEvent } from '$lib/chat/domain/events';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { DEFAULT_AGENT_RUN_PROFILE, defaultAgentModel } from '$shared/providers/providers.api';
 import { mountChatSurface } from './chat-surface.harness.svelte';
+import { forgetTranscriptPositions } from './chat-message-list/transcript-scroll.svelte';
 import WorkstreamChatsPreloader from './WorkstreamChatsPreloader.svelte';
 
 const WORKSTREAM = 'ws-surface';
@@ -46,6 +47,7 @@ afterEach(async () => {
 	stop?.();
 	stop = null;
 	vi.restoreAllMocks();
+	forgetTranscriptPositions();
 	await resetChatState();
 });
 

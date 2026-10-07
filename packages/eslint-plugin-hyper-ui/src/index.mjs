@@ -1,5 +1,6 @@
 import { domainBoundaries } from './domain-boundaries.mjs';
 import { noAsCasts } from './no-as-casts.mjs';
+import { noBackgroundTransition } from './no-background-transition.mjs';
 import { noBespokeOverlays } from './no-bespoke-overlays.mjs';
 import { noBorderTokenBackground } from './no-border-token-background.mjs';
 import { noComments } from './no-comments.mjs';
@@ -31,6 +32,7 @@ const plugin = {
 	rules: {
 		'domain-boundaries': domainBoundaries,
 		'no-as-casts': noAsCasts,
+		'no-background-transition': noBackgroundTransition,
 		'no-bespoke-overlays': noBespokeOverlays,
 		'no-border-token-background': noBorderTokenBackground,
 		'no-comments': noComments,
@@ -59,6 +61,7 @@ configs.recommended = {
 	rules: {
 		'@malini/desktop/domain-boundaries': 'error',
 		'@malini/desktop/no-as-casts': 'error',
+		'@malini/desktop/no-background-transition': 'error',
 		'@malini/desktop/no-comments': 'error',
 		'@malini/desktop/no-then-chains': 'error',
 	},
@@ -68,6 +71,7 @@ export default plugin;
 export {
 	domainBoundaries,
 	noAsCasts,
+	noBackgroundTransition,
 	noBespokeOverlays,
 	noBorderTokenBackground,
 	noComments,

@@ -9,6 +9,19 @@ const IMAGE_OUTPUT = {
 };
 
 describe('toolImageRead', () => {
+	it('recognizes the text the Claude bridge reports for an image Read', () => {
+		const input = { file_path: '/Users/simon/malini/workstreams/ws-1/docs/shot.PNG' };
+
+		expect(toolImageRead('Read', input, '[image]')).toMatchObject({
+			path: 'docs/shot.PNG',
+			fileName: 'shot.PNG',
+			mediaType: 'image/png',
+			previewable: true,
+		});
+		expect(toolImageRead('Read', { file_path: 'notes.txt' }, '[image]')).toBeNull();
+		expect(toolImageRead('Read', input, 'plain text')).toBeNull();
+	});
+
 	it('recognizes the shape the bridge returns for an image', () => {
 		const image = toolImageRead('read', { path: 'ignored.png' }, IMAGE_OUTPUT);
 

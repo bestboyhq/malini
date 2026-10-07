@@ -107,7 +107,7 @@
 			'text-fg-default placeholder:text-fg-placeholder w-full resize-none disabled:cursor-not-allowed',
 			bare
 				? 'border-transparent bg-transparent outline-none focus:border-transparent focus:ring-0 focus:outline-none'
-				: 'border-surface-input-border bg-surface-input focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled min-h-12 rounded-md border px-3 py-2 text-sm leading-6 transition-colors focus:ring-2',
+				: 'border-surface-input-border bg-surface-input focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled min-h-12 rounded-md border px-3 py-2 text-sm leading-6 transition-[color,border-color] focus:ring-2',
 			{
 				'border-error-content focus:border-error-content focus:ring-error-content/20':
 					invalid && !bare,

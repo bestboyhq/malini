@@ -16,7 +16,7 @@
 	class={[
 		'bg-surface-150 rounded-md border shadow-sm',
 		selected ? 'border-primary' : 'border-surface-150-border',
-		interactive ? 'hover:bg-surface-150-hover transition-colors' : '',
+		interactive ? 'hover:bg-surface-150-hover' : '',
 		className,
 	]}
 >

@@ -5,6 +5,7 @@ import { recordedMessages, type RecordedScenario } from './fixtures/fake-claude.
 import { ClaudeTranscript } from './transcript.js';
 
 const SUBAGENT_TOOL_CALL = 'toolu_01FeTa8kst16VYXGjiDS1bL9';
+const BACKGROUND_AGENT_TOOL_CALL = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 
 function replay(messages: readonly SDKMessage[]): {
 	events: AgentEvent[];
@@ -193,6 +194,54 @@ describe('ClaudeTranscript', () => {
 		expect(ofType(events, 'tool.completed')).toEqual([]);
 		expect(ofType(events, 'command.completed')).toEqual([
 			{ type: 'command.completed', runId: 'run-1', command: 'cat missing.txt', exitCode: 1 },
+		]);
+	});
+
+	it('keeps a background agent running until Claude Code reports its task finished', () => {
+		const { events } = replayRecorded('backgroundAgent');
+
+		const agentEvents = events.filter(
+			(event) => 'toolCallId' in event && event.toolCallId === BACKGROUND_AGENT_TOOL_CALL,
+		);
+		expect(agentEvents.map(({ type }) => type)).toEqual(['tool.started', 'tool.completed']);
+		expect(agentEvents[1]).toEqual({
+			type: 'tool.completed',
+			runId: 'run-1',
+			name: 'Agent',
+			toolCallId: BACKGROUND_AGENT_TOOL_CALL,
+			output: 'Command completed. Output:\n\n```\nprobe-done\n```',
+		});
+		const launched = events.findIndex(
+			(event) => event.type === 'assistant.message' && event.text === 'launched',
+		);
+		const finished = events.findIndex(
+			(event) => event.type === 'tool.completed' && event.toolCallId === BACKGROUND_AGENT_TOOL_CALL,
+		);
+		expect(finished).toBeGreaterThan(launched);
+		expect(ofType(events, 'assistant.message').at(-1)?.text).toBe(
+			'Agent "Sleep probe" completed successfully. Output: `probe-done`',
+		);
+	});
+
+	it('stops a background agent still running when the run ends', () => {
+		const messages = recordedMessages('backgroundAgent');
+		const firstResult = messages.findIndex((message) => message.type === 'result');
+		const { events, transcript } = replay(messages.slice(0, firstResult + 1));
+
+		transcript.stopBackgroundAgents();
+		transcript.stopBackgroundAgents();
+
+		expect(ofType(events, 'tool.completed')).not.toContainEqual(
+			expect.objectContaining({ toolCallId: BACKGROUND_AGENT_TOOL_CALL }),
+		);
+		expect(ofType(events, 'tool.failed')).toEqual([
+			{
+				type: 'tool.failed',
+				runId: 'run-1',
+				name: 'Agent',
+				toolCallId: BACKGROUND_AGENT_TOOL_CALL,
+				error: 'Background agent stopped when the run ended.',
+			},
 		]);
 	});
 });

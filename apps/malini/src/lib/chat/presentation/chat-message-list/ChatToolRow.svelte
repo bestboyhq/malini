@@ -81,7 +81,7 @@
 				>
 					<IconButton
 						bare
-						class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded transition-colors focus-visible:ring-2 focus-visible:outline-none"
+						class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
 						ariaLabel={`Copy ${displayNameFromTool(item)} error`}
 						onclick={() => transcript.copyErrorText(item.key, failureTextFromTool(item))}
 					>
@@ -101,6 +101,7 @@
 				liveInputJson={item.tool.status === 'running'
 					? transcript.liveInputJsonForRunningTool(run.runId, item.tool)
 					: null}
+				onopenimage={transcript.openImageGallery}
 			/>
 		{/if}
 	</div>

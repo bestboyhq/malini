@@ -1726,5 +1726,482 @@
 			"user_message_uuid": "8620fdda-cc8b-4f24-88fb-af21cc5a55a5",
 			"user_message_uuids": ["8620fdda-cc8b-4f24-88fb-af21cc5a55a5"]
 		}
+	],
+	"backgroundAgent": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "ce4c079e-4dbf-46b4-8272-0214056329c2",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"model": "claude-haiku-4-5-20251001",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "c95cbe79-b6c6-43a1-8f72-d4fffee2fd19"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhSk6cMVdUUDpykLha",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 3576,
+					"cache_read_input_tokens": 12359,
+					"output_tokens": 3
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "73b4fe57-3c5f-4fc7-ac95-6b0543d6cb01",
+			"user_message_uuid": "83f055b2-8a52-4bb9-a299-8ee03d3ecbb0",
+			"user_message_uuids": ["83f055b2-8a52-4bb9-a299-8ee03d3ecbb0"]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhSk6cMVdUUDpykLha",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+						"name": "Agent",
+						"input": {
+							"description": "Sleep probe",
+							"subagent_type": "general-purpose",
+							"run_in_background": true,
+							"prompt": "Run the bash command `sleep 15 && echo probe-done` and reply with its output."
+						}
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 3576,
+					"cache_read_input_tokens": 12359,
+					"output_tokens": 3
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "ef465fa2-7198-4c7f-8512-84b35efbc034"
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [
+				{
+					"task_id": "ac0c63b2f71a8ec5c",
+					"task_type": "local_agent",
+					"description": "Sleep probe"
+				}
+			],
+			"uuid": "f88cce56-1cfc-492f-a8d5-0db3efb0f555",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "task_started",
+			"task_id": "ac0c63b2f71a8ec5c",
+			"tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"description": "Sleep probe",
+			"subagent_type": "general-purpose",
+			"is_backgrounded": true,
+			"spawn_depth": 1,
+			"task_type": "local_agent",
+			"prompt": "Run the bash command `sleep 15 && echo probe-done` and reply with its output.",
+			"uuid": "7201bc3e-9b1c-4a97-b220-3ba98c6dfa83",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+						"type": "tool_result",
+						"content": [
+							{
+								"type": "text",
+								"text": "Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)\nagentId: ac0c63b2f71a8ec5c (internal ID - do not mention to user. Use SendMessage with to: 'ac0c63b2f71a8ec5c', summary: '<5-10 word recap>' to continue this agent.)\nThe agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.\nDo not duplicate this agent's work — avoid working with the same files or topics it is using.\noutput_file: /tmp/claude/work-repo/f141f0a7-7ba8-45ad-a442-4ef076cbcf24/tasks/ac0c63b2f71a8ec5c.output\nDo NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification."
+							}
+						]
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "bb5fbbfa-ca4a-421e-b431-2217ee87235b"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhdAAzfQEGk923bQw9",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 8,
+					"cache_creation_input_tokens": 1511,
+					"cache_read_input_tokens": 15935,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "580ea24a-ffc5-49f3-9d24-8c5369a9fd21"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhdAAzfQEGk923bQw9",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "launched"
+					}
+				],
+				"usage": {
+					"input_tokens": 8,
+					"cache_creation_input_tokens": 1511,
+					"cache_read_input_tokens": 15935,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "19028120-623f-4e62-a1e5-200df36f8972"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 2,
+			"result": "launched",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"total_cost_usd": 0.014501400000000001,
+			"usage": {
+				"input_tokens": 18,
+				"cache_creation_input_tokens": 5087,
+				"cache_read_input_tokens": 28294,
+				"output_tokens": 296
+			},
+			"modelUsage": {
+				"claude-haiku-4-5-20251001": {
+					"inputTokens": 18,
+					"outputTokens": 296,
+					"cacheReadInputTokens": 28294,
+					"cacheCreationInputTokens": 5087,
+					"contextWindow": 200000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "ed1a654c-bfda-4f3d-a532-3a53be1e9886",
+			"user_message_uuid": "83f055b2-8a52-4bb9-a299-8ee03d3ecbb0",
+			"user_message_uuids": ["83f055b2-8a52-4bb9-a299-8ee03d3ecbb0"]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhdZyczo3UiT9jBX43",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 12463,
+					"cache_read_input_tokens": 0,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "421477cf-bf23-4e7c-a17c-d4e800fef25a"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFhdZyczo3UiT9jBX43",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_015sv8r13ncNPxmZDErykWAZ",
+						"name": "Bash",
+						"input": {
+							"command": "sleep 15 && echo probe-done",
+							"description": "Sleep for 15 seconds then output probe-done"
+						}
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 12463,
+					"cache_read_input_tokens": 0,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "dbc0d13a-6ccb-4c6e-984b-8737b8477122"
+		},
+		{
+			"type": "system",
+			"subtype": "task_progress",
+			"task_id": "ac0c63b2f71a8ec5c",
+			"tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"description": "Running Sleep for 15 seconds then output probe-done",
+			"subagent_type": "general-purpose",
+			"usage": {
+				"total_tokens": 12622,
+				"tool_uses": 1,
+				"duration_ms": 1995
+			},
+			"last_tool_name": "Bash",
+			"uuid": "34494b85-aa87-4b35-80be-8c4a34a79ba9",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "task_started",
+			"task_id": "bah9ukm5t",
+			"owned_by_subagent": true,
+			"tool_use_id": "toolu_015sv8r13ncNPxmZDErykWAZ",
+			"description": "Sleep for 15 seconds then output probe-done",
+			"is_backgrounded": false,
+			"task_type": "local_bash",
+			"uuid": "1d9c86cb-fa17-4ff4-a75f-e431059d7e25",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "bah9ukm5t",
+			"tool_use_id": "toolu_015sv8r13ncNPxmZDErykWAZ",
+			"status": "completed",
+			"output_file": "",
+			"summary": "Sleep for 15 seconds then output probe-done",
+			"uuid": "fe5f4fc5-0271-4dd1-a243-9909189f7516",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_015sv8r13ncNPxmZDErykWAZ",
+						"type": "tool_result",
+						"content": "probe-done",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "a81b6add-fba6-4335-b966-378a8aaa345c"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFiwLb4RaoTcyYnFqn8",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 8,
+					"cache_creation_input_tokens": 1223,
+					"cache_read_input_tokens": 12463,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "3554be73-a876-4039-a992-b08e89264993"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFiwLb4RaoTcyYnFqn8",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "Command completed. Output:\n\n```\nprobe-done\n```"
+					}
+				],
+				"usage": {
+					"input_tokens": 8,
+					"cache_creation_input_tokens": 1223,
+					"cache_read_input_tokens": 12463,
+					"output_tokens": 1
+				}
+			},
+			"parent_tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "0a246d90-fea3-4a15-a1c3-8eb09b23fb78"
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [],
+			"uuid": "3d18d730-63b9-43f6-afe3-a7aa998ea69e",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "task_updated",
+			"task_id": "ac0c63b2f71a8ec5c",
+			"patch": {
+				"status": "completed",
+				"end_time": 1791393350684
+			},
+			"uuid": "93f8f55c-3b03-4ef9-a905-e698dcff3b82",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "ac0c63b2f71a8ec5c",
+			"tool_use_id": "toolu_012Qe9FFbcvw55RGnwjEQhkH",
+			"status": "completed",
+			"output_file": "/tmp/claude/work-repo/f141f0a7-7ba8-45ad-a442-4ef076cbcf24/tasks/ac0c63b2f71a8ec5c.output",
+			"summary": "Command completed. Output:\n\n```\nprobe-done\n```",
+			"usage": {
+				"total_tokens": 13821,
+				"tool_uses": 1,
+				"duration_ms": 19048
+			},
+			"uuid": "e92d82a5-4d98-4690-8ce9-af011025077d",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"model": "claude-haiku-4-5-20251001",
+			"permissionMode": "default",
+			"mcp_servers": [
+				{
+					"name": "claude.ai Claude Docs",
+					"status": "connected",
+					"source": "claudeai"
+				},
+				{
+					"name": "claude.ai Google Drive",
+					"status": "connected",
+					"source": "claudeai"
+				}
+			],
+			"uuid": "0a59494a-884d-4968-9f1b-6703cc32ac7c"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFj2Xt5QcCwY8svuu1f",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 474,
+					"cache_read_input_tokens": 17446,
+					"output_tokens": 2
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "0cc79cd0-2080-4632-88b0-9c2d791e35ec"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011CfoFj2Xt5QcCwY8svuu1f",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "Agent \"Sleep probe\" completed successfully. Output: `probe-done`"
+					}
+				],
+				"usage": {
+					"input_tokens": 10,
+					"cache_creation_input_tokens": 474,
+					"cache_read_input_tokens": 17446,
+					"output_tokens": 2
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"uuid": "46d1ec95-4d73-420f-987e-61155f8e1054"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 1,
+			"result": "Agent \"Sleep probe\" completed successfully. Output: `probe-done`",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24",
+			"total_cost_usd": 0.0375658,
+			"usage": {
+				"input_tokens": 10,
+				"cache_creation_input_tokens": 474,
+				"cache_read_input_tokens": 17446,
+				"output_tokens": 195
+			},
+			"modelUsage": {
+				"claude-haiku-4-5-20251001": {
+					"inputTokens": 46,
+					"outputTokens": 694,
+					"cacheReadInputTokens": 58203,
+					"cacheCreationInputTokens": 19247,
+					"contextWindow": 200000
+				}
+			},
+			"permission_denials": [],
+			"origin": {
+				"kind": "task-notification",
+				"producer": "session-task"
+			},
+			"uuid": "a0b86135-3e83-4483-9e8c-cfafa9a555f4"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "7c8f2e21-cfbf-4b4a-afb9-395afcf13bd4",
+			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
+		}
 	]
 }

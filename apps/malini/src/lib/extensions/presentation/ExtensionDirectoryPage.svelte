@@ -118,7 +118,7 @@
 						data-navigation-path-id="expected-path:extension-directory.open-detail"
 						data-navigation-shallow="true"
 						data-testid="extension-directory-card"
-						class="group border-surface-150-border bg-surface-150 hover:bg-surface-150-hover flex min-h-44 flex-col rounded-2xl border p-4 transition-colors"
+						class="group border-surface-150-border bg-surface-150 hover:bg-surface-150-hover flex min-h-44 flex-col rounded-2xl border p-4"
 						onclick={(event) => openDetailShallow(event, entry.id)}
 					>
 						<div class="flex items-start justify-between gap-3">

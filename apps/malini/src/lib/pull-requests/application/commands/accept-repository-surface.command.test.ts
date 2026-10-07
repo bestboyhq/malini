@@ -9,13 +9,16 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-function surface(state: 'open' | 'merged', dirtyPaths: readonly string[] = []): RepositorySurface {
+function surface(
+	state: 'open' | 'merged',
+	overrides: Partial<RepositorySurface> = {},
+): RepositorySurface {
 	return {
 		status: 'ready',
 		workstreamId: 'ws-1',
 		branch: 'malini/ws-1',
 		baseBranch: 'main',
-		dirtyPaths,
+		dirtyPaths: [],
 		conflictedPaths: [],
 		conflictMarkerPaths: [],
 		changedFiles: 1,
@@ -53,25 +56,35 @@ function surface(state: 'open' | 'merged', dirtyPaths: readonly string[] = []): 
 		todoOpenCount: 0,
 		todoError: null,
 		github: null,
+		...overrides,
 	};
 }
 
 describe('acceptRepositorySurfaceCommand', () => {
-	it('hands the sidebar a merge the open workstream sees, and re-reads a reopened pull request', () => {
+	it('hands the sidebar the pull request state of every surface that read it', () => {
 		const observe = vi.spyOn(pullRequestStateAggregate, 'observe').mockReturnValue(undefined);
-		const refresh = vi
-			.spyOn(pullRequestStateAggregate, 'refreshWorkstream')
-			.mockResolvedValue(undefined);
 
 		acceptRepositorySurfaceCommand('ws-1', surface('open'));
-		acceptRepositorySurfaceCommand('ws-1', surface('open', ['next.ts']));
-		expect(observe).not.toHaveBeenCalled();
-		expect(refresh).not.toHaveBeenCalled();
-
+		acceptRepositorySurfaceCommand('ws-1', surface('open', { dirtyPaths: ['next.ts'] }));
 		acceptRepositorySurfaceCommand('ws-1', surface('merged'));
-		expect(observe).toHaveBeenCalledExactlyOnceWith('ws-1', 'merged');
 
-		acceptRepositorySurfaceCommand('ws-1', surface('open'));
-		expect(refresh).toHaveBeenCalledExactlyOnceWith('ws-1');
+		expect(observe.mock.calls).toEqual([
+			['ws-1', 'ready'],
+			['ws-1', 'ready'],
+			['ws-1', 'merged'],
+		]);
+	});
+
+	it('leaves the sidebar alone while the pull request is still being read or belongs elsewhere', () => {
+		const observe = vi.spyOn(pullRequestStateAggregate, 'observe').mockReturnValue(undefined);
+
+		acceptRepositorySurfaceCommand(
+			'ws-1',
+			surface('merged', { pullRequestRefreshStatus: 'loading' }),
+		);
+		acceptRepositorySurfaceCommand('ws-1', surface('merged', { pullRequest: null }));
+		acceptRepositorySurfaceCommand('ws-1', surface('merged', { workstreamId: 'ws-2' }));
+
+		expect(observe).not.toHaveBeenCalled();
 	});
 });

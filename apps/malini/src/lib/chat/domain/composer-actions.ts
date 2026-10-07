@@ -11,6 +11,10 @@ export type StagedAgentAttachment = AgentComposerFileAttachment;
 
 export const MAX_COMPOSER_ATTACHMENTS = 10;
 
+export function isImageAttachment(attachment: StagedAgentAttachment): boolean {
+	return attachment.mediaType.startsWith('image/');
+}
+
 export function mergeComposerAttachments(
 	current: readonly AgentComposerFileAttachment[],
 	added: readonly AgentComposerFileAttachment[],

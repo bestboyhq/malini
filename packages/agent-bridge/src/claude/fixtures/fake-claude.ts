@@ -28,7 +28,14 @@ export interface CanUseToolStep {
 export type ScriptStep = SDKMessage | CanUseToolStep | 'wait-for-interrupt';
 
 export type RecordedScenario =
-	'readAndBash' | 'write' | 'ask' | 'plan' | 'bashFailure' | 'deny' | 'orphanedTask';
+	| 'readAndBash'
+	| 'write'
+	| 'ask'
+	| 'plan'
+	| 'bashFailure'
+	| 'deny'
+	| 'orphanedTask'
+	| 'backgroundAgent';
 
 export interface FakeRun {
 	readonly options: Options;

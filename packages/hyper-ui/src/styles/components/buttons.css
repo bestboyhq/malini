@@ -1,22 +1,22 @@
 @layer components {
 	.btn {
-		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 px-2 text-sm leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1.5 rounded-md border-0 px-2 text-sm leading-normal font-medium whitespace-nowrap transition-[color,border-color] ease-in-out;
 	}
 
 	.btn-compact {
-		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2.5 text-sm leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+		@apply flex h-7 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2.5 text-sm leading-normal font-medium whitespace-nowrap transition-[color,border-color] ease-in-out;
 	}
 
 	.btn-small {
-		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-1.5 text-xs font-medium whitespace-nowrap transition-colors ease-in-out;
+		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-1.5 text-xs font-medium whitespace-nowrap transition-[color,border-color] ease-in-out;
 	}
 
 	.btn-sm {
-		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2 text-xs leading-normal font-medium whitespace-nowrap transition-colors ease-in-out;
+		@apply flex h-6 w-fit cursor-pointer items-center justify-center gap-1 rounded-md border-0 px-2 text-xs leading-normal font-medium whitespace-nowrap transition-[color,border-color] ease-in-out;
 	}
 
 	.icon-btn {
-		@apply flex aspect-square h-7 w-fit cursor-pointer items-center justify-center rounded-full p-1.5 text-sm transition-colors ease-in-out;
+		@apply flex aspect-square h-7 w-fit cursor-pointer items-center justify-center rounded-full p-1.5 text-sm transition-[color,border-color] ease-in-out;
 	}
 
 	.btn-primary {
@@ -72,7 +72,7 @@
 	}
 
 	.dropdown-item-btn {
-		@apply bg-surface-elevated text-fg-secondary flex w-full cursor-pointer items-center rounded-md px-1.5 py-1.5 text-xs transition-colors;
+		@apply bg-surface-elevated text-fg-secondary flex w-full cursor-pointer items-center rounded-md px-1.5 py-1.5 text-xs transition-[color,border-color];
 	}
 
 	.dropdown-item-btn:not(:disabled):hover {
@@ -88,7 +88,7 @@
 	.btn-small,
 	.btn-sm,
 	.icon-btn {
-		transition-property: color, background-color, border-color, scale;
+		transition-property: color, border-color, scale;
 	}
 
 	.btn:not(:disabled):active,

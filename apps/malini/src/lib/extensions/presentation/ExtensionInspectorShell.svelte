@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ExtensionPanelContext, ExtensionPanelRegistration } from '@malini/extension-api';
 	import { tick, type Snippet } from 'svelte';
+	import { dockInspector } from '$shared/shell/inspector-dock.svelte';
 
 	import { BrowserTab, roveTabFocus } from '$hyper-ui/components/browser-tab';
 	import { Button } from '$hyper-ui/components/button';
@@ -579,9 +580,10 @@
 	class={[
 		'min-h-0 overflow-hidden',
 		drawerOpen
-			? 'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-w-0 shrink flex-col rounded-3xl border-[0.5px]'
+			? 'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-w-0 shrink flex-col rounded-3xl border-[0.5px] [html[data-native-shell=true]_&]:relative [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-4'
 			: 'hidden',
 	]}
+	{@attach drawerOpen && dockInspector}
 	aria-label="Inspector"
 	aria-busy={drawerOpen &&
 		!inspectorRuntimeReady &&

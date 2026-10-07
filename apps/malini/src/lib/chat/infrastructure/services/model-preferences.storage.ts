@@ -16,15 +16,23 @@ type ModelPreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 export const MODEL_MEMORY_KEY = 'malini.chat.model-memory:v2';
 const CHAT_SNAPSHOT_PREFIX = 'malini.chat.chat-model:v1:';
 const WORKSTREAM_PROFILE_PREFIX = 'malini.chat.profile:';
+export const LAST_EFFORT_KEY = 'malini.chat.last-effort:v1';
 
-export function readStoredRunProfile(workstreamId: string): AgentRunProfile {
+export function readStoredRunProfile(
+	workstreamId: string,
+	storage: ModelPreferenceStorage | null = browserStorage(),
+): AgentRunProfile {
 	const access = agentAccessDefaultQuery.data;
-	try {
-		const raw = globalThis.localStorage?.getItem(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`);
-		const profile = normalizeAgentRunProfile(raw ? JSON.parse(raw) : null, access);
-		if (profile) return profile;
-	} catch {}
-	return { ...DEFAULT_AGENT_RUN_PROFILE, access };
+	const stored = normalizeAgentRunProfile(
+		readJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, storage),
+		access,
+	);
+	if (stored) return stored;
+	const fresh = { ...DEFAULT_AGENT_RUN_PROFILE, access };
+	return (
+		normalizeAgentRunProfile({ ...fresh, effort: readJson(LAST_EFFORT_KEY, storage) }, access) ??
+		fresh
+	);
 }
 
 export function hasStoredRunProfile(workstreamId: string): boolean {
@@ -35,13 +43,13 @@ export function hasStoredRunProfile(workstreamId: string): boolean {
 	}
 }
 
-export function writeStoredRunProfile(workstreamId: string, profile: AgentRunProfile): void {
-	try {
-		globalThis.localStorage?.setItem(
-			`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`,
-			JSON.stringify(profile),
-		);
-	} catch {}
+export function writeStoredRunProfile(
+	workstreamId: string,
+	profile: AgentRunProfile,
+	storage: ModelPreferenceStorage | null = browserStorage(),
+): void {
+	writeJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, profile, storage);
+	writeJson(LAST_EFFORT_KEY, profile.effort, storage);
 }
 
 export function chatModelSnapshotKey(sessionId: string): string {

@@ -1,3 +1,4 @@
+import { acceptRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/accept-repository-surface.command';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { awaitPullRequestActionScope } from '$lib/pull-requests/domain/pull-request-action-scope';
@@ -5,7 +6,6 @@ import {
 	REPOSITORY_EXTENSION_COMMANDS,
 	pullRequestActionFailureDetail,
 } from '$lib/pull-requests/domain/pull-request-action';
-import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { repositoryExtensionService } from '$lib/pull-requests/infrastructure/services/repository-extension.service';
 import { pullRequestActionStore } from '$lib/pull-requests/infrastructure/stores/pull-request-action.store.svelte';
 import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/pull-request-scope.store.svelte';
@@ -28,7 +28,7 @@ function refreshRepositorySurfaceCommand(): void {
 				() => pullRequestScopeStore.snapshot(),
 			);
 			if (!outcome || !pullRequestScopeStore.isCurrent(scope)) return;
-			repositorySurfaceAggregate.accept(scope.workstreamId, outcome.surface);
+			acceptRepositorySurfaceCommand(scope.workstreamId, outcome.surface);
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;
 			toast.error(

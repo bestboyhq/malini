@@ -41,7 +41,7 @@
 		data-testid="thinking-summary"
 	>
 		<summary
-			class="hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-colors"
+			class="hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 		>
 			<Icon
 				name="chevron-right"
@@ -115,6 +115,7 @@
 			onopenfile={transcript.openFileMention}
 			canopenfile={transcript.canOpenFileMention}
 			imagesrc={transcript.markdownImageSource}
+			onopenimage={transcript.openImageGallery}
 		/>
 	</div>
 {:else if item.kind === 'handoff'}

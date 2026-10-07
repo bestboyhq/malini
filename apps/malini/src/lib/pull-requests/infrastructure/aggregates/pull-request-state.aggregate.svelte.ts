@@ -90,6 +90,13 @@ export class PullRequestStateAggregate {
 	observe(workstreamId: string, state: PullRequestState): void {
 		if (!this.#targets.has(workstreamId)) return;
 		this.#invalidate(workstreamId);
+		if (
+			this.stateByWorkstream[workstreamId] === state &&
+			!this.lastErrorByWorkstream[workstreamId] &&
+			!this.loadingByWorkstream[workstreamId]
+		) {
+			return;
+		}
 		this.stateByWorkstream = { ...this.stateByWorkstream, [workstreamId]: state };
 		this.lastErrorByWorkstream = { ...this.lastErrorByWorkstream, [workstreamId]: null };
 		this.loadingByWorkstream = { ...this.loadingByWorkstream, [workstreamId]: false };

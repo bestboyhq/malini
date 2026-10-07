@@ -1,4 +1,4 @@
-import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { imagePreviewKey } from '$lib/chat/domain/image-preview';
 import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
@@ -6,12 +6,10 @@ import { imagePreviewsStore } from '$lib/chat/infrastructure/stores/image-previe
 
 export { previewStagedAttachmentCommand };
 
-const IMAGE_MEDIA_PREFIX = 'image/';
-
 function previewStagedAttachmentCommand(
 	input: Readonly<{ owner: string; workstreamId: string; attachment: StagedAgentAttachment }>,
 ): void {
-	if (!input.attachment.mediaType.startsWith(IMAGE_MEDIA_PREFIX)) return;
+	if (!isImageAttachment(input.attachment)) return;
 	const key = imagePreviewKey(input.owner, input.attachment.id);
 	if (!imagePreviewsStore.begin(key)) return;
 	void (async () => {

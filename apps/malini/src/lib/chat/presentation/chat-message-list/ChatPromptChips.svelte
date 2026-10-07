@@ -1,11 +1,12 @@
 <script lang="ts">
-	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+	import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentIssueReference } from '$lib/chat/domain/issue-reference';
 	import {
 		elementReferenceChipLines,
 		elementReferenceKey,
 	} from '$lib/chat/domain/element-reference';
+	import { Button } from '$hyper-ui/components/button';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
@@ -15,6 +16,7 @@
 		elementReferencesOutsidePrompt,
 		issueReferencesOutsidePrompt,
 	} from './prompt-references';
+	import { galleryImageLabel } from '../workstream-images';
 
 	interface Props {
 		text: string;
@@ -22,6 +24,7 @@
 		attachments?: readonly StagedAgentAttachment[];
 		issueReferences?: readonly AgentIssueReference[];
 		elementReferences?: readonly AgentElementReference[];
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
 	let {
@@ -30,6 +33,7 @@
 		attachments = [],
 		issueReferences = [],
 		elementReferences = [],
+		onopenimage,
 	}: Props = $props();
 
 	const chipClass =
@@ -58,14 +62,31 @@
 	<div class="flex w-full flex-wrap gap-1" data-testid="chat-message-attachments">
 		{#each shownAttachments as attachment (attachment.id)}
 			{#snippet attachmentChip()}
-				<span
-					class={chipClass}
-					data-testid="chat-message-attachment-chip"
-					data-attachment-id={attachment.id}
-				>
-					<Icon name="paperclip" class="shrink-0" size={12} />
-					<span class="truncate">{attachment.displayName}</span>
-				</span>
+				{#if onopenimage && isImageAttachment(attachment)}
+					<Button
+						bare
+						class={[
+							chipClass,
+							'hover:bg-chip-hover focus-visible:ring-button-primary/40 cursor-zoom-in focus-visible:ring-2 focus-visible:outline-none',
+						]}
+						ariaLabel={galleryImageLabel(attachment.displayName)}
+						data-testid="chat-message-attachment-chip"
+						data-attachment-id={attachment.id}
+						onclick={() => onopenimage?.(attachment.relativePath)}
+					>
+						<Icon name="paperclip" class="shrink-0" size={12} />
+						<span class="truncate">{attachment.displayName}</span>
+					</Button>
+				{:else}
+					<span
+						class={chipClass}
+						data-testid="chat-message-attachment-chip"
+						data-attachment-id={attachment.id}
+					>
+						<Icon name="paperclip" class="shrink-0" size={12} />
+						<span class="truncate">{attachment.displayName}</span>
+					</span>
+				{/if}
 			{/snippet}
 			<Tooltip
 				content={`${attachment.displayName} · ${attachment.mediaType} · ${attachment.size} bytes`}

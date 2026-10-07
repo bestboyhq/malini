@@ -170,7 +170,7 @@
 
 	<div
 		class={[
-			'border-surface-input-border bg-surface-input focus-within:border-border-default focus-within:ring-border-default/50 flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 transition-colors focus-within:ring-2',
+			'border-surface-input-border bg-surface-input focus-within:border-border-default focus-within:ring-border-default/50 flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-2 py-1.5 transition-[color,border-color] focus-within:ring-2',
 			{
 				'border-error-content focus-within:border-error-content focus-within:ring-error-content/20':
 					invalid,
@@ -188,7 +188,7 @@
 				<button
 					type="button"
 					{disabled}
-					class="text-fg-tertiary hover:bg-chip-hover hover:text-fg-default cursor-pointer rounded-full p-0.5 transition-colors"
+					class="text-fg-tertiary hover:bg-chip-hover hover:text-fg-default cursor-pointer rounded-full p-0.5 transition-[color,border-color]"
 					aria-label={`Remove ${getOptionLabel(value)}`}
 					onclick={(event) => {
 						event.stopPropagation();
@@ -239,7 +239,7 @@
 					id={`${uid}-option-${index}`}
 					aria-selected={activeIndex === index}
 					class={[
-						'flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-colors outline-none',
+						'flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-[color,border-color] outline-none',
 						activeIndex === index
 							? 'bg-surface-elevated-selected text-fg-default'
 							: 'text-fg-secondary hover:bg-surface-elevated-hover hover:text-fg-default',

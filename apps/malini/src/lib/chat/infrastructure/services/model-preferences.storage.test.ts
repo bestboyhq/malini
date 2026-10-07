@@ -5,8 +5,10 @@ import {
 	MODEL_MEMORY_KEY,
 	readChatModelSnapshot,
 	readModelMemory,
+	readStoredRunProfile,
 	writeChatModelSnapshot,
 	writeModelMemory,
+	writeStoredRunProfile,
 } from './model-preferences.storage';
 
 function memoryStorage(seed: Record<string, string> = {}): Pick<Storage, 'getItem' | 'setItem'> & {
@@ -58,6 +60,25 @@ describe('model memory', () => {
 		expect(readChatModelSnapshot('session-a', storage)).toEqual({
 			role: 'planning',
 			selection: { model: 'opus' },
+		});
+	});
+});
+
+describe('run profile memory', () => {
+	it('opens a workstream without a profile of its own at the effort last used anywhere', () => {
+		const storage = memoryStorage();
+		expect(readStoredRunProfile('ws-new', storage).effort).toBe('medium');
+
+		writeStoredRunProfile('ws-a', { effort: 'xhigh', mode: 'plan', access: 'full' }, storage);
+
+		expect(readStoredRunProfile('ws-new', storage)).toMatchObject({
+			effort: 'xhigh',
+			mode: 'agent',
+		});
+		expect(readStoredRunProfile('ws-a', storage)).toEqual({
+			effort: 'xhigh',
+			mode: 'plan',
+			access: 'full',
 		});
 	});
 });

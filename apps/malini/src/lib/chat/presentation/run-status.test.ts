@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deriveRunStatus, deriveTokenTicker, type DeriveRunStatusInput } from './run-status';
+import type { RenderItem, RunGroup, ToolAggregate } from './render-state';
+import {
+	backgroundAgentsStatus,
+	deriveRunStatus,
+	deriveTokenTicker,
+	type DeriveRunStatusInput,
+} from './run-status';
 
 const NOW = 100_000;
 
@@ -67,5 +73,45 @@ describe('deriveTokenTicker', () => {
 
 	it('treats a missing side as zero (interim usage.updated snapshots may omit one field)', () => {
 		expect(deriveTokenTicker({ inputTokens: 500, outputTokens: null })).toBe('500 tokens');
+	});
+});
+
+describe('backgroundAgentsStatus', () => {
+	function agent(status: ToolAggregate['status'], runInBackground = true): RenderItem {
+		return {
+			kind: 'tool',
+			key: `tool-${status}-${runInBackground}`,
+			seq: 1,
+			tool: {
+				name: 'Agent',
+				startedAt: null,
+				completedAt: null,
+				input: { description: 'Sleep probe', run_in_background: runInBackground },
+				output: undefined,
+				status,
+			},
+		};
+	}
+
+	function runs(...lastRunItems: RenderItem[]): RunGroup[] {
+		const run = (runId: string, items: RenderItem[]): RunGroup => ({
+			runId,
+			items,
+			terminal: null,
+			terminalText: '',
+			superseded: false,
+			obsoleted: false,
+		});
+		return [run('run-1', [agent('running')]), run('run-2', lastRunItems)];
+	}
+
+	it('counts only background agents of the latest run that are still running', () => {
+		expect(backgroundAgentsStatus(runs(agent('completed'), agent('running', false)))).toBeNull();
+		expect(backgroundAgentsStatus(runs(agent('running'), agent('failed')))).toBe(
+			'1 background agent running',
+		);
+		expect(backgroundAgentsStatus(runs(agent('running'), agent('running')))).toBe(
+			'2 background agents running',
+		);
 	});
 });

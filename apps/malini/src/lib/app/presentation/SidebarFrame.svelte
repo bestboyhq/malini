@@ -144,7 +144,6 @@
 		inset: 0 auto 0 0;
 		width: 1px;
 		background: var(--color-surface-50-border);
-		transition: background-color 50ms ease-in-out;
 	}
 
 	.shell-sidebar-handle:hover::after,

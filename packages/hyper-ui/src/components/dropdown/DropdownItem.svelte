@@ -57,7 +57,7 @@
 	{...rest}
 	type={rest.type ?? 'button'}
 	class={[
-		'flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-colors outline-none',
+		'flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-[color,border-color] outline-none',
 		variant === 'danger' ? 'text-error-content' : 'text-fg-secondary',
 		variant === 'danger'
 			? 'hover:bg-error/10 focus:bg-error/10'

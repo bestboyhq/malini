@@ -8,6 +8,7 @@ import { ClaudeSession } from './session.js';
 
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
 const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
+const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 
 const CONTEXT: ProviderContext = {
 	sessionId: 'session-1',
@@ -441,6 +442,69 @@ describe('ClaudeSession', () => {
 			summary: 'ok',
 			providerCursor: '7b53c876-2740-4b2e-81bb-d031a9b0c63c',
 		});
+	});
+
+	it('keeps the run open past the turn result until the background agent and its follow-up turn end', async () => {
+		const { session, claude, events } = harness([recordedScript('backgroundAgent')]);
+
+		await session.sendPrompt('Launch a background agent', 'run-1', profile());
+
+		expect(claude.runs[0]?.options.env?.['CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS']).toBe('1');
+		expect(ofType(events, 'run.failed')).toEqual([]);
+		const agentDone = events.findIndex(
+			(event) => event.type === 'tool.completed' && event.toolCallId === BACKGROUND_AGENT,
+		);
+		const runDone = events.findIndex((event) => event.type === 'run.completed');
+		expect(agentDone).toBeGreaterThan(-1);
+		expect(runDone).toBeGreaterThan(agentDone);
+		expect(ofType(events, 'run.completed')).toEqual([
+			{
+				type: 'run.completed',
+				runId: 'run-1',
+				summary: 'Agent "Sleep probe" completed successfully. Output: `probe-done`',
+				providerCursor: '46d1ec95-4d73-420f-987e-61155f8e1054',
+			},
+		]);
+		expect(ofType(events, 'usage.updated').at(-1)).toEqual(
+			expect.objectContaining({
+				inputTokens: 18 + 5087 + 28294 + 10 + 474 + 17446,
+				outputTokens: 296 + 195,
+				costUsd: 0.0375658,
+				interim: false,
+			}),
+		);
+		expect(claude.runs[0]?.closed).toBe(true);
+	});
+
+	it('stops a background agent with the run when the user cancels while it runs', async () => {
+		const script = recordedScript('backgroundAgent');
+		const firstResult = script.findIndex(
+			(step) => typeof step !== 'string' && 'type' in step && step.type === 'result',
+		);
+		const { session, claude, events } = harness(
+			[[...script.slice(0, firstResult + 1), 'wait-for-interrupt']],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'assistant.message' && event.text === 'launched') {
+						setTimeout(() => void current.cancel('run-1'));
+					}
+				},
+			},
+		);
+
+		await session.sendPrompt('Launch a background agent', 'run-1', profile());
+
+		expect(claude.runs[0]?.interrupted).toBe(true);
+		expect(claude.runs[0]?.closed).toBe(true);
+		expect(ofType(events, 'tool.failed')).toEqual([
+			expect.objectContaining({
+				toolCallId: BACKGROUND_AGENT,
+				error: 'Background agent stopped when the run ended.',
+			}),
+		]);
+		expect(events.at(-1)).toEqual(
+			expect.objectContaining({ type: 'run.failed', runId: 'run-1', error: 'cancelled' }),
+		);
 	});
 
 	it('keeps the interrupt notice Claude Code writes into a cut-short tool out of the transcript', async () => {

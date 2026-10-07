@@ -343,7 +343,6 @@
 		position: absolute;
 		content: '';
 		background: transparent;
-		transition: background-color 50ms ease-in-out;
 	}
 
 	.resizable-split-handle[data-axis='horizontal']::after {

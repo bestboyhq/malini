@@ -1,3 +1,6 @@
+import type { RunGroup } from './render-state';
+import { isBackgroundAgent } from './tool-display-name';
+
 export type DeriveRunStatusInput = {
 	isRunOpen: boolean;
 	runStartedAtMs?: number | null;
@@ -40,4 +43,15 @@ export function formatTokenCount(count: number): string {
 		return `${value.toFixed(value < 10 ? 1 : 0)}k`;
 	}
 	return `${count}`;
+}
+
+export function backgroundAgentsStatus(runs: readonly RunGroup[]): string | null {
+	const running = (runs[runs.length - 1]?.items ?? []).filter(
+		(item) =>
+			item.kind === 'tool' &&
+			item.tool.status === 'running' &&
+			isBackgroundAgent(item.tool.name, item.tool.input),
+	).length;
+	if (running === 0) return null;
+	return `${running} background ${running === 1 ? 'agent' : 'agents'} running`;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	backgroundAgentSummary,
 	summarizeLiveToolInput,
 	toolActionKind,
 	toolActivityLabel,
@@ -160,5 +161,26 @@ describe('streamed tool input summaries', () => {
 	it('bounds work for a very large streamed edit while retaining its early path', () => {
 		const input = `{"path":"src/large.ts","content":"${'x'.repeat(100_000)}`;
 		expect(summarizeLiveToolInput(input)).toEqual({ path: 'src/large.ts' });
+	});
+});
+
+describe('background agents', () => {
+	const input = { description: 'Sleep probe', run_in_background: true, prompt: 'sleep 15' };
+
+	it('names the agent by its task while it runs and by its result once it reports', () => {
+		expect(toolDisplayName('Agent', input)).toBe('Background agent');
+		expect(toolDescriptionLabel('Agent', input)).toBe('Sleep probe');
+		expect(toolActivityLabel('Agent', input, 'running')).toBe('Background agent');
+		expect(backgroundAgentSummary('Agent', input, undefined)).toBeNull();
+		expect(backgroundAgentSummary('Agent', input, '\nCommand completed.\n\nprobe-done')).toBe(
+			'Command completed.',
+		);
+	});
+
+	it('leaves a foreground agent as it was', () => {
+		const foreground = { description: 'Explore', prompt: 'look around' };
+		expect(toolDisplayName('Agent', foreground)).toBe('Agent');
+		expect(toolActivityLabel('Agent', foreground, 'running')).toBe('Running Agent');
+		expect(backgroundAgentSummary('Agent', foreground, 'done')).toBeNull();
 	});
 });
