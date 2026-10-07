@@ -50,9 +50,11 @@ test('removing a repository from the sidebar archives its workstreams and keeps 
 		await captureFlow(app, 'remove-repository-confirm');
 
 		await confirm.click();
-		await expect(page.getByText('Removed alpha · Archived 2 workstreams')).toBeVisible({
-			timeout: 30_000,
-		});
+		await expect
+			.poll(async () => (await listProjects(page)).map((project) => project.id), {
+				timeout: 30_000,
+			})
+			.toEqual(['local__beta']);
 		await expect(page).toHaveTitle('malini · Repositories');
 		await expect(sidebar.getByRole('link', { name: 'Open alpha' })).toHaveCount(0);
 		await expect(workstream('Alpha edits')).toHaveCount(0);
@@ -67,7 +69,6 @@ test('removing a repository from the sidebar archives its workstreams and keeps 
 		);
 		expect(saved).toBe('seed\nunsaved edit\n');
 		expect(fileExists(join(edited.basePath, '.git'))).toBe(true);
-		expect((await listProjects(page)).map((project) => project.id)).toEqual(['local__beta']);
 		await captureFlow(app, 'remove-repository-result');
 		expectCleanConsole(app);
 	} finally {

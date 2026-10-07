@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 17,
+	"protocolVersion": 18,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -19,7 +19,8 @@
 		"approve",
 		"answer_question",
 		"refresh_capabilities",
-		"refresh_mcp_status"
+		"refresh_mcp_status",
+		"suggest_title"
 	],
 	"events": [
 		"run.started",
@@ -49,6 +50,7 @@
 		"bridge.capabilities",
 		"bridge.heartbeat",
 		"bridge.command_ack",
-		"bridge.protocol_error"
+		"bridge.protocol_error",
+		"bridge.title"
 	]
 }

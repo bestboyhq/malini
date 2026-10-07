@@ -41,12 +41,14 @@ interface SessionRow {
 	archived_at: string | null;
 }
 
+export function promptPlainText(prompt: string): string {
+	return promptChipSegments(prompt)
+		.map((segment) => (segment.kind === 'text' ? segment.text : ' '))
+		.join('');
+}
+
 export function conciseSessionTitle(prompt: string): string | null {
-	return deriveAgentChatDisplayName(
-		promptChipSegments(prompt)
-			.map((segment) => (segment.kind === 'text' ? segment.text : ' '))
-			.join(''),
-	);
+	return deriveAgentChatDisplayName(promptPlainText(prompt));
 }
 
 function uniqueSessionDisplayName(
@@ -195,19 +197,23 @@ export function ensureSessionDisplayNames(db: MaliniDatabase, workstreamId: stri
 	}
 }
 
-export function nameSessionFromFirstPrompt(
+export function sessionHasUserRun(db: MaliniDatabase, sessionId: string): boolean {
+	return (
+		scalar(
+			db,
+			'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND automated = 0',
+			sessionId,
+		) > 0
+	);
+}
+
+export function nameSession(
 	db: MaliniDatabase,
 	sessionId: string,
 	workstreamId: string,
-	prompt: string,
-): string | null {
-	const userRuns = scalar(
-		db,
-		'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND automated = 0',
-		sessionId,
-	);
-	if (userRuns > 0) return null;
-	const baseName = conciseSessionTitle(prompt) ?? chatOrdinalName(db, workstreamId, sessionId);
+	title: string | null,
+): string {
+	const baseName = title ?? chatOrdinalName(db, workstreamId, sessionId);
 	const displayName = uniqueSessionDisplayName(db, workstreamId, baseName, sessionId);
 	run(db, 'UPDATE agent_sessions SET display_name = ? WHERE id = ?', displayName, sessionId);
 	return displayName;

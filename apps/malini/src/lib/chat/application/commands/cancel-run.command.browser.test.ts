@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-	WORKSTREAM,
 	chat,
 	openPromptPipeline,
 	resetPromptPipeline,
@@ -20,27 +19,26 @@ describe('cancelling the active run', () => {
 		chatSessionStore.sessionId = 's-a1';
 		expect(sessionStatusQuery.data).toBe('running');
 
-		cancelRunCommand(WORKSTREAM);
+		cancelRunCommand();
 
 		await vi.waitFor(() => expect(sessionStatusQuery.data).toBe('idle'));
 		expect(chatSessionStore.bootError).toBeNull();
 	});
 
-	it('tells the user when the run already finished', async () => {
+	it('stays quiet when the run already finished', async () => {
 		const { platform } = await openPromptPipeline([chat('s-a1', { status: 'running' })]);
 		chatSessionStore.sessionId = 's-a1';
-		platform.define('chat.cancel-run', async () => {
+		const cancel = vi.fn(async () => {
 			throw new Error('cancel race: run already completed');
 		});
+		platform.define('chat.cancel-run', cancel);
 		const warning = vi.spyOn(toast, 'warning');
 
-		cancelRunCommand(WORKSTREAM);
+		cancelRunCommand();
 
-		await vi.waitFor(() =>
-			expect(warning).toHaveBeenCalledWith('Run already finished · nothing to cancel', {
-				context: { workstream: WORKSTREAM },
-			}),
-		);
+		await vi.waitFor(() => expect(cancel).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve));
+		expect(warning).not.toHaveBeenCalled();
 		expect(chatSessionStore.bootError).toBeNull();
 	});
 
@@ -51,7 +49,7 @@ describe('cancelling the active run', () => {
 			throw new Error('bridge unreachable');
 		});
 
-		cancelRunCommand(WORKSTREAM);
+		cancelRunCommand();
 
 		await vi.waitFor(() => expect(chatSessionStore.bootError).toBe('bridge unreachable'));
 	});

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
 import { commitByHand, headOf, seedWorkstreamOnFakeGithub } from './fake-github';
 
-test('pushing commits that are already made says Pushed', async () => {
+test('pushing commits that are already made pushes them as they are', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -17,10 +17,12 @@ test('pushing commits that are already made says Pushed', async () => {
 		await expect(push).toBeEnabled({ timeout: 30_000 });
 		await push.click();
 
-		await expect(page.getByRole('status').filter({ hasText: 'Pushed' })).toHaveText('Pushed', {
+		await expect(page.getByRole('status').filter({ hasText: 'Waiting for GitHub…' })).toBeVisible({
 			timeout: 30_000,
 		});
+		await expect(push).toHaveCount(0);
 		expect(github.pushedHead()).toBe(headOf(worktree));
+		expect(github.pushedSubjects()[0]).toBe('Commit by-hand.txt by hand');
 		await captureFlow(app, 'pull-request-pushed');
 		expectCleanConsole(app);
 	} finally {

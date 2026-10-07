@@ -67,7 +67,7 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { avoidedByToasts } from '$hyper-ui/components/toast';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon, SendIcon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
@@ -80,8 +80,8 @@
 		sessionId?: SessionId | null;
 		model: AgentModel;
 		profile: AgentRunProfile;
-		workstreamModelDefaults: ModelPreferences;
-		workstreamModelPreferences: ModelPreferences;
+		modelDefaults: ModelPreferences;
+		rememberedModels: ModelPreferences;
 		envelopes?: readonly EventEnvelope[];
 		isRunning: boolean;
 		forceFreshSession?: boolean;
@@ -101,8 +101,8 @@
 		sessionId = null,
 		model = $bindable(),
 		profile,
-		workstreamModelDefaults,
-		workstreamModelPreferences,
+		modelDefaults,
+		rememberedModels,
 		envelopes = [],
 		isRunning,
 		forceFreshSession = false,
@@ -892,7 +892,7 @@
 </script>
 
 <form
-	class={['chat-column relative z-20 shrink-0 px-4', runUsage ? 'pb-1' : 'pb-4']}
+	class="chat-column relative z-20 shrink-0 px-4 pb-1"
 	{@attach avoidedByToasts}
 	onsubmit={(event) => {
 		event.preventDefault();
@@ -1156,8 +1156,8 @@
 					onchange={(nextProfile) => onprofilechange?.(nextProfile)}
 				/>
 				<ModelDefaultsSettings
-					workstreamDefaults={workstreamModelDefaults}
-					workstreamPreferences={workstreamModelPreferences}
+					defaults={modelDefaults}
+					{rememberedModels}
 					{disabled}
 					{isRunning}
 					onchange={(preferences) => onmodelsettingschange?.(preferences)}
@@ -1168,14 +1168,11 @@
 				<SessionRuntimeControls {envelopes} {sessionId} />
 				<Tooltip content={submitTitle} placement="top">
 					<IconButton
-						variant="secondary"
+						variant={isRunning ? 'secondary' : 'primary'}
 						size="md"
 						type={isRunning ? 'button' : 'submit'}
 						disabled={isRunning ? disabled : !canSend}
-						class={[
-							'bg-surface-50 text-fg-tertiary active:scale-95',
-							isRunning && 'hover:bg-error/10',
-						]}
+						class={['active:scale-95', isRunning && 'bg-surface-50 hover:bg-error/10']}
 						ariaBusy={submitting}
 						ariaLabel={submitTitle}
 						data-testid="chat-composer-submit"
@@ -1184,7 +1181,7 @@
 						{#if isRunning}
 							<Icon name="stop" size={12} class="text-error-content" />
 						{:else}
-							<SendIcon size={18} gradient={canSend} />
+							<Icon name="arrow-up" size={16} />
 						{/if}
 					</IconButton>
 				</Tooltip>
@@ -1192,24 +1189,26 @@
 		{/snippet}
 	</ComposerShell>
 
-	{#if runUsage}
-		<Tooltip
-			content="Tokens sent to the model and generated during the last run"
-			placement="top"
-			class="ml-auto w-fit"
-		>
-			<p
-				class="text-2xs flex h-6 items-center gap-1.5 px-1 tabular-nums select-none"
-				data-testid="chat-run-usage"
+	<div class="flex h-6 justify-end">
+		{#if runUsage}
+			<Tooltip
+				content="Tokens sent to the model and generated during the last run"
+				placement="top"
+				class="w-fit"
 			>
-				<span class="text-fg-tertiary">Last run</span>
-				<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
-				<span class="text-fg-secondary">
-					{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
-				</span>
-			</p>
-		</Tooltip>
-	{/if}
+				<p
+					class="text-2xs flex h-6 items-center gap-1.5 px-1 tabular-nums select-none"
+					data-testid="chat-run-usage"
+				>
+					<span class="text-fg-tertiary">Last run</span>
+					<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
+					<span class="text-fg-secondary">
+						{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
+					</span>
+				</p>
+			</Tooltip>
+		{/if}
+	</div>
 </form>
 
 <Sheet

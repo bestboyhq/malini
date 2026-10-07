@@ -270,13 +270,14 @@ describe('running the top bar pull request action', () => {
 		expect(extension.calls[0]?.args).toEqual([{ context: { sessionTitle: 'Ship it' } }]);
 	});
 
-	it('merges on the first click, at the head the top bar shows', async () => {
+	it('merges on the first click, at the head the top bar shows, without a toast of its own', async () => {
 		const extension = connectExtension(() =>
 			viewState(surface({ pullRequest: { ...MERGEABLE_PULL_REQUEST, state: 'merged' } })),
 		);
 		releaseExtension = extension.release;
 		focus();
 		acceptSurface(WORKSTREAM_ID, surface());
+		const info = vi.spyOn(toast, 'info');
 		const success = vi.spyOn(toast, 'success');
 
 		runPullRequestActionCommand(seams());
@@ -288,9 +289,8 @@ describe('running the top bar pull request action', () => {
 				args: [{ expectedHeadSha: 'head-42', mergeMethod: 'squash' }],
 			},
 		]);
-		expect(success).toHaveBeenCalledWith('Pull request merged', {
-			context: { workstream: WORKSTREAM_ID },
-		});
+		expect(info).not.toHaveBeenCalled();
+		expect(success).not.toHaveBeenCalled();
 	});
 
 	it.each([

@@ -5,7 +5,6 @@ import CodeBlock from '@tiptap/extension-code-block';
 import Document from '@tiptap/extension-document';
 import HardBreak from '@tiptap/extension-hard-break';
 import Italic from '@tiptap/extension-italic';
-import { BulletList, ListItem, OrderedList } from '@tiptap/extension-list';
 import Paragraph from '@tiptap/extension-paragraph';
 import { Placeholder, UndoRedo } from '@tiptap/extensions';
 import Strike from '@tiptap/extension-strike';
@@ -33,9 +32,6 @@ export function promptEditorExtensions(options: PromptEditorExtensionOptions): A
 		Strike,
 		Code,
 		CodeBlock,
-		BulletList,
-		OrderedList,
-		ListItem,
 
 		Placeholder.configure({
 			placeholder: options.placeholder,

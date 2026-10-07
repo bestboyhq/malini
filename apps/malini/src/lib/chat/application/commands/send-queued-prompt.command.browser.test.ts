@@ -77,7 +77,6 @@ describe('sending a queued prompt now', () => {
 
 	it('interrupts the running chat and sends the prompt 500 ms later once it is idle', async () => {
 		const { platform, entry } = await queueBehindRunningChat();
-		const info = vi.spyOn(toast, 'info');
 		const sends = recordPromptDelivery();
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
@@ -88,10 +87,6 @@ describe('sending a queued prompt now', () => {
 			command: 'chat.cancel-run',
 			args: { sessionId: 's-a1' },
 		});
-		expect(info).toHaveBeenCalledWith(
-			'Interrupting the current response · your queued prompt is next',
-			{ context: { workstream: WORKSTREAM } },
-		);
 		expect(queueSendingQuery.data).toBe(entry.id);
 		reportChatStatus('s-a1', 'failed');
 

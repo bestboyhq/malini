@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { pullRequestActionSucceededMessage } from './pull-request-action';
+import { pullRequestActionOutcome } from './pull-request-action';
 
-describe('pullRequestActionSucceededMessage for push', () => {
-	it('says "Pushed" when no uncommitted files were present', () => {
-		expect(pullRequestActionSucceededMessage('push', false)).toBe('Pushed');
+const settled = { conflictedPaths: [] };
+
+describe('pullRequestActionOutcome', () => {
+	it('announces nothing when an action simply succeeded, since the top bar already shows it', () => {
+		for (const kind of ['create', 'push', 'update', 'ready', 'merge'] as const) {
+			expect(pullRequestActionOutcome(kind, settled)).toBeNull();
+		}
 	});
 
-	it('says "Changes committed and pushed" when uncommitted files were present', () => {
-		expect(pullRequestActionSucceededMessage('push', true)).toBe('Changes committed and pushed');
+	it('names the review threads it resolved on GitHub', () => {
+		expect(pullRequestActionOutcome('push', settled, 1)).toEqual({
+			level: 'success',
+			message: '1 review thread resolved on GitHub',
+		});
+		expect(pullRequestActionOutcome('push', settled, 2)?.message).toBe(
+			'2 review threads resolved on GitHub',
+		);
 	});
 
-	it('defaults to "Pushed" when hadUncommitted is not supplied', () => {
-		expect(pullRequestActionSucceededMessage('push')).toBe('Pushed');
+	it('says when an update stopped on merge conflicts', () => {
+		expect(pullRequestActionOutcome('update', { conflictedPaths: ['a.txt'] })).toEqual({
+			level: 'info',
+			message: 'The update stopped on merge conflicts. Resolve conflicts to finish it',
+		});
 	});
 });

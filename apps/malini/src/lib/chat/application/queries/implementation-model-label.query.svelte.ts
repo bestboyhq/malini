@@ -5,7 +5,7 @@ export { implementationModelLabelQuery };
 
 class ImplementationModelLabelQuery {
 	public readonly data: string = $derived(
-		modelLabel(chatModelStore.workstreamPreferences.implementation.model),
+		modelLabel(chatModelStore.rememberedModels.implementation.model),
 	);
 }
 

@@ -1,3 +1,5 @@
+import { SCROLL_SPRING_STIFFNESS } from './scroll-glide';
+
 export type ArrivalMotion = {
 	durationMs: number;
 	easing: string;
@@ -8,15 +10,12 @@ export type ArrivalMotion = {
 };
 
 export const DEFAULT_ARRIVAL_MOTION: Readonly<ArrivalMotion> = {
-	durationMs: 380,
-
-	easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-
-	travelPx: 14,
-
+	durationMs: 240,
+	easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+	travelPx: 8,
 	promptOffsetPx: 34,
-	scrollStiffness: 220,
-	layoutStiffness: 320,
+	scrollStiffness: SCROLL_SPRING_STIFFNESS,
+	layoutStiffness: 600,
 };
 
 const motion: ArrivalMotion = { ...DEFAULT_ARRIVAL_MOTION };

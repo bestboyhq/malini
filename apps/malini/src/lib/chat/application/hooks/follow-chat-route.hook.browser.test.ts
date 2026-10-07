@@ -12,6 +12,7 @@ import {
 } from '$lib/chat/application/chat-route.testkit.svelte';
 import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 import { forkToNewChatCommand } from '$lib/chat/application/commands/fork-to-new-chat.command';
+import { closeChatCommand } from '$lib/chat/application/commands/close-chat.command';
 import { newChatRequestId } from '$lib/chat/domain/chat-request';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 import { presentedTranscriptQuery } from '$lib/chat/application/queries/presented-transcript.query.svelte';
@@ -111,6 +112,27 @@ describe('following the chat route across workstreams', () => {
 			envelopes: [],
 		});
 		expect(framesPresentingAnotherWorkstreamsChat(frames)).toEqual([]);
+	});
+
+	it('opens a fresh chat, never the closed one, when the last chat closes while it archives', async () => {
+		installChatPlatform([chatSession('s-a', 'ws-a')]);
+		await startChatRouter('/workstreams/ws-a?agent=s-a');
+		mount();
+		await chatOpened('ws-a', 's-a');
+		const archiving = deferred();
+		vi.spyOn(agentSessions, 'archive').mockImplementation(() => archiving.promise);
+
+		closeChatCommand('ws-a', 's-a');
+		await navigate('/workstreams/ws-a');
+		archiving.resolve();
+		await chatOpened('ws-a', null);
+
+		expect(router.page.url.searchParams.has('agent')).toBe(false);
+		expect(presentedTranscriptQuery.data).toEqual({
+			workstreamId: 'ws-a',
+			sessionId: null,
+			envelopes: [],
+		});
 	});
 
 	it('clears every chat singleton when released', async () => {

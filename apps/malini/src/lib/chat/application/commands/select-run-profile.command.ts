@@ -1,7 +1,4 @@
-import {
-	writeStoredRunProfile,
-	writeStoredWorkstreamModel,
-} from '$lib/chat/infrastructure/services/model-preferences.storage';
+import { writeStoredRunProfile } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { chatOccupancy } from '$lib/chat/infrastructure/services/chat-occupancy.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
@@ -20,7 +17,7 @@ function selectRunProfileCommand(nextProfile: AgentRunProfile): void {
 	const workstreamId = chatRoute.workstreamId;
 	if (!workstreamId) return;
 	const role = roleForAgentMode(nextProfile.mode);
-	const selection = selectionForRole(chatModelStore.workstreamPreferences, role);
+	const selection = selectionForRole(chatModelStore.rememberedModels, role);
 	chatModelStore.noteUserChoice();
 	chatModelStore.model = selection.model;
 	chatModelStore.profile = {
@@ -28,7 +25,6 @@ function selectRunProfileCommand(nextProfile: AgentRunProfile): void {
 		effort: nextProfile.effort,
 		access: nextProfile.access,
 	};
-	writeStoredWorkstreamModel(workstreamId, selection.model);
 	writeStoredRunProfile(workstreamId, chatModelStore.profile);
 	chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(
 		chatSessionStore.sessionId,

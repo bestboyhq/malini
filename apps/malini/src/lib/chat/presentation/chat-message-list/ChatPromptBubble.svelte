@@ -3,7 +3,7 @@
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Textarea } from '$hyper-ui/components/textarea';
-	import { Icon, SendIcon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
@@ -143,8 +143,8 @@
 								onchange={controls.onprofilechange}
 							/>
 							<ModelDefaultsSettings
-								workstreamDefaults={controls.workstreamModelDefaults}
-								workstreamPreferences={controls.workstreamModelPreferences}
+								defaults={controls.modelDefaults}
+								rememberedModels={controls.rememberedModels}
 								disabled={submitting}
 								isRunning={controls.isRunning}
 								onchange={controls.onmodelsettingschange}
@@ -186,15 +186,15 @@
 								placement="top"
 							>
 								<IconButton
-									variant="secondary"
+									variant="primary"
 									size="md"
 									type="submit"
 									disabled={!canSend}
-									class="bg-surface-50 text-fg-tertiary active:scale-95"
+									class="active:scale-95"
 									ariaLabel="Send edited message"
 									data-testid="chat-message-edit-send"
 								>
-									<SendIcon size={18} gradient={canSend} />
+									<Icon name="arrow-up" size={16} />
 								</IconButton>
 							</Tooltip>
 						{/if}

@@ -534,6 +534,36 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		expect(wire).not.toContain(secret);
 	});
 
+	it('answers suggest_title with a title frame, and a failed suggestion with a rejected ack', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			suggestTitle: async (task) => {
+				if (task === 'hey') throw new Error('no usable title');
+				return 'Bundle versioning';
+			},
+		});
+
+		await ipc.run('{"cmd":"suggest_title","id":"title-1","prompt":"Version the JS bundle"}');
+		await ipc.run('{"cmd":"suggest_title","id":"title-2","prompt":"hey"}');
+
+		expect(parseFrames(writes.join(''))).toEqual([
+			expect.objectContaining({ type: 'bridge.title', id: 'title-1', title: 'Bundle versioning' }),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'title-1', accepted: true }),
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				id: 'title-2',
+				accepted: false,
+				error: 'TITLE_FAILED: no usable title',
+			}),
+		]);
+	});
+
 	it('createIpc.run passes start_session worktreePath as provider cwd', async () => {
 		let capturedCwd: string | null = null;
 		defaultProviderRegistry.setProvider(async (ctx) => {

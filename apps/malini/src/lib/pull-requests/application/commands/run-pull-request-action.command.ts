@@ -22,7 +22,6 @@ import {
 } from '$lib/pull-requests/domain/pull-request-action-scope';
 import {
 	pullRequestFixPromptToSend,
-	pullRequestFixStartedMessage,
 	type PullRequestFixDiagnostics,
 } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import { pullRequestTopBarPresentation } from '$lib/pull-requests/domain/pull-request-top-bar';
@@ -121,10 +120,9 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 				seams.onPanelRequested(REPOSITORY_EXTENSION_COMMANDS.filesPanel);
 				await seams.submitPrompt(prompt.text);
 				if (!pullRequestScopeStore.isCurrent(scope)) return;
-				toast.success(pullRequestFixStartedMessage(prompt), aboutWorkstream(scope.workstreamId));
 			}
 
-			const announced = pullRequestActionOutcome(kind, surface, nextSurface, resolvedThreads);
+			const announced = pullRequestActionOutcome(kind, nextSurface, resolvedThreads);
 			if (announced) {
 				toast[announced.level](announced.message, aboutWorkstream(scope.workstreamId));
 			}

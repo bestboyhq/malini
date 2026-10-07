@@ -31,10 +31,6 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 		if (outcome !== 'busy-retry') queueSendingStore.release(workstreamId, id);
 		return;
 	}
-	toast.info(
-		'Interrupting the current response · your queued prompt is next',
-		aboutWorkstream(workstreamId),
-	);
 	try {
 		await agentRunner.cancelRun(holder);
 	} catch (error) {

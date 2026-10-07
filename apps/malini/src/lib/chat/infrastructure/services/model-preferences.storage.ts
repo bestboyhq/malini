@@ -4,10 +4,8 @@ import {
 	agentAccessDefaultQuery,
 	normalizeAgentRunProfile,
 	cloneModelSelection,
-	isValidAgentModel,
 	isValidModelSelection,
 	normalizeModelPreferences,
-	type AgentModel,
 	type AgentRunProfile,
 	type ChatModelSnapshot,
 	type ModelPreferences,
@@ -15,25 +13,9 @@ import {
 
 type ModelPreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
-const WORKSTREAM_MEMORY_PREFIX = 'malini.chat.model-memory:v1:';
+export const MODEL_MEMORY_KEY = 'malini.chat.model-memory:v2';
 const CHAT_SNAPSHOT_PREFIX = 'malini.chat.chat-model:v1:';
-const WORKSTREAM_MODEL_PREFIX = 'malini.chat.model:';
 const WORKSTREAM_PROFILE_PREFIX = 'malini.chat.profile:';
-
-export function readStoredWorkstreamModel(workstreamId: string): AgentModel | null {
-	try {
-		const raw = globalThis.localStorage?.getItem(`${WORKSTREAM_MODEL_PREFIX}${workstreamId}`);
-		return isValidAgentModel(raw) ? raw : null;
-	} catch {
-		return null;
-	}
-}
-
-export function writeStoredWorkstreamModel(workstreamId: string, model: AgentModel): void {
-	try {
-		globalThis.localStorage?.setItem(`${WORKSTREAM_MODEL_PREFIX}${workstreamId}`, model);
-	} catch {}
-}
 
 export function readStoredRunProfile(workstreamId: string): AgentRunProfile {
 	const access = agentAccessDefaultQuery.data;
@@ -62,41 +44,27 @@ export function writeStoredRunProfile(workstreamId: string, profile: AgentRunPro
 	} catch {}
 }
 
-export function hasStoredWorkstreamModelMemory(workstreamId: string): boolean {
-	try {
-		return globalThis.localStorage?.getItem(workstreamModelMemoryKey(workstreamId)) !== null;
-	} catch {
-		return false;
-	}
-}
-
-export function workstreamModelMemoryKey(workstreamId: string): string {
-	return `${WORKSTREAM_MEMORY_PREFIX}${workstreamId}`;
-}
-
 export function chatModelSnapshotKey(sessionId: string): string {
 	return `${CHAT_SNAPSHOT_PREFIX}${sessionId}`;
 }
 
-export function readWorkstreamModelMemory(
-	workstreamId: string,
-	workstreamDefaults: ModelPreferences,
+export function readModelMemory(
+	defaults: ModelPreferences,
 	storage: ModelPreferenceStorage | null = browserStorage(),
 ): ModelPreferences {
 	return normalizeModelPreferences(
-		readJson(workstreamModelMemoryKey(workstreamId), storage),
-		normalizeModelPreferences(workstreamDefaults, DEFAULT_MODEL_PREFERENCES),
+		readJson(MODEL_MEMORY_KEY, storage),
+		normalizeModelPreferences(defaults, DEFAULT_MODEL_PREFERENCES),
 	);
 }
 
-export function writeWorkstreamModelMemory(
-	workstreamId: string,
+export function writeModelMemory(
 	preferences: ModelPreferences,
-	workstreamDefaults: ModelPreferences = DEFAULT_MODEL_PREFERENCES,
+	defaults: ModelPreferences = DEFAULT_MODEL_PREFERENCES,
 	storage: ModelPreferenceStorage | null = browserStorage(),
 ): ModelPreferences {
-	const normalized = normalizeModelPreferences(preferences, workstreamDefaults);
-	writeJson(workstreamModelMemoryKey(workstreamId), normalized, storage);
+	const normalized = normalizeModelPreferences(preferences, defaults);
+	writeJson(MODEL_MEMORY_KEY, normalized, storage);
 	return normalized;
 }
 

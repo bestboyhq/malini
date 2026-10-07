@@ -286,6 +286,16 @@ const handle = (command) => {
 			});
 			return ack(command.id);
 		}
+		case 'suggest_title': {
+			if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
+			write({
+				type: 'bridge.title',
+				protocolVersion: version,
+				id: command.id,
+				title: env.FAKE_BRIDGE_TITLE,
+			});
+			return ack(command.id);
+		}
 		default:
 			return ack(command.id, 'unknown command ' + command.cmd);
 	}

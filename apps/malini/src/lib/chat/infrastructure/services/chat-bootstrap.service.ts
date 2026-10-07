@@ -38,11 +38,11 @@ class ChatBootstrapService {
 
 	async #bootstrap(workstreamId: string, seq: number, exactSessionId?: SessionId): Promise<void> {
 		if (!workstreamId) return;
-		const loadedPreferences = chatModelStore.loadPreferencesFor(workstreamId);
+		const rememberedModels = chatModelStore.loadRememberedModels();
 		const hadStoredProfile = hasStoredRunProfile(workstreamId);
 		const storedProfile = readStoredRunProfile(workstreamId);
 		const nextRole = roleForAgentMode(storedProfile.mode);
-		const nextSelection = selectionForRole(loadedPreferences.memory, nextRole);
+		const nextSelection = selectionForRole(rememberedModels, nextRole);
 		if (seq !== chatSessionStore.bootstrapSeq || chatRoute.workstreamId !== workstreamId) {
 			return;
 		}
@@ -51,8 +51,6 @@ class ChatBootstrapService {
 			chatRoute.readSessionParam() ??
 			sessionsAggregate.cachedSessionFor(workstreamId, null);
 		const selection = chatSessionStore.beginSelection(workstreamId, requestedSessionId);
-		chatModelStore.workstreamDefaults = loadedPreferences.defaults;
-		chatModelStore.workstreamPreferences = loadedPreferences.memory;
 		chatModelStore.model = nextSelection.model;
 		chatModelStore.profile = {
 			mode: nextRole === 'planning' ? 'plan' : 'agent',
@@ -114,8 +112,7 @@ class ChatBootstrapService {
 			if (
 				hadStoredProfile &&
 				chatModelStore.userChoices === selection.userChoices &&
-				(roleForAgentMode(chatModelStore.profile.mode) !== nextRole ||
-					chatModelStore.model !== nextSelection.model)
+				roleForAgentMode(chatModelStore.profile.mode) !== nextRole
 			) {
 				chatModelStore.model = nextSelection.model;
 				chatModelStore.profile = {

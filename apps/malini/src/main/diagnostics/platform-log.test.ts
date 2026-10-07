@@ -36,6 +36,12 @@ describe('the level of a platform log line', () => {
 		expect(platformLineLevel('agent: reaped 3 orphaned run(s) on startup')).toBe('warn');
 		expect(
 			platformLineLevel(
+				'agent: Claude did not name the chat, so its first words name it: TITLE_FAILED: offline',
+			),
+		).toBe('warn');
+		expect(platformLineLevel('agent: could not name chat `s-1`: db locked')).toBe('error');
+		expect(
+			platformLineLevel(
 				'agent: remembered approval `a-1` bridge unavailable; showing prompt: bridge down',
 			),
 		).toBe('warn');

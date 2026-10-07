@@ -16,7 +16,6 @@ export const PULL_REQUEST_FIX_PROMPT_LIMIT = 16_000;
 
 export type PullRequestFixPrompt = Readonly<{
 	text: string;
-	resolvingConflicts: boolean;
 }>;
 
 export type PullRequestFixDiagnostics = Readonly<{
@@ -54,10 +53,10 @@ export function pullRequestFixPrompt(
 ): PullRequestFixPrompt | null {
 	if (state.operationInProgress !== null && state.operationInProgress !== 'merge') return null;
 	if (state.conflictedPaths.length > 0) {
-		return { text: buildConflictResolutionPrompt(state), resolvingConflicts: true };
+		return { text: buildConflictResolutionPrompt(state) };
 	}
 	if (pullRequestConflictsWithBase(state.pullRequest)) return null;
-	return { text: buildPullRequestFixPrompt(state, diagnostics), resolvingConflicts: false };
+	return { text: buildPullRequestFixPrompt(state, diagnostics) };
 }
 
 export function pullRequestFixPromptToSend(
@@ -72,12 +71,6 @@ export function addressedReviewThreadIds(prompt: string, reply: string): readonl
 	const offered = new Set(promptReviewThreadIds(prompt));
 	const listed = [...reply.matchAll(RESOLVED_THREAD_LINE)].flatMap(([, id]) => (id ? [id] : []));
 	return [...new Set(listed)].filter((id) => offered.has(id));
-}
-
-export function pullRequestFixStartedMessage(prompt: PullRequestFixPrompt): string {
-	return prompt.resolvingConflicts
-		? 'Agent is resolving merge conflicts'
-		: 'Agent is fixing pull request errors';
 }
 
 function buildPullRequestFixPrompt(

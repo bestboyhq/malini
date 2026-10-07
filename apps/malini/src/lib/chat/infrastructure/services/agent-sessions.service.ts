@@ -1,15 +1,23 @@
 import type { SendAgentPromptArgs, StartAgentSessionArgs } from '$contract/commands';
+import { CHAT_SESSION_RENAMED_CHANNEL } from '$contract/events';
 import type { ChatSessionSummary } from '$lib/chat/domain/chat-session-summary';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import { AgentEventMapper } from '$lib/chat/infrastructure/mappers/agent-event.mapper';
 import { SessionSummaryMapper } from '$lib/chat/infrastructure/mappers/session-summary.mapper';
+import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class AgentSessionsService {
 	async list(workstreamId: string): Promise<ChatSessionSummary[]> {
 		const raws = await invoke('chat.list-sessions', { workstreamId });
 		return SessionSummaryMapper.fromRawList(raws);
+	}
+
+	onRenamed(listener: (sessionId: SessionId, name: string) => void): () => void {
+		return onPlatformEvent(CHAT_SESSION_RENAMED_CHANNEL, ({ sessionId, name }) =>
+			listener(sessionId, name),
+		);
 	}
 
 	activate(sessionId: SessionId): Promise<void> {

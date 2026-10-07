@@ -111,6 +111,7 @@
 				? blockKey(transcript.sessionId, run.runId, item.contentId)
 				: undefined}
 			complete={true}
+			revealOnMount={!transcript.transcriptSettled()}
 			onopenfile={transcript.openFileMention}
 			canopenfile={transcript.canOpenFileMention}
 			imagesrc={transcript.markdownImageSource}

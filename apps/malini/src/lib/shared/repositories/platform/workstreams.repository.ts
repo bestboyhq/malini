@@ -81,7 +81,7 @@ export function getWorkstream(db: MaliniDatabase, workstreamId: string): Workstr
 	return row ? workstreamFromRow(row) : null;
 }
 
-function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): boolean {
+export function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): boolean {
 	return (
 		scalar(
 			db,
@@ -93,12 +93,11 @@ function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): boolean
 	);
 }
 
-export function nameWorkstreamBeforeFirstUserRun(
+export function renameWorkstream(
 	db: MaliniDatabase,
 	workstreamId: string,
 	name: string,
 ): string | null {
-	if (workstreamHasUserRun(db, workstreamId)) return null;
 	const workstream = getWorkstream(db, workstreamId);
 	if (workstream === null) return null;
 	const taken = all<{ name: string }>(

@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe('closing a chat tab', () => {
-	it('hides the tab at once, archives the chat, then forgets it', async () => {
+	it('hides the tab at once, archives the chat, then forgets it without a toast', async () => {
 		const platform = installPlatform();
 		const info = vi.spyOn(toast, 'info');
 
@@ -35,7 +35,7 @@ describe('closing a chat tab', () => {
 			args: { sessionId: 's-1' },
 		});
 		expect(sessionsAggregate.getSession('s-1')).toBeNull();
-		expect(info).toHaveBeenCalledWith('Agent chat closed', { context: { workstream: 'ws-a' } });
+		expect(info).not.toHaveBeenCalled();
 	});
 
 	it('brings the tab back and says why when the chat cannot be archived', async () => {

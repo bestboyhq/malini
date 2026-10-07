@@ -28,10 +28,10 @@ const GLYPHS: Readonly<Record<PromptChipKind, string>> = {
 };
 
 const CHIP_CLASS =
-	'prompt-chip group/chip mx-0.5 -my-0.5 inline-flex h-5 max-w-56 cursor-default select-none items-center rounded-md border border-chip-border bg-chip align-middle text-2xs leading-none text-fg-secondary transition-[background-color,border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default';
+	'prompt-chip group/chip mx-0.5 -my-0.5 inline-flex h-5 max-w-56 cursor-default select-none items-center gap-1 rounded-md border border-chip-border bg-chip pr-1.5 pl-1 align-middle text-2xs leading-none text-fg-secondary transition-[background-color,border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default';
 
 const LEAD_CLASS =
-	'prompt-chip__lead relative grid h-full w-5 shrink-0 cursor-pointer place-items-center rounded-l-md border-r border-chip-border text-fg-tertiary transition-colors hover:bg-chip-hover';
+	'prompt-chip__lead relative grid size-3.5 shrink-0 cursor-pointer place-items-center text-fg-tertiary';
 
 const GLYPH_CLASS =
 	'prompt-chip__glyph col-start-1 row-start-1 transition-opacity group-hover/chip:opacity-0';
@@ -39,7 +39,7 @@ const GLYPH_CLASS =
 const CROSS_CLASS =
 	'prompt-chip__cross col-start-1 row-start-1 text-sm leading-none text-fg-tertiary opacity-0 transition-opacity group-hover/chip:opacity-100 group-hover/chip:text-fg-default';
 
-const LABEL_CLASS = 'prompt-chip__label truncate px-1.5';
+const LABEL_CLASS = 'prompt-chip__label truncate';
 
 export function promptChipLabel(attributes: {
 	kind: PromptChipKind;
@@ -282,7 +282,7 @@ export function createPromptChipNodeView({
 }
 
 function chipGlyph(kind: PromptChipKind, label: string): HTMLElement {
-	if (promptChipShowsFileIcon(kind, label)) {
+	if (promptChipShowsFileIcon(kind)) {
 		const icon = document.createElement('img');
 		const iconId = fileIconIdFor(label);
 		icon.src = fileIconUrl(iconId);

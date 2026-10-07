@@ -9,10 +9,10 @@ describe('the placeholder the top bar holds before a workstream status is known'
 		expect(pullRequestPlaceholderLabel('ready', false)).toBe('Merge');
 	});
 
-	it('is shaped like publishing, or like having nothing to publish, when no pull request is open', () => {
+	it('is shaped like publishing, or absent with nothing to publish, when no pull request is open', () => {
 		expect(pullRequestPlaceholderLabel('none', true)).toBe('Commit and push');
-		expect(pullRequestPlaceholderLabel('none', false)).toBe('No changes');
-		expect(pullRequestPlaceholderLabel('merged', false)).toBe('No changes');
+		expect(pullRequestPlaceholderLabel('none', false)).toBeNull();
+		expect(pullRequestPlaceholderLabel('merged', false)).toBeNull();
 		expect(pullRequestPlaceholderLabel('unknown', true)).toBe('Commit and push');
 	});
 });

@@ -181,6 +181,7 @@ export class BridgeSupervisor {
 	private protocolErrorText: string | null = null;
 	private stderrTail = '';
 	private readonly pendingAcks = new Map<string, PendingAck>();
+	private readonly suggestedTitles = new Map<string, string>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly startedAtMs: number;
 	private restartAttempt = 0;
@@ -418,6 +419,16 @@ export class BridgeSupervisor {
 				}
 				return;
 			}
+			case 'bridge.title': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: title v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.suggestedTitles.set(control.id, control.title);
+				return;
+			}
 			case 'bridge.protocol_error': {
 				const versionNote =
 					control.protocolVersion === BRIDGE_PROTOCOL_VERSION
@@ -529,6 +540,23 @@ export class BridgeSupervisor {
 			);
 		}
 		return this.providerCapabilities();
+	}
+
+	async suggestTitle(prompt: string): Promise<string> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'suggest_title', id, prompt });
+			const title = this.suggestedTitles.get(id);
+			if (title === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'title was acknowledged without a bridge.title frame',
+				);
+			}
+			return title;
+		} finally {
+			this.suggestedTitles.delete(id);
+		}
 	}
 
 	refreshMcpStatus(sessionId: string): Promise<void> {

@@ -45,14 +45,17 @@ import {
 	insertSession,
 	latestSessionForWorkstream,
 	listSessionSummaries,
-	nameSessionFromFirstPrompt,
+	nameSession,
+	promptPlainText,
 	repairSessionStatusesWithoutOpenRuns,
 	sessionContextIdentity,
+	sessionHasUserRun,
 	type AgentSessionSummary,
 } from '../sessions.repository';
 import {
 	getWorkstream,
-	nameWorkstreamBeforeFirstUserRun,
+	renameWorkstream,
+	workstreamHasUserRun,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import {
@@ -142,6 +145,7 @@ export interface SendPromptHooks {
 	readonly captureRunFinish: (runId: string) => Promise<void>;
 	readonly verifyAttachment?: (stored: StoredAttachment, worktree: string) => void;
 	readonly collectAttachmentGarbage?: (workstreamId: string, worktree: string, now: string) => void;
+	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 }
 
@@ -589,7 +593,7 @@ async function sendAgentPromptLeased(
 		...(input.automated === true ? { automated: true } : {}),
 		...(input.profile ? { profile: input.profile } : {}),
 	};
-	if (input.automated !== true) nameFromUserPrompt(db, sessionId, workstreamId, prompt, hooks);
+	if (input.automated !== true) nameFromFirstUserPrompt(db, supervisor, input, hooks, log);
 	const verifiedAttachments = insertRunAndBindAttachments(db, {
 		workstreamId,
 		run: agentRun,
@@ -679,18 +683,54 @@ async function sendAgentPromptLeased(
 	return runId;
 }
 
-function nameFromUserPrompt(
+function nameFromFirstUserPrompt(
 	db: MaliniDatabase,
-	sessionId: string,
-	workstreamId: string,
-	prompt: string,
+	supervisor: BridgeSupervisor,
+	input: SendPromptInput,
 	hooks: SendPromptHooks,
+	log: (line: string) => void,
 ): void {
-	nameSessionFromFirstPrompt(db, sessionId, workstreamId, prompt);
-	const title = conciseSessionTitle(prompt);
-	if (title === null) return;
-	const newName = nameWorkstreamBeforeFirstUserRun(db, workstreamId, title);
-	if (newName !== null) hooks.notifyWorkstreamRenamed?.(workstreamId, newName);
+	if (sessionHasUserRun(db, input.sessionId)) return;
+	const namesWorkstream = !workstreamHasUserRun(db, input.workstreamId);
+	void nameChat(db, supervisor, input, namesWorkstream, hooks, log);
+}
+
+async function nameChat(
+	db: MaliniDatabase,
+	supervisor: BridgeSupervisor,
+	{ sessionId, workstreamId, prompt }: SendPromptInput,
+	namesWorkstream: boolean,
+	hooks: SendPromptHooks,
+	log: (line: string) => void,
+): Promise<void> {
+	const title = await suggestedTitle(supervisor, prompt, log);
+	try {
+		hooks.notifySessionRenamed?.(
+			workstreamId,
+			sessionId,
+			nameSession(db, sessionId, workstreamId, title),
+		);
+		if (!namesWorkstream || title === null) return;
+		const workstreamName = renameWorkstream(db, workstreamId, title);
+		if (workstreamName !== null) hooks.notifyWorkstreamRenamed?.(workstreamId, workstreamName);
+	} catch (error) {
+		log(`agent: could not name chat \`${sessionId}\`: ${describe(error)}`);
+	}
+}
+
+async function suggestedTitle(
+	supervisor: BridgeSupervisor,
+	prompt: string,
+	log: (line: string) => void,
+): Promise<string | null> {
+	const task = promptPlainText(prompt).trim();
+	if (task.length === 0) return null;
+	try {
+		return await supervisor.suggestTitle(task);
+	} catch (error) {
+		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
+		return conciseSessionTitle(prompt);
+	}
 }
 
 export function handleSendPromptHandoffFailure(
