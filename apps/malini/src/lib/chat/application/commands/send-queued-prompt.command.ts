@@ -24,7 +24,8 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 	if (!entry) return;
 	queueSendingStore.set(workstreamId, id);
 	queueErrorsStore.clear(id);
-	const holder = chatOccupancy.runBlocker(workstreamId, null);
+	const target = chatOccupancy.queuedTurnTarget(workstreamId, entry);
+	const holder = target.targetIsBusy ? target.queueTargetSessionId : null;
 	if (!holder) {
 		const outcome = await promptDelivery.drain(workstreamId);
 		if (outcome !== 'busy-retry') queueSendingStore.release(workstreamId, id);
@@ -35,7 +36,7 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 		aboutWorkstream(workstreamId),
 	);
 	try {
-		await agentRunner.cancelRun(holder.id);
+		await agentRunner.cancelRun(holder);
 	} catch (error) {
 		const message = errorMessage(error, 'Failed to send queued prompt');
 		const failure = classifyPromptDispatchFailure({ stage: 'cancel', message });
@@ -52,5 +53,5 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 		queueSendingStore.release(workstreamId, id);
 		return;
 	}
-	promptDelivery.armInterruptRecovery(workstreamId, holder.id, id);
+	promptDelivery.armInterruptRecovery(workstreamId, holder, id);
 }

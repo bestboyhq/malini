@@ -1,4 +1,5 @@
 import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
+import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
@@ -36,6 +37,7 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 		) {
 			chatSessionStore.setDispatchPending(envelope.sessionId, false);
 		}
+		if (envelope.event.type === 'run.started') observeRunStartCommand(envelope.runId);
 		pendingPromptStore.clearOnEnvelope(envelope);
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {
 			const workstreamId = ownerOf(envelope.sessionId);

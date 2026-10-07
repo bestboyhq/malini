@@ -346,7 +346,7 @@ describe('prompt round trips', () => {
 			true,
 		);
 		expect(await invokeError('chat.send-prompt', { sessionId, prompt: 'again' })).toBe(
-			'work stream `ws-1` already has an active run',
+			`\`${sessionId}\` already has an active run`,
 		);
 		await invoke('chat.cancel-run', { sessionId });
 		expect(getRun(test.db, runId)).toMatchObject({ error: 'cancelled' });
@@ -354,6 +354,25 @@ describe('prompt round trips', () => {
 		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
 			false,
 		);
+	});
+
+	it('runs a second chat of the workstream beside one that is still running', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const first = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const second = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const firstRun = await invokeString('chat.send-prompt', { sessionId: first, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, first)?.status === 'running');
+
+		const secondRun = await invokeString('chat.send-prompt', { sessionId: second, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, second)?.status === 'running');
+
+		expect(getRun(test.db, firstRun)).toMatchObject({ completedAt: null, error: null });
+		await invoke('chat.cancel-run', { sessionId: second });
+		expect(getRun(test.db, secondRun)).toMatchObject({ error: 'cancelled' });
+		expect(getRun(test.db, firstRun)).toMatchObject({ completedAt: null, error: null });
+		expect(getSession(test.db, first)?.status).toBe('running');
+		await invoke('chat.cancel-run', { sessionId: first });
 	});
 
 	it('stops a prompt whose Stop arrived while its restore point was still being captured', async () => {

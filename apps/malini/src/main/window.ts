@@ -2,6 +2,8 @@ import { join } from 'node:path';
 import { BrowserWindow, screen, shell } from 'electron';
 
 export const BACKGROUND_WINDOW = process.env['MALINI_BACKGROUND_WINDOW'] === '1';
+const DEV_SERVER_URL = process.env['ELECTRON_RENDERER_URL'];
+Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL');
 
 export function createMainWindow(): BrowserWindow {
 	const window = new BrowserWindow({
@@ -35,8 +37,8 @@ export function createMainWindow(): BrowserWindow {
 		return { action: 'deny' };
 	});
 
-	if (process.env.ELECTRON_RENDERER_URL) {
-		void window.loadURL(process.env.ELECTRON_RENDERER_URL);
+	if (DEV_SERVER_URL) {
+		void window.loadURL(DEV_SERVER_URL);
 	} else {
 		void window.loadFile(join(__dirname, '../renderer/index.html'));
 	}

@@ -4,7 +4,7 @@
 	--color-surface-100-light: var(--color-grey-100);
 	--color-surface-150-light: var(--color-grey-50);
 
-	--color-surface-root-dark: var(--color-black);
+	--color-surface-root-dark: var(--color-grey-950);
 	--color-surface-50-dark: var(--color-grey-950);
 	--color-surface-100-dark: var(--color-grey-900);
 	--color-surface-150-dark: var(--color-grey-850);
@@ -14,7 +14,7 @@
 	--color-surface-100-hover-light: var(--color-grey-150);
 	--color-surface-150-hover-light: var(--color-grey-100);
 
-	--color-surface-root-hover-dark: var(--color-grey-950);
+	--color-surface-root-hover-dark: var(--color-grey-900);
 	--color-surface-50-hover-dark: var(--color-grey-900);
 	--color-surface-100-hover-dark: var(--color-grey-850);
 	--color-surface-150-hover-dark: var(--color-grey-800);
