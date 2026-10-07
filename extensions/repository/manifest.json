@@ -129,9 +129,9 @@
 				"description": "Automatically commit pending changes, push the workstream branch, and create or refresh its pull request inside Malini."
 			},
 			{
-				"id": "malini.repository.request-merge-confirmation",
-				"title": "Repository: Review Merge",
-				"description": "Refresh merge readiness, or land the pull request when the caller passes the head revision the human confirmed."
+				"id": "malini.repository.merge-pull-request",
+				"title": "Repository: Merge Pull Request",
+				"description": "Land the open pull request at the head revision the caller passes, once local changes, todos, checks and reviews allow it."
 			}
 		],
 		"settings": [

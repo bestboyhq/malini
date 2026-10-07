@@ -842,29 +842,20 @@ test('fresh merge preflight rejects dirty or unpushed local state', async (t) =>
 	}
 });
 
-test('binds merge confirmation to the reviewed head and republishes a changed head', async () => {
+test('merges only the head the caller saw and republishes a changed head', async () => {
 	let headSha = 'head-42';
 	const harness = createHarness({
 		pullRequest: () => Promise.resolve(pullRequest({ headSha })),
 	});
 	await harness.controller.refresh();
 
-	const confirmed = await harness.controller.requestMergeConfirmation('squash');
-	assert.deepEqual(confirmed.mergeConfirmationRequest, {
-		id: 1,
-		pullRequestNumber: 42,
-		headSha: 'head-42',
-		mergeMethod: 'squash',
-	});
-
 	headSha = 'head-43';
 	await assert.rejects(
 		harness.controller.mergePullRequest('squash', 'head-42'),
-		/pull request changed after confirmation/u,
+		/pull request changed since it was last read/u,
 	);
 	const rejected = harness.controller.snapshot();
 	assert.equal(rejected.context?.pullRequest?.headSha, 'head-43');
-	assert.equal(rejected.mergeConfirmationRequest, null);
 	assert.equal(
 		harness.calls.some(({ kind }) => kind === 'merge'),
 		false,

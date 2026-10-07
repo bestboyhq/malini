@@ -47,7 +47,6 @@ describe('the resting global top bar', () => {
 		'githubStatus.review',
 		'githubStatus.todos',
 		'githubStatus.changes',
-		'githubStatus.mergeConfirmation',
 		'tone-dot',
 	])('keeps %s behind the disclosure', (detail) => {
 		expect(markup).toContain(detail);
@@ -112,12 +111,6 @@ describe('the top bar action paint', () => {
 		expect(unavailable).toContain('var(--color-button-disabled)');
 		expect(unavailable).toContain('var(--color-button-disabled-content)');
 		expect(unavailable).not.toContain('opacity');
-	});
-
-	it('keeps the armed confirmation on the error tokens', () => {
-		const armed = actionRule('.topbar-action[data-armed]');
-		expect(armed).toContain('var(--color-error)');
-		expect(armed).toContain('var(--color-error-content)');
 	});
 });
 

@@ -223,7 +223,6 @@ function viewState(): RepositoryViewState {
 		pullRequestRefreshStatus: 'ready',
 		pullRequestRefreshedAt: 1,
 		pullRequestSettledAt: 1,
-		mergeConfirmationRequest: null,
 		localError: null,
 		pullRequestError: null,
 		error: null,

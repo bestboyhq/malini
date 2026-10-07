@@ -13,6 +13,7 @@ export type ClickedPullRequestAction = Readonly<{
 	label: string;
 	ariaLabel: string;
 	clickedAt: number;
+	headSha: string | null;
 }>;
 
 export const DEFERRED_PULL_REQUEST_ACTION_TTL_MS = 8_000;
@@ -31,7 +32,8 @@ export function deferredPullRequestActionVerdict(input: {
 	if (surface.pullRequestRefreshStatus !== 'ready') return 'wait';
 	if (!happenedSince(surface.pullRequestRefreshedAt, clicked.clickedAt)) return 'wait';
 	const presentation = pullRequestTopBarPresentation(surface, input.availability);
-	return presentation && sameAction(presentation, clicked) ? 'run' : 'drop';
+	const headSha = surface.pullRequest?.headSha ?? null;
+	return presentation && sameAction(presentation, clicked, headSha) ? 'run' : 'drop';
 }
 
 function happenedSince(time: number | null, since: number): boolean {
@@ -41,11 +43,13 @@ function happenedSince(time: number | null, since: number): boolean {
 function sameAction(
 	presentation: PullRequestTopBarPresentation,
 	clicked: ClickedPullRequestAction,
+	headSha: string | null,
 ): boolean {
 	return (
 		!presentation.disabled &&
 		presentation.kind === clicked.kind &&
 		presentation.label === clicked.label &&
-		presentation.ariaLabel === clicked.ariaLabel
+		presentation.ariaLabel === clicked.ariaLabel &&
+		(presentation.kind !== 'merge' || headSha === clicked.headSha)
 	);
 }

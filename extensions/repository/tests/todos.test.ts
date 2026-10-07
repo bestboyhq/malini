@@ -141,6 +141,7 @@ test('blocks merge on open or unreadable todos and supports explicit local recov
 			files: { 'README.md': 'todos' },
 		},
 		repository: {
+			supportsPullRequestMutations: true,
 			pullRequest: {
 				state: 'open',
 				number: 42,
@@ -164,7 +165,7 @@ test('blocks merge on open or unreadable todos and supports explicit local recov
 		await host.activate(extension);
 		await host.invokeCommand('malini.repository.todo-add', 'Close the loop');
 		await assert.rejects(
-			host.invokeCommand('malini.repository.request-merge-confirmation'),
+			host.invokeCommand('malini.repository.merge-pull-request', { expectedHeadSha: 'abc123' }),
 			/open workstream todo/u,
 		);
 		await host.deactivate();
@@ -178,7 +179,7 @@ test('blocks merge on open or unreadable todos and supports explicit local recov
 		let state = await controller.loadTodos();
 		assert.equal(state.todoStatus, 'error');
 		assert.match(state.todoError ?? '', /unreadable/u);
-		await assert.rejects(controller.requestMergeConfirmation(), /todos are unreadable/u);
+		await assert.rejects(controller.mergePullRequest(undefined, 'abc123'), /todos are unreadable/u);
 
 		state = await controller.resetTodos();
 		assert.equal(state.todoStatus, 'ready');
@@ -246,7 +247,7 @@ test('actual merge reloads persisted todos instead of trusting stale ready state
 	}
 });
 
-test('merge confirmation waits for a queued todo write and then observes its blocker', async () => {
+test('merge waits for a queued todo write and then observes its blocker', async () => {
 	const host = await createTestHost({
 		manifest,
 		fixtureRepository: {
@@ -256,6 +257,7 @@ test('merge confirmation waits for a queued todo write and then observes its blo
 			files: { 'README.md': 'todos' },
 		},
 		repository: {
+			supportsPullRequestMutations: true,
 			pullRequest: mergeReadyPullRequest(),
 		},
 	});
@@ -292,20 +294,23 @@ test('merge confirmation waits for a queued todo write and then observes its blo
 		const add = controller.addTodo('Queued blocker');
 		await saveStarted;
 
-		let confirmationSettled = false;
-		const confirmation = controller.requestMergeConfirmation();
-		void confirmation
+		let mergeSettled = false;
+		const merge = controller.mergePullRequest(undefined, 'abc123');
+		void merge
 			.catch(() => undefined)
 			.finally(() => {
-				confirmationSettled = true;
+				mergeSettled = true;
 			});
 		await new Promise<void>((resolve) => setImmediate(resolve));
-		assert.equal(confirmationSettled, false);
+		assert.equal(mergeSettled, false);
 
 		releaseSave();
 		await add;
-		await assert.rejects(confirmation, /open workstream todo/u);
-		assert.equal(controller.snapshot().mergeConfirmationRequest, null);
+		await assert.rejects(merge, /open workstream todo/u);
+		assert.equal(
+			host.recording().some(({ kind }) => kind === 'repository.mergePullRequest'),
+			false,
+		);
 	} finally {
 		releaseSave();
 		controller.dispose();

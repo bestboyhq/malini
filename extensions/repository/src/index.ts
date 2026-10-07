@@ -97,10 +97,10 @@ const repositoryExtension: ExtensionModule = {
 				'commands',
 				'malini.repository.create-or-open-pull-request',
 			);
-			const requestMergeConfirmationCommand = requireContribution(
+			const mergePullRequestCommand = requireContribution(
 				api,
 				'commands',
-				'malini.repository.request-merge-confirmation',
+				'malini.repository.merge-pull-request',
 			);
 			const todosCommand = requireContribution(api, 'commands', 'malini.repository.todos');
 			const addTodoCommand = requireContribution(api, 'commands', 'malini.repository.todo-add');
@@ -200,12 +200,10 @@ const repositoryExtension: ExtensionModule = {
 					handler: (input) => controller.createOrOpenPullRequest(parsePullRequestAction(input)),
 				}),
 				api.commands.register({
-					...requestMergeConfirmationCommand,
+					...mergePullRequestCommand,
 					handler: (input) => {
-						const confirmed = parseMergeConfirmation(input);
-						return confirmed
-							? controller.mergePullRequest(confirmed.mergeMethod, confirmed.expectedHeadSha)
-							: controller.requestMergeConfirmation();
+						const merge = parseMergeInput(input);
+						return controller.mergePullRequest(merge.mergeMethod, merge.expectedHeadSha);
 					},
 				}),
 				api.commands.register({
@@ -345,7 +343,6 @@ export default repositoryExtension;
 export type {
 	PullRequestActionInput,
 	PullRequestRefreshStatus,
-	RepositoryMergeConfirmationRequest,
 	RepositoryPullRequestFixContext,
 	RepositorySurfaceState,
 	RepositoryTodosSnapshot,
@@ -414,27 +411,26 @@ function isMergeMethod(input: unknown): input is ExtensionPullRequestMergeMethod
 	return typeof input === 'string' && MERGE_METHODS.has(input);
 }
 
-type MergeConfirmation = Readonly<{
+type MergeInput = Readonly<{
 	mergeMethod: ExtensionPullRequestMergeMethod | undefined;
 	expectedHeadSha: string;
 }>;
 
-function parseMergeConfirmation(input: unknown): MergeConfirmation | null {
-	if (input === undefined || input === null) return null;
+function parseMergeInput(input: unknown): MergeInput {
 	if (!isRecord(input)) {
-		throw new Error('Merge confirmation must be an object');
+		throw new Error('Merge input must be an object');
 	}
 	const value = input;
 	const unsupported = Object.keys(value).find(
 		(key) => key !== 'mergeMethod' && key !== 'expectedHeadSha',
 	);
-	if (unsupported) throw new Error(`Unsupported merge confirmation field: ${unsupported}`);
+	if (unsupported) throw new Error(`Unsupported merge input field: ${unsupported}`);
 	if (typeof value.expectedHeadSha !== 'string' || !value.expectedHeadSha.trim()) {
-		throw new Error('Merge confirmation must include the confirmed pull request head revision');
+		throw new Error('Merge input must include the pull request head revision');
 	}
 	const mergeMethod = value.mergeMethod;
 	if (mergeMethod !== undefined && !isMergeMethod(mergeMethod)) {
-		throw new Error('Merge confirmation method is not a supported GitHub merge method');
+		throw new Error('Merge method is not a supported GitHub merge method');
 	}
 	return {
 		mergeMethod,

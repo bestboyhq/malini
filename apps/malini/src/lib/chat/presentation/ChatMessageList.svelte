@@ -7,6 +7,9 @@
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
 	import { keepWorkstreamFilesFreshHook } from '$lib/chat/application/hooks/keep-workstream-files-fresh.hook';
 	import { openFileMentionHook } from '$lib/chat/application/hooks/open-file-mention.hook';
+	import { previewWorkstreamImageCommand } from '$lib/chat/application/commands/preview-workstream-image.command';
+	import { releaseImagePreviewsCommand } from '$lib/chat/application/commands/release-image-previews.command';
+	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { fileMentionIndexQuery } from '$lib/chat/application/queries/file-mention-index.query.svelte';
 	import { resolveFileMention } from '$lib/chat/domain/file-mention-index';
 	import { finalizeStreamingHook } from '$lib/chat/application/hooks/finalize-streaming.hook';
@@ -223,6 +226,24 @@
 	const finalizeStreaming = finalizeStreamingHook();
 
 	$effect(() => keepWorkstreamFilesFreshHook(workstreamId));
+
+	const markdownImageOwner = newChatRequestId();
+	const markdownImageSource = $derived.by(() => {
+		const previews = imagePreviewQuery.owned(markdownImageOwner);
+		const id = workstreamId;
+		return (path: string): string | null => {
+			const preview = previews[path];
+			if (!preview) {
+				previewWorkstreamImageCommand({ owner: markdownImageOwner, workstreamId: id, path });
+			}
+			return preview?.status === 'ready' ? preview.src : null;
+		};
+	});
+
+	$effect(() => {
+		void workstreamId;
+		return () => releaseImagePreviewsCommand(markdownImageOwner);
+	});
 
 	function openFileMention(target: FileMentionTarget, mention: HTMLElement): void {
 		openFileMentionTarget(target, (targets) => {
@@ -536,6 +557,9 @@
 		openFileMention,
 		get canOpenFileMention() {
 			return canOpenFileMention;
+		},
+		get markdownImageSource() {
+			return markdownImageSource;
 		},
 	});
 
@@ -892,6 +916,7 @@
 											playbackKey={blockKey(sessionId, block.runId, block.contentId)}
 											onopenfile={openFileMention}
 											canopenfile={canOpenFileMention}
+											imagesrc={markdownImageSource}
 										/>
 									</div>
 								{/each}

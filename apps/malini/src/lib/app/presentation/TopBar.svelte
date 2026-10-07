@@ -15,7 +15,6 @@
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import {
-		armedConfirmationSurvives,
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
 		globalTopBarGithubStatus,
@@ -75,11 +74,11 @@
 	const githubPanelHeadline = $derived(
 		githubStatus?.title ?? githubStatus?.branch ?? 'No pull request',
 	);
+	let githubZoneElement: HTMLDivElement | undefined = $state();
 	let githubDisclosureElement: HTMLButtonElement | undefined = $state();
 	let githubPopoverOpen = $state(false);
 	let githubPopoverAnchor = $state({ x: 0, y: 0 });
-	let armedActionId = $state<string | null>(null);
-	let armedConfirmKey = $state<string | null>(null);
+	let armedDetailId = $state<string | null>(null);
 
 	const githubPrimaryAction = $derived.by<GlobalTopBarAction | null>(() => {
 		const status = githubStatus;
@@ -91,19 +90,13 @@
 			ariaLabel: action.ariaLabel,
 			tooltip: action.tooltip,
 			tone: action.tone,
+			icon: action.icon ?? null,
 			disabled: action.disabled,
 			busy: action.busy,
-			confirmLabel: action.confirmLabel ?? null,
-			confirmKey: action.confirmKey ?? null,
 			testId: 'global-topbar-github-action',
-			...(action.onArm ? { onArm: action.onArm } : {}),
 			onInvoke: action.onInvoke,
 		};
 	});
-
-	const barActions = $derived(
-		githubPrimaryAction ? [...visibleActions, githubPrimaryAction] : visibleActions,
-	);
 
 	const githubSecondaryAction = $derived.by<GlobalTopBarAction | null>(() => {
 		const action = githubStatus?.secondaryAction;
@@ -122,17 +115,8 @@
 	});
 
 	const githubDetailActions = $derived(githubStatus?.detailActions ?? []);
-	const armableActions = $derived([
-		...barActions,
-		...githubDetailActions.map((detail) => ({
-			id: detailActionId(detail),
-			confirmLabel: detail.confirmLabel ?? null,
-		})),
-	]);
 	const githubRemoteFailure = $derived(githubStatus?.remoteFailure ?? null);
-	const githubDisclosureTone = $derived(
-		armedActionId === 'github-primary' ? 'primary' : (githubPrimaryAction?.tone ?? 'secondary'),
-	);
+	const githubDisclosureTone = $derived(githubPrimaryAction?.tone ?? 'secondary');
 	const githubDisclosureLook = $derived.by((): 'busy' | 'disabled' | undefined => {
 		if (!githubPrimaryAction) return undefined;
 		if (githubPrimaryAction.busy) return 'busy';
@@ -147,18 +131,19 @@
 	});
 
 	$effect(() => {
-		if (armedConfirmationSurvives(armedActionId, armedConfirmKey, armableActions)) return;
-		disarmConfirmation();
+		if (githubDetailActions.some((detail) => detail.id === armedDetailId && detail.confirmLabel)) {
+			return;
+		}
+		disarmDetail();
 	});
 
-	function disarmConfirmation(): void {
-		armedActionId = null;
-		armedConfirmKey = null;
+	function disarmDetail(): void {
+		armedDetailId = null;
 	}
 
 	$effect(() => {
-		if (!armedActionId) return;
-		return disarmOnDismiss(disarmConfirmation);
+		if (!armedDetailId) return;
+		return disarmOnDismiss(disarmDetail);
 	});
 
 	$effect(() => {
@@ -170,7 +155,7 @@
 			closeGithubPopover();
 			return;
 		}
-		const rect = githubDisclosureElement?.getBoundingClientRect();
+		const rect = githubZoneElement?.getBoundingClientRect();
 		if (rect) githubPopoverAnchor = { x: rect.right - 300, y: rect.bottom + 6 };
 		githubPopoverOpen = true;
 	}
@@ -181,13 +166,6 @@
 
 	function onBarActionClicked(action: GlobalTopBarAction): void {
 		if (action.disabled || action.busy) return;
-		if (action.confirmLabel && armedActionId !== action.id) {
-			armedActionId = action.id;
-			armedConfirmKey = action.confirmKey ?? null;
-			void action.onArm?.();
-			return;
-		}
-		disarmConfirmation();
 		closeGithubPopover();
 		void action.onInvoke();
 	}
@@ -199,20 +177,67 @@
 
 	function onDetailActionClicked(detail: GlobalTopBarStatusDetailAction): void {
 		if (detail.disabled) return;
-		if (detail.confirmLabel && armedActionId !== detailActionId(detail)) {
-			armedActionId = detailActionId(detail);
-			armedConfirmKey = null;
+		if (detail.confirmLabel && armedDetailId !== detail.id) {
+			armedDetailId = detail.id;
 			return;
 		}
-		disarmConfirmation();
+		disarmDetail();
 		closeGithubPopover();
 		void detail.onInvoke();
 	}
-
-	function detailActionId(detail: GlobalTopBarStatusDetailAction): string {
-		return `github-detail-${detail.id}`;
-	}
 </script>
+
+{#snippet githubAction(action: GlobalTopBarAction, split: boolean)}
+	<Tooltip content={action.tooltip} placement="bottom">
+		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+		<button
+			type="button"
+			class="topbar-action topbar-git__action"
+			class:topbar-git__action--split={split}
+			data-tone={action.tone ?? 'secondary'}
+			disabled={action.disabled || action.busy || routeTransitionPending}
+			aria-label={action.ariaLabel}
+			aria-busy={action.busy || undefined}
+			data-testid="global-topbar-github-action"
+			onclick={() => onBarActionClicked(action)}
+		>
+			{#if action.busy}
+				<BusyIcon size={12} />
+			{:else if action.icon}
+				<Icon name={action.icon} size={12} />
+			{/if}
+			<span>{action.label}</span>
+		</button>
+	</Tooltip>
+{/snippet}
+
+{#snippet githubDisclosure(reference: string | null)}
+	<Tooltip content={githubRemoteFailure ?? githubDisclosureLabel} placement="bottom">
+		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+		<button
+			bind:this={githubDisclosureElement}
+			type="button"
+			class={reference ? 'topbar-git__pill-part' : 'topbar-action topbar-git__disclosure'}
+			class:topbar-git__disclosure--solo={!reference && !githubPrimaryAction}
+			data-tone={reference ? undefined : githubDisclosureTone}
+			data-look={reference ? undefined : githubDisclosureLook}
+			data-stale={githubRemoteFailure ? '' : undefined}
+			data-testid="global-topbar-github-status"
+			aria-label={githubRemoteFailure
+				? `${githubDisclosureLabel}, remote status is stale`
+				: githubDisclosureLabel}
+			aria-haspopup="dialog"
+			aria-expanded={githubPopoverOpen}
+			onclick={toggleGithubPopover}
+		>
+			{#if reference}
+				{reference}
+			{:else}
+				<Icon name="chevron-down" size={10} />
+			{/if}
+		</button>
+	</Tooltip>
+{/snippet}
 
 <nav
 	class="global-topbar"
@@ -288,16 +313,14 @@
 	></div>
 	<div bind:this={rightClusterElement} class="topbar-right" data-testid="global-topbar-right">
 		{#each visibleActions as action (action.id)}
-			{@const armed = armedActionId === action.id}
 			<Tooltip content={action.tooltip} placement="bottom">
 				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 				<button
 					type="button"
 					class="topbar-action"
-					data-tone={armed ? 'primary' : (action.tone ?? 'secondary')}
-					data-armed={armed || undefined}
+					data-tone={action.tone ?? 'secondary'}
 					disabled={action.disabled || action.busy || routeTransitionPending}
-					aria-label={armed ? (action.confirmLabel ?? action.ariaLabel) : action.ariaLabel}
+					aria-label={action.ariaLabel}
 					aria-busy={action.busy || undefined}
 					data-testid={action.testId ?? `global-topbar-action-${action.id}`}
 					onclick={() => onBarActionClicked(action)}
@@ -305,35 +328,44 @@
 					{#if action.busy}
 						<BusyIcon size={12} />
 					{/if}
-					<span>{armed ? (action.confirmLabel ?? action.label) : action.label}</span>
+					<span>{action.label}</span>
 				</button>
 			</Tooltip>
 		{/each}
 		{#if githubStatus?.placeholder}
 			<div class="topbar-git" aria-hidden="true" data-testid="global-topbar-github-placeholder">
 				<span
-					class="topbar-action topbar-git__action topbar-git__placeholder"
+					class="topbar-action topbar-git__action--split topbar-git__placeholder"
 					data-label={githubStatus.placeholder}
 				></span>
 				<span class="topbar-action topbar-git__disclosure topbar-git__placeholder"></span>
 			</div>
 		{:else if githubStatus}
-			<div class="topbar-git" data-testid="global-topbar-github">
-				{#if githubStatus.reference && githubStatus.url}
-					{@const url = githubStatus.url}
-					<Tooltip content="Open on GitHub" placement="bottom">
-						<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__reference` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-						<button
-							type="button"
-							class="topbar-git__reference"
-							aria-label={`Open pull request ${githubStatus.reference} on GitHub`}
-							data-testid="global-topbar-github-reference"
-							onclick={() => openPullRequestUrl(url)}
-						>
-							<span>{githubStatus.reference}</span>
-							<Icon name="external-link" size={12} />
-						</button>
-					</Tooltip>
+			<div
+				bind:this={githubZoneElement}
+				class="topbar-git"
+				data-zone={githubStatus.headline?.tone}
+				data-testid="global-topbar-github"
+			>
+				{#if githubStatus.reference}
+					<div class="topbar-git__pill">
+						{@render githubDisclosure(githubStatus.reference)}
+						{#if githubStatus.url}
+							{@const url = githubStatus.url}
+							<Tooltip content="Open on GitHub" placement="bottom">
+								<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+								<button
+									type="button"
+									class="topbar-git__pill-part topbar-git__pill-link"
+									aria-label={`Open pull request ${githubStatus.reference} on GitHub`}
+									data-testid="global-topbar-github-reference"
+									onclick={() => openPullRequestUrl(url)}
+								>
+									<Icon name="external-link" size={12} />
+								</button>
+							</Tooltip>
+						{/if}
+					</div>
 				{/if}
 				{#if githubStatus.headline}
 					{@const headline = githubStatus.headline}
@@ -372,53 +404,18 @@
 						</button>
 					</Tooltip>
 				{/if}
-				<div class="topbar-git__split">
+				{#if githubStatus.reference}
 					{#if githubPrimaryAction}
-						{@const action = githubPrimaryAction}
-						{@const armed = armedActionId === action.id}
-						<Tooltip content={action.tooltip} placement="bottom">
-							<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-							<button
-								type="button"
-								class="topbar-action topbar-git__action"
-								data-tone={armed ? 'primary' : (action.tone ?? 'secondary')}
-								data-armed={armed || undefined}
-								disabled={action.disabled || action.busy || routeTransitionPending}
-								aria-label={armed ? (action.confirmLabel ?? action.ariaLabel) : action.ariaLabel}
-								aria-busy={action.busy || undefined}
-								data-testid="global-topbar-github-action"
-								onclick={() => onBarActionClicked(action)}
-							>
-								{#if action.busy}
-									<BusyIcon size={12} />
-								{/if}
-								<span>{armed ? (action.confirmLabel ?? action.label) : action.label}</span>
-							</button>
-						</Tooltip>
+						{@render githubAction(githubPrimaryAction, false)}
 					{/if}
-					<Tooltip content={githubRemoteFailure ?? githubDisclosureLabel} placement="bottom">
-						<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-						<button
-							bind:this={githubDisclosureElement}
-							type="button"
-							class="topbar-action topbar-git__disclosure"
-							class:topbar-git__disclosure--solo={!githubPrimaryAction}
-							data-tone={githubDisclosureTone}
-							data-look={githubDisclosureLook}
-							data-armed={armedActionId === 'github-primary' || undefined}
-							data-stale={githubRemoteFailure ? '' : undefined}
-							data-testid="global-topbar-github-status"
-							aria-label={githubRemoteFailure
-								? `${githubDisclosureLabel}, remote status is stale`
-								: githubDisclosureLabel}
-							aria-haspopup="dialog"
-							aria-expanded={githubPopoverOpen}
-							onclick={toggleGithubPopover}
-						>
-							<Icon name="chevron-down" size={10} />
-						</button>
-					</Tooltip>
-				</div>
+				{:else}
+					<div class="topbar-git__split">
+						{#if githubPrimaryAction}
+							{@render githubAction(githubPrimaryAction, true)}
+						{/if}
+						{@render githubDisclosure(null)}
+					</div>
+				{/if}
 			</div>
 			<Popover
 				open={githubPopoverOpen}
@@ -514,19 +511,6 @@
 							</ul>
 						{/if}
 
-						{#if githubStatus.mergeConfirmation}
-							<div
-								class="github-panel__confirmation"
-								data-testid="global-topbar-merge-confirmation"
-								role="status"
-							>
-								<span class="github-panel__confirmation-label">Awaiting confirmation</span>
-								<span class="github-panel__confirmation-detail">
-									{githubStatus.mergeConfirmation.detail}
-								</span>
-							</div>
-						{/if}
-
 						<div class="github-panel__footer">
 							{#if githubStatus.url}
 								{@const url = githubStatus.url}
@@ -541,7 +525,7 @@
 								</button>
 							{/if}
 							{#each githubDetailActions as detail (detail.id)}
-								{@const armed = armedActionId === detailActionId(detail)}
+								{@const armed = armedDetailId === detail.id}
 								<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 								<button
 									type="button"
@@ -704,16 +688,16 @@
 	.topbar-action {
 		display: inline-flex;
 		flex-shrink: 0;
-		height: 26px;
+		height: var(--topbar-control-height, 26px);
 		cursor: pointer;
 		align-items: center;
 		gap: 6px;
 		border: 0.5px solid var(--color-button-secondary-border);
-		border-radius: 7px;
+		border-radius: var(--topbar-control-radius, 7px);
 		background: color-mix(in srgb, var(--color-surface-150) 68%, transparent);
 		padding: 0 10px;
 		font-size: var(--text-2xs);
-		font-weight: 600;
+		font-weight: 500;
 		color: var(--color-fg-secondary);
 		transition:
 			background-color var(--default-transition-duration) ease,
@@ -735,17 +719,6 @@
 	.topbar-action[data-tone='primary']:hover:not(:disabled) {
 		background: var(--color-button-primary-hover);
 		color: var(--color-button-primary-content);
-	}
-
-	.topbar-action[data-armed] {
-		border-color: color-mix(in srgb, var(--color-error-content) 30%, transparent);
-		background: var(--color-error);
-		color: var(--color-error-content);
-	}
-
-	.topbar-action[data-armed]:hover:not(:disabled) {
-		background: color-mix(in srgb, var(--color-error-content) 18%, var(--color-error));
-		color: var(--color-error-content);
 	}
 
 	.topbar-action:focus-visible {
@@ -798,10 +771,62 @@
 	}
 
 	.topbar-git {
+		--zone-ink: var(--color-fg-secondary);
+		--zone-edge: var(--color-button-secondary-border);
+		--zone-hover: var(--color-button-secondary-hover);
 		display: flex;
 		min-width: 0;
 		align-items: center;
 		gap: 8px;
+	}
+
+	.topbar-git[data-zone] {
+		--topbar-control-height: 24px;
+		--topbar-control-radius: 5px;
+		height: 32px;
+		gap: 12px;
+		border: 0.5px solid var(--zone-edge);
+		border-radius: 9px;
+		background: color-mix(in srgb, var(--color-surface-150) 68%, transparent);
+		padding: 0 3.5px;
+	}
+
+	.topbar-git[data-zone='success'] {
+		--zone-ink: var(--color-success-content);
+		background: var(--color-success);
+	}
+
+	.topbar-git[data-zone='warning'] {
+		--zone-ink: var(--color-warning-content);
+		background: var(--color-warning);
+	}
+
+	.topbar-git[data-zone='danger'] {
+		--zone-ink: var(--color-error-content);
+		background: var(--color-error);
+	}
+
+	.topbar-git[data-zone='merged'] {
+		--zone-ink: var(--color-merged-content);
+		background: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
+	}
+
+	.topbar-git:is(
+		[data-zone='success'],
+		[data-zone='warning'],
+		[data-zone='danger'],
+		[data-zone='merged']
+	) {
+		--zone-edge: color-mix(in srgb, var(--zone-ink) 20%, transparent);
+		--zone-hover: color-mix(in srgb, var(--zone-ink) 10%, transparent);
+		--color-button-primary: var(--zone-ink);
+		--color-button-primary-hover: color-mix(in srgb, var(--zone-ink) 88%, transparent);
+		--color-button-primary-busy: color-mix(in srgb, var(--zone-ink) 60%, transparent);
+	}
+
+	.topbar-git[data-zone] .topbar-git__action {
+		gap: 4px;
+		padding: 0 8px;
 	}
 
 	.topbar-git__split {
@@ -810,34 +835,43 @@
 		align-items: center;
 	}
 
-	.topbar-git__reference {
-		display: inline-flex;
-		height: 26px;
+	.topbar-git__pill {
+		display: flex;
+		height: var(--topbar-control-height, 26px);
 		flex-shrink: 0;
+		overflow: hidden;
+		border: 0.5px solid var(--zone-edge);
+		border-radius: var(--topbar-control-radius, 7px);
+		font-size: var(--text-2xs);
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+		color: var(--zone-ink);
+	}
+
+	.topbar-git__pill-part {
+		display: inline-flex;
 		cursor: pointer;
 		align-items: center;
-		gap: 5px;
-		border: 0.5px solid var(--color-button-secondary-border);
-		border-radius: 7px;
+		border: 0;
 		background: transparent;
 		padding: 0 8px;
-		font-size: var(--text-2xs);
-		font-weight: 600;
-		font-variant-numeric: tabular-nums;
-		color: var(--color-fg-secondary);
-		transition:
-			background-color var(--default-transition-duration) ease,
-			color var(--default-transition-duration) ease;
+		color: inherit;
+		transition: background-color var(--default-transition-duration) ease;
 	}
 
-	.topbar-git__reference:hover {
-		background: var(--color-button-secondary-hover);
-		color: var(--color-fg-default);
+	.topbar-git__pill-part:hover,
+	.topbar-git__pill-part[aria-expanded='true'] {
+		background: var(--zone-hover);
 	}
 
-	.topbar-git__reference:focus-visible {
+	.topbar-git__pill-part:focus-visible {
 		outline: 2px solid color-mix(in srgb, var(--color-button-primary) 40%, transparent);
-		outline-offset: 1px;
+		outline-offset: -2px;
+	}
+
+	.topbar-git__pill-link {
+		border-left: 0.5px solid var(--zone-edge);
+		padding: 0 6px;
 	}
 
 	.topbar-git__headline {
@@ -845,31 +879,16 @@
 		min-width: 0;
 		align-items: center;
 		gap: 6px;
-		font-size: var(--text-xs);
+		padding: 0 4px;
+		font-size: var(--text-sm);
 		font-weight: 500;
 		white-space: nowrap;
-		color: var(--color-fg-secondary);
+		color: var(--zone-ink);
 	}
 
 	.topbar-git__headline-label {
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.topbar-git__headline[data-tone='success'] {
-		color: var(--color-success-content);
-	}
-
-	.topbar-git__headline[data-tone='warning'] {
-		color: var(--color-warning-content);
-	}
-
-	.topbar-git__headline[data-tone='danger'] {
-		color: var(--color-error-content);
-	}
-
-	.topbar-git__headline[data-tone='merged'] {
-		color: var(--color-merged-content);
 	}
 
 	.topbar-git__secondary {
@@ -878,7 +897,7 @@
 		background: transparent;
 	}
 
-	.topbar-git__action {
+	.topbar-git__action--split {
 		border-top-right-radius: 0;
 		border-bottom-right-radius: 0;
 		border-right-width: 0;
@@ -893,7 +912,7 @@
 	}
 
 	.topbar-git__disclosure--solo {
-		border-radius: 7px;
+		border-radius: var(--topbar-control-radius, 7px);
 	}
 
 	.topbar-git__disclosure[data-look='busy'] {
@@ -924,11 +943,11 @@
 		visibility: hidden;
 	}
 
-	.topbar-git__disclosure[data-stale] {
+	.topbar-git [data-stale] {
 		position: relative;
 	}
 
-	.topbar-git__disclosure[data-stale]::after {
+	.topbar-git [data-stale]::after {
 		content: '';
 		position: absolute;
 		top: 3px;
@@ -947,11 +966,6 @@
 	.topbar-git__disclosure[data-tone='primary'][aria-expanded='true'] {
 		background: var(--color-button-primary-hover);
 		color: var(--color-button-primary-content);
-	}
-
-	.topbar-git__disclosure[data-armed][aria-expanded='true'] {
-		background: color-mix(in srgb, var(--color-error-content) 18%, var(--color-error));
-		color: var(--color-error-content);
 	}
 
 	.github-panel {
@@ -1087,30 +1101,6 @@
 	}
 
 	.github-panel__note-value {
-		margin-left: auto;
-		overflow: hidden;
-		color: var(--color-fg-default);
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.github-panel__confirmation {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		border-top: 0.5px solid var(--color-surface-elevated-border);
-		background: var(--color-error);
-		padding: 8px 12px;
-		min-width: 0;
-	}
-
-	.github-panel__confirmation-label {
-		flex-shrink: 0;
-		font-weight: 600;
-		color: var(--color-error-content);
-	}
-
-	.github-panel__confirmation-detail {
 		margin-left: auto;
 		overflow: hidden;
 		color: var(--color-fg-default);

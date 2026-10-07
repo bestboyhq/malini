@@ -24,6 +24,7 @@
 		complete?: boolean;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
+		imagesrc?: ((path: string) => string | null) | undefined;
 	}
 
 	let {
@@ -33,6 +34,7 @@
 		complete = false,
 		onopenfile,
 		canopenfile,
+		imagesrc,
 	}: Props = $props();
 
 	const FALLBACK_CHARACTER_WIDTH_PX = 7;
@@ -201,6 +203,7 @@
 			streamingTailCharacters={animatedTailCharacters}
 			{onopenfile}
 			{canopenfile}
+			{imagesrc}
 		/>
 	{/if}
 </div>

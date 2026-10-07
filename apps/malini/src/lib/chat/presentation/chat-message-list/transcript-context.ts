@@ -48,6 +48,7 @@ export type TranscriptContext = {
 	liveInputJsonForRunningTool(runId: string, tool: ToolAggregate): string | null;
 	openFileMention(target: FileMentionTarget, mention: HTMLElement): void;
 	readonly canOpenFileMention: ((path: string) => boolean) | undefined;
+	readonly markdownImageSource: (path: string) => string | null;
 };
 
 export function setTranscriptContext(context: TranscriptContext): void {

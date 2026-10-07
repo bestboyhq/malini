@@ -1,5 +1,4 @@
 import type { ClickedPullRequestAction } from '$lib/pull-requests/domain/deferred-pull-request-action';
-import type { MergeConfirmation } from '$lib/pull-requests/domain/merge-confirmation';
 
 type DeferredPullRequestAction = Readonly<{
 	workstreamId: string;
@@ -15,17 +14,12 @@ type ActivationChange = Readonly<{ ready: boolean; failed: boolean; reactivated:
 class PullRequestActionStore {
 	busy = $state(false);
 	busyLabel = $state<string | null>(null);
-	mergeRequest = $state.raw<MergeConfirmation | null>(null);
 	#revision = 0;
 	#deferralToken = 0;
 	#deferred: HeldPullRequestAction | null = null;
 
 	get revision(): number {
 		return this.#revision;
-	}
-
-	holdMergeRequest(request: MergeConfirmation | null): void {
-		this.mergeRequest = request;
 	}
 
 	claim(busyLabel: string | null = null): number {
@@ -86,7 +80,6 @@ class PullRequestActionStore {
 		this.#revision += 1;
 		this.busy = this.#deferred !== null;
 		this.busyLabel = null;
-		this.mergeRequest = null;
 	}
 
 	reset(): void {

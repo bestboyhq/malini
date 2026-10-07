@@ -444,8 +444,6 @@ describe('the next action a workstream is asking for', () => {
 				"GitHub didn't start CI: recent account payments have failed or your spending limit needs to be increased. Open the pull request on GitHub",
 			disabled: false,
 			tone: 'secondary',
-			confirmLabel: null,
-			confirmBusyLabel: null,
 			remoteFailure: null,
 		});
 		expect(fixIsActionable(onlyNotStarted)).toBe(false);
@@ -520,21 +518,6 @@ describe('the next action a workstream is asking for', () => {
 		).toMatchObject({ kind: 'retry', label: 'Retry status' });
 	});
 
-	it('confirms merge and nothing else', () => {
-		const merge = nextAction(openPullRequestState(mergeable));
-		expect(merge.confirmLabel).toBe('Confirm merge');
-		expect(merge.confirmBusyLabel).toBe('Merging…');
-		for (const scenario of [
-			state(),
-			state({ dirtyPaths: ['a.ts'] }),
-			openPullRequestState({ ...mergeable, mergeableState: 'dirty', mergeable: false }),
-			openPullRequestState(mergeable, { behind: 1 }),
-			openPullRequestState({ ...mergeable, checks: 'failed' }),
-		]) {
-			expect(nextAction(scenario).confirmLabel).toBeNull();
-		}
-	});
-
 	it('names the verb in progress rather than a second vocabulary', () => {
 		for (const scenario of [
 			state(),
@@ -590,7 +573,6 @@ describe('the next action a workstream is asking for', () => {
 	it('stays reachable through a refresh it did not ask for', () => {
 		const merge = nextAction(openPullRequestState(mergeable, { status: 'loading' }));
 		expect(merge).toMatchObject({ kind: 'merge', label: 'Merge', disabled: false });
-		expect(merge.confirmLabel).toBe('Confirm merge');
 		for (const scenario of [
 			state(),
 			state({ dirtyPaths: ['src/app.ts'], changedFiles: 1 }),
@@ -797,8 +779,6 @@ describe('a GitHub sign-in that is finished', () => {
 			tone: 'primary',
 			disabled: false,
 			busyLabel: 'Reconnecting GitHub…',
-			confirmLabel: null,
-			confirmBusyLabel: null,
 		});
 		expect(reconnect.ariaLabel).toContain('Reconnect');
 		expect(reconnect.tooltip).toContain('Sign in with GitHub again');
@@ -1139,7 +1119,7 @@ describe('the Merge tooltip', () => {
 
 	it('says checks passed only for a pull request that has checks', () => {
 		expect(nextAction(openPullRequestState({ ...mergeable, checkItems: [passed] })).tooltip).toBe(
-			'Checks passed. Squash and merge, after one confirming click. Escape cancels it',
+			'Checks passed. Squash and merge',
 		);
 	});
 
@@ -1147,8 +1127,6 @@ describe('the Merge tooltip', () => {
 		const merge = nextAction(openPullRequestState({ ...mergeable, checks: 'none' }));
 
 		expect(merge).toMatchObject({ kind: 'merge', label: 'Merge' });
-		expect(merge.tooltip).toBe(
-			'No checks configured. Squash and merge, after one confirming click. Escape cancels it',
-		);
+		expect(merge.tooltip).toBe('No checks configured. Squash and merge');
 	});
 });
