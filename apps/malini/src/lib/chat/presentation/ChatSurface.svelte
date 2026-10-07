@@ -36,8 +36,7 @@
 	import { sessionChangesTargetQuery } from '$lib/chat/application/queries/session-changes-target.query.svelte';
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
-	import { workstreamModelDefaultsQuery } from '$lib/chat/application/queries/workstream-model-defaults.query.svelte';
-	import { workstreamModelPreferencesQuery } from '$lib/chat/application/queries/workstream-model-preferences.query.svelte';
+	import { rememberedModelsQuery } from '$lib/chat/application/queries/remembered-models.query.svelte';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
@@ -45,7 +44,7 @@
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { EXTENSION_GUTTER_WIDTH } from '$shared/extensions/inspector-gutter-row';
-	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
+	import { loadModelDefaultsCommand, modelDefaultsQuery } from '$shared/providers/providers.api';
 	import {
 		DependencyInstallBanner,
 		type AgentSessionChangedFile,
@@ -93,8 +92,8 @@
 	const forceFreshSession = $derived(freshSessionRequestedQuery.data);
 	const model = $derived(activeModelQuery.data);
 	const profile = $derived(runProfileQuery.data);
-	const workstreamModelDefaults = $derived(workstreamModelDefaultsQuery.data);
-	const workstreamModelPreferences = $derived(workstreamModelPreferencesQuery.data);
+	const modelDefaults = $derived(modelDefaultsQuery.data);
+	const rememberedModels = $derived(rememberedModelsQuery.data);
 	const isRunning = $derived(chatRunningQuery.data);
 	const preparing = $derived(chatPreparingQuery.data);
 	const presentedTranscript = $derived(presentedTranscriptQuery.data);
@@ -155,8 +154,8 @@
 	const editorComposerControls = $derived<TranscriptComposerControls>({
 		model,
 		profile,
-		workstreamModelDefaults,
-		workstreamModelPreferences,
+		modelDefaults,
+		rememberedModels,
 		envelopes,
 		isRunning,
 		backendSelectionDisabled: bootError !== null || presentationPending,
@@ -316,13 +315,13 @@
 									{forceFreshSession}
 									{model}
 									{profile}
-									{workstreamModelDefaults}
-									{workstreamModelPreferences}
+									{modelDefaults}
+									{rememberedModels}
 									{envelopes}
 									{isRunning}
 									disabled={bootError !== null || presentationPending}
 									backendSelectionDisabled={bootError !== null || presentationPending}
-									oncancel={() => cancelRunCommand(workstreamId)}
+									oncancel={cancelRunCommand}
 									onbackendchange={selectModelCommand}
 									onprofilechange={selectRunProfileCommand}
 									onmodelsettingschange={applyModelDefaultsCommand}

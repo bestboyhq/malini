@@ -10,8 +10,6 @@ const PUBLISHED_PULL_REQUEST_LABELS: Readonly<Partial<Record<PullRequestState, s
 export function pullRequestPlaceholderLabel(
 	state: PullRequestState,
 	hasBranchChanges: boolean,
-): string {
-	return (
-		PUBLISHED_PULL_REQUEST_LABELS[state] ?? (hasBranchChanges ? 'Commit and push' : 'No changes')
-	);
+): string | null {
+	return PUBLISHED_PULL_REQUEST_LABELS[state] ?? (hasBranchChanges ? 'Commit and push' : null);
 }

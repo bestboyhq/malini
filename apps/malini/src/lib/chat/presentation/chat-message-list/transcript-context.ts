@@ -15,8 +15,8 @@ const TRANSCRIPT_CONTEXT = Symbol('chat-transcript');
 export type TranscriptComposerControls = {
 	readonly model: AgentModel;
 	readonly profile: AgentRunProfile;
-	readonly workstreamModelDefaults: ModelPreferences;
-	readonly workstreamModelPreferences: ModelPreferences;
+	readonly modelDefaults: ModelPreferences;
+	readonly rememberedModels: ModelPreferences;
 	readonly envelopes: readonly EventEnvelope[];
 	readonly isRunning: boolean;
 	readonly backendSelectionDisabled: boolean;
@@ -29,6 +29,7 @@ export type TranscriptContext = {
 	readonly workstreamId: string;
 	readonly sessionId: SessionId;
 	readonly stageEnter: RowArrivalAction;
+	transcriptSettled(): boolean;
 	readonly promptArrival: PromptArrivalAction;
 	timelineKey(run: RunGroup, key: string): string;
 	firstUserKey(run: RunGroup): string | null;

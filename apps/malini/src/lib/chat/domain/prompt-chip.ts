@@ -96,10 +96,8 @@ export function promptChipFallbackLabel(ref: PromptChipRef): string {
 	}
 }
 
-const IMAGE_FILE = /\.(?:png|jpe?g|webp|gif)$/iu;
-
-export function promptChipShowsFileIcon(kind: PromptChipKind, label: string): boolean {
-	return kind === 'context' || (kind === 'attachment' && !IMAGE_FILE.test(label));
+export function promptChipShowsFileIcon(kind: PromptChipKind): boolean {
+	return kind === 'context' || kind === 'attachment';
 }
 
 export function elementChipId(url: string, domPath: string): string {

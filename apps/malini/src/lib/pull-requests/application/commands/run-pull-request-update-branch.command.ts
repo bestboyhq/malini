@@ -18,7 +18,6 @@ function runPullRequestUpdateBranchCommand(onGitStatusStale: () => void): void {
 	if (pullRequestActionStore.busy) return;
 	const scope = pullRequestScopeStore.claim('Updating branch…');
 	if (!scope) return;
-	const before = repositorySurfaceAggregate.presentedSurfaceFor(scope.workstreamId);
 	void (async () => {
 		try {
 			const outcome = await awaitPullRequestActionScope(
@@ -31,7 +30,7 @@ function runPullRequestUpdateBranchCommand(onGitStatusStale: () => void): void {
 			);
 			if (!outcome || !pullRequestScopeStore.isCurrent(scope)) return;
 			repositorySurfaceAggregate.accept(scope.workstreamId, outcome.surface);
-			const announced = pullRequestActionOutcome('update', before, outcome.surface);
+			const announced = pullRequestActionOutcome('update', outcome.surface);
 			if (announced) toast[announced.level](announced.message, aboutWorkstream(scope.workstreamId));
 			if (pullRequestActionRefreshesGitStatus('update')) onGitStatusStale();
 		} catch (error) {

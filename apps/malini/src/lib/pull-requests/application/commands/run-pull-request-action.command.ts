@@ -27,7 +27,6 @@ import {
 } from '$lib/pull-requests/domain/merge-confirmation';
 import {
 	pullRequestFixPromptToSend,
-	pullRequestFixStartedMessage,
 	type PullRequestFixDiagnostics,
 } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import { pullRequestTopBarPresentation } from '$lib/pull-requests/domain/pull-request-top-bar';
@@ -135,14 +134,12 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 				seams.onPanelRequested(REPOSITORY_EXTENSION_COMMANDS.filesPanel);
 				await seams.submitPrompt(prompt.text);
 				if (!pullRequestScopeStore.isCurrent(scope)) return;
-				toast.success(pullRequestFixStartedMessage(prompt), aboutWorkstream(scope.workstreamId));
 			}
 
 			announceOutcome(
 				scope.workstreamId,
 				kind,
 				confirmedMerge !== null,
-				surface,
 				nextSurface,
 				resolvedThreads,
 			);
@@ -238,25 +235,21 @@ function announceOutcome(
 	workstreamId: string,
 	kind: PullRequestActionKind,
 	merged: boolean,
-	before: RepositorySurface | null,
 	after: RepositorySurface,
 	resolvedReviewThreads: number,
 ): void {
 	if (kind === 'merge') {
-		const mergeNote = aboutWorkstream(workstreamId, { id: `merge:${workstreamId}` });
-		if (merged) {
-			toast.success('Pull request merged', mergeNote);
-			return;
-		}
+		const mergeNoteId = `merge:${workstreamId}`;
 		const pending = pullRequestActionStore.mergeRequest;
-		if (pending) {
+		if (merged) toast.dismiss(mergeNoteId);
+		else if (pending) {
 			toast.info(
 				`Ready to merge · ${mergeConfirmationDetail(pending)}. Confirm on the top bar to land it.`,
-				mergeNote,
+				aboutWorkstream(workstreamId, { id: mergeNoteId }),
 			);
 		}
 		return;
 	}
-	const outcome = pullRequestActionOutcome(kind, before, after, resolvedReviewThreads);
+	const outcome = pullRequestActionOutcome(kind, after, resolvedReviewThreads);
 	if (outcome) toast[outcome.level](outcome.message, aboutWorkstream(workstreamId));
 }

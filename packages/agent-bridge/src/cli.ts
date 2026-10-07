@@ -6,6 +6,7 @@ import {
 	bridgeHeartbeatFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
+	bridgeTitleFrame,
 	parseCommandLine,
 	type AgentCommand,
 	type BridgeControlFrame,
@@ -13,6 +14,7 @@ import {
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { registerClaudeProvider } from './claude/index.js';
+import { suggestClaudeTitle } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
 import { sanitizePublicError } from './error-sanitizer.js';
 import { SessionManager, UnknownSessionError } from './session-manager.js';
@@ -33,6 +35,7 @@ export interface RunOptions {
 	idleTimeoutMs?: number | null;
 	exit?: (code: number) => void;
 	capabilityProbe?: () => Promise<ProviderCapability>;
+	suggestTitle?: (task: string) => Promise<string>;
 	closeSessionTimeoutMs?: number;
 }
 
@@ -203,6 +206,16 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			const capabilities = await resolveProviderCapabilities(options.capabilityProbe);
 			emitControl(bridgeCapabilitiesFrame(capabilities));
 			emitControl(bridgeCommandAckFrame(cmd.id));
+			return;
+		}
+		if (cmd.cmd === 'suggest_title') {
+			try {
+				const title = await (options.suggestTitle ?? suggestClaudeTitle)(cmd.prompt);
+				emitControl(bridgeTitleFrame(cmd.id, title));
+				emitControl(bridgeCommandAckFrame(cmd.id));
+			} catch (err) {
+				emitControl(bridgeCommandAckFrame(cmd.id, `TITLE_FAILED: ${errorMessage(err)}`));
+			}
 			return;
 		}
 		switch (cmd.cmd) {

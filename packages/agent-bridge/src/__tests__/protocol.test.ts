@@ -247,6 +247,16 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
+		it('parses suggest_title and rejects an empty prompt', () => {
+			expect(
+				parseCommandLine('{"cmd":"suggest_title","id":"t1","prompt":"Version the bundle"}'),
+			).toEqual({
+				ok: true,
+				command: { cmd: 'suggest_title', id: 't1', prompt: 'Version the bundle' },
+			});
+			expect(parseCommandLine('{"cmd":"suggest_title","id":"t2","prompt":"  "}').ok).toBe(false);
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',
@@ -264,6 +274,7 @@ describe('protocol: parseCommandLine', () => {
 				'answer_question',
 				'refresh_capabilities',
 				'refresh_mcp_status',
+				'suggest_title',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(21);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
@@ -272,6 +283,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.heartbeat',
 				'bridge.command_ack',
 				'bridge.protocol_error',
+				'bridge.title',
 			]);
 		});
 

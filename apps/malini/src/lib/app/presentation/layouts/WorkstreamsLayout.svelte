@@ -31,6 +31,7 @@
 	import { WorkstreamChatsPreloader } from '$lib/chat/chat.api';
 	import { watchAgentChangeTriggersHook } from '$lib/chat/application/hooks/watch-agent-change-triggers.hook';
 	import { watchCompletedRunsHook } from '$lib/chat/application/hooks/watch-completed-runs.hook';
+	import { syncChatNamesHook } from '$lib/chat/application/hooks/sync-chat-names.hook';
 	import { resolveReviewThreadsAfterRunCommand } from '$lib/pull-requests/application/commands/resolve-review-threads-after-run.command';
 	import { pollPullRequestStatesHook } from '$lib/pull-requests/application/hooks/poll-pull-request-states.hook';
 	import { pullRequestStatesQuery } from '$lib/pull-requests/application/queries/pull-request-states.query.svelte';
@@ -90,6 +91,7 @@
 					.catch(() => {});
 			}),
 			syncWorkstreamsHook(),
+			syncChatNamesHook(),
 			watchAgentChangeTriggersHook(refreshWorkstreamAfterChangeCommand),
 			watchCompletedRunsHook(resolveReviewThreadsAfterRunCommand),
 			watchWorkstreamFilesChangedHook(),

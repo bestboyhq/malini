@@ -15,13 +15,7 @@ class AgentRecoveryService {
 		if (!workstreamId || chatSessionStore.resettingRuns) return false;
 		chatSessionStore.resettingRuns = true;
 		try {
-			const closed = await agentSessions.resetWorkstreamRuns(workstreamId);
-			toast.info(
-				closed > 0
-					? `Reset ${closed} stuck run${closed === 1 ? '' : 's'}.`
-					: 'No stuck runs found.',
-				aboutWorkstream(workstreamId),
-			);
+			await agentSessions.resetWorkstreamRuns(workstreamId);
 			return true;
 		} catch (error) {
 			toast.error(errorMessage(error, 'Failed to reset stuck runs'), aboutWorkstream(workstreamId));
@@ -54,7 +48,6 @@ class AgentRecoveryService {
 				}
 			}
 			agentRunner.clearBridgeDead(deadOwner);
-			toast.info('Agent process restarted');
 		} catch (error) {
 			const message = errorMessage(error, 'Agent process restart failed');
 			if (chatRoute.isCurrentWorkstream(deadOwner.workstreamId)) {

@@ -24,7 +24,6 @@ import { chatOccupancy } from '$lib/chat/infrastructure/services/chat-occupancy.
 import {
 	writeChatModelSnapshot,
 	writeStoredRunProfile,
-	writeStoredWorkstreamModel,
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
@@ -169,8 +168,7 @@ class PromptDeliveryService {
 			agentPromptQueue.remove(input.workstreamId, input.queueId);
 			queueErrorsStore.clear(input.queueId);
 		}
-		chatModelStore.rememberRoleSelection(input.workstreamId, input.role, requestedSelection);
-		writeStoredWorkstreamModel(input.workstreamId, input.model);
+		chatModelStore.rememberRoleSelection(input.role, requestedSelection);
 		writeStoredRunProfile(input.workstreamId, input.profile);
 		if (
 			chatRoute.workstreamId === input.workstreamId &&

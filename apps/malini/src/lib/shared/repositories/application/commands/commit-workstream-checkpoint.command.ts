@@ -12,11 +12,7 @@ function commitWorkstreamCheckpointCommand(workstreamId: string, onSettled?: () 
 	workstreamActionsStore.begin(workstreamId, 'commit');
 	void (async () => {
 		try {
-			const { sha, message } = await workstreamsService.commitCheckpoint(workstreamId);
-			toast.success(
-				`Committed ${sha} to this workstream · ${message}`,
-				aboutWorkstream(workstreamId),
-			);
+			await workstreamsService.commitCheckpoint(workstreamId);
 			loadWorkstreamGitStatusCommand(workstreamId);
 		} catch (cause) {
 			toast.error(

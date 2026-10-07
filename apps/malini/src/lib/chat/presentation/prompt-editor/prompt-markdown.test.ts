@@ -44,14 +44,10 @@ describe('prompt markdown round trip', () => {
 		expect(block?.attrs.language).toBe('ts');
 	});
 
-	it('keeps a bullet list', () => {
-		const markdown = ['- read the diff', '- run the suite', '- open the PR'].join('\n');
+	it('keeps typed list and heading markers as plain text', () => {
+		const markdown = '1. read the diff\n- run the suite\n\n# not a heading';
 		expect(roundTrip(markdown)).toBe(markdown);
-	});
-
-	it('keeps an ordered list', () => {
-		const markdown = ['1. read the diff', '2. run the suite', '3. open the PR'].join('\n');
-		expect(roundTrip(markdown)).toBe(markdown);
+		expect(markdownToPromptDoc(markdown).firstChild?.type.name).toBe('paragraph');
 	});
 
 	it('keeps two paragraphs apart', () => {
@@ -62,9 +58,10 @@ describe('prompt markdown round trip', () => {
 		expect(doc.childCount).toBe(2);
 	});
 
-	it('keeps a hard break inside one paragraph', () => {
-		const markdown = 'line one\\\nline two';
+	it('keeps a hard break inside one paragraph as a plain line break', () => {
+		const markdown = 'line one\nline two';
 		expect(roundTrip(markdown)).toBe(markdown);
+		expect(roundTrip('line one\\\nline two')).toBe(markdown);
 
 		const doc = markdownToPromptDoc(markdown);
 		expect(doc.childCount).toBe(1);
@@ -160,12 +157,9 @@ describe('prompt markdown chips', () => {
 describe('prompt editor schema', () => {
 	it('holds exactly the nodes and marks the composer can produce', () => {
 		expect(Object.keys(promptEditorSchema.nodes).sort()).toEqual([
-			'bulletList',
 			'codeBlock',
 			'doc',
 			'hardBreak',
-			'listItem',
-			'orderedList',
 			'paragraph',
 			'promptChip',
 			'text',

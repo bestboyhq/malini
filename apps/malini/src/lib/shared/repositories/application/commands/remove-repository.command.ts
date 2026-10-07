@@ -8,7 +8,6 @@ import type { Workstream } from '$shared/repositories/domain/workstream';
 import {
 	retirementFailureMessage,
 	retirementFailureToast,
-	workstreamCount,
 } from '$shared/repositories/domain/workstream-retirement';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
 import { workstreamProvisioning } from '$shared/repositories/infrastructure/aggregates/workstream-provisioning.aggregate.svelte';
@@ -47,13 +46,7 @@ function removeRepositoryCommand(repository: Repository, workstreams: readonly W
 		repositoryRemovalStore.finish(repository.id);
 		if (failure !== null) {
 			toast.error(retirementFailureToast('remove', repository.fullName, failure));
-			return;
 		}
-		toast.info(
-			workstreams.length === 0
-				? `Removed ${repository.fullName}`
-				: `Removed ${repository.fullName} · Archived ${workstreamCount(workstreams.length)}`,
-		);
 	})();
 }
 

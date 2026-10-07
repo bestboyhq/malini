@@ -12,12 +12,9 @@ import {
 	type ModelSelection,
 } from '$shared/providers/providers.api';
 import type { SessionId } from '$lib/chat/domain/session';
-import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import {
-	hasStoredWorkstreamModelMemory,
-	readStoredWorkstreamModel,
-	readWorkstreamModelMemory,
-	writeWorkstreamModelMemory,
+	readModelMemory,
+	writeModelMemory,
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 
 class ChatModelStore {
@@ -30,11 +27,7 @@ class ChatModelStore {
 	noteUserChoice(): void {
 		this.userChoices += 1;
 	}
-	workstreamDefaults: ModelPreferences = $state({
-		planning: { ...DEFAULT_MODEL_PREFERENCES.planning },
-		implementation: { ...DEFAULT_MODEL_PREFERENCES.implementation },
-	});
-	workstreamPreferences: ModelPreferences = $state({
+	rememberedModels: ModelPreferences = $state({
 		planning: { ...DEFAULT_MODEL_PREFERENCES.planning },
 		implementation: { ...DEFAULT_MODEL_PREFERENCES.implementation },
 	});
@@ -48,46 +41,21 @@ class ChatModelStore {
 		return { model: defaultAgentModel() };
 	}
 
-	loadPreferencesFor(workstreamId: string): {
-		defaults: ModelPreferences;
-		memory: ModelPreferences;
-	} {
+	loadRememberedModels(): ModelPreferences {
+		this.rememberedModels = readModelMemory(modelDefaultsQuery.data);
+		return this.rememberedModels;
+	}
+
+	adoptDefaults(): void {
 		const defaults = modelDefaultsQuery.data;
-		const hadMemory = hasStoredWorkstreamModelMemory(workstreamId);
-		let memory = readWorkstreamModelMemory(workstreamId, defaults);
-		if (!hadMemory) {
-			const legacyModel = readStoredWorkstreamModel(workstreamId);
-			if (legacyModel) {
-				memory = preferencesWithRoleSelection(memory, 'implementation', { model: legacyModel });
-			}
-			memory = writeWorkstreamModelMemory(workstreamId, memory, defaults);
-		}
-		return { defaults, memory };
+		this.rememberedModels = writeModelMemory(defaults, defaults);
 	}
 
-	adoptDefaults(workstreamId: string): void {
-		this.workstreamDefaults = modelDefaultsQuery.data;
-		this.workstreamPreferences = writeWorkstreamModelMemory(
-			workstreamId,
-			this.workstreamDefaults,
-			this.workstreamDefaults,
-		);
-	}
-
-	rememberRoleSelection(
-		workstreamId: string,
-		role: ModelRole,
-		selection: ModelSelection,
-	): ModelPreferences {
-		const active = chatRoute.workstreamId === workstreamId;
-		const defaults = active ? this.workstreamDefaults : modelDefaultsQuery.data;
-		const current = active
-			? this.workstreamPreferences
-			: readWorkstreamModelMemory(workstreamId, defaults);
-		const next = preferencesWithRoleSelection(current, role, selection);
-		const persisted = writeWorkstreamModelMemory(workstreamId, next, defaults);
-		if (active) this.workstreamPreferences = persisted;
-		return persisted;
+	rememberRoleSelection(role: ModelRole, selection: ModelSelection): ModelPreferences {
+		const defaults = modelDefaultsQuery.data;
+		const next = preferencesWithRoleSelection(readModelMemory(defaults), role, selection);
+		this.rememberedModels = writeModelMemory(next, defaults);
+		return this.rememberedModels;
 	}
 }
 

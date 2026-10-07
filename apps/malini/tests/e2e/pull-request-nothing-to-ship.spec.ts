@@ -15,25 +15,19 @@ test('a workstream equal to its base offers no pull request until a file changes
 		);
 		await openWorkstream(page, 'e2e-nothing-to-ship');
 
-		const nothingToShip = page.getByRole('button', {
-			name: 'No changes to open a pull request for',
-		});
-		await expect(nothingToShip).toBeDisabled({ timeout: 30_000 });
+		const repositoryDetail = page.getByRole('button', { name: 'Repository detail' });
+		await expect(page.getByTestId('chat-composer')).toBeVisible({ timeout: 30_000 });
+		await expect(repositoryDetail).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Create pull request' })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /^Commit and push/u })).toHaveCount(0);
-		await nothingToShip.hover();
-		await expect(page.getByRole('tooltip')).toHaveText(
-			'There is nothing to open a pull request for yet. Change a file in this workstream to publish it',
-		);
 		await captureFlow(app, 'pull-request-nothing-to-ship');
-		await page.mouse.move(0, 0);
 
 		writeFileSync(join(worktree, 'notes.txt'), 'the first change\n');
 
 		await expect(page.getByRole('button', { name: 'Commit and push changes' })).toBeEnabled({
 			timeout: 30_000,
 		});
-		await expect(nothingToShip).toHaveCount(0);
+		await expect(repositoryDetail).toBeVisible();
 		expect(github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create')).toEqual(
 			[],
 		);

@@ -300,7 +300,7 @@ describe('running the top bar pull request action', () => {
 		});
 	});
 
-	it('lands the merge note on top of the Ready to merge one instead of beside it', async () => {
+	it('clears the Ready to merge note once the merge lands, without a toast of its own', async () => {
 		const extension = connectExtension(() => ({
 			...viewState(surface()),
 			mergeConfirmationRequest: {
@@ -315,6 +315,7 @@ describe('running the top bar pull request action', () => {
 		acceptSurface(WORKSTREAM_ID, surface());
 		const info = vi.spyOn(toast, 'info');
 		const success = vi.spyOn(toast, 'success');
+		const dismiss = vi.spyOn(toast, 'dismiss');
 
 		runPullRequestActionCommand(seams());
 		await settle();
@@ -322,11 +323,11 @@ describe('running the top bar pull request action', () => {
 		await settle();
 
 		const [ready, readyOptions] = info.mock.calls[0] ?? [];
-		const [merged, mergedOptions] = success.mock.calls[0] ?? [];
 		expect(ready).toMatch(/^Ready to merge/u);
-		expect(merged).toBe('Pull request merged');
 		expect(readyOptions?.id).toBeDefined();
-		expect(mergedOptions?.id).toBe(readyOptions?.id);
+		expect(dismiss).toHaveBeenCalledWith(readyOptions?.id);
+		expect(info).toHaveBeenCalledTimes(1);
+		expect(success).not.toHaveBeenCalled();
 	});
 
 	it('falls back to the local status read when the fix context carries no state', async () => {

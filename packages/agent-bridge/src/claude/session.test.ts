@@ -136,6 +136,16 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-2' });
 	});
 
+	it('reports the context window with live usage while the run is still going', async () => {
+		const { session, events } = harness([recordedScript('readAndBash')]);
+
+		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
+
+		const live = ofType(events, 'usage.updated').filter((event) => event.interim);
+		expect(live.length).toBeGreaterThan(0);
+		expect(live.map((event) => event.contextWindowTokens)).toEqual(live.map(() => 200_000));
+	});
+
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {
 		const { session, claude } = harness([recordedScript('readAndBash')], {
 			context: { providerSessionId: 'persisted-session', model: 'sonnet' },

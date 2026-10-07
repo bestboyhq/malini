@@ -35,12 +35,7 @@ function runPullRequestContinueCommand(onGitStatusStale: () => void): void {
 					'Continuing stopped on conflicts. Resolve them to finish moving onto the base',
 					aboutWorkstream(scope.workstreamId),
 				);
-				return;
 			}
-			toast.success(
-				`Continuing on the latest ${surface.baseBranch ?? 'base'}`,
-				aboutWorkstream(scope.workstreamId),
-			);
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;
 			toast.error(

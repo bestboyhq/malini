@@ -21,7 +21,8 @@ export type AgentCommand =
 	| ApproveCommand
 	| AnswerQuestionCommand
 	| RefreshCapabilitiesCommand
-	| RefreshMcpStatusCommand;
+	| RefreshMcpStatusCommand
+	| SuggestTitleCommand;
 
 export interface StartSessionCommand {
 	readonly cmd: 'start_session';
@@ -103,6 +104,12 @@ export interface RefreshMcpStatusCommand {
 	readonly runId: string;
 }
 
+export interface SuggestTitleCommand {
+	readonly cmd: 'suggest_title';
+	readonly id: string;
+	readonly prompt: string;
+}
+
 export type CommandName = AgentCommand['cmd'];
 
 export const COMMAND_NAMES = BRIDGE_COMMAND_NAMES satisfies readonly CommandName[];
@@ -178,12 +185,20 @@ export interface BridgeProtocolErrorFrame {
 	readonly message: string;
 }
 
+export interface BridgeTitleFrame {
+	readonly type: 'bridge.title';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly title: string;
+}
+
 export type BridgeControlFrame =
 	| BridgeReadyFrame
 	| BridgeCapabilitiesFrame
 	| BridgeHeartbeatFrame
 	| BridgeCommandAckFrame
-	| BridgeProtocolErrorFrame;
+	| BridgeProtocolErrorFrame
+	| BridgeTitleFrame;
 
 export function bridgeReadyFrame(capabilities: readonly ProviderCapability[]): BridgeReadyFrame {
 	return {
@@ -208,6 +223,10 @@ export function bridgeCapabilitiesFrame(
 		protocolVersion: BRIDGE_PROTOCOL_VERSION,
 		capabilities,
 	};
+}
+
+export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
+	return { type: 'bridge.title', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, title };
 }
 
 export function bridgeCommandAckFrame(id: string, error?: string): BridgeCommandAckFrame {
@@ -297,6 +316,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateRefreshCapabilities(obj);
 		case 'refresh_mcp_status':
 			return validateRefreshMcpStatus(obj);
+		case 'suggest_title':
+			return validateSuggestTitle(obj);
 	}
 }
 
@@ -630,6 +651,16 @@ function validateRefreshMcpStatus(obj: Record<string, unknown>): ParseResult {
 		ok: true,
 		command: { cmd: 'refresh_mcp_status', id: id.value, sessionId, runId },
 	};
+}
+
+function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'suggest_title');
+	if (!id.ok) return id;
+	const prompt = obj.prompt;
+	if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'suggest_title: prompt required (non-empty string)', obj);
+	}
+	return { ok: true, command: { cmd: 'suggest_title', id: id.value, prompt } };
 }
 
 function commandId(

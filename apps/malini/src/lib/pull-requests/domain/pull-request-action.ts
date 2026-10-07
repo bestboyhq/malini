@@ -91,17 +91,6 @@ export function pullRequestActionCommandId(
 	return REPOSITORY_EXTENSION_COMMANDS.refreshPullRequest;
 }
 
-export function pullRequestActionSucceededMessage(
-	kind: PullRequestActionKind,
-	hadUncommitted = false,
-): string | null {
-	if (kind === 'create') return 'Pull request created';
-	if (kind === 'push') return hadUncommitted ? 'Changes committed and pushed' : 'Pushed';
-	if (kind === 'update') return 'Branch updated';
-	if (kind === 'ready') return 'Pull request is ready for review';
-	return null;
-}
-
 export type PullRequestActionOutcome = Readonly<{
 	level: 'success' | 'info';
 	message: string;
@@ -109,8 +98,7 @@ export type PullRequestActionOutcome = Readonly<{
 
 export function pullRequestActionOutcome(
 	kind: PullRequestActionKind,
-	before: RepositorySurface | null,
-	after: RepositorySurface,
+	after: Pick<RepositorySurface, 'conflictedPaths'>,
 	resolvedReviewThreads = 0,
 ): PullRequestActionOutcome | null {
 	if (kind === 'update' && after.conflictedPaths.length > 0) {
@@ -119,17 +107,10 @@ export function pullRequestActionOutcome(
 			message: 'The update stopped on merge conflicts. Resolve conflicts to finish it',
 		};
 	}
-	const message =
-		kind === 'push' && before?.operationInProgress === 'merge'
-			? 'Merge committed and pushed'
-			: pullRequestActionSucceededMessage(kind, (before?.dirtyPaths.length ?? 0) > 0);
-	if (!message) return null;
+	if (resolvedReviewThreads === 0) return null;
 	return {
 		level: 'success',
-		message:
-			resolvedReviewThreads > 0
-				? `${message} · ${reviewThreads(resolvedReviewThreads)} resolved`
-				: message,
+		message: `${reviewThreads(resolvedReviewThreads)} resolved on GitHub`,
 	};
 }
 

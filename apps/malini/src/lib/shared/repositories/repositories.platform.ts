@@ -43,7 +43,8 @@ export {
 	deleteWorkstream,
 	getWorkstream,
 	listWorkstreams,
-	nameWorkstreamBeforeFirstUserRun,
+	renameWorkstream,
+	workstreamHasUserRun,
 	upsertWorkstream,
 	upsertWorkstreamBundle,
 } from './platform/workstreams.repository';

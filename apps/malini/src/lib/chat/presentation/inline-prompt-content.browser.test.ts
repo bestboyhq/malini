@@ -206,7 +206,7 @@ describe('the references written into a prompt', () => {
 		expect(host.querySelector('img[onerror]')).toBeNull();
 		expect(host.querySelector('img[src="x"]')).toBeNull();
 		const chip = host.querySelector('[data-testid="chat-message-attachment-chip"]');
-		expect(chip?.textContent?.replace('▣', '').trim()).toBe(displayName);
+		expect(chip?.textContent?.trim()).toBe(displayName);
 
 		stop();
 	});

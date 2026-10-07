@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MODEL_PREFERENCES } from '$shared/providers/providers.api';
 import {
 	chatModelSnapshotKey,
+	MODEL_MEMORY_KEY,
 	readChatModelSnapshot,
-	readWorkstreamModelMemory,
-	workstreamModelMemoryKey,
+	readModelMemory,
 	writeChatModelSnapshot,
-	writeWorkstreamModelMemory,
+	writeModelMemory,
 } from './model-preferences.storage';
 
 function memoryStorage(seed: Record<string, string> = {}): Pick<Storage, 'getItem' | 'setItem'> & {
@@ -20,33 +20,27 @@ function memoryStorage(seed: Record<string, string> = {}): Pick<Storage, 'getIte
 	};
 }
 
-describe('workstream model memory', () => {
-	it('keeps the model defaults separate from workstream snapshots', () => {
+describe('model memory', () => {
+	it('falls back to the defaults until a model is remembered', () => {
 		const storage = memoryStorage();
 		const defaults = {
-			planning: { model: 'opus' },
-			implementation: { model: 'sonnet[1m]' },
-		} as const;
-		writeWorkstreamModelMemory('stream-a', defaults, defaults, storage);
-
-		const laterDefaults = {
 			planning: { model: 'haiku' },
 			implementation: { model: 'sonnet' },
 		} as const;
+		expect(readModelMemory(defaults, storage)).toEqual(defaults);
 
-		expect(readWorkstreamModelMemory('stream-a', DEFAULT_MODEL_PREFERENCES, storage)).toEqual(
-			defaults,
-		);
-		expect(readWorkstreamModelMemory('stream-b', laterDefaults, storage)).toEqual(laterDefaults);
+		const remembered = {
+			planning: { model: 'opus' },
+			implementation: { model: 'sonnet[1m]' },
+		} as const;
+		writeModelMemory(remembered, defaults, storage);
+
+		expect(readModelMemory(DEFAULT_MODEL_PREFERENCES, storage)).toEqual(remembered);
 	});
 
-	it('repairs a corrupt workstream memory from the current defaults', () => {
-		const storage = memoryStorage({
-			[workstreamModelMemoryKey('stream-a')]: '{broken',
-		});
-		expect(readWorkstreamModelMemory('stream-a', DEFAULT_MODEL_PREFERENCES, storage)).toEqual(
-			DEFAULT_MODEL_PREFERENCES,
-		);
+	it('repairs a corrupt memory from the current defaults', () => {
+		const storage = memoryStorage({ [MODEL_MEMORY_KEY]: '{broken' });
+		expect(readModelMemory(DEFAULT_MODEL_PREFERENCES, storage)).toEqual(DEFAULT_MODEL_PREFERENCES);
 	});
 
 	it('persists an immutable role/model snapshot per chat', () => {

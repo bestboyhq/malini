@@ -13,7 +13,10 @@ import { get, isRecord, run, scalar } from '$main/db/rows';
 import { getRun } from '../runs.repository';
 import { getSession } from '../sessions.repository';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
-import { REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL } from '$contract/events';
+import {
+	CHAT_SESSION_RENAMED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
+} from '$contract/events';
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { CommandRegistry } from '$main/ipc/registry';
 import {
@@ -284,7 +287,7 @@ describe('prompt round trips', () => {
 			profile: { effort: 'high', mode: 'agent' },
 		});
 		expect(runId).toBe('run-req-1');
-		expect(getSession(test.db, sessionId)?.displayName).toBe('Fix the login bug');
+		await waitFor(() => getSession(test.db, sessionId)?.displayName === 'Fix the login bug');
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
 		await service.runtime.settlePump();
 
@@ -602,7 +605,7 @@ describe('prompt round trips', () => {
 			clientRequestId: 'req-rename-1',
 		});
 		await waitFor(() => getRun(test.db, runId1)?.completedAt !== null);
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Fix the login bug');
+		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug');
 		const renamedFrames = test.events.frames.filter(
 			(f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
 		);
@@ -646,8 +649,31 @@ describe('prompt round trips', () => {
 			clientRequestId: 'req-written',
 		});
 		await waitFor(() => getRun(test.db, written)?.completedAt !== null);
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Fix the login bug');
+		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug');
 		expect(getSession(test.db, sessionId)?.displayName).toBe('Fix the login bug');
+	});
+
+	it('names the chat and the workstream with the title Claude suggests and announces both', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'hey so every time i log in the page goes blank',
+			clientRequestId: 'req-titled',
+		});
+		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Login bug');
+		expect(getSession(test.db, sessionId)?.displayName).toBe('Login bug');
+		expect(
+			test.events.frames
+				.filter((f) => f.channel === CHAT_SESSION_RENAMED_CHANNEL)
+				.map((f) => f.payload),
+		).toEqual([{ workstreamId: 'ws-1', sessionId, name: 'Login bug' }]);
+		expect(
+			test.events.frames
+				.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL)
+				.map((f) => f.payload),
+		).toEqual([{ workstreamId: 'ws-1', name: 'Login bug' }]);
 	});
 
 	it('appends " 2" when another workstream of the same repository already holds the derived name', async () => {
@@ -673,7 +699,7 @@ describe('prompt round trips', () => {
 			clientRequestId: 'req-suffix',
 		});
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
-		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Fix the login bug 2');
+		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug 2');
 		const renamedFrames = test.events.frames.filter(
 			(f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
 		);

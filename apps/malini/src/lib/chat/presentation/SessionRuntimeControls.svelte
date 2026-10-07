@@ -75,9 +75,13 @@
 		return utilization === null ? null : Math.max(0, Math.min(100, 100 - utilization));
 	}
 
+	const contextTokenFormat = new Intl.NumberFormat('en', {
+		notation: 'compact',
+		maximumFractionDigits: 1,
+	});
+
 	function formatContextTokens(value: number): string {
-		if (value < 1000) return `${value}`;
-		return `${(value / 1000).toFixed(1).replace(/\.0$/u, '')}k`;
+		return contextTokenFormat.format(value);
 	}
 
 	function resetLabel(value: string | null): string | null {

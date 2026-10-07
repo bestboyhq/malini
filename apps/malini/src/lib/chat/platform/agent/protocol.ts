@@ -37,6 +37,7 @@ export {
 } from '$contract/protocol-contract.generated';
 
 export const BRIDGE_START_SESSION_ACK_TIMEOUT_MS = 30_000;
+export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -105,12 +106,13 @@ export type BridgeCommand =
 			answers: AgentQuestionAnswer[];
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
-	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string };
+	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
+	| { cmd: 'suggest_title'; id: string; prompt: string };
 
 export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number {
-	return command.cmd === 'start_session'
-		? BRIDGE_START_SESSION_ACK_TIMEOUT_MS
-		: BRIDGE_COMMAND_ACK_TIMEOUT_MS;
+	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
+	if (command.cmd === 'suggest_title') return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
+	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
 export type BridgeEvent =
@@ -232,7 +234,8 @@ export type BridgeControlFrame =
 			sessionId?: string;
 			code: string;
 			message: string;
-	  };
+	  }
+	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string };
 
 export type Decoded<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -641,6 +644,16 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						...optional('sessionId', f.optionalString('sessionId')),
 						code: f.string('code'),
 						message: f.string('message'),
+					},
+				};
+			case 'bridge.title':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						title: f.string('title'),
 					},
 				};
 			default:

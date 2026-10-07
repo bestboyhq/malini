@@ -22,6 +22,7 @@
 		class?: string;
 		playbackKey?: string | undefined;
 		complete?: boolean;
+		revealOnMount?: boolean;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 	}
@@ -31,6 +32,7 @@
 		class: className = '',
 		playbackKey,
 		complete = false,
+		revealOnMount = false,
 		onopenfile,
 		canopenfile,
 	}: Props = $props();
@@ -39,6 +41,7 @@
 	const MIN_LINE_WIDTH_PX = 120;
 	const TAIL_SETTLE_MS = 320;
 	const initialPlayback = untrack<PlaybackSnapshot>(() => {
+		if (revealOnMount) return { visibleText: text, revealedLength: text.length };
 		const snapshot = playbackKey ? playbackCache.get(playbackKey) : undefined;
 		const resumable = snapshot !== undefined && text.startsWith(snapshot.visibleText);
 		if (complete && !resumable) return { visibleText: text, revealedLength: text.length };

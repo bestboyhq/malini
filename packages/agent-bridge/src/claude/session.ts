@@ -36,7 +36,9 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 	Pick<
 		Query,
 		'interrupt' | 'setPermissionMode' | 'mcpServerStatus' | 'initializationResult' | 'close'
-	>;
+	> & {
+		getContextUsage(opts: { detail: 'summary' }): Promise<{ readonly rawMaxTokens: number }>;
+	};
 
 export type QueryFunction = (params: {
 	prompt: AsyncIterable<SDKUserMessage>;
@@ -185,14 +187,20 @@ export class ClaudeSession implements ProviderHandle {
 			status: 'running',
 			providerSessionId: message.session_id,
 		});
-		const runId = this.#active?.runId;
-		if (runId) {
+		const active = this.#active;
+		if (active) {
 			this.#emit({
 				type: 'mcp.status',
-				runId,
+				runId: active.runId,
 				servers: message.mcp_servers.map(({ name, status }) => ({ name, status })),
 			});
+			void this.#learnContextWindow(active);
 		}
+	}
+
+	async #learnContextWindow(active: ActiveRun): Promise<void> {
+		const usage = await active.query.getContextUsage({ detail: 'summary' }).catch(() => null);
+		if (usage) active.transcript.recordContextWindow(usage.rawMaxTokens);
 	}
 
 	#finish(
@@ -202,8 +210,9 @@ export class ClaudeSession implements ProviderHandle {
 		result: SDKResultMessage | null,
 	): void {
 		if (result) {
-			const contextWindow = Object.values(result.modelUsage)[0]?.contextWindow;
-			transcript.recordContextWindow(contextWindow);
+			if (!transcript.contextWindowTokens) {
+				transcript.recordContextWindow(Object.values(result.modelUsage)[0]?.contextWindow);
+			}
 			const usage = result.usage;
 			this.#emit({
 				type: 'usage.updated',
@@ -418,7 +427,7 @@ function resultError(result: SDKResultMessage): string {
 	return text || 'Claude Code reported an error.';
 }
 
-function claudeEnvironment(): Record<string, string> {
+export function claudeEnvironment(): Record<string, string> {
 	const env: Record<string, string> = {};
 	for (const [name, value] of Object.entries(process.env)) {
 		if (value === undefined || name === 'ELECTRON_RUN_AS_NODE') continue;

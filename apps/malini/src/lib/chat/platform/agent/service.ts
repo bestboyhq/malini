@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import {
+	CHAT_SESSION_RENAMED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
+	type SessionRenamedPayload,
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -148,6 +150,10 @@ export async function startAgentService(
 				: {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
+			notifySessionRenamed(workstreamId, sessionId, name) {
+				const payload: SessionRenamedPayload = { workstreamId, sessionId, name };
+				context.events.emit(CHAT_SESSION_RENAMED_CHANNEL, payload);
+			},
 			notifyWorkstreamRenamed(workstreamId, name) {
 				const payload: WorkstreamRenamedPayload = { workstreamId, name };
 				context.events.emit(REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL, payload);

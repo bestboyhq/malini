@@ -160,8 +160,7 @@ export async function resetPromptPipeline(): Promise<void> {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	saveModelDefaultsCommand(DEFAULT_MODEL_PREFERENCES);
-	chatModelStore.workstreamDefaults = structuredClone(DEFAULT_MODEL_PREFERENCES);
-	chatModelStore.workstreamPreferences = structuredClone(DEFAULT_MODEL_PREFERENCES);
+	chatModelStore.adoptDefaults();
 	await resetChatState();
 	for (const workstreamId of [WORKSTREAM, SIBLING_WORKSTREAM]) agentPromptQueue.clear(workstreamId);
 	pendingPromptStore.set(null);

@@ -4,7 +4,6 @@ import { aboutWorkstream } from '$shared/errors/toast-subject';
 import {
 	REPOSITORY_EXTENSION_COMMANDS,
 	pullRequestActionFailureDetail,
-	worktreeOperationNoun,
 } from '$lib/pull-requests/domain/pull-request-action';
 import { awaitPullRequestActionScope } from '$lib/pull-requests/domain/pull-request-action-scope';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
@@ -33,10 +32,6 @@ function runPullRequestAbortOperationCommand(
 			);
 			if (!outcome || !pullRequestScopeStore.isCurrent(scope)) return;
 			repositorySurfaceAggregate.accept(scope.workstreamId, outcome.surface);
-			toast.success(
-				`${worktreeOperationNoun(operation)} aborted`,
-				aboutWorkstream(scope.workstreamId),
-			);
 			onGitStatusStale();
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;

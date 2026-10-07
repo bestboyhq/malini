@@ -12,8 +12,6 @@ import {
 	expectCleanConsole,
 	git,
 	launchMalini,
-	listSessions,
-	seedTwoChats,
 	seedWorkstream,
 } from './harness';
 
@@ -28,7 +26,10 @@ declare global {
 }
 
 const ARCHIVED_NAME = 'Create the file notes/scratch.txt containing';
-const CHAT_CLOSED = 'Agent chat closed';
+const OLDER_NAME = 'Short one';
+const NEWER_NAME = 'Short two';
+const OLDER_SAVED = `Archived ${OLDER_NAME} · Its commit is saved`;
+const NEWER_SAVED = `Archived ${NEWER_NAME} · Its commit is saved`;
 
 interface ToastText {
 	message: string;
@@ -113,6 +114,32 @@ async function show(
 	);
 }
 
+async function commitWork(worktree: string): Promise<void> {
+	writeFileSync(join(worktree, 'committed.txt'), 'committed\n');
+	await git(worktree, ['add', '.']);
+	await git(worktree, ['commit', '-m', 'work']);
+}
+
+async function archive(page: Page, name: string): Promise<void> {
+	const row = page.getByTestId('sidebar-workstream').filter({ hasText: name });
+	const button = page.getByRole('button', { name: `Archive ${name}` });
+	await expect(async () => {
+		await row.hover();
+		await button.click({ timeout: 1_000 });
+	}).toPass({ timeout: 20_000 });
+}
+
+async function archiveHoldingToasts(page: Page, name: string, saved: string): Promise<void> {
+	await archive(page, name);
+	await page
+		.getByTestId('toast')
+		.filter({ hasText: `Archived ${name}` })
+		.hover();
+	await expect(page.getByTestId('toast').getByText(saved, { exact: true })).toBeVisible({
+		timeout: 20_000,
+	});
+}
+
 async function collapse(page: Page): Promise<void> {
 	await page.mouse.move(4, 4);
 }
@@ -136,54 +163,34 @@ test('a long toast behind newer short ones keeps its text inside its box, collap
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const archived = await seedWorkstream(
-			page,
-			await createSourceRepo(app.root),
-			'e2e-toast-archived-ws',
-			ARCHIVED_NAME,
-		);
-		writeFileSync(join(archived.worktree, 'committed.txt'), 'committed\n');
-		await git(archived.worktree, ['add', '.']);
-		await git(archived.worktree, ['commit', '-m', 'work']);
+		const source = await createSourceRepo(app.root);
+		const archived = await seedWorkstream(page, source, 'e2e-toast-archived-ws', ARCHIVED_NAME);
+		await commitWork(archived.worktree);
 		writeFileSync(join(archived.worktree, 'uncommitted.txt'), 'uncommitted\n');
-		const chats = await seedTwoChats(
-			page,
-			await createSourceRepo(app.root, 'other'),
-			'e2e-toast-chats-ws',
-			'Toast chats',
-		);
-		const sessions = await listSessions(page, chats.workstreamId);
+		for (const [index, name] of [OLDER_NAME, NEWER_NAME].entries()) {
+			const short = await seedWorkstream(page, source, `e2e-toast-short-${index}-ws`, name);
+			await commitWork(short.worktree);
+		}
+		await page.reload();
 
-		const row = page.getByTestId('sidebar-workstream').filter({ hasText: ARCHIVED_NAME });
-		const archive = page.getByRole('button', { name: `Archive ${ARCHIVED_NAME}` });
-		await expect(async () => {
-			await row.hover();
-			await archive.click({ timeout: 1_000 });
-		}).toPass({ timeout: 20_000 });
+		await archive(page, ARCHIVED_NAME);
 		const savedWork = page
 			.getByTestId('toast')
 			.filter({ hasText: 'Its commit and uncommitted work are saved' });
 		await expect(savedWork).toBeVisible({ timeout: 20_000 });
 		const archivedMessage = (await savedWork.innerText()).trim().replace(/\nCopy ref$/, '');
+		await archiveHoldingToasts(page, OLDER_NAME, OLDER_SAVED);
+		await archiveHoldingToasts(page, NEWER_NAME, NEWER_SAVED);
+		const messages = [archivedMessage, OLDER_SAVED, NEWER_SAVED];
 
-		for (const session of sessions) {
-			const tab = page.getByTestId('chat-agent-tab').filter({ hasText: session.displayName });
-			const close = page.getByRole('button', { name: `Close ${session.displayName}` });
-			await expect(async () => {
-				await tab.hover();
-				await close.click({ timeout: 1_000 });
-			}).toPass({ timeout: 10_000 });
-		}
-		const messages = [archivedMessage, CHAT_CLOSED, CHAT_CLOSED];
-		await expect(page.getByTestId('toast').filter({ hasText: CHAT_CLOSED })).toHaveCount(2);
-
-		await expectStack(page, messages, [CHAT_CLOSED]);
+		await collapse(page);
+		await expectStack(page, messages, [NEWER_SAVED]);
 		await expand(page, messages);
 		await expectStack(page, messages, messages);
 		await captureFlow(app, 'toast-stack-expanded');
 
 		await collapse(page);
-		await expectStack(page, messages, [CHAT_CLOSED]);
+		await expectStack(page, messages, [NEWER_SAVED]);
 		await captureFlow(app, 'toast-stack-collapsed');
 		expectCleanConsole(app);
 	} finally {
@@ -226,18 +233,18 @@ test.describe('a hyper-ui toast in the app window', () => {
 
 				await show(page, archived, { id: 'archive', undo: true });
 				await show(page, saved, { id: 'archive' });
-				await show(page, CHAT_CLOSED);
-				await show(page, CHAT_CLOSED);
-				const messages = [saved, CHAT_CLOSED, CHAT_CLOSED];
+				await show(page, OLDER_SAVED);
+				await show(page, NEWER_SAVED);
+				const messages = [saved, OLDER_SAVED, NEWER_SAVED];
 
 				await collapse(page);
-				await expectStack(page, messages, [CHAT_CLOSED]);
+				await expectStack(page, messages, [NEWER_SAVED]);
 
 				await expand(page, messages);
 				await expectStack(page, messages, messages);
 
 				await show(page, 'Archived', { id: 'archive' });
-				const shorter = ['Archived', CHAT_CLOSED, CHAT_CLOSED];
+				const shorter = ['Archived', OLDER_SAVED, NEWER_SAVED];
 				await expectStack(page, shorter, shorter);
 				await expect
 					.poll(async () => {
@@ -247,7 +254,7 @@ test.describe('a hyper-ui toast in the app window', () => {
 					.toBeLessThan(2);
 
 				await collapse(page);
-				await expectStack(page, shorter, [CHAT_CLOSED]);
+				await expectStack(page, shorter, [NEWER_SAVED]);
 				expectCleanConsole(app);
 			} finally {
 				await app.close();
