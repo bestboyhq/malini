@@ -38,8 +38,6 @@ async function deleteWorkstream(
 					onclick: () => void clipboardService.write(ref),
 				},
 			});
-		} else {
-			toast.info(`Deleted ${name}`, aboutWorkstream(workstreamId));
 		}
 		workstreamActionsStore.finish(workstreamId);
 		onDeleted?.();

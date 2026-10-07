@@ -409,20 +409,6 @@
 		opacity: 1;
 	}
 
-	.prompt-editor-host :global(.ProseMirror ul),
-	.prompt-editor-host :global(.ProseMirror ol) {
-		margin: 0.25rem 0;
-		padding-left: 1.25rem;
-	}
-
-	.prompt-editor-host :global(.ProseMirror ul) {
-		list-style: disc;
-	}
-
-	.prompt-editor-host :global(.ProseMirror ol) {
-		list-style: decimal;
-	}
-
 	.prompt-editor-host :global(.ProseMirror code) {
 		background: var(--color-surface-50);
 		border-radius: var(--radius-sm);

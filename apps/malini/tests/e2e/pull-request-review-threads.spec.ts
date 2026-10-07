@@ -48,9 +48,11 @@ test('Commit and push replies to and resolves exactly the review threads the fix
 				['PRRT_rename', true],
 				['PRRT_tests', false],
 			]);
-		await expect(
-			page.getByRole('status').filter({ hasText: 'Changes committed and pushed' }),
-		).toHaveText('Changes committed and pushed · 1 review thread resolved', { timeout: 30_000 });
+		await expect(page.getByRole('status').filter({ hasText: 'review thread resolved' })).toHaveText(
+			'1 review thread resolved on GitHub',
+			{ timeout: 30_000 },
+		);
+		await expect(push).toHaveCount(0);
 		const pushed = github.pushedHead();
 		expect(github.pushedSubjects()[0]).toBe('fix(review): rename the helper');
 		expect(github.reviewThreads().map(({ comments }) => comments.map(({ body }) => body))).toEqual([

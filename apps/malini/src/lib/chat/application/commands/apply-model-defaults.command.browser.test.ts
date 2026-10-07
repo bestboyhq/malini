@@ -23,23 +23,21 @@ const defaults = {
 } as const;
 
 describe('saving model defaults from the chat', () => {
-	it('saves the defaults, adopts them in this workstream and starts the next prompt fresh', async () => {
+	it('saves the defaults, adopts them as the remembered models and starts the next prompt fresh', async () => {
 		await openPromptPipeline([chat('s-a1')]);
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
-		chatModelStore.rememberRoleSelection('ws-a', 'implementation', {
-			model: 'haiku',
-		});
+		chatModelStore.rememberRoleSelection('implementation', { model: 'haiku' });
 		const info = vi.spyOn(toast, 'info');
 
 		applyModelDefaultsCommand(defaults);
 
 		expect(modelDefaultsQuery.data).toEqual(defaults);
-		expect(chatModelStore.workstreamPreferences).toEqual(defaults);
-		expect(chatModelStore.loadPreferencesFor('ws-a').memory).toEqual(defaults);
+		expect(chatModelStore.rememberedModels).toEqual(defaults);
+		expect(chatModelStore.loadRememberedModels()).toEqual(defaults);
 		expect(activeModelQuery.data).toBe('opus[1m]');
 		expect(implementationModelLabelQuery.data).toBe('Opus 1M');
 		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(true);
-		expect(info).toHaveBeenCalledWith('Model defaults saved · this workstream updated');
+		expect(info).not.toHaveBeenCalled();
 	});
 });

@@ -21,7 +21,7 @@
 	aria-label={chip.ariaLabel}
 	{...chip.attributes}
 >
-	{#if promptChipShowsFileIcon(chip.kind, chip.label)}
+	{#if promptChipShowsFileIcon(chip.kind)}
 		<FileTypeIcon path={chip.label} size={12} />
 	{:else}
 		<span class="text-fg-tertiary shrink-0" aria-hidden="true">{chip.glyph}</span>

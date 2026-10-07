@@ -6,6 +6,7 @@ import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
+import { closingChatsStore } from '$lib/chat/infrastructure/stores/closing-chats.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { streamingStore } from '$lib/chat/infrastructure/stores/streaming.store.svelte';
 
@@ -59,7 +60,10 @@ export function followChatRouteHook(): () => void {
 		}
 		const sessionId = chatSessionStore.sessionId;
 		if (!requestedSessionId) {
-			if (sessionId && !sessionsAggregate.getSession(sessionId)) {
+			if (
+				sessionId &&
+				(!sessionsAggregate.getSession(sessionId) || closingChatsStore.sessionIds.has(sessionId))
+			) {
 				streamingStore.clearRun(sessionId);
 				chatSessionStore.sessionId = null;
 				chatSessionStore.emptySessionMode = 'fresh';

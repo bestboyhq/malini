@@ -13,16 +13,16 @@
 	import { Icon } from '$hyper-ui/icons';
 
 	interface Props {
-		workstreamDefaults: ModelPreferences;
-		workstreamPreferences: ModelPreferences;
+		defaults: ModelPreferences;
+		rememberedModels: ModelPreferences;
 		disabled?: boolean;
 		isRunning?: boolean;
 		onchange?: (preferences: ModelPreferences) => void;
 	}
 
 	let {
-		workstreamDefaults,
-		workstreamPreferences,
+		defaults,
+		rememberedModels,
 		disabled = false,
 		isRunning = false,
 		onchange,
@@ -41,8 +41,8 @@
 
 	function openSettings(): void {
 		if (disabled) return;
-		planningKey = workstreamDefaults.planning.model;
-		implementationKey = workstreamDefaults.implementation.model;
+		planningKey = defaults.planning.model;
+		implementationKey = defaults.implementation.model;
 		open = true;
 	}
 
@@ -82,8 +82,8 @@
 	<div class="mx-auto grid w-full max-w-2xl gap-5" data-testid="model-settings">
 		<div class="border-surface-150-border bg-surface-150 rounded-lg border px-4 py-3">
 			<p class="text-fg-secondary text-xs leading-5">
-				These are the defaults for every workstream. Saving also applies them to this workstream;
-				existing chats keep the role and model they started with.
+				New chats start with the model you last picked for each mode. Saving sets both; existing
+				chats keep the role and model they started with.
 			</p>
 			{#if isRunning}
 				<p
@@ -116,8 +116,8 @@
 		<div
 			class="border-surface-150-border bg-surface-150 text-fg-tertiary rounded-lg border px-4 py-3 text-xs leading-5"
 		>
-			<p>Current workstream: Plan · {label(workstreamPreferences.planning)}</p>
-			<p>Current workstream: Build · {label(workstreamPreferences.implementation)}</p>
+			<p>Last picked: Plan · {label(rememberedModels.planning)}</p>
+			<p>Last picked: Agent · {label(rememberedModels.implementation)}</p>
 		</div>
 
 		<div class="flex justify-end gap-2">

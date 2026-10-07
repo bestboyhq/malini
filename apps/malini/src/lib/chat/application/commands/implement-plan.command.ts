@@ -4,10 +4,7 @@ import type { EventEnvelope } from '$lib/chat/domain/events';
 import { buildImplementationHandoffPrompt } from '$lib/chat/domain/plan-implementation-handoff';
 import type { SessionId } from '$lib/chat/domain/session';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
-import {
-	writeStoredRunProfile,
-	writeStoredWorkstreamModel,
-} from '$lib/chat/infrastructure/services/model-preferences.storage';
+import { writeStoredRunProfile } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { promptDelivery } from '$lib/chat/infrastructure/services/prompt-delivery.service';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
@@ -15,11 +12,7 @@ import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-import {
-	modelLabel,
-	selectionForRole,
-	type AgentRunProfile,
-} from '$shared/providers/providers.api';
+import { selectionForRole, type AgentRunProfile } from '$shared/providers/providers.api';
 
 export { implementPlanCommand };
 
@@ -62,7 +55,7 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 	);
 	const sourceUser =
 		sourceUserEnvelope?.event.type === 'user.message' ? sourceUserEnvelope.event : null;
-	const selection = selectionForRole(chatModelStore.workstreamPreferences, 'implementation');
+	const selection = selectionForRole(chatModelStore.rememberedModels, 'implementation');
 	const implementationProfile: AgentRunProfile = {
 		mode: 'agent',
 		effort: chatModelStore.profile.effort,
@@ -74,14 +67,8 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 	});
 	chatModelStore.model = selection.model;
 	chatModelStore.profile = implementationProfile;
-	chatModelStore.rememberRoleSelection(workstreamId, 'implementation', selection);
-	writeStoredWorkstreamModel(workstreamId, selection.model);
+	chatModelStore.rememberRoleSelection('implementation', selection);
 	writeStoredRunProfile(workstreamId, implementationProfile);
-	const implementationModel = chatModelStore.workstreamPreferences.implementation.model;
-	toast.info(
-		`Starting a fresh implementation chat with ${modelLabel(implementationModel)}`,
-		aboutWorkstream(workstreamId),
-	);
 	const sessionId = await sessionActivation.mint({
 		workstreamId,
 		role: 'implementation',

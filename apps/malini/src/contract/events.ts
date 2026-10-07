@@ -38,6 +38,12 @@ export interface WorkstreamFilesChangedPayload {
 	changedAt: string;
 }
 
+export interface SessionRenamedPayload {
+	workstreamId: string;
+	sessionId: string;
+	name: string;
+}
+
 export interface WorkstreamRenamedPayload {
 	workstreamId: string;
 	name: string;
@@ -74,6 +80,7 @@ export interface ContractEvents {
 	'chat:agent-event': LiveEventEnvelope;
 	'chat:run-changes-captured': RunChangesCapturedPayload;
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
+	'chat:session-renamed': SessionRenamedPayload;
 	'repositories:workstream-created': WorktreeAddedPayload;
 	'repositories:workstream-removed': WorktreeRemovedPayload;
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
@@ -96,6 +103,8 @@ export const CHAT_AGENT_EVENT_CHANNEL = 'chat:agent-event' satisfies EventChanne
 export const CHAT_RUN_CHANGES_CAPTURED_CHANNEL = 'chat:run-changes-captured' satisfies EventChannel;
 
 export const CHAT_CHECKPOINT_RESTORED_CHANNEL = 'chat:checkpoint-restored' satisfies EventChannel;
+
+export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_CREATED_CHANNEL =
 	'repositories:workstream-created' satisfies EventChannel;

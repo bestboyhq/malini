@@ -15,6 +15,7 @@ import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/
 import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
 import { acceptRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/accept-repository-surface.command';
 import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
+import { pullRequestStateAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-state.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { RepositorySurfaceMapper } from '$lib/pull-requests/infrastructure/mappers/repository-surface.mapper';
 import { extensionCommands } from '$shared/extensions/commands.store.svelte';
@@ -59,6 +60,7 @@ afterEach(async () => {
 	await stopRuntime?.();
 	stopRuntime = null;
 	repositorySurfaceAggregate.clear();
+	pullRequestStateAggregate.reset();
 	setPlatformForTest(null);
 	vi.useRealTimers();
 	vi.restoreAllMocks();
@@ -218,7 +220,7 @@ async function visit(
 	harness?.show({ workstreamId, extensionReady: false, extensionGeneration: generation });
 	extension.activate(workstreamId, read);
 	harness?.show({ workstreamId, extensionReady: true, extensionGeneration: generation });
-	await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+	await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(workstreamId)).toBe('loaded'));
 }
 
 async function returnAndClickBeforeTheExtensionIsReady(
@@ -254,7 +256,7 @@ describe('the workstream top bar status across workstream switches', () => {
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 		expect(shownAction()).toBe('Commit and push');
 		await visit(extension, GOLDEN, {}, 2);
-		expect(shownAction()).toBe('No changes');
+		expect(globalTopBarGithubStatus.current).toBeNull();
 
 		harness.show({ workstreamId: LUNAR, extensionReady: false, extensionGeneration: 2 });
 
@@ -300,11 +302,24 @@ describe('the workstream top bar status across workstream switches', () => {
 		extension.activate(LUNAR, { dirtyPaths: [] });
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 2 });
 
-		await vi.waitFor(() => expect(shownAction()).toBe('No changes'));
+		await vi.waitFor(() => expect(globalTopBarGithubStatus.current).toBeNull());
 		expect(statusReads()).toBe(2);
 	});
 
-	it('holds a placeholder, never an empty bar, while nothing is known about a workstream', () => {
+	it('holds a placeholder, never an empty bar, while a known pull request is still loading', () => {
+		connectExtension();
+		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
+		harness = mountWorkstreamTopBarStatus({
+			workstreamId: GOLDEN,
+			extensionReady: false,
+			extensionGeneration: 1,
+		});
+
+		expect(shownAction()).toBeNull();
+		expect(shownPlaceholder()).toBe('Open PR');
+	});
+
+	it('shows nothing while a workstream with nothing to publish is still loading', () => {
 		connectExtension();
 		harness = mountWorkstreamTopBarStatus({
 			workstreamId: GOLDEN,
@@ -312,13 +327,12 @@ describe('the workstream top bar status across workstream switches', () => {
 			extensionGeneration: 1,
 		});
 
-		expect(globalTopBarGithubStatus.current).not.toBeNull();
-		expect(shownAction()).toBeNull();
-		expect(shownPlaceholder()).toBe('No changes');
+		expect(globalTopBarGithubStatus.current).toBeNull();
 	});
 
 	it('stops holding the placeholder once the extension has failed to start', () => {
 		connectExtension();
+		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
 		harness = mountWorkstreamTopBarStatus({
 			workstreamId: GOLDEN,
 			extensionReady: false,
@@ -339,6 +353,7 @@ describe('the workstream top bar status across workstream switches', () => {
 		const extension = connectExtension();
 		extension.failReads();
 		extension.activate(GOLDEN, {});
+		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
 		harness = mountWorkstreamTopBarStatus({
 			workstreamId: GOLDEN,
 			extensionReady: true,
@@ -383,8 +398,7 @@ describe('the workstream top bar status across workstream switches', () => {
 		platform.emit('repositories:workstream-removed', { workstreamId: LUNAR, worktreePath: '/tmp' });
 		harness.show({ workstreamId: LUNAR, extensionReady: false, extensionGeneration: 2 });
 
-		expect(shownAction()).toBeNull();
-		expect(shownPlaceholder()).not.toBeNull();
+		expect(globalTopBarGithubStatus.current).toBeNull();
 		stopForgetting();
 	});
 });
@@ -438,7 +452,7 @@ describe('an action clicked before the workstream’s extension is ready', () =>
 		extension.activate(LUNAR, { dirtyPaths: [] });
 		harness?.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 3 });
 
-		await vi.waitFor(() => expect(shownAction()).toBe('No changes'));
+		await vi.waitFor(() => expect(globalTopBarGithubStatus.current).toBeNull());
 		expect(shownBusy()).toBe(false);
 		expect(extension.calls.slice(callsBeforeReady)).toEqual(['malini.repository.status']);
 	});
@@ -720,7 +734,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(LUNAR, 2);
 
@@ -746,7 +760,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(LUNAR, 0);
 
@@ -762,7 +776,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(LUNAR, 1, { mergeable: false, mergeableState: 'dirty' });
 
@@ -779,7 +793,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(
 			LUNAR,
@@ -817,7 +831,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(
 			LUNAR,
@@ -849,7 +863,7 @@ describe('Update branch detail action when the pull request is behind its base',
 		});
 		extension.activate(LUNAR, {});
 		harness.show({ workstreamId: LUNAR, extensionReady: true, extensionGeneration: 1 });
-		await vi.waitFor(() => expect(shownAction()).not.toBeNull());
+		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(LUNAR)).toBe('loaded'));
 
 		publishReadyPullRequest(LUNAR, null);
 

@@ -56,6 +56,7 @@ describe('glide curve', () => {
 		const steps: number[] = [];
 		for (let frame = 0; frame < 30; frame += 1) {
 			const next = stepGlideSpring(state, 400, FRAME_MS);
+			if (next.position === 400) break;
 			steps.push(next.position - state.position);
 			state = next;
 		}
@@ -89,11 +90,11 @@ describe('glide curve', () => {
 		expect(moving).toBeGreaterThan(fromRest - state.position);
 	});
 
-	it('lands one row in under half a second and a screenful in under three quarters', () => {
-		expect(settleMs(41.5)).toBeGreaterThan(350);
-		expect(settleMs(41.5)).toBeLessThan(500);
-		expect(settleMs(400)).toBeGreaterThan(500);
-		expect(settleMs(400)).toBeLessThan(750);
+	it('lands one row in about a third of a second and a screenful in under half a second', () => {
+		expect(settleMs(41.5)).toBeGreaterThan(250);
+		expect(settleMs(41.5)).toBeLessThan(350);
+		expect(settleMs(400)).toBeGreaterThan(400);
+		expect(settleMs(400)).toBeLessThan(500);
 	});
 
 	it('travels the same curve upwards', () => {
@@ -298,7 +299,7 @@ describe('glide driver', () => {
 	});
 
 	it('exposes the constant the transcript is tuned against', () => {
-		expect(SCROLL_SPRING_STIFFNESS).toBe(220);
+		expect(SCROLL_SPRING_STIFFNESS).toBe(420);
 	});
 
 	it('reads its stiffness per frame, so the spring can be retuned mid-conversation', () => {

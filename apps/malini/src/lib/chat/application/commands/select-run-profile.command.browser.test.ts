@@ -26,13 +26,13 @@ describe('switching between plan and agent mode', () => {
 
 		selectRunProfileCommand({ mode: 'plan', effort: 'high', access: 'sandboxed' });
 
-		expect(activeModelQuery.data).toBe(chatModelStore.workstreamPreferences.planning.model);
+		expect(activeModelQuery.data).toBe(chatModelStore.rememberedModels.planning.model);
 		expect(chatModelStore.profile).toEqual({ mode: 'plan', effort: 'high', access: 'sandboxed' });
 		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(true);
 
 		selectRunProfileCommand({ mode: 'agent', effort: 'medium', access: 'sandboxed' });
 
-		expect(activeModelQuery.data).toBe(chatModelStore.workstreamPreferences.implementation.model);
+		expect(activeModelQuery.data).toBe(chatModelStore.rememberedModels.implementation.model);
 		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(false);
 
 		selectRunProfileCommand({ mode: 'plan', effort: 'high', access: 'sandboxed' });

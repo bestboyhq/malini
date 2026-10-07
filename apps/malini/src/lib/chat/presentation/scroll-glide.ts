@@ -1,4 +1,4 @@
-export const SCROLL_SPRING_STIFFNESS = 220;
+export const SCROLL_SPRING_STIFFNESS = 420;
 
 export const SCROLL_GLIDE_SETTLE_PX = 0.5;
 

@@ -67,9 +67,6 @@ test('Abort merge takes a confirming click, then returns the worktree to its las
 		await captureFlow(app, 'abort-merge-armed');
 		await confirm.click();
 
-		await expect(page.getByRole('status').filter({ hasText: 'Merge aborted' })).toBeVisible({
-			timeout: 30_000,
-		});
 		await expect(page.getByRole('button', { name: 'Resolve merge conflicts #7' })).toBeEnabled({
 			timeout: 60_000,
 		});

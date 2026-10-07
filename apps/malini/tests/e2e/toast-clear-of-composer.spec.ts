@@ -4,16 +4,13 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
-	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
 	git,
 	launchMalini,
-	listSessions,
-	seedTwoChats,
+	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
-	startFreshChat,
 } from './harness';
 
 declare global {
@@ -21,7 +18,8 @@ declare global {
 }
 
 const ARCHIVED_NAME = 'Toast clearance archived workstream';
-const CHAT_CLOSED = 'Agent chat closed';
+const SHORT_NAMES = ['Short one', 'Short two'];
+const SHORT_SAVED = 'Its commit is saved';
 const FOOTER_CONTROLS = '[data-testid="chat-changed-files"], [data-testid="chat-composer"]';
 
 interface Layout {
@@ -56,6 +54,21 @@ const LAYOUTS: readonly Layout[] = [
 		reducedMotion: 'reduce',
 	},
 ];
+
+async function commitWork(worktree: string): Promise<void> {
+	writeFileSync(join(worktree, 'committed.txt'), 'committed\n');
+	await git(worktree, ['add', '.']);
+	await git(worktree, ['commit', '-m', 'work']);
+}
+
+async function archive(page: Page, name: string): Promise<void> {
+	const row = page.getByTestId('sidebar-workstream').filter({ hasText: name });
+	const button = page.getByRole('button', { name: `Archive ${name}` });
+	await expect(async () => {
+		await row.hover();
+		await button.click({ timeout: 1_000 });
+	}).toPass({ timeout: 20_000 });
+}
 
 async function watchFooterCoverage(page: Page): Promise<void> {
 	await page.locator('body').evaluate((body, selector) => {
@@ -166,59 +179,43 @@ for (const layout of LAYOUTS) {
 				)
 				.toBe(layout.width);
 
+			const source = await createSourceRepo(app.root);
 			const archived = await seedWorkstream(
 				page,
-				await createSourceRepo(app.root),
+				source,
 				'e2e-toast-clearance-archived-ws',
 				ARCHIVED_NAME,
 			);
-			writeFileSync(join(archived.worktree, 'committed.txt'), 'committed\n');
-			await git(archived.worktree, ['add', '.']);
-			await git(archived.worktree, ['commit', '-m', 'work']);
+			await commitWork(archived.worktree);
 			writeFileSync(join(archived.worktree, 'uncommitted.txt'), 'uncommitted\n');
-			const chats = await seedTwoChats(
+			for (const [index, name] of SHORT_NAMES.entries()) {
+				const short = await seedWorkstream(
+					page,
+					source,
+					`e2e-toast-clearance-short-${index}-ws`,
+					name,
+				);
+				await commitWork(short.worktree);
+			}
+			const chats = await seedWorkstream(
 				page,
 				await createSourceRepo(app.root, 'other'),
 				'e2e-toast-clearance-chats-ws',
 				'Toast clearance chats',
 			);
-			await startFreshChat(page);
+			await openWorkstream(page, chats.workstreamId);
 			await sendPrompt(page, 'EDIT:c.txt');
 			await expectAssistantReply(page);
-			const openChat = currentSessionId(page);
-			const closing = (await listSessions(page, chats.workstreamId)).filter(
-				(session) => session.id !== openChat,
-			);
 			await expect(page.getByTestId('toast')).toHaveCount(0, { timeout: 15_000 });
 			await expect(page.getByTestId('chat-changed-files')).toBeVisible();
 			await watchFooterCoverage(page);
 
-			const row = page.getByTestId('sidebar-workstream').filter({ hasText: ARCHIVED_NAME });
-			const archive = page.getByRole('button', { name: `Archive ${ARCHIVED_NAME}` });
-			await expect(async () => {
-				await row.hover();
-				await archive.click({ timeout: 1_000 });
-			}).toPass({ timeout: 20_000 });
-			await expect(
-				page.getByTestId('toast').filter({ hasText: 'Its commit and uncommitted work are saved' }),
-			).toBeVisible({
-				timeout: 20_000,
-			});
+			for (const name of [...SHORT_NAMES, ARCHIVED_NAME]) await archive(page, name);
 			await setLayout(page, layout);
 			await page.mouse.move(4, 4);
-			await expectClearOfFooter(page, 1);
-			await captureFlow(app, `toast-clear-${layout.name}-single`);
-
-			for (const session of closing) {
-				const tab = page.getByTestId('chat-agent-tab').filter({ hasText: session.displayName });
-				const close = page.getByRole('button', { name: `Close ${session.displayName}` });
-				await expect(async () => {
-					await tab.hover();
-					await close.click({ timeout: 1_000 });
-				}).toPass({ timeout: 10_000 });
-			}
-			await expect(page.getByTestId('toast').filter({ hasText: CHAT_CLOSED })).toHaveCount(2);
-			await page.mouse.move(4, 4);
+			await expect(page.getByTestId('toast').filter({ hasText: 'saved' })).toHaveCount(3, {
+				timeout: 20_000,
+			});
 			await expectClearOfFooter(page, 3);
 			await captureFlow(app, `toast-clear-${layout.name}-stack`);
 
@@ -228,6 +225,12 @@ for (const layout of LAYOUTS) {
 
 			await page.mouse.move(4, 4);
 			await expectClearOfFooter(page, 3);
+
+			await expect(page.getByTestId('toast').filter({ hasText: SHORT_SAVED })).toHaveCount(0, {
+				timeout: 15_000,
+			});
+			await expectClearOfFooter(page, 1);
+			await captureFlow(app, `toast-clear-${layout.name}-single`);
 			expect(await page.evaluate(() => globalThis.footerCoverage)).toEqual([]);
 			expectCleanConsole(app);
 		} finally {

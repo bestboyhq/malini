@@ -498,6 +498,7 @@
 			return sessionId;
 		},
 		stageEnter: stageLatestRunEnter,
+		transcriptSettled: settle.isSettled,
 		promptArrival,
 		timelineKey,
 		firstUserKey,
@@ -890,6 +891,7 @@
 											text={block.text}
 											class="select-text"
 											playbackKey={blockKey(sessionId, block.runId, block.contentId)}
+											revealOnMount={!settle.isSettled()}
 											onopenfile={openFileMention}
 											canopenfile={canOpenFileMention}
 										/>

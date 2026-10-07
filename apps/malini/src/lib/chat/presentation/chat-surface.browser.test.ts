@@ -679,6 +679,42 @@ describe('the chat surface', () => {
 		expect(arrivals).not.toHaveBeenCalled();
 	});
 
+	it('opens a chat whose run is still working without playing any arrival', async () => {
+		vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+			setTimeout(() => callback(performance.now()), 16),
+		);
+		vi.stubGlobal('cancelAnimationFrame', (handle: ReturnType<typeof setTimeout>) =>
+			clearTimeout(handle),
+		);
+		const surface = await openSourceSurface(
+			createFakePlatform({
+				agentSessions: [
+					{ id: 's-source', workstreamId: WORKSTREAM },
+					{ id: 's-destination', workstreamId: DESTINATION, status: 'running' },
+				],
+				agentEvents: {
+					's-source': [
+						{ runId: 'run-source', event: { type: 'user.message', text: 'Source prompt' } },
+						{ runId: 'run-source', event: { type: 'run.completed', summary: 'done' } },
+					],
+					's-destination': [
+						{ runId: 'run-open', event: { type: 'user.message', text: 'Destination prompt' } },
+						{ runId: 'run-open', event: { type: 'assistant.message', text: 'Working on it' } },
+					],
+				},
+			}),
+		);
+		const arrivals = vi.spyOn(Element.prototype, 'animate');
+
+		await navigateChatRoute(`/workstreams/${DESTINATION}`);
+		surface.showWorkstream(DESTINATION);
+		await vi.waitFor(() => expect(find(surface.host, 'run-status-line')).not.toBeNull());
+		await afterFrames(4);
+
+		expect(surface.host.textContent).toContain('Working on it');
+		expect(arrivals).not.toHaveBeenCalled();
+	});
+
 	it('warms a workstream the pointer is about to open, so it opens on its transcript at once', async () => {
 		const surface = await openSourceSurface();
 		const preloader = mount(WorkstreamChatsPreloader, {

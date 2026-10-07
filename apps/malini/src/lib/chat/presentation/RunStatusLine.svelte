@@ -5,6 +5,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import type { RenderState } from './render-state';
 	import { deriveRunStatus } from './run-status';
+	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
 		renderState: RenderState;
@@ -12,6 +13,7 @@
 	}
 
 	let { renderState, waitingForUser = false }: Props = $props();
+	const { stageEnter, timelineKey } = transcriptContext();
 
 	const runs = $derived(renderState.runs);
 	const openRun = $derived.by(() => {
@@ -45,9 +47,10 @@
 	role="status"
 	aria-live="polite"
 >
-	{#if statusText}
+	{#if statusText && openRun}
 		<div
-			class="run-status-enter flex min-w-0 flex-1 items-center gap-1.5 text-xs"
+			class="flex min-w-0 flex-1 items-center gap-1.5 text-xs"
+			use:stageEnter={timelineKey(openRun, 'status')}
 			data-testid="run-status-line"
 			data-message-kind="assistant-working"
 		>
@@ -78,21 +81,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	.run-status-enter {
-		animation: run-status-enter 380ms cubic-bezier(0.32, 0.72, 0, 1) both;
-	}
-
-	@keyframes run-status-enter {
-		from {
-			opacity: 0;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.run-status-enter {
-			animation: none;
-		}
-	}
-</style>

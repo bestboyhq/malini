@@ -53,6 +53,7 @@ const WARN_LINES: readonly RegExp[] = [
 	/^agent: reaped \d+ orphaned run\(s\) on startup$/u,
 	/^agent: remembered approval `[^`]*` (?:bridge unavailable|was not acknowledged); showing prompt/u,
 	/^agent: bridge replacement terminalized /u,
+	/^agent: Claude did not name the chat, /u,
 	/^malini: (?:stopped watching|not watching) workstream /u,
 	/^malini: watching workstream `[^`]*` without its git dir/u,
 ];

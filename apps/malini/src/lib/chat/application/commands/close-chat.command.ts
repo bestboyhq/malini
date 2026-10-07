@@ -15,7 +15,6 @@ function closeChatCommand(workstreamId: string, sessionId: SessionId): void {
 			await agentSessions.archive(sessionId);
 			closingChatsStore.remove(sessionId);
 			forgetChatCommand(workstreamId, sessionId);
-			toast.info('Agent chat closed', aboutWorkstream(workstreamId));
 		} catch (cause) {
 			closingChatsStore.remove(sessionId);
 			toast.error(

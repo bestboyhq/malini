@@ -111,6 +111,9 @@ export function fakeClaude(
 			async mcpServerStatus() {
 				return [];
 			},
+			async getContextUsage() {
+				return { rawMaxTokens: 200_000 };
+			},
 			initializationResult,
 			close() {
 				run.closed = true;

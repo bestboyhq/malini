@@ -21,7 +21,6 @@ import {
 	readChatModelSnapshot,
 	readStoredRunProfile,
 	writeChatModelSnapshot,
-	writeStoredWorkstreamModel,
 } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
@@ -168,10 +167,10 @@ class SessionActivationService {
 		const remembered = snapshot !== null && sameModelSelection(snapshot.selection, nextSelection);
 		const inferredRole: ModelRole = sameModelSelection(
 			nextSelection,
-			chatModelStore.workstreamPreferences.planning,
+			chatModelStore.rememberedModels.planning,
 		)
 			? 'planning'
-			: sameModelSelection(nextSelection, chatModelStore.workstreamPreferences.implementation)
+			: sameModelSelection(nextSelection, chatModelStore.rememberedModels.implementation)
 				? 'implementation'
 				: roleForAgentMode(storedProfile.mode);
 		const role = snapshot && remembered ? snapshot.role : inferredRole;
@@ -206,7 +205,6 @@ class SessionActivationService {
 			}
 			chatModelStore.model = next.selection.model;
 			chatModelStore.profile = next.profile;
-			writeStoredWorkstreamModel(workstreamId, next.selection.model);
 			chatSessionStore.createFreshSessionOnNextPrompt = false;
 		}
 		chatSessionStore.sessionId = sessionId;

@@ -26,9 +26,6 @@ function requireNodeType(name: string): NonNullable<(typeof promptEditorSchema.n
 	return type;
 }
 
-const BULLET_DELIMITER = '  ';
-const BULLET_MARKER = '- ';
-
 function defaultMarkSerializer(
 	name: string,
 ): NonNullable<(typeof defaultMarkdownSerializer.marks)[string]> {
@@ -51,23 +48,17 @@ const serializer = new MarkdownSerializer(
 			state.renderContent(node);
 		},
 		paragraph: defaultNodeSerializer('paragraph'),
-		text: defaultNodeSerializer('text'),
-
-		hardBreak: defaultNodeSerializer('hard_break'),
-		listItem: defaultNodeSerializer('list_item'),
-		bulletList(state, node) {
-			state.renderList(node, BULLET_DELIMITER, () => BULLET_MARKER);
+		text(state, node) {
+			state.text(state.esc(node.text ?? '', false), false);
 		},
 
-		orderedList(state, node) {
-			const start = Number(node.attrs.start) || 1;
-			const width = String(start + node.childCount - 1).length;
-			state.renderList(node, state.repeat(' ', width + 2), (index) => {
-				const marker = String(start + index);
-				return state.repeat(' ', width - marker.length) + marker + '. ';
-			});
+		hardBreak(state, node, parent, index) {
+			for (let next = index + 1; next < parent.childCount; next += 1) {
+				if (parent.child(next).type === node.type) continue;
+				state.write('\n');
+				return;
+			}
 		},
-
 		codeBlock(state, node) {
 			const runs = node.textContent.match(/`{3,}/gmu);
 			const fence = runs ? `${runs.sort().slice(-1)[0]}\`` : '```';
@@ -116,6 +107,7 @@ const tokenizer = new MarkdownIt('commonmark', { html: false })
 	.disable([
 		'heading',
 		'lheading',
+		'list',
 		'blockquote',
 		'hr',
 		'table',
@@ -127,12 +119,6 @@ const tokenizer = new MarkdownIt('commonmark', { html: false })
 
 const parser = new MarkdownParser(promptEditorSchema, tokenizer, {
 	paragraph: { block: 'paragraph' },
-	bullet_list: { block: 'bulletList' },
-	ordered_list: {
-		block: 'orderedList',
-		getAttrs: (token) => ({ start: Number(token.attrGet('start')) || 1 }),
-	},
-	list_item: { block: 'listItem' },
 	code_block: { block: 'codeBlock', noCloseToken: true },
 	fence: {
 		block: 'codeBlock',
@@ -140,6 +126,7 @@ const parser = new MarkdownParser(promptEditorSchema, tokenizer, {
 		noCloseToken: true,
 	},
 	hardbreak: { node: 'hardBreak' },
+	softbreak: { node: 'hardBreak' },
 	em: { mark: 'italic' },
 	strong: { mark: 'bold' },
 	s: { mark: 'strike' },
@@ -147,7 +134,7 @@ const parser = new MarkdownParser(promptEditorSchema, tokenizer, {
 });
 
 export function promptDocToMarkdown(doc: PMNode): string {
-	return serializer.serialize(doc, { tightLists: true });
+	return serializer.serialize(doc);
 }
 
 export function markdownToPromptDoc(markdown: string): PMNode {

@@ -24,7 +24,7 @@ malini owns the rest, and the adapter enforces it:
 - Turn binding: each prompt carries a uuid, and the run ends on the result whose `user_message_uuids` names it.
   Claude Code also runs turns of its own: a resume that finds a background agent the last process left unfinished first reports it in an empty zero-turn result.
 
-`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`.
+`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `titles.ts` (a one-turn, tool-less Haiku query that names a chat and its workstream from the first prompt).
 
 ## Shapes come from tracer bullets
 

@@ -222,13 +222,19 @@
 
 	function publishedStatus(): GlobalTopBarGithubStatus | null {
 		if (overrideStatus) return overrideStatus;
+		if (presentation?.kind === 'no-changes') return null;
 		if (presentation || !statusPending) return pullRequestStatus();
 		return placeholderStatus();
 	}
 
-	function placeholderStatus(): GlobalTopBarGithubStatus {
+	function placeholderStatus(): GlobalTopBarGithubStatus | null {
 		const totals = changeTotals[workstreamId];
 		const hasBranchChanges = (totals?.additions ?? 0) + (totals?.deletions ?? 0) > 0;
+		const placeholder = pullRequestPlaceholderLabel(
+			pullRequestStates[workstreamId] ?? 'unknown',
+			hasBranchChanges,
+		);
+		if (!placeholder) return null;
 		return {
 			reference: null,
 			title: null,
@@ -238,10 +244,7 @@
 			review: null,
 			todos: null,
 			action: null,
-			placeholder: pullRequestPlaceholderLabel(
-				pullRequestStates[workstreamId] ?? 'unknown',
-				hasBranchChanges,
-			),
+			placeholder,
 		};
 	}
 
