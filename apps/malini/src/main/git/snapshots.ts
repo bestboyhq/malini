@@ -45,6 +45,11 @@ export interface SnapshotIdentity {
 	email: string;
 }
 
+export const AGENT_IDENTITY: SnapshotIdentity = {
+	name: 'malini-agent[bot]',
+	email: '338999285+malini-agent[bot]@users.noreply.github.com',
+};
+
 export const CHECKPOINT_IDENTITY: SnapshotIdentity = {
 	name: 'malini checkpoint',
 	email: 'checkpoint@malini.local',

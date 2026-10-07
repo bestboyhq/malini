@@ -90,7 +90,7 @@ describe('commitWorkstreamBranch', () => {
 		const sha = await commitWorkstreamBranch(checkout, 'ws-1', 'did work');
 		expect((await realGit(checkout, ['rev-parse', '--short', 'HEAD'])).trim()).toBe(sha);
 		expect((await realGit(checkout, ['log', '-1', '--format=%s|%an|%ae'])).trim()).toBe(
-			'did work|malini|agent@malini.local',
+			'did work|malini-agent[bot]|338999285+malini-agent[bot]@users.noreply.github.com',
 		);
 	});
 
