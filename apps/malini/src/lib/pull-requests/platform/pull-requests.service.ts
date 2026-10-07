@@ -20,6 +20,7 @@ const PR_VIEW_FIELDS = [
 	'reviewDecision',
 	'statusCheckRollup',
 	'updatedAt',
+	'mergeCommit',
 ].join(',');
 
 const DIAGNOSTIC_PAGE_LIMIT = 1000;
@@ -38,6 +39,7 @@ export interface PullRequestView {
 	reviewDecision?: unknown;
 	statusCheckRollup?: unknown;
 	updatedAt?: unknown;
+	mergeCommit?: unknown;
 }
 
 export interface PullRequestStatusDto {

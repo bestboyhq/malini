@@ -43,7 +43,7 @@ test('a workstream equal to its base offers no pull request until a file changes
 	}
 });
 
-test('a workstream reset to its base after its pull request merged offers no pull request', async () => {
+test('a workstream reset to its base after its pull request merged stays merged and offers no new pull request', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -59,8 +59,14 @@ test('a workstream reset to its base after its pull request merged offers no pul
 		await openWorkstream(page, 'e2e-merged-reset');
 
 		await expect(
-			page.getByRole('button', { name: 'No changes to open a pull request for' }),
-		).toBeDisabled({ timeout: 30_000 });
+			page
+				.getByRole('navigation', { name: 'Global actions' })
+				.getByRole('status')
+				.filter({ hasText: 'Merged' }),
+		).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(page.getByRole('button', { name: /^Continue on the latest/u })).toBeEnabled();
 		await expect(page.getByRole('button', { name: /pull request$/u })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /^Commit and push/u })).toHaveCount(0);
 		expectCleanConsole(app);

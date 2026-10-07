@@ -133,6 +133,8 @@ function worktreeOnlyNextAction(
 		);
 	}
 
+	if (operation !== 'merge' && pullRequest?.state === 'merged') return null;
+
 	if (
 		operation === 'merge' ||
 		state.dirtyPaths.length > 0 ||
@@ -176,9 +178,7 @@ function pullRequestNextAction(
 		return push(state, pullRequest);
 	}
 
-	if (pullRequest?.state === 'merged' && state.ahead === 0 && state.dirtyPaths.length === 0) {
-		return merged(pullRequest);
-	}
+	if (pullRequest?.state === 'merged') return merged(state, pullRequest);
 
 	if (nothingToShip(state, pullRequest)) return noChanges();
 
@@ -186,12 +186,7 @@ function pullRequestNextAction(
 		return update(state, pullRequest);
 	}
 
-	if (
-		!pullRequest ||
-		pullRequest.state === 'not_open' ||
-		pullRequest.state === 'merged' ||
-		pullRequest.state === 'closed'
-	) {
+	if (!pullRequest || pullRequest.state === 'not_open' || pullRequest.state === 'closed') {
 		return create(pullRequest);
 	}
 
@@ -423,7 +418,7 @@ function update(state: RepositorySurface, pullRequest: SurfacePullRequest | null
 }
 
 function create(pullRequest: SurfacePullRequest | null): NextAction {
-	const replacing = pullRequest?.state === 'merged' || pullRequest?.state === 'closed';
+	const replacing = pullRequest?.state === 'closed';
 	return {
 		kind: 'create',
 		label: 'Create PR',
@@ -478,14 +473,20 @@ function ciNotStarted(pullRequest: SurfacePullRequest, reason: string): NextActi
 	};
 }
 
-function merged(pullRequest: SurfacePullRequest): NextAction {
+function merged(state: RepositorySurface, pullRequest: SurfacePullRequest): NextAction {
+	const leftover = state.dirtyPaths.length > 0 || state.ahead > 0;
 	return {
-		...open(
-			pullRequest,
-			'Everything in this workstream has merged. Open the pull request on GitHub',
-		),
-		label: 'Merged',
-		ariaLabel: pullRequestNumberLabel('Open merged pull request on GitHub', pullRequest.number),
+		kind: 'merged',
+		label: 'Archive',
+		busyLabel: 'Archiving…',
+		ariaLabel: pullRequestNumberLabel('Archive this workstream, merged in', pullRequest.number),
+		tooltip: leftover
+			? 'The pull request merged. Archiving keeps the work made since then as a saved ref'
+			: 'The pull request merged. Archive this workstream',
+		disabled: false,
+		tone: 'primary',
+		confirmLabel: null,
+		confirmBusyLabel: null,
 	};
 }
 

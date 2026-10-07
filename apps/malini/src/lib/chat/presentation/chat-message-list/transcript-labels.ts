@@ -1,5 +1,5 @@
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
-import type { RenderItem, RunGroup } from '../render-state';
+import type { RunGroup } from '../render-state';
 
 const THINKING_PREVIEW_LIMIT = 240;
 
@@ -19,12 +19,4 @@ export function terminalLabel(run: RunGroup): string {
 		return run.terminalText === PAUSED_FOR_EXIT_ERROR ? 'Run paused' : 'Run cancelled';
 	}
 	return 'Run failed';
-}
-
-export function formatUsage(item: RenderItem, showsCost: boolean): string {
-	if (item.kind !== 'usage') return '';
-	const inT = item.inputTokens ?? 0;
-	const outT = item.outputTokens ?? 0;
-	const tokens = `${inT.toLocaleString()} input · ${outT.toLocaleString()} output`;
-	return showsCost && item.costUsd !== null ? `${tokens} · $${item.costUsd.toFixed(2)}` : tokens;
 }

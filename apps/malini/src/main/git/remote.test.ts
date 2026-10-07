@@ -20,6 +20,7 @@ import {
 	MAX_ADDED_FILES_PER_COMMIT,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
+	restartWorkstreamOnBase,
 } from './remote';
 import { installGitRunnerForTests } from './run';
 import { statusCollector } from './status';
@@ -288,6 +289,116 @@ describe('pushWorkstreamBranch', () => {
 		await expect(
 			pushWorkstreamBranch('/wt', 'ws-1', 'not-a-full-name', null, noPromptCredentialEnv),
 		).rejects.toThrow('unsafe path: invalid GitHub repository full name');
+	});
+});
+
+describe('restartWorkstreamOnBase', () => {
+	async function squashMerge(dir: string, remote: string): Promise<string> {
+		const other = join(dir, 'merger');
+		await realGit(dir, ['clone', '-q', remote, other]);
+		await realGit(other, ['config', 'user.email', 't@example.com']);
+		await realGit(other, ['config', 'user.name', 't']);
+		await realGit(other, ['merge', '--squash', 'origin/malini/ws-1']);
+		await realGit(other, ['commit', '-q', '-m', 'work (#1)']);
+		await realGit(other, ['push', '-q', 'origin', 'main']);
+		return (await realGit(other, ['rev-parse', 'HEAD'])).trim();
+	}
+
+	async function mergedWorkstream(dir: string) {
+		const fixture = await workstreamFixture(dir, 'ws-1');
+		await writeFile(join(fixture.checkout, 'work.txt'), 'work\n');
+		await commitWorkstreamBranch(fixture.checkout, 'ws-1', 'work');
+		await realGit(fixture.checkout, ['push', '-q', '-u', 'origin', 'malini/ws-1']);
+		const mergedHead = (await realGit(fixture.checkout, ['rev-parse', 'HEAD'])).trim();
+		const squash = await squashMerge(dir, fixture.remote);
+		return { ...fixture, mergedHead, squash };
+	}
+
+	async function restartThroughLocalRemote(checkout: string, remote: string, mergedHead: string) {
+		const restore = installGitRunnerForTests(async (args, env, real) => {
+			if (args.includes('get-url')) return 'https://github.com/acme/repo.git\n';
+			const local = args
+				.map((arg) => (arg === 'https://github.com/acme/repo.git' ? remote : arg))
+				.filter(
+					(arg, index, all) =>
+						arg !== 'protocol.allow=never' && all[index + 1] !== 'protocol.allow=never',
+				);
+			return real(local, env);
+		});
+		try {
+			return await restartWorkstreamOnBase(
+				checkout,
+				'ws-1',
+				'main',
+				mergedHead,
+				'acme/repo',
+				null,
+				noPromptCredentialEnv,
+			);
+		} finally {
+			restore();
+		}
+	}
+
+	it('moves a squash-merged workstream onto the fresh base, keeping uncommitted edits', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout, mergedHead, squash } = await mergedWorkstream(dir);
+		await writeFile(join(checkout, 'next.txt'), 'next\n');
+
+		await restartThroughLocalRemote(checkout, remote, mergedHead);
+
+		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(squash);
+		expect(existsSync(join(checkout, 'next.txt'))).toBe(true);
+		expect(await tryRealGit(remote, ['rev-parse', '--verify', 'malini/ws-1'])).toBe(false);
+		expect(await tryRealGit(checkout, ['rev-parse', '--verify', '@{u}'])).toBe(false);
+		expect(
+			await tryRealGit(checkout, ['rev-parse', '--verify', 'refs/remotes/origin/malini/ws-1']),
+		).toBe(false);
+	});
+
+	it('replays commits made after the merge on top of the fresh base', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout, mergedHead, squash } = await mergedWorkstream(dir);
+		await writeFile(join(checkout, 'follow-up.txt'), 'follow-up\n');
+		await commitWorkstreamBranch(checkout, 'ws-1', 'follow-up');
+
+		await restartThroughLocalRemote(checkout, remote, mergedHead);
+
+		expect((await realGit(checkout, ['rev-parse', 'HEAD~1'])).trim()).toBe(squash);
+		expect((await realGit(checkout, ['log', '-1', '--format=%s'])).trim()).toBe('follow-up');
+	});
+
+	it('keeps the remote branch when someone pushed to it after the merge', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout, mergedHead } = await mergedWorkstream(dir);
+		const other = join(dir, 'pusher');
+		await realGit(dir, ['clone', '-q', '-b', 'malini/ws-1', remote, other]);
+		await realGit(other, ['config', 'user.email', 't@example.com']);
+		await realGit(other, ['config', 'user.name', 't']);
+		await realGit(other, ['commit', '-q', '--allow-empty', '-m', 'late push']);
+		await realGit(other, ['push', '-q', 'origin', 'malini/ws-1']);
+		const late = (await realGit(other, ['rev-parse', 'HEAD'])).trim();
+
+		await restartThroughLocalRemote(checkout, remote, mergedHead);
+
+		expect((await realGit(remote, ['rev-parse', 'malini/ws-1'])).trim()).toBe(late);
+	});
+
+	it('refuses a merged head that is not a full commit id', async () => {
+		await expect(
+			restartWorkstreamOnBase(
+				'/wt',
+				'ws-1',
+				'main',
+				'--upload-pack=x',
+				'acme/repo',
+				null,
+				noPromptCredentialEnv,
+			),
+		).rejects.toThrow('the merged pull request head must be a full commit id');
 	});
 });
 

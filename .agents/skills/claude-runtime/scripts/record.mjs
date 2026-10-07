@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,12 +14,18 @@ if (!prompt) {
 	process.exit(1);
 }
 
+const promptId = randomUUID();
 const steps = [];
 let release;
 const finished = new Promise((resolve) => (release = resolve));
 
 async function* turn() {
-	yield { type: 'user', message: { role: 'user', content: prompt }, parent_tool_use_id: null };
+	yield {
+		type: 'user',
+		uuid: promptId,
+		message: { role: 'user', content: prompt },
+		parent_tool_use_id: null,
+	};
 	await finished;
 }
 
@@ -36,6 +43,7 @@ const run = query({
 		permissionMode,
 		settingSources: [],
 		includePartialMessages: true,
+		...(process.env.RESUME ? { resume: process.env.RESUME } : {}),
 		canUseTool: async (toolName, input, opts) => {
 			steps.push({
 				canUseTool: {
@@ -66,7 +74,7 @@ const run = query({
 try {
 	for await (const message of run) {
 		steps.push(message);
-		if (message.type === 'result') break;
+		if (message.type === 'result' && message.user_message_uuids?.includes(promptId)) break;
 	}
 } finally {
 	release();

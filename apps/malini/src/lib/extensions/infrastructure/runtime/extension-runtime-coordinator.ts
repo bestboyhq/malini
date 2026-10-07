@@ -22,6 +22,7 @@ type RepositoryOption =
 	| 'pullRequestCheckDiagnostics'
 	| 'pushRepository'
 	| 'pullRepository'
+	| 'restartRepositoryOnBase'
 	| 'refreshRepository';
 
 type NavigationOption = 'listWorkstreams' | 'ensureWorkstream' | 'openWorkstream';
@@ -86,6 +87,8 @@ export class ExtensionRuntimeCoordinator {
 			pushRepository: (workstreamId) => extensionBindings.repository().pushRepository(workstreamId),
 			pullRepository: (workstreamId, baseBranch) =>
 				extensionBindings.repository().pullRepository(workstreamId, baseBranch),
+			restartRepositoryOnBase: (workstreamId, request) =>
+				extensionBindings.repository().restartRepositoryOnBase(workstreamId, request),
 			refreshRepository: (workstreamId) =>
 				extensionBindings.repository().refreshRepository(workstreamId),
 		});

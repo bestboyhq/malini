@@ -98,7 +98,8 @@ export class GlobalTopBarActionRegistry {
 	}
 }
 
-export type GlobalTopBarStatusTone = 'neutral' | 'progress' | 'success' | 'warning' | 'danger';
+export type GlobalTopBarStatusTone =
+	'neutral' | 'progress' | 'success' | 'warning' | 'danger' | 'merged';
 
 export type GlobalTopBarStatusCheck = Readonly<{
 	id: string;
@@ -112,6 +113,11 @@ export type GlobalTopBarStatusNote = Readonly<{
 	label: string;
 	tone: GlobalTopBarStatusTone;
 }>;
+
+export type GlobalTopBarStatusHeadline = GlobalTopBarStatusNote &
+	Readonly<{
+		detail: string | null;
+	}>;
 
 export type GlobalTopBarStatusAction = Readonly<{
 	label: string;
@@ -151,6 +157,8 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	todos: GlobalTopBarStatusNote | null;
 	changes?: GlobalTopBarStatusNote | null;
 	mergeConfirmation?: GlobalTopBarMergeConfirmation | null;
+	headline?: GlobalTopBarStatusHeadline | null;
+	secondaryAction?: GlobalTopBarStatusAction | null;
 	action: GlobalTopBarStatusAction | null;
 	detailActions?: readonly GlobalTopBarStatusDetailAction[];
 	remoteFailure?: string | null;

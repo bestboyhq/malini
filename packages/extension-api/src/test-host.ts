@@ -306,8 +306,7 @@ export async function createTestHost(options: TestHostOptions): Promise<Extensio
 				await options.repository?.pullRequestGate?.();
 				const current = currentPullRequest();
 				const terminalWithoutExactBinding =
-					query?.pullRequestNumber === undefined &&
-					(current.state === 'closed' || current.state === 'merged');
+					query?.pullRequestNumber === undefined && current.state === 'closed';
 				const context =
 					terminalWithoutExactBinding ||
 					(query?.pullRequestNumber !== undefined && query.pullRequestNumber !== current.number)
@@ -458,6 +457,11 @@ export async function createTestHost(options: TestHostOptions): Promise<Extensio
 				const target = baseBranch?.trim() || workstream.baseBranch;
 				record('repository.pullLatest', { baseBranch: target });
 				return target;
+			},
+			restartOnBase: async (input, workstreamId) => {
+				assertCurrentWorkstream(workstream, workstreamId);
+				record('repository.restartOnBase', { ...input });
+				return input.baseBranch;
 			},
 			abortOperation: async (workstreamId) => {
 				assertCurrentWorkstream(workstream, workstreamId);

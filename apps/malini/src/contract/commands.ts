@@ -192,6 +192,14 @@ export type PullWorkstreamArgs = Readonly<{
 	githubToken?: string | null;
 }>;
 
+export type RestartWorkstreamOnBaseArgs = Readonly<{
+	workstreamId: string;
+	baseBranch: string;
+	mergedHeadSha: string;
+	expectedRepositoryFullName: string;
+	githubToken?: string | null;
+}>;
+
 export type RepositoryIdArgs = Readonly<{ repoId: string }>;
 
 export type ImportRepositoryArgs = Readonly<{ source: ImportSource }>;
@@ -400,6 +408,7 @@ export interface ContractCommands {
 	};
 	'repositories.pull-workstream': { args: PullWorkstreamArgs; result: string };
 	'repositories.push-workstream': { args: PushWorkstreamArgs; result: string };
+	'repositories.restart-workstream-on-base': { args: RestartWorkstreamOnBaseArgs; result: string };
 	'extensions.read-repository-file': { args: ExtensionFileArgs; result: string };
 	'extensions.read-workstream-file': { args: ExtensionFileArgs; result: string };
 	'chat.read-staged-attachment': {
@@ -568,6 +577,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.provision-dependencies',
 	'repositories.pull-workstream',
 	'repositories.push-workstream',
+	'repositories.restart-workstream-on-base',
 	'extensions.read-repository-file',
 	'extensions.read-workstream-file',
 	'chat.read-staged-attachment',

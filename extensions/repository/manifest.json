@@ -54,6 +54,11 @@
 				"description": "Update the workstream from its target branch, push, and refresh pull request state. A conflicting update stays in the workstream for the agent to resolve."
 			},
 			{
+				"id": "malini.repository.continue-after-merge",
+				"title": "Repository: Continue After Merge",
+				"description": "Move a workstream whose pull request merged onto its fresh target branch, keeping uncommitted edits and any commits made after the merge, so the next push opens a new pull request."
+			},
+			{
 				"id": "malini.repository.abort-operation",
 				"title": "Repository: Abort Merge",
 				"description": "Abort the merge in progress in the workstream and return it to the last commit."

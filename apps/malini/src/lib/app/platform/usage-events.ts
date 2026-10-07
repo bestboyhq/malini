@@ -125,6 +125,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'repositories.provision-dependencies': plain,
 	'repositories.pull-workstream': plain,
 	'repositories.push-workstream': plain,
+	'repositories.restart-workstream-on-base': plain,
 	'repositories.read-workstream-image': false,
 	'repositories.record-owned-docker-containers': false,
 	'repositories.release-owned-docker-container': false,

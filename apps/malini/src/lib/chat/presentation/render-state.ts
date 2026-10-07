@@ -144,7 +144,6 @@ export type RunGroup = {
 export type RenderState = {
 	runs: RunGroup[];
 	terminal: 'completed' | 'failed' | null;
-	lastUsage: RenderItem | null;
 };
 
 const ERROR_DIAGNOSTICS_SEPARATOR = '\n\nDiagnostics:\n';
@@ -407,7 +406,6 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 	const openTools = new Map<string, OpenToolAggregate>();
 	const seenInteractions = new Set<string>();
 	let terminal: 'completed' | 'failed' | null = null;
-	let lastUsage: RenderItem | null = null;
 	let commandLive: {
 		ownerRunId: string;
 		startedSeq: number;
@@ -719,16 +717,14 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				break;
 			}
 			case 'usage.updated': {
-				const usageItem: RenderItem = {
+				push(runId, {
 					kind: 'usage',
 					key,
 					seq: env.seq,
 					inputTokens: event.inputTokens ?? null,
 					outputTokens: event.outputTokens ?? null,
 					costUsd: event.costUsd ?? null,
-				};
-				push(runId, usageItem);
-				lastUsage = usageItem;
+				});
 				break;
 			}
 			case 'approval.requested': {
@@ -840,5 +836,5 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 			if (superseded === run.superseded && obsoleted === run.obsoleted) return run;
 			return { ...run, superseded, obsoleted };
 		});
-	return { runs: visibleRuns, terminal, lastUsage };
+	return { runs: visibleRuns, terminal };
 }

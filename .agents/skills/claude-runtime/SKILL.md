@@ -21,6 +21,8 @@ malini owns the rest, and the adapter enforces it:
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to malini's UI, which starts the implementation.
 - Conversation: Claude's session id is malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with malini's own history.
+- Turn binding: each prompt carries a uuid, and the run ends on the result whose `user_message_uuids` names it.
+  Claude Code also runs turns of its own: a resume that finds a background agent the last process left unfinished first reports it in an empty zero-turn result.
 
 `src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`.
 
@@ -36,6 +38,7 @@ node ../../.agents/skills/claude-runtime/scripts/record.mjs 'Create probe.txt co
 
 It records every message and `canUseTool` call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.
 Other tools are allowed; `DECISION=deny` denies them the way malini does, which records the `deny` scenario.
+`RESUME=<session id>` resumes an earlier probe session; `orphanedTask` resumes one whose run was killed while its background agent still ran.
 Recorded runs live in `src/claude/fixtures/transcripts.json`; tests replay them through `fakeClaude`, so a new behavior gets a recorded scenario, not a hand-written one.
 
 ## Bumping the SDK

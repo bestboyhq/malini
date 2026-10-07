@@ -17,12 +17,11 @@ test('after a push the top bar waits for GitHub to report the pushed head', asyn
 
 		await push.click();
 
-		const checking = page.getByRole('button', {
-			name: 'Waiting for GitHub to report on pull request #7',
+		await expect(page.getByRole('status').filter({ hasText: 'Waiting for GitHub…' })).toBeVisible({
+			timeout: 30_000,
 		});
-		await expect(checking).toHaveText('Checking…', { timeout: 30_000 });
-		await expect(checking).toBeDisabled();
 		await expect(page.getByRole('button', { name: /Resolve merge conflicts/u })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /^Merge pull request/u })).toHaveCount(0);
 		await captureFlow(app, 'pull-request-checking');
 
 		github.setPullRequest({

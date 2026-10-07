@@ -5,6 +5,7 @@
 		claudeCodeStatusQuery,
 		defaultAgentModel,
 		isValidAgentModel,
+		subscriptionBillingQuery,
 		type AgentModel,
 	} from '$shared/providers/providers.api';
 	import type { ModelPreferences } from '$shared/providers/providers.api';
@@ -71,6 +72,7 @@
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
+	import { formatRunUsage, lastRunUsage } from './session-runtime-metadata';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure, sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
@@ -165,6 +167,7 @@
 		prompt.trim() !== '' && !disabled && agentUsable && !todoContextResolving,
 	);
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask malini to make a change…');
+	const runUsage = $derived(lastRunUsage(envelopes));
 
 	const composerChips = $derived<PromptChipDescriptor[]>([
 		...localAttachments.map((attachment) => ({
@@ -889,7 +892,7 @@
 </script>
 
 <form
-	class="chat-column relative z-20 shrink-0 px-4 pb-4"
+	class={['chat-column relative z-20 shrink-0 px-4', runUsage ? 'pb-1' : 'pb-4']}
 	{@attach avoidedByToasts}
 	onsubmit={(event) => {
 		event.preventDefault();
@@ -1188,6 +1191,25 @@
 			</div>
 		{/snippet}
 	</ComposerShell>
+
+	{#if runUsage}
+		<Tooltip
+			content="Tokens sent to the model and generated during the last run"
+			placement="top"
+			class="ml-auto w-fit"
+		>
+			<p
+				class="text-2xs flex h-6 items-center gap-1.5 px-1 tabular-nums select-none"
+				data-testid="chat-run-usage"
+			>
+				<span class="text-fg-tertiary">Last run</span>
+				<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
+				<span class="text-fg-secondary">
+					{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
+				</span>
+			</p>
+		</Tooltip>
+	{/if}
 </form>
 
 <Sheet

@@ -416,6 +416,23 @@ describe('ClaudeSession', () => {
 		});
 	});
 
+	it('answers the prompt after the empty turn for a background task a restart cut off', async () => {
+		const { session, claude, events } = harness([recordedScript('orphanedTask')], {
+			context: { providerSessionId: '4efd3cbb-54fb-4441-b020-662d430411ed' },
+		});
+
+		await session.sendPrompt('Reply with just the word ok.', 'run-1', profile());
+
+		expect(claude.runs).toHaveLength(1);
+		expect(ofType(events, 'run.failed')).toEqual([]);
+		expect(events.at(-1)).toEqual({
+			type: 'run.completed',
+			runId: 'run-1',
+			summary: 'ok',
+			providerCursor: '7b53c876-2740-4b2e-81bb-d031a9b0c63c',
+		});
+	});
+
 	it('keeps the interrupt notice Claude Code writes into a cut-short tool out of the transcript', async () => {
 		const script = recordedScript('readAndBash');
 		const bashUse = script.findIndex(

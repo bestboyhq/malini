@@ -28,6 +28,7 @@ import {
 	commitWorkstreamBranch,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
+	restartWorkstreamOnBase,
 } from '$main/git/remote';
 import { statusCollector } from '$main/git/status';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
@@ -252,6 +253,19 @@ export function registerRepositories(
 			workstreamId,
 			baseBranch,
 			githubToken,
+			credentials,
+		);
+	});
+
+	commands.define('repositories.restart-workstream-on-base', async (args: unknown) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		return restartWorkstreamOnBase(
+			await checkout(args),
+			workstreamId,
+			requireString(args, 'baseBranch'),
+			requireString(args, 'mergedHeadSha'),
+			requireString(args, 'expectedRepositoryFullName'),
+			optionalString(args, 'githubToken'),
 			credentials,
 		);
 	});

@@ -155,26 +155,7 @@ export async function pushWorkstreamBranch(
 
 	const env = await credentials.prepare(normalizeGithubToken(githubToken));
 	const push = (): Promise<string> =>
-		runGit(
-			[
-				'-C',
-				worktreePath,
-				...GH_CREDENTIAL_HELPER_CONFIG,
-				'-c',
-				DISABLED_GIT_HOOKS_CONFIG,
-				'-c',
-				DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
-				'-c',
-				ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
-				'-c',
-				REQUIRE_TLS_VERIFICATION_CONFIG,
-				'push',
-				'--no-verify',
-				canonicalUrl,
-				`${branch}:refs/heads/${branch}`,
-			],
-			env,
-		);
+		runGit(githubPushArgs(worktreePath, canonicalUrl, `${branch}:refs/heads/${branch}`), env);
 	try {
 		await push();
 	} catch (error) {
@@ -218,6 +199,108 @@ export async function pushWorkstreamBranch(
 		`refs/heads/${branch}`,
 	]);
 	return branch;
+}
+
+function githubPushArgs(
+	worktreePath: string,
+	canonicalUrl: string,
+	refspec: string,
+	options: readonly string[] = [],
+): string[] {
+	return [
+		'-C',
+		worktreePath,
+		...GH_CREDENTIAL_HELPER_CONFIG,
+		'-c',
+		DISABLED_GIT_HOOKS_CONFIG,
+		'-c',
+		DENY_UNDECLARED_GIT_PROTOCOLS_CONFIG,
+		'-c',
+		ALLOW_GITHUB_HTTPS_PROTOCOL_CONFIG,
+		'-c',
+		REQUIRE_TLS_VERIFICATION_CONFIG,
+		'push',
+		'--no-verify',
+		...options,
+		canonicalUrl,
+		refspec,
+	];
+}
+
+const MERGED_BRANCH_ALREADY_GONE = /remote ref does not exist|stale info/u;
+
+const FULL_COMMIT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+
+export async function restartWorkstreamOnBase(
+	worktreePath: string,
+	workstreamId: string,
+	baseBranch: string,
+	mergedHeadSha: string,
+	expectedRepositoryFullName: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<string> {
+	validateBaseBranch(baseBranch);
+	if (!FULL_COMMIT_ID.test(mergedHeadSha)) {
+		throw GitError.git('the merged pull request head must be a full commit id');
+	}
+	const status = await statusCollector(worktreePath);
+	const branch = requireWorkstreamBranch(workstreamId, status.branch);
+	if (status.operationInProgress !== null) {
+		throw GitError.git(
+			`a ${status.operationInProgress} is already in progress in this workstream; finish or abort it before continuing`,
+		);
+	}
+	const canonicalUrl = canonicalGithubHttpsUrl(expectedRepositoryFullName);
+	await verifyOriginMatchesExpectedGithubRepository(worktreePath, canonicalUrl);
+	const baseRef = await syncRemoteBase(worktreePath, baseBranch, githubToken, credentials);
+	if (!(await hasCommit(worktreePath, mergedHeadSha))) {
+		await syncRemoteBase(worktreePath, branch, githubToken, credentials);
+	}
+	const forkPoint = (
+		await runGit(['-C', worktreePath, 'merge-base', 'HEAD', mergedHeadSha])
+	).trim();
+
+	const env = await credentials.prepare(normalizeGithubToken(githubToken));
+	try {
+		await runGit(
+			githubPushArgs(worktreePath, canonicalUrl, `:refs/heads/${branch}`, [
+				`--force-with-lease=refs/heads/${branch}:${mergedHeadSha}`,
+			]),
+			env,
+		);
+	} catch (error) {
+		if (!MERGED_BRANCH_ALREADY_GONE.test(failureOutput(error))) throw error;
+	}
+	await runGit(['-C', worktreePath, 'update-ref', '-d', `refs/remotes/origin/${branch}`]);
+	await runGit(['-C', worktreePath, 'branch', '--unset-upstream']).catch(() => undefined);
+
+	try {
+		await runGit([
+			'-C',
+			worktreePath,
+			...AGENT_COMMIT_CONFIG,
+			'-c',
+			DISABLED_GIT_HOOKS_CONFIG,
+			'rebase',
+			'--autostash',
+			'--onto',
+			baseRef,
+			forkPoint,
+		]);
+	} catch (error) {
+		if ((await inProgressOperation(worktreePath)) !== 'rebase') throw error;
+	}
+	return (await runGit(['-C', worktreePath, 'rev-parse', '--short', 'HEAD'])).trim();
+}
+
+async function hasCommit(worktreePath: string, sha: string): Promise<boolean> {
+	try {
+		await runGit(['-C', worktreePath, 'cat-file', '-e', `${sha}^{commit}`]);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export async function pullWorkstreamBaseBranch(

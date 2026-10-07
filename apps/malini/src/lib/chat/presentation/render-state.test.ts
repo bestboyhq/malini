@@ -188,7 +188,7 @@ describe('foldEnvelopes', () => {
 
 	it('returns an empty render state for an empty envelope list', () => {
 		const state = foldEnvelopes([]);
-		expect(state).toEqual({ runs: [], terminal: null, lastUsage: null });
+		expect(state).toEqual({ runs: [], terminal: null });
 	});
 
 	it('materializes a run header on run.started even with no body items yet', () => {
@@ -890,7 +890,7 @@ describe('foldEnvelopes', () => {
 		]);
 	});
 
-	it('tracks usage.updated as both an inline item and the state-level lastUsage, defaulting missing fields to null', () => {
+	it('tracks usage.updated as an inline item, defaulting missing fields to null', () => {
 		const state = foldEnvelopes([
 			env(SID, 'run-1', 1, { type: 'usage.updated', runId: 'run-1', inputTokens: 100 }),
 			env(SID, 'run-1', 2, {
@@ -919,14 +919,6 @@ describe('foldEnvelopes', () => {
 				costUsd: 0.05,
 			},
 		]);
-		expect(state.lastUsage).toEqual({
-			kind: 'usage',
-			key: `${SID}-run-1-2`,
-			seq: 2,
-			inputTokens: 120,
-			outputTokens: 40,
-			costUsd: 0.05,
-		});
 	});
 
 	it('marks a run.completed run as terminal "completed" and stores the summary text', () => {

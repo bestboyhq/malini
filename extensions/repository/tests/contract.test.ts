@@ -24,6 +24,7 @@ test('activates, registers declared contributions, reloads, and cleans up', asyn
 			'malini.repository.refresh-pull-request',
 			'malini.repository.prepare-pull-request-fix',
 			'malini.repository.pull-latest',
+			'malini.repository.continue-after-merge',
 			'malini.repository.abort-operation',
 			'malini.repository.mark-pull-request-ready',
 			'malini.repository.select-file',

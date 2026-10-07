@@ -85,27 +85,41 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 
 	const targetOrThrow = async (
 		args: unknown,
-	): Promise<{ repository: ConnectedRepository; checkout: string }> => {
+	): Promise<{ repository: ConnectedRepository; checkout: string; local: string }> => {
 		const repository = await repositoryOrThrow(requireString(args, 'repoId'));
-		return { repository, checkout: checkoutOrThrow(repository) };
+		const checkout = checkoutOrThrow(repository);
+		const workstreamId = optionalString(args, 'workstreamId');
+		const local = workstreamId
+			? await checkouts.resolveCheckout(workstreamId).catch(() => checkout)
+			: checkout;
+		return { repository, checkout, local };
 	};
 
 	commands.define('pull-requests.status', async (args: unknown): Promise<PullRequestStatusDto> => {
-		const { repository, checkout } = await targetOrThrow(args);
+		const { repository, checkout, local } = await targetOrThrow(args);
 		const head = requireString(args, 'head');
 		const pullRequestNumber = optionalNumber(args, 'pullRequestNumber');
 		const view = await viewPullRequest({ run, checkout, head, pullRequestNumber });
-		if (!view) return notOpenStatus(head, optionalString(args, 'base') ?? repository.defaultBranch);
-		const status = await openPullRequestStatus(run, checkout, repository, view);
+		if (!view || (await branchBuildsOnMerge(local, view, head))) {
+			return notOpenStatus(head, optionalString(args, 'base') ?? repository.defaultBranch);
+		}
+		const status = await openPullRequestStatus(run, checkout, local, repository, view);
 		if ((status.state !== 'merged' && status.state !== 'closed') || !status.headSha) return status;
 		return {
 			...status,
-			includesLocalHead: await includesLocalHead(run, checkout, repository, status.headSha, head),
+			includesLocalHead: await includesLocalHead(
+				run,
+				checkout,
+				local,
+				repository,
+				status.headSha,
+				head,
+			),
 		};
 	});
 
 	commands.define('pull-requests.create', async (args: unknown): Promise<PullRequestStatusDto> => {
-		const { repository, checkout } = await targetOrThrow(args);
+		const { repository, checkout, local } = await targetOrThrow(args);
 		const head = requireString(args, 'head');
 		const base = optionalString(args, 'base') ?? repository.defaultBranch;
 		const title = requireString(args, 'title');
@@ -127,23 +141,23 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		const url = firstLine(created.stdout);
 		const view = await viewPullRequest({ run, checkout, head, pullRequestNumber: null, url });
 		if (!view) throw new Error('Pull request was created but could not be read back');
-		return openPullRequestStatus(run, checkout, repository, view);
+		return openPullRequestStatus(run, checkout, local, repository, view);
 	});
 
 	commands.define(
 		'pull-requests.mark-ready',
 		async (args: unknown): Promise<PullRequestStatusDto> => {
-			const { repository, checkout } = await targetOrThrow(args);
+			const { repository, checkout, local } = await targetOrThrow(args);
 			const number = requireNumber(args, 'pullRequestNumber');
 			await runCheckedGh(run, ['pr', 'ready', String(number)], checkout);
 			const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
 			if (!view) throw new Error(`Pull request #${number} was not found after marking ready`);
-			return openPullRequestStatus(run, checkout, repository, view);
+			return openPullRequestStatus(run, checkout, local, repository, view);
 		},
 	);
 
 	commands.define('pull-requests.merge', async (args: unknown): Promise<PullRequestStatusDto> => {
-		const { repository, checkout } = await targetOrThrow(args);
+		const { repository, checkout, local } = await targetOrThrow(args);
 		const number = requireNumber(args, 'pullRequestNumber');
 		const expectedHeadSha = requireString(args, 'expectedHeadSha');
 		const workstreamId = optionalString(args, 'workstreamId');
@@ -167,7 +181,7 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		await runCheckedGh(run, mergeArgs, checkout);
 		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
 		if (!view) throw new Error(`Pull request #${number} was not found after merge`);
-		const status = await openPullRequestStatus(run, checkout, repository, view);
+		const status = await openPullRequestStatus(run, checkout, local, repository, view);
 		if (status.state === 'merged') {
 			const synced = await fastForwardLocalBase(
 				checkout,
@@ -300,19 +314,20 @@ function squashSubject(title: unknown, number: number): string | null {
 async function openPullRequestStatus(
 	run: GhRunner,
 	checkout: string,
+	local: string,
 	repository: ConnectedRepository,
 	view: PullRequestView,
 ): Promise<PullRequestStatusDto> {
 	const status = mapPullRequestStatus(await withSettledMergeability(run, checkout, view));
 	if (status.state !== 'open' || status.number === null) return status;
-	if (status.headSha) await fetchHeadGithubMoved(checkout, status.headRef, status.headSha);
+	if (status.headSha) await fetchHeadGithubMoved(local, status.headRef, status.headSha);
 	const [threads, merging, checksExpected, lagging, behindBase, checks] = await Promise.all([
 		unresolvedReviewThreadCount(run, checkout, repository, status.number),
 		repositoryMergeSettings(run, checkout),
 		status.checksState === 'none' && status.headSha
-			? checksAreStarting(checkout, status.headSha)
+			? checksAreStarting(local, status.headSha)
 			: false,
-		status.headSha ? pullRequestLagsPush(checkout, status.headRef, status.headSha) : false,
+		status.headSha ? pullRequestLagsPush(local, status.headRef, status.headSha) : false,
 		status.headSha && status.baseRef
 			? fetchBehindBase(run, checkout, repository, status.baseRef, status.headSha)
 			: null,
@@ -375,6 +390,26 @@ async function fetchBehindBase(
 	}
 }
 
+async function branchBuildsOnMerge(
+	local: string,
+	view: PullRequestView,
+	branch: string,
+): Promise<boolean> {
+	const mergeCommit = view.state === 'MERGED' ? mergeCommitOid(view.mergeCommit) : null;
+	if (!mergeCommit) return false;
+	try {
+		await runGit(['-C', local, 'merge-base', '--is-ancestor', mergeCommit, `refs/heads/${branch}`]);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function mergeCommitOid(value: unknown): string | null {
+	if (typeof value !== 'object' || value === null || !('oid' in value)) return null;
+	return typeof value.oid === 'string' && value.oid ? value.oid : null;
+}
+
 async function branchHead(checkout: string, ref: string): Promise<string> {
 	return (await runGit(['-C', checkout, 'rev-parse', '--verify', `${ref}^{commit}`])).trim();
 }
@@ -416,12 +451,13 @@ async function pullRequestLagsPush(
 async function includesLocalHead(
 	run: GhRunner,
 	checkout: string,
+	localCheckout: string,
 	repository: ConnectedRepository,
 	pullRequestHead: string,
 	branch: string,
 ): Promise<boolean | null> {
 	try {
-		const local = await branchHead(checkout, `refs/heads/${branch}`);
+		const local = await branchHead(localCheckout, `refs/heads/${branch}`);
 		if (local === pullRequestHead) return true;
 		const compared = await run(
 			[

@@ -47,7 +47,7 @@ test("checks GitHub never started say CI didn't start instead of offering Fix er
 		});
 		await openWorkstream(page, 'e2e-ci-not-started');
 
-		const status = page.getByRole('button', { name: /^CI didn't start/u });
+		const status = page.getByRole('status').filter({ hasText: "CI didn't start" });
 		await expect(status).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByRole('button', { name: 'Fix pull request errors #7' })).toHaveCount(0);
 		await status.hover();

@@ -28,6 +28,8 @@
 	--color-success: var(--color-success-light);
 	--color-success-content: var(--color-text-on-success-light);
 
+	--color-merged-content: var(--color-purple-700);
+
 	--themed-color-tertiary: var(--color-tertiary-light);
 	--themed-color-tertiary-content: var(--color-text-on-tertiary-light);
 
