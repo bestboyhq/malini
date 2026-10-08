@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
-	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import type { RunGroup } from '../render-state';
 	import type { RunTimelineItem } from '../run-timeline';
@@ -43,15 +42,17 @@
 		<summary
 			class="hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 		>
-			<Icon
-				name="chevron-right"
-				size={10}
-				class="shrink-0 transition-transform duration-150 group-open/thought:rotate-90"
-			/>
+			<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
+				<Icon
+					name="chevron-right"
+					size={10}
+					class="transition-transform duration-150 group-open/thought:rotate-90"
+				/>
+			</span>
 			<span>{thoughtLabel(item.durationSeconds)}</span>
 		</summary>
 		<div
-			class="text-fg-secondary pt-1 pb-2 pl-[1.125rem] text-xs leading-relaxed select-text"
+			class="text-fg-secondary pt-1 pb-2 pl-[1.375rem] text-xs leading-relaxed select-text"
 			data-testid="thinking-summary-text"
 		>
 			<MarkdownText
@@ -126,13 +127,15 @@
 	<ChatToolRow {item} {run} />
 {:else if item.kind === 'file'}
 	<div
-		class="text-fg-tertiary flex min-h-6 w-full items-center gap-2 pl-[0.875rem] text-sm"
+		class="text-fg-tertiary flex min-h-6 w-full items-center gap-2 text-sm"
 		use:stageEnter={timelineKey(run, item.key)}
 		data-message-kind="file"
 		data-testid="run-activity-file"
 		data-file-path={item.path}
 	>
-		<FileTypeIcon path={item.path} size={14} />
+		<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
+			<Icon name="pencil" size={13} />
+		</span>
 		<Tooltip content={relativizeWorkstreamPath(item.path)} placement="right" class="min-w-0">
 			<span class="block truncate select-text">Edited {relativizeWorkstreamPath(item.path)}</span>
 		</Tooltip>

@@ -1,3 +1,4 @@
+import { isNarrowLayout } from '$shared/shell/narrow-layout.svelte';
 import type { InspectorPreferenceStorage } from './inspector-preference-storage';
 
 export const INSPECTOR_DRAWER_STORAGE_KEY_PREFIX = 'malini.extensions.inspector-drawer-v1:';
@@ -41,11 +42,17 @@ export function saveInspectorDrawerOpen(
 
 class InspectorDrawer {
 	#revision = $state(0);
+	#overlayWorkstreamId: string | null = $state(null);
+
+	get overlay(): boolean {
+		return isNarrowLayout();
+	}
 
 	isOpen(
 		workstreamId: string,
 		storage: InspectorPreferenceStorage | null = browserStorage(),
 	): boolean {
+		if (this.overlay) return this.#overlayWorkstreamId === workstreamId;
 		this.#revision;
 		return loadInspectorDrawerOpen(workstreamId, storage);
 	}
@@ -56,6 +63,10 @@ class InspectorDrawer {
 		storage: InspectorPreferenceStorage | null = browserStorage(),
 	): void {
 		if (!workstreamId) return;
+		if (this.overlay) {
+			this.#overlayWorkstreamId = open ? workstreamId : null;
+			return;
+		}
 		if (loadInspectorDrawerOpen(workstreamId, storage) === open) return;
 		saveInspectorDrawerOpen(workstreamId, open, storage);
 		this.#revision += 1;
@@ -71,7 +82,7 @@ class InspectorDrawer {
 
 	toggle(workstreamId: string, storage?: InspectorPreferenceStorage | null): void {
 		const resolved = storage === undefined ? browserStorage() : storage;
-		this.setOpen(workstreamId, !loadInspectorDrawerOpen(workstreamId, resolved), resolved);
+		this.setOpen(workstreamId, !this.isOpen(workstreamId, resolved), resolved);
 	}
 }
 

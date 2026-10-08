@@ -11,6 +11,7 @@ export interface OverflowTabMeasurements {
 	reservedWidth: number;
 	overflowWidth: number;
 	itemWidths: Readonly<Record<string, number>>;
+	minItemWidth?: number;
 	gap: number;
 }
 
@@ -84,7 +85,9 @@ function tabsWidth<T>(
 	measurements: OverflowTabMeasurements,
 ): number {
 	const visibleWidth = visible.reduce(
-		(total, item) => total + (measurements.itemWidths[getId(item)] ?? 0),
+		(total, item) =>
+			total +
+			Math.min(measurements.itemWidths[getId(item)] ?? 0, measurements.minItemWidth ?? Infinity),
 		0,
 	);
 	const hasOverflow = visible.length < totalCount;

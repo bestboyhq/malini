@@ -1,6 +1,5 @@
 export { default as ExtensionDirectoryDetailPage } from './presentation/ExtensionDirectoryDetailPage.svelte';
 export { default as ExtensionDirectoryPage } from './presentation/ExtensionDirectoryPage.svelte';
-export { default as ExtensionGutterRail } from './presentation/ExtensionGutterRail.svelte';
 export { default as ExtensionInspectorShell } from './presentation/ExtensionInspectorShell.svelte';
 export { default as ExtensionRunTargetSelect } from './presentation/ExtensionRunTargetSelect.svelte';
 export { default as ExtensionRuntimeHost } from './presentation/ExtensionRuntimeHost.svelte';

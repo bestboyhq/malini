@@ -66,21 +66,24 @@
 </script>
 
 <main class="native-band-row-reserve h-full min-h-0 overflow-y-auto" data-testid="routines-page">
-	<div class="mx-auto w-full max-w-[720px] space-y-6 px-6 py-6">
-		<header class="space-y-3">
+	<div class="mx-auto w-full max-w-[640px] space-y-10 px-6 pt-6 pb-16">
+		<header>
 			<Button
 				href="/"
 				variant="ghost"
 				size="sm"
+				class="-ml-2"
 				ariaLabel="Back to workstreams"
 				data-testid="routines-back"
 			>
-				<Icon name="chevron-left" size={14} />
+				{#snippet leading()}
+					<Icon name="chevron-left" size={14} />
+				{/snippet}
 				Back
 			</Button>
-			<div>
-				<h1 class="text-fg-default text-sm font-semibold">Routines</h1>
-				<p class="text-fg-tertiary mt-0.5 text-xs">
+			<div class="mt-8">
+				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Routines</h1>
+				<p class="text-fg-tertiary mt-1 text-xs">
 					A routine starts as a draft, earns a promotion to candidate where every run asks first,
 					and becomes a routine that runs unattended.
 				</p>
@@ -111,7 +114,7 @@
 		{#if suggestions.length > 0}
 			<section class="space-y-3" aria-labelledby="routines-suggested-heading">
 				<div>
-					<h2 id="routines-suggested-heading" class="text-fg-default text-xs font-semibold">
+					<h2 id="routines-suggested-heading" class="text-fg-default text-sm font-medium">
 						Suggested
 					</h2>
 					<p class="text-fg-tertiary mt-0.5 text-xs">
@@ -131,10 +134,7 @@
 			{@const routines = routinesWithStatus(section.status)}
 			<section class="space-y-3" aria-labelledby={`routines-${section.status}-heading`}>
 				<div>
-					<h2
-						id={`routines-${section.status}-heading`}
-						class="text-fg-default text-xs font-semibold"
-					>
+					<h2 id={`routines-${section.status}-heading`} class="text-fg-default text-sm font-medium">
 						{section.heading}
 						{#if routines.length > 0}
 							<span class="text-fg-tertiary font-normal">({routines.length})</span>
@@ -162,7 +162,7 @@
 			bind:this={draftFormElement}
 		>
 			<div>
-				<h2 id="routines-new-draft-heading" class="text-fg-default text-xs font-semibold">
+				<h2 id="routines-new-draft-heading" class="text-fg-default text-sm font-medium">
 					New draft
 				</h2>
 				<p class="text-fg-tertiary mt-0.5 text-xs">

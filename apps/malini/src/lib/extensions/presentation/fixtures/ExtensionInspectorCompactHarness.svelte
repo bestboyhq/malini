@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { ExtensionPanelContext, ExtensionPanelRegistration } from '@malini/extension-api';
 
-	import ExtensionGutterRail from '../ExtensionGutterRail.svelte';
 	import ExtensionInspectorShell from '../ExtensionInspectorShell.svelte';
 	import type { GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
 	import type { InspectorPanelRegistry } from '../../infrastructure/stores/inspector-panel-registry.store.svelte';
@@ -9,7 +8,6 @@
 
 	interface Props {
 		workstreamId: string;
-		railWorkstreamId?: string | undefined;
 		workstreamName?: string | null;
 		panels?: readonly ExtensionPanelRegistration[];
 		registry?: InspectorPanelRegistry | undefined;
@@ -19,7 +17,6 @@
 
 	let {
 		workstreamId,
-		railWorkstreamId,
 		workstreamName = null,
 		panels = [],
 		registry,
@@ -36,7 +33,6 @@
 	};
 </script>
 
-<ExtensionGutterRail workstreamId={railWorkstreamId ?? workstreamId} />
 <ExtensionInspectorShell
 	{workstreamId}
 	{workstreamName}

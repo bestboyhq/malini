@@ -11,6 +11,7 @@ export type GlobalTopBarAction = Readonly<{
 	busy?: boolean;
 	tone?: 'primary' | 'secondary';
 	icon?: IconName | null;
+	compactIcon?: IconName | null;
 	testId?: string;
 	onInvoke(): void | Promise<void>;
 }>;
@@ -113,6 +114,7 @@ export type GlobalTopBarStatusAction = Readonly<{
 	tooltip: string;
 	tone: 'primary' | 'secondary';
 	icon?: IconName | null;
+	compactIcon?: IconName | null;
 	disabled: boolean;
 	busy: boolean;
 	onInvoke(): void | Promise<void>;

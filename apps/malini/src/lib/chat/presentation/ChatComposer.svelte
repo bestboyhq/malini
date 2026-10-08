@@ -1202,7 +1202,7 @@
 				>
 					<span class="text-fg-tertiary">Last run</span>
 					<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
-					<span class="text-fg-secondary">
+					<span class="text-fg-tertiary">
 						{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
 					</span>
 				</p>

@@ -817,7 +817,7 @@
 
 	.markdown-text :global(strong) {
 		color: var(--color-fg-agent-message-strong);
-		font-weight: 500;
+		font-weight: 600;
 	}
 
 	.markdown-text :global(blockquote) {
@@ -860,9 +860,8 @@
 		font-family: var(--font-mono);
 		font-size: 0.85em;
 		padding: 0.1em 0.4em;
-		border: 0.5px solid var(--color-chip-border);
 		border-radius: 0.375em;
-		background: var(--color-chip);
+		background: var(--color-surface-100);
 		color: var(--color-fg-default);
 		overflow-wrap: anywhere;
 		box-decoration-break: clone;
@@ -883,9 +882,8 @@
 		font-family: var(--font-mono);
 		font-size: 0.85em;
 		padding: 0.1em 0.4em;
-		border: 0.5px solid var(--color-chip-border);
 		border-radius: 0.375em;
-		background: var(--color-chip);
+		background: var(--color-surface-100);
 		color: var(--color-fg-default);
 	}
 
@@ -897,7 +895,7 @@
 	.markdown-text:not([data-render-mode='plain'])
 		:global(a[data-file-path]:not([data-file-missing]):not(:has(> code)):hover),
 	.markdown-text :global(a[data-file-path]:not([data-file-missing]):hover > code) {
-		background: var(--color-chip-hover);
+		background: var(--color-surface-100-hover);
 	}
 
 	.markdown-text :global(a[data-file-path]:focus-visible) {

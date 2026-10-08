@@ -23,16 +23,9 @@
 		@apply mx-auto w-full max-w-[52rem];
 	}
 
-	.chat-stage-inset {
-		--transcript-mirror-inset: 0px;
-
-		margin-inline-start: var(--transcript-mirror-inset);
-		margin-inline-end: var(--transcript-rail-inset, 0px);
-	}
-
 	@container (min-width: 81rem) {
 		.chat-stage-inset {
-			--transcript-mirror-inset: calc(var(--transcript-rail-inset, 0px) + 0.5rem);
+			margin-inline-start: var(--scrollbar-gutter, 0px);
 		}
 	}
 

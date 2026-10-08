@@ -11,12 +11,11 @@ Automated tiers with fakes (`tests/e2e`, vitest) are a different job; their rule
 ## Build what you run
 
 ```sh
-corepack pnpm --filter @malini/agent-bridge build
-corepack pnpm --filter malini build
+corepack pnpm build
 ```
 
-The launcher runs `apps/malini/out/` and the bridge from `packages/agent-bridge/dist/`, never the sources.
-Rebuild after every source change, or the screenshot shows the old code.
+The launcher runs `apps/malini/out/` and the bridge from `packages/agent-bridge/dist/`, never the sources, and the app build needs every workspace package built first.
+After that, rebuild what you changed (`corepack pnpm --filter malini build` for the app), or the screenshot shows the old code.
 
 ## Use a sandboxed profile
 
@@ -33,8 +32,23 @@ mkdir -p .context/profile-<topic>
 sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '.context/profile-<topic>/malini.sqlite'"
 ```
 
-The snapshot's workstream and repository paths still point into the live profile.
-Read those workstreams; send prompts, commit, and push only in workstreams created inside the sandbox.
+The app looks for workstream checkouts inside the sandbox profile, so the snapshot alone shows every workstream without its checkout.
+Clone the checkouts in too (APFS clones cost almost nothing) and repoint their git metadata at the clones:
+
+```sh
+L=~/Library/Application\ Support/malini; P=$PWD/.context/profile-<topic>
+cp -cR "$L/repositories" "$L/workstreams" "$P/"
+for ws in "$P"/workstreams/*/; do
+	g=$(sed 's/^gitdir: //' "$ws.git"); ng="${g/$L/$P}"
+	echo "gitdir: $ng" > "$ws.git"; echo "${ws}.git" > "$ng/gitdir"
+done
+sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$P');
+	update workstreams set path = replace(path, '$L', '$P');"
+```
+
+Rewrite those paths before the first launch: `projects.repo_path` is absolute, and a new workstream otherwise branches off the user's live repository.
+
+The clones push to the same remotes as the user's branches: send prompts, commit, and push only in workstreams created inside the sandbox.
 
 ## Drive and capture
 
@@ -56,6 +70,9 @@ try {
 	await malini.close();
 }
 ```
+
+Playwright launches the window in the light theme whatever the system uses.
+Match the user's theme before capturing: set `localStorage['malini.settings.theme']` to `'dark'` or `'light'` and reload.
 
 Locate by role and accessible name, and wait on the state the user would see, never on a timeout.
 Playwright's `click()` may scroll the transcript to reach its target, which unpins it the way a user scrolling up would; when the flow depends on scroll position, click at the target's box with `page.mouse.click`.

@@ -34,6 +34,8 @@ if (typeof globalThis.matchMedia !== 'function') {
 	});
 }
 
+Object.defineProperty(globalThis, 'innerWidth', { writable: true, value: 1280 });
+
 const animationPrototype: object = typeof Animation === 'undefined' ? {} : Animation.prototype;
 
 if (typeof Element.prototype.animate !== 'function') {

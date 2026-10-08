@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { ExtensionPanelContext, ExtensionPanelRegistration } from '@malini/extension-api';
-	import { tick, type Snippet } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
+	import { dismissOnOutside } from '$shared/shell/dismiss-on-outside';
 	import { dockInspector } from '$shared/shell/inspector-dock.svelte';
+	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 
 	import { BrowserTab, roveTabFocus } from '$hyper-ui/components/browser-tab';
 	import { Button } from '$hyper-ui/components/button';
@@ -11,10 +13,12 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 
+	import ExtensionGutter from './ExtensionGutter.svelte';
 	import ExtensionPanelHost from './ExtensionPanelHost.svelte';
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
-	import type { GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
+	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
+	import { inspectorMinWidth } from '$shared/extensions/inspector-min-width';
 	import {
 		loadInspectorDirectoryTabOpen,
 		saveInspectorDirectoryTabOpen,
@@ -160,18 +164,29 @@
 		return presentsMountedPanel ? presentedPanelId : null;
 	});
 	const drawerOpen = $derived(inspectorDrawer.isOpen(workstreamId, storage));
+	const floating = $derived(drawerOpen && inspectorDrawer.overlay);
+	const compactRows = $derived(
+		gutterRows({
+			panels: orderedPanels,
+			hiddenPanelIds: presentedPreferences.hidden,
+			changeTotals,
+		}),
+	);
+	const minWidth = $derived(inspectorMinWidth(orderedPanels, presentedPreferences.hidden));
 
 	const gutterSource = {
 		workstreamId: () => workstreamId,
-		workstreamName: () => workstreamName,
-		panels: () => orderedPanels,
-		hiddenPanelIds: () => presentedPreferences.hidden,
-		changeTotals: () => changeTotals,
-		interactive: () => inspectorInteractive,
-		openPanel,
+		minWidth: () => minWidth,
 	};
 
 	$effect(() => inspectorGutter.connect(gutterSource));
+
+	const activeDocumentId = $derived(workstreamTabs.for(workstreamId).activeDocumentId);
+
+	$effect(() => {
+		if (activeDocumentId === null) return;
+		if (untrack(() => floating)) closeDrawer();
+	});
 
 	$effect(() => {
 		if (!inspectorInteractive) {
@@ -576,14 +591,21 @@
 	}
 </script>
 
+{#if floating}
+	<div class="mr-3 w-72 shrink-0" aria-hidden="true"></div>
+{/if}
+
 <section
 	class={[
-		'min-h-0 overflow-hidden',
-		drawerOpen
-			? 'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-w-0 shrink flex-col rounded-3xl border-[0.5px] [html[data-native-shell=true]_&]:relative [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-4'
-			: 'hidden',
+		'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-3xl border-[0.5px] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-4',
+		floating
+			? 'shadow-popup absolute top-0 right-0 z-10 max-h-[calc(100%-1.75rem)]'
+			: '[html[data-native-shell=true]_&]:relative',
+		!drawerOpen && 'w-72',
 	]}
-	{@attach drawerOpen && dockInspector}
+	style:width={floating ? `min(calc(100% - 3rem), max(${minWidth}px, 50%))` : undefined}
+	{@attach dockInspector(!drawerOpen)}
+	{@attach floating && dismissOnOutside(closeDrawer, '[data-inspector-dock]')}
 	aria-label="Inspector"
 	aria-busy={drawerOpen &&
 		!inspectorRuntimeReady &&
@@ -1006,6 +1028,16 @@
 				<p class="text-fg-tertiary max-w-64 text-sm">No inspector panels are registered.</p>
 			</div>
 		{/if}
+	{:else}
+		<ExtensionGutter
+			{workstreamId}
+			{workstreamName}
+			rows={compactRows}
+			disabled={!inspectorInteractive}
+			{renderIcon}
+			onopen={openPanel}
+			onshow={openDrawer}
+		/>
 	{/if}
 
 	{#each keepAlive.entries as entry (entry.workstreamId)}

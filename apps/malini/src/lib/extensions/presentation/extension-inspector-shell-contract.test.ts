@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(new URL('./ExtensionInspectorShell.svelte', import.meta.url), 'utf8');
 const gutterSource = readFileSync(new URL('./ExtensionGutter.svelte', import.meta.url), 'utf8');
-const railSource = readFileSync(new URL('./ExtensionGutterRail.svelte', import.meta.url), 'utf8');
 
 describe('ExtensionInspectorShell contract', () => {
 	it('stays registry-driven and renders every visible panel as a full-label browser tab', () => {
@@ -169,19 +168,17 @@ describe('ExtensionInspectorShell contract', () => {
 		expect(source).toContain('{#if drawerOpen}');
 	});
 
-	it('takes no track in the split while closed, without remounting the panel cache', () => {
-		const shell = source.slice(source.indexOf('<section'), source.indexOf('{#if drawerOpen}'));
-		expect(shell).toContain(": 'hidden',");
+	it('draws compact, open and floating from one section, so the panel cache never remounts', () => {
 		expect(source.match(/<section/gu)).toHaveLength(1);
 		expect(source).not.toContain('<svelte:element');
 	});
 
-	it('offers a labeled control in both directions and drops the card while closed', () => {
+	it('offers a labeled control in both directions', () => {
 		expect(gutterSource).toContain('data-testid="extension-inspector-show"');
 		expect(gutterSource).toContain('ariaLabel="Show inspector"');
 		expect(gutterSource).toContain('content="Show inspector"');
 		expect(gutterSource).toContain('onclick={onshow}');
-		expect(railSource).toContain('onshow={() => inspectorDrawer.open(workstreamId)}');
+		expect(source).toContain('onshow={openDrawer}');
 		expect(source).toContain('data-testid="extension-inspector-hide"');
 		expect(source).toContain('ariaLabel="Hide inspector"');
 		expect(source).toContain('content="Hide inspector"');
@@ -189,14 +186,9 @@ describe('ExtensionInspectorShell contract', () => {
 	});
 
 	it('makes every panel reachable from the closed state, not just the one already open', () => {
-		expect(railSource).toContain('<ExtensionGutter');
-		expect(railSource).toContain('const rows = $derived(inspectorGutter.rowsFor(workstreamId))');
-		expect(railSource).toContain('{rows}');
-		expect(railSource).toContain(
-			'onopen={(panelId) => inspectorGutter.openPanel(workstreamId, panelId)}',
-		);
-		expect(source).toContain('inspectorGutter.connect(gutterSource)');
-		expect(source).toContain('openPanel,');
+		expect(source).toContain('<ExtensionGutter');
+		expect(source).toContain('rows={compactRows}');
+		expect(source).toContain('onopen={openPanel}');
 		expect(gutterSource).toContain('onclick={() => onopen(row.panelId)}');
 		expect(gutterSource).toContain(
 			'data-navigation-path-id="expected-path:extension-inspector.open-panel"',

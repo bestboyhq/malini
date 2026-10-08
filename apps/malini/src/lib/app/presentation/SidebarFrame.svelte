@@ -6,7 +6,11 @@
 	import { resetSidebarWidthCommand } from '$lib/app/application/commands/reset-sidebar-width.command';
 	import { resizeSidebarCommand } from '$lib/app/application/commands/resize-sidebar.command';
 	import { holdSidebarPresenceHook } from '$lib/app/application/hooks/hold-sidebar-presence.hook';
+	import { closeSidebarOverlayCommand } from '$lib/app/application/commands/close-sidebar-overlay.command';
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
+	import { sidebarOverlayQuery } from '$lib/app/application/queries/sidebar-overlay.query.svelte';
+	import { afterNavigate } from '$shared/router/navigation';
+	import { dismissOnOutside } from '$shared/shell/dismiss-on-outside';
 	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from '$lib/app/domain/sidebar-width';
 
@@ -22,6 +26,9 @@
 
 	const width = $derived(sidebarWidthQuery.data);
 	const collapsed = $derived(sidebarCollapsedQuery.data);
+	const overlayOpen = $derived(sidebarOverlayQuery.data);
+
+	afterNavigate(closeSidebarOverlayCommand);
 
 	let drag: { pointerId: number; startX: number; startWidth: number } | null = null;
 
@@ -76,7 +83,27 @@
 	}
 </script>
 
-{#if !collapsed}
+{#if overlayOpen}
+	<aside
+		{@attach dismissOnOutside(closeSidebarOverlayCommand, '[data-sidebar-toggle]')}
+		class={[
+			'sidebar-overlay bg-surface-50 border-surface-50-border shadow-popup flex min-w-0 flex-col overflow-hidden rounded-2xl border-[0.5px]',
+			className,
+		]}
+		style:width={`${width}px`}
+		data-testid={testId}
+		data-sidebar-overlay
+		{...rest}
+	>
+		{#if lead}
+			{@render lead()}
+		{/if}
+
+		<div class="flex min-h-0 flex-1 flex-col pt-2">
+			{@render children()}
+		</div>
+	</aside>
+{:else if !collapsed}
 	<aside
 		use:sidebarGeometry
 		class={['bg-surface-50 flex h-full min-w-0 shrink-0 flex-col overflow-hidden', className]}
@@ -120,6 +147,15 @@
 {/if}
 
 <style>
+	.sidebar-overlay {
+		position: absolute;
+		z-index: 60;
+		top: var(--native-titlebar-safe-area);
+		bottom: 8px;
+		left: 8px;
+		max-width: calc(100% - 64px);
+	}
+
 	.shell-sidebar-band {
 		flex-shrink: 0;
 		height: var(--native-titlebar-safe-area);
@@ -143,7 +179,7 @@
 		position: absolute;
 		inset: 0 auto 0 0;
 		width: 1px;
-		background: var(--color-surface-50-border);
+		background: transparent;
 	}
 
 	.shell-sidebar-handle:hover::after,

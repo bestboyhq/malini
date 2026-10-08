@@ -26,7 +26,7 @@ interface Layout {
 	name: string;
 	width: number;
 	sidebar: 'shown' | 'hidden';
-	inspector: 'shown' | 'hidden';
+	inspector: 'open' | 'compact';
 	reducedMotion: 'no-preference' | 'reduce';
 }
 
@@ -35,22 +35,28 @@ const LAYOUTS: readonly Layout[] = [
 		name: '1280-wide',
 		width: 1280,
 		sidebar: 'shown',
-		inspector: 'shown',
+		inspector: 'open',
 		reducedMotion: 'no-preference',
 	},
-	{ name: '900-wide', width: 900, sidebar: 'shown', inspector: 'shown', reducedMotion: 'reduce' },
 	{
-		name: '900-wide-no-inspector',
+		name: '900-wide',
 		width: 900,
-		sidebar: 'shown',
-		inspector: 'hidden',
+		sidebar: 'hidden',
+		inspector: 'compact',
+		reducedMotion: 'reduce',
+	},
+	{
+		name: '900-wide-inspector-open',
+		width: 900,
+		sidebar: 'hidden',
+		inspector: 'open',
 		reducedMotion: 'no-preference',
 	},
 	{
 		name: '1280-wide-no-panels',
 		width: 1280,
 		sidebar: 'hidden',
-		inspector: 'hidden',
+		inspector: 'compact',
 		reducedMotion: 'reduce',
 	},
 ];
@@ -59,6 +65,14 @@ async function commitWork(worktree: string): Promise<void> {
 	writeFileSync(join(worktree, 'committed.txt'), 'committed\n');
 	await git(worktree, ['add', '.']);
 	await git(worktree, ['commit', '-m', 'work']);
+}
+
+async function archiveAll(page: Page, names: readonly string[]): Promise<void> {
+	const showSidebar = page.getByRole('button', { name: 'Show sidebar' });
+	const folded = await showSidebar.isVisible();
+	if (folded) await showSidebar.click();
+	for (const name of names) await archive(page, name);
+	if (folded) await page.keyboard.press('Escape');
 }
 
 async function archive(page: Page, name: string): Promise<void> {
@@ -83,7 +97,8 @@ async function watchFooterCoverage(page: Page): Promise<void> {
 						const x = box.left + 2 + ((box.width - 4) * column) / 12;
 						const y = box.top + 2 + ((box.height - 4) * row) / 3;
 						const hit = body.ownerDocument.elementFromPoint(x, y);
-						if (hit && !footer?.contains(hit) && covered.length < 20) {
+						const opened = hit?.closest('[data-sidebar-overlay]');
+						if (hit && !opened && !footer?.contains(hit) && covered.length < 20) {
 							const toast = hit.closest('[data-testid="toast"]');
 							covered.push(
 								`${Math.round(x)},${Math.round(y)}: ${toast?.textContent ?? hit.tagName}`,
@@ -152,14 +167,25 @@ async function expandStack(page: Page): Promise<void> {
 }
 
 async function setLayout(page: Page, layout: Layout): Promise<void> {
-	if (layout.sidebar === 'hidden') {
-		await page.getByRole('button', { name: 'Hide sidebar' }).click();
-		await expect(page.getByRole('button', { name: 'Show sidebar' })).toBeVisible();
-	}
-	if (layout.inspector === 'hidden') {
+	const hideSidebar = page.getByRole('button', { name: 'Hide sidebar' });
+	if (layout.sidebar === 'hidden' && (await hideSidebar.isVisible())) await hideSidebar.click();
+	await expect(
+		page.getByRole('button', {
+			name: layout.sidebar === 'hidden' ? 'Show sidebar' : 'Hide sidebar',
+		}),
+	).toBeVisible();
+	const inspector = page.getByTestId('extension-inspector-shell');
+	const open = (await inspector.getAttribute('data-inspector-drawer-open')) === 'true';
+	if (layout.inspector === 'compact' && open) {
 		await page.getByRole('button', { name: 'Hide inspector' }).click();
-		await expect(page.getByRole('button', { name: 'Show inspector' })).toBeVisible();
 	}
+	if (layout.inspector === 'open' && !open) {
+		await page.getByRole('button', { name: 'Show inspector' }).click();
+	}
+	await expect(inspector).toHaveAttribute(
+		'data-inspector-drawer-open',
+		layout.inspector === 'open' ? 'true' : 'false',
+	);
 }
 
 for (const layout of LAYOUTS) {
@@ -210,7 +236,7 @@ for (const layout of LAYOUTS) {
 			await expect(page.getByTestId('chat-changed-files')).toBeVisible();
 			await watchFooterCoverage(page);
 
-			for (const name of [...SHORT_NAMES, ARCHIVED_NAME]) await archive(page, name);
+			await archiveAll(page, [...SHORT_NAMES, ARCHIVED_NAME]);
 			await setLayout(page, layout);
 			await page.mouse.move(4, 4);
 			await expect(page.getByTestId('toast').filter({ hasText: 'saved' })).toHaveCount(3, {

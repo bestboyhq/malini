@@ -202,7 +202,7 @@ describe('ResizableSplit closed secondary pane', () => {
 	});
 
 	it('removes the drag handle while there is no boundary to drag', () => {
-		expect(source).toContain('const showHandle = $derived(!isCollapsed && !secondaryClosed)');
+		expect(source).toContain('const showHandle = $derived(!secondaryClosed)');
 		expect(source).toContain('{#if showHandle}');
 		expect(source).toContain("data-secondary-open={secondaryOpen ? 'true' : 'false'}");
 	});

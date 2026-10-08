@@ -40,10 +40,8 @@
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
-	import { ExtensionGutterRail, WorkstreamDocument } from '$lib/extensions/extensions.api';
-	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
+	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
-	import { EXTENSION_GUTTER_WIDTH } from '$shared/extensions/inspector-gutter-row';
 	import { loadModelDefaultsCommand, modelDefaultsQuery } from '$shared/providers/providers.api';
 	import {
 		DependencyInstallBanner,
@@ -115,7 +113,6 @@
 
 	const documentActive = $derived(workstreamTabs.for(workstreamId).activeDocumentId !== null);
 
-	const railInset = $derived(inspectorDrawer.isOpen(workstreamId) ? '0px' : EXTENSION_GUTTER_WIDTH);
 	const freshChat = $derived(
 		sessionId === null &&
 			bootError === null &&
@@ -242,9 +239,8 @@
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
-						style={`--chat-footer-inset: ${footerHeight}px; --transcript-rail-inset: ${railInset};`}
+						style={`--chat-footer-inset: ${footerHeight}px;`}
 						aria-busy={presentationPending}
-						data-stage-rail-inset={railInset}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>
 						<div
@@ -278,7 +274,7 @@
 						</div>
 
 						<div
-							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-2"
+							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-[var(--scrollbar-gutter)]"
 							bind:clientHeight={footerHeight}
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
@@ -330,14 +326,10 @@
 						</div>
 
 						{#if documentActive}
-							<div
-								class="bg-surface-root absolute inset-y-0 right-[var(--transcript-rail-inset)] left-0 z-30 flex min-h-0"
-							>
+							<div class="bg-surface-root absolute inset-0 z-30 flex min-h-0">
 								<WorkstreamDocument {workstreamId} />
 							</div>
 						{/if}
-
-						<ExtensionGutterRail {workstreamId} />
 					</div>
 				</section>
 			</div>
@@ -353,7 +345,7 @@
 	.chat-footer-scrim::before {
 		position: absolute;
 		bottom: 100%;
-		right: 0.5rem;
+		right: var(--scrollbar-gutter);
 		left: 0;
 		height: 1.5rem;
 		content: '';
@@ -364,7 +356,7 @@
 	.chat-footer-scrim::after {
 		position: absolute;
 		z-index: -1;
-		inset: 0 0.5rem 0 0;
+		inset: 0 var(--scrollbar-gutter) 0 0;
 		content: '';
 		pointer-events: none;
 		background-color: var(--color-surface-root);

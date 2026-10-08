@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import CodeTokens from './CodeTokens.svelte';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import ToolImageRow from './ToolImageRow.svelte';
@@ -81,10 +80,6 @@
 		]),
 	);
 
-	const typedPath = $derived(
-		editPath && (actionKind === 'edit' || actionKind === 'read') ? editPath : null,
-	);
-
 	const imageRead = $derived(toolImageRead(name, labelInput, output));
 
 	function stringAt(value: unknown, keys: readonly string[]): string | null {
@@ -136,49 +131,47 @@
 {:else}
 	<details class="group/tool text-sm" data-tool-status={status} bind:open={expanded}>
 		<summary
-			class="text-fg-secondary hover:text-fg-default flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
+			class="group/summary text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 			aria-label={`${expanded ? 'Hide' : 'Show'} input and output for ${displayName}`}
 			data-testid="tool-card-summary"
 		>
-			<Icon
-				name="chevron-right"
-				size={10}
-				class="shrink-0 transition-transform duration-150 group-open/tool:rotate-90"
-			/>
-			<span
-				class={[
-					'grid h-3.5 w-3.5 shrink-0 place-items-center',
-					status === 'running' && !waiting && 'tool-mark-live text-fg-default',
-				]}
-				aria-hidden="true"
-			>
-				{#if typedPath}
-					<FileTypeIcon path={typedPath} size={13} testId="tool-card-file-icon" />
-				{:else if actionKind === 'edit'}
-					<Icon name="pencil" class="text-fg-tertiary shrink-0" size={13} />
-				{:else if actionKind === 'command'}
-					<Icon name="terminal" size={14} class="shrink-0" />
-				{:else if actionKind === 'read'}
-					<Icon name="note" size={14} class="shrink-0" />
-				{:else if actionKind === 'search'}
-					<Icon name="search" size={14} class="shrink-0" />
-				{:else}
-					<Icon name="wrench" size={14} class="shrink-0" />
-				{/if}
+			<span class="relative h-3.5 w-3.5 shrink-0" aria-hidden="true">
+				<span
+					class={[
+						'absolute inset-0 grid place-items-center transition-opacity group-open/tool:opacity-0 group-hover/summary:opacity-0',
+						status === 'running' && !waiting && 'tool-mark-live text-fg-secondary',
+					]}
+				>
+					{#if actionKind === 'edit'}
+						<Icon name="pencil" class="shrink-0" size={13} />
+					{:else if actionKind === 'command'}
+						<Icon name="terminal" size={14} class="shrink-0" />
+					{:else if actionKind === 'read'}
+						<Icon name="note" size={14} class="shrink-0" />
+					{:else if actionKind === 'search'}
+						<Icon name="search" size={14} class="shrink-0" />
+					{:else}
+						<Icon name="wrench" size={14} class="shrink-0" />
+					{/if}
+				</span>
+				<Icon
+					name="chevron-right"
+					class="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-[opacity,transform] duration-150 group-open/tool:rotate-90 group-open/tool:opacity-100 group-hover/summary:opacity-100"
+				/>
 			</span>
 			{#if actionKind === 'edit' && workstreamId && editPath}
 				<EditDiffPreview {workstreamId} path={editPath} {label} />
 			{:else if description}
 				<span class="flex min-w-0 flex-1 items-baseline gap-2">
-					<span class="text-fg-default min-w-0 truncate" data-tool-description>
+					<span class="text-fg-secondary min-w-0 truncate" data-tool-description>
 						<SensitiveText text={description} />
 					</span>
-					<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate font-mono">
+					<span class="text-2xs min-w-0 flex-1 truncate font-mono">
 						<SensitiveText text={label} />
 					</span>
 				</span>
 			{:else}
-				<span class="text-fg-default min-w-0 flex-1 truncate"><SensitiveText text={label} /></span>
+				<span class="min-w-0 flex-1 truncate"><SensitiveText text={label} /></span>
 			{/if}
 			{#if diffstat}
 				<span
