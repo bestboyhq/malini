@@ -15,7 +15,7 @@
 		workstreamName?: string | null;
 		rows: readonly GutterRow[];
 		disabled?: boolean;
-		renderIcon?: Snippet<[icon: string, size: number]>;
+		renderIcon?: Snippet<[icon: string, size: number]> | undefined;
 		onopen: (panelId: string) => void;
 		onshow: () => void;
 	}

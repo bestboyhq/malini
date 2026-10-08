@@ -19,7 +19,8 @@ function occurrences(haystack: string, needle: string): number {
 
 describe('the resting global top bar', () => {
 	it('draws one git control and one way to open the detail', () => {
-		expect(occurrences(restingState, 'data-testid="global-topbar-github-action"')).toBe(1);
+		expect(occurrences(source, "testId: 'global-topbar-github-action'")).toBe(1);
+		expect(occurrences(restingState, 'data-testid={action.testId}')).toBe(1);
 		expect(occurrences(restingState, 'data-testid="global-topbar-github-status"')).toBe(1);
 		expect(restingState).toContain('aria-haspopup="dialog"');
 	});

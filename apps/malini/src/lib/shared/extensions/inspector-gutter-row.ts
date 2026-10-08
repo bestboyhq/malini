@@ -1,7 +1,5 @@
 import type { InspectorPanel } from './inspector-panel';
 
-export const EXTENSION_GUTTER_WIDTH = '14rem';
-
 export const GUTTER_CHANGES_PANEL_ID = 'malini.repository.files-panel';
 
 export type GutterChangeTotals = Readonly<{

@@ -158,9 +158,6 @@
 	--themed-color-chip-border: var(--color-chip-border-dark);
 	--themed-color-chip-hover: var(--color-chip-hover-dark);
 
-	--themed-color-tabs-box: var(--color-tabs-box-dark);
-	--themed-color-tab-selected: var(--color-tab-selected-dark);
-	--themed-color-tab-selected-border: var(--color-tab-selected-border-dark);
 	--themed-color-tab-hover: var(--color-tab-hover-dark);
 
 	--themed-color-border-default: var(--color-border-default-dark);

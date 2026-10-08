@@ -21,6 +21,7 @@ export const glyphs = {
 	"chevron-down": { outline: "M4.25 6.25 8 10l3.75-3.75", solid: "" },
 	"chevron-left": { outline: "M10 4.25 6.25 8 10 11.75", solid: "" },
 	"chevron-right": { outline: "M6 4.25 9.75 8 6 11.75", solid: "" },
+	"chevrons-right": { outline: "M3.75 4.25 7.5 8l-3.75 3.75M8.75 4.25 12.5 8l-3.75 3.75", solid: "" },
 	"circle": { outline: "M2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0 -11.5 0Z", solid: "" },
 	"circle-dot": { outline: "M2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0 -11.5 0Z", solid: "M6.5 8a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0Z" },
 	"circle-slash": { outline: "M2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0 -11.5 0ZM3.95 3.95l8.1 8.1", solid: "" },

@@ -13,6 +13,7 @@
 	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { toggleSidebarCommand } from '$lib/app/application/commands/toggle-sidebar.command';
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
+	import { sidebarOverlayQuery } from '$lib/app/application/queries/sidebar-overlay.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import {
 		globalTopBarActionMatchesPathname,
@@ -37,6 +38,7 @@
 	const targetPathname = $derived(navigating.to?.url?.pathname ?? page.url.pathname);
 	const routeTransitionPending = $derived(navigating.to !== null);
 	const sidebarCollapsed = $derived(sidebarCollapsedQuery.data);
+	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
@@ -52,6 +54,7 @@
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
 	const dockWidth = $derived(inspectorDock.width);
+	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
 	let rightClusterElement: HTMLDivElement | undefined = $state();
 	let rightClusterWidth = $state(0);
 	const RIGHT_CLUSTER_GUTTER_PX = 24;
@@ -93,6 +96,7 @@
 			tooltip: action.tooltip,
 			tone: action.tone,
 			icon: action.icon ?? null,
+			compactIcon: action.compactIcon ?? null,
 			disabled: action.disabled,
 			busy: action.busy,
 			testId: 'global-topbar-github-action',
@@ -109,6 +113,7 @@
 			ariaLabel: action.ariaLabel,
 			tooltip: action.tooltip,
 			tone: action.tone,
+			compactIcon: action.compactIcon ?? null,
 			disabled: action.disabled,
 			busy: action.busy,
 			testId: 'global-topbar-github-secondary-action',
@@ -189,26 +194,34 @@
 	}
 </script>
 
-{#snippet githubAction(action: GlobalTopBarAction, split: boolean)}
-	<Tooltip content={action.tooltip} placement="bottom">
+{#snippet githubAction(action: GlobalTopBarAction, className: string)}
+	{@const compactIcon = dockCompact ? action.compactIcon : null}
+	<Tooltip
+		content={compactIcon ? `${action.label} · ${action.tooltip}` : action.tooltip}
+		placement="bottom"
+	>
 		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			type="button"
-			class="topbar-action topbar-git__action"
-			class:topbar-git__action--split={split}
+			class={['topbar-action', className]}
+			class:topbar-action--icon={compactIcon}
 			data-tone={action.tone ?? 'secondary'}
 			disabled={action.disabled || action.busy || routeTransitionPending}
 			aria-label={action.ariaLabel}
 			aria-busy={action.busy || undefined}
-			data-testid="global-topbar-github-action"
+			data-testid={action.testId}
 			onclick={() => onBarActionClicked(action)}
 		>
 			{#if action.busy}
 				<BusyIcon size={12} />
+			{:else if compactIcon}
+				<Icon name={compactIcon} size={13} />
 			{:else if action.icon}
 				<Icon name={action.icon} size={12} />
 			{/if}
-			<span>{action.label}</span>
+			{#if !compactIcon}
+				<span>{action.label}</span>
+			{/if}
 		</button>
 	</Tooltip>
 {/snippet}
@@ -255,13 +268,15 @@
 		data-testid="global-topbar-left"
 	>
 		{#if sidebarMounted}
-			<Tooltip content={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'} placement="bottom">
+			<Tooltip content={sidebarShown ? 'Hide sidebar' : 'Show sidebar'} placement="bottom">
 				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 				<button
 					type="button"
 					class="topbar-chrome"
-					aria-label={sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'}
+					aria-label={sidebarShown ? 'Hide sidebar' : 'Show sidebar'}
+					aria-expanded={sidebarShown}
 					data-testid="global-topbar-sidebar-toggle"
+					data-sidebar-toggle
 					onclick={toggleSidebarCommand}
 				>
 					<Icon name="sidebar" />
@@ -317,6 +332,7 @@
 		bind:this={rightClusterElement}
 		class="topbar-right"
 		data-docked={dockWidth === null ? undefined : ''}
+		data-inspector-dock
 		style={dockWidth === null ? undefined : `--dock-width: ${dockWidth}px;`}
 		data-testid="global-topbar-right"
 	>
@@ -396,34 +412,19 @@
 					</Tooltip>
 				{/if}
 				{#if githubSecondaryAction}
-					{@const action = githubSecondaryAction}
-					<Tooltip content={action.tooltip} placement="bottom">
-						<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-						<button
-							type="button"
-							class="topbar-action topbar-git__secondary"
-							data-tone="secondary"
-							disabled={action.disabled || routeTransitionPending}
-							aria-label={action.ariaLabel}
-							aria-busy={action.busy || undefined}
-							data-testid="global-topbar-github-secondary-action"
-							onclick={() => onBarActionClicked(action)}
-						>
-							{#if action.busy}
-								<BusyIcon size={12} />
-							{/if}
-							<span>{action.label}</span>
-						</button>
-					</Tooltip>
+					{@render githubAction(githubSecondaryAction, 'topbar-git__secondary')}
 				{/if}
 				{#if githubStatus.reference}
 					{#if githubPrimaryAction}
-						{@render githubAction(githubPrimaryAction, false)}
+						{@render githubAction(githubPrimaryAction, 'topbar-git__action')}
 					{/if}
 				{:else}
 					<div class="topbar-git__split">
 						{#if githubPrimaryAction}
-							{@render githubAction(githubPrimaryAction, true)}
+							{@render githubAction(
+								githubPrimaryAction,
+								'topbar-git__action topbar-git__action--split',
+							)}
 						{/if}
 						{@render githubDisclosure(null)}
 					</div>
@@ -953,7 +954,14 @@
 	.topbar-git__secondary {
 		border-width: 1px;
 		border-style: dashed;
+		border-color: color-mix(in srgb, currentColor 35%, transparent);
 		background: transparent;
+	}
+
+	.topbar-git .topbar-action.topbar-action--icon {
+		width: var(--topbar-control-height, 26px);
+		justify-content: center;
+		padding: 0;
 	}
 
 	.topbar-git__action--split {

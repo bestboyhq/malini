@@ -13,7 +13,6 @@
 		savePanelSize,
 	} from './resizable-split';
 
-	type CollapseBreakpoint = 'sm' | 'md' | 'lg';
 	type ResizeAxis = 'horizontal' | 'vertical';
 
 	interface Props {
@@ -24,7 +23,6 @@
 		maxSize: number;
 		secondaryMinSize?: number;
 		secondaryOpen?: boolean;
-		collapseBelow?: CollapseBreakpoint;
 		axis?: ResizeAxis;
 		storageKey?: string;
 		a: Snippet;
@@ -41,7 +39,6 @@
 		maxSize,
 		secondaryMinSize = 0,
 		secondaryOpen = true,
-		collapseBelow,
 		axis = 'horizontal',
 		storageKey,
 		a,
@@ -55,17 +52,10 @@
 	const ratioMode = $derived(defaultRatio !== undefined);
 	const fallbackRatio = $derived(clampRatio(defaultRatio ?? 0.5));
 
-	const BREAKPOINT_PX: Record<CollapseBreakpoint, number> = {
-		sm: 640,
-		md: 768,
-		lg: 1024,
-	};
-
 	let size = $state(untrack(() => clampSize(defaultSize ?? minSize, minSize, maxSize)));
 	let panelRatio = $state(untrack(() => clampRatio(defaultRatio ?? 0.5)));
 	let containerWidth = $state(0);
 	let containerHeight = $state(0);
-	let isCollapsed = $state(false);
 
 	let containerEl: HTMLDivElement | null = $state(null);
 
@@ -77,7 +67,7 @@
 	const gridStyle = $derived(
 		secondaryClosed ? closedSecondaryGridTemplate() : gridTemplate(size, axis),
 	);
-	const showHandle = $derived(!isCollapsed && !secondaryClosed);
+	const showHandle = $derived(!secondaryClosed);
 	const orientation = $derived<ResizeAxis>(axis === 'horizontal' ? 'vertical' : 'horizontal');
 	const containerExtent = $derived(axis === 'horizontal' ? containerWidth : containerHeight);
 	const effectiveMaxSize = $derived.by(() => {
@@ -116,7 +106,6 @@
 	}
 
 	function onPointerDown(event: PointerEvent): void {
-		if (isCollapsed) return;
 		if (event.button !== 0 && event.pointerType === 'mouse') return;
 		event.preventDefault();
 		const target = event.currentTarget;
@@ -152,7 +141,6 @@
 	}
 
 	function onKeyDown(event: KeyboardEvent): void {
-		if (isCollapsed) return;
 		const step = event.shiftKey ? 16 : 1;
 		if (axis === 'horizontal') {
 			if (event.key === 'ArrowLeft') {
@@ -185,24 +173,6 @@
 			persistSize();
 		}
 	}
-
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		if (!collapseBelow) {
-			isCollapsed = false;
-			return;
-		}
-		const threshold = BREAKPOINT_PX[collapseBelow];
-		const mql = window.matchMedia(`(max-width: ${threshold - 1}px)`);
-		const sync = (): void => {
-			isCollapsed = mql.matches;
-		};
-		sync();
-		mql.addEventListener('change', sync);
-		return () => {
-			mql.removeEventListener('change', sync);
-		};
-	});
 
 	function loadStored(): void {
 		if (!ratioMode) {
@@ -266,18 +236,14 @@
 	bind:this={containerEl}
 	class={[
 		'grid h-full min-h-0 overflow-hidden',
-		isCollapsed
-			? 'grid-cols-1 grid-rows-[var(--resizable-split-rows)]'
-			: axis === 'horizontal'
-				? 'grid-cols-[var(--resizable-split-cols)]'
-				: 'grid-rows-[var(--resizable-split-rows)]',
+		axis === 'horizontal'
+			? 'grid-cols-[var(--resizable-split-cols)]'
+			: 'grid-rows-[var(--resizable-split-rows)]',
 		className,
 	]}
-	style={isCollapsed
-		? `--resizable-split-rows: ${secondaryClosed ? closedSecondaryGridTemplate() : 'auto auto'}`
-		: axis === 'horizontal'
-			? `--resizable-split-cols: ${gridStyle}`
-			: `--resizable-split-rows: ${gridStyle}`}
+	style={axis === 'horizontal'
+		? `--resizable-split-cols: ${gridStyle}`
+		: `--resizable-split-rows: ${gridStyle}`}
 	data-storage-key={key}
 	data-storage-prefix="malini.app.panel"
 	data-secondary-open={secondaryOpen ? 'true' : 'false'}

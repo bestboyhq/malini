@@ -722,3 +722,54 @@ test('kept files overflow into the more menu instead of pushing the strip off sc
 		await app.close();
 	}
 });
+
+test('tabs shrink to share the strip, and hovering a shrunk tab reveals its whole name', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const names = Array.from(
+			{ length: 4 },
+			(_, index) => `shared-workspace-configuration-${index + 1}.ts`,
+		);
+		await workstreamWithFiles(
+			app,
+			'e2e-shrink-ws',
+			Object.fromEntries(names.map((name) => [name, `export const value = '${name}';\n`])),
+		);
+		for (const name of names) {
+			await page.getByRole('treeitem', { name: `Open ${name}` }).click();
+			const tab = tabRow(page).getByRole('tab', { name, exact: true });
+			await expect(tab).toHaveAttribute('aria-selected', 'true');
+			await tab.dblclick();
+		}
+
+		await expect(page.getByTestId('chat-agent-overflow')).toHaveCount(0);
+		const stripBox = await strip(page).boundingBox();
+		if (!stripBox) throw new Error('the tab strip is not on screen');
+		for (const name of names) {
+			const box = await tabRow(page).getByRole('tab', { name, exact: true }).boundingBox();
+			expect(box?.x ?? -1).toBeGreaterThanOrEqual(stripBox.x);
+			expect((box?.x ?? Infinity) + (box?.width ?? 0)).toBeLessThanOrEqual(
+				stripBox.x + stripBox.width + 1,
+			);
+		}
+
+		const first = tabRow(page).getByRole('tab', { name: names[0] ?? '', exact: true });
+		const nameEndPastTab = (): Promise<number> =>
+			first.evaluate((tab) => {
+				const range = tab.ownerDocument.createRange();
+				range.selectNodeContents(tab);
+				return range.getBoundingClientRect().right - tab.getBoundingClientRect().right;
+			});
+		expect(await nameEndPastTab()).toBeGreaterThan(0);
+		await first.hover();
+		await expect.poll(nameEndPastTab).toBeLessThan(0);
+
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'open-file-8-shrink');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

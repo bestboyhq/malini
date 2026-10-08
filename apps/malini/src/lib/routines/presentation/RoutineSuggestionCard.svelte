@@ -18,7 +18,7 @@
 </script>
 
 <li
-	class="border-surface-100-border bg-surface-100 rounded-lg border px-3 py-2.5"
+	class="border-surface-50-border bg-surface-50 rounded-2xl border-[0.5px] px-4 py-3.5"
 	data-testid="routine-suggestion"
 	data-suggestion-id={suggestion.id}
 >

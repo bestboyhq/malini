@@ -109,11 +109,13 @@ describe('inspector split wiring', () => {
 		'utf8',
 	);
 
-	it('hands the transcript its width back when the drawer is closed', () => {
+	it('hands the transcript its width back when the drawer is closed or floats over it', () => {
 		expect(split).toContain(
 			"import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte'",
 		);
-		expect(split).toContain('const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId))');
+		expect(split).toContain(
+			'const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay)',
+		);
 		expect(split).toContain('{secondaryOpen}');
 	});
 });

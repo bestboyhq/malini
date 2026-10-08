@@ -67,7 +67,7 @@
 	{#snippet trigger({ open })}
 		<Button
 			bare
-			class="text-fg-tertiary hover:bg-surface-150-hover hover:text-fg-secondary focus-visible:bg-surface-150-hover focus-visible:text-fg-secondary focus-visible:ring-border-default/50 min-w-0 flex-1 cursor-default truncate rounded px-0.5 text-left transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
+			class="text-fg-tertiary hover:bg-surface-150-hover hover:text-fg-secondary focus-visible:bg-surface-150-hover focus-visible:text-fg-secondary focus-visible:ring-border-default/50 -mx-0.5 min-w-0 flex-1 cursor-default truncate rounded px-0.5 text-left transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
 			ariaLabel={`Preview current changes to ${relativePath}`}
 			ariaExpanded={open}
 			ariaHasPopup="dialog"

@@ -22,6 +22,25 @@ describe('agent chat overflow tabs', () => {
 		expect(result.hidden).toEqual(['three', 'four']);
 	});
 
+	it('shrinks tabs down to the minimum width before hiding any', () => {
+		const measure = (minItemWidth: number) =>
+			computeOverflowTabs({
+				items,
+				getId: (item) => item,
+				pinnedId: null,
+				measurements: {
+					availableWidth: 330,
+					reservedWidth: 50,
+					overflowWidth: 40,
+					itemWidths: { ...widths, one: 30 },
+					minItemWidth,
+					gap: 4,
+				},
+			});
+		expect(measure(50).hidden).toEqual([]);
+		expect(measure(60).hidden).toEqual(['five']);
+	});
+
 	it('shows every tab when measurements fit', () => {
 		const result = computeOverflowTabs({
 			items,

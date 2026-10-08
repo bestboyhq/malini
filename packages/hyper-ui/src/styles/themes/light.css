@@ -159,9 +159,6 @@
 	--themed-color-chip-border: var(--color-chip-border-light);
 	--themed-color-chip-hover: var(--color-chip-hover-light);
 
-	--themed-color-tabs-box: var(--color-tabs-box-light);
-	--themed-color-tab-selected: var(--color-tab-selected-light);
-	--themed-color-tab-selected-border: var(--color-tab-selected-border-light);
 	--themed-color-tab-hover: var(--color-tab-hover-light);
 
 	--themed-color-border-default: var(--color-border-default-light);

@@ -55,7 +55,7 @@
 	});
 
 	const promptBoxClass =
-		'w-full rounded-xl border px-3.5 py-2.5 text-left text-sm leading-6 select-none';
+		'w-full rounded-xl border px-3 py-2.5 text-left text-sm leading-6 select-none';
 </script>
 
 {#snippet promptBody()}
@@ -98,7 +98,7 @@
 					bind:value={checkpointEdit.editingPrompt}
 					bare
 					rows={1}
-					textareaClass="block w-full overflow-hidden border-0 bg-transparent px-3.5 py-2.5 text-sm leading-6 select-text"
+					textareaClass="block w-full overflow-hidden border-0 bg-transparent px-3 py-2.5 text-sm leading-6 select-text"
 					ariaLabel="Edit message"
 					disabled={submitting}
 					oninput={checkpointEdit.autosizeCheckpointEditor}
@@ -111,7 +111,7 @@
 					}}
 				/>
 				{#if checkpointEdit.checkpointEditError}
-					<p class="text-error-content px-3.5 pb-2 text-xs" role="alert">
+					<p class="text-error-content px-3 pb-2 text-xs" role="alert">
 						{checkpointEdit.checkpointEditError}
 					</p>
 				{/if}

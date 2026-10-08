@@ -1,12 +1,12 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import ExtensionGutterRailHarness from './fixtures/ExtensionGutterRailHarness.svelte';
+import ExtensionInspectorCompactHarness from './fixtures/ExtensionInspectorCompactHarness.svelte';
 import {
 	panelRegistration,
-	RailHarnessProps,
+	CompactHarnessProps,
 	RegistryHarnessProps,
-} from './fixtures/extension-gutter-rail-harness.svelte';
+} from './fixtures/extension-inspector-compact-harness.svelte';
 import { INSPECTOR_DRAWER_STORAGE_KEY_PREFIX } from '$shared/extensions/inspector-drawer.store.svelte';
 import {
 	INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
@@ -32,14 +32,14 @@ function recordDrawerClosed(workstreamId: string): void {
 
 type Harness = Readonly<{
 	host: HTMLElement;
-	props: RailHarnessProps;
+	props: CompactHarnessProps;
 	stop: () => void;
 }>;
 
-function render(props: RailHarnessProps): Harness {
+function render(props: CompactHarnessProps): Harness {
 	const host = document.createElement('div');
 	document.body.append(host);
-	const app = mount(ExtensionGutterRailHarness, { target: host, props });
+	const app = mount(ExtensionInspectorCompactHarness, { target: host, props });
 	flushSync();
 	return {
 		host,
@@ -58,7 +58,7 @@ function renderWithRegistry(
 	seed(props);
 	const host = document.createElement('div');
 	document.body.append(host);
-	const app = mount(ExtensionGutterRailHarness, {
+	const app = mount(ExtensionInspectorCompactHarness, {
 		target: host,
 		props: {
 			get workstreamId() {
@@ -84,30 +84,30 @@ function renderWithRegistry(
 	};
 }
 
-function railRows(host: HTMLElement): HTMLButtonElement[] {
+function compactRows(host: HTMLElement): HTMLButtonElement[] {
 	return [
 		...host.querySelectorAll<HTMLButtonElement>('[data-testid="extension-inspector-gutter-row"]'),
 	];
 }
 
-function railPanelIds(host: HTMLElement): string[] {
-	return railRows(host).map((row) => row.getAttribute('data-panel-id') ?? '');
+function compactPanelIds(host: HTMLElement): string[] {
+	return compactRows(host).map((row) => row.getAttribute('data-panel-id') ?? '');
 }
 
-function railLabels(host: HTMLElement): string[] {
-	return railRows(host).map((row) => row.children[1]?.textContent?.trim() ?? '');
+function compactLabels(host: HTMLElement): string[] {
+	return compactRows(host).map((row) => row.children[1]?.textContent?.trim() ?? '');
 }
 
-describe('the resting extensions rail', () => {
+describe('the compact inspector', () => {
 	beforeEach(() => {
 		globalThis.localStorage?.clear();
 		CLOSED_DRAWER_WORKSTREAM_IDS.forEach(recordDrawerClosed);
 	});
 
-	it('comes up open, with no rail, on a workstream nobody has closed', () => {
+	it('comes up open, with no compact list, on a workstream nobody has closed', () => {
 		globalThis.localStorage.clear();
 		const harness = render(
-			new RailHarnessProps({ workstreamName: 'Golden Circuit', panels: REGISTERED }),
+			new CompactHarnessProps({ workstreamName: 'Golden Circuit', panels: REGISTERED }),
 		);
 
 		expect(
@@ -115,7 +115,7 @@ describe('the resting extensions rail', () => {
 				.querySelector('[data-testid="extension-inspector-shell"]')
 				?.getAttribute('data-inspector-drawer-open'),
 		).toBe('true');
-		expect(harness.host.querySelector('[data-testid="extension-inspector-rail"]')).toBeNull();
+		expect(harness.host.querySelector('[data-testid="extension-inspector-gutter"]')).toBeNull();
 		expect(
 			harness.host
 				.querySelector('[data-testid="extension-inspector-tab"][aria-selected="true"]')
@@ -127,33 +127,33 @@ describe('the resting extensions rail', () => {
 
 	it('lists the workstream panels on first paint, with the drawer closed', () => {
 		const harness = render(
-			new RailHarnessProps({
+			new CompactHarnessProps({
 				workstreamName: 'Golden Circuit',
 				panels: REGISTERED,
 			}),
 		);
 
-		expect(harness.host.querySelector('[data-testid="extension-inspector-rail"]')).not.toBeNull();
-		expect(railPanelIds(harness.host)).toEqual([
+		expect(harness.host.querySelector('[data-testid="extension-inspector-gutter"]')).not.toBeNull();
+		expect(compactPanelIds(harness.host)).toEqual([
 			REPOSITORY_FILES_PANEL_ID,
 			REPOSITORY_CHANGES_PANEL_ID,
 			'example.terminal.panel',
 		]);
-		expect(railLabels(harness.host)).toEqual(['Files', 'Changes', 'Terminal']);
+		expect(compactLabels(harness.host)).toEqual(['Files', 'Changes', 'Terminal']);
 		expect(harness.host.textContent).toContain('On Golden Circuit');
-		expect(railRows(harness.host).every((row) => !row.disabled)).toBe(true);
+		expect(compactRows(harness.host).every((row) => !row.disabled)).toBe(true);
 
 		harness.stop();
 	});
 
 	it('picks up contributions that register after the first frame', () => {
-		const harness = render(new RailHarnessProps({ panels: [] }));
-		expect(railPanelIds(harness.host)).toEqual([]);
+		const harness = render(new CompactHarnessProps({ panels: [] }));
+		expect(compactPanelIds(harness.host)).toEqual([]);
 
 		harness.props.panels = REGISTERED;
 		flushSync();
 
-		expect(railLabels(harness.host)).toEqual(['Files', 'Changes', 'Terminal']);
+		expect(compactLabels(harness.host)).toEqual(['Files', 'Changes', 'Terminal']);
 		harness.stop();
 	});
 
@@ -162,16 +162,16 @@ describe('the resting extensions rail', () => {
 			new RegistryHarnessProps({ workstreamName: 'Golden Circuit' }),
 			(props) => props.register(panelRegistration(REPOSITORY_CHANGES_PANEL_ID, 'Changes')),
 		);
-		expect(railPanelIds(harness.host)).toEqual([REPOSITORY_CHANGES_PANEL_ID]);
+		expect(compactPanelIds(harness.host)).toEqual([REPOSITORY_CHANGES_PANEL_ID]);
 
 		harness.props.register(panelRegistration(REPOSITORY_FILES_PANEL_ID, 'Files'));
 		flushSync();
 
-		expect(railPanelIds(harness.host)).toEqual([
+		expect(compactPanelIds(harness.host)).toEqual([
 			REPOSITORY_FILES_PANEL_ID,
 			REPOSITORY_CHANGES_PANEL_ID,
 		]);
-		expect(railLabels(harness.host)).toEqual(['Files', 'Changes']);
+		expect(compactLabels(harness.host)).toEqual(['Files', 'Changes']);
 		harness.stop();
 	});
 
@@ -186,9 +186,9 @@ describe('the resting extensions rail', () => {
 			}),
 		);
 
-		const harness = render(new RailHarnessProps({ panels: REGISTERED }));
+		const harness = render(new CompactHarnessProps({ panels: REGISTERED }));
 
-		expect(railPanelIds(harness.host)).toEqual([
+		expect(compactPanelIds(harness.host)).toEqual([
 			REPOSITORY_FILES_PANEL_ID,
 			REPOSITORY_CHANGES_PANEL_ID,
 			'example.terminal.panel',
@@ -219,44 +219,6 @@ describe('the resting extensions rail', () => {
 		harness.stop();
 	});
 
-	it('survives a second inspector connecting for the same workstream', () => {
-		const first = render(
-			new RailHarnessProps({
-				workstreamName: 'Golden Circuit',
-				panels: REGISTERED,
-			}),
-		);
-		const second = render(
-			new RailHarnessProps({
-				workstreamName: 'Golden Circuit',
-				panels: REGISTERED,
-			}),
-		);
-		flushSync();
-
-		first.stop();
-		flushSync();
-
-		expect(railLabels(second.host)).toEqual(['Files', 'Changes', 'Terminal']);
-		expect(second.host.textContent).toContain('On Golden Circuit');
-		second.stop();
-	});
-
-	it('shows nothing for a workstream the inspector is not presenting', () => {
-		const harness = render(
-			new RailHarnessProps({
-				workstreamId: 'ws-1',
-				railWorkstreamId: 'ws-2',
-				workstreamName: 'Golden Circuit',
-				panels: REGISTERED,
-			}),
-		);
-
-		expect(railPanelIds(harness.host)).toEqual([]);
-		expect(harness.host.textContent).not.toContain('On Golden Circuit');
-		harness.stop();
-	});
-
 	it('offers exactly what the open inspector offers, closed or not', () => {
 		globalThis.localStorage.setItem(
 			`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}ws-1`,
@@ -267,8 +229,8 @@ describe('the resting extensions rail', () => {
 				activeId: REPOSITORY_CHANGES_PANEL_ID,
 			}),
 		);
-		const harness = render(new RailHarnessProps({ panels: REGISTERED }));
-		const railed = [...railPanelIds(harness.host)].sort();
+		const harness = render(new CompactHarnessProps({ panels: REGISTERED }));
+		const listed = [...compactPanelIds(harness.host)].sort();
 
 		harness.host
 			.querySelector<HTMLButtonElement>('[data-testid="extension-inspector-gutter-row"]')
@@ -286,19 +248,19 @@ describe('the resting extensions rail', () => {
 			.sort();
 
 		expect(offered).not.toEqual([]);
-		expect(railed).toEqual(offered);
+		expect(listed).toEqual(offered);
 		harness.stop();
 	});
 
 	it('keeps an unread worktree distinct from a clean one on the files row', () => {
-		const unread = render(new RailHarnessProps({ panels: REGISTERED }));
+		const unread = render(new CompactHarnessProps({ panels: REGISTERED }));
 		expect(
 			unread.host.querySelectorAll('[data-testid="extension-inspector-gutter-diffstat"]'),
 		).toHaveLength(0);
 		unread.stop();
 
 		const clean = render(
-			new RailHarnessProps({
+			new CompactHarnessProps({
 				panels: REGISTERED,
 				changeTotals: { additions: 0, deletions: 0 },
 			}),
@@ -311,7 +273,7 @@ describe('the resting extensions rail', () => {
 		clean.stop();
 
 		const dirty = render(
-			new RailHarnessProps({
+			new CompactHarnessProps({
 				panels: REGISTERED,
 				changeTotals: { additions: 1265, deletions: 667 },
 			}),
@@ -326,7 +288,7 @@ describe('the resting extensions rail', () => {
 
 	it('opens the drawer through the inspector when a row is clicked', () => {
 		const harness = render(
-			new RailHarnessProps({ workstreamName: 'Golden Circuit', panels: REGISTERED }),
+			new CompactHarnessProps({ workstreamName: 'Golden Circuit', panels: REGISTERED }),
 		);
 		const shell = harness.host.querySelector('[data-testid="extension-inspector-shell"]');
 		expect(shell?.getAttribute('data-inspector-drawer-open')).toBe('false');
@@ -339,7 +301,7 @@ describe('the resting extensions rail', () => {
 		flushSync();
 
 		expect(shell?.getAttribute('data-inspector-drawer-open')).toBe('true');
-		expect(harness.host.querySelector('[data-testid="extension-inspector-rail"]')).toBeNull();
+		expect(harness.host.querySelector('[data-testid="extension-inspector-gutter"]')).toBeNull();
 		expect(
 			harness.host.querySelector(
 				`[data-testid="extension-inspector-tab"][data-panel-id="${REPOSITORY_FILES_PANEL_ID}"]`,

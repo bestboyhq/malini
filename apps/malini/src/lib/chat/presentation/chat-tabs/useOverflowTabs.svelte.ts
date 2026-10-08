@@ -6,6 +6,7 @@ interface OverflowTabsOptions<T> {
 	getId: (item: T) => string;
 	getPinnedId: () => string | null;
 	gap: number;
+	minItemWidth?: number;
 	fallbackVisibleCount?: number;
 }
 
@@ -26,6 +27,7 @@ export function useOverflowTabs<T>(options: OverflowTabsOptions<T>) {
 				overflowWidth,
 				itemWidths,
 				gap: options.gap,
+				...(options.minItemWidth === undefined ? {} : { minItemWidth: options.minItemWidth }),
 			},
 			...(options.fallbackVisibleCount === undefined
 				? {}

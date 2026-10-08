@@ -39,6 +39,24 @@ test('a merged pull request stays merged in the top bar and the sidebar through 
 		await expect(page.getByRole('status', { name: /^Workstream status: .*Merged/u })).toBeVisible();
 		await captureFlow(app, 'pull-request-merged');
 
+		const archive = page.getByRole('button', { name: 'Archive this workstream, merged in #7' });
+		const resize = (width: number): Promise<void> =>
+			app.electronApp.evaluate(
+				({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]?.setContentSize(width, 800),
+				width,
+			);
+		await resize(900);
+		await expect(archive).toHaveText('');
+		await expect(continueOnBase).toHaveText('');
+		await archive.hover();
+		await expect(page.getByRole('tooltip')).toHaveText(
+			'Archive · The pull request merged. Archive this workstream',
+		);
+		await captureFlow(app, 'pull-request-merged-compact');
+		await resize(1280);
+		await expect(archive).toHaveText('Archive');
+		await expect(continueOnBase).toHaveText('Continue');
+
 		writeFileSync(join(worktree, 'next.txt'), 'work after the merge\n');
 		const detail = await openPullRequestDetail(page);
 		await detail.getByRole('button', { name: 'Refresh' }).click();

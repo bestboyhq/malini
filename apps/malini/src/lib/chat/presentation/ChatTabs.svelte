@@ -98,7 +98,7 @@
 	import { BrowserTab, roveTabFocus } from '$hyper-ui/components/browser-tab';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { Icon } from '$hyper-ui/icons';
 	import OverflowTabsMenu from './chat-tabs/OverflowTabsMenu.svelte';
 	import type { OverflowTab } from './chat-tabs/overflow-tabs';
 	import { useOverflowTabs } from './chat-tabs/useOverflowTabs.svelte';
@@ -233,7 +233,8 @@
 		getItems: () => entries,
 		getId: (entry) => entry.key,
 		getPinnedId: () => selectedKey,
-		gap: 2,
+		gap: 1,
+		minItemWidth: 96,
 		fallbackVisibleCount: 3,
 	});
 	const hiddenEntries = $derived(overflowTabs.hidden);
@@ -341,8 +342,6 @@
 
 	function sessionTone(session: SessionRecord): string {
 		switch (agentChatIdentity(session).activity) {
-			case 'in-progress':
-				return 'text-fg-secondary';
 			case 'needs-approval':
 				return 'text-warning-content';
 			case 'failed':
@@ -413,7 +412,7 @@
 	data-band-hosted={hostedInBand ? 'true' : undefined}
 	data-testid="chat-agent-tabs"
 >
-	<div class="relative flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden" use:roveTabFocus>
+	<div class="relative flex min-w-0 flex-1 items-center gap-px overflow-hidden" use:roveTabFocus>
 		<div
 			class="pointer-events-none absolute inset-0"
 			role="tablist"
@@ -430,6 +429,20 @@
 				{@const isPending = isSelected && !isCommitted}
 				{@const isActivePlan = isCommitted && planMode}
 				{@const isActivePlanSurface = isSelected && isActivePlan}
+				{#snippet statusIcon()}
+					<Tooltip content={sessionTooltip(session)} placement="top" class="shrink-0">
+						<span
+							class={['grid h-4 w-4 place-items-center', isActivePlan ? '' : sessionTone(session)]}
+							aria-hidden="true"
+						>
+							{#if identity.activity === 'needs-approval'}
+								<Icon name="circle-dot" size={12} />
+							{:else}
+								<Icon name="warning" size={12} />
+							{/if}
+						</span>
+					</Tooltip>
+				{/snippet}
 				<BrowserTab
 					surface="band"
 					tone={isActivePlanSurface ? 'brand' : 'neutral'}
@@ -456,33 +469,14 @@
 						'data-navigation-target': closeSessionNavigationTarget(session),
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
+					icon={isActivePlan ? planIcon : undefined}
+					busy={identity.activity === 'in-progress'}
+					trailing={identity.activity === 'needs-approval' || identity.activity === 'failed'
+						? statusIcon
+						: undefined}
 					onselect={selectSessionTab}
 					onclose={(event) => closeSession(event, session)}
-				>
-					{#snippet icon()}
-						<Tooltip content={sessionTooltip(session)} placement="top" class="shrink-0">
-							<span
-								class={[
-									'grid h-4 w-4 place-items-center',
-									isActivePlan ? '' : sessionTone(session),
-								]}
-								aria-hidden="true"
-							>
-								{#if identity.activity === 'in-progress'}
-									<BusyIcon size={12} />
-								{:else if identity.activity === 'needs-approval'}
-									<Icon name="circle-dot" size={12} />
-								{:else if identity.activity === 'failed'}
-									<Icon name="warning" size={12} />
-								{:else if isActivePlan}
-									<Icon name="route" size={12} />
-								{:else}
-									<Icon name="circle" size={12} />
-								{/if}
-							</span>
-						</Tooltip>
-					{/snippet}
-				</BrowserTab>
+				/>
 			{:else if item.kind === 'document'}
 				<WorkstreamDocumentTab
 					{workstreamId}
@@ -512,15 +506,10 @@
 						'data-navigation-target': freshCloseNavigationTarget,
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
+					icon={planMode ? planIcon : undefined}
 					onselect={startFreshChat}
 					onclose={() => void onclosefresh()}
-				>
-					{#snippet icon()}
-						<span class="grid place-items-center" aria-hidden="true">
-							<Icon name={planMode ? 'route' : 'chat'} size={12} />
-						</span>
-					{/snippet}
-				</BrowserTab>
+				/>
 			{/if}
 		{/each}
 
@@ -545,7 +534,7 @@
 	</div>
 
 	<div
-		class="pointer-events-none fixed top-[-10000px] left-[-10000px] flex w-max items-center gap-0.5 opacity-0"
+		class="pointer-events-none fixed top-[-10000px] left-[-10000px] flex w-max items-center gap-px opacity-0"
 		aria-hidden="true"
 		inert
 		use:measureTabs
@@ -557,33 +546,41 @@
 				selected={false}
 				preview={entry.kind === 'document' && entry.document.preview}
 				closeLabel=""
+				icon={entry.kind === 'document' ? iconSpace : undefined}
+				trailing={entry.kind === 'chat' &&
+				['needs-approval', 'failed'].includes(agentChatIdentity(entry.session).activity)
+					? iconSpace
+					: undefined}
 				onclose={() => undefined}
 				data-overflow-measure-item={entry.key}
-			>
-				{#snippet icon()}
-					<span class="size-4"></span>
-				{/snippet}
-			</BrowserTab>
+			/>
 		{/each}
 		<div class="flex h-7 items-center gap-1 px-3 text-xs" data-overflow-measure-trigger>
 			<span class="size-3.5"></span>
 			<span>{entries.length}</span>
 		</div>
-		<div class="flex items-center gap-0.5" data-overflow-measure-reserved>
+		<div class="flex items-center gap-px" data-overflow-measure-reserved>
 			{#if freshSelected}
 				<BrowserTab
 					surface="band"
 					label={planMode ? 'Plan' : 'New chat'}
 					selected
 					closeLabel=""
+					icon={planMode ? iconSpace : undefined}
 					onclose={() => undefined}
-				>
-					{#snippet icon()}
-						<span class="size-4"></span>
-					{/snippet}
-				</BrowserTab>
+				/>
 			{/if}
 			<div class="size-7"></div>
 		</div>
 	</div>
 </div>
+
+{#snippet planIcon()}
+	<span class="grid place-items-center" aria-hidden="true">
+		<Icon name="route" size={12} />
+	</span>
+{/snippet}
+
+{#snippet iconSpace()}
+	<span class="size-4"></span>
+{/snippet}

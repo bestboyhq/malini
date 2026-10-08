@@ -18,4 +18,14 @@
 			window.malini && window.malini.windowChrome ? window.malini.windowChrome.zoomFactor() : 1;
 		document.documentElement.style.setProperty('--native-zoom', String(zoom));
 	} catch (error) {}
+	// ponytail: measured once at boot, so switching between overlay and classic scrollbars needs a reload
+	var probe = document.createElement('div');
+	probe.style.cssText =
+		'position:absolute;top:-200px;width:100px;height:100px;overflow:scroll;scrollbar-width:thin';
+	document.documentElement.appendChild(probe);
+	document.documentElement.style.setProperty(
+		'--scrollbar-gutter',
+		probe.offsetWidth - probe.clientWidth + 'px',
+	);
+	probe.remove();
 })();

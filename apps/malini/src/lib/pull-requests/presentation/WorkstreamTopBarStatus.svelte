@@ -20,6 +20,7 @@
 	import { repositorySurfaceReadStateQuery } from '$lib/pull-requests/application/queries/repository-surface-read-state.query.svelte';
 	import { pullRequestHeadline } from '$lib/pull-requests/domain/pull-request-headline';
 	import { pullRequestPlaceholderLabel } from '$lib/pull-requests/domain/pull-request-placeholder';
+	import { pullRequestActionIcon } from './pull-request-action-icon';
 	import { changeTotalsQuery } from '$shared/repositories/repositories.api';
 
 	interface Props {
@@ -129,6 +130,7 @@
 						ariaLabel: busy ? busyLabel : `Continue on the latest ${surface?.baseBranch ?? 'base'}`,
 						tooltip: `Move this workstream onto the latest ${surface?.baseBranch ?? 'base'}, keeping the edits made since the merge, so the next push opens a new pull request`,
 						tone: 'secondary',
+						compactIcon: 'chevrons-right',
 						disabled: busy || agentRunning,
 						busy,
 						onInvoke: onContinue,
@@ -173,6 +175,7 @@
 						ariaLabel: presentation?.ariaLabel ?? 'Archive this workstream',
 						tooltip: presentation?.tooltip ?? '',
 						tone: 'primary',
+						compactIcon: pullRequestActionIcon('merged'),
 						disabled: busy,
 						busy: false,
 						onInvoke: onarchive,
@@ -184,6 +187,7 @@
 							tooltip: busy ? 'Repository action in progress' : presentation.tooltip,
 							tone: presentation.tone,
 							icon: presentation.kind === 'merge' ? 'pr-merged' : null,
+							compactIcon: pullRequestActionIcon(presentation.kind),
 							disabled: presentation.disabled || busy,
 							busy: busy || presentation.kind === 'agent-running',
 							onInvoke: onAction,

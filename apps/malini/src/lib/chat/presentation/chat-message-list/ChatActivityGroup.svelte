@@ -31,11 +31,13 @@
 			aria-label={`${group.verb} ${group.detail}`}
 			data-testid="chat-activity-group-summary"
 		>
-			<Icon
-				name="chevron-right"
-				size={10}
-				class="shrink-0 transition-transform duration-150 group-open/activity:rotate-90"
-			/>
+			<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
+				<Icon
+					name="chevron-right"
+					size={10}
+					class="transition-transform duration-150 group-open/activity:rotate-90"
+				/>
+			</span>
 			<span class="text-fg-secondary shrink-0">{group.verb}</span>
 			<span class="min-w-0 truncate"><SensitiveText text={group.detail} /></span>
 			<span class="flex shrink-0 items-center gap-1" aria-hidden="true">

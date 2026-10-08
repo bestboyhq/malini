@@ -25,13 +25,13 @@
 		defaultRatio = 0.62,
 		minSize = 480,
 		maxSize = 1100,
-		class: className = 'h-full min-h-0 w-full flex-1',
+		class: className = 'relative h-full min-h-0 w-full flex-1',
 		primary,
 		secondary,
 	}: Props = $props();
 
 	const secondaryMinSize = $derived(inspectorGutter.minWidthFor(workstreamId));
-	const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId));
+	const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay);
 </script>
 
 <ResizableSplit
@@ -42,7 +42,6 @@
 	{maxSize}
 	{secondaryMinSize}
 	{secondaryOpen}
-	collapseBelow="lg"
 	class={className}
 >
 	{#snippet a()}

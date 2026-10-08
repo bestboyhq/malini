@@ -117,7 +117,7 @@ describe('agent chat tab optimistic close affordances', () => {
 		const anchor = source.indexOf("'data-testid': 'chat-agent-tab-close'");
 		expect(anchor, 'the tab close button must exist').toBeGreaterThan(-1);
 		const start = source.lastIndexOf('<BrowserTab', anchor);
-		const end = source.indexOf('</BrowserTab>', anchor);
+		const end = source.indexOf('/>', anchor);
 		return source.slice(start, end);
 	})();
 
