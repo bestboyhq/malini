@@ -35,6 +35,7 @@ export type AutomatedPullRequestMetadataInput = Readonly<{
 	branch: string;
 	baseBranch: string;
 	changedPaths: readonly string[];
+	workstreamPath?: string;
 	context?: PullRequestAutomationContext;
 }>;
 
@@ -102,8 +103,8 @@ export function automatedPullRequestMetadata(
 		input.baseBranch,
 		AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem,
 	);
-	const changedPaths = normalizedChangedPaths(input.changedPaths);
-	const context = normalizedContext(input.context);
+	const changedPaths = normalizedChangedPaths(input.changedPaths, input.workstreamPath);
+	const context = normalizedContext(input.context, input.workstreamPath);
 	const title = workstreamTitle(branch, changedPaths, context);
 	const body = boundedBody(
 		buildBody({
@@ -180,17 +181,27 @@ function commitRun(
 	};
 }
 
-function normalizedChangedPaths(changedPaths: readonly string[]): readonly string[] {
+function normalizedChangedPaths(
+	changedPaths: readonly string[],
+	workstreamPath?: string,
+): readonly string[] {
 	return uniqueSorted(
 		changedPaths
-			.map((path) => singleLine(path, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.pathItem))
+			.map((path) =>
+				singleLine(
+					withoutAbsolutePaths(path, workstreamPath),
+					AUTOMATED_PULL_REQUEST_METADATA_LIMITS.pathItem,
+				),
+			)
 			.filter(Boolean),
 	);
 }
 
 function normalizedContext(
-	context?: PullRequestAutomationContext,
+	rawContext?: PullRequestAutomationContext,
+	workstreamPath?: string,
 ): Required<PullRequestAutomationContext> {
+	const context = rawContext && localContext(rawContext, workstreamPath);
 	if (!context) {
 		return {
 			sessionTitle: '',
@@ -226,6 +237,29 @@ function normalizedContext(
 			.map(normalizedEvent)
 			.filter((event): event is PullRequestAutomationEvent => event !== null)
 			.slice(0, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.eventItems),
+	};
+}
+
+function localContext(
+	context: PullRequestAutomationContext,
+	workstreamPath: string | undefined,
+): PullRequestAutomationContext {
+	const local = (value: string): string => withoutAbsolutePaths(value, workstreamPath);
+	return {
+		...context,
+		...(context.sessionTitle ? { sessionTitle: local(context.sessionTitle) } : {}),
+		...(context.lastUserIntent ? { lastUserIntent: local(context.lastUserIntent) } : {}),
+		...(context.pullRequestTitle ? { pullRequestTitle: local(context.pullRequestTitle) } : {}),
+		...(context.runSummaries ? { runSummaries: context.runSummaries.map(local) } : {}),
+		...(context.events
+			? {
+					events: context.events.map((event) => ({
+						...event,
+						label: local(event.label),
+						...(event.detail ? { detail: local(event.detail) } : {}),
+					})),
+				}
+			: {}),
 	};
 }
 
@@ -397,7 +431,32 @@ function proseLine(value: string, limit: number): string {
 }
 
 function sanitizedLine(value: string): string {
-	return redactSecrets(stripUnsafeCharacters(value)).replace(/\s+/gu, ' ').trim();
+	return withoutAbsolutePaths(redactSecrets(stripUnsafeCharacters(value)))
+		.replace(/\s+/gu, ' ')
+		.trim();
+}
+
+const QUOTED_ABSOLUTE_PATH = /(["'`])(\/[^"'`\n]+)\1/gu;
+const ABSOLUTE_PATH = /(?<![\w:/.~\\-])\/(?:\\ |[^\s"'`;|&()<>[\]{}])+/gu;
+const CD_INTO_WORKSTREAM = /(^|&&|;)\s*cd\s+(["']?)\.\2\s*(?:&&|;)\s*/gu;
+
+function withoutAbsolutePaths(value: string, workstreamPath?: string): string {
+	const root = workstreamPath?.replace(/\/+$/u, '');
+	const local = (path: string): string => {
+		const unescaped = path.replace(/\\ /gu, ' ');
+		if (unescaped === '/dev/null') return unescaped;
+		if (root && unescaped === root) return '.';
+		if (root && unescaped.startsWith(`${root}/`)) return unescaped.slice(root.length + 1);
+		return unescaped.split('/').filter(Boolean).at(-1) ?? '';
+	};
+	const rooted = root ? value.replaceAll(`${root}/`, '').replaceAll(root, '.') : value;
+	return rooted
+		.replace(
+			QUOTED_ABSOLUTE_PATH,
+			(_match, quote: string, path: string) => `${quote}${local(path)}${quote}`,
+		)
+		.replace(ABSOLUTE_PATH, local)
+		.replace(CD_INTO_WORKSTREAM, (_match, lead: string) => (lead ? `${lead} ` : ''));
 }
 
 function withoutDuplicateNameCounter(value: string): string {

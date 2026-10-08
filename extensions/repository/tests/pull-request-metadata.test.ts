@@ -5,6 +5,49 @@ import {
 	automatedPullRequestMetadata,
 } from '../src/pull-request-metadata.js';
 
+test('never publishes an absolute path: workstream paths turn relative, others shrink to a name', () => {
+	const workstreamPath = '/Users/someone/Library/Application Support/malini/workstreams/01ABC';
+	const metadata = automatedPullRequestMetadata({
+		branch: 'malini/01ABC',
+		baseBranch: 'main',
+		workstreamPath,
+		changedPaths: [`${workstreamPath}/src/a.ts`, 'src/b.ts'],
+		context: {
+			runSummaries: [
+				`Saved the plan to /Users/someone/.claude/plans/plan.md and ${workstreamPath}/docs/x.md`,
+			],
+			events: [
+				{
+					kind: 'validation',
+					status: 'passed',
+					label: `cd "${workstreamPath}" && corepack pnpm check`,
+				},
+				{
+					kind: 'validation',
+					status: 'passed',
+					label: `cd "${workstreamPath}/packages/agent-bridge" && npx vitest run`,
+				},
+				{
+					kind: 'validation',
+					status: 'passed',
+					label: 'node /tmp/probe/build.mjs --check 2>/dev/null',
+				},
+			],
+		},
+	});
+
+	const published = `${metadata.title}\n${metadata.commitMessage}\n${metadata.body}`;
+	assert.doesNotMatch(published, /\/Users|someone|Application Support|\/tmp/u);
+	assert.match(metadata.body, /Passed - Validation: corepack pnpm check$/mu);
+	assert.match(
+		metadata.body,
+		/Passed - Validation: cd "packages\/agent-bridge" && npx vitest run/u,
+	);
+	assert.match(metadata.body, /Passed - Validation: node build\.mjs --check 2\\>\/dev\/null/u);
+	assert.match(metadata.body, /`src\/a\.ts`/u);
+	assert.match(metadata.body, /plan\.md and docs\/x\.md/u);
+});
+
 test('derives useful PR and commit metadata from session, repository, and validation context', () => {
 	const metadata = automatedPullRequestMetadata({
 		branch: 'codex/automatic-pr-workflow',

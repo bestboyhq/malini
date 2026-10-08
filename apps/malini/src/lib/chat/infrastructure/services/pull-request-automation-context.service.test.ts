@@ -46,6 +46,36 @@ describe('pullRequestAutomationEvidence', () => {
 		});
 	});
 
+	it('reports only the checks a command ran, not the scripts and searches around them', () => {
+		const commands = [
+			'cd "/work/repo" && corepack pnpm --filter malini check 2>&1 | grep COMPLETED; corepack pnpm lint 2>&1 | tail -1',
+			'(cd apps/malini && npx playwright test tests/e2e/window.spec.ts 2>&1 | tail -3)',
+			'CI=1 pnpm -r test',
+			"sed -n 1,40p tests/pull-request-metadata.test.ts; grep -n 'Validation' src/check.ts",
+			"python3 - <<'EOF'\nrun('pnpm test')\nEOF",
+			'node --test dist/tests/*.test.js',
+		];
+		const evidence = pullRequestAutomationEvidence({
+			workstreamId: 'workstream-a',
+			requestedSessionId: null,
+			sessions: [session('session-a', 'workstream-a', 'Checks', '2026-01-01')],
+			eventsFor: () =>
+				commands.map((command) => ({
+					type: 'command.completed',
+					runId: 'run-1',
+					command,
+					exitCode: 0,
+				})),
+		});
+
+		expect(evidence.context?.events?.map(({ label }) => label)).toEqual([
+			'corepack pnpm --filter malini check; corepack pnpm lint',
+			'npx playwright test tests/e2e/window.spec.ts',
+			'pnpm -r test',
+			'node --test dist/tests/*.test.js',
+		]);
+	});
+
 	it('never adopts a requested session from another workstream and falls back deterministically', () => {
 		const selectedIds: string[] = [];
 		const evidence = pullRequestAutomationEvidence({

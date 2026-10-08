@@ -1632,6 +1632,7 @@ export class RepositoryController {
 		const metadata = automatedPullRequestMetadata({
 			branch: status.branch,
 			baseBranch: status.baseBranch,
+			workstreamPath: operation.workstream.path,
 			changedPaths: mergedChangedPaths(status.dirtyPaths, input.changedPaths),
 			...(input.context ? { context: input.context } : {}),
 		});
@@ -1703,6 +1704,7 @@ export class RepositoryController {
 		const metadata = automatedPullRequestMetadata({
 			branch: status.branch,
 			baseBranch: status.baseBranch,
+			workstreamPath: operation.workstream.path,
 			changedPaths: mergedChangedPaths(status.dirtyPaths, changedPaths),
 			...(context ? { context } : {}),
 		});
