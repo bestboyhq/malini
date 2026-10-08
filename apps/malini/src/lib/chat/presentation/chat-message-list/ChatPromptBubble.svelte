@@ -66,6 +66,7 @@
 			issueReferences={item.issueReferences ?? []}
 			transcriptReferences={item.transcriptReferences ?? []}
 			elementReferences={item.elementReferences ?? []}
+			onopenimage={transcript.openImageGallery}
 		/>
 	</span>
 {/snippet}
@@ -207,7 +208,7 @@
 			<div
 				class={[
 					promptBoxClass,
-					'prompt-clamp group/prompt bg-surface-50 border-surface-50-border text-fg-default hover:bg-surface-50-hover focus-visible:ring-button-primary/40 cursor-pointer transition-colors focus-visible:ring-2 focus-visible:outline-none',
+					'prompt-clamp group/prompt bg-surface-50 border-surface-50-border text-fg-default hover:bg-surface-50-hover focus-visible:ring-button-primary/40 cursor-pointer focus-visible:ring-2 focus-visible:outline-none',
 				]}
 				data-message-kind="user"
 				data-testid="chat-message-bubble-user"
@@ -244,5 +245,6 @@
 		attachments={item.attachments ?? []}
 		issueReferences={item.issueReferences ?? []}
 		elementReferences={item.elementReferences ?? []}
+		onopenimage={transcript.openImageGallery}
 	/>
 </div>

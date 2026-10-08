@@ -57,7 +57,7 @@ export class RepositorySurfaceMapper {
 		return { surface: this.fromRaw(repositorySurfaceState(raw)) };
 	}
 
-	private static pullRequestFromRaw(raw: RawPullRequest): SurfacePullRequest {
+	static pullRequestFromRaw(raw: RawPullRequest): SurfacePullRequest {
 		return {
 			state: raw.state,
 			number: raw.number,

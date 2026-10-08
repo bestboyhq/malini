@@ -109,6 +109,12 @@ describe('permissionDescriptor', () => {
 			resources: [{ kind: 'url', value: 'https://example.com', boundary: 'external' }],
 		});
 		expect(
+			permissionDescriptor('SandboxNetworkAccess', { host: 'example.com' }, worktree, undefined),
+		).toEqual({
+			capability: 'network',
+			resources: [{ kind: 'url', value: 'example.com', boundary: 'external' }],
+		});
+		expect(
 			permissionDescriptor('mcp__linear__create_issue', { title: 'Bug' }, worktree, undefined),
 		).toEqual({
 			capability: 'external-service',

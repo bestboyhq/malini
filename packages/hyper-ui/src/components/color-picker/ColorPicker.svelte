@@ -126,7 +126,7 @@
 			{disabled}
 			aria-label="Hex color"
 			aria-invalid={!isValidHex(draft)}
-			class="border-surface-input-border bg-surface-input text-fg-default focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled h-8 flex-1 rounded-md border px-2 font-mono text-xs uppercase transition-colors focus:ring-2 disabled:cursor-not-allowed"
+			class="border-surface-input-border bg-surface-input text-fg-default focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled h-8 flex-1 rounded-md border px-2 font-mono text-xs uppercase transition-[color,border-color] focus:ring-2 disabled:cursor-not-allowed"
 			oninput={onHexInput}
 			onblur={onHexBlur}
 		/>

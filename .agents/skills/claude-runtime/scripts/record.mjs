@@ -43,6 +43,7 @@ const run = query({
 		permissionMode,
 		settingSources: [],
 		includePartialMessages: true,
+		env: { ...process.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
 		...(process.env.RESUME ? { resume: process.env.RESUME } : {}),
 		canUseTool: async (toolName, input, opts) => {
 			steps.push({
@@ -71,10 +72,15 @@ const run = query({
 	},
 });
 
+let answered = false;
 try {
 	for await (const message of run) {
 		steps.push(message);
-		if (message.type === 'result' && message.user_message_uuids?.includes(promptId)) break;
+		if (message.type === 'result' && message.user_message_uuids?.includes(promptId))
+			answered = true;
+		if (answered && message.type === 'system' && message.subtype === 'session_state_changed') {
+			if (message.state === 'idle') break;
+		}
 	}
 } finally {
 	release();

@@ -78,16 +78,18 @@ const conflictedFiles = (prompt) => {
 const pendingRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
-const completeRun = (sessionId, runId, summary, mentions = []) => {
+const completeRun = (sessionId, runId, summary, mentions = [], shownImages = []) => {
 	const mentioned = mentions.map((path) => '`' + path + '`').join(' and ');
+	const shown = shownImages.map((path) => '\n\n![' + path + '](' + path + ')').join('');
 	event({ type: 'assistant.delta', runId, contentId: 'c1', text: 'partial ' });
 	event({
 		type: 'assistant.message',
 		runId,
 		contentId: 'c1',
-		text: mentioned
-			? 'Hello from the fake bridge. See ' + mentioned + '.'
-			: 'Hello from the fake bridge',
+		text:
+			(mentioned
+				? 'Hello from the fake bridge. See ' + mentioned + '.'
+				: 'Hello from the fake bridge') + shown,
 	});
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, interim: true });
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5 });
@@ -128,6 +130,45 @@ const streamRun = (sessionId, runId, lines) => {
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, STREAM_LINE_MS);
+};
+const BACKGROUND_RELEASE = 'release-background-agent';
+const backgroundAgentRun = (sessionId, runId, releasePath) => {
+	pendingRuns.set(runId, sessionId);
+	const toolCallId = 'agent-' + runId;
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'Agent',
+		toolCallId,
+		input: {
+			description: 'Sleep probe',
+			subagent_type: 'general-purpose',
+			run_in_background: true,
+			prompt: 'Run sleep 15 && echo probe-done and reply with its output.',
+		},
+	});
+	event({ type: 'assistant.message', runId, contentId: 'launched', text: 'launched' });
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!fs.existsSync(releasePath)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Agent',
+			toolCallId,
+			output: 'Command completed. Output: probe-done',
+		});
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'follow-up',
+			text: 'The Sleep probe agent finished with probe-done.',
+		});
+		event({ type: 'run.completed', runId, summary: 'The Sleep probe agent finished.' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, 50);
 };
 const handle = (command) => {
 	switch (command.cmd) {
@@ -219,12 +260,32 @@ const handle = (command) => {
 				});
 				return;
 			}
+			if (prompt.includes('BACKGROUND_AGENT')) {
+				return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
+			}
 			const stream = /STREAM:(\d+)/.exec(prompt);
 			if (stream) return streamRun(sessionId, runId, Number(stream[1]));
 			const commitLine = /COMMIT=([^"\n]+?)(?: PR=([^"\n]+?))?(?:"|$)/.exec(prompt);
 			const resolvedLines = [...prompt.matchAll(/RESOLVE:([\w-]+)/g)].map(
 				(match) => '\nResolved: ' + match[1],
 			);
+			for (const [, path] of prompt.matchAll(/READ_IMAGE:([^\s]+)/g)) {
+				const toolCallId = 'read-' + path;
+				event({
+					type: 'tool.started',
+					runId,
+					name: 'Read',
+					toolCallId,
+					input: { file_path: path },
+				});
+				event({
+					type: 'tool.completed',
+					runId,
+					name: 'Read',
+					toolCallId,
+					output: '[image]',
+				});
+			}
 			const mention = /MENTION:([^\s]+)/.exec(prompt);
 			return completeRun(
 				sessionId,
@@ -237,6 +298,7 @@ const handle = (command) => {
 							(commitLine[2] ? '\nPull request: ' + commitLine[2] : '')
 						: ''),
 				mention ? mention[1].split(',') : [],
+				[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
 			);
 		}
 		case 'cancel_run': {

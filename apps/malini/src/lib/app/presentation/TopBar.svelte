@@ -22,6 +22,7 @@
 		type GlobalTopBarStatusDetailAction,
 	} from '$shared/shell/global-topbar-actions.svelte';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
+	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
 
 	interface Props {
 		actions?: readonly GlobalTopBarAction[];
@@ -50,6 +51,7 @@
 	const visibleActions = $derived(
 		actions.filter((action) => globalTopBarActionMatchesPathname(action, targetPathname)),
 	);
+	const dockWidth = $derived(inspectorDock.width);
 	let rightClusterElement: HTMLDivElement | undefined = $state();
 	let rightClusterWidth = $state(0);
 	const RIGHT_CLUSTER_GUTTER_PX = 24;
@@ -311,7 +313,13 @@
 		data-testid="global-topbar-band-slot"
 		use:globalTopBarBandSlotHost
 	></div>
-	<div bind:this={rightClusterElement} class="topbar-right" data-testid="global-topbar-right">
+	<div
+		bind:this={rightClusterElement}
+		class="topbar-right"
+		data-docked={dockWidth === null ? undefined : ''}
+		style={dockWidth === null ? undefined : `--dock-width: ${dockWidth}px;`}
+		data-testid="global-topbar-right"
+	>
 		{#each visibleActions as action (action.id)}
 			<Tooltip content={action.tooltip} placement="bottom">
 				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
@@ -369,7 +377,11 @@
 				{/if}
 				{#if githubStatus.headline}
 					{@const headline = githubStatus.headline}
-					<Tooltip content={headline.detail ?? headline.label} placement="bottom" class="min-w-0">
+					<Tooltip
+						content={headline.detail ?? headline.label}
+						placement="bottom"
+						class="mr-auto min-w-0"
+					>
 						<span
 							class="topbar-git__headline"
 							data-tone={headline.tone}
@@ -626,9 +638,7 @@
 		padding: 0;
 		color: var(--color-fg-secondary);
 		pointer-events: auto;
-		transition:
-			background-color var(--default-transition-duration) ease,
-			color var(--default-transition-duration) ease;
+		transition: color var(--default-transition-duration) ease;
 	}
 
 	.topbar-chrome :global(svg) {
@@ -680,6 +690,57 @@
 		gap: 4px;
 	}
 
+	.topbar-right[data-docked] {
+		--dock-tint: transparent;
+		--dock-edge: var(--color-surface-50-border);
+		align-self: end;
+		width: var(--dock-width);
+		max-width: none;
+		height: 68px;
+		margin-bottom: -40px;
+		border: 0.5px solid var(--dock-edge);
+		border-bottom: 0;
+		border-radius: 24px 24px 0 0;
+		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
+		padding: 0 16px 24px;
+	}
+
+	.topbar-right[data-docked]:not(:has(> *)) {
+		display: none;
+	}
+
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='success']) {
+		--dock-tint: var(--color-success);
+		--dock-edge: color-mix(in srgb, var(--color-success-content) 40%, transparent);
+	}
+
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='warning']) {
+		--dock-tint: var(--color-warning);
+		--dock-edge: color-mix(in srgb, var(--color-warning-content) 40%, transparent);
+	}
+
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='danger']) {
+		--dock-tint: var(--color-error);
+		--dock-edge: color-mix(in srgb, var(--color-error-content) 40%, transparent);
+	}
+
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='merged']) {
+		--dock-tint: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
+		--dock-edge: color-mix(in srgb, var(--color-merged-content) 40%, transparent);
+	}
+
+	.topbar-right[data-docked] .topbar-git {
+		flex: 1 1 auto;
+	}
+
+	.topbar-right[data-docked] .topbar-git[data-zone] {
+		height: auto;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		padding: 0;
+	}
+
 	.topbar-right :global(.foreground-activity) {
 		min-width: 0;
 		flex: 1 1 auto;
@@ -700,7 +761,6 @@
 		font-weight: 500;
 		color: var(--color-fg-secondary);
 		transition:
-			background-color var(--default-transition-duration) ease,
 			border-color var(--default-transition-duration) ease,
 			color var(--default-transition-duration) ease;
 	}
@@ -856,7 +916,6 @@
 		background: transparent;
 		padding: 0 8px;
 		color: inherit;
-		transition: background-color var(--default-transition-duration) ease;
 	}
 
 	.topbar-git__pill-part:hover,
@@ -1132,9 +1191,7 @@
 		font-size: var(--text-2xs);
 		font-weight: 500;
 		color: var(--color-fg-secondary);
-		transition:
-			background-color var(--default-transition-duration) ease,
-			color var(--default-transition-duration) ease;
+		transition: color var(--default-transition-duration) ease;
 	}
 
 	.github-panel__link:hover:not(:disabled) {

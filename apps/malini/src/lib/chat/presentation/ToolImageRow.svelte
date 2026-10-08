@@ -5,18 +5,21 @@
 	import { newChatRequestId } from '$lib/chat/domain/chat-request';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
+	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { formatBytes } from './prompt-editor/prompt-chip-preview';
 	import type { ToolImageRead } from './tool-image-read';
+	import { galleryImageLabel } from './workstream-images';
 
 	interface Props {
 		workstreamId: string | null;
 		image: ToolImageRead;
 		status: 'running' | 'completed';
 		durationLabel: string | null;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
-	let { workstreamId, image, status, durationLabel }: Props = $props();
+	let { workstreamId, image, status, durationLabel, onopenimage }: Props = $props();
 
 	type PreviewState =
 		| { kind: 'idle' }
@@ -38,6 +41,9 @@
 	);
 
 	const previewable = $derived(image.previewable && workstreamId !== null);
+
+	const chipClass =
+		'border-chip-border bg-chip text-2xs text-fg-secondary inline-flex h-5 max-w-56 min-w-0 items-center gap-1 rounded-md border-[0.5px] px-1.5';
 
 	const meta = $derived(
 		[image.bytes === null ? null : formatBytes(image.bytes), image.mediaType]
@@ -69,13 +75,30 @@
 	<span class="shrink-0">Read image</span>
 
 	{#snippet chip()}
-		<span
-			class="border-chip-border bg-chip text-2xs text-fg-secondary inline-flex h-5 max-w-56 min-w-0 cursor-default items-center gap-1 rounded-md border-[0.5px] px-1.5"
-			data-testid="tool-image-chip"
-		>
-			<FileTypeIcon path={image.path} size={12} />
-			<span class="truncate">{image.fileName}</span>
-		</span>
+		{#if previewable && onopenimage}
+			<Button
+				bare
+				class={[
+					chipClass,
+					'hover:bg-chip-hover focus-visible:ring-button-primary/40 cursor-zoom-in focus-visible:ring-2 focus-visible:outline-none',
+				]}
+				ariaLabel={galleryImageLabel(image.fileName)}
+				data-testid="tool-image-chip"
+				onpointerdown={(event: PointerEvent) => event.stopPropagation()}
+				onclick={() => onopenimage?.(image.path)}
+			>
+				{@render chipContent()}
+			</Button>
+		{:else}
+			<span class={[chipClass, 'cursor-default']} data-testid="tool-image-chip">
+				{@render chipContent()}
+			</span>
+		{/if}
+	{/snippet}
+
+	{#snippet chipContent()}
+		<FileTypeIcon path={image.path} size={12} />
+		<span class="truncate">{image.fileName}</span>
 	{/snippet}
 
 	{#if !previewable}

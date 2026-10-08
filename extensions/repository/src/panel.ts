@@ -1782,7 +1782,6 @@ const REPOSITORY_PANEL_STYLES = `
 		background: transparent;
 		font-size: var(--text-sm);
 		text-align: left;
-		transition: background-color 120ms ease;
 	}
 	.repository-panel__change:hover { background: var(--color-surface-50-hover); }
 	.repository-panel__change--untracked:hover { background: transparent; }

@@ -15,6 +15,12 @@ describe('full page modal dismissal comes from the scrim, not the content', () =
 		expect(contentWrapper).not.toContain('onclick');
 	});
 
+	it('lets a click on empty content land on the scrim by keeping the content pointer-transparent', () => {
+		const contentWrapper =
+			markup().match(/<div\s+class=\{\[\s*'styled-scrollbar[\s\S]*?>/u)?.[0] ?? '';
+		expect(contentWrapper).not.toContain('pointer-events-auto');
+	});
+
 	it('closes on a click on the scrim', () => {
 		const backdrop = markup().match(/<div\s+class="animate-fadeIn absolute[\s\S]*?><\/div>/u)?.[0];
 		expect(backdrop).toContain('onclick={startClose}');

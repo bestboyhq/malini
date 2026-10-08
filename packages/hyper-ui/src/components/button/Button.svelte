@@ -51,6 +51,7 @@
 		class?: ClassValue;
 		onclick?: (event: MouseEvent) => void;
 		onkeydown?: (event: KeyboardEvent) => void;
+		onpointerdown?: (event: PointerEvent) => void;
 		ondblclick?: (event: MouseEvent) => void;
 		[attr: `data-${string}`]: string | undefined;
 	}
@@ -251,7 +252,7 @@
 		bare
 			? undefined
 			: [
-					'inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium outline-0 [&>svg]:shrink-0 transition-[background-color,border-color,color,filter,opacity,scale] duration-150 ease-in-out focus-visible:ring-2',
+					'inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium outline-0 [&>svg]:shrink-0 transition-[border-color,color,filter,opacity,scale] duration-150 ease-in-out focus-visible:ring-2',
 					radiusClass[resolvedRadius],
 					surfaceClass,
 					focusClass[variant],

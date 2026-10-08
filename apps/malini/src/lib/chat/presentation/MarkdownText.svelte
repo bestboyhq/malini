@@ -566,7 +566,11 @@
 		type FileMentionTarget,
 	} from './file-mention-links';
 	import MarkdownCodeBlock from './MarkdownCodeBlock.svelte';
-	import { showWorkstreamImages } from './workstream-images';
+	import {
+		GALLERY_IMAGE_ATTRIBUTE,
+		offerGalleryImages,
+		showWorkstreamImages,
+	} from './workstream-images';
 
 	interface Props {
 		text: string;
@@ -586,6 +590,7 @@
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
 	let {
@@ -596,11 +601,13 @@
 		onopenfile,
 		canopenfile,
 		imagesrc,
+		onopenimage,
 	}: Props = $props();
 
 	type MarkdownTextUpdate = StreamingMarkdownUpdate & {
 		canOpenFile: ((path: string) => boolean) | undefined;
 		imageSource: ((path: string) => string | null) | undefined;
+		galleryImages: boolean;
 	};
 
 	function mountManagedCodeBlock(
@@ -635,10 +642,16 @@
 			container: node,
 			mountCodeBlock: mountManagedCodeBlock,
 		});
-		const render = ({ canOpenFile, imageSource, ...update }: MarkdownTextUpdate): void => {
+		const render = ({
+			canOpenFile,
+			imageSource,
+			galleryImages,
+			...update
+		}: MarkdownTextUpdate): void => {
 			renderer.update(update);
 			markOpenableFileMentions(node, canOpenFile);
 			showWorkstreamImages(node, imageSource);
+			if (galleryImages) offerGalleryImages(node);
 		};
 		render(initial);
 		return {
@@ -650,6 +663,7 @@
 	function onLinkClick(event: MouseEvent): void {
 		if (revealSensitiveTarget(event)) return;
 		if (!(event.target instanceof Element)) return;
+		if (openGalleryImage(event.target)) return;
 		const anchor = event.target.closest('a');
 		if (!(anchor instanceof HTMLAnchorElement)) return;
 		event.preventDefault();
@@ -672,12 +686,23 @@
 		if (event.key !== 'Enter' && event.key !== ' ') return;
 		if (revealSensitiveTarget(event)) return;
 		if (!(event.target instanceof Element)) return;
+		if (openGalleryImage(event.target)) {
+			event.preventDefault();
+			return;
+		}
 		const anchor = event.target.closest('a');
 		if (!(anchor instanceof HTMLAnchorElement)) return;
 		const fileTarget = readFileMentionTarget(anchor);
 		if (!fileTarget) return;
 		event.preventDefault();
 		onopenfile?.(fileTarget, anchor);
+	}
+
+	function openGalleryImage(target: Element): boolean {
+		const id = target.getAttribute(GALLERY_IMAGE_ATTRIBUTE);
+		if (id === null || !onopenimage) return false;
+		onopenimage(id);
+		return true;
 	}
 
 	function markdownLinks(node: HTMLElement): { destroy: () => void } {
@@ -712,6 +737,7 @@
 		streamingTailCharacters,
 		canOpenFile: canopenfile,
 		imageSource: imagesrc,
+		galleryImages: onopenimage !== undefined,
 	}}
 ></div>
 
@@ -846,7 +872,6 @@
 		color: inherit;
 		text-decoration: none;
 		cursor: pointer;
-		transition: background-color 120ms ease-out;
 	}
 
 	.markdown-text :global(a[data-file-missing]) {
@@ -885,6 +910,16 @@
 		.markdown-text :global(a[data-file-path]) {
 			transition: none;
 		}
+	}
+
+	.markdown-text :global(img[data-gallery-image]) {
+		cursor: zoom-in;
+		border-radius: 0.375em;
+	}
+
+	.markdown-text :global(img[data-gallery-image]:focus-visible) {
+		outline: 2px solid var(--color-brand);
+		outline-offset: 2px;
 	}
 
 	.markdown-text :global(pre:not([data-managed-code-block])) {

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
 import { commitByHand, openPullRequestDetail, seedWorkstreamOnFakeGithub } from './fake-github';
 
-test('after a push the top bar waits for GitHub to report the pushed head', async () => {
+test('after a push the top bar and the sidebar wait for GitHub to report the pushed head', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -22,6 +22,9 @@ test('after a push the top bar waits for GitHub to report the pushed head', asyn
 		});
 		await expect(page.getByRole('button', { name: /Resolve merge conflicts/u })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /^Merge pull request/u })).toHaveCount(0);
+		await expect(
+			page.getByRole('status', { name: /^Workstream status: .*Pull request open/u }),
+		).toBeVisible();
 		await captureFlow(app, 'pull-request-checking');
 
 		github.setPullRequest({
@@ -36,6 +39,9 @@ test('after a push the top bar waits for GitHub to report the pushed head', asyn
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeVisible({
 			timeout: 30_000,
 		});
+		await expect(
+			page.getByRole('status', { name: /^Workstream status: .*Ready to merge/u }),
+		).toBeVisible();
 		await captureFlow(app, 'pull-request-reported');
 		expectCleanConsole(app);
 	} finally {

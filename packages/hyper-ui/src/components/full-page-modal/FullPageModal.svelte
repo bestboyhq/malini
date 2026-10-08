@@ -104,7 +104,7 @@
 
 				<div
 					class={[
-						'styled-scrollbar pointer-events-auto flex h-full w-full flex-col rounded-lg bg-transparent',
+						'styled-scrollbar flex h-full w-full flex-col rounded-lg bg-transparent',
 						isClosing ? 'animate-scaleOut' : 'animate-scaleIn',
 					]}
 				>

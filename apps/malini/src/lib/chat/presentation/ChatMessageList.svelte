@@ -41,6 +41,8 @@
 	import BufferedStreamingMarkdown from './BufferedStreamingMarkdown.svelte';
 	import BufferedStreamingText from './BufferedStreamingText.svelte';
 	import RunStatusLine from './RunStatusLine.svelte';
+	import ImageGallery from './ImageGallery.svelte';
+	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { GroupedRunTimelineItem } from './activity-group';
 	import type { RunTimelineItem } from './run-timeline';
@@ -244,6 +246,14 @@
 		void workstreamId;
 		return () => releaseImagePreviewsCommand(markdownImageOwner);
 	});
+
+	let gallery = $state.raw<Readonly<{ images: readonly GalleryImage[]; startId: string }> | null>(
+		null,
+	);
+
+	function openImageGallery(id: string): void {
+		gallery = { images: transcriptGalleryImages(runs), startId: id };
+	}
 
 	function openFileMention(target: FileMentionTarget, mention: HTMLElement): void {
 		openFileMentionTarget(target, (targets) => {
@@ -562,6 +572,7 @@
 		get markdownImageSource() {
 			return markdownImageSource;
 		},
+		openImageGallery,
 	});
 
 	function isInteractionLifecycleEnvelope(envelope: EventEnvelope): boolean {
@@ -657,11 +668,11 @@
 		const currentSessionId = sessionId;
 		untrack(() => {
 			if (currentSessionId === windowedSessionId) return;
+			if (windowedSessionId) transcriptScroll.leave(windowedSessionId);
 			windowedSessionId = currentSessionId;
-			timelines.resetForSession();
 			anchoredPromptToken = latestPromptToken;
 			followedSeq = envelopes.at(-1)?.seq ?? 0;
-			transcriptScroll.openAtBottom();
+			transcriptScroll.open(currentSessionId);
 		});
 	});
 
@@ -721,6 +732,7 @@
 	});
 
 	onDestroy(() => {
+		if (windowedSessionId) transcriptScroll.leave(windowedSessionId);
 		settle.destroy();
 		rowArrivals.destroy();
 		transcriptScroll.destroy();
@@ -881,7 +893,7 @@
 										data-testid="thinking-live"
 									>
 										<summary
-											class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-xs transition-colors"
+											class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-xs transition-[color,border-color]"
 										>
 											<Icon
 												name="chevron-right"
@@ -970,6 +982,14 @@
 				</ol>
 			</div>
 		</div>
+	{/if}
+	{#if gallery}
+		<ImageGallery
+			{workstreamId}
+			images={gallery.images}
+			startId={gallery.startId}
+			onclose={() => (gallery = null)}
+		/>
 	{/if}
 	<FileMentionChooser
 		open={fileMentionChooserOpen}

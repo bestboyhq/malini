@@ -87,7 +87,7 @@
 							<li aria-setsize={fileCount} aria-posinset={firstRow + offset + 1}>
 								<Button
 									bare
-									class="text-fg-secondary hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-left text-xs transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-wait disabled:opacity-60"
+									class="text-fg-secondary hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-wait disabled:opacity-60"
 									disabled={openingPath !== null}
 									tabindex={expanded ? 0 : -1}
 									ariaLabel={`Open ${file.path} agent chat diff in Files`}

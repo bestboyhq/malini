@@ -61,7 +61,7 @@ describe('MarkdownText sanitized HTML cache contract', () => {
 		expect(markdown).not.toContain('use:managedCodeBlocks');
 		expect(markdown.match(/data-testid="markdown-text"/gu)).toHaveLength(1);
 		expect(markdown.replace(/\s+/gu, ' ')).toContain(
-			'use:streamingMarkdown={{ text, mode, streamingTailCharacters, canOpenFile: canopenfile, imageSource: imagesrc, }}',
+			'use:streamingMarkdown={{ text, mode, streamingTailCharacters, canOpenFile: canopenfile, imageSource: imagesrc, galleryImages: onopenimage !== undefined, }}',
 		);
 	});
 });

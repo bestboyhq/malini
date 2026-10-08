@@ -38,6 +38,12 @@ describe('approval request', () => {
 			}),
 		).toBe('Claude wants to search the web');
 		expect(
+			approvalHeadline('SandboxNetworkAccess', {
+				capability: 'network',
+				resources: [{ kind: 'url', value: 'example.com', boundary: 'external' }],
+			}),
+		).toBe('Claude wants to reach the network');
+		expect(
 			approvalHeadline('mcp__linear__create_issue', {
 				capability: 'external-service',
 				resources: [{ kind: 'service', value: 'linear', boundary: 'external' }],

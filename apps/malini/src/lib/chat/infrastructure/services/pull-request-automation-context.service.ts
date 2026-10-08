@@ -54,11 +54,9 @@ export function pullRequestAutomationEvidence(
 		events
 			.filter(
 				(event): event is Extract<AgentEvent, { type: 'command.completed' }> =>
-					event.type === 'command.completed' &&
-					event.exitCode === 0 &&
-					isValidationCommand(event.command),
+					event.type === 'command.completed' && event.exitCode === 0,
 			)
-			.map(({ command }) => bounded(command.trim()))
+			.map(({ command }) => bounded(validationLabel(command)))
 			.filter(Boolean),
 		EVIDENCE_LIMITS.validationEvents,
 	).map((label): PullRequestAutomationEvent => ({
@@ -184,10 +182,24 @@ function selectSession(input: PullRequestAutomationEvidenceInput): SessionRecord
 	);
 }
 
-function isValidationCommand(command: string): boolean {
-	return /(?:^|\s|[/\\])(?:test|check|lint|typecheck|svelte-check|tsc|vitest|jest|playwright|pytest|clippy|fmt|format|build)(?:$|\s|:)/iu.test(
-		command,
-	);
+const COMMAND_SEPARATOR = /\s*(?:&&|\|\||[;|\n])\s*/u;
+const REDIRECTION = /\s+\d?>&\d|\s+\d?>{1,2}\s*\S+/gu;
+const ENVIRONMENT_PREFIX = /^(?:\w+=\S*\s+)+/u;
+const VALIDATION_PROGRAM =
+	/^(?:(?:corepack\s+)?(?:pnpm|npm|yarn|bun)(?:\s+(?:--filter|-F|-C|--dir|-w|-r|--recursive)(?:[\s=][^\s-]\S*)?)*\s+(?:run\s+)?(?:exec\s+)?(?:test|check|lint|typecheck|build|e2e|vitest|playwright|tsc|eslint|svelte-check)(?::\S+)?|(?:npx\s+)?(?:vitest|jest|playwright|tsc|svelte-check|eslint|pytest|mypy|ruff)|node\s+--test|cargo\s+(?:test|clippy|fmt|check|build)|go\s+(?:test|vet|build)|make\s+(?:test|check|lint))(?:\s|$)/u;
+
+function validationLabel(command: string): string {
+	const script = command.includes('<<') ? (command.split('\n')[0] ?? '') : command;
+	return script
+		.split(COMMAND_SEPARATOR)
+		.map((part) =>
+			part
+				.replace(/^[(\s]+|[)\s]+$/gu, '')
+				.replace(REDIRECTION, '')
+				.replace(ENVIRONMENT_PREFIX, ''),
+		)
+		.filter((part) => VALIDATION_PROGRAM.test(part))
+		.join('; ');
 }
 
 function takeLastUnique(values: readonly string[], limit: number): readonly string[] {

@@ -113,7 +113,7 @@
 
 <div
 	class={[
-		'group/browser-tab has-[[role=tab]:focus-visible]:ring-button-primary/40 flex h-7 min-w-0 shrink-0 items-center overflow-hidden rounded-md transition-colors has-[[role=tab]:focus-visible]:ring-2 has-[[role=tab]:focus-visible]:ring-inset motion-reduce:transition-none',
+		'group/browser-tab has-[[role=tab]:focus-visible]:ring-button-primary/40 flex h-7 min-w-0 shrink-0 items-center overflow-hidden rounded-md transition-[color,border-color] has-[[role=tab]:focus-visible]:ring-2 has-[[role=tab]:focus-visible]:ring-inset motion-reduce:transition-none',
 		surfaceClass,
 	]}
 	data-selected={selected}
@@ -135,7 +135,7 @@
 			ariaLabel={closeLabel}
 			disabled={closeDisabled}
 			class={[
-				'focus-visible:ring-button-primary/40 relative mr-1 grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,background-color,color] outline-none group-hover/browser-tab:opacity-100 group-data-[selected=true]/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
+				'focus-visible:ring-button-primary/40 relative mr-1 grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color] outline-none group-hover/browser-tab:opacity-100 group-data-[selected=true]/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
 				tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
 				closeHoverClass[surface],
 			]}

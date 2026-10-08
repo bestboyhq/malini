@@ -61,7 +61,7 @@
 <div class="w-full text-sm" data-message-kind="bash" data-bash-status={status}>
 	<Button
 		bare
-		class="group/command text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex min-h-6 w-full cursor-pointer items-center gap-2 bg-transparent text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+		class="group/command text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex min-h-6 w-full cursor-pointer items-center gap-2 bg-transparent text-left transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
 		ariaLabel={`${expanded ? 'Collapse' : 'Expand'} output for ${description ?? activityLabel}`}
 		ariaExpanded={expanded}
 		data-testid="bash-command-toggle"

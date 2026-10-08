@@ -99,7 +99,7 @@
 		bare
 			? 'border-transparent bg-transparent outline-none focus:border-transparent focus:outline-none focus:ring-0'
 			: [
-					'rounded-md border border-surface-input-border bg-surface-input text-sm transition-colors focus:border-border-default focus:ring-2 focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled',
+					'rounded-md border border-surface-input-border bg-surface-input text-sm transition-[color,border-color] focus:border-border-default focus:ring-2 focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled',
 					sizeClass[size],
 				],
 		{

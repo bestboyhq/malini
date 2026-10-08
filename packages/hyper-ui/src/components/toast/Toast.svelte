@@ -73,7 +73,7 @@
 			<button
 				type="button"
 				data-testid="toast-action"
-				class="bg-surface-150 text-fg-default hover:bg-surface-150-hover focus-visible:ring-border-default/50 shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+				class="bg-surface-150 text-fg-default hover:bg-surface-150-hover focus-visible:ring-border-default/50 shrink-0 cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
 				onclick={onActionClick}
 			>
 				{action.label}

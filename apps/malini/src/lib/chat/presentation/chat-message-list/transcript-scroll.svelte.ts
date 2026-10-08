@@ -5,6 +5,20 @@ export type TranscriptFollow = 'bottom' | 'prompt' | 'reader';
 
 type LayoutCause = 'content' | 'frame';
 
+type TranscriptAnchor = Readonly<{ runId: string; row: number; offset: number }>;
+
+type TranscriptPosition = Readonly<{ follow: TranscriptFollow; anchor: TranscriptAnchor | null }>;
+
+const AT_BOTTOM: TranscriptPosition = { follow: 'bottom', anchor: null };
+
+const positions = new Map<string, TranscriptPosition>();
+
+const ANCHOR_ROWS = ':scope > :not([data-prompt-row])';
+
+export function forgetTranscriptPositions(): void {
+	positions.clear();
+}
+
 const SCROLL_UP_KEYS: ReadonlySet<string> = new Set(['PageUp', 'ArrowUp', 'Home']);
 const SCROLL_KEYS: ReadonlySet<string> = new Set([
 	...SCROLL_UP_KEYS,
@@ -25,7 +39,8 @@ export type TranscriptScroll = {
 	releaseScrollPin(): void;
 	followSpaceBelowChange(): void;
 	holdBottomAnchor(): void;
-	openAtBottom(): void;
+	open(key: string): void;
+	leave(key: string): void;
 	followNewContent(): void;
 	showNewPrompt(fromComposer: boolean): void;
 	revealOlderContent(mutate: () => Promise<void>): Promise<void>;
@@ -51,6 +66,8 @@ export function createTranscriptScroll(
 	let pointerScrolling = false;
 	let reconcileFrame: number | null = null;
 	let openingRepinQueued = false;
+	let anchor: TranscriptAnchor | null = null;
+	let restoring = false;
 
 	const glideTarget = {
 		get scrollTop(): number {
@@ -102,11 +119,40 @@ export function createTranscriptScroll(
 		return Math.max(0, offset - inset);
 	}
 
+	function readAnchor(viewport: HTMLElement, list: HTMLElement): TranscriptAnchor | null {
+		const top = viewport.getBoundingClientRect().top;
+		const runs = list.querySelectorAll<HTMLElement>(':scope > [data-run-id]');
+		const run = runs[Math.min(firstEndingBelow(runs, top), runs.length - 1)];
+		const runId = run?.dataset['runId'];
+		if (!run || runId === undefined) return null;
+		const rows = run.querySelectorAll(ANCHOR_ROWS);
+		const row = Math.min(firstEndingBelow(rows, top), rows.length - 1);
+		const rowTop = rows[row]?.getBoundingClientRect().top;
+		if (rowTop === undefined) return null;
+		return { runId, row, offset: rowTop - top };
+	}
+
+	function anchoredTop(viewport: HTMLElement, list: HTMLElement): number | null {
+		if (!anchor) return null;
+		const { runId, row, offset } = anchor;
+		const runs = list.querySelectorAll<HTMLElement>(':scope > [data-run-id]');
+		const run = [...runs].find((candidate) => candidate.dataset['runId'] === runId);
+		const rowTop = run?.querySelectorAll(ANCHOR_ROWS)[row]?.getBoundingClientRect().top;
+		if (rowTop === undefined) return null;
+		return Math.max(0, viewport.scrollTop + rowTop - viewport.getBoundingClientRect().top - offset);
+	}
+
+	function rememberAnchor(): void {
+		if (follow !== 'reader' || restoring || !viewportEl || !messageListEl) return;
+		anchor = readAnchor(viewportEl, messageListEl);
+	}
+
 	function targetTop(viewport: HTMLElement, list: HTMLElement, cause: LayoutCause): number {
 		const naturalMax = naturalMaxTop(viewport);
 		if (bottomAnchor && performance.now() > bottomAnchor.until) bottomAnchor = null;
 		if (bottomAnchor) return Math.max(0, naturalMax - bottomAnchor.distance);
 		if (follow === 'prompt') return latestPromptTop(viewport, list) ?? heldTop;
+		if (follow === 'reader' && restoring) return anchoredTop(viewport, list) ?? naturalMax;
 		if (follow === 'reader') return heldTop;
 		if (opening || cause === 'frame') return naturalMax;
 		return Math.max(heldTop, naturalMax);
@@ -133,6 +179,7 @@ export function createTranscriptScroll(
 		scrollGlide.cancel();
 		promptGlide = false;
 		scrollTo(target);
+		rememberAnchor();
 	}
 
 	function scheduleReconcile(): void {
@@ -154,10 +201,12 @@ export function createTranscriptScroll(
 		cancelScheduledReconcile();
 		promptGlide = false;
 		opening = false;
+		restoring = false;
 		bottomAnchor = null;
 		follow = 'reader';
 		heldTop = viewportEl?.scrollTop ?? heldTop;
 		shownTop = heldTop;
+		rememberAnchor();
 	}
 
 	function scrollsBeyondView(): boolean {
@@ -174,6 +223,7 @@ export function createTranscriptScroll(
 		cancelScheduledReconcile();
 		promptGlide = false;
 		opening = false;
+		restoring = false;
 		bottomAnchor = null;
 		const top = viewport.scrollTop;
 		const naturalMax = naturalMaxTop(viewport);
@@ -181,6 +231,7 @@ export function createTranscriptScroll(
 		heldTop = top;
 		shownTop = top;
 		setHoldSpace(top - naturalMax);
+		rememberAnchor();
 	}
 
 	function onViewportPointerDown(event: PointerEvent): void {
@@ -282,11 +333,14 @@ export function createTranscriptScroll(
 			};
 		},
 
-		openAtBottom(): void {
+		open(key: string): void {
+			const remembered = positions.get(key) ?? AT_BOTTOM;
 			bottomAnchor = null;
 			opening = true;
 			promptGlide = false;
-			follow = 'bottom';
+			anchor = remembered.anchor;
+			restoring = anchor !== null;
+			follow = remembered.follow === 'reader' && !restoring ? 'bottom' : remembered.follow;
 			setHoldSpace(0);
 			scrollGlide.cancel();
 			cancelScheduledReconcile();
@@ -297,6 +351,10 @@ export function createTranscriptScroll(
 				openingRepinQueued = false;
 				if (opening) reconcile('frame');
 			});
+		},
+
+		leave(key: string): void {
+			positions.set(key, { follow, anchor: follow === 'reader' ? anchor : null });
 		},
 
 		followNewContent(): void {
@@ -344,6 +402,18 @@ export function createTranscriptScroll(
 			scrollGlide.cancel();
 		},
 	};
+}
+
+function firstEndingBelow(elements: ArrayLike<Element>, y: number): number {
+	let low = 0;
+	let high = elements.length;
+	while (low < high) {
+		const middle = (low + high) >> 1;
+		const bottom = elements[middle]?.getBoundingClientRect().bottom ?? y;
+		if (bottom > y) high = middle;
+		else low = middle + 1;
+	}
+	return low;
 }
 
 function isEditable(target: EventTarget | null): boolean {

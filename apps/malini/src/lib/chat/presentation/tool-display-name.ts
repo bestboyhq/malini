@@ -43,6 +43,8 @@ const LIVE_INPUT_SUMMARY_KEYS = [
 
 const MAX_LIVE_INPUT_SUMMARY_CHARS = 4_096;
 
+const AGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
+
 const IDENTIFIER_LABELS: Readonly<Record<string, string>> = {
 	apply_patch: 'apply_patch',
 	bash: 'Bash',
@@ -82,8 +84,15 @@ const ACRONYM_LABELS: Readonly<Record<string, string>> = {
 	ux: 'UX',
 };
 
+export function isBackgroundAgent(rawName: string, input: unknown): boolean {
+	return (
+		AGENT_TOOL_NAMES.has(rawName.trim()) && isRecord(input) && input['run_in_background'] === true
+	);
+}
+
 export function toolDisplayName(rawName: string, input?: unknown): string {
 	const trimmed = rawName.trim();
+	if (isBackgroundAgent(trimmed, input)) return 'Background agent';
 	if (isGenericName(trimmed)) return inferGenericToolName(input);
 
 	const mcpMatch = /^mcp__([^_].*?)__(.+)$/iu.exec(trimmed);
@@ -153,7 +162,9 @@ export function toolFailureReason(error: string | null | undefined): string | nu
 }
 
 export function toolDescriptionLabel(rawName: string, input: unknown): string | null {
-	if (toolActionKind(rawName, input) !== 'command') return null;
+	const describable =
+		AGENT_TOOL_NAMES.has(rawName.trim()) || toolActionKind(rawName, input) === 'command';
+	if (!describable) return null;
 	const description = stringAt(input, ['description']);
 	return description ? short(description) : null;
 }
@@ -174,7 +185,21 @@ export function toolActivityLabel(
 		return `${displayName} · ${relativizeWorkstreamPath(path)}`;
 	}
 	if (kind === 'search' && query) return `${displayName} · ${short(query)}`;
+	if (isBackgroundAgent(rawName, input)) return displayName;
 	return status === 'running' ? `Running ${displayName}` : displayName;
+}
+
+export function backgroundAgentSummary(
+	rawName: string,
+	input: unknown,
+	output: unknown,
+): string | null {
+	if (!isBackgroundAgent(rawName, input) || typeof output !== 'string') return null;
+	const firstLine = output
+		.split('\n')
+		.map((line) => line.trim())
+		.find(Boolean);
+	return firstLine ? short(firstLine) : null;
 }
 
 export function summarizeLiveToolInput(json: string | null | undefined): unknown {

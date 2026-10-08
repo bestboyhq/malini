@@ -427,7 +427,7 @@
 	}
 
 	type PullRequestVisual = Readonly<{
-		glyph: 'branched-off' | 'draft' | 'merge' | 'errored';
+		glyph: 'branch' | 'pr-draft' | 'pr-open' | 'pr-merged' | 'pr-failed';
 		color: string;
 		label: string | null;
 	}>;
@@ -435,21 +435,21 @@
 	function pullRequestVisual(state: PullRequestState): PullRequestVisual {
 		switch (state) {
 			case 'draft':
-				return { glyph: 'draft', color: '', label: 'Draft pull request' };
+				return { glyph: 'pr-draft', color: '', label: 'Draft pull request' };
 			case 'open':
-				return { glyph: 'merge', color: '', label: 'Pull request open' };
+				return { glyph: 'pr-open', color: '', label: 'Pull request open' };
 			case 'ready':
-				return { glyph: 'merge', color: 'text-success-content', label: 'Ready to merge' };
+				return { glyph: 'pr-open', color: 'text-success-content', label: 'Ready to merge' };
 			case 'merged':
-				return { glyph: 'merge', color: 'text-success-content', label: 'Merged' };
+				return { glyph: 'pr-merged', color: 'text-merged-content', label: 'Merged' };
 			case 'failing':
-				return { glyph: 'errored', color: 'text-error-content', label: 'Checks failing' };
+				return { glyph: 'pr-failed', color: 'text-error-content', label: 'Checks failing' };
 			case 'closed':
-				return { glyph: 'branched-off', color: '', label: 'Pull request closed' };
+				return { glyph: 'branch', color: '', label: 'Pull request closed' };
 			case 'none':
-				return { glyph: 'branched-off', color: '', label: 'No pull request' };
+				return { glyph: 'branch', color: '', label: 'No pull request' };
 			default:
-				return { glyph: 'branched-off', color: '', label: null };
+				return { glyph: 'branch', color: '', label: null };
 		}
 	}
 
@@ -680,9 +680,12 @@
 											)}
 											{@const lifecycle = lifecycleAction(workstream.id, label)}
 											{@const targetSessionId = chat.sessionId}
-											{@const changeTotals = changeTotalsByWorkstream[workstream.id]}
 											{@const pullRequestState =
 												pullRequestStateByWorkstream[workstream.id] ?? 'unknown'}
+											{@const changeTotals =
+												pullRequestState === 'merged'
+													? undefined
+													: changeTotalsByWorkstream[workstream.id]}
 											{@const pullRequest = pullRequestVisual(pullRequestState)}
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
@@ -749,7 +752,7 @@
 																busy || state.tone === 'broken' ? state.icon : pullRequest.color,
 															]}
 															role="status"
-															aria-label={`Workstream status: ${state.label}`}
+															aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
 															data-testid={state.tone === 'running'
 																? 'sidebar-workstream-loader'
 																: 'sidebar-workstream-status'}
@@ -758,14 +761,8 @@
 														>
 															{#if busy}
 																<BusyIcon size={14} />
-															{:else if pullRequest.glyph === 'draft'}
-																<Icon name="pr-draft" size={14} />
-															{:else if pullRequest.glyph === 'merge'}
-																<Icon name="pr-merged" size={14} />
-															{:else if pullRequest.glyph === 'errored'}
-																<Icon name="pr-failed" size={14} />
 															{:else}
-																<Icon name="branch" size={14} />
+																<Icon name={pullRequest.glyph} size={14} />
 															{/if}
 															{#if queueCount > 0}
 																<span
@@ -776,23 +773,23 @@
 																	{queueCount}
 																</span>
 															{/if}
-															{#if attention}
-																<span
-																	class={[
-																		'ring-border-default absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full ring-2',
-																		attention.kind === 'failed'
-																			? 'bg-error-content'
-																			: attention.kind === 'approval'
-																				? 'bg-warning-content'
-																				: 'bg-brand',
-																	]}
-																	aria-hidden="true"
-																	data-testid="sidebar-agent-attention"
-																	data-attention-kind={attention.kind}
-																></span>
-															{/if}
 														</span>
 													</Tooltip>
+													{#if attention}
+														<span
+															class={[
+																'absolute top-1/2 left-2.5 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
+																attention.kind === 'failed'
+																	? 'bg-error-content'
+																	: attention.kind === 'approval'
+																		? 'bg-warning-content'
+																		: 'bg-brand',
+															]}
+															aria-hidden="true"
+															data-testid="sidebar-agent-attention"
+															data-attention-kind={attention.kind}
+														></span>
+													{/if}
 													<span class="sidebar-row-text gap-1.5">
 														<Tooltip
 															content={label}

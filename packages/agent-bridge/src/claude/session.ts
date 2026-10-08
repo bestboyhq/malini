@@ -140,13 +140,14 @@ export class ClaudeSession implements ProviderHandle {
 		const active: ActiveRun = { runId, query, abort, finished, transcript, cancelled: false };
 		this.#active = active;
 		try {
-			const result = await this.#consume(query, transcript, promptId);
-			if (resumed && !this.#initialized && !active.cancelled && result?.is_error) {
+			const results = await this.#consume(active, promptId);
+			if (resumed && !this.#initialized && !active.cancelled && results[0]?.is_error) {
 				return 'transcript-missing';
 			}
 			this.#seedHistory = undefined;
-			this.#finish(runId, active, transcript, result);
+			this.#finish(runId, active, transcript, results);
 		} catch (error) {
+			transcript.stopBackgroundAgents();
 			this.#emit({
 				type: 'run.failed',
 				runId,
@@ -162,17 +163,22 @@ export class ClaudeSession implements ProviderHandle {
 		return 'done';
 	}
 
-	async #consume(
-		query: ClaudeQuery,
-		transcript: ClaudeTranscript,
-		promptId: string,
-	): Promise<SDKResultMessage | null> {
-		for await (const message of query) {
+	async #consume(active: ActiveRun, promptId: string): Promise<SDKResultMessage[]> {
+		const results: SDKResultMessage[] = [];
+		let reportsSessionState = false;
+		for await (const message of active.query) {
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
-			transcript.accept(message);
-			if (message.type === 'result' && answersPrompt(message, promptId)) return message;
+			active.transcript.accept(message);
+			if (message.type === 'system' && message.subtype === 'session_state_changed') {
+				reportsSessionState = true;
+				if (results.length > 0 && message.state === 'idle') return results;
+			}
+			if (message.type !== 'result') continue;
+			if (results.length === 0 && !answersPrompt(message, promptId)) continue;
+			results.push(message);
+			if (!reportsSessionState || active.cancelled) return results;
 		}
-		return null;
+		return results;
 	}
 
 	#acceptInit(message: Extract<SDKMessage, { type: 'system'; subtype: 'init' }>): void {
@@ -207,19 +213,27 @@ export class ClaudeSession implements ProviderHandle {
 		runId: string,
 		active: ActiveRun,
 		transcript: ClaudeTranscript,
-		result: SDKResultMessage | null,
+		results: readonly SDKResultMessage[],
 	): void {
+		transcript.stopBackgroundAgents();
+		const result = results.at(-1);
 		if (result) {
 			if (!transcript.contextWindowTokens) {
 				transcript.recordContextWindow(Object.values(result.modelUsage)[0]?.contextWindow);
 			}
-			const usage = result.usage;
+			const usages = results.map(({ usage }) => usage);
 			this.#emit({
 				type: 'usage.updated',
 				runId,
-				inputTokens:
-					usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens,
-				outputTokens: usage.output_tokens,
+				inputTokens: sum(
+					usages.map(
+						(usage) =>
+							usage.input_tokens +
+							usage.cache_read_input_tokens +
+							usage.cache_creation_input_tokens,
+					),
+				),
+				outputTokens: sum(usages.map((usage) => usage.output_tokens)),
 				costUsd: result.total_cost_usd,
 				...(transcript.usage ? { contextTokens: transcript.usage.contextTokens } : {}),
 				...(transcript.contextWindowTokens
@@ -262,7 +276,7 @@ export class ClaudeSession implements ProviderHandle {
 			cwd: this.#context.cwd,
 			abortController: abort,
 			pathToClaudeCodeExecutable: executable,
-			env: claudeEnvironment(),
+			env: { ...claudeEnvironment(), CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
 			settingSources: ['user', 'project', 'local'],
 			systemPrompt: {
 				type: 'preset',
@@ -412,6 +426,10 @@ function answersPrompt(result: SDKResultMessage, promptId: string): boolean {
 		result.user_message_uuids ?? (result.user_message_uuid ? [result.user_message_uuid] : []);
 	if (answered.length > 0) return answered.includes(promptId);
 	return result.subtype !== 'success' || result.is_error || result.num_turns > 0;
+}
+
+function sum(values: readonly number[]): number {
+	return values.reduce((total, value) => total + value, 0);
 }
 
 function cursor(transcript: ClaudeTranscript): { providerCursor?: string } {

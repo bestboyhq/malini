@@ -42,7 +42,7 @@
 
 <label
 	class={[
-		'hover:bg-surface-150-hover flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-sm transition-colors',
+		'hover:bg-surface-150-hover flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-sm',
 		disabled ? 'cursor-not-allowed opacity-50' : '',
 		className,
 	]}

@@ -96,7 +96,7 @@
 			>
 				<IconButton
 					bare
-					class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded transition-colors focus-visible:ring-2 focus-visible:outline-none"
+					class="text-error-content/70 hover:bg-error-content/10 hover:text-error-content focus-visible:ring-error-content/30 grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
 					ariaLabel="Copy run error"
 					onclick={() =>
 						transcript.copyErrorText(run.runId, errorDisplay.diagnostics ?? errorDisplay.primary)}

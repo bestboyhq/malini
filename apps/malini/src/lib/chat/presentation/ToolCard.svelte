@@ -10,6 +10,7 @@
 	import { formatToolDuration } from './render-state';
 	import { relativizeWorkstreamPath } from './workstream-path';
 	import {
+		backgroundAgentSummary,
 		summarizeLiveToolInput,
 		toolActionKind,
 		toolActivityLabel,
@@ -26,6 +27,7 @@
 		input: unknown;
 		output: unknown;
 		liveInputJson?: string | null;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
 	let {
@@ -37,6 +39,7 @@
 		input,
 		output,
 		liveInputJson = null,
+		onopenimage,
 	}: Props = $props();
 	let expanded = $state(false);
 
@@ -58,7 +61,10 @@
 				? null
 				: formatToolDuration(durationMs, status),
 	);
-	const label = $derived(toolActivityLabel(name, labelInput, waiting ? 'completed' : status));
+	const label = $derived(
+		backgroundAgentSummary(name, labelInput, output) ??
+			toolActivityLabel(name, labelInput, waiting ? 'completed' : status),
+	);
 	const actionKind = $derived(toolActionKind(name, labelInput));
 	const description = $derived(toolDescriptionLabel(name, labelInput));
 
@@ -125,12 +131,12 @@
 
 {#if imageRead}
 	<div class="text-sm">
-		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} />
+		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} {onopenimage} />
 	</div>
 {:else}
 	<details class="group/tool text-sm" data-tool-status={status} bind:open={expanded}>
 		<summary
-			class="text-fg-secondary hover:text-fg-default flex min-h-6 cursor-pointer list-none items-center gap-2 transition-colors"
+			class="text-fg-secondary hover:text-fg-default flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 			aria-label={`${expanded ? 'Hide' : 'Show'} input and output for ${displayName}`}
 			data-testid="tool-card-summary"
 		>

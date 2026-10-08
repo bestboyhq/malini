@@ -12,6 +12,7 @@ import { noRawButton } from '../src/no-raw-button.mjs';
 import { noRawFormControl } from '../src/no-raw-form-control.mjs';
 import { noExternalIconPackages } from '../src/no-external-icon-packages.mjs';
 import { noDirectComponentFileImport } from '../src/no-direct-component-file-import.mjs';
+import { noBackgroundTransition } from '../src/no-background-transition.mjs';
 
 RuleTester.describe = (_text, fn) => fn();
 RuleTester.it = (_text, fn) => fn();
@@ -634,6 +635,112 @@ javascriptTester.run('no-direct-component-file-import', noDirectComponentFileImp
 			code: "const Sheet = await import('../../../packages/hyper-ui/src/components/sheet/Sheet.svelte');",
 			filename: desktopFilename,
 			errors: [{ messageId: 'directComponentFile', data: { folder: 'sheet', module: 'Sheet' } }],
+		},
+	],
+});
+
+const cssFilename = '/packages/hyper-ui/src/styles/components/buttons.css';
+const backgroundTransition = { messageId: 'backgroundTransition' };
+
+svelteTester.run('no-background-transition', noBackgroundTransition, {
+	valid: [
+		{
+			code: '<button class="hover:bg-surface-100-hover hover:text-fg-default transition-[color,border-color] duration-150">Go</button>',
+			filename: desktopFilename,
+		},
+		{
+			code: '<div class="opacity-0 transition-opacity transition-transform transition-shadow"></div>',
+			filename: desktopFilename,
+		},
+		{
+			code: '<div class="transition-[opacity,transform] transition-none"></div>',
+			filename: desktopFilename,
+		},
+		{
+			code: '<style>.row { transition: color 120ms ease, opacity var(--default-transition-duration) ease-out; }</style>',
+			filename: desktopFilename,
+		},
+		{
+			code: '.drawer { transition:\n\theight 240ms cubic-bezier(0.16, 1, 0.3, 1),\n\topacity 160ms ease-out;\n}',
+			filename: cssFilename,
+		},
+		{
+			code: '.row { transition: none; transition-property: color, border-color; transition-duration: 0ms; }',
+			filename: cssFilename,
+		},
+		{
+			code: "<script>import { fade } from 'svelte/transition';</script><div transition:fade={{ duration: 150 }}></div>",
+			filename: desktopFilename,
+		},
+		{
+			code: "<p>{'Smooth transition between states.'}</p><p>The transition-free flow</p>",
+			filename: desktopFilename,
+		},
+		{
+			code: '<div class="transition-colors"></div>',
+			filename: testFilename,
+		},
+	],
+	invalid: [
+		{
+			code: '<button class="hover:bg-surface-100-hover transition-colors">Go</button>',
+			filename: desktopFilename,
+			errors: [{ ...backgroundTransition, data: { source: 'transition-colors' } }],
+		},
+		{
+			code: '<div class="hover:scale-105 transition-all duration-150"></div>',
+			filename: desktopFilename,
+			errors: [{ ...backgroundTransition, data: { source: 'transition-all' } }],
+		},
+		{
+			code: '<div class="flex items-center transition duration-150"></div>',
+			filename: desktopFilename,
+			errors: [{ ...backgroundTransition, data: { source: 'transition' } }],
+		},
+		{
+			code: "<div class={['rounded-md px-2 transition-[opacity,background-color,color]', active && 'bg-chip']}></div>",
+			filename: desktopFilename,
+			errors: [
+				{
+					...backgroundTransition,
+					data: { source: 'transition-[opacity,background-color,color]' },
+				},
+			],
+		},
+		{
+			code: '<style>.row { transition: background-color 50ms ease-in-out; }</style>',
+			filename: desktopFilename,
+			errors: [backgroundTransition],
+		},
+		{
+			code: '<style>.pill { transition:\n\tcolor 120ms ease,\n\tbackground 120ms ease; }</style>',
+			filename: desktopFilename,
+			errors: [backgroundTransition],
+		},
+		{
+			code: '.button { transition-property: color, background-color, border-color, scale; }',
+			filename: cssFilename,
+			errors: [backgroundTransition],
+		},
+		{
+			code: '.button { transition: all 150ms ease; }',
+			filename: cssFilename,
+			errors: [backgroundTransition],
+		},
+		{
+			code: '.button { transition: 150ms ease-out; }',
+			filename: cssFilename,
+			errors: [backgroundTransition],
+		},
+		{
+			code: '.button { @apply flex h-7 rounded-md transition-colors ease-in-out; }',
+			filename: cssFilename,
+			errors: [{ ...backgroundTransition, data: { source: 'transition-colors' } }],
+		},
+		{
+			code: '.button { @apply flex h-7 rounded-md transition ease-in-out; }',
+			filename: cssFilename,
+			errors: [{ ...backgroundTransition, data: { source: 'transition' } }],
 		},
 	],
 });

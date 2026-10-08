@@ -1,4 +1,4 @@
-import { resumeDeferredPullRequestActionCommand } from '$lib/pull-requests/application/commands/resume-deferred-pull-request-action.command';
+import { acceptRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/accept-repository-surface.command';
 import { REPOSITORY_EXTENSION_COMMANDS } from '$lib/pull-requests/domain/pull-request-action';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { repositoryExtensionService } from '$lib/pull-requests/infrastructure/services/repository-extension.service';
@@ -17,9 +17,8 @@ function loadRepositorySurfaceCommand(workstreamId: string): void {
 				REPOSITORY_EXTENSION_COMMANDS.status,
 			);
 			if (!repositorySurfaceAggregate.loadIsCurrent(workstreamId, generation)) return;
-			repositorySurfaceAggregate.accept(workstreamId, outcome.surface);
 			repositorySurfaceAggregate.finishLoad(workstreamId, generation, 'loaded');
-			resumeDeferredPullRequestActionCommand(workstreamId);
+			acceptRepositorySurfaceCommand(workstreamId, outcome.surface);
 		} catch {
 			if (!repositorySurfaceAggregate.loadIsCurrent(workstreamId, generation)) return;
 			repositorySurfaceAggregate.finishLoad(workstreamId, generation, 'failed');

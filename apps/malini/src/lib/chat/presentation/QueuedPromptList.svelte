@@ -120,7 +120,7 @@
 		<ul class="max-h-48 overflow-y-auto p-1.5">
 			{#each items as item, index (item.id)}
 				<li
-					class="group/queued hover:bg-surface-50-hover rounded-lg px-2 py-1.5 transition-colors"
+					class="group/queued hover:bg-surface-50-hover rounded-lg px-2 py-1.5"
 					data-testid="prompt-queue-item"
 					data-queued-prompt-id={item.id}
 					data-queued-role={item.role}

@@ -4,7 +4,7 @@
 	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import type { RenderState } from './render-state';
-	import { deriveRunStatus } from './run-status';
+	import { backgroundAgentsStatus, deriveRunStatus } from './run-status';
 	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
@@ -39,6 +39,7 @@
 
 	const status = $derived(deriveRunStatus({ isRunOpen: openRun !== null, runStartedAtMs, nowMs }));
 	const statusText = $derived(status.text);
+	const backgroundAgents = $derived(openRun ? backgroundAgentsStatus(runs) : null);
 </script>
 
 <div
@@ -58,7 +59,7 @@
 				<span class="text-fg-tertiary grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
 					<Icon name="pause" size={12} />
 				</span>
-				<span class="text-fg-tertiary min-w-0 flex-1 truncate" data-testid="run-status-text">
+				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
 					Waiting for you
 				</span>
 			{:else}
@@ -71,12 +72,16 @@
 				</span>
 				<span class="sr-only">Agent is working</span>
 				<span
-					class="text-fg-tertiary min-w-0 flex-1 truncate font-mono tabular-nums"
+					class="text-fg-tertiary min-w-0 truncate font-mono tabular-nums"
 					aria-hidden="true"
 					data-testid="run-status-text"
 				>
 					{statusText}
 				</span>
+			{/if}
+			{#if backgroundAgents}
+				<span class="text-fg-tertiary" aria-hidden="true">·</span>
+				<span class="text-fg-tertiary min-w-0 flex-1 truncate">{backgroundAgents}</span>
 			{/if}
 		</div>
 	{/if}

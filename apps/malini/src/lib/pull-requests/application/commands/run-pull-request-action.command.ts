@@ -1,3 +1,4 @@
+import { acceptRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/accept-repository-surface.command';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import type { PullRequestActionInput } from '@malini-extension/repository';
@@ -112,7 +113,7 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 			if (!pullRequestScopeStore.isCurrent(scope)) return;
 
 			const nextSurface = outcome.surface;
-			repositorySurfaceAggregate.accept(scope.workstreamId, nextSurface);
+			acceptRepositorySurfaceCommand(scope.workstreamId, nextSurface);
 
 			const prompt =
 				kind === 'fix' ? pullRequestFixPromptToSend(nextSurface, result.diagnostics) : null;

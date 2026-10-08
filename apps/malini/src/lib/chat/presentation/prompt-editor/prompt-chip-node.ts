@@ -28,7 +28,7 @@ const GLYPHS: Readonly<Record<PromptChipKind, string>> = {
 };
 
 const CHIP_CLASS =
-	'prompt-chip group/chip mx-0.5 -my-0.5 inline-flex h-5 max-w-56 cursor-default select-none items-center gap-1 rounded-md border border-chip-border bg-chip pr-1.5 pl-1 align-middle text-2xs leading-none text-fg-secondary transition-[background-color,border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default';
+	'prompt-chip group/chip mx-0.5 -my-0.5 inline-flex h-5 max-w-56 cursor-default select-none items-center gap-1 rounded-md border border-chip-border bg-chip pr-1.5 pl-1 align-middle text-2xs leading-none text-fg-secondary transition-[border-color,box-shadow] duration-100 hover:border-border-default hover:bg-chip-hover hover:text-fg-default';
 
 const LEAD_CLASS =
 	'prompt-chip__lead relative grid size-3.5 shrink-0 cursor-pointer place-items-center text-fg-tertiary';

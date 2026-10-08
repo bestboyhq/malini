@@ -60,7 +60,7 @@
 			bind:this={element}
 			bind:value
 			class={[
-				'border-surface-input-border bg-surface-input text-fg-default focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled h-9 w-full cursor-pointer appearance-none rounded-md border px-3 pr-9 text-sm transition-colors focus:ring-2 disabled:cursor-not-allowed',
+				'border-surface-input-border bg-surface-input text-fg-default focus:border-border-default focus:ring-border-default/50 disabled:bg-surface-50 disabled:text-fg-disabled h-9 w-full cursor-pointer appearance-none rounded-md border px-3 pr-9 text-sm transition-[color,border-color] focus:ring-2 disabled:cursor-not-allowed',
 				{
 					'border-error-content focus:border-error-content focus:ring-error-content/20': invalid,
 				},

@@ -1,6 +1,6 @@
 @layer components {
 	.router-link {
-		@apply focus-visible:ring-button-primary/40 relative my-2 flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors ease-in-out focus-visible:ring-2;
+		@apply focus-visible:ring-button-primary/40 relative my-2 flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-full transition-[color,border-color] ease-in-out focus-visible:ring-2;
 	}
 
 	.router-link-active {

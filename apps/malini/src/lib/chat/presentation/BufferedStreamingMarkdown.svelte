@@ -26,6 +26,7 @@
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
 	let {
@@ -37,6 +38,7 @@
 		onopenfile,
 		canopenfile,
 		imagesrc,
+		onopenimage,
 	}: Props = $props();
 
 	const FALLBACK_CHARACTER_WIDTH_PX = 7;
@@ -207,6 +209,7 @@
 			{onopenfile}
 			{canopenfile}
 			{imagesrc}
+			{onopenimage}
 		/>
 	{/if}
 </div>

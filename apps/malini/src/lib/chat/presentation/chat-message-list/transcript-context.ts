@@ -50,6 +50,7 @@ export type TranscriptContext = {
 	openFileMention(target: FileMentionTarget, mention: HTMLElement): void;
 	readonly canOpenFileMention: ((path: string) => boolean) | undefined;
 	readonly markdownImageSource: (path: string) => string | null;
+	openImageGallery(id: string): void;
 };
 
 export function setTranscriptContext(context: TranscriptContext): void {
