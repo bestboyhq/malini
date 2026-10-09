@@ -42,6 +42,7 @@ const WORKSTREAM = 'ws-surface';
 let stop: (() => void) | null = null;
 
 afterEach(async () => {
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	stopWorkstreamChatsPreloadCommand();
 	stop?.();
@@ -367,17 +368,27 @@ function layOutTranscriptScroller(size: {
 	};
 }
 
-function framesAsTimers(): void {
-	vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-		setTimeout(() => callback(performance.now()), 16),
-	);
-	vi.stubGlobal('cancelAnimationFrame', (handle: ReturnType<typeof setTimeout>) =>
-		clearTimeout(handle),
-	);
+function framesOnTestClock(): void {
+	vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
 }
 
-function afterFrames(count: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, count * 16 + 8));
+async function afterFrames(count: number): Promise<void> {
+	for (let frame = 0; frame < count; frame += 1) {
+		vi.advanceTimersToNextFrame();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+}
+
+async function withinFrames(assertion: () => void): Promise<void> {
+	for (let frame = 0; frame < 120; frame += 1) {
+		try {
+			assertion();
+			return;
+		} catch {
+			await afterFrames(1);
+		}
+	}
+	assertion();
 }
 
 function distanceWhenPromptsAppear(
@@ -682,12 +693,7 @@ describe('the chat surface', () => {
 	});
 
 	it('opens a chat whose run is still working without playing any arrival', async () => {
-		vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-			setTimeout(() => callback(performance.now()), 16),
-		);
-		vi.stubGlobal('cancelAnimationFrame', (handle: ReturnType<typeof setTimeout>) =>
-			clearTimeout(handle),
-		);
+		framesOnTestClock();
 		const surface = await openSourceSurface(
 			createFakePlatform({
 				agentSessions: [
@@ -958,7 +964,7 @@ describe('the chat surface', () => {
 
 describe('the transcript scroller', () => {
 	it('opens a chat already at its bottom when switched to, passing through no other scroll position', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openSourceSurface(platformWithLongDestination(8));
 		preloadWorkstreamChatsCommand([WORKSTREAM, DESTINATION]);
@@ -979,7 +985,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('opens a chat already at its bottom when it mounts after loading, passing through no other scroll position', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openSourceSurface(platformWithLongDestination(8));
 		const firstFrame = distanceWhenPromptsAppear(surface.host, layout, longDestinationPrompts(8));
@@ -995,7 +1001,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('glides a new prompt that arrives while the reader is at the bottom to the top', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 		layout.forgetScrollPositions();
@@ -1006,15 +1012,14 @@ describe('the transcript scroller', () => {
 			text: 'Live prompt',
 		});
 		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('Live prompt'));
-		await afterFrames(40);
+		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(800));
 
 		const positions = layout.scrollPositions();
-		expect(positions.at(-1)).toBe(800);
 		expect(positions.some((position) => position > 750 && position < 800)).toBe(true);
 	});
 
 	it('leaves a reader who scrolled up where they are when new content arrives', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 		layout.scrollAwayFromBottom(surface.host, 300);
@@ -1032,7 +1037,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('leaves a reader who paged up with the keyboard where they are when new content arrives', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 
@@ -1049,7 +1054,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('leaves a reader who grabbed the scrollbar where they are when new content arrives', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 
@@ -1068,7 +1073,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('leaves a reader who scrolled up without the wheel where they are when new content arrives', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 		const scroller = find(surface.host, 'chat-message-scroller');
@@ -1087,7 +1092,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('brings a reader who scrolled up to the top of the prompt they send themselves', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 		layout.scrollAwayFromBottom(surface.host, 300);
@@ -1096,11 +1101,11 @@ describe('the transcript scroller', () => {
 		await settleChatRoute();
 
 		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('My prompt'));
-		await vi.waitFor(() => expect(layout.scrollTopOf(surface.host)).toBe(800));
+		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(800));
 	});
 
 	it('leaves a reader who scrolled up where they are when a queued prompt is sent', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
 		arriveInDestination(surface.platform, 100, {
@@ -1132,7 +1137,7 @@ describe('the transcript scroller', () => {
 	});
 
 	it('opens a chat whose history was never loaded on a loading shell, then at its bottom, never on an empty chat', async () => {
-		framesAsTimers();
+		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		await openChatRoute('/', platformWithAnOlderLongChat(8));
 		preloadWorkstreamChatsCommand([DESTINATION]);

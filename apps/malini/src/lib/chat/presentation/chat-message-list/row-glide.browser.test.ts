@@ -1,23 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRowArrivals } from './row-arrival';
 
-const FRAME_MS = 16;
 let release: (() => void) | null = null;
 
 beforeEach(() => {
-	vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
-		setTimeout(() => callback(performance.now()), FRAME_MS),
-	);
-	vi.stubGlobal('cancelAnimationFrame', (handle: ReturnType<typeof setTimeout>) =>
-		clearTimeout(handle),
-	);
+	vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
 });
 
 afterEach(() => {
 	release?.();
 	release = null;
 	document.body.replaceChildren();
-	vi.unstubAllGlobals();
+	vi.useRealTimers();
 });
 
 function rowOf(height: number): HTMLElement {
@@ -57,8 +51,8 @@ function mutationsDelivered(): Promise<void> {
 	return new Promise((resolve) => queueMicrotask(resolve));
 }
 
-function framesPass(count: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, count * FRAME_MS + 8));
+function framesPass(count: number): void {
+	for (let frame = 0; frame < count; frame += 1) vi.advanceTimersToNextFrame();
 }
 
 describe('a live run whose rows change', () => {
@@ -70,7 +64,7 @@ describe('a live run whose rows change', () => {
 		await mutationsDelivered();
 
 		expect(status?.style.translate).toBe('0 -30px');
-		await framesPass(60);
+		framesPass(60);
 		expect(status?.style.translate).toBe('');
 	});
 
@@ -82,7 +76,7 @@ describe('a live run whose rows change', () => {
 		await mutationsDelivered();
 
 		expect(arriving.style.clipPath).toBe('inset(-1rem -1rem 30px -1rem)');
-		await framesPass(60);
+		framesPass(60);
 		expect(arriving.style.clipPath).toBe('');
 	});
 

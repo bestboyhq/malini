@@ -22,12 +22,12 @@ describe('tooltip interaction wiring', () => {
 	});
 
 	it('answers pointer, keyboard focus and click on the trigger', () => {
-		expect(tooltipSource).toContain("wrapper.addEventListener('mouseenter', show);");
-		expect(tooltipSource).toContain("wrapper.addEventListener('mouseleave', onTriggerMouseLeave);");
-		expect(tooltipSource).toContain("wrapper.addEventListener('focusin', show);");
-		expect(tooltipSource).toContain("wrapper.addEventListener('focusout', onTriggerFocusOut);");
-		expect(tooltipSource).toContain("wrapper.addEventListener('click', onTriggerClick);");
-		expect(tooltipSource).toContain("document.addEventListener('click', onDocumentClick);");
+		expect(tooltipSource).toContain("on(wrapper, 'mouseenter', show),");
+		expect(tooltipSource).toContain("on(wrapper, 'mouseleave', onTriggerMouseLeave),");
+		expect(tooltipSource).toContain("on(wrapper, 'focusin', show),");
+		expect(tooltipSource).toContain("on(wrapper, 'focusout', onTriggerFocusOut),");
+		expect(tooltipSource).toContain("on(wrapper, 'click', onTriggerClick),");
+		expect(tooltipSource).toContain("on(document, 'click', onDocumentClick),");
 		expect(tooltipSource).toContain("role={isSnippetContent ? 'group' : 'tooltip'}");
 		expect(tooltipSource).toContain('ids.add(tooltipId);');
 	});

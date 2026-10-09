@@ -393,8 +393,10 @@ test('the strip is a tab list of tabs only, walked with the arrow keys, with eac
 		await expect(fileTab(page, 'alpha.ts')).toBeFocused();
 		await page.keyboard.press('Tab');
 		await expect(closeAlpha).toBeFocused();
+		await expect(page.getByRole('tooltip', { name: 'Close alpha.ts' })).toBeVisible();
 		await page.keyboard.press('Enter');
 		await expectStrip(page, ['tab /MENTION/', 'tab "beta.ts"']);
+		await expect(page.getByRole('tooltip', { name: 'Close alpha.ts' })).toHaveCount(0);
 
 		await fileTab(page, 'beta.ts').hover();
 		await closeBeta.click();

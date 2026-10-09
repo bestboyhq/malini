@@ -6,6 +6,7 @@
 	import SensitiveText from '../sensitive/SensitiveText.svelte';
 	import { tick, type Snippet } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
+	import { on } from 'svelte/events';
 
 	import { observeViewportReposition } from '../../overlay/viewport-reposition-observer';
 
@@ -367,17 +368,20 @@
 	});
 
 	$effect(() => {
-		if (trigger === 'hover') {
-			wrapper.addEventListener('mouseenter', show);
-			wrapper.addEventListener('mouseleave', onTriggerMouseLeave);
-			wrapper.addEventListener('focusin', show);
-			wrapper.addEventListener('focusout', onTriggerFocusOut);
-			wrapper.addEventListener('pointerdown', hideImmediate);
-		} else if (trigger === 'click') {
-			wrapper.addEventListener('click', onTriggerClick);
-			document.addEventListener('click', onDocumentClick);
-			document.addEventListener('keydown', onDocumentKeydown);
-		}
+		const listeners =
+			trigger === 'hover'
+				? [
+						on(wrapper, 'mouseenter', show),
+						on(wrapper, 'mouseleave', onTriggerMouseLeave),
+						on(wrapper, 'focusin', show),
+						on(wrapper, 'focusout', onTriggerFocusOut),
+						on(wrapper, 'pointerdown', hideImmediate),
+					]
+				: [
+						on(wrapper, 'click', onTriggerClick),
+						on(document, 'click', onDocumentClick),
+						on(document, 'keydown', onDocumentKeydown),
+					];
 
 		return () => {
 			if (hideTimeout) {
@@ -393,18 +397,7 @@
 				unmountTimeout = null;
 			}
 			cancelPendingEntrance();
-
-			if (trigger === 'hover') {
-				wrapper.removeEventListener('mouseenter', show);
-				wrapper.removeEventListener('mouseleave', onTriggerMouseLeave);
-				wrapper.removeEventListener('focusin', show);
-				wrapper.removeEventListener('focusout', onTriggerFocusOut);
-				wrapper.removeEventListener('pointerdown', hideImmediate);
-			} else if (trigger === 'click') {
-				wrapper.removeEventListener('click', onTriggerClick);
-				document.removeEventListener('click', onDocumentClick);
-				document.removeEventListener('keydown', onDocumentKeydown);
-			}
+			for (const removeListener of listeners) removeListener();
 		};
 	});
 

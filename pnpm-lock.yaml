@@ -217,6 +217,9 @@ overrides:
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-arm64': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-win32-x64': '-'
 
+patchedDependencies:
+  svelte-sonner@1.2.1: 2d0a832126325128f6f859efec0e01b3d0c9c4f49db555bf82028e3fff410794
+
 importers:
 
   .:
@@ -364,7 +367,7 @@ importers:
         version: 7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0)
       vitest:
         specifier: 'catalog:'
-        version: 5.0.1(@types/node@24.13.5)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0))
+        version: 5.0.1(@types/node@24.13.5)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0))
 
   extensions/repository:
     dependencies:
@@ -456,7 +459,7 @@ importers:
         version: link:../extension-api
       svelte-sonner:
         specifier: ^1.1.1
-        version: 1.2.1(svelte@5.57.0(@typescript-eslint/types@8.70.0))
+        version: 1.2.1(patch_hash=2d0a832126325128f6f859efec0e01b3d0c9c4f49db555bf82028e3fff410794)(svelte@5.57.0(@typescript-eslint/types@8.70.0))
     devDependencies:
       '@malini/eslint-plugin-hyper-ui':
         specifier: workspace:*
@@ -487,7 +490,7 @@ importers:
         version: 7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0)
       vitest:
         specifier: 'catalog:'
-        version: 5.0.1(@types/node@24.13.5)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0))
+        version: 5.0.1(@types/node@24.13.5)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0))
 
 packages:
 
@@ -4652,15 +4655,6 @@ snapshots:
     optionalDependencies:
       vite: 7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0)
 
-  '@vitest/mocker@5.0.1(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0))':
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.0.1
-      estree-walker: 3.0.3
-      magic-string: 1.4.1
-    optionalDependencies:
-      vite: 7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0)
-
   '@vitest/spy@5.0.1': {}
 
   '@xmldom/xmldom@0.8.15': {}
@@ -6494,7 +6488,7 @@ snapshots:
     transitivePeerDependencies:
       - picomatch
 
-  svelte-sonner@1.2.1(svelte@5.57.0(@typescript-eslint/types@8.70.0)):
+  svelte-sonner@1.2.1(patch_hash=2d0a832126325128f6f859efec0e01b3d0c9c4f49db555bf82028e3fff410794)(svelte@5.57.0(@typescript-eslint/types@8.70.0)):
     dependencies:
       runed: 0.28.0(svelte@5.57.0(@typescript-eslint/types@8.70.0))
       svelte: 5.57.0(@typescript-eslint/types@8.70.0)
@@ -6681,28 +6675,6 @@ snapshots:
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.0.1(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0))
-      chai: 6.2.2
-      es-module-lexer: 2.3.2
-      expect-type: 1.4.0
-      magic-string: 1.4.1
-      obug: 2.2.1
-      picomatch: 4.0.7
-      std-env: 4.2.0
-      tinybench: 6.1.4
-      tinyexec: 1.3.0
-      tinyglobby: 0.2.17
-      vite: 7.3.6(@types/node@24.13.5)(jiti@2.7.0)(lightningcss@1.32.0)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@types/node': 24.13.5
-      jsdom: 30.0.1(@noble/hashes@1.8.0)
-    transitivePeerDependencies:
-      - msw
-
-  vitest@5.0.1(@types/node@24.13.5)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0)):
-    dependencies:
-      '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.1(vite@7.3.6(@types/node@24.13.5)(jiti@2.7.0))
       chai: 6.2.2
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
