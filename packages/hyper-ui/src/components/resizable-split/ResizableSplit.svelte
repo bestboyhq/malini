@@ -61,6 +61,7 @@
 	let secondaryHeight = $state(0);
 
 	let containerEl: HTMLDivElement | null = $state(null);
+	let secondaryEl: HTMLDivElement | null = $state(null);
 
 	let dragState: { pointerId: number; startX: number; startY: number; startSize: number } | null =
 		null;
@@ -247,6 +248,13 @@
 		if (!mounted || !ratioMode || extent <= 0) return;
 		untrack(() => applySize(usingDefaultSize ? fallbackSize : extent * panelRatio, false));
 	});
+
+	$effect(() => {
+		void gridStyle;
+		if (!secondaryEl) return;
+		secondaryWidth = secondaryEl.clientWidth;
+		secondaryHeight = secondaryEl.clientHeight;
+	});
 </script>
 
 <div
@@ -294,6 +302,7 @@
 		></button>
 	{/if}
 	<div
+		bind:this={secondaryEl}
 		bind:clientWidth={secondaryWidth}
 		bind:clientHeight={secondaryHeight}
 		class={['min-h-0 min-w-0 overflow-hidden', placement.secondary]}
