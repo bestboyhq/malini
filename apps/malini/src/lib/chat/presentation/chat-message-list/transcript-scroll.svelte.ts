@@ -88,7 +88,7 @@ export function createTranscriptScroll(
 
 	function scrollTo(value: number): void {
 		shownTop = value;
-		if (viewportEl && Math.abs(viewportEl.scrollTop - value) > 0.5) viewportEl.scrollTop = value;
+		if (viewportEl && viewportEl.scrollTop !== value) viewportEl.scrollTop = value;
 	}
 
 	function setHoldSpace(px: number): void {

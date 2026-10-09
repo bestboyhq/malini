@@ -207,7 +207,10 @@
 	}
 </script>
 
-<div data-testid="chat-surface" class="flex h-full min-h-0 w-full flex-col overflow-hidden">
+<div
+	data-testid="chat-surface"
+	class="flex h-full min-h-0 w-full flex-col overflow-hidden pr-[var(--resizable-split-secondary-size)]"
+>
 	<AgentProcessDiedBanner />
 	<DependencyInstallBanner {workstreamId} />
 	<div class="min-h-0 flex-1">

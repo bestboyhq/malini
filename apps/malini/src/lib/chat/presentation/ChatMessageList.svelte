@@ -740,14 +740,17 @@
 </script>
 
 <div
-	class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+	class="relative -mr-[var(--resizable-split-secondary-size)] min-h-0 min-w-0 flex-1 overflow-hidden"
 	data-testid="chat-message-viewport"
 	data-session-id={sessionId}
 	data-scroll-follow={transcriptScroll.follow}
 	onwheel={transcriptScroll.handleWheel}
 >
 	{#if isEmpty}
-		<div class="chat-stage-inset grid h-full place-items-center" data-testid="chat-empty-readiness">
+		<div
+			class="chat-stage-inset grid h-full place-items-center pr-[var(--resizable-split-secondary-size)]"
+			data-testid="chat-empty-readiness"
+		>
 			<StateBlock
 				heading="Describe what you want to change"
 				detail="The agent works in this workstream's own checkout, so anything it edits stays on this branch until you open a pull request."
@@ -762,7 +765,7 @@
 	{:else}
 		<div
 			bind:this={viewportEl}
-			class="chat-scroller flex h-full w-full flex-col overflow-x-hidden overflow-y-auto"
+			class="chat-scroller flex h-full w-full flex-col overflow-x-hidden overflow-y-auto pr-[var(--resizable-split-secondary-size)]"
 			aria-label="Agent chat messages"
 			data-testid="chat-message-scroller"
 			onscroll={(event) => transcriptScroll.handleScroll(event.currentTarget)}
