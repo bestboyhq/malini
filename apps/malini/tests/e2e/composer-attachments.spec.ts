@@ -142,6 +142,7 @@ test('closing a chat releases the files its draft still held', async () => {
 		await expectAssistantReply(page);
 		const { staged } = await pasteNotes(page, worktree);
 
+		await page.getByRole('tab', { name: /Explain the login flow/u }).hover();
 		await page.getByRole('button', { name: 'Close Explain the login flow' }).click();
 		await expect(page.getByRole('tab', { name: /Explain the login flow/u })).toHaveCount(0, {
 			timeout: 20_000,
