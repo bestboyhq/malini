@@ -177,13 +177,11 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		return runId;
 	});
 
-	bridge.define('chat.cancel-run', async (input) => {
-		const session = state.sessions.get(input.sessionId);
-		if (!session) return;
+	async function cancelFakeRun(session: FakeSession): Promise<void> {
 		session.cancelled = true;
 		const runId = session.currentRunId;
 		if (runId) {
-			settleFakeRunInteractions(input.sessionId, runId);
+			settleFakeRunInteractions(session.id, runId);
 			await nextMicrotask();
 			emitAgentEvent(emit, session.id, runId, {
 				type: 'run.failed',
@@ -191,6 +189,11 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 				error: 'run cancelled',
 			});
 		}
+	}
+
+	bridge.define('chat.cancel-run', async (input) => {
+		const session = state.sessions.get(input.sessionId);
+		if (session) await cancelFakeRun(session);
 	});
 
 	bridge.define('chat.decide-approval', async (input) => {
@@ -257,9 +260,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 			throw new Error(`Unknown fake session: ${input.sessionId}`);
 		}
 		if (session.archivedAt !== null) return;
-		if (session.currentRunId !== null) {
-			throw new Error(`cannot archive agent session \`${input.sessionId}\` while a run is active`);
-		}
+		if (session.currentRunId !== null) await cancelFakeRun(session);
 		session.archivedAt = new Date(state.nextSession * 1_000).toISOString();
 	});
 

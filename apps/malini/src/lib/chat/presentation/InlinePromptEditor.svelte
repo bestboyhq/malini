@@ -46,7 +46,6 @@
 	let host: HTMLDivElement | null = $state(null);
 
 	let editor = $state<Editor | null>(null);
-	let editorFocused = $state(false);
 
 	let knownRefKeys = new Set<string>();
 	let pendingRemovalKeys = $state<Set<string>>(new Set());
@@ -268,14 +267,6 @@
 				onvaluechange(currentMarkdown());
 				reportRemovals();
 			},
-			onFocus: () => {
-				editorFocused = true;
-			},
-			onBlur: () => {
-				queueMicrotask(() => {
-					editorFocused = editor?.isFocused ?? false;
-				});
-			},
 		});
 		knownRefKeys = documentRefKeys();
 
@@ -320,10 +311,7 @@
 >
 	<div
 		bind:this={host}
-		class={[
-			'prompt-editor-host w-full',
-			!editorFocused && value.trim() !== '' && 'hyper-sensitive-mask',
-		]}
+		class="prompt-editor-host w-full"
 		data-placeholder-hidden={placeholderHidden ? '' : undefined}
 	></div>
 </ScrollableDiv>

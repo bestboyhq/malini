@@ -5,10 +5,8 @@ import {
 	resetPromptPipeline,
 } from '$lib/chat/application/prompt-pipeline.testkit';
 import { closeFreshChatCommand } from '$lib/chat/application/commands/close-fresh-chat.command';
-import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
 import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
-import { router } from '$shared/router/hash-router.svelte';
 
 afterEach(async () => {
 	await resetPromptPipeline();
@@ -21,26 +19,9 @@ const chats = [
 ];
 
 describe('closing a fresh chat', () => {
-	it('returns to the chat the fresh chat was opened from', async () => {
-		await openPromptPipeline(chats);
-		chatSessionStore.sessionId = 's-a1';
-		startFreshChatCommand();
-		await vi.waitFor(() => expect(chatSessionStore.emptySessionMode).toBe('fresh'));
-
-		expect(freshChatReturnQuery.data).toBe('/workstreams/ws-a?agent=s-a1');
-
-		closeFreshChatCommand();
-
-		await vi.waitFor(() => expect(chatSessionStore.sessionId).toBe('s-a1'));
-		expect(chatSessionStore.emptySessionMode).toBe('setup');
-		expect(chatSessionStore.freshReturnSessionId).toBeNull();
-		expect(router.page.url.searchParams.get('agent')).toBe('s-a1');
-	});
-
-	it('falls back to the latest chat of the workstream', async () => {
+	it('returns to the latest chat of the workstream', async () => {
 		await openPromptPipeline(chats);
 		chatSessionStore.emptySessionMode = 'fresh';
-		chatSessionStore.freshReturnSessionId = 's-b';
 
 		expect(freshChatReturnQuery.data).toBe('/workstreams/ws-a?agent=s-a2');
 
@@ -53,11 +34,10 @@ describe('closing a fresh chat', () => {
 		await openPromptPipeline([chat('s-a1', { status: 'running' }), chat('s-a2')]);
 		chatSessionStore.sessionId = 's-a1';
 		chatSessionStore.emptySessionMode = 'fresh';
-		chatSessionStore.freshReturnSessionId = 's-a2';
 
 		closeFreshChatCommand();
 
-		expect(chatSessionStore.freshReturnSessionId).toBe('s-a2');
+		expect(chatSessionStore.sessionId).toBe('s-a1');
 		expect(chatSessionStore.emptySessionMode).toBe('fresh');
 	});
 });

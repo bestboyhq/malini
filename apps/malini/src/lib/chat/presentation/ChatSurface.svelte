@@ -262,7 +262,11 @@
 										envelopes={presentedTranscript.envelopes}
 										composerControls={editorComposerControls}
 										spaceBelow={footerHeight}
-									/>
+									>
+										{#snippet empty()}
+											<FreshChatSuggestions {workstreamId} {draftScope} bind:transcriptReferences />
+										{/snippet}
+									</ChatMessageList>
 								</div>
 							{:else if stage === 'error' && bootError}
 								<ChatSessionError {workstreamId} {sessionId} error={bootError} />

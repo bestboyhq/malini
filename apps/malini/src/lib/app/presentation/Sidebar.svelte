@@ -696,7 +696,7 @@
 													aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
 													aria-busy={workstream.id === pendingWorkstreamId || undefined}
 													class={[
-														'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none',
+														'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none group-focus-within/row:pr-8 group-hover/row:pr-8',
 														isSelected
 															? 'sidebar-row-active'
 															: [
@@ -794,6 +794,7 @@
 														<Tooltip
 															content={label}
 															placement="right"
+															offset={40}
 															class="min-w-0 flex-1 truncate"
 														>
 															<span class="min-w-0 flex-1 truncate">
@@ -802,7 +803,7 @@
 														</Tooltip>
 														{#if hasDraft}
 															<span
-																class="text-fg-tertiary shrink-0 group-focus-within/row:invisible group-hover/row:invisible"
+																class="text-fg-tertiary shrink-0 group-focus-within/row:hidden group-hover/row:hidden"
 																aria-hidden="true"
 																data-testid="sidebar-workstream-draft"
 															>
@@ -811,7 +812,7 @@
 														{/if}
 														{#if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
 															<span
-																class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-focus-within/row:invisible group-hover/row:invisible"
+																class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-focus-within/row:hidden group-hover/row:hidden"
 																aria-label={`${changeTotals.additions} additions, ${changeTotals.deletions} deletions`}
 																data-testid="sidebar-workstream-change-totals"
 																data-additions={changeTotals.additions}
@@ -826,7 +827,7 @@
 															</span>
 														{:else if changeTotals && changeTotals.files > 0}
 															<span
-																class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-focus-within/row:invisible group-hover/row:invisible"
+																class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-focus-within/row:hidden group-hover/row:hidden"
 																data-testid="sidebar-workstream-changed-files"
 																data-files={changeTotals.files}
 															>

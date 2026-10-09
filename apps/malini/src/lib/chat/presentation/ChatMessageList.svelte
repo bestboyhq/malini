@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick, untrack } from 'svelte';
+	import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { forkToNewChatCommand } from '$lib/chat/application/commands/fork-to-new-chat.command';
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
@@ -29,7 +29,6 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
 		firstPromptKey,
 		stableToolKey,
@@ -84,6 +83,7 @@
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
 		spaceBelow?: number;
+		empty: Snippet;
 	}
 
 	let {
@@ -92,6 +92,7 @@
 		envelopes,
 		composerControls = null,
 		spaceBelow = 0,
+		empty,
 	}: Props = $props();
 
 	const requestOutcome = $derived(chatRequestQuery.data);
@@ -747,17 +748,8 @@
 	onwheel={transcriptScroll.handleWheel}
 >
 	{#if isEmpty}
-		<div class="chat-stage-inset grid h-full place-items-center" data-testid="chat-empty-readiness">
-			<StateBlock
-				heading="Describe what you want to change"
-				detail="The agent works in this workstream's own checkout, so anything it edits stays on this branch until you open a pull request."
-				remedy="Use the Setup panel first when this workstream needs an app or service running."
-				testId="chat-empty-state"
-			>
-				{#snippet icon()}
-					<Icon name="chat" size={20} />
-				{/snippet}
-			</StateBlock>
+		<div class="flex h-full min-h-0 flex-col" data-testid="chat-empty-readiness">
+			{@render empty()}
 		</div>
 	{:else}
 		<div

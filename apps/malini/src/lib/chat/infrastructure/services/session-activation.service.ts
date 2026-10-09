@@ -361,7 +361,6 @@ class SessionActivationService {
 				chatSessionStore.sessionId = sessionId;
 				chatSessionStore.createFreshSessionOnNextPrompt = false;
 				chatSessionStore.emptySessionMode = 'setup';
-				chatSessionStore.freshReturnSessionId = null;
 				await chatRouteSync.syncSessionUrl(sessionId, workstreamId);
 				await tick();
 			} finally {

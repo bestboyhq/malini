@@ -41,7 +41,7 @@ describe('closing a chat tab', () => {
 	it('brings the tab back and says why when the chat cannot be archived', async () => {
 		const platform = installPlatform();
 		platform.define('chat.archive-session', async () => {
-			throw new Error('cannot archive agent session `s-1` while a run is active');
+			throw new Error('the agent bridge stopped because malini is closing');
 		});
 		const error = vi.spyOn(toast, 'error');
 
@@ -50,7 +50,7 @@ describe('closing a chat tab', () => {
 		await vi.waitFor(() => expect(closingChatsQuery.data.has('s-1')).toBe(false));
 		expect(sessionsAggregate.getSession('s-1')).not.toBeNull();
 		expect(error).toHaveBeenCalledWith(
-			'Could not close agent chat · cannot archive agent session `s-1` while a run is active',
+			'Could not close agent chat · the agent bridge stopped because malini is closing',
 			{ context: { workstream: 'ws-a' } },
 		);
 	});

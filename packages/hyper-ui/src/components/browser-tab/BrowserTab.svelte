@@ -202,7 +202,7 @@
 				'tab-label relative min-w-0 overflow-hidden whitespace-nowrap',
 				labelWidthClass[surface],
 				preview && 'italic',
-				busy && 'text-fg-secondary',
+				busy && !selected && 'text-fg-secondary',
 				surface === 'band' && !trailing && 'tab-label-faded',
 			]}
 			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
@@ -289,6 +289,10 @@
 		display: block;
 		color: var(--color-fg-default);
 		animation: tab-shimmer-hold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+
+	.browser-tab[data-selected='true'] .tab-shimmer-text {
+		color: var(--color-fg-secondary);
 	}
 
 	@keyframes tab-shimmer-sweep {
