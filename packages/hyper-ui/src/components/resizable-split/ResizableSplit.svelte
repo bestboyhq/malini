@@ -57,7 +57,11 @@
 	let containerWidth = $state(0);
 	let containerHeight = $state(0);
 
+	let secondaryWidth = $state(0);
+	let secondaryHeight = $state(0);
+
 	let containerEl: HTMLDivElement | null = $state(null);
+	let secondaryEl: HTMLDivElement | null = $state(null);
 
 	let dragState: { pointerId: number; startX: number; startY: number; startSize: number } | null =
 		null;
@@ -69,6 +73,20 @@
 	);
 	const showHandle = $derived(!secondaryClosed);
 	const orientation = $derived<ResizeAxis>(axis === 'horizontal' ? 'vertical' : 'horizontal');
+	const secondarySize = $derived(axis === 'horizontal' ? secondaryWidth : secondaryHeight);
+	const placement = $derived(
+		axis === 'horizontal'
+			? {
+					primary: 'col-span-full row-start-1',
+					handle: 'col-start-2 row-start-1',
+					secondary: '-col-start-2 row-start-1',
+				}
+			: {
+					primary: 'col-start-1 row-span-full',
+					handle: 'col-start-1 row-start-2',
+					secondary: 'col-start-1 -row-start-2',
+				},
+	);
 	const containerExtent = $derived(axis === 'horizontal' ? containerWidth : containerHeight);
 	const effectiveMaxSize = $derived.by(() => {
 		if (containerExtent <= 0 || secondaryMinSize <= 0) {
@@ -230,6 +248,13 @@
 		if (!mounted || !ratioMode || extent <= 0) return;
 		untrack(() => applySize(usingDefaultSize ? fallbackSize : extent * panelRatio, false));
 	});
+
+	$effect(() => {
+		void gridStyle;
+		if (!secondaryEl) return;
+		secondaryWidth = secondaryEl.clientWidth;
+		secondaryHeight = secondaryEl.clientHeight;
+	});
 </script>
 
 <div
@@ -248,7 +273,10 @@
 	data-storage-prefix="malini.app.panel"
 	data-secondary-open={secondaryOpen ? 'true' : 'false'}
 >
-	<div class="min-h-0 min-w-0 overflow-hidden">
+	<div
+		class={['min-h-0 min-w-0 overflow-hidden', placement.primary]}
+		style:--resizable-split-secondary-size="{secondarySize}px"
+	>
 		{@render a()}
 	</div>
 	{#if showHandle}
@@ -262,7 +290,7 @@
 			aria-valuenow={Math.round(size)}
 			aria-label={`Resize ${panelId}`}
 			tabindex="0"
-			class={['resizable-split-handle', handleClass]}
+			class={['resizable-split-handle', placement.handle, handleClass]}
 			data-axis={axis}
 			data-panel-id={panelId}
 			onpointerdown={onPointerDown}
@@ -273,7 +301,12 @@
 			onkeydown={onKeyDown}
 		></button>
 	{/if}
-	<div class="min-h-0 min-w-0 overflow-hidden">
+	<div
+		bind:this={secondaryEl}
+		bind:clientWidth={secondaryWidth}
+		bind:clientHeight={secondaryHeight}
+		class={['min-h-0 min-w-0 overflow-hidden', placement.secondary]}
+	>
 		{@render b()}
 	</div>
 </div>
