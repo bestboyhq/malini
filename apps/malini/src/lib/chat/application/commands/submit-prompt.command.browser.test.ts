@@ -307,18 +307,16 @@ describe('starting a fresh chat', () => {
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
 		startRun('s-a1');
-		startFreshChatCommand();
-		await vi.waitFor(() => expect(chatSessionStore.emptySessionMode).toBe('fresh'));
+		await startFreshChatCommand();
+		const fresh = chatSessionStore.sessionId;
+		expect(fresh).not.toBe('s-a1');
 		const sends = recordPromptDelivery();
 
-		await submit(submission({ sessionId: null, forceFreshSession: true, prompt: 'Clean slate' }));
+		await submit(submission({ sessionId: fresh, prompt: 'Clean slate' }));
 
-		expect(sends()).toEqual([expect.objectContaining({ prompt: 'Clean slate' })]);
-		const fresh = sends()[0]?.sessionId;
-		expect(fresh).not.toBe('s-a1');
+		expect(sends()).toEqual([expect.objectContaining({ sessionId: fresh, prompt: 'Clean slate' })]);
 		expect(chatSessionStore.sessionId).toBe(fresh);
 		expect(queuedPrompts()).toEqual([]);
-		expect(chatSessionStore.emptySessionMode).toBe('setup');
 		expect(platform.calls.map(({ command }) => command)).not.toContain('chat.cancel-run');
 	});
 

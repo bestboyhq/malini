@@ -124,16 +124,26 @@
 
 	const closeAnchorClass: Record<BrowserTabSurface, string> = {
 		panel: '',
-		band: 'absolute inset-y-0 right-2 items-center',
+		band: 'order-first h-full w-0 shrink-0 items-center overflow-hidden transition-[width,margin] duration-150 ease-out group-hover/browser-tab:ml-1 group-hover/browser-tab:w-5 group-has-[:focus-visible]/browser-tab:ml-1 group-has-[:focus-visible]/browser-tab:w-5 motion-reduce:transition-none',
 	};
 
 	const closeRevealClass: Record<BrowserTabSurface, string> = {
-		panel: 'mr-1 group-data-[selected=true]/browser-tab:opacity-100',
-		band: '',
+		panel: 'mr-1 h-4 w-4 group-data-[selected=true]/browser-tab:opacity-100',
+		band: 'h-5 w-5 group-has-[:focus-visible]/browser-tab:opacity-100',
+	};
+
+	const closeIconSize: Record<BrowserTabSurface, number> = {
+		panel: 8,
+		band: 10,
 	};
 
 	const tabPaddingClass = $derived(
-		surface === 'band' ? (icon ? 'pr-2 pl-1.5' : 'px-2') : 'pr-0.5 pl-1.5',
+		surface === 'band'
+			? [
+					icon ? 'pr-2 pl-1.5' : 'px-2',
+					'transition-[padding] duration-150 ease-out group-hover/browser-tab:pl-1 group-has-[:focus-visible]/browser-tab:pl-1 motion-reduce:transition-none',
+				]
+			: 'pr-0.5 pl-1.5',
 	);
 
 	const surfaceClass = $derived(
@@ -168,7 +178,7 @@
 			ariaLabel={closeLabel}
 			disabled={closeDisabled}
 			class={[
-				'focus-visible:ring-button-primary/40 relative grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
+				'focus-visible:ring-button-primary/40 relative grid shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
 				closeRevealClass[surface],
 				tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
 				closeHoverClass[surface],
@@ -176,7 +186,7 @@
 			onclick={onclose}
 			{...closeAttributes}
 		>
-			<Icon name="close" size={8} />
+			<Icon name="close" size={closeIconSize[surface]} />
 		</IconButton>
 	</Tooltip>
 </div>
@@ -201,9 +211,8 @@
 			class={[
 				'tab-label relative min-w-0 overflow-hidden whitespace-nowrap',
 				labelWidthClass[surface],
-				preview && 'italic',
-				busy && 'text-fg-secondary',
-				surface === 'band' && !trailing && 'tab-label-faded',
+				preview && 'pr-0.5 italic',
+				busy && !selected && 'text-fg-secondary',
 			]}
 			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
 			style:--tab-label-overflow={labelOverflow}
@@ -230,9 +239,7 @@
 			</span>
 		{/if}
 		{#if trailing && surface === 'band'}
-			<span
-				class="grid h-4 w-4 shrink-0 place-items-center transition-opacity group-hover/browser-tab:opacity-0 motion-reduce:transition-none"
-			>
+			<span class="grid h-4 w-4 shrink-0 place-items-center">
 				{@render trailing()}
 			</span>
 		{:else}
@@ -260,11 +267,6 @@
 		mask-image: linear-gradient(to left, transparent, black calc(var(--tab-label-fade) * 1px));
 	}
 
-	.browser-tab:hover .tab-label-faded {
-		--tab-label-fade: 26;
-		mask-image: linear-gradient(to left, transparent 16px, black calc(var(--tab-label-fade) * 1px));
-	}
-
 	.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
 		--tab-label-shift: calc(var(--tab-label-overflow) + var(--tab-label-fade));
 		transform: translateX(calc(var(--tab-label-shift) * -1px));
@@ -289,6 +291,10 @@
 		display: block;
 		color: var(--color-fg-default);
 		animation: tab-shimmer-hold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+
+	.browser-tab[data-selected='true'] .tab-shimmer-text {
+		color: var(--color-fg-secondary);
 	}
 
 	@keyframes tab-shimmer-sweep {

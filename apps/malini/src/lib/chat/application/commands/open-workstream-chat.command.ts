@@ -16,7 +16,6 @@ function openWorkstreamChatCommand(workstreamId: string): void {
 	chatSessionStore.sessionId =
 		cachedSessionId && transcriptAggregate.isReady(cachedSessionId) ? cachedSessionId : null;
 	chatSessionStore.emptySessionMode = 'setup';
-	chatSessionStore.freshReturnSessionId = null;
 	chatSessionStore.bootError = null;
 	chatSessionStore.projectedFor = workstreamId;
 }

@@ -9,10 +9,9 @@ const RECENT_CHAT_LIMIT = 4;
 class RecentChatsQuery {
 	public readonly data: (workstreamId: string) => readonly SessionRecord[] = $derived(
 		(workstreamId: string) =>
-			newestWorkstreamChats(sessionsAggregate.listSessions(), workstreamId).slice(
-				0,
-				RECENT_CHAT_LIMIT,
-			),
+			newestWorkstreamChats(sessionsAggregate.listSessions(), workstreamId)
+				.filter((session) => !sessionsAggregate.isKnownEmpty(session.id))
+				.slice(0, RECENT_CHAT_LIMIT),
 	);
 }
 

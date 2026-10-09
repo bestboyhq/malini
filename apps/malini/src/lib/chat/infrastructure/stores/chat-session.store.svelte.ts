@@ -9,7 +9,6 @@ class ChatSessionStore {
 	activatingSessionId: SessionId | null = $state(null);
 	bootError: string | null = $state(null);
 	emptySessionMode: EmptySessionMode = $state('setup');
-	freshReturnSessionId: SessionId | null = $state(null);
 	createFreshSessionOnNextPrompt: boolean = $state(false);
 	retryingSession: boolean = $state(false);
 	resettingRuns: boolean = $state(false);
@@ -81,7 +80,6 @@ class ChatSessionStore {
 		this.activatingSessionId = null;
 		this.bootError = null;
 		this.emptySessionMode = 'setup';
-		this.freshReturnSessionId = null;
 		this.createFreshSessionOnNextPrompt = false;
 		this.retryingSession = false;
 		this.resettingRuns = false;

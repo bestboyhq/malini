@@ -443,7 +443,7 @@ describe('the fake chat agent', () => {
 		expect(commandsCalled(fake)).toEqual(expect.arrayContaining(['chat.archive-session']));
 	});
 
-	it('refuses to archive a session while its run is active', async () => {
+	it('stops the run of a session archived mid-run', async () => {
 		const fake = createFakePlatform({
 			agentScript: [({ sessionId, runId }) => ({ type: 'run.started', sessionId, runId })],
 		});
@@ -452,12 +452,13 @@ describe('the fake chat agent', () => {
 		});
 		await fake.invoke('chat.send-prompt', { sessionId, prompt: 'keep running' });
 
-		await expect(fake.invoke('chat.archive-session', { sessionId })).rejects.toThrow(
-			'while a run is active',
+		await fake.invoke('chat.archive-session', { sessionId });
+
+		const events = await fake.invoke('chat.list-events', { sessionId, afterSeq: 0 });
+		expect(events.map(({ event }) => event.type)).toContain('run.failed');
+		expect(await fake.invoke('chat.list-sessions', { workstreamId: 'ws-archive-running' })).toEqual(
+			[],
 		);
-		expect(
-			await fake.invoke('chat.list-sessions', { workstreamId: 'ws-archive-running' }),
-		).toHaveLength(1);
 	});
 });
 

@@ -52,23 +52,6 @@ afterEach(async () => {
 	await resetChatState();
 });
 
-describe('fresh chat', () => {
-	it('opens a fresh chat while the current chat is still running', async () => {
-		const platform = await bootRunningChat();
-		const activations = callsTo(platform, 'chat.activate-session').length;
-
-		await agentRecovery.startFreshChat();
-		await settleChatRoute();
-
-		expect(chatSessionStore.sessionId).toBeNull();
-		expect(chatSessionStore.emptySessionMode).toBe('fresh');
-		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(true);
-		expect(chatSessionStore.freshReturnSessionId).toBe(RUNNING);
-		expect(chatRoute.readSessionParam()).toBeNull();
-		expect(callsTo(platform, 'chat.activate-session')).toHaveLength(activations);
-	});
-});
-
 describe('agent process restart', () => {
 	it('leaves the source workstream’s run alone once the route has moved to another workstream', async () => {
 		const platform = await bootRunningChat();

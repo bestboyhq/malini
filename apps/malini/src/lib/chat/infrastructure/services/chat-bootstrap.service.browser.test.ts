@@ -4,14 +4,12 @@ import {
 	holdNavigation,
 	installChatPlatform,
 	resetChatState,
-	settleChatRoute,
 	startChatRouter,
 } from '$lib/chat/application/chat-route.testkit.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { runtimeDiagnostics } from '$shared/performance/runtime-diagnostics.svelte';
 import { router } from '$shared/router/hash-router.svelte';
-import { agentRecovery } from './agent-recovery.service';
 import { agentSessions } from './agent-sessions.service';
 import { chatBootstrap } from './chat-bootstrap.service';
 
@@ -123,30 +121,5 @@ describe('bootstrap telemetry', () => {
 			{ label: 'Synchronizing chat route', target: 'ws-a' },
 		]);
 		expect(chatSessionStore.sessionId).toBe('s-a');
-	});
-});
-
-describe('starting a fresh chat', () => {
-	beforeEach(async () => {
-		await startChatRouter('/workstreams/ws-a?agent=s-a');
-		chatSessionStore.sessionId = 's-a';
-		transcriptAggregate.retainedPresentation = { workstreamId: 'ws-a', sessionId: 's-a' };
-	});
-
-	it('retires the retained chat only after the chat URL is cleared', async () => {
-		const clearing = holdNavigation(clearsSessionParam('ws-a'));
-
-		const started = agentRecovery.startFreshChat();
-		await vi.waitFor(() => expect(clearing.started()).toBe(true));
-		expect(chatSessionStore.sessionId).toBeNull();
-		expect(chatSessionStore.emptySessionMode).toBe('fresh');
-		expect(transcriptAggregate.retainedPresentation).not.toBeNull();
-
-		clearing.release();
-		await started;
-		await settleChatRoute();
-
-		expect(transcriptAggregate.retainedPresentation).toBeNull();
-		expect(chatSessionStore.freshReturnSessionId).toBe('s-a');
 	});
 });

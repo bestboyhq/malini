@@ -22,7 +22,7 @@ import { closeChatCommand } from '$lib/chat/application/commands/close-chat.comm
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { newChatRequestId } from '$lib/chat/domain/chat-request';
 import { agentDraftScopeKey } from '$lib/chat/domain/draft';
-import { agentRecovery } from '$lib/chat/infrastructure/services/agent-recovery.service';
+import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
 import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.service.svelte';
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
 import {
@@ -888,14 +888,16 @@ describe('the chat surface', () => {
 		expect(chipRemovals()).toEqual([]);
 	});
 
-	it('offers a fresh chat the recent transcripts and plans of its workstream as context', async () => {
+	it('offers a new chat the recent transcripts and plans of its workstream as context', async () => {
 		await openChatRoute(`/workstreams/${WORKSTREAM}`, platformWithChats());
 		const host = render();
 		await vi.waitFor(() => expect(find(host, 'chat-message-list')).not.toBeNull());
 
-		await agentRecovery.startFreshChat();
+		await startFreshChatCommand();
 		await settleChatRoute();
 
+		const newChat = selectedChatTab(host);
+		expect(['s-planned', 's-older', null]).not.toContain(newChat);
 		await vi.waitFor(() => expect(find(host, 'chat-fresh-session')).not.toBeNull());
 		const transcripts = host.querySelectorAll('[data-testid="chat-fresh-transcript-suggestion"]');
 		expect([...transcripts].map((entry) => entry.textContent?.trim())).toEqual([
@@ -913,7 +915,7 @@ describe('the chat surface', () => {
 
 		expect(plan?.getAttribute('aria-pressed')).toBe('true');
 		expect(
-			composerDraftQuery.data(agentDraftScopeKey(WORKSTREAM, null)).transcriptReferences,
+			composerDraftQuery.data(agentDraftScopeKey(WORKSTREAM, newChat)).transcriptReferences,
 		).toEqual([{ sessionId: 's-planned', label: 'Plan: Add a health endpoint' }]);
 	});
 

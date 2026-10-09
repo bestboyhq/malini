@@ -444,7 +444,10 @@ export function currentSessionId(page: Page): string | null {
 }
 
 export async function startFreshChat(page: Page): Promise<void> {
+	const previous = currentSessionId(page);
 	await page.getByTestId('chat-agent-new').click();
+	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(previous);
+	await expect(page.getByTestId('chat-fresh-session')).toBeVisible({ timeout: 20_000 });
 	await expect(composer(page)).toBeVisible({ timeout: 20_000 });
 }
 

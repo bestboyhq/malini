@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { RunId } from '$lib/chat/domain/run';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -20,7 +21,7 @@ class SessionsAggregate {
 	private envelopesBySession: Record<SessionId, EventEnvelope[]> = {};
 	private envelopeIndex = new CanonicalEnvelopeIndex();
 	private terminatedRunsBySession = new Map<SessionId, Set<RunId>>();
-	private hydratedTranscriptSessions = new Set<SessionId>();
+	private hydratedTranscriptSessions = new SvelteSet<SessionId>();
 
 	ensureSession(input: {
 		sessionId: SessionId;
@@ -199,6 +200,19 @@ class SessionsAggregate {
 
 	isTranscriptHydrated(sessionId: SessionId): boolean {
 		return this.hydratedTranscriptSessions.has(sessionId);
+	}
+
+	isKnownEmpty(sessionId: SessionId): boolean {
+		// ponytail: an unloaded empty chat reads as non-empty; a chat.list-sessions flag closes it
+		return (
+			this.isTranscriptHydrated(sessionId) &&
+			!this.listEventsFor(sessionId).some(
+				(event) =>
+					event.type === 'user.message' ||
+					event.type === 'assistant.message' ||
+					event.type === 'run.started',
+			)
+		);
 	}
 
 	hydratedTranscriptSessionIds(): readonly SessionId[] {
