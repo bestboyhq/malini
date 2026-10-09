@@ -51,10 +51,13 @@ export const CONTEXT_ROOT = resolve(APP_ROOT, '../..', '.context');
 const FIXTURE_BRIDGE = join(E2E_ROOT, 'fixtures/fake-bridge.cjs');
 
 export const PULL_REQUEST_FIXTURE = '.e2e-pull-request.json';
+export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
 
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
+GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
 case "$1 $2" in
+  "api user/repos"*) if [ -f "$GITHUB_REPOSITORIES" ]; then cat "$GITHUB_REPOSITORIES"; else echo "[]"; fi; exit 0 ;;
   "auth status") echo "github.com"; echo "  Logged in to github.com account e2e-user (keyring)"; exit 0 ;;
   "api user") echo "e2e-user"; exit 0 ;;
 esac

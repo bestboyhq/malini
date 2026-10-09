@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { hasSensitiveText, sensitiveSegments } from './sensitive-segments';
+
 	interface Props {
 		field: HTMLInputElement | HTMLTextAreaElement | null;
 		value: string;
@@ -12,9 +14,10 @@
 	const masked = $derived(
 		field !== null &&
 			!focused &&
-			value.length > 0 &&
+			hasSensitiveText(value) &&
 			!(field instanceof HTMLInputElement && field.type === 'password'),
 	);
+	const segments = $derived(masked ? sensitiveSegments(value) : []);
 
 	$effect(() => {
 		const current = field;
@@ -56,13 +59,19 @@
 {#if masked}
 	<span
 		class={[
-			'hyper-sensitive-mask text-fg-default pointer-events-none absolute inset-0 overflow-hidden',
+			'text-fg-default pointer-events-none absolute inset-0 overflow-hidden',
 			multiline ? 'break-words whitespace-pre-wrap' : 'flex items-center whitespace-pre',
 		]}
 		style={metrics}
 		aria-hidden="true"
 		data-testid="sensitive-field-mask"
 	>
-		{value}
+		{#each segments as segment, index (index)}
+			{#if segment.kind}
+				<span class="hyper-sensitive-mask" data-sensitive={segment.kind}>{segment.text}</span>
+			{:else}
+				{segment.text}
+			{/if}
+		{/each}
 	</span>
 {/if}

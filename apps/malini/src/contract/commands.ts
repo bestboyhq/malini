@@ -27,6 +27,7 @@ import type {
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
+	GithubRepositoryDto,
 	ImportSource,
 	OwnerAvatar,
 	ProjectDto,
@@ -357,6 +358,7 @@ export interface ContractCommands {
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
 	'repositories.connect': { args: ImportRepositoryArgs; result: ConnectedRepositoryDto };
 	'repositories.list-clones': { args: undefined; result: ConnectedRepositoryDto[] };
+	'repositories.list-github-repositories': { args: undefined; result: GithubRepositoryDto[] };
 	'pull-requests.mark-ready': {
 		args: PullRequestNumberArgs;
 		result: PullRequestStatusDto;
@@ -550,6 +552,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.create',
 	'repositories.connect',
 	'repositories.list-clones',
+	'repositories.list-github-repositories',
 	'pull-requests.mark-ready',
 	'pull-requests.merge',
 	'pull-requests.update-metadata',

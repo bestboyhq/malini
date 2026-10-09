@@ -5,7 +5,7 @@ import {
 	type GitHubAuthStatus,
 	type RepositoryImportSource,
 } from '$shared/repositories/domain/github-auth';
-import type { Repository } from '$shared/repositories/domain/repository';
+import type { GithubRepository, Repository } from '$shared/repositories/domain/repository';
 import { RepositoryMapper } from '$shared/repositories/infrastructure/mappers/repository.mapper';
 
 class GithubService {
@@ -20,6 +20,10 @@ class GithubService {
 	async listRepositories(): Promise<Repository[]> {
 		const raws = await withGitHubAuth(() => invoke('repositories.list-clones', undefined));
 		return RepositoryMapper.fromRawList(raws);
+	}
+
+	listGithubRepositories(): Promise<GithubRepository[]> {
+		return withGitHubAuth(() => invoke('repositories.list-github-repositories', undefined));
 	}
 
 	async connectRepository(source: RepositoryImportSource): Promise<Repository> {

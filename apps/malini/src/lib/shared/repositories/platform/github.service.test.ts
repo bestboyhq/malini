@@ -139,6 +139,49 @@ describe('repositories.github-auth-status', () => {
 	});
 });
 
+describe('repositories.list-github-repositories', () => {
+	it('lists the repositories gh reports, most recently pushed first, and skips malformed entries', async () => {
+		const { run, calls } = fakeRunner(() =>
+			ok(
+				JSON.stringify([
+					{
+						full_name: 'bestboyhq/malini',
+						clone_url: 'https://github.com/bestboyhq/malini.git',
+						description: '  ADE for the rest of us. ',
+					},
+					{ full_name: 'ablaszkiewicz/gardener-game', clone_url: 'https://github.com/a/g.git' },
+					{ full_name: 'broken/entry' },
+					null,
+				]),
+			),
+		);
+		boot({ ghRunner: run });
+		expect(await invoke('repositories.list-github-repositories')).toEqual([
+			{
+				fullName: 'bestboyhq/malini',
+				cloneUrl: 'https://github.com/bestboyhq/malini.git',
+				description: 'ADE for the rest of us.',
+			},
+			{
+				fullName: 'ablaszkiewicz/gardener-game',
+				cloneUrl: 'https://github.com/a/g.git',
+				description: null,
+			},
+		]);
+		expect(calls[0]?.args).toEqual(['api', expect.stringContaining('user/repos?sort=pushed')]);
+	});
+
+	it('fails with the gh sign-in error when gh is signed out', async () => {
+		const { run } = fakeRunner(() =>
+			ok('', 1, 'You are not logged into any GitHub hosts. To log in, run: gh auth login'),
+		);
+		boot({ ghRunner: run });
+		await expect(invoke('repositories.list-github-repositories')).rejects.toThrow(
+			/not logged into any GitHub hosts/,
+		);
+	});
+});
+
 describe('repositories.connect', () => {
 	it('reads a folder remote and default branch into the connected record', async () => {
 		const repoPath = join(root, 'checkout');

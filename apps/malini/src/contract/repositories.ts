@@ -114,6 +114,12 @@ export interface ConnectedRepositoryDto {
 	createdAt: string;
 }
 
+export interface GithubRepositoryDto {
+	fullName: string;
+	description: string | null;
+	cloneUrl: string;
+}
+
 export interface AuthStatusDto {
 	authenticated: boolean;
 	installed: boolean;
