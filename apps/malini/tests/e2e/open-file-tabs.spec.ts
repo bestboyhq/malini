@@ -270,6 +270,7 @@ test('double-clicking or pressing Enter on a preview tab keeps it, so the next f
 		await expectShowing(page, 'gamma.ts');
 		await expectStrip(page, ['tab /MENTION/', 'tab "gamma.ts"', 'tab "beta.ts"', 'tab "alpha.ts"']);
 
+		await fileTab(page, 'gamma.ts').hover();
 		await page.getByRole('button', { name: 'Close gamma.ts' }).click();
 		await expectShowing(page, 'beta.ts');
 		await expectStrip(page, ['tab /MENTION/', 'tab "beta.ts"', 'tab "alpha.ts"']);
@@ -395,6 +396,7 @@ test('the strip is a tab list of tabs only, walked with the arrow keys, with eac
 		await page.keyboard.press('Enter');
 		await expectStrip(page, ['tab /MENTION/', 'tab "beta.ts"']);
 
+		await fileTab(page, 'beta.ts').hover();
 		await closeBeta.click();
 		await expectStrip(page, ['tab /MENTION/']);
 		expectCleanConsole(app);

@@ -1233,8 +1233,13 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		listAgentSessions(db, requireString(args, 'workstreamId')),
 	);
 
-	commands.define('chat.archive-session', (args: unknown) => {
-		archiveSession(db, requireString(args, 'sessionId'), nowIso8601());
+	commands.define('chat.archive-session', async (args: unknown) => {
+		const sessionId = requireString(args, 'sessionId');
+		if (listActiveRunIdsForSession(db, sessionId).length > 0) {
+			const supervisor = await runtime.ensureSessionReady(sessionId);
+			await cancelAgentRun(db, supervisor, leases, { sessionId, pendingRunId: null });
+		}
+		archiveSession(db, sessionId, nowIso8601());
 	});
 
 	commands.define('chat.activate-session', (args: unknown) =>

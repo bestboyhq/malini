@@ -294,9 +294,7 @@
 
 	function startFreshChat(): void {
 		workstreamTabs.startFreshChat(workstreamId);
-		if (fresh) return;
-		tabSelection.armFresh();
-		void Promise.resolve(onnewchat()).catch(() => tabSelection.settle());
+		void onnewchat();
 	}
 
 	function overflowTab(entry: StripEntry): OverflowTab {
@@ -507,7 +505,7 @@
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
 					icon={planMode ? planIcon : undefined}
-					onselect={startFreshChat}
+					onselect={() => workstreamTabs.leave(workstreamId)}
 					onclose={() => void onclosefresh()}
 				/>
 			{/if}
@@ -524,7 +522,6 @@
 				class="text-fg-tertiary h-7 w-7 rounded-md focus-visible:ring-inset"
 				{disabled}
 				data-testid="chat-agent-new"
-				data-navigation-target={freshSessionHref()}
 				data-navigation-path-id="expected-path:transcript.fresh-chat"
 				onclick={startFreshChat}
 			>

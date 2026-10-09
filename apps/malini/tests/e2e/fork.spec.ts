@@ -248,6 +248,7 @@ test('forking a run stages the transcript in the fork only, never in the chat it
 		await expect(anyChip).toHaveCount(0);
 		await captureFlow(app, 'fork-parent-after-fork');
 
+		await strip.getByRole('tab', { name: forkName ?? '' }).hover();
 		await page.getByRole('button', { name: `Close ${forkName}` }).click();
 		await expect(strip.getByRole('tab', { name: forkName ?? '' })).toHaveCount(0);
 		await expect(parentTab).toHaveAttribute('aria-selected', 'true');
@@ -374,6 +375,7 @@ test('a new fork is named New chat again once the earlier fork tab is closed', a
 			await expect(parentTab).toHaveAttribute('aria-selected', 'true');
 			await page.getByRole('button', { name: 'Fork to new chat' }).click();
 			await expect(newChatTab).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
+			await newChatTab.hover();
 			await page.getByRole('button', { name: 'Close New chat', exact: true }).click();
 			await expect(newChatTab).toHaveCount(0);
 		}

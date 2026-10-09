@@ -359,6 +359,21 @@ describe('prompt round trips', () => {
 		);
 	});
 
+	it('stops the open run of a chat closed mid-run, then archives it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', {
+			workstreamId: 'ws-1',
+		});
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+
+		await invoke('chat.archive-session', { sessionId });
+
+		expect(getRun(test.db, runId)).toMatchObject({ error: 'cancelled' });
+		expect(await invoke('chat.list-sessions', { workstreamId: 'ws-1' })).toEqual([]);
+	});
+
 	it('runs a second chat of the workstream beside one that is still running', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

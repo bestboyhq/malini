@@ -1,9 +1,7 @@
-import { tick } from 'svelte';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.service.svelte';
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
 import { chatBootstrap } from '$lib/chat/infrastructure/services/chat-bootstrap.service';
-import { chatRouteSync } from '$lib/chat/infrastructure/services/chat-route-sync.service';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
@@ -70,28 +68,6 @@ class AgentRecoveryService {
 		} finally {
 			chatSessionStore.retryingSession = false;
 		}
-	}
-
-	async startFreshChat(): Promise<boolean> {
-		const workstreamId = chatRoute.workstreamId;
-		const currentSessionId = chatSessionStore.sessionId ?? chatRoute.readSessionParam();
-		if (!currentSessionId || !workstreamId) return false;
-		chatSessionStore.suppressRouteActivation = true;
-		try {
-			const selection = chatSessionStore.beginSelection(workstreamId, null);
-			chatSessionStore.finishSelection(selection);
-			chatSessionStore.freshReturnSessionId = currentSessionId;
-			chatSessionStore.sessionId = null;
-			chatSessionStore.createFreshSessionOnNextPrompt = true;
-			chatSessionStore.emptySessionMode = 'fresh';
-			chatSessionStore.bootError = null;
-			await chatRouteSync.clearSessionUrl();
-			sessionActivation.commitSessionlessPresentation(workstreamId, selection);
-			await tick();
-		} finally {
-			chatSessionStore.suppressRouteActivation = false;
-		}
-		return true;
 	}
 }
 

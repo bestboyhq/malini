@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { attributeCredentials, GitError, gitFailureVerdict, isNotFoundError } from './errors';
+import {
+	attributeCredentials,
+	GhError,
+	GitError,
+	gitFailureVerdict,
+	isNotFoundError,
+} from './errors';
 
 const PROXY_UNREACHABLE =
 	"fatal: unable to access 'https://github.com/e2e/hutch.git/': Failed to connect to 127.0.0.1 port 9 after 0 ms: Couldn't connect to server\n";
@@ -220,6 +226,46 @@ describe('GitError.commandFailed', () => {
 		expect(attributeCredentials(failure, 'ghs_secret_value').message).toBe(
 			'GitHub rejected the credentials. Run `gh auth login` and try again.',
 		);
+	});
+});
+
+describe('GhError.fromStderr', () => {
+	it.each([
+		[
+			'exhausted ports',
+			'Post "https://api.github.com/graphql": dial tcp 140.82.121.5:443: connect: can\'t assign requested address\n',
+		],
+		[
+			'an unreachable proxy',
+			'Post "https://api.github.com/graphql": proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused\n',
+		],
+		[
+			'a DNS failure',
+			'Get "https://api.github.com/user": dial tcp: lookup api.github.com: no such host\n',
+		],
+		[
+			'a timeout',
+			'Post "https://api.github.com/graphql": dial tcp 140.82.121.6:443: i/o timeout\n',
+		],
+		['gh naming the host', 'error connecting to api.github.com\ncheck your internet connection\n'],
+	])('says GitHub is unreachable for %s and keeps the raw line as its cause', (_, stderr) => {
+		const error = GhError.fromStderr(stderr, 1);
+
+		expect(error).toMatchObject({
+			kind: 'unreachable',
+			message: "Couldn't reach GitHub. Check your connection and try again.",
+			stderr,
+		});
+		expect(error.cause).toBeInstanceOf(Error);
+	});
+
+	it('keeps any other gh failure as gh wrote it', () => {
+		expect(
+			GhError.fromStderr('GraphQL: Could not resolve to a PullRequest (repository)\n', 1),
+		).toMatchObject({
+			kind: 'failed',
+			message: 'GraphQL: Could not resolve to a PullRequest (repository)',
+		});
 	});
 });
 
