@@ -600,7 +600,7 @@
 		'bg-surface-50 border-surface-50-border mt-1 mr-3 mb-3 flex min-h-0 min-w-0 shrink flex-col overflow-hidden rounded-3xl border-[0.5px] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-4',
 		floating
 			? 'shadow-popup absolute top-0 right-0 z-10 max-h-[calc(100%-1.75rem)]'
-			: '[html[data-native-shell=true]_&]:relative',
+			: 'relative z-10',
 		!drawerOpen && 'w-72',
 	]}
 	style:width={floating ? `min(calc(100% - 3rem), max(${minWidth}px, 50%))` : undefined}
