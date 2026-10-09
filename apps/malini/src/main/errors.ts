@@ -174,7 +174,7 @@ const AUTH_FAILURE =
 	/authentication failed|could not read (?:username|password)|requested url returned error: 40[13]\b|permission to \S+ denied|invalid username or (?:password|token)|permission denied \(publickey/iu;
 const REPOSITORY_NOT_FOUND = /repository not found|repository '[^']*' not found/iu;
 const REMOTE_UNREACHABLE =
-	/could not resolve (?:host|hostname|proxy)|failed to connect to|couldn't connect to server|connection refused|connection timed out|operation timed out|network is unreachable|no route to host|temporary failure in name resolution/iu;
+	/could not resolve (?:host|hostname|proxy)|failed to connect to|couldn't connect to server|connection refused|connection timed out|operation timed out|network is unreachable|no route to host|temporary failure in name resolution|can't assign requested address|no such host|i\/o timeout|connection reset by peer|tls handshake timeout|error connecting to/iu;
 const REMOTE_HAS_NEW_COMMITS =
 	/\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)|updates were rejected because the (?:remote|tip)/iu;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
@@ -296,7 +296,8 @@ function gitCommandTranscript(failure: GitCommandFailure): string {
 const GH_AUTH_REQUIRED_PATTERN =
 	/not logged in|not signed in|gh auth login|authentication required/iu;
 
-export type GhErrorKind = 'not-installed' | 'auth-required' | 'no-pull-request' | 'failed';
+export type GhErrorKind =
+	'not-installed' | 'auth-required' | 'no-pull-request' | 'unreachable' | 'failed';
 
 function firstMeaningfulGhLine(stderr: string): string {
 	const lines = stderr
@@ -316,9 +317,9 @@ export class GhError extends Error {
 	constructor(
 		kind: GhErrorKind,
 		message: string,
-		extra: { code?: number | null; stderr?: string } = {},
+		extra: { code?: number | null; stderr?: string; cause?: unknown } = {},
 	) {
-		super(message);
+		super(message, { cause: extra.cause });
 		this.name = 'GhError';
 		this.kind = kind;
 		this.code = extra.code ?? null;
@@ -340,6 +341,13 @@ export class GhError extends Error {
 		}
 		if (/no pull requests found|no open pull requests/iu.test(stderr)) {
 			return new GhError('no-pull-request', detail, { code, stderr });
+		}
+		if (REMOTE_UNREACHABLE.test(stderr)) {
+			return new GhError(
+				'unreachable',
+				"Couldn't reach GitHub. Check your connection and try again.",
+				{ code, stderr, cause: new Error(detail) },
+			);
 		}
 		return new GhError('failed', detail, { code, stderr });
 	}
