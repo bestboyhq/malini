@@ -68,13 +68,14 @@ describe('sensitive text', () => {
 });
 
 describe('sensitive fields', () => {
-	it('masks a typed value until the field is focused, and again after it leaves', async () => {
-		const host = render(TextInput, { label: 'Clone URL', value: 'https://example.com/ada/repo' });
+	it('masks the user name in a typed path until the field is focused, and again after it leaves', async () => {
+		const host = render(TextInput, { label: 'Location', value: '/Users/ada/repos' });
 		const input = host.querySelector('input');
 		if (!input) throw new Error('missing input');
 		const mask = (): Element | null => host.querySelector('[data-testid="sensitive-field-mask"]');
 
-		expect(mask()).not.toBeNull();
+		expect(mask()?.textContent).toBe('/Users/ada/repos');
+		expect(host.querySelector('[data-sensitive="user"]')?.textContent).toBe('ada');
 
 		input.focus();
 		await settled();
@@ -85,7 +86,8 @@ describe('sensitive fields', () => {
 		expect(mask()).not.toBeNull();
 	});
 
-	it('leaves an empty field and a password field without a mask', () => {
+	it('leaves a field without personal data, an empty field and a password field unmasked', () => {
+		const plain = render(TextInput, { label: 'Clone URL', value: 'https://github.com/ada/repo' });
 		const empty = render(TextInput, { label: 'Search', value: '' });
 		const password = render(TextInput, {
 			label: 'Token',
@@ -93,6 +95,7 @@ describe('sensitive fields', () => {
 			value: 'secret',
 		});
 
+		expect(plain.querySelector('[data-testid="sensitive-field-mask"]')).toBeNull();
 		expect(empty.querySelector('[data-testid="sensitive-field-mask"]')).toBeNull();
 		expect(password.querySelector('[data-testid="sensitive-field-mask"]')).toBeNull();
 	});

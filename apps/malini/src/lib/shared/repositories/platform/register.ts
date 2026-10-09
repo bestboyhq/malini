@@ -46,6 +46,7 @@ import {
 	defaultGhRunner,
 	githubAuthStatus,
 	listClones,
+	listGithubRepositories,
 	parseImportSource,
 	type GhRunner,
 } from './github.service';
@@ -285,6 +286,8 @@ export function registerRepositories(
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
 
 	commands.define('repositories.list-clones', () => listClones(db));
+
+	commands.define('repositories.list-github-repositories', () => listGithubRepositories(gh));
 
 	commands.define('repositories.connect', (args: unknown) =>
 		connectRepository(db, gh, parseImportSource(field(args, 'source'))),

@@ -110,7 +110,7 @@ export { type WorkstreamDiff } from './domain/workstream-diff';
 
 export { workstreamCount } from './domain/workstream-retirement';
 
-export { isCloneUrl, workstreamsForRepository } from './domain/repository-connection';
+export { workstreamsForRepository } from './domain/repository-connection';
 
 export { archiveWorkstreamCommand } from './application/commands/archive-workstream.command';
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
@@ -182,6 +182,7 @@ export { checkedOutWorkstreamsQuery } from './application/queries/checked-out-wo
 export { workstreamCheckedOutQuery } from './application/queries/workstream-checked-out.query.svelte';
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
 
+export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export { default as RepositoryListSkeleton } from './presentation/RepositoryListSkeleton.svelte';
 export { default as RepositorySidebarSkeleton } from './presentation/RepositorySidebarSkeleton.svelte';

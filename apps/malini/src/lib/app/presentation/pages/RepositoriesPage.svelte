@@ -10,11 +10,10 @@
 	import {
 		activeWorkstreamsQuery,
 		clearRepositoryConnectErrorCommand,
-		connectRepositoryCommand,
+		CloneRepositoryDialog,
 		connectedRepositoriesQuery,
 		createWorkstreamForRepositoryCommand,
 		githubAuthQuery,
-		isCloneUrl,
 		loadGithubAuthCommand,
 		openRepositoryFolderCommand,
 		repositoriesScopeErrorQuery,
@@ -34,8 +33,7 @@
 	import { describeFailure } from '$shared/errors/failure-copy';
 
 	let query = $state('');
-	let cloneUrl = $state('');
-	let cloneFormOpen = $state(false);
+	let cloneDialogOpen = $state(false);
 
 	const workstreams = $derived(activeWorkstreamsQuery.data);
 	const repositories = $derived(connectedRepositoriesQuery.data);
@@ -72,7 +70,6 @@
 		if (needle.length === 0) return repositories;
 		return repositories.filter((repo) => repo.fullName.toLowerCase().includes(needle));
 	});
-	const cloneUrlValid = $derived(isCloneUrl(cloneUrl));
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
@@ -108,15 +105,6 @@
 		return `default ${repo.defaultBranch}`;
 	}
 
-	function cloneFromUrl(): void {
-		const url = cloneUrl.trim();
-		if (!cloneUrlValid) return;
-		connectRepositoryCommand({ kind: 'clone-url', url }, () => {
-			cloneUrl = '';
-			cloneFormOpen = false;
-		});
-	}
-
 	function openRepository(repo: Repository): void {
 		const existing = firstWorkstreamHref(repo);
 		if (existing) {
@@ -127,44 +115,22 @@
 	}
 </script>
 
-{#snippet cloneForm()}
-	<form
-		class="mt-6 flex gap-2"
-		data-testid="repository-clone-form"
-		onsubmit={(event) => {
-			event.preventDefault();
-			cloneFromUrl();
-		}}
+{#snippet cloneButton()}
+	<Button
+		variant="secondary"
+		size="sm"
+		disabled={connecting !== null}
+		ariaBusy={connecting === 'clone'}
+		ariaHasPopup="dialog"
+		ariaLabel="Clone a GitHub repository"
+		data-testid="repository-clone-open"
+		onclick={() => (cloneDialogOpen = true)}
 	>
-		<TextInput
-			bind:value={cloneUrl}
-			type="text"
-			size="xs"
-			ariaLabel="Clone URL"
-			placeholder="https://github.com/owner/repo.git"
-			autocomplete="off"
-			class="min-w-0 flex-1"
-			data-testid="repository-clone-url-input"
-		>
-			{#snippet icon()}
-				<Icon name="link" size={14} />
-			{/snippet}
-		</TextInput>
-		<Button
-			type="submit"
-			variant="primary"
-			size="md"
-			disabled={!cloneUrlValid || connecting !== null}
-			ariaBusy={connecting === 'clone'}
-			ariaLabel="Clone this repository and open a workstream"
-			data-testid="repository-clone-submit"
-		>
-			{connecting === 'clone' ? 'Cloning…' : 'Clone'}
-			{#snippet trailing()}
-				<Icon name="arrow-right" size={16} />
-			{/snippet}
-		</Button>
-	</form>
+		{#snippet leading()}
+			<Icon name="link" size={14} />
+		{/snippet}
+		Clone repo
+	</Button>
 {/snippet}
 
 {#snippet connectErrorBlock(failure: NonNullable<typeof connectError>)}
@@ -188,6 +154,10 @@
 		</StateBlock>
 	</div>
 {/snippet}
+
+{#if cloneDialogOpen}
+	<CloneRepositoryDialog onclose={() => (cloneDialogOpen = false)} />
+{/if}
 
 <svelte:head>
 	<title>malini · Repositories</title>
@@ -229,17 +199,7 @@
 								A folder on this Mac, or a URL git can clone.
 							</p>
 						</div>
-						<Button
-							variant="secondary"
-							size="sm"
-							active={cloneFormOpen}
-							disabled={connecting !== null}
-							ariaLabel={cloneFormOpen ? 'Hide the clone form' : 'Clone a repository from a URL'}
-							data-testid="repository-clone-toggle"
-							onclick={() => (cloneFormOpen = !cloneFormOpen)}
-						>
-							Clone URL
-						</Button>
+						{@render cloneButton()}
 						<Button
 							variant="primary"
 							size="sm"
@@ -252,9 +212,6 @@
 							Open folder
 						</Button>
 					</div>
-					{#if cloneFormOpen}
-						{@render cloneForm()}
-					{/if}
 				</li>
 			</ol>
 			{#if connectError}
@@ -266,20 +223,7 @@
 			<header class="flex items-center justify-between gap-3">
 				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Repositories</h1>
 				<div class="flex items-center gap-2">
-					<Button
-						variant="secondary"
-						size="sm"
-						active={cloneFormOpen}
-						disabled={connecting !== null}
-						ariaLabel={cloneFormOpen ? 'Hide the clone form' : 'Clone a repository from a URL'}
-						data-testid="repository-clone-toggle"
-						onclick={() => (cloneFormOpen = !cloneFormOpen)}
-					>
-						{#snippet leading()}
-							<Icon name="link" size={14} />
-						{/snippet}
-						Clone URL
-					</Button>
+					{@render cloneButton()}
 					<Button
 						variant="primary"
 						size="sm"
@@ -296,10 +240,6 @@
 					</Button>
 				</div>
 			</header>
-
-			{#if cloneFormOpen}
-				{@render cloneForm()}
-			{/if}
 
 			{#if claudeNeedsSetup}
 				<div class="mt-6">

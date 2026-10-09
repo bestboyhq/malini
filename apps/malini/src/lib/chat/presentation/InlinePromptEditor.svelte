@@ -4,6 +4,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { isPromptChipKind, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
+	import { hasSensitiveText } from '$hyper-ui/components/sensitive';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { promptEditorExtensions } from './prompt-editor/minimal-extensions';
 	import { PROMPT_CHIP_NODE_NAME } from './prompt-editor/prompt-chip-node';
@@ -322,7 +323,7 @@
 		bind:this={host}
 		class={[
 			'prompt-editor-host w-full',
-			!editorFocused && value.trim() !== '' && 'hyper-sensitive-mask',
+			!editorFocused && hasSensitiveText(value) && 'hyper-sensitive-mask',
 		]}
 		data-placeholder-hidden={placeholderHidden ? '' : undefined}
 	></div>

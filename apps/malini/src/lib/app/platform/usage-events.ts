@@ -116,6 +116,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'repositories.disconnect': plain,
 	'repositories.github-auth-status': false,
 	'repositories.list-clones': false,
+	'repositories.list-github-repositories': false,
 	'repositories.list-owned-docker-containers': false,
 	'repositories.list-repositories': false,
 	'repositories.list-workstreams': false,

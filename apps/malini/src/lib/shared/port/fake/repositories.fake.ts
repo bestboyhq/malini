@@ -353,6 +353,19 @@ function installGithubFake(bridge: FakeBridge): void {
 		github.clones.map((clone) => ({ ...clone })),
 	);
 
+	bridge.define('repositories.list-github-repositories', async () => [
+		{
+			fullName: 'rabbits/hutch',
+			description: 'Where the rabbits live.',
+			cloneUrl: 'https://github.com/rabbits/hutch.git',
+		},
+		{
+			fullName: 'rabbits/burrow',
+			description: null,
+			cloneUrl: 'https://github.com/rabbits/burrow.git',
+		},
+	]);
+
 	bridge.define('repositories.connect', async (input) => {
 		const identity = importSourceIdentity(input.source);
 		const duplicate = github.clones.some(

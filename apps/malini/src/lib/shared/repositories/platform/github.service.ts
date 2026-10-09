@@ -1,8 +1,8 @@
-import type { ConnectedRepositoryDto } from '$contract/repositories';
+import type { ConnectedRepositoryDto, GithubRepositoryDto } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
-import { isGhError } from '$main/errors';
-import { runGh, type GhResult } from '$main/process/gh';
+import { GhError, isGhError } from '$main/errors';
+import { parseGhJson, runGh, type GhResult } from '$main/process/gh';
 import { repositoryFullNameFromRemoteUrl } from '$shared/repositories/domain/repository-context';
 import {
 	findConnectedRepositoryByFullName,
@@ -65,6 +65,30 @@ export async function githubAuthStatus(run: GhRunner): Promise<GitHubAuthStatusD
 		if (user.code === 0 && trimmed.length > 0) login = trimmed;
 	} catch {}
 	return { authenticated: true, installed: true, login, host: 'github.com', message: null };
+}
+
+const RECENT_GITHUB_REPOSITORIES_PATH =
+	'user/repos?sort=pushed&per_page=100&affiliation=owner,collaborator,organization_member';
+
+// ponytail: first 100 repos by last push only; paginate once a search misses an older one
+export async function listGithubRepositories(run: GhRunner): Promise<GithubRepositoryDto[]> {
+	const result = await run(['api', RECENT_GITHUB_REPOSITORIES_PATH]);
+	if (result.code !== 0) throw GhError.fromStderr(result.stderr, result.code);
+	const parsed = parseGhJson<unknown>(result, 'list GitHub repositories');
+	if (!Array.isArray(parsed)) {
+		throw new GhError('failed', 'list GitHub repositories: gh returned a body that is not a list');
+	}
+	return parsed.flatMap(githubRepositoryDto);
+}
+
+function githubRepositoryDto(raw: unknown): GithubRepositoryDto[] {
+	if (typeof raw !== 'object' || raw === null) return [];
+	const fullName: unknown = Reflect.get(raw, 'full_name');
+	const cloneUrl: unknown = Reflect.get(raw, 'clone_url');
+	const description: unknown = Reflect.get(raw, 'description');
+	if (typeof fullName !== 'string' || typeof cloneUrl !== 'string') return [];
+	const summary = typeof description === 'string' ? description.trim() : '';
+	return [{ fullName, cloneUrl, description: summary.length > 0 ? summary : null }];
 }
 
 export async function listClones(db: MaliniDatabase): Promise<ConnectedRepositoryDto[]> {

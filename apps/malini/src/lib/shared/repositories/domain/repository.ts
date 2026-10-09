@@ -1,3 +1,5 @@
+import type { RepositoryConnectFailure } from './repository-connection';
+
 export type ProjectId = string;
 
 export type Project = {
@@ -18,3 +20,14 @@ export type Repository = {
 	remoteUrl: string | null;
 	createdAt: string;
 };
+
+export type GithubRepository = Readonly<{
+	fullName: string;
+	description: string | null;
+	cloneUrl: string;
+}>;
+
+export type GithubRepositoryListing =
+	| Readonly<{ kind: 'loading' }>
+	| Readonly<{ kind: 'loaded'; repositories: readonly GithubRepository[] }>
+	| Readonly<{ kind: 'failed'; failure: RepositoryConnectFailure }>;
