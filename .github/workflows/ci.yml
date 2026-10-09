@@ -8,51 +8,54 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # A release in progress must finish; a newer merge waits and releases after it.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   checks:
-    name: check, lint, test
+    name: check and lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # package.json pins pnpm 12; corepack reads it, so the version lives in one place.
-      - run: corepack enable pnpm
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm build
       - run: pnpm check
       - run: pnpm lint
-      - run: pnpm -r --reporter-hide-prefix --if-present test
+      - run: pnpm -r --filter '!malini' --reporter-hide-prefix --if-present test
 
-  app:
-    # malini ships on macOS only, so the built app is exercised where it runs.
-    name: app launches on macOS
-    runs-on: macos-latest
+  unit:
+    name: unit tests ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
     steps:
       - uses: actions/checkout@v7
-      # package.json pins pnpm 12; corepack reads it, so the version lives in one place.
-      - run: corepack enable pnpm
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - run: pnpm build
-      - run: pnpm --filter malini exec playwright test
+      - run: pnpm --filter malini exec vitest run --shard=${{ matrix.shard }}
+
+  app:
+    name: app launches on macOS ${{ matrix.shard }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm --filter malini exec playwright test --shard=${{ matrix.shard }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ strategy.job-index }}
           path: apps/malini/test-results
 
-  # The version the merged commits call for; empty when none of them is a feat, fix, perf, or breaking change.
   version:
-    needs: [checks, app]
+    name: next version from the merged commits
+    needs: [checks, unit, app]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
@@ -60,31 +63,25 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the tags and commits since the last release
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 24
       - id: next
         run: echo "version=$(node apps/malini/scripts/version.mjs)" >> "$GITHUB_OUTPUT"
 
-  # Ships the merge as an in-app update: users get it on their next update check.
   release:
+    name: build, sign and notarize
     needs: version
     if: needs.version.outputs.next != ''
     runs-on: macos-latest
-    permissions:
-      contents: write
     env:
       V: ${{ needs.version.outputs.next }}
     steps:
       - uses: actions/checkout@v7
-      - run: corepack enable pnpm
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Import the Developer ID certificate
+      - uses: ./.github/actions/setup
+      - &import-certificate
+        name: Import the Developer ID certificate
         run: |
           kc="$RUNNER_TEMP/signing.keychain-db" pw=$(openssl rand -base64 24)
           security create-keychain -p "$pw" "$kc"
@@ -108,7 +105,37 @@ jobs:
         env:
           APPLE_KEYCHAIN_PROFILE: malini
       - run: dmg="apps/malini/release/malini-$V-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          if-no-files-found: error
+          path: |
+            apps/malini/release/malini-${{ env.V }}-arm64*
+            apps/malini/release/latest-mac.yml
+
+  update:
+    name: signed builds update themselves
+    needs: version
+    if: needs.version.outputs.next != ''
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - *import-certificate
       - run: pnpm --filter malini test:update
-      - run: gh release create "v$V" --generate-notes --target "$GITHUB_SHA" "apps/malini/release/malini-$V-arm64"* apps/malini/release/latest-mac.yml
+
+  publish:
+    name: publish the release
+    needs: [version, release, update]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+      - run: gh release create "v$V" --generate-notes --target "$GITHUB_SHA" malini-"$V"-arm64* latest-mac.yml
         env:
+          V: ${{ needs.version.outputs.next }}
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}

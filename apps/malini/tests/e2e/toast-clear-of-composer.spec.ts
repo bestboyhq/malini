@@ -107,9 +107,16 @@ async function watchFooterCoverage(page: Page): Promise<void> {
 					}
 				}
 			}
-			body.ownerDocument.defaultView?.requestAnimationFrame(() => setTimeout(sample));
 		};
-		sample();
+		const view = body.ownerDocument.defaultView;
+		if (!view) throw new Error('the app page has no window');
+		const afterLayoutBeforePaint = new view.ResizeObserver(sample);
+		const sampleEveryPaintedFrame = (): void => {
+			afterLayoutBeforePaint.unobserve(body);
+			afterLayoutBeforePaint.observe(body);
+			view.requestAnimationFrame(sampleEveryPaintedFrame);
+		};
+		sampleEveryPaintedFrame();
 	}, FOOTER_CONTROLS);
 }
 

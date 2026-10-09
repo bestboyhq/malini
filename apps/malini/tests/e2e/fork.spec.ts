@@ -139,6 +139,7 @@ test('forking twice opens a new chat for each fork, right after the chat it came
 
 		await page.getByRole('button', { name: 'Fork to new chat' }).click();
 		await expect(transcriptChip).toBeVisible({ timeout: 20_000 });
+		await expect(composer).toBeFocused();
 		await page.keyboard.type('first fork draft');
 		const firstForkTab = strip.getByRole('tab', { selected: true });
 		const firstForkName = await firstForkTab.textContent();

@@ -1,0 +1,49 @@
+diff --git a/dist/Toaster.svelte b/dist/Toaster.svelte
+index 51385c9b78c82edfefb1b12d51ad23383ca08b6f..cd818ffa41b54c233116d063b6cac97db2043c63 100644
+--- a/dist/Toaster.svelte
++++ b/dist/Toaster.svelte
+@@ -198,6 +198,7 @@
+ 	let lastFocusedElementRef = $state<HTMLElement | null>(null);
+ 	let isFocusWithin = $state(false);
+ 	let lastMousePosition: { x: number; y: number } | null = null;
++	let leftUnderStillPointer = false;
+ 
+ 	const hotkeyLabel = $derived(
+ 		hotkey.join('+').replace(/Key/g, '').replace(/Digit/g, '')
+@@ -262,7 +263,19 @@
+ 			}
+ 		};
+ 
+-		return on(document, 'keydown', handleKeydown);
++		const collapseOncePointerMovesOff = (event: MouseEvent) => {
++			if (!leftUnderStillPointer) return;
++			if (event.target instanceof Node && listRef?.contains(event.target)) return;
++			leftUnderStillPointer = false;
++			if (!interacting) expanded = false;
++		};
++
++		const offKeydown = on(document, 'keydown', handleKeydown);
++		const offMousemove = on(document, 'mousemove', collapseOncePointerMovesOff);
++		return () => {
++			offKeydown();
++			offMousemove();
++		};
+ 	});
+ 
+ 	$effect(() => {
+@@ -343,6 +356,7 @@
+ 	const handleMouseEnter: MouseEventHandler<HTMLOListElement> = (event) => {
+ 		onmouseenter?.(event);
+ 		lastMousePosition = { x: event.clientX, y: event.clientY };
++		leftUnderStillPointer = false;
+ 		expanded = true;
+ 	};
+ 
+@@ -362,6 +376,7 @@
+ 		if (!interacting && mouseActuallyMoved) {
+ 			expanded = false;
+ 		}
++		leftUnderStillPointer = !mouseActuallyMoved;
+ 	};
+ 
+ 	const handleMouseMove: MouseEventHandler<HTMLOListElement> = (event) => {

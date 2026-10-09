@@ -415,6 +415,7 @@ function composer(page: Page) {
 export async function sendPrompt(page: Page, text: string): Promise<void> {
 	const input = composer(page);
 	await expect(input).toBeVisible({ timeout: 20_000 });
+	await input.click({ trial: true });
 	const box = await input.boundingBox();
 	if (!box) throw new Error('the composer is not laid out');
 	await input.click({ position: { x: box.width - 4, y: box.height / 2 } });

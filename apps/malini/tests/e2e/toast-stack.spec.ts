@@ -22,7 +22,7 @@ interface ToastOptions {
 }
 
 declare global {
-	var toast: { info(message: string, options?: ToastOptions): unknown };
+	var toast: { info(message: string, options?: ToastOptions): unknown; dismiss(id: string): void };
 }
 
 const ARCHIVED_NAME = 'Create the file notes/scratch.txt containing';
@@ -261,4 +261,32 @@ test.describe('a hyper-ui toast in the app window', () => {
 			}
 		});
 	}
+
+	test('a stack whose hovered toast is dismissed under a still pointer collapses once the pointer leaves', async () => {
+		const app = await launchMalini({ env: { ELECTRON_RENDERER_URL: url } });
+		try {
+			const { page } = app;
+			await expect.poll(() => page.evaluate(() => typeof globalThis.toast)).toBe('object');
+			await show(page, OLDER_SAVED);
+			await show(page, NEWER_SAVED);
+			await show(page, 'Archived', { id: 'archive' });
+			const hovered = page
+				.getByTestId('toast')
+				.filter({ has: page.getByText('Archived', { exact: true }) });
+			const box = await hovered.boundingBox();
+			if (!box) throw new Error('the hovered toast is not on screen');
+			await hovered.hover({ position: { x: box.width / 2, y: box.height - 3 } });
+			const messages = ['Archived', OLDER_SAVED, NEWER_SAVED];
+			await expectStack(page, messages, messages);
+
+			await page.evaluate(() => globalThis.toast.dismiss('archive'));
+			await expect(hovered).toHaveCount(0);
+			await collapse(page);
+			await expectStack(page, [OLDER_SAVED, NEWER_SAVED], [NEWER_SAVED]);
+			await captureFlow(app, 'toast-stack-collapsed-after-dismissal');
+			expectCleanConsole(app);
+		} finally {
+			await app.close();
+		}
+	});
 });
