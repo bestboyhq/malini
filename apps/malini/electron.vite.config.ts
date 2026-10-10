@@ -65,7 +65,7 @@ export default defineConfig({
 		resolve: { alias: nodeAlias },
 		build: {
 			target: 'node24',
-			rollupOptions: { input: { index: 'src/main/index.ts' } },
+			rollupOptions: { input: { index: 'src/main/index.ts' }, external: ['original-fs'] },
 		},
 	},
 	preload: {
