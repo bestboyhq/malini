@@ -263,10 +263,13 @@ function openPullRequestNextAction(
 	const notStartedReason = blockingChecks.find((check) => check.notStartedReason)?.notStartedReason;
 	if (notStartedReason) return ciNotStarted(pullRequest, notStartedReason);
 
+	const checksRunning =
+		blockingChecks.length > 0 || (checkItems.length === 0 && pullRequest.checks === 'pending');
+
 	if (
 		(checkItems.length === 0 && pullRequest.checks === 'failed') ||
 		pullRequest.mergeable === false ||
-		mergeState === 'blocked'
+		(mergeState === 'blocked' && !checksRunning)
 	) {
 		return fix(
 			'Fix errors',
@@ -278,7 +281,7 @@ function openPullRequestNextAction(
 		);
 	}
 
-	if (blockingChecks.length > 0 || (checkItems.length === 0 && pullRequest.checks === 'pending')) {
+	if (checksRunning) {
 		return open(
 			pullRequest,
 			blockingChecks.length > 0

@@ -27,7 +27,7 @@
 </script>
 
 <span
-	class={['relative block shrink-0 overflow-hidden rounded-md', className]}
+	class={['bg-surface-root relative block shrink-0 overflow-hidden rounded-md', className]}
 	style:width="{size}px"
 	style:height="{size}px"
 	style:font-size="{size}px"
@@ -35,7 +35,7 @@
 	data-avatar-state={src ? 'image' : 'letter'}
 >
 	{#if src}
-		<img {src} alt="" draggable="false" class="block h-full w-full object-cover" />
+		<img {src} alt="" draggable="false" class="block h-full w-full object-cover contrast-125" />
 	{:else}
 		<span
 			class="bg-surface-150 text-fg-secondary grid h-full w-full place-items-center text-[0.6em] leading-none font-medium select-none"

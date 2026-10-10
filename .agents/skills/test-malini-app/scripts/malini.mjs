@@ -8,6 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const appRoot = join(root, 'apps/malini');
 const contextRoot = join(root, '.context');
 const { _electron: electron } = createRequire(join(appRoot, 'package.json'))('@playwright/test');
+const REPAINT_MS = 300;
 
 export async function launch(topic, { foreground = false } = {}) {
 	const userDataDir = join(contextRoot, `profile-${topic}`);
@@ -38,6 +39,10 @@ export async function launch(topic, { foreground = false } = {}) {
 						animation.effect?.getTiming().iterations === Infinity,
 				),
 		);
+		await app.evaluate(({ BrowserWindow }) =>
+			BrowserWindow.getAllWindows()[0]?.webContents.invalidate(),
+		);
+		await page.waitForTimeout(REPAINT_MS);
 		const source = await app.evaluate(({ BrowserWindow }) =>
 			BrowserWindow.getAllWindows()[0]?.getMediaSourceId(),
 		);

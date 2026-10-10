@@ -1,18 +1,43 @@
 import type { ImageBytes } from '$lib/chat/domain/image-bytes';
-import { imagePreviewOwner, type ImagePreview } from '$lib/chat/domain/image-preview';
+import {
+	imagePreviewOwner,
+	type ImagePreview,
+	type WorkstreamImage,
+} from '$lib/chat/domain/image-preview';
 
 class ImagePreviewsStore {
 	previews: Record<string, ImagePreview> = $state({});
-	readonly #pending = new Set<string>();
+	readonly #reads = new Map<string, number>();
+	readonly #workstreamImages = new Map<string, WorkstreamImage>();
+	readonly #stale = new Set<string>();
+	#lastRead = 0;
 
-	begin(key: string): boolean {
-		if (this.#pending.has(key) || key in this.previews) return false;
-		this.#pending.add(key);
-		return true;
+	begin(key: string, image?: WorkstreamImage): number | null {
+		const stale = this.#stale.delete(key);
+		if (!stale && (this.#reads.has(key) || key in this.previews)) return null;
+		if (image) this.#workstreamImages.set(key, image);
+		const read = ++this.#lastRead;
+		this.#reads.set(key, read);
+		return read;
 	}
 
-	settleBytes(key: string, bytes: ImageBytes | null, unavailableReason: string): void {
-		if (!this.#pending.delete(key)) return;
+	markStale(workstreamId: string, changed: (path: string) => boolean): readonly WorkstreamImage[] {
+		const stale: WorkstreamImage[] = [];
+		for (const [key, image] of this.#workstreamImages) {
+			if (image.workstreamId !== workstreamId || !changed(image.path)) continue;
+			this.#stale.add(key);
+			stale.push(image);
+		}
+		return stale;
+	}
+
+	settleBytes(
+		key: string,
+		read: number,
+		bytes: ImageBytes | null,
+		unavailableReason: string,
+	): void {
+		if (!this.#finish(key, read)) return;
 		this.#commit(
 			key,
 			bytes
@@ -21,14 +46,17 @@ class ImagePreviewsStore {
 		);
 	}
 
-	settleUnavailable(key: string, reason: string): void {
-		if (!this.#pending.delete(key)) return;
+	settleUnavailable(key: string, read: number, reason: string): void {
+		if (!this.#finish(key, read)) return;
 		this.#commit(key, { status: 'unavailable', reason });
 	}
 
 	release(owner: string): void {
-		for (const key of [...this.#pending]) {
-			if (imagePreviewOwner(key) === owner) this.#pending.delete(key);
+		const owned = (key: string): boolean => imagePreviewOwner(key) === owner;
+		for (const key of [...this.#reads.keys()].filter(owned)) this.#reads.delete(key);
+		for (const key of [...this.#workstreamImages.keys()].filter(owned)) {
+			this.#workstreamImages.delete(key);
+			this.#stale.delete(key);
 		}
 		const kept: Record<string, ImagePreview> = {};
 		let released = false;
@@ -43,8 +71,16 @@ class ImagePreviewsStore {
 		if (released) this.previews = kept;
 	}
 
+	#finish(key: string, read: number): boolean {
+		if (this.#reads.get(key) !== read) return false;
+		this.#reads.delete(key);
+		return true;
+	}
+
 	#commit(key: string, preview: ImagePreview): void {
+		const replaced = this.previews[key];
 		this.previews = { ...this.previews, [key]: preview };
+		if (replaced) revoke(replaced);
 	}
 }
 
