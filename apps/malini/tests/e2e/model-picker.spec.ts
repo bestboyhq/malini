@@ -40,9 +40,10 @@ test('the model picker is one button that opens and closes its list from the key
 
 		await page.keyboard.press('Escape');
 		await expect(models).toBeHidden();
-		await expect(picker).toBeFocused();
+		await expect(page.getByTestId('chat-composer-input')).toBeFocused();
 		await expect(picker).toHaveAttribute('aria-expanded', 'false');
 
+		await picker.focus();
 		await page.keyboard.press('Space');
 		await expect(models).toBeVisible();
 		await page.keyboard.press('Escape');

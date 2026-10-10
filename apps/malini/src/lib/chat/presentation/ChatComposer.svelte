@@ -66,6 +66,7 @@
 	import { Sheet } from '$hyper-ui/components/sheet';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { avoidedByToasts } from '$hyper-ui/components/toast';
+	import { setOverlayFocusReturn } from '$hyper-ui/overlay';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 
@@ -121,6 +122,7 @@
 	let prompt = $state('');
 	let promptEditor: {
 		focusEditor(options?: { scrollIntoView?: boolean }): void;
+		focusNow(options?: { atEnd?: boolean }): void;
 		insertChip(chip: PromptChipDescriptor): void;
 		insertText(text: string): void;
 	} | null = $state(null);
@@ -129,6 +131,18 @@
 		if (disabled || !promptEditor) return false;
 		promptEditor.focusEditor(options);
 		return true;
+	}
+
+	setOverlayFocusReturn(() => {
+		if (disabled || !promptEditor) return false;
+		promptEditor.focusNow();
+		return true;
+	});
+
+	export function typeKey(event: KeyboardEvent): void {
+		if (disabled || !promptEditor) return;
+		promptEditor.focusNow({ atEnd: true });
+		onKeydown(event);
 	}
 	let contextTriggerEl: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let addMenuOpen = $state(false);
@@ -602,14 +616,15 @@
 		}
 	}
 
-	function isStandaloneMentionTrigger(event: KeyboardEvent): boolean {
-		if (!(event.currentTarget instanceof HTMLDivElement)) return false;
+	function isStandaloneMentionTrigger(): boolean {
+		const editorEl = document.activeElement;
+		if (!(editorEl instanceof HTMLDivElement)) return false;
 		const selection = window.getSelection();
 		if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
 		const caret = selection.getRangeAt(0);
-		if (!event.currentTarget.contains(caret.commonAncestorContainer)) return false;
+		if (!editorEl.contains(caret.commonAncestorContainer)) return false;
 		const beforeCaret = caret.cloneRange();
-		beforeCaret.selectNodeContents(event.currentTarget);
+		beforeCaret.selectNodeContents(editorEl);
 		beforeCaret.setEnd(caret.endContainer, caret.endOffset);
 		const text = beforeCaret.toString();
 		return text.length === 0 || /\s$/u.test(text);
@@ -621,7 +636,7 @@
 			!event.metaKey &&
 			!event.ctrlKey &&
 			!event.altKey &&
-			isStandaloneMentionTrigger(event)
+			isStandaloneMentionTrigger()
 		) {
 			event.preventDefault();
 			void openContextPicker(true);
@@ -906,9 +921,8 @@
 		onclose={() => (addMenuOpen = false)}
 		side="top"
 		align="start"
-		panelClass="w-56 rounded-lg border border-surface-elevated-border bg-surface-elevated p-1.5"
+		panelClass="w-56 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
 		testId="chat-add-menu"
-		backdropTestId="chat-add-menu-backdrop"
 		owner="chat-composer"
 	>
 		<div role="menu" aria-label="Add to prompt" class="space-y-0.5">
@@ -916,7 +930,7 @@
 				<DropdownItem
 					role="menuitem"
 					focusOnHover={false}
-					class="h-9 w-full gap-2.5 px-2.5 text-left font-normal"
+					class="gap-2.5"
 					data-testid="chat-add-files"
 					onclick={openNativeFilePicker}
 				>
@@ -932,7 +946,7 @@
 				<DropdownItem
 					role="menuitem"
 					focusOnHover={false}
-					class="h-9 w-full gap-2.5 px-2.5 text-left font-normal"
+					class="gap-2.5"
 					data-testid="chat-add-context"
 					onclick={() => void openContextPicker()}
 				>
@@ -944,7 +958,7 @@
 				<DropdownItem
 					role="menuitem"
 					focusOnHover={false}
-					class="h-9 w-full gap-2.5 px-2.5 text-left font-normal"
+					class="gap-2.5"
 					data-testid="chat-link-issue"
 					onclick={openIssueSheet}
 				>
@@ -961,9 +975,8 @@
 		onclose={() => closeContextPicker()}
 		side="top"
 		align="start"
-		panelClass="w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-surface-elevated-border bg-surface-elevated"
+		panelClass="w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated"
 		testId="chat-context-picker"
-		backdropTestId="chat-context-backdrop"
 		owner="chat-composer"
 		restoreFocusToAnchor={false}
 	>

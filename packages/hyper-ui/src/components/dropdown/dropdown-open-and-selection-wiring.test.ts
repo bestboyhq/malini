@@ -53,7 +53,8 @@ describe('dropdown open and selection wiring', () => {
 		expect(item).toContain('event.currentTarget.focus({ preventScroll: true })');
 	});
 
-	it('routes selection through the shared menu tree close contract', () => {
-		expect(item).toContain('tree?.closeAll(true)');
+	it('routes selection through the shared menu tree close, which animates the menu out', () => {
+		expect(item).toContain('tree?.closeAll()');
+		expect(layer).toContain('out:menuClose|global={{ side: actualSide, align }}');
 	});
 });

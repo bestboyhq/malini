@@ -1,6 +1,6 @@
 import { constants as fsConstants } from 'node:fs';
 import { open, realpath, type FileHandle } from 'node:fs/promises';
-import { dirname, basename, isAbsolute, join } from 'node:path';
+import { dirname, basename, isAbsolute, join, relative } from 'node:path';
 import { describeError } from '$main/errors';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { WorkstreamImageBytes } from '$contract/repositories';
@@ -55,14 +55,14 @@ export async function readWorkstreamImage(
 	worktree: string,
 	path: string,
 ): Promise<WorkstreamImageBytes | null> {
-	const relative = safeRelativePath(path);
+	const inside = safeRelativePath(isAbsolute(path) ? relative(worktree, path) : path);
 	let root: string;
 	try {
 		root = await realpath(worktree);
 	} catch (error) {
 		throw new Error(`canonicalize worktree: ${describeError(error)}`);
 	}
-	const target = join(root, relative);
+	const target = join(root, inside);
 
 	let parent: string;
 	try {

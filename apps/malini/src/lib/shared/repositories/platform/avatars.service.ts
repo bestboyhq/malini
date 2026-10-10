@@ -62,7 +62,7 @@ export function createAvatarStore(
 	context: Pick<MainContext, 'appDataRoot'>,
 	options: AvatarStoreOptions = {},
 ): AvatarStore {
-	const fetcher: AvatarFetcher = options.fetcher ?? ((url, init) => fetch(url, init));
+	const fetcher: AvatarFetcher = options.fetcher ?? fetchWithChromium;
 	const now = options.now ?? Date.now;
 	const directory = join(context.appDataRoot, AVATARS_DIR_NAME);
 	const inFlight = new Map<string, Promise<OwnerAvatar | null>>();
@@ -161,6 +161,14 @@ export function createAvatarStore(
 			return promise;
 		},
 	};
+}
+
+async function fetchWithChromium(
+	url: string,
+	init: { signal: AbortSignal; redirect: 'follow' },
+): Promise<Response> {
+	const { net } = await import('electron');
+	return net.fetch(url, init);
 }
 
 async function fetchAvatar(fetcher: AvatarFetcher, owner: string): Promise<FetchOutcome> {

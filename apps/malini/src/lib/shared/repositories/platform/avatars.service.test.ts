@@ -1,7 +1,11 @@
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const chromiumFetch = vi.hoisted(() => vi.fn<(url: string) => Promise<Response>>());
+vi.mock('electron', () => ({ net: { fetch: chromiumFetch } }));
+
 import {
 	AVATAR_FRESH_MS,
 	AVATAR_MISSING_MS,
@@ -212,5 +216,12 @@ describe('createAvatarStore', () => {
 		expect(a).toEqual(b);
 		expect(a?.mediaType).toBe('image/png');
 		expect(calls).toHaveLength(1);
+	});
+
+	it('fetches through Chromium by default, whose DNS lookups cannot hold up quitting', async () => {
+		chromiumFetch.mockResolvedValueOnce(png());
+		const store = createAvatarStore({ appDataRoot: root }, { now: () => clock });
+		expect((await store.get('octocat'))?.mediaType).toBe('image/png');
+		expect(chromiumFetch).toHaveBeenCalledWith(avatarUrl('octocat'), expect.anything());
 	});
 });

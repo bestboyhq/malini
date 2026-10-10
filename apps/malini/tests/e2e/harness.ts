@@ -181,7 +181,11 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	Object.assign(env, options.env);
 
 	const electronApp = await electron.launch({
-		args: ['.', `--user-data-dir=${userDataDir}`],
+		args: [
+			'.',
+			`--user-data-dir=${userDataDir}`,
+			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost',
+		],
 		cwd: APP_ROOT,
 		env,
 	});

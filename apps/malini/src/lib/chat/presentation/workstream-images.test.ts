@@ -23,11 +23,17 @@ describe('workstream images in transcript markdown', () => {
 		expect(held.alt).toBe('zone');
 	});
 
-	it('leaves web, data and absolute images to the page', () => {
+	it('holds an image named by its absolute path for the workstream to resolve', () => {
+		const held = image(render('![shot](/Users/someone/workstreams/ws/.context/shot.png)'));
+		expect(held.getAttribute('src')).toBeNull();
+		expect(held.dataset.workstreamImage).toBe('/Users/someone/workstreams/ws/.context/shot.png');
+	});
+
+	it('leaves web and data images to the page', () => {
 		for (const src of [
 			'https://example.com/a.png',
+			'//cdn.example.com/a.png',
 			'data:image/png;base64,AAAA',
-			'/Users/someone/a.png',
 		]) {
 			const kept = image(render(`![x](${src})`));
 			expect(kept.getAttribute('src')).toBe(src);

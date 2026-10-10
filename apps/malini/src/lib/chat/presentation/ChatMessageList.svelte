@@ -4,6 +4,7 @@
 	import { forkToNewChatCommand } from '$lib/chat/application/commands/fork-to-new-chat.command';
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
+	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
 	import { keepWorkstreamFilesFreshHook } from '$lib/chat/application/hooks/keep-workstream-files-fresh.hook';
 	import { openFileMentionHook } from '$lib/chat/application/hooks/open-file-mention.hook';
@@ -21,6 +22,7 @@
 	import { sessionDisplayNameQuery } from '$lib/chat/application/queries/session-display-name.query.svelte';
 	import { sessionWaitingForUserQuery } from '$lib/chat/application/queries/session-waiting-for-user.query.svelte';
 	import { streamingBlocksQuery } from '$lib/chat/application/queries/streaming-blocks.query.svelte';
+	import { transcriptAnchorQuery } from '$lib/chat/application/queries/transcript-anchor.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
@@ -83,6 +85,7 @@
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
 		spaceBelow?: number;
+		newMessagesBelow?: boolean;
 		empty: Snippet;
 	}
 
@@ -92,6 +95,7 @@
 		envelopes,
 		composerControls = null,
 		spaceBelow = 0,
+		newMessagesBelow = $bindable(false),
 		empty,
 	}: Props = $props();
 
@@ -101,6 +105,7 @@
 	const sessionProjectors = $derived(sessionProjectorCache.acquire(sessionId));
 	const renderState = $derived<RenderState>(sessionProjectors.render.project(envelopes));
 	const pendingPrompt = $derived(pendingPromptQuery.data(sessionId));
+	const rememberedAnchor = $derived(transcriptAnchorQuery.data(sessionId));
 	const waitingForUser = $derived(sessionWaitingForUserQuery.data(sessionId));
 
 	let showUndone = $state(false);
@@ -269,7 +274,10 @@
 	}
 
 	const settle = createTranscriptSettleGate();
-	const transcriptScroll = createTranscriptScroll({ prefersReducedMotion: () => reducedMotion });
+	const transcriptScroll = createTranscriptScroll({
+		prefersReducedMotion: () => reducedMotion,
+		remember: rememberTranscriptAnchorCommand,
+	});
 	const { releaseScrollPin } = transcriptScroll;
 	const rowArrivals = createRowArrivals({
 		settle,
@@ -669,11 +677,11 @@
 		const currentSessionId = sessionId;
 		untrack(() => {
 			if (currentSessionId === windowedSessionId) return;
-			if (windowedSessionId) transcriptScroll.leave(windowedSessionId);
+			if (windowedSessionId) transcriptScroll.leave();
 			windowedSessionId = currentSessionId;
 			anchoredPromptToken = latestPromptToken;
 			followedSeq = envelopes.at(-1)?.seq ?? 0;
-			transcriptScroll.open(currentSessionId);
+			transcriptScroll.open(currentSessionId, rememberedAnchor);
 		});
 	});
 
@@ -732,8 +740,16 @@
 		};
 	});
 
+	$effect(() => {
+		newMessagesBelow = !isEmpty && transcriptScroll.contentBelow;
+	});
+
+	export function jumpToLatest(): void {
+		transcriptScroll.jumpToLatest();
+	}
+
 	onDestroy(() => {
-		if (windowedSessionId) transcriptScroll.leave(windowedSessionId);
+		transcriptScroll.leave();
 		settle.destroy();
 		rowArrivals.destroy();
 		transcriptScroll.destroy();

@@ -437,7 +437,7 @@
 				anchor={githubDisclosureElement ?? null}
 				onclose={closeGithubPopover}
 				label={githubDisclosureLabel}
-				panelClass="rounded-lg border-[0.5px] border-surface-elevated-border bg-surface-elevated"
+				panelClass="rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated"
 				testId="global-topbar-github-popover"
 				owner="global-topbar-github"
 			>

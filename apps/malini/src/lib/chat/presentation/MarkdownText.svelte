@@ -910,6 +910,13 @@
 		}
 	}
 
+	.markdown-text :global(img) {
+		width: auto;
+		max-width: 100%;
+		max-height: 16rem;
+		object-fit: contain;
+	}
+
 	.markdown-text :global(img[data-gallery-image]) {
 		cursor: zoom-in;
 		border-radius: 0.375em;

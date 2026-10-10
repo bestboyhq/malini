@@ -1,4 +1,4 @@
-import { app, type BrowserWindow } from 'electron';
+import { app, net, type BrowserWindow } from 'electron';
 import { PostHog, uuidv7 } from 'posthog-node';
 import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
@@ -137,6 +137,7 @@ function postHogSink(): UsageSink | null {
 		disableGeoip: false,
 		flushAt: 20,
 		flushInterval: 10_000,
+		fetch: (url, options) => net.fetch(url, options),
 	});
 }
 

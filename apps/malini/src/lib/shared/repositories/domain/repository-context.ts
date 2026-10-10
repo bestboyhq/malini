@@ -89,6 +89,17 @@ export function repositoryContextForWorkstream(input: {
 	);
 }
 
+export function nextListedWorkstream(input: {
+	repositories: readonly Repository[];
+	workstreams: readonly Workstream[];
+	workstreamId: string;
+}): Workstream | null {
+	const listed = connectedRepositoryContexts(input).flatMap((context) => context.workstreams);
+	const index = listed.findIndex((workstream) => workstream.id === input.workstreamId);
+	if (index === -1) return null;
+	return listed[index + 1] ?? listed[index - 1] ?? null;
+}
+
 export function projectIdentityIdsForRepository(fullName: string): readonly string[] {
 	return projectIdentityCandidatesForRepoUrl(`https://github.com/${fullName}.git`).map(
 		(identity) => identity.id,

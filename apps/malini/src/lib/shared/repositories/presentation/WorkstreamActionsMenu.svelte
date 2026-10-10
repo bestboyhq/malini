@@ -110,9 +110,8 @@
 		onclose={close}
 		side="bottom"
 		align="end"
-		panelClass="w-56 overflow-hidden rounded-lg border-[0.5px] border-surface-elevated-border bg-surface-elevated py-1"
+		panelClass="w-56 overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated py-1"
 		testId="workstream-actions-menu"
-		backdropTestId="workstream-actions-backdrop"
 	>
 		<div role="menu">
 			<DropdownItem
