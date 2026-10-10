@@ -15,13 +15,10 @@
 	import { pullRequestGithubStatusQuery } from '$lib/pull-requests/application/queries/pull-request-github-status.query.svelte';
 	import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
 	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
-	import { pullRequestStatesQuery } from '$lib/pull-requests/application/queries/pull-request-states.query.svelte';
 	import { repositorySurfaceQuery } from '$lib/pull-requests/application/queries/repository-surface.query.svelte';
 	import { repositorySurfaceReadStateQuery } from '$lib/pull-requests/application/queries/repository-surface-read-state.query.svelte';
 	import { pullRequestHeadline } from '$lib/pull-requests/domain/pull-request-headline';
-	import { pullRequestPlaceholderLabel } from '$lib/pull-requests/domain/pull-request-placeholder';
 	import { pullRequestActionIcon } from './pull-request-action-icon';
-	import { changeTotalsQuery } from '$shared/repositories/repositories.api';
 
 	interface Props {
 		workstreamId: string;
@@ -66,8 +63,6 @@
 	const presentation = $derived(pullRequestTopBarQuery.data);
 	const busy = $derived(pullRequestBusyQuery.data);
 	const claimedBusyLabel = $derived(pullRequestBusyQuery.label);
-	const pullRequestStates = $derived(pullRequestStatesQuery.data);
-	const changeTotals = $derived(changeTotalsQuery.data);
 	const surfaceReadState = $derived(repositorySurfaceReadStateQuery.data);
 	const headline = $derived(pullRequestHeadline(surface));
 	const merged = $derived(presentation?.kind === 'merged');
@@ -199,29 +194,7 @@
 	function publishedStatus(): GlobalTopBarGithubStatus | null {
 		if (overrideStatus) return overrideStatus;
 		if (presentation?.kind === 'no-changes') return null;
-		if (presentation || !statusPending) return pullRequestStatus();
-		return placeholderStatus();
-	}
-
-	function placeholderStatus(): GlobalTopBarGithubStatus | null {
-		const totals = changeTotals[workstreamId];
-		const hasBranchChanges = (totals?.additions ?? 0) + (totals?.deletions ?? 0) > 0;
-		const placeholder = pullRequestPlaceholderLabel(
-			pullRequestStates[workstreamId] ?? 'unknown',
-			hasBranchChanges,
-		);
-		if (!placeholder) return null;
-		return {
-			reference: null,
-			title: null,
-			branch: null,
-			checks: [],
-			checksSummary: '',
-			review: null,
-			todos: null,
-			action: null,
-			placeholder,
-		};
+		return presentation || !statusPending ? pullRequestStatus() : null;
 	}
 
 	$effect(() => {

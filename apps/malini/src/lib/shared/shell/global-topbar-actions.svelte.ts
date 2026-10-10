@@ -143,7 +143,6 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	action: GlobalTopBarStatusAction | null;
 	detailActions?: readonly GlobalTopBarStatusDetailAction[];
 	remoteFailure?: string | null;
-	placeholder?: string | null;
 }>;
 
 class GlobalTopBarGithubStatusStore {

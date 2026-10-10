@@ -57,7 +57,8 @@ describe('inline Bash tool calls', () => {
 		expect(messages).toContain('description={item.description ?? null}');
 		expect(bashCall).toContain('{#if description}');
 		expect(bashCall).toContain('data-bash-description');
-		expect(bashCall).toContain('<SensitiveText text={command} />');
+		expect(bashCall).toContain('<SensitiveText text={commandLabel} />');
+		expect(bashCall).toContain('shellCommandLabel(command)');
 		expect(bashCall).toContain('<SensitiveText text={activityLabel} />');
 	});
 

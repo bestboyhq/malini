@@ -16,6 +16,7 @@
 		elementReferencesOutsidePrompt,
 		issueReferencesOutsidePrompt,
 	} from './prompt-references';
+	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from '../inline-prompt-chips';
 	import { galleryImageLabel } from '../workstream-images';
 
 	interface Props {
@@ -36,9 +37,6 @@
 		onopenimage,
 	}: Props = $props();
 
-	const chipClass =
-		'inline-flex h-6 max-w-56 items-center gap-1 rounded-md border-[0.5px] border-chip-border bg-chip px-1.5 text-2xs text-fg-tertiary';
-
 	const shownContextFiles = $derived(contextFilesOutsidePrompt(text, contextFiles));
 	const shownAttachments = $derived(attachmentsOutsidePrompt(text, attachments));
 	const shownIssueReferences = $derived(issueReferencesOutsidePrompt(text, issueReferences));
@@ -49,7 +47,7 @@
 	<div class="flex w-full flex-wrap gap-1" data-testid="chat-message-context-files">
 		{#each shownContextFiles as path (path)}
 			<Tooltip content={path} placement="top" class="max-w-56">
-				<span class={chipClass} data-context-path={path}>
+				<span class={CHIP_CLASS} data-context-path={path}>
 					<FileTypeIcon {path} size={12} />
 					<span class="truncate font-mono">{path}</span>
 				</span>
@@ -65,25 +63,22 @@
 				{#if onopenimage && isImageAttachment(attachment)}
 					<Button
 						bare
-						class={[
-							chipClass,
-							'hover:bg-chip-hover focus-visible:ring-button-primary/40 cursor-zoom-in focus-visible:ring-2 focus-visible:outline-none',
-						]}
+						class={[CHIP_CLASS, OPENABLE_CHIP_CLASS]}
 						ariaLabel={galleryImageLabel(attachment.displayName)}
 						data-testid="chat-message-attachment-chip"
 						data-attachment-id={attachment.id}
 						onclick={() => onopenimage?.(attachment.relativePath)}
 					>
-						<Icon name="paperclip" class="shrink-0" size={12} />
+						<FileTypeIcon path={attachment.displayName} size={12} />
 						<span class="truncate">{attachment.displayName}</span>
 					</Button>
 				{:else}
 					<span
-						class={chipClass}
+						class={CHIP_CLASS}
 						data-testid="chat-message-attachment-chip"
 						data-attachment-id={attachment.id}
 					>
-						<Icon name="paperclip" class="shrink-0" size={12} />
+						<FileTypeIcon path={attachment.displayName} size={12} />
 						<span class="truncate">{attachment.displayName}</span>
 					</span>
 				{/if}
@@ -104,7 +99,7 @@
 		{#each shownIssueReferences as reference (reference.url)}
 			{#snippet issueChip()}
 				<span
-					class={chipClass}
+					class={CHIP_CLASS}
 					data-testid="chat-message-issue-reference-chip"
 					data-issue-provider={reference.provider}
 					data-issue-url={reference.url}
@@ -124,7 +119,7 @@
 	<div class="flex w-full flex-col gap-1" data-testid="chat-message-element-references">
 		{#each shownElementReferences as reference (elementReferenceKey(reference))}
 			<span
-				class="border-chip-border bg-chip text-2xs text-fg-tertiary inline-flex max-w-full items-start gap-1 rounded-md border-[0.5px] px-1.5 py-1"
+				class="border-chip-border bg-chip text-2xs text-fg-secondary inline-flex max-w-full items-start gap-1 rounded-md border px-1.5 py-1"
 				data-testid="chat-message-element-reference-chip"
 				data-element-url={reference.url}
 				data-element-dom-path={reference.domPath}

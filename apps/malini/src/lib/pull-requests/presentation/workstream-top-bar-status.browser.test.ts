@@ -206,10 +206,6 @@ function shownBusy(): boolean {
 	return globalTopBarGithubStatus.current?.action?.busy ?? false;
 }
 
-function shownPlaceholder(): string | null {
-	return globalTopBarGithubStatus.current?.placeholder ?? null;
-}
-
 async function visit(
 	extension: Extension,
 	workstreamId: string,
@@ -260,7 +256,6 @@ describe('the workstream top bar status across workstream switches', () => {
 		harness.show({ workstreamId: LUNAR, extensionReady: false, extensionGeneration: 2 });
 
 		expect(shownAction()).toBe('Commit and push');
-		expect(shownPlaceholder()).toBeNull();
 	});
 
 	it('keeps the last read action in place while a fresh read is still loading', async () => {
@@ -305,21 +300,9 @@ describe('the workstream top bar status across workstream switches', () => {
 		expect(statusReads()).toBe(2);
 	});
 
-	it('holds a placeholder, never an empty bar, while a known pull request is still loading', () => {
+	it('shows no status while a known pull request is still loading', () => {
 		connectExtension();
 		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
-		harness = mountWorkstreamTopBarStatus({
-			workstreamId: GOLDEN,
-			extensionReady: false,
-			extensionGeneration: 1,
-		});
-
-		expect(shownAction()).toBeNull();
-		expect(shownPlaceholder()).toBe('Open PR');
-	});
-
-	it('shows nothing while a workstream with nothing to publish is still loading', () => {
-		connectExtension();
 		harness = mountWorkstreamTopBarStatus({
 			workstreamId: GOLDEN,
 			extensionReady: false,
@@ -327,45 +310,6 @@ describe('the workstream top bar status across workstream switches', () => {
 		});
 
 		expect(globalTopBarGithubStatus.current).toBeNull();
-	});
-
-	it('stops holding the placeholder once the extension has failed to start', () => {
-		connectExtension();
-		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
-		harness = mountWorkstreamTopBarStatus({
-			workstreamId: GOLDEN,
-			extensionReady: false,
-			extensionGeneration: 1,
-		});
-
-		harness.show({
-			workstreamId: GOLDEN,
-			extensionReady: false,
-			extensionGeneration: 1,
-			extensionError: 'Extensions could not start',
-		});
-
-		expect(shownPlaceholder()).toBeNull();
-	});
-
-	it('stops holding the placeholder once the status read has failed', async () => {
-		const extension = connectExtension();
-		extension.failReads();
-		extension.activate(GOLDEN, {});
-		pullRequestStateAggregate.stateByWorkstream = { [GOLDEN]: 'open' };
-		harness = mountWorkstreamTopBarStatus({
-			workstreamId: GOLDEN,
-			extensionReady: true,
-			extensionGeneration: 1,
-		});
-
-		await vi.waitFor(() => expect(repositorySurfaceAggregate.loadFor(GOLDEN)).toBe('failed'));
-		flushSync();
-		expect(shownPlaceholder()).toBeNull();
-
-		harness.show({ workstreamId: GOLDEN, extensionReady: false, extensionGeneration: 2 });
-
-		expect(shownPlaceholder()).toBeNull();
 	});
 
 	it('leaves the repository surface events to the app, which accepts each once', () => {
