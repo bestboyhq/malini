@@ -11,14 +11,8 @@ function openChangedFileCommand(input: {
 	targetSessionId: string | null;
 	file: AgentSessionChangedFile;
 }): void {
-	const changes = sessionChangesStore.changes;
-	if (
-		!changes ||
-		changes.sessionId !== input.targetSessionId ||
-		sessionChangesStore.openingPath !== null
-	) {
-		return;
-	}
+	const changes = sessionChangesStore.changesFor(input.targetSessionId);
+	if (!changes || sessionChangesStore.openingPath !== null) return;
 	const revision = sessionChangesStore.nextOpenRevision();
 	sessionChangesStore.openingPath = input.file.path;
 	void (async () => {

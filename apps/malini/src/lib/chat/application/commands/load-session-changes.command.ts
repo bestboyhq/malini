@@ -12,6 +12,6 @@ function loadSessionChangesCommand(input: {
 		const changes = await chatSessionChanges
 			.load({ workstreamId: input.workstreamId, sessionId: input.sessionId })
 			.catch(() => null);
-		if (!input.isCancelled() && changes) sessionChangesStore.changes = changes;
+		if (!input.isCancelled() && changes) sessionChangesStore.remember(changes);
 	})();
 }

@@ -7,7 +7,7 @@ import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.s
 import { sessionChangesStore } from '$lib/chat/infrastructure/stores/session-changes.store.svelte';
 
 export function watchSessionChangesHook(): () => void {
-	sessionChangesStore.reset();
+	sessionChangesStore.resetTracking();
 
 	const unlisten = chatSessionChanges.onCaptured((capturedSessionId) => {
 		if (capturedSessionId !== sessionChangesTargetQuery.data) return;
@@ -47,6 +47,6 @@ export function watchSessionChangesHook(): () => void {
 	return () => {
 		unlisten();
 		chatSessionChanges.cancel();
-		sessionChangesStore.reset();
+		sessionChangesStore.resetTracking();
 	};
 }

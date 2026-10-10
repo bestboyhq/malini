@@ -15,23 +15,23 @@ import {
 } from './harness';
 
 declare global {
-	var topLock: { samples: number[][]; sampling: boolean };
+	var transcriptFrames: { samples: number[][]; sampling: boolean };
 }
 
 const SCROLLER = '[data-testid="chat-message-scroller"]';
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const LATEST_PROMPT = `${LATEST_RUN} [data-prompt-row]`;
 const LATEST_COMMAND = `${LATEST_RUN} [data-testid="bash-command-toggle"]`;
-const AT_TOP_PX = 12;
+const COMPOSER = '[data-testid="chat-composer"]';
 const STILL_PX = 1;
-const LANDING_MS = 1_500;
+const BLANK_PX = 32;
 const SCROLL_TOP = 0;
 const softly = expect.configure({ soft: true });
 
 async function longChat(app: LaunchedApp, workstreamId: string): Promise<string> {
 	const { page } = app;
 	const source = await createSourceRepo(app.root);
-	const seeded = await seedWorkstream(page, source, workstreamId, 'Top lock workstream');
+	const seeded = await seedWorkstream(page, source, workstreamId, 'Streaming follow workstream');
 	await openWorkstream(page, seeded.workstreamId);
 	for (let turn = 1; turn <= 10; turn += 1) {
 		await sendPrompt(page, `Turn ${turn}`);
@@ -41,57 +41,45 @@ async function longChat(app: LaunchedApp, workstreamId: string): Promise<string>
 		.getByTestId('chat-message-scroller')
 		.evaluate((scroller) => scroller.scrollHeight - scroller.clientHeight);
 	expect(overflow, 'the seeded history overflows the transcript').toBeGreaterThan(200);
+	await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed');
+	await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
 	const sessionId = currentSessionId(page);
 	if (!sessionId) throw new Error('the long chat did not commit a session id');
 	return sessionId;
 }
 
-async function latestPromptOffset(page: Page): Promise<number> {
-	return page.getByTestId('chat-message-scroller').evaluate((scroller, selector) => {
-		const prompt = scroller.querySelector(selector);
-		if (!prompt) throw new Error('the latest run has no prompt row');
-		return Math.round(prompt.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
-	}, LATEST_PROMPT);
-}
-
-async function expectLatestPromptAtTop(page: Page, timeout: number): Promise<void> {
-	await softly
-		.poll(() => latestPromptOffset(page), {
-			timeout,
-			intervals: [50],
-			message: 'px from the scroller top to the latest prompt row',
-		})
-		.toBeLessThanOrEqual(AT_TOP_PX);
-	softly(
-		await latestPromptOffset(page),
-		'the latest prompt row is not cut off',
-	).toBeGreaterThanOrEqual(-STILL_PX);
-}
-
 async function startSampling(page: Page, rows: readonly string[]): Promise<void> {
 	await page.getByTestId('chat-message-scroller').evaluate(
-		(first, { scroller, rows }) => {
+		(first, { scroller, rows, latestRun, composer }) => {
 			const doc = first.ownerDocument;
 			const state = { samples: [] as number[][], sampling: true };
-			globalThis.topLock = state;
+			globalThis.transcriptFrames = state;
+			const blankAboveComposer = (): number => {
+				const run = doc.querySelector(latestRun);
+				const composerTop = doc.querySelector(composer)?.getBoundingClientRect().top;
+				if (!run || composerTop === undefined) return Number.NaN;
+				const bottoms = [...run.children].map((row) => row.getBoundingClientRect().bottom);
+				return composerTop - Math.max(...bottoms);
+			};
 			const sample = (): void => {
 				if (!state.sampling) return;
 				state.samples.push([
 					doc.querySelector(scroller)?.scrollTop ?? Number.NaN,
 					...rows.map((row) => doc.querySelector(row)?.getBoundingClientRect().top ?? Number.NaN),
+					blankAboveComposer(),
 				]);
 				doc.defaultView?.requestAnimationFrame(sample);
 			};
 			sample();
 		},
-		{ scroller: SCROLLER, rows },
+		{ scroller: SCROLLER, rows, latestRun: LATEST_RUN, composer: COMPOSER },
 	);
 }
 
 async function stopSampling(page: Page): Promise<number[][]> {
 	const samples = await page.evaluate(() => {
-		globalThis.topLock.sampling = false;
-		return globalThis.topLock.samples;
+		globalThis.transcriptFrames.sampling = false;
+		return globalThis.transcriptFrames.samples;
 	});
 	expect(samples.length, 'animation frames sampled').toBeGreaterThan(10);
 	expect(
@@ -111,6 +99,10 @@ function drift(
 	const first = values[0] ?? Number.NaN;
 	const moves = values.slice(from, to).map((value) => Math.abs(value - first));
 	return Math.round(Math.max(0, ...moves) * 10) / 10;
+}
+
+function blankAboveComposer(samples: readonly number[][]): number {
+	return Math.round(Math.max(...samples.map((sample) => sample.at(-1) ?? Number.NaN)));
 }
 
 function climb(samples: readonly number[][], column: number): number {
@@ -148,30 +140,44 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
-test('a prompt sent into a long chat lands at the top, then the transcript follows its reply down', async () => {
+test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await longChat(app, 'e2e-top-lock-ws');
+		await longChat(app, 'e2e-streaming-follow-ws');
 
-		await sendPrompt(page, 'STREAM:40 Walk me through it');
-		await expectLatestPromptAtTop(page, LANDING_MS);
-
-		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'open');
 		await startSampling(page, []);
-		await expectRunFinished(page, 'Streamed line 40 of 40.');
-		await page.waitForTimeout(800);
-		const samples = await stopSampling(page);
+		await sendPrompt(page, 'STREAM:40 Walk me through it');
+		await expect(page.getByTestId('chat-message-bubble-user').last()).toBeInViewport();
+		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
+			'Streamed line 30 of 40.',
+			{ timeout: 10_000 },
+		);
+		const streaming = await stopSampling(page);
 
 		softly(
-			climb(samples, SCROLL_TOP),
+			blankAboveComposer(streaming),
+			'px of blank space between the streaming run and the composer',
+		).toBeLessThanOrEqual(BLANK_PX);
+		softly(
+			climb(streaming, SCROLL_TOP),
 			'px the transcript scrolled back up while it followed the reply',
 		).toBeLessThanOrEqual(STILL_PX);
 		softly(
-			(samples.at(-1)?.[SCROLL_TOP] ?? 0) - (samples[0]?.[SCROLL_TOP] ?? 0),
+			(streaming.at(-1)?.[SCROLL_TOP] ?? 0) - (streaming[0]?.[SCROLL_TOP] ?? 0),
 			'px the transcript scrolled down to follow the reply',
 		).toBeGreaterThan(200);
+
+		await expectRunFinished(page, 'Streamed line 40 of 40.');
+		await page.waitForTimeout(800);
+		await startSampling(page, []);
+		await page.waitForTimeout(400);
+		const finished = await stopSampling(page);
+		softly(
+			blankAboveComposer(finished),
+			'px of blank space between the finished run and the composer',
+		).toBeLessThanOrEqual(BLANK_PX);
 		softly(await distanceFromBottom(page), 'px left below the finished reply').toBeLessThanOrEqual(
 			STILL_PX,
 		);
@@ -180,7 +186,7 @@ test('a prompt sent into a long chat lands at the top, then the transcript follo
 			'bottom',
 		);
 		await expect(newMessagesBelow(page)).toHaveCount(0);
-		await captureFlow(app, 'transcript-top-lock-streamed');
+		await captureFlow(app, 'transcript-streaming-follow-streamed');
 
 		expectCleanConsole(app);
 	} finally {
@@ -193,7 +199,7 @@ test('pointing at a tool call holds the transcript still, and leaving it catches
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await longChat(app, 'e2e-top-lock-hover-ws');
+		await longChat(app, 'e2e-streaming-follow-hover-ws');
 		await sendPrompt(page, 'STREAM:40 Keep talking');
 		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
 			'Streamed line 3 of 40.',
@@ -211,7 +217,7 @@ test('pointing at a tool call holds the transcript still, and leaving it catches
 			drift(held, SCROLL_TOP),
 			'px the transcript moved under the pointer',
 		).toBeLessThanOrEqual(STILL_PX);
-		await captureFlow(app, 'transcript-top-lock-hover-held');
+		await captureFlow(app, 'transcript-streaming-follow-hover-held');
 
 		const composer = await page.getByTestId('chat-composer').boundingBox();
 		if (!composer) throw new Error('the composer is not laid out');
@@ -231,7 +237,7 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await longChat(app, 'e2e-top-lock-shrink-ws');
+		await longChat(app, 'e2e-streaming-follow-shrink-ws');
 		await sendPrompt(page, 'STREAM:2 List the files');
 		await expectRunFinished(page, 'Streamed line 2 of 2.');
 
@@ -252,7 +258,7 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 			drift(samples, 2),
 			'the command row moved when its output collapsed',
 		).toBeLessThanOrEqual(STILL_PX);
-		await captureFlow(app, 'transcript-top-lock-collapsed');
+		await captureFlow(app, 'transcript-streaming-follow-collapsed');
 
 		expectCleanConsole(app);
 	} finally {
@@ -260,28 +266,26 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 	}
 });
 
-test('reopening a chat shows its latest prompt at the top when that run fits', async () => {
+test('reopening a chat lands on its latest run right above the composer', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const chat = await longChat(app, 'e2e-top-lock-reopen-ws');
+		const chat = await longChat(app, 'e2e-streaming-follow-reopen-ws');
 		await startFreshChat(page);
 		await sendPrompt(page, 'Short chat');
 		await expectAssistantReply(page);
 
 		await selectChat(page, chat);
-		const fits = await page
-			.getByTestId('chat-message-scroller')
-			.evaluate(
-				(scroller, selector) =>
-					(scroller.querySelector(selector)?.getBoundingClientRect().height ?? Infinity) <
-					scroller.clientHeight,
-				LATEST_RUN,
-			);
-		expect(fits, 'the latest run fits in the transcript').toBe(true);
-		await expectLatestPromptAtTop(page, 3_000);
-		await captureFlow(app, 'transcript-top-lock-reopened');
+		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
+		await startSampling(page, []);
+		await page.waitForTimeout(400);
+		const samples = await stopSampling(page);
+		expect(
+			blankAboveComposer(samples),
+			'px of blank space between the latest run and the composer',
+		).toBeLessThanOrEqual(BLANK_PX);
+		await captureFlow(app, 'transcript-streaming-follow-reopened');
 
 		expectCleanConsole(app);
 	} finally {
@@ -294,7 +298,7 @@ test('a reader who scrolled up stays where they are while the reply streams', as
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await longChat(app, 'e2e-top-lock-reader-ws');
+		await longChat(app, 'e2e-streaming-follow-reader-ws');
 		await sendPrompt(page, 'STREAM:40 Keep talking');
 		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
 			'Streamed line 3 of 40.',
@@ -324,7 +328,7 @@ test('a reader who scrolled up stays where they are while the reply streams', as
 			'scrollTop moved under a reader who scrolled up',
 		).toBeLessThanOrEqual(STILL_PX);
 		await expect(newMessagesBelow(page)).toBeVisible();
-		await captureFlow(app, 'transcript-top-lock-reader');
+		await captureFlow(app, 'transcript-streaming-follow-reader');
 
 		const nudge = await newMessagesBelow(page).boundingBox();
 		if (!nudge) throw new Error('the new messages nudge is not laid out');

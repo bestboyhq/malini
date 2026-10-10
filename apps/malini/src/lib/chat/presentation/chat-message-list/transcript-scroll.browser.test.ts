@@ -162,6 +162,18 @@ describe('a transcript while its reply streams', () => {
 		expect(transcript.scroll.contentBelow).toBe(false);
 	});
 
+	it('leaves no space below a reply that shrinks while it is followed', async () => {
+		const transcript = transcriptOf([200, 300]);
+		transcript.scroll.open('streaming-chat', null);
+		transcript.scroll.followNewContent();
+
+		transcript.replaceLastRow(150);
+		await mutationsDelivered();
+
+		expect(transcript.gapBelowLastRow()).toBe(0);
+		expect(transcript.distanceFromBottom()).toBe(0);
+	});
+
 	it('stops right where the reader scrolled up a little, and offers the new messages below', async () => {
 		const transcript = transcriptOf([200, 300]);
 		transcript.scroll.open('streaming-chat', null);
@@ -174,21 +186,6 @@ describe('a transcript while its reply streams', () => {
 		expect(transcript.scroll.follow).toBe('reader');
 		expect(transcript.distanceFromBottom()).toBe(310);
 		expect(transcript.scroll.contentBelow).toBe(true);
-	});
-
-	it('stops when the reader scrolls up a little into the space held below a shrunken reply', async () => {
-		const transcript = transcriptOf([200, 300]);
-		transcript.scroll.open('streaming-chat', null);
-		transcript.scroll.followNewContent();
-		transcript.replaceLastRow(250);
-		await mutationsDelivered();
-
-		transcript.scrollUpBy(10);
-		transcript.replaceLastRow(600);
-		await mutationsDelivered();
-
-		expect(transcript.scroll.follow).toBe('reader');
-		expect(transcript.distanceFromBottom()).toBeGreaterThan(300);
 	});
 
 	it('keeps following when the browser clamps the glide up while a reply settles', async () => {

@@ -106,7 +106,7 @@
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
 	const queueErrorById = $derived(queueErrorsQuery.data);
-	const sessionChanges = $derived(sessionChangesQuery.data);
+	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
@@ -153,7 +153,7 @@
 	const showsSessionChanges = $derived(
 		!freshChat &&
 			!presentationPending &&
-			sessionChanges?.sessionId === sessionId &&
+			sessionChanges !== null &&
 			sessionChanges.files.length > 0,
 	);
 
