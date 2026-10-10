@@ -1099,7 +1099,7 @@ describe('the transcript scroller', () => {
 		await settleChatRoute();
 
 		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('My prompt'));
-		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(850));
+		await withinFrames(() => expect(layout.distanceFromBottom(surface.host)).toBe(0));
 	});
 
 	it('leaves a reader who scrolled up where they are when a queued prompt is sent', async () => {

@@ -98,15 +98,19 @@ describe('per-chat changed files', () => {
 		await openActiveChat();
 		answers[0]?.(snapshot(['src/first.ts']));
 		await vi.waitFor(() =>
-			expect(sessionChangesStore.changes?.files.map(({ path }) => path)).toEqual(['src/first.ts']),
+			expect(sessionChangesStore.changesFor(SESSION)?.files.map(({ path }) => path)).toEqual([
+				'src/first.ts',
+			]),
 		);
 
 		transcriptAggregate.append([terminal('run.completed', 'run-1', 1)]);
 		flushSync();
 		expect(answers).toHaveLength(2);
-		expect(sessionChangesStore.changes?.files.map(({ path }) => path)).toEqual(['src/first.ts']);
+		expect(sessionChangesStore.changesFor(SESSION)?.files.map(({ path }) => path)).toEqual([
+			'src/first.ts',
+		]);
 
 		answers[1]?.(snapshot(['src/first.ts', 'src/second.ts']));
-		await vi.waitFor(() => expect(sessionChangesStore.changes?.files).toHaveLength(2));
+		await vi.waitFor(() => expect(sessionChangesStore.changesFor(SESSION)?.files).toHaveLength(2));
 	});
 });

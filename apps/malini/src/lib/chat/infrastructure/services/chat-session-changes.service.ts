@@ -43,6 +43,10 @@ class ChatSessionChangesService {
 		});
 	}
 
+	prefetch(input: { workstreamId: string; sessionId: string }): Promise<AgentSessionChanges> {
+		return sessionChangesPort.getSessionChanges(input);
+	}
+
 	async openChangedFile(input: {
 		workstreamId: string;
 		changes: AgentSessionChanges;

@@ -859,8 +859,6 @@
 						<li
 							class={[
 								'group/run relative flex flex-col gap-2 transition-opacity',
-								isLastRun &&
-									'min-h-[calc(var(--chat-viewport-height,0px)-1.75rem-var(--chat-footer-inset,0px))]',
 								!isLastRun && run.terminal !== null && 'opacity-90',
 								run.superseded && 'pointer-events-none opacity-50 select-none',
 							]}

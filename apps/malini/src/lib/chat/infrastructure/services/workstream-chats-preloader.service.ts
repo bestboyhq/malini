@@ -7,8 +7,10 @@ import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { agentLifecycleMonitor } from '$lib/chat/infrastructure/services/agent-lifecycle-monitor.service';
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
+import { chatSessionChanges } from '$lib/chat/infrastructure/services/chat-session-changes.service';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
+import { sessionChangesStore } from '$lib/chat/infrastructure/stores/session-changes.store.svelte';
 import { captureRendererError } from '$shared/errors/renderer-error-sink';
 import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 import {
@@ -160,7 +162,9 @@ class WorkstreamChatsPreloader {
 		for (const workstreamId of others.slice(0, PRELOADED_WORKSTREAM_LIMIT - 1)) {
 			if (signal.aborted) return;
 			const sessionId = openingSessionFor(workstreamId);
-			if (!sessionId || this.#holdsTranscript(sessionId)) continue;
+			if (!sessionId) continue;
+			await prefetchChanges(workstreamId, sessionId);
+			if (signal.aborted || this.#holdsTranscript(sessionId)) continue;
 			await this.#replayTranscript(sessionId);
 		}
 	}
@@ -177,6 +181,7 @@ class WorkstreamChatsPreloader {
 			}
 			const sessionId = requestedSessionId ?? openingSessionFor(workstreamId);
 			if (!sessionId || !chatBelongsTo(sessionId, workstreamId)) return;
+			void prefetchChanges(workstreamId, sessionId);
 			if (sessionsAggregate.isTranscriptHydrated(sessionId)) return;
 			await this.#replayTranscript(sessionId);
 		} catch (error) {
@@ -292,6 +297,14 @@ function openingSessionFor(workstreamId: string): SessionId | null {
 		preferredVisualSessionsByWorkstream(sessionsAggregate.listSessions()).get(workstreamId)?.id ??
 		null
 	);
+}
+
+async function prefetchChanges(workstreamId: string, sessionId: SessionId): Promise<void> {
+	if (sessionChangesStore.changesFor(sessionId)) return;
+	const changes = await chatSessionChanges.prefetch({ workstreamId, sessionId }).catch(() => null);
+	if (changes && !sessionChangesStore.changesFor(changes.sessionId)) {
+		sessionChangesStore.remember(changes);
+	}
 }
 
 function applyReplayedChunk(sessionId: SessionId, chunk: readonly EventEnvelope[]): void {

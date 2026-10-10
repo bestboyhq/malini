@@ -101,14 +101,6 @@ export function createTranscriptScroll(
 		messageListEl?.style.setProperty('--chat-hold-space', `${next}px`);
 	}
 
-	function measureViewport(): void {
-		const viewport = viewportEl;
-		messageListEl?.style.setProperty(
-			'--chat-viewport-height',
-			`${viewport ? viewport.clientHeight : 0}px`,
-		);
-	}
-
 	function naturalMaxTop(viewport: HTMLElement): number {
 		return Math.max(0, viewport.scrollHeight - holdSpacePx - viewport.clientHeight);
 	}
@@ -166,16 +158,14 @@ export function createTranscriptScroll(
 			naturalMaxTop(viewport) - viewport.scrollTop > AT_BOTTOM_PX;
 	}
 
-	function targetTop(viewport: HTMLElement, list: HTMLElement, cause: LayoutCause): number {
+	function targetTop(viewport: HTMLElement, list: HTMLElement): number {
 		const naturalMax = naturalMaxTop(viewport);
 		if (bottomAnchor && performance.now() > bottomAnchor.until) bottomAnchor = null;
 		if (bottomAnchor) return Math.max(0, naturalMax - bottomAnchor.distance);
 		if (follow === 'reader' && restoring) return anchoredTop(viewport, list) ?? naturalMax;
 		if (follow === 'reader') return heldTop;
-		if (opening) return naturalMax;
-		if (hovering) return heldTop;
-		if (cause === 'frame') return naturalMax;
-		return Math.max(heldTop, naturalMax);
+		if (hovering && !opening) return heldTop;
+		return naturalMax;
 	}
 
 	function glides(): boolean {
@@ -187,7 +177,7 @@ export function createTranscriptScroll(
 		const list = messageListEl;
 		if (!viewport || !list) return;
 		if (!userIsScrolling()) shownTop = viewport.scrollTop;
-		const target = targetTop(viewport, list, cause);
+		const target = targetTop(viewport, list);
 		const animate = glides() && cause === 'content';
 		const reach = animate && scrollGlide.isGliding ? Math.max(target, shownTop) : target;
 		setHoldSpace(reach - naturalMaxTop(viewport));
@@ -348,11 +338,7 @@ export function createTranscriptScroll(
 			messageListEl = messageList;
 			holdSpacePx = 0;
 			messageList.style.setProperty('--chat-hold-space', '0px');
-			measureViewport();
-			const viewportObserver = new ResizeObserver(() => {
-				measureViewport();
-				reconcile('frame');
-			});
+			const viewportObserver = new ResizeObserver(() => reconcile('frame'));
 			viewportObserver.observe(viewport);
 			const contentObserver = new ResizeObserver(() => reconcile('content'));
 			contentObserver.observe(messageList);
