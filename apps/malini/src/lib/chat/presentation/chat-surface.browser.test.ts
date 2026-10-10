@@ -34,7 +34,6 @@ import type { AgentEvent } from '$lib/chat/domain/events';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { DEFAULT_AGENT_RUN_PROFILE, defaultAgentModel } from '$shared/providers/providers.api';
 import { mountChatSurface } from './chat-surface.harness.svelte';
-import { forgetTranscriptPositions } from './chat-message-list/transcript-scroll.svelte';
 import WorkstreamChatsPreloader from './WorkstreamChatsPreloader.svelte';
 
 const WORKSTREAM = 'ws-surface';
@@ -48,7 +47,6 @@ afterEach(async () => {
 	stop?.();
 	stop = null;
 	vi.restoreAllMocks();
-	forgetTranscriptPositions();
 	await resetChatState();
 });
 
@@ -1000,7 +998,7 @@ describe('the transcript scroller', () => {
 		expect(new Set(layout.scrollPositions())).toEqual(new Set([750]));
 	});
 
-	it('glides a new prompt that arrives while the reader is at the bottom to the top', async () => {
+	it('glides down to a new prompt that arrives while the reader is at the bottom', async () => {
 		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
@@ -1012,10 +1010,10 @@ describe('the transcript scroller', () => {
 			text: 'Live prompt',
 		});
 		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('Live prompt'));
-		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(800));
+		await withinFrames(() => expect(layout.distanceFromBottom(surface.host)).toBe(0));
 
 		const positions = layout.scrollPositions();
-		expect(positions.some((position) => position > 750 && position < 800)).toBe(true);
+		expect(positions.some((position) => position > 750 && position < 850)).toBe(true);
 	});
 
 	it('leaves a reader who scrolled up where they are when new content arrives', async () => {
@@ -1091,7 +1089,7 @@ describe('the transcript scroller', () => {
 		expect(layout.scrollTopOf(surface.host)).toBe(500);
 	});
 
-	it('brings a reader who scrolled up to the top of the prompt they send themselves', async () => {
+	it('brings a reader who scrolled up down to the prompt they send themselves', async () => {
 		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
 		const surface = await openLongDestination(layout);
@@ -1101,7 +1099,7 @@ describe('the transcript scroller', () => {
 		await settleChatRoute();
 
 		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('My prompt'));
-		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(800));
+		await withinFrames(() => expect(layout.scrollTopOf(surface.host)).toBe(850));
 	});
 
 	it('leaves a reader who scrolled up where they are when a queued prompt is sent', async () => {

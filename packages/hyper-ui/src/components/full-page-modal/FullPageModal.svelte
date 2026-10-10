@@ -3,7 +3,12 @@
 	import { Icon } from '../../icons';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { isEditableTarget, modalBehavior } from '../modal/modal-behavior';
-	import { bodyPortal, OVERLAY_Z_INDEX, overlaySurface } from '../../overlay';
+	import {
+		bodyPortal,
+		getOverlayFocusReturn,
+		OVERLAY_Z_INDEX,
+		overlaySurface,
+	} from '../../overlay';
 
 	interface Props {
 		open: boolean;
@@ -15,6 +20,7 @@
 	}
 
 	let { open, onclose, onsubmit, ariaLabel, headerChildren, children }: Props = $props();
+	const focusReturn = getOverlayFocusReturn();
 
 	let isClosing = $state(false);
 
@@ -84,7 +90,7 @@
 				aria-modal="true"
 				aria-label={ariaLabel}
 				tabindex="-1"
-				use:modalBehavior={{ onEscape: startClose }}
+				use:modalBehavior={{ onEscape: startClose, focusReturn }}
 			>
 				<Tooltip
 					content="Close"

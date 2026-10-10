@@ -19,16 +19,13 @@
 		fullWidth?: boolean;
 		preventFlip?: boolean;
 		interactiveTrigger?: boolean;
-		backdrop?: boolean;
 		keyboardNavigation?: boolean;
-		ignoreOpeningDocumentClick?: boolean;
 		onOpenChange?: (open: boolean) => void;
 		trigger: Snippet;
 		content: Snippet;
 		panelClass?: ClassValue;
 		contentClass?: ClassValue;
 		testId?: string;
-		backdropTestId?: string;
 		owner?: string;
 	}
 
@@ -36,28 +33,24 @@
 		open = $bindable(false),
 		side = 'bottom',
 		align = 'start',
-		sideOffset = 4,
+		sideOffset = 8,
 		alignOffset = 0,
 		fullWidth = false,
 		preventFlip = false,
 		interactiveTrigger = true,
-		backdrop = true,
 		keyboardNavigation = true,
-		ignoreOpeningDocumentClick = false,
 		onOpenChange,
 		trigger,
 		content,
 		panelClass = '',
 		contentClass = 'max-h-[400px] overflow-y-auto p-1.5',
 		testId,
-		backdropTestId,
 		owner,
 	}: Props = $props();
 
 	let triggerWrapper: HTMLDivElement | null = $state(null);
-	let skipCloseTransition = $state(false);
 	const surface = createMenuSurface();
-	const tree = createMenuTree((immediate) => close(immediate));
+	const tree = createMenuTree(close);
 	setMenuSurfaceContext(surface);
 	setMenuTreeContext(tree);
 
@@ -69,12 +62,10 @@
 
 	function openDropdown(): void {
 		if (!interactiveTrigger || open) return;
-		skipCloseTransition = false;
 		setOpen(true);
 	}
 
-	function close(immediate = false): void {
-		if (immediate) skipCloseTransition = true;
+	function close(): void {
 		surface.closeAllChildren();
 		setOpen(false);
 	}
@@ -122,16 +113,12 @@
 	{alignOffset}
 	{preventFlip}
 	matchAnchorWidth={fullWidth}
-	{backdrop}
 	{keyboardNavigation}
-	{ignoreOpeningDocumentClick}
-	{skipCloseTransition}
 	panelClass={[
-		'overflow-hidden rounded-lg border-[0.5px] border-surface-elevated-border bg-surface-elevated',
+		'overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated',
 		panelClass,
 	]}
 	{testId}
-	{backdropTestId}
 	{owner}
 >
 	<div class={contentClass} data-hyper-dropdown-content>

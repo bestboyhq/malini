@@ -1,4 +1,4 @@
-import { registerEscapeScope } from '../../overlay';
+import { registerEscapeScope, type OverlayFocusReturn } from '../../overlay';
 
 const FOCUSABLE_SELECTOR = [
 	'a[href]',
@@ -59,6 +59,7 @@ function trapTab(node: HTMLElement, event: KeyboardEvent): void {
 
 export interface ModalBehaviorOptions {
 	onEscape?: () => void;
+	focusReturn?: OverlayFocusReturn | undefined;
 }
 
 export function modalBehavior(
@@ -90,6 +91,7 @@ export function modalBehavior(
 			releaseEscape();
 			node.removeEventListener('keydown', onKeydown);
 			unlockBodyScroll();
+			if (options.focusReturn?.()) return;
 			previouslyFocused?.focus();
 		},
 	};

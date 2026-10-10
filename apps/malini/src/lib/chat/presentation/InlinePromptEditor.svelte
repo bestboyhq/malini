@@ -194,6 +194,12 @@
 		editor?.commands.focus(null, { scrollIntoView: options?.scrollIntoView ?? true });
 	}
 
+	function focusNow(options?: { atEnd?: boolean }): void {
+		if (!editor) return;
+		if (options?.atEnd) editor.commands.setTextSelection(editor.state.doc.content.size);
+		editor.view.focus();
+	}
+
 	function insertChip(chip: PromptChipDescriptor): void {
 		if (!editor) return;
 		knownRefKeys.add(refKey(chip));
@@ -207,7 +213,7 @@
 		editor.commands.focus();
 	}
 
-	export { focusEditor, insertChip, insertText };
+	export { focusEditor, focusNow, insertChip, insertText };
 
 	onMount(() => {
 		if (!host) return;
@@ -336,7 +342,6 @@
 	side="top"
 	align="center"
 	offset={8}
-	backdrop={false}
 	keyboardNavigation={false}
 	restoreFocusToAnchor={false}
 	panelClass="pointer-events-none"

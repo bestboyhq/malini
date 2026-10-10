@@ -66,7 +66,6 @@
 	data-tool-status={status}
 	data-image-path={image.path}
 >
-	<span class="w-2.5 shrink-0" aria-hidden="true"></span>
 	{#if status === 'running'}
 		<BusyIcon class="text-fg-secondary shrink-0" size={13} />
 	{:else}

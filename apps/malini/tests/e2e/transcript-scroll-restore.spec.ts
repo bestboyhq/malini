@@ -208,3 +208,48 @@ test('each chat reopens where its reader left it, across chat tabs and workstrea
 		await app.close();
 	}
 });
+
+test('a chat reopens where its reader left it after malini restarts', async () => {
+	test.setTimeout(240_000);
+	const first = await launchMalini();
+	let workstreamId: string;
+	let chat: string;
+	let view: ReaderView;
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root);
+		const reading = await seedWorkstream(page, source, 'e2e-restart-ws', 'Restart workstream');
+		workstreamId = reading.workstreamId;
+		await openWorkstream(page, workstreamId);
+		chat = await fillChat(page, 4, 8);
+		await page.waitForTimeout(600);
+		view = await readFrom(page, chat, -Math.round((await overflow(page)) / 2));
+		await page.waitForTimeout(600);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await openWorkstream(page, workstreamId, chat);
+		await expect
+			.poll(async () => Math.abs(((await replyOffset(page, view)) ?? Infinity) - view.offset), {
+				timeout: 10_000,
+				message: 'px the reply on top moved from where the reader left it before the restart',
+			})
+			.toBeLessThanOrEqual(RESTORED_PX);
+		await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
+			'data-scroll-follow',
+			'reader',
+		);
+		await expect(page.getByRole('button', { name: 'New messages below' })).toBeVisible();
+		await captureFlow(app, 'transcript-scroll-restore-restarted');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
@@ -133,7 +133,7 @@ async function fakeGithubFor(
 	return {
 		pullRequest: read,
 		setPullRequest: (update) =>
-			writeFileSync(pullRequestFile, JSON.stringify({ ...(read() ?? seed), ...update })),
+			writeAtomically(pullRequestFile, JSON.stringify({ ...(read() ?? seed), ...update })),
 		calls,
 		graphqlMutations: () =>
 			calls().filter(
@@ -156,6 +156,11 @@ async function fakeGithubFor(
 
 function revParse(repo: string, ...args: string[]): string {
 	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], { encoding: 'utf8' }).trim();
+}
+
+function writeAtomically(path: string, contents: string): void {
+	writeFileSync(`${path}.tmp`, contents);
+	renameSync(`${path}.tmp`, path);
 }
 
 function installStub(path: string, script: string): void {
@@ -188,7 +193,10 @@ const file = path.join(state, 'pull-request.json');
 const args = process.argv.slice(2);
 fs.appendFileSync(path.join(state, 'gh-calls.log'), JSON.stringify(args) + '\\n');
 const read = () => JSON.parse(fs.readFileSync(file, 'utf8'));
-const save = (next) => fs.writeFileSync(file, JSON.stringify(next));
+const save = (next) => {
+	fs.writeFileSync(file + '.tmp', JSON.stringify(next));
+	fs.renameSync(file + '.tmp', file);
+};
 const flag = (name) => {
 	const index = args.indexOf(name);
 	return index === -1 ? undefined : args[index + 1];
