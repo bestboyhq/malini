@@ -5,7 +5,12 @@
 	import IconButton from '../icon-button/IconButton.svelte';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { isEditableTarget, modalBehavior } from './modal-behavior';
-	import { bodyPortal, OVERLAY_Z_INDEX, overlaySurface } from '../../overlay';
+	import {
+		bodyPortal,
+		getOverlayFocusReturn,
+		OVERLAY_Z_INDEX,
+		overlaySurface,
+	} from '../../overlay';
 
 	type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -48,6 +53,7 @@
 		navigationTarget,
 		navigationOutcomeKey,
 	}: Props = $props();
+	const focusReturn = getOverlayFocusReturn();
 
 	const sizeClass: Record<ModalSize, string> = {
 		sm: 'max-w-md',
@@ -138,7 +144,7 @@
 			data-navigation-target={navigationTarget}
 			data-navigation-outcome-key={navigationOutcomeKey}
 			tabindex="-1"
-			use:modalBehavior={{ onEscape: startClose }}
+			use:modalBehavior={{ onEscape: startClose, focusReturn }}
 		>
 			<div
 				class={[

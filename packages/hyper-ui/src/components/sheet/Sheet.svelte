@@ -5,7 +5,12 @@
 	import IconButton from '../icon-button/IconButton.svelte';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { modalBehavior } from '../modal/modal-behavior';
-	import { bodyPortal, OVERLAY_Z_INDEX, overlaySurface } from '../../overlay';
+	import {
+		bodyPortal,
+		getOverlayFocusReturn,
+		OVERLAY_Z_INDEX,
+		overlaySurface,
+	} from '../../overlay';
 
 	type SheetHeight = 'auto' | 'half' | 'full';
 
@@ -40,6 +45,7 @@
 		closeDisabled = false,
 		closeTitle,
 	}: Props = $props();
+	const focusReturn = getOverlayFocusReturn();
 
 	const uid = $props.id();
 	const titleId = `${uid}-title`;
@@ -83,7 +89,7 @@
 			aria-describedby={title && description ? descriptionId : undefined}
 			tabindex="-1"
 			onclick={(event) => event.stopPropagation()}
-			use:modalBehavior={{ onEscape: requestClose }}
+			use:modalBehavior={{ onEscape: requestClose, focusReturn }}
 		>
 			<div class="grid place-items-center pt-2" aria-hidden="true">
 				<span class="border-border-default h-1 w-10 rounded-full border-2"></span>

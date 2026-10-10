@@ -40,7 +40,7 @@
 	side="bottom"
 	align="start"
 	role={null}
-	panelClass="border-surface-elevated-border bg-surface-elevated max-w-[28rem] min-w-56 overflow-hidden rounded-lg border-[0.5px] py-1"
+	panelClass="border-surface-elevated-border bg-surface-elevated max-w-[28rem] min-w-56 overflow-hidden rounded-xl border-[0.5px] py-1"
 	testId="file-mention-chooser"
 >
 	{#if choice}
@@ -53,7 +53,7 @@
 				<DropdownItem
 					role="menuitem"
 					focusOnHover={false}
-					class="w-full gap-2 px-3 py-1.5 text-left text-xs"
+					class="px-3"
 					aria-label={target.path}
 					onSelect={() => onchoose(target)}
 				>

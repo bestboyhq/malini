@@ -12,6 +12,7 @@ export const glyphFrame = {
 export const glyphs = {
 	"alert": { outline: "M2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0 -11.5 0ZM8 5v3.5M8 11h.01", solid: "" },
 	"archive": { outline: "M3.25 2.75h9.5a1 1 0 0 1 1 1v1.5a1 1 0 0 1 -1 1h-9.5a1 1 0 0 1 -1 -1v-1.5a1 1 0 0 1 1 -1ZM3.25 6.25v5.5A1.75 1.75 0 0 0 5 13.5h6a1.75 1.75 0 0 0 1.75-1.75v-5.5M6.75 9h2.5", solid: "" },
+	"arrow-down": { outline: "M8 3.25v9.5M4.25 9 8 12.75 11.75 9", solid: "" },
 	"arrow-right": { outline: "M3.25 8h9.5M9 4.25 12.75 8 9 11.75", solid: "" },
 	"arrow-up": { outline: "M8 12.75v-9.5M4.25 7 8 3.25 11.75 7", solid: "" },
 	"branch": { outline: "M2 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM10 4a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM4 2v8M12 6a6 6 0 0 1-6 6", solid: "" },

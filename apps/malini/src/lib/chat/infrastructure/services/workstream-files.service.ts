@@ -13,14 +13,22 @@ class WorkstreamFilesService {
 		return invoke('repositories.read-workstream-image', { workstreamId, path });
 	}
 
-	onChanged(workstreamId: string, listener: () => void): () => void {
+	onChanged(
+		workstreamId: string,
+		listener: (changedPaths: readonly string[] | null) => void,
+	): () => void {
 		return onPlatformEvent(
 			'repositories:workstream-files-changed',
 			(payload: WorkstreamFilesChangedPayload | null) => {
-				if (payload?.workstreamId === workstreamId) listener();
+				if (payload?.workstreamId !== workstreamId) return;
+				listener(Array.isArray(payload.paths) ? payload.paths.filter(isString) : null);
 			},
 		);
 	}
+}
+
+function isString(value: unknown): value is string {
+	return typeof value === 'string';
 }
 
 export const workstreamFiles = new WorkstreamFilesService();

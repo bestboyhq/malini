@@ -1,4 +1,16 @@
-import { tick } from 'svelte';
+import { getContext, setContext, tick } from 'svelte';
+
+const FOCUS_RETURN_KEY = Symbol('hyper-overlay-focus-return');
+
+export type OverlayFocusReturn = () => boolean;
+
+export function setOverlayFocusReturn(focusReturn: OverlayFocusReturn): void {
+	setContext(FOCUS_RETURN_KEY, focusReturn);
+}
+
+export function getOverlayFocusReturn(): OverlayFocusReturn | undefined {
+	return getContext<OverlayFocusReturn | undefined>(FOCUS_RETURN_KEY);
+}
 
 const INTERACTIVE_ITEM_SELECTOR = [
 	'[role="option"]:not([aria-disabled="true"])',
@@ -15,6 +27,7 @@ export interface RovingFocusOptions {
 	anchor?: () => HTMLElement | null;
 	restoreFocus?: () => boolean;
 	canRestore?: () => boolean;
+	focusReturn?: OverlayFocusReturn | undefined;
 }
 
 export interface RovingFocus {
@@ -73,11 +86,19 @@ export function createRovingFocus(options: RovingFocusOptions): RovingFocus {
 		return false;
 	}
 
+	function focusIsOurs(anchor: HTMLElement | null): boolean {
+		const active = document.activeElement;
+		if (!active || active === document.body) return true;
+		return Boolean(options.container()?.contains(active) || anchor?.contains(active));
+	}
+
 	async function restoreAnchorFocus(): Promise<void> {
 		if (options.restoreFocus && !options.restoreFocus()) return;
 		await tick();
 		if (options.canRestore && !options.canRestore()) return;
 		const anchor = options.anchor?.() ?? null;
+		if (!focusIsOurs(anchor)) return;
+		if (options.focusReturn?.()) return;
 		if (anchor?.isConnected) anchor.focus({ preventScroll: true });
 	}
 

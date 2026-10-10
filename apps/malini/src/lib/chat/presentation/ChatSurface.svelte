@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import { Button } from '$hyper-ui/components/button';
+	import { Icon } from '$hyper-ui/icons';
 	import { applyModelDefaultsCommand } from '$lib/chat/application/commands/apply-model-defaults.command';
 	import { cancelRunCommand } from '$lib/chat/application/commands/cancel-run.command';
 	import { closeFreshChatCommand } from '$lib/chat/application/commands/close-fresh-chat.command';
@@ -110,6 +113,12 @@
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
 	let footerHeight = $state(0);
+	let transcript: ChatMessageList | null = $state(null);
+	let newMessagesBelow = $state(false);
+	const nudgeMotion = (): { y: number; duration: number } => ({
+		y: 4,
+		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
+	});
 
 	const documentActive = $derived(workstreamTabs.for(workstreamId).activeDocumentId !== null);
 
@@ -176,7 +185,10 @@
 		}));
 	});
 
-	let composer: { focus(options?: { scrollIntoView?: boolean }): boolean } | null = $state(null);
+	let composer: {
+		focus(options?: { scrollIntoView?: boolean }): boolean;
+		typeKey(event: KeyboardEvent): void;
+	} | null = $state(null);
 	const presentationKey = $derived(`${workstreamId}::${presentedSessionId ?? 'fresh'}`);
 	let focusedPresentationKey: string | null = null;
 
@@ -195,17 +207,31 @@
 	}
 
 	function composerMayTakeFocus(): boolean {
-		if (!document.hasFocus()) return false;
+		return document.hasFocus() && focusIsUnclaimed();
+	}
+
+	function focusIsUnclaimed(): boolean {
 		const active = document.activeElement;
 		if (!(active instanceof HTMLElement)) return true;
 		if (active.closest('[role="dialog"]')) return false;
-		return !active.matches('input, textarea, [contenteditable], [role="textbox"]');
+		return !active.matches('input, textarea, select, [contenteditable], [role="textbox"]');
+	}
+
+	function onWindowKeydown(event: KeyboardEvent): void {
+		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
+			return;
+		}
+		if (documentActive || !focusIsUnclaimed()) return;
+		if (document.querySelector('[data-dropdown-portal], [aria-modal="true"]')) return;
+		composer?.typeKey(event);
 	}
 
 	function onOpenChangedFile(file: AgentSessionChangedFile): void {
 		openChangedFileCommand({ workstreamId, targetSessionId: sessionChangesTargetId, file });
 	}
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div
 	data-testid="chat-surface"
@@ -260,6 +286,8 @@
 									data-presented-workstream-id={presentedWorkstreamId}
 								>
 									<ChatMessageList
+										bind:this={transcript}
+										bind:newMessagesBelow
 										workstreamId={presentedWorkstreamId}
 										sessionId={presentedSessionId}
 										envelopes={presentedTranscript.envelopes}
@@ -286,6 +314,25 @@
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
 						>
+							{#if stage === 'transcript' && newMessagesBelow && !presentationPending}
+								<div
+									class="chat-stage-inset pointer-events-none absolute inset-x-0 bottom-full flex justify-center pr-[var(--scrollbar-gutter)] pb-3"
+									transition:fly={nudgeMotion()}
+								>
+									<Button
+										variant="secondary"
+										size="sm"
+										radius="full"
+										bordered
+										class="shadow-popup pointer-events-auto gap-1.5 pr-3.5 pl-3"
+										data-testid="chat-new-messages-below"
+										onclick={() => transcript?.jumpToLatest()}
+									>
+										<Icon name="arrow-down" size={14} />
+										New messages below
+									</Button>
+								</div>
+							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								{#if showsSessionChanges && sessionChanges}
 									<ChatChangedFiles

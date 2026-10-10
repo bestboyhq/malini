@@ -114,6 +114,34 @@ test('collapses an open pull request to its identity and per-check detail', () =
 	assert.equal(status.checks[3]?.detail, 'Failed · optional');
 });
 
+test('counts skipped checks apart from passed ones', () => {
+	const status = repositoryGithubStatus(
+		surface({
+			pullRequest: openPullRequest({
+				checks: 'success',
+				checkItems: [
+					check({ name: 'test', state: 'COMPLETED', conclusion: 'SUCCESS' }),
+					check({ name: 'conventional', state: 'COMPLETED', conclusion: 'SUCCESS' }),
+					check({ name: 'version', state: 'COMPLETED', conclusion: 'SKIPPED' }),
+					check({ name: 'release', state: 'COMPLETED', conclusion: 'SKIPPED' }),
+				],
+			}),
+		}),
+	);
+
+	assert.ok(status);
+	assert.equal(status.checksSummary, '2 passed · 2 skipped');
+	assert.deepEqual(
+		status.checks.map((row) => [row.name, row.detail, row.tone, row.blocking]),
+		[
+			['test', 'Passed', 'success', false],
+			['conventional', 'Passed', 'success', false],
+			['version', 'Skipped', 'neutral', false],
+			['release', 'Skipped', 'neutral', false],
+		],
+	);
+});
+
 test('names a check GitHub never started apart from a failure', () => {
 	const status = repositoryGithubStatus(
 		surface({

@@ -157,12 +157,16 @@
 							},
 						]
 					: []),
-				{
-					id: 'refresh',
-					label: 'Refresh',
-					disabled: busy,
-					onInvoke: refreshRepositorySurfaceCommand,
-				},
+				...(githubStatus.reference
+					? [
+							{
+								id: 'refresh',
+								label: 'Refresh',
+								disabled: busy,
+								onInvoke: refreshRepositorySurfaceCommand,
+							},
+						]
+					: []),
 			],
 			action: merged
 				? {

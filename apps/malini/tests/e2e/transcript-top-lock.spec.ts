@@ -88,10 +88,6 @@ async function startSampling(page: Page, rows: readonly string[]): Promise<void>
 	);
 }
 
-async function sampleCount(page: Page): Promise<number> {
-	return page.evaluate(() => globalThis.topLock.samples.length);
-}
-
 async function stopSampling(page: Page): Promise<number[][]> {
 	const samples = await page.evaluate(() => {
 		globalThis.topLock.sampling = false;
@@ -117,6 +113,28 @@ function drift(
 	return Math.round(Math.max(0, ...moves) * 10) / 10;
 }
 
+function climb(samples: readonly number[][], column: number): number {
+	let climbed = 0;
+	for (let index = 1; index < samples.length; index += 1) {
+		const previous = samples[index - 1]?.[column] ?? Number.NaN;
+		const current = samples[index]?.[column] ?? Number.NaN;
+		climbed = Math.max(climbed, previous - current);
+	}
+	return Math.round(climbed * 10) / 10;
+}
+
+async function distanceFromBottom(page: Page): Promise<number> {
+	return page
+		.getByTestId('chat-message-scroller')
+		.evaluate((scroller) =>
+			Math.round(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop),
+		);
+}
+
+function newMessagesBelow(page: Page) {
+	return page.getByRole('button', { name: 'New messages below' });
+}
+
 function latestRun(page: Page) {
 	return page.locator(LATEST_RUN);
 }
@@ -130,7 +148,7 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
-test('a prompt sent into a long chat lands at the top and its streaming reply grows below it', async () => {
+test('a prompt sent into a long chat lands at the top, then the transcript follows its reply down', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -138,38 +156,69 @@ test('a prompt sent into a long chat lands at the top and its streaming reply gr
 		await longChat(app, 'e2e-top-lock-ws');
 
 		await sendPrompt(page, 'STREAM:40 Walk me through it');
-		const sentAt = Date.now();
 		await expectLatestPromptAtTop(page, LANDING_MS);
-		await page.waitForTimeout(Math.max(0, sentAt + LANDING_MS - Date.now()));
 
 		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'open');
-		await startSampling(page, [LATEST_PROMPT]);
-		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed', {
-			timeout: 20_000,
-		});
-		const finishedAt = await sampleCount(page);
+		await startSampling(page, []);
 		await expectRunFinished(page, 'Streamed line 40 of 40.');
 		await page.waitForTimeout(800);
 		const samples = await stopSampling(page);
 
 		softly(
-			drift(samples, SCROLL_TOP, 0, finishedAt),
-			'scrollTop moved while the reply streamed',
+			climb(samples, SCROLL_TOP),
+			'px the transcript scrolled back up while it followed the reply',
 		).toBeLessThanOrEqual(STILL_PX);
 		softly(
-			drift(samples, 1, 0, finishedAt),
-			'the prompt row moved while the reply streamed',
-		).toBeLessThanOrEqual(STILL_PX);
-		softly(
-			drift(samples, SCROLL_TOP, finishedAt),
-			'scrollTop moved when the reply finished',
-		).toBeLessThanOrEqual(STILL_PX);
-		softly(
-			drift(samples, 1, finishedAt),
-			'the prompt row moved when the reply finished',
-		).toBeLessThanOrEqual(STILL_PX);
-		await expectLatestPromptAtTop(page, 500);
+			(samples.at(-1)?.[SCROLL_TOP] ?? 0) - (samples[0]?.[SCROLL_TOP] ?? 0),
+			'px the transcript scrolled down to follow the reply',
+		).toBeGreaterThan(200);
+		softly(await distanceFromBottom(page), 'px left below the finished reply').toBeLessThanOrEqual(
+			STILL_PX,
+		);
+		await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
+			'data-scroll-follow',
+			'bottom',
+		);
+		await expect(newMessagesBelow(page)).toHaveCount(0);
 		await captureFlow(app, 'transcript-top-lock-streamed');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('pointing at a tool call holds the transcript still, and leaving it catches up to the reply', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await longChat(app, 'e2e-top-lock-hover-ws');
+		await sendPrompt(page, 'STREAM:40 Keep talking');
+		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
+			'Streamed line 3 of 40.',
+			{ timeout: 10_000 },
+		);
+
+		const command = await page.locator(LATEST_COMMAND).boundingBox();
+		if (!command) throw new Error('the latest run has no command row');
+		await page.mouse.move(command.x + 40, command.y + command.height / 2);
+		await startSampling(page, []);
+		await expect(newMessagesBelow(page)).toBeVisible({ timeout: 10_000 });
+		await page.waitForTimeout(600);
+		const held = await stopSampling(page);
+		expect(
+			drift(held, SCROLL_TOP),
+			'px the transcript moved under the pointer',
+		).toBeLessThanOrEqual(STILL_PX);
+		await captureFlow(app, 'transcript-top-lock-hover-held');
+
+		const composer = await page.getByTestId('chat-composer').boundingBox();
+		if (!composer) throw new Error('the composer is not laid out');
+		await page.mouse.move(composer.x + composer.width / 2, composer.y + composer.height / 2);
+		await expect(newMessagesBelow(page)).toHaveCount(0);
+		await expectRunFinished(page, 'Streamed line 40 of 40.');
+		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
 
 		expectCleanConsole(app);
 	} finally {
@@ -274,7 +323,18 @@ test('a reader who scrolled up stays where they are while the reply streams', as
 			drift(samples, SCROLL_TOP),
 			'scrollTop moved under a reader who scrolled up',
 		).toBeLessThanOrEqual(STILL_PX);
+		await expect(newMessagesBelow(page)).toBeVisible();
 		await captureFlow(app, 'transcript-top-lock-reader');
+
+		const nudge = await newMessagesBelow(page).boundingBox();
+		if (!nudge) throw new Error('the new messages nudge is not laid out');
+		await page.mouse.click(nudge.x + nudge.width / 2, nudge.y + nudge.height / 2);
+		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
+		await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
+			'data-scroll-follow',
+			'bottom',
+		);
+		await expect(newMessagesBelow(page)).toHaveCount(0);
 
 		expectCleanConsole(app);
 	} finally {

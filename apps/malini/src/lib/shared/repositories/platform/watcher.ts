@@ -1,5 +1,5 @@
 import { watch, type FSWatcher } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
 import { listWorkstreams } from './workstreams.repository';
 import type { EventBus } from '$main/events';
@@ -42,6 +42,7 @@ interface WatcherSet {
 	readonly watchers: FSWatcher[];
 	timer: NodeJS.Timeout | null;
 	burstStartedAt: number | null;
+	changedPaths: Set<string> | null;
 	closing: boolean;
 }
 
@@ -89,7 +90,9 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		const payload: WorkstreamFilesChangedPayload = {
 			workstreamId: set.workstreamId,
 			changedAt: new Date().toISOString(),
+			paths: set.changedPaths && [...set.changedPaths],
 		};
+		set.changedPaths = new Set();
 		deps.events.emit(REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL, payload);
 	};
 
@@ -121,9 +124,16 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		path: string,
 		recursive: boolean,
 		accept: (name: string | null) => boolean,
+		recordsPaths = false,
 	): void => {
 		const watcher = watch(path, { recursive, persistent: false }, (_eventType, filename) => {
-			if (accept(fileName(filename))) schedule(set);
+			const name = fileName(filename);
+			if (!accept(name)) return;
+			if (recordsPaths) {
+				if (name === null) set.changedPaths = null;
+				else set.changedPaths?.add(name.split(sep).join('/'));
+			}
+			schedule(set);
 		});
 		watcher.on('error', (error) => drop(set, describe(error)));
 		watcher.on('close', () => drop(set, 'the watcher closed'));
@@ -137,6 +147,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			watchers: [],
 			timer: null,
 			burstStartedAt: null,
+			changedPaths: new Set(),
 			closing: false,
 		};
 		sets.set(workstreamId, set);
@@ -160,10 +171,16 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		}
 		if (set.closing) return;
 		try {
-			attach(set, worktreePath, true, (name) => {
-				if (name === null) return true;
-				return !SKIPPED_DIRECTORIES.has(firstSegment(name)) && !isAppManagedGitPath(name);
-			});
+			attach(
+				set,
+				worktreePath,
+				true,
+				(name) => {
+					if (name === null) return true;
+					return !SKIPPED_DIRECTORIES.has(firstSegment(name)) && !isAppManagedGitPath(name);
+				},
+				true,
+			);
 			if (git) {
 				attach(set, git.gitDir, false, (name) => name !== null && GIT_DIR_HEADS.has(name));
 				attach(set, join(git.commonDir, 'refs'), true, (name) => !name?.endsWith('.lock'));

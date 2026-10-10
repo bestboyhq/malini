@@ -801,7 +801,7 @@
 			align="start"
 			owner="extension-inspector-panel-picker"
 			testId="extension-inspector-panel-picker"
-			panelClass="w-60 rounded-lg border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1 shadow-popup"
+			panelClass="w-60 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
 		>
 			<div class="text-fg-tertiary px-2 py-1.5 text-xs">Open panel</div>
 			{#each orderedPanels as panel (panel.id)}
@@ -811,7 +811,6 @@
 					role="menuitem"
 					closeOnSelect={false}
 					focusOnHover={false}
-					class="h-8 w-full px-2 text-left"
 					aria-label={`${isOpen ? 'Select' : 'Open'} ${panel.label}`}
 					data-testid="extension-inspector-picker-item"
 					data-navigation-target={addExtensionsActive ? closeDirectoryNavigationTarget : undefined}
@@ -888,7 +887,7 @@
 			align="end"
 			owner="extension-inspector-preferences"
 			testId="extension-inspector-preferences"
-			panelClass="w-72 rounded-lg border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1 shadow-popup"
+			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1"
 		>
 			<div class="text-fg-tertiary px-2 py-1.5 text-xs">Inspector panels</div>
 			<div bind:this={arrangeList} data-testid="extension-inspector-arrange-list">

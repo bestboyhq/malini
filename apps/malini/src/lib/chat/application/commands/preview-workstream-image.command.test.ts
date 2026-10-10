@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { previewWorkstreamImageCommand } from '$lib/chat/application/commands/preview-workstream-image.command';
+import { refreshWorkstreamImagesCommand } from '$lib/chat/application/commands/refresh-workstream-images.command';
 import { releaseImagePreviewsCommand } from '$lib/chat/application/commands/release-image-previews.command';
 import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
@@ -65,6 +66,28 @@ describe('previewing an image the agent read', () => {
 				status: 'unavailable',
 				reason: 'file is outside the workstream',
 			}),
+		);
+	});
+
+	it('waits for the newest read of an image that changed while it was being read', async () => {
+		const platform = installPlatform();
+		const reads: Array<(bytes: { mediaType: string; base64: string; size: number }) => void> = [];
+		platform.define(
+			'repositories.read-workstream-image',
+			() => new Promise((resolve) => reads.push(resolve)),
+		);
+
+		previewWorkstreamImageCommand({ owner: OWNER, workstreamId: 'ws-a', path: PATH });
+		refreshWorkstreamImagesCommand('ws-a', [PATH]);
+		await vi.waitFor(() => expect(reads).toHaveLength(2));
+
+		reads[0]?.({ mediaType: 'image/png', base64: 'AAAA', size: 3 });
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(imagePreviewQuery.data(OWNER, PATH)).toBeNull();
+
+		reads[1]?.({ mediaType: 'image/png', base64: 'BBBB', size: 3 });
+		await vi.waitFor(() =>
+			expect(imagePreviewQuery.data(OWNER, PATH)).toMatchObject({ status: 'ready' }),
 		);
 	});
 });

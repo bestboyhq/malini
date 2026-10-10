@@ -253,14 +253,12 @@
 							<div class="w-52 p-1" role="menu" aria-label="Always allow">
 								<DropdownItem
 									role="menuitem"
-									class="w-full text-xs"
 									onSelect={() => decideApproval(item, 'allow', 'session')}
 								>
 									Allow for this chat
 								</DropdownItem>
 								<DropdownItem
 									role="menuitem"
-									class="w-full text-xs"
 									onSelect={() => decideApproval(item, 'allow', 'workstream')}
 								>
 									Allow for this workstream

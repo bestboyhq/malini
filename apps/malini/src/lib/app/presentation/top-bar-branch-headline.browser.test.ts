@@ -27,9 +27,23 @@ function statusWithPullRequest(): GlobalTopBarGithubStatus {
 	return { ...statusWithoutPullRequest(), reference: '#42', title: 'Land the branch headline' };
 }
 
+function statusWithStoppedMerge(): GlobalTopBarGithubStatus {
+	return {
+		...statusWithoutPullRequest(),
+		detailActions: [
+			{
+				id: 'abort-operation',
+				label: 'Abort merge',
+				confirmLabel: 'Confirm abort',
+				onInvoke: () => {},
+			},
+		],
+	};
+}
+
 let stop: (() => void) | null = null;
 
-function openDetail(status: GlobalTopBarGithubStatus): HTMLElement {
+function mountBar(status: GlobalTopBarGithubStatus): HTMLButtonElement | null {
 	globalTopBarGithubStatus.publish(OWNER, status);
 	const host = document.createElement('div');
 	document.body.append(host);
@@ -40,9 +54,11 @@ function openDetail(status: GlobalTopBarGithubStatus): HTMLElement {
 		host.remove();
 		globalTopBarGithubStatus.clear(OWNER);
 	};
-	const disclosure = host.querySelector<HTMLButtonElement>(
-		'[data-testid="global-topbar-github-status"]',
-	);
+	return host.querySelector<HTMLButtonElement>('[data-testid="global-topbar-github-status"]');
+}
+
+function openDetail(status: GlobalTopBarGithubStatus): HTMLElement {
+	const disclosure = mountBar(status);
 	if (!disclosure) throw new Error('the detail disclosure is not in the bar');
 	disclosure.click();
 	flushSync();
@@ -61,8 +77,14 @@ afterEach(() => {
 });
 
 describe('the top bar detail headline', () => {
-	it('names the branch once when the workstream has no pull request yet', () => {
-		expect(occurrencesOfBranch(openDetail(statusWithoutPullRequest()))).toBe(1);
+	it('offers no detail before a pull request while there is nothing to act on', () => {
+		expect(mountBar(statusWithoutPullRequest())).toBeNull();
+	});
+
+	it('names the branch once in the detail of a merge that stopped before any pull request', () => {
+		const panel = openDetail(statusWithStoppedMerge());
+		expect(panel.textContent).toContain('Abort merge');
+		expect(occurrencesOfBranch(panel)).toBe(1);
 	});
 
 	it('still names the branch under the pull request title once one exists', () => {

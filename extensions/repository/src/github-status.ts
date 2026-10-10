@@ -120,6 +120,7 @@ function checkResultLabel(result: string): string {
 }
 
 function checkTone(check: ExtensionPullRequestCheck): RepositoryGithubStatusTone {
+	if (check.conclusion?.trim().toLocaleLowerCase() === 'skipped') return 'neutral';
 	if (pullRequestCheckPassed(check)) return 'success';
 	if (pullRequestCheckFailed(check)) return 'danger';
 	const state = check.state.trim().toLocaleLowerCase();
@@ -146,14 +147,16 @@ function checksSummary(
 	const passed = rows.filter((row) => row.tone === 'success').length;
 	const failing = rows.filter((row) => row.tone === 'danger').length;
 	const running = rows.filter((row) => row.tone === 'progress').length;
+	const skipped = rows.filter((row) => row.tone === 'neutral').length;
 	const notStarted = (pullRequest?.checkItems ?? []).filter(
 		(check) => check.notStartedReason,
 	).length;
-	const unknown = rows.length - passed - failing - running - notStarted;
+	const unknown = rows.length - passed - failing - running - skipped - notStarted;
 	return [
 		passed > 0 ? `${passed} passed` : '',
 		failing > 0 ? `${failing} failing` : '',
 		running > 0 ? `${running} running` : '',
+		skipped > 0 ? `${skipped} skipped` : '',
 		notStarted > 0 ? `${notStarted} didn't start` : '',
 		unknown > 0 ? `${unknown} unknown` : '',
 	]

@@ -36,6 +36,7 @@ export interface WorktreeRemovedPayload {
 export interface WorkstreamFilesChangedPayload {
 	workstreamId: string;
 	changedAt: string;
+	paths: string[] | null;
 }
 
 export interface SessionRenamedPayload {

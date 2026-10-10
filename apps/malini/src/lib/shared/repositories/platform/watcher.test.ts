@@ -65,10 +65,17 @@ function filesChangedPayload(payload: unknown): WorkstreamFilesChangedPayload {
 	if (typeof payload !== 'object' || payload === null) throw new Error('frame is not an object');
 	const workstreamId = Reflect.get(payload, 'workstreamId');
 	const changedAt = Reflect.get(payload, 'changedAt');
+	const paths: unknown = Reflect.get(payload, 'paths');
 	if (typeof workstreamId !== 'string' || typeof changedAt !== 'string') {
 		throw new Error('frame is missing workstreamId or changedAt');
 	}
-	return { workstreamId, changedAt };
+	if (
+		paths !== null &&
+		!(Array.isArray(paths) && paths.every((path) => typeof path === 'string'))
+	) {
+		throw new Error('frame paths are neither a list of strings nor null');
+	}
+	return { workstreamId, changedAt, paths };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -149,6 +156,27 @@ describe('createWorkstreamWatchers', () => {
 		await sleep(SETTLE_MS);
 
 		expect(emitted).toHaveLength(1);
+		expect(emitted[0]?.paths).toEqual(
+			expect.arrayContaining(Array.from({ length: 10 }, (_, index) => `file-${index}.txt`)),
+		);
+	});
+
+	it('names worktree paths relative to the worktree and starts each burst empty', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		mkdirSync(join(path, '.context'), { recursive: true });
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, '.context', 'shot.png'), 'first\n');
+		await waitFor(() => emitted.length === 1);
+		await sleep(SETTLE_MS);
+		writeFileSync(join(path, 'seed.txt'), 'second\n');
+		await waitFor(() => emitted.length === 2);
+
+		expect(emitted[0]?.paths).toContain('.context/shot.png');
+		expect(emitted[1]?.paths).toContain('seed.txt');
+		expect(emitted[1]?.paths).not.toContain('.context/shot.png');
 	});
 
 	it('keeps flushing at the max wait while a burst never goes quiet', async () => {
@@ -207,6 +235,7 @@ describe('createWorkstreamWatchers', () => {
 		await waitFor(() => emitted.length === 1);
 
 		expect(emitted[0]?.workstreamId).toBe('ws-1');
+		expect(emitted[0]?.paths).toEqual([]);
 	});
 
 	it('stops emitting once unwatched', async () => {

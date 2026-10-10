@@ -46,6 +46,11 @@ describe('readWorkstreamImage', () => {
 		expect(Buffer.from(image?.base64 ?? '', 'base64')).toEqual(PNG);
 	});
 
+	it('reads an image the model named by its absolute path in the worktree', async () => {
+		await worktreeWith('.context/shot.png', PNG);
+		expect(await readWorkstreamImage(worktree, join(worktree, '.context/shot.png'))).not.toBeNull();
+	});
+
 	it('tolerates a dot-slash prefix the model typed', async () => {
 		await worktreeWith('shot.png', PNG);
 		expect(await readWorkstreamImage(worktree, './shot.png')).not.toBeNull();
@@ -64,7 +69,14 @@ describe('readWorkstreamImage', () => {
 
 	it('rejects paths that leave the worktree before any filesystem call', async () => {
 		await worktreeWith('shot.png', PNG);
-		for (const path of ['../outside.png', '/etc/hosts', 'a/../../outside.png', '']) {
+		for (const path of [
+			'../outside.png',
+			'/etc/hosts',
+			'a/../../outside.png',
+			'',
+			join(temp, 'outside.png'),
+			join(worktree, '../outside.png'),
+		]) {
 			await expect(readWorkstreamImage(worktree, path)).rejects.toThrow(/image path/);
 		}
 		expect(() => safeRelativePath('')).toThrow('image path must be relative to the workstream');

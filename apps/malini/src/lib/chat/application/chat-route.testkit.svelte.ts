@@ -7,6 +7,7 @@ import { promptDelivery } from '$lib/chat/infrastructure/services/prompt-deliver
 import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.service.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { sessionChangesStore } from '$lib/chat/infrastructure/stores/session-changes.store.svelte';
+import { transcriptAnchors } from '$lib/chat/infrastructure/stores/transcript-anchors.store';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import type { FakeAgentEventSeed, FakeAgentSessionSeed } from '$shared/port/fake/seed';
 import { setPlatformForTest } from '$shared/port/platform';
@@ -162,6 +163,7 @@ export async function resetChatState(): Promise<void> {
 	transcriptAggregate.reset();
 	sessionsAggregate.reset();
 	sessionChangesStore.reset();
+	transcriptAnchors.reset();
 	setPlatformForTest(null);
 	globalThis.localStorage?.clear();
 }
