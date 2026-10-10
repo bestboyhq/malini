@@ -66,7 +66,6 @@
 
 	function closeEffort(): void {
 		effortOpen = false;
-		queueMicrotask(() => effortTrigger?.focus({ preventScroll: true }));
 	}
 
 	function toggleEffort(): void {
@@ -82,7 +81,6 @@
 
 	function closeAccess(): void {
 		accessOpen = false;
-		queueMicrotask(() => accessTrigger?.focus({ preventScroll: true }));
 	}
 
 	function togglePlan(): void {
@@ -119,28 +117,25 @@
 			onclose={closeEffort}
 			side="top"
 			align="start"
-			panelClass="w-40 rounded-lg border border-surface-elevated-border bg-surface-elevated p-1.5"
+			panelClass="w-40 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
 			testId="chat-reasoning-menu"
-			backdropTestId="chat-reasoning-backdrop"
 			owner="chat-composer"
 		>
 			<div role="listbox" aria-label="Reasoning effort levels">
 				{#each efforts as effort}
-					<Tooltip content={`Use ${effort} reasoning effort`} placement="right" class="w-full">
-						<DropdownItem
-							selected={profile.effort === effort}
-							focusOnHover={false}
-							class="h-9 w-full justify-between px-2.5 text-left font-normal"
-							role="option"
-							aria-selected={profile.effort === effort}
-							onclick={() => selectEffort(effort)}
-						>
-							<span>{effortLabel(effort)}</span>
-							{#if profile.effort === effort}
-								<Icon name="check" size={14} />
-							{/if}
-						</DropdownItem>
-					</Tooltip>
+					<DropdownItem
+						selected={profile.effort === effort}
+						focusOnHover={false}
+						class="justify-between"
+						role="option"
+						aria-selected={profile.effort === effort}
+						onclick={() => selectEffort(effort)}
+					>
+						<span>{effortLabel(effort)}</span>
+						{#if profile.effort === effort}
+							<Icon name="check" size={14} />
+						{/if}
+					</DropdownItem>
 				{/each}
 			</div>
 		</DropdownLayer>
@@ -194,9 +189,8 @@
 			onclose={closeAccess}
 			side="top"
 			align="start"
-			panelClass="w-72 rounded-lg border border-surface-elevated-border bg-surface-elevated p-1.5"
+			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
 			testId="chat-agent-access-menu"
-			backdropTestId="chat-agent-access-backdrop"
 			owner="chat-composer"
 		>
 			<div role="listbox" aria-label="Agent access levels">
@@ -204,7 +198,7 @@
 					<DropdownItem
 						selected={profile.access === access}
 						focusOnHover={false}
-						class="h-auto w-full items-start justify-between gap-3 px-2.5 py-2 text-left font-normal"
+						class="items-start justify-between gap-3 py-2"
 						role="option"
 						aria-selected={profile.access === access}
 						onclick={() => selectAccess(access)}

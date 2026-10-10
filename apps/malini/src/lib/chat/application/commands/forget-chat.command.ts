@@ -5,6 +5,7 @@ import { composerAttachments } from '$lib/chat/infrastructure/services/composer-
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
+import { transcriptAnchors } from '$lib/chat/infrastructure/stores/transcript-anchors.store';
 import { workstreamChatsPreloader } from '$lib/chat/infrastructure/services/workstream-chats-preloader.service';
 
 export { forgetChatCommand };
@@ -19,5 +20,6 @@ function forgetChatCommand(workstreamId: string, sessionId: SessionId): void {
 	agentDrafts.clear(draftScope);
 	sessionsAggregate.removeSession(sessionId);
 	transcriptAggregate.forgetSession(sessionId);
+	transcriptAnchors.forget([sessionId]);
 	workstreamChatsPreloader.forgetChat(sessionId);
 }

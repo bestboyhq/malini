@@ -76,7 +76,6 @@
 				<DropdownItem
 					role="menuitem"
 					selected={tab.selected}
-					class="w-full"
 					onSelect={() => {
 						open = false;
 						tab.open();

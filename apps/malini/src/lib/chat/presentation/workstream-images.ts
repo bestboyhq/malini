@@ -1,6 +1,6 @@
 export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
 
-const NOT_WORKSTREAM_RELATIVE = /^(?:[a-z][a-z\d+.-]*:|[/#?])/iu;
+const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/|[#?])/iu;
 
 export function holdWorkstreamImages(sanitizedHtml: string): string {
 	if (typeof document === 'undefined' || !sanitizedHtml.includes('<img')) return sanitizedHtml;
@@ -30,7 +30,7 @@ export function showWorkstreamImages(
 }
 
 function workstreamImagePath(src: string): string | null {
-	if (src.length === 0 || NOT_WORKSTREAM_RELATIVE.test(src)) return null;
+	if (src.length === 0 || NOT_A_WORKSTREAM_FILE.test(src)) return null;
 	try {
 		return decodeURI(src);
 	} catch {

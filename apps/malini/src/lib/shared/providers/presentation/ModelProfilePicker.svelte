@@ -49,12 +49,10 @@
 		bind:open
 		side="top"
 		align="start"
-		sideOffset={4}
 		{onOpenChange}
 		panelClass="w-72"
 		contentClass="overflow-hidden"
 		testId="chat-model-picker"
-		backdropTestId="chat-model-picker-backdrop"
 		owner="chat-composer"
 	>
 		{#snippet trigger()}
@@ -94,12 +92,7 @@
 						role="option"
 						aria-selected={selected}
 						{selected}
-						class={[
-							'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left',
-							selected
-								? 'bg-surface-elevated-selected text-fg-default'
-								: 'text-fg-secondary hover:bg-surface-elevated-hover hover:text-fg-default',
-						]}
+						class="gap-2.5 py-2"
 						data-testid="chat-model-option"
 						data-model={option.id}
 						onSelect={() => select(option.id)}

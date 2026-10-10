@@ -6,6 +6,7 @@
 		bodyPortal,
 		calculatePosition,
 		createRovingFocus,
+		getOverlayFocusReturn,
 		menuClose,
 		menuOpen,
 		overlaySurface,
@@ -31,13 +32,9 @@
 		panelClass?: ClassValue;
 		role?: AriaRole | null;
 		testId?: string | undefined;
-		backdropTestId?: string | undefined;
 		owner?: string | undefined;
 		restoreFocusToAnchor?: boolean;
-		backdrop?: boolean;
 		keyboardNavigation?: boolean;
-		ignoreOpeningDocumentClick?: boolean;
-		skipCloseTransition?: boolean;
 	}
 
 	let {
@@ -55,13 +52,9 @@
 		panelClass = '',
 		role = 'menu',
 		testId,
-		backdropTestId,
 		owner,
 		restoreFocusToAnchor = true,
-		backdrop = true,
 		keyboardNavigation = true,
-		ignoreOpeningDocumentClick = false,
-		skipCloseTransition = false,
 	}: Props = $props();
 
 	let panelEl: HTMLDivElement | null = $state(null);
@@ -69,7 +62,7 @@
 	let actualSide: MenuSide = $state(side);
 	let wasOpen = false;
 	let closeRequested = false;
-	let ignoreDocumentClicksUntil = 0;
+	let dismissedFromOutside = false;
 	let triggerFollowRaf: number | null = null;
 	let lastAnchorRect: { x: number; y: number; width: number; height: number } | null = null;
 	const zIndex = $derived(resolveOverlayZIndex(anchor));
@@ -127,15 +120,15 @@
 	const roving = createRovingFocus({
 		container: () => panelEl,
 		anchor: triggerElement,
-		restoreFocus: () => restoreFocusToAnchor,
+		restoreFocus: () => restoreFocusToAnchor && !dismissedFromOutside,
 		canRestore: () => !open,
+		focusReturn: getOverlayFocusReturn(),
 	});
 
 	function requestClose(): void {
 		if (closeRequested) return;
 		closeRequested = true;
 		onclose();
-		void roving.restoreAnchorFocus();
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -143,8 +136,7 @@
 		roving.handleArrowKeys(event);
 	}
 
-	function onDocumentClick(event: MouseEvent): void {
-		if (event.timeStamp <= ignoreDocumentClicksUntil) return;
+	function onDocumentPointerDown(event: PointerEvent): void {
 		const targetNode = event.target instanceof Node ? event.target : null;
 		const targetElement =
 			event.target instanceof Element ? event.target : targetNode?.parentElement;
@@ -162,6 +154,7 @@
 				triggerInsideTargetDialog: Boolean(anchor && targetDialog?.contains(anchor)),
 			})
 		) {
+			dismissedFromOutside = true;
 			requestClose();
 		}
 	}
@@ -211,7 +204,7 @@
 		}
 		wasOpen = true;
 		closeRequested = false;
-		ignoreDocumentClicksUntil = ignoreOpeningDocumentClick ? performance.now() + 100 : 0;
+		dismissedFromOutside = false;
 		announceExclusiveOverlayOpen();
 		actualSide = side;
 	});
@@ -224,7 +217,7 @@
 		const trigger = triggerElement();
 		if (trigger) resizeObserver.observe(trigger);
 		startAnchorFollow();
-		document.addEventListener('click', onDocumentClick, true);
+		document.addEventListener('pointerdown', onDocumentPointerDown, true);
 		const releaseEscape = keyboardNavigation ? registerEscapeScope(requestClose) : null;
 		if (keyboardNavigation) document.addEventListener('keydown', onKeydown);
 		document.addEventListener('scroll', positionCard, true);
@@ -235,7 +228,7 @@
 			triggerFollowRaf = null;
 			lastAnchorRect = null;
 			releaseEscape?.();
-			document.removeEventListener('click', onDocumentClick, true);
+			document.removeEventListener('pointerdown', onDocumentPointerDown, true);
 			document.removeEventListener('keydown', onKeydown);
 			document.removeEventListener('scroll', positionCard, true);
 			window.removeEventListener('resize', positionCard);
@@ -251,21 +244,6 @@
 		data-overlay-owner={owner}
 		use:bodyPortal
 	>
-		{#if backdrop}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				role="presentation"
-				class="pointer-events-auto fixed inset-0 z-0 cursor-default bg-transparent"
-				data-dropdown-backdrop
-				data-overlay-backdrop
-				data-testid={backdropTestId}
-				onclick={requestClose}
-				oncontextmenu={(event) => {
-					event.preventDefault();
-					requestClose();
-				}}
-			></div>
-		{/if}
 		<div
 			use:mountPanel
 			class={['shadow-popup pointer-events-auto fixed z-[1]', panelClass]}
@@ -279,7 +257,7 @@
 			{role}
 			tabindex="-1"
 			in:menuOpen|global={{ side: actualSide, align }}
-			out:menuClose|global={{ side: actualSide, align, skip: skipCloseTransition }}
+			out:menuClose|global={{ side: actualSide, align }}
 		>
 			{@render children()}
 		</div>

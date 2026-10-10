@@ -282,13 +282,42 @@ describe('archiving a workstream', () => {
 		expect(archiveCalls()).toBe(1);
 	});
 
-	it('leaves the active workstream for the repositories list', async () => {
+	it('switches from the active workstream to the next one on the list', async () => {
+		router.params = { workstreamId: 'ws-a' };
+
+		archiveWorkstreamCommand(workstream('ws-a'), announce);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(router.goto).toHaveBeenCalledWith('/workstreams/ws-b');
+	});
+
+	it('switches to the one above when the active workstream is last on the list', async () => {
+		router.params = { workstreamId: 'ws-b' };
+
+		archiveWorkstreamCommand(workstream('ws-b'), announce);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(router.goto).toHaveBeenCalledWith('/workstreams/ws-a');
+	});
+
+	it('leaves the last workstream on the list for the repositories list', async () => {
+		archiveWorkstreamCommand(workstream('ws-b'), announce);
+		await vi.advanceTimersByTimeAsync(WORKSTREAM_UNDO_WINDOW_MS);
 		router.params = { workstreamId: 'ws-a' };
 
 		archiveWorkstreamCommand(workstream('ws-a'), announce);
 		await vi.advanceTimersByTimeAsync(0);
 
 		expect(router.goto).toHaveBeenCalledWith('/');
+	});
+
+	it('stays put when archiving a workstream other than the active one', async () => {
+		router.params = { workstreamId: 'ws-b' };
+
+		archiveWorkstreamCommand(workstream('ws-a'), announce);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(router.goto).not.toHaveBeenCalled();
 	});
 
 	it('discards a failed setup locally instead of asking the platform to archive it', async () => {

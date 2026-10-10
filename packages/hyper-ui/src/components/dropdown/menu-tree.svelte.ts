@@ -14,7 +14,7 @@ export interface SafeArea {
 }
 
 export interface MenuTree {
-	closeAll(immediate?: boolean): void;
+	closeAll(): void;
 }
 
 export interface MenuSurface {
@@ -26,7 +26,7 @@ export interface MenuSurface {
 	isInSafeArea(x: number, y: number): boolean;
 }
 
-export function createMenuTree(close: (immediate?: boolean) => void): MenuTree {
+export function createMenuTree(close: () => void): MenuTree {
 	return { closeAll: close };
 }
 
