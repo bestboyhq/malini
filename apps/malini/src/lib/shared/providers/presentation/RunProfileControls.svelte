@@ -124,7 +124,7 @@
 			<div role="listbox" aria-label="Reasoning effort levels">
 				{#each efforts as effort}
 					<DropdownItem
-						selected={profile.effort === effort}
+						checked={profile.effort === effort}
 						focusOnHover={false}
 						class="justify-between"
 						role="option"
@@ -196,7 +196,7 @@
 			<div role="listbox" aria-label="Agent access levels">
 				{#each AGENT_ACCESS_LEVELS as access}
 					<DropdownItem
-						selected={profile.access === access}
+						checked={profile.access === access}
 						focusOnHover={false}
 						class="items-start justify-between gap-3 py-2"
 						role="option"

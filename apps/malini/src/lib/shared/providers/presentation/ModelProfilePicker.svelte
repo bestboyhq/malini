@@ -91,7 +91,7 @@
 					<DropdownItem
 						role="option"
 						aria-selected={selected}
-						{selected}
+						checked={selected}
 						class="gap-2.5 py-2"
 						data-testid="chat-model-option"
 						data-model={option.id}
