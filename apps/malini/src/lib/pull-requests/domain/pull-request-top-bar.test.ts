@@ -415,6 +415,46 @@ describe('the next action a workstream is asking for', () => {
 		).toMatchObject({ kind: 'open', label: 'Open PR' });
 	});
 
+	it('waits on a required check still running, though GitHub reports the merge blocked', () => {
+		const passed = {
+			name: 'conventional',
+			appId: 15_368,
+			state: 'COMPLETED',
+			conclusion: 'SUCCESS',
+			required: null,
+			url: 'https://github.com/bestboyhq/tony/actions/runs/38081437844/job/114298992451',
+			startedAt: '2026-10-10T19:51:16Z',
+			completedAt: '2026-10-10T19:51:19Z',
+		} as const;
+		const running = {
+			...passed,
+			name: 'test',
+			state: 'IN_PROGRESS',
+			conclusion: null,
+			url: 'https://github.com/bestboyhq/tony/actions/runs/38081437966/job/114298993489',
+			startedAt: '2026-10-10T19:51:21Z',
+			completedAt: null,
+		} as const;
+		const blockedWhileRunning = openPullRequestState({
+			...mergeable,
+			mergeableState: 'BLOCKED',
+			checks: 'pending',
+			checkItems: [running, passed],
+		});
+
+		expect(nextAction(blockedWhileRunning)).toMatchObject({
+			kind: 'open',
+			label: 'Open PR',
+			tooltip: '1 required check still running. Watch it on GitHub',
+		});
+		expect(fixIsActionable(blockedWhileRunning)).toBe(false);
+		expect(
+			nextAction(
+				openPullRequestState({ ...mergeable, mergeableState: 'BLOCKED', checkItems: [passed] }),
+			),
+		).toMatchObject({ kind: 'fix', label: 'Fix errors' });
+	});
+
 	it("says CI didn't start, never Fix errors, for checks GitHub never started", () => {
 		const notStarted = {
 			name: 'check, lint, test',

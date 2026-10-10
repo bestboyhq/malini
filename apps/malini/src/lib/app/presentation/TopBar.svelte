@@ -123,6 +123,9 @@
 
 	const githubDetailActions = $derived(githubStatus?.detailActions ?? []);
 	const githubRemoteFailure = $derived(githubStatus?.remoteFailure ?? null);
+	const githubDetailOffered = $derived(
+		githubDetailActions.length > 0 || githubRemoteFailure !== null,
+	);
 	const githubDisclosureTone = $derived(githubPrimaryAction?.tone ?? 'secondary');
 	const githubDisclosureLook = $derived.by((): 'busy' | 'disabled' | undefined => {
 		if (!githubPrimaryAction) return undefined;
@@ -423,10 +426,14 @@
 						{#if githubPrimaryAction}
 							{@render githubAction(
 								githubPrimaryAction,
-								'topbar-git__action topbar-git__action--split',
+								githubDetailOffered
+									? 'topbar-git__action topbar-git__action--split'
+									: 'topbar-git__action',
 							)}
 						{/if}
-						{@render githubDisclosure(null)}
+						{#if githubDetailOffered}
+							{@render githubDisclosure(null)}
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -710,6 +717,19 @@
 		display: none;
 	}
 
+	.topbar-right[data-docked]:has(
+			.topbar-git[data-zone='progress'],
+			.topbar-git:not([data-zone]) [aria-busy='true'],
+			.topbar-git[data-zone='neutral'] [aria-busy='true']
+		) {
+		--dock-tint: light-dark(var(--color-surface-50-hover), transparent);
+		--dock-edge: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
+		background:
+			repeating-linear-gradient(225deg, var(--dock-edge) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
+			linear-gradient(var(--dock-tint), var(--dock-tint)),
+			var(--color-surface-50);
+	}
+
 	.topbar-right[data-docked]:has(.topbar-git[data-zone='success']) {
 		--dock-tint: var(--color-success);
 		--dock-edge: color-mix(in srgb, var(--color-success-content) 40%, transparent);
@@ -850,6 +870,10 @@
 		border-radius: 9px;
 		background: color-mix(in srgb, var(--color-surface-150) 68%, transparent);
 		padding: 0 3.5px;
+	}
+
+	.topbar-git[data-zone='progress'] .topbar-git__pill {
+		background: var(--color-surface-50);
 	}
 
 	.topbar-git[data-zone='success'] {

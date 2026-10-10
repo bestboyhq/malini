@@ -27,7 +27,7 @@ test('a workstream equal to its base offers no pull request until a file changes
 		await expect(page.getByRole('button', { name: 'Commit and push changes' })).toBeEnabled({
 			timeout: 30_000,
 		});
-		await expect(repositoryDetail).toBeVisible();
+		await expect(repositoryDetail).toHaveCount(0);
 		expect(github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create')).toEqual(
 			[],
 		);

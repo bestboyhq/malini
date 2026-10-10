@@ -11,14 +11,16 @@ function previewStagedAttachmentCommand(
 ): void {
 	if (!isImageAttachment(input.attachment)) return;
 	const key = imagePreviewKey(input.owner, input.attachment.id);
-	if (!imagePreviewsStore.begin(key)) return;
+	const read = imagePreviewsStore.begin(key);
+	if (read === null) return;
 	void (async () => {
 		try {
 			const bytes = await composerAttachments.readImage(input.workstreamId, input.attachment.id);
-			imagePreviewsStore.settleBytes(key, bytes, 'This attachment has no preview');
+			imagePreviewsStore.settleBytes(key, read, bytes, 'This attachment has no preview');
 		} catch (error) {
 			imagePreviewsStore.settleUnavailable(
 				key,
+				read,
 				errorMessage(error, 'This attachment has no preview'),
 			);
 		}
