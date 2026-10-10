@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	backgroundAgentSummary,
+	shellCommandLabel,
 	summarizeLiveToolInput,
 	toolActionKind,
 	toolActivityLabel,
@@ -123,6 +124,31 @@ describe("the agent's own label for a shell call", () => {
 		expect(label).not.toBeNull();
 		expect(label).toHaveLength(118);
 		expect(label?.endsWith('…')).toBe(true);
+	});
+});
+
+describe('shell command labels', () => {
+	const root = '/Users/me/Library/Application Support/malini/workstreams/01JABC';
+
+	it('leads with what ran rather than where it ran', () => {
+		expect(shellCommandLabel(`cd "${root}" && pnpm format && pnpm lint`)).toBe(
+			'pnpm format && pnpm lint',
+		);
+		expect(shellCommandLabel(`cd '${root}/apps/x'; cd src\ngrep -n hatch "${root}/a.ts"`)).toBe(
+			'grep -n hatch "a.ts"',
+		);
+		expect(shellCommandLabel('cd apps/malini && pnpm test')).toBe('pnpm test');
+	});
+
+	it('keeps a bare cd as it is', () => {
+		expect(shellCommandLabel(`cd "${root}"`)).toBe('cd .');
+		expect(shellCommandLabel('pnpm build && cd out')).toBe('pnpm build && cd out');
+	});
+
+	it('names the command in the activity summary the same way', () => {
+		expect(toolActivityLabel('Bash', { command: `cd "${root}" && git status` }, 'completed')).toBe(
+			'Bash · git status',
+		);
 	});
 });
 

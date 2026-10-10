@@ -35,13 +35,14 @@ test('cloning picks a recent GitHub repository and opens a workstream in it', as
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const url = dialog.getByLabel('Repository URL');
+		const search = dialog.getByLabel('Search repositories');
 		const submit = dialog.getByRole('button', { name: 'Clone repo' });
-		await expect(url).toBeFocused();
+		await expect(search).toBeFocused();
 		await expect(submit).toBeDisabled();
 
 		const recent = dialog.getByRole('list', { name: 'Recent repositories' });
 		await expect(recent.getByRole('button')).toHaveCount(2);
-		await dialog.getByLabel('Search repositories').fill('rabbit');
+		await page.keyboard.type('rabbit');
 		await expect(recent.getByRole('button')).toHaveCount(1);
 		const hutch = recent.getByRole('button', { name: /e2e\/hutch/ });
 		await hutch.click();

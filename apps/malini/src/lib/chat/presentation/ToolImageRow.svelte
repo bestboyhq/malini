@@ -8,6 +8,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { formatBytes } from './prompt-editor/prompt-chip-preview';
+	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
 	import type { ToolImageRead } from './tool-image-read';
 	import { galleryImageLabel } from './workstream-images';
 
@@ -42,9 +43,6 @@
 
 	const previewable = $derived(image.previewable && workstreamId !== null);
 
-	const chipClass =
-		'border-chip-border bg-chip text-2xs text-fg-secondary inline-flex h-5 max-w-56 min-w-0 items-center gap-1 rounded-md border-[0.5px] px-1.5';
-
 	const meta = $derived(
 		[image.bytes === null ? null : formatBytes(image.bytes), image.mediaType]
 			.filter(Boolean)
@@ -77,10 +75,7 @@
 		{#if previewable && onopenimage}
 			<Button
 				bare
-				class={[
-					chipClass,
-					'hover:bg-chip-hover focus-visible:ring-button-primary/40 cursor-zoom-in focus-visible:ring-2 focus-visible:outline-none',
-				]}
+				class={[CHIP_CLASS, OPENABLE_CHIP_CLASS]}
 				ariaLabel={galleryImageLabel(image.fileName)}
 				data-testid="tool-image-chip"
 				onpointerdown={(event: PointerEvent) => event.stopPropagation()}
@@ -89,7 +84,7 @@
 				{@render chipContent()}
 			</Button>
 		{:else}
-			<span class={[chipClass, 'cursor-default']} data-testid="tool-image-chip">
+			<span class={[CHIP_CLASS, 'cursor-default']} data-testid="tool-image-chip">
 				{@render chipContent()}
 			</span>
 		{/if}

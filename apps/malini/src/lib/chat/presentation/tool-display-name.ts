@@ -1,5 +1,5 @@
 import { mcpServerDisplayName } from './session-runtime-metadata';
-import { relativizeWorkstreamPath } from './workstream-path';
+import { relativizeWorkstreamCommand, relativizeWorkstreamPath } from './workstream-path';
 
 export type ToolActionKind = 'command' | 'read' | 'edit' | 'search' | 'other';
 export type ToolActivityStatus = 'running' | 'completed';
@@ -42,6 +42,8 @@ const LIVE_INPUT_SUMMARY_KEYS = [
 ] as const;
 
 const MAX_LIVE_INPUT_SUMMARY_CHARS = 4_096;
+
+const LEADING_CD_RE = /^(?:cd\s+(?:"[^"]*"|'[^']*'|(?:[^\s;&|\\]|\\.)+)\s*(?:&&|;|\n)\s*)+/u;
 
 const AGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
 
@@ -161,6 +163,10 @@ export function toolFailureReason(error: string | null | undefined): string | nu
 		: firstLine;
 }
 
+export function shellCommandLabel(command: string): string {
+	return relativizeWorkstreamCommand(command.replace(LEADING_CD_RE, '') || command);
+}
+
 export function toolDescriptionLabel(rawName: string, input: unknown): string | null {
 	const describable =
 		AGENT_TOOL_NAMES.has(rawName.trim()) || toolActionKind(rawName, input) === 'command';
@@ -180,7 +186,9 @@ export function toolActivityLabel(
 	const command = stringAt(input, ['command', 'cmd']);
 	const query = stringAt(input, ['query', 'pattern', 'glob', 'search', 'name_pattern']);
 
-	if (kind === 'command' && command) return `${displayName} · ${short(command)}`;
+	if (kind === 'command' && command) {
+		return `${displayName} · ${short(shellCommandLabel(command))}`;
+	}
 	if ((kind === 'read' || kind === 'edit') && path) {
 		return `${displayName} · ${relativizeWorkstreamPath(path)}`;
 	}

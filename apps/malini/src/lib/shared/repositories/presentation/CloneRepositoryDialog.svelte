@@ -24,7 +24,7 @@
 
 	let url = $state('');
 	let query = $state('');
-	let urlInput: HTMLInputElement | null = $state(null);
+	let searchInput: HTMLInputElement | null = $state(null);
 
 	const recentHeadingId = $props.id();
 	const listing = $derived(githubRepositoriesQuery.data);
@@ -43,12 +43,12 @@
 	onMount(() => {
 		clearRepositoryConnectErrorCommand();
 		loadGithubRepositoriesCommand();
-		void focusUrl();
+		void focusSearch();
 	});
 
-	async function focusUrl(): Promise<void> {
+	async function focusSearch(): Promise<void> {
 		await tick();
-		urlInput?.focus();
+		searchInput?.focus();
 	}
 
 	function clone(cloneUrl: string = url): void {
@@ -82,19 +82,11 @@
 			clone();
 		}}
 	>
-		<TextInput
-			bind:value={url}
-			bind:element={urlInput}
-			label="Repository URL"
-			placeholder="https://github.com/user/repo.git"
-			autocomplete="off"
-			data-testid="clone-repository-url"
-		/>
-
 		<section class="flex flex-col gap-1.5" aria-labelledby={recentHeadingId}>
 			<h3 id={recentHeadingId} class="text-fg-secondary text-sm font-medium">Recent repos</h3>
 			<TextInput
 				bind:value={query}
+				bind:element={searchInput}
 				type="search"
 				ariaLabel="Search repositories"
 				placeholder="Search repositories…"
@@ -132,7 +124,7 @@
 						class="px-3"
 						heading="Could not load your GitHub repositories"
 						detail={listing.failure.detail}
-						remedy={listing.failure.remedy ?? 'Paste the repository URL above instead.'}
+						remedy={listing.failure.remedy ?? 'Paste the repository URL below instead.'}
 						technical={listing.failure.technical}
 						testId="clone-repository-list-error"
 					>
@@ -148,7 +140,7 @@
 						detail={query.trim().length > 0
 							? `None of your recent repositories match “${query.trim()}”.`
 							: 'Your GitHub account has no repositories to show.'}
-						remedy="Paste the repository URL above instead."
+						remedy="Paste the repository URL below instead."
 						testId="clone-repository-list-empty"
 					>
 						{#snippet icon()}
@@ -192,6 +184,14 @@
 				{/if}
 			</div>
 		</section>
+
+		<TextInput
+			bind:value={url}
+			label="Repository URL"
+			placeholder="https://github.com/user/repo.git"
+			autocomplete="off"
+			data-testid="clone-repository-url"
+		/>
 
 		{#if connectError}
 			<StateBlock

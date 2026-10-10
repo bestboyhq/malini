@@ -55,26 +55,6 @@
 	);
 	const dockWidth = $derived(inspectorDock.width);
 	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
-	let rightClusterElement: HTMLDivElement | undefined = $state();
-	let rightClusterWidth = $state(0);
-	const RIGHT_CLUSTER_GUTTER_PX = 24;
-	const topbarRightReserve = $derived(Math.ceil(rightClusterWidth) + RIGHT_CLUSTER_GUTTER_PX);
-
-	$effect(() => {
-		const element = rightClusterElement;
-		if (!element) return;
-
-		const updateWidth = (): void => {
-			rightClusterWidth = element.getBoundingClientRect().width;
-		};
-		updateWidth();
-
-		if (typeof ResizeObserver === 'undefined') return;
-		const observer = new ResizeObserver(updateWidth);
-		observer.observe(element);
-		return () => observer.disconnect();
-	});
-
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubPanelHeadline = $derived(
 		githubStatus?.title ?? githubStatus?.branch ?? 'No pull request',
@@ -263,7 +243,6 @@
 	data-native-drag-region
 	data-testid="global-topbar"
 	data-sidebar-collapsed={sidebarCollapsed ? '' : undefined}
-	style={`--topbar-right-reserve: ${topbarRightReserve}px;`}
 >
 	<div
 		class="topbar-left"
@@ -332,7 +311,6 @@
 		use:globalTopBarBandSlotHost
 	></div>
 	<div
-		bind:this={rightClusterElement}
 		class="topbar-right"
 		data-docked={dockWidth === null ? undefined : ''}
 		data-inspector-dock
@@ -359,15 +337,7 @@
 				</button>
 			</Tooltip>
 		{/each}
-		{#if githubStatus?.placeholder}
-			<div class="topbar-git" aria-hidden="true" data-testid="global-topbar-github-placeholder">
-				<span
-					class="topbar-action topbar-git__action--split topbar-git__placeholder"
-					data-label={githubStatus.placeholder}
-				></span>
-				<span class="topbar-action topbar-git__disclosure topbar-git__placeholder"></span>
-			</div>
-		{:else if githubStatus}
+		{#if githubStatus}
 			<div
 				bind:this={githubZoneElement}
 				class="topbar-git"
@@ -717,6 +687,26 @@
 		display: none;
 	}
 
+	.topbar-right[data-docked],
+	.topbar-right:not([data-docked]) .topbar-git {
+		animation: topbar-status-enter 240ms var(--ease-out);
+	}
+
+	@keyframes topbar-status-enter {
+		from {
+			opacity: 0;
+			translate: 0 8px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		@keyframes topbar-status-enter {
+			from {
+				opacity: 0;
+			}
+		}
+	}
+
 	.topbar-right[data-docked]:has(
 			.topbar-git[data-zone='progress'],
 			.topbar-git:not([data-zone]) [aria-busy='true'],
@@ -1021,17 +1011,6 @@
 		border-color: transparent;
 		background: var(--color-button-disabled);
 		color: var(--color-button-disabled-content);
-	}
-
-	.topbar-git__placeholder {
-		cursor: default;
-		border-color: transparent;
-		background: var(--color-surface-root-selected);
-	}
-
-	.topbar-git__placeholder[data-label]::before {
-		content: attr(data-label);
-		visibility: hidden;
 	}
 
 	.topbar-git [data-stale] {

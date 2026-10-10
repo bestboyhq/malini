@@ -4,7 +4,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import CodeTokens from './CodeTokens.svelte';
-	import { toolFailureReason } from './tool-display-name';
+	import { shellCommandLabel, toolFailureReason } from './tool-display-name';
 
 	interface Props {
 		command: string;
@@ -30,8 +30,9 @@
 	let expanded = $state(false);
 
 	const outputText = $derived(formatOutput(output, error));
+	const commandLabel = $derived(shellCommandLabel(command));
 	const activityLabel = $derived(
-		command === operationName ? operationName : `${operationName} · ${command}`,
+		command === operationName ? operationName : `${operationName} · ${commandLabel}`,
 	);
 
 	const exitLabel = $derived(exitCode !== null && exitCode !== 0 ? `exit ${exitCode}` : null);
@@ -84,7 +85,7 @@
 					<SensitiveText text={description} />
 				</span>
 				<span class="text-2xs min-w-0 flex-1 truncate font-mono">
-					<SensitiveText text={command} />
+					<SensitiveText text={commandLabel} />
 				</span>
 			</span>
 		{:else}

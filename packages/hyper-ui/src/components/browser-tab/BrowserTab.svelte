@@ -124,26 +124,24 @@
 
 	const closeAnchorClass: Record<BrowserTabSurface, string> = {
 		panel: '',
-		band: 'order-first h-full w-0 shrink-0 items-center overflow-hidden transition-[width,margin] duration-150 ease-out group-hover/browser-tab:ml-1 group-hover/browser-tab:w-5 group-has-[:focus-visible]/browser-tab:ml-1 group-has-[:focus-visible]/browser-tab:w-5 motion-reduce:transition-none',
+		band: 'absolute inset-y-0 right-1 flex items-center',
 	};
 
 	const closeRevealClass: Record<BrowserTabSurface, string> = {
 		panel: 'mr-1 h-4 w-4 group-data-[selected=true]/browser-tab:opacity-100',
-		band: 'h-5 w-5 group-has-[:focus-visible]/browser-tab:opacity-100',
+		band: 'h-5 w-5 translate-x-1.5 duration-150 ease-out group-hover/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:opacity-100',
 	};
 
 	const closeIconSize: Record<BrowserTabSurface, number> = {
 		panel: 8,
-		band: 10,
+		band: 14,
 	};
 
+	const hiddenUnderCloseClass =
+		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
+
 	const tabPaddingClass = $derived(
-		surface === 'band'
-			? [
-					icon ? 'pr-2 pl-1.5' : 'px-2',
-					'transition-[padding] duration-150 ease-out group-hover/browser-tab:pl-1 group-has-[:focus-visible]/browser-tab:pl-1 motion-reduce:transition-none',
-				]
-			: 'pr-0.5 pl-1.5',
+		surface === 'band' ? (icon ? 'pr-2 pl-1.5' : 'px-2') : 'pr-0.5 pl-1.5',
 	);
 
 	const surfaceClass = $derived(
@@ -178,7 +176,7 @@
 			ariaLabel={closeLabel}
 			disabled={closeDisabled}
 			class={[
-				'focus-visible:ring-button-primary/40 relative grid shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
+				'focus-visible:ring-button-primary/40 relative grid shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color,translate] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
 				closeRevealClass[surface],
 				tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
 				closeHoverClass[surface],
@@ -213,6 +211,7 @@
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
+				surface === 'band' && !trailing && 'tab-label-faded',
 			]}
 			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
 			style:--tab-label-overflow={labelOverflow}
@@ -232,14 +231,17 @@
 		</span>
 		{#if busy}
 			<span
-				class="hidden h-4 w-4 shrink-0 place-items-center motion-reduce:grid"
+				class={[
+					'hidden h-4 w-4 shrink-0 place-items-center motion-reduce:grid',
+					surface === 'band' && hiddenUnderCloseClass,
+				]}
 				aria-hidden="true"
 			>
 				<BusyIcon size={12} />
 			</span>
 		{/if}
 		{#if trailing && surface === 'band'}
-			<span class="grid h-4 w-4 shrink-0 place-items-center">
+			<span class={['grid h-4 w-4 shrink-0 place-items-center', hiddenUnderCloseClass]}>
 				{@render trailing()}
 			</span>
 		{:else}
@@ -265,6 +267,11 @@
 	.tab-label[data-overflowing] {
 		--tab-label-fade: 20;
 		mask-image: linear-gradient(to left, transparent, black calc(var(--tab-label-fade) * 1px));
+	}
+
+	.browser-tab:is(:hover, :has(:global(:focus-visible))) .tab-label-faded {
+		--tab-label-fade: 26;
+		mask-image: linear-gradient(to left, transparent 16px, black calc(var(--tab-label-fade) * 1px));
 	}
 
 	.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
