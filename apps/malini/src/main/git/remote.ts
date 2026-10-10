@@ -430,8 +430,7 @@ export async function fastForwardCheckout(
 		await runGit(['-C', worktreePath, 'rev-parse', '--verify', `${targetRef}^{commit}`])
 	).trim();
 	if (head === target) return 'current';
-	const mergeBase = (await runGit(['-C', worktreePath, 'merge-base', head, target])).trim();
-	if (mergeBase !== head) return 'diverged';
+	if (!(await isAncestor(worktreePath, head, target))) return 'diverged';
 	await runGit([
 		'-C',
 		worktreePath,
@@ -443,4 +442,14 @@ export async function fastForwardCheckout(
 		target,
 	]);
 	return 'advanced';
+}
+
+async function isAncestor(worktreePath: string, commit: string, of: string): Promise<boolean> {
+	try {
+		await runGit(['-C', worktreePath, 'merge-base', '--is-ancestor', commit, of]);
+		return true;
+	} catch (error) {
+		if (error instanceof GitError && error.exitCode === 1) return false;
+		throw error;
+	}
 }

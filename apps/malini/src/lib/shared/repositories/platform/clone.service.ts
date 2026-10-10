@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { mkdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import {
 	GH_CREDENTIAL_HELPER_CONFIG,
 	normalizeGithubToken,
@@ -117,21 +118,21 @@ async function cleanupFailedBaseClone(
 	baseDirExistedBeforeClone: boolean,
 ): Promise<void> {
 	if (!repoDirExistedBeforeClone) {
-		await rm(repoDir, { recursive: true, force: true });
+		await originalFs.rm(repoDir, { recursive: true, force: true });
 		return;
 	}
 	if (!baseDirExistedBeforeClone && existsSync(baseDir)) {
-		await rm(baseDir, { recursive: true, force: true });
+		await originalFs.rm(baseDir, { recursive: true, force: true });
 	}
 }
 
 export async function cleanupCreatedBaseClone(outcome: BaseCloneOutcome): Promise<void> {
 	if (outcome.baseDirExistedBeforeClone) return;
 	if (!outcome.repoDirExistedBeforeClone) {
-		await rm(outcome.repoDir, { recursive: true, force: true });
+		await originalFs.rm(outcome.repoDir, { recursive: true, force: true });
 		return;
 	}
 	if (existsSync(outcome.path)) {
-		await rm(outcome.path, { recursive: true, force: true });
+		await originalFs.rm(outcome.path, { recursive: true, force: true });
 	}
 }

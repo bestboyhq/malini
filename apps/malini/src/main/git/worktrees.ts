@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, type Stats } from 'node:fs';
-import { chmod, lstat, readdir, rm } from 'node:fs/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { basename, dirname, join } from 'node:path';
+import { promises as originalFs } from 'original-fs';
 import { deriveBranchFromPath, deriveProjectId, WORKSTREAM_BRANCH_PREFIX } from './paths';
 import { GitError } from '$main/errors';
 import { runGit } from './run';
@@ -272,25 +272,26 @@ export type RemoveDirectory = (path: string) => Promise<void>;
 
 const removeDirectoryReal: RemoveDirectory = async (path) => {
 	try {
-		await rm(path, { recursive: true, force: false, maxRetries: 0 });
+		await originalFs.rm(path, { recursive: true, force: false, maxRetries: 0 });
 	} catch (error) {
 		if (!isErrnoException(error) || (error.code !== 'EACCES' && error.code !== 'EPERM'))
 			throw error;
 		await makeDirectoriesWritable(path);
-		await rm(path, { recursive: true, force: false, maxRetries: 0 });
+		await originalFs.rm(path, { recursive: true, force: false, maxRetries: 0 });
 	}
 };
 
 async function makeDirectoriesWritable(path: string): Promise<void> {
 	let stats: Stats;
 	try {
-		stats = await lstat(path);
+		stats = await originalFs.lstat(path);
 	} catch {
 		return;
 	}
 	if (!stats.isDirectory()) return;
-	await chmod(path, stats.mode | 0o700);
-	for (const entry of await readdir(path)) await makeDirectoriesWritable(join(path, entry));
+	await originalFs.chmod(path, stats.mode | 0o700);
+	for (const entry of await originalFs.readdir(path))
+		await makeDirectoriesWritable(join(path, entry));
 }
 
 export async function removeCheckoutDirResilient(

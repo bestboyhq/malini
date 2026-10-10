@@ -19,8 +19,11 @@ const rendererAlias = {
 	'$hyper-ui': hyperUi,
 };
 
-/** The main process additionally resolves `$main`. */
-const nodeAlias = { ...rendererAlias, $main: mainSrc };
+/**
+ * The main process additionally resolves `$main`, and `original-fs`, which
+ * only Electron provides, to the plain Node `fs` it is a copy of.
+ */
+const nodeAlias = { ...rendererAlias, $main: mainSrc, 'original-fs': 'node:fs' };
 
 /**
  * Four kinds of project. The main-process tests run on Node against the real

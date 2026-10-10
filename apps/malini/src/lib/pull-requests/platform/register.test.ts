@@ -793,11 +793,20 @@ describe('pull request commands', () => {
 		await merge();
 		expect(git(checkout, 'rev-parse', 'HEAD')).toBe(local);
 
-		git(checkout, 'checkout', '-q', '-b', 'feature');
+		git(checkout, 'checkout', '-q', '--orphan', 'unrelated');
+		git(checkout, 'commit', '-q', '--allow-empty', '-m', 'unrelated root');
+		git(checkout, 'branch', '-M', 'main');
+		const unrelated = git(checkout, 'rev-parse', 'HEAD');
 		mergeOnGithub('Merge #9');
+		await merge();
+		expect(git(checkout, 'rev-parse', 'HEAD')).toBe(unrelated);
+
+		git(checkout, 'checkout', '-q', '-b', 'feature');
+		mergeOnGithub('Merge #10');
 		await merge();
 		expect(synced).toEqual([
 			{ workstreamId: 'ws-1', checkout, branch: 'main', outcome: 'advanced' },
+			{ workstreamId: 'ws-1', checkout, branch: 'main', outcome: 'diverged' },
 			{ workstreamId: 'ws-1', checkout, branch: 'main', outcome: 'diverged' },
 		]);
 	});
