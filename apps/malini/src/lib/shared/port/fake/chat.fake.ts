@@ -73,6 +73,25 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		return { ...attachment };
 	});
 
+	bridge.define('chat.adopt-attachments', async (input) => {
+		const known = Object.values(state.stagedAgentAttachments).flat();
+		return input.attachmentIds.map((sourceId) => {
+			const source = known.find((attachment) => attachment.id === sourceId);
+			if (!source) return { sourceId, error: 'this attachment no longer exists' };
+			const staged = state.stagedAgentAttachments[input.workstreamId] ?? [];
+			const id = `att-${stableHex(`${input.workstreamId}:${sourceId}:${staged.length}`, 32)}`;
+			const attachment: StagedAgentAttachment = {
+				...source,
+				id,
+				relativePath: `.malini/agent-attachments/${id}/${source.displayName}`,
+			};
+			state.stagedAgentAttachments[input.workstreamId] = [...staged, attachment];
+			return { sourceId, attachment: { ...attachment } };
+		});
+	});
+
+	bridge.define('chat.renew-staged-attachments', async () => {});
+
 	bridge.define('chat.stage-fork-transcript', async (input) => {
 		const parent = state.sessions.get(input.sessionId);
 		if (parent?.workstreamId !== input.workstreamId) {

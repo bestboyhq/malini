@@ -23,6 +23,7 @@
 	import { reattachAttachmentsCommand } from '$lib/chat/application/commands/reattach-attachments.command';
 	import { releaseDetachedAttachmentsCommand } from '$lib/chat/application/commands/release-detached-attachments.command';
 	import { stageClipboardAttachmentsCommand } from '$lib/chat/application/commands/stage-clipboard-attachments.command';
+	import { adoptPastedAttachmentsCommand } from '$lib/chat/application/commands/adopt-pasted-attachments.command';
 	import { submitComposerPromptCommand } from '$lib/chat/application/commands/submit-composer-prompt.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
@@ -48,12 +49,12 @@
 	import type { AgentIssueReference } from '$lib/chat/domain/issue-reference';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
-	import { elementReferenceKey, elementReferenceLabel } from '$lib/chat/domain/element-reference';
+	import { elementReferenceKey } from '$lib/chat/domain/element-reference';
 	import {
 		parseAgentIssueReferenceUrl,
 		sanitizeAgentIssueReferences,
 	} from '$lib/chat/domain/issue-reference';
-	import { elementChipId, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
+	import { foreignAttachmentIds, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { promptChipPreview } from './prompt-editor/prompt-chip-preview';
 	import type { ClipboardAttachmentCandidate } from './prompt-editor/clipboard-attachments';
 	import { Button } from '$hyper-ui/components/button';
@@ -72,6 +73,7 @@
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
+	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
 	import { formatRunUsage, lastRunUsage } from './session-runtime-metadata';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
@@ -183,33 +185,15 @@
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask malini to make a change…');
 	const runUsage = $derived(lastRunUsage(envelopes));
 
-	const composerChips = $derived<PromptChipDescriptor[]>([
-		...localAttachments.map((attachment) => ({
-			kind: 'attachment' as const,
-			id: attachment.id,
-			label: attachment.displayName,
-		})),
-		...selectedContextFiles.map((path) => ({
-			kind: 'context' as const,
-			id: path,
-			label: contextFileName(path),
-		})),
-		...localIssueReferences.map((reference) => ({
-			kind: 'issue' as const,
-			id: reference.url,
-			label: reference.identifier,
-		})),
-		...transcriptReferences.map((reference) => ({
-			kind: 'transcript' as const,
-			id: reference.sessionId,
-			label: reference.label,
-		})),
-		...elementReferences.map((reference) => ({
-			kind: 'element' as const,
-			id: elementChipId(reference.url, reference.domPath),
-			label: elementReferenceLabel(reference),
-		})),
-	]);
+	const composerChips = $derived<PromptChipDescriptor[]>(
+		draftChipDescriptors({
+			attachments: localAttachments,
+			contextFiles: selectedContextFiles,
+			issueReferences: localIssueReferences,
+			transcriptReferences,
+			elementReferences,
+		}),
+	);
 
 	let attachmentPreviewOwner = $state<string | null>(null);
 
@@ -249,6 +233,7 @@
 	type AttachmentRequest = Readonly<{
 		requestId: ChatRequestId;
 		draftScope: string;
+		adopting: readonly string[];
 	}>;
 
 	function trackAttachmentRequest(request: AttachmentRequest): void {
@@ -269,11 +254,10 @@
 			);
 			let changed = false;
 			for (const { request, outcome } of settled) {
-				if (outcome.status === 'failed') {
-					attachmentError = outcome.error;
-					continue;
-				}
+				if (outcome.status === 'failed') attachmentError = outcome.error;
 				if (request.draftScope !== draftScope) continue;
+				if (request.adopting.length > 0) prompt = readDraft(draftScope);
+				else if (outcome.status === 'failed') continue;
 				localAttachments = readAttachmentDraft(draftScope);
 				changed = true;
 			}
@@ -284,7 +268,7 @@
 	function attachClipboardFiles(candidates: readonly ClipboardAttachmentCandidate[]): void {
 		if (!workstreamId) return;
 		const requestId = newChatRequestId();
-		trackAttachmentRequest({ requestId, draftScope });
+		trackAttachmentRequest({ requestId, draftScope, adopting: [] });
 		stageClipboardAttachmentsCommand({
 			requestId,
 			workstreamId,
@@ -485,7 +469,7 @@
 	function openNativeFilePicker(): void {
 		addMenuOpen = false;
 		const requestId = newChatRequestId();
-		trackAttachmentRequest({ requestId, draftScope });
+		trackAttachmentRequest({ requestId, draftScope, adopting: [] });
 		pickAttachmentsCommand({ requestId, workstreamId, draftScope });
 	}
 
@@ -883,6 +867,18 @@
 		const attached = readAttachmentDraft(draftScope).length;
 		reattachAttachmentsCommand({ draftScope, prompt: value });
 		if (readAttachmentDraft(draftScope).length !== attached) syncAttachmentsFromDraft();
+		adoptPastedAttachments(value);
+	}
+
+	function adoptPastedAttachments(value: string): void {
+		const inFlight = new Set(attachmentRequests.flatMap((request) => request.adopting));
+		const pasted = foreignAttachmentIds(value, readAttachmentDraft(draftScope)).filter(
+			(id) => !inFlight.has(id),
+		);
+		if (!workstreamId || pasted.length === 0) return;
+		const requestId = newChatRequestId();
+		trackAttachmentRequest({ requestId, draftScope, adopting: pasted });
+		adoptPastedAttachmentsCommand({ requestId, workstreamId, draftScope, attachmentIds: pasted });
 	}
 
 	function onCancelClick(): void {

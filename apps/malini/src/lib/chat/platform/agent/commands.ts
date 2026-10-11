@@ -58,6 +58,8 @@ import {
 	workstreamHasUserRun,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
+import { promptChipIds } from '$lib/chat/domain/prompt-chip';
+import { userPromptText } from '../fork-transcript';
 import {
 	approvalDecisionResult,
 	normalizeRememberablePermission,
@@ -145,6 +147,14 @@ export interface SendPromptHooks {
 	readonly captureRunFinish: (runId: string) => Promise<void>;
 	readonly verifyAttachment?: (stored: StoredAttachment, worktree: string) => void;
 	readonly collectAttachmentGarbage?: (workstreamId: string, worktree: string, now: string) => void;
+	readonly prepareAttachments?: (
+		input: Readonly<{
+			workstreamId: string;
+			worktree: string;
+			prompt: string;
+			attachmentIds: readonly string[];
+		}>,
+	) => Promise<{ prompt: string; attachmentIds: string[] }>;
 	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 }
@@ -196,7 +206,7 @@ function transcriptEventLine(kind: string, payload: unknown): string | null {
 					? 'plan'
 					: null;
 	if (role === null || !isRecord(payload)) return null;
-	const text = payload['text'];
+	const text = role === 'user' ? userPromptText(payload) : payload['text'];
 	if (typeof text !== 'string') return null;
 	const trimmed = text.trim();
 	return trimmed.length === 0 ? null : `[${role}] ${trimmed}`;
@@ -1257,21 +1267,37 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		if (!row) throw new Error(`session \`${sessionId}\` not found`);
 		const workstreamId = row.workstream_id;
 		const supervisor = await runtime.ensureSessionReady(sessionId);
-		const attachmentIds = optionalStringArray(args, 'attachmentIds');
+		const requested = optionalStringArray(args, 'attachmentIds');
 		const worktree = resolvePromptWorktree(
 			db,
 			appDataRoot,
 			workstreamId,
-			attachmentIds,
+			[...requested, ...promptChipIds(prompt, 'attachment')],
 			deps.hooks,
 		);
+		let delivery: { prompt: string; attachmentIds: readonly string[] } = {
+			prompt,
+			attachmentIds: requested,
+		};
+		try {
+			delivery =
+				(await deps.hooks.prepareAttachments?.({
+					workstreamId,
+					worktree,
+					prompt,
+					attachmentIds: requested,
+				})) ?? delivery;
+		} catch (error) {
+			throw invalidContext(describe(error));
+		}
+		const { attachmentIds } = delivery;
 		return sendAgentPrompt(
 			db,
 			supervisor,
 			{
 				sessionId,
 				workstreamId,
-				prompt,
+				prompt: delivery.prompt,
 				clientRequestId: optionalString(args, 'clientRequestId'),
 				contextFiles: optionalStringArray(args, 'contextFiles'),
 				attachmentIds,

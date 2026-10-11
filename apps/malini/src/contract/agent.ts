@@ -106,6 +106,9 @@ export interface StagedAgentAttachment {
 	sha256: string;
 }
 
+export type AdoptedAgentAttachment =
+	{ sourceId: string; attachment: StagedAgentAttachment } | { sourceId: string; error: string };
+
 export interface StagedAgentAttachmentBytes {
 	mediaType: string;
 	base64: string;

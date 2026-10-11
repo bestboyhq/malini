@@ -1,8 +1,8 @@
 import { invoke } from '$shared/port/invoke';
 
 class ClipboardService {
-	write(text: string): Promise<void> {
-		return invoke('app.copy-text', { text });
+	write(text: string, html?: string): Promise<void> {
+		return invoke('app.copy-text', html === undefined ? { text } : { text, html });
 	}
 }
 

@@ -1,4 +1,5 @@
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+import type { AgentDraft } from '$lib/chat/domain/draft';
 import {
 	elementReferenceKey,
 	elementReferenceLabel,
@@ -128,6 +129,38 @@ export function describeInlinePromptChip(
 		testId: INLINE_PROMPT_CHIP_TEST_IDS[ref.kind],
 		attributes,
 	};
+}
+
+export function draftChipDescriptors(
+	draft: Omit<AgentDraft, 'text'>,
+): (PromptChipRef & { label: string })[] {
+	return [
+		...draft.attachments.map((attachment) => ({
+			kind: 'attachment' as const,
+			id: attachment.id,
+			label: attachment.displayName,
+		})),
+		...draft.contextFiles.map((path) => ({
+			kind: 'context' as const,
+			id: path,
+			label: promptChipFallbackLabel({ kind: 'context', id: path }),
+		})),
+		...draft.issueReferences.map((reference) => ({
+			kind: 'issue' as const,
+			id: reference.url,
+			label: reference.identifier,
+		})),
+		...draft.transcriptReferences.map((reference) => ({
+			kind: 'transcript' as const,
+			id: reference.sessionId,
+			label: reference.label,
+		})),
+		...draft.elementReferences.map((reference) => ({
+			kind: 'element' as const,
+			id: elementReferenceKey(reference),
+			label: elementReferenceLabel(reference),
+		})),
+	];
 }
 
 export function promptChipRefKey(ref: PromptChipRef): string {

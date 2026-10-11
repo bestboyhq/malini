@@ -458,14 +458,11 @@
 		outcomeOf: (requestId) => requestOutcome(requestId),
 		runs: () => runs,
 		blocked: () => workstreamRunInFlight,
+		workstreamId: () => workstreamId,
 		openEditor: (row, mutate) => {
 			if (row) return transcriptScroll.holdRowTop(row, mutate);
 			releaseScrollPin();
 			return Promise.resolve(mutate());
-		},
-		resizeEditor: (row, mutate) => {
-			if (row) void transcriptScroll.holdRowTop(row, mutate);
-			else mutate();
 		},
 	});
 

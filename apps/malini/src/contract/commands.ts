@@ -1,4 +1,5 @@
 import type {
+	AdoptedAgentAttachment,
 	AgentApprovalDecision,
 	AgentApprovalDecisionResult,
 	AgentApprovalScope,
@@ -252,6 +253,11 @@ export type StageAttachmentBytesArgs = Readonly<{
 
 export type StagedAttachmentArgs = Readonly<{ workstreamId: string; attachmentId: string }>;
 
+export type AdoptAttachmentsArgs = Readonly<{
+	workstreamId: string;
+	attachmentIds: readonly string[];
+}>;
+
 export type ClaimDockerServiceArgs = Readonly<{
 	repository: string;
 	scope: string;
@@ -285,7 +291,7 @@ export type SetSecretArgs = SecretKeyArgs & Readonly<{ value: string }>;
 
 export type OpenExternalUrlArgs = Readonly<{ url: string }>;
 
-export type SetClipboardTextArgs = Readonly<{ text: string }>;
+export type SetClipboardTextArgs = Readonly<{ text: string; html?: string }>;
 
 export type AppendRendererErrorArgs = Readonly<{ payload: RendererErrorPayload }>;
 
@@ -476,6 +482,11 @@ export interface ContractCommands {
 		args: StageAttachmentBytesArgs;
 		result: StagedAgentAttachment;
 	};
+	'chat.adopt-attachments': {
+		args: AdoptAttachmentsArgs;
+		result: AdoptedAgentAttachment[];
+	};
+	'chat.renew-staged-attachments': { args: AdoptAttachmentsArgs; result: void };
 	'chat.stage-fork-transcript': {
 		args: StageForkTranscriptArgs;
 		result: StagedAgentAttachment;
@@ -519,6 +530,7 @@ export type CommandResult<Name extends CommandName> = ContractCommands[Name]['re
 export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.copy-text',
 	'chat.activate-session',
+	'chat.adopt-attachments',
 	'chat.agent-health',
 	'providers.run-claude-setup',
 	'chat.agent-capabilities',
@@ -591,6 +603,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.release-owned-docker-container',
 	'repositories.remove',
 	'chat.remove-staged-attachment',
+	'chat.renew-staged-attachments',
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.restore-checkpoint',

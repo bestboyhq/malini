@@ -1,10 +1,14 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
+	import { beginPromptEditCommand } from '$lib/chat/application/commands/begin-prompt-edit.command';
+	import { endPromptEditCommand } from '$lib/chat/application/commands/end-prompt-edit.command';
+	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
+	import type { AgentDraft } from '$lib/chat/domain/draft';
 	import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 	import InlinePromptContent from './InlinePromptContent.svelte';
+	import PromptEditField from './PromptEditField.svelte';
 	import { Icon } from '$hyper-ui/icons';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Textarea } from '$hyper-ui/components/textarea';
 	import { avoidedByToasts } from '$hyper-ui/components/toast';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 
@@ -15,7 +19,7 @@
 		paused: boolean;
 		sendingId: string | null;
 		errorById: Readonly<Record<string, string>>;
-		onupdate: (id: string, prompt: string) => void;
+		onupdate: (id: string, edit: AgentDraft) => void;
 		onremove: (id: string) => void;
 		onsendnext: (id: string) => void | Promise<void>;
 		onpausechange: (workstreamId: string, paused: boolean) => void;
@@ -36,23 +40,45 @@
 
 	let editingId = $state<string | null>(null);
 	let editingWorkstreamId = $state<string | null>(null);
-	let editText = $state('');
+	let editField: PromptEditField | null = $state(null);
+	const editScope = $derived(editingId ? queuedEditScope(editingId) : '');
+	const editDraft = $derived(composerDraftQuery.data(editScope));
 
-	function beginEdit(item: QueuedPrompt): void {
+	function queuedEditScope(id: string): string {
+		return `edit|queued:${id}`;
+	}
+
+	async function beginEdit(item: QueuedPrompt): Promise<void> {
+		beginPromptEditCommand(queuedEditScope(item.id), {
+			text: item.prompt,
+			contextFiles: item.contextFiles,
+			attachments: item.attachments,
+			issueReferences: item.issueReferences,
+			transcriptReferences: item.transcriptReferences,
+			elementReferences: item.elementReferences,
+		});
 		editingId = item.id;
 		editingWorkstreamId = workstreamId;
-		editText = item.prompt;
 		onpausechange(workstreamId, true);
+		await tick();
+		editField?.focus();
 	}
 
 	function finishEdit(save: boolean): void {
 		const id = editingId;
 		const owner = editingWorkstreamId;
-		if (save && id && editText.trim()) onupdate(id, editText.trim());
+		if (!id || !owner) return;
+		const edit = editDraft;
+		const saved = save && edit.text.trim() !== '';
+		if (saved) onupdate(id, { ...edit, text: edit.text.trim() });
+		endPromptEditCommand({
+			workstreamId: owner,
+			scope: queuedEditScope(id),
+			keep: saved ? edit.attachments : (items.find((item) => item.id === id)?.attachments ?? []),
+		});
 		editingId = null;
 		editingWorkstreamId = null;
-		editText = '';
-		if (owner) onpausechange(owner, false);
+		onpausechange(owner, false);
 	}
 
 	function onEditKeydown(event: KeyboardEvent): void {
@@ -72,9 +98,7 @@
 		}
 	});
 
-	onDestroy(() => {
-		if (editingWorkstreamId) onpausechange(editingWorkstreamId, false);
-	});
+	onDestroy(() => finishEdit(false));
 </script>
 
 <section
@@ -123,21 +147,26 @@
 			>
 				{#if editingId === item.id}
 					<div class="flex items-start gap-2">
-						<Textarea
-							bind:value={editText}
-							rows={2}
-							ariaLabel="Edit queued prompt"
-							class="min-w-0 flex-1"
-							textareaClass="min-h-14 text-xs leading-relaxed"
-							onkeydown={onEditKeydown}
-						/>
+						<div
+							class="border-surface-input-border bg-surface-input focus-within:border-border-default min-w-0 flex-1 rounded-md border transition-[border-color]"
+						>
+							<PromptEditField
+								bind:this={editField}
+								{workstreamId}
+								scope={editScope}
+								ariaLabel="Edit queued prompt"
+								testId="queued-prompt-editor"
+								compact
+								onkeydown={onEditKeydown}
+							/>
+						</div>
 						<div class="flex shrink-0 items-center pt-0.5">
 							<Tooltip content="Save queued prompt · ⌘↵" placement="top">
 								<IconButton
 									variant="ghost"
 									size="sm"
 									class="text-fg-tertiary"
-									disabled={!editText.trim()}
+									disabled={!editDraft.text.trim()}
 									ariaLabel="Save queued prompt"
 									onclick={() => finishEdit(true)}
 								>
@@ -179,7 +208,7 @@
 									size="sm"
 									class="text-fg-tertiary"
 									ariaLabel={`Edit queued prompt ${index + 1}`}
-									onclick={() => beginEdit(item)}
+									onclick={() => void beginEdit(item)}
 								>
 									<Icon name="pencil" size={14} />
 								</IconButton>
