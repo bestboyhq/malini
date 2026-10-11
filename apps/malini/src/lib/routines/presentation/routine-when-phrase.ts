@@ -1,4 +1,4 @@
-import { compileWorkstreamAutomation } from '$shared/extensions/compile-automation-trigger';
+import { parseAutomationTrigger } from '$contract/automation-trigger';
 import type { RoutineWhenValidation } from '$lib/routines/domain/routine-when-phrase';
 
 export function validateRoutineWhenPhrase(when: string): RoutineWhenValidation {
@@ -6,7 +6,7 @@ export function validateRoutineWhenPhrase(when: string): RoutineWhenValidation {
 		return { ok: false, message: 'Choose when the routine should run.' };
 	}
 	try {
-		return { ok: true, description: compileWorkstreamAutomation(when).description };
+		return { ok: true, description: parseAutomationTrigger(when).description };
 	} catch (error) {
 		return { ok: false, message: error instanceof Error ? error.message : String(error) };
 	}

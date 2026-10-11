@@ -120,8 +120,8 @@ describe('route urls', () => {
 	it('reads the route out of the hash, defaulting to the root', () => {
 		expect(routeFromHash('')).toBe('/');
 		expect(routeFromHash('#')).toBe('/');
-		expect(routeFromHash('#/routines?agent=1')).toBe('/routines?agent=1');
-		expect(routeFromHash('#routines')).toBe('/routines');
+		expect(routeFromHash('#/jobs?agent=1')).toBe('/jobs?agent=1');
+		expect(routeFromHash('#jobs')).toBe('/jobs');
 	});
 
 	it('parses a route against the synthetic origin so pathname and search compare cleanly', () => {

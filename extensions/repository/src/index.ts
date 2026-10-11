@@ -4,7 +4,6 @@ import type {
 	ExtensionCommandManifest,
 	ExtensionDisposable,
 	ExtensionPanelManifest,
-	ExtensionPullRequestMergeMethod,
 	ExtensionSettingManifest,
 	ExtensionWorkstream,
 } from '@malini/extension-api';
@@ -12,7 +11,6 @@ import { EXTENSION_EVENTS } from '@malini/extension-api';
 import {
 	RepositoryController,
 	repositorySurfaceState,
-	type PullRequestActionInput,
 	type RepositoryViewState,
 } from './controller.js';
 import {
@@ -25,10 +23,6 @@ import {
 import { repositoryFileTabs } from './file-tab.js';
 import { createRepositoryPanel } from './panel.js';
 import { COMMON_TREE_ICON_IDS, decodeTreeIcons, repositoryTreeIconIds } from './tree-icons.js';
-import type {
-	PullRequestAutomationContext,
-	PullRequestAutomationEvent,
-} from './pull-request-metadata.js';
 
 let owned: ExtensionDisposable[] = [];
 
@@ -53,30 +47,10 @@ const repositoryExtension: ExtensionModule = {
 				'commands',
 				'malini.repository.refresh-pull-request',
 			);
-			const preparePullRequestFixCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.prepare-pull-request-fix',
-			);
-			const pullLatestCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.pull-latest',
-			);
-			const continueAfterMergeCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.continue-after-merge',
-			);
 			const abortOperationCommand = requireContribution(
 				api,
 				'commands',
 				'malini.repository.abort-operation',
-			);
-			const markPullRequestReadyCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.mark-pull-request-ready',
 			);
 			const selectCommand = requireContribution(api, 'commands', 'malini.repository.select-file');
 			const openFileCommand = requireContribution(api, 'commands', 'malini.repository.open-file');
@@ -87,21 +61,6 @@ const repositoryExtension: ExtensionModule = {
 				'malini.repository.open-agent-session-diff',
 			);
 			const statusCommand = requireContribution(api, 'commands', 'malini.repository.status');
-			const commitAndPushCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.commit-and-push',
-			);
-			const pullRequestCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.create-or-open-pull-request',
-			);
-			const mergePullRequestCommand = requireContribution(
-				api,
-				'commands',
-				'malini.repository.merge-pull-request',
-			);
 			const todosCommand = requireContribution(api, 'commands', 'malini.repository.todos');
 			const addTodoCommand = requireContribution(api, 'commands', 'malini.repository.todo-add');
 			const toggleTodoCommand = requireContribution(
@@ -135,24 +94,8 @@ const repositoryExtension: ExtensionModule = {
 					handler: () => controller.refreshPullRequest(),
 				}),
 				api.commands.register({
-					...preparePullRequestFixCommand,
-					handler: () => controller.preparePullRequestFix(),
-				}),
-				api.commands.register({
-					...pullLatestCommand,
-					handler: () => controller.pullLatest(),
-				}),
-				api.commands.register({
-					...continueAfterMergeCommand,
-					handler: () => controller.continueAfterMerge(),
-				}),
-				api.commands.register({
 					...abortOperationCommand,
 					handler: () => controller.abortOperation(),
-				}),
-				api.commands.register({
-					...markPullRequestReadyCommand,
-					handler: () => controller.markPullRequestReadyForReview(),
 				}),
 				api.commands.register({
 					...selectCommand,
@@ -187,24 +130,6 @@ const repositoryExtension: ExtensionModule = {
 				api.commands.register({
 					...statusCommand,
 					handler: () => controller.snapshot(),
-				}),
-				api.commands.register({
-					...commitAndPushCommand,
-					handler: (input) => {
-						const action = parseCommitAndPushAction(input);
-						return controller.commitAndPush(action.context, action.changedPaths);
-					},
-				}),
-				api.commands.register({
-					...pullRequestCommand,
-					handler: (input) => controller.createOrOpenPullRequest(parsePullRequestAction(input)),
-				}),
-				api.commands.register({
-					...mergePullRequestCommand,
-					handler: (input) => {
-						const merge = parseMergeInput(input);
-						return controller.mergePullRequest(merge.mergeMethod, merge.expectedHeadSha);
-					},
 				}),
 				api.commands.register({
 					...todosCommand,
@@ -341,9 +266,7 @@ function requireContribution(
 export default repositoryExtension;
 
 export type {
-	PullRequestActionInput,
 	PullRequestRefreshStatus,
-	RepositoryPullRequestFixContext,
 	RepositorySurfaceState,
 	RepositoryTodosSnapshot,
 	RepositoryTodoStatus,
@@ -362,29 +285,12 @@ export {
 	pullRequestChecksHeadline,
 	repositoryGithubStatus,
 } from './github-status.js';
-export type {
-	AutomatedPullRequestMetadata,
-	AutomatedPullRequestMetadataInput,
-	DerivedCommitMessageInput,
-	PullRequestAutomationContext,
-	PullRequestAutomationEvent,
-	PullRequestAutomationEventStatus,
-} from './pull-request-metadata.js';
 export {
-	AUTOMATED_PULL_REQUEST_METADATA_LIMITS,
-	automatedPullRequestMetadata,
-	derivedCommitMessage,
-	sanitizePullRequestContextValue,
-} from './pull-request-metadata.js';
-export {
-	pullRequestBlockingChecks,
 	pullRequestCheckFailed,
 	pullRequestCheckPassed,
-	pullRequestChecksAllowMerge,
 	pullRequestHasReviewBlockers,
 	pullRequestMergeReadiness,
 	pullRequestReviewStatusUnavailable,
-	pullRequestViewerCanMerge,
 	selectPullRequestMergeMethod,
 } from './domain.js';
 export type { UpstreamPosition } from './upstream-position.js';
@@ -404,184 +310,6 @@ export {
 	repositoryTodoOpenCount,
 	sanitizeRepositoryTodoText,
 } from './todos/domain.js';
-
-const MERGE_METHODS: ReadonlySet<string> = new Set(['merge', 'squash', 'rebase']);
-
-function isMergeMethod(input: unknown): input is ExtensionPullRequestMergeMethod {
-	return typeof input === 'string' && MERGE_METHODS.has(input);
-}
-
-type MergeInput = Readonly<{
-	mergeMethod: ExtensionPullRequestMergeMethod | undefined;
-	expectedHeadSha: string;
-}>;
-
-function parseMergeInput(input: unknown): MergeInput {
-	if (!isRecord(input)) {
-		throw new Error('Merge input must be an object');
-	}
-	const value = input;
-	const unsupported = Object.keys(value).find(
-		(key) => key !== 'mergeMethod' && key !== 'expectedHeadSha',
-	);
-	if (unsupported) throw new Error(`Unsupported merge input field: ${unsupported}`);
-	if (typeof value.expectedHeadSha !== 'string' || !value.expectedHeadSha.trim()) {
-		throw new Error('Merge input must include the pull request head revision');
-	}
-	const mergeMethod = value.mergeMethod;
-	if (mergeMethod !== undefined && !isMergeMethod(mergeMethod)) {
-		throw new Error('Merge method is not a supported GitHub merge method');
-	}
-	return {
-		mergeMethod,
-		expectedHeadSha: value.expectedHeadSha.trim(),
-	};
-}
-
-function parsePullRequestAction(input: unknown): PullRequestActionInput {
-	if (input === undefined) return {};
-	if (!isRecord(input)) {
-		throw new Error('Pull request action input must be an object');
-	}
-	const value = input;
-	const unsupported = Object.keys(value).filter(
-		(key) => key !== 'draft' && key !== 'context' && key !== 'changedPaths',
-	);
-	if (unsupported.length > 0) {
-		throw new Error(
-			`Pull request metadata is generated automatically; unsupported field: ${unsupported[0]}`,
-		);
-	}
-	if (value.draft !== undefined && typeof value.draft !== 'boolean') {
-		throw new Error('Pull request draft must be a boolean');
-	}
-	return {
-		...(typeof value.draft === 'boolean' ? { draft: value.draft } : {}),
-		...(value.context === undefined ? {} : { context: parseAutomationContext(value.context) }),
-		...(value.changedPaths === undefined
-			? {}
-			: { changedPaths: optionalStringArray(value.changedPaths, 'changedPaths') ?? [] }),
-	};
-}
-
-function parseCommitAndPushAction(input: unknown): PullRequestActionInput {
-	const action = parsePullRequestAction(input);
-	if (action.draft !== undefined) {
-		throw new Error('Commit and push does not create a pull request; `draft` is not supported');
-	}
-	return action;
-}
-
-function parseAutomationContext(input: unknown): PullRequestAutomationContext {
-	if (!isRecord(input)) {
-		throw new Error('Pull request automation context must be an object');
-	}
-	const value = input;
-	const allowed = new Set([
-		'sessionTitle',
-		'lastUserIntent',
-		'runSummaries',
-		'latestRunId',
-		'pullRequestTitle',
-		'events',
-	]);
-	const unsupported = Object.keys(value).find((key) => !allowed.has(key));
-	if (unsupported)
-		throw new Error(`Unsupported pull request automation context field: ${unsupported}`);
-	const sessionTitle = optionalBoundedString(value.sessionTitle, 'sessionTitle');
-	const lastUserIntent = optionalBoundedString(value.lastUserIntent, 'lastUserIntent');
-	const runSummaries = optionalStringArray(value.runSummaries, 'runSummaries');
-	const latestRunId = optionalBoundedString(value.latestRunId, 'latestRunId');
-	const pullRequestTitle = optionalBoundedString(value.pullRequestTitle, 'pullRequestTitle');
-	const events = optionalEventArray(value.events);
-	return {
-		...(sessionTitle === undefined ? {} : { sessionTitle }),
-		...(lastUserIntent === undefined ? {} : { lastUserIntent }),
-		...(runSummaries === undefined ? {} : { runSummaries }),
-		...(latestRunId === undefined ? {} : { latestRunId }),
-		...(pullRequestTitle === undefined ? {} : { pullRequestTitle }),
-		...(events === undefined ? {} : { events }),
-	};
-}
-
-export const AUTOMATION_INPUT_STRING_LIMIT = 4_000;
-const AUTOMATION_INPUT_ARRAY_LIMIT = 32;
-
-const AUTOMATION_EVENT_STATUSES: ReadonlySet<string> = new Set([
-	'passed',
-	'failed',
-	'pending',
-	'completed',
-	'unknown',
-]);
-
-function isAutomationEventStatus(
-	input: unknown,
-): input is NonNullable<PullRequestAutomationEvent['status']> {
-	return typeof input === 'string' && AUTOMATION_EVENT_STATUSES.has(input);
-}
-
-function optionalBoundedString(input: unknown, field: string): string | undefined {
-	if (input === undefined) return undefined;
-	if (typeof input !== 'string')
-		throw new Error(`Pull request automation ${field} must be a string`);
-	if (Array.from(input).length > AUTOMATION_INPUT_STRING_LIMIT) {
-		throw new Error(
-			`Pull request automation ${field} exceeds ${AUTOMATION_INPUT_STRING_LIMIT} characters`,
-		);
-	}
-	return input;
-}
-
-function optionalStringArray(input: unknown, field: string): readonly string[] | undefined {
-	if (input === undefined) return undefined;
-	if (!Array.isArray(input)) throw new Error(`Pull request automation ${field} must be an array`);
-	if (input.length > AUTOMATION_INPUT_ARRAY_LIMIT) {
-		throw new Error(
-			`Pull request automation ${field} supports at most ${AUTOMATION_INPUT_ARRAY_LIMIT} items`,
-		);
-	}
-	return input.map((item, index) => optionalBoundedString(item, `${field}[${index}]`) as string);
-}
-
-function optionalEventArray(input: unknown): readonly PullRequestAutomationEvent[] | undefined {
-	if (input === undefined) return undefined;
-	if (!Array.isArray(input)) throw new Error('Pull request automation events must be an array');
-	if (input.length > AUTOMATION_INPUT_ARRAY_LIMIT) {
-		throw new Error(
-			`Pull request automation events supports at most ${AUTOMATION_INPUT_ARRAY_LIMIT} items`,
-		);
-	}
-	return input.map((event, index) => parseAutomationEvent(event, index));
-}
-
-function parseAutomationEvent(input: unknown, index: number): PullRequestAutomationEvent {
-	if (!isRecord(input)) {
-		throw new Error(`Pull request automation events[${index}] must be an object`);
-	}
-	const value = input;
-	const allowed = new Set(['kind', 'label', 'status', 'detail']);
-	const unsupported = Object.keys(value).find((key) => !allowed.has(key));
-	if (unsupported) {
-		throw new Error(`Unsupported pull request automation event field: ${unsupported}`);
-	}
-	if (value.kind !== 'terminal' && value.kind !== 'validation') {
-		throw new Error(`Pull request automation events[${index}].kind is invalid`);
-	}
-	const label = optionalBoundedString(value.label, `events[${index}].label`);
-	if (!label?.trim()) throw new Error(`Pull request automation events[${index}].label is required`);
-	if (value.status !== undefined && !AUTOMATION_EVENT_STATUSES.has(String(value.status))) {
-		throw new Error(`Pull request automation events[${index}].status is invalid`);
-	}
-	const detail = optionalBoundedString(value.detail, `events[${index}].detail`);
-	const status = isAutomationEventStatus(value.status) ? value.status : undefined;
-	return {
-		kind: value.kind,
-		label,
-		...(status ? { status } : {}),
-		...(detail === undefined ? {} : { detail }),
-	};
-}
 
 async function warmOtherWorkstreams(
 	api: ExtensionAPI,

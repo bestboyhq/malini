@@ -15,6 +15,13 @@
 	import { forgetRemovedWorkstreamChatsHook } from '$lib/chat/application/hooks/forget-removed-workstream-chats.hook';
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
 	import { announceLocalBaseSyncHook } from '$lib/pull-requests/application/hooks/announce-local-base-sync.hook';
+	import { watchShipStatesHook } from '$lib/pull-requests/application/hooks/watch-ship-states.hook';
+	import {
+		activeWorkstreamsQuery,
+		connectedRepositoriesQuery,
+		displayWorkstreamName,
+		repositoryContextForWorkstream,
+	} from '$shared/repositories/repositories.api';
 	import { provideSettingsOrigin } from './settings/settings-origin';
 
 	interface Props {
@@ -27,6 +34,8 @@
 	const stagePaysBandReserve = $derived(
 		sidebarCollapsedQuery.data && sidebarPresenceQuery.data && !globalTopBarBandSlot.adopted,
 	);
+	const workstreams = $derived(activeWorkstreamsQuery.data);
+	const repositories = $derived(connectedRepositoriesQuery.data);
 	let shell: HTMLDivElement | undefined = $state();
 
 	beforeNavigate(({ from, to }) => settingsOrigin.follow(from?.url, to?.url, shell));
@@ -41,7 +50,9 @@
 		const stopForgettingChats = forgetRemovedWorkstreamChatsHook();
 		const stopForgettingSurfaces = forgetRemovedWorkstreamSurfacesHook();
 		const stopAnnouncingLocalBaseSync = announceLocalBaseSyncHook();
+		const stopWatchingShips = watchShipStatesHook(workstreamName);
 		return () => {
+			stopWatchingShips();
 			stopAnnouncingLocalBaseSync();
 			stopForgettingSurfaces();
 			stopForgettingChats();
@@ -50,6 +61,13 @@
 			runtimeDiagnostics.reset();
 		};
 	});
+
+	function workstreamName(workstreamId: string): string | null {
+		const workstream = workstreams.find(({ id }) => id === workstreamId);
+		if (!workstream) return null;
+		const context = repositoryContextForWorkstream({ repositories, workstreams, workstreamId });
+		return displayWorkstreamName(workstream, context?.repo.fullName);
+	}
 </script>
 
 <div class="flex h-screen font-sans" bind:this={shell}>

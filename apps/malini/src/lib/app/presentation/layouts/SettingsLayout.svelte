@@ -22,6 +22,7 @@
 		{ href: '/settings', label: 'Agent', icon: 'sparkles' },
 		{ href: '/settings/agent-access', label: 'Agent access', icon: 'shield-alert' },
 		{ href: '/settings/appearance', label: 'Appearance', icon: 'contrast' },
+		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist' },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock' },
 	];
 

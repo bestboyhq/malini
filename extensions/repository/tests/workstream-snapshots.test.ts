@@ -812,11 +812,7 @@ function createHarness(
 				pullRequestQueries.push({ workstreamId: target.id, query: query ?? null });
 				return pullRequest(target, query);
 			},
-			createPullRequest: () => Promise.reject(new Error('not used')),
 			refresh: () => read(() => undefined),
-			commit: () => Promise.reject(new Error('not used')),
-			push: () => Promise.reject(new Error('not used')),
-			pullLatest: () => Promise.reject(new Error('not used')),
 			baseFiles,
 		},
 		settings: { get: () => false },

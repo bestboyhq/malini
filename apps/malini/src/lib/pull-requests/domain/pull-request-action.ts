@@ -1,58 +1,47 @@
 import type { WorktreeOperation } from '$contract/repositories';
-import type { PullRequestMergeMethod } from './pull-request';
-import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
 
 export type PullRequestActionKind =
 	| 'unavailable'
 	| 'reconnect'
-	| 'retry'
-	| 'fix'
-	| 'push'
-	| 'update'
-	| 'create'
-	| 'ready'
-	| 'todos'
-	| 'merge'
-	| 'merged'
-	| 'open'
-	| 'agent-running'
-	| 'checking'
 	| 'operation'
-	| 'no-changes';
+	| 'open-draft'
+	| 'opening-draft'
+	| 'queue-merge'
+	| 'queued'
+	| 'needs-you';
 
-export type PullRequestAvailability =
-	'ready' | 'agent-running' | 'github-unavailable' | 'extension-unavailable';
+export type PullRequestAvailability = 'ready' | 'github-unavailable' | 'extension-unavailable';
 
-export type PullRequestTopBarPresentation = Readonly<{
+export type PullRequestTopBarAction = Readonly<{
 	kind: PullRequestActionKind;
 	label: string;
-	busyLabel: string;
 	ariaLabel: string;
 	tooltip: string;
 	disabled: boolean;
+	busy: boolean;
 	tone: 'primary' | 'secondary';
-	remoteFailure: string | null;
 }>;
 
-export type PullRequestActionContext = Readonly<{
-	pullRequestPublished: boolean;
-	worktreeFailed: boolean;
+export type PullRequestMenuItemId = 'retry-merge' | 'cancel-merge' | 'abort-operation' | 'refresh';
+
+export type PullRequestMenuItem = Readonly<{
+	id: PullRequestMenuItemId;
+	label: string;
+	confirmLabel: string | null;
+}>;
+
+export type PullRequestTopBar = Readonly<{
+	action: PullRequestTopBarAction | null;
+	menu: readonly PullRequestMenuItem[];
+	remoteFailure: string | null;
+	pullRequestNumber: number | null;
+	url: string | null;
 }>;
 
 export const REPOSITORY_EXTENSION_COMMANDS = Object.freeze({
 	status: 'malini.repository.status',
 	refresh: 'malini.repository.refresh',
-	refreshPullRequest: 'malini.repository.refresh-pull-request',
-	prepareFix: 'malini.repository.prepare-pull-request-fix',
-	commitAndPush: 'malini.repository.commit-and-push',
-	createOrOpenPullRequest: 'malini.repository.create-or-open-pull-request',
-	pullLatest: 'malini.repository.pull-latest',
-	continueAfterMerge: 'malini.repository.continue-after-merge',
 	abortOperation: 'malini.repository.abort-operation',
-	mergePullRequest: 'malini.repository.merge-pull-request',
-	markPullRequestReady: 'malini.repository.mark-pull-request-ready',
-	todos: 'malini.repository.todos',
-	filesPanel: 'malini.repository.files-panel',
 });
 
 export type PullRequestReadiness = Readonly<{
@@ -60,83 +49,14 @@ export type PullRequestReadiness = Readonly<{
 	extensionReady: boolean;
 	remotePullRequestsSupported: boolean;
 	repositoryExtensionRegistered: boolean;
-	agentRunning: boolean;
 }>;
 
 export function pullRequestAvailabilityOf(
 	readiness: PullRequestReadiness,
 ): PullRequestAvailability {
-	const ready = readiness.agentRunning ? 'agent-running' : 'ready';
-	if (!readiness.repositoryScopeReady || !readiness.extensionReady) return ready;
+	if (!readiness.repositoryScopeReady || !readiness.extensionReady) return 'ready';
 	if (!readiness.remotePullRequestsSupported) return 'github-unavailable';
-	return readiness.repositoryExtensionRegistered ? ready : 'extension-unavailable';
-}
-
-export function pullRequestActionCommandId(
-	kind: PullRequestActionKind,
-	context: PullRequestActionContext,
-): string {
-	if (kind === 'fix') return REPOSITORY_EXTENSION_COMMANDS.prepareFix;
-	if (kind === 'push' && context.pullRequestPublished) {
-		return REPOSITORY_EXTENSION_COMMANDS.commitAndPush;
-	}
-	if (kind === 'create' || kind === 'push') {
-		return REPOSITORY_EXTENSION_COMMANDS.createOrOpenPullRequest;
-	}
-	if (kind === 'update') return REPOSITORY_EXTENSION_COMMANDS.pullLatest;
-	if (kind === 'merge') return REPOSITORY_EXTENSION_COMMANDS.mergePullRequest;
-	if (kind === 'retry' && context.worktreeFailed) return REPOSITORY_EXTENSION_COMMANDS.refresh;
-	if (kind === 'ready') return REPOSITORY_EXTENSION_COMMANDS.markPullRequestReady;
-	return REPOSITORY_EXTENSION_COMMANDS.refreshPullRequest;
-}
-
-export type PullRequestMergeInput = Readonly<{
-	expectedHeadSha: string;
-	mergeMethod: PullRequestMergeMethod;
-}>;
-
-export function pullRequestMergeInput(
-	pullRequest: SurfacePullRequest | null,
-): PullRequestMergeInput | undefined {
-	if (!pullRequest?.headSha || !pullRequest.mergeMethod) return undefined;
-	return { expectedHeadSha: pullRequest.headSha, mergeMethod: pullRequest.mergeMethod };
-}
-
-export type PullRequestActionOutcome = Readonly<{
-	level: 'success' | 'info';
-	message: string;
-}>;
-
-export function pullRequestActionOutcome(
-	kind: PullRequestActionKind,
-	after: Pick<RepositorySurface, 'conflictedPaths'>,
-	resolvedReviewThreads = 0,
-): PullRequestActionOutcome | null {
-	if (kind === 'update' && after.conflictedPaths.length > 0) {
-		return {
-			level: 'info',
-			message: 'The update stopped on merge conflicts. Resolve conflicts to finish it',
-		};
-	}
-	if (resolvedReviewThreads === 0) return null;
-	return {
-		level: 'success',
-		message: `${reviewThreads(resolvedReviewThreads)} resolved on GitHub`,
-	};
-}
-
-export function alreadyAddressedReviewThreadsMessage(resolved: number): string {
-	return `${reviewThreads(resolved)} resolved · already addressed on GitHub`;
-}
-
-export function reviewThreadsLeftOpenMessage(failures: readonly string[]): string | null {
-	const [failure] = failures;
-	if (failure === undefined) return null;
-	return `${failures.length === 1 ? 'A review thread was' : `${failures.length} review threads were`} left open · ${failure}`;
-}
-
-function reviewThreads(count: number): string {
-	return `${count} review thread${count === 1 ? '' : 's'}`;
+	return readiness.repositoryExtensionRegistered ? 'ready' : 'extension-unavailable';
 }
 
 const OPERATION_NOUNS: Readonly<Record<WorktreeOperation, string>> = {
@@ -148,10 +68,6 @@ const OPERATION_NOUNS: Readonly<Record<WorktreeOperation, string>> = {
 
 export function worktreeOperationNoun(operation: WorktreeOperation): string {
 	return OPERATION_NOUNS[operation];
-}
-
-export function pullRequestActionRefreshesGitStatus(kind: PullRequestActionKind): boolean {
-	return kind === 'create' || kind === 'push' || kind === 'update';
 }
 
 export function pullRequestActionFailureDetail(error: unknown, fallback: string): string {

@@ -48,9 +48,10 @@ import {
 	nameSession,
 	promptPlainText,
 	repairSessionStatusesWithoutOpenRuns,
+	sessionAwaitsTitle,
 	sessionContextIdentity,
-	sessionHasUserRun,
 	type AgentSessionSummary,
+	type SessionIdentity,
 } from '../sessions.repository';
 import {
 	getWorkstream,
@@ -102,6 +103,7 @@ const MAX_PROMPT_ELEMENT_REFERENCES = 5;
 const MAX_PROMPT_ELEMENT_URL_BYTES = 4 * 2_048;
 const MAX_PROMPT_ELEMENT_DOM_PATH_BYTES = 4 * 4_096;
 const MAX_PROMPT_ELEMENT_HTML_BYTES = 4 * 4_096;
+const MAX_SESSION_DISPLAY_NAME_CHARS = 80;
 
 export const CONTINUE_AFTER_PAUSE_PROMPT =
 	'malini restarted while you were working and cut your last step short. Nobody rejected it: re-run whatever was interrupted and continue where you left off.';
@@ -381,6 +383,7 @@ export async function startAgentSession(
 	workstreamId: string,
 	model: string | null,
 	ids: IdSequence,
+	identity?: SessionIdentity,
 ): Promise<string> {
 	try {
 		validateAgentModel(model);
@@ -404,14 +407,18 @@ export async function startAgentSession(
 		providerSessionId: null,
 		worktreePath: worktree,
 	});
-	insertSession(db, {
-		id: sessionId,
-		workstreamId,
-		model,
-		providerSessionId: null,
-		status: 'idle',
-		startedAt: nowIso8601(),
-	});
+	insertSession(
+		db,
+		{
+			id: sessionId,
+			workstreamId,
+			model,
+			providerSessionId: null,
+			status: 'idle',
+			startedAt: nowIso8601(),
+		},
+		identity,
+	);
 	try {
 		await supervisor.sendCommand(command);
 	} catch (error) {
@@ -690,7 +697,7 @@ function nameFromFirstUserPrompt(
 	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ): void {
-	if (sessionHasUserRun(db, input.sessionId)) return;
+	if (!sessionAwaitsTitle(db, input.sessionId)) return;
 	const namesWorkstream = !workstreamHasUserRun(db, input.workstreamId);
 	void nameChat(db, supervisor, input, namesWorkstream, hooks, log);
 }
@@ -1200,6 +1207,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 	commands.define('chat.start-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
 		const model = optionalString(args, 'model');
+		const identity = parseSessionIdentity(args);
 		const supervisor = await runtime.ensureReady();
 		const sessionId = await startAgentSession(
 			db,
@@ -1208,6 +1216,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 			workstreamId,
 			model,
 			ids,
+			identity,
 		);
 		runtime.markSessionRegistered(sessionId, supervisor);
 		return sessionId;
@@ -1446,6 +1455,23 @@ function optionalStringArray(args: unknown, key: string): string[] {
 		throw new Error(`invalid args: \`${key}\` must be an array of strings`);
 	}
 	return values;
+}
+
+function parseSessionIdentity(args: unknown): SessionIdentity {
+	const origin = field(args, 'origin') ?? 'user';
+	if (origin !== 'user' && origin !== 'job') {
+		throw new Error("invalid args: `origin` must be 'user' or 'job'");
+	}
+	const requestedName = optionalString(args, 'displayName');
+	if (requestedName === null) return { origin, displayName: null };
+	const displayName = requestedName.replace(/\p{Cc}+/gu, ' ').trim();
+	const length = [...displayName].length;
+	if (length === 0 || length > MAX_SESSION_DISPLAY_NAME_CHARS) {
+		throw new Error(
+			`invalid args: \`displayName\` must be 1-${MAX_SESSION_DISPLAY_NAME_CHARS} characters`,
+		);
+	}
+	return { origin, displayName };
 }
 
 function parseTranscriptReference(value: unknown): AgentTranscriptReference {

@@ -21,8 +21,8 @@ export const routes: RouteNode = {
 			],
 		},
 		{
-			segment: 'routines',
-			page: () => import('./presentation/pages/RoutinesPage.svelte'),
+			segment: 'jobs',
+			page: () => import('./presentation/pages/JobsPage.svelte'),
 		},
 		{
 			segment: 'settings',
@@ -36,6 +36,10 @@ export const routes: RouteNode = {
 				{
 					segment: 'appearance',
 					page: () => import('./presentation/pages/AppearanceSettingsPage.svelte'),
+				},
+				{
+					segment: 'jobs',
+					page: () => import('./presentation/pages/JobsSettingsPage.svelte'),
 				},
 				{
 					segment: 'privacy',

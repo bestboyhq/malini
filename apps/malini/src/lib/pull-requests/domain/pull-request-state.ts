@@ -1,8 +1,15 @@
-import { surfaceBlockingChecks } from './pull-request-top-bar';
+import { needsYouReasonLabel, type PullRequestShip } from './pull-request-ship';
 import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
 
-export type PullRequestState =
-	'none' | 'draft' | 'open' | 'ready' | 'failing' | 'merged' | 'closed' | 'unknown';
+export type PullRequestState = 'none' | 'draft' | 'open' | 'merged' | 'closed' | 'unknown';
+
+export type PullRequestPhase =
+	'none' | 'draft' | 'open' | 'queued' | 'needs-you' | 'merged' | 'unknown';
+
+export type PullRequestBadge = Readonly<{
+	phase: PullRequestPhase;
+	label: string | null;
+}>;
 
 export type PullRequestTarget = Readonly<{
 	workstreamId: string;
@@ -17,16 +24,13 @@ export const PULL_REQUEST_STATE_REUSE_MS = PULL_REQUEST_STATE_POLL_INTERVAL_MS /
 
 export function pullRequestStateOf(pullRequest: SurfacePullRequest | null): PullRequestState {
 	switch (pullRequest?.state) {
-		case 'merged':
-			return 'merged';
-		case 'closed':
-			return 'closed';
 		case 'not_open':
 			return 'none';
 		case 'draft':
-			return 'draft';
 		case 'open':
-			return openPullRequestState(pullRequest);
+		case 'merged':
+		case 'closed':
+			return pullRequest.state;
 		default:
 			return 'unknown';
 	}
@@ -38,44 +42,32 @@ export function observedPullRequestState(surface: RepositorySurface): PullReques
 	return state === 'unknown' ? null : state;
 }
 
-function openPullRequestState(pullRequest: SurfacePullRequest): PullRequestState {
-	const blockingChecks = surfaceBlockingChecks(pullRequest.checkItems);
-	if (blockingChecks.some((check) => check.failed)) return 'failing';
-	if (pullRequest.checkItems.length === 0 && pullRequest.checks === 'failed') return 'failing';
-	if (
-		checksAreGreen(pullRequest) &&
-		!hasReviewBlockers(pullRequest) &&
-		!pullRequest.reviewStatusUnavailable &&
-		!mergeIsBlocked(pullRequest)
-	) {
-		return 'ready';
+export function pullRequestBadge(
+	ship: PullRequestShip | null,
+	state: PullRequestState,
+): PullRequestBadge {
+	if (ship?.phase === 'queued') return { phase: 'queued', label: 'Merge queued' };
+	if (ship?.phase === 'needs-you') {
+		const reason = ship.needsYou?.reason;
+		return {
+			phase: 'needs-you',
+			label: reason ? `Needs you · ${needsYouReasonLabel(reason, null)}` : 'Needs you',
+		};
 	}
-	return 'open';
-}
-
-function checksAreGreen(pullRequest: SurfacePullRequest): boolean {
-	if (pullRequest.checks === 'unknown' || pullRequest.checks === 'none') return false;
-	if (pullRequest.checkItems.length > 0) {
-		return surfaceBlockingChecks(pullRequest.checkItems).length === 0;
+	if (ship && (state === 'none' || state === 'draft' || state === 'unknown')) {
+		return {
+			phase: 'draft',
+			label: ship.pullRequestNumber === null ? 'Opening draft' : 'Draft pull request',
+		};
 	}
-	return pullRequest.checks === 'success';
+	return STATE_BADGES[state];
 }
 
-function hasReviewBlockers(pullRequest: SurfacePullRequest): boolean {
-	return (
-		pullRequest.reviewDecision === 'changes_requested' ||
-		pullRequest.reviewDecision === 'review_required' ||
-		(pullRequest.unresolvedReviewThreadCount ?? 0) > 0
-	);
-}
-
-function mergeIsBlocked(pullRequest: SurfacePullRequest): boolean {
-	if (pullRequest.mergeable === false) return true;
-	const mergeableState = pullRequest.mergeableState?.trim().toLocaleLowerCase() ?? '';
-	return (
-		mergeableState === 'blocked' ||
-		mergeableState === 'dirty' ||
-		mergeableState === 'behind' ||
-		mergeableState === 'draft'
-	);
-}
+const STATE_BADGES: Readonly<Record<PullRequestState, PullRequestBadge>> = {
+	none: { phase: 'none', label: 'No pull request' },
+	closed: { phase: 'none', label: 'Pull request closed' },
+	draft: { phase: 'draft', label: 'Draft pull request' },
+	open: { phase: 'open', label: 'Pull request open' },
+	merged: { phase: 'merged', label: 'Merged' },
+	unknown: { phase: 'unknown', label: null },
+};

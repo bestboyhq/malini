@@ -33,6 +33,7 @@ class ChatOccupancyService {
 		return sessionsAggregate.listSessions().map((candidate) => ({
 			id: candidate.id,
 			workstreamId: transcriptAggregate.ownerOf(candidate.id) ?? candidate.workstreamId,
+			origin: candidate.origin,
 			startedAt: candidate.startedAt,
 			matchesTurn: this.#sessionMatchesTurn(candidate.id, role, selection),
 			busy: this.sessionIsBusy(candidate.id),

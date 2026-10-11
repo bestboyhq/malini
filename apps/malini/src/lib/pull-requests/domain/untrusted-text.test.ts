@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizePullRequestContextValue } from '@malini-extension/repository';
+import { sanitizePullRequestContextValue } from '$shared/repositories/domain/pull-request-metadata';
 import { codePointLength, untrustedSingleLine } from './untrusted-text';
 
 const SAMPLES: readonly string[] = [
