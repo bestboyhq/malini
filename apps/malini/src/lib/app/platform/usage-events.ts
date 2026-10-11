@@ -13,6 +13,7 @@ const plain = (): UsageProperties => ({});
 
 export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'app.close-guard': false,
+	'app.copy-image': false,
 	'app.copy-text': false,
 	'app.delete-secret': false,
 	'app.destroy-window': false,

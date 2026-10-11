@@ -42,6 +42,7 @@
 	import BufferedStreamingMarkdown from './BufferedStreamingMarkdown.svelte';
 	import BufferedStreamingText from './BufferedStreamingText.svelte';
 	import RunStatusLine from './RunStatusLine.svelte';
+	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
@@ -1000,6 +1001,7 @@
 			onclose={() => (gallery = null)}
 		/>
 	{/if}
+	<ImageContextMenu {workstreamId} />
 	<FileMentionChooser
 		open={fileMentionChooserOpen}
 		choice={fileMentionChoice}
