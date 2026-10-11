@@ -281,6 +281,7 @@
 	const { releaseScrollPin } = transcriptScroll;
 	const rowArrivals = createRowArrivals({
 		settle,
+		opening: () => transcriptScroll.opening,
 		prefersReducedMotion: () => reducedMotion,
 	});
 	const { stageEnter, promptArrival, glideRowLayout, rebaseRowLayout } = rowArrivals;
@@ -711,8 +712,8 @@
 	});
 
 	$effect(() => {
-		void spaceBelow;
-		untrack(() => transcriptScroll.followSpaceBelowChange());
+		const space = spaceBelow;
+		untrack(() => transcriptScroll.followSpaceBelowChange(space));
 	});
 
 	$effect(() => {
@@ -946,7 +947,7 @@
 							{/if}
 
 							{#if isLastRun}
-								<RunStatusLine {renderState} {waitingForUser} />
+								<RunStatusLine {runs} {waitingForUser} />
 							{/if}
 
 							{#if run.terminal !== null && run.terminal !== 'completed'}
