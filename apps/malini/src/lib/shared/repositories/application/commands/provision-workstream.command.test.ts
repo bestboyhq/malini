@@ -92,6 +92,7 @@ function commands(): string[] {
 			(command) =>
 				command.startsWith('repositories.') &&
 				command !== 'repositories.list-workstreams' &&
+				command !== 'repositories.list-archived-workstreams' &&
 				command !== 'repositories.list-repositories',
 		);
 }
@@ -214,21 +215,6 @@ describe('provisioning a workstream', () => {
 		expect(commands()).toContain('repositories.provision-dependencies');
 	});
 
-	it('says quietly when the workstream keeps its own commits on the base it started from', async () => {
-		const info = vi.spyOn(toast, 'info');
-		platform.define('repositories.sync-workstream-base', () => 'diverged');
-		const plan = clonedPlan();
-		stage(plan);
-
-		provisionWorkstreamCommand(plan);
-
-		await vi.waitFor(() => expect(workstreamProvisioning.get(WORKSTREAM_ID)).toBeNull());
-		expect(info).toHaveBeenCalledWith(
-			'Copper Voyage already has its own commits, so it stays on the main it started from',
-			{ context: { workstream: WORKSTREAM_ID } },
-		);
-	});
-
 	it('stays silent when the base was already current or was brought up to date', async () => {
 		const info = vi.spyOn(toast, 'info');
 		const warning = vi.spyOn(toast, 'warning');
@@ -241,6 +227,18 @@ describe('provisioning a workstream', () => {
 		await vi.waitFor(() => expect(workstreamProvisioning.get(WORKSTREAM_ID)).toBeNull());
 		expect(info).not.toHaveBeenCalled();
 		expect(warning).not.toHaveBeenCalled();
+	});
+
+	it('stays silent when the workstream keeps its own commits on the base it started from', async () => {
+		const info = vi.spyOn(toast, 'info');
+		platform.define('repositories.sync-workstream-base', () => 'diverged');
+		const plan = clonedPlan();
+		stage(plan);
+
+		provisionWorkstreamCommand(plan);
+
+		await vi.waitFor(() => expect(workstreamProvisioning.get(WORKSTREAM_ID)).toBeNull());
+		expect(info).not.toHaveBeenCalled();
 	});
 
 	it('does not sync a base it has just cloned', async () => {

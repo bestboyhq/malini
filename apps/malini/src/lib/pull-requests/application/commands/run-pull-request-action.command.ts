@@ -11,7 +11,6 @@ import {
 	pullRequestActionCommandId,
 	type PullRequestTopBarPresentation,
 	pullRequestActionFailureDetail,
-	pullRequestActionOutcome,
 	pullRequestActionRefreshesGitStatus,
 	pullRequestAvailabilityOf,
 	pullRequestMergeInput,
@@ -123,10 +122,6 @@ function runPullRequestAction(seams: PullRequestActionSeams, origin: 'clicked' |
 				if (!pullRequestScopeStore.isCurrent(scope)) return;
 			}
 
-			const announced = pullRequestActionOutcome(kind, nextSurface, resolvedThreads);
-			if (announced) {
-				toast[announced.level](announced.message, aboutWorkstream(scope.workstreamId));
-			}
 			if (pullRequestActionRefreshesGitStatus(kind)) seams.onGitStatusStale();
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;

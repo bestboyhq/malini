@@ -4,6 +4,7 @@ import { invoke } from '$shared/port/invoke';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
+	ArchivedWorkstream,
 	CreateWorkstreamInput,
 	CreatedWorkstream,
 	WorkstreamCheckpoint,
@@ -11,15 +12,22 @@ import type {
 	WorkstreamId,
 } from '$shared/repositories/domain/workstream';
 import type { WorkstreamGitStatus } from '$shared/repositories/domain/workstream-git-status';
-import type { SavedWorkstreamWork } from '$shared/repositories/domain/workstream-retirement';
-import { RetirementReceiptMapper } from '$shared/repositories/infrastructure/mappers/retirement-receipt.mapper';
-import { WorkstreamMapper } from '$shared/repositories/infrastructure/mappers/workstream.mapper';
+import {
+	ArchivedWorkstreamMapper,
+	WorkstreamMapper,
+} from '$shared/repositories/infrastructure/mappers/workstream.mapper';
 import { ProjectMapper } from '$shared/repositories/infrastructure/mappers/project.mapper';
 import { markWorkstreamCreated } from './workstream-creation-marker.storage';
 
 class WorkstreamsService {
 	async listWorkstreams(): Promise<Workstream[]> {
 		return WorkstreamMapper.fromRawList(await invoke('repositories.list-workstreams', undefined));
+	}
+
+	async listArchivedWorkstreams(): Promise<ArchivedWorkstream[]> {
+		return ArchivedWorkstreamMapper.fromRawList(
+			await invoke('repositories.list-archived-workstreams', undefined),
+		);
 	}
 
 	async listProjects(): Promise<Project[]> {
@@ -57,16 +65,16 @@ class WorkstreamsService {
 		return invoke('repositories.provision-dependencies', { workstreamId });
 	}
 
-	async archive(workstreamId: WorkstreamId): Promise<SavedWorkstreamWork | null> {
-		return RetirementReceiptMapper.savedWork(
-			await invoke('repositories.archive-workstream', { workstreamId }),
-		);
+	async archive(workstreamId: WorkstreamId): Promise<void> {
+		await invoke('repositories.archive-workstream', { workstreamId });
 	}
 
-	async delete(workstreamId: WorkstreamId): Promise<SavedWorkstreamWork | null> {
-		return RetirementReceiptMapper.savedWork(
-			await invoke('repositories.delete-workstream', { workstreamId }),
-		);
+	restore(workstreamId: WorkstreamId): Promise<void> {
+		return invoke('repositories.restore-workstream', { workstreamId });
+	}
+
+	async delete(workstreamId: WorkstreamId): Promise<void> {
+		await invoke('repositories.delete-workstream', { workstreamId });
 	}
 
 	revealInFinder(workstreamId: WorkstreamId): Promise<void> {

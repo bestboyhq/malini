@@ -1,6 +1,6 @@
 import type { WorktreeOperation } from '$contract/repositories';
 import type { PullRequestMergeMethod } from './pull-request';
-import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
+import type { SurfacePullRequest } from './repository-surface';
 
 export type PullRequestActionKind =
 	| 'unavailable'
@@ -102,41 +102,10 @@ export function pullRequestMergeInput(
 	return { expectedHeadSha: pullRequest.headSha, mergeMethod: pullRequest.mergeMethod };
 }
 
-export type PullRequestActionOutcome = Readonly<{
-	level: 'success' | 'info';
-	message: string;
-}>;
-
-export function pullRequestActionOutcome(
-	kind: PullRequestActionKind,
-	after: Pick<RepositorySurface, 'conflictedPaths'>,
-	resolvedReviewThreads = 0,
-): PullRequestActionOutcome | null {
-	if (kind === 'update' && after.conflictedPaths.length > 0) {
-		return {
-			level: 'info',
-			message: 'The update stopped on merge conflicts. Resolve conflicts to finish it',
-		};
-	}
-	if (resolvedReviewThreads === 0) return null;
-	return {
-		level: 'success',
-		message: `${reviewThreads(resolvedReviewThreads)} resolved on GitHub`,
-	};
-}
-
-export function alreadyAddressedReviewThreadsMessage(resolved: number): string {
-	return `${reviewThreads(resolved)} resolved · already addressed on GitHub`;
-}
-
 export function reviewThreadsLeftOpenMessage(failures: readonly string[]): string | null {
 	const [failure] = failures;
 	if (failure === undefined) return null;
 	return `${failures.length === 1 ? 'A review thread was' : `${failures.length} review threads were`} left open · ${failure}`;
-}
-
-function reviewThreads(count: number): string {
-	return `${count} review thread${count === 1 ? '' : 's'}`;
 }
 
 const OPERATION_NOUNS: Readonly<Record<WorktreeOperation, string>> = {

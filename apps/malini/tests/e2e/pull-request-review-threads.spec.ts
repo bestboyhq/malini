@@ -48,10 +48,6 @@ test('Commit and push replies to and resolves exactly the review threads the fix
 				['PRRT_rename', true],
 				['PRRT_tests', false],
 			]);
-		await expect(page.getByRole('status').filter({ hasText: 'review thread resolved' })).toHaveText(
-			'1 review thread resolved on GitHub',
-			{ timeout: 30_000 },
-		);
 		await expect(push).toHaveCount(0);
 		const pushed = github.pushedHead();
 		expect(github.pushedSubjects()[0]).toBe('fix(review): rename the helper');
@@ -130,9 +126,6 @@ test('a fix run that finds the review threads already addressed on GitHub resolv
 		]);
 		await expect(fix).toHaveCount(0, { timeout: 30_000 });
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeVisible();
-		await expect(
-			page.getByRole('status').filter({ hasText: 'review threads resolved' }),
-		).toHaveText('2 review threads resolved · already addressed on GitHub');
 		expect(github.pushedHead()).toBe(pushed);
 		expect(headOf(worktree)).toBe(pushed);
 		await captureFlow(app, 'pull-request-review-threads-already-addressed');

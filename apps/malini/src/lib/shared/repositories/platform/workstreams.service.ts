@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import {
 	REPOSITORIES_CLONE_PROGRESS_CHANNEL,
@@ -8,6 +9,7 @@ import {
 	type WorktreeRemovedPayload,
 } from '$contract/events';
 import type {
+	ArchivedWorkstreamDto,
 	GitProjectRecord,
 	Workstream,
 	WorkstreamRetirementReceipt,
@@ -16,16 +18,23 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import type { EventBus } from '$main/events';
+import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-work';
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import {
+	WORKSTREAM_BRANCH_PREFIX,
 	deriveProjectId,
 	localProjectId,
 	workstreamBranchName,
 	workstreamPath,
 	workstreamsRoot,
 } from '$main/git/paths';
-import { addWorktreeWithRollback, cleanupFailedWorkstream } from '$main/git/worktrees';
+import {
+	addWorktreeWithRollback,
+	branchList,
+	cleanupFailedWorkstream,
+	cleanupFailedWorktreeAdd,
+} from '$main/git/worktrees';
 import {
 	connectedRepositoryContexts,
 	localRepositoriesFromProjects,
@@ -44,12 +53,26 @@ import {
 } from './connected-repositories.repository';
 import {
 	deleteProjectWithoutWorkstreams,
+	getProject,
 	listProjects,
 	upsertProject,
 } from './projects.repository';
-import { teardownWorkstreamCheckout, type TeardownGuard } from './teardown.service';
+import { recordedBaseRepository } from './checkout-resolver';
+import {
+	teardownWorkstreamCheckout,
+	type TeardownGuard,
+	type WorkstreamRetirement,
+} from './teardown.service';
 import { projectDto } from './workstream-dto';
-import { listWorkstreams, upsertWorkstreamBundle } from './workstreams.repository';
+import {
+	getArchivedWorkstream,
+	getWorkstream,
+	listArchivedWorkstreams,
+	listWorkstreams,
+	renameWorkstream,
+	restoreWorkstreamRecord,
+	upsertWorkstreamBundle,
+} from './workstreams.repository';
 
 export interface WorkstreamsDeps {
 	readonly db: MaliniDatabase;
@@ -172,7 +195,7 @@ export async function createWorkstream(
 export async function retireWorkstream(
 	deps: WorkstreamsDeps,
 	workstreamId: string,
-	reason: 'archived' | 'deleted',
+	reason: WorkstreamRetirement,
 ): Promise<WorkstreamRetirementReceipt> {
 	const { worktreePath, savedWork } = await teardownWorkstreamCheckout(
 		{
@@ -181,6 +204,7 @@ export async function retireWorkstream(
 			...(deps.guardTeardown ? { guardTeardown: deps.guardTeardown } : {}),
 		},
 		workstreamId,
+		reason,
 	);
 	const payload: WorktreeRemovedPayload = {
 		workstreamId,
@@ -195,6 +219,84 @@ export async function retireWorkstream(
 	};
 }
 
+export async function restoreWorkstream(
+	deps: WorkstreamsDeps,
+	workstreamId: string,
+): Promise<void> {
+	const { db, events, appDataRoot, baseSync } = deps;
+	const archived = getArchivedWorkstream(db, workstreamId);
+	if (archived === null) throw new Error(`Not an archived workstream: ${workstreamId}`);
+	const project = getProject(db, archived.projectId);
+	const repository = recordedBaseRepository(db, appDataRoot, workstreamId);
+	if (project === null || repository === null) {
+		throw new Error('Its repository is no longer on this Mac');
+	}
+	const checkout = workstreamPath(appDataRoot, workstreamId);
+	const branch = archived.branch.startsWith(WORKSTREAM_BRANCH_PREFIX)
+		? archived.branch
+		: workstreamBranchName(workstreamId);
+	const checkoutExisted = existsSync(checkout);
+	const branchExisted = (await branchList(repository)).includes(branch);
+	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
+	try {
+		await restoreArchivedWork({
+			repository,
+			checkout,
+			branch,
+			savedRef: archived.archivedRef,
+			baseStart: async () => (await baseSync.startRef(repository, archived.baseBranch, null)).ref,
+		});
+		restoreWorkstreamRecord(db, workstreamId, checkout, branch);
+	} catch (error) {
+		const cleanup = await cleanupFailedWorktreeAdd(
+			repository,
+			checkout,
+			branch,
+			checkoutExisted,
+			branchExisted,
+		);
+		const message = describeError(error);
+		throw new Error(
+			cleanup === null ? message : `${message}; the checkout could not be rolled back: ${cleanup}`,
+		);
+	}
+	await settleRestoredCheckout(workstreamId, repository, checkout, branch, archived.archivedRef);
+	renameWorkstream(db, workstreamId, archived.name);
+	const workstream = getWorkstream(db, workstreamId);
+	if (workstream === null) throw new Error(`Unknown workstream: ${workstreamId}`);
+	const payload: WorktreeAddedPayload = { workstreamId, project, workstream };
+	events.emit(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, payload);
+}
+
+async function settleRestoredCheckout(
+	workstreamId: string,
+	repository: string,
+	checkout: string,
+	branch: string,
+	savedRef: string | null,
+): Promise<void> {
+	try {
+		await ensureAppManagedGitExcludes(checkout);
+		if (savedRef !== null) await releaseRestoredWork(repository, branch, savedRef);
+	} catch (error) {
+		console.error(
+			`malini: restored workstream \`${workstreamId}\` but could not tidy its checkout: ${describeError(error)}`,
+		);
+	}
+}
+
+export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
+	return listArchivedWorkstreams(deps.db).map(
+		({ id, projectId, name, baseBranch, archivedAt }) => ({
+			id,
+			projectId,
+			name,
+			baseBranch,
+			archivedAt,
+		}),
+	);
+}
+
 export async function removeRepository(deps: WorkstreamsDeps, repositoryId: string): Promise<void> {
 	const { db } = deps;
 	const projects = await Promise.all(listProjects(db).map(projectDto));
@@ -206,7 +308,7 @@ export async function removeRepository(deps: WorkstreamsDeps, repositoryId: stri
 	if (!repository) throw new Error(`Unknown repository: ${repositoryId}`);
 	for (const workstream of repositoryWorkstreams(db, repositories, repository)) {
 		try {
-			await retireWorkstream(deps, workstream.id, 'archived');
+			await retireWorkstream(deps, workstream.id, 'deleted');
 		} catch (error) {
 			throw new Error(
 				`${displayWorkstreamName(workstream, repository.fullName)}: ${describeError(error)}`,
@@ -226,7 +328,7 @@ function repositoryWorkstreams(
 	repositories: readonly Repository[],
 	repository: Repository,
 ): ConnectedRepositoryContext['workstreams'] {
-	const workstreams = listWorkstreams(db).map((row) => ({
+	const workstreams = [...listWorkstreams(db), ...listArchivedWorkstreams(db)].map((row) => ({
 		...row,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 	}));

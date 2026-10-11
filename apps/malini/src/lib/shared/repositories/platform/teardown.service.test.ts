@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
 
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
-import { run } from '$main/db/rows';
+import { get, run } from '$main/db/rows';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
 import { MainDiagnosticsLog } from '$main/diagnostics/main-diagnostics';
 import { createEventBus } from '$main/events';
@@ -224,7 +224,7 @@ describe('archiving a workstream', () => {
 
 		await repo.invoke('repositories.archive-workstream', { workstreamId: 'ws-readonly' });
 
-		expect(getWorkstream(repo.db, 'ws-readonly')).toBeNull();
+		expect(getWorkstream(repo.db, 'ws-readonly')?.status).toBe('archived');
 		expect(existsSync(checkout)).toBe(false);
 		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 5_000 });
 		expect(
@@ -247,7 +247,7 @@ describe('archiving a workstream', () => {
 		await chmod(checkoutTrashRoot(repo.dir), 0o555);
 		prune.release();
 
-		expect(getWorkstream(repo.db, 'ws-stuck')).toBeNull();
+		expect(getWorkstream(repo.db, 'ws-stuck')?.status).toBe('archived');
 		expect(existsSync(checkout)).toBe(false);
 		const [left] = await trashEntries(repo);
 		expect(left).toMatch(/^ws-stuck-\d+$/);
@@ -261,7 +261,7 @@ describe('archiving a workstream', () => {
 		await repo.restart();
 
 		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 5_000 });
-		expect(getWorkstream(repo.db, 'ws-stuck')).toBeNull();
+		expect(getWorkstream(repo.db, 'ws-stuck')?.status).toBe('archived');
 		expect(await realGit(repo.base, ['worktree', 'list', '--porcelain'])).not.toContain('ws-stuck');
 	});
 
@@ -723,9 +723,114 @@ describe('nested repositories and submodules', () => {
 
 		await archiveReceipt(repo, 'ws-nested-empty');
 
-		expect(getWorkstream(repo.db, 'ws-nested-empty')).toBeNull();
+		expect(getWorkstream(repo.db, 'ws-nested-empty')?.status).toBe('archived');
 		expect(
 			await realGit(repo.base, ['show', 'refs/malini/archived/ws-nested-empty:uncommitted.txt']),
 		).toBe('work in progress\n');
+	});
+});
+
+async function porcelain(checkout: string): Promise<string[]> {
+	return (await realGit(checkout, ['status', '--porcelain', '--untracked-files=all']))
+		.split('\n')
+		.filter(Boolean)
+		.sort();
+}
+
+describe('restoring an archived workstream', () => {
+	it('keeps the record and its chats when archived, and lists it as archived', async () => {
+		const repo = await harness();
+		await createWorkstream(repo, 'ws-kept-chats');
+		run(
+			repo.db,
+			'INSERT INTO agent_sessions (id, workstream_id, model, status, started_at) VALUES (?, ?, ?, ?, ?)',
+			'sess-kept',
+			'ws-kept-chats',
+			null,
+			'idle',
+			new Date().toISOString(),
+		);
+
+		await archiveReceipt(repo, 'ws-kept-chats');
+
+		expect(await repo.invoke('repositories.list-archived-workstreams', undefined)).toEqual([
+			{
+				id: 'ws-kept-chats',
+				projectId: 'proj',
+				name: 'ws-kept-chats',
+				baseBranch: 'main',
+				archivedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u),
+			},
+		]);
+		expect(await repo.invoke('repositories.list-workstreams', undefined)).toEqual([]);
+		expect(
+			get(repo.db, 'SELECT id FROM agent_sessions WHERE workstream_id = ?', 'ws-kept-chats'),
+		).toEqual({
+			id: 'sess-kept',
+		});
+		await expect(archiveReceipt(repo, 'ws-kept-chats')).rejects.toThrow(/It is already archived/u);
+	});
+
+	it('brings back its commits and its uncommitted work exactly as they were', async () => {
+		const repo = await harness();
+		const checkout = await createWorkstream(repo, 'ws-back');
+		await commitIn(checkout, 'kept.txt');
+		const head = await commitIn(checkout, 'gone.txt');
+		await rm(join(checkout, 'gone.txt'));
+		await writeFile(join(checkout, 'seed.txt'), 'seed\nedited\n');
+		const before = await porcelain(checkout);
+
+		await archiveReceipt(repo, 'ws-back');
+		await archivedLeftoversCleared();
+		expect(existsSync(checkout)).toBe(false);
+		expect(await branchExists(repo, 'malini/ws-back')).toBe(false);
+
+		await repo.invoke('repositories.restore-workstream', { workstreamId: 'ws-back' });
+
+		expect(getWorkstream(repo.db, 'ws-back')).toMatchObject({ status: 'active', path: checkout });
+		expect((await realGit(checkout, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe(
+			'malini/ws-back',
+		);
+		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(head);
+		expect(await porcelain(checkout)).toEqual(before);
+		expect(before).toEqual([' D gone.txt', ' M seed.txt', '?? uncommitted.txt']);
+		expect(await readFile(join(checkout, 'uncommitted.txt'), 'utf8')).toBe('work in progress\n');
+		expect(await archivedRef(repo, 'ws-back')).toBeNull();
+		expect(await repo.invoke('repositories.list-archived-workstreams', undefined)).toEqual([]);
+	});
+
+	it('starts a workstream that held nothing of its own from its base again', async () => {
+		const repo = await harness();
+		const checkout = await createWorkstream(repo, 'ws-empty');
+		await rm(join(checkout, 'uncommitted.txt'));
+
+		await archiveReceipt(repo, 'ws-empty');
+		await archivedLeftoversCleared();
+		await repo.invoke('repositories.restore-workstream', { workstreamId: 'ws-empty' });
+
+		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(
+			(await realGit(repo.base, ['rev-parse', 'origin/main'])).trim(),
+		);
+		expect(await porcelain(checkout)).toEqual([]);
+		expect(getWorkstream(repo.db, 'ws-empty')?.status).toBe('active');
+	});
+
+	it('keeps the workstream archived and its saved work untouched when the checkout cannot be made', async () => {
+		const repo = await harness();
+		const checkout = await createWorkstream(repo, 'ws-blocked');
+		const tip = await commitIn(checkout, 'precious.txt');
+		await archiveReceipt(repo, 'ws-blocked');
+		await archivedLeftoversCleared();
+		await mkdir(checkout, { recursive: true });
+		await writeFile(join(checkout, 'in-the-way.txt'), 'in the way\n');
+
+		await expect(
+			repo.invoke('repositories.restore-workstream', { workstreamId: 'ws-blocked' }),
+		).rejects.toThrow(/already exists/u);
+
+		expect(getWorkstream(repo.db, 'ws-blocked')?.status).toBe('archived');
+		expect(await readFile(join(checkout, 'in-the-way.txt'), 'utf8')).toBe('in the way\n');
+		expect(await branchExists(repo, 'malini/ws-blocked')).toBe(false);
+		expect(await keeps(repo, 'refs/malini/archived/ws-blocked', tip)).toBe(true);
 	});
 });

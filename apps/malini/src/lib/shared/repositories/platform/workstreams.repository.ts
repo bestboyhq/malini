@@ -6,6 +6,11 @@ import type { Workstream, WorkstreamStatus } from '$contract/repositories';
 
 export type { Workstream, WorkstreamStatus };
 
+export interface ArchivedWorkstreamRecord extends Workstream {
+	readonly archivedAt: string;
+	readonly archivedRef: string | null;
+}
+
 interface WorkstreamRow {
 	id: string;
 	project_id: string;
@@ -68,8 +73,43 @@ export function upsertWorkstreamBundle(
 export function listWorkstreams(db: MaliniDatabase): Workstream[] {
 	return all<WorkstreamRow>(
 		db,
-		`SELECT ${WORKSTREAM_COLUMNS} FROM workstreams ORDER BY created_at DESC`,
+		`SELECT ${WORKSTREAM_COLUMNS} FROM workstreams WHERE status != 'archived' ORDER BY created_at DESC`,
 	).map(workstreamFromRow);
+}
+
+interface ArchivedWorkstreamRow extends WorkstreamRow {
+	archived_at: string | null;
+	archived_ref: string | null;
+}
+
+const ARCHIVED_WORKSTREAM_COLUMNS = `${WORKSTREAM_COLUMNS}, archived_at, archived_ref`;
+
+function archivedWorkstreamFromRow(row: ArchivedWorkstreamRow): ArchivedWorkstreamRecord {
+	return {
+		...workstreamFromRow(row),
+		archivedAt: row.archived_at ?? row.created_at,
+		archivedRef: row.archived_ref,
+	};
+}
+
+export function listArchivedWorkstreams(db: MaliniDatabase): ArchivedWorkstreamRecord[] {
+	return all<ArchivedWorkstreamRow>(
+		db,
+		`SELECT ${ARCHIVED_WORKSTREAM_COLUMNS} FROM workstreams
+		 WHERE status = 'archived' ORDER BY archived_at DESC, created_at DESC`,
+	).map(archivedWorkstreamFromRow);
+}
+
+export function getArchivedWorkstream(
+	db: MaliniDatabase,
+	workstreamId: string,
+): ArchivedWorkstreamRecord | null {
+	const row = get<ArchivedWorkstreamRow>(
+		db,
+		`SELECT ${ARCHIVED_WORKSTREAM_COLUMNS} FROM workstreams WHERE id = ? AND status = 'archived'`,
+		workstreamId,
+	);
+	return row ? archivedWorkstreamFromRow(row) : null;
 }
 
 export function getWorkstream(db: MaliniDatabase, workstreamId: string): Workstream | null {
@@ -119,21 +159,65 @@ export function renameWorkstream(
 	return candidate;
 }
 
-export function deleteWorkstream(db: MaliniDatabase, workstreamId: string): void {
+export function archiveWorkstreamRecord(
+	db: MaliniDatabase,
+	workstreamId: string,
+	archivedRef: string | null,
+	archivedAt: string,
+): void {
 	db.transaction(() => {
-		const openRunIds = column(
+		refuseWhileRunsAreOpen(db, workstreamId, 'archive');
+		run(
 			db,
-			`SELECT r.id FROM agent_runs r
-			 JOIN agent_sessions s ON r.session_id = s.id
-			 WHERE s.workstream_id = ? AND r.completed_at IS NULL
-			 ORDER BY r.started_at ASC, r.id ASC`,
+			`UPDATE workstreams SET status = 'archived', archived_at = ?, archived_ref = ?
+			 WHERE id = ?`,
+			archivedAt,
+			archivedRef,
 			workstreamId,
 		);
-		if (openRunIds.length > 0) {
-			throw invariant(
-				`cannot delete workstream \`${workstreamId}\` while agent runs are active: ${openRunIds.join(', ')}`,
-			);
-		}
+	});
+}
+
+export function restoreWorkstreamRecord(
+	db: MaliniDatabase,
+	workstreamId: string,
+	path: string,
+	branch: string,
+): void {
+	run(
+		db,
+		`UPDATE workstreams SET status = 'active', path = ?, branch = ?, archived_at = NULL,
+		   archived_ref = NULL
+		 WHERE id = ? AND status = 'archived'`,
+		path,
+		branch,
+		workstreamId,
+	);
+}
+
+function refuseWhileRunsAreOpen(
+	db: MaliniDatabase,
+	workstreamId: string,
+	action: 'archive' | 'delete',
+): void {
+	const openRunIds = column(
+		db,
+		`SELECT r.id FROM agent_runs r
+		 JOIN agent_sessions s ON r.session_id = s.id
+		 WHERE s.workstream_id = ? AND r.completed_at IS NULL
+		 ORDER BY r.started_at ASC, r.id ASC`,
+		workstreamId,
+	);
+	if (openRunIds.length > 0) {
+		throw invariant(
+			`cannot ${action} workstream \`${workstreamId}\` while agent runs are active: ${openRunIds.join(', ')}`,
+		);
+	}
+}
+
+export function deleteWorkstream(db: MaliniDatabase, workstreamId: string): void {
+	db.transaction(() => {
+		refuseWhileRunsAreOpen(db, workstreamId, 'delete');
 		run(db, 'DELETE FROM agent_checkpoints WHERE workstream_id = ?', workstreamId);
 		run(db, 'DELETE FROM agent_user_baselines WHERE workstream_id = ?', workstreamId);
 		run(

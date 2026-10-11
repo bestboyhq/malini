@@ -60,7 +60,9 @@ import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	createRepository,
 	createWorkstream,
+	listArchived,
 	removeRepository,
+	restoreWorkstream,
 	retireWorkstream,
 } from './workstreams.service';
 
@@ -132,6 +134,8 @@ export function registerRepositories(
 		listWorkstreams(db).map((row) => workstreamDto(appDataRoot, row)),
 	);
 
+	commands.define('repositories.list-archived-workstreams', () => listArchived(workstreams));
+
 	commands.define('repositories.list-repositories', () =>
 		Promise.all(listProjects(db).map(projectDto)),
 	);
@@ -164,6 +168,10 @@ export function registerRepositories(
 
 	commands.define('repositories.archive-workstream', (args: unknown) =>
 		retireWorkstream(workstreams, requireString(args, 'workstreamId'), 'archived'),
+	);
+
+	commands.define('repositories.restore-workstream', (args: unknown) =>
+		restoreWorkstream(workstreams, checkedWorkstreamId(args)),
 	);
 
 	commands.define('repositories.workstream-diff', async (args: unknown) => {

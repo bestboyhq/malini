@@ -4,7 +4,6 @@ import { aboutWorkstream } from '$shared/errors/toast-subject';
 import {
 	REPOSITORY_EXTENSION_COMMANDS,
 	pullRequestActionFailureDetail,
-	pullRequestActionOutcome,
 	pullRequestActionRefreshesGitStatus,
 } from '$lib/pull-requests/domain/pull-request-action';
 import { awaitPullRequestActionScope } from '$lib/pull-requests/domain/pull-request-action-scope';
@@ -30,8 +29,6 @@ function runPullRequestUpdateBranchCommand(onGitStatusStale: () => void): void {
 			);
 			if (!outcome || !pullRequestScopeStore.isCurrent(scope)) return;
 			acceptRepositorySurfaceCommand(scope.workstreamId, outcome.surface);
-			const announced = pullRequestActionOutcome('update', outcome.surface);
-			if (announced) toast[announced.level](announced.message, aboutWorkstream(scope.workstreamId));
 			if (pullRequestActionRefreshesGitStatus('update')) onGitStatusStale();
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;

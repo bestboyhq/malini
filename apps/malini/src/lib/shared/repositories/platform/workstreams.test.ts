@@ -28,7 +28,12 @@ import { listConnectedRepositories } from './connected-repositories.repository';
 import { getProject, upsertProject } from './projects.repository';
 import { registerRepositories, type RepositoriesDeps } from './register';
 import { archivedLeftoversCleared } from './teardown.service';
-import { getWorkstream, listWorkstreams, upsertWorkstream } from './workstreams.repository';
+import {
+	getWorkstream,
+	listArchivedWorkstreams,
+	listWorkstreams,
+	upsertWorkstream,
+} from './workstreams.repository';
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -293,7 +298,7 @@ describe('the workstream commands', () => {
 		);
 	});
 
-	it('archives through the same teardown and reports the archived flag', async () => {
+	it('archives through the same teardown, then restores the checkout and announces it', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { base, checkout } = await workstreamFixture(dir, 'ws-arch');
@@ -301,10 +306,30 @@ describe('the workstream commands', () => {
 		const { invoke, events, db } = harness(dir);
 		seed(db, 'ws-arch', base, checkout);
 		const removed: unknown[] = [];
+		const added: WorktreeAddedPayload[] = [];
 		events.subscribe('repositories:workstream-removed', (payload) => removed.push(payload));
+		events.subscribe('repositories:workstream-created', (payload) => {
+			if (isWorktreeAddedPayload(payload)) added.push(payload);
+		});
+
 		await invoke('repositories.archive-workstream', { workstreamId: 'ws-arch' });
 		expect(existsSync(checkout)).toBe(false);
 		expect(removed).toEqual([{ workstreamId: 'ws-arch', worktreePath: canonical, archived: true }]);
+		expect(getWorkstream(db, 'ws-arch')?.status).toBe('archived');
+
+		await archivedLeftoversCleared();
+		await invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' });
+		expect(existsSync(join(checkout, 'seed.txt'))).toBe(true);
+		expect(added).toEqual([
+			{
+				workstreamId: 'ws-arch',
+				project: expect.objectContaining({ id: 'proj' }),
+				workstream: expect.objectContaining({ id: 'ws-arch', status: 'active', path: checkout }),
+			},
+		]);
+		await expect(
+			invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' }),
+		).rejects.toThrow('Not an archived workstream: ws-arch');
 	});
 
 	it('refuses a teardown the run lease rejects before touching the disk', async () => {
@@ -430,10 +455,11 @@ describe('removing a repository', () => {
 		return { ...app, alpha, connected, alphaBase, betaBase, edited, clean, other };
 	}
 
-	it('archives every workstream into its saved ref, removes its records, and keeps the clone', async () => {
+	it('deletes every workstream, archived ones too, keeping its work in a saved ref and the clone', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const app = await connectedSources(dir);
+		await app.invoke('repositories.archive-workstream', { workstreamId: 'ws-alpha-clean' });
 		const removed: unknown[] = [];
 		app.events.subscribe('repositories:workstream-removed', (payload) => removed.push(payload));
 
@@ -441,12 +467,13 @@ describe('removing a repository', () => {
 
 		expect(removed).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ workstreamId: 'ws-alpha-edited', archived: true }),
-				expect.objectContaining({ workstreamId: 'ws-alpha-clean', archived: true }),
+				expect.objectContaining({ workstreamId: 'ws-alpha-edited', deleted: true }),
+				expect.objectContaining({ workstreamId: 'ws-alpha-clean', deleted: true }),
 			]),
 		);
 		expect(removed).toHaveLength(2);
 		expect(listWorkstreams(app.db).map((row) => row.id)).toEqual(['ws-beta']);
+		expect(listArchivedWorkstreams(app.db)).toEqual([]);
 		expect(existsSync(app.edited)).toBe(false);
 		expect(existsSync(app.other)).toBe(true);
 		expect(listConnectedRepositories(app.db)).toEqual([]);

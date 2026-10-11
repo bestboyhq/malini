@@ -1,12 +1,11 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
-	git,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -19,7 +18,7 @@ declare global {
 
 const ARCHIVED_NAME = 'Toast clearance archived workstream';
 const SHORT_NAMES = ['Short one', 'Short two'];
-const SHORT_SAVED = 'Its commit is saved';
+const ARCHIVE_FAILED = 'Could not archive';
 const FOOTER_CONTROLS = '[data-testid="chat-changed-files"], [data-testid="chat-composer"]';
 
 interface Layout {
@@ -60,12 +59,6 @@ const LAYOUTS: readonly Layout[] = [
 		reducedMotion: 'reduce',
 	},
 ];
-
-async function commitWork(worktree: string): Promise<void> {
-	writeFileSync(join(worktree, 'committed.txt'), 'committed\n');
-	await git(worktree, ['add', '.']);
-	await git(worktree, ['commit', '-m', 'work']);
-}
 
 async function archiveAll(page: Page, names: readonly string[]): Promise<void> {
 	const showSidebar = page.getByRole('button', { name: 'Show sidebar' });
@@ -198,7 +191,8 @@ async function setLayout(page: Page, layout: Layout): Promise<void> {
 for (const layout of LAYOUTS) {
 	test(`toasts never cover the composer or the changed files above it, alone, stacked or expanded (${layout.name})`, async () => {
 		test.setTimeout(120_000);
-		const app = await launchMalini();
+		const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
+		let lockedDirectory: string | null = null;
 		try {
 			const { page, electronApp } = app;
 			await page.emulateMedia({ reducedMotion: layout.reducedMotion });
@@ -219,16 +213,8 @@ for (const layout of LAYOUTS) {
 				'e2e-toast-clearance-archived-ws',
 				ARCHIVED_NAME,
 			);
-			await commitWork(archived.worktree);
-			writeFileSync(join(archived.worktree, 'uncommitted.txt'), 'uncommitted\n');
 			for (const [index, name] of SHORT_NAMES.entries()) {
-				const short = await seedWorkstream(
-					page,
-					source,
-					`e2e-toast-clearance-short-${index}-ws`,
-					name,
-				);
-				await commitWork(short.worktree);
+				await seedWorkstream(page, source, `e2e-toast-clearance-short-${index}-ws`, name);
 			}
 			const chats = await seedWorkstream(
 				page,
@@ -241,14 +227,22 @@ for (const layout of LAYOUTS) {
 			await expectAssistantReply(page);
 			await expect(page.getByTestId('toast')).toHaveCount(0, { timeout: 15_000 });
 			await expect(page.getByTestId('chat-changed-files')).toBeVisible();
+			await setLayout(page, layout);
 			await watchFooterCoverage(page);
+			lockedDirectory = dirname(archived.worktree);
+			chmodSync(lockedDirectory, 0o555);
+			const failures = page.getByTestId('toast').filter({ hasText: ARCHIVE_FAILED });
+
+			await archiveAll(page, [ARCHIVED_NAME]);
+			await page.mouse.move(4, 4);
+			await expect(failures).toHaveCount(1, { timeout: 20_000 });
+			await expectClearOfFooter(page, 1);
+			await captureFlow(app, `toast-clear-${layout.name}-single`);
+			await expect(failures).toHaveCount(0, { timeout: 15_000 });
 
 			await archiveAll(page, [...SHORT_NAMES, ARCHIVED_NAME]);
-			await setLayout(page, layout);
 			await page.mouse.move(4, 4);
-			await expect(page.getByTestId('toast').filter({ hasText: 'saved' })).toHaveCount(3, {
-				timeout: 20_000,
-			});
+			await expect(failures).toHaveCount(3, { timeout: 20_000 });
 			await expectClearOfFooter(page, 3);
 			await captureFlow(app, `toast-clear-${layout.name}-stack`);
 
@@ -258,15 +252,10 @@ for (const layout of LAYOUTS) {
 
 			await page.mouse.move(4, 4);
 			await expectClearOfFooter(page, 3);
-
-			await expect(page.getByTestId('toast').filter({ hasText: SHORT_SAVED })).toHaveCount(0, {
-				timeout: 15_000,
-			});
-			await expectClearOfFooter(page, 1);
-			await captureFlow(app, `toast-clear-${layout.name}-single`);
 			expect(await page.evaluate(() => globalThis.footerCoverage)).toEqual([]);
 			expectCleanConsole(app);
 		} finally {
+			if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
 			await app.close();
 		}
 	});

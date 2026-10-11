@@ -27,15 +27,8 @@ function runPullRequestContinueCommand(onGitStatusStale: () => void): void {
 				() => pullRequestScopeStore.snapshot(),
 			);
 			if (!outcome || !pullRequestScopeStore.isCurrent(scope)) return;
-			const surface = outcome.surface;
-			acceptRepositorySurfaceCommand(scope.workstreamId, surface);
+			acceptRepositorySurfaceCommand(scope.workstreamId, outcome.surface);
 			onGitStatusStale();
-			if (surface.operationInProgress === 'rebase') {
-				toast.info(
-					'Continuing stopped on conflicts. Resolve them to finish moving onto the base',
-					aboutWorkstream(scope.workstreamId),
-				);
-			}
 		} catch (error) {
 			if (!pullRequestScopeStore.isCurrent(scope)) return;
 			toast.error(

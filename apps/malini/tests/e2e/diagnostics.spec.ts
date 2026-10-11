@@ -54,12 +54,7 @@ test('an archive that cannot move the checkout names the real reason, and the lo
 			readDiagnostics(app.userDataDir).filter(
 				(entry) => entry.source === 'toast' && entry.level === 'info',
 			),
-		).toEqual([
-			expect.objectContaining({
-				message: 'info toast, text not kept',
-				workstreamId: 'e2e-locked-ws',
-			}),
-		]);
+		).toEqual([]);
 		expect(recorded).toContainEqual(
 			expect.objectContaining({
 				process: 'renderer',
