@@ -30,11 +30,9 @@
 	} from '$shared/repositories/repositories.api';
 	import { WorkstreamChatsPreloader } from '$lib/chat/chat.api';
 	import { watchAgentChangeTriggersHook } from '$lib/chat/application/hooks/watch-agent-change-triggers.hook';
-	import { watchCompletedRunsHook } from '$lib/chat/application/hooks/watch-completed-runs.hook';
 	import { syncChatNamesHook } from '$lib/chat/application/hooks/sync-chat-names.hook';
-	import { resolveReviewThreadsAfterRunCommand } from '$lib/pull-requests/application/commands/resolve-review-threads-after-run.command';
 	import { pollPullRequestStatesHook } from '$lib/pull-requests/application/hooks/poll-pull-request-states.hook';
-	import { pullRequestStatesQuery } from '$lib/pull-requests/application/queries/pull-request-states.query.svelte';
+	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { pullRequestRefreshActivityQuery } from '$lib/pull-requests/application/queries/pull-request-refresh-activity.query.svelte';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
@@ -64,7 +62,7 @@
 	const scopeLoading = $derived(!repositoriesScopeLoadedQuery.data);
 	const scopeError = $derived(repositoriesScopeErrorQuery.data);
 	const changeTotalsByWorkstream = $derived(changeTotalsQuery.data);
-	const pullRequestStates = $derived(pullRequestStatesQuery.data);
+	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
 	const releases: (() => void)[] = [];
@@ -93,7 +91,6 @@
 			syncWorkstreamsHook(),
 			syncChatNamesHook(),
 			watchAgentChangeTriggersHook(refreshWorkstreamAfterChangeCommand),
-			watchCompletedRunsHook(resolveReviewThreadsAfterRunCommand),
 			watchWorkstreamFilesChangedHook(),
 		);
 	});
@@ -123,7 +120,7 @@
 		{scopeError}
 		onRetryScope={retryRepositoriesScopeCommand}
 		{changeTotalsByWorkstream}
-		pullRequestStateByWorkstream={pullRequestStates}
+		{pullRequestBadge}
 		onNewWorkstream={createWorkstreamForRepositoryCommand}
 		onArchiveWorkstream={(workstream) =>
 			archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand)}

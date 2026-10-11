@@ -1,4 +1,4 @@
-import type { RoutineDraft } from '$lib/routines/domain/routine-draft';
+import type { RoutineDraft, RoutineUpdate } from '$lib/routines/domain/routine-draft';
 import type { Routine } from '$lib/routines/domain/routine';
 import type { RoutineSuggestion } from '$lib/routines/domain/routine-suggestion';
 import { invoke } from '$shared/port/invoke';
@@ -15,10 +15,21 @@ class RoutinesService {
 			await invoke('routines.create-draft', {
 				label: draft.label,
 				when: draft.when,
-				run: draft.run,
+				steps: draft.steps,
 				...(draft.origin === undefined ? {} : { origin: draft.origin }),
 				...(draft.evidence === undefined ? {} : { evidence: draft.evidence }),
 				...(draft.suggestionId === undefined ? {} : { suggestionId: draft.suggestionId }),
+			}),
+		);
+	}
+
+	async update(routineId: string, update: RoutineUpdate): Promise<Routine> {
+		return RoutineMapper.fromRaw(
+			await invoke('routines.update', {
+				routineId,
+				label: update.label,
+				when: update.when,
+				steps: update.steps,
 			}),
 		);
 	}

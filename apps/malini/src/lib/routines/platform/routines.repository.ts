@@ -20,7 +20,7 @@ interface RoutineRow {
 	origin: RoutineOrigin;
 	label: string;
 	trigger_when: string;
-	run_json: string;
+	steps_json: string;
 	evidence_json: string;
 	created_at: string;
 	updated_at: string;
@@ -48,7 +48,7 @@ interface SuggestionRow {
 }
 
 const ROUTINE_COLUMNS =
-	'id, status, origin, label, trigger_when, run_json, evidence_json, created_at, updated_at';
+	'id, status, origin, label, trigger_when, steps_json, evidence_json, created_at, updated_at';
 const GATED_RUN_COLUMNS =
 	'id, routine_id, workstream_id, run_key, event, payload_json, state, created_at, decided_at';
 const SUGGESTION_COLUMNS = 'id, cluster_key, status, evidence_json, created_at, updated_at';
@@ -63,7 +63,7 @@ export function insertRoutine(db: MaliniDatabase, routine: RoutineRecord): void 
 		routine.origin,
 		routine.label,
 		routine.when,
-		JSON.stringify(routine.run),
+		JSON.stringify(routine.steps),
 		JSON.stringify(routine.evidence),
 		routine.createdAt,
 		routine.updatedAt,
@@ -95,6 +95,27 @@ export function updateRoutineStatus(
 		db,
 		'UPDATE routines SET status = ?, updated_at = ? WHERE id = ?',
 		status,
+		updatedAt,
+		routineId,
+	);
+	if (changes === 0) throw invariant(`routine \`${routineId}\` not found`);
+	const updated = getRoutine(db, routineId);
+	if (!updated) throw invariant(`routine \`${routineId}\` not found`);
+	return updated;
+}
+
+export function updateRoutine(
+	db: MaliniDatabase,
+	routineId: string,
+	fields: Readonly<{ label: string; when: string; steps: readonly RoutineRun[] }>,
+	updatedAt: string,
+): RoutineRecord {
+	const { changes } = run(
+		db,
+		'UPDATE routines SET label = ?, trigger_when = ?, steps_json = ?, updated_at = ? WHERE id = ?',
+		fields.label,
+		fields.when,
+		JSON.stringify(fields.steps),
 		updatedAt,
 		routineId,
 	);
@@ -284,7 +305,7 @@ function routineFromRow(row: RoutineRow): RoutineRecord {
 		origin: row.origin,
 		label: row.label,
 		when: row.trigger_when,
-		run: parseJsonColumn<RoutineRun>(row.run_json, `routine \`${row.id}\` run`),
+		steps: parseJsonColumn<RoutineRun[]>(row.steps_json, `routine \`${row.id}\` steps`),
 		evidence: parseJsonColumn<RoutineEvidence[]>(
 			row.evidence_json,
 			`routine \`${row.id}\` evidence`,

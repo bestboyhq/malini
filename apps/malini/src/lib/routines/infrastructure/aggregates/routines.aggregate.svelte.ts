@@ -2,15 +2,19 @@ import type { Routine, RoutinesLoadState, RoutineStatus } from '$lib/routines/do
 import { sortRoutinesOldestFirst } from '$lib/routines/domain/routine';
 import type { RoutineGatedRun } from '$lib/routines/domain/routine-gated-run';
 import { sortGatedRunsOldestFirst } from '$lib/routines/domain/routine-gated-run';
+import type { RoutineJob } from '$lib/routines/domain/routine-job';
+import { sortRoutineJobsByName } from '$lib/routines/domain/routine-job';
 import type { RoutineSuggestion } from '$lib/routines/domain/routine-suggestion';
 import { sortSuggestionsNewestFirst } from '$lib/routines/domain/routine-suggestion';
 import { routineGateService } from '$lib/routines/infrastructure/services/routine-gate.service';
+import { routineJobsService } from '$lib/routines/infrastructure/services/routine-jobs.service';
 import { routinesService } from '$lib/routines/infrastructure/services/routines.service';
 
 class RoutinesAggregate {
 	routines = $state.raw<readonly Routine[]>([]);
 	suggestions = $state.raw<readonly RoutineSuggestion[]>([]);
 	pendingGatedRuns = $state.raw<readonly RoutineGatedRun[]>([]);
+	jobs = $state.raw<readonly RoutineJob[]>([]);
 	loadState = $state<RoutinesLoadState>('idle');
 	loadError = $state<string | null>(null);
 
@@ -28,10 +32,11 @@ class RoutinesAggregate {
 		const generation = ++this.#generation;
 		if (this.loadState !== 'ready') this.loadState = 'loading';
 		try {
-			const [routines, suggestions, gatedRuns] = await Promise.all([
+			const [routines, suggestions, gatedRuns, jobs] = await Promise.all([
 				routinesService.list(),
 				routinesService.listSuggestions(),
 				routineGateService.listPending(),
+				routineJobsService.list(),
 			]);
 			if (generation !== this.#generation) return;
 			this.routines = sortRoutinesOldestFirst(routines);
@@ -41,6 +46,7 @@ class RoutinesAggregate {
 			this.pendingGatedRuns = sortGatedRunsOldestFirst(
 				gatedRuns.filter((gatedRun) => gatedRun.state === 'pending'),
 			);
+			this.jobs = sortRoutineJobsByName(jobs);
 			this.loadState = 'ready';
 			this.loadError = null;
 		} catch (error) {
@@ -77,6 +83,11 @@ class RoutinesAggregate {
 
 	removeSuggestion(suggestionId: string): void {
 		this.suggestions = this.suggestions.filter((suggestion) => suggestion.id !== suggestionId);
+	}
+
+	applyJob(jobId: string, job: RoutineJob | null): void {
+		const others = this.jobs.filter((existing) => existing.id !== jobId);
+		this.jobs = sortRoutineJobsByName(job === null ? others : [...others, job]);
 	}
 
 	applyGatedRun(gatedRun: RoutineGatedRun): void {

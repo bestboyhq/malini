@@ -1,3 +1,4 @@
+import type { AgentSessionOrigin } from '$contract/agent';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { LiveEventEnvelope } from '$contract/agent';
@@ -13,6 +14,7 @@ const HANDLED_LIFECYCLE_EVENT_LIMIT = 2_048;
 
 type SessionOwner = {
 	workstreamId: string;
+	origin?: AgentSessionOrigin;
 };
 
 type AgentLifecycleMonitorDependencies = {
@@ -111,8 +113,11 @@ export class AgentLifecycleMonitor {
 
 		if (envelope.event.type === 'run.started') {
 			this.#pendingAttentionBySession.delete(envelope.sessionId);
-			const owner = this.dependencies.sessionFor(envelope.sessionId)?.workstreamId;
-			if (owner && owner !== '_unknown') this.dependencies.clearAttention(owner);
+			const session = this.dependencies.sessionFor(envelope.sessionId);
+			const owner = session?.workstreamId;
+			if (owner && owner !== '_unknown' && session?.origin !== 'job') {
+				this.dependencies.clearAttention(owner);
+			}
 			return;
 		}
 
@@ -122,8 +127,10 @@ export class AgentLifecycleMonitor {
 	}
 
 	#routeAttention(envelope: EventEnvelope): boolean {
-		const owner = this.dependencies.sessionFor(envelope.sessionId)?.workstreamId;
+		const session = this.dependencies.sessionFor(envelope.sessionId);
+		const owner = session?.workstreamId;
 		if (!owner || owner === '_unknown') return false;
+		if (session?.origin === 'job') return true;
 		const context = this.dependencies.contextFor(owner);
 		if (!context) return false;
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {

@@ -33,7 +33,7 @@ function notStartedCheck(name: string, job: number): Record<string, unknown> {
 	};
 }
 
-test("checks GitHub never started say CI didn't start instead of offering Fix errors", async () => {
+test("checks GitHub never started say CI didn't start and leave Queue merge to the user", async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -49,10 +49,13 @@ test("checks GitHub never started say CI didn't start instead of offering Fix er
 
 		const status = page.getByRole('status').filter({ hasText: "CI didn't start" });
 		await expect(status).toBeVisible({ timeout: 30_000 });
-		await expect(page.getByRole('button', { name: 'Fix pull request errors #7' })).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'Queue merge for pull request #7' }),
+		).toBeEnabled();
+		await expect(page.getByRole('button', { name: /^Jobs:/u })).toHaveCount(0);
 		await status.hover();
 		await expect(page.getByRole('tooltip')).toHaveText(
-			"GitHub didn't start CI: recent account payments have failed or your spending limit needs to be increased. Open the pull request on GitHub",
+			"GitHub didn't start CI: recent account payments have failed or your spending limit needs to be increased",
 		);
 
 		const detail = await openPullRequestDetail(page);

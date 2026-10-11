@@ -1,3 +1,4 @@
+import type { AgentSessionOrigin } from '$contract/agent';
 import type { SessionId } from './session';
 import type { SessionState } from './session-record';
 
@@ -8,4 +9,5 @@ export type ChatSessionSummary = Readonly<{
 	model: string | null;
 	status: SessionState;
 	startedAt: string;
+	origin: AgentSessionOrigin;
 }>;

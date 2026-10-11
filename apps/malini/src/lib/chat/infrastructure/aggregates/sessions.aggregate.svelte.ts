@@ -1,4 +1,5 @@
 import { SvelteSet } from 'svelte/reactivity';
+import type { AgentSessionOrigin } from '$contract/agent';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { RunId } from '$lib/chat/domain/run';
 import type { SessionId } from '$lib/chat/domain/session';
@@ -29,6 +30,7 @@ class SessionsAggregate {
 		displayName?: string;
 		model: string | null;
 		startedAt?: string;
+		origin?: AgentSessionOrigin;
 	}): SessionRecord {
 		const existing = this.sessionsById[input.sessionId];
 		if (existing) {
@@ -38,6 +40,7 @@ class SessionsAggregate {
 					workstreamId: input.workstreamId,
 					displayName: input.displayName?.trim() || existing.displayName,
 					model: input.model ?? existing.model,
+					origin: input.origin ?? existing.origin,
 				};
 				this.sessionsById = { ...this.sessionsById, [input.sessionId]: upgraded };
 				return upgraded;
@@ -62,6 +65,7 @@ class SessionsAggregate {
 			currentRunId: null,
 			lastError: null,
 			startedAt: input.startedAt ?? new Date().toISOString(),
+			origin: input.origin ?? 'user',
 		};
 		this.sessionsById = {
 			...this.sessionsById,
@@ -87,6 +91,7 @@ class SessionsAggregate {
 		model: string | null;
 		status: SessionState;
 		startedAt: string;
+		origin?: AgentSessionOrigin;
 	}): SessionRecord {
 		const existing = this.ensureSession(input);
 		const hasLiveLifecycleEvidence = (this.envelopesBySession[input.sessionId] ?? []).some(
@@ -99,6 +104,7 @@ class SessionsAggregate {
 			model: input.model,
 			status: hasLiveLifecycleEvidence ? existing.status : input.status,
 			startedAt: input.startedAt,
+			origin: input.origin ?? existing.origin,
 		};
 		this.sessionsById = { ...this.sessionsById, [input.sessionId]: next };
 		return next;
@@ -181,7 +187,7 @@ class SessionsAggregate {
 	latestSessionFor(workstreamId: string): SessionId | null {
 		return (
 			this.listSessions()
-				.filter((session) => session.workstreamId === workstreamId)
+				.filter((session) => session.workstreamId === workstreamId && session.origin === 'user')
 				.sort((left, right) => right.startedAt.localeCompare(left.startedAt))[0]?.id ?? null
 		);
 	}

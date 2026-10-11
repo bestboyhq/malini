@@ -4,6 +4,7 @@ import type {
 	PullRequestStatusDto,
 	ReviewFeedbackDto,
 } from '$contract/repositories';
+import type { ShipStateRecord } from '$contract/pull-requests';
 import type { FakeBridge } from './fake-bridge';
 import { fakeGithubState, type FakeGithubState } from './repositories.fake';
 
@@ -86,6 +87,130 @@ export function installPullRequestsFake(bridge: FakeBridge): void {
 		resolvedThreadIds: [],
 		failures: [],
 	}));
+
+	fakeShips(bridge);
+}
+
+export type FakeShips = Readonly<{
+	set(workstreamId: string, patch: Partial<ShipStateRecord>): ShipStateRecord;
+	merge(workstreamId: string): void;
+}>;
+
+const shipStates = new WeakMap<FakeBridge, FakeShips>();
+
+const FAKE_SHIP_EPOCH = Date.parse('2026-01-01T00:00:00.000Z');
+
+export function fakeShips(bridge: FakeBridge): FakeShips {
+	const existing = shipStates.get(bridge);
+	if (existing) return existing;
+	const ships = new Map<string, ShipStateRecord>();
+	let nextNumber = 500;
+	let clock = FAKE_SHIP_EPOCH;
+	bridge.onReset(() => {
+		ships.clear();
+		nextNumber = 500;
+		clock = FAKE_SHIP_EPOCH;
+	});
+	const created: FakeShips = {
+		set(workstreamId, patch) {
+			const current = ships.get(workstreamId) ?? emptyShip(workstreamId);
+			const pullRequestNumber = patch.pullRequestNumber ?? current.pullRequestNumber;
+			const state: ShipStateRecord = {
+				...current,
+				...patch,
+				pullRequestUrl:
+					patch.pullRequestUrl ??
+					current.pullRequestUrl ??
+					(pullRequestNumber === null
+						? null
+						: `https://github.com/acme/fake/pull/${pullRequestNumber}`),
+				updatedAt: new Date((clock += 1_000)).toISOString(),
+			};
+			ships.set(workstreamId, state);
+			bridge.emit('pull-requests:ship-changed', { workstreamId, state });
+			return state;
+		},
+		merge(workstreamId) {
+			const current = ships.get(workstreamId);
+			ships.delete(workstreamId);
+			bridge.emit('pull-requests:ship-changed', {
+				workstreamId,
+				state: null,
+				merged: {
+					pullRequestNumber: current?.pullRequestNumber ?? 0,
+					pullRequestUrl: current?.pullRequestUrl ?? null,
+				},
+			});
+		},
+	};
+	shipStates.set(bridge, created);
+
+	bridge.define('pull-requests.ship-states', async () => [...ships.values()]);
+
+	bridge.define('pull-requests.open-draft', async (input) =>
+		created.set(input.workstreamId, {
+			phase: 'draft',
+			step: null,
+			needsYou: null,
+			lastError: null,
+			pullRequestNumber: ships.get(input.workstreamId)?.pullRequestNumber ?? nextNumber++,
+		}),
+	);
+
+	bridge.define('pull-requests.queue-merge', async (input) =>
+		created.set(input.workstreamId, {
+			phase: 'queued',
+			step: 'marking-ready',
+			queuedAt: new Date().toISOString(),
+			pullRequestNumber: ships.get(input.workstreamId)?.pullRequestNumber ?? nextNumber++,
+		}),
+	);
+
+	bridge.define('pull-requests.retry-merge', async (input) =>
+		created.set(input.workstreamId, {
+			phase: 'queued',
+			step: null,
+			needsYou: null,
+			lastError: null,
+			attempts: 0,
+		}),
+	);
+
+	bridge.define('pull-requests.cancel-merge', async (input) => {
+		const current = ships.get(input.workstreamId);
+		if (!current) return null;
+		if (current.pullRequestNumber === null) {
+			ships.delete(input.workstreamId);
+			bridge.emit('pull-requests:ship-changed', { workstreamId: input.workstreamId, state: null });
+			return null;
+		}
+		return created.set(input.workstreamId, {
+			phase: 'draft',
+			step: null,
+			needsYou: null,
+			queuedAt: null,
+			attempts: 0,
+			lastError: null,
+		});
+	});
+	return created;
+}
+
+function emptyShip(workstreamId: string): ShipStateRecord {
+	return {
+		workstreamId,
+		phase: 'draft',
+		step: null,
+		pullRequestNumber: null,
+		pullRequestUrl: null,
+		needsYou: null,
+		queuedAt: null,
+		attempts: 0,
+		activeJobRunId: null,
+		lastError: null,
+		nextAttemptAt: null,
+		updatedAt: new Date(FAKE_SHIP_EPOCH).toISOString(),
+	};
 }
 
 function statusFor(

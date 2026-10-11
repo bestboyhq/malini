@@ -12,5 +12,6 @@ function releaseUnhostedRuntime(): void {
 	extensionRuntimeStore.runTeardowns();
 	automationRulesStore.publishRunOptions(null);
 	automationRulesStore.publishFailures([]);
+	automationRulesStore.publishActiveWorkstream(null);
 	void extensionRuntimeStore.release();
 }

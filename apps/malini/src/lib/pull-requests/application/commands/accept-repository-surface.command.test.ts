@@ -69,8 +69,8 @@ describe('acceptRepositorySurfaceCommand', () => {
 		acceptRepositorySurfaceCommand('ws-1', surface('merged'));
 
 		expect(observe.mock.calls).toEqual([
-			['ws-1', 'ready'],
-			['ws-1', 'ready'],
+			['ws-1', 'open'],
+			['ws-1', 'open'],
 			['ws-1', 'merged'],
 		]);
 	});

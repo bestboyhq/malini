@@ -22,7 +22,10 @@ export async function launch(topic, { foreground = false } = {}) {
 			...(foreground ? {} : { MALINI_BACKGROUND_WINDOW: '1' }),
 		},
 	});
-	const page = await app.firstWindow();
+	const page = await app.firstWindow().catch(async (error) => {
+		await app.close();
+		throw error;
+	});
 	const errors = [];
 	page.on('console', (message) => {
 		if (message.type() === 'error') errors.push(message.text());

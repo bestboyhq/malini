@@ -15,6 +15,7 @@ import {
 	createMemoryRoutineGateStore,
 	type WorkstreamRoutineGateStore,
 } from '$shared/extensions/automation-gate';
+import type { WorkstreamRoutineJobRunner } from '$shared/extensions/automation-jobs';
 import type { WorkstreamRoutineDefinition } from '$shared/extensions/automation-rules.store.svelte';
 import { WorkstreamExtensionAutomationRuntime } from './extension-automation-runtime';
 
@@ -409,6 +410,44 @@ describe('workstream extension automation', () => {
 		await reloaded.dispose();
 		for (const disposable of owned.reverse()) await disposable.dispose();
 	});
+	it('honors run keys persisted before automations had steps', async () => {
+		const workstream = fakeWorkstream('workstream-legacy-key');
+		const storage = new MemoryStorage();
+		const contributions = new DesktopExtensionContributionHost({
+			currentWorkstream: () => workstream,
+			settingStorage: storage,
+		});
+		const api = contributions.createAPI(manifest, { track: (disposable) => disposable });
+		let runs = 0;
+		api.workflows.register({
+			id: 'example.preview.ensure-ready',
+			label: 'Ensure ready',
+			run: () => {
+				runs += 1;
+			},
+		});
+		const legacyKey = JSON.stringify([
+			workstream.id,
+			'example.preview',
+			'frontend-ready',
+			'when a frontend Docker container becomes ready',
+			{ input: { reason: 'frontend' }, workflow: 'example.preview.ensure-ready' },
+			'docker-frontend',
+		]);
+		await automationState(storage).set('successful-runs-v1', [legacyKey], {
+			kind: 'workstream',
+			id: workstream.id,
+		});
+		const runtime = new WorkstreamExtensionAutomationRuntime({
+			contributions,
+			workstream: () => workstream,
+			state: automationState(storage),
+		});
+		await runtime.configure(frontendAutomationConfiguration());
+		await contributions.emit(EXTENSION_EVENTS.resourceReady, frontendReadyEvent(workstream.id));
+		expect(runs).toBe(0);
+		await runtime.dispose();
+	});
 });
 
 describe('workstream routines in the automation runtime', () => {
@@ -418,7 +457,10 @@ describe('workstream routines in the automation runtime', () => {
 		contributions: DesktopExtensionContributionHost;
 		runs: unknown[];
 		owned: ExtensionDisposable[];
-		makeRuntime(gate?: WorkstreamRoutineGateStore): WorkstreamExtensionAutomationRuntime;
+		makeRuntime(
+			gate?: WorkstreamRoutineGateStore,
+			jobs?: WorkstreamRoutineJobRunner,
+		): WorkstreamExtensionAutomationRuntime;
 	};
 
 	function harness(workstreamId: string): Harness {
@@ -449,12 +491,13 @@ describe('workstream routines in the automation runtime', () => {
 			contributions,
 			runs,
 			owned,
-			makeRuntime: (gate) =>
+			makeRuntime: (gate, jobs) =>
 				new WorkstreamExtensionAutomationRuntime({
 					contributions,
 					workstream: () => workstream,
 					state: automationState(storage),
 					...(gate !== undefined ? { gate } : {}),
+					...(jobs !== undefined ? { jobs } : {}),
 				}),
 		};
 	}
@@ -468,7 +511,7 @@ describe('workstream routines in the automation runtime', () => {
 			origin: 'user',
 			label: 'Ensure the preview is ready',
 			when: 'when a frontend Docker container becomes ready',
-			run: { workflow: 'example.preview.ensure-ready', input: { reason: 'routine' } },
+			steps: [{ workflow: 'example.preview.ensure-ready', input: { reason: 'routine' } }],
 			evidence: [{ kind: 'prompt', text: 'open the preview when the frontend boots' }],
 			...overrides,
 		};
@@ -606,6 +649,200 @@ describe('workstream routines in the automation runtime', () => {
 		await drain(h);
 	});
 
+	it('runs steps in order and waits for each job without holding up the event', async () => {
+		const h = harness('workstream-steps');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		await runtime.configure(emptyConfiguration(), [
+			routineDefinition({
+				steps: [
+					{ workflow: 'example.preview.ensure-ready', input: { step: 'first' } },
+					{ job: 'job-fix' },
+					{ workflow: 'example.preview.ensure-ready', input: { step: 'last' } },
+				],
+			}),
+		]);
+
+		const event = frontendReadyEvent(h.workstream.id);
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, event);
+		await vi.waitFor(() =>
+			expect(h.runs).toEqual([
+				{ step: 'first', ...event },
+				{ job: 'job-fix', workstreamId: h.workstream.id },
+			]),
+		);
+
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, event);
+		expect(h.runs).toHaveLength(2);
+
+		jobs.finish('job-fix');
+		await vi.waitFor(() => expect(h.runs).toHaveLength(3));
+		expect(h.runs[2]).toEqual({ step: 'last', ...event });
+		expect(runtime.failures).toEqual([]);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('stops the chain at a failed job and records the failure', async () => {
+		const h = harness('workstream-job-fails');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		await runtime.configure(emptyConfiguration(), [
+			routineDefinition({
+				steps: [
+					{ job: 'job-fix' },
+					{ workflow: 'example.preview.ensure-ready', input: { step: 'after' } },
+				],
+			}),
+		]);
+
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, frontendReadyEvent(h.workstream.id));
+		await vi.waitFor(() => expect(h.runs).toHaveLength(1));
+		jobs.fail('job-fix', 'Job “Fix” failed: the tests are still red');
+
+		await vi.waitFor(() =>
+			expect(runtime.failures).toEqual([
+				{
+					workstreamId: h.workstream.id,
+					ruleId: 'routine-frontend-preview',
+					message: 'Job “Fix” failed: the tests are still red',
+				},
+			]),
+		);
+		expect(h.runs).toEqual([{ job: 'job-fix', workstreamId: h.workstream.id }]);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('keeps a job chain going when the routines reload mid-job', async () => {
+		const h = harness('workstream-reload');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		const routines = [
+			routineDefinition({
+				steps: [
+					{ job: 'job-fix' },
+					{ workflow: 'example.preview.ensure-ready', input: { step: 'after' } },
+				],
+			}),
+		];
+		await runtime.configure(emptyConfiguration(), routines);
+		const event = frontendReadyEvent(h.workstream.id);
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, event);
+		await vi.waitFor(() => expect(h.runs).toHaveLength(1));
+
+		await runtime.configure(emptyConfiguration(), routines);
+		jobs.finish('job-fix');
+		await vi.waitFor(() =>
+			expect(h.runs).toEqual([
+				{ job: 'job-fix', workstreamId: h.workstream.id },
+				{ step: 'after', ...event },
+			]),
+		);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('never fires a manual routine on its own', async () => {
+		const h = harness('workstream-manual');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		const onEvent = vi.spyOn(h.contributions, 'onEvent');
+		await runtime.configure(emptyConfiguration(), [
+			routineDefinition({ when: 'when I run it', steps: [{ job: 'job-fix' }] }),
+		]);
+
+		expect(onEvent).not.toHaveBeenCalled();
+		expect(runtime.rules.map(({ id, description }) => ({ id, description }))).toEqual([
+			{ id: 'routine-frontend-preview', description: 'Only when you run it' },
+		]);
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, frontendReadyEvent(h.workstream.id));
+		await runtime.announceWorkstreamCreated();
+		expect(h.runs).toEqual([]);
+		expect(runtime.failures).toEqual([]);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('runs a routine now in the chosen workstream, whatever its trigger or status', async () => {
+		const h = harness('workstream-run-now');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		const draft = routineDefinition({
+			status: 'draft',
+			when: 'when I run it',
+			steps: [
+				{ job: 'job-fix' },
+				{ workflow: 'example.preview.ensure-ready', input: { step: 'after' } },
+			],
+		});
+		await runtime.configure(emptyConfiguration(), [draft]);
+
+		const run = runtime.runNow(draft, h.workstream.id);
+		await vi.waitFor(() => expect(h.runs).toHaveLength(1));
+		jobs.finish('job-fix');
+		await run;
+		expect(h.runs).toEqual([{ job: 'job-fix', workstreamId: h.workstream.id }, { step: 'after' }]);
+
+		const elsewhere = runtime.runNow({ id: 'jobs-only', steps: [{ job: 'job-b' }] }, 'other');
+		await vi.waitFor(() => expect(h.runs).toHaveLength(3));
+		jobs.finish('job-b');
+		await elsewhere;
+		expect(h.runs[2]).toEqual({ job: 'job-b', workstreamId: 'other' });
+
+		await expect(runtime.runNow(draft, 'other')).rejects.toThrow('Open the workstream');
+		expect(h.runs).toHaveLength(3);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('surfaces a failed job to the caller of run now', async () => {
+		const h = harness('workstream-run-now-fails');
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(undefined, jobs.runner);
+		await runtime.configure(emptyConfiguration(), []);
+		const run = runtime.runNow({ id: 'routine-a', steps: [{ job: 'job-fix' }] }, h.workstream.id);
+		await vi.waitFor(() => expect(h.runs).toHaveLength(1));
+		jobs.fail('job-fix', 'Job “Fix” was cancelled');
+		await expect(run).rejects.toThrow('Job “Fix” was cancelled');
+		expect(runtime.failures).toEqual([
+			{ workstreamId: h.workstream.id, ruleId: 'routine-a', message: 'Job “Fix” was cancelled' },
+		]);
+		await runtime.dispose();
+		await drain(h);
+	});
+
+	it('gates a candidate chain once, then runs every step after confirmation', async () => {
+		const h = harness('workstream-gated-chain');
+		const gate = createMemoryRoutineGateStore();
+		const jobs = fakeJobs(h.runs);
+		const runtime = h.makeRuntime(gate, jobs.runner);
+		await runtime.configure(emptyConfiguration(), [
+			routineDefinition({
+				status: 'candidate',
+				steps: [
+					{ job: 'job-fix' },
+					{ workflow: 'example.preview.ensure-ready', input: { step: 'after' } },
+				],
+			}),
+		]);
+		const event = frontendReadyEvent(h.workstream.id);
+		await h.contributions.emit(EXTENSION_EVENTS.resourceReady, event);
+		const held = runtime.pendingGatedRuns[0];
+		expect(held).toBeDefined();
+		expect(h.runs).toEqual([]);
+
+		await runtime.confirmGatedRun(held?.id ?? '');
+		expect(gate.records.get(held?.id ?? '')?.state).toBe('confirmed');
+		await vi.waitFor(() => expect(h.runs).toHaveLength(1));
+		jobs.finish('job-fix');
+		await vi.waitFor(() => expect(h.runs).toHaveLength(2));
+		expect(h.runs[1]).toEqual({ step: 'after', ...event });
+		expect(runtime.pendingGatedRuns).toEqual([]);
+		await runtime.dispose();
+		await drain(h);
+	});
+
 	it('records a failure instead of breaking configure for an uncompilable routine', async () => {
 		const h = harness('workstream-broken');
 		const runtime = h.makeRuntime();
@@ -642,6 +879,27 @@ const manifest: ExtensionManifest = {
 		],
 	},
 };
+
+function fakeJobs(runs: unknown[]): Readonly<{
+	runner: WorkstreamRoutineJobRunner;
+	finish(definitionId: string): void;
+	fail(definitionId: string, message: string): void;
+}> {
+	const pending = new Map<string, { resolve(): void; reject(error: Error): void }>();
+	return {
+		runner: {
+			run(definitionId, workstreamId, signal) {
+				runs.push({ job: definitionId, workstreamId });
+				return new Promise<void>((resolve, reject) => {
+					pending.set(definitionId, { resolve, reject });
+					signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+				});
+			},
+		},
+		finish: (definitionId) => pending.get(definitionId)?.resolve(),
+		fail: (definitionId, message) => pending.get(definitionId)?.reject(new Error(message)),
+	};
+}
 
 function fakeWorkstream(id: string): ExtensionWorkstream {
 	return {

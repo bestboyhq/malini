@@ -224,6 +224,7 @@ export interface CheckDiagnosticsDto {
 export interface ReviewCommentDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	createdAt: string;
 	updatedAt: string;
@@ -244,6 +245,7 @@ export interface ReviewThreadDto {
 export interface RequestedChangeReviewDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	submittedAt: string;
 	updatedAt: string;

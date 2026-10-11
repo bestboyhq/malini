@@ -57,7 +57,9 @@
 	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubPanelHeadline = $derived(
-		githubStatus?.title ?? githubStatus?.branch ?? 'No pull request',
+		githubStatus?.title ??
+			githubStatus?.branch ??
+			(githubStatus?.reference ? 'Pull request' : 'No pull request'),
 	);
 	let githubZoneElement: HTMLDivElement | undefined = $state();
 	let githubDisclosureElement: HTMLButtonElement | undefined = $state();
@@ -80,23 +82,6 @@
 			disabled: action.disabled,
 			busy: action.busy,
 			testId: 'global-topbar-github-action',
-			onInvoke: action.onInvoke,
-		};
-	});
-
-	const githubSecondaryAction = $derived.by<GlobalTopBarAction | null>(() => {
-		const action = githubStatus?.secondaryAction;
-		if (!action) return null;
-		return {
-			id: 'github-secondary',
-			label: action.label,
-			ariaLabel: action.ariaLabel,
-			tooltip: action.tooltip,
-			tone: action.tone,
-			compactIcon: action.compactIcon ?? null,
-			disabled: action.disabled,
-			busy: action.busy,
-			testId: 'global-topbar-github-secondary-action',
 			onInvoke: action.onInvoke,
 		};
 	});
@@ -384,9 +369,6 @@
 						</span>
 					</Tooltip>
 				{/if}
-				{#if githubSecondaryAction}
-					{@render githubAction(githubSecondaryAction, 'topbar-git__secondary')}
-				{/if}
 				{#if githubStatus.reference}
 					{#if githubPrimaryAction}
 						{@render githubAction(githubPrimaryAction, 'topbar-git__action')}
@@ -445,23 +427,25 @@
 							</div>
 						{/if}
 
-						<div class="github-panel__section">
-							<div class="github-panel__section-head">
-								<span>Checks</span>
-								<span class="github-panel__section-meta">{githubStatus.checksSummary}</span>
+						{#if githubStatus.checksSummary || githubStatus.checks.length > 0}
+							<div class="github-panel__section">
+								<div class="github-panel__section-head">
+									<span>Checks</span>
+									<span class="github-panel__section-meta">{githubStatus.checksSummary}</span>
+								</div>
+								{#if githubStatus.checks.length > 0}
+									<ul class="github-panel__checks">
+										{#each githubStatus.checks as check (check.id)}
+											<li class="github-panel__check" data-blocking={check.blocking}>
+												<span class="tone-dot" data-tone={check.tone} aria-hidden="true"></span>
+												<span class="github-panel__check-name">{check.name}</span>
+												<span class="github-panel__check-detail">{check.detail}</span>
+											</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
-							{#if githubStatus.checks.length > 0}
-								<ul class="github-panel__checks">
-									{#each githubStatus.checks as check (check.id)}
-										<li class="github-panel__check" data-blocking={check.blocking}>
-											<span class="tone-dot" data-tone={check.tone} aria-hidden="true"></span>
-											<span class="github-panel__check-name">{check.name}</span>
-											<span class="github-panel__check-detail">{check.detail}</span>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						</div>
+						{/if}
 
 						{#if githubStatus.changes || githubStatus.review || githubStatus.todos}
 							<ul class="github-panel__notes">
@@ -963,13 +947,6 @@
 	.topbar-git__headline-label {
 		overflow: hidden;
 		text-overflow: ellipsis;
-	}
-
-	.topbar-git__secondary {
-		border-width: 1px;
-		border-style: dashed;
-		border-color: color-mix(in srgb, currentColor 35%, transparent);
-		background: transparent;
 	}
 
 	.topbar-git .topbar-action.topbar-action--icon {

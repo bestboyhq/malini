@@ -29,11 +29,6 @@ export class RepositoryTodoStore {
 			scope(workstreamId),
 		);
 	}
-
-	async reset(workstreamId: string): Promise<readonly RepositoryTodo[]> {
-		await this.#state.delete(REPOSITORY_TODO_STATE_KEY, scope(workstreamId));
-		return this.load(workstreamId);
-	}
 }
 
 function scope(workstreamId: string) {

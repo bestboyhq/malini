@@ -2,14 +2,25 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
+	import { Select } from '$hyper-ui/components/select';
 	import { deleteRoutineCommand } from '$lib/routines/application/commands/delete-routine.command';
 	import { demoteRoutineCommand } from '$lib/routines/application/commands/demote-routine.command';
 	import { promoteRoutineCommand } from '$lib/routines/application/commands/promote-routine.command';
+	import { runRoutineNowCommand } from '$lib/routines/application/commands/run-routine-now.command';
+	import { activeAutomationWorkstreamQuery } from '$lib/routines/application/queries/active-automation-workstream.query.svelte';
 	import { automationFailuresQuery } from '$lib/routines/application/queries/automation-failures.query.svelte';
 	import { pendingGatedRunsQuery } from '$lib/routines/application/queries/pending-gated-runs.query.svelte';
 	import { routineActionStateQuery } from '$lib/routines/application/queries/routine-action-state.query.svelte';
+	import { routineJobsQuery } from '$lib/routines/application/queries/routine-jobs.query.svelte';
 	import type { Routine } from '$lib/routines/domain/routine';
-	import { routineRunTarget } from '$lib/routines/domain/routine';
+	import { routineStepKind, routineStepTarget } from '$lib/routines/domain/routine';
+	import { routineRunActionId, routineUpdateActionId } from '$lib/routines/domain/routine-action';
+	import {
+		activeWorkstreamsQuery,
+		displayWorkstreamName,
+	} from '$shared/repositories/repositories.api';
+	import { ROUTINE_STEP_KIND_LABELS } from './routine-copy';
+	import RoutineForm from './RoutineForm.svelte';
 	import RoutineGatedRunRow from './RoutineGatedRunRow.svelte';
 
 	interface Props {
@@ -20,10 +31,42 @@
 
 	let evidenceOpen = $state(false);
 	let confirmingDelete = $state(false);
+	let editingFrom: number | null = $state(null);
+	let chosenWorkstreamId: string | null = $state(null);
 
 	const actionState = $derived(routineActionStateQuery.data(routine.id));
+	const runState = $derived(routineActionStateQuery.data(routineRunActionId(routine.id)));
+	const updateState = $derived(routineActionStateQuery.data(routineUpdateActionId(routine.id)));
+	const editing = $derived(editingFrom !== null && editingFrom === updateState.completed);
 	const failure = $derived(automationFailuresQuery.data(routine.id));
 	const gatedRuns = $derived(pendingGatedRunsQuery.data(routine.id));
+	const jobs = $derived(routineJobsQuery.data);
+	const workstreams = $derived(activeWorkstreamsQuery.data);
+	const activeWorkstreamId = $derived(activeAutomationWorkstreamQuery.data);
+
+	const stepLines = $derived(
+		routine.steps.map((step) => ({
+			kind: ROUTINE_STEP_KIND_LABELS[routineStepKind(step)],
+			target:
+				'job' in step
+					? (jobs.find(({ id }) => id === step.job)?.name ?? 'Missing job')
+					: routineStepTarget(step),
+			code: !('job' in step),
+		})),
+	);
+	const workstreamOptions = $derived(
+		workstreams.map((workstream) => ({
+			value: workstream.id,
+			label: displayWorkstreamName(workstream),
+		})),
+	);
+	const runWorkstreamId = $derived(
+		[chosenWorkstreamId, activeWorkstreamId].find(
+			(id) => id !== null && workstreams.some((workstream) => workstream.id === id),
+		) ??
+			workstreams[0]?.id ??
+			null,
+	);
 
 	const promoteLabel = $derived(
 		routine.status === 'draft'
@@ -44,6 +87,11 @@
 		deleteRoutineCommand(routine.id);
 		confirmingDelete = false;
 	}
+
+	function onRunNow(): void {
+		if (runWorkstreamId === null) return;
+		runRoutineNowCommand(routine, runWorkstreamId);
+	}
 </script>
 
 <li
@@ -61,11 +109,17 @@
 					<Badge>from suggestion</Badge>
 				{/if}
 			</div>
-			<p class="text-fg-tertiary mt-0.5 truncate text-xs">
-				{routine.when}
-				<span class="text-fg-tertiary/70">· runs</span>
-				<span class="font-mono">{routineRunTarget(routine.run)}</span>
-			</p>
+			<p class="text-fg-tertiary mt-0.5 truncate text-xs">{routine.when}</p>
+			<ol class="mt-1.5 space-y-0.5" aria-label={`Steps of ${routine.label}`}>
+				{#each stepLines as line, index (index)}
+					<li class="text-fg-secondary truncate text-xs" data-testid="routine-row-step">
+						<span class="text-fg-tertiary tabular-nums">{index + 1}.</span>
+						{line.kind}
+						<span class="text-fg-tertiary">·</span>
+						<span class={[line.code && 'font-mono']}>{line.target}</span>
+					</li>
+				{/each}
+			</ol>
 			{#if failure}
 				<p class="text-error-content mt-1 text-xs" data-testid="routine-compile-failure">
 					{failure}
@@ -129,6 +183,17 @@
 					Cancel
 				</Button>
 			{:else}
+				<Button
+					variant="ghost"
+					size="2xs"
+					ariaLabel={`Edit ${routine.label}`}
+					ariaExpanded={editing}
+					disabled={actionState.busy}
+					data-testid="routine-edit"
+					onclick={() => (editingFrom = editing ? null : updateState.completed)}
+				>
+					Edit
+				</Button>
 				{#if promoteLabel}
 					<Button
 						variant="secondary"
@@ -170,6 +235,44 @@
 		<p class="text-error-content mt-1.5 text-xs" role="alert" data-testid="routine-action-error">
 			{actionState.error}
 		</p>
+	{/if}
+	{#if editing}
+		<div class="border-surface-100-border mt-3 border-t pt-3">
+			<RoutineForm {routine} oncancel={() => (editingFrom = null)} />
+		</div>
+	{:else}
+		<div class="mt-3 flex items-center gap-2" data-testid="routine-run-now">
+			<Select
+				value={runWorkstreamId ?? ''}
+				options={workstreamOptions.length > 0
+					? workstreamOptions
+					: [{ value: '', label: 'No workstreams yet', disabled: true }]}
+				ariaLabel={`Workstream to run ${routine.label} in`}
+				disabled={workstreamOptions.length === 0 || runState.busy}
+				class="w-56 min-w-0"
+				onchange={(value) => (chosenWorkstreamId = value)}
+				data-testid="routine-run-workstream"
+			/>
+			<Button
+				variant="secondary"
+				size="sm"
+				ariaLabel={`Run ${routine.label} now`}
+				loading={runState.busy}
+				disabled={runWorkstreamId === null}
+				data-testid="routine-run"
+				onclick={onRunNow}
+			>
+				{#snippet leading()}
+					<Icon name="play" size={12} />
+				{/snippet}
+				Run now
+			</Button>
+		</div>
+		{#if runState.error}
+			<p class="text-error-content mt-1.5 text-xs" role="alert" data-testid="routine-run-error">
+				{runState.error}
+			</p>
+		{/if}
 	{/if}
 	{#if gatedRuns.length > 0}
 		<ul class="border-surface-100-border mt-2 space-y-1.5 border-t pt-2">

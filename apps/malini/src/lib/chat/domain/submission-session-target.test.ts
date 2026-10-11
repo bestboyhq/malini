@@ -19,6 +19,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:01:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 				{
 					id: 'a-older-selected',
@@ -26,6 +27,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:00:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 				{
 					id: 'b-current-route',
@@ -33,6 +35,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:02:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 			],
 		});
@@ -57,6 +60,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:02:00.000Z',
 					matchesTurn: false,
 					busy: true,
+					origin: 'user',
 				},
 				{
 					id: 'selected-idle',
@@ -64,6 +68,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:00:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 			],
 		});
@@ -84,6 +89,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:02:00.000Z',
 					matchesTurn: true,
 					busy: true,
+					origin: 'user',
 				},
 			],
 		});
@@ -107,6 +113,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:00:00.000Z',
 					matchesTurn: false,
 					busy: true,
+					origin: 'user',
 				},
 				{
 					id: 'unrelated-idle',
@@ -114,6 +121,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:01:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 			],
 		});
@@ -135,6 +143,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:03:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 				{
 					id: 'a-matching-newest',
@@ -142,6 +151,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:02:00.000Z',
 					matchesTurn: true,
 					busy: false,
+					origin: 'user',
 				},
 				{
 					id: 'a-nonmatching',
@@ -149,6 +159,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:01:00.000Z',
 					matchesTurn: false,
 					busy: false,
+					origin: 'user',
 				},
 			],
 		});
@@ -156,6 +167,44 @@ describe('resolveSubmissionSessionTarget', () => {
 		expect(target.targetSessionId).toBe('a-matching-newest');
 		expect(target.queueTargetSessionId).toBe('a-matching-newest');
 		expect(target.fallbackSessionId).toBe('a-matching-newest');
+	});
+
+	it('sends to a job only from its own open transcript, never as the newest matching chat', () => {
+		const candidates = [
+			{
+				id: 'job-newest',
+				workstreamId: 'workstream-a',
+				startedAt: '2026-07-17T12:02:00.000Z',
+				matchesTurn: true,
+				busy: false,
+				origin: 'job' as const,
+			},
+			{
+				id: 'user-chat',
+				workstreamId: 'workstream-a',
+				startedAt: '2026-07-17T12:00:00.000Z',
+				matchesTurn: true,
+				busy: false,
+				origin: 'user' as const,
+			},
+		];
+
+		const unanchored = resolveSubmissionSessionTarget({
+			workstreamId: 'workstream-a',
+			capturedSessionId: null,
+			forceFreshSession: false,
+			candidates,
+		});
+		const steering = resolveSubmissionSessionTarget({
+			workstreamId: 'workstream-a',
+			capturedSessionId: 'job-newest',
+			forceFreshSession: false,
+			candidates,
+		});
+
+		expect(unanchored.targetSessionId).toBe('user-chat');
+		expect(unanchored.fallbackSessionId).toBe('user-chat');
+		expect(steering.targetSessionId).toBe('job-newest');
 	});
 
 	it('claims a rapid fresh intent once, then reuses the session minted by the first turn', () => {
@@ -180,6 +229,7 @@ describe('resolveSubmissionSessionTarget', () => {
 					startedAt: '2026-07-17T12:00:00.000Z',
 					matchesTurn: true,
 					busy: true,
+					origin: 'user',
 				},
 			],
 		});
