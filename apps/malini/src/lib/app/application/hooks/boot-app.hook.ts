@@ -1,10 +1,19 @@
+import { followSystemThemeCommand } from '$lib/app/application/commands/follow-system-theme.command';
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
+import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
 
 export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
-	if (!windowLifecycleService.isNativeWindow()) return stopWatchingZoom;
+	const stopFollowingSystemTheme =
+		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
+	if (!windowLifecycleService.isNativeWindow()) {
+		return () => {
+			stopFollowingSystemTheme();
+			stopWatchingZoom();
+		};
+	}
 
 	let disposed = false;
 	let disarmCloseGuard: (() => void) | null = null;
@@ -26,6 +35,7 @@ export function bootAppHook(): () => void {
 		disposed = true;
 		disarmCloseGuard?.();
 		disarmCloseGuard = null;
+		stopFollowingSystemTheme();
 		stopWatchingZoom();
 	};
 }

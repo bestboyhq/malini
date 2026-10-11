@@ -6,6 +6,7 @@ import type {
 	NotifyArgs,
 	OpenExternalUrlArgs,
 	SecretKeyArgs,
+	SetClipboardImageArgs,
 	SetClipboardTextArgs,
 	SetInterfaceScaleArgs,
 	SetSecretArgs,
@@ -90,6 +91,17 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	commands.define('app.copy-text', async (args: SetClipboardTextArgs) => {
 		if (typeof args?.text !== 'string') throw new Error('text must be a string');
 		await host.clipboardWriteText(args.text);
+	});
+	commands.define('app.copy-image', async (args: SetClipboardImageArgs) => {
+		const pngDataUrl = args?.pngDataUrl;
+		if (typeof pngDataUrl !== 'string' || !pngDataUrl.startsWith(PNG_DATA_URL)) {
+			throw new Error('pngDataUrl must be a PNG data URL');
+		}
+		const png = Buffer.from(pngDataUrl.slice(PNG_DATA_URL.length), 'base64');
+		if (!png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+			throw new Error('pngDataUrl must be a PNG data URL');
+		}
+		await host.clipboardWriteImage(png);
 	});
 
 	const runtimeIdentity = createRuntimeIdentityProvider({
@@ -197,6 +209,8 @@ function defineShutdownCommands(
 }
 
 const MAX_RECENT_DIAGNOSTICS = 200;
+const PNG_DATA_URL = 'data:image/png;base64,';
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function recentDiagnosticsLimit(requested: unknown): number {
 	if (typeof requested !== 'number' || !Number.isInteger(requested) || requested < 1) {

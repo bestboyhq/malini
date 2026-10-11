@@ -287,6 +287,8 @@ export type OpenExternalUrlArgs = Readonly<{ url: string }>;
 
 export type SetClipboardTextArgs = Readonly<{ text: string }>;
 
+export type SetClipboardImageArgs = Readonly<{ pngDataUrl: string }>;
+
 export type AppendRendererErrorArgs = Readonly<{ payload: RendererErrorPayload }>;
 
 export type SetInterfaceScaleArgs = Readonly<{ scale: number }>;
@@ -490,6 +492,7 @@ export interface ContractCommands {
 		result: void;
 	};
 	'app.copy-text': { args: SetClipboardTextArgs; result: void };
+	'app.copy-image': { args: SetClipboardImageArgs; result: void };
 	'app.focus-window': { args: undefined; result: void };
 	'app.runtime-identity': { args: undefined; result: DesktopRuntimeIdentity };
 	'app.delete-secret': { args: SecretKeyArgs; result: void };
@@ -518,6 +521,7 @@ export type CommandResult<Name extends CommandName> = ContractCommands[Name]['re
 
 export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.copy-text',
+	'app.copy-image',
 	'chat.activate-session',
 	'chat.agent-health',
 	'providers.run-claude-setup',

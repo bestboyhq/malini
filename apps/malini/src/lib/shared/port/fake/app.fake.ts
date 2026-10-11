@@ -32,6 +32,8 @@ export function installAppFake(bridge: FakeBridge, state: FakeState): void {
 
 	bridge.define('app.copy-text', async () => {});
 
+	bridge.define('app.copy-image', async () => {});
+
 	bridge.define('app.interface-scale', async (input) => {
 		if (typeof document !== 'undefined') {
 			document.documentElement.style.zoom = `${input.scale}`;
