@@ -4,12 +4,13 @@
 
 	interface Props {
 		text: string;
+		interactive?: boolean;
 	}
 
-	let { text }: Props = $props();
+	let { text, interactive = true }: Props = $props();
 	const segments = $derived(sensitiveSegments(text));
 </script>
 
-{#each segments as segment}{#if segment.kind}<Sensitive kind={segment.kind}>
+{#each segments as segment}{#if segment.kind}<Sensitive kind={segment.kind} {interactive}>
 			{segment.text}
 		</Sensitive>{:else}{segment.text}{/if}{/each}

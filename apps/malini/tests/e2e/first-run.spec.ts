@@ -41,19 +41,17 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		});
 		const claude = page.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'signed-out');
-		await expect(
-			claude.getByRole('button', { name: 'Sign in to Claude Code in Terminal' }),
-		).toBeVisible();
-		await expect(claude.getByText('claude auth login')).toBeVisible();
+		await expect(claude.getByRole('button', { name: 'Sign in to Claude Code' })).toBeVisible();
+		await expect(claude.getByText('Sign in opens your browser.')).toBeVisible();
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);
 		const picker = page.getByRole('button', { name: 'Model: Default, Claude Code needs setup' });
 		await expect(picker).toBeVisible({ timeout: 20_000 });
 		await picker.click();
-		await expect(page.getByTestId('chat-model-setup')).toContainText(
-			'Claude Code is installed but not signed in.',
-		);
+		const setup = page.getByTestId('chat-model-setup');
+		await expect(setup).toContainText('Claude Code is installed but not signed in.');
+		await expect(setup.getByRole('button', { name: 'Sign in to Claude Code' })).toBeVisible();
 		await captureFlow(app, 'model-picker-sign-in-claude');
 		expectCleanConsole(app);
 	} finally {

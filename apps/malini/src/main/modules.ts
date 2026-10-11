@@ -73,7 +73,7 @@ export async function registerModules(
 
 	registerRoutines(context);
 
-	registerProviders(context);
+	const providers = registerProviders(context);
 
 	await resolveBootEnvironment(context);
 
@@ -105,6 +105,7 @@ export async function registerModules(
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
 			repositories.watchers.dispose();
+			providers.stop();
 			await chat.stop();
 			try {
 				const outcome = await app.shutdownGracefully();

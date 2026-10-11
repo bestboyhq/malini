@@ -10,30 +10,42 @@ const ackDelay = Number(env.FAKE_BRIDGE_ACK_DELAY_MS || 0);
 const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
 const approvalPath = env.FAKE_BRIDGE_APPROVAL_PATH || '/tmp/outside.txt';
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
-const claudeState = env.FAKE_BRIDGE_CLAUDE_STATE || 'ready';
-const makeCapability = (capabilityVersion, message) => ({
-	state: claudeState,
-	installed: claudeState !== 'missing',
-	authenticated: claudeState === 'ready' ? true : claudeState === 'needs_auth' ? false : null,
-	version: claudeState === 'missing' ? null : capabilityVersion,
-	account: claudeState === 'ready' ? { email: 'e2e@example.com', plan: 'Claude Max' } : null,
-	models: [
-		{
-			id: 'default',
-			label: 'Default',
-			description: 'Fixture default',
-			efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-		},
-		{
-			id: 'sonnet',
-			label: 'Sonnet',
-			description: 'Fixture sonnet',
-			efforts: ['low', 'medium', 'high', 'max'],
-		},
-	],
-	defaultModel: 'default',
-	message,
-});
+const signedInEmail = () => {
+	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
+	try {
+		return fs.readFileSync(env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE, 'utf8').trim() || null;
+	} catch {
+		return null;
+	}
+};
+const makeCapability = (capabilityVersion, message) => {
+	const email = signedInEmail();
+	const claudeState = email ? 'ready' : env.FAKE_BRIDGE_CLAUDE_STATE || 'ready';
+	return {
+		state: claudeState,
+		installed: claudeState !== 'missing',
+		authenticated: claudeState === 'ready' ? true : claudeState === 'needs_auth' ? false : null,
+		version: claudeState === 'missing' ? null : capabilityVersion,
+		account:
+			claudeState === 'ready' ? { email: email ?? 'e2e@example.com', plan: 'Claude Max' } : null,
+		models: [
+			{
+				id: 'default',
+				label: 'Default',
+				description: 'Fixture default',
+				efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+			},
+			{
+				id: 'sonnet',
+				label: 'Sonnet',
+				description: 'Fixture sonnet',
+				efforts: ['low', 'medium', 'high', 'max'],
+			},
+		],
+		defaultModel: 'default',
+		message,
+	};
+};
 if (env.FAKE_BRIDGE_STDERR_EXIT) {
 	process.stderr.write(env.FAKE_BRIDGE_STDERR_EXIT + '\n');
 	process.exit(1);

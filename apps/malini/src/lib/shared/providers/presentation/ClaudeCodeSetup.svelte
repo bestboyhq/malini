@@ -1,18 +1,25 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { onMount } from 'svelte';
-	import { CLAUDE_SETUP_COMMANDS } from '$contract/agent';
+	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
+	import { Dropdown } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import type { ClaudeSignInState } from '$shared/providers/domain/claude-accounts';
 	import { setupStepFor, type ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
-	import { copyClaudeSetupCommandCommand } from '$shared/providers/application/commands/copy-claude-setup-command.command';
+	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
+	import { copyClaudeInstallCommandCommand } from '$shared/providers/application/commands/copy-claude-install-command.command';
+	import { installClaudeCodeCommand } from '$shared/providers/application/commands/install-claude-code.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
-	import { runClaudeSetupCommand } from '$shared/providers/application/commands/run-claude-setup.command';
+	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
+	import { otherClaudeAccountsQuery } from '$shared/providers/application/queries/other-claude-accounts.query.svelte';
+	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
 
 	interface Props {
 		step?: number;
@@ -20,12 +27,20 @@
 
 	let { step }: Props = $props();
 	let copied = $state(false);
+	let switchOpen = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const status = $derived(claudeCodeStatusQuery.data);
+	const signIn = $derived(claudeSignInQuery.data);
+	const otherAccounts = $derived(otherClaudeAccountsQuery.data);
 	const setupStep = $derived(setupStepFor(status));
-	const command = $derived(setupStep ? CLAUDE_SETUP_COMMANDS[setupStep] : null);
-	const detail = $derived(statusDetail(status));
+	const detail = $derived(signInDetail(signIn) ?? statusDetail(status));
+
+	function signInDetail(current: ClaudeSignInState): string | null {
+		if (current === 'waiting-for-browser') return 'Continue in your browser to finish signing in.';
+		if (current === 'confirming') return 'Checking the new sign-in…';
+		return null;
+	}
 
 	function statusDetail(current: ClaudeCodeStatus): string {
 		switch (current.kind) {
@@ -49,11 +64,15 @@
 	}
 
 	function onCopy(): void {
-		if (!setupStep) return;
-		copyClaudeSetupCommandCommand(setupStep);
+		copyClaudeInstallCommandCommand();
 		copied = true;
 		clearTimeout(copiedTimer);
 		copiedTimer = setTimeout(() => (copied = false), 1_500);
+	}
+
+	function onSwitch(email: string | null): void {
+		switchOpen = false;
+		signInToClaudeCommand(email);
 	}
 
 	onMount(() => {
@@ -87,25 +106,74 @@
 				<SensitiveText text={detail} />
 			</p>
 		</div>
-		{#if status.kind === 'checking'}
+		{#if signIn !== 'idle'}
 			<LoadingCircle size={16} />
-		{:else if status.kind === 'ready'}
+			{#if signIn === 'waiting-for-browser'}
+				<Button
+					variant="secondary"
+					size="sm"
+					class="shrink-0"
+					ariaLabel="Cancel signing in to Claude Code"
+					onclick={cancelClaudeSignInCommand}
+				>
+					Cancel
+				</Button>
+			{/if}
+		{:else if status.kind === 'checking'}
+			<LoadingCircle size={16} />
+		{:else if status.kind === 'ready' && step !== undefined}
 			<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
 				<Icon name="check" size={14} />
 				Ready
 			</span>
-		{:else if setupStep}
+		{:else if status.kind === 'ready'}
+			<Dropdown
+				bind:open={switchOpen}
+				align="end"
+				panelClass="w-72"
+				testId="claude-account-menu"
+				owner="claude-code-setup"
+			>
+				{#snippet trigger()}
+					<Button
+						variant="secondary"
+						size="sm"
+						class="shrink-0"
+						active={switchOpen}
+						ariaLabel="Switch Claude account"
+						ariaHasPopup="menu"
+						ariaExpanded={switchOpen}
+					>
+						Switch account
+					</Button>
+				{/snippet}
+				{#snippet content()}
+					<div role="group" aria-label="Claude accounts">
+						<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
+					</div>
+				{/snippet}
+			</Dropdown>
+		{:else if setupStep === 'install'}
 			<Button
 				variant="primary"
 				size="sm"
 				class="shrink-0"
-				ariaLabel={setupStep === 'install'
-					? 'Install Claude Code in Terminal'
-					: 'Sign in to Claude Code in Terminal'}
+				ariaLabel="Install Claude Code in Terminal"
 				data-testid="claude-code-setup-action"
-				onclick={() => runClaudeSetupCommand(setupStep)}
+				onclick={installClaudeCodeCommand}
 			>
-				{setupStep === 'install' ? 'Install' : 'Sign in'}
+				Install
+			</Button>
+		{:else if setupStep === 'sign-in'}
+			<Button
+				variant="primary"
+				size="sm"
+				class="shrink-0"
+				ariaLabel="Sign in to Claude Code"
+				data-testid="claude-code-setup-action"
+				onclick={() => signInToClaudeCommand()}
+			>
+				Sign in
 			</Button>
 		{:else}
 			<Button
@@ -123,13 +191,13 @@
 		{/if}
 	</div>
 
-	{#if command}
+	{#if setupStep === 'install' && signIn === 'idle'}
 		<div
 			class="border-surface-150-border bg-surface-150 mt-3 flex items-center gap-2 rounded-lg border-[0.5px] py-1 pr-1 pl-3"
 		>
 			<code class="text-fg-secondary min-w-0 flex-1 truncate font-mono text-xs">
 				<span class="text-fg-tertiary select-none">$</span>
-				{command}
+				{CLAUDE_INSTALL_COMMAND}
 			</code>
 			<Tooltip content={copied ? 'Copied' : 'Copy command'} placement="top">
 				<IconButton
@@ -148,8 +216,11 @@
 			</Tooltip>
 		</div>
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			{setupStep === 'install' ? 'Install' : 'Sign in'} opens Terminal and runs this command. malini notices
-			when it finishes.
+			Install opens Terminal and runs this command. malini notices when it finishes.
+		</p>
+	{:else if setupStep === 'sign-in' && signIn === 'idle'}
+		<p class="text-fg-tertiary mt-2 text-xs leading-5">
+			Sign in opens your browser. malini notices when it finishes.
 		</p>
 	{/if}
 </div>
