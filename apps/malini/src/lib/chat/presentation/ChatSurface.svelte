@@ -65,9 +65,10 @@
 
 	interface Props {
 		workstreamId: string;
+		oncloseworkstream: () => void;
 	}
 
-	let { workstreamId }: Props = $props();
+	let { workstreamId, oncloseworkstream }: Props = $props();
 
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
@@ -263,6 +264,7 @@
 						planMode={profile.mode === 'plan'}
 						onnewchat={startFreshChatCommand}
 						onclosefresh={closeFreshChatCommand}
+						{oncloseworkstream}
 						freshCloseNavigationTarget={closeFreshNavigationTarget}
 					/>
 

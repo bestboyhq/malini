@@ -17,7 +17,6 @@ import {
 	renderRepositoryDiff,
 	repositoryFileMatches,
 } from '../src/domain.js';
-import { highlightFileLines, highlightLine, languageForPath } from '../src/code-tokens.js';
 
 test('normalizes, filters, deduplicates, and describes repository files', () => {
 	assert.deepEqual(
@@ -438,46 +437,6 @@ test('rejects excessive agent diff fan-out and payloads before rendering', () =>
 		() => parseRepositoryAgentSessionDiff({ ...input, sessionId: 's'.repeat(257) }),
 		/exceeds the 256-character limit/u,
 	);
-});
-
-test('paints a diff line with the app-wide lexer, not a panel-local one', () => {
-	const tokens = highlightLine(
-		'src/value.ts',
-		'export const answer: Result = compute("forty-two"); // stable',
-	);
-	const painted = tokens.filter(({ kind }) => kind !== 'plain' && kind !== 'punctuation');
-	assert.deepEqual(
-		painted.map(({ kind, text }) => [kind, text]),
-		[
-			['keyword', 'export'],
-			['keyword', 'const'],
-			['type', 'Result'],
-			['function', 'compute'],
-			['string', '"forty-two"'],
-			['comment', '// stable'],
-		],
-	);
-});
-
-test('cuts a file into lines after tokenizing it, so a block comment survives', () => {
-	const lines = highlightFileLines('src/value.ts', '/* one\n   two */\nconst a = 1;\n');
-	assert.equal(lines.length, 4);
-	assert.deepEqual(
-		lines[0]?.map(({ kind }) => kind),
-		['comment'],
-	);
-	assert.deepEqual(
-		lines[1]?.map(({ kind }) => kind),
-		['comment'],
-	);
-	assert.equal(lines[2]?.find(({ text }) => text === 'const')?.kind, 'keyword');
-});
-
-test('reads the language from a path, and says nothing about a dotfile', () => {
-	assert.equal(languageForPath('src/main.rs'), 'rust');
-	assert.equal(languageForPath('apps/a/vite.config.mts'), 'typescript');
-	assert.equal(languageForPath('.gitignore'), null);
-	assert.equal(languageForPath('Makefile'), null);
 });
 
 test('parses workstream and pull request context without accepting partial records', () => {

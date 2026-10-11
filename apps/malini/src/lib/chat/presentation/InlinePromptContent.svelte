@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
@@ -7,6 +8,7 @@
 	import { promptChipSegments, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { describeInlinePromptChip } from './inline-prompt-chips';
 	import InlinePromptChip from './InlinePromptChip.svelte';
+	import { promptCodeFences } from './prompt-code-fences';
 
 	interface Props {
 		text: string;
@@ -53,6 +55,14 @@
 			onopen={imageOpener(segment.ref)}
 		/>
 	{:else}
-		<span class="whitespace-pre-wrap"><SensitiveText text={segment.text} /></span>
+		{#each promptCodeFences(segment.text) as part, partIndex (partIndex)}
+			{#if part.kind === 'code'}
+				<span class="font-mono whitespace-pre-wrap">
+					{part.open}<CodeTokens code={part.code} language={part.language} />{part.close}
+				</span>
+			{:else}
+				<span class="whitespace-pre-wrap"><SensitiveText text={part.text} /></span>
+			{/if}
+		{/each}
 	{/if}
 {/each}

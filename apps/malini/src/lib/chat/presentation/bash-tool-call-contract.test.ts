@@ -71,9 +71,9 @@ describe('inline Bash tool calls', () => {
 		expect(statusBranches).toEqual([]);
 	});
 
-	it('syntax-colors the command inside the disclosure', () => {
+	it('syntax-colors the command and its output inside the disclosure', () => {
 		expect(bashCall).toMatch(/<CodeTokens\s+code=\{command\}\s+language="shell"\s*\/>/u);
-		expect(bashCall).toMatch(/<SensitiveText\s+text=\{outputText\}\s*\/><\/pre>/u);
+		expect(bashCall).toMatch(/<CodeTokens\s+code=\{outputText\}\s*\/><\/pre>/u);
 	});
 
 	it('states a shell failure on the row instead of hiding it behind the chevron', () => {

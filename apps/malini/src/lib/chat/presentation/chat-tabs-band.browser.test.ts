@@ -56,6 +56,7 @@ function renderTabsHostedIn(band: HTMLElement): HTMLElement {
 			planMode: false,
 			onnewchat: () => undefined,
 			onclosefresh: () => undefined,
+			oncloseworkstream: () => undefined,
 		},
 	});
 	stop = () => {

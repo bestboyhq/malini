@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { cubicOut } from 'svelte/easing';
 	import { fade, type TransitionConfig } from 'svelte/transition';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { answerQuestionCommand } from '$lib/chat/application/commands/answer-question.command';
 	import { decideApprovalCommand } from '$lib/chat/application/commands/decide-approval.command';
@@ -200,12 +201,16 @@
 			</span>
 			<div class="min-w-0 flex-1">
 				<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>
-				{#each targets as target, index (`${target}-${index}`)}
+				{#each targets as target, index (`${target.value}-${index}`)}
 					<code
 						class="text-fg-secondary mt-1 block font-mono text-xs leading-5 break-words select-text"
 						data-testid="approval-normalized-resource"
 					>
-						<SensitiveText text={target} />
+						{#if target.kind === 'command'}
+							<CodeTokens code={target.value} language="shell" />
+						{:else}
+							<SensitiveText text={target.value} />
+						{/if}
 					</code>
 				{/each}
 				{#if reason}

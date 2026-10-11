@@ -111,6 +111,7 @@
 		disabled?: boolean;
 		onnewchat: () => void | Promise<void>;
 		onclosefresh: () => void | Promise<void>;
+		oncloseworkstream: () => void;
 		freshCloseNavigationTarget?: string | undefined;
 	}
 
@@ -128,6 +129,7 @@
 		disabled = false,
 		onnewchat,
 		onclosefresh,
+		oncloseworkstream,
 		freshCloseNavigationTarget,
 	}: Props = $props();
 	const closingSessionIds = $derived(closingChatsQuery.data);
@@ -266,15 +268,14 @@
 
 	onMount(() => {
 		function onKeydown(event: KeyboardEvent): void {
-			if (
-				hiddenEntries.length === 0 ||
-				!(event.metaKey || event.ctrlKey) ||
-				event.shiftKey ||
-				event.altKey ||
-				event.key.toLocaleLowerCase() !== 'k'
-			) {
+			if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+			const key = event.key.toLocaleLowerCase();
+			if (key === 'w') {
+				event.preventDefault();
+				if (!event.repeat) closeCurrentTab();
 				return;
 			}
+			if (key !== 'k' || hiddenEntries.length === 0) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			overflowOpen = true;
@@ -382,9 +383,36 @@
 			?.focus({ preventScroll: true });
 	}
 
-	function closeSession(event: MouseEvent, session: SessionRecord): void {
+	function closeCurrentTab(): void {
+		if (strip.activeDocumentId !== null) {
+			workstreamTabs.close(workstreamId, strip.activeDocumentId);
+			return;
+		}
+		const session = sessions.find(({ id }) => id === selectedSessionId);
+		if (session) {
+			closeSession(session);
+			return;
+		}
+		if (sessions.length > 0) {
+			void onclosefresh();
+			return;
+		}
+		const openDocument = entries.find((entry) => entry.kind === 'document');
+		if (openDocument) {
+			workstreamTabs.select(workstreamId, openDocument.document.id);
+			return;
+		}
+		oncloseworkstream();
+	}
+
+	function closeSessionTab(event: MouseEvent, session: SessionRecord): void {
 		event.preventDefault();
 		event.stopPropagation();
+		const adjacentSession = closeSession(session);
+		void focusSessionTab(adjacentSession?.id ?? selectedSessionId);
+	}
+
+	function closeSession(session: SessionRecord): SessionRecord | null {
 		const closingIndex = sessions.findIndex((candidate) => candidate.id === session.id);
 		const adjacentSession =
 			closingIndex >= 0 ? (sessions[closingIndex + 1] ?? sessions[closingIndex - 1] ?? null) : null;
@@ -400,7 +428,7 @@
 			else next.searchParams.delete('agent');
 			void goto(`${next.pathname}${next.search}`, { replaceState: true, noScroll: true });
 		}
-		void focusSessionTab(adjacentSession?.id ?? selectedSessionId);
+		return adjacentSession;
 	}
 </script>
 
@@ -473,7 +501,7 @@
 						? statusIcon
 						: undefined}
 					onselect={selectSessionTab}
-					onclose={(event) => closeSession(event, session)}
+					onclose={(event) => closeSessionTab(event, session)}
 				/>
 			{:else if item.kind === 'document'}
 				<WorkstreamDocumentTab
@@ -515,17 +543,21 @@
 			<OverflowTabsMenu tabs={hiddenTabs} bind:open={overflowOpen} />
 		{/if}
 
-		<Tooltip content="Start a fresh agent chat" placement="top">
+		<Tooltip
+			content="Start a fresh agent chat"
+			placement="top"
+			class="size-7 shrink-0 items-center justify-center"
+		>
 			<IconButton
-				variant="ghost"
+				bare
 				ariaLabel="Start a fresh chat"
-				class="text-fg-tertiary h-7 w-7 rounded-md focus-visible:ring-inset"
+				class="text-fg-tertiary hover:bg-tab-hover hover:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
 				{disabled}
 				data-testid="chat-agent-new"
 				data-navigation-path-id="expected-path:transcript.fresh-chat"
 				onclick={startFreshChat}
 			>
-				<Icon name="plus" size={13} />
+				<Icon name="plus" size={14} />
 			</IconButton>
 		</Tooltip>
 	</div>

@@ -1153,6 +1153,11 @@ export class RepositoryController {
 		this.#publish({ ...state, selectedPath: path, selectedContents: null });
 	}
 
+	async readUncommittedDiff(path: string, workstreamId?: string): Promise<RepositoryDiff | null> {
+		const [diff] = await this.#api.repository.diff(path, workstreamId, 'uncommitted');
+		return diff ? renderRepositoryDiff(diff) : null;
+	}
+
 	hideFile(path: string): void {
 		const state = this.#state;
 		if (state.agentSessionDiff || state.selectedPath !== path) return;
@@ -2336,6 +2341,7 @@ export type RepositoryPanelController = Pick<
 	| 'showFile'
 	| 'hideFile'
 	| 'loadDiff'
+	| 'readUncommittedDiff'
 >;
 
 function contextFromLocalRepository(
