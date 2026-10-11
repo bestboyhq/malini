@@ -118,18 +118,23 @@ describe('agentRunner startSession/sendPrompt/cancelRun', () => {
 		await agentRunner.sendPrompt({
 			sessionId: 'sess-profile',
 			prompt: 'Plan the change',
-			profile: { effort: 'high', mode: 'plan', access: 'sandboxed' },
+			profile: { effort: 'high', mode: 'plan', access: 'sandboxed', report: 'medium' },
 		});
 		expect(lastArgs(platform)).toEqual({
 			sessionId: 'sess-profile',
 			prompt: 'Plan the change',
-			profile: { effort: 'high', mode: 'plan', access: 'sandboxed' },
+			profile: { effort: 'high', mode: 'plan', access: 'sandboxed', report: 'medium' },
 		});
 	});
 
 	it('sendPrompt unwraps a reactive profile before the IPC boundary', async () => {
 		const reactiveProfile = new Proxy(
-			{ effort: 'high' as const, mode: 'plan' as const, access: 'sandboxed' as const },
+			{
+				effort: 'high' as const,
+				mode: 'plan' as const,
+				access: 'sandboxed' as const,
+				report: 'medium' as const,
+			},
 			{ get: (target, key) => Reflect.get(target, key) },
 		);
 
@@ -142,7 +147,12 @@ describe('agentRunner startSession/sendPrompt/cancelRun', () => {
 		const args = lastArgs(platform);
 		const profile = typeof args === 'object' && args !== null ? Reflect.get(args, 'profile') : null;
 		expect(() => structuredClone(profile)).not.toThrow();
-		expect(profile).toEqual({ effort: 'high', mode: 'plan', access: 'sandboxed' });
+		expect(profile).toEqual({
+			effort: 'high',
+			mode: 'plan',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 	});
 
 	it('cancelRun invokes chat.cancel-run with the sessionId', async () => {

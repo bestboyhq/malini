@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionManager, SessionAlreadyOpenError, UnknownSessionError } from '../session-manager';
 import { defaultProviderRegistry, UnknownProviderError } from '../providers/registry';
+import type { ProviderContext } from '../providers/types';
 import type { AgentEvent } from '../types';
+
+const CONTEXT: ProviderContext = {
+	sessionId: 'sx',
+	workstreamId: 'wx',
+	cwd: '/tmp',
+	requestBrowser: async () => ({ ok: false, error: 'no browser' }),
+};
 
 describe('SessionManager', () => {
 	let mgr: SessionManager;
@@ -255,9 +263,8 @@ describe('defaultProviderRegistry (A9 stub factory slot)', () => {
 		expect(defaultProviderRegistry.hasProvider()).toBe(true);
 
 		const emitted: string[] = [];
-		const handle = await defaultProviderRegistry.getProvider(
-			{ sessionId: 'sx', workstreamId: 'wx', cwd: '/tmp' },
-			(ev) => emitted.push(ev.type),
+		const handle = await defaultProviderRegistry.getProvider(CONTEXT, (ev) =>
+			emitted.push(ev.type),
 		);
 		await handle.sendPrompt('hi', 'r1');
 		expect(calls).toEqual(['init', 'factory', 'send:hi']);
@@ -266,17 +273,11 @@ describe('defaultProviderRegistry (A9 stub factory slot)', () => {
 
 	it('getProvider without a registered factory throws UnknownProviderError', async () => {
 		await expect(
-			defaultProviderRegistry.getProvider(
-				{ sessionId: 'sx', workstreamId: 'wx', cwd: '/tmp' },
-				() => undefined,
-			),
+			defaultProviderRegistry.getProvider(CONTEXT, () => undefined),
 		).rejects.toBeInstanceOf(UnknownProviderError);
-		await expect(
-			defaultProviderRegistry.getProvider(
-				{ sessionId: 'sx', workstreamId: 'wx', cwd: '/tmp' },
-				() => undefined,
-			),
-		).rejects.toThrow(/UNKNOWN_PROVIDER/);
+		await expect(defaultProviderRegistry.getProvider(CONTEXT, () => undefined)).rejects.toThrow(
+			/UNKNOWN_PROVIDER/,
+		);
 	});
 
 	it('setProvider replaces the registered factory', async () => {
@@ -288,10 +289,7 @@ describe('defaultProviderRegistry (A9 stub factory slot)', () => {
 			async cancel() {},
 			async close() {},
 		}));
-		const handle = await defaultProviderRegistry.getProvider(
-			{ sessionId: 'sx', workstreamId: 'wx', cwd: '/tmp' },
-			() => undefined,
-		);
+		const handle = await defaultProviderRegistry.getProvider(CONTEXT, () => undefined);
 		expect(handle.sendPrompt).toBeTypeOf('function');
 	});
 

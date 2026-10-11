@@ -1,5 +1,5 @@
 import { flushSync, mount, unmount } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandName } from '$contract/commands';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
@@ -62,6 +62,13 @@ const DRAFT_PULL_REQUEST: PullRequestStatusDto = {
 let host: HTMLDivElement;
 let app: ReturnType<typeof mount> | null = null;
 let platform: FakePlatform;
+
+beforeAll(async () => {
+	await Promise.all([
+		import('./WorkstreamsLayout.svelte'),
+		import('../pages/RepositoriesPage.svelte'),
+	]);
+}, 60_000);
 
 beforeEach(() => {
 	window.history.replaceState(null, '', '#/');

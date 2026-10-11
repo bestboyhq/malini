@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distNodeModules = resolve(packageRoot, 'dist/node_modules');
 const packageRequire = createRequire(resolve(packageRoot, 'package.json'));
-const runtimePackageRoots = ['@anthropic-ai/claude-agent-sdk'];
+const runtimePackageRoots = Object.keys((await readManifest(packageRoot)).dependencies ?? {});
 /**
  * @typedef {object} PackageManifest
  * @property {string} [name]

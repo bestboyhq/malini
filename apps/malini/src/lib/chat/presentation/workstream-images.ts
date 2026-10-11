@@ -29,7 +29,7 @@ export function showWorkstreamImages(
 	}
 }
 
-function workstreamImagePath(src: string): string | null {
+export function workstreamImagePath(src: string): string | null {
 	if (src.length === 0 || NOT_A_WORKSTREAM_FILE.test(src)) return null;
 	try {
 		return decodeURI(src);

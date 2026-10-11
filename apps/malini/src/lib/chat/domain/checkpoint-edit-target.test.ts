@@ -9,7 +9,12 @@ import {
 
 describe('checkpoint edit target', () => {
 	it('captures an immutable exact workstream, chat, model, and profile snapshot', () => {
-		const profile: AgentRunProfile = { mode: 'plan', effort: 'high', access: 'sandboxed' };
+		const profile: AgentRunProfile = {
+			mode: 'plan',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'medium',
+		};
 		const target = captureCheckpointEditTarget({
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
@@ -24,14 +29,19 @@ describe('checkpoint edit target', () => {
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
 			model: 'opus',
-			profile: { mode: 'plan', effort: 'high', access: 'sandboxed' },
+			profile: { mode: 'plan', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});
 	});
 
 	it('rejects an edit target until both workstream and chat are ready', () => {
 		const base = {
 			model: 'sonnet' as const,
-			profile: { mode: 'agent' as const, effort: 'high' as const, access: 'sandboxed' as const },
+			profile: {
+				mode: 'agent' as const,
+				effort: 'high' as const,
+				access: 'sandboxed' as const,
+				report: 'medium' as const,
+			},
 		};
 		expect(
 			captureCheckpointEditTarget({ ...base, workstreamId: '', sessionId: 'session-a' }),
@@ -78,7 +88,7 @@ describe('checkpoint edit target', () => {
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
 			model: 'opus',
-			profile: { mode: 'plan', effort: 'high', access: 'sandboxed' },
+			profile: { mode: 'plan', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});
 		expect(target).not.toBeNull();
 		if (!target) return;
@@ -106,7 +116,7 @@ describe('checkpoint edit target', () => {
 			workstreamId: 'workstream-a',
 			sessionId: 'session-a',
 			model: 'sonnet',
-			profile: { mode: 'agent', effort: 'high', access: 'sandboxed' },
+			profile: { mode: 'agent', effort: 'high', access: 'sandboxed', report: 'medium' },
 		});
 		expect(target).not.toBeNull();
 		if (!target) return;

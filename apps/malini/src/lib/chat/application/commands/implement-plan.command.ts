@@ -60,6 +60,7 @@ async function implementPlan(input: PlanHandoff): Promise<void> {
 		mode: 'agent',
 		effort: chatModelStore.profile.effort,
 		access: chatModelStore.profile.access,
+		report: chatModelStore.profile.report,
 	};
 	const handoffPrompt = buildImplementationHandoffPrompt({
 		plan: input.plan,

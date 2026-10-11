@@ -3,13 +3,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { PassThrough } from 'node:stream';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createInterface } from 'node:readline';
 import { BridgeOutputWriter, createIpc, attachStdio, runCli, type OutputSink } from '../cli';
 import { unknownCapability } from '../claude/capabilities';
 import { BRIDGE_EVENT_TYPES } from '../generated/protocol-contract';
 import type { AgentEvent } from '../types';
-import { bridgeCommandAckFrame, bridgeHeartbeatFrame, type ProviderCapability } from '../protocol';
+import {
+	bridgeCommandAckFrame,
+	bridgeHeartbeatFrame,
+	type BrowserResult,
+	type ProviderCapability,
+} from '../protocol';
 import type { AgentRunProfile } from '../agent-profile';
 import { SessionManager } from '../session-manager';
 import { defaultProviderRegistry, UnknownProviderError } from '../providers/registry';
@@ -22,6 +27,7 @@ const SPI_TIMEOUT_MS = 25_000;
 interface WireFrame {
 	type: string;
 	id?: string;
+	requestId?: string;
 	accepted?: boolean;
 	error?: string;
 	message?: string;
@@ -624,6 +630,163 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				resumeAt: 'assistant-uuid',
 			},
 			{ runId: 'run-plain' },
+		]);
+	});
+
+	it('asks main for a browser action and hands the matching browser_result to the provider', async () => {
+		const results: BrowserResult[] = [];
+		defaultProviderRegistry.setProvider(async (ctx) => ({
+			async sendPrompt() {
+				results.push(await ctx.requestBrowser({ action: 'open', url: 'http://localhost:5173' }));
+			},
+			async cancel() {},
+			async close() {},
+		}));
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({ stdout: fakeStdout });
+		await ipc.run(
+			'{"cmd":"start_session","id":"start-browser","sessionId":"s-browser","workstreamId":"w-browser"}',
+		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-browser","sessionId":"s-browser","runId":"run-browser","prompt":"open it"}',
+		);
+		const request = await vi.waitFor(() => {
+			const frame = parseFrames(writes.join('')).find(
+				({ type }) => type === 'bridge.browser_request',
+			);
+			if (!frame) throw new Error('no browser request yet');
+			return frame;
+		});
+		expect(request).toEqual({
+			type: 'bridge.browser_request',
+			protocolVersion: 19,
+			requestId: expect.any(String),
+			sessionId: 's-browser',
+			action: 'open',
+			url: 'http://localhost:5173',
+		});
+		const answer = (id: string, sessionId: string): string =>
+			JSON.stringify({
+				cmd: 'browser_result',
+				id,
+				sessionId,
+				requestId: request.requestId,
+				ok: true,
+				text: 'Opened Vite App',
+			});
+
+		await ipc.run(answer('result-other-session', 's-elsewhere'));
+		await ipc.run(answer('result-browser', 's-browser'));
+		await ipc.run(answer('result-again', 's-browser'));
+		await ipc.drain();
+
+		expect(results).toEqual([expect.objectContaining({ ok: true, text: 'Opened Vite App' })]);
+		const acks = parseFrames(writes.join('')).filter(({ id }) => id?.startsWith('result-'));
+		expect(acks).toEqual([
+			expect.objectContaining({
+				id: 'result-other-session',
+				accepted: false,
+				error: expect.stringContaining('UNKNOWN_BROWSER_REQUEST'),
+			}),
+			expect.objectContaining({ id: 'result-browser', accepted: true }),
+			expect.objectContaining({
+				id: 'result-again',
+				accepted: false,
+				error: expect.stringContaining('UNKNOWN_BROWSER_REQUEST'),
+			}),
+		]);
+	});
+
+	it('fails a browser request at once when main answers it with an invalid result', async () => {
+		const results: BrowserResult[] = [];
+		defaultProviderRegistry.setProvider(async (ctx) => ({
+			async sendPrompt() {
+				results.push(await ctx.requestBrowser({ action: 'click', selector: 'button' }));
+			},
+			async cancel() {},
+			async close() {},
+		}));
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({ stdout: fakeStdout });
+		await ipc.run(
+			'{"cmd":"start_session","id":"start-invalid","sessionId":"s-invalid","workstreamId":"w-invalid"}',
+		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-invalid","sessionId":"s-invalid","runId":"run-invalid","prompt":"click"}',
+		);
+		const requestId = parseFrames(writes.join('')).find(
+			({ type }) => type === 'bridge.browser_request',
+		)?.requestId;
+
+		await ipc.run(
+			JSON.stringify({
+				cmd: 'browser_result',
+				id: 'result-invalid',
+				sessionId: 's-invalid',
+				requestId,
+				ok: 'yes',
+			}),
+		);
+		await ipc.drain();
+
+		expect(results).toEqual([
+			{
+				ok: false,
+				error: "malini's browser sent an invalid answer: browser_result: ok required (boolean)",
+			},
+		]);
+		expect(parseFrames(writes.join(''))).toContainEqual(
+			expect.objectContaining({
+				type: 'bridge.protocol_error',
+				id: 'result-invalid',
+				code: 'INVALID_PAYLOAD',
+			}),
+		);
+	});
+
+	it('fails a browser request main never answers, and one whose run is cancelled', async () => {
+		const results: BrowserResult[] = [];
+		defaultProviderRegistry.setProvider(async (ctx) => ({
+			async sendPrompt() {
+				results.push(await ctx.requestBrowser({ action: 'screenshot' }));
+			},
+			async cancel() {},
+			async close() {},
+		}));
+		const ipc = createIpc({ stdout: createOutputSink(), browserRequestTimeoutMs: 10 });
+		await ipc.run(
+			'{"cmd":"start_session","id":"start-slow","sessionId":"s-slow","workstreamId":"w-slow"}',
+		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-slow","sessionId":"s-slow","runId":"run-slow","prompt":"capture"}',
+		);
+		await ipc.drain();
+
+		const patient = createIpc({ stdout: createOutputSink() });
+		await patient.run(
+			'{"cmd":"start_session","id":"start-cancel","sessionId":"s-cancel","workstreamId":"w-cancel"}',
+		);
+		await patient.run(
+			'{"cmd":"send_prompt","id":"send-cancel","sessionId":"s-cancel","runId":"run-cancel","prompt":"capture"}',
+		);
+		await patient.run(
+			'{"cmd":"cancel_run","id":"cancel-browser","sessionId":"s-cancel","runId":"run-cancel"}',
+		);
+		await patient.drain();
+
+		expect(results).toEqual([
+			{ ok: false, error: "malini's browser did not answer within 10 ms." },
+			{ ok: false, error: 'The run was cancelled.' },
 		]);
 	});
 
@@ -1329,7 +1492,12 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		defaultProviderRegistry.clear();
 		await expect(
 			defaultProviderRegistry.getProvider(
-				{ sessionId: 'sx', workstreamId: 'wx', cwd: '/tmp' },
+				{
+					sessionId: 'sx',
+					workstreamId: 'wx',
+					cwd: '/tmp',
+					requestBrowser: async () => ({ ok: false, error: 'no browser' }),
+				},
 				() => undefined,
 			),
 		).rejects.toBeInstanceOf(UnknownProviderError);

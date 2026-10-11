@@ -1,4 +1,5 @@
 import { installAppFake } from './app.fake';
+import { installBrowserFake } from './browser.fake';
 import { installChatFake, setFakeAgentScript } from './chat.fake';
 import { installExtensionsFake } from './extensions.fake';
 import { FakeBridge } from './fake-bridge';
@@ -25,6 +26,7 @@ export class FakePlatform extends FakeBridge {
 		super();
 		this.#state = createFakeState(seed);
 		installAppFake(this, this.#state);
+		installBrowserFake(this);
 		installChatFake(this, this.#state);
 		installExtensionsFake(this, this.#state);
 		installProvidersFake(this, this.#state);

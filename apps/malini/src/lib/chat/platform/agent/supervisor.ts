@@ -10,6 +10,7 @@ import {
 	decodeControlFrame,
 	readyFrameMismatch,
 	validateCapabilities,
+	type BridgeBrowserRequest,
 	type BridgeCommand,
 	type BridgeControlFrame,
 	type BridgeEvent,
@@ -183,6 +184,7 @@ export class BridgeSupervisor {
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
+	private readonly browserRequestListeners = new Set<(request: BridgeBrowserRequest) => void>();
 	private readonly startedAtMs: number;
 	private restartAttempt = 0;
 	private shuttingDown = false;
@@ -429,6 +431,22 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.suggestedTitles.set(control.id, control.title);
 				return;
 			}
+			case 'bridge.browser_request': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: browser request v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				for (const listener of [...this.browserRequestListeners]) {
+					try {
+						listener(control);
+					} catch (error) {
+						this.log(`agent-bridge browser request listener failed: ${describe(error)}`);
+					}
+				}
+				return;
+			}
 			case 'bridge.protocol_error': {
 				const versionNote =
 					control.protocolVersion === BRIDGE_PROTOCOL_VERSION
@@ -456,6 +474,13 @@ export class BridgeSupervisor {
 		this.eventListeners.add(listener);
 		return () => {
 			this.eventListeners.delete(listener);
+		};
+	}
+
+	onBrowserRequest(listener: (request: BridgeBrowserRequest) => void): () => void {
+		this.browserRequestListeners.add(listener);
+		return () => {
+			this.browserRequestListeners.delete(listener);
 		};
 	}
 

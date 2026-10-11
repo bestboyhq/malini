@@ -3,6 +3,7 @@ import { consolePlatformLog, platformLineSink } from '$main/diagnostics/platform
 import { describeError } from '$main/errors';
 import { buildSpawnEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner } from '$main/process/runner';
+import { registerBrowser } from '$lib/browser/platform/register';
 import { AgentRunLeases } from '$lib/chat/chat.platform';
 import type { FilePicker } from '$lib/chat/platform/attachments/picker';
 import type { BridgeProcessFactory } from '$lib/chat/platform/agent/process';
@@ -77,12 +78,15 @@ export async function registerModules(
 
 	await resolveBootEnvironment(context);
 
+	const browser = registerBrowser(context, { getMainWindow: options.getMainWindow });
+
 	const chat = await registerChat(context, {
 		resolver: repositories.checkouts,
 		leases: agentRunLeases,
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,
+		browser,
 		log,
 		...(overrides.filePicker ? { picker: overrides.filePicker } : {}),
 		...(overrides.bridgeProcessFactory ? { processFactory: overrides.bridgeProcessFactory } : {}),

@@ -9,8 +9,11 @@
 	import {
 		AGENT_ACCESS_DETAILS,
 		AGENT_ACCESS_LEVELS,
+		AGENT_REPORT_DETAILS,
+		AGENT_REPORTS,
 		type AgentAccess,
 		type AgentReasoningEffort,
+		type AgentReport,
 		type AgentRunProfile,
 	} from '$shared/providers/domain/run-profile';
 	import { Icon, type IconName } from '$hyper-ui/icons';
@@ -29,6 +32,8 @@
 	let { model, profile, disabled = false, onchange }: Props = $props();
 	let effortTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let effortOpen = $state(false);
+	let reportTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let reportOpen = $state(false);
 	let accessTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let accessOpen = $state(false);
 	const accessIcons: Record<AgentRunProfile['access'], IconName> = {
@@ -71,6 +76,16 @@
 	function toggleEffort(): void {
 		if (disabled || !effortSupported) return;
 		effortOpen = !effortOpen;
+	}
+
+	function selectReport(report: AgentReport): void {
+		if (disabled) return;
+		onchange({ ...profile, report });
+		closeReport();
+	}
+
+	function closeReport(): void {
+		reportOpen = false;
 	}
 
 	function selectAccess(access: AgentAccess): void {
@@ -134,6 +149,61 @@
 						<span>{effortLabel(effort)}</span>
 						{#if profile.effort === effort}
 							<Icon name="check" size={14} />
+						{/if}
+					</DropdownItem>
+				{/each}
+			</div>
+		</DropdownLayer>
+	</div>
+
+	<div>
+		<Tooltip content="Adjust report detail" placement="top" suppressed={reportOpen}>
+			<Button
+				bind:element={reportTrigger}
+				variant="ghost"
+				size="md"
+				active={reportOpen}
+				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				{disabled}
+				ariaLabel="Report"
+				ariaHasPopup="listbox"
+				ariaExpanded={reportOpen}
+				data-testid="chat-report"
+				onclick={() => (reportOpen = !reportOpen)}
+			>
+				<Icon name="note" size={15} />
+				<span class="@max-2xl/composer:hidden">{AGENT_REPORT_DETAILS[profile.report].label}</span>
+			</Button>
+		</Tooltip>
+
+		<DropdownLayer
+			open={reportOpen}
+			anchor={reportTrigger}
+			onclose={closeReport}
+			side="top"
+			align="start"
+			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
+			testId="chat-report-menu"
+			owner="chat-composer"
+		>
+			<div role="listbox" aria-label="Report levels">
+				{#each AGENT_REPORTS as report (report)}
+					<DropdownItem
+						checked={profile.report === report}
+						focusOnHover={false}
+						class="items-start justify-between gap-3 py-2"
+						role="option"
+						aria-selected={profile.report === report}
+						onclick={() => selectReport(report)}
+					>
+						<span class="flex min-w-0 flex-col gap-0.5">
+							<span>{AGENT_REPORT_DETAILS[report].label}</span>
+							<span class="text-fg-tertiary text-xs whitespace-normal">
+								{AGENT_REPORT_DETAILS[report].description}
+							</span>
+						</span>
+						{#if profile.report === report}
+							<Icon name="check" size={14} class="mt-0.5 shrink-0" />
 						{/if}
 					</DropdownItem>
 				{/each}

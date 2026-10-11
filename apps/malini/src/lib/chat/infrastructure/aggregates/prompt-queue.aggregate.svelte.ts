@@ -2,7 +2,7 @@ import { isValidAgentModel, type AgentModel } from '$shared/providers/providers.
 import { roleForAgentMode, type ModelRole } from '$shared/providers/providers.api';
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
-	isValidAgentRunProfile,
+	normalizeAgentRunProfile,
 	type AgentRunProfile,
 } from '$shared/providers/providers.api';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
@@ -133,9 +133,9 @@ function parseEntry(value: unknown): QueuedPrompt | null {
 	) {
 		return null;
 	}
-	const profile = isValidAgentRunProfile(candidate.profile)
-		? candidate.profile
-		: { ...DEFAULT_AGENT_RUN_PROFILE };
+	const profile = normalizeAgentRunProfile(candidate.profile, DEFAULT_AGENT_RUN_PROFILE.access) ?? {
+		...DEFAULT_AGENT_RUN_PROFILE,
+	};
 	const role =
 		candidate.role === 'planning' || candidate.role === 'implementation'
 			? candidate.role

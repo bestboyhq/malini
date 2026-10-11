@@ -56,6 +56,7 @@ class ChatBootstrapService {
 			mode: nextRole === 'planning' ? 'plan' : 'agent',
 			effort: storedProfile.effort,
 			access: storedProfile.access,
+			report: storedProfile.report,
 		};
 		try {
 			const refreshed = await sessionActivation.awaitCurrentSelection(
@@ -119,6 +120,7 @@ class ChatBootstrapService {
 					mode: nextRole === 'planning' ? 'plan' : 'agent',
 					effort: storedProfile.effort,
 					access: storedProfile.access,
+					report: storedProfile.report,
 				};
 				chatSessionStore.createFreshSessionOnNextPrompt = true;
 			}

@@ -9,11 +9,15 @@ class ComposerAttachmentsService {
 		fileName: string,
 		file: File,
 	): Promise<StagedAgentAttachment> {
-		return await invoke('chat.stage-attachment-bytes', {
-			workstreamId,
-			fileName,
-			base64: await fileToBase64(file),
-		});
+		return await this.stageBytes(workstreamId, fileName, await fileToBase64(file));
+	}
+
+	stageBytes(
+		workstreamId: string,
+		fileName: string,
+		base64: string,
+	): Promise<StagedAgentAttachment> {
+		return invoke('chat.stage-attachment-bytes', { workstreamId, fileName, base64 });
 	}
 
 	stageForkTranscript(

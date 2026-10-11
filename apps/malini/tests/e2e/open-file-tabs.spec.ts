@@ -130,7 +130,12 @@ test('clicking a file mention opens it in a center tab and leaves the inspector 
 		await expect(fileTab(page, 'alpha.ts')).toHaveAccessibleDescription('Preview');
 		await expectStrip(page, ['tab /MENTION/', 'tab "alpha.ts"']);
 		await expect(page.getByRole('tablist', { name: 'Inspector panels' })).toMatchAriaSnapshot(
-			['- tablist "Inspector panels":', '  - /children: equal', '  - tab "Files"'].join('\n'),
+			[
+				'- tablist "Inspector panels":',
+				'  - /children: equal',
+				'  - tab "Files"',
+				'  - tab "Browser"',
+			].join('\n'),
 		);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'open-file-1-center-tab');

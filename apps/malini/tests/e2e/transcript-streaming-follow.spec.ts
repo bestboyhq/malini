@@ -58,7 +58,12 @@ async function startSampling(page: Page, rows: readonly string[]): Promise<void>
 				const run = doc.querySelector(latestRun);
 				const composerTop = doc.querySelector(composer)?.getBoundingClientRect().top;
 				if (!run || composerTop === undefined) return Number.NaN;
-				const bottoms = [...run.children].map((row) => row.getBoundingClientRect().bottom);
+				const runTop = run.getBoundingClientRect().top;
+				const bottoms = [...run.children].map((row) =>
+					'offsetTop' in row && typeof row.offsetTop === 'number' && 'offsetHeight' in row
+						? runTop + row.offsetTop + Number(row.offsetHeight)
+						: row.getBoundingClientRect().bottom,
+				);
 				return composerTop - Math.max(...bottoms);
 			};
 			const sample = (): void => {

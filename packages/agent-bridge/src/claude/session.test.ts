@@ -14,6 +14,7 @@ const CONTEXT: ProviderContext = {
 	sessionId: 'session-1',
 	workstreamId: 'workstream-1',
 	cwd: '/work/repo',
+	requestBrowser: async () => ({ ok: false, error: 'no browser' }),
 };
 
 function profile(
@@ -135,6 +136,30 @@ describe('ClaudeSession', () => {
 			resumeSessionAt: READ_AND_BASH_CURSOR,
 		});
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-2' });
+	});
+
+	it('hands Claude the malini browser tools pre-approved and the report resolution of each prompt', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+
+		await session.sendPrompt('Show me', 'run-1', { ...profile(), report: 'low' });
+		await session.sendPrompt('And again', 'run-2', profile());
+
+		expect(claude.runs[0]?.options.mcpServers?.['malini']).toMatchObject({
+			type: 'sdk',
+			name: 'malini',
+		});
+		expect(claude.runs[0]?.options.allowedTools).toEqual([
+			'mcp__malini__browser_open',
+			'mcp__malini__browser_screenshot',
+			'mcp__malini__browser_click',
+		]);
+		expect(claude.runs.map(({ options }) => options.systemPrompt)).toEqual([
+			expect.objectContaining({ append: expect.stringContaining('at the low report resolution') }),
+			expect.objectContaining({
+				append: expect.stringContaining('at the medium report resolution'),
+			}),
+		]);
 	});
 
 	it('reports the context window with live usage while the run is still going', async () => {

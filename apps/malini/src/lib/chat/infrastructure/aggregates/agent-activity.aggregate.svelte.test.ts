@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { agentAttentionDecision } from '$lib/chat/domain/agent-attention';
+import { agentAttentionDecision, readAgentAttentions } from '$lib/chat/domain/agent-attention';
 import { AgentActivity } from './agent-activity.aggregate.svelte';
 
 const base = {
@@ -27,6 +27,50 @@ describe('agentAttentionDecision', () => {
 			updatedAt: 42,
 			title: 'Homepage polish finished',
 			body: 'Ready for review.',
+		});
+	});
+
+	it('reads the turn report: an outcome alone finishes, a need asks for the user', () => {
+		const report = [
+			'![Sticky header](.malini/sandbox/screenshots/header.png)',
+			'',
+			'Outcome: The header stays pinned while the page scrolls.',
+		];
+		expect(
+			agentAttentionDecision({
+				...base,
+				sessionId: 'session-1',
+				event: {
+					type: 'run.completed',
+					runId: 'run-1',
+					summary: [...report, 'Needs: nothing'].join('\n'),
+				},
+			}),
+		).toEqual({
+			kind: 'completed',
+			runId: 'run-1',
+			sessionId: 'session-1',
+			updatedAt: 42,
+			title: 'Homepage polish finished',
+			body: 'The header stays pinned while the page scrolls.',
+			outcome: 'The header stays pinned while the page scrolls.',
+			needs: [],
+			images: [{ alt: 'Sticky header', src: '.malini/sandbox/screenshots/header.png' }],
+		});
+		expect(
+			agentAttentionDecision({
+				...base,
+				event: {
+					type: 'run.completed',
+					runId: 'run-1',
+					summary: [...report, 'Needs: Add R2_TOKEN to .env; Approve the copy'].join('\n'),
+				},
+			}),
+		).toMatchObject({
+			kind: 'input',
+			title: 'Homepage polish needs you',
+			body: 'Add R2_TOKEN to .env',
+			needs: ['Add R2_TOKEN to .env', 'Approve the copy'],
 		});
 	});
 
@@ -146,5 +190,41 @@ describe('AgentActivity', () => {
 		activity.registerWorkstreamScope([]);
 		expect(activity.workstreamIds()).toEqual([]);
 		expect(activity.attentionFor('stream-a')).toBeNull();
+	});
+
+	it('keeps attention across a restart and drops it for workstreams that are gone', () => {
+		let stored: unknown = {};
+		const storage = {
+			read: () => readAgentAttentions(JSON.parse(JSON.stringify(stored))),
+			write: (attentions: unknown) => {
+				stored = attentions;
+			},
+		};
+		const before = new AgentActivity(storage);
+		before.mark('ws-kept', {
+			kind: 'input',
+			runId: 'run-1',
+			updatedAt: 5,
+			outcome: 'The header is sticky.',
+			needs: ['Add the API key to .env'],
+			images: [{ src: '.malini/sandbox/screenshots/a.png', alt: 'Header' }],
+		});
+		before.mark('ws-gone', { kind: 'completed', runId: 'run-2', updatedAt: 6 });
+
+		const after = new AgentActivity(storage);
+		expect(after.attentionFor('ws-kept')).toEqual({
+			kind: 'input',
+			runId: 'run-1',
+			updatedAt: 5,
+			outcome: 'The header is sticky.',
+			needs: ['Add the API key to .env'],
+			images: [{ src: '.malini/sandbox/screenshots/a.png', alt: 'Header' }],
+		});
+
+		after.registerWorkstreamScope([
+			{ workstreamId: 'ws-kept', label: 'Kept', repositoryFullName: 'a/b', branch: 'malini/kept' },
+		]);
+		expect(after.attentionFor('ws-gone')).toBeNull();
+		expect(new AgentActivity(storage).attentionFor('ws-gone')).toBeNull();
 	});
 });

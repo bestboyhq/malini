@@ -10,6 +10,7 @@ export type AgentElementReference = Readonly<{
 	domPath: string;
 	rect: AgentElementRect;
 	html: string;
+	source?: string;
 }>;
 
 export const MAX_ELEMENT_REFERENCES = 5;
@@ -19,7 +20,7 @@ export function elementReferenceChipLines(
 ): readonly [string, string, string] {
 	const { top, left, width, height } = reference.rect;
 	return [
-		`DOM Path: ${reference.domPath}`,
+		reference.source ? `Source: ${reference.source}` : `DOM Path: ${reference.domPath}`,
 		`Position: top=${cssPixels(top)}, left=${cssPixels(left)}, width=${cssPixels(width)}, height=${cssPixels(height)}`,
 		`HTML Element: ${reference.html}`,
 	];
@@ -52,7 +53,7 @@ export function sanitizeAgentElementReferences(value: unknown): AgentElementRefe
 
 function readElementReference(candidate: unknown): AgentElementReference | null {
 	if (!isRecord(candidate)) return null;
-	const { url, domPath, html, rect } = candidate;
+	const { url, domPath, html, rect, source } = candidate;
 	if (typeof url !== 'string' || typeof domPath !== 'string' || typeof html !== 'string') {
 		return null;
 	}
@@ -62,7 +63,16 @@ function readElementReference(candidate: unknown): AgentElementReference | null 
 	if (/[\n\r\0]/u.test(normalizedUrl) || /[\n\r\0]/u.test(normalizedDomPath)) return null;
 	const normalizedRect = readElementRect(rect);
 	if (!normalizedRect) return null;
-	return { url: normalizedUrl, domPath: normalizedDomPath, rect: normalizedRect, html };
+	const normalizedSource = typeof source === 'string' ? source.trim() : '';
+	return {
+		url: normalizedUrl,
+		domPath: normalizedDomPath,
+		rect: normalizedRect,
+		html,
+		...(normalizedSource && !/[\n\r\0]/u.test(normalizedSource)
+			? { source: normalizedSource }
+			: {}),
+	};
 }
 
 function readElementRect(value: unknown): AgentElementRect | null {

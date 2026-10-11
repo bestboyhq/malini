@@ -71,7 +71,12 @@ async function openChat(): Promise<ReturnType<typeof holdPromptDelivery>> {
 describe('the chat seam the pull-request actions use', () => {
 	it('settles a prompt only once the chat has accepted it', async () => {
 		const delivery = await openChat();
-		chatModelStore.profile = { mode: 'agent', effort: 'high', access: 'sandboxed' };
+		chatModelStore.profile = {
+			mode: 'agent',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'medium',
+		};
 		const { submitAutomatedPrompt } = bridge();
 		let settled = false;
 
@@ -87,7 +92,7 @@ describe('the chat seam the pull-request actions use', () => {
 		expect(delivery.calls()[0]).toMatchObject({
 			sessionId: 's-a1',
 			prompt: 'Fix the failing checks',
-			profile: { mode: 'agent', effort: 'high', access: 'sandboxed' },
+			profile: { mode: 'agent', effort: 'high', access: 'sandboxed', report: 'medium' },
 			automated: true,
 		});
 

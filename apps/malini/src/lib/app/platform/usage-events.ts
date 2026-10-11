@@ -12,6 +12,16 @@ type CommandUsage = false | ((args: unknown) => UsageProperties);
 const plain = (): UsageProperties => ({});
 
 export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
+	'browser.cancel-pick': false,
+	'browser.go-back': false,
+	'browser.go-forward': false,
+	'browser.hide': false,
+	'browser.navigate': false,
+	'browser.pick-element': plain,
+	'browser.reload': false,
+	'browser.show': false,
+	'browser.snapshot': false,
+	'browser.state': false,
 	'app.close-guard': false,
 	'app.copy-text': false,
 	'app.delete-secret': false,
@@ -73,6 +83,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 			element_references: count(args, 'elementReferences'),
 			effort: text(profile, 'effort'),
 			mode: text(profile, 'mode'),
+			report: text(profile, 'report'),
 		};
 	},
 	'chat.session-change-patch': false,

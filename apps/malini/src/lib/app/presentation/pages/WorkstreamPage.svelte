@@ -1,3 +1,15 @@
+<script module lang="ts">
+	import { browserInspectorPanel } from '$lib/browser/browser.api';
+	import { submitElementPromptCommand } from '$lib/chat/application/commands/submit-element-prompt.command';
+
+	const builtInPanels = [
+		browserInspectorPanel({
+			onElementPrompt: (workstreamId, picked) =>
+				submitElementPromptCommand({ requestId: crypto.randomUUID(), workstreamId, picked }),
+		}),
+	];
+</script>
+
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
@@ -135,4 +147,5 @@
 	oncreationannounced={consumeWorkstreamCreationCommand}
 	onruntimeretry={retryRepositoryScope}
 	{toolbarEnd}
+	{builtInPanels}
 />

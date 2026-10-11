@@ -69,7 +69,11 @@ describe('run profile memory', () => {
 		const storage = memoryStorage();
 		expect(readStoredRunProfile('ws-new', storage).effort).toBe('medium');
 
-		writeStoredRunProfile('ws-a', { effort: 'xhigh', mode: 'plan', access: 'full' }, storage);
+		writeStoredRunProfile(
+			'ws-a',
+			{ effort: 'xhigh', mode: 'plan', access: 'full', report: 'medium' },
+			storage,
+		);
 
 		expect(readStoredRunProfile('ws-new', storage)).toMatchObject({
 			effort: 'xhigh',
@@ -79,6 +83,40 @@ describe('run profile memory', () => {
 			effort: 'xhigh',
 			mode: 'plan',
 			access: 'full',
+			report: 'medium',
+		});
+	});
+
+	it('opens a workstream without a profile of its own at the report last picked anywhere', () => {
+		const storage = memoryStorage();
+		expect(readStoredRunProfile('ws-new', storage).report).toBe('medium');
+
+		writeStoredRunProfile(
+			'ws-a',
+			{ effort: 'high', mode: 'agent', access: 'full', report: 'low' },
+			storage,
+		);
+
+		expect(readStoredRunProfile('ws-new', storage)).toMatchObject({
+			effort: 'high',
+			report: 'low',
+		});
+	});
+
+	it('keeps a profile stored before reports existed, at the medium report', () => {
+		const storage = memoryStorage({
+			'malini.chat.profile:ws-old': JSON.stringify({
+				effort: 'high',
+				mode: 'plan',
+				access: 'full',
+			}),
+		});
+
+		expect(readStoredRunProfile('ws-old', storage)).toEqual({
+			effort: 'high',
+			mode: 'plan',
+			access: 'full',
+			report: 'medium',
 		});
 	});
 });

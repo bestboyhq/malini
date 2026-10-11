@@ -9,6 +9,8 @@
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
+	import TurnReportCard from '../TurnReportCard.svelte';
+	import { finalTurnReport } from '../turn-result';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
 	import ContextHandoffDivider from './ContextHandoffDivider.svelte';
@@ -28,6 +30,9 @@
 	const transcript = transcriptContext();
 	const { stageEnter, timelineKey } = transcript;
 	const planKey = $derived(`${run.runId}:${item.key}`);
+	const turnReport = $derived(
+		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
+	);
 </script>
 
 {#if item.kind === 'user'}
@@ -105,19 +110,29 @@
 		data-message-kind="assistant"
 		data-testid="chat-message-bubble"
 	>
-		<BufferedStreamingMarkdown
-			text={item.text}
-			class="select-text"
-			playbackKey={item.contentId
-				? blockKey(transcript.sessionId, run.runId, item.contentId)
-				: undefined}
-			complete={true}
-			revealOnMount={!transcript.transcriptSettled()}
-			onopenfile={transcript.openFileMention}
-			canopenfile={transcript.canOpenFileMention}
-			imagesrc={transcript.markdownImageSource}
-			onopenimage={transcript.openImageGallery}
-		/>
+		{#if turnReport}
+			<TurnReportCard
+				report={turnReport}
+				onopenfile={transcript.openFileMention}
+				canopenfile={transcript.canOpenFileMention}
+				imagesrc={transcript.markdownImageSource}
+				onopenimage={transcript.openImageGallery}
+			/>
+		{:else}
+			<BufferedStreamingMarkdown
+				text={item.text}
+				class="select-text"
+				playbackKey={item.contentId
+					? blockKey(transcript.sessionId, run.runId, item.contentId)
+					: undefined}
+				complete={true}
+				revealOnMount={!transcript.transcriptSettled()}
+				onopenfile={transcript.openFileMention}
+				canopenfile={transcript.canOpenFileMention}
+				imagesrc={transcript.markdownImageSource}
+				onopenimage={transcript.openImageGallery}
+			/>
+		{/if}
 	</div>
 {:else if item.kind === 'handoff'}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>

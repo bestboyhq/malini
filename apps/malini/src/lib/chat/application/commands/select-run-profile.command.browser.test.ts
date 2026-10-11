@@ -24,18 +24,33 @@ describe('switching between plan and agent mode', () => {
 		chatSessionStore.sessionId = 's-a1';
 		const sends = recordPromptDelivery();
 
-		selectRunProfileCommand({ mode: 'plan', effort: 'high', access: 'sandboxed' });
+		selectRunProfileCommand({ mode: 'plan', effort: 'high', access: 'sandboxed', report: 'low' });
 
 		expect(activeModelQuery.data).toBe(chatModelStore.rememberedModels.planning.model);
-		expect(chatModelStore.profile).toEqual({ mode: 'plan', effort: 'high', access: 'sandboxed' });
+		expect(chatModelStore.profile).toEqual({
+			mode: 'plan',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'low',
+		});
 		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(true);
 
-		selectRunProfileCommand({ mode: 'agent', effort: 'medium', access: 'sandboxed' });
+		selectRunProfileCommand({
+			mode: 'agent',
+			effort: 'medium',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 
 		expect(activeModelQuery.data).toBe(chatModelStore.rememberedModels.implementation.model);
 		expect(chatSessionStore.createFreshSessionOnNextPrompt).toBe(false);
 
-		selectRunProfileCommand({ mode: 'plan', effort: 'high', access: 'sandboxed' });
+		selectRunProfileCommand({
+			mode: 'plan',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 		await submit(
 			submission({
 				sessionId: 's-a1',

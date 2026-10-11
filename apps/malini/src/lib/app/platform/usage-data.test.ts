@@ -51,7 +51,7 @@ describe('usage data', () => {
 				sessionId: 's1',
 				prompt: 'fix the secret thing in /Users/me/work',
 				attachmentIds: ['a', 'b'],
-				profile: { effort: 'high', mode: 'agent' },
+				profile: { effort: 'high', mode: 'agent', report: 'low' },
 			},
 		});
 		const [sent] = events('chat.send-prompt');
@@ -61,6 +61,7 @@ describe('usage data', () => {
 			attachments: 2,
 			effort: 'high',
 			mode: 'agent',
+			report: 'low',
 		});
 		expect(JSON.stringify(sent)).not.toContain('secret');
 	});

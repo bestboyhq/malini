@@ -1,4 +1,5 @@
 import type { LiveEventEnvelope } from './agent';
+import type { BrowserState } from './browser';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type {
 	RoutineChangedEvent,
@@ -95,6 +96,7 @@ export interface ContractEvents {
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
+	'browser:state-changed': BrowserState;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -130,6 +132,8 @@ export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies Event
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
 
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
+
+export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const ROUTINES_SUGGESTED_CHANNEL = 'routines:suggested' satisfies EventChannel;
 
