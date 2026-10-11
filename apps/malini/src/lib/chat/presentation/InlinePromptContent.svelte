@@ -15,6 +15,7 @@
 		transcriptReferences?: readonly AgentTranscriptReference[];
 		elementReferences?: readonly AgentElementReference[];
 		pending?: boolean;
+		singleLine?: boolean;
 		onopenimage?: ((id: string) => void) | undefined;
 	}
 
@@ -25,6 +26,7 @@
 		transcriptReferences = [],
 		elementReferences = [],
 		pending = false,
+		singleLine = false,
 		onopenimage,
 	}: Props = $props();
 
@@ -53,6 +55,8 @@
 			onopen={imageOpener(segment.ref)}
 		/>
 	{:else}
-		<span class="whitespace-pre-wrap"><SensitiveText text={segment.text} /></span>
+		<span class={singleLine ? 'whitespace-nowrap' : 'whitespace-pre-wrap'}>
+			<SensitiveText text={segment.text} />
+		</span>
 	{/if}
 {/each}
