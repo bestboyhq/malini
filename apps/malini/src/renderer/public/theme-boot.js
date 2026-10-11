@@ -12,6 +12,15 @@
 		mode === 'dark' ||
 		(mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 	document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+	try {
+		var greys = window.localStorage.getItem('malini.settings.greys-stylesheet');
+		if (greys) {
+			var style = document.createElement('style');
+			style.id = 'malini-greys';
+			style.textContent = greys;
+			document.head.appendChild(style);
+		}
+	} catch (error) {}
 	document.documentElement.setAttribute('data-native-shell', 'true');
 	try {
 		var zoom =

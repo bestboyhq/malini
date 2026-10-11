@@ -8,6 +8,7 @@ import { extensionRuntimeStore } from '../../infrastructure/stores/extension-run
 export function publishAutomationRunOptionsCommand(): void {
 	const service = extensionRuntimeStore.service;
 	automationRulesStore.publishFailures(service ? service.automations.failures : []);
+	automationRulesStore.publishActiveWorkstream(service?.workstream?.id ?? null);
 	if (!service || !service.workstream) {
 		automationRulesStore.publishRunOptions(null);
 		return;

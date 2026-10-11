@@ -4,6 +4,10 @@ class ClipboardService {
 	write(text: string, html?: string): Promise<void> {
 		return invoke('app.copy-text', html === undefined ? { text } : { text, html });
 	}
+
+	writeImage(pngDataUrl: string): Promise<void> {
+		return invoke('app.copy-image', { pngDataUrl });
+	}
 }
 
 export const clipboardService = new ClipboardService();

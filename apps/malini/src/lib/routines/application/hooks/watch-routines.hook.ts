@@ -19,6 +19,9 @@ export function watchRoutinesHook(): () => void {
 		onGatedRunChanged: (gatedRun) => {
 			routinesAggregate.applyGatedRun(gatedRun);
 		},
+		onJobChanged: (jobId, job) => {
+			routinesAggregate.applyJob(jobId, job);
+		},
 	});
 
 	let released = false;

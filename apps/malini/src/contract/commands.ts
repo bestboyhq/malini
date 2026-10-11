@@ -11,6 +11,7 @@ import type {
 	AgentSessionChangePatch,
 	AgentSessionChanges,
 	AgentSessionChangeScope,
+	AgentSessionOrigin,
 	AgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
@@ -22,6 +23,15 @@ import type {
 } from './agent';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
+import type {
+	JobDefinitionIdArgs,
+	JobDefinitionRecord,
+	JobRunIdArgs,
+	JobRunRecord,
+	RunJobArgs,
+	SaveJobDefinitionArgs,
+} from './jobs';
+import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type { RuntimeInfo } from './runtime';
 import type {
 	AddressedReviewThreadsDto,
@@ -54,6 +64,7 @@ import type {
 	RoutineRecord,
 	RoutineSuggestionIdArgs,
 	RoutineSuggestionRecord,
+	UpdateRoutineArgs,
 } from './routines';
 import type {
 	DesktopRuntimeIdentity,
@@ -96,6 +107,8 @@ export type ExtensionFileArgs = Readonly<{
 export type StartAgentSessionArgs = Readonly<{
 	workstreamId: string;
 	model?: string;
+	origin?: AgentSessionOrigin;
+	displayName?: string;
 }>;
 
 export type StageForkTranscriptArgs = Readonly<{
@@ -293,6 +306,8 @@ export type OpenExternalUrlArgs = Readonly<{ url: string }>;
 
 export type SetClipboardTextArgs = Readonly<{ text: string; html?: string }>;
 
+export type SetClipboardImageArgs = Readonly<{ pngDataUrl: string }>;
+
 export type AppendRendererErrorArgs = Readonly<{ payload: RendererErrorPayload }>;
 
 export type SetInterfaceScaleArgs = Readonly<{ scale: number }>;
@@ -388,6 +403,18 @@ export interface ContractCommands {
 		result: AddressedReviewThreadsDto;
 	};
 	'pull-requests.status': { args: PullRequestStatusArgs; result: PullRequestStatusDto };
+	'pull-requests.open-draft': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.queue-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.cancel-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord | null };
+	'pull-requests.retry-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
+	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
+	'jobs.save-definition': { args: SaveJobDefinitionArgs; result: JobDefinitionRecord };
+	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
+	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
+	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
+	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
+	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-recent-events': { args: ListRecentAgentEventsArgs; result: RecentAgentEvents };
@@ -453,6 +480,7 @@ export interface ContractCommands {
 	};
 	'routines.confirm-run': { args: RoutineGatedRunIdArgs; result: RoutineGatedRunRecord };
 	'routines.create-draft': { args: CreateRoutineDraftArgs; result: RoutineRecord };
+	'routines.update': { args: UpdateRoutineArgs; result: RoutineRecord };
 	'routines.delete': { args: RoutineIdArgs; result: null };
 	'routines.demote': { args: RoutineIdArgs; result: RoutineRecord };
 	'routines.dismiss-suggestion': {
@@ -501,6 +529,7 @@ export interface ContractCommands {
 		result: void;
 	};
 	'app.copy-text': { args: SetClipboardTextArgs; result: void };
+	'app.copy-image': { args: SetClipboardImageArgs; result: void };
 	'app.focus-window': { args: undefined; result: void };
 	'app.runtime-identity': { args: undefined; result: DesktopRuntimeIdentity };
 	'app.delete-secret': { args: SecretKeyArgs; result: void };
@@ -529,6 +558,7 @@ export type CommandResult<Name extends CommandName> = ContractCommands[Name]['re
 
 export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.copy-text',
+	'app.copy-image',
 	'chat.activate-session',
 	'chat.adopt-attachments',
 	'chat.agent-health',
@@ -573,6 +603,18 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.status',
+	'pull-requests.open-draft',
+	'pull-requests.queue-merge',
+	'pull-requests.cancel-merge',
+	'pull-requests.retry-merge',
+	'pull-requests.ship-states',
+	'jobs.list-definitions',
+	'jobs.save-definition',
+	'jobs.delete-definition',
+	'jobs.reset-definition',
+	'jobs.list-runs',
+	'jobs.run',
+	'jobs.cancel-run',
 	'repositories.disconnect',
 	'chat.list-events',
 	'chat.list-recent-events',
@@ -612,6 +654,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'extensions.rollback-managed',
 	'routines.confirm-run',
 	'routines.create-draft',
+	'routines.update',
 	'routines.delete',
 	'routines.demote',
 	'routines.dismiss-suggestion',

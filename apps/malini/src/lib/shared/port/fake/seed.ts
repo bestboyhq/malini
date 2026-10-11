@@ -2,6 +2,7 @@ import type {
 	AgentRunChangePatch,
 	AgentSessionChangePatch,
 	AgentSessionChanges,
+	AgentSessionOrigin,
 	ProviderCapability,
 	StagedAgentAttachment,
 } from '$contract/agent';
@@ -54,6 +55,7 @@ export type FakeAgentSessionSeed = {
 	currentRunId?: string | null;
 	startedAt?: string;
 	archivedAt?: string | null;
+	origin?: AgentSessionOrigin;
 };
 
 export type FakeAgentEventSeed = {

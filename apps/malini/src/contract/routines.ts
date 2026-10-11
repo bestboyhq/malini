@@ -20,7 +20,9 @@ export type RoutineCommandRun = Readonly<{
 	args: readonly RoutineJsonValue[];
 }>;
 
-export type RoutineRun = RoutineWorkflowRun | RoutineCommandRun;
+export type RoutineJobRun = Readonly<{ job: string }>;
+
+export type RoutineRun = RoutineWorkflowRun | RoutineCommandRun | RoutineJobRun;
 
 export type RoutinePromptEvidence = Readonly<{
 	kind: 'prompt';
@@ -47,7 +49,7 @@ export type RoutineRecord = Readonly<{
 	origin: RoutineOrigin;
 	label: string;
 	when: string;
-	run: RoutineRun;
+	steps: readonly RoutineRun[];
 	evidence: readonly RoutineEvidence[];
 	createdAt: string;
 	updatedAt: string;
@@ -81,13 +83,20 @@ export type RoutineSuggestionRecord = Readonly<{
 export type CreateRoutineDraftArgs = Readonly<{
 	label: string;
 	when: string;
-	run: RoutineRun;
+	steps: readonly RoutineRun[];
 	origin?: RoutineOrigin;
 	evidence?: readonly RoutineEvidence[];
 	suggestionId?: string;
 }>;
 
 export type RoutineIdArgs = Readonly<{ routineId: string }>;
+
+export type UpdateRoutineArgs = Readonly<{
+	routineId: string;
+	label?: string;
+	when?: string;
+	steps?: readonly RoutineRun[];
+}>;
 
 export type ListRoutineGatedRunsArgs = Readonly<{
 	workstreamId?: string;
@@ -110,6 +119,7 @@ export type RoutineSuggestionIdArgs = Readonly<{ suggestionId: string }>;
 export type RoutineCommandName =
 	| 'routines.list'
 	| 'routines.create-draft'
+	| 'routines.update'
 	| 'routines.promote'
 	| 'routines.demote'
 	| 'routines.delete'
@@ -127,7 +137,7 @@ export type RoutineSuggestedEvent = Readonly<{
 	suggestion: RoutineSuggestionRecord;
 }>;
 
-export type RoutineChange = 'created' | 'promoted' | 'demoted' | 'deleted';
+export type RoutineChange = 'created' | 'updated' | 'promoted' | 'demoted' | 'deleted';
 
 export type RoutineChangedEvent = Readonly<{
 	routineId: string;

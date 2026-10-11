@@ -123,3 +123,34 @@ describe('bootstrap telemetry', () => {
 		expect(chatSessionStore.sessionId).toBe('s-a');
 	});
 });
+
+describe('bootstrapping a workstream that has job transcripts', () => {
+	beforeEach(() => {
+		installChatPlatform([
+			chatSession('s-chat', 'ws-jobs', '2026-01-01T00:00:00.000Z'),
+			{
+				...chatSession('s-job', 'ws-jobs', '2026-02-01T00:00:00.000Z'),
+				displayName: 'Fix checks',
+				origin: 'job',
+			},
+		]);
+	});
+
+	it('opens the newest chat, not the newer job transcript', async () => {
+		await startChatRouter('/workstreams/ws-jobs');
+
+		await chatBootstrap.run('ws-jobs', chatSessionStore.nextBootstrapSeq());
+
+		expect(chatSessionStore.sessionId).toBe('s-chat');
+		expect(router.page.url.searchParams.get('agent')).toBe('s-chat');
+	});
+
+	it('opens the job transcript the route names, so the user can read and steer it', async () => {
+		await startChatRouter('/workstreams/ws-jobs?agent=s-job');
+
+		await chatBootstrap.run('ws-jobs', chatSessionStore.nextBootstrapSeq());
+
+		expect(chatSessionStore.sessionId).toBe('s-job');
+		expect(chatSessionStore.bootError).toBeNull();
+	});
+});

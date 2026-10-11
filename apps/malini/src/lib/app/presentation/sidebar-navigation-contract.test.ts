@@ -46,7 +46,7 @@ describe('sidebar navigation contract', () => {
 			mint.indexOf('await chatRouteSync.syncSessionUrl(sessionId, workstreamId);'),
 		);
 		expect(chatSurface).toContain('onclosefresh={closeFreshChatCommand}');
-		expect(sidebar).toContain("pullRequestStateByWorkstream[workstream.id] ?? 'unknown'");
+		expect(sidebar).toContain('{@const badge = pullRequestBadge(workstream.id)}');
 	});
 
 	it('hands archive to the repositories command together with the extension announcement', () => {

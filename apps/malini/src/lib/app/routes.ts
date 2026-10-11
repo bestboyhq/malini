@@ -21,12 +21,31 @@ export const routes: RouteNode = {
 			],
 		},
 		{
-			segment: 'routines',
-			page: () => import('./presentation/pages/RoutinesPage.svelte'),
+			segment: 'jobs',
+			page: () => import('./presentation/pages/JobsPage.svelte'),
 		},
 		{
 			segment: 'settings',
-			page: () => import('./presentation/pages/SettingsPage.svelte'),
+			layout: () => import('./presentation/layouts/SettingsLayout.svelte'),
+			page: () => import('./presentation/pages/AgentSettingsPage.svelte'),
+			children: [
+				{
+					segment: 'agent-access',
+					page: () => import('./presentation/pages/AgentAccessSettingsPage.svelte'),
+				},
+				{
+					segment: 'appearance',
+					page: () => import('./presentation/pages/AppearanceSettingsPage.svelte'),
+				},
+				{
+					segment: 'jobs',
+					page: () => import('./presentation/pages/JobsSettingsPage.svelte'),
+				},
+				{
+					segment: 'privacy',
+					page: () => import('./presentation/pages/PrivacySettingsPage.svelte'),
+				},
+			],
 		},
 		{
 			segment: 'dev',

@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, git, launchMalini, openWorkstream } from './harness';
 import { commitByHand, headOf, seedWorkstreamOnFakeGithub } from './fake-github';
 
-test('a workstream equal to its base offers no pull request until a file changes', async () => {
+test('a workstream equal to its base offers no Open draft until a file changes', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -18,13 +18,12 @@ test('a workstream equal to its base offers no pull request until a file changes
 		const repositoryDetail = page.getByRole('button', { name: 'Repository detail' });
 		await expect(page.getByTestId('chat-composer')).toBeVisible({ timeout: 30_000 });
 		await expect(repositoryDetail).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Create pull request' })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: /^Commit and push/u })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /draft pull request$/u })).toHaveCount(0);
 		await captureFlow(app, 'pull-request-nothing-to-ship');
 
 		writeFileSync(join(worktree, 'notes.txt'), 'the first change\n');
 
-		await expect(page.getByRole('button', { name: 'Commit and push changes' })).toBeEnabled({
+		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled({
 			timeout: 30_000,
 		});
 		await expect(repositoryDetail).toHaveCount(0);
@@ -60,9 +59,8 @@ test('a workstream reset to its base after its pull request merged stays merged 
 		).toBeVisible({
 			timeout: 30_000,
 		});
-		await expect(page.getByRole('button', { name: /^Continue on the latest/u })).toBeEnabled();
 		await expect(page.getByRole('button', { name: /pull request$/u })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: /^Commit and push/u })).toHaveCount(0);
+		await expect(page.getByTestId('global-topbar-github-action')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

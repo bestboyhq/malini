@@ -31,7 +31,7 @@ export function installRoutinesFake(bridge: FakeBridge): void {
 			origin: input.origin ?? 'user',
 			label: input.label,
 			when: input.when,
-			run: input.run,
+			steps: input.steps,
 			evidence: input.evidence ?? [],
 			createdAt: FAKE_ROUTINE_TIME,
 			updatedAt: FAKE_ROUTINE_TIME,
@@ -39,6 +39,20 @@ export function installRoutinesFake(bridge: FakeBridge): void {
 		routines.set(id, routine);
 		if (input.suggestionId) suggestions.delete(input.suggestionId);
 		return routine;
+	});
+
+	bridge.define('routines.update', async (input) => {
+		const routine = routines.get(input.routineId);
+		if (!routine) throw new Error(`Unknown fake routine: ${input.routineId}`);
+		const next: RoutineRecord = {
+			...routine,
+			label: input.label ?? routine.label,
+			when: input.when ?? routine.when,
+			steps: input.steps ?? routine.steps,
+			updatedAt: FAKE_ROUTINE_TIME,
+		};
+		routines.set(next.id, next);
+		return next;
 	});
 
 	bridge.define('routines.promote', async (input) =>

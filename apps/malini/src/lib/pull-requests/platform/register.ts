@@ -1,6 +1,9 @@
 import type { LocalBaseSyncedPayload } from '$contract/events';
 import type { AddressedReviewThreadsDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
+import type { PullRequestsPlatform } from '../pull-requests.platform';
+import type { MergeQueueOptions } from './merge-queue.service';
+import { registerShip } from './ship.register';
 import { failureOutput } from '$main/errors';
 import { noPromptCredentialEnv } from '$main/git/credentials';
 import { fastForwardCheckout, syncRemoteBase } from '$main/git/remote';
@@ -56,13 +59,22 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 	'pull-requests.check-diagnostics',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
+	'pull-requests.open-draft',
+	'pull-requests.queue-merge',
+	'pull-requests.cancel-merge',
+	'pull-requests.retry-merge',
+	'pull-requests.ship-states',
 ] as const;
 
 export interface PullRequestsDeps {
 	runner?: GhRunner;
+	ship?: MergeQueueOptions;
 }
 
-export function registerPullRequests(context: MainContext, deps: PullRequestsDeps = {}): void {
+export function registerPullRequests(
+	context: MainContext,
+	deps: PullRequestsDeps = {},
+): PullRequestsPlatform {
 	const { commands, db, appDataRoot, events } = context;
 	const run: GhRunner = deps.runner ?? ((args, options) => runGh(args, options));
 	const checkouts = createCheckoutResolver({ db, appDataRoot });
@@ -95,7 +107,7 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		return { repository, checkout, local };
 	};
 
-	commands.define('pull-requests.status', async (args: unknown): Promise<PullRequestStatusDto> => {
+	const status = async (args: unknown): Promise<PullRequestStatusDto> => {
 		const { repository, checkout, local } = await targetOrThrow(args);
 		const head = requireString(args, 'head');
 		const pullRequestNumber = optionalNumber(args, 'pullRequestNumber');
@@ -103,22 +115,22 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		if (!view || (await branchBuildsOnMerge(local, view, head))) {
 			return notOpenStatus(head, optionalString(args, 'base') ?? repository.defaultBranch);
 		}
-		const status = await openPullRequestStatus(run, checkout, local, repository, view);
-		if ((status.state !== 'merged' && status.state !== 'closed') || !status.headSha) return status;
+		const read = await openPullRequestStatus(run, checkout, local, repository, view);
+		if ((read.state !== 'merged' && read.state !== 'closed') || !read.headSha) return read;
 		return {
-			...status,
+			...read,
 			includesLocalHead: await includesLocalHead(
 				run,
 				checkout,
 				local,
 				repository,
-				status.headSha,
+				read.headSha,
 				head,
 			),
 		};
-	});
+	};
 
-	commands.define('pull-requests.create', async (args: unknown): Promise<PullRequestStatusDto> => {
+	const create = async (args: unknown): Promise<PullRequestStatusDto> => {
 		const { repository, checkout, local } = await targetOrThrow(args);
 		const head = requireString(args, 'head');
 		const base = optionalString(args, 'base') ?? repository.defaultBranch;
@@ -142,21 +154,18 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		const view = await viewPullRequest({ run, checkout, head, pullRequestNumber: null, url });
 		if (!view) throw new Error('Pull request was created but could not be read back');
 		return openPullRequestStatus(run, checkout, local, repository, view);
-	});
+	};
 
-	commands.define(
-		'pull-requests.mark-ready',
-		async (args: unknown): Promise<PullRequestStatusDto> => {
-			const { repository, checkout, local } = await targetOrThrow(args);
-			const number = requireNumber(args, 'pullRequestNumber');
-			await runCheckedGh(run, ['pr', 'ready', String(number)], checkout);
-			const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
-			if (!view) throw new Error(`Pull request #${number} was not found after marking ready`);
-			return openPullRequestStatus(run, checkout, local, repository, view);
-		},
-	);
+	const markReady = async (args: unknown): Promise<PullRequestStatusDto> => {
+		const { repository, checkout, local } = await targetOrThrow(args);
+		const number = requireNumber(args, 'pullRequestNumber');
+		await runCheckedGh(run, ['pr', 'ready', String(number)], checkout);
+		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
+		if (!view) throw new Error(`Pull request #${number} was not found after marking ready`);
+		return openPullRequestStatus(run, checkout, local, repository, view);
+	};
 
-	commands.define('pull-requests.merge', async (args: unknown): Promise<PullRequestStatusDto> => {
+	const merge = async (args: unknown): Promise<PullRequestStatusDto> => {
 		const { repository, checkout, local } = await targetOrThrow(args);
 		const number = requireNumber(args, 'pullRequestNumber');
 		const expectedHeadSha = requireString(args, 'expectedHeadSha');
@@ -181,75 +190,89 @@ export function registerPullRequests(context: MainContext, deps: PullRequestsDep
 		await runCheckedGh(run, mergeArgs, checkout);
 		const view = await viewPullRequest({ run, checkout, head: '', pullRequestNumber: number });
 		if (!view) throw new Error(`Pull request #${number} was not found after merge`);
-		const status = await openPullRequestStatus(run, checkout, local, repository, view);
-		if (status.state === 'merged') {
+		const result = await openPullRequestStatus(run, checkout, local, repository, view);
+		if (result.state === 'merged') {
 			const synced = await fastForwardLocalBase(
 				checkout,
-				status.baseRef || repository.defaultBranch,
+				result.baseRef || repository.defaultBranch,
 			);
 			if (synced) {
 				events.emit('pull-requests:local-base-synced', { workstreamId, ...synced });
 			}
 		}
-		return status;
-	});
+		return result;
+	};
 
-	commands.define(
-		'pull-requests.update-metadata',
-		async (args: unknown): Promise<PullRequestMetadataDto> => {
-			const { checkout } = await targetOrThrow(args);
-			const number = requireNumber(args, 'pullRequestNumber');
-			const title = optionalTextUpdate(args, 'title');
-			const body = optionalTextUpdate(args, 'body');
-			if (title && !title.next.trim()) throw new Error('A pull request title cannot be empty');
-			const current = await viewPullRequestText(run, checkout, number);
-			if (!current.open) return { title: null, body: null };
-			const ownedTitle = title && sameText(current.title, title.expected) ? title.next : null;
-			const ownedBody = body && sameText(current.body, body.expected) ? body.next : null;
-			const edits = [
-				...(ownedTitle !== null && !sameText(current.title, ownedTitle)
-					? ['--title', ownedTitle]
-					: []),
-				...(ownedBody !== null && !sameText(current.body, ownedBody) ? ['--body', ownedBody] : []),
-			];
-			if (edits.length > 0) {
-				await runCheckedGh(run, ['pr', 'edit', String(number), ...edits], checkout);
-			}
-			return { title: ownedTitle, body: ownedBody };
-		},
-	);
+	const updateMetadata = async (args: unknown): Promise<PullRequestMetadataDto> => {
+		const { checkout } = await targetOrThrow(args);
+		const number = requireNumber(args, 'pullRequestNumber');
+		const title = optionalTextUpdate(args, 'title');
+		const body = optionalTextUpdate(args, 'body');
+		if (title && !title.next.trim()) throw new Error('A pull request title cannot be empty');
+		const current = await viewPullRequestText(run, checkout, number);
+		if (!current.open) return { title: null, body: null };
+		const ownedTitle = title && sameText(current.title, title.expected) ? title.next : null;
+		const ownedBody = body && sameText(current.body, body.expected) ? body.next : null;
+		const edits = [
+			...(ownedTitle !== null && !sameText(current.title, ownedTitle)
+				? ['--title', ownedTitle]
+				: []),
+			...(ownedBody !== null && !sameText(current.body, ownedBody) ? ['--body', ownedBody] : []),
+		];
+		if (edits.length > 0) {
+			await runCheckedGh(run, ['pr', 'edit', String(number), ...edits], checkout);
+		}
+		return { title: ownedTitle, body: ownedBody };
+	};
 
-	commands.define(
-		'pull-requests.check-diagnostics',
-		async (args: unknown): Promise<CheckDiagnosticsDto> => {
-			const { repository, checkout } = await targetOrThrow(args);
-			const number = requireNumber(args, 'pullRequestNumber');
-			return fetchCheckDiagnostics(run, checkout, repository, number);
-		},
-	);
+	const checkDiagnostics = async (args: unknown): Promise<CheckDiagnosticsDto> => {
+		const { repository, checkout } = await targetOrThrow(args);
+		const number = requireNumber(args, 'pullRequestNumber');
+		return fetchCheckDiagnostics(run, checkout, repository, number);
+	};
 
-	commands.define(
-		'pull-requests.review-feedback',
-		async (args: unknown): Promise<ReviewFeedbackDto> => {
-			const { repository, checkout } = await targetOrThrow(args);
-			const number = requireNumber(args, 'pullRequestNumber');
-			return fetchReviewFeedback(run, checkout, repository, number);
-		},
-	);
+	const reviewFeedback = async (args: unknown): Promise<ReviewFeedbackDto> => {
+		const { repository, checkout } = await targetOrThrow(args);
+		const number = requireNumber(args, 'pullRequestNumber');
+		return fetchReviewFeedback(run, checkout, repository, number);
+	};
 
-	commands.define(
-		'pull-requests.resolve-addressed-review-threads',
-		async (args: unknown): Promise<AddressedReviewThreadsDto> => {
-			const workstreamId = requireString(args, 'workstreamId');
-			const runId = requireString(args, 'runId');
-			const fixRun = getWorkstreamRun(db, workstreamId, runId);
-			const addressed = fixRun ? addressedReviewThreadIds(fixRun.prompt, fixRun.summary ?? '') : [];
-			if (addressed.length === 0) return { resolvedThreadIds: [], failures: [] };
-			const checkout = await checkouts.resolveCheckout(workstreamId);
-			const reply = await claimThreadResolutionReply(run, db, checkout, workstreamId, runId);
-			if (reply === null) return { resolvedThreadIds: [], failures: [] };
-			return replyAndResolveReviewThreads(run, checkout, addressed, reply);
+	const resolveAddressedReviewThreads = async (
+		args: unknown,
+	): Promise<AddressedReviewThreadsDto> => {
+		const workstreamId = requireString(args, 'workstreamId');
+		const runId = requireString(args, 'runId');
+		const fixRun = getWorkstreamRun(db, workstreamId, runId);
+		const addressed = fixRun ? addressedReviewThreadIds(fixRun.prompt, fixRun.summary ?? '') : [];
+		if (addressed.length === 0) return { resolvedThreadIds: [], failures: [] };
+		const checkout = await checkouts.resolveCheckout(workstreamId);
+		const reply = await claimThreadResolutionReply(run, db, checkout, workstreamId, runId);
+		if (reply === null) return { resolvedThreadIds: [], failures: [] };
+		return replyAndResolveReviewThreads(run, checkout, addressed, reply);
+	};
+
+	commands.define('pull-requests.status', status);
+	commands.define('pull-requests.create', create);
+	commands.define('pull-requests.mark-ready', markReady);
+	commands.define('pull-requests.merge', merge);
+	commands.define('pull-requests.update-metadata', updateMetadata);
+	commands.define('pull-requests.check-diagnostics', checkDiagnostics);
+	commands.define('pull-requests.review-feedback', reviewFeedback);
+	commands.define('pull-requests.resolve-addressed-review-threads', resolveAddressedReviewThreads);
+
+	return registerShip(
+		context,
+		{
+			status,
+			create,
+			markReady,
+			merge,
+			updateMetadata,
+			checkDiagnostics,
+			reviewFeedback,
+			resolveAddressedReviewThreads,
 		},
+		deps.ship,
 	);
 }
 

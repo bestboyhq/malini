@@ -29,6 +29,11 @@ export function showWorkstreamImages(
 	}
 }
 
+export function workstreamImageFilePath(root: string | null, path: string): string {
+	if (root === null || path.startsWith('/')) return path;
+	return `${root.replace(/\/+$/u, '')}/${path.replace(/^(?:\.\/)+/u, '')}`;
+}
+
 function workstreamImagePath(src: string): string | null {
 	if (src.length === 0 || NOT_A_WORKSTREAM_FILE.test(src)) return null;
 	try {

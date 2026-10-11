@@ -17,3 +17,8 @@ export {
 	mapChecks,
 	mapPullRequestStatus,
 } from './platform/pull-requests.service';
+
+export interface PullRequestsPlatform {
+	start(): void;
+	dispose(): void;
+}

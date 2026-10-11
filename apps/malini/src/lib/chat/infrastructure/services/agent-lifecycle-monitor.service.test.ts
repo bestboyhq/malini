@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EventEnvelope } from '$lib/chat/domain/events';
-import type { LiveEventEnvelope } from '$contract/agent';
+import type { AgentSessionOrigin, LiveEventEnvelope } from '$contract/agent';
 import type { AgentAttention, AgentWorkstreamContext } from '$lib/chat/domain/agent-attention';
 import { AgentLifecycleMonitor } from './agent-lifecycle-monitor.service';
 
 function monitorHarness() {
 	let listener: ((payload: LiveEventEnvelope) => void) | null = null;
-	const sessions = new Map<string, { workstreamId: string; status: string }>();
+	const sessions = new Map<
+		string,
+		{ workstreamId: string; status: string; origin?: AgentSessionOrigin }
+	>();
 	const contexts = new Map<string, AgentWorkstreamContext>();
 	const attentions = new Map<string, AgentAttention>();
 	const notifications: Array<{
@@ -127,6 +130,48 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('session-a')?.status).toBe('completed');
 		expect(harness.attentions.has('stream-a')).toBe(false);
 		expect(harness.notifications).toHaveLength(1);
+	});
+
+	it('leaves job runs to the Job center: no attention, no notification, no cleared dot', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('job-session', {
+			workstreamId: 'stream-b',
+			status: 'idle',
+			origin: 'job',
+		});
+		harness.contexts.set('stream-b', context('globex', 'stream-b'));
+		harness.attentions.set('stream-b', { kind: 'completed', runId: 'user-run', updatedAt: 1 });
+		harness.monitor.setActiveWorkstream('stream-a');
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('job-session', 'job-run', 1, {
+				type: 'run.started',
+				runId: 'job-run',
+				sessionId: 'job-session',
+			}),
+		);
+		harness.emit(
+			envelope('job-session', 'job-run', 2, {
+				type: 'run.completed',
+				runId: 'job-run',
+				summary: 'Checks pass.',
+			}),
+		);
+
+		harness.emit(
+			envelope('late-job', 'late-run', 1, {
+				type: 'run.failed',
+				runId: 'late-run',
+				error: 'boom',
+			}),
+		);
+		harness.sessions.set('late-job', { workstreamId: 'stream-b', status: 'failed', origin: 'job' });
+		harness.monitor.flushKnownSessions();
+
+		expect(harness.sessions.get('job-session')?.status).toBe('completed');
+		expect(harness.attentions.get('stream-b')?.runId).toBe('user-run');
+		expect(harness.notifications).toEqual([]);
 	});
 
 	it('clears old terminal attention when a new background run starts', () => {

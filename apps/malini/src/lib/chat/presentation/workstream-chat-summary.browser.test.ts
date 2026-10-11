@@ -29,6 +29,7 @@ function chat(
 	sessionId: string,
 	status: SessionState,
 	startedAt = '2026-01-01T00:00:00.000Z',
+	origin: 'user' | 'job' = 'user',
 ): void {
 	sessionsAggregate.hydrateSession({
 		sessionId,
@@ -37,6 +38,7 @@ function chat(
 		model: null,
 		status,
 		startedAt,
+		origin,
 	});
 }
 
@@ -73,6 +75,22 @@ describe('the sidebar chat summary of a workstream', () => {
 		expect(summary(waiting).dataset['sessionId']).toBe('waiting');
 		expect(summary(waiting).textContent?.trim()).toBe('Approval');
 		expect(summary(waiting).dataset['tone']).toBe('waiting');
+	});
+
+	it('shows a running job as work in progress while still linking to the user chat', () => {
+		const busy = workstream();
+		const finished = workstream();
+		chat(busy, 'chat', 'idle');
+		chat(busy, 'job', 'running', '2026-01-02T00:00:00.000Z', 'job');
+		chat(finished, 'chat-done', 'idle');
+		chat(finished, 'job-done', 'completed', '2026-01-02T00:00:00.000Z', 'job');
+
+		const summary = render([busy, finished]);
+
+		expect(summary(busy).textContent?.trim()).toBe('Running');
+		expect(summary(busy).dataset['sessionId']).toBe('chat');
+		expect(summary(finished).textContent?.trim()).toBe('Idle');
+		expect(summary(finished).dataset['sessionId']).toBe('chat-done');
 	});
 
 	it('counts queued prompts ahead of the last run outcome', () => {

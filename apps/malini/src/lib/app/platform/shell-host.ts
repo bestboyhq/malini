@@ -32,6 +32,7 @@ export interface ShellHost {
 	readonly executablePath: string;
 	openExternal(url: string): Promise<void>;
 	clipboardWriteText(text: string, html?: string): Promise<void> | void;
+	clipboardWriteImage(png: Buffer): Promise<void>;
 	isEncryptionAvailable(): boolean;
 	encryptString(plainText: string): Buffer;
 	decryptString(encrypted: Buffer): string;
@@ -51,6 +52,8 @@ export function createElectronShellHost(): ShellHost {
 			html === undefined
 				? clipboard.writeText(text)
 				: clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })]),
+		clipboardWriteImage: (png) =>
+			clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
 		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
 		encryptString: (plainText) => safeStorage.encryptString(plainText),
 		decryptString: (encrypted) => safeStorage.decryptString(encrypted),

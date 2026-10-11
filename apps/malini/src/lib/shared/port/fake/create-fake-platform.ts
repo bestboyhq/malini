@@ -1,6 +1,7 @@
 import { installAppFake } from './app.fake';
 import { installChatFake, setFakeAgentScript } from './chat.fake';
 import { installExtensionsFake } from './extensions.fake';
+import { installJobsFake } from './jobs.fake';
 import { FakeBridge } from './fake-bridge';
 import { installProvidersFake } from './providers.fake';
 import { installPullRequestsFake } from './pull-requests.fake';
@@ -31,6 +32,7 @@ export class FakePlatform extends FakeBridge {
 		installRepositoriesFake(this, this.#state);
 		installPullRequestsFake(this);
 		installRoutinesFake(this);
+		installJobsFake(this);
 	}
 
 	script(steps: readonly FakeAgentScriptStep[]): void {
