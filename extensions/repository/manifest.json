@@ -11,7 +11,6 @@
 		"onWorkstream",
 		"onCommand:malini.repository.refresh",
 		"onCommand:malini.repository.refresh-pull-request",
-		"onCommand:malini.repository.prepare-pull-request-fix",
 		"onCommand:malini.repository.todos",
 		"onEvent:malini.workstream.changed",
 		"onEvent:malini.repository.context.changed"
@@ -44,29 +43,9 @@
 				"description": "Refresh only the current workstream's remote pull request and check state."
 			},
 			{
-				"id": "malini.repository.prepare-pull-request-fix",
-				"title": "Repository: Prepare Pull Request Fix",
-				"description": "Refresh the exact pull request head and read bounded diagnostics for an in-Malini agent fix. When the pull request conflicts with its target branch, merge the target branch into the workstream and leave the conflicts for the agent to resolve."
-			},
-			{
-				"id": "malini.repository.pull-latest",
-				"title": "Repository: Pull Latest Target Branch",
-				"description": "Update the workstream from its target branch, push, and refresh pull request state. A conflicting update stays in the workstream for the agent to resolve."
-			},
-			{
-				"id": "malini.repository.continue-after-merge",
-				"title": "Repository: Continue After Merge",
-				"description": "Move a workstream whose pull request merged onto its fresh target branch, keeping uncommitted edits and any commits made after the merge, so the next push opens a new pull request."
-			},
-			{
 				"id": "malini.repository.abort-operation",
 				"title": "Repository: Abort Merge",
 				"description": "Abort the merge in progress in the workstream and return it to the last commit."
-			},
-			{
-				"id": "malini.repository.mark-pull-request-ready",
-				"title": "Repository: Mark Pull Request Ready",
-				"description": "Move the current draft pull request into review without leaving Malini."
 			},
 			{
 				"id": "malini.repository.select-file",
@@ -117,21 +96,6 @@
 				"id": "malini.repository.warm-workstream",
 				"title": "Repository: Warm Workstream",
 				"description": "Read another workstream's repository state ahead of its first visit."
-			},
-			{
-				"id": "malini.repository.commit-and-push",
-				"title": "Repository: Commit and Push",
-				"description": "Commit the workstream's pending changes with the derived message and push its branch, without touching the pull request."
-			},
-			{
-				"id": "malini.repository.create-or-open-pull-request",
-				"title": "Repository: Create or Update Pull Request",
-				"description": "Automatically commit pending changes, push the workstream branch, and create or refresh its pull request inside Malini."
-			},
-			{
-				"id": "malini.repository.merge-pull-request",
-				"title": "Repository: Merge Pull Request",
-				"description": "Land the open pull request at the head revision the caller passes, once local changes, todos, checks and reviews allow it."
 			}
 		],
 		"settings": [

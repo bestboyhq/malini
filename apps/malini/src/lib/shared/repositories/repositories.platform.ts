@@ -65,3 +65,11 @@ export {
 	resolveConnectedRepository,
 	resolveRepositoryCheckout,
 } from './platform/repository.service';
+export {
+	automatedPullRequestMetadata,
+	derivedCommitMessage,
+	type AutomatedPullRequestMetadata,
+	type PullRequestAutomationContext,
+	type PullRequestAutomationEvent,
+} from './domain/pull-request-metadata';
+export { planWorkstreamProvisioning } from './domain/provisioning';

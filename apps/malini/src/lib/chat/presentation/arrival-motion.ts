@@ -5,8 +5,7 @@ export type ArrivalMotion = {
 	easing: string;
 	travelPx: number;
 	promptOffsetPx: number;
-	scrollStiffness: number;
-	layoutStiffness: number;
+	glideStiffness: number;
 };
 
 export const DEFAULT_ARRIVAL_MOTION: Readonly<ArrivalMotion> = {
@@ -14,8 +13,7 @@ export const DEFAULT_ARRIVAL_MOTION: Readonly<ArrivalMotion> = {
 	easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
 	travelPx: 8,
 	promptOffsetPx: 34,
-	scrollStiffness: SCROLL_SPRING_STIFFNESS,
-	layoutStiffness: 600,
+	glideStiffness: SCROLL_SPRING_STIFFNESS,
 };
 
 const motion: ArrivalMotion = { ...DEFAULT_ARRIVAL_MOTION };
@@ -35,11 +33,8 @@ export function setArrivalMotion(next: Partial<ArrivalMotion>): Readonly<Arrival
 	if (typeof next.promptOffsetPx === 'number' && Number.isFinite(next.promptOffsetPx)) {
 		motion.promptOffsetPx = next.promptOffsetPx;
 	}
-	if (typeof next.scrollStiffness === 'number' && next.scrollStiffness > 0) {
-		motion.scrollStiffness = next.scrollStiffness;
-	}
-	if (typeof next.layoutStiffness === 'number' && next.layoutStiffness > 0) {
-		motion.layoutStiffness = next.layoutStiffness;
+	if (typeof next.glideStiffness === 'number' && next.glideStiffness > 0) {
+		motion.glideStiffness = next.glideStiffness;
 	}
 	return motion;
 }

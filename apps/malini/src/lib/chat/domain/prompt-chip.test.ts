@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
 	elementChipId,
 	escapePromptChipId,
+	foreignAttachmentIds,
+	rewritePromptChips,
 	parseElementChipId,
 	promptChipFallbackLabel,
 	promptChipIds,
@@ -143,5 +145,19 @@ describe('promptChipFallbackLabel', () => {
 
 	it('falls back to the raw id for an unparseable element', () => {
 		expect(promptChipFallbackLabel({ kind: 'element', id: 'legacy-handle' })).toBe('legacy-handle');
+	});
+});
+
+describe('pasted attachment chips', () => {
+	const prompt = 'see [[attachment:att-a]] and [[attachment:att-b]] in [[context:src/a.ts]]';
+
+	it('finds the attachments a draft does not hold yet', () => {
+		expect(foreignAttachmentIds(prompt, [{ id: 'att-a' }])).toEqual(['att-b']);
+	});
+
+	it('points a pasted chip at its copy and drops one that could not be copied', () => {
+		expect(
+			rewritePromptChips(prompt, 'attachment', (id) => (id === 'att-a' ? 'att-copy' : null)),
+		).toBe('see [[attachment:att-copy]] and  in [[context:src/a.ts]]');
 	});
 });

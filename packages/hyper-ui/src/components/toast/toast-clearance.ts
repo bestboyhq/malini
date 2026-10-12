@@ -20,10 +20,15 @@ export const avoidedByToasts: Attachment = (element) => {
 	};
 };
 
-export function bottomOffsetClearOfAvoided(lane: ToastLane, edge: number): number {
+export function bottomOffsetClearOfAvoided(
+	lane: ToastLane,
+	edge: number,
+	except: Element | null = null,
+): number {
 	const floor = window.innerHeight - edge;
 	let bottom = edge;
 	for (const element of avoided) {
+		if (element === except) continue;
 		const box = element.getBoundingClientRect();
 		const inLane = box.width > 0 && box.left < lane.right && box.right > lane.left;
 		if (!inLane || box.bottom <= floor - STACK_REACH_PX) continue;

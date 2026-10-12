@@ -115,7 +115,7 @@ async function createDraft(overrides: Record<string, unknown> = {}): Promise<Rou
 	return invoke<RoutineRecord>('routines.create-draft', {
 		label: 'Ensure the preview is running',
 		when: 'when a frontend resource becomes ready',
-		run: { command: 'malini.preview.open', args: [] },
+		steps: [{ command: 'malini.preview.open', args: [] }],
 		...overrides,
 	});
 }
@@ -180,6 +180,79 @@ describe('routine lifecycle commands', () => {
 		await expect(invoke('routines.delete', { routineId: draft.id })).rejects.toThrow(
 			`routine \`${draft.id}\` not found`,
 		);
+	});
+});
+
+describe('routine steps', () => {
+	it('persists ordered steps, including job steps, and lists them back', async () => {
+		const steps = [
+			{ job: 'job-fix-flaky-tests' },
+			{ command: 'malini.preview.open', args: ['frontend'] },
+			{ workflow: 'malini.preview.ensure-ready', input: { reason: 'routine' } },
+		];
+		const draft = await createDraft({ when: 'when I run it', steps });
+		expect(draft.steps).toEqual(steps);
+		expect(await invoke<RoutineRecord[]>('routines.list', undefined)).toEqual([draft]);
+	});
+
+	it('updates label, trigger and steps, and announces the change once', async () => {
+		const draft = await createDraft();
+		emitted = [];
+		const updated = await invoke<RoutineRecord>('routines.update', {
+			routineId: draft.id,
+			label: '  Fix and preview  ',
+			when: 'when I run it',
+			steps: [{ job: 'job-a' }, { job: 'job-b' }],
+		});
+		expect(updated).toMatchObject({
+			id: draft.id,
+			status: 'draft',
+			label: 'Fix and preview',
+			when: 'when I run it',
+			steps: [{ job: 'job-a' }, { job: 'job-b' }],
+		});
+		expect(await invoke<RoutineRecord[]>('routines.list', undefined)).toEqual([updated]);
+		expect(emitted).toEqual([
+			{
+				channel: ROUTINE_EVENT_CHANNELS.changed,
+				payload: { routineId: draft.id, change: 'updated', routine: updated },
+			},
+		]);
+
+		const renamed = await invoke<RoutineRecord>('routines.update', {
+			routineId: draft.id,
+			label: 'Only the label',
+		});
+		expect(renamed.when).toBe('when I run it');
+		expect(renamed.steps).toEqual([{ job: 'job-a' }, { job: 'job-b' }]);
+	});
+
+	it.each([
+		['an empty label', { label: '   ' }, '`label` must be 1-120 characters'],
+		['a label over 120 characters', { label: 'x'.repeat(121) }, '`label` must be 1-120'],
+		['a trigger that does not compile', { when: 'whenever' }, 'Unsupported extension automation'],
+		['no steps', { steps: [] }, '`steps` must list 1-10 steps'],
+		['eleven steps', { steps: Array(11).fill({ job: 'job-a' }) }, '`steps` must list 1-10'],
+		['a step with two kinds', { steps: [{ job: 'a', command: 'b' }] }, 'exactly one of'],
+		['an empty job step', { steps: [{ job: ' ' }] }, '`steps[0].job` must be a non-empty'],
+		['command args that are not a list', { steps: [{ command: 'c', args: 'x' }] }, 'args'],
+	])('rejects %s on create and on update', async (_name, change, message) => {
+		await expect(createDraft(change)).rejects.toThrow(message);
+		const draft = await createDraft();
+		await expect(invoke('routines.update', { routineId: draft.id, ...change })).rejects.toThrow(
+			message,
+		);
+		expect(await invoke<RoutineRecord[]>('routines.list', undefined)).toEqual([draft]);
+	});
+
+	it('rejects an update that changes nothing or names no routine', async () => {
+		const draft = await createDraft();
+		await expect(invoke('routines.update', { routineId: draft.id })).rejects.toThrow(
+			'needs a label, when or steps',
+		);
+		await expect(
+			invoke('routines.update', { routineId: 'missing', label: 'Anything' }),
+		).rejects.toThrow('routine `missing` not found');
 	});
 });
 

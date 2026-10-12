@@ -145,6 +145,7 @@ export interface ReviewThreadDto {
 export interface ReviewCommentDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	createdAt: string;
 	updatedAt: string;
@@ -153,6 +154,7 @@ export interface ReviewCommentDto {
 export interface RequestedChangeReviewDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	submittedAt: string;
 	updatedAt: string;
@@ -583,12 +585,12 @@ const REVIEW_FEEDBACK_QUERY = `query($owner: String!, $name: String!, $number: I
         pageInfo { hasNextPage }
         nodes {
           id isResolved isOutdated path line startLine diffSide startDiffSide subjectType
-          comments(first: 100) { nodes { id body createdAt updatedAt author { login } } }
+          comments(first: 100) { nodes { id body createdAt updatedAt author { __typename login } } }
         }
       }
       reviews(last: 100) {
         pageInfo { hasNextPage }
-        nodes { id body state submittedAt updatedAt author { login } }
+        nodes { id body state submittedAt updatedAt author { __typename login } }
       }
     }
   }
@@ -629,9 +631,9 @@ export async function fetchReviewFeedback(
 	const unresolvedThreads = threadNodes
 		.filter((thread) => !isRecord(thread) || thread.isResolved !== true)
 		.map((thread) => mapReviewThread(thread));
-	const requestedChangeReviews = reviewNodes
-		.filter((review) => isRecord(review) && review.state === 'CHANGES_REQUESTED')
-		.map((review) => mapRequestedChangeReview(review));
+	const requestedChangeReviews = standingRequestedChanges(reviewNodes).map((review) =>
+		mapRequestedChangeReview(review),
+	);
 	const threadsIncomplete = nested(nested(threads, ['pageInfo']), ['hasNextPage']) === true;
 	const reviewsIncomplete = nested(nested(reviews, ['pageInfo']), ['hasNextPage']) === true;
 	return {
@@ -709,11 +711,34 @@ function mapReviewThread(raw: unknown): ReviewThreadDto {
 	};
 }
 
+const OPINIONATED_REVIEW_STATES = new Set(['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED']);
+
+function standingRequestedChanges(reviews: readonly unknown[]): unknown[] {
+	const latestByAuthor = new Map<string, unknown>();
+	const anonymous: unknown[] = [];
+	for (const review of reviews) {
+		if (!isRecord(review) || typeof review.state !== 'string') continue;
+		if (!OPINIONATED_REVIEW_STATES.has(review.state)) continue;
+		const login = textOrNull(nested(review, ['author', 'login']));
+		if (login === null) anonymous.push(review);
+		else latestByAuthor.set(login, review);
+	}
+	return [...latestByAuthor.values(), ...anonymous].filter(
+		(review) => isRecord(review) && review.state === 'CHANGES_REQUESTED',
+	);
+}
+
+function authorIsBot(author: unknown): boolean {
+	if (!isRecord(author)) return false;
+	return author.__typename === 'Bot' || /\[bot\]$/iu.test(textOrNull(author.login) ?? '');
+}
+
 function mapReviewComment(raw: unknown): ReviewCommentDto {
 	const record = isRecord(raw) ? raw : {};
 	return {
 		id: textOrNull(record.id) ?? '',
 		authorLogin: textOrNull(nested(record, ['author', 'login'])),
+		authorIsBot: authorIsBot(record.author),
 		body: textOrNull(record.body) ?? '',
 		createdAt: textOrNull(record.createdAt) ?? '',
 		updatedAt: textOrNull(record.updatedAt) ?? '',
@@ -725,6 +750,7 @@ function mapRequestedChangeReview(raw: unknown): RequestedChangeReviewDto {
 	return {
 		id: textOrNull(record.id) ?? '',
 		authorLogin: textOrNull(nested(record, ['author', 'login'])),
+		authorIsBot: authorIsBot(record.author),
 		body: textOrNull(record.body) ?? '',
 		submittedAt: textOrNull(record.submittedAt) ?? '',
 		updatedAt: textOrNull(record.updatedAt) ?? '',

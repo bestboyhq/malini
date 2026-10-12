@@ -35,6 +35,7 @@ const KEPT_COMMANDS = [
 	'app.delete-secret',
 	'app.open-external-url',
 	'app.copy-text',
+	'app.copy-image',
 	'app.focus-window',
 	'app.runtime-identity',
 	'app.runtime-info',
@@ -189,6 +190,26 @@ describe('registerApp', () => {
 			ok: false,
 			error: 'text must be a string',
 		});
+	});
+
+	it('writes only PNG data URLs to the clipboard as an image', async () => {
+		boot(context);
+		const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+		const pngDataUrl = `data:image/png;base64,${png.toString('base64')}`;
+		expect(await invoke('app.copy-image', { pngDataUrl })).toEqual({ ok: true, value: null });
+		expect(host.clipboardImages).toEqual([png]);
+		for (const rejected of [
+			'data:,',
+			'data:image/png;base64,',
+			'data:image/png;base64,PHN2Zz4=',
+			7,
+		]) {
+			expect(await invoke('app.copy-image', { pngDataUrl: rejected })).toEqual({
+				ok: false,
+				error: 'pngDataUrl must be a PNG data URL',
+			});
+		}
+		expect(host.clipboardImages).toEqual([png]);
 	});
 
 	it('round-trips secrets with the renderer argument keys', async () => {

@@ -45,9 +45,12 @@ import {
 	PASTEABLE_MEDIA_TYPES,
 	validateName,
 } from './layout';
-import type { StagedAgentAttachmentBytes } from '$contract/agent';
+import type { AdoptedAgentAttachment, StagedAgentAttachmentBytes } from '$contract/agent';
+import { promptChipIds, promptChipMarker } from '$lib/chat/domain/prompt-chip';
 
 export type { StagedAgentAttachmentBytes };
+
+export type CheckoutOf = (workstreamId: string) => Promise<string> | string;
 
 const COPY_BUFFER_BYTES = 64 * 1024;
 
@@ -588,4 +591,150 @@ export function stageBytes(
 		throw error;
 	}
 	return staged;
+}
+
+function cloneStoredAttachment(
+	db: MaliniDatabase,
+	sourceWorktree: string,
+	worktree: string,
+	workstreamId: string,
+	stored: StoredAttachment,
+	createdAt: string,
+	expiresAt: string,
+): StagedAgentAttachment {
+	const source = stored.descriptor;
+	verifyStagedFile(sourceWorktree, stored);
+	const [copy] = stageSelectedPaths(worktree, [join(sourceWorktree, source.relativePath)]);
+	if (!copy) throw new Error(`attachment \`${source.displayName}\` could not be copied`);
+	try {
+		if (copy.sha256 !== source.sha256) {
+			throw new Error(`attachment \`${source.displayName}\` changed while it was copied`);
+		}
+		persistStagedAttachments(db, workstreamId, [copy], createdAt, expiresAt);
+	} catch (error) {
+		try {
+			deleteAttachmentDirectory(worktree, copy.id);
+		} catch {}
+		throw error;
+	}
+	return copy;
+}
+
+async function cloneAttachment(
+	db: MaliniDatabase,
+	checkoutOf: CheckoutOf,
+	workstreamId: string,
+	worktree: string,
+	stored: StoredAttachment,
+	createdAt: string,
+	expiresAt: string,
+): Promise<StagedAgentAttachment> {
+	const sourceWorktree =
+		stored.workstreamId === workstreamId ? worktree : await checkoutOf(stored.workstreamId);
+	try {
+		return cloneStoredAttachment(
+			db,
+			sourceWorktree,
+			worktree,
+			workstreamId,
+			stored,
+			createdAt,
+			expiresAt,
+		);
+	} catch (error) {
+		throw new Error(
+			`attachment \`${stored.descriptor.displayName}\` is no longer available: ${describe(error)}`,
+		);
+	}
+}
+
+export async function adoptAttachments(
+	db: MaliniDatabase,
+	checkoutOf: CheckoutOf,
+	workstreamId: string,
+	worktree: string,
+	ids: readonly string[],
+	createdAt: string,
+	expiresAt: string,
+): Promise<AdoptedAgentAttachment[]> {
+	const adopted: AdoptedAgentAttachment[] = [];
+	for (const sourceId of new Set(ids)) {
+		try {
+			const stored = attachmentIdIsSafe(sourceId) ? loadStoredAttachment(db, sourceId) : null;
+			if (!stored) throw new Error('this attachment no longer exists');
+			const budget = stagedAttachmentBudget(db, workstreamId, createdAt);
+			if (budget.count >= MAX_ATTACHMENT_FILES) {
+				throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+			}
+			if (budget.bytes + stored.descriptor.size > MAX_ATTACHMENT_TOTAL_BYTES) {
+				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`);
+			}
+			const attachment = await cloneAttachment(
+				db,
+				checkoutOf,
+				workstreamId,
+				worktree,
+				stored,
+				createdAt,
+				expiresAt,
+			);
+			adopted.push({ sourceId, attachment });
+		} catch (error) {
+			adopted.push({ sourceId, error: describe(error) });
+		}
+	}
+	return adopted;
+}
+
+export function attachmentIdsToSend(prompt: string, requested: readonly string[]): string[] {
+	return [
+		...new Set([
+			...requested,
+			...promptChipIds(prompt, 'attachment').filter((id) => attachmentIdIsSafe(id)),
+		]),
+	];
+}
+
+export async function prepareAttachmentsToSend(
+	db: MaliniDatabase,
+	checkoutOf: CheckoutOf,
+	input: Readonly<{
+		workstreamId: string;
+		worktree: string;
+		prompt: string;
+		attachmentIds: readonly string[];
+	}>,
+	createdAt: string,
+	expiresAt: string,
+): Promise<{ prompt: string; attachmentIds: string[] }> {
+	const { workstreamId, worktree } = input;
+	let prompt = input.prompt;
+	const attachmentIds: string[] = [];
+	for (const id of attachmentIdsToSend(input.prompt, input.attachmentIds)) {
+		const stored = loadStoredAttachment(db, id);
+		const ownedAndStaged =
+			stored?.workstreamId === workstreamId &&
+			stored.state === 'staged' &&
+			stored.expiresAt !== null &&
+			stored.expiresAt > createdAt;
+		if (!stored || ownedAndStaged) {
+			if (stored || input.attachmentIds.includes(id)) attachmentIds.push(id);
+			continue;
+		}
+		const copy = await cloneAttachment(
+			db,
+			checkoutOf,
+			workstreamId,
+			worktree,
+			stored,
+			createdAt,
+			expiresAt,
+		);
+		prompt = prompt.replaceAll(
+			promptChipMarker({ kind: 'attachment', id }),
+			promptChipMarker({ kind: 'attachment', id: copy.id }),
+		);
+		attachmentIds.push(copy.id);
+	}
+	return { prompt, attachmentIds };
 }

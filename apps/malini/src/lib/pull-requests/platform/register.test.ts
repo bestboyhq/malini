@@ -21,6 +21,7 @@ import {
 	mapChecks,
 	mapPullRequestStatus,
 	type GhRunner,
+	type ReviewFeedbackDto,
 } from './pull-requests.service';
 import type { GhResult } from '$main/process/gh';
 
@@ -212,6 +213,70 @@ describe('pull request commands', () => {
 		});
 		expect(status.state).toBe('not_open');
 		expect(status.headRef).toBe('malini/ws-1');
+	});
+
+	it('marks bot authors and keeps only the change requests still standing', async () => {
+		seedRepository();
+		const review = (id: string, login: string, state: string, typename = 'User'): object => ({
+			id,
+			body: '',
+			state,
+			submittedAt: '',
+			updatedAt: '',
+			author: { __typename: typename, login },
+		});
+		const comment = (author: object): object => ({ nodes: [{ id: 'c', body: 'x', author }] });
+		const { run } = fakeRunner(() =>
+			ok(
+				JSON.stringify({
+					data: {
+						repository: {
+							pullRequest: {
+								reviewThreads: {
+									pageInfo: { hasNextPage: false },
+									nodes: [
+										{
+											id: 't-app',
+											comments: comment({ __typename: 'Bot', login: 'coderabbitai' }),
+										},
+										{ id: 't-suffix', comments: comment({ login: 'dependabot[bot]' }) },
+										{ id: 't-human', comments: comment({ __typename: 'User', login: 'alice' }) },
+									],
+								},
+								reviews: {
+									pageInfo: { hasNextPage: false },
+									nodes: [
+										review('r1', 'alice', 'CHANGES_REQUESTED'),
+										review('r2', 'alice', 'COMMENTED'),
+										review('r3', 'bob', 'CHANGES_REQUESTED'),
+										review('r4', 'bob', 'APPROVED'),
+										review('r5', 'linter', 'CHANGES_REQUESTED', 'Bot'),
+									],
+								},
+							},
+						},
+					},
+				}),
+			),
+		);
+		registerPullRequests(context, { runner: run });
+
+		const feedback = await invoke<ReviewFeedbackDto>('pull-requests.review-feedback', {
+			repoId: 'repo-1',
+			pullRequestNumber: 4,
+		});
+
+		expect(
+			feedback.unresolvedThreads?.map((thread) => [thread.id, thread.comments[0]?.authorIsBot]),
+		).toEqual([
+			['t-app', true],
+			['t-suffix', true],
+			['t-human', false],
+		]);
+		expect(feedback.requestedChangeReviews?.map((entry) => [entry.id, entry.authorIsBot])).toEqual([
+			['r1', false],
+			['r5', true],
+		]);
 	});
 
 	it('reads the review threads and merge settings of an open pull request', async () => {

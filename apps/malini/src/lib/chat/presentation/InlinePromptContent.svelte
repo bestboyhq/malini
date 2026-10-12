@@ -17,6 +17,7 @@
 		transcriptReferences?: readonly AgentTranscriptReference[];
 		elementReferences?: readonly AgentElementReference[];
 		pending?: boolean;
+		singleLine?: boolean;
 		onopenimage?: ((id: string) => void) | undefined;
 	}
 
@@ -27,6 +28,7 @@
 		transcriptReferences = [],
 		elementReferences = [],
 		pending = false,
+		singleLine = false,
 		onopenimage,
 	}: Props = $props();
 
@@ -37,6 +39,7 @@
 		elementReferences,
 	});
 	const segments = $derived(promptChipSegments(text));
+	const whitespace = $derived(singleLine ? 'whitespace-nowrap' : 'whitespace-pre-wrap');
 
 	function imageOpener(ref: PromptChipRef): (() => void) | undefined {
 		const open = onopenimage;
@@ -57,11 +60,11 @@
 	{:else}
 		{#each promptCodeFences(segment.text) as part, partIndex (partIndex)}
 			{#if part.kind === 'code'}
-				<span class="font-mono whitespace-pre-wrap">
+				<span class={['font-mono', whitespace]}>
 					{part.open}<CodeTokens code={part.code} language={part.language} />{part.close}
 				</span>
 			{:else}
-				<span class="whitespace-pre-wrap"><SensitiveText text={part.text} /></span>
+				<span class={whitespace}><SensitiveText text={part.text} /></span>
 			{/if}
 		{/each}
 	{/if}

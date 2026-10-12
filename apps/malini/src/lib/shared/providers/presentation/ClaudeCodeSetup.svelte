@@ -17,9 +17,10 @@
 
 	interface Props {
 		step?: number;
+		nested?: boolean;
 	}
 
-	let { step }: Props = $props();
+	let { step, nested = false }: Props = $props();
 	let copied = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -67,7 +68,10 @@
 </script>
 
 <div
-	class="border-surface-50-border bg-surface-50 rounded-2xl border-[0.5px] px-4 py-3.5"
+	class={[
+		'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
+		nested ? 'rounded-xl' : 'rounded-2xl',
+	]}
 	data-testid="claude-code-setup"
 	data-claude-code-status={status.kind}
 >

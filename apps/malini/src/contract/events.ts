@@ -1,4 +1,6 @@
 import type { LiveEventEnvelope } from './agent';
+import type { JobDefinitionChangedEvent, JobRunChangedEvent } from './jobs';
+import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type {
 	RoutineChangedEvent,
@@ -89,6 +91,9 @@ export interface ContractEvents {
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
+	'pull-requests:ship-changed': ShipChangedEvent;
+	'jobs:run-changed': JobRunChangedEvent;
+	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'routines:suggested': RoutineSuggestedEvent;
 	'routines:changed': RoutineChangedEvent;
 	'routines:gated-run-changed': RoutineGatedRunChangedEvent;
@@ -137,3 +142,10 @@ export const ROUTINES_CHANGED_CHANNEL = 'routines:changed' satisfies EventChanne
 
 export const ROUTINES_GATED_RUN_CHANGED_CHANNEL =
 	'routines:gated-run-changed' satisfies EventChannel;
+
+export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
+	'pull-requests:ship-changed' satisfies EventChannel;
+
+export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
+
+export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;

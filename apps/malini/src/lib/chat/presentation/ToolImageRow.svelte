@@ -127,6 +127,7 @@
 							alt={image.fileName}
 							class="bg-surface-50 block max-h-64 w-full max-w-80 rounded-md object-contain"
 							data-testid="tool-image-preview-image"
+							data-workstream-image={image.path}
 						/>
 					{:else if preview.kind === 'unavailable'}
 						<div

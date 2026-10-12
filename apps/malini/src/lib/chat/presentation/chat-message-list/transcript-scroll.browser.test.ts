@@ -10,6 +10,7 @@ type Transcript = Readonly<{
 	replaceLastRow(height: number): void;
 	reserveBelow(px: number): void;
 	scrollUpBy(px: number): void;
+	scrollDownBy(px: number): void;
 	browserClampsUpBy(px: number): void;
 	deliverScrollEvent(): void;
 	gapBelowLastRow(): number;
@@ -54,7 +55,7 @@ function transcriptOf(
 	const scrollHeight = (): number => Math.max(VIEWPORT_HEIGHT, rowsHeight() + reservedBelow());
 	let scrollTop = 0;
 	Object.defineProperty(viewport, 'clientHeight', { get: () => VIEWPORT_HEIGHT });
-	Object.defineProperty(viewport, 'scrollHeight', { get: scrollHeight });
+	Object.defineProperty(viewport, 'scrollHeight', { get: () => Math.floor(scrollHeight()) });
 	Object.defineProperty(viewport, 'scrollTop', {
 		get: () => scrollTop,
 		set: (value: number) => {
@@ -80,6 +81,11 @@ function transcriptOf(
 		scrollUpBy(px: number): void {
 			scroll.handleWheel(new WheelEvent('wheel', { deltaY: -px }));
 			viewport.scrollTop -= px;
+			scroll.handleScroll(viewport);
+		},
+		scrollDownBy(px: number): void {
+			scroll.handleWheel(new WheelEvent('wheel', { deltaY: px }));
+			viewport.scrollTop += px;
 			scroll.handleScroll(viewport);
 		},
 		browserClampsUpBy(px: number): void {
@@ -204,6 +210,23 @@ describe('a transcript while its reply streams', () => {
 		expect(transcript.scroll.contentBelow).toBe(false);
 	});
 
+	it('lets the reply settle onto the space a finished status row leaves instead of snapping', async () => {
+		const transcript = transcriptOf([200, 300], { reduced: false });
+		transcript.scroll.open('streaming-chat', null);
+		transcript.scroll.followNewContent();
+		await nextFrame();
+
+		transcript.replaceLastRow(268);
+		transcript.browserClampsUpBy(32);
+		await mutationsDelivered();
+
+		expect(transcript.gapBelowLastRow()).toBe(32);
+		await new Promise((resolve) => setTimeout(resolve, 1_000));
+		expect(transcript.gapBelowLastRow()).toBe(0);
+		expect(transcript.distanceFromBottom()).toBe(0);
+		expect(transcript.scroll.follow).toBe('bottom');
+	});
+
 	it('holds still while the pointer rests on a tool call, and catches up once it leaves', async () => {
 		const transcript = transcriptOf([100, 100, 300]);
 		transcript.scroll.open('streaming-chat', null);
@@ -222,6 +245,15 @@ describe('a transcript while its reply streams', () => {
 		expect(transcript.distanceFromBottom()).toBe(0);
 		expect(transcript.scroll.follow).toBe('bottom');
 		expect(transcript.scroll.contentBelow).toBe(false);
+	});
+
+	it('ends where its last row ends, however often the reader scrolls down, when its height has a fraction of a pixel', () => {
+		const transcript = transcriptOf([200, 300.6]);
+		transcript.scroll.open('fractional-chat', null);
+
+		for (let wheel = 0; wheel < 20; wheel += 1) transcript.scrollDownBy(40);
+
+		expect(transcript.gapBelowLastRow()).toBeCloseTo(0);
 	});
 
 	it('jumps to the latest message and follows again when the reader asks for it', async () => {

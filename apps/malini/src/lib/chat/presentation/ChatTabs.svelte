@@ -190,7 +190,11 @@
 	const openSessions = $derived.by(() =>
 		workstreamChatsQuery
 			.data(workstreamId)
-			.filter((session) => !closingSessionIds.has(session.id))
+			.filter(
+				(session) =>
+					(session.origin === 'user' || session.id === routedChatId) &&
+					!closingSessionIds.has(session.id),
+			)
 			.sort((left, right) => right.startedAt.localeCompare(left.startedAt)),
 	);
 	const strip = $derived(
@@ -418,7 +422,7 @@
 			closingIndex >= 0 ? (sessions[closingIndex + 1] ?? sessions[closingIndex - 1] ?? null) : null;
 		const wasRouted = page.url.searchParams.get('agent') === session.id;
 
-		closeChatCommand(workstreamId, session.id);
+		if (session.origin === 'user') closeChatCommand(workstreamId, session.id);
 		workstreamTabs.closeChat(workstreamId, session.id);
 		if (wasRouted) {
 			keepDocumentOnRouteChange = documentActive && adjacentSession !== null;

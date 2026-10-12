@@ -12,6 +12,7 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	executablePath: string;
 	opened: string[];
 	clipboard: string[];
+	clipboardImages: Buffer[];
 	notifications: { title: string; body: string; onClick?: () => void }[];
 	encryptionAvailable: boolean;
 	notificationsAvailable: boolean;
@@ -41,6 +42,7 @@ export function createFakeHost(): FakeHost {
 		executablePath: process.execPath,
 		opened: [],
 		clipboard: [],
+		clipboardImages: [],
 		notifications: [],
 		encryptionAvailable: true,
 		notificationsAvailable: true,
@@ -52,6 +54,9 @@ export function createFakeHost(): FakeHost {
 		},
 		clipboardWriteText: async (text) => {
 			host.clipboard.push(text);
+		},
+		clipboardWriteImage: async (png) => {
+			host.clipboardImages.push(png);
 		},
 		isEncryptionAvailable: () => host.encryptionAvailable,
 		encryptString: cipher.encryptString,

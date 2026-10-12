@@ -6,8 +6,6 @@ import {
 	parseRepositoryAgentSessionDiff,
 	parseDiffRequest,
 	parseRepositoryContext,
-	pullRequestChecksAllowMerge,
-	pullRequestBlockingChecks,
 	pullRequestHasReviewBlockers,
 	pullRequestMergeReadiness,
 	pullRequestReviewStatusUnavailable,
@@ -533,53 +531,6 @@ test('reads the operation a worktree holds and refuses one it does not know', ()
 		error:
 			'Malformed repository context: operationInProgress must be merge, rebase, cherry-pick, revert or null',
 	});
-});
-
-test('allows successful or genuinely absent checks but not uncertain checks', () => {
-	assert.equal(pullRequestChecksAllowMerge('success'), true);
-	assert.equal(pullRequestChecksAllowMerge('none'), true);
-	assert.equal(pullRequestChecksAllowMerge('pending'), false);
-	assert.equal(pullRequestChecksAllowMerge('failed'), false);
-	assert.equal(pullRequestChecksAllowMerge('unknown'), false);
-});
-
-test('gates on detailed required checks while optional failures remain visible but non-blocking', () => {
-	const optionalFailure = {
-		name: 'Preview deploy',
-		appId: 15_368,
-		state: 'completed',
-		conclusion: 'failure',
-		required: false,
-		url: 'https://example.test/check/preview',
-		startedAt: '2026-07-22T08:00:00Z',
-		completedAt: '2026-07-22T08:01:00Z',
-	} as const;
-	const requiredSuccess = {
-		...optionalFailure,
-		name: 'Unit tests',
-		required: true,
-		conclusion: 'success',
-	} as const;
-	assert.equal(pullRequestChecksAllowMerge('failed', [optionalFailure, requiredSuccess]), true);
-	assert.equal(
-		pullRequestChecksAllowMerge('unknown', [requiredSuccess]),
-		false,
-		'partial successful rows must not override an unknown aggregate gate',
-	);
-	const unknownRequirednessPending = {
-		...optionalFailure,
-		name: 'Policy',
-		state: 'queued',
-		conclusion: null,
-		required: null,
-	} as const;
-	assert.deepEqual(pullRequestBlockingChecks([optionalFailure, unknownRequirednessPending]), [
-		unknownRequirednessPending,
-	]);
-	assert.equal(
-		pullRequestChecksAllowMerge('success', [optionalFailure, unknownRequirednessPending]),
-		false,
-	);
 });
 
 test('selects only enabled merge methods and distinguishes review blockers from unavailable reads', () => {

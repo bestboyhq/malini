@@ -914,12 +914,15 @@
 		width: auto;
 		max-width: 100%;
 		max-height: 16rem;
+		margin: 0.25rem 0.25rem 0.25rem 0;
+		vertical-align: top;
 		object-fit: contain;
+		border: 0.5px solid var(--color-border-default);
+		border-radius: 0.375em;
 	}
 
 	.markdown-text :global(img[data-gallery-image]) {
 		cursor: zoom-in;
-		border-radius: 0.375em;
 	}
 
 	.markdown-text :global(img[data-gallery-image]:focus-visible) {

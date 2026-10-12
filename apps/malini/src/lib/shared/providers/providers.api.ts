@@ -60,7 +60,6 @@ export { modelDefaultsQuery } from './application/queries/model-defaults.query.s
 export { subscriptionBillingQuery } from './application/queries/subscription-billing.query.svelte';
 
 export { default as AgentAccessSettings } from './presentation/AgentAccessSettings.svelte';
-export { default as ClaudeCodeSettings } from './presentation/ClaudeCodeSettings.svelte';
 export { default as ClaudeCodeSetup } from './presentation/ClaudeCodeSetup.svelte';
 export { default as ModelDefaultsSettings } from './presentation/ModelDefaultsSettings.svelte';
 export { default as ModelProfilePicker } from './presentation/ModelProfilePicker.svelte';

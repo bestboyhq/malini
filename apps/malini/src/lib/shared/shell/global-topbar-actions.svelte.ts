@@ -139,7 +139,6 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	todos: GlobalTopBarStatusNote | null;
 	changes?: GlobalTopBarStatusNote | null;
 	headline?: GlobalTopBarStatusHeadline | null;
-	secondaryAction?: GlobalTopBarStatusAction | null;
 	action: GlobalTopBarStatusAction | null;
 	detailActions?: readonly GlobalTopBarStatusDetailAction[];
 	remoteFailure?: string | null;

@@ -1,7 +1,7 @@
 class RoutineActionsStore {
 	busyIds = $state.raw<ReadonlySet<string>>(new Set());
 	errors = $state.raw<Readonly<Record<string, string>>>({});
-	draftsCreated = $state<number>(0);
+	completions = $state.raw<Readonly<Record<string, number>>>({});
 
 	isBusy(id: string): boolean {
 		return this.busyIds.has(id);
@@ -9,6 +9,10 @@ class RoutineActionsStore {
 
 	errorFor(id: string): string | null {
 		return this.errors[id] ?? null;
+	}
+
+	completedFor(id: string): number {
+		return this.completions[id] ?? 0;
 	}
 
 	setBusy(id: string, busy: boolean): void {
@@ -29,16 +33,13 @@ class RoutineActionsStore {
 		this.errors = rest;
 	}
 
-	noteDraftCreated(): void {
-		this.draftsCreated += 1;
-	}
-
 	async run(id: string, action: () => Promise<void>): Promise<void> {
 		if (this.busyIds.has(id)) return;
 		this.setBusy(id, true);
 		this.clearError(id);
 		try {
 			await action();
+			this.completions = { ...this.completions, [id]: this.completedFor(id) + 1 };
 		} catch (error) {
 			this.setError(id, error instanceof Error ? error.message : String(error));
 		} finally {
@@ -48,5 +49,3 @@ class RoutineActionsStore {
 }
 
 export const routineActionsStore = new RoutineActionsStore();
-
-export const ROUTINE_DRAFT_ACTION_ID = 'routines.draft';

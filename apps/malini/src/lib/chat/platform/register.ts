@@ -5,7 +5,14 @@ import type { BridgeProcessFactory } from './agent/process';
 import { startAgentService, type AgentService } from './agent/service';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
-import { gcStaged, verifyStagedFile } from './attachments/service';
+import { ensureAppManagedGitExcludes } from '$main/git/excludes';
+import { stagedAttachmentExpiryFrom } from './attachments.repository';
+import {
+	attachmentIdsToSend,
+	gcStaged,
+	prepareAttachmentsToSend,
+	verifyStagedFile,
+} from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
 import { getSession } from './sessions.repository';
 
@@ -43,6 +50,20 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		verifyAttachment: (stored, worktree) => verifyStagedFile(worktree, stored),
 		collectAttachmentGarbage: (workstreamId, worktree, now) => {
 			gcStaged(context.db, worktree, workstreamId, now);
+		},
+		prepareAttachments: async (input) => {
+			if (attachmentIdsToSend(input.prompt, input.attachmentIds).length === 0) {
+				return { prompt: input.prompt, attachmentIds: [] };
+			}
+			await ensureAppManagedGitExcludes(input.worktree);
+			const now = new Date();
+			return prepareAttachmentsToSend(
+				context.db,
+				deps.resolveWorkstreamCheckout,
+				input,
+				now.toISOString(),
+				stagedAttachmentExpiryFrom(now),
+			);
 		},
 		hooks: {
 			captureCheckpoint: ({ workstreamId, sessionId, runId }) =>

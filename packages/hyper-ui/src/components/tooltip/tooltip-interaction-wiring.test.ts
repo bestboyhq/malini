@@ -28,7 +28,7 @@ describe('tooltip interaction wiring', () => {
 		expect(tooltipSource).toContain("on(wrapper, 'focusout', onTriggerFocusOut),");
 		expect(tooltipSource).toContain("on(wrapper, 'click', onTriggerClick),");
 		expect(tooltipSource).toContain("on(document, 'click', onDocumentClick),");
-		expect(tooltipSource).toContain("role={isSnippetContent ? 'group' : 'tooltip'}");
+		expect(tooltipSource).toContain("role={isCard ? 'group' : 'tooltip'}");
 		expect(tooltipSource).toContain('ids.add(tooltipId);');
 	});
 

@@ -59,6 +59,40 @@ test('Stop pressed on a running agent ends the run without calling it a failure'
 	}
 });
 
+test('a prompt typed during a run queues on Enter and steers past the queue on ⌘↵', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const sessionId = await chatWithOneReply(app, 'e2e-steer-ws');
+
+		await sendPrompt(page, 'EDIT:b.txt HANG');
+		const submit = page.getByTestId('chat-composer-submit');
+		await expect(submit).toHaveAccessibleName('Stop current run');
+
+		await page.keyboard.type('Queued later', { delay: 10 });
+		await expect(submit).toHaveAccessibleName('Queue prompt');
+		await page.keyboard.press('Enter');
+		await expect(page.getByTestId('prompt-queue-item')).toContainText('Queued later');
+		await expect(submit).toHaveAccessibleName('Stop current run');
+
+		await page.keyboard.type('Steer now', { delay: 10 });
+		await page.keyboard.press('Meta+Enter');
+
+		const userMessages = async (): Promise<string[]> =>
+			(await listEvents(page, sessionId)).flatMap(({ event }) =>
+				event.type === 'user.message' ? [String(event['text'])] : [],
+			);
+		await expect
+			.poll(userMessages, { timeout: 20_000 })
+			.toEqual(['EDIT:a.txt', 'EDIT:b.txt HANG', 'Steer now', 'Queued later']);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 async function chatWithOneReply(app: LaunchedApp, workstreamId: string): Promise<string> {
 	const source = await createSourceRepo(app.root);
 	await seedWorkstream(app.page, source, workstreamId, 'Stop workstream');

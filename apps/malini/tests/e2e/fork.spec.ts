@@ -107,7 +107,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 			[
 				`# Transcript of ${forkedName}`,
 				'## User',
-				`[attachment: ${transcriptName}] Carry on from the transcript`,
+				`[attachment: [${transcriptName}](<${BRIDGE_AGENT_ATTACHMENTS_PATH}/${staged}/${transcriptName}>)] Carry on from the transcript`,
 				'## Assistant',
 				'Hello from the fake bridge',
 				'[Result: done]',

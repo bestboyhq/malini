@@ -1,6 +1,9 @@
+import type { AgentSessionOrigin } from '$contract/agent';
+
 export type SubmissionSessionCandidate<TSessionId extends string = string> = Readonly<{
 	id: TSessionId;
 	workstreamId: string;
+	origin: AgentSessionOrigin;
 	startedAt: string;
 	matchesTurn: boolean;
 	busy: boolean;
@@ -37,7 +40,11 @@ export function resolveSubmissionSessionTarget<TSessionId extends string>(input:
 	candidates: readonly SubmissionSessionCandidate<TSessionId>[];
 }): SubmissionSessionTarget<TSessionId> {
 	const workstreamCandidates = input.candidates
-		.filter(({ workstreamId }) => workstreamId === input.workstreamId)
+		.filter(
+			({ id, workstreamId, origin }) =>
+				workstreamId === input.workstreamId &&
+				(origin === 'user' || id === input.capturedSessionId),
+		)
 		.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 	const capturedWorkstreamSession = input.capturedSessionId
 		? (workstreamCandidates.find(({ id }) => id === input.capturedSessionId) ?? null)

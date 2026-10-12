@@ -58,6 +58,8 @@ export interface AgentEventEnvelope {
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
 
+export type AgentSessionOrigin = 'user' | 'job';
+
 export interface AgentSessionSummary {
 	id: string;
 	workstreamId: string;
@@ -65,6 +67,7 @@ export interface AgentSessionSummary {
 	model: string | null;
 	status: SessionStatus;
 	startedAt: string;
+	origin: AgentSessionOrigin;
 }
 
 export interface AgentTranscriptReference {
@@ -105,6 +108,9 @@ export interface StagedAgentAttachment {
 	size: number;
 	sha256: string;
 }
+
+export type AdoptedAgentAttachment =
+	{ sourceId: string; attachment: StagedAgentAttachment } | { sourceId: string; error: string };
 
 export interface StagedAgentAttachmentBytes {
 	mediaType: string;

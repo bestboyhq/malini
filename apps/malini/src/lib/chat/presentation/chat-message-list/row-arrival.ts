@@ -8,6 +8,15 @@ const MAX_STAGED_PER_FRAME = 4;
 
 const MAX_TRACKED_FLIGHTS = 64;
 
+const EMERGE_FADE_PX = 24;
+
+const EMERGE_MASK_BOX: ReadonlyArray<readonly [string, string]> = [
+	['mask-position', '-1rem -1rem'],
+	['mask-size', 'calc(100% + 2rem) calc(100% + 1rem)'],
+	['mask-repeat', 'no-repeat'],
+	['mask-clip', 'no-clip'],
+];
+
 export type RowArrivalAction = (node: HTMLElement, key: string) => { destroy: () => void };
 
 export type PromptArrivalAction = (
@@ -25,9 +34,10 @@ export type RowArrivals = {
 
 export function createRowArrivals(input: {
 	settle: TranscriptSettleGate;
+	opening(): boolean;
 	prefersReducedMotion(): boolean;
 }): RowArrivals {
-	const { settle, prefersReducedMotion } = input;
+	const { settle, opening, prefersReducedMotion } = input;
 	const stagedBlockKeys = new Set<string>();
 	const arrivalFlights = new Map<string, number>();
 	let stagedThisFrame = 0;
@@ -137,7 +147,7 @@ export function createRowArrivals(input: {
 			inFlow: boolean;
 			glide: GlideState;
 			translate: string;
-			clip: string;
+			mask: string;
 		};
 		let rows: Row[] = [];
 		let frame: number | null = null;
@@ -151,9 +161,12 @@ export function createRowArrivals(input: {
 				const offset = row.glide.position;
 				const overlap = row.inFlow && nextOffset !== null ? offset - nextOffset : 0;
 				const translate = Math.abs(offset) < 0.5 ? '' : `0 ${offset}px`;
-				const clip = overlap < 0.5 ? '' : `inset(-1rem -1rem ${Math.ceil(overlap)}px -1rem)`;
+				const mask = overlap < 0.5 ? '' : emergeAbove(overlap);
 				if (translate !== row.translate) row.element.style.translate = row.translate = translate;
-				if (clip !== row.clip) row.element.style.clipPath = row.clip = clip;
+				if (mask !== row.mask) {
+					row.mask = mask;
+					paintMask(row.element.style, mask);
+				}
 				if (row.inFlow) nextOffset = offset;
 			}
 		}
@@ -165,7 +178,7 @@ export function createRowArrivals(input: {
 			let moving = false;
 			for (const row of rows) {
 				if (row.glide.position === 0 && row.glide.velocity === 0) continue;
-				row.glide = stepGlideSpring(row.glide, 0, elapsedMs, arrivalMotion().layoutStiffness);
+				row.glide = stepGlideSpring(row.glide, 0, elapsedMs, arrivalMotion().glideStiffness);
 				moving ||= row.glide.position !== 0 || row.glide.velocity !== 0;
 			}
 			paint();
@@ -174,7 +187,7 @@ export function createRowArrivals(input: {
 		}
 
 		function measure(): void {
-			const animate = !rebaseRequested && !prefersReducedMotion();
+			const animate = !rebaseRequested && !opening() && !prefersReducedMotion();
 			rebaseRequested = false;
 			const known = new Map(rows.map((row) => [row.element, row]));
 			let moved = false;
@@ -187,7 +200,7 @@ export function createRowArrivals(input: {
 				if (!row) {
 					resizeObserver.observe(element);
 					const glide = { position: 0, velocity: 0 };
-					return [{ element, top, inFlow, glide, translate: '', clip: '' }];
+					return [{ element, top, inFlow, glide, translate: '', mask: '' }];
 				}
 				const shift = row.top - top;
 				row.top = top;
@@ -206,7 +219,7 @@ export function createRowArrivals(input: {
 
 		const resizeObserver = new ResizeObserver(measure);
 		const mutationObserver = new MutationObserver(measure);
-		mutationObserver.observe(container, { childList: true });
+		mutationObserver.observe(container, { childList: true, subtree: true });
 		measure();
 		return () => {
 			resizeObserver.disconnect();
@@ -231,4 +244,15 @@ export function createRowArrivals(input: {
 			arrivalFlights.clear();
 		},
 	};
+}
+
+function emergeAbove(overlapPx: number): string {
+	const hidden = Math.ceil(overlapPx);
+	const shown = hidden + Math.min(EMERGE_FADE_PX, hidden);
+	return `linear-gradient(to top, transparent ${hidden}px, black ${shown}px)`;
+}
+
+function paintMask(style: CSSStyleDeclaration, image: string): void {
+	style.setProperty('mask-image', image);
+	for (const [property, value] of EMERGE_MASK_BOX) style.setProperty(property, image && value);
 }

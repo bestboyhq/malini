@@ -52,7 +52,7 @@ describe('migrateRememberedRoute', () => {
 
 	it('leaves a route that never lived under the old tree alone', () => {
 		expect(migrateRememberedRoute('/settings')).toBe('/settings');
-		expect(migrateRememberedRoute('/routines')).toBe('/routines');
+		expect(migrateRememberedRoute('/jobs')).toBe('/jobs');
 		expect(migrateRememberedRoute('/workstreams/ws-1')).toBe('/workstreams/ws-1');
 	});
 });

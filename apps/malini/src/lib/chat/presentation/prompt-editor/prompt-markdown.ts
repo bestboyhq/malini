@@ -4,14 +4,20 @@ import {
 	MarkdownSerializer,
 	defaultMarkdownParser,
 	defaultMarkdownSerializer,
+	type MarkdownSerializerState,
 } from 'prosemirror-markdown';
-import { Fragment, type Node as PMNode, type Schema } from '@tiptap/pm/model';
+import { DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 
 import {
 	isPromptChipKind,
 	promptChipMarker,
 	promptChipSegments,
+	type PromptChipRef,
 } from '$lib/chat/domain/prompt-chip';
+
+type ChipLabeler = (ref: PromptChipRef) => string | null;
+
+const unlabelled: ChipLabeler = () => null;
 
 import { promptEditorExtensions } from './minimal-extensions';
 import { PROMPT_CHIP_NODE_NAME } from './prompt-chip-node';
@@ -42,50 +48,94 @@ function defaultNodeSerializer(
 	return node;
 }
 
-const serializer = new MarkdownSerializer(
-	{
-		doc(state, node) {
-			state.renderContent(node);
-		},
-		paragraph: defaultNodeSerializer('paragraph'),
-		text(state, node) {
-			state.text(state.esc(node.text ?? '', false), false);
-		},
+type PromptNodeSerializers = ConstructorParameters<typeof MarkdownSerializer>[0];
 
-		hardBreak(state, node, parent, index) {
-			for (let next = index + 1; next < parent.childCount; next += 1) {
-				if (parent.child(next).type === node.type) continue;
-				state.write('\n');
-				return;
-			}
-		},
-		codeBlock(state, node) {
-			const runs = node.textContent.match(/`{3,}/gmu);
-			const fence = runs ? `${runs.sort().slice(-1)[0]}\`` : '```';
-			state.write(fence + (node.attrs.language ?? '') + '\n');
-			state.text(node.textContent, false);
+const promptNodes: PromptNodeSerializers = {
+	doc(state, node) {
+		state.renderContent(node);
+	},
+	paragraph: defaultNodeSerializer('paragraph'),
+
+	hardBreak(state, node, parent, index) {
+		for (let next = index + 1; next < parent.childCount; next += 1) {
+			if (parent.child(next).type === node.type) continue;
 			state.write('\n');
-			state.write(fence);
-			state.closeBlock(node);
-		},
-
-		promptChip(state, node) {
-			const kind = node.attrs.kind;
-			if (!isPromptChipKind(kind)) return;
-			state.text(promptChipMarker({ kind, id: String(node.attrs.id) }), false);
-		},
+			return;
+		}
 	},
-	{
-		bold: { open: '**', close: '**', mixable: true, expelEnclosingWhitespace: true },
-		italic: { open: '*', close: '*', mixable: true, expelEnclosingWhitespace: true },
-
-		strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true },
-
-		code: defaultMarkSerializer('code'),
+	codeBlock(state, node) {
+		const runs = node.textContent.match(/`{3,}/gmu);
+		const fence = runs ? `${runs.sort().slice(-1)[0]}\`` : '```';
+		state.write(fence + (node.attrs.language ?? '') + '\n');
+		state.text(node.textContent, false);
+		state.write('\n');
+		state.write(fence);
+		state.closeBlock(node);
 	},
 
-	{ hardBreakNodeName: 'hardBreak' },
-);
+	promptChip(state, node) {
+		const kind = node.attrs.kind;
+		if (!isPromptChipKind(kind)) return;
+		state.text(promptChipMarker({ kind, id: String(node.attrs.id) }), false);
+	},
+};
+
+const promptMarks = {
+	bold: { open: '**', close: '**', mixable: true, expelEnclosingWhitespace: true },
+	italic: { open: '*', close: '*', mixable: true, expelEnclosingWhitespace: true },
+
+	strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true },
+
+	code: defaultMarkSerializer('code'),
+};
+
+function promptSerializer(
+	escapeText: (state: MarkdownSerializerState, text: string) => string,
+): MarkdownSerializer {
+	return new MarkdownSerializer(
+		{
+			...promptNodes,
+			text(state, node) {
+				state.text(escapeText(state, node.text ?? ''), false);
+			},
+		},
+		promptMarks,
+		{ hardBreakNodeName: 'hardBreak' },
+	);
+}
+
+const exactSerializer = promptSerializer((state, text) => state.esc(text, false));
+const readableSerializer = promptSerializer((state, text) => readableText(state, text));
+
+const MARKDOWN_SPECIAL = /[`*\\~[\]_]/gu;
+const ESCAPE_TRIAL_LIMIT = 64;
+
+function readableText(state: MarkdownSerializerState, text: string): string {
+	if (readsBackAs(text, text)) return text;
+	const specials = [...text.matchAll(MARKDOWN_SPECIAL)].map((match) => match.index);
+	// ponytail: one parse per escape, capped per text run; a CommonMark-aware escaper if long runs need it
+	if (specials.length > ESCAPE_TRIAL_LIMIT) return state.esc(text, false);
+	const escaped = new Set(specials);
+	for (const index of specials) {
+		escaped.delete(index);
+		if (!readsBackAs(escapeAt(text, escaped), text)) escaped.add(index);
+	}
+	return escapeAt(text, escaped);
+}
+
+function escapeAt(text: string, indexes: ReadonlySet<number>): string {
+	return text.replace(MARKDOWN_SPECIAL, (char, index: number) =>
+		indexes.has(index) ? `\\${char}` : char,
+	);
+}
+
+function readsBackAs(markdown: string, text: string): boolean {
+	const doc = markdownToPromptDoc(markdown.trim());
+	const paragraph = doc.childCount === 1 ? doc.firstChild : null;
+	const only = paragraph?.type.name === 'paragraph' && paragraph.childCount === 1;
+	const node = only ? paragraph.firstChild : null;
+	return node?.isText === true && node.marks.length === 0 && node.text === text.trim();
+}
 
 type MarkdownItTokenizer = typeof defaultMarkdownParser.tokenizer;
 type MarkdownItConstructor = new (
@@ -134,28 +184,45 @@ const parser = new MarkdownParser(promptEditorSchema, tokenizer, {
 });
 
 export function promptDocToMarkdown(doc: PMNode): string {
-	return serializer.serialize(doc);
+	const exact = exactSerializer.serialize(doc);
+	const readable = readableSerializer.serialize(doc);
+	if (readable === exact) return exact;
+	return exactSerializer.serialize(markdownToPromptDoc(readable)) === exact ? readable : exact;
 }
 
-export function markdownToPromptDoc(markdown: string): PMNode {
-	return replaceChipMarkers(parser.parse(markdown));
+export function markdownToPromptDoc(markdown: string, labelOf: ChipLabeler = unlabelled): PMNode {
+	return rewriteNode(parser.parse(markdown), labelOf);
 }
 
 export function replaceChipMarkers(doc: PMNode): PMNode {
-	return rewriteNode(doc);
+	return rewriteNode(doc, unlabelled);
 }
 
-function rewriteNode(node: PMNode): PMNode {
+export function replaceChipMarkersInSlice(slice: Slice): Slice {
+	return new Slice(rewriteFragment(slice.content, unlabelled), slice.openStart, slice.openEnd);
+}
+
+export function promptClipboardHtml(markdown: string, labelOf: ChipLabeler): string {
+	const holder = document.createElement('div');
+	holder.append(
+		DOMSerializer.fromSchema(promptEditorSchema).serializeFragment(
+			markdownToPromptDoc(markdown, labelOf).content,
+		),
+	);
+	return holder.innerHTML;
+}
+
+function rewriteNode(node: PMNode, labelOf: ChipLabeler): PMNode {
 	if (node.isLeaf || node.isAtom || node.type.spec.code) return node;
-	return node.copy(rewriteFragment(node.content));
+	return node.copy(rewriteFragment(node.content, labelOf));
 }
 
-function rewriteFragment(fragment: Fragment): Fragment {
+function rewriteFragment(fragment: Fragment, labelOf: ChipLabeler): Fragment {
 	const children: PMNode[] = [];
 
 	fragment.forEach((child) => {
 		if (!child.isText) {
-			children.push(rewriteNode(child));
+			children.push(rewriteNode(child, labelOf));
 			return;
 		}
 
@@ -173,7 +240,7 @@ function rewriteFragment(fragment: Fragment): Fragment {
 
 			children.push(
 				chipType.create(
-					{ kind: segment.ref.kind, id: segment.ref.id, label: null },
+					{ kind: segment.ref.kind, id: segment.ref.id, label: labelOf(segment.ref) },
 					null,
 					child.marks,
 				),

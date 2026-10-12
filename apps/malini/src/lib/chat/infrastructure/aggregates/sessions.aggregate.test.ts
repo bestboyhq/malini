@@ -571,6 +571,42 @@ describe('SessionsAggregate', () => {
 		expect(sessionsAggregate.getSession(sessionId)).toEqual(upgraded);
 	});
 
+	it('learns a live job transcript is a job once listed, and never restores it as the default chat', () => {
+		sessionsAggregate.hydrateSession({
+			sessionId: 'sess-chat',
+			workstreamId: 'ws-jobs',
+			model: null,
+			status: 'idle',
+			startedAt: '2026-07-18T08:00:00.000Z',
+		});
+		sessionsAggregate.applyEvent(
+			env('sess-job', 'run-job', 1, {
+				type: 'run.started',
+				runId: 'run-job',
+				sessionId: 'sess-job',
+			}),
+		);
+		expect(sessionsAggregate.getSession('sess-job')?.origin).toBe('user');
+
+		sessionsAggregate.hydrateSession({
+			sessionId: 'sess-job',
+			workstreamId: 'ws-jobs',
+			displayName: 'Fix checks',
+			model: null,
+			status: 'running',
+			startedAt: '2026-07-18T09:00:00.000Z',
+			origin: 'job',
+		});
+
+		expect(sessionsAggregate.getSession('sess-job')).toMatchObject({
+			workstreamId: 'ws-jobs',
+			origin: 'job',
+			status: 'running',
+		});
+		expect(sessionsAggregate.latestSessionFor('ws-jobs')).toBe('sess-chat');
+		expect(sessionsAggregate.cachedSessionFor('ws-jobs', 'sess-job')).toBe('sess-job');
+	});
+
 	it('keeps an existing known workstream owner on a later mismatched ensure', () => {
 		const sessionId = 'sess-mismatch';
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

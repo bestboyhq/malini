@@ -131,209 +131,24 @@ test('a workstream switch clears todos before the new ones are read', async () =
 	}
 });
 
-test('blocks merge on open or unreadable todos and supports explicit local recovery', async () => {
+test('reports unreadable persisted todos as an error instead of an empty list', async () => {
 	const host = await createTestHost({
 		manifest,
-		fixtureRepository: {
-			name: 'todo-merge-gate',
-			branch: 'feature/todos',
-			baseBranch: 'main',
-			files: { 'README.md': 'todos' },
-		},
-		repository: {
-			supportsPullRequestMutations: true,
-			pullRequest: {
-				state: 'open',
-				number: 42,
-				title: 'Todo gate',
-				url: 'https://example.test/pull/42',
-				baseBranch: 'main',
-				headBranch: 'feature/todos',
-				headSha: 'abc123',
-				checks: 'success',
-				mergeable: true,
-				mergeableState: 'clean',
-				viewerCanMerge: true,
-				allowedMergeMethods: ['squash'],
-				defaultMergeMethod: 'squash',
-				reviewDecision: 'approved',
-				unresolvedReviewThreadCount: 0,
-			},
-		},
+		fixtureRepository: { name: 'todo-unreadable', files: { 'README.md': 'todos' } },
 	});
+	const controller = new RepositoryController(host.api);
 	try {
-		await host.activate(extension);
-		await host.invokeCommand('malini.repository.todo-add', 'Close the loop');
-		await assert.rejects(
-			host.invokeCommand('malini.repository.merge-pull-request', { expectedHeadSha: 'abc123' }),
-			/open workstream todo/u,
-		);
-		await host.deactivate();
-
 		await host.api.state.set(
 			REPOSITORY_TODO_STATE_KEY,
 			{ version: 1, todos: [{ id: 'bad id', text: 'broken', completed: false, createdAt: 1 }] },
 			{ kind: 'workstream', id: host.workstream.id },
 		);
-		const controller = new RepositoryController(host.api);
-		let state = await controller.loadTodos();
+		const state = await controller.loadTodos();
 		assert.equal(state.todoStatus, 'error');
 		assert.match(state.todoError ?? '', /unreadable/u);
-		await assert.rejects(controller.mergePullRequest(undefined, 'abc123'), /todos are unreadable/u);
-
-		state = await controller.resetTodos();
-		assert.equal(state.todoStatus, 'ready');
-		assert.deepEqual(state.todos, []);
-		assert.equal(
-			await host.api.state.get(REPOSITORY_TODO_STATE_KEY, {
-				kind: 'workstream',
-				id: host.workstream.id,
-			}),
-			null,
-		);
-		controller.dispose();
-	} finally {
-		await host.cleanup();
-	}
-});
-
-test('actual merge reloads persisted todos instead of trusting stale ready state', async () => {
-	const host = await createTestHost({
-		manifest,
-		fixtureRepository: {
-			name: 'todo-stale-merge-gate',
-			branch: 'feature/todos',
-			baseBranch: 'main',
-			files: { 'README.md': 'todos' },
-		},
-		repository: {
-			supportsPullRequestMutations: true,
-			pullRequest: mergeReadyPullRequest(),
-		},
-	});
-	const controller = new RepositoryController(host.api);
-	try {
-		let state = await controller.loadTodos();
-		assert.equal(state.todoStatus, 'ready');
-		assert.deepEqual(state.todos, []);
-
-		await host.api.state.set(
-			REPOSITORY_TODO_STATE_KEY,
-			{
-				version: 1,
-				todos: [
-					{
-						id: 'todo:external',
-						text: 'Added outside this controller',
-						completed: false,
-						createdAt: 2,
-					},
-				],
-			},
-			{ kind: 'workstream', id: host.workstream.id },
-		);
-
-		await assert.rejects(controller.mergePullRequest(undefined, 'abc123'), /open workstream todo/u);
-		state = controller.snapshot();
-		assert.equal(state.todoStatus, 'ready');
-		assert.equal(state.todos[0]?.id, 'todo:external');
-		assert.equal(
-			host.recording().some(({ kind }) => kind === 'repository.mergePullRequest'),
-			false,
-		);
+		assert.throws(() => controller.todosForPrompt(), /unreadable/u);
 	} finally {
 		controller.dispose();
 		await host.cleanup();
 	}
 });
-
-test('merge waits for a queued todo write and then observes its blocker', async () => {
-	const host = await createTestHost({
-		manifest,
-		fixtureRepository: {
-			name: 'todo-queued-merge-gate',
-			branch: 'feature/todos',
-			baseBranch: 'main',
-			files: { 'README.md': 'todos' },
-		},
-		repository: {
-			supportsPullRequestMutations: true,
-			pullRequest: mergeReadyPullRequest(),
-		},
-	});
-	let releaseSave: () => void = () => undefined;
-	const saveGate = new Promise<void>((resolve) => {
-		releaseSave = resolve;
-	});
-	let announceSave: () => void = () => undefined;
-	const saveStarted = new Promise<void>((resolve) => {
-		announceSave = resolve;
-	});
-	let delayed = false;
-	const api = {
-		...host.api,
-		state: {
-			...host.api.state,
-			set: async <T>(
-				key: string,
-				value: T,
-				scope?: Parameters<(typeof host.api.state)['set']>[2],
-			) => {
-				if (!delayed && key === REPOSITORY_TODO_STATE_KEY) {
-					delayed = true;
-					announceSave();
-					await saveGate;
-				}
-				await host.api.state.set(key, value, scope);
-			},
-		},
-	} satisfies typeof host.api;
-	const controller = new RepositoryController(api);
-	try {
-		await controller.loadTodos();
-		const add = controller.addTodo('Queued blocker');
-		await saveStarted;
-
-		let mergeSettled = false;
-		const merge = controller.mergePullRequest(undefined, 'abc123');
-		void merge
-			.catch(() => undefined)
-			.finally(() => {
-				mergeSettled = true;
-			});
-		await new Promise<void>((resolve) => setImmediate(resolve));
-		assert.equal(mergeSettled, false);
-
-		releaseSave();
-		await add;
-		await assert.rejects(merge, /open workstream todo/u);
-		assert.equal(
-			host.recording().some(({ kind }) => kind === 'repository.mergePullRequest'),
-			false,
-		);
-	} finally {
-		releaseSave();
-		controller.dispose();
-		await host.cleanup();
-	}
-});
-
-function mergeReadyPullRequest() {
-	return {
-		state: 'open' as const,
-		number: 42,
-		title: 'Todo gate',
-		url: 'https://example.test/pull/42',
-		baseBranch: 'main',
-		headBranch: 'feature/todos',
-		headSha: 'abc123',
-		checks: 'success' as const,
-		mergeable: true,
-		mergeableState: 'clean' as const,
-		viewerCanMerge: true,
-		allowedMergeMethods: ['squash'] as const,
-		defaultMergeMethod: 'squash' as const,
-		reviewDecision: 'approved' as const,
-		unresolvedReviewThreadCount: 0,
-	};
-}

@@ -7,9 +7,14 @@ export type WorkstreamRoutineDefinition = Readonly<{
 	origin: RoutineOrigin;
 	label: string;
 	when: string;
-	run: RoutineRun;
+	steps: readonly RoutineRun[];
 	evidence: readonly RoutineEvidence[];
 }>;
+
+export type RoutineRunner = (
+	routine: WorkstreamRoutineDefinition,
+	workstreamId: string,
+) => Promise<void>;
 
 export type AutomationRuleFailure = Readonly<{
 	workstreamId: string;
@@ -26,13 +31,13 @@ export type AutomationRunOption = Readonly<{
 export function workstreamRoutineDefinitions(
 	records: readonly WorkstreamRoutineDefinition[],
 ): readonly WorkstreamRoutineDefinition[] {
-	return records.map(({ id, status, origin, label, when, run, evidence }) => ({
+	return records.map(({ id, status, origin, label, when, steps, evidence }) => ({
 		id,
 		status,
 		origin,
 		label,
 		when,
-		run,
+		steps,
 		evidence,
 	}));
 }
@@ -57,6 +62,8 @@ class AutomationRulesStore {
 	definitions = $state.raw<readonly WorkstreamRoutineDefinition[]>([]);
 	failures = $state.raw<readonly AutomationRuleFailure[]>([]);
 	runOptions = $state.raw<readonly AutomationRunOption[] | null>(null);
+	activeWorkstreamId = $state<string | null>(null);
+	#runner: RoutineRunner | null = null;
 
 	publishDefinitions(definitions: readonly WorkstreamRoutineDefinition[]): void {
 		if (sameRecords(this.definitions, definitions)) return;
@@ -71,6 +78,23 @@ class AutomationRulesStore {
 	publishRunOptions(runOptions: readonly AutomationRunOption[] | null): void {
 		if (sameRecords(this.runOptions, runOptions)) return;
 		this.runOptions = runOptions;
+	}
+
+	publishActiveWorkstream(workstreamId: string | null): void {
+		this.activeWorkstreamId = workstreamId;
+	}
+
+	connectRunner(runner: RoutineRunner): () => void {
+		this.#runner = runner;
+		return () => {
+			if (this.#runner === runner) this.#runner = null;
+		};
+	}
+
+	async runNow(routine: WorkstreamRoutineDefinition, workstreamId: string): Promise<void> {
+		const runner = this.#runner;
+		if (!runner) throw new Error('Routines can run once extensions have started');
+		await runner(routine, workstreamId);
 	}
 }
 

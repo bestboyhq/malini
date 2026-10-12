@@ -87,7 +87,7 @@ export function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): 
 			db,
 			`SELECT COUNT(*) FROM agent_runs r
 			 JOIN agent_sessions s ON s.id = r.session_id
-			 WHERE s.workstream_id = ? AND r.automated = 0`,
+			 WHERE s.workstream_id = ? AND s.origin = 'user' AND r.automated = 0`,
 			workstreamId,
 		) > 0
 	);
