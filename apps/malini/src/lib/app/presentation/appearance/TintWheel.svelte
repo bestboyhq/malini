@@ -46,9 +46,13 @@
 	const shown = $derived(tintAtWheel(point));
 	const neutral = $derived(!shown.chroma);
 	const value = $derived(wheelPointOf(appearance));
-	const tuned = $derived(tintAtWheel(value));
 
 	$effect(() => needle.moveTo(value, driving));
+
+	function describeTint(at: GaugePoint): string {
+		const { hue = 0, chroma = 0 } = tintAtWheel(at);
+		return chroma ? `Hue ${degreesLabel(hue)}, chroma ${chromaLabel(chroma)}` : 'Neutral';
+	}
 
 	function radial(angle: number, from: number, to: number): Omit<ScaleTick, 'major'> {
 		const start = polar(angle, from);
@@ -77,9 +81,7 @@
 	{/snippet}
 	<Instrument
 		label="Tint wheel"
-		valueText={tuned.chroma
-			? `Hue ${degreesLabel(tuned.hue ?? 0)}, chroma ${chromaLabel(tuned.chroma)}`
-			: 'Neutral'}
+		describe={describeTint}
 		width={SIZE}
 		height={SIZE}
 		inset={INSET}

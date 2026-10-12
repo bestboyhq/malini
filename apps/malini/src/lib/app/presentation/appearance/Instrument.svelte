@@ -7,7 +7,7 @@
 
 	interface Props {
 		label: string;
-		valueText: string;
+		describe: (point: GaugePoint) => string;
 		width: number;
 		height: number;
 		inset: number;
@@ -24,7 +24,7 @@
 
 	let {
 		label,
-		valueText,
+		describe,
 		width,
 		height,
 		inset,
@@ -75,7 +75,7 @@
 		role="slider"
 		tabindex="0"
 		aria-label={label}
-		aria-valuetext={valueText}
+		aria-valuetext={describe(value)}
 		aria-valuenow={Math.round(value[0] * 100)}
 		aria-valuemin={0}
 		aria-valuemax={100}

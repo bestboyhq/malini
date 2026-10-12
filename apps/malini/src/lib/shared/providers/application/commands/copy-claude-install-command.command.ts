@@ -1,13 +1,13 @@
 import { toast } from '$hyper-ui/components/toast';
-import { CLAUDE_SETUP_COMMANDS, type ClaudeSetupStep } from '$contract/agent';
+import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 import { clipboardService } from '$shared/system/clipboard.service';
 
-export { copyClaudeSetupCommandCommand };
+export { copyClaudeInstallCommandCommand };
 
-function copyClaudeSetupCommandCommand(step: ClaudeSetupStep): void {
+function copyClaudeInstallCommandCommand(): void {
 	void (async () => {
 		try {
-			await clipboardService.write(CLAUDE_SETUP_COMMANDS[step]);
+			await clipboardService.write(CLAUDE_INSTALL_COMMAND);
 		} catch (error: unknown) {
 			toast.error(`Could not copy · ${error instanceof Error ? error.message : String(error)}`);
 		}

@@ -5,7 +5,7 @@
 
 	interface Props {
 		label: string;
-		reading: string;
+		format: (value: number) => string;
 		track: string;
 		shown: number;
 		value: number;
@@ -14,7 +14,7 @@
 		onrelease: () => void;
 	}
 
-	let { label, reading, track, shown, value, onvalue, ongrab, onrelease }: Props = $props();
+	let { label, format, track, shown, value, onvalue, ongrab, onrelease }: Props = $props();
 
 	const THUMB = 16;
 	const KEY_STEPS: Readonly<Record<string, number>> = {
@@ -53,7 +53,7 @@
 
 <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-y-1">
 	<span class="text-fg-secondary text-xs">{label}</span>
-	<span class="text-fg-default text-2xs text-right font-mono tabular-nums">{reading}</span>
+	<span class="text-fg-default text-2xs text-right font-mono tabular-nums">{format(shown)}</span>
 	<div class="col-span-2 pb-1.5">
 		<div
 			class="focus-visible:ring-border-default/50 relative h-5 cursor-pointer touch-none rounded-full focus-visible:ring-2"
@@ -64,7 +64,7 @@
 			aria-valuemin={0}
 			aria-valuemax={100}
 			aria-valuenow={Math.round(value * 100)}
-			aria-valuetext={reading}
+			aria-valuetext={format(value)}
 			{onkeydown}
 			{@attach gaugeDrag({
 				onmove: ([fraction]) => onvalue(valueAt(fraction)),

@@ -4,7 +4,6 @@ import type {
 	AgentSessionChanges,
 	AgentSessionOrigin,
 	LiveEventEnvelope,
-	ClaudeSetupStep,
 	ProviderCapability,
 	StagedAgentAttachment,
 } from '$contract/agent';
@@ -67,7 +66,6 @@ export type FakeState = {
 	secrets: Map<string, string>;
 	agentScript: readonly FakeAgentScriptStep[];
 	providerCapabilities: ProviderCapability[];
-	claudeSetupSteps: ClaudeSetupStep[];
 	nextSession: number;
 	agentSessionBootstrapFailures: number;
 	agentSessionBootstrapError: string;
@@ -138,7 +136,6 @@ export function createFakeState(seed: PlatformSeed): FakeState {
 		providerCapabilities: (merged.providerCapabilities ?? defaultProviderCapabilities).map(
 			cloneProviderCapability,
 		),
-		claudeSetupSteps: [],
 		nextSession: 1,
 		agentSessionBootstrapFailures: merged.agentSessionBootstrapFailures ?? 0,
 		agentSessionBootstrapError:

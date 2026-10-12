@@ -1,9 +1,17 @@
-import type { ClaudeSetupStep } from '$contract/agent';
+import type { ClaudeSignInOutcome } from '$contract/agent';
 import { invoke } from '$shared/port/invoke';
 
 class ClaudeSetupService {
-	run(step: ClaudeSetupStep): Promise<void> {
-		return invoke('providers.run-claude-setup', { step });
+	install(): Promise<void> {
+		return invoke('providers.install-claude-code', undefined);
+	}
+
+	signIn(email: string | null): Promise<ClaudeSignInOutcome> {
+		return invoke('providers.sign-in-to-claude', email ? { email } : {});
+	}
+
+	cancelSignIn(): Promise<void> {
+		return invoke('providers.cancel-claude-sign-in', undefined);
 	}
 }
 

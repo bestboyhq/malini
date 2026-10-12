@@ -39,7 +39,7 @@
 	<div class="grid w-full grid-cols-2 gap-x-6">
 		<TrackSlider
 			label="Hue"
-			reading={degreesLabel(needle.at(0) * 360)}
+			format={(fraction) => degreesLabel(fraction * 360)}
 			track={HUE_TRACK}
 			shown={needle.at(0)}
 			value={appearance.hue / 360}
@@ -49,7 +49,7 @@
 		/>
 		<TrackSlider
 			label="Chroma"
-			reading={chromaLabel(chromaAtReach(needle.at(1)))}
+			format={(reach) => chromaLabel(chromaAtReach(reach))}
 			track={chromaTrack}
 			shown={needle.at(1)}
 			value={reachOfChroma(appearance.chroma)}
