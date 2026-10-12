@@ -1,5 +1,5 @@
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
-import { createScrollGlide } from '../scroll-glide';
+import { createScrollGlide, snapToDevicePixel } from '../scroll-glide';
 import { arrivalMotion } from '../arrival-motion';
 
 export type TranscriptFollow = 'bottom' | 'reader';
@@ -83,7 +83,7 @@ export function createTranscriptScroll(
 			return viewportEl?.scrollTop ?? 0;
 		},
 		set scrollTop(value: number) {
-			scrollTo(value);
+			scrollTo(snapToDevicePixel(value));
 		},
 	};
 

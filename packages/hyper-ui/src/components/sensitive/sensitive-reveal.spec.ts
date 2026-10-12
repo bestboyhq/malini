@@ -51,6 +51,20 @@ describe('sensitive text', () => {
 		expect(host.textContent).toBe('Signed in as ada@example.com · Max');
 	});
 
+	it('inside a control, keeps an email hidden without taking the click from that control', () => {
+		const host = render(SensitiveText, { text: 'Switch to ada@example.com', interactive: false });
+		let selected = 0;
+		host.addEventListener('click', () => (selected += 1));
+
+		host.querySelector<HTMLElement>('[data-sensitive="email"]')?.click();
+
+		expect(revealControls(host, 'Reveal email address')).toHaveLength(0);
+		expect(host.querySelector('[data-sensitive="email"]')?.textContent?.trim()).toBe(
+			'ada@example.com',
+		);
+		expect(selected).toBe(1);
+	});
+
 	it('reveals a user name in rendered markup by click, leaving the text intact', () => {
 		const host = document.createElement('div');
 		host.innerHTML = maskSensitiveHtml('<p>Wrote <code>/Users/ada/notes.md</code></p>');

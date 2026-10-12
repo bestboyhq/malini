@@ -1,10 +1,11 @@
 import type { Project } from '$shared/repositories/domain/repository';
-import type { Workstream } from '$shared/repositories/domain/workstream';
+import type { ArchivedWorkstream, Workstream } from '$shared/repositories/domain/workstream';
 import { captureRendererError } from '$shared/errors/renderer-error-sink';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 
 export class WorkstreamsAggregate {
 	workstreams = $state<Workstream[]>([]);
+	archived = $state<ArchivedWorkstream[]>([]);
 	projects = $state<Project[]>([]);
 	loading = $state(false);
 	loaded = $state(false);
@@ -18,12 +19,14 @@ export class WorkstreamsAggregate {
 		const generation = ++this.refreshGeneration;
 		this.loading = true;
 		try {
-			const [workstreams, projects] = await Promise.all([
+			const [workstreams, archived, projects] = await Promise.all([
 				workstreamsService.listWorkstreams(),
+				workstreamsService.listArchivedWorkstreams(),
 				workstreamsService.listProjects(),
 			]);
 			if (generation !== this.refreshGeneration) return;
 			this.workstreams = this.withPending(workstreams);
+			this.archived = archived;
 			this.projects = [...projects];
 			this.lastError = null;
 		} catch (err) {
@@ -94,6 +97,7 @@ export class WorkstreamsAggregate {
 	reset(): void {
 		this.refreshGeneration += 1;
 		this.workstreams = [];
+		this.archived = [];
 		this.projects = [];
 		this.loading = false;
 		this.loaded = false;

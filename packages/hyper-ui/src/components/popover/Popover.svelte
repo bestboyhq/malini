@@ -5,6 +5,7 @@
 	import {
 		announceExclusiveOverlayOpen,
 		bodyPortal,
+		layoutRect,
 		menuClose,
 		menuOpen,
 		overlaySurface,
@@ -53,7 +54,7 @@
 
 	function measurePosition(): void {
 		if (!open || !panel) return;
-		const rect = panel.getBoundingClientRect();
+		const rect = layoutRect(panel);
 		const viewportWidth = window.innerWidth;
 		const viewportHeight = window.innerHeight;
 		let left = x;

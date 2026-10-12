@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import CodeTokens from './CodeTokens.svelte';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import ToolImageRow from './ToolImageRow.svelte';
 	import { toolImageRead } from './tool-image-read';
+	import { toolInputBlocks, toolOutputBlock } from './tool-payload';
 	import { editDiffstat } from './edit-diffstat';
 	import { formatToolDuration } from './render-state';
 	import { relativizeWorkstreamPath } from './workstream-path';
@@ -45,12 +46,6 @@
 	const isStreamingInput = $derived(
 		status === 'running' && input === undefined && liveInputJson !== null,
 	);
-	const inputText = $derived(
-		isStreamingInput
-			? truncateLiveJson(liveInputJson ?? '')
-			: formatValue(sanitizeManagedPaths(input)),
-	);
-	const outputText = $derived(formatValue(sanitizeManagedPaths(output)));
 	const labelInput = $derived(input === undefined ? summarizeLiveToolInput(liveInputJson) : input);
 	const displayName = $derived(toolDisplayName(name, labelInput));
 	const durationLabel = $derived(
@@ -80,6 +75,15 @@
 		]),
 	);
 
+	const inputBlocks = $derived(
+		isStreamingInput
+			? [{ label: 'Input', code: truncateLiveJson(liveInputJson ?? ''), language: 'json' }]
+			: toolInputBlocks(sanitizeManagedPaths(input), editPath),
+	);
+	const outputBlock = $derived(
+		toolOutputBlock(sanitizeManagedPaths(output), editPath, actionKind === 'read'),
+	);
+
 	const imageRead = $derived(toolImageRead(name, labelInput, output));
 
 	function stringAt(value: unknown, keys: readonly string[]): string | null {
@@ -101,15 +105,6 @@
 		return json.length <= LIVE_JSON_TRUNCATE_LENGTH
 			? json
 			: `${json.slice(0, LIVE_JSON_TRUNCATE_LENGTH)}…`;
-	}
-
-	function formatValue(value: unknown): string {
-		if (value === undefined) return '(not provided)';
-		try {
-			return JSON.stringify(value, null, 2);
-		} catch {
-			return String(value);
-		}
 	}
 
 	function sanitizeManagedPaths(value: unknown): unknown {
@@ -195,22 +190,27 @@
 		</summary>
 
 		{#if expanded}
-			<div class="text-2xs mt-1 ml-5 grid gap-1.5 pb-2">
+			<div class="text-2xs mt-1 ml-5 grid grid-cols-1 gap-1.5 pb-2">
+				{#each inputBlocks as block (block.label)}
+					<div>
+						<div class="text-fg-tertiary mb-1 text-[10px]">{block.label}</div>
+						<pre
+							class="styled-scrollbar bg-surface-50 text-2xs text-fg-secondary max-h-52 overflow-auto rounded px-2 py-1.5 font-mono leading-snug whitespace-pre select-text"
+							data-testid="tool-card-input"
+							data-tool-input-live={isStreamingInput}><CodeTokens
+								code={block.code}
+								language={block.language}
+							/></pre>
+					</div>
+				{/each}
 				<div>
-					<div class="text-fg-tertiary mb-1 text-[10px]">Input</div>
+					<div class="text-fg-tertiary mb-1 text-[10px]">{outputBlock.label}</div>
 					<pre
 						class="styled-scrollbar bg-surface-50 text-2xs text-fg-secondary max-h-52 overflow-auto rounded px-2 py-1.5 font-mono leading-snug whitespace-pre select-text"
-						data-testid="tool-card-json"
-						data-tool-input-live={isStreamingInput}><CodeTokens
-							code={inputText}
-							language="json"
+						data-tool-output><CodeTokens
+							code={outputBlock.code}
+							language={outputBlock.language}
 						/></pre>
-				</div>
-				<div>
-					<div class="text-fg-tertiary mb-1 text-[10px]">Output</div>
-					<pre
-						class="styled-scrollbar bg-surface-50 text-2xs text-fg-secondary max-h-52 overflow-auto rounded px-2 py-1.5 font-mono leading-snug whitespace-pre select-text"
-						data-tool-output><CodeTokens code={outputText} language="json" /></pre>
 				</div>
 			</div>
 		{/if}

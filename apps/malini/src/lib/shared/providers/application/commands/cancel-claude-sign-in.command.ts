@@ -1,13 +1,14 @@
 import { toast } from '$hyper-ui/components/toast';
-import type { ClaudeSetupStep } from '$contract/agent';
 import { claudeSetupService } from '$shared/providers/infrastructure/services/claude-setup.service';
+import { claudeAccountsStore } from '$shared/providers/infrastructure/stores/claude-accounts.store.svelte';
 
-export { runClaudeSetupCommand };
+export { cancelClaudeSignInCommand };
 
-function runClaudeSetupCommand(step: ClaudeSetupStep): void {
+function cancelClaudeSignInCommand(): void {
+	claudeAccountsStore.signIn = 'idle';
 	void (async () => {
 		try {
-			await claudeSetupService.run(step);
+			await claudeSetupService.cancelSignIn();
 		} catch (error: unknown) {
 			toast.error(error instanceof Error ? error.message : String(error));
 		}

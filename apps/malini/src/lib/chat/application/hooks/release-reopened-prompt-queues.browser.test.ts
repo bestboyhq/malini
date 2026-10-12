@@ -70,16 +70,19 @@ afterEach(async () => {
 });
 
 describe('a prompt queue whose workstream could not take prompts for a while', () => {
-	it('runs once an archive is undone, even when the run it waited on ended during the undo window', async () => {
+	it('runs once a failed archive brings the workstream back, even when the run it waited on ended meanwhile', async () => {
 		await openAppWithoutChat({ projects: [PROJECT], workstreams: [workstreamRow(WORKSTREAM)] });
 		await workstreamsAggregate.refresh();
 		startRun('s-a1');
 		const sends = recordPromptDelivery();
 		await submit(submission({ sessionId: 's-a1', prompt: 'After the archive' }));
+		let failArchive: (cause: Error) => void = () => undefined;
 		workstreamRetirementStore.retire({
 			workstreamId: WORKSTREAM,
-			commit: async () => undefined,
-			undoWindowMs: 60_000,
+			commit: () =>
+				new Promise<void>((_resolve, reject) => {
+					failArchive = reject;
+				}),
 		});
 
 		completeRun('s-a1');
@@ -87,7 +90,7 @@ describe('a prompt queue whose workstream could not take prompts for a while', (
 		expect(sends()).toEqual([]);
 		expect(queued()).toEqual(['After the archive']);
 
-		workstreamRetirementStore.undo(WORKSTREAM);
+		failArchive(new Error('worktree is locked'));
 
 		await vi.waitFor(() =>
 			expect(sends()).toEqual([expect.objectContaining({ prompt: 'After the archive' })]),

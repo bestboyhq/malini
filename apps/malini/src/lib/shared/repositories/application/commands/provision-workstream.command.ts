@@ -108,16 +108,9 @@ async function workstreamRemains(workstreamId: string): Promise<boolean> {
 }
 
 function reportBaseSync(plan: WorkstreamProvisioningPlan, baseSync: BaseSync): void {
-	if ('failure' in baseSync) {
-		toast.warning(
-			`${plan.name} starts from the last fetched ${plan.baseBranch} · ${baseSync.failure}`,
-			aboutWorkstream(plan.workstreamId),
-		);
-		return;
-	}
-	if (baseSync.outcome !== 'diverged') return;
-	toast.info(
-		`${plan.name} already has its own commits, so it stays on the ${plan.baseBranch} it started from`,
+	if (!('failure' in baseSync)) return;
+	toast.warning(
+		`${plan.name} starts from the last fetched ${plan.baseBranch} · ${baseSync.failure}`,
 		aboutWorkstream(plan.workstreamId),
 	);
 }

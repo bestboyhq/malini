@@ -5,6 +5,7 @@
 		announceExclusiveOverlayOpen,
 		bodyPortal,
 		calculatePosition,
+		layoutRect,
 		menuClose,
 		menuOpen,
 		onExclusiveOverlayOpen,
@@ -162,8 +163,7 @@
 	function positionCard(): void {
 		if (!cardEl || !triggerEl) return;
 		const triggerRect = triggerEl.getBoundingClientRect();
-		const cardRect = cardEl.getBoundingClientRect();
-		const position = calculatePosition(triggerRect, cardRect, {
+		const position = calculatePosition(triggerRect, layoutRect(cardEl), {
 			side,
 			align,
 			sideOffset,

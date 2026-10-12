@@ -15,7 +15,7 @@ import type {
 	AgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
-	ClaudeSetupStep,
+	ClaudeSignInOutcome,
 	ProviderCapability,
 	RestoreCheckpointResult,
 	StagedAgentAttachment,
@@ -35,6 +35,7 @@ import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type { RuntimeInfo } from './runtime';
 import type {
 	AddressedReviewThreadsDto,
+	ArchivedWorkstreamDto,
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
@@ -94,7 +95,7 @@ export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string 
 
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
 
-export type ClaudeSetupArgs = Readonly<{ step: ClaudeSetupStep }>;
+export type ClaudeSignInArgs = Readonly<{ email?: string }>;
 
 export type SecretKeyArgs = Readonly<{ service: string; key: string }>;
 
@@ -323,7 +324,9 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 export interface ContractCommands {
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
-	'providers.run-claude-setup': { args: ClaudeSetupArgs; result: void };
+	'providers.install-claude-code': { args: undefined; result: void };
+	'providers.sign-in-to-claude': { args: ClaudeSignInArgs; result: ClaudeSignInOutcome };
+	'providers.cancel-claude-sign-in': { args: undefined; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
 	'chat.answer-question': { args: AnswerAgentQuestionArgs; result: void };
@@ -430,6 +433,10 @@ export interface ContractCommands {
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
+	'repositories.list-archived-workstreams': {
+		args: undefined;
+		result: ArchivedWorkstreamDto[];
+	};
 	'repositories.open-workstream-in-editor': { args: WorkstreamIdArgs; result: void };
 	'app.shutdown-impact': { args: undefined; result: ShutdownImpact };
 	'chat.pick-and-stage-attachments': {
@@ -469,6 +476,7 @@ export interface ContractCommands {
 		args: RestoreCheckpointArgs;
 		result: RestoreCheckpointResult;
 	};
+	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -562,7 +570,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.activate-session',
 	'chat.adopt-attachments',
 	'chat.agent-health',
-	'providers.run-claude-setup',
+	'providers.install-claude-code',
+	'providers.sign-in-to-claude',
+	'providers.cancel-claude-sign-in',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',
 	'chat.answer-question',
@@ -627,6 +637,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-files',
 	'repositories.base-files',
 	'repositories.list-workstreams',
+	'repositories.list-archived-workstreams',
 	'repositories.open-workstream-in-editor',
 	'app.shutdown-impact',
 	'chat.pick-and-stage-attachments',
@@ -649,6 +660,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.restore-checkpoint',
+	'repositories.restore-workstream',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'extensions.rollback-managed',

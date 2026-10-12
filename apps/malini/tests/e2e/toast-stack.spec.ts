@@ -1,5 +1,5 @@
-import { writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
@@ -10,7 +10,6 @@ import {
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
-	git,
 	launchMalini,
 	seedWorkstream,
 } from './harness';
@@ -30,6 +29,9 @@ const OLDER_NAME = 'Short one';
 const NEWER_NAME = 'Short two';
 const OLDER_SAVED = `Archived ${OLDER_NAME} · Its commit is saved`;
 const NEWER_SAVED = `Archived ${NEWER_NAME} · Its commit is saved`;
+const KEPT_REASON =
+	'Its checkout could not be moved aside (permission denied), so nothing was removed.';
+const archiveFailure = (name: string): string => `Could not archive ${name} · ${KEPT_REASON}`;
 
 interface ToastText {
 	message: string;
@@ -114,12 +116,6 @@ async function show(
 	);
 }
 
-async function commitWork(worktree: string): Promise<void> {
-	writeFileSync(join(worktree, 'committed.txt'), 'committed\n');
-	await git(worktree, ['add', '.']);
-	await git(worktree, ['commit', '-m', 'work']);
-}
-
 async function archive(page: Page, name: string): Promise<void> {
 	const row = page.getByTestId('sidebar-workstream').filter({ hasText: name });
 	const button = page.getByRole('button', { name: `Archive ${name}` });
@@ -127,17 +123,9 @@ async function archive(page: Page, name: string): Promise<void> {
 		await row.hover();
 		await button.click({ timeout: 1_000 });
 	}).toPass({ timeout: 20_000 });
-}
-
-async function archiveHoldingToasts(page: Page, name: string, saved: string): Promise<void> {
-	await archive(page, name);
-	await page
-		.getByTestId('toast')
-		.filter({ hasText: `Archived ${name}` })
-		.hover();
-	await expect(page.getByTestId('toast').getByText(saved, { exact: true })).toBeVisible({
-		timeout: 20_000,
-	});
+	await expect(
+		page.getByTestId('toast').getByText(archiveFailure(name), { exact: true }),
+	).toBeVisible({ timeout: 20_000 });
 }
 
 async function collapse(page: Page): Promise<void> {
@@ -160,40 +148,35 @@ async function expand(page: Page, messages: readonly string[]): Promise<void> {
 
 test('a long toast behind newer short ones keeps its text inside its box, collapsed and expanded', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini();
+	const app = await launchMalini({ allowedDiagnostics: [/permission denied/u] });
+	let lockedDirectory: string | null = null;
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const archived = await seedWorkstream(page, source, 'e2e-toast-archived-ws', ARCHIVED_NAME);
-		await commitWork(archived.worktree);
-		writeFileSync(join(archived.worktree, 'uncommitted.txt'), 'uncommitted\n');
 		for (const [index, name] of [OLDER_NAME, NEWER_NAME].entries()) {
-			const short = await seedWorkstream(page, source, `e2e-toast-short-${index}-ws`, name);
-			await commitWork(short.worktree);
+			await seedWorkstream(page, source, `e2e-toast-short-${index}-ws`, name);
 		}
 		await page.reload();
+		lockedDirectory = dirname(archived.worktree);
+		chmodSync(lockedDirectory, 0o555);
 
-		await archive(page, ARCHIVED_NAME);
-		const savedWork = page
-			.getByTestId('toast')
-			.filter({ hasText: 'Its commit and uncommitted work are saved' });
-		await expect(savedWork).toBeVisible({ timeout: 20_000 });
-		const archivedMessage = (await savedWork.innerText()).trim().replace(/\nCopy ref$/, '');
-		await archiveHoldingToasts(page, OLDER_NAME, OLDER_SAVED);
-		await archiveHoldingToasts(page, NEWER_NAME, NEWER_SAVED);
-		const messages = [archivedMessage, OLDER_SAVED, NEWER_SAVED];
+		const messages = [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME].map(archiveFailure);
+		for (const name of [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME]) await archive(page, name);
+		const newest = archiveFailure(NEWER_NAME);
 
 		await collapse(page);
-		await expectStack(page, messages, [NEWER_SAVED]);
+		await expectStack(page, messages, [newest]);
 		await expand(page, messages);
 		await expectStack(page, messages, messages);
 		await captureFlow(app, 'toast-stack-expanded');
 
 		await collapse(page);
-		await expectStack(page, messages, [NEWER_SAVED]);
+		await expectStack(page, messages, [newest]);
 		await captureFlow(app, 'toast-stack-collapsed');
 		expectCleanConsole(app);
 	} finally {
+		if (lockedDirectory) chmodSync(lockedDirectory, 0o755);
 		await app.close();
 	}
 });

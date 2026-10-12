@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
-	MAX_HIGHLIGHT_CHARACTERS,
 	detectLanguage,
 	highlightCode,
+	highlightDiffLines,
+	languageForPath,
 	languageHintLabel,
 	languageLabel,
 	normalizeLanguage,
+	resolveLanguage,
 	type CodeToken,
+	type SupportedLanguage,
 	type TokenKind,
 } from '@malini/extension-api';
 
@@ -45,6 +48,25 @@ describe('normalizeLanguage', () => {
 		expect(normalizeLanguage('brainfuck')).toBeNull();
 	});
 
+	it('reads every language it resolves to back as itself', () => {
+		const resolved: readonly SupportedLanguage[] = [
+			'typescript',
+			'markup',
+			'markdown',
+			'csharp',
+			'dockerfile',
+			'generic',
+			'text',
+		];
+		for (const language of resolved) expect(normalizeLanguage(language)).toBe(language);
+	});
+
+	it('reads a file name written where the language goes', () => {
+		expect(normalizeLanguage('src/app/ChatTabs.svelte')).toBe('markup');
+		expect(normalizeLanguage('Dockerfile')).toBe('dockerfile');
+		expect(normalizeLanguage('.env')).toBe('ini');
+	});
+
 	it('names the language a fence wrote, not the grammar it borrows', () => {
 		expect(languageHintLabel('js')).toBe('JavaScript');
 		expect(languageHintLabel('JSX')).toBe('JavaScript');
@@ -60,22 +82,60 @@ describe('normalizeLanguage', () => {
 	it('names a language for the block header', () => {
 		expect(languageLabel('typescript')).toBe('TypeScript');
 		expect(languageLabel('shell')).toBe('Shell');
+		expect(languageLabel('csharp')).toBe('C#');
+		expect(languageLabel('generic')).toBeNull();
 		expect(languageLabel(null)).toBeNull();
 	});
 });
 
+describe('languageForPath', () => {
+	it('reads the language from the extension, or from names that carry none', () => {
+		expect(languageForPath('apps/malini/src/lib/chat/presentation/ChatTabs.svelte')).toBe('markup');
+		expect(languageForPath('src/main.rs')).toBe('rust');
+		expect(languageForPath('include/vector.hpp')).toBe('c');
+		expect(languageForPath('docker/Dockerfile.dev')).toBe('dockerfile');
+		expect(languageForPath('Makefile')).toBe('makefile');
+		expect(languageForPath('.env.local')).toBe('ini');
+		expect(languageForPath('.gitignore')).toBe('ini');
+		expect(languageForPath('notes.txt')).toBe('text');
+		expect(languageForPath('LICENSE')).toBeNull();
+	});
+});
+
+describe('resolveLanguage', () => {
+	it('colors code in a language it has no grammar for rather than leaving it plain', () => {
+		expect(resolveLanguage('haskell', 'main = putStrLn "hi"')).toBe('generic');
+		expect(resolveLanguage(null, 'count = compute(1, "two");\nnext(count);')).toBe('generic');
+	});
+
+	it('leaves prose and declared plain text plain', () => {
+		expect(resolveLanguage(null, "This isn't code, it's a sentence.")).toBe('text');
+		expect(resolveLanguage('text', 'const x = 1;')).toBe('text');
+	});
+});
+
 describe('highlightCode', () => {
-	it('returns a single plain token when the language is unknown or absent', () => {
-		const source = 'fn main() { let x = 1; }';
-		expect(highlightCode(source, null)).toEqual([{ text: source, kind: 'plain' }]);
-		expect(highlightCode(source, 'brainfuck')).toEqual([{ text: source, kind: 'plain' }]);
+	it('colors code whose language is unknown or absent', () => {
+		const source = 'run(input) { let total = 1; return "done"; }';
+		for (const hint of [null, 'brainfuck']) {
+			const tokens = highlightCode(source, hint);
+			expect(kindOf(tokens, '"done"')).toBe('string');
+			expect(kindOf(tokens, 'run')).toBe('function');
+			expect(reassemble(tokens)).toBe(source);
+		}
 		expect(highlightCode('', 'rust')).toEqual([]);
 	});
 
-	it('bails to one plain token rather than degrading a stream on an oversize block', () => {
-		const source = `${'let value = 1;\n'.repeat(8_000)}`;
-		expect(source.length).toBeGreaterThan(MAX_HIGHLIGHT_CHARACTERS);
-		expect(highlightCode(source, 'ts')).toEqual([{ text: source, kind: 'plain' }]);
+	it('leaves prose plain, apostrophes included', () => {
+		const prose = "The staging failure isn't a git bug, it's a socket one.";
+		expect(highlightCode(prose, null)).toEqual([{ text: prose, kind: 'plain' }]);
+	});
+
+	it('colors a block of any size', () => {
+		const source = `${'let value = 1;\n'.repeat(80_000)}`;
+		const tokens = highlightCode(source, 'ts');
+		expect(kindOf(tokens, 'let')).toBe('keyword');
+		expect(reassemble(tokens)).toBe(source);
 	});
 
 	it('never drops or reorders a character of the source', () => {
@@ -239,6 +299,91 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, 'read the docs')).toBe('plain');
 	});
 
+	it('colors the script, style and template expressions of a svelte component', () => {
+		const source = [
+			'<script lang="ts">',
+			"\tconst label: string = 'Close';",
+			'</script>',
+			'',
+			'{#if open}',
+			'\t<button onclick={() => close(label)} class="tab {active}">{label}</button>',
+			'{/if}',
+			'',
+			'<style>',
+			'\t.tab { color: red; }',
+			'</style>',
+		].join('\n');
+		const tokens = highlightCode(source, 'svelte');
+		expect(kindOf(tokens, 'const')).toBe('keyword');
+		expect(kindOf(tokens, "'Close'")).toBe('string');
+		expect(kindOf(tokens, '#if')).toBe('keyword');
+		expect(kindOf(tokens, 'close')).toBe('function');
+		expect(kindOf(tokens, 'onclick')).toBe('attr');
+		expect(kindOf(tokens, 'color')).toBe('attr');
+		expect(kindOf(tokens, 'button')).toBe('keyword');
+		expect(reassemble(tokens)).toBe(source);
+	});
+
+	it('keeps a tag whole when an expression inside it holds a closing angle bracket', () => {
+		const tokens = highlightCode('<div hidden={count > 1}>text</div>', 'svelte');
+		expect(kindOf(tokens, 'text')).toBe('plain');
+		expect(tokens.filter((token) => token.text === 'div')).toHaveLength(2);
+	});
+
+	it('reads vue directive values as code', () => {
+		const tokens = highlightCode(
+			'<li v-for="item in items" :key="item.id">{{ item.name }}</li>',
+			'vue',
+		);
+		expect(kindOf(tokens, 'in')).toBe('keyword');
+		expect(kindOf(tokens, ':key')).toBe('attr');
+	});
+
+	it('colors the code inside a markdown fence by the fence language', () => {
+		const source = ['# Setup', '', '```ts', 'const port = 3000;', '```', '', 'Done.'].join('\n');
+		const tokens = highlightCode(source, 'md');
+		expect(kindOf(tokens, '# Setup')).toBe('keyword');
+		expect(kindOf(tokens, 'const')).toBe('keyword');
+		expect(kindOf(tokens, '3000')).toBe('number');
+		expect(reassemble(tokens)).toBe(source);
+	});
+
+	it('colors java, c, c#, kotlin, swift, ruby, lua, php and graphql', () => {
+		expect(kindOf(highlightCode('@Override public void run() {}', 'java'), '@Override')).toBe(
+			'attr',
+		);
+		expect(kindOf(highlightCode('#include <stdio.h>\nint main() {}', 'c'), '<stdio.h>')).toBe(
+			'string',
+		);
+		expect(kindOf(highlightCode('var path = @"C:\\tmp";', 'cs'), '@"C:\\tmp"')).toBe('string');
+		expect(kindOf(highlightCode('fun main() { val x = 1 }', 'kt'), 'fun')).toBe('keyword');
+		expect(kindOf(highlightCode('guard let x = y else { return }', 'swift'), 'guard')).toBe(
+			'keyword',
+		);
+		expect(kindOf(highlightCode('def run\n  @count += 1\nend', 'rb'), '@count')).toBe('attr');
+		expect(kindOf(highlightCode('local x = 1 -- note', 'lua'), '-- note')).toBe('comment');
+		expect(kindOf(highlightCode('<p><?php echo $name; ?></p>', 'php'), '$name')).toBe('attr');
+		expect(kindOf(highlightCode('query Run($id: ID!) { run(id: $id) }', 'graphql'), 'query')).toBe(
+			'keyword',
+		);
+	});
+
+	it('colors a dockerfile, a makefile and an env file', () => {
+		const docker = highlightCode('FROM node:22 AS build\nRUN pnpm install', 'dockerfile');
+		expect(kindOf(docker, 'FROM')).toBe('keyword');
+		expect(kindOf(docker, 'RUN')).toBe('keyword');
+		const make = highlightCode('build: deps\n\tgo build $(FLAGS)', 'makefile');
+		expect(kindOf(make, 'build')).toBe('function');
+		expect(kindOf(make, '$(FLAGS)')).toBe('attr');
+		expect(kindOf(highlightCode('# local\nPORT=3000', '.env'), 'PORT')).toBe('attr');
+	});
+
+	it('reads a regular expression literal whole, quotes and all', () => {
+		const tokens = highlightCode("const quote = /'/g; const next = 'ok';", 'ts');
+		expect(kindOf(tokens, "/'/g")).toBe('string');
+		expect(kindOf(tokens, "'ok'")).toBe('string');
+	});
+
 	it('colors markdown headings, fences and emphasis', () => {
 		const tokens = highlightCode(
 			['## What I measured', '', 'A `probe` and **a claim**.'].join('\n'),
@@ -315,6 +460,22 @@ describe('diff', () => {
 	});
 });
 
+describe('highlightDiffLines', () => {
+	it('colors each side of a diff with the lines around it, not one line at a time', () => {
+		const lines = highlightDiffLines(
+			[
+				{ text: '/* opened here', side: 'both' },
+				{ text: 'const removed = 1;', side: 'old' },
+				{ text: '*/ const added = 2;', side: 'new' },
+			],
+			'ts',
+		);
+		expect(lines[1]).toEqual([{ kind: 'comment', text: 'const removed = 1;' }]);
+		expect(lines[2]?.[0]).toEqual({ kind: 'comment', text: '*/' });
+		expect(kindOf(lines[2] ?? [], 'const')).toBe('keyword');
+	});
+});
+
 describe('detectLanguage', () => {
 	it('recognizes the shapes only one language has', () => {
 		expect(
@@ -334,6 +495,11 @@ describe('detectLanguage', () => {
 		expect(detectLanguage('{\n  "name": "malini"\n}')).toBe('json');
 		expect(detectLanguage('package main\n\nfunc main() {}')).toBe('go');
 		expect(detectLanguage('select id from runs')).toBe('sql');
+		expect(detectLanguage('#include <stdio.h>\nint main(void) { return 0; }')).toBe('c');
+		expect(detectLanguage('package dev.malini;\n\npublic class Run {}')).toBe('java');
+		expect(detectLanguage('FROM node:22\nRUN pnpm install')).toBe('dockerfile');
+		expect(detectLanguage('name: ci\non: push\njobs:\n  test: {}')).toBe('yaml');
+		expect(detectLanguage('.tab {\n  color: red;\n}')).toBe('css');
 	});
 
 	it('returns null rather than coloring prose or an unrecognized shape', () => {
@@ -342,6 +508,5 @@ describe('detectLanguage', () => {
 			detectLanguage('The staging failure is a socket lifetime bug, not a git one.'),
 		).toBeNull();
 		expect(detectLanguage('a b c\nd e f')).toBeNull();
-		expect(detectLanguage('x'.repeat(MAX_HIGHLIGHT_CHARACTERS + 1))).toBeNull();
 	});
 });

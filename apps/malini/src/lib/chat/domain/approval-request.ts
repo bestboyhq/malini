@@ -1,4 +1,6 @@
-import type { AgentPermissionDescriptor } from './agent-interaction';
+import type { AgentPermissionDescriptor, AgentPermissionResourceKind } from './agent-interaction';
+
+export type ApprovalTarget = Readonly<{ kind: AgentPermissionResourceKind; value: string }>;
 
 const TARGET_KINDS = new Set(['path', 'command', 'url']);
 
@@ -27,10 +29,12 @@ export function approvalHeadline(
 	return `Claude wants to use ${tool}`;
 }
 
-export function approvalTargets(permission: AgentPermissionDescriptor | undefined): string[] {
+export function approvalTargets(
+	permission: AgentPermissionDescriptor | undefined,
+): readonly ApprovalTarget[] {
 	return (permission?.resources ?? [])
 		.filter((resource) => TARGET_KINDS.has(resource.kind) && resource.value.trim())
-		.map((resource) => resource.canonicalValue ?? resource.value);
+		.map((resource) => ({ kind: resource.kind, value: resource.canonicalValue ?? resource.value }));
 }
 
 export function approvalShortTarget(

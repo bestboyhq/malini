@@ -141,6 +141,17 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
+async function untilLatestRunShows(page: Page, line: string): Promise<void> {
+	const latestRunText = (): Promise<string> =>
+		page
+			.getByTestId('chat-message-scroller')
+			.evaluate(
+				(scroller, selector) => scroller.ownerDocument.querySelector(selector)?.textContent ?? '',
+				LATEST_RUN,
+			);
+	await expect.poll(latestRunText, { intervals: [50], timeout: 10_000 }).toContain(line);
+}
+
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
@@ -151,10 +162,7 @@ test('a prompt sent into a long chat lands right above the composer, then the tr
 		await startSampling(page, []);
 		await sendPrompt(page, 'STREAM:40 Walk me through it');
 		await expect(page.getByTestId('chat-message-bubble-user').last()).toBeInViewport();
-		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
-			'Streamed line 30 of 40.',
-			{ timeout: 10_000 },
-		);
+		await untilLatestRunShows(page, 'Streamed line 30 of 40.');
 		const streaming = await stopSampling(page);
 
 		softly(
@@ -201,12 +209,12 @@ test('the working status holds still above the composer while the reply streams 
 	try {
 		const { page } = app;
 		await longChat(app, 'e2e-streaming-follow-status-ws');
-		await sendPrompt(page, 'STREAM:40 Keep talking');
+		await sendPrompt(page, 'STREAM:80 Keep talking');
 		const reply = page.getByTestId('chat-message-bubble-live');
-		await expect(reply).toContainText('Streamed line 3 of 40.', { timeout: 10_000 });
+		await expect(reply).toContainText('Streamed line 3 of 80.', { timeout: 10_000 });
 
 		await startSampling(page, [LATEST_STATUS]);
-		await expect(reply).toContainText('Streamed line 20 of 40.', { timeout: 10_000 });
+		await expect(reply).toContainText('Streamed line 20 of 80.', { timeout: 10_000 });
 		const streaming = await stopSampling(page);
 
 		expect(

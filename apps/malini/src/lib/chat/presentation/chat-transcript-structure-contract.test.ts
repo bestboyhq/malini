@@ -37,8 +37,8 @@ describe('agent transcript structure and selection contract', () => {
 			expect(row, `${name} row`).not.toContain('select-text');
 		}
 		expect(toolCard.match(/select-text/g)).toHaveLength(2);
-		expect(toolCard).toContain('data-testid="tool-card-json"');
-		expect(bashCall).toMatch(/select-text"\s*><SensitiveText\s+text=\{outputText\}\s*\/><\/pre>/u);
+		expect(toolCard).toContain('data-testid="tool-card-input"');
+		expect(bashCall).toMatch(/select-text"\s*><CodeTokens\s+code=\{outputText\}\s*\/><\/pre>/u);
 		expect(bashCall).toMatch(/select-text"\s*>\s*<SensitiveText\s+text=\{failureReason\}\s*\/>/u);
 
 		const bubbleStart = messageList.indexOf('{#if editable}');
@@ -70,9 +70,9 @@ describe('agent transcript structure and selection contract', () => {
 		expect(toolCard).toContain('bind:open={expanded}');
 		expect(toolCard).toContain('{#if expanded}');
 		expect(toolCard.indexOf('{#if expanded}')).toBeLessThan(
-			toolCard.indexOf('data-testid="tool-card-json"'),
+			toolCard.indexOf('data-testid="tool-card-input"'),
 		);
-		expect(toolCard).toContain('data-testid="tool-card-json"');
+		expect(toolCard).toContain('data-testid="tool-card-input"');
 		expect(toolCard).toContain('data-tool-output');
 	});
 

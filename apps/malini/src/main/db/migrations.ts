@@ -1129,6 +1129,10 @@ UPDATE routines SET steps_json = json_array(json(run_json)) WHERE json_valid(run
 ALTER TABLE routines DROP COLUMN run_json;
 `;
 
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_AT = `ALTER TABLE workstreams ADD COLUMN archived_at TEXT;`;
+
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_REF = `ALTER TABLE workstreams ADD COLUMN archived_ref TEXT;`;
+
 export const MIGRATION_0040_RESOLVE_CONFLICTS_WITHOUT_GIT_MERGE = `
 UPDATE job_definitions SET instructions = replace(
   instructions,
@@ -1295,6 +1299,15 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 					addColumnIfMissing(db, 'agent_sessions', 'origin', MIGRATION_0038_AGENT_SESSIONS_ORIGIN);
 				}
 				if (columnExists(db, 'routines', 'run_json')) db.exec(MIGRATION_0038_ROUTINE_STEPS);
+			}
+			if (existing < 39 && tableExists(db, 'workstreams')) {
+				addColumnIfMissing(db, 'workstreams', 'archived_at', MIGRATION_0039_WORKSTREAM_ARCHIVED_AT);
+				addColumnIfMissing(
+					db,
+					'workstreams',
+					'archived_ref',
+					MIGRATION_0039_WORKSTREAM_ARCHIVED_REF,
+				);
 			}
 			if (existing < 40) db.exec(MIGRATION_0040_RESOLVE_CONFLICTS_WITHOUT_GIT_MERGE);
 

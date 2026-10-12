@@ -1,4 +1,5 @@
 import type {
+	ArchivedWorkstream,
 	Workstream,
 	WorkstreamCheckoutState,
 	WorkstreamStatus,
@@ -52,6 +53,32 @@ export class WorkstreamMapper {
 			resolvedPath: raw.resolvedPath ?? null,
 		};
 	}
+}
+
+export class ArchivedWorkstreamMapper {
+	static fromRawList(raws: unknown): ArchivedWorkstream[] {
+		if (!Array.isArray(raws)) return [];
+		return raws
+			.filter(isRawArchivedWorkstream)
+			.map(({ id, projectId, name, baseBranch, archivedAt }) => ({
+				id,
+				projectId,
+				name,
+				baseBranch,
+				archivedAt,
+			}));
+	}
+}
+
+function isRawArchivedWorkstream(value: unknown): value is ArchivedWorkstream {
+	return (
+		isRecord(value) &&
+		typeof value.id === 'string' &&
+		typeof value.projectId === 'string' &&
+		typeof value.name === 'string' &&
+		typeof value.baseBranch === 'string' &&
+		typeof value.archivedAt === 'string'
+	);
 }
 
 function toStatus(value: string): WorkstreamStatus {

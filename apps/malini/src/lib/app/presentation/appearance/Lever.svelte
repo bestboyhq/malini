@@ -5,7 +5,7 @@
 
 	interface Props {
 		label: string;
-		reading: string;
+		format: (value: number) => string;
 		top: string;
 		bottom: string;
 		rail: string;
@@ -16,7 +16,7 @@
 		onrelease: () => void;
 	}
 
-	let { label, reading, top, bottom, rail, shown, value, onvalue, ongrab, onrelease }: Props =
+	let { label, format, top, bottom, rail, shown, value, onvalue, ongrab, onrelease }: Props =
 		$props();
 
 	const WIDTH = 60;
@@ -58,7 +58,7 @@
 </script>
 
 <div class="flex flex-col items-center gap-2">
-	<span class="text-fg-default font-mono text-[15px] leading-5 tabular-nums">{reading}</span>
+	<span class="text-fg-default font-mono text-[15px] leading-5 tabular-nums">{format(shown)}</span>
 	<div
 		class="focus-visible:ring-border-default/50 relative my-3.5 cursor-ns-resize touch-none rounded-md focus-visible:ring-2"
 		style:width="{WIDTH}px"
@@ -69,7 +69,7 @@
 		aria-valuemin={-100}
 		aria-valuemax={100}
 		aria-valuenow={Math.round(value * 100)}
-		aria-valuetext={reading}
+		aria-valuetext={format(value)}
 		{onkeydown}
 		{@attach gaugeDrag({
 			onmove: ([, fraction]) => onvalue(valueAt(fraction)),

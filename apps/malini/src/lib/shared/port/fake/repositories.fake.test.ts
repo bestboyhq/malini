@@ -130,13 +130,20 @@ describe('fake repositories commands', () => {
 		).toBe('main');
 
 		await fake.invoke('repositories.archive-workstream', { workstreamId: 'ws-1' });
-		expect(await fake.invoke('repositories.list-workstreams', undefined)).toMatchObject([
-			{ status: 'archived' },
+		expect(await fake.invoke('repositories.list-workstreams', undefined)).toEqual([]);
+		expect(await fake.invoke('repositories.list-archived-workstreams', undefined)).toMatchObject([
+			{ id: 'ws-1' },
 		]);
+
+		await fake.invoke('repositories.restore-workstream', { workstreamId: 'ws-1' });
+		expect(await fake.invoke('repositories.list-workstreams', undefined)).toMatchObject([
+			{ id: 'ws-1', status: 'active' },
+		]);
+		expect(await fake.invoke('repositories.list-archived-workstreams', undefined)).toEqual([]);
 
 		await fake.invoke('repositories.delete-workstream', { workstreamId: 'ws-1' });
 		expect(await fake.invoke('repositories.list-workstreams', undefined)).toEqual([]);
-		expect(lifecycle).toEqual(['added', 'removed', 'removed']);
+		expect(lifecycle).toEqual(['added', 'removed', 'added', 'removed']);
 		expect(fake.calls.map((call) => call.command)).toEqual(
 			expect.arrayContaining([
 				'repositories.create-workstream',
@@ -151,6 +158,7 @@ describe('fake repositories commands', () => {
 				'repositories.commit-workstream',
 				'repositories.pull-workstream',
 				'repositories.archive-workstream',
+				'repositories.restore-workstream',
 				'repositories.delete-workstream',
 			]),
 		);

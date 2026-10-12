@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { calculatePosition } from './positioning';
+import { calculatePosition, layoutRect } from './positioning';
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
 	return {
@@ -48,6 +48,26 @@ describe('Dropdown positioning', () => {
 
 		expect(transformedVisualSurface.height).not.toBe(layoutSurface.height);
 		expect(position.top + layoutSurface.height).toBe(trigger.top - 4);
+	});
+
+	it('measures a surface by its layout box, not by the scale of its opening transition', () => {
+		const surface = { offsetWidth: 736, offsetHeight: 448 };
+		expect(layoutRect(surface)).toMatchObject({ width: 736, height: 448, right: 736, bottom: 448 });
+	});
+
+	it('keeps a right-side surface inside the viewport when it is wider than the room beside its trigger', () => {
+		vi.stubGlobal('window', { innerWidth: 1280, innerHeight: 800 });
+		const trigger = rect(540, 600, 300, 20);
+		const surface = rect(0, 0, 736, 448);
+
+		const position = calculatePosition(trigger, surface, {
+			side: 'right',
+			align: 'start',
+			sideOffset: 8,
+			viewportPadding: 8,
+		});
+
+		expect(position.left + surface.width).toBeLessThanOrEqual(1280 - 8);
 	});
 
 	it('flips below rather than allowing a top surface to overlap its trigger', () => {

@@ -2,12 +2,19 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
+	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
+	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import { catalogModelLabel, pickerModels } from '$shared/providers/domain/model-catalog';
 	import type { AgentModel } from '$shared/providers/domain/model-id';
+	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
+	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
+	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
+	import { otherClaudeAccountsQuery } from '$shared/providers/application/queries/other-claude-accounts.query.svelte';
+	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
 
 	interface Props {
 		model: AgentModel;
@@ -20,6 +27,8 @@
 
 	const catalog = $derived(modelCatalogQuery.data);
 	const status = $derived(claudeCodeStatusQuery.data);
+	const signIn = $derived(claudeSignInQuery.data);
+	const otherAccounts = $derived(otherClaudeAccountsQuery.data);
 	const models = $derived(pickerModels(catalog, model));
 	const selectedLabel = $derived(catalogModelLabel(catalog, model));
 	const setupNeeded = $derived(status.kind === 'missing' || status.kind === 'signed-out');
@@ -32,6 +41,11 @@
 	function select(next: AgentModel): void {
 		open = false;
 		if (next !== model) onchange(next);
+	}
+
+	function onSwitch(email: string | null): void {
+		open = false;
+		signInToClaudeCommand(email);
 	}
 
 	function onOpenChange(nextOpen: boolean): void {
@@ -111,22 +125,73 @@
 					</DropdownItem>
 				{/each}
 			</div>
-			{#if setupNeeded}
+			{#if signIn !== 'idle'}
+				<div
+					class="border-surface-elevated-border flex items-center justify-between gap-2 border-t px-3 py-2.5"
+					data-testid="chat-model-sign-in"
+				>
+					<p class="text-2xs text-fg-tertiary flex items-center gap-2 leading-4">
+						<LoadingCircle size={12} />
+						{signIn === 'waiting-for-browser'
+							? 'Continue in your browser.'
+							: 'Checking the new sign-in…'}
+					</p>
+					{#if signIn === 'waiting-for-browser'}
+						<Button
+							variant="secondary"
+							size="sm"
+							class="shrink-0"
+							ariaLabel="Cancel signing in to Claude Code"
+							onclick={cancelClaudeSignInCommand}
+						>
+							Cancel
+						</Button>
+					{/if}
+				</div>
+			{:else if setupNeeded}
 				<div
 					class="border-surface-elevated-border flex items-center justify-between gap-2 border-t px-3 py-2.5"
 					data-testid="chat-model-setup"
 				>
 					<p class="text-2xs text-fg-tertiary leading-4">{setupMessage}</p>
-					<Button
-						href="/settings"
-						variant="secondary"
-						size="sm"
-						class="shrink-0"
-						ariaLabel="Set up Claude Code in Settings"
-						onclick={() => (open = false)}
-					>
-						Set up
-					</Button>
+					{#if status.kind === 'signed-out'}
+						<Button
+							variant="secondary"
+							size="sm"
+							class="shrink-0"
+							ariaLabel="Sign in to Claude Code"
+							onclick={() => onSwitch(null)}
+						>
+							Sign in
+						</Button>
+					{:else}
+						<Button
+							href="/settings"
+							variant="secondary"
+							size="sm"
+							class="shrink-0"
+							ariaLabel="Set up Claude Code in Settings"
+							onclick={() => (open = false)}
+						>
+							Set up
+						</Button>
+					{/if}
+				</div>
+			{:else if status.kind === 'ready'}
+				<div
+					class="border-surface-elevated-border border-t p-1.5"
+					role="group"
+					aria-label="Claude account"
+					data-testid="chat-model-account"
+				>
+					<p class="text-2xs text-fg-tertiary truncate px-2.5 pt-1 pb-1.5 leading-4">
+						{#if status.account?.email}
+							Signed in as <SensitiveText text={status.account.email} />
+						{:else}
+							Signed in
+						{/if}
+					</p>
+					<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
 				</div>
 			{/if}
 		{/snippet}

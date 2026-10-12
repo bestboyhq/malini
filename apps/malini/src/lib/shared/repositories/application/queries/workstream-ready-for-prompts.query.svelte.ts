@@ -8,7 +8,7 @@ export { workstreamReadyForPromptsQuery };
 class WorkstreamReadyForPromptsQuery {
 	public readonly data: (workstreamId: string) => boolean = $derived((workstreamId: string) => {
 		if (workstreamProvisioning.get(workstreamId)) return false;
-		if (workstreamRetirementStore.isPending(workstreamId)) return false;
+		if (workstreamRetirementStore.isRetiring(workstreamId)) return false;
 		if (!workstreamsAggregate.loaded || workstreamsAggregate.lastError !== null) return true;
 		const workstream = workstreamsAggregate.workstreams.find((entry) => entry.id === workstreamId);
 		return workstream !== undefined && isWorkstreamCheckoutUsable(workstream);

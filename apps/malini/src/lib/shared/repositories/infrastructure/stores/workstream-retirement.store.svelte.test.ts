@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	UNOBSERVED_WORKSTREAM_CHECKOUT,
 	type Workstream,
@@ -30,96 +30,69 @@ function nativeInventoryReports(...workstreams: Workstream[]): void {
 }
 
 beforeEach(() => {
-	vi.useFakeTimers();
 	workstreamsAggregate.reset();
 	nativeInventoryReports(workstream('a'), workstream('b'));
 });
 
-afterEach(async () => {
-	await vi.runAllTimersAsync();
-	vi.useRealTimers();
-});
+function gate(): { promise: Promise<void>; open: () => void } {
+	let open: () => void = () => undefined;
+	const promise = new Promise<void>((resolve) => {
+		open = resolve;
+	});
+	return { promise, open };
+}
 
 describe('retiring a workstream', () => {
-	it('removes the row before the control plane is asked for anything', () => {
-		let asked = false;
-		workstreamRetirementStore.retire({
+	it('removes the row before the platform answers', async () => {
+		const answer = gate();
+		const settled = workstreamRetirementStore.retire({
 			workstreamId: 'a',
-			commit: async () => {
-				asked = true;
-			},
+			commit: () => answer.promise,
 		});
 
 		expect(visibleIds()).toEqual(['b']);
-		expect(asked).toBe(false);
+		answer.open();
+		await settled;
 	});
 
-	it('deletes once the undo window closes', async () => {
+	it('asks the platform at once', async () => {
 		const commit = vi.fn(async () => {});
-		const settled = workstreamRetirementStore.retire({
-			workstreamId: 'a',
-			commit,
-			undoWindowMs: 5000,
-		});
+		const settled = workstreamRetirementStore.retire({ workstreamId: 'a', commit });
 
-		await vi.advanceTimersByTimeAsync(4999);
-		expect(commit).not.toHaveBeenCalled();
-
-		await vi.advanceTimersByTimeAsync(1);
 		await expect(settled).resolves.toEqual({ status: 'retired' });
 		expect(commit).toHaveBeenCalledTimes(1);
 		expect(visibleIds()).toEqual(['b']);
 	});
 
-	it('restores the row and never touches the disk when undone', async () => {
-		const commit = vi.fn(async () => {});
+	it('stays hidden when a native read reports it still exists', async () => {
+		const answer = gate();
 		const settled = workstreamRetirementStore.retire({
 			workstreamId: 'a',
-			commit,
-		});
-
-		workstreamRetirementStore.undo('a');
-		expect(visibleIds()).toContain('a');
-
-		await vi.advanceTimersByTimeAsync(60_000);
-		expect(commit).not.toHaveBeenCalled();
-		await expect(settled).resolves.toEqual({ status: 'undone' });
-	});
-
-	it('stays hidden when a native read reports it still exists', () => {
-		workstreamRetirementStore.retire({
-			workstreamId: 'a',
-			commit: async () => {},
+			commit: () => answer.promise,
 		});
 
 		nativeInventoryReports(workstream('a'), workstream('b'));
 
 		expect(visibleIds()).toEqual(['b']);
+		answer.open();
+		await settled;
 	});
 
-	it('lets the row come back once the delete has landed', async () => {
-		workstreamRetirementStore.retire({
-			workstreamId: 'a',
-			commit: async () => {},
-			undoWindowMs: 10,
-		});
-		await vi.advanceTimersByTimeAsync(10);
+	it('lets the row come back once the archive has landed', async () => {
+		await workstreamRetirementStore.retire({ workstreamId: 'a', commit: async () => {} });
 
 		nativeInventoryReports(workstream('a'), workstream('b'));
 
 		expect(visibleIds()).toContain('a');
 	});
 
-	it('brings the row back and reports why when the delete fails', async () => {
+	it('brings the row back and reports why when the archive fails', async () => {
 		const settled = workstreamRetirementStore.retire({
 			workstreamId: 'a',
 			commit: async () => {
 				throw new Error('worktree is locked');
 			},
-			undoWindowMs: 10,
 		});
-
-		await vi.advanceTimersByTimeAsync(10);
 
 		await expect(settled).resolves.toEqual({
 			status: 'failed',
@@ -128,15 +101,17 @@ describe('retiring a workstream', () => {
 		expect(visibleIds()).toContain('a');
 	});
 
-	it('answers a second click on a row already retiring by doing nothing', () => {
-		const commit = vi.fn(async () => {});
-		workstreamRetirementStore.retire({ workstreamId: 'a', commit });
-		const second = workstreamRetirementStore.retire({
-			workstreamId: 'a',
-			commit,
-		});
+	it('answers a second click on a row already retiring by doing nothing', async () => {
+		const answer = gate();
+		const commit = vi.fn(() => answer.promise);
+		const settled = workstreamRetirementStore.retire({ workstreamId: 'a', commit });
+		const second = workstreamRetirementStore.retire({ workstreamId: 'a', commit });
 
 		expect(second).toBeNull();
-		expect(workstreamRetirementStore.isPending('a')).toBe(true);
+		expect(commit).toHaveBeenCalledTimes(1);
+		expect(workstreamRetirementStore.isRetiring('a')).toBe(true);
+		answer.open();
+		await settled;
+		await vi.waitFor(() => expect(workstreamRetirementStore.isRetiring('a')).toBe(false));
 	});
 });

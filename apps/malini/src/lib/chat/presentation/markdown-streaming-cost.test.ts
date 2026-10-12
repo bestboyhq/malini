@@ -10,7 +10,7 @@ import * as MarkdownTextModule from './MarkdownText.svelte';
 type ManagedCodeBlock = { destroy(): void };
 type ManagedCodeBlockMounter = (
 	target: HTMLElement,
-	props: { code: string; safeHtml: string },
+	props: { code: string; language: string | null },
 ) => ManagedCodeBlock;
 
 type StreamingMarkdownUpdate = {
@@ -115,7 +115,7 @@ const baselineFactory: StreamingMarkdownRendererFactory = ({ container, mountCod
 				mounted.push(
 					mountCodeBlock(target, {
 						code: codeElement.textContent ?? '',
-						safeHtml: codeElement.innerHTML,
+						language: /(?:^|\s)language-(\S+)/u.exec(codeElement.className)?.[1] ?? null,
 					}),
 				);
 			}

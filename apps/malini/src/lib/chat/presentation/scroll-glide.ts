@@ -4,11 +4,18 @@ export const SCROLL_GLIDE_SETTLE_PX = 0.5;
 
 export const SCROLL_GLIDE_SETTLE_VELOCITY = 8;
 
+const DEVICE_PIXEL_SNAP_PX = 1;
+
 const MAX_SUBSTEP_MS = 1000 / 240;
 
 const OCCLUDED_FRAME_MS = 1000;
 
 const STALLED_FRAME_MS = 34;
+
+export function snapToDevicePixel(px: number): number {
+	const ratio = globalThis.devicePixelRatio || 1;
+	return Math.round(px * ratio) / ratio;
+}
 
 export type ScrollGlideTarget = Pick<HTMLElement, 'scrollTop'>;
 
@@ -128,8 +135,11 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 			target = nextTarget;
 
 			const shown = node.scrollTop;
-			const snappedToDevicePixel = Math.abs(shown - state.position) < 1;
-			state = { position: snappedToDevicePixel ? state.position : shown, velocity: state.velocity };
+			const inFlight = element === node && frame !== null;
+			state = {
+				position: inFlight ? unsnapped(shown, state.position) : shown,
+				velocity: state.velocity,
+			};
 			if (
 				Math.abs(state.position - target) <= SCROLL_GLIDE_SETTLE_PX &&
 				Math.abs(state.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
@@ -162,4 +172,8 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 			return frame !== null;
 		},
 	};
+}
+
+function unsnapped(scrollTop: number, position: number): number {
+	return Math.abs(scrollTop - position) < DEVICE_PIXEL_SNAP_PX ? position : scrollTop;
 }
