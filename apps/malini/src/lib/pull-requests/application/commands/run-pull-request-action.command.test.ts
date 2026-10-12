@@ -1,3 +1,4 @@
+import type { ExtensionWorkstream } from '@malini/extension-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from '$hyper-ui/components/toast';
 import type { ShipStateRecord } from '$contract/pull-requests';
@@ -20,6 +21,7 @@ const router = vi.hoisted(() => ({ goto: vi.fn(async (_href: string) => undefine
 vi.mock('$shared/router/navigation', () => ({ goto: router.goto }));
 
 const WORKSTREAM_ID = 'ws-signal';
+const noStaleStatus = (): void => undefined;
 const PULL_REQUEST_URL = 'https://github.com/acme/fake/pull/500';
 
 let platform: FakePlatform;
@@ -29,17 +31,29 @@ beforeEach(() => {
 	platform = createFakePlatform();
 	setPlatformForTest(platform);
 	stopWatching = watchShipStatesHook(() => 'Signal Arc');
+	trackScope(null);
+});
+
+function trackScope(extensionWorkstream: ExtensionWorkstream | null): void {
 	trackPullRequestScopeCommand({
 		workstreamId: WORKSTREAM_ID,
 		agentSessionId: null,
-		extensionWorkstream: null,
+		extensionWorkstream,
 		extensionGeneration: 1,
 		extensionReady: true,
 		repositoryScopeReady: true,
 		remotePullRequestsSupported: true,
 		repositoryExtensionRegistered: true,
 	});
-});
+}
+
+const ACTIVATED: ExtensionWorkstream = {
+	id: WORKSTREAM_ID,
+	path: '/tmp/ws-signal',
+	repositoryPath: '/tmp/ws-signal',
+	branch: 'malini/ws-signal',
+	baseBranch: 'main',
+};
 
 afterEach(() => {
 	stopWatching?.();
@@ -97,36 +111,59 @@ async function settle(): Promise<void> {
 describe('the top bar primary action', () => {
 	it('opens a draft, busy while main takes the intent, then offers Queue merge', async () => {
 		readWorkstream();
-		expect(pullRequestTopBarQuery.data.action?.label).toBe('Open draft');
+		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Open draft');
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		expect(pullRequestBusyQuery.label).toBe('Opening draft…');
 		await settle();
 
 		expect(sent('pull-requests.open-draft')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
 		expect(pullRequestBusyQuery.data).toBe(false);
-		expect(pullRequestTopBarQuery.data.action?.label).toBe('Queue merge');
+		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Queue merge');
 	});
 
 	it('queues the merge of an existing pull request', async () => {
 		ship({ phase: 'draft', pullRequestNumber: 500 });
 		readWorkstream({ dirtyPaths: [], changedFiles: 0 });
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(sent('pull-requests.queue-merge')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
-		expect(pullRequestTopBarQuery.data.action?.label).toBe('Queued · Marking ready');
+		expect(pullRequestTopBarQuery.data.status).toMatchObject({
+			tone: 'queued',
+			label: 'Queued for merge',
+			action: { label: 'Cancel' },
+		});
 	});
 
-	it('does nothing while the merge is queued', async () => {
+	it('cancels a queued merge', async () => {
 		ship({ phase: 'queued', step: 'fixing-checks', pullRequestNumber: 500 });
-		const callsBefore = platform.calls.length;
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
-		expect(platform.calls.slice(callsBefore)).toEqual([]);
+		expect(sent('pull-requests.cancel-merge')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
+	});
+
+	it('reads the repository again when GitHub was unreachable', () => {
+		trackScope(ACTIVATED);
+		readWorkstream({ pullRequestError: 'HTTP 502' });
+		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Retry');
+
+		runPullRequestActionCommand(noStaleStatus);
+
+		expect(pullRequestBusyQuery.label).toBe('Refreshing…');
+	});
+
+	it('aborts the git operation that stopped part-way', () => {
+		trackScope(ACTIVATED);
+		readWorkstream({ operationInProgress: 'rebase' });
+		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Abort rebase');
+
+		runPullRequestActionCommand(noStaleStatus);
+
+		expect(pullRequestBusyQuery.label).toBe('Aborting rebase…');
 	});
 
 	it('names a refused intent in a toast and frees the button', async () => {
@@ -136,7 +173,7 @@ describe('the top bar primary action', () => {
 		});
 		readWorkstream();
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(error).toHaveBeenCalledWith(
@@ -159,7 +196,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'reply-to-reviewer', detail: 'Octo asked for tests', jobRunId: null },
 		});
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(sent('app.open-external-url')).toEqual([{ url: PULL_REQUEST_URL }]);
@@ -189,7 +226,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-7' },
 		});
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(router.goto).toHaveBeenCalledWith('/workstreams/ws-signal?agent=session-7');
@@ -203,7 +240,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-gone' },
 		});
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(router.goto).not.toHaveBeenCalled();
@@ -217,7 +254,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'github-reconnect', detail: '', jobRunId: null },
 		});
 
-		runPullRequestActionCommand();
+		runPullRequestActionCommand(noStaleStatus);
 		await settle();
 
 		expect(router.goto).toHaveBeenCalledWith('/');

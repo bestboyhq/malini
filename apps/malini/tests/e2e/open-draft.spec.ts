@@ -11,7 +11,13 @@ import {
 	openWorkstream,
 	sendPrompt,
 } from './harness';
-import { headOf, seedWorkstreamOnFakeGithub, sidebarStatus, type FakeGithub } from './fake-github';
+import {
+	headOf,
+	seedWorkstreamOnFakeGithub,
+	sidebarStatus,
+	topBarStatus,
+	type FakeGithub,
+} from './fake-github';
 
 const OPEN_DRAFT = 'Open a draft pull request';
 const QUEUE_MERGE = 'Queue merge for pull request #7';
@@ -73,8 +79,9 @@ test('Open draft clicked while the agent runs waits for the run to end, then ope
 		await expect(open).toBeEnabled({ timeout: 30_000 });
 		await open.click();
 
-		const waiting = page.getByRole('button', { name: 'Waiting for the agent…' });
-		await expect(waiting).toBeDisabled({ timeout: 20_000 });
+		const waiting = topBarStatus(page, 'Opening draft · After the agent finishes');
+		await expect(waiting).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('global-topbar-github-action')).toHaveCount(0);
 		await expect(sidebarStatus(page, 'e2e-draft-waits')).toHaveAccessibleName(/Opening draft/u);
 		await captureFlow(app, 'open-draft-waits-for-the-agent');
 		expect(pullRequestCreations(github)).toEqual([]);

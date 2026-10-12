@@ -13,6 +13,7 @@ import {
 	workstreamName,
 	seedWorkstreamOnFakeGithub,
 	toastSaying,
+	topBarStatus,
 } from './fake-github';
 
 const UNREACHABLE = "Couldn't reach github.com. Check your connection and try again.";
@@ -35,7 +36,7 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 		const name = await workstreamName(page, 'e2e-offline');
 		await queueMerge(page);
 
-		const queued = page.getByRole('button', { name: 'Merge queued · Pushing' });
+		const queued = topBarStatus(page, 'Queued for merge · Retrying after an error');
 		await expect(queued).toBeVisible({ timeout: 30_000 });
 		await queued.hover({ force: true });
 		const tooltip = page.getByRole('tooltip');
@@ -73,7 +74,7 @@ test('Open draft without network says github.com is unreachable in its tooltip a
 
 		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
 
-		const opening = page.getByRole('button', { name: 'Opening draft…' });
+		const opening = topBarStatus(page, 'Opening draft · Retrying after an error');
 		await expect(opening).toBeVisible({ timeout: 30_000 });
 		await opening.hover({ force: true });
 		await expect(page.getByRole('tooltip')).toContainText(

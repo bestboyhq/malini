@@ -27,7 +27,7 @@ describe('pullRequestShipAnnouncement', () => {
 		const change = { workstreamId: 'ws-1', ship: stuck, mergedPullRequestNumber: null };
 		expect(pullRequestShipAnnouncement(ship(), change, 'Signal Arc')).toEqual({
 			level: 'warning',
-			message: 'Signal Arc needs you · Reply to reviewer',
+			message: 'Signal Arc needs you · Reviewer needs a reply',
 		});
 		expect(pullRequestShipAnnouncement(null, change, 'Signal Arc')?.level).toBe('warning');
 		expect(pullRequestShipAnnouncement(stuck, change, 'Signal Arc')).toBeNull();

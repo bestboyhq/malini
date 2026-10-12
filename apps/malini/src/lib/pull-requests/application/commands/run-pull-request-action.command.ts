@@ -1,12 +1,12 @@
 import { toast } from '$hyper-ui/components/toast';
-import type { ShipNeedsYou } from '$contract/pull-requests';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { goto } from '$shared/router/navigation';
 import { REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
 import { externalUrlService } from '$shared/system/external-url.service';
+import { refreshRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/refresh-repository-surface.command';
+import { runPullRequestAbortOperationCommand } from '$lib/pull-requests/application/commands/run-pull-request-abort-operation.command';
 import { sendShipIntentCommand } from '$lib/pull-requests/application/commands/send-ship-intent.command';
 import { pullRequestAvailabilityOf } from '$lib/pull-requests/domain/pull-request-action';
-import { needsYouDestination } from '$lib/pull-requests/domain/pull-request-ship';
 import { pullRequestTopBar } from '$lib/pull-requests/domain/pull-request-top-bar';
 import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-ship.aggregate.svelte';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
@@ -16,39 +16,38 @@ import { pullRequestScopeStore } from '$lib/pull-requests/infrastructure/stores/
 
 export { runPullRequestActionCommand };
 
-function runPullRequestActionCommand(): void {
+function runPullRequestActionCommand(onGitStatusStale: () => void): void {
 	const workstreamId = pullRequestScopeStore.workstreamId;
 	if (!workstreamId || pullRequestActionStore.busy) return;
 	const ship = pullRequestShipAggregate.shipFor(workstreamId);
-	const { action, url } = pullRequestTopBar(
+	const surface = repositorySurfaceAggregate.presentedSurfaceFor(workstreamId);
+	const { status, url } = pullRequestTopBar(
 		ship,
-		repositorySurfaceAggregate.presentedSurfaceFor(workstreamId),
+		surface,
 		pullRequestAvailabilityOf(pullRequestScopeStore),
 	);
-	if (!action || action.disabled || action.busy) return;
-	if (action.kind === 'open-draft' || action.kind === 'queue-merge') {
-		sendShipIntentCommand(action.kind, workstreamId);
+	const kind = status?.action?.kind;
+	if (kind === 'open-draft' || kind === 'queue-merge' || kind === 'cancel-merge') {
+		sendShipIntentCommand(kind, workstreamId);
 		return;
 	}
-	if (action.kind === 'reconnect') {
+	if (kind === 'reconnect') {
 		void goto(REPOSITORIES_HREF);
 		return;
 	}
-	if (action.kind === 'needs-you' && ship?.needsYou)
-		followNeedsYou(workstreamId, ship.needsYou, url);
-}
-
-function followNeedsYou(workstreamId: string, needsYou: ShipNeedsYou, url: string | null): void {
-	const destination = needsYouDestination(needsYou);
-	if (destination === 'repositories') {
-		void goto(REPOSITORIES_HREF);
+	if (kind === 'refresh') {
+		refreshRepositorySurfaceCommand();
 		return;
 	}
-	if (destination === 'job' && needsYou.jobRunId) {
-		openJobTranscript(workstreamId, needsYou.jobRunId, url);
+	if (kind === 'abort-operation' && surface?.operationInProgress) {
+		runPullRequestAbortOperationCommand(surface.operationInProgress, onGitStatusStale);
 		return;
 	}
-	if (url) openPullRequest(url);
+	if (kind === 'open-job' && ship?.needsYou?.jobRunId) {
+		openJobTranscript(workstreamId, ship.needsYou.jobRunId, url);
+		return;
+	}
+	if (kind === 'open-pull-request' && url) openPullRequest(url);
 }
 
 function openJobTranscript(workstreamId: string, jobRunId: string, url: string | null): void {

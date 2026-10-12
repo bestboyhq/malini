@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { ShipNeedsYou, ShipNeedsYouReason, ShipStep } from '$contract/pull-requests';
+import type { ShipNeedsYou, ShipNeedsYouReason } from '$contract/pull-requests';
 import type {
 	PullRequestAvailability,
 	PullRequestMenuItemId,
 	PullRequestTopBar,
+	WorkstreamStatus,
 } from './pull-request-action';
 import type { PullRequestShip } from './pull-request-ship';
 import { pullRequestTopBar } from './pull-request-top-bar';
-import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
+import type {
+	RepositorySurface,
+	SurfacePullRequest,
+	SurfacePullRequestCheck,
+} from './repository-surface';
 
 function pullRequest(overrides: Partial<SurfacePullRequest> = {}): SurfacePullRequest {
 	return {
@@ -94,320 +99,677 @@ function menu(bar: PullRequestTopBar): readonly PullRequestMenuItemId[] {
 	return bar.menu.map(({ id }) => id);
 }
 
-describe('the top bar before a pull request exists', () => {
-	it('offers Open draft when the workstream has work to ship', () => {
-		expect(topBar(null, surface({ dirtyPaths: ['src/a.ts'], changedFiles: 0 })).action).toEqual({
-			kind: 'open-draft',
-			label: 'Open draft',
-			ariaLabel: 'Open a draft pull request',
-			tooltip: 'Commit and push this workstream, then open a draft pull request',
-			disabled: false,
-			busy: false,
-			tone: 'primary',
-		});
-		expect(topBar(null, surface({ changedFiles: 3 })).action?.label).toBe('Open draft');
-	});
+function status(
+	shipState: PullRequestShip | null,
+	read: RepositorySurface | null,
+	availability: PullRequestAvailability = 'ready',
+): WorkstreamStatus | null {
+	return topBar(shipState, read, availability).status;
+}
 
-	it('shows no button when there is nothing to ship', () => {
-		const bar = topBar(null, surface({ changedFiles: 0, dirtyPaths: [], ahead: 0 }));
-		expect(bar.action).toBeNull();
-		expect(bar.menu).toEqual([]);
-	});
+type Line = Readonly<{
+	tone: WorkstreamStatus['tone'];
+	busy: boolean;
+	label: string;
+	detail: string | null;
+	action: string | null;
+}>;
 
-	it('offers a replacement draft once the previous pull request was closed', () => {
-		const action = topBar(null, surface({ pullRequest: pullRequest({ state: 'closed' }) })).action;
-		expect(action).toMatchObject({
-			kind: 'open-draft',
-			ariaLabel: 'Open a replacement draft pull request',
-		});
-		expect(action?.tooltip).toContain('The previous pull request is closed');
-	});
+function lineOf(shown: WorkstreamStatus | null): Line | null {
+	if (!shown) return null;
+	const { tone, busy, label, detail, action } = shown;
+	return { tone, busy, label, detail, action: action?.label ?? null };
+}
 
-	it('says why the last draft attempt failed', () => {
-		const action = topBar(
-			ship({ pullRequestNumber: null, pullRequestUrl: null, lastError: 'push rejected' }),
-			surface(),
-		).action;
-		expect(action?.kind).toBe('open-draft');
-		expect(action?.tooltip).toBe('Opening the draft failed: push rejected. Try again');
-	});
+function check(overrides: Partial<SurfacePullRequestCheck> = {}): SurfacePullRequestCheck {
+	return {
+		name: 'test',
+		appId: 15_368,
+		state: 'completed',
+		conclusion: 'success',
+		required: null,
+		passed: true,
+		failed: false,
+		notStartedReason: null,
+		...overrides,
+	};
+}
 
-	it.each<[ShipStep, string]>([
-		['waiting-for-agent', 'Waiting for the agent…'],
-		['opening-draft', 'Opening draft…'],
-		['pushing', 'Opening draft…'],
-	])('shows %s as a busy draft before the pull request exists', (step, label) => {
-		const action = topBar(
-			ship({ step, pullRequestNumber: null, pullRequestUrl: null }),
+const passed = check();
+const running = check({ name: 'e2e', state: 'in_progress', conclusion: null, passed: false });
+const failing = check({ name: 'lint', conclusion: 'failure', passed: false, failed: true });
+
+function open(overrides: Partial<SurfacePullRequest> = {}, read: Partial<RepositorySurface> = {}) {
+	return surface({ pullRequest: pullRequest(overrides), ...read });
+}
+
+const GITHUB_SESSION_EXPIRED = {
+	session: 'reconnect-required' as const,
+	reference: null,
+	refreshing: false,
+	title: null,
+	branch: null,
+	url: null,
+	checks: [],
+	checksSummary: '',
+	review: null,
+	todos: null,
+	changes: null,
+};
+
+describe('the workstream status', () => {
+	it.each<
+		[string, PullRequestShip | null, RepositorySurface | null, PullRequestAvailability, Line | null]
+	>([
+		['waits silently for the first read', null, null, 'ready', null],
+		[
+			'invites work on a fresh workstream',
 			null,
-		).action;
-		expect(action).toMatchObject({
-			kind: 'opening-draft',
-			label,
-			ariaLabel: label,
-			busy: true,
-			tone: 'primary',
-		});
-	});
-
-	it('says why the draft is still opening while malini retries it', () => {
-		const action = topBar(
-			ship({
-				step: 'opening-draft',
-				pullRequestNumber: null,
-				lastError: "Couldn't reach github.com.",
+			surface({ changedFiles: 0 }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Build something great',
+				detail: 'Ask the agent for a change',
+				action: null,
+			},
+		],
+		[
+			'counts local changes and offers Open draft',
+			null,
+			surface({ changedFiles: 3 }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: '3 files changed',
+				detail: 'Not on GitHub yet',
+				action: 'Open draft',
+			},
+		],
+		[
+			'counts an uncommitted file before it reaches the branch diff',
+			null,
+			surface({ changedFiles: 0, dirtyPaths: ['src/a.ts'] }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: '1 file changed',
+				detail: 'Not on GitHub yet',
+				action: 'Open draft',
+			},
+		],
+		[
+			'opens a draft busy, with no button',
+			ship({ step: 'opening-draft', pullRequestNumber: null, pullRequestUrl: null }),
+			null,
+			'ready',
+			{
+				tone: 'idle',
+				busy: true,
+				label: 'Opening draft',
+				detail: 'Committing and pushing',
+				action: null,
+			},
+		],
+		[
+			'opens the draft once the agent finishes',
+			ship({ step: 'waiting-for-agent', pullRequestNumber: null, pullRequestUrl: null }),
+			null,
+			'ready',
+			{
+				tone: 'idle',
+				busy: true,
+				label: 'Opening draft',
+				detail: 'After the agent finishes',
+				action: null,
+			},
+		],
+		[
+			'publishes nowhere without a GitHub remote',
+			null,
+			surface({ changedFiles: 2 }),
+			'github-unavailable',
+			{
+				tone: 'idle',
+				busy: false,
+				label: '2 files changed',
+				detail: 'No GitHub remote to publish to',
+				action: null,
+			},
+		],
+		[
+			'points at the inspector when the Repository extension is off',
+			ship(),
+			null,
+			'extension-unavailable',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Repository extension is off',
+				detail: 'Add it back from the inspector',
+				action: null,
+			},
+		],
+		[
+			'shows an open pull request without checks',
+			null,
+			open({ checks: 'none' }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Open',
+				detail: 'No checks configured',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'counts running checks',
+			null,
+			open({ checks: 'pending', checkItems: [passed, running] }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: true,
+				label: 'Checks running',
+				detail: '1 of 2 pending',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'waits for checks GitHub has not reported yet',
+			null,
+			open({ checks: 'pending', checkItems: [] }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: true,
+				label: 'Checks running',
+				detail: 'Starting on GitHub',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'treats a push GitHub has not seen as checks starting',
+			null,
+			open({ githubLagsPush: true }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: true,
+				label: 'Checks running',
+				detail: 'Starting on GitHub',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'names the failed checks',
+			null,
+			open({
+				checks: 'failed',
+				checkItems: [passed, failing, { ...failing, name: 'e2e' }, { ...failing, name: 'build' }],
 			}),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Checks failed',
+				detail: 'lint, e2e +1',
+				action: 'Queue merge',
+			},
+		],
+		[
+			"says GitHub didn't start CI",
 			null,
-		).action;
-		expect(action?.tooltip).toBe(
-			"Opening the draft failed and malini retries it: Couldn't reach github.com.",
-		);
+			open({
+				checks: 'failed',
+				checkItems: [{ ...failing, notStartedReason: 'spending limit reached' }],
+			}),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: "CI didn't start",
+				detail: 'Spending limit reached',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'shows conflicts with the base',
+			null,
+			open({ mergeable: false, mergeableState: 'dirty' }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Merge conflicts',
+				detail: 'With main',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'counts the commits behind the base',
+			null,
+			open({}, { behind: 3 }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Behind main',
+				detail: '3 commits',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'shows requested changes',
+			null,
+			open({ reviewDecision: 'changes_requested' }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Changes requested',
+				detail: null,
+				action: 'Queue merge',
+			},
+		],
+		[
+			'counts unresolved threads',
+			null,
+			open({ unresolvedReviewThreadCount: 2 }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: '2 unresolved threads',
+				detail: 'Comments on GitHub',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'asks for an approval',
+			null,
+			open({ reviewDecision: 'review_required', checkItems: [passed] }),
+			'ready',
+			{
+				tone: 'idle',
+				busy: false,
+				label: 'Review required',
+				detail: 'Needs an approval',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'is ready to merge once every check passed',
+			null,
+			open({ checkItems: [passed, { ...passed, name: 'lint' }] }),
+			'ready',
+			{
+				tone: 'ready',
+				busy: false,
+				label: 'Ready to merge',
+				detail: 'All 2 checks passed',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'is ready to merge when only an optional check failed',
+			null,
+			open({ checks: 'failed', checkItems: [passed, { ...failing, required: false }] }),
+			'ready',
+			{
+				tone: 'ready',
+				busy: false,
+				label: 'Ready to merge',
+				detail: '1 optional check failed',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'folds a draft into the open states',
+			null,
+			open({ state: 'draft', checkItems: [passed] }),
+			'ready',
+			{
+				tone: 'ready',
+				busy: false,
+				label: 'Ready to merge',
+				detail: 'Checks passed',
+				action: 'Queue merge',
+			},
+		],
+		[
+			'offers Queue merge from the draft phase before the first read',
+			ship(),
+			null,
+			'ready',
+			{ tone: 'idle', busy: false, label: 'Open', detail: null, action: 'Queue merge' },
+		],
+		[
+			'is queued in blue with Cancel',
+			ship({ phase: 'queued', step: 'fixing-checks' }),
+			surface(),
+			'ready',
+			{
+				tone: 'queued',
+				busy: true,
+				label: 'Queued for merge',
+				detail: 'Fixing checks',
+				action: 'Cancel',
+			},
+		],
+		[
+			'keeps plumbing steps out of the queued detail',
+			ship({ phase: 'queued', step: 'waiting-for-github' }),
+			null,
+			'ready',
+			{ tone: 'queued', busy: true, label: 'Queued for merge', detail: null, action: 'Cancel' },
+		],
+		[
+			'merges without a Cancel',
+			ship({ phase: 'queued', step: 'merging' }),
+			null,
+			'ready',
+			{ tone: 'queued', busy: true, label: 'Merging', detail: null, action: null },
+		],
+		[
+			'needs you for a reviewer and opens the pull request',
+			ship({ phase: 'needs-you', needsYou: needsYou('reply-to-reviewer') }),
+			surface(),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Reviewer needs a reply',
+				action: 'Open PR',
+			},
+		],
+		[
+			'needs you after a fix gave up and opens its job',
+			ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up', { jobRunId: 'run-1' }) }),
+			null,
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Fix gave up',
+				action: 'Open job',
+			},
+		],
+		[
+			'needs you when GitHub blocks the merge',
+			ship({ phase: 'needs-you', needsYou: needsYou('merge-not-permitted') }),
+			null,
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'GitHub blocks the merge',
+				action: 'Open PR',
+			},
+		],
+		[
+			'needs you when the pull request closed under the queue',
+			ship({ phase: 'needs-you', needsYou: needsYou('pull-request-closed') }),
+			null,
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Pull request was closed',
+				action: 'Open PR',
+			},
+		],
+		[
+			'needs you when the queue lost the GitHub sign-in',
+			ship({ phase: 'needs-you', needsYou: needsYou('github-reconnect') }),
+			null,
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'GitHub sign-in expired',
+				action: 'Reconnect',
+			},
+		],
+		[
+			'needs you to abort a rebase the queue stopped on',
+			ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress') }),
+			surface({ operationInProgress: 'rebase' }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Rebase stopped part-way',
+				action: 'Abort rebase',
+			},
+		],
+		[
+			'needs you for a rebase that stopped outside the queue',
+			null,
+			surface({ operationInProgress: 'rebase' }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Rebase stopped part-way',
+				action: 'Abort rebase',
+			},
+		],
+		[
+			'needs you for a merge that still has conflict markers',
+			null,
+			surface({ operationInProgress: 'merge', conflictMarkerPaths: ['a.ts'] }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'Merge has conflicts',
+				action: 'Abort merge',
+			},
+		],
+		[
+			'needs you when GitHub is unreachable, never green',
+			null,
+			open({ checkItems: [passed] }, { pullRequestError: 'HTTP 502' }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'GitHub is unreachable',
+				action: 'Retry',
+			},
+		],
+		[
+			'needs you when the worktree cannot be read',
+			null,
+			surface({ localError: 'git status failed' }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: "Couldn't read the worktree",
+				action: 'Retry',
+			},
+		],
+		[
+			'needs you when the GitHub sign-in expired, never green',
+			null,
+			open({ checkItems: [passed] }, { github: GITHUB_SESSION_EXPIRED }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'GitHub sign-in expired',
+				action: 'Reconnect',
+			},
+		],
+		[
+			'needs you to connect the repository GitHub account',
+			null,
+			open({ state: 'unavailable' }),
+			'ready',
+			{
+				tone: 'needs-you',
+				busy: false,
+				label: 'Needs you',
+				detail: 'GitHub account not connected',
+				action: 'Connect',
+			},
+		],
+		[
+			'offers a replacement draft once the pull request closed',
+			ship(),
+			open({ state: 'closed' }),
+			'ready',
+			{ tone: 'idle', busy: false, label: 'Closed', detail: 'Not merged', action: 'Open draft' },
+		],
+		[
+			'shows a closed pull request with nothing new as closed only',
+			null,
+			open({ state: 'closed' }, { changedFiles: 0 }),
+			'ready',
+			{ tone: 'idle', busy: false, label: 'Closed', detail: 'Not merged', action: null },
+		],
+		[
+			'shows a merge outside the queue in purple',
+			null,
+			open({ state: 'merged' }),
+			'ready',
+			{ tone: 'merged', busy: false, label: 'Merged', detail: 'Into main', action: null },
+		],
+	])('%s', (_, shipState, read, availability, expected) => {
+		expect(lineOf(status(shipState, read, availability))).toEqual(expected);
 	});
 
-	it('says why the last idle push failed while malini retries it', () => {
-		const action = topBar(
-			ship({ step: 'pushing', lastError: "Couldn't reach github.com." }),
-			surface(),
-		).action;
-		expect(action?.kind).toBe('queue-merge');
-		expect(action?.tooltip).toBe(
-			"Pushing the latest work failed and malini retries it: Couldn't reach github.com.",
-		);
+	it('keeps the queue over setup blockers and worktree state', () => {
+		const rebasing = surface({ operationInProgress: 'rebase' });
+		for (const availability of ['github-unavailable', 'extension-unavailable'] as const) {
+			expect(status(ship({ phase: 'queued' }), rebasing, availability)?.tone).toBe('queued');
+		}
 	});
 
 	it('shows nothing while the first read of the workstream is still pending', () => {
-		expect(topBar(null, null).action).toBeNull();
-		expect(topBar(null, surface({ status: 'idle' })).action).toBeNull();
+		expect(status(null, surface({ status: 'idle' }))).toBeNull();
 		expect(
-			topBar(
+			status(
 				null,
 				surface({
 					status: 'loading',
 					pullRequestRefreshStatus: 'loading',
 					pullRequestRefreshedAt: null,
 				}),
-			).action,
+			),
 		).toBeNull();
-	});
-});
-
-describe('the top bar once a pull request exists', () => {
-	it('offers Queue merge for an open or draft pull request malini did not open', () => {
-		for (const state of ['open', 'draft'] as const) {
-			expect(topBar(null, surface({ pullRequest: pullRequest({ state }) })).action).toEqual({
-				kind: 'queue-merge',
-				label: 'Queue merge',
-				ariaLabel: 'Queue merge for pull request #42',
-				tooltip:
-					'Malini marks the pull request ready, keeps it up to date and its checks green, and merges it once GitHub allows',
-				disabled: false,
-				busy: false,
-				tone: 'primary',
-			});
-		}
-	});
-
-	it('offers Queue merge from the draft phase, even before the workstream was read', () => {
-		expect(topBar(ship(), null).action?.kind).toBe('queue-merge');
-		expect(topBar(ship(), surface({ pullRequest: NO_PULL_REQUEST })).action?.kind).toBe(
-			'queue-merge',
-		);
-		expect(topBar(ship({ step: 'pushing' }), surface()).action?.kind).toBe('queue-merge');
-	});
-
-	it('keeps Queue merge whatever GitHub says about checks, review or conflicts', () => {
-		const blocked = pullRequest({
-			checks: 'failed',
-			mergeable: false,
-			mergeableState: 'dirty',
-			reviewDecision: 'changes_requested',
-			unresolvedReviewThreadCount: 3,
-		});
-		expect(topBar(null, surface({ pullRequest: blocked, behind: 4 })).action?.kind).toBe(
-			'queue-merge',
-		);
-	});
-
-	it('trusts a closed pull request over a stale draft row', () => {
-		expect(
-			topBar(ship(), surface({ pullRequest: pullRequest({ state: 'closed' }) })).action?.kind,
-		).toBe('open-draft');
-	});
-
-	it('shows no button for a pull request merged outside the queue', () => {
-		const bar = topBar(null, surface({ pullRequest: pullRequest({ state: 'merged' }) }));
-		expect(bar.action).toBeNull();
-		expect(menu(bar)).toEqual(['refresh']);
-	});
-});
-
-describe('the top bar while the merge is queued', () => {
-	it.each<[ShipStep, string]>([
-		['waiting-for-agent', 'Waiting for the agent'],
-		['pushing', 'Pushing'],
-		['marking-ready', 'Marking ready'],
-		['updating-branch', 'Updating branch'],
-		['resolving-conflicts', 'Resolving conflicts'],
-		['fixing-checks', 'Fixing checks'],
-		['addressing-review', 'Addressing review'],
-		['waiting-for-checks', 'Waiting for checks'],
-		['waiting-for-review', 'Waiting for review'],
-		['waiting-for-github', 'Waiting for GitHub'],
-		['merging', 'Merging…'],
-		['archiving', 'Archiving…'],
-	])('names the %s step', (step, label) => {
-		const action = topBar(ship({ phase: 'queued', step }), surface()).action;
-		expect(action).toMatchObject({
-			kind: 'queued',
-			label: `Queued · ${label}`,
-			ariaLabel: `Merge queued · ${label}`,
-			busy: true,
-			disabled: false,
-			tone: 'secondary',
-		});
-		expect(action?.tooltip).toMatch(/\. Cancel the merge from the pull request menu$/u);
-	});
-
-	it('explains the step it waits on', () => {
-		expect(
-			topBar(ship({ phase: 'queued', step: 'waiting-for-review' }), null).action?.tooltip,
-		).toBe(
-			'Malini waits for a required approval on GitHub. Cancel the merge from the pull request menu',
-		);
-	});
-
-	it('reads as plain Queued between steps', () => {
-		expect(topBar(ship({ phase: 'queued' }), null).action).toMatchObject({
-			label: 'Queued',
-			ariaLabel: 'Merge queued',
-		});
-	});
-
-	it('shows the last error while it retries', () => {
-		expect(
-			topBar(ship({ phase: 'queued', step: 'merging', lastError: 'GitHub answered 502' }), null)
-				.action?.tooltip,
-		).toBe(
-			'Malini is merging the pull request. The last attempt failed and malini retries it: GitHub answered 502',
-		);
-	});
-
-	it('wins over every setup blocker and worktree state', () => {
-		const rebasing = surface({ operationInProgress: 'rebase' });
-		for (const availability of ['github-unavailable', 'extension-unavailable'] as const) {
-			expect(topBar(ship({ phase: 'queued' }), rebasing, availability).action?.kind).toBe('queued');
-		}
-	});
-
-	it('offers Cancel merge behind a confirmation, plus Refresh', () => {
-		const bar = topBar(ship({ phase: 'queued' }), surface({ pullRequest: pullRequest() }));
-		expect(bar.menu).toEqual([
-			{ id: 'cancel-merge', label: 'Cancel merge', confirmLabel: 'Confirm cancel' },
-			{ id: 'refresh', label: 'Refresh', confirmLabel: null },
-		]);
-	});
-
-	it('leaves Refresh out until the workstream was read', () => {
-		expect(menu(topBar(ship({ phase: 'queued' }), null))).toEqual(['cancel-merge']);
-	});
-});
-
-describe('the top bar when the merge needs you', () => {
-	it.each<[ShipNeedsYouReason, string]>([
-		['reply-to-reviewer', 'Reply to reviewer'],
-		['fix-gave-up', 'Fix gave up'],
-		['merge-not-permitted', "Can't merge"],
-		['pull-request-closed', 'PR closed'],
-		['github-reconnect', 'Reconnect GitHub'],
-	])('names %s', (reason, label) => {
-		const action = topBar(
-			ship({ phase: 'needs-you', needsYou: needsYou(reason) }),
-			surface(),
-		).action;
-		expect(action).toMatchObject({
-			kind: 'needs-you',
-			label,
-			ariaLabel: `Needs you · ${label}`,
-			disabled: false,
-			busy: false,
-			tone: 'primary',
-		});
-	});
-
-	it('names the git operation to finish', () => {
-		const stopped = ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress') });
-		expect(topBar(stopped, surface({ operationInProgress: 'rebase' })).action?.label).toBe(
-			'Finish the rebase',
-		);
-		expect(topBar(stopped, null).action?.label).toBe('Finish the operation');
-	});
-
-	it('opens the pull request on GitHub for a reviewer, a refused merge or a closed pull request', () => {
-		for (const reason of [
-			'reply-to-reviewer',
-			'merge-not-permitted',
-			'pull-request-closed',
-		] as const) {
-			const action = topBar(
-				ship({
-					phase: 'needs-you',
-					needsYou: needsYou(reason, { detail: 'Octo asked for tests' }),
-				}),
-				null,
-			).action;
-			expect(action?.tooltip).toBe(
-				'Octo asked for tests. Opens the pull request on GitHub. Retry or cancel the merge from the pull request menu.',
-			);
-			expect(action?.disabled).toBe(false);
-		}
 	});
 
 	it('cannot open a pull request it has no address for', () => {
-		const action = topBar(
-			ship({
-				phase: 'needs-you',
-				pullRequestUrl: null,
-				needsYou: needsYou('reply-to-reviewer'),
-			}),
+		const shown = status(
+			ship({ phase: 'needs-you', pullRequestUrl: null, needsYou: needsYou('reply-to-reviewer') }),
 			null,
-		).action;
-		expect(action?.disabled).toBe(true);
-		expect(action?.tooltip).toBe(
+		);
+		expect(shown?.action).toBeNull();
+		expect(shown?.tooltip).toBe(
 			'A reviewer requested changes, and only you can answer them. Retry or cancel the merge from the pull request menu.',
 		);
 	});
 
-	it('opens the transcript of a fix that gave up, or the pull request when there is none', () => {
+	it('explains needs-you in the tooltip with the queue detail', () => {
 		expect(
-			topBar(
-				ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up', { jobRunId: 'run-1' }) }),
+			status(
+				ship({
+					phase: 'needs-you',
+					needsYou: needsYou('reply-to-reviewer', { detail: 'Octo asked for tests' }),
+				}),
 				null,
-			).action?.tooltip,
-		).toBe(
-			"The agent could not fix the same failure after several attempts. Opens the job's transcript. Retry or cancel the merge from the pull request menu.",
-		);
-		expect(
-			topBar(ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up') }), null).action?.tooltip,
-		).toContain('Opens the pull request on GitHub.');
+			)?.tooltip,
+		).toBe('Octo asked for tests. Retry or cancel the merge from the pull request menu.');
 	});
 
-	it('sends a lost GitHub sign-in to the repositories page', () => {
+	it('confirms Cancel and Abort before they run', () => {
+		expect(status(ship({ phase: 'queued' }), null)?.action).toMatchObject({
+			kind: 'cancel-merge',
+			tone: 'secondary',
+			confirmLabel: 'Confirm cancel',
+		});
+		expect(status(null, surface({ operationInProgress: 'cherry-pick' }))?.action).toMatchObject({
+			kind: 'abort-operation',
+			label: 'Abort cherry-pick',
+			confirmLabel: 'Confirm abort',
+		});
+	});
+
+	it('names the pull request in the Queue merge label for assistive tech', () => {
+		expect(status(null, open())?.action).toMatchObject({
+			kind: 'queue-merge',
+			ariaLabel: 'Queue merge for pull request #42',
+			tone: 'primary',
+		});
+	});
+
+	it('says why the last attempt failed while malini retries it', () => {
 		expect(
-			topBar(ship({ phase: 'needs-you', needsYou: needsYou('github-reconnect') }), null).action
+			status(
+				ship({
+					step: 'opening-draft',
+					pullRequestNumber: null,
+					lastError: "Couldn't reach github.com.",
+				}),
+				null,
+			),
+		).toMatchObject({
+			detail: 'Retrying after an error',
+			tooltip: "Opening the draft failed and malini retries it: Couldn't reach github.com.",
+		});
+		expect(
+			status(ship({ phase: 'queued', step: 'merging', lastError: 'GitHub answered 502' }), null)
 				?.tooltip,
 		).toBe(
-			'GitHub no longer accepts the stored sign-in. Opens the repositories page to sign in with GitHub again. Retry or cancel the merge from the pull request menu.',
+			'Malini is merging the pull request. The last attempt failed and malini retries it: GitHub answered 502',
+		);
+		expect(
+			status(ship({ step: 'pushing', lastError: 'push rejected' }), open())?.action?.tooltip,
+		).toBe('Pushing the latest work failed and malini retries it: push rejected');
+		expect(
+			status(
+				ship({ pullRequestNumber: null, pullRequestUrl: null, lastError: 'push rejected' }),
+				surface(),
+			)?.action?.tooltip,
+		).toBe('Opening the draft failed: push rejected. Try again');
+	});
+
+	it('keeps the full reason GitHub gave for not starting CI in the tooltip', () => {
+		expect(
+			status(
+				null,
+				open({ checks: 'failed', checkItems: [{ ...failing, notStartedReason: 'billing' }] }),
+			)?.tooltip,
+		).toBe("GitHub didn't start CI: billing");
+	});
+
+	it('ships a merge whose conflicts are resolved', () => {
+		expect(status(null, surface({ operationInProgress: 'merge' }))?.action?.kind).toBe(
+			'open-draft',
 		);
 	});
+});
 
-	it('leaves an unfinished git operation to the menu unless a job holds its transcript', () => {
-		const stopped = (jobRunId: string | null): PullRequestShip =>
-			ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress', { jobRunId }) });
-		expect(topBar(stopped(null), null).action?.disabled).toBe(true);
-		expect(topBar(stopped('run-2'), null).action?.disabled).toBe(false);
-	});
-
-	it('offers Retry, Cancel merge, Abort and Refresh', () => {
+describe('the pull request detail menu', () => {
+	it('keeps Retry and Cancel merge beside a needs-you action', () => {
 		const bar = topBar(
 			ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress') }),
 			surface({ operationInProgress: 'cherry-pick' }),
@@ -415,106 +777,31 @@ describe('the top bar when the merge needs you', () => {
 		expect(bar.menu).toEqual([
 			{ id: 'retry-merge', label: 'Retry', confirmLabel: null },
 			{ id: 'cancel-merge', label: 'Cancel merge', confirmLabel: 'Confirm cancel' },
-			{ id: 'abort-operation', label: 'Abort cherry-pick', confirmLabel: 'Confirm abort' },
 			{ id: 'refresh', label: 'Refresh', confirmLabel: null },
 		]);
 	});
-});
 
-describe('the top bar setup blockers', () => {
-	it('asks to connect GitHub when the repository has no GitHub remote', () => {
-		expect(topBar(null, surface(), 'github-unavailable').action).toMatchObject({
-			kind: 'unavailable',
-			label: 'Connect GitHub',
-			disabled: true,
-			tone: 'secondary',
-		});
-	});
-
-	it('asks to enable the Repository extension', () => {
-		expect(topBar(ship(), null, 'extension-unavailable').action).toMatchObject({
-			kind: 'unavailable',
-			label: 'Enable Repository',
-			disabled: true,
-		});
-	});
-
-	it('asks to connect the GitHub account when the pull request cannot be read', () => {
+	it('leaves out what the bar button already does', () => {
 		expect(
-			topBar(null, surface({ pullRequest: pullRequest({ state: 'unavailable' }) })).action,
-		).toMatchObject({ kind: 'unavailable', label: 'Connect GitHub' });
+			menu(topBar(ship({ phase: 'queued' }), surface({ pullRequest: pullRequest() }))),
+		).toEqual(['refresh']);
+		expect(menu(topBar(null, surface({ pullRequestError: 'HTTP 502' })))).toEqual([]);
 	});
 
-	it('asks to reconnect GitHub when the stored sign-in stopped working', () => {
-		const github = {
-			session: 'reconnect-required' as const,
-			reference: null,
-			refreshing: false,
-			title: null,
-			branch: null,
-			url: null,
-			checks: [],
-			checksSummary: '',
-			review: null,
-			todos: null,
-			changes: null,
-		};
-		expect(topBar(ship(), surface({ github })).action).toMatchObject({
-			kind: 'reconnect',
-			label: 'Reconnect GitHub',
-			disabled: false,
-		});
+	it('offers Refresh once the workstream was read and has a pull request', () => {
+		expect(menu(topBar(null, surface({ pullRequest: pullRequest({ state: 'merged' }) })))).toEqual([
+			'refresh',
+		]);
+		expect(menu(topBar(ship({ phase: 'queued', step: 'merging' }), null))).toEqual([
+			'cancel-merge',
+		]);
+		expect(menu(topBar(null, surface({ changedFiles: 0 })))).toEqual([]);
 	});
 
-	it('lets a draft in flight show over the blockers', () => {
-		expect(
-			topBar(ship({ step: 'opening-draft', pullRequestNumber: null }), null, 'github-unavailable')
-				.action?.kind,
-		).toBe('opening-draft');
-	});
-});
-
-describe('the top bar while a git operation holds the worktree', () => {
-	it.each(['rebase', 'cherry-pick', 'revert'] as const)(
-		'blocks shipping during a %s and offers to abort it',
-		(operation) => {
-			const bar = topBar(ship(), surface({ operationInProgress: operation }));
-			expect(bar.action).toMatchObject({ kind: 'operation', disabled: true, tone: 'secondary' });
-			expect(bar.action?.tooltip).toContain(`A ${operation} stopped part-way`);
-			expect(bar.menu).toContainEqual({
-				id: 'abort-operation',
-				label: `Abort ${operation}`,
-				confirmLabel: 'Confirm abort',
-			});
-		},
-	);
-
-	it('blocks shipping while a merge still has conflict markers', () => {
-		const action = topBar(
-			null,
-			surface({ operationInProgress: 'merge', conflictMarkerPaths: ['a.ts', 'b.ts'] }),
-		).action;
-		expect(action).toMatchObject({ kind: 'operation', label: 'Merge in progress' });
-		expect(action?.tooltip).toBe(
-			'2 files still have conflict markers. Resolve them, or abort the merge from the pull request menu',
+	it('reports the read failure for the detail panel', () => {
+		expect(topBar(null, surface({ localError: 'git status failed' })).remoteFailure).toBe(
+			'git status failed',
 		);
-	});
-
-	it('ships a merge whose conflicts are resolved', () => {
-		expect(topBar(null, surface({ operationInProgress: 'merge' })).action?.kind).toBe('open-draft');
-	});
-});
-
-describe('the top bar status details', () => {
-	it('reports the worktree or pull request read failure and offers Refresh', () => {
-		for (const failure of [
-			{ localError: 'git status failed' },
-			{ pullRequestError: 'gh could not read the pull request' },
-		]) {
-			const bar = topBar(null, surface({ changedFiles: 0, ...failure }));
-			expect(bar.remoteFailure).toBe(Object.values(failure)[0]);
-			expect(menu(bar)).toEqual(['refresh']);
-		}
 		expect(topBar(null, surface({ pullRequestRefreshStatus: 'error' })).remoteFailure).toBe(
 			'Pull request status is unavailable',
 		);
@@ -523,7 +810,10 @@ describe('the top bar status details', () => {
 	it('takes the pull request number and address from the read, then from the queue', () => {
 		expect(
 			topBar(null, surface({ pullRequest: pullRequest({ number: 7, url: 'u7' }) })),
-		).toMatchObject({ pullRequestNumber: 7, url: 'u7' });
+		).toMatchObject({
+			pullRequestNumber: 7,
+			url: 'u7',
+		});
 		expect(topBar(ship({ pullRequestNumber: 9, pullRequestUrl: 'u9' }), null)).toMatchObject({
 			pullRequestNumber: 9,
 			url: 'u9',

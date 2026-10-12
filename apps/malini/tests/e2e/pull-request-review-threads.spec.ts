@@ -11,6 +11,7 @@ import {
 	sidebarStatus,
 	toastSaying,
 	type FakeGithub,
+	topBarStatus,
 } from './fake-github';
 
 const BOT = { author: 'coderabbitai[bot]', authorType: 'Bot' } as const;
@@ -36,14 +37,18 @@ test('a queued merge has the agent address and resolve bot review threads and le
 
 		await queueMerge(page);
 
-		const needsYou = page.getByRole('button', { name: 'Needs you · Reply to reviewer' });
-		await expect(needsYou).toHaveText('Reply to reviewer', { timeout: 90_000 });
+		await expect(topBarStatus(page, 'Needs you · Reviewer needs a reply')).toBeVisible({
+			timeout: 90_000,
+		});
+		await expect(page.getByRole('button', { name: 'Open the pull request on GitHub' })).toHaveText(
+			'Open PR',
+		);
 		await expect(
-			toastSaying(page, `${WORKSTREAM_NAME} needs you · Reply to reviewer`),
+			toastSaying(page, `${WORKSTREAM_NAME} needs you · Reviewer needs a reply`),
 		).toBeVisible();
 		const status = sidebarStatus(page, 'e2e-threads');
 		await expect(status).toHaveAttribute('data-workstream-pull-request-state', 'needs-you');
-		await expect(status).toHaveAccessibleName(/ · Needs you · Reply to reviewer$/u);
+		await expect(status).toHaveAccessibleName(/ · Needs you · Reviewer needs a reply$/u);
 		await captureFlow(app, 'pull-request-review-threads');
 
 		const pushed = github.pushedHead();

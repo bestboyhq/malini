@@ -99,6 +99,7 @@ describe('shipping from the top bar', () => {
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 
+		expect(headlineText()).toBe('1 file changed · Not on GitHub yet');
 		expect(primaryName()).toBe('Open a draft pull request');
 		expect(primaryText()).toBe('Open draft');
 		primary()?.click();
@@ -121,40 +122,45 @@ describe('shipping from the top bar', () => {
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(primaryText()).toBe('Queued · Marking ready');
+			expect(headlineText()).toBe('Queued for merge');
 		});
+		expect(primaryText()).toBe('Cancel');
 		expect(sent('pull-requests.queue-merge')).toEqual([{ workstreamId: LUNAR }]);
 	});
 
-	it('shows nothing when there is nothing to ship', async () => {
+	it('invites work, with no button, when there is nothing to ship', async () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, {}, 1);
 
-		expect(zone()).toBeNull();
+		expect(headlineText()).toBe('Build something great · Ask the agent for a change');
+		expect(primary()).toBeNull();
 	});
 });
 
 describe('a queued merge in the top bar', () => {
-	it('names its step, holds the button busy, and cancels only on the confirming click', async () => {
+	it('names its step beside the button and cancels only on the confirming click', async () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { pullRequest: 'open' }, 1);
 		ship({ phase: 'queued', step: 'fixing-checks', pullRequestNumber: 42 });
 		flushSync();
 
-		expect(primaryName()).toBe('Merge queued · Fixing checks');
-		expect(primaryText()).toBe('Queued · Fixing checks');
-		expect(primary()?.getAttribute('aria-busy')).toBe('true');
-		expect(primary()?.disabled).toBe(true);
+		expect(headlineText()).toBe('Queued for merge · Fixing checks');
+		expect(zone()?.dataset['zone']).toBe('queued');
+		expect(primaryName()).toBe('Cancel the queued merge');
+		expect(primaryText()).toBe('Cancel');
 
 		openDetail();
-		expect(detailLabels()).toEqual(['Open on GitHub', 'Cancel merge', 'Refresh']);
-		detail('Cancel merge')?.click();
+		expect(detailLabels()).toEqual(['Open on GitHub', 'Refresh']);
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 		flushSync();
-		expect(detail('Confirm cancel')).not.toBeNull();
+
+		primary()?.click();
+		flushSync();
+		expect(primaryText()).toBe('Confirm cancel');
 		expect(sent('pull-requests.cancel-merge')).toEqual([]);
-		detail('Confirm cancel')?.click();
+		primary()?.click();
 
 		await vi.waitFor(() => {
 			flushSync();
@@ -170,7 +176,8 @@ describe('a queued merge in the top bar', () => {
 		flushSync();
 
 		expect(reference()).toBe('#77');
-		expect(primaryText()).toBe('Queued · Waiting for review');
+		expect(headlineText()).toBe('Queued for merge · Waiting for review');
+		expect(primaryText()).toBe('Cancel');
 	});
 });
 
@@ -187,8 +194,10 @@ describe('a merge that needs you in the top bar', () => {
 		});
 		flushSync();
 
-		expect(primaryName()).toBe('Needs you · Reply to reviewer');
-		expect(primaryText()).toBe('Reply to reviewer');
+		expect(headlineText()).toBe('Needs you · Reviewer needs a reply');
+		expect(zone()?.dataset['zone']).toBe('needs-you');
+		expect(primaryName()).toBe('Open the pull request on GitHub');
+		expect(primaryText()).toBe('Open PR');
 		primary()?.click();
 
 		await vi.waitFor(() =>
@@ -213,29 +222,29 @@ describe('a merge that needs you in the top bar', () => {
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(primaryText()).toBe('Queued');
+			expect(headlineText()).toBe('Queued for merge');
 		});
 		expect(sent('pull-requests.retry-merge')).toEqual([{ workstreamId: LUNAR }]);
 	});
 });
 
 describe('a git operation that holds the worktree', () => {
-	it('blocks shipping during a rebase and offers Abort rebase behind a confirmation', async () => {
+	it('needs you during a rebase and offers Abort rebase behind a confirmation', async () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { pullRequest: 'open', operation: 'rebase' }, 1);
 
-		expect(primaryText()).toBe('Rebase in progress');
-		expect(primary()?.disabled).toBe(true);
-		openDetail();
-		detail('Abort rebase')?.click();
+		expect(headlineText()).toBe('Needs you · Rebase stopped part-way');
+		expect(primaryText()).toBe('Abort rebase');
+		primary()?.click();
 		flushSync();
-		detail('Confirm abort')?.click();
+		expect(primaryText()).toBe('Confirm abort');
+		primary()?.click();
 
 		await vi.waitFor(() => expect(extension.calls).toContain('malini.repository.abort-operation'));
 	});
 
-	it('blocks shipping while a merge still has conflict markers', async () => {
+	it('needs you while a merge still has conflict markers', async () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(
@@ -245,8 +254,8 @@ describe('a git operation that holds the worktree', () => {
 			1,
 		);
 
-		expect(primaryText()).toBe('Merge in progress');
-		expect(primary()?.disabled).toBe(true);
+		expect(headlineText()).toBe('Needs you · Merge has conflicts');
+		expect(primaryText()).toBe('Abort merge');
 	});
 });
 
@@ -257,7 +266,7 @@ describe('the top bar across workstream switches', () => {
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 		expect(primaryText()).toBe('Open draft');
 		await visit(extension, GOLDEN, {}, 2);
-		expect(zone()).toBeNull();
+		expect(headlineText()).toBe('Build something great · Ask the agent for a change');
 
 		harness.show(route(LUNAR, false, 2));
 
@@ -296,16 +305,18 @@ describe('the top bar across workstream switches', () => {
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(zone()).toBeNull();
+			expect(headlineText()).toBe('Build something great · Ask the agent for a change');
 		});
 		expect(statusReads()).toBe(2);
 	});
 
-	it('shows nothing while the first read is pending', () => {
+	it('holds an empty bar while the first read is pending', () => {
 		connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(GOLDEN, false, 1));
 
-		expect(zone()).toBeNull();
+		expect(zone()).not.toBeNull();
+		expect(headlineText()).toBeNull();
+		expect(primary()).toBeNull();
 	});
 
 	it('leaves the repository surface events to the app, which accepts each once', () => {
@@ -327,7 +338,7 @@ describe('the top bar across workstream switches', () => {
 		platform.emit('repositories:workstream-removed', { workstreamId: LUNAR, worktreePath: '/tmp' });
 		harness.show(route(LUNAR, false, 2));
 
-		expect(zone()).toBeNull();
+		expect(headlineText()).toBeNull();
 	});
 });
 
@@ -373,6 +384,14 @@ function mountTopBar(): () => void {
 
 function zone(): HTMLElement | null {
 	return document.querySelector<HTMLElement>('[data-testid="global-topbar-github"]');
+}
+
+function headlineText(): string | null {
+	return (
+		document
+			.querySelector<HTMLElement>('[data-testid="global-topbar-github-headline"]')
+			?.getAttribute('aria-label') ?? null
+	);
 }
 
 function primary(): HTMLButtonElement | null {

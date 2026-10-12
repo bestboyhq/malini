@@ -19,6 +19,7 @@ function statusWithoutPullRequest(): GlobalTopBarGithubStatus {
 		checksSummary: 'No checks yet',
 		review: null,
 		todos: null,
+		headline: { tone: 'idle', busy: false, label: '1 file changed', detail: null, tooltip: null },
 		action: null,
 	};
 }
@@ -81,10 +82,8 @@ describe('the top bar detail headline', () => {
 		expect(mountBar(statusWithoutPullRequest())).toBeNull();
 	});
 
-	it('names the branch once in the detail of a merge that stopped before any pull request', () => {
-		const panel = openDetail(statusWithStoppedMerge());
-		expect(panel.textContent).toContain('Abort merge');
-		expect(occurrencesOfBranch(panel)).toBe(1);
+	it('keeps the detail behind the pull request reference, even when a merge stopped', () => {
+		expect(mountBar(statusWithStoppedMerge())).toBeNull();
 	});
 
 	it('still names the branch under the pull request title once one exists', () => {

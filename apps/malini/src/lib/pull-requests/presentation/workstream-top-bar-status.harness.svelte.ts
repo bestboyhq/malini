@@ -19,7 +19,6 @@ export function mountWorkstreamTopBarStatus(route: TopBarStatusRoute): TopBarSta
 	const props = $state({
 		...routeProps(route),
 		agentSessionId: null,
-		extensionError: null,
 		repositoryScopeReady: true,
 		remotePullRequestsSupported: true,
 		repositoryExtensionRegistered: true,
