@@ -5,11 +5,13 @@ import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests
 
 export { copyTextCommand };
 
-function copyTextCommand(request: Readonly<{ requestId: ChatRequestId; text: string }>): void {
+function copyTextCommand(
+	request: Readonly<{ requestId: ChatRequestId; text: string; html?: string }>,
+): void {
 	chatRequestsStore.begin(request.requestId);
 	void (async () => {
 		try {
-			await clipboard.write(request.text);
+			await clipboard.write(request.text, request.html);
 			chatRequestsStore.accept(request.requestId);
 		} catch (error) {
 			chatRequestsStore.fail(request.requestId, errorMessage(error, 'Could not copy'));

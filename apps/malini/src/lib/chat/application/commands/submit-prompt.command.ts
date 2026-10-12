@@ -1,6 +1,7 @@
 import { tick } from 'svelte';
 import { drainPromptQueueCommand } from '$lib/chat/application/commands/drain-prompt-queue.command';
 import { enqueuePromptCommand } from '$lib/chat/application/commands/enqueue-prompt.command';
+import { sendQueuedPromptCommand } from '$lib/chat/application/commands/send-queued-prompt.command';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { promptDispatchStage } from '$lib/chat/domain/prompt-dispatch-error';
 import { classifyPromptDispatchFailure } from '$lib/chat/domain/prompt-dispatch-failure';
@@ -82,9 +83,10 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	const optimisticSessionId = target.targetSessionId;
 	const targetQueue = agentPromptQueue.entriesForSession(workstreamId, target.queueTargetSessionId);
 	if (target.targetIsBusy || targetQueue.length > 0) {
-		enqueuePromptCommand({ ...turn, sessionId: target.queueTargetSessionId });
+		const queued = enqueuePromptCommand({ ...turn, sessionId: target.queueTargetSessionId });
 		consumeFreshSessionIntent(workstreamId, forceFreshSession);
-		if (!target.targetIsBusy) drainPromptQueueCommand(workstreamId);
+		if (input.steer === true) sendQueuedPromptCommand(queued.id);
+		else if (!target.targetIsBusy) drainPromptQueueCommand(workstreamId);
 		return;
 	}
 	if (optimisticSessionId) {
@@ -134,8 +136,9 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	const queuedForSession = agentPromptQueue.entriesForSession(workstreamId, sessionId);
 	if (sessionBusy || queuedForSession.length > 0) {
 		pendingPromptStore.clearForSession(sessionId);
-		enqueuePromptCommand(targetedTurn);
-		if (!sessionBusy) drainPromptQueueCommand(workstreamId);
+		const queued = enqueuePromptCommand(targetedTurn);
+		if (input.steer === true) sendQueuedPromptCommand(queued.id);
+		else if (!sessionBusy) drainPromptQueueCommand(workstreamId);
 		return;
 	}
 
@@ -163,8 +166,9 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 			message,
 		});
 		if (failure === 'already-running' || failure === 'cancel-race') {
-			enqueuePromptCommand(targetedTurn);
-			drainPromptQueueCommand(workstreamId);
+			const queued = enqueuePromptCommand(targetedTurn);
+			if (input.steer === true) sendQueuedPromptCommand(queued.id);
+			else drainPromptQueueCommand(workstreamId);
 			return;
 		}
 		if (failure === 'session-boot' && chatRoute.workstreamId === workstreamId) {

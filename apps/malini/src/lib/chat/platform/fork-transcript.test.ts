@@ -151,6 +151,36 @@ describe('the transcript a forked chat starts from', () => {
 		expect(transcript).not.toMatch(/att-1|sess-9|\[\[/u);
 	});
 
+	it('links every attachment to its file so the forked chat can open it', () => {
+		const rows = log(
+			[
+				'run-1',
+				'user.message',
+				{
+					text: 'Match [[attachment:att-1]]',
+					attachments: [
+						{
+							id: 'att-1',
+							displayName: 'shot one.png',
+							relativePath: '.malini/agent-attachments/att-1/shot one.png',
+						},
+						{
+							id: 'att-2',
+							displayName: 'trace.log',
+							relativePath: '.malini/agent-attachments/att-2/trace.log',
+						},
+					],
+				},
+			],
+			['run-1', 'run.completed', { summary: 'done' }],
+		);
+
+		expect(forkTranscript('Chat', rows, 2)).toContain(
+			'Match [attachment: [shot one.png](<.malini/agent-attachments/att-1/shot one.png>)]\n\n' +
+				'[Attached: [trace.log](<.malini/agent-attachments/att-2/trace.log>)]',
+		);
+	});
+
 	it('refuses a seq the chat never recorded', () => {
 		expect(() => forkTranscript('Chat', log(...turn('run-1', 'Hi', 'Hello')), 42)).toThrow(
 			/no event at seq `42`/u,

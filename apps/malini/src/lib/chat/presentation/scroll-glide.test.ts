@@ -321,6 +321,30 @@ describe('glide driver', () => {
 		}
 	});
 
+	it('stays within a device pixel of the ideal curve while a stream keeps retargeting it', () => {
+		const scheduler = testScheduler();
+		const ideal = { glide: createScrollGlide(scheduler), element: { scrollTop: 0 } };
+		let snappedTop = 0;
+		const snapped = {
+			glide: createScrollGlide(scheduler),
+			element: {
+				get scrollTop(): number {
+					return snappedTop;
+				},
+				set scrollTop(value: number) {
+					snappedTop = Math.floor(value);
+				},
+			},
+		};
+
+		for (let line = 1; line <= 30; line += 1) {
+			for (const column of [ideal, snapped]) column.glide.glide(column.element, line * 20);
+			scheduler.advance(FRAME_MS);
+			scheduler.advance(FRAME_MS);
+			expect(Math.abs(ideal.element.scrollTop - snappedTop)).toBeLessThan(1);
+		}
+	});
+
 	it('exposes the constant the transcript is tuned against', () => {
 		expect(SCROLL_SPRING_STIFFNESS).toBe(420);
 	});

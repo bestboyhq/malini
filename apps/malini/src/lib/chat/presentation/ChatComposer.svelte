@@ -23,6 +23,7 @@
 	import { reattachAttachmentsCommand } from '$lib/chat/application/commands/reattach-attachments.command';
 	import { releaseDetachedAttachmentsCommand } from '$lib/chat/application/commands/release-detached-attachments.command';
 	import { stageClipboardAttachmentsCommand } from '$lib/chat/application/commands/stage-clipboard-attachments.command';
+	import { adoptPastedAttachmentsCommand } from '$lib/chat/application/commands/adopt-pasted-attachments.command';
 	import { submitComposerPromptCommand } from '$lib/chat/application/commands/submit-composer-prompt.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
@@ -48,12 +49,12 @@
 	import type { AgentIssueReference } from '$lib/chat/domain/issue-reference';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
-	import { elementReferenceKey, elementReferenceLabel } from '$lib/chat/domain/element-reference';
+	import { elementReferenceKey } from '$lib/chat/domain/element-reference';
 	import {
 		parseAgentIssueReferenceUrl,
 		sanitizeAgentIssueReferences,
 	} from '$lib/chat/domain/issue-reference';
-	import { elementChipId, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
+	import { foreignAttachmentIds, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { promptChipPreview } from './prompt-editor/prompt-chip-preview';
 	import type { ClipboardAttachmentCandidate } from './prompt-editor/clipboard-attachments';
 	import { Button } from '$hyper-ui/components/button';
@@ -72,6 +73,7 @@
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
+	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
 	import { formatRunUsage, lastRunUsage } from './session-runtime-metadata';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
@@ -183,33 +185,15 @@
 	const resolvedPlaceholder = $derived(placeholder ?? 'Ask malini to make a change…');
 	const runUsage = $derived(lastRunUsage(envelopes));
 
-	const composerChips = $derived<PromptChipDescriptor[]>([
-		...localAttachments.map((attachment) => ({
-			kind: 'attachment' as const,
-			id: attachment.id,
-			label: attachment.displayName,
-		})),
-		...selectedContextFiles.map((path) => ({
-			kind: 'context' as const,
-			id: path,
-			label: contextFileName(path),
-		})),
-		...localIssueReferences.map((reference) => ({
-			kind: 'issue' as const,
-			id: reference.url,
-			label: reference.identifier,
-		})),
-		...transcriptReferences.map((reference) => ({
-			kind: 'transcript' as const,
-			id: reference.sessionId,
-			label: reference.label,
-		})),
-		...elementReferences.map((reference) => ({
-			kind: 'element' as const,
-			id: elementChipId(reference.url, reference.domPath),
-			label: elementReferenceLabel(reference),
-		})),
-	]);
+	const composerChips = $derived<PromptChipDescriptor[]>(
+		draftChipDescriptors({
+			attachments: localAttachments,
+			contextFiles: selectedContextFiles,
+			issueReferences: localIssueReferences,
+			transcriptReferences,
+			elementReferences,
+		}),
+	);
 
 	let attachmentPreviewOwner = $state<string | null>(null);
 
@@ -249,6 +233,7 @@
 	type AttachmentRequest = Readonly<{
 		requestId: ChatRequestId;
 		draftScope: string;
+		adopting: readonly string[];
 	}>;
 
 	function trackAttachmentRequest(request: AttachmentRequest): void {
@@ -269,11 +254,10 @@
 			);
 			let changed = false;
 			for (const { request, outcome } of settled) {
-				if (outcome.status === 'failed') {
-					attachmentError = outcome.error;
-					continue;
-				}
+				if (outcome.status === 'failed') attachmentError = outcome.error;
 				if (request.draftScope !== draftScope) continue;
+				if (request.adopting.length > 0) prompt = readDraft(draftScope);
+				else if (outcome.status === 'failed') continue;
 				localAttachments = readAttachmentDraft(draftScope);
 				changed = true;
 			}
@@ -284,7 +268,7 @@
 	function attachClipboardFiles(candidates: readonly ClipboardAttachmentCandidate[]): void {
 		if (!workstreamId) return;
 		const requestId = newChatRequestId();
-		trackAttachmentRequest({ requestId, draftScope });
+		trackAttachmentRequest({ requestId, draftScope, adopting: [] });
 		stageClipboardAttachmentsCommand({
 			requestId,
 			workstreamId,
@@ -485,7 +469,7 @@
 	function openNativeFilePicker(): void {
 		addMenuOpen = false;
 		const requestId = newChatRequestId();
-		trackAttachmentRequest({ requestId, draftScope });
+		trackAttachmentRequest({ requestId, draftScope, adopting: [] });
 		pickAttachmentsCommand({ requestId, workstreamId, draftScope });
 	}
 
@@ -644,7 +628,7 @@
 		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
 			event.preventDefault();
-			submit();
+			submit(event.metaKey || event.ctrlKey);
 		}
 	}
 
@@ -719,9 +703,10 @@
 		transcriptReferences: AgentTranscriptReference[];
 		elementReferences: AgentElementReference[];
 		profile: AgentRunProfile;
+		steer: boolean;
 	}>;
 
-	function submit(): void {
+	function submit(steer = false): void {
 		if (!canSend) {
 			return;
 		}
@@ -747,6 +732,7 @@
 				rect: { ...reference.rect },
 			})),
 			profile: { ...profile },
+			steer,
 		};
 		submissionError = null;
 		if (!promptReferencesWorkstreamTodos(trimmed)) {
@@ -833,6 +819,7 @@
 				issueReferences: submission.issueReferences,
 				transcriptReferences: submission.transcriptReferences,
 				elementReferences: submission.elementReferences,
+				...(submission.steer ? { steer: true } : {}),
 			},
 		});
 		queueMicrotask(() => promptEditor?.focusEditor());
@@ -880,6 +867,18 @@
 		const attached = readAttachmentDraft(draftScope).length;
 		reattachAttachmentsCommand({ draftScope, prompt: value });
 		if (readAttachmentDraft(draftScope).length !== attached) syncAttachmentsFromDraft();
+		adoptPastedAttachments(value);
+	}
+
+	function adoptPastedAttachments(value: string): void {
+		const inFlight = new Set(attachmentRequests.flatMap((request) => request.adopting));
+		const pasted = foreignAttachmentIds(value, readAttachmentDraft(draftScope)).filter(
+			(id) => !inFlight.has(id),
+		);
+		if (!workstreamId || pasted.length === 0) return;
+		const requestId = newChatRequestId();
+		trackAttachmentRequest({ requestId, draftScope, adopting: pasted });
+		adoptPastedAttachmentsCommand({ requestId, workstreamId, draftScope, attachmentIds: pasted });
 	}
 
 	function onCancelClick(): void {
@@ -897,12 +896,16 @@
 		onbackendchange?.(nextModel);
 	}
 
+	const stopsRun = $derived(isRunning && prompt.trim() === '');
+	const queuesOnSend = $derived(isRunning && !stopsRun);
 	const submitTitle = $derived(
-		isRunning
+		stopsRun
 			? 'Stop current run'
-			: submitting
-				? `Send prompt · ${pendingSubmissionCount} pending`
-				: 'Send prompt',
+			: isRunning
+				? 'Queue prompt'
+				: submitting
+					? `Send prompt · ${pendingSubmissionCount} pending`
+					: 'Send prompt',
 	);
 </script>
 
@@ -1179,19 +1182,20 @@
 
 			<div class="flex shrink-0 items-center gap-1">
 				<SessionRuntimeControls {envelopes} {sessionId} />
-				<Tooltip content={submitTitle} placement="top">
+				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
 					<IconButton
-						variant={isRunning ? 'secondary' : 'primary'}
+						variant={stopsRun ? 'secondary' : 'primary'}
 						size="md"
-						type={isRunning ? 'button' : 'submit'}
-						disabled={isRunning ? disabled : !canSend}
-						class={['active:scale-95', isRunning && 'bg-surface-50 hover:bg-error/10']}
+						type={stopsRun ? 'button' : 'submit'}
+						disabled={stopsRun ? disabled : !canSend}
+						class={['active:scale-95', stopsRun && 'bg-surface-50 hover:bg-error/10']}
 						ariaBusy={submitting}
 						ariaLabel={submitTitle}
+						{...queuesOnSend ? { ariaKeyshortcuts: 'Enter Meta+Enter' } : {}}
 						data-testid="chat-composer-submit"
-						onclick={isRunning ? onCancelClick : () => undefined}
+						onclick={stopsRun ? onCancelClick : () => undefined}
 					>
-						{#if isRunning}
+						{#if stopsRun}
 							<Icon name="stop" size={12} class="text-error-content" />
 						{:else}
 							<Icon name="arrow-up" size={16} />
@@ -1202,7 +1206,16 @@
 		{/snippet}
 	</ComposerShell>
 
-	<div class="flex h-6 justify-end">
+	{#snippet queueOrSteerHelp()}
+		<span class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-left">
+			<span>Queue after this run</span>
+			<kbd class="text-fg-tertiary justify-self-end font-sans">↵</kbd>
+			<span>Steer now, interrupting it</span>
+			<kbd class="text-fg-tertiary justify-self-end font-sans">⌘↵</kbd>
+		</span>
+	{/snippet}
+
+	<div class="flex h-6 justify-end px-3">
 		{#if runUsage}
 			<Tooltip
 				content="Tokens sent to the model and generated during the last run"
@@ -1210,7 +1223,7 @@
 				class="w-fit"
 			>
 				<p
-					class="text-2xs flex h-6 items-center gap-1.5 px-1 tabular-nums select-none"
+					class="text-2xs flex h-6 items-center gap-1.5 tabular-nums select-none"
 					data-testid="chat-run-usage"
 				>
 					<span class="text-fg-tertiary">Last run</span>

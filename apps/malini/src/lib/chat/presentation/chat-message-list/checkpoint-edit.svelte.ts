@@ -1,6 +1,10 @@
 import { tick } from 'svelte';
+import { beginPromptEditCommand } from '$lib/chat/application/commands/begin-prompt-edit.command';
 import { editCheckpointCommand } from '$lib/chat/application/commands/edit-checkpoint.command';
+import { endPromptEditCommand } from '$lib/chat/application/commands/end-prompt-edit.command';
+import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 import type { ChatRequestId, ChatRequestOutcome } from '$lib/chat/domain/chat-request';
+import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import type { RunGroup } from '../render-state';
 import {
 	createDestructiveConfirm,
@@ -25,12 +29,12 @@ export type CheckpointEditor = {
 	readonly armedCheckpointChangeCount: number;
 	readonly checkpointEditState: 'idle' | 'submitting' | 'failed';
 	readonly checkpointEditError: string | null;
-	editingPrompt: string;
-	element: HTMLTextAreaElement | null;
+	readonly editingScope: string;
+	readonly editingPrompt: string;
+	field: { focus(): void } | null;
 	isEditing(item: CheckpointItem): boolean;
 	isArmed(item: CheckpointItem): boolean;
 	requestCheckpointEdit(item: CheckpointItem, target: EventTarget | null): void;
-	autosizeCheckpointEditor(): void;
 	cancelCheckpointEdit(): void;
 	disarmCheckpointEdit(): void;
 	submitCheckpointEdit(item: CheckpointItem): void;
@@ -40,18 +44,26 @@ export function createCheckpointEditor(input: {
 	outcomeOf(requestId: ChatRequestId): ChatRequestOutcome | null;
 	runs(): readonly RunGroup[];
 	blocked(): boolean;
+	workstreamId(): string;
 	openEditor(row: HTMLElement | null, mutate: () => Promise<void>): Promise<void>;
-	resizeEditor(row: HTMLElement | null, mutate: () => void): void;
 }): CheckpointEditor {
-	const { runs, blocked, openEditor, resizeEditor } = input;
+	const { runs, blocked, openEditor } = input;
 	const confirmation = createDestructiveConfirm({
 		outcomeOf: input.outcomeOf,
-		onAccepted: () => closeEditor(),
+		onAccepted: () => closeEditor(editDraft().attachments),
 	});
 	let editingCheckpointId = $state<string | null>(null);
-	let editingPrompt = $state('');
-	let checkpointEditor: HTMLTextAreaElement | null = $state(null);
-	let editingRow: HTMLElement | null = null;
+	let originalAttachments: readonly StagedAgentAttachment[] = [];
+	let field: { focus(): void } | null = $state(null);
+	const editingScope = $derived(editingCheckpointId ? editScope(editingCheckpointId) : '');
+
+	function editScope(checkpointId: string): string {
+		return `edit|checkpoint:${checkpointId}`;
+	}
+
+	function editDraft(): ReturnType<typeof composerDraftQuery.data> {
+		return composerDraftQuery.data(editingScope);
+	}
 
 	function requestCheckpointEdit(item: CheckpointItem, target: EventTarget | null): void {
 		if (target instanceof Element && target.closest('a, button')) return;
@@ -63,43 +75,44 @@ export function createCheckpointEditor(input: {
 		const checkpointId = item.checkpointId;
 		if (!checkpointId) return;
 		confirmation.reset();
-		editingRow = row;
+		if (editingCheckpointId) closeEditor(originalAttachments);
+		originalAttachments = item.attachments ?? [];
+		beginPromptEditCommand(editScope(checkpointId), {
+			text: item.text,
+			contextFiles: item.contextFiles ?? [],
+			attachments: originalAttachments,
+			issueReferences: item.issueReferences ?? [],
+			transcriptReferences: item.transcriptReferences ?? [],
+			elementReferences: item.elementReferences ?? [],
+		});
 		await openEditor(row, async () => {
 			editingCheckpointId = checkpointId;
-			editingPrompt = item.text;
 			await tick();
-			fitEditorToText();
 		});
-		checkpointEditor?.focus({ preventScroll: true });
-		checkpointEditor?.setSelectionRange(editingPrompt.length, editingPrompt.length);
+		field?.focus();
 	}
 
-	function fitEditorToText(): void {
-		const editor = checkpointEditor;
-		if (!editor) return;
-		editor.style.height = '0px';
-		editor.style.height = `${editor.scrollHeight}px`;
-	}
-
-	function autosizeCheckpointEditor(): void {
-		resizeEditor(editingRow, fitEditorToText);
-	}
-
-	function closeEditor(): void {
+	function closeEditor(keep: readonly StagedAgentAttachment[]): void {
+		const checkpointId = editingCheckpointId;
+		if (!checkpointId) return;
+		endPromptEditCommand({
+			workstreamId: input.workstreamId(),
+			scope: editScope(checkpointId),
+			keep,
+		});
 		editingCheckpointId = null;
-		editingPrompt = '';
-		editingRow = null;
 	}
 
 	function cancelCheckpointEdit(): void {
 		if (confirmation.state === 'submitting') return;
-		closeEditor();
+		closeEditor(originalAttachments);
 		confirmation.reset();
 	}
 
 	function submitCheckpointEdit(item: CheckpointItem): void {
 		const checkpointId = item.checkpointId;
-		if (!checkpointId || !editingPrompt.trim()) return;
+		const edit = editDraft();
+		if (!checkpointId || !edit.text.trim()) return;
 		if (blocked()) return;
 
 		confirmation.confirm({
@@ -109,12 +122,12 @@ export function createCheckpointEditor(input: {
 				editCheckpointCommand({
 					requestId,
 					checkpointId,
-					prompt: editingPrompt.trim(),
-					contextFiles: item.contextFiles ?? [],
-					attachments: item.attachments ?? [],
-					issueReferences: item.issueReferences ?? [],
-					transcriptReferences: item.transcriptReferences ?? [],
-					elementReferences: item.elementReferences ?? [],
+					prompt: edit.text.trim(),
+					contextFiles: edit.contextFiles,
+					attachments: edit.attachments,
+					issueReferences: edit.issueReferences,
+					transcriptReferences: edit.transcriptReferences,
+					elementReferences: edit.elementReferences,
 				}),
 		});
 	}
@@ -135,22 +148,21 @@ export function createCheckpointEditor(input: {
 		get checkpointEditError(): string | null {
 			return confirmation.error;
 		},
+		get editingScope(): string {
+			return editingScope;
+		},
 		get editingPrompt(): string {
-			return editingPrompt;
+			return editDraft().text;
 		},
-		set editingPrompt(value: string) {
-			editingPrompt = value;
+		get field(): { focus(): void } | null {
+			return field;
 		},
-		get element(): HTMLTextAreaElement | null {
-			return checkpointEditor;
-		},
-		set element(value: HTMLTextAreaElement | null) {
-			checkpointEditor = value;
+		set field(value: { focus(): void } | null) {
+			field = value;
 		},
 		isEditing: (item) => Boolean(item.checkpointId) && editingCheckpointId === item.checkpointId,
 		isArmed: (item) => confirmation.isArmed(item.checkpointId),
 		requestCheckpointEdit,
-		autosizeCheckpointEditor,
 		cancelCheckpointEdit,
 		disarmCheckpointEdit: confirmation.disarm,
 		submitCheckpointEdit,

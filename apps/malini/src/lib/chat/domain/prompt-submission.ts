@@ -25,6 +25,7 @@ export type PromptSubmission = PromptPayload &
 		forceFreshSession: boolean;
 		model: AgentModel;
 		profile: AgentRunProfile;
+		steer?: boolean;
 	}>;
 
 export type PromptRequest = PromptSubmission & Readonly<{ requestId: ChatRequestId }>;

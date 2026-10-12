@@ -10,7 +10,11 @@
 	import { PROMPT_CHIP_NODE_NAME } from './prompt-editor/prompt-chip-node';
 	import type { PromptChipPreview } from './prompt-editor/prompt-chip-preview';
 	import PromptChipPreviewCard from './prompt-editor/PromptChipPreviewCard.svelte';
-	import { markdownToPromptDoc, promptDocToMarkdown } from './prompt-editor/prompt-markdown';
+	import {
+		markdownToPromptDoc,
+		promptDocToMarkdown,
+		replaceChipMarkersInSlice,
+	} from './prompt-editor/prompt-markdown';
 	import {
 		clipboardAttachmentCandidates,
 		type ClipboardAttachmentCandidate,
@@ -24,6 +28,9 @@
 		placeholder: string;
 		placeholderHidden?: boolean;
 		disabled?: boolean;
+		compact?: boolean;
+		ariaLabel?: string;
+		testId?: string;
 		resolvePreview: (ref: PromptChipRef) => PromptChipPreview;
 		onvaluechange: (value: string) => void;
 		onchipremove: (ref: PromptChipRef) => void | Promise<void>;
@@ -37,6 +44,9 @@
 		placeholder,
 		placeholderHidden = false,
 		disabled = false,
+		compact = false,
+		ariaLabel = 'Chat prompt',
+		testId = 'chat-composer-input',
 		resolvePreview,
 		onvaluechange,
 		onchipremove,
@@ -143,7 +153,13 @@
 
 	function applyValue(next: string): void {
 		if (!editor || currentMarkdown() === next) return;
+		const { from, to } = editor.state.selection;
+		const focused = editor.isFocused;
 		editor.commands.setContent(markdownToPromptDoc(next).toJSON(), { emitUpdate: false });
+		if (focused) {
+			const end = editor.state.doc.content.size;
+			editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) });
+		}
 		knownRefKeys = documentRefKeys();
 	}
 
@@ -224,19 +240,24 @@
 			content: markdownToPromptDoc(value).toJSON(),
 			editorProps: {
 				attributes: {
-					class:
-						'inline-prompt-editor min-h-18 min-w-0 w-full overflow-x-hidden break-words border-0 bg-transparent p-3 pr-4 text-[15px] leading-6 text-fg-default outline-none transition-[color,border-color] select-text',
+					class: [
+						'inline-prompt-editor min-w-0 w-full overflow-x-hidden break-words border-0 bg-transparent text-fg-default outline-none transition-[color,border-color] select-text',
+						compact
+							? 'min-h-14 px-2.5 py-1.5 text-xs leading-5'
+							: 'min-h-18 p-3 pr-4 text-[15px] leading-6',
+					].join(' '),
 					role: 'textbox',
 					'aria-multiline': 'true',
-					'aria-label': 'Chat prompt',
+					'aria-label': ariaLabel,
 					'aria-disabled': String(disabled),
-					'data-testid': 'chat-composer-input',
+					'data-testid': testId,
 				},
 				handleKeyDown: (_view, event) => {
 					onkeydown(event);
 					return event.defaultPrevented;
 				},
 
+				transformPasted: (slice) => replaceChipMarkersInSlice(slice),
 				handlePaste: (view, event) => {
 					const candidates = clipboardAttachmentCandidates(
 						event.clipboardData,
@@ -323,7 +344,7 @@
 	class="max-h-52 w-full"
 	viewportClass="max-h-52"
 	orientation="y"
-	testId="chat-composer-scroller"
+	testId={`${testId}-scroller`}
 >
 	<div
 		bind:this={host}
@@ -345,7 +366,7 @@
 	keyboardNavigation={false}
 	restoreFocusToAnchor={false}
 	panelClass="pointer-events-none"
-	testId="chat-composer-chip-preview-layer"
+	testId={`${testId}-chip-preview-layer`}
 	owner="prompt-chip-preview"
 >
 	<PromptChipPreviewCard {preview} />

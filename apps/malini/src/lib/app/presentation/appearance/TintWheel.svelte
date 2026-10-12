@@ -45,8 +45,9 @@
 	const point: GaugePoint = $derived([needle.at(0), needle.at(1)]);
 	const shown = $derived(tintAtWheel(point));
 	const neutral = $derived(!shown.chroma);
+	const value = $derived(wheelPointOf(appearance));
 
-	$effect(() => needle.moveTo(wheelPointOf(appearance), driving));
+	$effect(() => needle.moveTo(value, driving));
 
 	function describeTint(at: GaugePoint): string {
 		const { hue = 0, chroma = 0 } = tintAtWheel(at);
@@ -85,7 +86,7 @@
 		height={SIZE}
 		inset={INSET}
 		{point}
-		value={wheelPointOf(appearance)}
+		{value}
 		colorAt={wheelColorAt}
 		onmove={(at) => ontune(tintAtWheel(at))}
 		onnudge={(right, up) => ontune(nudgedTint(appearance, -right, up))}
