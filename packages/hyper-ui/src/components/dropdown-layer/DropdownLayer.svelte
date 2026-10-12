@@ -6,6 +6,7 @@
 		bodyPortal,
 		calculatePosition,
 		createRovingFocus,
+		layoutRect,
 		getOverlayFocusReturn,
 		menuClose,
 		menuOpen,
@@ -83,18 +84,7 @@
 		if (matchAnchorWidth) {
 			panelEl.style.width = `${trigger.getBoundingClientRect().width}px`;
 		}
-		const layoutRect: DOMRect = {
-			x: 0,
-			y: 0,
-			left: 0,
-			top: 0,
-			width: panelEl.offsetWidth,
-			height: panelEl.offsetHeight,
-			right: panelEl.offsetWidth,
-			bottom: panelEl.offsetHeight,
-			toJSON: () => ({}),
-		};
-		const position = calculatePosition(trigger.getBoundingClientRect(), layoutRect, {
+		const position = calculatePosition(trigger.getBoundingClientRect(), layoutRect(panelEl), {
 			side,
 			align,
 			sideOffset: offset,

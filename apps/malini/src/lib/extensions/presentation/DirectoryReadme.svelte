@@ -1,13 +1,21 @@
 <script lang="ts">
 	import DOMPurify from 'dompurify';
 	import { marked } from 'marked';
+	import { highlightCodeElements } from '$hyper-ui/components/code-tokens';
 	import { openExternalUrlCommand } from '../application/commands/open-external-url.command';
 
 	interface Props {
 		markdown: string;
 	}
 	let { markdown }: Props = $props();
-	const html = $derived(DOMPurify.sanitize(marked.parse(markdown, { async: false })));
+	const html = $derived(highlightedHtml(markdown));
+
+	function highlightedHtml(source: string): string {
+		const template = document.createElement('template');
+		template.innerHTML = DOMPurify.sanitize(marked.parse(source, { async: false }));
+		highlightCodeElements(template.content);
+		return template.innerHTML;
+	}
 
 	function openLink(event: MouseEvent): void {
 		if (!(event.target instanceof Element)) return;
@@ -55,6 +63,12 @@
 	.directory-readme :global(ul),
 	.directory-readme :global(ol) {
 		padding-left: 1.4rem;
+	}
+	.directory-readme :global(ul) {
+		list-style: disc;
+	}
+	.directory-readme :global(ol) {
+		list-style: decimal;
 	}
 	.directory-readme :global(a) {
 		color: var(--color-brand);

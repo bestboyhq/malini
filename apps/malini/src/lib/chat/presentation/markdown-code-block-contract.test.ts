@@ -8,7 +8,7 @@ describe('agent markdown code blocks', () => {
 	it('upgrades sanitized code nodes without bypassing the markdown safety boundary', () => {
 		expect(markdown).toContain('DOMPurify.sanitize(rawHtml)');
 		expect(markdown).toContain("template.content.querySelectorAll('pre > code')");
-		expect(markdown).toContain('safeHtml: codeElement.innerHTML');
+		expect(markdown).toContain('language: /(?:^|\\s)language-(\\S+)/u.exec(codeElement.className)');
 		expect(markdown).toContain('mount(MarkdownCodeBlock');
 		expect(markdown.match(/querySelectorAll\('pre > code'\)/gu)).toHaveLength(1);
 		expect(markdown.match(/mount\(MarkdownCodeBlock/gu)).toHaveLength(1);
@@ -17,7 +17,7 @@ describe('agent markdown code blocks', () => {
 	it('keeps a growing fence mounted instead of remounting it every reveal tick', () => {
 		expect(markdown).toContain('update?(props: ManagedCodeBlockProps): void;');
 		expect(markdown).toContain('mount(MarkdownCodeBlock, { target, props: live })');
-		expect(markdown).toContain('live.safeHtml = next.safeHtml;');
+		expect(markdown).toContain('live.language = next.language;');
 		expect(markdown).toContain(
 			'if (!incoming.code.trimEnd().startsWith(mounted.code.trimEnd())) return false;',
 		);

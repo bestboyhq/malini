@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { Dropdown } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
@@ -201,7 +202,7 @@
 		>
 			<code class="text-fg-secondary min-w-0 flex-1 truncate font-mono text-xs">
 				<span class="text-fg-tertiary select-none">$</span>
-				{CLAUDE_INSTALL_COMMAND}
+				<CodeTokens code={CLAUDE_INSTALL_COMMAND} language="shell" />
 			</code>
 			<Tooltip content={copied ? 'Copied' : 'Copy command'} placement="top">
 				<IconButton

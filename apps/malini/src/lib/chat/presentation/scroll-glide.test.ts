@@ -321,6 +321,35 @@ describe('glide driver', () => {
 		}
 	});
 
+	it('follows a stream on a whole-pixel display as closely as the display can show', () => {
+		const follow = (snap: (top: number) => number): number[] => {
+			const scheduler = testScheduler();
+			const glide = createScrollGlide(scheduler);
+			let stored = 0;
+			const element = {
+				get scrollTop(): number {
+					return stored;
+				},
+				set scrollTop(value: number) {
+					stored = snap(value);
+				},
+			};
+			const shown: number[] = [];
+			for (let line = 1; line <= 20; line += 1) {
+				glide.glide(element, line * 22.75);
+				for (let frame = 0; frame < 6; frame += 1) {
+					scheduler.advance(FRAME_MS);
+					shown.push(stored);
+				}
+			}
+			return shown;
+		};
+		const exact = follow((top) => top);
+		const misses = follow(Math.round).map((top, frame) => Math.abs(top - (exact[frame] ?? 0)));
+
+		expect(Math.max(...misses)).toBeLessThanOrEqual(0.5);
+	});
+
 	it('stays within a device pixel of the ideal curve while a stream keeps retargeting it', () => {
 		const scheduler = testScheduler();
 		const ideal = { glide: createScrollGlide(scheduler), element: { scrollTop: 0 } };
