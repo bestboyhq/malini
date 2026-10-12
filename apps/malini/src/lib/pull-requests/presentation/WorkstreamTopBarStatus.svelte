@@ -1,23 +1,31 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import type { ExtensionWorkstream } from '@malini/extension-api';
-	import type { PullRequestActionInput } from '@malini-extension/repository';
 	import {
 		globalTopBarGithubStatus,
 		type GlobalTopBarGithubStatus,
+		type GlobalTopBarStatusAction,
+		type GlobalTopBarStatusDetailAction,
+		type GlobalTopBarStatusHeadline,
 	} from '$shared/shell/global-topbar-actions.svelte';
 	import { refreshRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/refresh-repository-surface.command';
 	import { runPullRequestAbortOperationCommand } from '$lib/pull-requests/application/commands/run-pull-request-abort-operation.command';
-	import { runPullRequestUpdateBranchCommand } from '$lib/pull-requests/application/commands/run-pull-request-update-branch.command';
 	import { runPullRequestActionCommand } from '$lib/pull-requests/application/commands/run-pull-request-action.command';
-	import { runPullRequestContinueCommand } from '$lib/pull-requests/application/commands/run-pull-request-continue.command';
+	import { sendShipIntentCommand } from '$lib/pull-requests/application/commands/send-ship-intent.command';
 	import { followPullRequestScopeHook } from '$lib/pull-requests/application/hooks/follow-pull-request-scope.hook.svelte';
+	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
 	import { pullRequestGithubStatusQuery } from '$lib/pull-requests/application/queries/pull-request-github-status.query.svelte';
 	import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
-	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
 	import { repositorySurfaceQuery } from '$lib/pull-requests/application/queries/repository-surface.query.svelte';
 	import { repositorySurfaceReadStateQuery } from '$lib/pull-requests/application/queries/repository-surface-read-state.query.svelte';
-	import { pullRequestHeadline } from '$lib/pull-requests/domain/pull-request-headline';
+	import type {
+		PullRequestMenuItem,
+		PullRequestMenuItemId,
+	} from '$lib/pull-requests/domain/pull-request-action';
+	import {
+		pullRequestHeadline,
+		pullRequestZoneTone,
+	} from '$lib/pull-requests/domain/pull-request-headline';
 	import { pullRequestActionIcon } from './pull-request-action-icon';
 
 	interface Props {
@@ -32,11 +40,7 @@
 		repositoryExtensionRegistered: boolean;
 		agentRunning: boolean;
 		overrideStatus: GlobalTopBarGithubStatus | null;
-		submitPrompt: (prompt: string) => Promise<void>;
-		chatEvidence: () => PullRequestActionInput;
-		onpanelrequested: (panelId: string) => void;
 		ongitstatusstale: () => void;
-		onarchive: () => void;
 	}
 
 	let {
@@ -51,25 +55,23 @@
 		repositoryExtensionRegistered,
 		agentRunning,
 		overrideStatus,
-		submitPrompt,
-		chatEvidence,
-		onpanelrequested,
 		ongitstatusstale,
-		onarchive,
 	}: Props = $props();
 
 	const surface = $derived(repositorySurfaceQuery.data);
 	const githubStatus = $derived(pullRequestGithubStatusQuery.data);
-	const presentation = $derived(pullRequestTopBarQuery.data);
+	const topBar = $derived(pullRequestTopBarQuery.data);
 	const busy = $derived(pullRequestBusyQuery.data);
 	const claimedBusyLabel = $derived(pullRequestBusyQuery.label);
 	const surfaceReadState = $derived(repositorySurfaceReadStateQuery.data);
 	const headline = $derived(pullRequestHeadline(surface));
-	const merged = $derived(presentation?.kind === 'merged');
-	const headlineCarriesAction = $derived(
-		(presentation?.kind === 'open' || presentation?.kind === 'checking') &&
-			Boolean(githubStatus?.url) &&
-			headline !== null,
+	const reference = $derived(
+		githubStatus?.reference ?? (topBar.pullRequestNumber ? `#${topBar.pullRequestNumber}` : null),
+	);
+	const known = $derived(
+		githubStatus !== null ||
+			topBar.pullRequestNumber !== null ||
+			(topBar.action !== null && topBar.action.kind !== 'unavailable'),
 	);
 	const statusPending = $derived(
 		extensionError === null &&
@@ -84,122 +86,10 @@
 		extensionWorkstream,
 		extensionGeneration,
 		extensionReady,
-		extensionFailed: extensionError !== null,
 		repositoryScopeReady,
 		remotePullRequestsSupported,
 		repositoryExtensionRegistered,
-		agentRunning,
 	}));
-
-	function onAction(): void {
-		runPullRequestActionCommand({
-			submitPrompt,
-			chatEvidence,
-			onPanelRequested: onpanelrequested,
-			onGitStatusStale: ongitstatusstale,
-		});
-	}
-
-	function onContinue(): void {
-		runPullRequestContinueCommand(ongitstatusstale);
-	}
-
-	function pullRequestStatus(): GlobalTopBarGithubStatus | null {
-		if (!githubStatus) return null;
-		const operation = surface?.operationInProgress ?? null;
-		const busyLabel = claimedBusyLabel ?? presentation?.busyLabel ?? '';
-		return {
-			...githubStatus,
-			headline: headline
-				? {
-						...headline,
-						tone: presentation?.kind === 'merge' ? 'success' : headline.tone,
-						detail: headlineCarriesAction
-							? (presentation?.tooltip ?? null)
-							: githubStatus.checksSummary || null,
-					}
-				: null,
-			secondaryAction: merged
-				? {
-						label: busy ? busyLabel : 'Continue',
-						ariaLabel: busy ? busyLabel : `Continue on the latest ${surface?.baseBranch ?? 'base'}`,
-						tooltip: `Move this workstream onto the latest ${surface?.baseBranch ?? 'base'}, keeping the edits made since the merge, so the next push opens a new pull request`,
-						tone: 'secondary',
-						compactIcon: 'chevrons-right',
-						disabled: busy || agentRunning,
-						busy,
-						onInvoke: onContinue,
-					}
-				: null,
-			remoteFailure: presentation?.remoteFailure ?? null,
-			detailActions: [
-				...(presentation?.kind !== 'update' &&
-				!surface?.mergeInProgress &&
-				surface?.pullRequest?.mergeable !== false &&
-				(surface?.pullRequest?.behindBase ?? 0) > 0
-					? [
-							{
-								id: 'update-branch',
-								label: 'Update branch',
-								disabled: busy,
-								onInvoke: () => runPullRequestUpdateBranchCommand(ongitstatusstale),
-							},
-						]
-					: []),
-				...(operation
-					? [
-							{
-								id: 'abort-operation',
-								label: `Abort ${operation}`,
-								confirmLabel: 'Confirm abort',
-								disabled: busy || agentRunning,
-								onInvoke: () => runPullRequestAbortOperationCommand(operation, ongitstatusstale),
-							},
-						]
-					: []),
-				...(githubStatus.reference
-					? [
-							{
-								id: 'refresh',
-								label: 'Refresh',
-								disabled: busy,
-								onInvoke: refreshRepositorySurfaceCommand,
-							},
-						]
-					: []),
-			],
-			action: merged
-				? {
-						label: presentation?.label ?? 'Archive',
-						ariaLabel: presentation?.ariaLabel ?? 'Archive this workstream',
-						tooltip: presentation?.tooltip ?? '',
-						tone: 'primary',
-						compactIcon: pullRequestActionIcon('merged'),
-						disabled: busy,
-						busy: false,
-						onInvoke: onarchive,
-					}
-				: presentation && !headlineCarriesAction
-					? {
-							label: busy ? busyLabel : presentation.label,
-							ariaLabel: busy ? busyLabel : presentation.ariaLabel,
-							tooltip: busy ? 'Repository action in progress' : presentation.tooltip,
-							tone: presentation.tone,
-							icon: presentation.kind === 'merge' ? 'pr-merged' : null,
-							compactIcon: pullRequestActionIcon(presentation.kind),
-							disabled: presentation.disabled || busy,
-							busy: busy || presentation.kind === 'agent-running',
-							onInvoke: onAction,
-						}
-					: null,
-		};
-	}
-
-	function publishedStatus(): GlobalTopBarGithubStatus | null {
-		if (overrideStatus) return overrideStatus;
-		if (presentation?.kind === 'no-changes') return null;
-		return presentation || !statusPending ? pullRequestStatus() : null;
-	}
 
 	$effect(() => {
 		if (!workstreamId) return;
@@ -210,4 +100,74 @@
 		globalTopBarGithubStatus.clear(workstreamId);
 		stopFollowingScope();
 	});
+
+	function publishedStatus(): GlobalTopBarGithubStatus | null {
+		if (overrideStatus) return overrideStatus;
+		if (!known) return null;
+		if (!topBar.action && (statusPending || (!reference && !topBar.remoteFailure))) return null;
+		return {
+			reference,
+			title: githubStatus?.title ?? null,
+			branch: githubStatus?.branch ?? null,
+			url: topBar.url,
+			checks: githubStatus?.checks ?? [],
+			checksSummary: githubStatus?.checksSummary ?? '',
+			review: githubStatus?.review ?? null,
+			todos: githubStatus?.todos ?? null,
+			changes: githubStatus?.changes ?? null,
+			headline: statusHeadline(),
+			remoteFailure: topBar.remoteFailure,
+			detailActions: topBar.menu.map(detailAction),
+			action: primaryAction(),
+		};
+	}
+
+	function statusHeadline(): GlobalTopBarStatusHeadline | null {
+		if (!headline) return null;
+		return {
+			label: headline.label,
+			tone: pullRequestZoneTone(topBar.action?.kind, headline.tone),
+			detail: headline.detail ?? (githubStatus?.checksSummary || null),
+		};
+	}
+
+	function primaryAction(): GlobalTopBarStatusAction | null {
+		const action = topBar.action;
+		if (!action) return null;
+		const label = busy ? (claimedBusyLabel ?? action.label) : action.label;
+		return {
+			label,
+			ariaLabel: busy ? label : action.ariaLabel,
+			tooltip: busy ? 'Pull request action in progress' : action.tooltip,
+			tone: action.tone,
+			icon: action.kind === 'needs-you' ? pullRequestActionIcon(action.kind) : null,
+			compactIcon: pullRequestActionIcon(action.kind),
+			disabled: action.disabled || busy,
+			busy: busy || action.busy,
+			onInvoke: runPullRequestActionCommand,
+		};
+	}
+
+	function detailAction(item: PullRequestMenuItem): GlobalTopBarStatusDetailAction {
+		return {
+			id: item.id,
+			label: item.label,
+			confirmLabel: item.confirmLabel,
+			disabled: busy || (item.id === 'abort-operation' && agentRunning),
+			onInvoke: () => onMenuItem(item.id),
+		};
+	}
+
+	function onMenuItem(id: PullRequestMenuItemId): void {
+		if (id === 'refresh') {
+			refreshRepositorySurfaceCommand();
+			return;
+		}
+		if (id === 'abort-operation') {
+			const operation = surface?.operationInProgress;
+			if (operation) runPullRequestAbortOperationCommand(operation, ongitstatusstale);
+			return;
+		}
+		sendShipIntentCommand(id, workstreamId);
+	}
 </script>

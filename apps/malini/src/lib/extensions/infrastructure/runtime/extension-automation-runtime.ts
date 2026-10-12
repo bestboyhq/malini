@@ -5,11 +5,21 @@ import {
 	type ExtensionWorkstream,
 } from '@malini/extension-api';
 
-import type { RoutineGatedRunRecord, RoutineStatus } from '$contract/routines';
+import type {
+	RoutineGatedRunRecord,
+	RoutineJobRun,
+	RoutineRun,
+	RoutineStatus,
+	RoutineWorkflowRun,
+} from '$contract/routines';
 import {
 	createMemoryRoutineGateStore,
 	type WorkstreamRoutineGateStore,
 } from '$shared/extensions/automation-gate';
+import {
+	createUnavailableRoutineJobRunner,
+	type WorkstreamRoutineJobRunner,
+} from '$shared/extensions/automation-jobs';
 import type { WorkstreamRoutineDefinition } from '$shared/extensions/automation-rules.store.svelte';
 import {
 	compileWorkstreamAutomation,
@@ -20,7 +30,6 @@ import {
 import type { WorkstreamCreatedAutomationContext } from '../../domain/workstream-created-automation-context';
 import type { DesktopExtensionContributionHost } from '../host/contributions.adapter';
 import type {
-	WorkstreamExtensionAutomationRule,
 	WorkstreamExtensionConfiguration,
 	WorkstreamExtensionJsonValue,
 } from '../../domain/workstream-extension-configuration';
@@ -33,7 +42,9 @@ type WorkstreamExtensionAutomationFailure = Readonly<{
 
 type ActiveRule = Readonly<{
 	extensionId: string;
-	rule: WorkstreamExtensionAutomationRule;
+	id: string;
+	when: string;
+	steps: readonly RoutineRun[];
 	trigger: CompiledWorkstreamAutomationTrigger;
 	status: RoutineStatus;
 }>;
@@ -49,34 +60,48 @@ type HeldGatedRun = Readonly<{
 	active: ActiveRule;
 }>;
 
+type RunnableRoutine = Readonly<{ id: string; steps: readonly RoutineRun[] }>;
+
 const SETTLED_STATE_KEY = 'successful-runs-v1';
 
 const ROUTINE_EXTENSION_ID = 'malini.routines';
+
+const WORKSTREAM_NOT_OPEN = 'Open the workstream to run this routine’s extension steps';
+
+const WORKSTREAM_CHANGED = 'The routine stopped because its workstream changed';
 
 export class WorkstreamExtensionAutomationRuntime {
 	readonly #contributions: DesktopExtensionContributionHost;
 	readonly #workstream: () => ExtensionWorkstream | null;
 	readonly #state: ExtensionAPI['state'];
 	readonly #gate: WorkstreamRoutineGateStore;
+	readonly #jobs: WorkstreamRoutineJobRunner;
+	readonly #onFailuresChanged: () => void;
 	readonly #subscriptions: ExtensionDisposable[] = [];
 	readonly #settled = new Set<string>();
 	readonly #inFlight = new Map<string, ActiveRun>();
+	readonly #background = new Set<AbortController>();
 	readonly #announcements = new Set<Promise<void>>();
 	readonly #held = new Map<string, HeldGatedRun>();
 	#rules: ActiveRule[] = [];
 	#failures: WorkstreamExtensionAutomationFailure[] = [];
 	#generation = 0;
+	#configuredWorkstreamId: string | null = null;
 
 	constructor(input: {
 		contributions: DesktopExtensionContributionHost;
 		workstream: () => ExtensionWorkstream | null;
 		state: ExtensionAPI['state'];
 		gate?: WorkstreamRoutineGateStore;
+		jobs?: WorkstreamRoutineJobRunner;
+		onFailuresChanged?: () => void;
 	}) {
 		this.#contributions = input.contributions;
 		this.#workstream = input.workstream;
 		this.#state = input.state;
 		this.#gate = input.gate ?? createMemoryRoutineGateStore();
+		this.#jobs = input.jobs ?? createUnavailableRoutineJobRunner();
+		this.#onFailuresChanged = input.onFailuresChanged ?? (() => {});
 	}
 
 	get failures(): readonly WorkstreamExtensionAutomationFailure[] {
@@ -90,10 +115,10 @@ export class WorkstreamExtensionAutomationRuntime {
 		description: string;
 		status: RoutineStatus;
 	}>[] {
-		return this.#rules.map(({ extensionId, rule, trigger, status }) => ({
+		return this.#rules.map(({ extensionId, id, when, trigger, status }) => ({
 			extensionId,
-			id: rule.id,
-			when: rule.when,
+			id,
+			when,
 			description: trigger.description,
 			status,
 		}));
@@ -119,7 +144,9 @@ export class WorkstreamExtensionAutomationRuntime {
 					.filter(({ enabled }) => enabled)
 					.map((rule): ActiveRule => ({
 						extensionId,
-						rule,
+						id: rule.id,
+						when: rule.when,
+						steps: [rule.run],
 						trigger: compileWorkstreamAutomation(rule.when),
 						status: 'routine',
 					}));
@@ -130,7 +157,9 @@ export class WorkstreamExtensionAutomationRuntime {
 			try {
 				rules.push({
 					extensionId: ROUTINE_EXTENSION_ID,
-					rule: { id: routine.id, enabled: true, when: routine.when, run: routine.run },
+					id: routine.id,
+					when: routine.when,
+					steps: routine.steps,
 					trigger: compileWorkstreamAutomation(routine.when),
 					status: routine.status,
 				});
@@ -143,10 +172,16 @@ export class WorkstreamExtensionAutomationRuntime {
 		await this.#hydrateSettledRuns();
 		await this.#hydrateGatedRuns();
 		const generation = this.#generation;
-		for (const event of new Set(this.#rules.map(({ trigger }) => trigger.event))) {
+		const events = new Set(
+			this.#rules.flatMap(({ trigger }) => (trigger.event === null ? [] : [trigger.event])),
+		);
+		for (const event of events) {
 			this.#subscriptions.push(
 				this.#contributions.onEvent(event, (payload) => this.#handle(generation, event, payload)),
 			);
+		}
+		if (generation === this.#generation) {
+			this.#configuredWorkstreamId = this.#workstream()?.id ?? null;
 		}
 	}
 
@@ -158,27 +193,15 @@ export class WorkstreamExtensionAutomationRuntime {
 		}
 		const key = held.record.runKey;
 		if (this.#settled.has(key) || this.#inFlight.has(key)) return;
-		const generation = this.#generation;
-		const controller = new AbortController();
-		const promise = this.#run(held.active, workstream, held.record.payload, controller.signal);
-		this.#inFlight.set(key, { controller, generation, promise });
-		try {
-			await promise;
-			if (generation === this.#generation && !controller.signal.aborted) {
-				this.#held.delete(gatedRunId);
-				this.#settled.add(key);
-				await this.#persistSettledRuns(workstream.id);
-				await this.#gate.settle(gatedRunId, 'confirmed');
-				this.#clearFailure(workstream.id, held.active.rule.id);
-			}
-		} catch (error) {
-			if (generation === this.#generation && !controller.signal.aborted) {
-				this.#recordFailure(workstream.id, held.active.rule.id, error);
-			}
-			throw asError(error);
-		} finally {
-			if (this.#inFlight.get(key)?.promise === promise) this.#inFlight.delete(key);
-		}
+		const failure = await this.#fire(
+			this.#generation,
+			held.active,
+			workstream,
+			held.record.payload,
+			key,
+			gatedRunId,
+		);
+		if (failure) throw failure;
 	}
 
 	async rejectGatedRun(gatedRunId: string): Promise<void> {
@@ -189,8 +212,25 @@ export class WorkstreamExtensionAutomationRuntime {
 		await this.#gate.settle(gatedRunId, 'rejected');
 	}
 
+	async runNow(routine: RunnableRoutine, workstreamId: string): Promise<void> {
+		if (routine.steps.length === 0) throw new Error('This routine has no steps to run');
+		const needsExtensions = routine.steps.some((step) => !isJobStep(step));
+		if (needsExtensions && this.#configuredWorkstreamId !== workstreamId) {
+			throw new Error(WORKSTREAM_NOT_OPEN);
+		}
+		const failure = await this.#runInBackground(
+			routine.id,
+			routine.steps,
+			workstreamId,
+			null,
+			null,
+		);
+		if (failure) throw failure;
+	}
+
 	async suspend(): Promise<void> {
 		this.#generation += 1;
+		this.#configuredWorkstreamId = null;
 		const failures: Error[] = [];
 		try {
 			await this.#clearSubscriptions();
@@ -236,7 +276,7 @@ export class WorkstreamExtensionAutomationRuntime {
 		const creationRuleIds = new Set(
 			this.#rules
 				.filter(({ trigger }) => trigger.event === EXTENSION_EVENTS.workstreamCreated)
-				.map(({ rule }) => rule.id),
+				.map(({ id }) => id),
 		);
 		const failures = this.#failures.filter(
 			(failure) => failure.workstreamId === workstream.id && creationRuleIds.has(failure.ruleId),
@@ -253,6 +293,8 @@ export class WorkstreamExtensionAutomationRuntime {
 		try {
 			await this.suspend();
 		} finally {
+			for (const controller of this.#background) controller.abort();
+			this.#background.clear();
 			this.#rules = [];
 			this.#failures = [];
 			this.#settled.clear();
@@ -280,22 +322,122 @@ export class WorkstreamExtensionAutomationRuntime {
 				await this.#holdCandidate(generation, active, workstream, event, payload, key);
 				continue;
 			}
-			const controller = new AbortController();
-			const promise = this.#run(active, workstream, payload, controller.signal);
-			this.#inFlight.set(key, { controller, generation, promise });
-			try {
-				await promise;
-				if (generation === this.#generation && !controller.signal.aborted) {
-					this.#settled.add(key);
-					await this.#persistSettledRuns(workstream.id);
-					this.#clearFailure(workstream.id, active.rule.id);
-				}
-			} catch (error) {
-				if (generation === this.#generation && !controller.signal.aborted) {
-					this.#recordFailure(workstream.id, active.rule.id, error);
-				}
-			} finally {
-				if (this.#inFlight.get(key)?.promise === promise) this.#inFlight.delete(key);
+			await this.#fire(generation, active, workstream, payload, key, null);
+		}
+	}
+
+	async #fire(
+		generation: number,
+		active: ActiveRule,
+		workstream: ExtensionWorkstream,
+		payload: unknown,
+		key: string,
+		gatedRunId: string | null,
+	): Promise<Error | null> {
+		const firstJob = active.steps.findIndex(isJobStep);
+		const inline = firstJob === -1 ? active.steps : active.steps.slice(0, firstJob);
+		const background = firstJob === -1 ? [] : active.steps.slice(firstJob);
+		const controller = new AbortController();
+		const promise = this.#runSteps(
+			inline,
+			workstream,
+			payload,
+			active.trigger.event,
+			controller.signal,
+		);
+		this.#inFlight.set(key, { controller, generation, promise });
+		try {
+			await promise;
+			if (generation !== this.#generation || controller.signal.aborted) return null;
+			await this.#claim(key, workstream.id, gatedRunId);
+		} catch (error) {
+			if (generation === this.#generation && !controller.signal.aborted) {
+				this.#recordFailure(workstream.id, active.id, error);
+			}
+			return asError(error);
+		} finally {
+			if (this.#inFlight.get(key)?.promise === promise) this.#inFlight.delete(key);
+		}
+		if (background.length === 0) {
+			this.#clearFailure(workstream.id, active.id);
+			return null;
+		}
+		void this.#runInBackground(active.id, background, workstream.id, payload, active.trigger.event);
+		return null;
+	}
+
+	async #claim(key: string, workstreamId: string, gatedRunId: string | null): Promise<void> {
+		if (gatedRunId !== null) this.#held.delete(gatedRunId);
+		this.#settled.add(key);
+		await this.#persistSettledRuns(workstreamId);
+		if (gatedRunId !== null) await this.#gate.settle(gatedRunId, 'confirmed');
+	}
+
+	async #runInBackground(
+		routineId: string,
+		steps: readonly RoutineRun[],
+		workstreamId: string,
+		payload: unknown,
+		event: WorkstreamAutomationEvent | null,
+	): Promise<Error | null> {
+		const controller = new AbortController();
+		this.#background.add(controller);
+		try {
+			for (const step of steps) {
+				if (isJobStep(step)) await this.#jobs.run(step.job, workstreamId, controller.signal);
+				else await this.#runAttachedStep(step, workstreamId, payload, event);
+			}
+			this.#clearFailure(workstreamId, routineId);
+			return null;
+		} catch (error) {
+			if (!controller.signal.aborted) this.#recordFailure(workstreamId, routineId, error);
+			return asError(error);
+		} finally {
+			this.#background.delete(controller);
+		}
+	}
+
+	async #runAttachedStep(
+		step: RoutineRun,
+		workstreamId: string,
+		payload: unknown,
+		event: WorkstreamAutomationEvent | null,
+	): Promise<void> {
+		const workstream = this.#workstream();
+		if (this.#configuredWorkstreamId !== workstreamId || workstream?.id !== workstreamId) {
+			throw new Error(WORKSTREAM_NOT_OPEN);
+		}
+		const controller = new AbortController();
+		const promise = this.#runSteps([step], workstream, payload, event, controller.signal);
+		const key = `attached:${randomId()}`;
+		this.#inFlight.set(key, { controller, generation: this.#generation, promise });
+		try {
+			await promise;
+		} finally {
+			this.#inFlight.delete(key);
+		}
+		if (controller.signal.aborted) throw new Error(WORKSTREAM_CHANGED);
+	}
+
+	async #runSteps(
+		steps: readonly RoutineRun[],
+		workstream: ExtensionWorkstream,
+		payload: unknown,
+		event: WorkstreamAutomationEvent | null,
+		signal: AbortSignal,
+	): Promise<void> {
+		for (const step of steps) {
+			if (isJobStep(step)) {
+				await this.#jobs.run(step.job, workstream.id, signal);
+			} else if ('workflow' in step) {
+				await this.#contributions.executeWorkflow(step.workflow, {
+					workstream,
+					input: workflowInput(step, event, payload),
+					report() {},
+					signal,
+				});
+			} else {
+				await this.#contributions.executeCommand(step.command, ...step.args);
 			}
 		}
 	}
@@ -310,8 +452,8 @@ export class WorkstreamExtensionAutomationRuntime {
 	): Promise<void> {
 		try {
 			const stored = await this.#gate.hold({
-				id: randomGatedRunId(),
-				routineId: active.rule.id,
+				id: randomId(),
+				routineId: active.id,
 				workstreamId: workstream.id,
 				runKey: key,
 				event,
@@ -325,7 +467,7 @@ export class WorkstreamExtensionAutomationRuntime {
 			else this.#settled.add(key);
 		} catch (error) {
 			if (generation === this.#generation) {
-				this.#recordFailure(workstream.id, active.rule.id, error);
+				this.#recordFailure(workstream.id, active.id, error);
 			}
 		}
 	}
@@ -349,7 +491,7 @@ export class WorkstreamExtensionAutomationRuntime {
 		if (generation !== this.#generation) return;
 		for (const record of pending) {
 			const active = this.#rules.find(
-				(candidate) => candidate.status === 'candidate' && candidate.rule.id === record.routineId,
+				(candidate) => candidate.status === 'candidate' && candidate.id === record.routineId,
 			);
 			if (active) this.#held.set(record.id, { record, active });
 			else await this.#gate.settle(record.id, 'rejected');
@@ -376,24 +518,6 @@ export class WorkstreamExtensionAutomationRuntime {
 		});
 	}
 
-	async #run(
-		active: ActiveRule,
-		workstream: ExtensionWorkstream,
-		payload: unknown,
-		signal: AbortSignal,
-	): Promise<void> {
-		if ('workflow' in active.rule.run) {
-			await this.#contributions.executeWorkflow(active.rule.run.workflow, {
-				workstream,
-				input: workflowInput(active, payload),
-				report() {},
-				signal,
-			});
-			return;
-		}
-		await this.#contributions.executeCommand(active.rule.run.command, ...active.rule.run.args);
-	}
-
 	#recordFailure(workstreamId: string, ruleId: string, error: unknown): void {
 		this.#failures = [
 			...this.#failures.filter(
@@ -405,12 +529,16 @@ export class WorkstreamExtensionAutomationRuntime {
 				message: error instanceof Error ? error.message : String(error),
 			},
 		];
+		this.#onFailuresChanged();
 	}
 
 	#clearFailure(workstreamId: string, ruleId: string): void {
-		this.#failures = this.#failures.filter(
+		const remaining = this.#failures.filter(
 			(failure) => failure.workstreamId !== workstreamId || failure.ruleId !== ruleId,
 		);
+		if (remaining.length === this.#failures.length) return;
+		this.#failures = remaining;
+		this.#onFailuresChanged();
 	}
 
 	async #clearSubscriptions(): Promise<void> {
@@ -431,20 +559,23 @@ export class WorkstreamExtensionAutomationRuntime {
 	}
 }
 
+function isJobStep(step: RoutineRun): step is RoutineJobRun {
+	return 'job' in step;
+}
+
 function workflowInput(
-	active: ActiveRule,
+	input: RoutineWorkflowRun,
+	event: WorkstreamAutomationEvent | null,
 	payload: unknown,
 ): Readonly<Record<string, WorkstreamExtensionJsonValue>> {
-	const input = active.rule.run;
-	if (!('workflow' in input)) return {};
-	if (active.trigger.event === EXTENSION_EVENTS.resourceReady) {
+	if (event === EXTENSION_EVENTS.resourceReady) {
 		return {
 			...input.input,
 			...resourceReadyWorkflowContext(payload),
 		};
 	}
 	if (
-		active.trigger.event !== EXTENSION_EVENTS.workstreamCreated ||
+		event !== EXTENSION_EVENTS.workstreamCreated ||
 		!isRecord(payload) ||
 		typeof payload.task !== 'string' ||
 		!payload.task.trim()
@@ -545,7 +676,7 @@ function eventIdentity(event: WorkstreamAutomationEvent, payload: unknown): stri
 	return JSON.stringify(payload);
 }
 
-function randomGatedRunId(): string {
+function randomId(): string {
 	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
 		return crypto.randomUUID();
 	}
@@ -574,11 +705,18 @@ function automationRunKey(workstreamId: string, active: ActiveRule, eventIdentit
 	return stableJson([
 		workstreamId,
 		active.extensionId,
-		active.rule.id,
-		active.rule.when,
-		active.rule.run,
+		active.id,
+		active.when,
+		singleRunCompatibleSteps(active.steps),
 		eventIdentity,
 	]);
+}
+
+function singleRunCompatibleSteps(
+	steps: readonly RoutineRun[],
+): RoutineRun | readonly RoutineRun[] {
+	const [only, ...rest] = steps;
+	return only !== undefined && rest.length === 0 ? only : steps;
 }
 
 function stableJson(value: unknown): string {

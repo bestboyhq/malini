@@ -3,19 +3,18 @@
 	import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
 	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import type { RenderState } from './render-state';
+	import type { RunGroup } from './render-state';
 	import { backgroundAgentsStatus, deriveRunStatus } from './run-status';
 	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
-		renderState: RenderState;
+		runs: readonly RunGroup[];
 		waitingForUser?: boolean;
 	}
 
-	let { renderState, waitingForUser = false }: Props = $props();
+	let { runs, waitingForUser = false }: Props = $props();
 	const { stageEnter, timelineKey } = transcriptContext();
 
-	const runs = $derived(renderState.runs);
 	const openRun = $derived.by(() => {
 		const last = runs[runs.length - 1];
 		return last && last.terminal === null ? last : null;

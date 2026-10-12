@@ -1,3 +1,4 @@
+import type { PullRequestActionKind } from './pull-request-action';
 import { pullRequestConflictsWithBase, surfaceBlockingChecks } from './pull-request-top-bar';
 import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
 
@@ -7,6 +8,7 @@ export type PullRequestHeadlineTone =
 export type PullRequestHeadline = Readonly<{
 	label: string;
 	tone: PullRequestHeadlineTone;
+	detail?: string;
 }>;
 
 export function pullRequestHeadline(surface: RepositorySurface | null): PullRequestHeadline | null {
@@ -17,6 +19,15 @@ export function pullRequestHeadline(surface: RepositorySurface | null): PullRequ
 	if (pullRequest.state === 'draft') return { label: 'Draft', tone: 'neutral' };
 	if (pullRequest.state !== 'open') return null;
 	return openHeadline(surface, pullRequest);
+}
+
+export function pullRequestZoneTone(
+	kind: PullRequestActionKind | undefined,
+	tone: PullRequestHeadlineTone,
+): PullRequestHeadlineTone {
+	if (kind === 'queued') return 'progress';
+	if (kind === 'needs-you') return 'warning';
+	return tone === 'danger' || tone === 'warning' ? 'neutral' : tone;
 }
 
 function openHeadline(
@@ -47,8 +58,13 @@ function openHeadline(
 	).length;
 	if (pending > 0) return { label: `${checkCount(pending)} pending…`, tone: 'progress' };
 	if (pullRequest.checks === 'pending') return { label: 'Waiting for checks…', tone: 'progress' };
-	if (checks.some((check) => check.notStartedReason)) {
-		return { label: "CI didn't start", tone: 'warning' };
+	const notStartedReason = checks.find((check) => check.notStartedReason)?.notStartedReason;
+	if (notStartedReason) {
+		return {
+			label: "CI didn't start",
+			tone: 'warning',
+			detail: `GitHub didn't start CI: ${notStartedReason}`,
+		};
 	}
 	if (pullRequest.checks === 'failed') return { label: 'Checks failed', tone: 'danger' };
 

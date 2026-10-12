@@ -1,7 +1,7 @@
-import { derivedCommitMessage } from '@malini-extension/repository';
 import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
+import { derivedCommitMessage } from '$shared/repositories/domain/pull-request-metadata';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
 	ArchivedWorkstream,

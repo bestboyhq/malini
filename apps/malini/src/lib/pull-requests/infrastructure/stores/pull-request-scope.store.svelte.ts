@@ -12,11 +12,9 @@ class PullRequestScopeStore {
 	extensionWorkstream = $state.raw<ExtensionWorkstream | null>(null);
 	extensionGeneration = $state(0);
 	extensionReady = $state(false);
-	extensionFailed = $state(false);
 	repositoryScopeReady = $state(false);
 	remotePullRequestsSupported = $state(false);
 	repositoryExtensionRegistered = $state(false);
-	agentRunning = $state(false);
 
 	snapshot(): PullRequestActionScopeSnapshot<ExtensionWorkstream> {
 		return {

@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {
-	ExtensionPullRequestCheckDiagnostics,
 	ExtensionPullRequestContext,
-	ExtensionPullRequestDiagnosticsQuery,
 	ExtensionPullRequestQuery,
-	ExtensionPullRequestReviewFeedback,
 	ExtensionRepositoryDiff,
 	ExtensionRepositoryStatus,
 	ExtensionSettingScope,
@@ -265,102 +262,22 @@ test('selecting one diff preserves the repository-wide change list and totals', 
 	assert.equal(state.deletions, 1);
 });
 
-test('refreshes the local snapshot after creating a pull request without downgrading it', async () => {
-	let statusReads = 0;
-	const harness = createHarness({
-		status: () => {
-			statusReads += 1;
-			return Promise.resolve(
-				repositoryStatus({ dirtyPaths: statusReads === 1 ? ['src/app.ts'] : [], ahead: 1 }),
-			);
-		},
-		pullRequest: () => Promise.resolve(pullRequest({ state: 'not_open', number: null, url: null })),
-		createPullRequest: () =>
-			Promise.resolve(pullRequest({ state: 'draft', number: 78, title: 'Fresh draft' })),
-	});
-
-	const state = await harness.controller.createPullRequest({
-		draft: true,
-		context: { sessionTitle: 'Fresh draft' },
-	});
-
-	assert.equal(state.context?.pullRequest?.state, 'draft');
-	assert.equal(state.context?.pullRequest?.number, 78);
-	assert.deepEqual(state.context?.dirtyPaths, []);
-	assert.equal(statusReads, 2);
-	assert.equal(harness.calls.filter(({ kind }) => kind === 'refresh').length, 1);
-	assert.equal(harness.calls.filter(({ kind }) => kind === 'pull-request').length, 1);
-});
-
 test('publishes a current local mutation failure before rejecting the command', async () => {
 	const harness = createHarness({
-		push: () => Promise.reject(new Error('remote rejected the push')),
+		abortOperation: () => Promise.reject(new Error('no merge to abort')),
 	});
 
-	await assert.rejects(
-		harness.controller.commitAndPush({ sessionTitle: 'Publish safely' }),
-		/remote rejected the push/u,
-	);
+	await assert.rejects(harness.controller.abortOperation(), /no merge to abort/u);
 	const state = harness.controller.snapshot();
 
 	assert.equal(state.status, 'error');
-	assert.equal(state.localError, 'remote rejected the push');
+	assert.equal(state.localError, 'no merge to abort');
 	assert.equal(state.pullRequestError, null);
-	assert.equal(state.error, 'remote rejected the push');
+	assert.equal(state.error, 'no merge to abort');
 	assert.deepEqual(
 		harness.calls.filter(({ kind }) => kind === 'refresh'),
 		[],
 	);
-});
-
-test('publishes current pull request mutation failures without discarding local state', async (t) => {
-	for (const scenario of [
-		{
-			name: 'create',
-			harness: () =>
-				createHarness({
-					createPullRequest: () => Promise.reject(new Error('create PR failed')),
-				}),
-			run: (controller: RepositoryController) =>
-				controller.createPullRequest({ context: { sessionTitle: 'Create safely' } }),
-			error: 'create PR failed',
-		},
-		{
-			name: 'mark ready',
-			harness: () =>
-				createHarness({
-					pullRequest: () => Promise.resolve(pullRequest({ state: 'draft' })),
-					markPullRequestReadyForReview: () => Promise.reject(new Error('ready failed')),
-				}),
-			run: (controller: RepositoryController) => controller.markPullRequestReadyForReview(),
-			error: 'ready failed',
-		},
-		{
-			name: 'merge',
-			harness: () =>
-				createHarness({
-					pullRequest: () => Promise.resolve(pullRequest()),
-					mergePullRequest: () => Promise.reject(new Error('merge failed')),
-				}),
-			run: (controller: RepositoryController) => controller.mergePullRequest(undefined, 'head-42'),
-			error: 'merge failed',
-		},
-	] as const) {
-		await t.test(scenario.name, async () => {
-			const harness = scenario.harness();
-			await harness.controller.refreshLocal();
-			const localStatus = harness.controller.snapshot().status;
-
-			await assert.rejects(scenario.run(harness.controller), new RegExp(scenario.error, 'u'));
-			const state = harness.controller.snapshot();
-
-			assert.equal(state.status, localStatus);
-			assert.equal(state.localError, null);
-			assert.equal(state.pullRequestRefreshStatus, 'error');
-			assert.equal(state.pullRequestError, scenario.error);
-			assert.equal(state.error, scenario.error);
-		});
-	}
 });
 
 test('does not publish a full refresh that finishes after a workstream switch', async () => {
@@ -383,153 +300,12 @@ test('does not publish a full refresh that finishes after a workstream switch', 
 	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
 });
 
-test('stops pull request creation before any mutation when its preflight belongs to the old workstream', async () => {
-	const status = deferred<ExtensionRepositoryStatus>();
-	const harness = createHarness({ status: () => status.promise });
-	const operation = harness.controller.createPullRequest({
-		draft: true,
-		context: { sessionTitle: 'Draft safely' },
-	});
-
-	await waitForCall(harness.calls, 'status');
-	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	status.resolve(repositoryStatus({ dirtyPaths: ['src/app.ts'] }));
-
-	const result = await operation;
-	assert.equal(result.context?.workstreamId, secondWorkstream.id);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => ['commit', 'push', 'create'].includes(kind)),
-		[],
-	);
-	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
-test('does not open or publish a draft pull request that finishes after a workstream switch', async () => {
-	const created = deferred<ExtensionPullRequestContext>();
-	const harness = createHarness({ createPullRequest: () => created.promise });
-	const operation = harness.controller.createOrOpenPullRequest({
-		draft: true,
-		context: { sessionTitle: 'Draft safely' },
-	});
-
-	await waitForCall(harness.calls, 'create');
-	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	created.resolve(pullRequest({ state: 'draft', title: 'Draft safely' }));
-
-	const result = await operation;
-	assert.equal(result.context?.workstreamId, secondWorkstream.id);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'open-external'),
-		[],
-	);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'create').map(({ workstreamId }) => workstreamId),
-		[firstWorkstream.id],
-	);
-	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
-test('does not publish a pull request mutation rejection into the next workstream', async () => {
-	const created = deferred<ExtensionPullRequestContext>();
-	const harness = createHarness({ createPullRequest: () => created.promise });
-	const operation = harness.controller.createPullRequest({
-		context: { sessionTitle: 'Draft safely' },
-	});
-
-	await waitForCall(harness.calls, 'create');
-	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	created.reject(new Error('old PR create failed'));
-
-	const result = await operation;
-	assert.equal(result.context?.workstreamId, secondWorkstream.id);
-	assert.equal(result.pullRequestError, null);
-	assert.equal(result.error, null);
-	assert.equal(
-		statesAfterSwitch().every((state) => state.pullRequestError === null && state.error === null),
-		true,
-	);
-	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
-test('does not refresh or publish ready and merge results into the next workstream', async (t) => {
-	for (const scenario of [
-		{
-			name: 'ready for review',
-			pullRequest: pullRequest({ state: 'draft' }),
-			callKind: 'mark-ready',
-			run: (controller: RepositoryController) => controller.markPullRequestReadyForReview(),
-		},
-		{
-			name: 'merge',
-			pullRequest: pullRequest({ state: 'open' }),
-			callKind: 'merge',
-			run: (controller: RepositoryController) => controller.mergePullRequest(undefined, 'head-42'),
-		},
-	] as const) {
-		await t.test(scenario.name, async () => {
-			const mutation = deferred<ExtensionPullRequestContext>();
-			const harness = createHarness({
-				pullRequest: () => Promise.resolve(scenario.pullRequest),
-				markPullRequestReadyForReview: () => mutation.promise,
-				mergePullRequest: () => mutation.promise,
-			});
-			const operation = scenario.run(harness.controller);
-
-			await waitForCall(harness.calls, scenario.callKind);
-			const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-			mutation.resolve(pullRequest({ state: scenario.callKind === 'merge' ? 'merged' : 'open' }));
-
-			const result = await operation;
-			assert.equal(result.context?.workstreamId, secondWorkstream.id);
-			assert.deepEqual(
-				harness.calls
-					.filter(({ kind }) => kind === scenario.callKind)
-					.map(({ workstreamId }) => workstreamId),
-				[firstWorkstream.id],
-			);
-			assert.deepEqual(
-				harness.calls.filter(({ kind }) => kind === 'refresh'),
-				[],
-			);
-			assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-		});
-	}
-});
-
-test('does not continue a commit-and-push chain in the next workstream', async () => {
-	const commit = deferred<string>();
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ dirtyPaths: ['src/app.ts'] })),
-		commit: () => commit.promise,
-	});
-	const operation = harness.controller.commitAndPush({ sessionTitle: 'Ship safely' });
-
-	await waitForCall(harness.calls, 'commit');
-	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	commit.resolve('commit-a');
-
-	const result = await operation;
-	assert.equal(result.context?.workstreamId, secondWorkstream.id);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'push'),
-		[],
-	);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'commit').map(({ workstreamId }) => workstreamId),
-		[firstWorkstream.id],
-	);
-	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
 test('does not continue an operation after the same workstream receives a new repository revision', async () => {
-	const commit = deferred<string>();
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ dirtyPaths: ['src/app.ts'] })),
-		commit: () => commit.promise,
-	});
-	const operation = harness.controller.commitAndPush({ sessionTitle: 'Ship old revision' });
+	const abort = deferred<void>();
+	const harness = createHarness({ abortOperation: () => abort.promise });
+	const operation = harness.controller.abortOperation();
 
-	await waitForCall(harness.calls, 'commit');
+	await waitForCall(harness.calls, 'abort-operation');
 	harness.controller.setRepositoryContext({
 		workstreamId: firstWorkstream.id,
 		repositoryPath: firstWorkstream.repositoryPath,
@@ -541,26 +317,23 @@ test('does not continue an operation after the same workstream receives a new re
 		behind: 0,
 		pullRequest: null,
 	});
-	commit.resolve('old-commit');
+	abort.resolve();
 
 	const state = await operation;
 	assert.equal(state.context?.branch, 'feature/rebased');
 	assert.equal(state.context?.baseBranch, 'release');
 	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'push'),
+		harness.calls.filter(({ kind }) => kind === 'refresh'),
 		[],
 	);
 });
 
 test('does not publish a mutation rejection after the same workstream is rebound', async () => {
-	const commit = deferred<string>();
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ dirtyPaths: ['src/app.ts'] })),
-		commit: () => commit.promise,
-	});
-	const operation = harness.controller.commitAndPush({ sessionTitle: 'Ship old revision' });
+	const abort = deferred<void>();
+	const harness = createHarness({ abortOperation: () => abort.promise });
+	const operation = harness.controller.abortOperation();
 
-	await waitForCall(harness.calls, 'commit');
+	await waitForCall(harness.calls, 'abort-operation');
 	harness.controller.setRepositoryContext({
 		workstreamId: firstWorkstream.id,
 		repositoryPath: firstWorkstream.repositoryPath,
@@ -572,16 +345,12 @@ test('does not publish a mutation rejection after the same workstream is rebound
 		behind: 0,
 		pullRequest: null,
 	});
-	commit.reject(new Error('old revision commit failed'));
+	abort.reject(new Error('old revision abort failed'));
 
 	const state = await operation;
 	assert.equal(state.context?.branch, 'feature/rebound-after-failure');
 	assert.equal(state.localError, null);
 	assert.equal(state.error, null);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'push'),
-		[],
-	);
 });
 
 test('keeps an explicit same-workstream repository context through the next local refresh', async () => {
@@ -606,19 +375,21 @@ test('keeps an explicit same-workstream repository context through the next loca
 	assert.equal(state.context?.baseBranch, firstWorkstream.baseBranch);
 });
 
-test('does not refresh the next workstream when an old push finishes late', async () => {
-	const push = deferred<string>();
-	const harness = createHarness({ push: () => push.promise });
-	const operation = harness.controller.commitAndPush({ sessionTitle: 'Nothing to commit' });
+test('does not refresh the next workstream when an old abort finishes late', async () => {
+	const abort = deferred<void>();
+	const harness = createHarness({ abortOperation: () => abort.promise });
+	const operation = harness.controller.abortOperation();
 
-	await waitForCall(harness.calls, 'push');
+	await waitForCall(harness.calls, 'abort-operation');
 	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	push.resolve('origin');
+	abort.resolve();
 
 	const result = await operation;
 	assert.equal(result.context?.workstreamId, secondWorkstream.id);
 	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'push').map(({ workstreamId }) => workstreamId),
+		harness.calls
+			.filter(({ kind }) => kind === 'abort-operation')
+			.map(({ workstreamId }) => workstreamId),
 		[firstWorkstream.id],
 	);
 	assert.deepEqual(
@@ -629,13 +400,13 @@ test('does not refresh the next workstream when an old push finishes late', asyn
 });
 
 test('does not publish a local mutation rejection into the next workstream', async () => {
-	const push = deferred<string>();
-	const harness = createHarness({ push: () => push.promise });
-	const operation = harness.controller.commitAndPush({ sessionTitle: 'Publish safely' });
+	const abort = deferred<void>();
+	const harness = createHarness({ abortOperation: () => abort.promise });
+	const operation = harness.controller.abortOperation();
 
-	await waitForCall(harness.calls, 'push');
+	await waitForCall(harness.calls, 'abort-operation');
 	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	push.reject(new Error('old push failed'));
+	abort.reject(new Error('old abort failed'));
 
 	const result = await operation;
 	assert.equal(result.context?.workstreamId, secondWorkstream.id);
@@ -646,69 +417,6 @@ test('does not publish a local mutation rejection into the next workstream', asy
 		true,
 	);
 	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
-test('does not push after a pull-latest operation finishes in the old workstream', async () => {
-	const pullLatest = deferred<string>();
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ behind: 1 })),
-		pullRequest: () => Promise.resolve(pullRequest({ mergeable: true, mergeableState: 'behind' })),
-		pullLatest: () => pullLatest.promise,
-	});
-	const operation = harness.controller.pullLatest();
-
-	await waitForCall(harness.calls, 'pull-latest');
-	const statesAfterSwitch = harness.switchWorkstream(secondWorkstream);
-	pullLatest.resolve('merge-a');
-
-	const result = await operation;
-	assert.equal(result.context?.workstreamId, secondWorkstream.id);
-	assert.deepEqual(
-		harness.calls.filter(({ kind }) => kind === 'push'),
-		[],
-	);
-	assert.deepEqual(
-		harness.calls
-			.filter(({ kind }) => kind === 'pull-latest')
-			.map(({ workstreamId }) => workstreamId),
-		[firstWorkstream.id],
-	);
-	assertStatesBelongTo(statesAfterSwitch(), secondWorkstream.id);
-});
-
-test('reconciles feature-upstream and pull-request-base divergence against different branches', async (t) => {
-	await t.test('remote feature branch behind pulls the feature branch', async () => {
-		const harness = createHarness({
-			status: () => Promise.resolve(repositoryStatus({ behind: 1 })),
-			pullRequest: () => Promise.resolve(pullRequest({ mergeable: true, mergeableState: 'clean' })),
-		});
-
-		await harness.controller.pullLatest();
-
-		assert.deepEqual(
-			harness.calls
-				.filter(({ kind }) => kind === 'pull-latest')
-				.map(({ targetBranch }) => targetBranch),
-			[firstWorkstream.branch],
-		);
-	});
-
-	await t.test('pull request behind its base pulls the base branch', async () => {
-		const harness = createHarness({
-			status: () => Promise.resolve(repositoryStatus({ behind: 0 })),
-			pullRequest: () =>
-				Promise.resolve(pullRequest({ mergeable: true, mergeableState: 'behind' })),
-		});
-
-		await harness.controller.pullLatest();
-
-		assert.deepEqual(
-			harness.calls
-				.filter(({ kind }) => kind === 'pull-latest')
-				.map(({ targetBranch }) => targetBranch),
-			[firstWorkstream.baseBranch],
-		);
-	});
 });
 
 test('does not attach a pull request fetched for the old branch after same-workstream branch drift', async () => {
@@ -749,117 +457,6 @@ test('never publishes a historical pull request from another branch', async () =
 	assert.equal(state.context?.pullRequest, null);
 	assert.equal(state.pullRequestRefreshStatus, 'error');
 	assert.match(state.pullRequestError ?? '', /does not match the active repository branch/u);
-});
-
-test('rejects every repository mutation before writes when fresh branch identity drifted', async (t) => {
-	for (const scenario of [
-		{
-			name: 'create or open',
-			run: (controller: RepositoryController) => controller.createOrOpenPullRequest(),
-		},
-		{
-			name: 'create',
-			run: (controller: RepositoryController) => controller.createPullRequest(),
-		},
-		{
-			name: 'commit and push',
-			run: (controller: RepositoryController) => controller.commitAndPush(),
-		},
-		{
-			name: 'pull latest',
-			run: (controller: RepositoryController) => controller.pullLatest(),
-		},
-		{
-			name: 'mark ready',
-			run: (controller: RepositoryController) => controller.markPullRequestReadyForReview(),
-		},
-	] as const) {
-		await t.test(scenario.name, async () => {
-			const harness = createHarness({
-				status: () =>
-					Promise.resolve(
-						repositoryStatus({
-							branch: 'feature/drifted',
-							dirtyPaths: ['src/app.ts'],
-							behind: 1,
-						}),
-					),
-				pullRequest: () => Promise.resolve(pullRequest({ state: 'draft' })),
-			});
-
-			await assert.rejects(
-				scenario.run(harness.controller),
-				/repository branch changed.*before modifying repository state/iu,
-			);
-			assert.equal(
-				harness.calls.some(({ kind }) =>
-					['pull-request', 'create', 'commit', 'push', 'pull-latest', 'mark-ready'].includes(kind),
-				),
-				false,
-			);
-		});
-	}
-});
-
-test('rejects mutation when only the fresh base branch drifted', async () => {
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ baseBranch: 'release' })),
-	});
-
-	await assert.rejects(
-		harness.controller.commitAndPush(),
-		/repository branch changed.*before modifying repository state/iu,
-	);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'push' || kind === 'commit'),
-		false,
-	);
-});
-
-test('fresh merge preflight rejects dirty or unpushed local state', async (t) => {
-	for (const scenario of [
-		{ name: 'dirty worktree', status: repositoryStatus({ dirtyPaths: ['src/app.ts'] }) },
-		{ name: 'unpushed commit', status: repositoryStatus({ ahead: 1 }) },
-	] as const) {
-		await t.test(scenario.name, async () => {
-			let status = repositoryStatus();
-			const harness = createHarness({
-				status: () => Promise.resolve(status),
-				pullRequest: () => Promise.resolve(pullRequest()),
-			});
-			await harness.controller.refresh();
-			status = scenario.status;
-
-			await assert.rejects(
-				harness.controller.mergePullRequest('squash', 'head-42'),
-				/commit and push all local changes/iu,
-			);
-			assert.equal(
-				harness.calls.some(({ kind }) => kind === 'merge'),
-				false,
-			);
-		});
-	}
-});
-
-test('merges only the head the caller saw and republishes a changed head', async () => {
-	let headSha = 'head-42';
-	const harness = createHarness({
-		pullRequest: () => Promise.resolve(pullRequest({ headSha })),
-	});
-	await harness.controller.refresh();
-
-	headSha = 'head-43';
-	await assert.rejects(
-		harness.controller.mergePullRequest('squash', 'head-42'),
-		/pull request changed since it was last read/u,
-	);
-	const rejected = harness.controller.snapshot();
-	assert.equal(rejected.context?.pullRequest?.headSha, 'head-43');
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'merge'),
-		false,
-	);
 });
 
 test('keeps the newest pull request binding when same-workstream refreshes finish out of order', async () => {
@@ -1052,304 +649,6 @@ test('terminal PR bindings are preserved while clean and retired when new work a
 			null,
 		);
 	});
-
-	await t.test('creates a replacement when open-only discovery finds none', async () => {
-		const harness = createHarness({
-			withState: true,
-			status: () => Promise.resolve(repositoryStatus({ dirtyPaths: ['src/new.ts'] })),
-			pullRequest: (_workstreamId, query) =>
-				Promise.resolve(
-					query?.pullRequestNumber === 41
-						? pullRequest({ state: 'closed', number: 41, title: 'Closed review' })
-						: pullRequest({ state: 'not_open', number: null, title: null, url: null }),
-				),
-			createPullRequest: () =>
-				Promise.resolve(pullRequest({ state: 'open', number: 43, title: 'New review' })),
-		});
-		await harness.api.state!.set('pull-request-binding.v1', binding(41), {
-			kind: 'workstream',
-			id: firstWorkstream.id,
-		});
-
-		const state = await harness.controller.createOrOpenPullRequest();
-
-		assert.equal(state.context?.pullRequest?.number, 43);
-		assert.equal(harness.calls.filter(({ kind }) => kind === 'create').length, 1);
-		assert.deepEqual(
-			harness.calls.filter(({ kind }) => kind === 'pull-request').map(({ query }) => query ?? null),
-			[{ pullRequestNumber: 41 }, null],
-		);
-	});
-});
-
-test('prepares exact-head diagnostics on demand without polling or persisting remote bodies', async () => {
-	const headSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-	const reviewFeedback: ExtensionPullRequestReviewFeedback = {
-		unresolvedThreads: [],
-		unresolvedThreadsComplete: true,
-		requestedChangeReviews: [],
-		requestedChangeReviewsComplete: true,
-		truncated: false,
-	};
-	const checkDiagnostics: ExtensionPullRequestCheckDiagnostics = {
-		checkRuns: [],
-		checkRunsComplete: true,
-		commitStatuses: [],
-		commitStatusesComplete: true,
-		truncated: false,
-	};
-	const harness = createHarness({
-		pullRequest: () =>
-			Promise.resolve(pullRequest({ headSha, checks: 'failed', mergeableState: 'blocked' })),
-		pullRequestReviewFeedback: () => Promise.resolve(reviewFeedback),
-		pullRequestCheckDiagnostics: () => Promise.resolve(checkDiagnostics),
-	});
-
-	const prepared = await harness.controller.preparePullRequestFix();
-	assert.ok(prepared);
-	assert.equal(prepared.pullRequestNumber, 42);
-	assert.equal(prepared.headSha, headSha);
-	assert.deepEqual(prepared.reviewFeedback, reviewFeedback);
-	assert.deepEqual(prepared.checkDiagnostics, checkDiagnostics);
-	assert.deepEqual(
-		harness.calls
-			.filter(({ kind }) => kind === 'review-feedback')
-			.map(({ diagnosticQuery }) => diagnosticQuery),
-		[{ number: 42, expectedHeadSha: headSha }],
-	);
-	assert.deepEqual(
-		harness.calls
-			.filter(({ kind }) => kind === 'check-diagnostics')
-			.map(({ diagnosticQuery }) => diagnosticQuery),
-		[{ number: 42, expectedHeadSha: headSha }],
-	);
-	assert.equal(
-		harness.calls.filter(({ kind }) => kind === 'pull-request').length,
-		2,
-		'prepare must refresh before and verify after the diagnostic reads',
-	);
-	assert.equal(JSON.stringify(harness.controller.snapshot()).includes('unresolvedThreads'), false);
-
-	await harness.controller.refreshPullRequest();
-	assert.equal(harness.calls.filter(({ kind }) => kind === 'review-feedback').length, 1);
-	assert.equal(harness.calls.filter(({ kind }) => kind === 'check-diagnostics').length, 1);
-});
-
-test('represents unavailable diagnostic capabilities without inventing authoritative empty data', async () => {
-	const headSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-	const harness = createHarness({
-		pullRequest: () => Promise.resolve(pullRequest({ headSha, checks: 'failed' })),
-	});
-
-	const prepared = await harness.controller.preparePullRequestFix();
-	assert.ok(prepared);
-	assert.equal(prepared.reviewFeedback, null);
-	assert.equal(prepared.checkDiagnostics, null);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'review-feedback'),
-		false,
-	);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'check-diagnostics'),
-		false,
-	);
-});
-
-test('does not fetch diagnostic bodies when the fresh pull request only has pending checks', async () => {
-	const harness = createHarness({
-		pullRequest: () =>
-			Promise.resolve(
-				pullRequest({
-					headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-					checks: 'pending',
-					checkItems: [
-						{
-							name: 'Unit tests',
-							appId: 15_368,
-							state: 'in_progress',
-							conclusion: null,
-							required: true,
-							url: null,
-							startedAt: null,
-							completedAt: null,
-						},
-					],
-				}),
-			),
-		pullRequestReviewFeedback: () =>
-			Promise.reject(new Error('pending checks must not trigger feedback reads')),
-		pullRequestCheckDiagnostics: () =>
-			Promise.reject(new Error('pending checks must not trigger diagnostic reads')),
-	});
-
-	assert.equal(await harness.controller.preparePullRequestFix(), null);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'review-feedback'),
-		false,
-	);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'check-diagnostics'),
-		false,
-	);
-});
-
-test('rejects diagnostic data when the pull request head changes before verification', async () => {
-	const firstHeadSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-	const changedHeadSha = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-	let pullRequestReads = 0;
-	const harness = createHarness({
-		pullRequest: () => {
-			pullRequestReads += 1;
-			return Promise.resolve(
-				pullRequest({
-					headSha: pullRequestReads === 1 ? firstHeadSha : changedHeadSha,
-					checks: 'failed',
-				}),
-			);
-		},
-		pullRequestReviewFeedback: () =>
-			Promise.resolve({
-				unresolvedThreads: [],
-				unresolvedThreadsComplete: true,
-				requestedChangeReviews: [],
-				requestedChangeReviewsComplete: true,
-				truncated: false,
-			}),
-		pullRequestCheckDiagnostics: () =>
-			Promise.resolve({
-				checkRuns: [],
-				checkRunsComplete: true,
-				commitStatuses: [],
-				commitStatusesComplete: true,
-				truncated: false,
-			}),
-	});
-
-	await assert.rejects(
-		harness.controller.preparePullRequestFix(),
-		/Pull request head changed while reading diagnostics/u,
-	);
-	assert.equal(harness.controller.snapshot().pullRequestRefreshStatus, 'error');
-	assert.equal(JSON.stringify(harness.controller.snapshot()).includes('checkRuns'), false);
-});
-
-test('discards diagnostic data when the active workstream changes during the read', async () => {
-	const headSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-	const reviewRead = deferred<ExtensionPullRequestReviewFeedback>();
-	const harness = createHarness({
-		pullRequest: () => Promise.resolve(pullRequest({ headSha, checks: 'failed' })),
-		pullRequestReviewFeedback: () => reviewRead.promise,
-		pullRequestCheckDiagnostics: () =>
-			Promise.resolve({
-				checkRuns: [],
-				checkRunsComplete: true,
-				commitStatuses: [],
-				commitStatusesComplete: true,
-				truncated: false,
-			}),
-	});
-	const preparing = harness.controller.preparePullRequestFix();
-	await waitForCall(harness.calls, 'review-feedback');
-	harness.switchWorkstream(secondWorkstream);
-	reviewRead.resolve({
-		unresolvedThreads: [],
-		unresolvedThreadsComplete: true,
-		requestedChangeReviews: [],
-		requestedChangeReviewsComplete: true,
-		truncated: false,
-	});
-
-	assert.equal(await preparing, null);
-	assert.equal(harness.controller.snapshot().context?.workstreamId, secondWorkstream.id);
-	assert.equal(
-		JSON.stringify(harness.controller.snapshot()).includes('requestedChangeReviews'),
-		false,
-	);
-});
-
-test('Resolve conflicts merges the base into a clean worktree and holds its conflicts', async () => {
-	let merging = false;
-	const harness = createHarness({
-		status: () =>
-			Promise.resolve(
-				merging
-					? repositoryStatus({
-							dirtyPaths: ['src/app.ts'],
-							conflictedPaths: ['src/app.ts'],
-							conflictMarkerPaths: ['src/app.ts'],
-							mergeInProgress: true,
-						})
-					: repositoryStatus(),
-			),
-		pullRequest: () =>
-			Promise.resolve(
-				pullRequest({ headSha: 'a'.repeat(40), mergeable: false, mergeableState: 'dirty' }),
-			),
-		pullLatest: () => {
-			merging = true;
-			return Promise.resolve('head-a');
-		},
-	});
-
-	const prepared = await harness.controller.preparePullRequestFix();
-
-	assert.ok(prepared);
-	assert.equal(prepared.state.localError, null);
-	assert.equal(prepared.state.context?.mergeInProgress, true);
-	assert.deepEqual(prepared.state.context?.conflictMarkerPaths, ['src/app.ts']);
-	assert.deepEqual(
-		harness.calls
-			.filter(({ kind }) => kind === 'pull-latest')
-			.map(({ targetBranch }) => targetBranch),
-		[firstWorkstream.baseBranch],
-	);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'push' || kind === 'check-diagnostics'),
-		false,
-	);
-
-	await harness.controller.preparePullRequestFix();
-	assert.equal(harness.calls.filter(({ kind }) => kind === 'pull-latest').length, 1);
-});
-
-test('Update branch that stops on conflicts holds them instead of failing', async () => {
-	let merging = false;
-	const harness = createHarness({
-		status: () =>
-			Promise.resolve(
-				merging
-					? repositoryStatus({
-							dirtyPaths: ['src/app.ts'],
-							conflictedPaths: ['src/app.ts'],
-							mergeInProgress: true,
-						})
-					: repositoryStatus(),
-			),
-		pullRequest: () => Promise.resolve(pullRequest({ mergeableState: 'behind' })),
-		pullLatest: () => {
-			merging = true;
-			return Promise.resolve('head-a');
-		},
-	});
-
-	const state = await harness.controller.pullLatest();
-
-	assert.equal(state.localError, null);
-	assert.equal(state.context?.mergeInProgress, true);
-	assert.equal(
-		harness.calls.some(({ kind }) => kind === 'push'),
-		false,
-	);
-});
-
-test('Update branch that fails without holding a merge still reports the failure', async () => {
-	const harness = createHarness({
-		pullRequest: () => Promise.resolve(pullRequest({ mergeableState: 'behind' })),
-		pullLatest: () => Promise.reject(new Error('Could not reach github.com')),
-	});
-
-	await assert.rejects(harness.controller.pullLatest(), /Could not reach github\.com/u);
-	assert.equal(harness.controller.snapshot().localError, 'Could not reach github.com');
 });
 
 test('abort merge asks the host to abort and reads the worktree again', async () => {
@@ -1363,19 +662,16 @@ test('abort merge asks the host to abort and reads the worktree again', async ()
 });
 
 test('serializes repository mutations within one workstream', async () => {
-	const commit = deferred<string>();
-	const harness = createHarness({
-		status: () => Promise.resolve(repositoryStatus({ dirtyPaths: ['src/app.ts'] })),
-		commit: () => commit.promise,
-	});
-	const first = harness.controller.commitAndPush({ sessionTitle: 'First action' });
-	await waitForCall(harness.calls, 'commit');
+	const abort = deferred<void>();
+	const harness = createHarness({ abortOperation: () => abort.promise });
+	const first = harness.controller.abortOperation();
+	await waitForCall(harness.calls, 'abort-operation');
 
 	await assert.rejects(
-		harness.controller.createPullRequest({ context: { sessionTitle: 'Second action' } }),
+		harness.controller.abortOperation(),
 		/another repository action is already in progress/iu,
 	);
-	commit.resolve('commit-a');
+	abort.resolve();
 	await first;
 });
 
@@ -1383,8 +679,6 @@ type Call = Readonly<{
 	kind: string;
 	workstreamId?: string | undefined;
 	query?: ExtensionPullRequestQuery | undefined;
-	diagnosticQuery?: ExtensionPullRequestDiagnosticsQuery | undefined;
-	targetBranch?: string | undefined;
 }>;
 
 type HarnessOptions = Readonly<{
@@ -1395,20 +689,6 @@ type HarnessOptions = Readonly<{
 		workstreamId: string,
 		query?: ExtensionPullRequestQuery,
 	) => Promise<ExtensionPullRequestContext>;
-	pullRequestReviewFeedback?: (
-		workstreamId: string,
-		query: ExtensionPullRequestDiagnosticsQuery,
-	) => Promise<ExtensionPullRequestReviewFeedback>;
-	pullRequestCheckDiagnostics?: (
-		workstreamId: string,
-		query: ExtensionPullRequestDiagnosticsQuery,
-	) => Promise<ExtensionPullRequestCheckDiagnostics>;
-	createPullRequest?: (workstreamId: string) => Promise<ExtensionPullRequestContext>;
-	markPullRequestReadyForReview?: (workstreamId: string) => Promise<ExtensionPullRequestContext>;
-	mergePullRequest?: (workstreamId: string) => Promise<ExtensionPullRequestContext>;
-	commit?: (workstreamId: string) => Promise<string>;
-	push?: (workstreamId: string) => Promise<string>;
-	pullLatest?: (workstreamId: string, targetBranch: string) => Promise<string>;
 	abortOperation?: (workstreamId: string) => Promise<void>;
 	refresh?: (workstreamId: string) => Promise<void>;
 	withState?: boolean;
@@ -1446,75 +726,9 @@ function createHarness(options: HarnessOptions = {}) {
 					pullRequest({ state: 'not_open', number: null, url: null })
 				);
 			},
-			...(options.pullRequestReviewFeedback
-				? {
-						pullRequestReviewFeedback: async (
-							diagnosticQuery: ExtensionPullRequestDiagnosticsQuery,
-							workstreamId?: string,
-						) => {
-							calls.push({ kind: 'review-feedback', workstreamId, diagnosticQuery });
-							return options.pullRequestReviewFeedback!(
-								requiredWorkstreamId(workstreamId),
-								diagnosticQuery,
-							);
-						},
-					}
-				: {}),
-			...(options.pullRequestCheckDiagnostics
-				? {
-						pullRequestCheckDiagnostics: async (
-							diagnosticQuery: ExtensionPullRequestDiagnosticsQuery,
-							workstreamId?: string,
-						) => {
-							calls.push({ kind: 'check-diagnostics', workstreamId, diagnosticQuery });
-							return options.pullRequestCheckDiagnostics!(
-								requiredWorkstreamId(workstreamId),
-								diagnosticQuery,
-							);
-						},
-					}
-				: {}),
-			createPullRequest: async (_input: unknown, workstreamId?: string) => {
-				calls.push({ kind: 'create', workstreamId });
-				return (
-					options.createPullRequest?.(requiredWorkstreamId(workstreamId)) ??
-					pullRequest({ state: 'open' })
-				);
-			},
-			markPullRequestReadyForReview: async (_input: unknown, workstreamId?: string) => {
-				calls.push({ kind: 'mark-ready', workstreamId });
-				return (
-					options.markPullRequestReadyForReview?.(requiredWorkstreamId(workstreamId)) ??
-					pullRequest({ state: 'open' })
-				);
-			},
-			mergePullRequest: async (_input: unknown, workstreamId?: string) => {
-				calls.push({ kind: 'merge', workstreamId });
-				return (
-					options.mergePullRequest?.(requiredWorkstreamId(workstreamId)) ??
-					pullRequest({ state: 'merged' })
-				);
-			},
 			refresh: async (workstreamId?: string) => {
 				calls.push({ kind: 'refresh', workstreamId });
 				await options.refresh?.(requiredWorkstreamId(workstreamId));
-			},
-			commit: async (_message: string, workstreamId?: string) => {
-				calls.push({ kind: 'commit', workstreamId });
-				return options.commit?.(requiredWorkstreamId(workstreamId)) ?? 'commit-a';
-			},
-			push: async (workstreamId?: string) => {
-				calls.push({ kind: 'push', workstreamId });
-				return options.push?.(requiredWorkstreamId(workstreamId)) ?? 'origin';
-			},
-			pullLatest: async (targetBranch?: string, workstreamId?: string) => {
-				calls.push({ kind: 'pull-latest', workstreamId, targetBranch });
-				return (
-					options.pullLatest?.(
-						requiredWorkstreamId(workstreamId),
-						targetBranch ?? firstWorkstream.baseBranch,
-					) ?? 'merge-a'
-				);
 			},
 			abortOperation: async (workstreamId?: string) => {
 				calls.push({ kind: 'abort-operation', workstreamId });
@@ -1530,11 +744,6 @@ function createHarness(options: HarnessOptions = {}) {
 			},
 			delete: async (key: string, _scope?: ExtensionSettingScope) => {
 				persistedState.delete(key);
-			},
-		},
-		ui: {
-			openExternal: async () => {
-				calls.push({ kind: 'open-external' });
 			},
 		},
 	};

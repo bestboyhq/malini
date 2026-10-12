@@ -2,6 +2,7 @@ import type {
 	AgentRunChangePatch,
 	AgentSessionChangePatch,
 	AgentSessionChanges,
+	AgentSessionOrigin,
 	LiveEventEnvelope,
 	ClaudeSetupStep,
 	ProviderCapability,
@@ -42,6 +43,7 @@ export type FakeSession = {
 	hasSentPrompt: boolean;
 	currentRunId: string | null;
 	cancelled: boolean;
+	origin: AgentSessionOrigin;
 };
 
 export type FakeState = {
@@ -213,6 +215,7 @@ export function buildSeededSessions(
 				eventSeeds.some((entry) => entry.event.type === 'user.message'),
 			currentRunId: sessionSeed.currentRunId ?? null,
 			cancelled: false,
+			origin: sessionSeed.origin ?? 'user',
 		});
 	}
 	return sessions;

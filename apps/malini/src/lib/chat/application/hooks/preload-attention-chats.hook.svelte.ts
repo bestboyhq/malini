@@ -14,7 +14,11 @@ export function preloadAttentionChatsHook(readWorkstreamIds: () => readonly stri
 				if (sessionId) sessionIds.add(sessionId);
 			}
 			for (const session of sessionsAggregate.listSessions()) {
-				if (session.status === 'waiting_for_approval' && workstreamIds.has(session.workstreamId)) {
+				if (
+					session.origin === 'user' &&
+					session.status === 'waiting_for_approval' &&
+					workstreamIds.has(session.workstreamId)
+				) {
 					sessionIds.add(session.id);
 				}
 			}

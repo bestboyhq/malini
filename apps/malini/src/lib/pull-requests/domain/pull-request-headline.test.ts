@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pullRequestHeadline } from './pull-request-headline';
+import { pullRequestHeadline, pullRequestZoneTone } from './pull-request-headline';
 import type {
 	RepositorySurface,
 	SurfacePullRequest,
@@ -138,11 +138,41 @@ describe('pullRequestHeadline', () => {
 			expected: { label: 'Waiting for GitHub…', tone: 'progress' },
 		},
 		{
+			moment: 'GitHub did not start CI',
+			scenario: surface({
+				checks: 'failed',
+				checkItems: [
+					check({
+						conclusion: 'failure',
+						passed: false,
+						failed: false,
+						notStartedReason: 'your spending limit needs to be increased',
+					}),
+				],
+			}),
+			expected: {
+				label: "CI didn't start",
+				tone: 'warning',
+				detail: "GitHub didn't start CI: your spending limit needs to be increased",
+			},
+		},
+		{
 			moment: 'the pull request merged',
 			scenario: surface({ state: 'merged' }, { dirtyPaths: ['next.ts'] }),
 			expected: { label: 'Merged', tone: 'merged' },
 		},
 	])('reads "$expected.label" when $moment', ({ scenario, expected }) => {
 		expect(pullRequestHeadline(scenario)).toEqual(expected);
+	});
+});
+
+describe('pullRequestZoneTone', () => {
+	it('keeps alarm colors for the moment the user has to act', () => {
+		expect(pullRequestZoneTone('queue-merge', 'danger')).toBe('neutral');
+		expect(pullRequestZoneTone('queue-merge', 'warning')).toBe('neutral');
+		expect(pullRequestZoneTone('open-draft', 'danger')).toBe('neutral');
+		expect(pullRequestZoneTone('queue-merge', 'success')).toBe('success');
+		expect(pullRequestZoneTone('queued', 'danger')).toBe('progress');
+		expect(pullRequestZoneTone('needs-you', 'success')).toBe('warning');
 	});
 });

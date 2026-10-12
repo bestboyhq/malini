@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
-import { holdWorkstreamImages, showWorkstreamImages } from './workstream-images';
+import {
+	holdWorkstreamImages,
+	showWorkstreamImages,
+	workstreamImageFilePath,
+} from './workstream-images';
 
 function render(markdown: string): HTMLElement {
 	const host = document.createElement('div');
@@ -48,5 +52,15 @@ describe('workstream images in transcript markdown', () => {
 		const [first, second] = host.querySelectorAll('img');
 		expect(first?.getAttribute('src')).toBe('blob:a');
 		expect(second?.getAttribute('src')).toBeNull();
+	});
+});
+
+describe('workstream image file path', () => {
+	it('resolves a workstream image against the checkout and keeps absolute paths', () => {
+		expect(workstreamImageFilePath('/ws/root/', './.context/shot.png')).toBe(
+			'/ws/root/.context/shot.png',
+		);
+		expect(workstreamImageFilePath('/ws/root', '/elsewhere/shot.png')).toBe('/elsewhere/shot.png');
+		expect(workstreamImageFilePath(null, '.context/shot.png')).toBe('.context/shot.png');
 	});
 });

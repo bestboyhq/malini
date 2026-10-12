@@ -5,7 +5,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { connectedRepositoryContexts } from '$shared/repositories/repositories.api';
-	import { RoutinesNavBadge } from '$lib/routines/routines.api';
+	import { JobsNavBadge } from '$lib/jobs/jobs.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
 		provisioningRecordQuery,
@@ -14,7 +14,10 @@
 		type WorkstreamProvisioningRecord,
 	} from '$shared/repositories/repositories.api';
 	import { displayWorkstreamName, workstreamCount } from '$shared/repositories/repositories.api';
-	import type { PullRequestState } from '$lib/pull-requests/application/queries/pull-request-states.query.svelte';
+	import type {
+		PullRequestBadge,
+		PullRequestPhase,
+	} from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { formatCompactChangeTotal } from '$lib/pull-requests/pull-requests.api';
 	import type { Repository } from '$shared/repositories/repositories.api';
 	import type { Workstream } from '$shared/repositories/repositories.api';
@@ -43,7 +46,7 @@
 		onArchiveWorkstream?: (workstream: Workstream) => void;
 		onRemoveRepository?: (repo: Repository, workstreams: readonly Workstream[]) => void;
 		changeTotalsByWorkstream?: Readonly<Record<string, WorkstreamChangeTotals>>;
-		pullRequestStateByWorkstream?: Readonly<Record<string, PullRequestState>>;
+		pullRequestBadge?: (workstreamId: string) => PullRequestBadge;
 	}
 
 	let {
@@ -57,7 +60,7 @@
 		onArchiveWorkstream,
 		onRemoveRepository,
 		changeTotalsByWorkstream = {},
-		pullRequestStateByWorkstream = {},
+		pullRequestBadge = unknownPullRequestBadge,
 	}: Props = $props();
 	const provisioningRecord = $derived(provisioningRecordQuery.data);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
@@ -427,30 +430,29 @@
 	}
 
 	type PullRequestVisual = Readonly<{
-		glyph: 'branch' | 'pr-draft' | 'pr-open' | 'pr-merged' | 'pr-failed';
+		glyph: 'branch' | 'pr-draft' | 'pr-open' | 'pr-merged' | 'alert';
 		color: string;
 		label: string | null;
 	}>;
 
-	function pullRequestVisual(state: PullRequestState): PullRequestVisual {
-		switch (state) {
-			case 'draft':
-				return { glyph: 'pr-draft', color: '', label: 'Draft pull request' };
-			case 'open':
-				return { glyph: 'pr-open', color: '', label: 'Pull request open' };
-			case 'ready':
-				return { glyph: 'pr-open', color: 'text-success-content', label: 'Ready to merge' };
-			case 'merged':
-				return { glyph: 'pr-merged', color: 'text-merged-content', label: 'Merged' };
-			case 'failing':
-				return { glyph: 'pr-failed', color: 'text-error-content', label: 'Checks failing' };
-			case 'closed':
-				return { glyph: 'branch', color: '', label: 'Pull request closed' };
-			case 'none':
-				return { glyph: 'branch', color: '', label: 'No pull request' };
-			default:
-				return { glyph: 'branch', color: '', label: null };
-		}
+	const PULL_REQUEST_PHASE_VISUALS: Readonly<
+		Record<PullRequestPhase, Omit<PullRequestVisual, 'label'>>
+	> = {
+		none: { glyph: 'branch', color: '' },
+		draft: { glyph: 'pr-draft', color: '' },
+		open: { glyph: 'pr-open', color: '' },
+		queued: { glyph: 'pr-open', color: 'text-brand-icon' },
+		'needs-you': { glyph: 'alert', color: 'text-warning-content' },
+		merged: { glyph: 'pr-merged', color: 'text-merged-content' },
+		unknown: { glyph: 'branch', color: '' },
+	};
+
+	function pullRequestVisual(badge: PullRequestBadge): PullRequestVisual {
+		return { ...PULL_REQUEST_PHASE_VISUALS[badge.phase], label: badge.label };
+	}
+
+	function unknownPullRequestBadge(): PullRequestBadge {
+		return { phase: 'unknown', label: null };
 	}
 
 	function attentionLabel(attention: ChatAttention): string {
@@ -680,13 +682,12 @@
 											)}
 											{@const lifecycle = lifecycleAction(workstream.id, label)}
 											{@const targetSessionId = chat.sessionId}
-											{@const pullRequestState =
-												pullRequestStateByWorkstream[workstream.id] ?? 'unknown'}
+											{@const badge = pullRequestBadge(workstream.id)}
 											{@const changeTotals =
-												pullRequestState === 'merged'
+												badge.phase === 'merged'
 													? undefined
 													: changeTotalsByWorkstream[workstream.id]}
-											{@const pullRequest = pullRequestVisual(pullRequestState)}
+											{@const pullRequest = pullRequestVisual(badge)}
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
 											<li class="group/row relative w-full min-w-0">
@@ -757,7 +758,7 @@
 																? 'sidebar-workstream-loader'
 																: 'sidebar-workstream-status'}
 															data-workstream-icon-state={state.tone}
-															data-workstream-pull-request-state={pullRequestState}
+															data-workstream-pull-request-state={badge.phase}
 														>
 															{#if busy}
 																<BusyIcon size={14} />
@@ -883,7 +884,7 @@
 	</nav>
 
 	<div class="border-surface-50-border flex shrink-0 items-center gap-1 border-t px-2 py-1.5">
-		<RoutinesNavBadge />
+		<JobsNavBadge />
 		<ArchivedWorkstreamsMenu />
 		<Tooltip content="Settings" placement="right">
 			<IconButton

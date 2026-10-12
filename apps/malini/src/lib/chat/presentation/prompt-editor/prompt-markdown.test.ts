@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { Editor } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { elementChipId, promptChipMarker } from '$lib/chat/domain/prompt-chip';
 
@@ -8,6 +11,7 @@ import {
 	promptEditorSchema,
 	replaceChipMarkers,
 } from './prompt-markdown';
+import { promptEditorExtensions } from './minimal-extensions';
 import { PROMPT_CHIP_NODE_NAME } from './prompt-chip-node';
 
 function roundTrip(markdown: string): string {
@@ -23,6 +27,147 @@ function chipsOf(markdown: string): { kind: string; id: string }[] {
 	});
 	return chips;
 }
+
+function paragraphDoc(content: PMNode[]): PMNode {
+	return promptEditorSchema.node('doc', null, [
+		promptEditorSchema.node('paragraph', null, content),
+	]);
+}
+
+function literalText(markdown: string): string | null {
+	const doc = markdownToPromptDoc(markdown);
+	let formatted = false;
+	doc.descendants((node) => {
+		if (node.marks.length > 0 || node.type.name === PROMPT_CHIP_NODE_NAME) formatted = true;
+	});
+	return formatted ? null : doc.textContent;
+}
+
+describe('prompt markdown literal text', () => {
+	it.each([
+		'GET /_ld/script.js',
+		'Event names must match [a-z][a-z0-9_]{0,63}.',
+		'C:\\temp\\x',
+		'~approx',
+		'a lone ` backtick',
+	])('sends %s exactly as typed', (typed) => {
+		expect(promptDocToMarkdown(paragraphDoc([promptEditorSchema.text(typed)]))).toBe(typed);
+	});
+
+	it.each(['*not italic*', '`not code`', 'C:\\temp\\_x', '~~not struck~~'])(
+		'escapes %s so it reads back as literal text',
+		(typed) => {
+			const markdown = promptDocToMarkdown(paragraphDoc([promptEditorSchema.text(typed)]));
+
+			expect(markdown).not.toBe(typed);
+			expect(literalText(markdown)).toBe(typed);
+		},
+	);
+
+	it('escapes only the character that would pair up as formatting', () => {
+		const typed = 'GET /_ld/script.js, regex [a-z][a-z0-9_]{0,63}';
+		const markdown = promptDocToMarkdown(paragraphDoc([promptEditorSchema.text(typed)]));
+
+		expect(markdown).toBe('GET /_ld/script.js, regex [a-z][a-z0-9\\_]{0,63}');
+		expect(literalText(markdown)).toBe(typed);
+	});
+
+	it('escapes text whose formatting only appears across a line break', () => {
+		const doc = paragraphDoc([
+			promptEditorSchema.text('keep _this'),
+			promptEditorSchema.node('hardBreak'),
+			promptEditorSchema.text('and that_ literal'),
+		]);
+
+		expect(literalText(promptDocToMarkdown(doc))).toBe('keep _thisand that_ literal');
+	});
+
+	it('keeps the literal text beside a mark readable', () => {
+		const doc = paragraphDoc([
+			promptEditorSchema.text('Serve '),
+			promptEditorSchema.text('script.js', [promptEditorSchema.mark('code')]),
+			promptEditorSchema.text(' from /_ld/script.js'),
+		]);
+
+		expect(promptDocToMarkdown(doc)).toBe('Serve `script.js` from /_ld/script.js');
+	});
+});
+
+describe('prompt editor input', () => {
+	const editors: Editor[] = [];
+
+	beforeEach(() => {
+		vi.stubGlobal(
+			'ClipboardEvent',
+			class extends Event {
+				readonly clipboardData = null;
+			},
+		);
+	});
+
+	afterEach(() => {
+		while (editors.length > 0) editors.pop()?.destroy();
+		vi.unstubAllGlobals();
+	});
+
+	function emptyEditor(): Editor {
+		const element = document.createElement('div');
+		document.body.append(element);
+		const editor = new Editor({ element, extensions: promptEditorExtensions({ placeholder: '' }) });
+		editors.push(editor);
+		return editor;
+	}
+
+	function pasted(text: string): string {
+		const editor = emptyEditor();
+		editor.view.pasteText(text);
+		return promptDocToMarkdown(editor.state.doc);
+	}
+
+	function typed(text: string): string {
+		const editor = emptyEditor();
+		const { view } = editor;
+		for (const char of text) {
+			const { from, to } = view.state.selection;
+			const insert = () => view.state.tr.insertText(char, from, to);
+			const handled = view.someProp('handleTextInput', (handle) =>
+				handle(view, from, to, char, insert),
+			);
+			if (!handled) view.dispatch(insert());
+		}
+		return promptDocToMarkdown(editor.state.doc);
+	}
+
+	it('pastes paths, patterns and arithmetic exactly as written', () => {
+		const text =
+			'GET /_ld/script.js, match [a-z][a-z0-9]{0,63} in src/**/*.ts, size 2 * 3 * 4, ~approx';
+		expect(pasted(text)).toBe(text);
+	});
+
+	it('pastes markdown formatting as formatting', () => {
+		const text = 'Make it **bold**, *quiet*, _soft_, ~~gone~~ and run `pnpm check`.';
+		const doc = markdownToPromptDoc(pasted(text));
+		const marks = new Set<string>();
+		doc.descendants((node) => {
+			for (const mark of node.marks) marks.add(mark.type.name);
+		});
+
+		expect(pasted(text)).toBe('Make it **bold**, *quiet*, *soft*, ~~gone~~ and run `pnpm check`.');
+		expect([...marks].sort()).toEqual(['bold', 'code', 'italic', 'strike']);
+	});
+
+	it('keeps an underscore inside a word literal', () => {
+		expect(pasted('call _a_b now')).toBe('call _a_b now');
+	});
+
+	it('keeps typed arithmetic with spaced asterisks as text', () => {
+		expect(typed('size 2 * 3 * 4')).toBe('size 2 * 3 * 4');
+	});
+
+	it('formats typed emphasis', () => {
+		expect(typed('keep it *quiet* and **loud**')).toBe('keep it *quiet* and **loud**');
+	});
+});
 
 describe('prompt markdown round trip', () => {
 	it('keeps a plain paragraph', () => {
@@ -112,13 +257,11 @@ describe('prompt markdown chips', () => {
 	});
 
 	it('leaves a literal double bracket that is not a marker as text', () => {
-		const markdown = 'Docs use \\[\\[double brackets\\]\\] for wiki links.';
+		const typed = 'Docs use [[double brackets]] for wiki links.';
 
-		expect(roundTrip(markdown)).toBe(markdown);
-		expect(chipsOf(markdown)).toEqual([]);
-		expect(markdownToPromptDoc(markdown).textContent).toBe(
-			'Docs use [[double brackets]] for wiki links.',
-		);
+		expect(roundTrip('Docs use \\[\\[double brackets\\]\\] for wiki links.')).toBe(typed);
+		expect(chipsOf(typed)).toEqual([]);
+		expect(markdownToPromptDoc(typed).textContent).toBe(typed);
 	});
 
 	it('leaves a marker inside a code block as literal text', () => {

@@ -9,10 +9,10 @@ import {
 
 const OWNER = 'armed-confirmation-spec';
 
-function mergeStatus(onMerge: () => void, onAbort: () => void): GlobalTopBarGithubStatus {
+function queueStatus(onQueue: () => void, onCancel: () => void): GlobalTopBarGithubStatus {
 	return {
 		reference: '#42',
-		title: 'Land the merge',
+		title: 'Land the queue',
 		branch: 'feature/merge → main',
 		url: 'https://example.test/pull/42',
 		checks: [],
@@ -20,20 +20,20 @@ function mergeStatus(onMerge: () => void, onAbort: () => void): GlobalTopBarGith
 		review: null,
 		todos: null,
 		action: {
-			label: 'Merge',
-			ariaLabel: 'Merge pull request #42',
-			tooltip: 'Checks passed. Squash and merge',
+			label: 'Queue merge',
+			ariaLabel: 'Queue merge for pull request #42',
+			tooltip: 'Malini merges it once GitHub allows',
 			tone: 'primary',
 			disabled: false,
 			busy: false,
-			onInvoke: onMerge,
+			onInvoke: onQueue,
 		},
 		detailActions: [
 			{
-				id: 'abort-merge',
-				label: 'Abort merge',
-				confirmLabel: 'Confirm abort',
-				onInvoke: onAbort,
+				id: 'cancel-merge',
+				label: 'Cancel merge',
+				confirmLabel: 'Confirm cancel',
+				onInvoke: onCancel,
 			},
 		],
 	};
@@ -83,20 +83,20 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe('the top bar Merge', () => {
-	it('merges on the first click', () => {
-		let merges = 0;
+describe('the top bar Queue merge', () => {
+	it('queues on the first click', () => {
+		let queues = 0;
 		const bar = mountBar(
-			mergeStatus(
-				() => (merges += 1),
+			queueStatus(
+				() => (queues += 1),
 				() => undefined,
 			),
 		);
 		try {
 			bar.action.click();
 			flushSync();
-			expect(merges).toBe(1);
-			expect(bar.action.textContent?.trim()).toBe('Merge');
+			expect(queues).toBe(1);
+			expect(bar.action.textContent?.trim()).toBe('Queue merge');
 		} finally {
 			bar.stop();
 		}
@@ -104,82 +104,82 @@ describe('the top bar Merge', () => {
 });
 
 describe('an armed detail action', () => {
-	type ArmedAbort = Readonly<{
+	type ArmedCancel = Readonly<{
 		bar: MountedBar;
-		abort: () => HTMLButtonElement;
-		aborts: () => number;
+		cancel: () => HTMLButtonElement;
+		cancels: () => number;
 	}>;
 
-	function armAbort(): ArmedAbort {
-		let aborts = 0;
+	function armCancel(): ArmedCancel {
+		let cancels = 0;
 		const bar = mountBar(
-			mergeStatus(
+			queueStatus(
 				() => undefined,
-				() => (aborts += 1),
+				() => (cancels += 1),
 			),
 		);
 		bar.disclosure.click();
 		flushSync();
-		const abort = (): HTMLButtonElement => {
+		const cancel = (): HTMLButtonElement => {
 			const element = document.querySelector<HTMLButtonElement>(
-				'[data-testid="global-topbar-github-detail-abort-merge"]',
+				'[data-testid="global-topbar-github-detail-cancel-merge"]',
 			);
-			if (!element) throw new Error('the abort action is not in the open detail');
+			if (!element) throw new Error('the cancel action is not in the open detail');
 			return element;
 		};
-		abort().click();
+		cancel().click();
 		flushSync();
-		expect(abort().textContent?.trim()).toBe('Confirm abort');
-		expect(aborts).toBe(0);
-		return { bar, abort, aborts: () => aborts };
+		expect(cancel().textContent?.trim()).toBe('Confirm cancel');
+		expect(cancels).toBe(0);
+		return { bar, cancel, cancels: () => cancels };
 	}
 
 	it('runs only on the confirming click', () => {
-		const { bar, abort, aborts } = armAbort();
+		const { bar, cancel, cancels } = armCancel();
 		try {
-			abort().click();
+			cancel().click();
 			flushSync();
-			expect(aborts()).toBe(1);
+			expect(cancels()).toBe(1);
 		} finally {
 			bar.stop();
 		}
 	});
 
 	it('disarms on Escape', () => {
-		const { bar, abort, aborts } = armAbort();
+		const { bar, cancel, cancels } = armCancel();
 		try {
 			press('Escape');
-			expect(abort().textContent?.trim()).toBe('Abort merge');
-			expect(aborts()).toBe(0);
+			expect(cancel().textContent?.trim()).toBe('Cancel merge');
+			expect(cancels()).toBe(0);
 		} finally {
 			bar.stop();
 		}
 	});
 
 	it('disarms when a pointer lands outside the armed control', () => {
-		const { bar, abort, aborts } = armAbort();
+		const { bar, cancel, cancels } = armCancel();
 		try {
 			pointerDownOn(document.body);
-			expect(abort().textContent?.trim()).toBe('Abort merge');
-			expect(aborts()).toBe(0);
+			expect(cancel().textContent?.trim()).toBe('Cancel merge');
+			expect(cancels()).toBe(0);
 		} finally {
 			bar.stop();
 		}
 	});
 
 	it('stays armed through a status publish that rebuilds the same action', () => {
-		const { bar, abort, aborts } = armAbort();
+		const { bar, cancel, cancels } = armCancel();
 		try {
 			globalTopBarGithubStatus.publish(
 				OWNER,
-				mergeStatus(
+				queueStatus(
 					() => undefined,
 					() => undefined,
 				),
 			);
 			flushSync();
-			expect(abort().textContent?.trim()).toBe('Confirm abort');
-			expect(aborts()).toBe(0);
+			expect(cancel().textContent?.trim()).toBe('Confirm cancel');
+			expect(cancels()).toBe(0);
 		} finally {
 			bar.stop();
 		}
@@ -187,16 +187,16 @@ describe('an armed detail action', () => {
 
 	it('expires on its own rather than waiting indefinitely', () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-		const { bar, abort, aborts } = armAbort();
+		const { bar, cancel, cancels } = armCancel();
 		try {
 			vi.advanceTimersByTime(9_000);
 			flushSync();
-			expect(abort().textContent?.trim()).toBe('Confirm abort');
+			expect(cancel().textContent?.trim()).toBe('Confirm cancel');
 
 			vi.advanceTimersByTime(1_500);
 			flushSync();
-			expect(abort().textContent?.trim()).toBe('Abort merge');
-			expect(aborts()).toBe(0);
+			expect(cancel().textContent?.trim()).toBe('Cancel merge');
+			expect(cancels()).toBe(0);
 		} finally {
 			bar.stop();
 		}

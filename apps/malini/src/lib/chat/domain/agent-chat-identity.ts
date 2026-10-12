@@ -1,3 +1,5 @@
+import type { AgentSessionOrigin } from '$contract/agent';
+
 export type AgentChatActivity = 'idle' | 'in-progress' | 'needs-approval' | 'failed';
 
 export type AgentChatIdentitySource = {
@@ -5,6 +7,7 @@ export type AgentChatIdentitySource = {
 	model: string | null;
 	status: 'idle' | 'running' | 'waiting_for_approval' | 'completed' | 'failed';
 	lastError?: string | null;
+	origin?: AgentSessionOrigin;
 };
 
 export type AgentChatIdentity = {
@@ -37,8 +40,9 @@ export function agentChatIdentity(
 				: activity === 'failed'
 					? 'Last run failed'
 					: 'Ready';
+	const name = source.displayName.trim() || 'Chat';
 	return {
-		name: source.displayName.trim() || 'Chat',
+		name: source.origin === 'job' ? `Job: ${name}` : name,
 		activity,
 		statusLabel,
 		model: source.model,

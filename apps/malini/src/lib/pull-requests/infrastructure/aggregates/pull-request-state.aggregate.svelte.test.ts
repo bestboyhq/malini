@@ -68,7 +68,7 @@ describe('PullRequestStateAggregate', () => {
 			return Object.fromEntries(
 				targets.map((entry) => [
 					entry.workstreamId,
-					entry.workstreamId === 'workstream-a' ? 'ready' : 'draft',
+					entry.workstreamId === 'workstream-a' ? 'open' : 'draft',
 				]),
 			);
 		});
@@ -83,7 +83,7 @@ describe('PullRequestStateAggregate', () => {
 		expect(calls[0]?.map((entry) => entry.workstreamId)).toEqual(['workstream-a', 'workstream-b']);
 		expect(calls[1]?.map((entry) => entry.workstreamId)).toEqual(['workstream-c']);
 		expect(aggregate.stateByWorkstream).toEqual({
-			'workstream-a': 'ready',
+			'workstream-a': 'open',
 			'workstream-b': 'draft',
 			'workstream-c': 'draft',
 		});
@@ -140,7 +140,7 @@ describe('PullRequestStateAggregate', () => {
 
 		const pending = aggregate.track([target({ workstreamId: 'removed' })]);
 		await aggregate.track([]);
-		resolveRead({ removed: 'ready' });
+		resolveRead({ removed: 'open' });
 		await pending;
 
 		expect(aggregate.stateByWorkstream).toEqual({});
@@ -168,9 +168,9 @@ describe('PullRequestStateAggregate', () => {
 		expect(calls.map((entry) => entry[0]?.head)).toEqual(['feature-old', 'feature-new']);
 		expect(aggregate.stateByWorkstream.retargeted).toBe('unknown');
 
-		resolverAt(resolvers, 1)({ retargeted: 'ready' });
+		resolverAt(resolvers, 1)({ retargeted: 'open' });
 		await Promise.all([initial, retargeted]);
-		expect(aggregate.stateByWorkstream.retargeted).toBe('ready');
+		expect(aggregate.stateByWorkstream.retargeted).toBe('open');
 	});
 
 	it('takes a merge the open workstream observed over a stale read still in flight', async () => {
@@ -194,14 +194,14 @@ describe('PullRequestStateAggregate', () => {
 		let shouldFail = false;
 		const aggregate = new PullRequestStateAggregate(async (targets) => {
 			if (shouldFail) throw new Error('GitHub rate limit exceeded');
-			return Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'ready' as const]));
+			return Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'open' as const]));
 		});
 
 		await aggregate.track([target()]);
 		shouldFail = true;
 		await aggregate.refreshWorkstream('workstream-a');
 
-		expect(aggregate.stateByWorkstream['workstream-a']).toBe('ready');
+		expect(aggregate.stateByWorkstream['workstream-a']).toBe('open');
 		expect(aggregate.lastErrorByWorkstream['workstream-a']).toBe('GitHub rate limit exceeded');
 		expect(aggregate.loadingByWorkstream['workstream-a']).toBe(false);
 	});
@@ -221,7 +221,7 @@ describe('PullRequestStateAggregate', () => {
 		let answer = true;
 		const aggregate = new PullRequestStateAggregate(async (targets) =>
 			answer
-				? Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'ready' as const]))
+				? Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'open' as const]))
 				: {},
 		);
 
@@ -229,7 +229,7 @@ describe('PullRequestStateAggregate', () => {
 		answer = false;
 		await aggregate.refreshWorkstream('workstream-a');
 
-		expect(aggregate.stateByWorkstream['workstream-a']).toBe('ready');
+		expect(aggregate.stateByWorkstream['workstream-a']).toBe('open');
 	});
 
 	it('caps how many repository reads run at once', async () => {
@@ -290,16 +290,16 @@ describe('PullRequestStateAggregate', () => {
 		await flush();
 		expect(resolvers).toHaveLength(2);
 
-		resolverAt(resolvers, 1)({ 'workstream-a': 'ready' });
+		resolverAt(resolvers, 1)({ 'workstream-a': 'open' });
 		await Promise.all([initial, one, two]);
 
 		expect(resolvers).toHaveLength(2);
-		expect(aggregate.stateByWorkstream['workstream-a']).toBe('ready');
+		expect(aggregate.stateByWorkstream['workstream-a']).toBe('open');
 	});
 
 	it('drops every tracked row and stops polling on reset', async () => {
 		const aggregate = new PullRequestStateAggregate(async (targets) =>
-			Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'ready' as const])),
+			Object.fromEntries(targets.map((entry) => [entry.workstreamId, 'open' as const])),
 		);
 		await aggregate.track([target()]);
 		aggregate.startPolling();

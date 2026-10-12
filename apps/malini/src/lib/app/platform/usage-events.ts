@@ -13,6 +13,7 @@ const plain = (): UsageProperties => ({});
 
 export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'app.close-guard': false,
+	'app.copy-image': false,
 	'app.copy-text': false,
 	'app.delete-secret': false,
 	'app.destroy-window': false,
@@ -95,13 +96,29 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	}),
 	'extensions.stat-workstream-file': false,
 	'extensions.write-workstream-file': false,
+	'jobs.cancel-run': plain,
+	'jobs.delete-definition': plain,
+	'jobs.list-definitions': false,
+	'jobs.list-runs': false,
+	'jobs.reset-definition': plain,
+	'jobs.run': (args) => ({ origin: text(args, 'origin') ?? 'manual' }),
+	'jobs.save-definition': (args) => ({
+		runs_in: text(args, 'runsIn'),
+		output: text(args, 'output'),
+		effort: text(args, 'effort'),
+	}),
 	'providers.run-claude-setup': (args) => ({ step: text(args, 'step') }),
+	'pull-requests.cancel-merge': plain,
 	'pull-requests.check-diagnostics': false,
 	'pull-requests.create': (args) => ({ draft: flag(args, 'draft') ?? false }),
 	'pull-requests.mark-ready': plain,
 	'pull-requests.merge': (args) => ({ merge_method: text(args, 'mergeMethod') }),
+	'pull-requests.open-draft': plain,
+	'pull-requests.queue-merge': plain,
 	'pull-requests.resolve-addressed-review-threads': plain,
+	'pull-requests.retry-merge': plain,
 	'pull-requests.review-feedback': false,
+	'pull-requests.ship-states': false,
 	'pull-requests.status': false,
 	'pull-requests.update-metadata': false,
 	'repositories.abort-workstream-operation': plain,
@@ -154,6 +171,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'routines.promote': plain,
 	'routines.record-gated-run': (args) => ({ trigger: text(args, 'event') }),
 	'routines.reject-run': plain,
+	'routines.update': (args) => ({ steps: count(args, 'steps') }),
 };
 
 const USAGE_BY_NAME: Readonly<Record<string, CommandUsage>> = COMMAND_USAGE;

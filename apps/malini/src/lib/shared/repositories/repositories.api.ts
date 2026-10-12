@@ -80,6 +80,13 @@ export {
 } from './domain/diff';
 
 export {
+	AUTOMATION_INPUT_STRING_LIMIT,
+	automatedPullRequestMetadata,
+	type PullRequestAutomationContext,
+	type PullRequestAutomationEvent,
+} from './domain/pull-request-metadata';
+
+export {
 	WORKSTREAM_INSTALL_STATUS_EVENT,
 	WORKSTREAM_PROVISIONING_PHASES,
 	planWorkstreamProvisioning,

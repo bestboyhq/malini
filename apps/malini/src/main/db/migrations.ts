@@ -1064,9 +1064,74 @@ export const MIGRATION_0036_COMMIT_RUN_THREADS_RESOLVED_AT = `ALTER TABLE workst
 
 export const MIGRATION_0037_AGENT_RUNS_PROFILE = `ALTER TABLE agent_runs ADD COLUMN profile TEXT;`;
 
-export const MIGRATION_0038_WORKSTREAM_ARCHIVED_AT = `ALTER TABLE workstreams ADD COLUMN archived_at TEXT;`;
+export const MIGRATION_0038_JOBS = `
+CREATE TABLE IF NOT EXISTS job_definitions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  output TEXT NOT NULL CHECK (output IN ('none','draft','merge')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('fix-checks','resolve-conflicts','address-review')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 
-export const MIGRATION_0038_WORKSTREAM_ARCHIVED_REF = `ALTER TABLE workstreams ADD COLUMN archived_ref TEXT;`;
+CREATE TABLE IF NOT EXISTS job_runs (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  workstream_id TEXT,
+  repository_id TEXT,
+  session_id TEXT,
+  agent_run_id TEXT,
+  origin TEXT NOT NULL CHECK (origin IN ('merge-queue','manual','routine')),
+  status TEXT NOT NULL CHECK (status IN ('queued','running','needs-you','succeeded','failed','cancelled')),
+  context TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_status_created ON job_runs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_runs_session ON job_runs(session_id);
+`;
+
+export const MIGRATION_0038_WORKSTREAM_SHIP = `
+CREATE TABLE IF NOT EXISTS workstream_ship (
+  workstream_id TEXT PRIMARY KEY REFERENCES workstreams(id) ON DELETE CASCADE,
+  phase TEXT NOT NULL CHECK (phase IN ('draft','queued','needs-you')),
+  step TEXT,
+  pull_request_number INTEGER,
+  pull_request_url TEXT,
+  needs_you_reason TEXT,
+  needs_you_detail TEXT,
+  needs_you_job_run_id TEXT,
+  queued_at TEXT,
+  failure_signature TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  active_job_run_id TEXT,
+  last_error TEXT,
+  next_attempt_at TEXT,
+  generated_title TEXT,
+  generated_body TEXT,
+  updated_at TEXT NOT NULL
+);
+`;
+
+export const MIGRATION_0038_AGENT_SESSIONS_ORIGIN = `ALTER TABLE agent_sessions ADD COLUMN origin TEXT NOT NULL DEFAULT 'user' CHECK (origin IN ('user','job'));`;
+
+export const MIGRATION_0038_ROUTINE_STEPS = `
+ALTER TABLE routines ADD COLUMN steps_json TEXT NOT NULL DEFAULT '[]';
+UPDATE routines SET steps_json = json_array(json(run_json)) WHERE json_valid(run_json);
+ALTER TABLE routines DROP COLUMN run_json;
+`;
+
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_AT = `ALTER TABLE workstreams ADD COLUMN archived_at TEXT;`;
+
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_REF = `ALTER TABLE workstreams ADD COLUMN archived_ref TEXT;`;
 
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
@@ -1077,7 +1142,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 38;
+export const TARGET_USER_VERSION = 39;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1219,13 +1284,21 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 			if (existing < 37 && tableExists(db, 'agent_runs')) {
 				addColumnIfMissing(db, 'agent_runs', 'profile', MIGRATION_0037_AGENT_RUNS_PROFILE);
 			}
-			if (existing < 38 && tableExists(db, 'workstreams')) {
-				addColumnIfMissing(db, 'workstreams', 'archived_at', MIGRATION_0038_WORKSTREAM_ARCHIVED_AT);
+			if (existing < 38) {
+				db.exec(MIGRATION_0038_JOBS);
+				db.exec(MIGRATION_0038_WORKSTREAM_SHIP);
+				if (tableExists(db, 'agent_sessions')) {
+					addColumnIfMissing(db, 'agent_sessions', 'origin', MIGRATION_0038_AGENT_SESSIONS_ORIGIN);
+				}
+				if (columnExists(db, 'routines', 'run_json')) db.exec(MIGRATION_0038_ROUTINE_STEPS);
+			}
+			if (existing < 39 && tableExists(db, 'workstreams')) {
+				addColumnIfMissing(db, 'workstreams', 'archived_at', MIGRATION_0039_WORKSTREAM_ARCHIVED_AT);
 				addColumnIfMissing(
 					db,
 					'workstreams',
 					'archived_ref',
-					MIGRATION_0038_WORKSTREAM_ARCHIVED_REF,
+					MIGRATION_0039_WORKSTREAM_ARCHIVED_REF,
 				);
 			}
 

@@ -6,6 +6,7 @@ describe('validateRoutineWhenPhrase', () => {
 	it('accepts every phrase the form offers, with the compiled description', () => {
 		const results = ROUTINE_WHEN_PHRASES.map((phrase) => validateRoutineWhenPhrase(phrase));
 		expect(results).toEqual([
+			{ ok: true, description: 'Only when you run it' },
 			{ ok: true, description: 'When this workstream is created' },
 			{ ok: true, description: 'When a frontend resource becomes ready' },
 			{ ok: true, description: 'When a frontend Docker resource becomes ready' },

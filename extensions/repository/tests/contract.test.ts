@@ -22,19 +22,12 @@ test('activates, registers declared contributions, reloads, and cleans up', asyn
 		assert.deepEqual(host.snapshot().commands, [
 			'malini.repository.refresh',
 			'malini.repository.refresh-pull-request',
-			'malini.repository.prepare-pull-request-fix',
-			'malini.repository.pull-latest',
-			'malini.repository.continue-after-merge',
 			'malini.repository.abort-operation',
-			'malini.repository.mark-pull-request-ready',
 			'malini.repository.select-file',
 			'malini.repository.open-file',
 			'malini.repository.render-diff',
 			'malini.repository.open-agent-session-diff',
 			'malini.repository.status',
-			'malini.repository.commit-and-push',
-			'malini.repository.create-or-open-pull-request',
-			'malini.repository.merge-pull-request',
 			'malini.repository.todos',
 			'malini.repository.todo-add',
 			'malini.repository.todo-toggle',
@@ -159,38 +152,4 @@ test('uses only the public extension API boundary', async () => {
 		assert.doesNotMatch(source, /from ['"]\.\.\/\.\.|from ['"]\/Users/u);
 	}
 	assert.match(await readFile('src/index.ts', 'utf8'), /from '@malini\/extension-api'/u);
-});
-
-test('rejects a merge that does not carry the pull request head revision', async () => {
-	const host = await createTestHost({
-		manifest,
-		fixtureRepository: { name: 'merge-input-contract', files: { 'README.md': 'x' } },
-	});
-	try {
-		await host.activate(extension);
-		await assert.rejects(
-			host.invokeCommand('malini.repository.merge-pull-request'),
-			/Merge input must be an object/u,
-		);
-		await assert.rejects(
-			host.invokeCommand('malini.repository.merge-pull-request', { mergeMethod: 'squash' }),
-			/pull request head revision/u,
-		);
-		await assert.rejects(
-			host.invokeCommand('malini.repository.merge-pull-request', {
-				expectedHeadSha: 'head-1',
-				mergeMethod: 'octopus',
-			}),
-			/supported GitHub merge method/u,
-		);
-		await assert.rejects(
-			host.invokeCommand('malini.repository.merge-pull-request', {
-				expectedHeadSha: 'head-1',
-				pullRequestNumber: 7,
-			}),
-			/Unsupported merge input field/u,
-		);
-	} finally {
-		await host.cleanup();
-	}
 });
