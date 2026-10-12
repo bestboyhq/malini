@@ -140,6 +140,17 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
+async function untilLiveReplyShows(page: Page, line: string): Promise<void> {
+	const liveReply = (): Promise<string> =>
+		page
+			.getByTestId('chat-message-scroller')
+			.evaluate(
+				(scroller) =>
+					scroller.querySelector('[data-testid="chat-message-bubble-live"]')?.textContent ?? '',
+			);
+	await expect.poll(liveReply, { intervals: [50], timeout: 10_000 }).toContain(line);
+}
+
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
@@ -150,10 +161,7 @@ test('a prompt sent into a long chat lands right above the composer, then the tr
 		await startSampling(page, []);
 		await sendPrompt(page, 'STREAM:40 Walk me through it');
 		await expect(page.getByTestId('chat-message-bubble-user').last()).toBeInViewport();
-		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
-			'Streamed line 30 of 40.',
-			{ timeout: 10_000 },
-		);
+		await untilLiveReplyShows(page, 'Streamed line 30 of 40.');
 		const streaming = await stopSampling(page);
 
 		softly(
