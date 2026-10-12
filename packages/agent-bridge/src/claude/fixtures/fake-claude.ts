@@ -5,6 +5,8 @@ import type {
 	PermissionMode,
 	PermissionResult,
 	PermissionUpdate,
+	SDKControlGetContextUsageResponse,
+	SDKControlGetUsageResponse,
 	SDKControlInitializeResponse,
 	SDKMessage,
 	SDKResultMessage,
@@ -45,6 +47,41 @@ export interface FakeRun {
 	interrupted: boolean;
 	closed: boolean;
 }
+
+export const FAKE_CONTEXT_CATEGORIES: SDKControlGetContextUsageResponse['categories'] = [
+	{ name: 'System prompt', tokens: 2_104, color: 'promptBorder', kind: 'used' },
+	{
+		name: 'MCP tools (deferred)',
+		tokens: 5_965,
+		color: 'inactive',
+		isDeferred: true,
+		kind: 'deferred',
+	},
+	{ name: 'Custom agents', tokens: 0, color: 'permission', kind: 'used' },
+	{ name: 'Messages', tokens: 23_368, color: 'purple', kind: 'used' },
+	{ name: 'Autocompact buffer', tokens: 33_000, color: 'inactive', kind: 'buffer' },
+	{ name: 'Free space', tokens: 141_528, color: 'promptBorder', kind: 'free' },
+];
+
+export const FAKE_PLAN_USAGE: SDKControlGetUsageResponse = {
+	session: {
+		total_cost_usd: 0,
+		total_api_duration_ms: 0,
+		total_duration_ms: 0,
+		total_lines_added: 0,
+		total_lines_removed: 0,
+		model_usage: {},
+	},
+	subscription_type: 'max',
+	rate_limits_available: true,
+	rate_limits: {
+		five_hour: { utilization: 92, resets_at: '2026-10-12T13:50:00.000Z' },
+		seven_day: { utilization: 34, resets_at: '2026-10-15T06:00:00.000Z' },
+		seven_day_opus: null,
+		model_scoped: [{ display_name: 'Fable', utilization: 12, resets_at: null }],
+	},
+	behaviors: null,
+};
 
 const recorded: unknown = JSON.parse(
 	readFileSync(new URL('./transcripts.json', import.meta.url), 'utf8'),
@@ -93,18 +130,27 @@ export function fakeClaude(
 			closed: false,
 		};
 		runs.push(run);
+		let iterating = true;
+		const whileIterating = async <T>(answer: T): Promise<T> => {
+			if (!iterating) throw new Error('Claude Code closed when the session stopped reading');
+			return answer;
+		};
 		return {
 			async *[Symbol.asyncIterator]() {
-				for (const step of script) {
-					if (step === 'wait-for-interrupt') {
-						await interrupted;
-						continue;
+				try {
+					for (const step of script) {
+						if (step === 'wait-for-interrupt') {
+							await interrupted;
+							continue;
+						}
+						if ('canUseTool' in step) {
+							run.permissionResults.push(await askPermission(options, step));
+							continue;
+						}
+						yield step.type === 'result' ? echoPrompt(step, (await sent)?.uuid) : step;
 					}
-					if ('canUseTool' in step) {
-						run.permissionResults.push(await askPermission(options, step));
-						continue;
-					}
-					yield step.type === 'result' ? echoPrompt(step, (await sent)?.uuid) : step;
+				} finally {
+					iterating = false;
 				}
 			},
 			async interrupt() {
@@ -118,8 +164,11 @@ export function fakeClaude(
 			async mcpServerStatus() {
 				return [];
 			},
-			async getContextUsage() {
-				return { rawMaxTokens: 200_000 };
+			getContextUsage() {
+				return whileIterating({ rawMaxTokens: 200_000, categories: FAKE_CONTEXT_CATEGORIES });
+			},
+			usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET() {
+				return whileIterating(FAKE_PLAN_USAGE);
 			},
 			initializationResult,
 			close() {

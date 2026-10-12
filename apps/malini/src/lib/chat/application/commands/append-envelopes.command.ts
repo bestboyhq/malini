@@ -7,6 +7,7 @@ import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
+import { planUsageStore } from '$lib/chat/infrastructure/stores/plan-usage.store.svelte';
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
 
 export { appendEnvelopesCommand };
@@ -25,6 +26,7 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 		}
 	}
 	sessionsAggregate.applyEventBatch(accepted);
+	planUsageStore.observe(accepted);
 	for (const envelope of accepted) {
 		if (envelope.event.type === 'user.message' && envelope.event.clientRequestId) {
 			const workstreamId = ownerOf(envelope.sessionId);

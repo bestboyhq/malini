@@ -107,6 +107,23 @@ describe('ClaudeSession', () => {
 				costUsd: 0.10004199999999999,
 				contextTokens: 25_472,
 				contextWindowTokens: 200_000,
+				providerMetrics: {
+					anthropic: {
+						contextCategories: [
+							{ name: 'System prompt', tokens: 2_104, kind: 'used' },
+							{ name: 'MCP tools (deferred)', tokens: 5_965, kind: 'deferred' },
+							{ name: 'Messages', tokens: 23_368, kind: 'used' },
+							{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+							{ name: 'Free space', tokens: 141_528, kind: 'free' },
+						],
+						rateLimits: [
+							{ label: '5-hour limit', utilization: 92, resetsAt: '2026-10-12T13:50:00.000Z' },
+							{ label: 'Weekly limit', utilization: 34, resetsAt: '2026-10-15T06:00:00.000Z' },
+							{ label: 'Weekly Fable limit', utilization: 12, resetsAt: null },
+						],
+						observedAt: expect.any(String),
+					},
+				},
 				interim: false,
 			},
 			{
@@ -135,6 +152,29 @@ describe('ClaudeSession', () => {
 			resumeSessionAt: READ_AND_BASH_CURSOR,
 		});
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-2' });
+	});
+
+	it('completes a run without plan limits when Claude cannot report them', async () => {
+		const claude = fakeClaude([recordedScript('readAndBash')]);
+		const events: AgentEvent[] = [];
+		const session = new ClaudeSession({
+			context: CONTEXT,
+			emit: (event) => events.push(event),
+			executable: '/opt/claude/bin/claude',
+			query: (params) => ({
+				...claude.query(params),
+				usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
+					Promise.reject(new Error('rate limits unavailable')),
+			}),
+		});
+
+		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
+
+		const final = ofType(events, 'usage.updated').at(-1);
+		expect(final?.providerMetrics?.['anthropic']).toEqual({
+			contextCategories: expect.any(Array),
+		});
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 	});
 
 	it('reports the context window with live usage while the run is still going', async () => {
