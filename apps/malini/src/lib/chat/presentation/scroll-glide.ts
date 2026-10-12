@@ -136,8 +136,10 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 
 			const shown = node.scrollTop;
 			const inFlight = element === node && frame !== null;
-			const onlySnapped = inFlight && Math.abs(shown - state.position) < DEVICE_PIXEL_SNAP_PX;
-			state = { position: onlySnapped ? state.position : shown, velocity: state.velocity };
+			state = {
+				position: inFlight ? unsnapped(shown, state.position) : shown,
+				velocity: state.velocity,
+			};
 			if (
 				Math.abs(state.position - target) <= SCROLL_GLIDE_SETTLE_PX &&
 				Math.abs(state.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
@@ -170,4 +172,8 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 			return frame !== null;
 		},
 	};
+}
+
+function unsnapped(scrollTop: number, position: number): number {
+	return Math.abs(scrollTop - position) < DEVICE_PIXEL_SNAP_PX ? position : scrollTop;
 }

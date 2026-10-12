@@ -128,6 +128,10 @@ class UpstreamPanelController {
 
 	hideFile(): void {}
 
+	readUncommittedDiff(): Promise<null> {
+		return Promise.resolve(null);
+	}
+
 	subscribe(listener: (state: RepositoryViewState) => void): { dispose(): void } {
 		listener(this.#state);
 		return {

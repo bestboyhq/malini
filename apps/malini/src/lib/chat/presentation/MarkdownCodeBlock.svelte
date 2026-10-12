@@ -6,17 +6,11 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import CodeTokens from './CodeTokens.svelte';
-	import {
-		detectLanguage,
-		languageHintLabel,
-		languageLabel,
-		normalizeLanguage,
-	} from '@malini/extension-api';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
+	import { languageHintLabel, languageLabel, resolveLanguage } from '@malini/extension-api';
 
 	interface Props {
 		code: string;
-		safeHtml: string;
 		language?: string | null;
 	}
 
@@ -25,7 +19,7 @@
 	const copyOutcome = $derived(chatRequestQuery.data(copyRequestId));
 	const copied = $derived(copyOutcome?.status === 'accepted');
 
-	const resolvedLanguage = $derived(normalizeLanguage(language) ?? detectLanguage(code));
+	const resolvedLanguage = $derived(resolveLanguage(language, code));
 	const label = $derived(languageHintLabel(language) ?? languageLabel(resolvedLanguage));
 
 	$effect(() => {
@@ -46,7 +40,7 @@
 <div
 	class="border-surface-50-border relative my-[0.5em] max-w-full overflow-hidden rounded-xl border-[0.5px]"
 	data-testid="markdown-code-block"
-	data-language={resolvedLanguage ?? undefined}
+	data-language={resolvedLanguage}
 >
 	{#if label}
 		<div class="flex h-9 items-center px-3 pt-2">

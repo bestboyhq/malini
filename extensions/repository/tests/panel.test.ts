@@ -1494,6 +1494,10 @@ class PanelTestController {
 
 	hideFile(): void {}
 
+	readUncommittedDiff(): Promise<null> {
+		return Promise.resolve(null);
+	}
+
 	subscribe(listener: (state: RepositoryViewState) => void): { dispose(): void } {
 		this.#listeners.add(listener);
 		listener(this.#state);

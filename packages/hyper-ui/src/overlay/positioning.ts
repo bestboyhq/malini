@@ -16,6 +16,22 @@ export interface PositionResult {
 	actualSide: MenuSide;
 }
 
+export function layoutRect(element: Pick<HTMLElement, 'offsetWidth' | 'offsetHeight'>): DOMRect {
+	const width = element.offsetWidth;
+	const height = element.offsetHeight;
+	return {
+		x: 0,
+		y: 0,
+		left: 0,
+		top: 0,
+		width,
+		height,
+		right: width,
+		bottom: height,
+		toJSON: () => ({}),
+	};
+}
+
 function oppositeSide(side: MenuSide): MenuSide {
 	if (side === 'top') return 'bottom';
 	if (side === 'bottom') return 'top';

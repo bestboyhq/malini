@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { PromptChipPreview } from './prompt-chip-preview';
 
 	interface Props {
@@ -40,7 +41,10 @@
 		{:else}
 			<div class={CAPTION_CLASS}>{preview.title}</div>
 			<pre
-				class="bg-surface-50 text-3xs leading-code text-fg-secondary mt-1 max-h-[12.4em] overflow-hidden rounded-md px-2 py-1.5 font-mono break-words whitespace-pre-wrap">{preview.code}</pre>
+				class="bg-surface-50 text-3xs leading-code text-fg-secondary mt-1 max-h-[12.4em] overflow-hidden rounded-md px-2 py-1.5 font-mono break-words whitespace-pre-wrap"><CodeTokens
+					code={preview.code}
+					language="html"
+				/></pre>
 			{#if preview.meta}
 				<div class="mt-1 {META_CLASS}">{preview.meta}</div>
 			{/if}
