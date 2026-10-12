@@ -16,8 +16,9 @@ import { promptPlainText } from './sessions.repository';
 const RUN_SUMMARY_LIMIT = 6;
 const VALIDATION_EVENT_LIMIT = 12;
 
-const USER_RUNS = `agent_runs r JOIN agent_sessions s ON s.id = r.session_id
-	WHERE s.workstream_id = ? AND s.origin = 'user' AND r.automated = 0 AND r.obsoleted_at IS NULL`;
+const WORKSTREAM_RUNS = `agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+	WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`;
+const COMPLETED = 'r.completed_at IS NOT NULL AND r.error IS NULL AND r.summary IS NOT NULL';
 
 export function workstreamShipContext(
 	db: MaliniDatabase,
@@ -35,15 +36,15 @@ export function workstreamShipContext(
 	)?.display_name;
 	const lastPrompt = get<{ prompt: string }>(
 		db,
-		`SELECT r.prompt FROM ${USER_RUNS} ORDER BY r.rowid DESC LIMIT 1`,
+		`SELECT r.prompt FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND r.automated = 0
+		 ORDER BY r.rowid DESC LIMIT 1`,
 		workstreamId,
 	)?.prompt;
 	const lastUserIntent =
 		lastPrompt === undefined ? '' : promptPlainText(lastPrompt).replace(/\s+/gu, ' ').trim();
 	const completed = all<{ id: string; summary: string }>(
 		db,
-		`SELECT r.id, r.summary FROM ${USER_RUNS}
-		   AND r.completed_at IS NOT NULL AND r.error IS NULL AND r.summary IS NOT NULL
+		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND ${COMPLETED}
 		 ORDER BY r.rowid ASC`,
 		workstreamId,
 	);
@@ -55,7 +56,11 @@ export function workstreamShipContext(
 		RUN_SUMMARY_LIMIT,
 	);
 	const latestRunId = described.at(-1)?.id;
-	const pullRequestTitle = completed
+	const pullRequestTitle = all<{ summary: string }>(
+		db,
+		`SELECT r.summary FROM ${WORKSTREAM_RUNS} AND ${COMPLETED} ORDER BY r.rowid ASC`,
+		workstreamId,
+	)
 		.map(({ summary }) => pullRequestTitleLine(summary))
 		.filter(Boolean)
 		.at(-1);

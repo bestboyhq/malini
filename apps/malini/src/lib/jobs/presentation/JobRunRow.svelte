@@ -42,8 +42,8 @@
 			: null,
 	);
 	const cancellable = $derived(run.status === 'queued' || run.status === 'running');
-	const showsDetail = $derived(
-		run.detail !== null && (run.status === 'needs-you' || run.status === 'failed'),
+	const detail = $derived(
+		run.status === 'needs-you' || run.status === 'failed' ? run.detail : null,
 	);
 
 	$effect(() => {
@@ -62,37 +62,28 @@
 </script>
 
 {#snippet summary()}
-	<span class={['mt-px grid size-4 shrink-0 place-items-center', look.tone]} aria-hidden="true">
+	<span class={['grid size-4 shrink-0 place-items-center', look.tone]} aria-hidden="true">
 		{#if run.status === 'running'}
 			<LoadingCircle size={12} />
 		{:else}
 			<Icon name={look.icon} size={13} />
 		{/if}
 	</span>
-	<span class="block min-w-0 flex-1">
-		<span class="flex min-w-0 items-baseline gap-1 text-xs">
-			<span class="text-fg-default truncate font-medium">{run.title}</span>
-			{#if placeName}
-				<span class="text-fg-tertiary min-w-0 truncate">· {placeName}</span>
-			{/if}
-		</span>
-		<span class="text-2xs mt-0.5 flex items-center gap-1 tabular-nums">
-			<span class={['font-medium', look.tone]}>{look.label}</span>
-			<span class="text-fg-tertiary">· {jobRunTime(run, nowMs)}</span>
-		</span>
-		{#if showsDetail}
-			<span class="text-fg-tertiary text-2xs mt-0.5 line-clamp-2 block">{run.detail}</span>
+	<span class="min-w-0 flex-1 truncate">
+		<span class="text-fg-default font-medium">{run.title}</span>
+		{#if placeName}
+			<span class="text-fg-tertiary">· {placeName}</span>
 		{/if}
 	</span>
 {/snippet}
 
-<div class="flex items-start gap-1 rounded-lg" data-testid="job-run-row" data-job-run-id={run.id}>
+{#snippet opener()}
 	{#if transcriptHref}
 		<Button
 			bare
 			href={transcriptHref}
 			ariaLabel={`Open transcript: ${subject}, ${look.label}`}
-			class="hover:bg-surface-elevated-hover focus-visible:ring-border-default/50 flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-2"
+			class="focus-visible:ring-border-default/50 flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl pl-2 text-left text-xs outline-none focus-visible:ring-2"
 		>
 			{@render summary()}
 		</Button>
@@ -101,39 +92,68 @@
 			bare
 			disabled
 			ariaLabel={`${subject}, ${look.label}. The transcript opens once the job starts`}
-			class="flex min-w-0 flex-1 cursor-default items-start gap-2 rounded-lg px-2 py-1.5 text-left"
+			class="flex h-7 min-w-0 flex-1 cursor-default items-center gap-2 rounded-xl pl-2 text-left text-xs"
 		>
 			{@render summary()}
 		</Button>
 	{/if}
-	{#if cancellable}
-		<div class="flex shrink-0 items-center self-center pr-1">
-			{#if armed}
-				<Button
-					variant="danger-ghost"
-					size="xs"
-					ariaLabel={`Confirm cancelling ${run.title}`}
-					loading={actionState.busy}
-					data-armed="true"
-					data-testid="job-run-cancel-confirm"
-					onclick={onCancel}
+{/snippet}
+
+<div
+	class={[
+		'group flex items-center gap-2 rounded-xl pr-1',
+		transcriptHref && 'hover:bg-surface-50-hover',
+	]}
+	data-testid="job-run-row"
+	data-job-run-id={run.id}
+>
+	{#if detail}
+		<Tooltip content={detail} placement="left" class="min-w-0 flex-1">
+			{@render opener()}
+		</Tooltip>
+	{:else}
+		{@render opener()}
+	{/if}
+	{#if armed}
+		<Button
+			variant="danger-ghost"
+			size="xs"
+			ariaLabel={`Confirm cancelling ${run.title}`}
+			loading={actionState.busy}
+			data-armed="true"
+			data-testid="job-run-cancel-confirm"
+			onclick={onCancel}
+		>
+			Cancel job
+		</Button>
+	{:else}
+		<span class="grid shrink-0 place-items-center">
+			<span
+				class={[
+					'text-fg-tertiary text-2xs pointer-events-none justify-self-end pr-1 tabular-nums [grid-area:1/1]',
+					cancellable && 'group-focus-within:opacity-0 group-hover:opacity-0',
+				]}
+			>
+				{jobRunTime(run, nowMs)}
+			</span>
+			{#if cancellable}
+				<span
+					class="justify-self-end opacity-0 [grid-area:1/1] group-focus-within:opacity-100 group-hover:opacity-100"
 				>
-					Cancel job
-				</Button>
-			{:else}
-				<Tooltip content="Cancel job" placement="top">
-					<IconButton
-						variant="ghost"
-						size="sm"
-						ariaLabel={`Cancel ${run.title}`}
-						disabled={actionState.busy}
-						data-testid="job-run-cancel"
-						onclick={onCancel}
-					>
-						<Icon name="close" size={12} />
-					</IconButton>
-				</Tooltip>
+					<Tooltip content="Cancel job" placement="top">
+						<IconButton
+							variant="ghost"
+							size="xs"
+							ariaLabel={`Cancel ${run.title}`}
+							disabled={actionState.busy}
+							data-testid="job-run-cancel"
+							onclick={onCancel}
+						>
+							<Icon name="close" size={12} />
+						</IconButton>
+					</Tooltip>
+				</span>
 			{/if}
-		</div>
+		</span>
 	{/if}
 </div>

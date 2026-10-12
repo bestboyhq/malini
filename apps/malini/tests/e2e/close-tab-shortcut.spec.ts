@@ -1,10 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import type { ArchivedWorkstreamDto } from '../../src/contract/repositories';
 import {
 	captureFlow,
 	createSourceRepo,
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -73,11 +75,16 @@ test('Cmd+W closes the current tab, then archives the workstream once no tab is 
 		await closeTab(page);
 		await expect(page).toHaveTitle('malini · Repositories', { timeout: 20_000 });
 		await expect(
-			page.getByTestId('toast').filter({ hasText: 'Archived First chat' }),
-		).toBeVisible();
-		await expect(
 			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
 		).toHaveCount(0);
+		await expect
+			.poll(async () =>
+				(await invoke<ArchivedWorkstreamDto[]>(page, 'repositories.list-archived-workstreams')).map(
+					({ id }) => id,
+				),
+			)
+			.toEqual([workstreamId]);
+		await expect(page.getByTestId('toast')).toHaveCount(0);
 		await captureFlow(app, 'close-tab-shortcut-archived');
 		expectCleanConsole(app);
 	} finally {

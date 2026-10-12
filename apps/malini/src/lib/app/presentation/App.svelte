@@ -44,6 +44,8 @@
 
 <CloseConfirmationDialog />
 
-<JobCenter />
+{#if !page.params.workstreamId}
+	<JobCenter />
+{/if}
 
 <ToastHost />

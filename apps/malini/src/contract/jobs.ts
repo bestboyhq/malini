@@ -80,6 +80,8 @@ export type JobDefinitionChangedEvent = Readonly<{
 	definition: JobDefinitionRecord | null;
 }>;
 
+export const JOB_INTERRUPTED_DETAIL = 'Interrupted when malini closed';
+
 export const JOBS_MAX_CONCURRENT_SETTING = 'jobs.max-concurrent';
 
 export const DEFAULT_JOBS_MAX_CONCURRENT = 3;

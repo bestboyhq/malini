@@ -355,7 +355,9 @@ describe('the top bar when the merge needs you', () => {
 				}),
 				null,
 			).action;
-			expect(action?.tooltip).toBe('Octo asked for tests. Opens the pull request on GitHub.');
+			expect(action?.tooltip).toBe(
+				'Octo asked for tests. Opens the pull request on GitHub. Retry or cancel the merge from the pull request menu.',
+			);
 			expect(action?.disabled).toBe(false);
 		}
 	});
@@ -382,7 +384,7 @@ describe('the top bar when the merge needs you', () => {
 				null,
 			).action?.tooltip,
 		).toBe(
-			'The agent could not fix the same failure after several attempts. Opens the transcript of the job that stopped.',
+			"The agent could not fix the same failure after several attempts. Opens the job's transcript. Retry or cancel the merge from the pull request menu.",
 		);
 		expect(
 			topBar(ship({ phase: 'needs-you', needsYou: needsYou('fix-gave-up') }), null).action?.tooltip,
@@ -394,7 +396,7 @@ describe('the top bar when the merge needs you', () => {
 			topBar(ship({ phase: 'needs-you', needsYou: needsYou('github-reconnect') }), null).action
 				?.tooltip,
 		).toBe(
-			'GitHub no longer accepts the stored sign-in. Opens the repositories page to sign in with GitHub again.',
+			'GitHub no longer accepts the stored sign-in. Opens the repositories page to sign in with GitHub again. Retry or cancel the merge from the pull request menu.',
 		);
 	});
 

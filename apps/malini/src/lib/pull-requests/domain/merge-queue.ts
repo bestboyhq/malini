@@ -32,6 +32,7 @@ export type MergeQueueSnapshot = Readonly<{
 	worktree: MergeQueueWorktree;
 	threadResolutionRunId: string | null;
 	failureSignature: string | null;
+	fixSucceededAt: number | null;
 	attempts: number;
 	fixAttemptLimit: number;
 	backoffUntil: number | null;
@@ -97,6 +98,7 @@ const PENDING_CHECK_STATES = new Set([
 	'EXPECTED',
 ]);
 const READY_MERGE_STATES = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
+const CHECKS_RERUN_GRACE_MS = 60_000;
 const JOB_STEPS: Readonly<Record<JobBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
 	'resolve-conflicts': 'resolving-conflicts',
@@ -238,16 +240,7 @@ function pullRequestMove(
 	const mergeState = mergeability(pullRequest);
 	if (mergeState === 'conflicts' || mergeState === 'behind') return { kind: 'update-branch' };
 	const failing = blockingFailedChecks(pullRequest);
-	if (failing.length > 0) {
-		return fixJob(
-			snapshot,
-			'fix-checks',
-			signature(
-				'checks',
-				failing.map((check) => check.name),
-			),
-		);
-	}
+	if (failing.length > 0) return failingChecksMove(snapshot, failing);
 	if (checksPending(pullRequest)) return { kind: 'wait', step: 'waiting-for-checks' };
 	const review = reviewRouting(snapshot.reviewFeedback);
 	const botChangeRequests =
@@ -278,6 +271,33 @@ function pullRequestMove(
 				);
 	}
 	return { kind: 'merge', method, headSha: pullRequest.headSha };
+}
+
+function failingChecksMove(
+	snapshot: MergeQueueSnapshot,
+	failing: readonly PullRequestCheckDto[],
+): MergeQueueMove {
+	const failure = signature(
+		'checks',
+		failing.map((check) => check.name),
+	);
+	const fixedAt = snapshot.failureSignature === failure ? snapshot.fixSucceededAt : null;
+	if (fixedAt === null || failing.some((check) => completedAfter(check, fixedAt))) {
+		return fixJob(snapshot, 'fix-checks', failure);
+	}
+	if (snapshot.now - fixedAt < CHECKS_RERUN_GRACE_MS) {
+		return { kind: 'wait', step: 'waiting-for-checks' };
+	}
+	return needsYou(
+		snapshot,
+		'fix-gave-up',
+		'The failing checks did not run again after the last fix.',
+	);
+}
+
+function completedAfter(check: PullRequestCheckDto, time: number): boolean {
+	const completed = Date.parse(check.completedAt ?? '');
+	return Number.isNaN(completed) || completed > time;
 }
 
 function blockedMove(
