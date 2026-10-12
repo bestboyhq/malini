@@ -82,7 +82,7 @@ function attachmentIds(prompt: Record<string, unknown> | undefined): string[] {
 async function openChatWithNotes(
 	app: LaunchedApp,
 	workstreamId: string,
-): Promise<{ worktree: string; sourceId: string; clipboard: Clipboard }> {
+): Promise<{ worktree: string; sourceId: string }> {
 	const source = await createSourceRepo(app.root);
 	const { worktree } = await seedWorkstream(app.page, source, workstreamId, 'Reuse workstream');
 	await openWorkstream(app.page, workstreamId);
@@ -91,7 +91,7 @@ async function openChatWithNotes(
 	await expect(notesChip(composer(app.page))).toBeVisible({ timeout: 20_000 });
 	const sourceId =
 		(await notesChip(composer(app.page)).getAttribute('data-inline-attachment')) ?? '';
-	return { worktree, sourceId, clipboard: await copyComposer(app.page) };
+	return { worktree, sourceId };
 }
 
 test('a file chip copied from one chat sends its own copy of the file from another chat', async () => {
@@ -99,7 +99,8 @@ test('a file chip copied from one chat sends its own copy of the file from anoth
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { worktree, sourceId, clipboard } = await openChatWithNotes(app, 'e2e-reuse-ws');
+		const { worktree, sourceId } = await openChatWithNotes(app, 'e2e-reuse-ws');
+		const clipboard = await copyComposer(page);
 
 		await startFreshChat(page);
 		await paste(page, clipboard);
@@ -129,7 +130,8 @@ test('a file chip pasted into another workstream lands in that workstream’s ch
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { clipboard } = await openChatWithNotes(app, 'e2e-reuse-from-ws');
+		await openChatWithNotes(app, 'e2e-reuse-from-ws');
+		const clipboard = await copyComposer(page);
 		const source = await createSourceRepo(app.root, 'other');
 		const other = await seedWorkstream(page, source, 'e2e-reuse-to-ws', 'Other workstream');
 		await openWorkstream(page, other.workstreamId);
@@ -156,7 +158,6 @@ test('editing a sent prompt shows its file as a chip and sends the file again', 
 	try {
 		const { page } = app;
 		await openChatWithNotes(app, 'e2e-reuse-edit-ws');
-		await caretAtEnd(composer(page));
 		await page.keyboard.type(' Read it');
 		await page.getByTestId('chat-composer-submit').click();
 		await expectAssistantReply(page);
