@@ -3,6 +3,7 @@
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
+	import { JobCenter } from '$lib/jobs/jobs.api';
 	import {
 		WorkstreamProvisioningFrame,
 		WorkstreamTitle,
@@ -35,6 +36,7 @@
 		{#snippet secondary()}
 			<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
 				{@render children()}
+				<JobCenter docked />
 			</div>
 		{/snippet}
 	</InspectorSplit>

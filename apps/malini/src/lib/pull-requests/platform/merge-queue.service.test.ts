@@ -3,7 +3,13 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { JobDefinitionRecord, JobRunRecord, JobRunStatus, RunJobArgs } from '$contract/jobs';
+import {
+	JOB_INTERRUPTED_DETAIL,
+	type JobDefinitionRecord,
+	type JobRunRecord,
+	type JobRunStatus,
+	type RunJobArgs,
+} from '$contract/jobs';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	type ShipChangedEvent,
@@ -33,7 +39,7 @@ const DELAYS = {
 
 const WAIT = { timeout: 8_000, interval: 15 };
 
-type FakeCheck = { name: string; status: string; conclusion: string };
+type FakeCheck = { name: string; status: string; conclusion: string; completedAt?: string };
 
 type FakeThread = { id: string; bot: boolean; resolved: boolean };
 
@@ -317,6 +323,7 @@ let pulls: string[];
 let archived: string[];
 let pullConflicts: string[];
 let shaCounter: number;
+let clockOffsetMs: number;
 
 const DEFINITIONS: JobDefinitionRecord[] = (
 	['fix-checks', 'resolve-conflicts', 'address-review'] as const
@@ -411,7 +418,12 @@ function finishJob(
 		dirtyPaths: [...current.dirtyPaths, ...(options.dirtyPaths ?? [])],
 		...(options.resolveConflicts ? { conflictedPaths: [], conflictMarkerPaths: [] } : {}),
 	});
-	const finished: JobRunRecord = { ...run, status, detail: options.summary ?? null };
+	const finished: JobRunRecord = {
+		...run,
+		status,
+		detail: options.summary ?? null,
+		finishedAt: new Date().toISOString(),
+	};
 	jobRuns.set(jobRunId, finished);
 	context.events.emit('jobs:run-changed', { run: finished });
 }
@@ -555,7 +567,10 @@ function defineFakes(): void {
 }
 
 function start(): void {
-	platform = registerPullRequests(context, { runner: github.run, ship: { delays: DELAYS } });
+	platform = registerPullRequests(context, {
+		runner: github.run,
+		ship: { delays: DELAYS, now: () => Date.now() + clockOffsetMs },
+	});
 	platform.start();
 }
 
@@ -617,6 +632,7 @@ beforeEach(() => {
 	archived = [];
 	pullConflicts = [];
 	shaCounter = 0;
+	clockOffsetMs = 0;
 	runCounter = 0;
 	context.events.subscribe('pull-requests:ship-changed', (event) => shipEvents.push(event));
 	defineFakes();
@@ -929,6 +945,76 @@ describe('the merge queue', () => {
 		);
 		expect(jobRuns.size).toBe(2);
 		expect(github.only().state).toBe('OPEN');
+	});
+
+	it('retitles from a fix that changed no code and waits for the check the title reruns', async () => {
+		await queueWithDraft();
+		const failedAt = new Date(Date.now() - 60_000).toISOString();
+		github.only().checks = [
+			{ name: 'conventional', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: failedAt },
+		];
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
+
+		finishJob(activeJob().id, 'succeeded', {
+			summary: 'Only the title fails the check.\n\nPull request: feat: add search to the header',
+		});
+
+		await until(() => expect(github.only().title).toBe('feat: add search to the header'));
+		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
+		github.only().checks = [
+			{
+				name: 'conventional',
+				status: 'COMPLETED',
+				conclusion: 'SUCCESS',
+				completedAt: new Date().toISOString(),
+			},
+		];
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(jobRuns.size).toBe(1);
+		expect(pushes).toEqual(['ws-1']);
+	});
+
+	it('stops for you once a fix changed nothing and no failing check runs again', async () => {
+		await queueWithDraft();
+		const failedAt = new Date(Date.now() - 60_000).toISOString();
+		github.only().checks = [
+			{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: failedAt },
+		];
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
+		const job = activeJob();
+
+		finishJob(job.id, 'succeeded', { summary: 'The test is flaky, so I changed nothing.' });
+		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
+		clockOffsetMs = 60_000;
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({
+				phase: 'needs-you',
+				needsYou: {
+					reason: 'fix-gave-up',
+					detail: 'The failing checks did not run again after the last fix.',
+					jobRunId: job.id,
+				},
+			}),
+		);
+		expect(jobRuns.size).toBe(1);
+	});
+
+	it('spends no fix attempt on a job that malini closing interrupted', async () => {
+		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
+		await queueWithDraft();
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
+
+		finishJob(activeJob().id, 'failed', { summary: JOB_INTERRUPTED_DETAIL });
+
+		await until(() => expect(jobRuns.size).toBe(2));
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ phase: 'queued', step: 'fixing-checks', attempts: 1 }),
+		);
 	});
 
 	it('backs off on transient GitHub errors and recovers', async () => {

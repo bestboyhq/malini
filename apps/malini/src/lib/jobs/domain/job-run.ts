@@ -8,8 +8,6 @@ import { isAlreadyActiveError } from '$lib/chat/domain/prompt-dispatch-failure';
 
 export const JOB_CONTEXT_MAX_BYTES = 64 * 1024;
 
-export const JOB_INTERRUPTED_DETAIL = 'Interrupted when malini closed';
-
 export function isFinishedJobRunStatus(status: JobRunStatus): boolean {
 	return status === 'succeeded' || status === 'failed' || status === 'cancelled';
 }

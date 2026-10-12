@@ -51,7 +51,7 @@ function completedRun(
 }
 
 describe('workstreamShipContext', () => {
-	it('describes the work the user asked for, never what jobs or malini prompted', () => {
+	it('describes the work the user asked for, never what jobs did', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({});
@@ -75,14 +75,6 @@ describe('workstreamShipContext', () => {
 			exitCode: 1,
 		});
 		completedRun(db, 'run-ack', 'chat-old', 'thanks', 'Done.');
-		completedRun(
-			db,
-			'run-fix',
-			'chat-old',
-			'Resolve the merge conflicts',
-			'Resolved conflicts in src/app.ts',
-			true,
-		);
 
 		session(db, 'chat-new', 'user', 'Readiness probe');
 		completedRun(
@@ -124,6 +116,67 @@ describe('workstreamShipContext', () => {
 			lastUserIntent: 'EDIT:beta.txt',
 			runSummaries: ['feat: add alpha'],
 			latestRunId: 'run-alpha',
+		});
+		db.close();
+	});
+
+	it('titles the pull request after the latest run that proposed a title, a job included', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		session(db, 'chat', 'user', 'Jobs panel');
+		completedRun(
+			db,
+			'run-user',
+			'chat',
+			'idk why : jobs',
+			'Commit: x\nPull request: Idk why : jobs',
+		);
+		session(db, 'job', 'job', 'Fix checks');
+		completedRun(
+			db,
+			'run-fix',
+			'job',
+			'Fix the failing checks',
+			'Only the title fails the check.\n\nPull request: feat(jobs): dock the Job center',
+			true,
+		);
+		completedRun(db, 'run-quiet', 'job', 'Fix the failing checks', 'Nothing to change.', true);
+
+		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
+			runSummaries: ['x'],
+			latestRunId: 'run-user',
+			pullRequestTitle: 'feat(jobs): dock the Job center',
+		});
+		db.close();
+	});
+
+	it('ships what a run malini continued after a restart did, under the prompt the user typed', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		session(db, 'chat', 'user', 'Jobs panel');
+		insertRun(db, {
+			id: 'run-paused',
+			sessionId: 'chat',
+			prompt: 'Make every job a one-liner',
+			startedAt: '2026-07-10T00:00:00Z',
+			completedAt: '2026-07-10T00:01:00Z',
+			summary: null,
+			error: 'paused: malini closed mid-run',
+		});
+		completedRun(
+			db,
+			'run-continued',
+			'chat',
+			'malini restarted while you were working',
+			'Docked the panel.\n\nCommit: Dock the jobs panel\nPull request: feat: dock the jobs panel',
+			true,
+		);
+
+		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
+			lastUserIntent: 'Make every job a one-liner',
+			runSummaries: ['Dock the jobs panel'],
+			latestRunId: 'run-continued',
+			pullRequestTitle: 'feat: dock the jobs panel',
 		});
 		db.close();
 	});

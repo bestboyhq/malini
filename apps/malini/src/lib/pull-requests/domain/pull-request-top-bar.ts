@@ -133,12 +133,13 @@ function queued(ship: PullRequestShip): PullRequestTopBarAction {
 	};
 }
 
-const NEEDS_YOU_HINTS: Readonly<Record<PullRequestNeedsYouDestination | 'menu', string>> = {
+const NEEDS_YOU_HINTS: Readonly<Record<PullRequestNeedsYouDestination, string>> = {
 	'pull-request': 'Opens the pull request on GitHub.',
-	job: 'Opens the transcript of the job that stopped.',
+	job: "Opens the job's transcript.",
 	repositories: 'Opens the repositories page to sign in with GitHub again.',
-	menu: 'Retry or cancel the merge from the pull request menu.',
 };
+
+const NEEDS_YOU_NEXT_STEP = 'Retry or cancel the merge from the pull request menu.';
 
 function needsYou(
 	ship: PullRequestShip,
@@ -158,7 +159,9 @@ function needsYou(
 		kind: 'needs-you',
 		label,
 		ariaLabel: `Needs you · ${label}`,
-		tooltip: [sentence(detail), NEEDS_YOU_HINTS[destination ?? 'menu']].filter(Boolean).join(' '),
+		tooltip: [sentence(detail), destination && NEEDS_YOU_HINTS[destination], NEEDS_YOU_NEXT_STEP]
+			.filter(Boolean)
+			.join(' '),
 		disabled: destination === null,
 		busy: false,
 		tone: 'primary',
