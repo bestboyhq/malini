@@ -15,7 +15,13 @@
 	import { jobCenterSummary } from './job-center-summary';
 	import JobRunList from './JobRunList.svelte';
 
-	const EDGE_PX = 16;
+	interface Props {
+		docked?: boolean;
+	}
+
+	let { docked = false }: Props = $props();
+
+	const EDGE_PX = 12;
 	const HEADROOM_PX = 96;
 	const CLEARANCE_POLL_MS = 250;
 
@@ -65,16 +71,21 @@
 
 {#if visible}
 	<section
-		class="border-surface-elevated-border bg-surface-elevated fixed right-4 z-30 w-72 overflow-hidden rounded-xl border-[0.5px] shadow-lg"
-		style:bottom={`${bottom}px`}
-		style:--job-center-room={`calc(100vh - ${bottom + HEADROOM_PX}px)`}
+		class={[
+			'border-surface-50-border bg-surface-50 flex flex-col overflow-hidden rounded-3xl border-[0.5px] p-2',
+			docked
+				? 'relative z-10 mt-auto mr-3 mb-3 max-h-1/2 shrink-0 contain-inline-size'
+				: 'shadow-popup fixed right-3 z-30 max-h-[var(--job-center-room)] w-72',
+		]}
+		style:bottom={docked ? undefined : `${bottom}px`}
+		style:--job-center-room={docked ? undefined : `calc(100vh - ${bottom + HEADROOM_PX}px)`}
 		aria-label={`Jobs: ${summary}`}
 		data-testid="job-center"
 		{@attach avoidedByToasts}
-		{@attach keepClearOfComposer}
+		{@attach !docked && keepClearOfComposer}
 	>
-		<div class="flex items-center gap-0.5 p-1">
-			<p class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-xs" aria-hidden="true">
+		<div class="flex h-8 shrink-0 items-center gap-2 pl-2">
+			<p class="flex min-w-0 flex-1 items-center gap-2 text-xs" aria-hidden="true">
 				<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
 					{#if running > 0}
 						<LoadingCircle size={12} />
@@ -97,7 +108,7 @@
 				</IconButton>
 			</Tooltip>
 		</div>
-		<div class="max-h-[var(--job-center-room)] overflow-y-auto px-1 pb-1">
+		<div class="min-h-0 overflow-y-auto">
 			<JobRunList {active} {finished} {nowMs} />
 		</div>
 	</section>

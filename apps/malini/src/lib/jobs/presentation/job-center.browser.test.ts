@@ -192,7 +192,7 @@ describe('the Job center', () => {
 		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: 1 running');
 	});
 
-	it('sums up the jobs and lists every one in place, the one that needs you first', async () => {
+	it('sums up the jobs and lists the ones in progress, the one that needs you first', async () => {
 		seedMixedRuns();
 		await mountCenter();
 
@@ -201,16 +201,48 @@ describe('the Job center', () => {
 		expect(region.getAttribute('aria-label')).toBe('Jobs: 1 running, 1 queued, 1 needs you');
 		expect(control(/^Jobs: /u)).toBeNull();
 		expect(control('Manage jobs')?.getAttribute('href')).toBe('/jobs');
-		const rows = rowTexts(region);
-		expect(rows[0]).toContain('Address bot review · Signal Arc');
-		expect(rows[0]).toContain('Needs you');
-		expect(rows[0]).toContain('Gave up after 3 attempts on the same failure');
-		expect(rows[1]).toContain('Fix checks · Signal Arc');
-		expect(rows[1]).toContain('Running');
-		expect(rows[2]).toContain('Resolve conflicts');
-		expect(rows[2]).toContain('Queued');
-		expect(rows[3]).toContain('Update the changelog');
-		expect(rows[3]).toContain('Done · 30m ago');
+		const inProgress = region.querySelector('[aria-label="Jobs in progress"]');
+		if (!inProgress) throw new Error('no list of jobs in progress');
+		expect(
+			[...inProgress.querySelectorAll('a[href], button[aria-label]:not([data-testid])')].map(
+				accessibleName,
+			),
+		).toEqual([
+			'Open transcript: Address bot review · Signal Arc, Needs you',
+			'Open transcript: Fix checks · Signal Arc, Running',
+			'Resolve conflicts · Signal Arc, Queued. The transcript opens once the job starts',
+		]);
+	});
+
+	it('keeps finished jobs folded under Recent until asked', async () => {
+		seedMixedRuns();
+		await mountCenter();
+
+		const recent = requireControl('Recent 1');
+		expect(recent.getAttribute('aria-expanded')).toBe('false');
+		expect(control(/^Open transcript: Update the changelog/u)).toBeNull();
+
+		recent.click();
+		flushSync();
+
+		expect(recent.getAttribute('aria-expanded')).toBe('true');
+		expect(control('Open transcript: Update the changelog · Signal Arc, Done')).not.toBeNull();
+		const list = document.getElementById(recent.getAttribute('aria-controls') ?? '');
+		expect(list?.getAttribute('aria-label')).toBe('Recent jobs');
+		expect(rowTexts(list ?? document)).toEqual(['Update the changelog · Signal Arc 30m ago']);
+	});
+
+	it('tells why a job needs you when its row is focused', async () => {
+		seedMixedRuns();
+		await mountCenter();
+
+		requireControl(/^Open transcript: Address bot review/u).focus();
+
+		await vi.waitFor(() =>
+			expect(document.querySelector('[role="tooltip"]')?.textContent).toContain(
+				'Gave up after 3 attempts on the same failure',
+			),
+		);
 	});
 
 	it('cancels a running job only after the second click', async () => {
@@ -224,9 +256,10 @@ describe('the Job center', () => {
 		const confirm = requireControl('Confirm cancelling Fix checks');
 		expect(confirm.textContent?.trim()).toBe('Cancel job');
 		confirm.click();
-		await vi.waitFor(() =>
-			expect(control(/^Open transcript: Fix checks · Signal Arc, Cancelled$/u)).not.toBeNull(),
-		);
+		await vi.waitFor(() => expect(control('Recent 2')).not.toBeNull());
+		requireControl('Recent 2').click();
+		flushSync();
+		expect(control('Open transcript: Fix checks · Signal Arc, Cancelled')).not.toBeNull();
 
 		expect(platform.calls).toContainEqual({
 			command: 'jobs.cancel-run',
