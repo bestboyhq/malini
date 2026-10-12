@@ -15,7 +15,7 @@ import type {
 	AgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
-	ClaudeSetupStep,
+	ClaudeSignInOutcome,
 	ProviderCapability,
 	RestoreCheckpointResult,
 	StagedAgentAttachment,
@@ -95,7 +95,7 @@ export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string 
 
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
 
-export type ClaudeSetupArgs = Readonly<{ step: ClaudeSetupStep }>;
+export type ClaudeSignInArgs = Readonly<{ email?: string }>;
 
 export type SecretKeyArgs = Readonly<{ service: string; key: string }>;
 
@@ -324,7 +324,9 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 export interface ContractCommands {
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
-	'providers.run-claude-setup': { args: ClaudeSetupArgs; result: void };
+	'providers.install-claude-code': { args: undefined; result: void };
+	'providers.sign-in-to-claude': { args: ClaudeSignInArgs; result: ClaudeSignInOutcome };
+	'providers.cancel-claude-sign-in': { args: undefined; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
 	'chat.answer-question': { args: AnswerAgentQuestionArgs; result: void };
@@ -568,7 +570,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.activate-session',
 	'chat.adopt-attachments',
 	'chat.agent-health',
-	'providers.run-claude-setup',
+	'providers.install-claude-code',
+	'providers.sign-in-to-claude',
+	'providers.cancel-claude-sign-in',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',
 	'chat.answer-question',

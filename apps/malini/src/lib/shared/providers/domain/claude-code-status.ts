@@ -1,4 +1,6 @@
-import type { AgentAccount, ClaudeSetupStep, ProviderCapability } from '$contract/agent';
+import type { AgentAccount, ProviderCapability } from '$contract/agent';
+
+export type ClaudeSetupStep = 'install' | 'sign-in';
 
 export type ClaudeCodeStatus =
 	| { readonly kind: 'checking' }

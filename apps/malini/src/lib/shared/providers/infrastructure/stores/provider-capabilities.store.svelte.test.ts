@@ -51,6 +51,24 @@ describe('ProviderCapabilitiesStore', () => {
 		expect(store.capability?.state).toBe('needs_auth');
 	});
 
+	it('reloads after a probe already in flight, so a new sign-in is never answered by an older probe', async () => {
+		let answerOlderProbe!: (capabilities: ProviderCapability[]) => void;
+		const switched = { ...readyCapability, account: { email: 'work@example.com' } };
+		const load = vi
+			.fn<() => Promise<ProviderCapability[]>>()
+			.mockImplementationOnce(() => new Promise((next) => (answerOlderProbe = next)))
+			.mockResolvedValueOnce([switched]);
+		const store = new ProviderCapabilitiesStore(load);
+
+		const olderProbe = store.loadOnce();
+		const reloaded = store.reload();
+		answerOlderProbe([readyCapability]);
+		await Promise.all([olderProbe, reloaded]);
+
+		expect(load).toHaveBeenCalledTimes(2);
+		expect(store.capability?.account?.email).toBe('work@example.com');
+	});
+
 	it('refreshes stale capability truth when the picker asks for it', async () => {
 		const load = vi.fn(() => Promise.resolve([readyCapability]));
 		const store = new ProviderCapabilitiesStore(load);

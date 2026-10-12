@@ -326,6 +326,29 @@ describe('glide driver', () => {
 		expect(drift).toBe(0);
 	});
 
+	it('keeps its own subpixel position when the browser rounds the scroll to a device pixel', () => {
+		const scheduler = testScheduler();
+		const glide = createScrollGlide(scheduler);
+		let stored = 0;
+		const element = {
+			get scrollTop(): number {
+				return stored;
+			},
+			set scrollTop(value: number) {
+				stored = Math.round(value);
+			},
+		};
+		const exact = createScrollGlide(scheduler);
+		const unrounded = { scrollTop: 0 };
+
+		for (let line = 1; line <= 12; line += 1) {
+			glide.glide(element, line * 35);
+			exact.glide(unrounded, line * 35);
+			for (let frame = 0; frame < 4; frame += 1) scheduler.advance(FRAME_MS);
+			expect(Math.abs(element.scrollTop - unrounded.scrollTop)).toBeLessThanOrEqual(0.5);
+		}
+	});
+
 	it('follows a stream on a whole-pixel display as closely as the display can show', () => {
 		const follow = (snap: (top: number) => number): number[] => {
 			const scheduler = testScheduler();
