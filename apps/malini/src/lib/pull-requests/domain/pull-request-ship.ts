@@ -44,7 +44,6 @@ const STEP_LABELS: Readonly<Record<ShipStep, string>> = {
 	'waiting-for-checks': 'Waiting for checks',
 	'waiting-for-review': 'Waiting for review',
 	'waiting-for-github': 'Waiting for GitHub',
-	'waiting-for-turn': 'Waiting for its turn',
 	merging: 'Merging…',
 	archiving: 'Archiving…',
 };
@@ -61,7 +60,6 @@ const STEP_DESCRIPTIONS: Readonly<Record<ShipStep, string>> = {
 	'waiting-for-checks': 'Malini waits for the checks to finish on GitHub',
 	'waiting-for-review': 'Malini waits for a required approval on GitHub',
 	'waiting-for-github': 'Malini waits for GitHub to report whether the branch merges',
-	'waiting-for-turn': 'Another queued pull request in this repository merges first',
 	merging: 'Malini is merging the pull request',
 	archiving: 'The pull request merged. Malini is archiving the workstream',
 };

@@ -66,7 +66,6 @@ const STEPS: readonly ShipStep[] = [
 	'waiting-for-checks',
 	'waiting-for-review',
 	'waiting-for-github',
-	'waiting-for-turn',
 	'merging',
 	'archiving',
 ];

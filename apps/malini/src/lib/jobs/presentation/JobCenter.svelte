@@ -1,19 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
+	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { avoidedByToasts, bottomOffsetClearOfAvoided } from '$hyper-ui/components/toast';
-	import { hydrateJobCenterVariantCommand } from '$lib/jobs/application/commands/hydrate-job-center-variant.command';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import { Icon } from '$hyper-ui/icons';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
-	import { jobCenterVariantQuery } from '$lib/jobs/application/queries/job-center-variant.query.svelte';
 	import { needsYouJobCountQuery } from '$lib/jobs/application/queries/needs-you-job-count.query.svelte';
 	import { recentFinishedJobRunsQuery } from '$lib/jobs/application/queries/recent-finished-job-runs.query.svelte';
 	import { runningJobCountQuery } from '$lib/jobs/application/queries/running-job-count.query.svelte';
 	import { jobCenterSummary } from './job-center-summary';
-	import JobCenterDocked from './JobCenterDocked.svelte';
-	import JobCenterPill from './JobCenterPill.svelte';
-	import JobCenterStack from './JobCenterStack.svelte';
+	import JobRunList from './JobRunList.svelte';
 
 	const EDGE_PX = 16;
 	const HEADROOM_PX = 96;
@@ -22,22 +22,21 @@
 	let nowMs = $state(Date.now());
 	let bottom = $state(EDGE_PX);
 
-	const variant = $derived(jobCenterVariantQuery.data);
 	const active = $derived(activeJobRunsQuery.data);
 	const finished = $derived(recentFinishedJobRunsQuery.data(nowMs));
 	const running = $derived(runningJobCountQuery.data);
 	const needsYou = $derived(needsYouJobCountQuery.data);
 	const visible = $derived(active.length + finished.length > 0);
-	const counts = $derived({
-		running,
-		needsYou,
-		queued: active.length - running - needsYou,
-		finished: finished.length,
-	});
-	const summary = $derived(jobCenterSummary(counts));
+	const summary = $derived(
+		jobCenterSummary({
+			running,
+			needsYou,
+			queued: active.length - running - needsYou,
+			finished: finished.length,
+		}),
+	);
 
 	onMount(() => {
-		hydrateJobCenterVariantCommand();
 		loadJobsCommand();
 		return watchJobsHook();
 	});
@@ -66,21 +65,40 @@
 
 {#if visible}
 	<section
-		class="fixed right-4 z-30 flex flex-col items-end"
+		class="border-surface-elevated-border bg-surface-elevated fixed right-4 z-30 w-72 overflow-hidden rounded-xl border-[0.5px] shadow-lg"
 		style:bottom={`${bottom}px`}
 		style:--job-center-room={`calc(100vh - ${bottom + HEADROOM_PX}px)`}
-		aria-label="Jobs"
+		aria-label={`Jobs: ${summary}`}
 		data-testid="job-center"
-		data-variant={variant}
 		{@attach avoidedByToasts}
 		{@attach keepClearOfComposer}
 	>
-		{#if variant === 'docked'}
-			<JobCenterDocked {active} {finished} {nowMs} {counts} {summary} />
-		{:else if variant === 'stack'}
-			<JobCenterStack {active} {finished} {nowMs} {summary} />
-		{:else}
-			<JobCenterPill {active} {finished} {nowMs} {counts} {summary} />
-		{/if}
+		<div class="flex items-center gap-0.5 p-1">
+			<p class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-xs" aria-hidden="true">
+				<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
+					{#if running > 0}
+						<LoadingCircle size={12} />
+					{:else if needsYou > 0}
+						<Icon name="alert" size={13} class="text-warning-content" />
+					{:else}
+						<Icon name="checklist" size={13} />
+					{/if}
+				</span>
+				<span class="min-w-0 flex-1 truncate">
+					<span class="text-fg-default font-medium">Jobs</span>
+					<span class={needsYou > 0 ? 'text-warning-content' : 'text-fg-tertiary'}>
+						· {summary}
+					</span>
+				</span>
+			</p>
+			<Tooltip content="Manage jobs" placement="top">
+				<IconButton variant="ghost" size="sm" href="/jobs" ariaLabel="Manage jobs">
+					<Icon name="settings" size={13} />
+				</IconButton>
+			</Tooltip>
+		</div>
+		<div class="max-h-[var(--job-center-room)] overflow-y-auto px-1 pb-1">
+			<JobRunList {active} {finished} {nowMs} />
+		</div>
 	</section>
 {/if}

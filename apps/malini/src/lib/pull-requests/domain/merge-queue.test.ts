@@ -116,7 +116,6 @@ function queued(overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot
 			operationInProgress: null,
 		},
 		threadResolutionRunId: null,
-		headOfLine: true,
 		failureSignature: null,
 		attempts: 0,
 		fixAttemptLimit: 3,
@@ -298,7 +297,7 @@ describe('a queued workstream', () => {
 		).toEqual({ kind: 'mark-ready' });
 	});
 
-	it('updates a conflicting or behind branch only at the head of the line', () => {
+	it('updates a conflicting or behind branch', () => {
 		const conflicting = pullRequest({ mergeable: false, mergeableState: 'DIRTY' });
 		const behind = pullRequest({ mergeableState: 'BEHIND' });
 		expect(nextMergeQueueMove(queued({ pullRequest: conflicting }))).toEqual({
@@ -306,10 +305,6 @@ describe('a queued workstream', () => {
 		});
 		expect(nextMergeQueueMove(queued({ pullRequest: behind }))).toEqual({
 			kind: 'update-branch',
-		});
-		expect(nextMergeQueueMove(queued({ pullRequest: behind, headOfLine: false }))).toEqual({
-			kind: 'wait',
-			step: 'waiting-for-turn',
 		});
 	});
 
@@ -494,7 +489,7 @@ describe('a queued workstream', () => {
 		).toEqual({ kind: 'wait', step: 'waiting-for-github' });
 	});
 
-	it('merges with the default method at the head of the line, others wait their turn', () => {
+	it('merges with the default method as soon as the pull request is ready', () => {
 		expect(
 			nextMergeQueueMove(queued({ pullRequest: pullRequest({ mergeableState: 'UNSTABLE' }) })),
 		).toEqual({ kind: 'merge', method: 'squash', headSha: 'a'.repeat(40) });
@@ -505,10 +500,6 @@ describe('a queued workstream', () => {
 				}),
 			),
 		).toMatchObject({ kind: 'merge', method: 'rebase' });
-		expect(nextMergeQueueMove(queued({ headOfLine: false }))).toEqual({
-			kind: 'wait',
-			step: 'waiting-for-turn',
-		});
 	});
 
 	it('does nothing while it needs the user', () => {

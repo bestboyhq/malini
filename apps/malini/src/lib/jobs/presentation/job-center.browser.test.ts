@@ -15,8 +15,6 @@ import {
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { router, type RouteNode } from '$shared/router/hash-router.svelte';
 
-const VARIANT_KEY = 'malini.jobs.center-variant';
-
 const routes: RouteNode = {
 	segment: '',
 	children: [
@@ -73,7 +71,6 @@ afterEach(() => {
 	app = null;
 	router.stop();
 	host.remove();
-	localStorage.removeItem(VARIANT_KEY);
 	jobRunsAggregate.reset();
 	jobDefinitionsAggregate.reset();
 	jobActionsStore.reset();
@@ -130,8 +127,7 @@ function seedMixedRuns(): void {
 	);
 }
 
-async function mountCenter(variant?: 'pill' | 'docked' | 'stack'): Promise<void> {
-	if (variant) localStorage.setItem(VARIANT_KEY, variant);
+async function mountCenter(): Promise<void> {
 	app = mount(JobCenter, { target: host });
 	await vi.waitFor(() =>
 		expect(platform.calls.some(({ command }) => command === 'jobs.list-runs')).toBe(true),
@@ -171,10 +167,6 @@ function jobsRegion(): HTMLElement | null {
 	return document.querySelector<HTMLElement>('[data-testid="job-center"]');
 }
 
-function inertCards(container: ParentNode): HTMLElement[] {
-	return [...container.querySelectorAll<HTMLElement>('li')].filter((item) => item.inert);
-}
-
 function rowTexts(container: ParentNode): string[] {
 	return [...container.querySelectorAll('li')].map((item) =>
 		(item.textContent ?? '').replace(/\s+/gu, ' ').trim(),
@@ -197,23 +189,19 @@ describe('the Job center', () => {
 		});
 		await settle();
 
-		expect(jobsRegion()).not.toBeNull();
-		expect(requireControl('Jobs: 1 running').getAttribute('aria-expanded')).toBe('false');
+		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: 1 running');
 	});
 
-	it('as a pill, sums up the jobs and lists them in a popover', async () => {
+	it('sums up the jobs and lists every one in place, the one that needs you first', async () => {
 		seedMixedRuns();
 		await mountCenter();
 
-		const pill = requireControl('Jobs: 1 running, 1 queued, 1 needs you');
-		expect(pill.textContent).toContain('1 running');
-		pill.click();
-		flushSync();
-
-		const dialog = document.querySelector('[role="dialog"][aria-label="Jobs"]');
-		if (!dialog) throw new Error('the job list did not open');
-		expect(pill.getAttribute('aria-expanded')).toBe('true');
-		const rows = rowTexts(dialog);
+		const region = jobsRegion();
+		if (!region) throw new Error('the Job center is not on screen');
+		expect(region.getAttribute('aria-label')).toBe('Jobs: 1 running, 1 queued, 1 needs you');
+		expect(control(/^Jobs: /u)).toBeNull();
+		expect(control('Manage jobs')?.getAttribute('href')).toBe('/jobs');
+		const rows = rowTexts(region);
 		expect(rows[0]).toContain('Address bot review · Signal Arc');
 		expect(rows[0]).toContain('Needs you');
 		expect(rows[0]).toContain('Gave up after 3 attempts on the same failure');
@@ -225,45 +213,9 @@ describe('the Job center', () => {
 		expect(rows[3]).toContain('Done · 30m ago');
 	});
 
-	it('docked, lists the jobs in place and folds away', async () => {
-		seedMixedRuns();
-		await mountCenter('docked');
-
-		const toggle = requireControl('Jobs: 1 running, 1 queued, 1 needs you');
-		expect(toggle.getAttribute('aria-expanded')).toBe('true');
-		const region = jobsRegion();
-		if (!region) throw new Error('the Job center is not on screen');
-		expect(rowTexts(region)).toHaveLength(4);
-
-		toggle.click();
-		flushSync();
-
-		expect(toggle.getAttribute('aria-expanded')).toBe('false');
-		expect(rowTexts(region)).toHaveLength(0);
-	});
-
-	it('as a stack, shows the most urgent card and opens up on focus', async () => {
-		seedMixedRuns();
-		await mountCenter('stack');
-
-		const region = jobsRegion();
-		if (!region) throw new Error('the Job center is not on screen');
-		const rows = rowTexts(region);
-		expect(rows).toHaveLength(4);
-		expect(rows[0]).toContain('Address bot review');
-		expect(control('Manage jobs')).toBeNull();
-		expect(inertCards(region)).toHaveLength(3);
-
-		requireControl(/^Open transcript: Address bot review/u).focus();
-		flushSync();
-
-		expect(control('Manage jobs')).not.toBeNull();
-		expect(inertCards(region)).toHaveLength(0);
-	});
-
 	it('cancels a running job only after the second click', async () => {
 		seedMixedRuns();
-		await mountCenter('docked');
+		await mountCenter();
 
 		requireControl('Cancel Fix checks').click();
 		flushSync();
@@ -285,7 +237,7 @@ describe('the Job center', () => {
 
 	it('offers no cancel once a job has finished or needs you', async () => {
 		seedMixedRuns();
-		await mountCenter('docked');
+		await mountCenter();
 
 		expect(control('Cancel Address bot review')).toBeNull();
 		expect(control('Cancel Update the changelog')).toBeNull();
@@ -298,7 +250,7 @@ describe('the Job center', () => {
 			routes,
 			notFound: () => import('$shared/router/fixtures/FixtureNotFound.svelte'),
 		});
-		await mountCenter('docked');
+		await mountCenter();
 
 		requireControl('Open transcript: Fix checks · Signal Arc, Running').click();
 		await vi.waitFor(() => expect(router.page.url.pathname).toBe('/workstreams/ws-signal'));
@@ -308,7 +260,7 @@ describe('the Job center', () => {
 
 	it('cannot open a job that has not started its chat yet', async () => {
 		seedMixedRuns();
-		await mountCenter('docked');
+		await mountCenter();
 
 		const queued = requireControl(/^Resolve conflicts · Signal Arc, Queued/u);
 		expect(queued.tagName).toBe('BUTTON');

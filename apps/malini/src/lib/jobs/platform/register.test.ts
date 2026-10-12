@@ -404,7 +404,7 @@ describe('scheduling', () => {
 		expect(fakes.sendPrompt).toHaveBeenCalledWith({
 			sessionId: firstSession,
 			prompt: instructions,
-			profile: { effort: 'high', mode: 'agent', access: 'sandboxed' },
+			profile: { effort: 'high', mode: 'agent', access: 'auto' },
 			automated: true,
 		});
 

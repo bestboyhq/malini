@@ -31,7 +31,6 @@ export type MergeQueueSnapshot = Readonly<{
 	settledJob: JobBuiltin | null;
 	worktree: MergeQueueWorktree;
 	threadResolutionRunId: string | null;
-	headOfLine: boolean;
 	failureSignature: string | null;
 	attempts: number;
 	fixAttemptLimit: number;
@@ -74,7 +73,6 @@ export const DEFAULT_SHIP_DELAYS = Object.freeze({
 	checksPollMs: 45_000,
 	reviewPollMs: 120_000,
 	githubPollMs: 15_000,
-	turnPollMs: 120_000,
 	backoffBaseMs: 30_000,
 	backoffCapMs: 600_000,
 });
@@ -238,11 +236,7 @@ function pullRequestMove(
 	if (pullRequest.state === 'not_open') return { kind: 'open-draft' };
 	if (pullRequest.draft === true) return { kind: 'mark-ready' };
 	const mergeState = mergeability(pullRequest);
-	if (mergeState === 'conflicts' || mergeState === 'behind') {
-		return snapshot.headOfLine
-			? { kind: 'update-branch' }
-			: { kind: 'wait', step: 'waiting-for-turn' };
-	}
+	if (mergeState === 'conflicts' || mergeState === 'behind') return { kind: 'update-branch' };
 	const failing = blockingFailedChecks(pullRequest);
 	if (failing.length > 0) {
 		return fixJob(
@@ -283,9 +277,7 @@ function pullRequestMove(
 					'This repository allows no merge method malini can use.',
 				);
 	}
-	return snapshot.headOfLine
-		? { kind: 'merge', method, headSha: pullRequest.headSha }
-		: { kind: 'wait', step: 'waiting-for-turn' };
+	return { kind: 'merge', method, headSha: pullRequest.headSha };
 }
 
 function blockedMove(

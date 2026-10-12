@@ -1,4 +1,4 @@
-export type JobCenterCounts = Readonly<{
+type JobCenterCounts = Readonly<{
 	running: number;
 	queued: number;
 	needsYou: number;

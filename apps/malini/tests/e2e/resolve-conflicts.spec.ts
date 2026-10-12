@@ -52,7 +52,7 @@ test('a queued merge brings a conflicting branch up to date, has a job resolve t
 		expect(await output(github.remote, ['show', `${merge}:conflict.txt`])).toBe(
 			'branch line\nmain line',
 		);
-		await expect(page.getByRole('button', { name: 'Jobs: 1 finished recently' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Jobs: 1 finished recently' })).toBeVisible();
 		await captureFlow(app, 'resolve-conflicts');
 		expectCleanConsole(app);
 	} finally {
