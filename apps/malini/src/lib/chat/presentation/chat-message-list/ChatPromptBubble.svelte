@@ -9,11 +9,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
-	import {
-		ModelDefaultsSettings,
-		ModelProfilePicker,
-		RunProfileControls,
-	} from '$shared/providers/providers.api';
+	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import InlinePromptContent from '../InlinePromptContent.svelte';
 	import PromptEditField from '../PromptEditField.svelte';
 	import { describeInlinePromptChip } from '../inline-prompt-chips';
@@ -187,15 +183,12 @@
 							<RunProfileControls
 								model={controls.model}
 								profile={controls.profile}
-								disabled={submitting}
-								onchange={controls.onprofilechange}
-							/>
-							<ModelDefaultsSettings
-								defaults={controls.modelDefaults}
+								modelDefaults={controls.modelDefaults}
 								rememberedModels={controls.rememberedModels}
 								disabled={submitting}
 								isRunning={controls.isRunning}
-								onchange={controls.onmodelsettingschange}
+								onchange={controls.onprofilechange}
+								onmodelsettingschange={controls.onmodelsettingschange}
 							/>
 						{/if}
 					</div>

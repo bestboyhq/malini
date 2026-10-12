@@ -126,10 +126,10 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await expectMergedAndArchived(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
+		const finishedJobs = page.getByRole('region', { name: 'Jobs: 1 finished recently' });
+		await finishedJobs.getByRole('button', { name: 'Recent 1' }).click();
 		await expect(
-			page
-				.getByRole('region', { name: 'Jobs: 1 finished recently' })
-				.getByRole('link', { name: /^Open transcript: Fix checks.*, Done$/u }),
+			finishedJobs.getByRole('link', { name: /^Open transcript: Fix checks.*, Done$/u }),
 		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

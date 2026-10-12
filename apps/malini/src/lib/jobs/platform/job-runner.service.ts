@@ -8,6 +8,7 @@ import {
 } from '$contract/agent-state-machine';
 import { CHAT_AGENT_EVENT_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
 import {
+	JOB_INTERRUPTED_DETAIL,
 	JOBS_MAX_CONCURRENT_SETTING,
 	type JobRunChangedEvent,
 	type JobRunRecord,
@@ -24,7 +25,6 @@ import {
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
-	JOB_INTERRUPTED_DETAIL,
 	isFinishedJobRunStatus,
 	jobPrompt,
 	jobsMaxConcurrent,

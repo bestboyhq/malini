@@ -62,8 +62,20 @@ describe('run profile mapping', () => {
 
 	it('refuses the git and pull request commands malini owns', () => {
 		expect(disallowedTools()).toEqual(
-			expect.arrayContaining(['Bash(git commit:*)', 'Bash(git push:*)', 'Bash(gh pr create:*)']),
+			expect.arrayContaining([
+				'Bash(git commit:*)',
+				'Bash(git push:*)',
+				'Bash(gh pr create:*)',
+				'Bash(git stash)',
+				'Bash(git stash -*)',
+				'Bash(git stash pop:*)',
+			]),
 		);
+	});
+
+	it('lets agents read the stash and restore files', () => {
+		expect(disallowedTools()).not.toContain('Bash(git stash:*)');
+		expect(disallowedTools()).not.toContain('Bash(git restore:*)');
 	});
 });
 

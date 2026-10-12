@@ -47,7 +47,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			"Resolve the merge conflicts between this workstream's branch and its base branch.",
 			'',
 			UNTRUSTED_CONTEXT,
-			'- If no merge is in progress, fetch origin and run `git merge --no-commit origin/<base branch>`.',
+			'- malini starts the merge. If none is in progress, there is nothing to resolve: say so and stop.',
 			'- Resolve every conflict by hand so both sides keep working. Never discard one side wholesale.',
 			'- Keep the change minimal: nothing beyond what the merge needs.',
 			...VERIFY_AND_HAND_BACK,

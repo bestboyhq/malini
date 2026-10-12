@@ -5,6 +5,7 @@ import {
 	contextPressureAdvice,
 	contextRemainingTokens,
 	contextUnavailableMessage,
+	contextBreakdown,
 	contextUsagePercent,
 	deriveSessionRuntimeMetadata,
 	formatRunUsage,
@@ -19,7 +20,7 @@ function envelope(seq: number, event: EventEnvelope['event']): EventEnvelope {
 }
 
 describe('session runtime metadata', () => {
-	it('keeps the latest exact context, rate-limit, and MCP snapshots without making chat items', () => {
+	it('keeps the latest exact context, its breakdown, and MCP snapshots without making chat items', () => {
 		const metadata = deriveSessionRuntimeMetadata([
 			envelope(1, {
 				type: 'usage.updated',
@@ -29,12 +30,13 @@ describe('session runtime metadata', () => {
 				contextWindowTokens: 258_400,
 				providerMetrics: {
 					anthropic: {
-						rateLimits: [
-							{
-								label: '5h limit',
-								utilization: 16,
-								resetsAt: '2026-07-10T15:46:00.000Z',
-							},
+						contextCategories: [
+							{ name: 'System prompt', tokens: 2_100, kind: 'used' },
+							{ name: 'MCP tools (deferred)', tokens: 6_000, kind: 'deferred' },
+							{ name: 'Messages', tokens: 95_500, kind: 'used' },
+							{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+							{ name: 'Free space', tokens: 127_800, kind: 'free' },
+							{ name: 'Broken', tokens: 'many', kind: 'used' },
 						],
 					},
 				},
@@ -52,7 +54,11 @@ describe('session runtime metadata', () => {
 		expect(metadata.context).toEqual({
 			usedTokens: 97_600,
 			maxTokens: 258_400,
-			rateLimits: [{ label: '5h limit', utilization: 16, resetsAt: '2026-07-10T15:46:00.000Z' }],
+			categories: [
+				{ name: 'System prompt', tokens: 2_100, kind: 'used' },
+				{ name: 'Messages', tokens: 95_500, kind: 'used' },
+				{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+			],
 		});
 		expect(contextUsagePercent(metadata.context!)).toBeCloseTo(37.77, 2);
 		expect(metadata.mcpServers).toEqual([
@@ -119,7 +125,7 @@ describe('session runtime metadata', () => {
 			envelope(1, { type: 'usage.updated', runId: 'run-1', contextTokens: 1200 }),
 		]);
 
-		expect(metadata.context).toEqual({ usedTokens: 1200, maxTokens: null, rateLimits: [] });
+		expect(metadata.context).toEqual({ usedTokens: 1200, maxTokens: null, categories: [] });
 		expect(contextUsagePercent(metadata.context!)).toBeNull();
 	});
 
@@ -147,7 +153,7 @@ describe('session runtime metadata', () => {
 		expect(deriveSessionRuntimeMetadata([stale, handoff, fresh]).context).toEqual({
 			usedTokens: 4_200,
 			maxTokens: 200_000,
-			rateLimits: [],
+			categories: [],
 		});
 	});
 
@@ -187,7 +193,7 @@ describe('session runtime metadata', () => {
 		expect(contextUsagePercent(metadata.context!)).toBe(70);
 	});
 
-	it('keeps the persisted rate limits when a live reading takes over the occupancy', () => {
+	it('grows the conversation row with a live reading so the breakdown always sums to the window', () => {
 		const metadata = deriveSessionRuntimeMetadata(
 			[
 				envelope(1, {
@@ -197,36 +203,51 @@ describe('session runtime metadata', () => {
 					contextWindowTokens: 200_000,
 					providerMetrics: {
 						anthropic: {
-							rateLimits: [{ label: '5h limit', utilization: 16, resetsAt: null }],
+							contextCategories: [
+								{ name: 'Skills', tokens: 4_000, kind: 'used' },
+								{ name: 'Messages', tokens: 6_000, kind: 'used' },
+								{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+								{ name: 'Custom agents', tokens: 0, kind: 'used' },
+							],
 						},
 					},
 				}),
 			],
-			{ contextTokens: 12_000, contextWindowTokens: 200_000 },
+			{ contextTokens: 50_000, contextWindowTokens: 200_000 },
 		);
 
-		expect(metadata.context?.rateLimits).toEqual([
-			{ label: '5h limit', utilization: 16, resetsAt: null },
+		const rows = contextBreakdown(metadata.context!);
+		expect(rows.map(({ name, tokens }) => [name, tokens])).toEqual([
+			['Messages', 46_000],
+			['Skills', 4_000],
+			['Autocompact buffer', 33_000],
+			['Free space', 117_000],
 		]);
+		expect(rows.reduce((total, row) => total + row.percent, 0)).toBeCloseTo(100);
+	});
+
+	it('has no breakdown without a window size or reported categories', () => {
+		expect(contextBreakdown({ usedTokens: 10, maxTokens: null, categories: [] })).toEqual([]);
+		expect(contextBreakdown({ usedTokens: 10, maxTokens: 100, categories: [] })).toEqual([]);
 	});
 
 	it('reports what is left and names the action once the window fills', () => {
-		const roomy = { usedTokens: 20_000, maxTokens: 200_000, rateLimits: [] };
+		const roomy = { usedTokens: 20_000, maxTokens: 200_000, categories: [] };
 		expect(contextRemainingTokens(roomy)).toBe(180_000);
 		expect(contextPressure(roomy)).toBe('ok');
 		expect(contextPressureAdvice(roomy)).toBeNull();
 
-		const filling = { usedTokens: 150_000, maxTokens: 200_000, rateLimits: [] };
+		const filling = { usedTokens: 150_000, maxTokens: 200_000, categories: [] };
 		expect(contextPressure(filling)).toBe('high');
 		expect(contextPressureAdvice(filling)).toContain('dropping the earliest turns');
 
-		const nearlyFull = { usedTokens: 190_000, maxTokens: 200_000, rateLimits: [] };
+		const nearlyFull = { usedTokens: 190_000, maxTokens: 200_000, categories: [] };
 		expect(contextPressure(nearlyFull)).toBe('critical');
 		expect(contextPressureAdvice(nearlyFull)).toContain('new workstream');
 	});
 
 	it('stays calm rather than alarming when the window size is unknown', () => {
-		const unknown = { usedTokens: 900_000, maxTokens: null, rateLimits: [] };
+		const unknown = { usedTokens: 900_000, maxTokens: null, categories: [] };
 		expect(contextPressure(unknown)).toBe('ok');
 		expect(contextPressureAdvice(unknown)).toBeNull();
 		expect(contextRemainingTokens(unknown)).toBeNull();

@@ -250,7 +250,7 @@ function recordChatSwitchFrames(host: HTMLElement): () => readonly ChatSwitchFra
 				find(host, 'chat-cold-shell')?.dataset['navigationAgentSessionId'] ??
 				null,
 			route: new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('agent'),
-			planMode: find(host, 'chat-plan-mode')?.getAttribute('aria-pressed') ?? null,
+			planMode: planModeShown(host),
 			inertTranscript:
 				find(host, 'chat-message-viewport') !== null &&
 				host.querySelector('[data-session-switching="true"]') !== null,
@@ -1478,7 +1478,16 @@ function holdChatActivation(sessionId: string): () => void {
 }
 
 function planModeShown(host: HTMLElement): string | null {
-	return find(host, 'chat-plan-mode')?.getAttribute('aria-pressed') ?? null;
+	const mode = find(host, 'chat-composer-shell')?.dataset['composerMode'];
+	return mode === undefined ? null : String(mode === 'plan');
+}
+
+function togglePlanMode(host: HTMLElement): void {
+	find(host, 'chat-run-options')?.click();
+	flushSync();
+	document
+		.querySelector<HTMLElement>('[data-testid="chat-run-options-menu"] [role="menuitemcheckbox"]')
+		?.click();
 }
 
 describe('a mode chosen while a chat is still settling', () => {
@@ -1492,7 +1501,7 @@ describe('a mode chosen while a chat is still settling', () => {
 		);
 		expect(planModeShown(host)).toBe('false');
 
-		find(host, 'chat-plan-mode')?.click();
+		togglePlanMode(host);
 		flushSync();
 		expect(planModeShown(host)).toBe('true');
 		releaseActivation();
@@ -1514,7 +1523,7 @@ describe('a mode chosen while a chat is still settling', () => {
 		);
 		expect(planModeShown(host)).toBe('false');
 
-		find(host, 'chat-plan-mode')?.click();
+		togglePlanMode(host);
 		flushSync();
 		expect(planModeShown(host)).toBe('true');
 		releaseActivation();

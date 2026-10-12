@@ -87,6 +87,7 @@ const conflictedFiles = (prompt) => {
 	}
 	return listed;
 };
+const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
@@ -104,7 +105,7 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [])
 				: 'Hello from the fake bridge') + shown,
 	});
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, interim: true });
-	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5 });
+	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, ...finalUsage });
 	event({ type: 'run.completed', runId, summary });
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };

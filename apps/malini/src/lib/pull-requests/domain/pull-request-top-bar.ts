@@ -87,10 +87,12 @@ function needsYou(
 		ship.needsYou?.detail.trim() || (reason ? needsYouReasonDescription(reason) : '');
 	return attention(
 		reason ? needsYouReasonLabel(reason, operation) : null,
-		sentence(explanation) || null,
+		[sentence(explanation), NEEDS_YOU_NEXT_STEP].filter(Boolean).join(' '),
 		needsYouAction(ship, operation, url),
 	);
 }
+
+const NEEDS_YOU_NEXT_STEP = 'Retry or cancel the merge from the pull request menu.';
 
 function needsYouAction(
 	ship: PullRequestShip,
@@ -430,7 +432,7 @@ const OPEN_JOB: PullRequestTopBarAction = {
 	kind: 'open-job',
 	label: 'Open job',
 	ariaLabel: 'Open the transcript of the job that stopped',
-	tooltip: 'Opens the transcript of the job that stopped',
+	tooltip: "Opens the job's transcript",
 	tone: 'primary',
 	confirmLabel: null,
 };

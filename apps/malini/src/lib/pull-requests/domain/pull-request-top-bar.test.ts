@@ -683,7 +683,9 @@ describe('the workstream status', () => {
 			null,
 		);
 		expect(shown?.action).toBeNull();
-		expect(shown?.tooltip).toBe('A reviewer requested changes, and only you can answer them.');
+		expect(shown?.tooltip).toBe(
+			'A reviewer requested changes, and only you can answer them. Retry or cancel the merge from the pull request menu.',
+		);
 	});
 
 	it('explains needs-you in the tooltip with the queue detail', () => {
@@ -695,7 +697,7 @@ describe('the workstream status', () => {
 				}),
 				null,
 			)?.tooltip,
-		).toBe('Octo asked for tests.');
+		).toBe('Octo asked for tests. Retry or cancel the merge from the pull request menu.');
 	});
 
 	it('confirms Cancel and Abort before they run', () => {
