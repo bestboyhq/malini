@@ -94,6 +94,7 @@ class SessionActivationService {
 	}
 
 	async hydrate(sessionId: SessionId, options: { publishReadiness?: boolean } = {}): Promise<void> {
+		if (!sessionsAggregate.isTranscriptHydrated(sessionId)) agentEventStream.forget(sessionId);
 		await agentEventStream.hydrate(sessionId);
 		if (options.publishReadiness === false) return;
 		this.publishHydrated(sessionId);

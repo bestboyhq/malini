@@ -45,7 +45,7 @@ describe('pullRequestBadge', () => {
 					}),
 					state,
 				),
-			).toEqual({ phase: 'needs-you', label: "Needs you · Can't merge" });
+			).toEqual({ phase: 'needs-you', label: 'Needs you · GitHub blocks the merge' });
 		}
 	});
 

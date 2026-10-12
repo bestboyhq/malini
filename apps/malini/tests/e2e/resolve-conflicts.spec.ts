@@ -14,9 +14,9 @@ import {
 } from './harness';
 import {
 	expectMergedAndArchived,
-	openPullRequestDetail,
 	queueMerge,
 	seedWorkstreamOnFakeGithub,
+	topBarStatus,
 	type PullRequestWorkstream,
 } from './fake-github';
 
@@ -60,7 +60,7 @@ test('a queued merge brings a conflicting branch up to date, has a job resolve t
 	}
 });
 
-test('Abort merge takes a confirming click, then returns the worktree to its last commit', async () => {
+test('Abort merge takes a confirming click in the bar, then returns the worktree to its last commit', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -69,13 +69,12 @@ test('Abort merge takes a confirming click, then returns the worktree to its las
 		await git(worktree, [...AUTHOR, 'merge', 'main']).catch(() => undefined);
 		expect(await output(worktree, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])).not.toBe('');
 		await openWorkstream(page, 'e2e-abort-merge');
-		await expect(
-			page.getByRole('button', { name: 'Merge in progress in this workstream' }),
-		).toBeDisabled({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'Needs you · Merge has conflicts')).toBeVisible({
+			timeout: 30_000,
+		});
 
-		const detail = await openPullRequestDetail(page);
-		await detail.getByRole('button', { name: 'Abort merge' }).click();
-		const confirm = detail.getByRole('button', { name: 'Confirm abort' });
+		await page.getByRole('button', { name: 'Abort the merge in this workstream' }).click();
+		const confirm = page.getByRole('button', { name: 'Confirm abort' });
 		await expect(confirm).toBeVisible();
 		await captureFlow(app, 'abort-merge-armed');
 		await confirm.click();

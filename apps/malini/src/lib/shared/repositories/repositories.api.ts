@@ -139,7 +139,6 @@ export { refreshRepositoriesCommand } from './application/commands/refresh-repos
 export { refreshWorkstreamAfterChangeCommand } from './application/commands/refresh-workstream-after-change.command';
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
-export { removeFailedWorkstreamCommand } from './application/commands/remove-failed-workstream.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
@@ -198,7 +197,4 @@ export { default as WorkstreamActionsMenu } from './presentation/WorkstreamActio
 export { default as WorkstreamProvisioningFrame } from './presentation/WorkstreamProvisioningFrame.svelte';
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
-export {
-	provisioningTopBarStatus,
-	type ProvisioningTopBarActions,
-} from './presentation/provisioning-top-bar-status';
+export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

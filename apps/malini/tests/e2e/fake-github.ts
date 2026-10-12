@@ -85,6 +85,10 @@ export function sidebarStatus(page: Page, workstreamId: string): Locator {
 		.getByRole('status', { name: /^Workstream status:/u });
 }
 
+export function topBarStatus(page: Page, name: string | RegExp): Locator {
+	return page.getByRole('navigation', { name: 'Global actions' }).getByRole('status', { name });
+}
+
 export function toastSaying(page: Page, text: string): Locator {
 	return page.getByRole('status').filter({ hasText: text });
 }

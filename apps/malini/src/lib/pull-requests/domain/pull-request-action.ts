@@ -1,14 +1,14 @@
 import type { WorktreeOperation } from '$contract/repositories';
 
 export type PullRequestActionKind =
-	| 'unavailable'
-	| 'reconnect'
-	| 'operation'
 	| 'open-draft'
-	| 'opening-draft'
 	| 'queue-merge'
-	| 'queued'
-	| 'needs-you';
+	| 'cancel-merge'
+	| 'open-pull-request'
+	| 'open-job'
+	| 'reconnect'
+	| 'refresh'
+	| 'abort-operation';
 
 export type PullRequestAvailability = 'ready' | 'github-unavailable' | 'extension-unavailable';
 
@@ -17,9 +17,19 @@ export type PullRequestTopBarAction = Readonly<{
 	label: string;
 	ariaLabel: string;
 	tooltip: string;
-	disabled: boolean;
-	busy: boolean;
 	tone: 'primary' | 'secondary';
+	confirmLabel: string | null;
+}>;
+
+export type WorkstreamStatusTone = 'idle' | 'ready' | 'queued' | 'needs-you' | 'merged';
+
+export type WorkstreamStatus = Readonly<{
+	tone: WorkstreamStatusTone;
+	busy: boolean;
+	label: string;
+	detail: string | null;
+	tooltip: string | null;
+	action: PullRequestTopBarAction | null;
 }>;
 
 export type PullRequestMenuItemId = 'retry-merge' | 'cancel-merge' | 'abort-operation' | 'refresh';
@@ -31,7 +41,7 @@ export type PullRequestMenuItem = Readonly<{
 }>;
 
 export type PullRequestTopBar = Readonly<{
-	action: PullRequestTopBarAction | null;
+	status: WorkstreamStatus | null;
 	menu: readonly PullRequestMenuItem[];
 	remoteFailure: string | null;
 	pullRequestNumber: number | null;

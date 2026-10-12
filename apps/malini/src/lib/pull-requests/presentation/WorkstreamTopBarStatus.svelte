@@ -17,15 +17,10 @@
 	import { pullRequestGithubStatusQuery } from '$lib/pull-requests/application/queries/pull-request-github-status.query.svelte';
 	import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
 	import { repositorySurfaceQuery } from '$lib/pull-requests/application/queries/repository-surface.query.svelte';
-	import { repositorySurfaceReadStateQuery } from '$lib/pull-requests/application/queries/repository-surface-read-state.query.svelte';
 	import type {
 		PullRequestMenuItem,
 		PullRequestMenuItemId,
 	} from '$lib/pull-requests/domain/pull-request-action';
-	import {
-		pullRequestHeadline,
-		pullRequestZoneTone,
-	} from '$lib/pull-requests/domain/pull-request-headline';
 	import { pullRequestActionIcon } from './pull-request-action-icon';
 
 	interface Props {
@@ -34,7 +29,6 @@
 		extensionWorkstream: ExtensionWorkstream | null;
 		extensionGeneration: number;
 		extensionReady: boolean;
-		extensionError: string | null;
 		repositoryScopeReady: boolean;
 		remotePullRequestsSupported: boolean;
 		repositoryExtensionRegistered: boolean;
@@ -49,7 +43,6 @@
 		extensionWorkstream,
 		extensionGeneration,
 		extensionReady,
-		extensionError,
 		repositoryScopeReady,
 		remotePullRequestsSupported,
 		repositoryExtensionRegistered,
@@ -63,21 +56,8 @@
 	const topBar = $derived(pullRequestTopBarQuery.data);
 	const busy = $derived(pullRequestBusyQuery.data);
 	const claimedBusyLabel = $derived(pullRequestBusyQuery.label);
-	const surfaceReadState = $derived(repositorySurfaceReadStateQuery.data);
-	const headline = $derived(pullRequestHeadline(surface));
 	const reference = $derived(
 		githubStatus?.reference ?? (topBar.pullRequestNumber ? `#${topBar.pullRequestNumber}` : null),
-	);
-	const known = $derived(
-		githubStatus !== null ||
-			topBar.pullRequestNumber !== null ||
-			(topBar.action !== null && topBar.action.kind !== 'unavailable'),
-	);
-	const statusPending = $derived(
-		extensionError === null &&
-			surfaceReadState !== 'failed' &&
-			!(repositoryScopeReady && !remotePullRequestsSupported) &&
-			(!extensionReady || surfaceReadState === 'reading'),
 	);
 
 	const stopFollowingScope = followPullRequestScopeHook(() => ({
@@ -101,10 +81,8 @@
 		stopFollowingScope();
 	});
 
-	function publishedStatus(): GlobalTopBarGithubStatus | null {
+	function publishedStatus(): GlobalTopBarGithubStatus {
 		if (overrideStatus) return overrideStatus;
-		if (!known) return null;
-		if (!topBar.action && (statusPending || (!reference && !topBar.remoteFailure))) return null;
 		return {
 			reference,
 			title: githubStatus?.title ?? null,
@@ -123,28 +101,29 @@
 	}
 
 	function statusHeadline(): GlobalTopBarStatusHeadline | null {
-		if (!headline) return null;
+		const status = topBar.status;
+		if (!status) return null;
 		return {
-			label: headline.label,
-			tone: pullRequestZoneTone(topBar.action?.kind, headline.tone),
-			detail: headline.detail ?? (githubStatus?.checksSummary || null),
+			tone: status.tone,
+			busy: busy || status.busy,
+			label: status.label,
+			detail: busy ? (claimedBusyLabel ?? status.detail) : status.detail,
+			tooltip: status.tooltip,
 		};
 	}
 
 	function primaryAction(): GlobalTopBarStatusAction | null {
-		const action = topBar.action;
+		const action = topBar.status?.action;
 		if (!action) return null;
-		const label = busy ? (claimedBusyLabel ?? action.label) : action.label;
 		return {
-			label,
-			ariaLabel: busy ? label : action.ariaLabel,
+			label: action.label,
+			ariaLabel: action.ariaLabel,
 			tooltip: busy ? 'Pull request action in progress' : action.tooltip,
 			tone: action.tone,
-			icon: action.kind === 'needs-you' ? pullRequestActionIcon(action.kind) : null,
-			compactIcon: pullRequestActionIcon(action.kind),
-			disabled: action.disabled || busy,
-			busy: busy || action.busy,
-			onInvoke: runPullRequestActionCommand,
+			icon: pullRequestActionIcon(action.kind),
+			confirmLabel: action.confirmLabel,
+			disabled: busy,
+			onInvoke: () => runPullRequestActionCommand(ongitstatusstale),
 		};
 	}
 

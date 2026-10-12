@@ -81,17 +81,19 @@ function githubStatus(overrides: Partial<GlobalTopBarGithubStatus> = {}): Global
 		checksSummary: 'Checks passed',
 		review: null,
 		todos: null,
+		headline: { tone: 'ready', busy: false, label: 'Ready to merge', detail: null, tooltip: null },
 		action: null,
 		...overrides,
 	};
 }
 
 describe('global top bar GitHub status', () => {
-	it('carries no status vocabulary beside the next action', () => {
+	it('keeps the status in its headline, apart from the one action', () => {
 		const status: Record<string, unknown> = githubStatus();
 		for (const field of ['summary', 'tone', 'blockingCount']) {
 			expect(field in status).toBe(false);
 		}
+		expect(githubStatus().headline?.label).toBe('Ready to merge');
 	});
 
 	it('keeps the last published status so the detail survives leaving the workstream route', () => {

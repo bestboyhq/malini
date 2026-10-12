@@ -103,7 +103,7 @@ describe('the sidebar pull request marker', () => {
 		expect(marker('ws-lunar')).toMatchObject({ phase: 'queued', label: /Merge queued$/u });
 		expect(marker('ws-golden')).toMatchObject({
 			phase: 'needs-you',
-			label: /Needs you · Reply to reviewer$/u,
+			label: /Needs you · Reviewer needs a reply$/u,
 		});
 		expect(marker('ws-signal')).toMatchObject({ phase: 'draft', label: /Draft pull request$/u });
 	});
@@ -118,7 +118,7 @@ describe('the sidebar pull request marker', () => {
 		fakeShips(platform).merge('ws-golden');
 
 		expect(toast.warning).toHaveBeenCalledWith(
-			"Golden Pulse needs you · Can't merge",
+			'Golden Pulse needs you · GitHub blocks the merge',
 			expect.objectContaining({ context: { workstream: 'ws-golden' } }),
 		);
 		expect(toast.success).toHaveBeenCalledWith(

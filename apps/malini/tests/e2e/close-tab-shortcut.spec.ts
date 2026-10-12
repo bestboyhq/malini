@@ -73,11 +73,15 @@ test('Cmd+W closes the current tab, then archives the workstream once no tab is 
 		await closeTab(page);
 		await expect(page).toHaveTitle('malini · Repositories', { timeout: 20_000 });
 		await expect(
-			page.getByTestId('toast').filter({ hasText: 'Archived First chat' }),
-		).toBeVisible();
-		await expect(
 			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
 		).toHaveCount(0);
+		await page.getByRole('button', { name: 'Archived workstreams' }).click();
+		await expect(
+			page
+				.getByRole('menu', { name: 'Archived workstreams' })
+				.getByRole('menuitem', { name: 'Restore First chat' }),
+		).toBeVisible();
+		await expect(page.getByTestId('toast')).toHaveCount(0);
 		await captureFlow(app, 'close-tab-shortcut-archived');
 		expectCleanConsole(app);
 	} finally {

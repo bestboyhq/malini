@@ -5,6 +5,7 @@ import type {
 	ShipStep,
 } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
+import { worktreeOperationNoun } from './pull-request-action';
 
 export type PullRequestShip = Readonly<{
 	workstreamId: string;
@@ -32,20 +33,13 @@ export type PullRequestShipAnnouncement = Readonly<{
 	message: string;
 }>;
 
-const STEP_LABELS: Readonly<Record<ShipStep, string>> = {
+const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'waiting-for-agent': 'Waiting for the agent',
-	'opening-draft': 'Opening draft',
-	pushing: 'Pushing',
-	'marking-ready': 'Marking ready',
-	'updating-branch': 'Updating branch',
 	'resolving-conflicts': 'Resolving conflicts',
 	'fixing-checks': 'Fixing checks',
 	'addressing-review': 'Addressing review',
 	'waiting-for-checks': 'Waiting for checks',
 	'waiting-for-review': 'Waiting for review',
-	'waiting-for-github': 'Waiting for GitHub',
-	merging: 'Merging…',
-	archiving: 'Archiving…',
 };
 
 const STEP_DESCRIPTIONS: Readonly<Record<ShipStep, string>> = {
@@ -67,11 +61,11 @@ const STEP_DESCRIPTIONS: Readonly<Record<ShipStep, string>> = {
 const REASON_LABELS: Readonly<
 	Record<Exclude<ShipNeedsYouReason, 'operation-in-progress'>, string>
 > = {
-	'reply-to-reviewer': 'Reply to reviewer',
+	'reply-to-reviewer': 'Reviewer needs a reply',
 	'fix-gave-up': 'Fix gave up',
-	'merge-not-permitted': "Can't merge",
-	'pull-request-closed': 'PR closed',
-	'github-reconnect': 'Reconnect GitHub',
+	'merge-not-permitted': 'GitHub blocks the merge',
+	'pull-request-closed': 'Pull request was closed',
+	'github-reconnect': 'GitHub sign-in expired',
 };
 
 const REASON_DESCRIPTIONS: Readonly<Record<ShipNeedsYouReason, string>> = {
@@ -83,8 +77,8 @@ const REASON_DESCRIPTIONS: Readonly<Record<ShipNeedsYouReason, string>> = {
 	'operation-in-progress': 'A git operation stopped part-way in this workstream',
 };
 
-export function shipStepLabel(step: ShipStep): string {
-	return STEP_LABELS[step];
+export function shipStepDetail(step: ShipStep): string | null {
+	return STEP_DETAILS[step] ?? null;
 }
 
 export function shipStepDescription(step: ShipStep): string {
@@ -95,7 +89,11 @@ export function needsYouReasonLabel(
 	reason: ShipNeedsYouReason,
 	operation: WorktreeOperation | null,
 ): string {
-	if (reason === 'operation-in-progress') return `Finish the ${operation ?? 'operation'}`;
+	if (reason === 'operation-in-progress') {
+		return operation
+			? `${worktreeOperationNoun(operation)} stopped part-way`
+			: 'Git stopped part-way';
+	}
 	return REASON_LABELS[reason];
 }
 

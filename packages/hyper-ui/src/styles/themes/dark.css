@@ -29,6 +29,7 @@
 	--color-success-content: var(--color-text-on-success-dark);
 
 	--themed-color-merged-content: #c472fb;
+	--themed-color-queued-content: var(--ds-blue-900-dark);
 
 	--themed-color-tertiary: var(--color-tertiary-dark);
 	--themed-color-tertiary-content: var(--color-text-on-tertiary-dark);

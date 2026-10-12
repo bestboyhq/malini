@@ -19,13 +19,14 @@ function queueStatus(onQueue: () => void, onCancel: () => void): GlobalTopBarGit
 		checksSummary: 'Checks passed',
 		review: null,
 		todos: null,
+		headline: { tone: 'ready', busy: false, label: 'Ready to merge', detail: null, tooltip: null },
 		action: {
 			label: 'Queue merge',
 			ariaLabel: 'Queue merge for pull request #42',
 			tooltip: 'Malini merges it once GitHub allows',
 			tone: 'primary',
+			icon: 'pr-merged',
 			disabled: false,
-			busy: false,
 			onInvoke: onQueue,
 		},
 		detailActions: [
@@ -97,6 +98,69 @@ describe('the top bar Queue merge', () => {
 			flushSync();
 			expect(queues).toBe(1);
 			expect(bar.action.textContent?.trim()).toBe('Queue merge');
+		} finally {
+			bar.stop();
+		}
+	});
+});
+
+describe('the top bar Cancel of a queued merge', () => {
+	function queuedStatus(onCancel: () => void): GlobalTopBarGithubStatus {
+		return {
+			...queueStatus(
+				() => undefined,
+				() => undefined,
+			),
+			headline: {
+				tone: 'queued',
+				busy: true,
+				label: 'Queued for merge',
+				detail: 'Waiting for checks',
+				tooltip: null,
+			},
+			action: {
+				label: 'Cancel',
+				ariaLabel: 'Cancel the queued merge',
+				tooltip: 'Stops the merge queue',
+				tone: 'secondary',
+				icon: 'close',
+				confirmLabel: 'Confirm cancel',
+				disabled: false,
+				onInvoke: onCancel,
+			},
+		};
+	}
+
+	it('cancels only on the confirming click, and Escape disarms it', () => {
+		let cancels = 0;
+		const bar = mountBar(queuedStatus(() => (cancels += 1)));
+		try {
+			bar.action.click();
+			flushSync();
+			expect(bar.action.textContent?.trim()).toBe('Confirm cancel');
+			expect(bar.action.getAttribute('aria-label')).toBe('Confirm cancel');
+			expect(cancels).toBe(0);
+
+			press('Escape');
+			expect(bar.action.textContent?.trim()).toBe('Cancel');
+
+			bar.action.click();
+			flushSync();
+			bar.action.click();
+			flushSync();
+			expect(cancels).toBe(1);
+		} finally {
+			bar.stop();
+		}
+	});
+
+	it('reads the status beside the button, never inside it', () => {
+		const bar = mountBar(queuedStatus(() => undefined));
+		try {
+			const status = document.querySelector('[data-testid="global-topbar-github-headline"]');
+			expect(status?.getAttribute('role')).toBe('status');
+			expect(status?.getAttribute('aria-label')).toBe('Queued for merge · Waiting for checks');
+			expect(bar.action.textContent?.trim()).toBe('Cancel');
 		} finally {
 			bar.stop();
 		}

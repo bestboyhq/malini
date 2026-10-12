@@ -59,6 +59,7 @@ type EventStreamHandle = {
 	isStarted(): boolean;
 	stats(): EventStreamStats;
 	lastSeenSeq(sessionId: SessionId): number;
+	forget(sessionId: SessionId): void;
 	hydrate(sessionId: SessionId): Promise<void>;
 };
 
@@ -390,6 +391,11 @@ export function createEventStream(
 		},
 		lastSeenSeq(sessionId: SessionId): number {
 			return highestSeenSeq[sessionId] ?? 0;
+		},
+		forget(sessionId: SessionId): void {
+			delete highestSeenSeq[sessionId];
+			delete deliveredSeqs[sessionId];
+			hydratedSessions.delete(sessionId);
 		},
 		async hydrate(sessionId: SessionId): Promise<void> {
 			await hydrateSession(sessionId);

@@ -11,11 +11,11 @@ import {
 import {
 	expectMergedAndArchived,
 	holdAgentRuns,
-	openPullRequestDetail,
 	queueMerge,
 	workstreamName,
 	seedWorkstreamOnFakeGithub,
 	sidebarStatus,
+	topBarStatus,
 	type FakeGithub,
 } from './fake-github';
 
@@ -44,9 +44,10 @@ test('Queue merge marks the draft ready, waits for the checks, merges and archiv
 		const name = await workstreamName(page, 'e2e-queue-merge');
 		await queueMerge(page);
 
-		const queued = page.getByRole('button', { name: 'Merge queued · Waiting for checks' });
-		await expect(queued).toHaveText('Queued · Waiting for checks', { timeout: 30_000 });
-		await expect(queued).toHaveAttribute('aria-busy', 'true');
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(page.getByRole('button', { name: 'Cancel the queued merge' })).toBeEnabled();
 		expect(github.pullRequest()).toMatchObject({ isDraft: false });
 		const status = sidebarStatus(page, 'e2e-queue-merge');
 		await expect(status).toHaveAttribute('data-workstream-pull-request-state', 'queued');
@@ -94,7 +95,7 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 
 		await queueMerge(page);
 
-		await expect(page.getByRole('button', { name: 'Merge queued · Fixing checks' })).toBeVisible({
+		await expect(topBarStatus(page, 'Queued for merge · Fixing checks')).toBeVisible({
 			timeout: 30_000,
 		});
 		const jobs = page.getByRole('region', { name: 'Jobs: 1 running' });
@@ -136,7 +137,7 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 	}
 });
 
-test('Cancel merge takes a confirming click and hands the pull request back to Queue merge', async () => {
+test('Cancel takes a confirming click in the bar and hands the pull request back to Queue merge', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -148,13 +149,12 @@ test('Cancel merge takes a confirming click and hands the pull request back to Q
 		});
 		await openWorkstream(page, 'e2e-cancel-merge');
 		await queueMerge(page);
-		await expect(
-			page.getByRole('button', { name: 'Merge queued · Waiting for checks' }),
-		).toBeVisible({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
 
-		const detail = await openPullRequestDetail(page);
-		await detail.getByRole('button', { name: 'Cancel merge' }).click();
-		const confirm = detail.getByRole('button', { name: 'Confirm cancel' });
+		await page.getByRole('button', { name: 'Cancel the queued merge' }).click();
+		const confirm = page.getByRole('button', { name: 'Confirm cancel' });
 		await expect(confirm).toBeVisible();
 		await captureFlow(app, 'merge-queue-cancel-armed');
 		await confirm.click();
