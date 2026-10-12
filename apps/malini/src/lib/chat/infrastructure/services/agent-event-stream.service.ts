@@ -91,6 +91,10 @@ class AgentEventStreamService {
 		await stream.hydrate(sessionId);
 	}
 
+	forget(sessionId: SessionId): void {
+		this.#stream?.forget(sessionId);
+	}
+
 	async restart(): Promise<void> {
 		const previous = this.#stream;
 		this.#stream = null;
