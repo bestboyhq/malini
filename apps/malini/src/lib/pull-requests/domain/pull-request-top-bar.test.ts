@@ -253,7 +253,6 @@ describe('the top bar while the merge is queued', () => {
 		['waiting-for-checks', 'Waiting for checks'],
 		['waiting-for-review', 'Waiting for review'],
 		['waiting-for-github', 'Waiting for GitHub'],
-		['waiting-for-turn', 'Waiting for its turn'],
 		['merging', 'Merging…'],
 		['archiving', 'Archiving…'],
 	])('names the %s step', (step, label) => {

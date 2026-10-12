@@ -97,10 +97,8 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await expect(page.getByRole('button', { name: 'Merge queued · Fixing checks' })).toBeVisible({
 			timeout: 30_000,
 		});
-		const pill = page.getByRole('button', { name: 'Jobs: 1 running' });
-		await expect(pill).toBeVisible({ timeout: 30_000 });
-		await pill.click();
-		const jobs = page.getByRole('dialog', { name: 'Jobs' });
+		const jobs = page.getByRole('region', { name: 'Jobs: 1 running' });
+		await expect(jobs).toBeVisible({ timeout: 30_000 });
 		const transcript = jobs.getByRole('link', {
 			name: 'Open transcript: Fix checks · Pull request workstream, Running',
 		});
@@ -127,10 +125,9 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await expectMergedAndArchived(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
-		await page.getByRole('button', { name: 'Jobs: 1 finished recently' }).click();
 		await expect(
 			page
-				.getByRole('dialog', { name: 'Jobs' })
+				.getByRole('region', { name: 'Jobs: 1 finished recently' })
 				.getByRole('link', { name: /^Open transcript: Fix checks.*, Done$/u }),
 		).toBeVisible();
 		expectCleanConsole(app);

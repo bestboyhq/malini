@@ -27,7 +27,6 @@ const DELAYS = {
 	checksPollMs: 20,
 	reviewPollMs: 20,
 	githubPollMs: 20,
-	turnPollMs: 20,
 	backoffBaseMs: 40,
 	backoffCapMs: 160,
 };
@@ -1025,7 +1024,7 @@ describe('the merge queue', () => {
 		expect(jobRuns.size).toBe(1);
 	});
 
-	it('merges one pull request at a time per repository, first queued first', async () => {
+	it('merges whichever queued pull request is ready first', async () => {
 		seedWorkstream('ws-1', { dirtyPaths: ['a.ts'] });
 		seedWorkstream('ws-2', { dirtyPaths: ['b.ts'] });
 		start();
@@ -1035,13 +1034,12 @@ describe('the merge queue', () => {
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-2' });
 
-		await until(() => expect(ship('ws-2')?.step).toBe('waiting-for-turn'));
-		expect(github.pull('malini/ws-2')?.state).toBe('OPEN');
-		expect(archived).toEqual([]);
+		await until(() => expect(archived).toEqual(['ws-2']));
+		expect(ship('ws-1')?.step).toBe('waiting-for-agent');
 
 		finishUserRun('ws-1', 'Done', []);
 
-		await until(() => expect(archived).toEqual(['ws-1', 'ws-2']));
+		await until(() => expect(archived).toEqual(['ws-2', 'ws-1']));
 	});
 
 	it('drops the queue state of a workstream removed elsewhere', async () => {

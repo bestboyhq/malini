@@ -190,10 +190,11 @@ export class JobRunner {
 				current.status === 'running' && !this.#stopped ? { ...current, sessionId } : null,
 			);
 			if (!withSession) return;
+			// ponytail: jobs run in auto mode like the user's chats; sandbox them once the sandbox can run gh, e2e and scratch worktrees without asking
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt: jobPrompt(definition.instructions, getJobRunContext(db, jobRun.id)),
-				profile: { effort: definition.effort, mode: 'agent', access: 'sandboxed' },
+				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
 			});
 			this.#update(jobRun.id, (current) =>

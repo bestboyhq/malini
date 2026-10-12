@@ -6,16 +6,15 @@
 		active: readonly JobRunRecord[];
 		finished: readonly JobRunRecord[];
 		nowMs: number;
-		onopen?: (() => void) | undefined;
 	}
 
-	let { active, finished, nowMs, onopen }: Props = $props();
+	let { active, finished, nowMs }: Props = $props();
 </script>
 
 {#if active.length > 0}
 	<ul aria-label="Jobs in progress">
 		{#each active as run (run.id)}
-			<li><JobRunRow {run} {nowMs} {onopen} /></li>
+			<li><JobRunRow {run} {nowMs} /></li>
 		{/each}
 	</ul>
 {/if}
@@ -31,7 +30,7 @@
 	</p>
 	<ul aria-label="Recent jobs">
 		{#each finished as run (run.id)}
-			<li><JobRunRow {run} {nowMs} {onopen} /></li>
+			<li><JobRunRow {run} {nowMs} /></li>
 		{/each}
 	</ul>
 {/if}

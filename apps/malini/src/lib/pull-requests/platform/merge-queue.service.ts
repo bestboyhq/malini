@@ -257,7 +257,6 @@ export class MergeQueue {
 	workstreamRemoved(workstreamId: string): void {
 		deleteShip(this.#context.db, workstreamId);
 		this.#forget(workstreamId);
-		this.#wakeLine();
 	}
 
 	wake(workstreamId: string): void {
@@ -345,7 +344,6 @@ export class MergeQueue {
 			settledJob: settled?.builtin ?? null,
 			worktree,
 			threadResolutionRunId: settled?.builtin === 'address-review' ? settled.agentRunId : null,
-			headOfLine: this.#headOfLine(row, target.workstream),
 			failureSignature: row.failureSignature,
 			attempts: row.attempts,
 			fixAttemptLimit:
@@ -671,7 +669,6 @@ export class MergeQueue {
 		await this.#context.commands.call('repositories.archive-workstream', { workstreamId });
 		deleteShip(this.#context.db, workstreamId);
 		this.#forget(workstreamId);
-		this.#wakeLine();
 	}
 
 	#failed(workstreamId: string, error: unknown): void {
@@ -754,22 +751,6 @@ export class MergeQueue {
 			if (last === null || job.createdAt >= last.createdAt) last = job;
 		}
 		return last?.id ?? null;
-	}
-
-	#headOfLine(row: ShipRow, workstream: Workstream): boolean {
-		const { db } = this.#context;
-		const line = listShips(db).filter(
-			(candidate) =>
-				candidate.phase === 'queued' &&
-				getWorkstream(db, candidate.workstreamId)?.projectId === workstream.projectId,
-		);
-		return line[0]?.workstreamId === row.workstreamId;
-	}
-
-	#wakeLine(): void {
-		for (const row of listShips(this.#context.db)) {
-			if (row.phase === 'queued' && row.step === 'waiting-for-turn') this.wake(row.workstreamId);
-		}
 	}
 
 	async #fixAttemptLimit(): Promise<number> {
@@ -866,7 +847,6 @@ export class MergeQueue {
 		if (!before || !sameRecord(shipRecord(before), state)) {
 			events.emit('pull-requests:ship-changed', { workstreamId, state });
 		}
-		if (before?.phase === 'queued' && after.phase !== 'queued') this.#wakeLine();
 		return after;
 	}
 
@@ -894,8 +874,6 @@ export class MergeQueue {
 				return this.#delays.checksPollMs;
 			case 'waiting-for-review':
 				return this.#delays.reviewPollMs;
-			case 'waiting-for-turn':
-				return this.#delays.turnPollMs;
 			case 'fixing-checks':
 			case 'resolving-conflicts':
 			case 'addressing-review':

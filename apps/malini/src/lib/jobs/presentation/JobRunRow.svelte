@@ -20,10 +20,9 @@
 	interface Props {
 		run: JobRunRecord;
 		nowMs: number;
-		onopen?: (() => void) | undefined;
 	}
 
-	let { run, nowMs, onopen }: Props = $props();
+	let { run, nowMs }: Props = $props();
 
 	let armed = $state(false);
 
@@ -94,7 +93,6 @@
 			href={transcriptHref}
 			ariaLabel={`Open transcript: ${subject}, ${look.label}`}
 			class="hover:bg-surface-elevated-hover focus-visible:ring-border-default/50 flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-2"
-			onclick={() => onopen?.()}
 		>
 			{@render summary()}
 		</Button>
