@@ -26,6 +26,14 @@ export interface Workstream {
 	createdAt: string;
 }
 
+export interface ArchivedWorkstreamDto {
+	id: string;
+	projectId: string;
+	name: string;
+	baseBranch: string;
+	archivedAt: string;
+}
+
 export interface WorkstreamDto extends Workstream {
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;

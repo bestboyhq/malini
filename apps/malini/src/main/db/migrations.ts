@@ -1129,6 +1129,10 @@ UPDATE routines SET steps_json = json_array(json(run_json)) WHERE json_valid(run
 ALTER TABLE routines DROP COLUMN run_json;
 `;
 
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_AT = `ALTER TABLE workstreams ADD COLUMN archived_at TEXT;`;
+
+export const MIGRATION_0039_WORKSTREAM_ARCHIVED_REF = `ALTER TABLE workstreams ADD COLUMN archived_ref TEXT;`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1138,7 +1142,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 38;
+export const TARGET_USER_VERSION = 39;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1287,6 +1291,15 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 					addColumnIfMissing(db, 'agent_sessions', 'origin', MIGRATION_0038_AGENT_SESSIONS_ORIGIN);
 				}
 				if (columnExists(db, 'routines', 'run_json')) db.exec(MIGRATION_0038_ROUTINE_STEPS);
+			}
+			if (existing < 39 && tableExists(db, 'workstreams')) {
+				addColumnIfMissing(db, 'workstreams', 'archived_at', MIGRATION_0039_WORKSTREAM_ARCHIVED_AT);
+				addColumnIfMissing(
+					db,
+					'workstreams',
+					'archived_ref',
+					MIGRATION_0039_WORKSTREAM_ARCHIVED_REF,
+				);
 			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(

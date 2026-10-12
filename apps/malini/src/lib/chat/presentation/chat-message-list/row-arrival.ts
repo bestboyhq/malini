@@ -1,5 +1,5 @@
 import { arrivalMotion } from '../arrival-motion';
-import { stepGlideSpring, type GlideState } from '../scroll-glide';
+import { snapToDevicePixel, stepGlideSpring, type GlideState } from '../scroll-glide';
 import type { TranscriptSettleGate } from './transcript-settle';
 
 const MAX_TRACKED_STAGED_BLOCKS = 512;
@@ -160,7 +160,7 @@ export function createRowArrivals(input: {
 				if (!row) continue;
 				const offset = row.glide.position;
 				const overlap = row.inFlow && nextOffset !== null ? offset - nextOffset : 0;
-				const translate = Math.abs(offset) < 0.5 ? '' : `0 ${offset}px`;
+				const translate = Math.abs(offset) < 0.5 ? '' : `0 ${snapToDevicePixel(offset)}px`;
 				const mask = overlap < 0.5 ? '' : emergeAbove(overlap);
 				if (translate !== row.translate) row.element.style.translate = row.translate = translate;
 				if (mask !== row.mask) {

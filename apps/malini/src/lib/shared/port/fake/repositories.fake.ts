@@ -198,6 +198,18 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		return { savedWork: null };
 	});
 
+	bridge.define('repositories.restore-workstream', async (input) => {
+		const archived = state.workstreams.find(
+			(workstream) => workstream.id === input.workstreamId && workstream.status === 'archived',
+		);
+		if (!archived) throw new Error(`Not an archived workstream: ${input.workstreamId}`);
+		const workstream: FakeWorkstream = { ...archived, status: 'active' };
+		state.workstreams = state.workstreams.map((entry) =>
+			entry.id === workstream.id ? workstream : entry,
+		);
+		emit('repositories:workstream-created', { workstreamId: workstream.id, workstream });
+	});
+
 	bridge.define('repositories.delete-workstream', async (input) => {
 		state.workstreams = state.workstreams.filter(
 			(workstream) => workstream.id !== input.workstreamId,
@@ -212,12 +224,12 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		const projectId = clone
 			? localProjectId(deriveProjectName(`https://github.com/${clone.fullName}.git`))
 			: input.repoId.replace(/^local:/u, '');
-		const archived = state.workstreams.filter((workstream) => workstream.projectId === projectId);
-		state.workstreams = state.workstreams.filter((workstream) => !archived.includes(workstream));
+		const deleted = state.workstreams.filter((workstream) => workstream.projectId === projectId);
+		state.workstreams = state.workstreams.filter((workstream) => !deleted.includes(workstream));
 		state.projects = state.projects.filter((project) => project.id !== projectId);
 		github.clones = github.clones.filter((candidate) => candidate !== clone);
-		for (const workstream of archived) {
-			emit('repositories:workstream-removed', { workstreamId: workstream.id, archived: true });
+		for (const workstream of deleted) {
+			emit('repositories:workstream-removed', { workstreamId: workstream.id, deleted: true });
 		}
 	});
 
@@ -334,7 +346,21 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 	});
 
 	bridge.define('repositories.list-workstreams', async () =>
-		cloneWorkstreams(state.workstreams).map(fakeWorkstreamDto),
+		cloneWorkstreams(state.workstreams)
+			.filter((workstream) => workstream.status !== 'archived')
+			.map(fakeWorkstreamDto),
+	);
+
+	bridge.define('repositories.list-archived-workstreams', async () =>
+		state.workstreams
+			.filter((workstream) => workstream.status === 'archived')
+			.map(({ id, projectId, name, baseBranch }) => ({
+				id,
+				projectId,
+				name,
+				baseBranch,
+				archivedAt: FAKE_CREATED_AT,
+			})),
 	);
 
 	bridge.define('repositories.list-repositories', async () =>

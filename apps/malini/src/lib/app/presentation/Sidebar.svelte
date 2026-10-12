@@ -22,7 +22,7 @@
 	import type { Repository } from '$shared/repositories/repositories.api';
 	import type { Workstream } from '$shared/repositories/repositories.api';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/repositories.api';
-	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
+	import { ArchivedWorkstreamsMenu, RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -274,7 +274,7 @@
 			(workstream) => nativeExistence(workstream.id) === 'in-flight',
 		);
 		const count = repoWorkstreams.length;
-		const archives = workstreamCount(count);
+		const workstreams = workstreamCount(count);
 		if (armedRemovalKey !== removalKey(repo, repoWorkstreams)) {
 			return {
 				armed: false,
@@ -298,9 +298,9 @@
 		return {
 			armed: true,
 			blocked,
-			label: `Archive ${count} and remove`,
-			ariaLabel: `Archive ${archives} and remove ${repo.fullName}`,
-			tooltip: `Archives ${archives} with their work saved, then removes ${repo.fullName}. Escape cancels it`,
+			label: `Delete ${count} and remove`,
+			ariaLabel: `Delete ${workstreams} and remove ${repo.fullName}`,
+			tooltip: `Deletes ${workstreams} with their work saved in git, then removes ${repo.fullName}. Escape cancels it`,
 		};
 	}
 
@@ -885,6 +885,7 @@
 
 	<div class="border-surface-50-border flex shrink-0 items-center gap-1 border-t px-2 py-1.5">
 		<JobsNavBadge />
+		<ArchivedWorkstreamsMenu />
 		<Tooltip content="Settings" placement="right">
 			<IconButton
 				variant="ghost"

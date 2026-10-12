@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Project } from '$shared/repositories/domain/repository';
 import {
 	UNOBSERVED_WORKSTREAM_CHECKOUT,
+	type ArchivedWorkstream,
 	type Workstream,
 } from '$shared/repositories/domain/workstream';
 
 const serviceMocks = vi.hoisted(() => ({
 	workstreamsService: {
 		listWorkstreams: vi.fn<() => Promise<Workstream[]>>(),
+		listArchivedWorkstreams: vi.fn<() => Promise<ArchivedWorkstream[]>>(),
 		listProjects: vi.fn<() => Promise<Project[]>>(),
 	},
 }));
@@ -42,6 +44,7 @@ describe('WorkstreamsAggregate', () => {
 	beforeEach(() => {
 		serviceMocks.workstreamsService.listWorkstreams.mockReset();
 		serviceMocks.workstreamsService.listProjects.mockReset();
+		serviceMocks.workstreamsService.listArchivedWorkstreams.mockReset().mockResolvedValue([]);
 	});
 
 	it('keeps the newer result when two refreshes race', async () => {

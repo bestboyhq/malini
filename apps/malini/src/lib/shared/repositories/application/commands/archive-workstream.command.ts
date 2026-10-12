@@ -9,10 +9,7 @@ import {
 import type { Workstream } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import {
-	WORKSTREAM_UNDO_WINDOW_MS,
 	retirementFailureToast,
-	savedWorkNote,
-	type SavedWorkstreamWork,
 	type WorkstreamLifecycleAnnouncer,
 } from '$shared/repositories/domain/workstream-retirement';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
@@ -24,9 +21,7 @@ import { workstreamRetirementStore } from '$shared/repositories/infrastructure/s
 import { goto } from '$shared/router/navigation';
 import { REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
 import { page } from '$shared/router/state';
-import { clipboardService } from '$shared/system/clipboard.service';
 import { abandonWorkstreamProvisioningCommand } from './abandon-workstream-provisioning.command';
-import { undoWorkstreamRetirementCommand } from './undo-workstream-retirement.command';
 
 export { archiveWorkstreamCommand };
 
@@ -34,7 +29,7 @@ function archiveWorkstreamCommand(
 	workstream: Workstream,
 	announceLifecycle: WorkstreamLifecycleAnnouncer,
 ): void {
-	if (workstreamRetirementStore.isPending(workstream.id)) return;
+	if (workstreamRetirementStore.isRetiring(workstream.id)) return;
 	const existence = workstreamNativeExistence(workstreamProvisioning.get(workstream.id));
 	if (existence === 'in-flight') return;
 	const destination = destinationAfter(workstream.id);
@@ -44,11 +39,10 @@ function archiveWorkstreamCommand(
 		return;
 	}
 
-	let savedWork: SavedWorkstreamWork | null = null;
 	const settled = workstreamRetirementStore.retire({
 		workstreamId: workstream.id,
 		commit: async () => {
-			savedWork = await workstreamsService.archive(workstream.id);
+			await workstreamsService.archive(workstream.id);
 			announceLifecycle('archived', workstream.id);
 		},
 	});
@@ -56,36 +50,12 @@ function archiveWorkstreamCommand(
 
 	void (async () => {
 		await leaveIfActive(workstream.id, destination);
-		const name = displayWorkstreamName(workstream);
-		const toastId = toast.info(
-			`Archived ${name}`,
-			aboutWorkstream(workstream.id, {
-				ttlMs: WORKSTREAM_UNDO_WINDOW_MS,
-				action: {
-					label: 'Undo',
-					onclick: () => undoWorkstreamRetirementCommand(workstream.id),
-				},
-			}),
-		);
 		const outcome = await settled;
-		toast.dismiss(toastId);
-		if (outcome.status === 'failed') {
-			toast.error(
-				retirementFailureToast('archive', name, outcome.message),
-				aboutWorkstream(workstream.id),
-			);
-			return;
-		}
-		if (outcome.status === 'retired' && savedWork) {
-			const { ref } = savedWork;
-			toast.info(`Archived ${name} · ${savedWorkNote(savedWork)}`, {
-				...aboutWorkstream(workstream.id),
-				action: {
-					label: 'Copy ref',
-					onclick: () => void clipboardService.write(ref),
-				},
-			});
-		}
+		if (outcome.status !== 'failed') return;
+		toast.error(
+			retirementFailureToast('archive', displayWorkstreamName(workstream), outcome.message),
+			aboutWorkstream(workstream.id),
+		);
 	})();
 }
 

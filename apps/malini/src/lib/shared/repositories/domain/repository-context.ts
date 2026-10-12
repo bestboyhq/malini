@@ -47,9 +47,22 @@ export function connectedRepositoryContexts(input: {
 	return contexts;
 }
 
+export function workstreamRepositories(input: {
+	repositories: readonly Repository[];
+	workstreams: readonly Pick<Workstream, 'id' | 'projectId'>[];
+}): ReadonlyMap<string, Repository> {
+	const byId = new Map(input.repositories.map((repo) => [repo.id, repo]));
+	const owned = new Map<string, Repository>();
+	for (const [workstreamId, repositoryId] of resolveWorkstreamOwners(input)) {
+		const repository = byId.get(repositoryId);
+		if (repository) owned.set(workstreamId, repository);
+	}
+	return owned;
+}
+
 function resolveWorkstreamOwners(input: {
 	repositories: readonly Repository[];
-	workstreams: readonly Workstream[];
+	workstreams: readonly Pick<Workstream, 'id' | 'projectId'>[];
 }): Map<string, string> {
 	const owners = new Map<string, string>();
 

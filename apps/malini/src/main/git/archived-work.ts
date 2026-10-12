@@ -3,9 +3,10 @@ import { copyFile, stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { retryingVanishedFileRace, withTemporaryIndex } from './diff';
 import { ensureStagingPrecondition } from './excludes';
-import { WORKTREE_CONTENT_PATHSPEC, validateWorkstreamId } from './paths';
+import { WORKTREE_CONTENT_PATHSPEC, deriveProjectId, validateWorkstreamId } from './paths';
 import { DISABLED_GIT_HOOKS_CONFIG, runGit, type GitEnv } from './run';
 import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
+import { withProjectLock } from './worktrees';
 
 export const ARCHIVED_WORK_REF_NAMESPACE = `${SNAPSHOT_REF_ROOT}archived/`;
 
@@ -17,6 +18,9 @@ const ARCHIVE_COMMIT_IDENTITY: GitEnv = {
 };
 
 const GITLINK_MODE = '160000';
+
+const UNCOMMITTED_WORK_SUBJECT = 'malini: uncommitted work saved when archiving';
+const LOCAL_WORK_SUBJECT = 'malini: local work saved when archiving';
 
 export interface LocalWorkSource {
 	readonly repository: string;
@@ -88,6 +92,71 @@ export async function branchWorkIsKept(
 	return keepers.length > 0 && (await commitCount(repository, [tip], keepers)) === 0;
 }
 
+export interface ArchivedWorkRestore {
+	readonly repository: string;
+	readonly checkout: string;
+	readonly branch: string;
+	readonly savedRef: string | null;
+	readonly baseStart: () => Promise<string>;
+}
+
+interface SavedWork {
+	readonly commit: string;
+	readonly head: string | null;
+	readonly uncommitted: boolean;
+	readonly tips: readonly string[];
+}
+
+export async function restoreArchivedWork(restore: ArchivedWorkRestore): Promise<void> {
+	const { repository, checkout, branch } = restore;
+	const saved = restore.savedRef === null ? null : await savedWorkAt(repository, restore.savedRef);
+	const branchKept = (await verifiedCommit(repository, `refs/heads/${branch}`)) !== null;
+	const target = branchKept
+		? [checkout, branch]
+		: ['-b', branch, checkout, saved?.head ?? (await restore.baseStart())];
+	await withProjectLock(deriveProjectId(repository), () =>
+		runGit(['-C', repository, 'worktree', 'add', ...target]),
+	);
+	if (saved?.uncommitted !== true) return;
+	await runGit([
+		'-C',
+		checkout,
+		'restore',
+		`--source=${saved.commit}`,
+		'--worktree',
+		'--',
+		WORKTREE_CONTENT_PATHSPEC,
+	]);
+}
+
+export async function releaseRestoredWork(
+	repository: string,
+	branch: string,
+	savedRef: string,
+): Promise<void> {
+	if (!savedRef.startsWith(ARCHIVED_WORK_REF_NAMESPACE)) return;
+	const saved = await savedWorkAt(repository, savedRef);
+	if (saved === null) return;
+	if ((await commitCount(repository, saved.tips, [`refs/heads/${branch}`])) > 0) return;
+	await runGit(['-C', repository, 'update-ref', '-d', savedRef, saved.commit]);
+}
+
+async function savedWorkAt(repository: string, ref: string): Promise<SavedWork | null> {
+	const commit = await verifiedCommit(repository, ref);
+	if (commit === null) return null;
+	const [subject, email, parents = ''] = (
+		await runGit(['-C', repository, 'show', '-s', '--format=%s%x00%ae%x00%P', commit])
+	)
+		.trim()
+		.split('\0');
+	const madeByArchive =
+		email === AGENT_IDENTITY.email &&
+		(subject === UNCOMMITTED_WORK_SUBJECT || subject === LOCAL_WORK_SUBJECT);
+	if (!madeByArchive) return { commit, head: commit, uncommitted: false, tips: [commit] };
+	const tips = parents.split(' ').filter(Boolean);
+	return { commit, head: tips[0] ?? null, uncommitted: subject === UNCOMMITTED_WORK_SUBJECT, tips };
+}
+
 async function checkedOutCommit(checkout: string): Promise<string | null> {
 	if (!existsSync(join(checkout, '.git'))) return null;
 	return verifiedCommit(checkout, 'HEAD');
@@ -126,18 +195,13 @@ async function archivedCommit(
 	if (wipTree !== null) {
 		const parents =
 			base === null ? [...unkeptTips] : [base, ...unkeptTips.filter((tip) => tip !== base)];
-		return commitTree(
-			repository,
-			wipTree,
-			parents,
-			'malini: uncommitted work saved when archiving',
-		);
+		return commitTree(repository, wipTree, parents, UNCOMMITTED_WORK_SUBJECT);
 	}
 	const [only, ...more] = unkeptTips;
 	if (only === undefined) throw new Error('there was no work to save');
 	if (more.length === 0) return only;
 	const tree = (await runGit(['-C', repository, 'rev-parse', `${only}^{tree}`])).trim();
-	return commitTree(repository, tree, unkeptTips, 'malini: local work saved when archiving');
+	return commitTree(repository, tree, unkeptTips, LOCAL_WORK_SUBJECT);
 }
 
 async function commitTree(

@@ -35,6 +35,7 @@ import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type { RuntimeInfo } from './runtime';
 import type {
 	AddressedReviewThreadsDto,
+	ArchivedWorkstreamDto,
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
@@ -432,6 +433,10 @@ export interface ContractCommands {
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
+	'repositories.list-archived-workstreams': {
+		args: undefined;
+		result: ArchivedWorkstreamDto[];
+	};
 	'repositories.open-workstream-in-editor': { args: WorkstreamIdArgs; result: void };
 	'app.shutdown-impact': { args: undefined; result: ShutdownImpact };
 	'chat.pick-and-stage-attachments': {
@@ -471,6 +476,7 @@ export interface ContractCommands {
 		args: RestoreCheckpointArgs;
 		result: RestoreCheckpointResult;
 	};
+	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -631,6 +637,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-files',
 	'repositories.base-files',
 	'repositories.list-workstreams',
+	'repositories.list-archived-workstreams',
 	'repositories.open-workstream-in-editor',
 	'app.shutdown-impact',
 	'chat.pick-and-stage-attachments',
@@ -653,6 +660,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.restore-checkpoint',
+	'repositories.restore-workstream',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'extensions.rollback-managed',
