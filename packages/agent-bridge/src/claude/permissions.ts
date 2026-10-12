@@ -1,6 +1,10 @@
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import type { PermissionMode, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
+import type {
+	PermissionMode,
+	PermissionUpdate,
+	SandboxSettings,
+} from '@anthropic-ai/claude-agent-sdk';
 import type { AgentRunProfile } from '../agent-profile.js';
 import type {
 	AgentQuestion,
@@ -44,12 +48,28 @@ export function permissionModeFor(profile: AgentRunProfile | undefined): Permiss
 	}
 }
 
-export function sandboxFor(profile: AgentRunProfile | undefined): {
-	enabled: boolean;
-	autoAllowBashIfSandboxed?: boolean;
-} {
+const GITHUB_ACTIONS_RESULTS_HOSTS = Array.from(
+	{ length: 20 },
+	(_, index) => `productionresultssa${index}.blob.core.windows.net`,
+);
+const GITHUB_HOSTS = [
+	'github.com',
+	'api.github.com',
+	'*.githubusercontent.com',
+	...GITHUB_ACTIONS_RESULTS_HOSTS,
+];
+const MACOS_CERTIFICATE_TRUST_SERVICE = 'com.apple.trustd.agent';
+
+export function sandboxFor(profile: AgentRunProfile | undefined): SandboxSettings {
 	return (profile?.access ?? 'sandboxed') === 'sandboxed'
-		? { enabled: true, autoAllowBashIfSandboxed: true }
+		? {
+				enabled: true,
+				autoAllowBashIfSandboxed: true,
+				network: {
+					allowedDomains: GITHUB_HOSTS,
+					allowMachLookup: [MACOS_CERTIFICATE_TRUST_SERVICE],
+				},
+			}
 		: { enabled: false };
 }
 

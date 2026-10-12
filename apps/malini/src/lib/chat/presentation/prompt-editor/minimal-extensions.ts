@@ -1,4 +1,4 @@
-import type { AnyExtension } from '@tiptap/core';
+import { markInputRule, markPasteRule, type AnyExtension, type Mark } from '@tiptap/core';
 import Bold from '@tiptap/extension-bold';
 import Code from '@tiptap/extension-code';
 import CodeBlock from '@tiptap/extension-code-block';
@@ -17,6 +17,33 @@ export type PromptEditorExtensionOptions = {
 	placeholder: string;
 };
 
+function delimitedText(delimiter: string, rule: 'input' | 'paste'): RegExp {
+	const fence = delimiter.replace(/\*/gu, '\\*');
+	const char = delimiter.charAt(0);
+	const text = `[^${char}\\s](?:[^${char}]*[^${char}\\s])?`;
+	const outsideWord = char === '_' ? '(?![\\p{L}\\p{N}])' : '';
+	const pattern = `(?:^|\\s)(${fence}(${text})${fence}${outsideWord})`;
+	return rule === 'input' ? new RegExp(`${pattern}$`, 'u') : new RegExp(pattern, 'gu');
+}
+
+function withCommonMarkRules<Options, Storage>(
+	mark: Mark<Options, Storage>,
+	delimiters: readonly string[],
+): Mark<Options, Storage> {
+	return mark.extend({
+		addInputRules() {
+			return delimiters.map((delimiter) =>
+				markInputRule({ find: delimitedText(delimiter, 'input'), type: this.type }),
+			);
+		},
+		addPasteRules() {
+			return delimiters.map((delimiter) =>
+				markPasteRule({ find: delimitedText(delimiter, 'paste'), type: this.type }),
+			);
+		},
+	});
+}
+
 export function promptEditorExtensions(options: PromptEditorExtensionOptions): AnyExtension[] {
 	return [
 		Document,
@@ -27,9 +54,9 @@ export function promptEditorExtensions(options: PromptEditorExtensionOptions): A
 
 		UndoRedo.configure({ depth: 100 }),
 
-		Bold,
-		Italic,
-		Strike,
+		withCommonMarkRules(Bold, ['**', '__']),
+		withCommonMarkRules(Italic, ['*', '_']),
+		withCommonMarkRules(Strike, ['~~']),
 		Code,
 		CodeBlock,
 
