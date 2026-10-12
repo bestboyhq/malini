@@ -5,13 +5,14 @@ import {
 	folderIconIdFor,
 	formatCount,
 	installExtensionPanelStyles,
+	languageForPath,
 	reconcileChildren,
 	type ExtensionAPI,
 	type ExtensionPanelComponent,
 	type ExtensionPanelInstance,
 	type ExtensionWorkstream,
 } from '@malini/extension-api';
-import { highlightLine, tokenSpans } from './code-tokens.js';
+import { diffLineTokens, tokenSpans } from './code-tokens.js';
 import type { RepositoryPanelController, RepositoryViewState } from './controller.js';
 import { repositoryFileTabs } from './file-tab.js';
 import {
@@ -1456,7 +1457,8 @@ function renderUnifiedDiff(diff: RepositoryViewState['diff'] & {}): HTMLElement 
 	caption.className = 'repository-panel__sr-only';
 	caption.textContent = `Unified diff for ${diff.path}`;
 	const body = document.createElement('tbody');
-	for (const line of diff.lines) {
+	const tokens = diffLineTokens(diff.lines, languageForPath(diff.path));
+	for (const [index, line] of diff.lines.entries()) {
 		const row = document.createElement('tr');
 		row.dataset.kind = line.kind;
 		for (const number of [line.oldLine, line.newLine]) {
@@ -1473,7 +1475,7 @@ function renderUnifiedDiff(diff: RepositoryViewState['diff'] & {}): HTMLElement 
 		const prefix = document.createElement('span');
 		prefix.className = 'repository-panel__diff-prefix';
 		prefix.textContent = `${line.kind === 'addition' ? '+' : line.kind === 'deletion' ? '−' : ' '} `;
-		code.append(prefix, ...tokenSpans(highlightLine(diff.path, line.text)));
+		code.append(prefix, ...tokenSpans(tokens[index] ?? []));
 		source.append(code);
 		row.append(source);
 		body.append(row);

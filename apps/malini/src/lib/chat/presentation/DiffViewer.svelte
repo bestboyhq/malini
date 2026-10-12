@@ -6,6 +6,7 @@
 		type DiffLine,
 	} from '$shared/repositories/repositories.api';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
+	import { highlightDiffLines, languageForPath, type CodeToken } from '@malini/extension-api';
 
 	interface Props {
 		diffText: string;
@@ -16,13 +17,22 @@
 	let { diffText, selectedPath, class: className }: Props = $props();
 
 	const parsedFiles = $derived(parseUnifiedDiff(diffText));
+	const highlighted = $derived(new Map(parsedFiles.map((file) => [file, lineTokens(file)])));
 
 	function pathOf(file: DiffFile): string {
 		return file.newPath ?? file.oldPath ?? '';
 	}
 
-	function lineTextClass(line: DiffLine): string {
-		return line.kind === 'context' ? 'text-fg-secondary' : 'text-fg-default';
+	function lineTokens(file: DiffFile): ReadonlyMap<DiffLine, readonly CodeToken[]> {
+		const lines = file.hunks.flatMap((hunk) => hunk.lines);
+		const tokens = highlightDiffLines(
+			lines.map((line) => ({
+				text: line.text,
+				side: line.kind === 'deleted' ? 'old' : line.kind === 'added' ? 'new' : 'both',
+			})),
+			languageForPath(pathOf(file)),
+		);
+		return new Map(lines.map((line, index) => [line, tokens[index] ?? []]));
 	}
 
 	function lineRowClass(line: DiffLine): string {
@@ -156,8 +166,14 @@
 											>
 												{signChar(line)}
 											</span>
-											<span class={['py-0.5 pl-1 whitespace-pre', lineTextClass(line)]}>
-												{line.text}
+											<span class="code-tokens py-0.5 pl-1 whitespace-pre">
+												{#each highlighted
+													.get(file)
+													?.get(line) ?? [] as token, tokenIndex (tokenIndex)}<span
+														class="tok-{token.kind}"
+													>
+														{token.text}
+													</span>{/each}
 											</span>
 										</div>
 									{/each}

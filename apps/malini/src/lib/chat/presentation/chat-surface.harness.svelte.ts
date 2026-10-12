@@ -23,7 +23,7 @@ export function mountChatSurface(
 			releaseAgentEvents();
 		};
 	});
-	const props = $state({ workstreamId });
+	const props = $state({ workstreamId, oncloseworkstream: () => undefined });
 	const app = mount(ChatSurface, { target: host, props });
 	flushSync();
 	return {

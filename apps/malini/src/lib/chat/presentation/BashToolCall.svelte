@@ -3,7 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import CodeTokens from './CodeTokens.svelte';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { shellCommandLabel, toolFailureReason } from './tool-display-name';
 
 	interface Props {
@@ -127,8 +127,8 @@
 				/></pre>
 			{#if outputText}
 				<pre
-					class="text-2xs text-fg-secondary m-0 min-w-max bg-transparent px-2.5 pt-1.5 pb-2 font-mono leading-snug select-text"><SensitiveText
-						text={outputText}
+					class="text-2xs text-fg-secondary m-0 min-w-max bg-transparent px-2.5 pt-1.5 pb-2 font-mono leading-snug select-text"><CodeTokens
+						code={outputText}
 					/></pre>
 			{/if}
 		</ScrollableDiv>

@@ -2,6 +2,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { RunGroup } from '../render-state';
 	import type { RunTimelineItem } from '../run-timeline';
 	import { relativizeWorkstreamPath } from '../workstream-path';
@@ -162,6 +163,6 @@
 		use:stageEnter={timelineKey(run, item.key)}
 		data-message-kind="unknown"
 	>
-		unknown: {JSON.stringify(item.raw)}
+		unknown: <CodeTokens code={JSON.stringify(item.raw)} language="json" />
 	</div>
 {/if}
