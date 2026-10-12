@@ -46,7 +46,7 @@
 	<div class="flex w-full items-center justify-evenly gap-2">
 		<Lever
 			label="Temp"
-			reading={kelvinLabel(needle.at(0))}
+			format={kelvinLabel}
 			top="WARM"
 			bottom="COOL"
 			rail={TEMPERATURE_RAIL}
@@ -58,7 +58,7 @@
 		/>
 		<Lever
 			label="Brightness"
-			reading={percentLabel(needle.at(1))}
+			format={percentLabel}
 			top="BRIGHT"
 			bottom="DIM"
 			rail={BRIGHTNESS_RAIL}
@@ -70,7 +70,7 @@
 		/>
 		<Lever
 			label="Contrast"
-			reading={percentLabel(needle.at(2))}
+			format={percentLabel}
 			top="HIGH"
 			bottom="LOW"
 			rail={CONTRAST_RAIL}

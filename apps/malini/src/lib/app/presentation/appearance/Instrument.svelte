@@ -7,11 +7,12 @@
 
 	interface Props {
 		label: string;
-		valueText: string;
+		describe: (point: GaugePoint) => string;
 		width: number;
 		height: number;
 		inset: number;
 		point: GaugePoint;
+		value: GaugePoint;
 		colorAt: (point: GaugePoint) => Oklch;
 		onmove: (point: GaugePoint) => void;
 		onnudge: (right: number, up: number) => void;
@@ -23,11 +24,12 @@
 
 	let {
 		label,
-		valueText,
+		describe,
 		width,
 		height,
 		inset,
 		point,
+		value,
 		colorAt,
 		onmove,
 		onnudge,
@@ -73,8 +75,8 @@
 		role="slider"
 		tabindex="0"
 		aria-label={label}
-		aria-valuetext={valueText}
-		aria-valuenow={Math.round(u * 100)}
+		aria-valuetext={describe(value)}
+		aria-valuenow={Math.round(value[0] * 100)}
 		aria-valuemin={0}
 		aria-valuemax={100}
 		onkeydown={arrowNudge((right, up) => onnudge(right, up))}
