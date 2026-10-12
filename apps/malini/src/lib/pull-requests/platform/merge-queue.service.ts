@@ -1,5 +1,10 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
-import type { JobBuiltin, JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
+import {
+	JOB_INTERRUPTED_DETAIL,
+	type JobBuiltin,
+	type JobDefinitionRecord,
+	type JobRunRecord,
+} from '$contract/jobs';
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
@@ -332,6 +337,7 @@ export class MergeQueue {
 		const worktree = await commands.call('repositories.workstream-status', { workstreamId });
 		const settled = this.#settledFor(workstreamId, worktree);
 		const job = this.#activeJob(row);
+		const lastJob = this.#lastJob(workstreamId);
 		let snapshot: MergeQueueSnapshot = {
 			phase: row.phase,
 			pushRequested: pushGeneration !== null,
@@ -340,11 +346,15 @@ export class MergeQueue {
 			job: job
 				? { builtin: this.#builtins.get(job.definitionId) ?? null, status: job.status }
 				: null,
-			lastJobRunId: this.#lastJobRunId(workstreamId),
+			lastJobRunId: lastJob?.id ?? null,
 			settledJob: settled?.builtin ?? null,
 			worktree,
 			threadResolutionRunId: settled?.builtin === 'address-review' ? settled.agentRunId : null,
 			failureSignature: row.failureSignature,
+			fixSucceededAt:
+				lastJob?.status === 'succeeded' && lastJob.finishedAt !== null
+					? Date.parse(lastJob.finishedAt)
+					: null,
 			attempts: row.attempts,
 			fixAttemptLimit:
 				row.phase === 'queued' ? await this.#fixAttemptLimit() : DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
@@ -487,7 +497,7 @@ export class MergeQueue {
 		const { row, target, worktree } = context;
 		const workstreamId = row.workstreamId;
 		const shipContext = workstreamShipContext(this.#context.db, workstreamId);
-		const metadata = this.#metadata(context, shipContext);
+		const metadata = this.#metadata(target, worktree.dirtyPaths, shipContext);
 		if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress === 'merge') {
 			const settled = this.#settled.get(workstreamId) ?? null;
 			const message = commitMessage(worktree, settled, metadata, target);
@@ -510,7 +520,7 @@ export class MergeQueue {
 			this.#settled.delete(workstreamId);
 		}
 		if (retitle && (shipContext.runSummaries?.length ?? 0) > 0) {
-			await this.#retitle(target, workstreamId, metadata);
+			await this.#retitle(target, workstreamId, metadata.title, metadata.body);
 		}
 	}
 
@@ -532,7 +542,11 @@ export class MergeQueue {
 			return;
 		}
 		await this.#commitAndPush(context, false);
-		const metadata = this.#metadata(context, workstreamShipContext(this.#context.db, workstreamId));
+		const metadata = this.#metadata(
+			target,
+			context.worktree.dirtyPaths,
+			workstreamShipContext(this.#context.db, workstreamId),
+		);
 		const created = await this.#ops.create({
 			repoId: target.repoId,
 			workstreamId,
@@ -556,31 +570,37 @@ export class MergeQueue {
 	async #retitle(
 		target: ShipTarget,
 		workstreamId: string,
-		metadata: AutomatedPullRequestMetadata,
+		title: string,
+		body: string | null,
 	): Promise<void> {
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row?.pullRequestNumber) return;
-		const { generatedTitle, generatedBody } = row;
+		const { generatedTitle } = row;
+		const generatedBody = body === null ? null : row.generatedBody;
 		if (generatedTitle === null && generatedBody === null) return;
 		try {
 			const owned = await this.#ops.updateMetadata({
 				repoId: target.repoId,
 				workstreamId,
 				pullRequestNumber: row.pullRequestNumber,
-				...(generatedTitle === null
+				...(generatedTitle === null ? {} : { title: { expected: generatedTitle, next: title } }),
+				...(generatedBody === null || body === null
 					? {}
-					: { title: { expected: generatedTitle, next: metadata.title } }),
-				...(generatedBody === null
-					? {}
-					: { body: { expected: generatedBody, next: metadata.body } }),
+					: { body: { expected: generatedBody, next: body } }),
 			});
 			this.#save(workstreamId, {
 				generatedTitle: generatedTitle === null ? null : owned.title,
-				generatedBody: generatedBody === null ? null : owned.body,
+				...(generatedBody === null ? {} : { generatedBody: owned.body }),
 			});
 		} catch {
 			return;
 		}
+	}
+
+	async #retitleAfterJob(workstreamId: string): Promise<void> {
+		const target = await this.#target(workstreamId);
+		const shipContext = workstreamShipContext(this.#context.db, workstreamId);
+		await this.#retitle(target, workstreamId, this.#metadata(target, [], shipContext).title, null);
 	}
 
 	async #runJob(
@@ -722,8 +742,15 @@ export class MergeQueue {
 				builtin: this.#builtins.get(job.definitionId) ?? null,
 				agentRunId: job.agentRunId,
 			});
+			await this.#retitleAfterJob(row.workstreamId);
 		}
-		return this.#save(row.workstreamId, { activeJobRunId: null }) ?? row;
+		const interrupted = job?.status === 'failed' && job.detail === JOB_INTERRUPTED_DETAIL;
+		return (
+			this.#save(row.workstreamId, {
+				activeJobRunId: null,
+				...(interrupted ? { attempts: Math.max(0, row.attempts - 1) } : {}),
+			}) ?? row
+		);
 	}
 
 	#activeJob(row: ShipRow): JobRunRecord | null {
@@ -744,13 +771,13 @@ export class MergeQueue {
 		return settled;
 	}
 
-	#lastJobRunId(workstreamId: string): string | null {
+	#lastJob(workstreamId: string): JobRunRecord | null {
 		let last: JobRunRecord | null = null;
 		for (const job of this.#jobs.values()) {
 			if (job.workstreamId !== workstreamId || job.origin !== 'merge-queue') continue;
 			if (last === null || job.createdAt >= last.createdAt) last = job;
 		}
-		return last?.id ?? null;
+		return last;
 	}
 
 	async #fixAttemptLimit(): Promise<number> {
@@ -815,15 +842,15 @@ export class MergeQueue {
 	}
 
 	#metadata(
-		context: MoveContext,
+		target: ShipTarget,
+		changedPaths: readonly string[],
 		shipContext: PullRequestAutomationContext,
 	): AutomatedPullRequestMetadata {
-		const { workstream, base } = context.target;
 		return automatedPullRequestMetadata({
-			branch: workstream.branch,
-			baseBranch: base,
-			changedPaths: context.worktree.dirtyPaths,
-			workstreamPath: workstream.path,
+			branch: target.workstream.branch,
+			baseBranch: target.base,
+			changedPaths,
+			workstreamPath: target.workstream.path,
 			context: shipContext,
 		});
 	}

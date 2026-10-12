@@ -9,7 +9,7 @@ export const MALINI_INSTRUCTIONS = [
 	'<malini>',
 	'You are running inside malini, a desktop app that gives each workstream its own git worktree.',
 	`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool.`,
-	`- malini owns commits, pushes, branches and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} are refused.`,
+	`- malini owns commits, pushes, branches, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset.`,
 	'- When you changed files, end your final message with one line `Commit: <subject>`: the whole change as an imperative summary of at most 72 characters, in the style `git log` shows for this repository. malini uses it as the commit message.',
 	'- After it, add one line `Pull request: <title>`: every change on this branch versus its base as one title in the same style. malini uses it as the pull request title.',
 	'</malini>',

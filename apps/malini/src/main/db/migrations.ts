@@ -1129,6 +1129,14 @@ UPDATE routines SET steps_json = json_array(json(run_json)) WHERE json_valid(run
 ALTER TABLE routines DROP COLUMN run_json;
 `;
 
+export const MIGRATION_0040_RESOLVE_CONFLICTS_WITHOUT_GIT_MERGE = `
+UPDATE job_definitions SET instructions = replace(
+  instructions,
+  '- If no merge is in progress, fetch origin and run \`git merge --no-commit origin/<base branch>\`.',
+  '- malini starts the merge. If none is in progress, there is nothing to resolve: say so and stop.'
+) WHERE builtin = 'resolve-conflicts';
+`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1138,7 +1146,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 38;
+export const TARGET_USER_VERSION = 40;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1288,6 +1296,7 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				}
 				if (columnExists(db, 'routines', 'run_json')) db.exec(MIGRATION_0038_ROUTINE_STEPS);
 			}
+			if (existing < 40) db.exec(MIGRATION_0040_RESOLVE_CONFLICTS_WITHOUT_GIT_MERGE);
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,

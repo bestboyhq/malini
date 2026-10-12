@@ -21,10 +21,8 @@ const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch', 'SandboxNetworkAccess'])
 export const MALINI_OWNED_GIT_COMMANDS = [
 	'git commit',
 	'git push',
-	'git stash',
 	'git checkout',
 	'git switch',
-	'git restore',
 	'git reset',
 	'git clean',
 	'git rebase',
@@ -32,8 +30,15 @@ export const MALINI_OWNED_GIT_COMMANDS = [
 	'gh pr create',
 ] as const;
 
+const STASH_WRITES = ['push', 'save', 'pop', 'apply', 'drop', 'clear', 'store', 'branch'];
+
 export function disallowedTools(): string[] {
-	return MALINI_OWNED_GIT_COMMANDS.map((command) => `Bash(${command}:*)`);
+	return [
+		...MALINI_OWNED_GIT_COMMANDS.map((command) => `Bash(${command}:*)`),
+		'Bash(git stash)',
+		'Bash(git stash -*)',
+		...STASH_WRITES.map((write) => `Bash(git stash ${write}:*)`),
+	];
 }
 
 export function permissionModeFor(profile: AgentRunProfile | undefined): PermissionMode {

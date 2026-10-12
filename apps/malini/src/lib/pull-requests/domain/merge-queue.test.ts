@@ -117,6 +117,7 @@ function queued(overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot
 		},
 		threadResolutionRunId: null,
 		failureSignature: null,
+		fixSucceededAt: null,
 		attempts: 0,
 		fixAttemptLimit: 3,
 		backoffUntil: null,
@@ -352,6 +353,40 @@ describe('a queued workstream', () => {
 				queued({ pullRequest: failing, failureSignature: same, attempts: 1, fixAttemptLimit: 1 }),
 			),
 		).toMatchObject({ reason: 'fix-gave-up', detail: expect.stringContaining('tried once') });
+	});
+
+	it('judges a fix only by checks that ran after it, and gives up when none run again', () => {
+		const fixedAt = Date.parse('2026-10-12T11:05:00Z');
+		const ranAt = (at: string): PullRequestCheckDto => ({
+			...check('conventional', 'FAILURE'),
+			completedAt: at,
+		});
+		const after = (checks: PullRequestCheckDto[], now: number): MergeQueueSnapshot =>
+			queued({
+				pullRequest: pullRequest({ checksState: 'failed', checks }),
+				failureSignature: 'checks:["conventional"]',
+				fixSucceededAt: fixedAt,
+				attempts: 1,
+				now,
+			});
+
+		expect(nextMergeQueueMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 1_000))).toEqual({
+			kind: 'wait',
+			step: 'waiting-for-checks',
+		});
+		expect(nextMergeQueueMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 60_000))).toEqual({
+			kind: 'needs-you',
+			reason: 'fix-gave-up',
+			detail: 'The failing checks did not run again after the last fix.',
+			jobRunId: 'job-last',
+		});
+		expect(
+			nextMergeQueueMove(after([ranAt('2026-10-12T11:06:00Z')], fixedAt + 60_000)),
+		).toMatchObject({ kind: 'run-job', attempt: 2 });
+		expect(nextMergeQueueMove(after([check('conventional', 'FAILURE')], fixedAt))).toMatchObject({
+			kind: 'run-job',
+			attempt: 2,
+		});
 	});
 
 	it('waits for running checks', () => {

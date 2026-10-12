@@ -355,6 +355,29 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('v40 stops the Resolve conflicts job from running the git merge malini refuses', () => {
+		const db = openDatabase(':memory:');
+		migrate(db);
+		db.exec(`
+			PRAGMA user_version = 39;
+			INSERT INTO job_definitions
+			  (id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at)
+			VALUES
+			  ('jd-1', 'Resolve conflicts',
+			   'Resolve them.' || char(10) || '- If no merge is in progress, fetch origin and run \`git merge --no-commit origin/<base branch>\`.' || char(10) || '- Keep my extra rule.',
+			   'default', 'high', 'workstream', 'none', 'resolve-conflicts', '2026-10-11T00:00:00Z', '2026-10-11T00:00:00Z');
+		`);
+		migrate(db);
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(all(db, "SELECT instructions FROM job_definitions WHERE id = 'jd-1'")).toEqual([
+			{
+				instructions:
+					'Resolve them.\n- malini starts the merge. If none is in progress, there is nothing to resolve: say so and stop.\n- Keep my extra rule.',
+			},
+		]);
+		db.close();
+	});
+
 	it('v25 adds obsoleted_at to the runs and checkpoints of a v24 database', () => {
 		const db = ladderDatabase(24);
 		expect(columnsOf(db, 'agent_runs')).not.toContain('obsoleted_at');
