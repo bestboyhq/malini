@@ -50,7 +50,6 @@
 </script>
 
 <section
-	class="chat-column relative z-20 shrink-0 px-6"
 	{@attach avoidedByToasts}
 	aria-label={`Files changed in this chat (${formatCount(fileCount)})`}
 	data-testid="chat-changed-files"
@@ -60,10 +59,8 @@
 	{#if fileCount > 0}
 		<div
 			class={[
-				'chat-changed-files-drawer bg-surface-100 box-content overflow-hidden rounded-t-lg',
-				expanded
-					? 'border-surface-100-border border border-b-0 opacity-100'
-					: 'pointer-events-none opacity-0',
+				'chat-changed-files-drawer overflow-hidden',
+				expanded ? 'opacity-100' : 'pointer-events-none opacity-0',
 			]}
 			style={`height: ${expanded ? listHeight : 0}px;`}
 			aria-hidden={!expanded}
@@ -87,7 +84,7 @@
 							<li aria-setsize={fileCount} aria-posinset={firstRow + offset + 1}>
 								<Button
 									bare
-									class="text-fg-secondary hover:bg-surface-100-hover hover:text-fg-default focus-visible:bg-surface-100-hover focus-visible:ring-border-default/50 flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-wait disabled:opacity-60"
+									class="text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:ring-border-default/50 flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-wait disabled:opacity-60"
 									disabled={openingPath !== null}
 									tabindex={expanded ? 0 : -1}
 									ariaLabel={`Open ${file.path} agent chat diff in Files`}
@@ -97,7 +94,7 @@
 									data-run-count={String(file.runIds.length)}
 									onclick={() => void onopen(file)}
 								>
-									<span class="grid h-3 w-3 shrink-0 place-items-center" aria-hidden="true">
+									<span class="grid w-4 shrink-0 place-items-center" aria-hidden="true">
 										{#if openingPath === file.path}
 											<BusyIcon class="text-fg-secondary" size={12} />
 										{:else}
@@ -128,43 +125,34 @@
 		</div>
 	{/if}
 
-	<div
-		class={[
-			'border-surface-100-border bg-surface-100 overflow-hidden border border-b-0',
-			expanded ? 'rounded-t-none' : 'rounded-t-lg',
-		]}
+	<Button
+		bare
+		class="text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:ring-border-default/50 flex h-8 w-full cursor-pointer items-center gap-2 px-3 text-left text-xs transition-[color,border-color] outline-none focus-visible:ring-2 focus-visible:ring-inset"
+		ariaExpanded={expanded}
+		ariaControls="chat-changed-file-list"
+		data-testid="chat-changed-files-toggle"
+		onclick={() => (expanded = !expanded)}
 	>
-		{#if fileCount > 0}
-			<Button
-				variant="ghost"
-				size="md"
-				class="h-8 w-full justify-start gap-2 px-3 text-left"
-				ariaExpanded={expanded}
-				ariaControls="chat-changed-file-list"
-				data-testid="chat-changed-files-toggle"
-				onclick={() => (expanded = !expanded)}
-			>
-				<Icon
-					name="chevron-right"
-					class={`h-3 w-3 shrink-0 transition-transform duration-200 ${
-						expanded ? 'rotate-90' : '-rotate-90'
-					}`}
-				/>
-				<span class="min-w-0 flex-1 truncate">
-					{formatCount(fileCount)}
-					{fileCount === 1 ? 'file' : 'files'} changed in this chat
-				</span>
-				<span class="shrink-0 font-mono text-xs tabular-nums">
-					{#if additions > 0}<span class="text-success-content">
-							+{formatCount(additions)}
-						</span>{/if}
-					{#if deletions > 0}<span class="text-error-content ml-1.5">
-							−{formatCount(deletions)}
-						</span>{/if}
-				</span>
-			</Button>
-		{/if}
-	</div>
+		<span class="grid w-4 shrink-0 place-items-center" aria-hidden="true">
+			<Icon
+				name="chevron-right"
+				size={12}
+				class={['transition-transform duration-200', expanded ? 'rotate-90' : '-rotate-90']}
+			/>
+		</span>
+		<span class="min-w-0 flex-1 truncate">
+			{formatCount(fileCount)}
+			{fileCount === 1 ? 'file' : 'files'} changed in this chat
+		</span>
+		<span class="text-2xs shrink-0 font-mono tabular-nums">
+			{#if additions > 0}<span class="text-success-content">
+					+{formatCount(additions)}
+				</span>{/if}
+			{#if deletions > 0}<span class="text-error-content ml-1.5">
+					−{formatCount(deletions)}
+				</span>{/if}
+		</span>
+	</Button>
 </section>
 
 <style>

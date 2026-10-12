@@ -204,7 +204,7 @@
 	}
 
 	function linkFocusedTrigger(): void {
-		if (typeof content !== 'string') return;
+		if (isCard) return;
 		const focused = document.activeElement;
 		if (!(focused instanceof HTMLElement) || !wrapper.contains(focused)) return;
 		if (describedElement === focused) return;
@@ -466,7 +466,7 @@
 	);
 	const visibilityStyle = $derived(positioned ? '' : 'visibility: hidden;');
 	const pointerEventsStyle = $derived(`pointer-events: ${interactive ? 'auto' : 'none'};`);
-	const isSnippetContent = $derived(typeof content === 'function');
+	const isCard = $derived(typeof content === 'function' && interactive);
 
 	function getAlignedLeft(triggerRect: DOMRect, tooltipWidth: number): number {
 		if (align === 'left') {
@@ -518,7 +518,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
-		role={isSnippetContent ? 'group' : 'tooltip'}
+		role={isCard ? 'group' : 'tooltip'}
 		id={tooltipId}
 		bind:this={tooltip}
 		data-tooltip-portal
@@ -526,7 +526,7 @@
 		data-placement={activePlacement}
 		class={[
 			'shadow-popup wrap-break-word whitespace-normal select-none',
-			isSnippetContent
+			isCard
 				? 'p-1'
 				: 'border-surface-tooltip-border bg-surface-tooltip text-fg-default w-max max-w-xs rounded-lg border-[0.5px] px-2.5 py-1.5 text-center text-xs leading-tight font-normal',
 		]}

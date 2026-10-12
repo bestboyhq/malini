@@ -334,27 +334,36 @@
 								</div>
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
-								{#if showsSessionChanges && sessionChanges}
-									<ChatChangedFiles
-										changes={sessionChanges}
-										openingPath={openingChangedFilePath}
-										onopen={onOpenChangedFile}
-									/>
-								{/if}
+								{#if (showsSessionChanges && sessionChanges) || queuedPrompts.length > 0}
+									<div class="chat-column px-7">
+										<div
+											class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
+											data-testid="chat-composer-tray"
+										>
+											{#if showsSessionChanges && sessionChanges}
+												<ChatChangedFiles
+													changes={sessionChanges}
+													openingPath={openingChangedFilePath}
+													onopen={onOpenChangedFile}
+												/>
+											{/if}
 
-								{#if queuedPrompts.length > 0}
-									<QueuedPromptList
-										{workstreamId}
-										items={queuedPrompts}
-										{isRunning}
-										paused={queuePaused}
-										sendingId={queueSendingId}
-										errorById={queueErrorById}
-										onupdate={updateQueuedPromptCommand}
-										onremove={removeQueuedPromptCommand}
-										onsendnext={sendQueuedPromptCommand}
-										onpausechange={pausePromptQueueCommand}
-									/>
+											{#if queuedPrompts.length > 0}
+												<QueuedPromptList
+													{workstreamId}
+													items={queuedPrompts}
+													{isRunning}
+													paused={queuePaused}
+													sendingId={queueSendingId}
+													errorById={queueErrorById}
+													onupdate={updateQueuedPromptCommand}
+													onremove={removeQueuedPromptCommand}
+													onsendnext={sendQueuedPromptCommand}
+													onpausechange={pausePromptQueueCommand}
+												/>
+											{/if}
+										</div>
+									</div>
 								{/if}
 
 								<ChatComposer

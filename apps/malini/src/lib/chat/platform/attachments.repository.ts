@@ -188,6 +188,26 @@ export function releaseRunAttachmentsForRetry(
 	).changes;
 }
 
+export function renewStagedAttachments(
+	db: MaliniDatabase,
+	workstreamId: string,
+	ids: readonly string[],
+	expiresAt: string,
+): void {
+	db.transaction(() => {
+		for (const id of ids) {
+			run(
+				db,
+				`UPDATE agent_attachments SET expires_at = ?
+				 WHERE id = ? AND workstream_id = ? AND state = 'staged'`,
+				expiresAt,
+				id,
+				workstreamId,
+			);
+		}
+	});
+}
+
 export function removeStagedAttachment(
 	db: MaliniDatabase,
 	workstreamId: string,

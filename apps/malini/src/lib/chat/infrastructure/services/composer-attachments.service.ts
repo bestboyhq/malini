@@ -1,4 +1,4 @@
-import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+import type { AdoptedAttachment, StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import type { ImageBytes } from '$lib/chat/domain/image-bytes';
 import type { SessionId } from '$lib/chat/domain/session';
 import { invoke } from '$shared/port/invoke';
@@ -24,8 +24,16 @@ class ComposerAttachmentsService {
 		return invoke('chat.stage-fork-transcript', { workstreamId, sessionId, atSeq });
 	}
 
+	adopt(workstreamId: string, attachmentIds: readonly string[]): Promise<AdoptedAttachment[]> {
+		return invoke('chat.adopt-attachments', { workstreamId, attachmentIds });
+	}
+
 	pickAndStage(workstreamId: string): Promise<StagedAgentAttachment[]> {
 		return invoke('chat.pick-and-stage-attachments', { workstreamId });
+	}
+
+	renew(workstreamId: string, attachmentIds: readonly string[]): void {
+		invoke('chat.renew-staged-attachments', { workstreamId, attachmentIds }).catch(() => {});
 	}
 
 	release(workstreamId: string, attachments: readonly StagedAgentAttachment[]): void {
