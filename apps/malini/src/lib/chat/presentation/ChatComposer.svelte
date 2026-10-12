@@ -9,11 +9,7 @@
 		type AgentModel,
 	} from '$shared/providers/providers.api';
 	import type { ModelPreferences } from '$shared/providers/providers.api';
-	import {
-		ModelDefaultsSettings,
-		ModelProfilePicker,
-		RunProfileControls,
-	} from '$shared/providers/providers.api';
+	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
 	import { loadWorkstreamFilesCommand } from '$lib/chat/application/commands/load-workstream-files.command';
 	import { pickAttachmentsCommand } from '$lib/chat/application/commands/pick-attachments.command';
@@ -1168,15 +1164,12 @@
 				<RunProfileControls
 					{model}
 					{profile}
-					{disabled}
-					onchange={(nextProfile) => onprofilechange?.(nextProfile)}
-				/>
-				<ModelDefaultsSettings
-					defaults={modelDefaults}
+					{modelDefaults}
 					{rememberedModels}
 					{disabled}
 					{isRunning}
-					onchange={(preferences) => onmodelsettingschange?.(preferences)}
+					onchange={(nextProfile) => onprofilechange?.(nextProfile)}
+					onmodelsettingschange={(preferences) => onmodelsettingschange?.(preferences)}
 				/>
 			</div>
 

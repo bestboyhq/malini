@@ -6,27 +6,17 @@
 	} from '$shared/providers/domain/model-preferences';
 	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
 	import { Button } from '$hyper-ui/components/button';
-	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Select, type SelectItem } from '$hyper-ui/components/select';
 	import { Sheet } from '$hyper-ui/components/sheet';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
 
 	interface Props {
 		defaults: ModelPreferences;
 		rememberedModels: ModelPreferences;
-		disabled?: boolean;
 		isRunning?: boolean;
 		onchange?: (preferences: ModelPreferences) => void;
 	}
 
-	let {
-		defaults,
-		rememberedModels,
-		disabled = false,
-		isRunning = false,
-		onchange,
-	}: Props = $props();
+	let { defaults, rememberedModels, isRunning = false, onchange }: Props = $props();
 
 	let open = $state(false);
 	let planningKey = $state('');
@@ -39,8 +29,7 @@
 		return pickerModels(models, current).map((model) => ({ value: model.id, label: model.label }));
 	}
 
-	function openSettings(): void {
-		if (disabled) return;
+	export function show(): void {
 		planningKey = defaults.planning.model;
 		implementationKey = defaults.implementation.model;
 		open = true;
@@ -56,21 +45,6 @@
 		return catalogModelLabel(catalog, selection.model);
 	}
 </script>
-
-<Tooltip content="Model settings" placement="top" suppressed={open}>
-	<IconButton
-		variant="ghost"
-		size="md"
-		ariaLabel="Open model settings"
-		active={open}
-		class="text-fg-tertiary hover:bg-surface-50 rounded-lg"
-		data-testid="model-settings-open"
-		{disabled}
-		onclick={openSettings}
-	>
-		<Icon name="settings" size={15} />
-	</IconButton>
-</Tooltip>
 
 <Sheet
 	{open}

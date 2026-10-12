@@ -341,8 +341,8 @@
 </script>
 
 <ScrollableDiv
-	class="max-h-52 w-full"
-	viewportClass="max-h-52"
+	class="max-h-[50vh] w-full"
+	viewportClass="max-h-[50vh]"
 	orientation="y"
 	testId={`${testId}-scroller`}
 >

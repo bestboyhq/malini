@@ -1,11 +1,19 @@
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import { isContextHandoffContentId } from './render-state';
 
+export type ContextCategory = {
+	name: string;
+	tokens: number;
+	kind: 'used' | 'buffer' | 'free';
+};
+
 export type ContextUsageSnapshot = {
 	usedTokens: number;
 	maxTokens: number | null;
-	rateLimits: { label: string; utilization: number | null; resetsAt: string | null }[];
+	categories: ContextCategory[];
 };
+
+export type ContextBreakdownRow = ContextCategory & { percent: number };
 
 export type LiveContextOverride = {
 	readonly contextTokens: number;
@@ -60,6 +68,7 @@ export function deriveSessionRuntimeMetadata(
 ): SessionRuntimeMetadata {
 	let context: ContextUsageSnapshot | null = null;
 	let mcpServers: McpServerSnapshot[] | null = null;
+	let categories: ContextCategory[] = [];
 	const newestHandoffIndex = newestContextHandoffIndex(envelopes);
 
 	for (const [index, envelope] of envelopes.entries()) {
@@ -68,10 +77,11 @@ export function deriveSessionRuntimeMetadata(
 			if (index < newestHandoffIndex) continue;
 			const usedTokens = event.contextTokens;
 			if (usedTokens !== undefined && Number.isFinite(usedTokens) && usedTokens >= 0) {
+				categories = anthropicContextCategories(event.providerMetrics) ?? categories;
 				context = {
 					usedTokens,
 					maxTokens: positiveTokenCount(event.contextWindowTokens),
-					rateLimits: normalizeRateLimits(anthropicRateLimits(event.providerMetrics)),
+					categories,
 				};
 			}
 		} else if (event.type === 'mcp.status') {
@@ -92,7 +102,7 @@ export function deriveSessionRuntimeMetadata(
 		context = {
 			usedTokens: liveContext.contextTokens,
 			maxTokens: positiveTokenCount(liveContext.contextWindowTokens ?? undefined),
-			rateLimits: context?.rateLimits ?? [],
+			categories,
 		};
 	}
 
@@ -170,11 +180,41 @@ export function contextRemainingTokens(snapshot: ContextUsageSnapshot): number |
 }
 
 export function contextPressure(snapshot: ContextUsageSnapshot): ContextPressure {
-	const percent = contextUsagePercent(snapshot);
+	return usagePressure(contextUsagePercent(snapshot));
+}
+
+export function usagePressure(percent: number | null): ContextPressure {
 	if (percent === null) return 'ok';
 	if (percent >= CONTEXT_PRESSURE_CRITICAL_PERCENT) return 'critical';
 	if (percent >= CONTEXT_PRESSURE_HIGH_PERCENT) return 'high';
 	return 'ok';
+}
+
+export function contextBreakdown(snapshot: ContextUsageSnapshot): ContextBreakdownRow[] {
+	const max = snapshot.maxTokens;
+	if (!max || snapshot.categories.length === 0) return [];
+	const used = snapshot.categories.filter((category) => category.kind === 'used');
+	const buffer = snapshot.categories.filter((category) => category.kind === 'buffer');
+	const unreported = snapshot.usedTokens - sumTokens(used);
+	const live = used.map((category) =>
+		category.name === LIVE_GROWTH_CATEGORY
+			? { ...category, tokens: Math.max(0, category.tokens + unreported) }
+			: category,
+	);
+	const free: ContextCategory = {
+		name: 'Free space',
+		tokens: Math.max(0, max - snapshot.usedTokens - sumTokens(buffer)),
+		kind: 'free',
+	};
+	return [...live.sort((left, right) => right.tokens - left.tokens), ...buffer, free]
+		.filter((category) => category.tokens > 0)
+		.map((category) => ({ ...category, percent: (category.tokens / max) * 100 }));
+}
+
+const LIVE_GROWTH_CATEGORY = 'Messages';
+
+function sumTokens(categories: readonly ContextCategory[]): number {
+	return categories.reduce((total, category) => total + category.tokens, 0);
 }
 
 export function contextPressureAdvice(snapshot: ContextUsageSnapshot): string | null {
@@ -200,36 +240,20 @@ export function mcpUnavailableMessage(): string {
 	return 'MCP status appears after the agent starts the first response.';
 }
 
-function normalizeRateLimits(
-	limits: { label: string; utilization: number | null; resetsAt: string | null }[] | undefined,
-): { label: string; utilization: number | null; resetsAt: string | null }[] {
-	return (limits ?? []).map((limit) => ({
-		label: limit.label,
-		utilization:
-			limit.utilization === null || !Number.isFinite(limit.utilization)
-				? null
-				: Math.min(100, Math.max(0, limit.utilization)),
-		resetsAt: limit.resetsAt,
-	}));
-}
-
-function anthropicRateLimits(
+function anthropicContextCategories(
 	providerMetrics: Record<string, unknown> | undefined,
-): { label: string; utilization: number | null; resetsAt: string | null }[] | undefined {
-	const anthropic = providerMetrics?.anthropic;
-	if (!isRecord(anthropic)) return undefined;
-	const rateLimits = anthropic.rateLimits;
-	if (!Array.isArray(rateLimits)) return undefined;
-	return rateLimits.filter(
-		(value): value is { label: string; utilization: number | null; resetsAt: string | null } => {
-			if (!isRecord(value)) return false;
-			return (
-				typeof value.label === 'string' &&
-				(value.utilization === null || typeof value.utilization === 'number') &&
-				(value.resetsAt === null || typeof value.resetsAt === 'string')
-			);
-		},
-	);
+): ContextCategory[] | null {
+	const anthropic = providerMetrics?.['anthropic'];
+	if (!isRecord(anthropic) || !Array.isArray(anthropic['contextCategories'])) return null;
+	return anthropic['contextCategories'].flatMap((value): ContextCategory[] => {
+		if (!isRecord(value)) return [];
+		const { name, tokens, kind } = value;
+		if (typeof name !== 'string' || typeof tokens !== 'number' || !Number.isFinite(tokens)) {
+			return [];
+		}
+		if (kind !== 'used' && kind !== 'buffer') return [];
+		return [{ name, tokens: Math.max(0, tokens), kind }];
+	});
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
