@@ -55,6 +55,8 @@ export interface AgentEventEnvelope {
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
 
+export type AgentSessionOrigin = 'user' | 'job';
+
 export interface AgentSessionSummary {
 	id: string;
 	workstreamId: string;
@@ -62,6 +64,7 @@ export interface AgentSessionSummary {
 	model: string | null;
 	status: SessionStatus;
 	startedAt: string;
+	origin: AgentSessionOrigin;
 }
 
 export interface AgentTranscriptReference {

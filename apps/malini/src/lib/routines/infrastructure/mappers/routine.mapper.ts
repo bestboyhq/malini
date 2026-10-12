@@ -17,7 +17,7 @@ export class RoutineMapper {
 			origin: raw.origin,
 			label: raw.label,
 			when: raw.when,
-			run: raw.run,
+			steps: raw.steps,
 			evidence: raw.evidence.map((entry) => this.evidenceFromRaw(entry)),
 			createdAt: raw.createdAt,
 			updatedAt: raw.updatedAt,

@@ -9,7 +9,6 @@ function releasePullRequestScopeCommand(): void {
 	pullRequestScopeStore.agentSessionId = null;
 	pullRequestScopeStore.extensionWorkstream = null;
 	pullRequestScopeStore.extensionReady = false;
-	pullRequestScopeStore.extensionFailed = false;
 	pullRequestScopeStore.repositoryScopeReady = false;
 	pullRequestScopeStore.remotePullRequestsSupported = false;
 	pullRequestScopeStore.repositoryExtensionRegistered = false;

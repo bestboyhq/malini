@@ -135,23 +135,6 @@ export function contextFromWorkstream(workstream: ExtensionWorkstream): Reposito
 	};
 }
 
-export function contextFromRepository(
-	workstream: ExtensionWorkstream,
-	status: ExtensionRepositoryStatus,
-	pullRequest: ExtensionPullRequestContext,
-): RepositoryContext {
-	return {
-		workstreamId: workstream.id,
-		repositoryPath: workstream.repositoryPath,
-		...(workstream.repositoryFullName ? { repositoryFullName: workstream.repositoryFullName } : {}),
-		branch: status.branch,
-		baseBranch: status.baseBranch,
-		dirtyPaths: [...status.dirtyPaths],
-		...repositoryLocalSignals(status),
-		pullRequest: clonePullRequest(pullRequest),
-	};
-}
-
 export function repositoryLocalSignals(
 	status: ExtensionRepositoryStatus,
 ): Pick<
@@ -216,28 +199,6 @@ export function pullRequestMergeReadiness(
 	return 'ready';
 }
 
-export function pullRequestConflictsWithBase(pullRequest: ExtensionPullRequestContext): boolean {
-	return (
-		(pullRequest.state === 'open' || pullRequest.state === 'draft') &&
-		pullRequest.mergeableState?.trim().toLocaleLowerCase() === 'dirty'
-	);
-}
-
-export function pullRequestChecksAllowMerge(
-	checks: ExtensionPullRequestContext['checks'],
-	checkItems: readonly ExtensionPullRequestCheck[] = [],
-): boolean {
-	if (checks === 'unknown') return false;
-	if (checkItems.length > 0) return pullRequestBlockingChecks(checkItems).length === 0;
-	return checks === 'success' || checks === 'none';
-}
-
-export function pullRequestBlockingChecks(
-	checkItems: readonly ExtensionPullRequestCheck[],
-): readonly ExtensionPullRequestCheck[] {
-	return checkItems.filter((check) => check.required !== false && !pullRequestCheckPassed(check));
-}
-
 export function pullRequestCheckFailed(check: ExtensionPullRequestCheck): boolean {
 	if (pullRequestCheckPassed(check) || check.notStartedReason) return false;
 	const state = check.state.trim().toLocaleLowerCase();
@@ -279,10 +240,6 @@ export function selectPullRequestMergeMethod(
 		return pullRequest.defaultMergeMethod;
 	}
 	return allowed[0] ?? null;
-}
-
-export function pullRequestViewerCanMerge(pullRequest: ExtensionPullRequestContext): boolean {
-	return pullRequest.viewerCanMerge === true && selectPullRequestMergeMethod(pullRequest) !== null;
 }
 
 export function parseRepositoryContext(input: unknown): RepositoryContextResult {
@@ -962,18 +919,6 @@ function isPullRequestReviewDecision(
 	input: unknown,
 ): input is NonNullable<ExtensionPullRequestContext['reviewDecision']> {
 	return typeof input === 'string' && PULL_REQUEST_REVIEW_DECISIONS.has(input);
-}
-
-function clonePullRequest(pullRequest: ExtensionPullRequestContext): ExtensionPullRequestContext {
-	return {
-		...pullRequest,
-		...(pullRequest.checkItems
-			? { checkItems: pullRequest.checkItems.map((check) => ({ ...check })) }
-			: {}),
-		...(pullRequest.allowedMergeMethods
-			? { allowedMergeMethods: [...pullRequest.allowedMergeMethods] }
-			: {}),
-	};
 }
 
 const REPOSITORY_OPERATIONS: readonly ExtensionRepositoryOperation[] = [

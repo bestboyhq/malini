@@ -19,6 +19,7 @@ import { registerApp } from '$lib/app/platform/register';
 import type { MainContext } from './context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import { registerExtensions } from '$lib/extensions/platform/register';
+import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerRoutines } from '$lib/routines/platform/register';
 
@@ -69,7 +70,7 @@ export async function registerModules(
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});
 
-	registerPullRequests(context);
+	const pullRequests = registerPullRequests(context);
 
 	registerRoutines(context);
 
@@ -101,9 +102,15 @@ export async function registerModules(
 
 	const extensions = registerExtensions(context, { resolver: repositories.checkouts });
 
+	const jobs = registerJobs(context);
+	jobs.start();
+	pullRequests.start();
+
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
+			pullRequests.dispose();
+			jobs.dispose();
 			repositories.watchers.dispose();
 			providers.stop();
 			await chat.stop();

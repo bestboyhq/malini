@@ -42,6 +42,7 @@
 	import BufferedStreamingMarkdown from './BufferedStreamingMarkdown.svelte';
 	import BufferedStreamingText from './BufferedStreamingText.svelte';
 	import RunStatusLine from './RunStatusLine.svelte';
+	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
@@ -281,6 +282,7 @@
 	const { releaseScrollPin } = transcriptScroll;
 	const rowArrivals = createRowArrivals({
 		settle,
+		opening: () => transcriptScroll.opening,
 		prefersReducedMotion: () => reducedMotion,
 	});
 	const { stageEnter, promptArrival, glideRowLayout, rebaseRowLayout } = rowArrivals;
@@ -711,8 +713,8 @@
 	});
 
 	$effect(() => {
-		void spaceBelow;
-		untrack(() => transcriptScroll.followSpaceBelowChange());
+		const space = spaceBelow;
+		untrack(() => transcriptScroll.followSpaceBelowChange(space));
 	});
 
 	$effect(() => {
@@ -946,7 +948,7 @@
 							{/if}
 
 							{#if isLastRun}
-								<RunStatusLine {renderState} {waitingForUser} />
+								<RunStatusLine {runs} {waitingForUser} />
 							{/if}
 
 							{#if run.terminal !== null && run.terminal !== 'completed'}
@@ -1000,6 +1002,7 @@
 			onclose={() => (gallery = null)}
 		/>
 	{/if}
+	<ImageContextMenu {workstreamId} />
 	<FileMentionChooser
 		open={fileMentionChooserOpen}
 		choice={fileMentionChoice}

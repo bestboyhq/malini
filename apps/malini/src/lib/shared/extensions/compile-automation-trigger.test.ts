@@ -75,4 +75,14 @@ describe('compileWorkstreamAutomation', () => {
 			/Unsupported extension automation trigger/u,
 		);
 	});
+
+	it('compiles a manual trigger that never fires on its own', () => {
+		const manual = compileWorkstreamAutomation('When I run it');
+		expect(manual.event).toBeNull();
+		expect(manual.description).toBe('Only when you run it');
+		expect(manual.matches({ workstreamId: 'workstream-1', kind: 'docker', state: 'ready' })).toBe(
+			false,
+		);
+		expect(compileWorkstreamAutomation('run it manually').event).toBeNull();
+	});
 });

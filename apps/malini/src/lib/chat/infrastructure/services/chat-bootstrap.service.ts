@@ -70,6 +70,7 @@ class ChatBootstrapService {
 			const requested = requestedSessionId
 				? sessionsAggregate.getSession(requestedSessionId)
 				: null;
+			const newestChat = refreshed.find(({ origin }) => origin === 'user');
 			let sessionId: SessionId | null;
 			if (requested?.workstreamId === workstreamId) {
 				const activated = await sessionActivation.activate(
@@ -82,15 +83,15 @@ class ChatBootstrapService {
 				sessionId = requested.id;
 			} else if (exactSessionId) {
 				throw new Error('The restored agent session is no longer available');
-			} else if (refreshed[0]) {
+			} else if (newestChat) {
 				const activated = await sessionActivation.activate(
-					refreshed[0].id,
+					newestChat.id,
 					workstreamId,
 					true,
 					selection,
 				);
 				if (!activated) return;
-				sessionId = refreshed[0].id;
+				sessionId = newestChat.id;
 			} else {
 				chatSessionStore.sessionId = null;
 				chatSessionStore.createFreshSessionOnNextPrompt = true;

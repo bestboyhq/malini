@@ -49,6 +49,7 @@ class SessionActivationService {
 				model: summary.model,
 				status: summary.status,
 				startedAt: summary.startedAt,
+				origin: summary.origin,
 			});
 			this.ensureRecord(summary.id, workstreamId);
 		}

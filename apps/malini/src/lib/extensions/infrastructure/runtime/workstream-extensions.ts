@@ -5,6 +5,7 @@ import {
 } from '@malini/extension-api';
 
 import type { WorkstreamRoutineGateStore } from '$shared/extensions/automation-gate';
+import type { WorkstreamRoutineJobRunner } from '$shared/extensions/automation-jobs';
 import type { WorkstreamRoutineDefinition } from '$shared/extensions/automation-rules.store.svelte';
 import { compileWorkstreamAutomation } from '$shared/extensions/compile-automation-trigger';
 import {
@@ -45,6 +46,8 @@ type WorkstreamExtensionsOptions = Omit<
 	configurationLoader?: WorkstreamExtensionConfigurationLoader;
 	routinesLoader?: WorkstreamRoutinesLoader;
 	routineGate?: WorkstreamRoutineGateStore;
+	routineJobs?: WorkstreamRoutineJobRunner;
+	onAutomationFailuresChanged?: () => void;
 };
 
 export class WorkstreamExtensions {
@@ -76,6 +79,10 @@ export class WorkstreamExtensions {
 				...(options.stateStorage !== undefined ? { storage: options.stateStorage } : {}),
 			}),
 			...(options.routineGate !== undefined ? { gate: options.routineGate } : {}),
+			...(options.routineJobs !== undefined ? { jobs: options.routineJobs } : {}),
+			...(options.onAutomationFailuresChanged !== undefined
+				? { onFailuresChanged: options.onAutomationFailuresChanged }
+				: {}),
 		});
 		this.#loadConfiguration =
 			options.configurationLoader ??

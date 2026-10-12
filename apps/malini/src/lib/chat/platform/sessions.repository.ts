@@ -9,7 +9,7 @@ import { promptChipSegments } from '$lib/chat/domain/prompt-chip';
 import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
-import type { AgentSessionSummary } from '$contract/agent';
+import type { AgentSessionOrigin, AgentSessionSummary } from '$contract/agent';
 import { deriveAgentChatDisplayName } from '$contract/chat-identity';
 
 export type { AgentSessionSummary };
@@ -24,6 +24,13 @@ export interface AgentSession {
 	status: SessionStatus;
 	startedAt: string;
 }
+
+export type SessionIdentity = Readonly<{
+	origin: AgentSessionOrigin;
+	displayName: string | null;
+}>;
+
+const USER_CHAT: SessionIdentity = { origin: 'user', displayName: null };
 
 export interface AgentSessionRecord extends AgentSession {
 	displayName: string;
@@ -63,8 +70,8 @@ function uniqueSessionDisplayName(
 		const duplicates = scalar(
 			db,
 			`SELECT COUNT(*) FROM agent_sessions
-			 WHERE workstream_id = ? AND archived_at IS NULL AND lower(display_name) = lower(?)
-			 AND (? IS NULL OR id != ?)`,
+			 WHERE workstream_id = ? AND archived_at IS NULL AND origin = 'user'
+			 AND lower(display_name) = lower(?) AND (? IS NULL OR id != ?)`,
 			workstreamId,
 			candidate,
 			excludedSessionId,
@@ -77,12 +84,14 @@ function uniqueSessionDisplayName(
 }
 
 const NEW_CHAT_NAME = 'New chat';
+const JOB_NAME = 'Job';
 
 function chatOrdinalName(db: MaliniDatabase, workstreamId: string, sessionId: string): string {
 	const ordinal = scalar(
 		db,
 		`SELECT COUNT(*) FROM agent_sessions
-		 WHERE workstream_id = ? AND rowid <= (SELECT rowid FROM agent_sessions WHERE id = ?)`,
+		 WHERE workstream_id = ? AND origin = 'user'
+		 AND rowid <= (SELECT rowid FROM agent_sessions WHERE id = ?)`,
 		workstreamId,
 		sessionId,
 	);
@@ -105,20 +114,33 @@ function sessionFromRow(row: SessionRow): AgentSessionRecord {
 const SESSION_COLUMNS =
 	'id, workstream_id, model, provider_session_id, status, started_at, display_name, archived_at';
 
-export function insertSession(db: MaliniDatabase, session: AgentSession): void {
-	const fallbackName = uniqueSessionDisplayName(db, session.workstreamId, NEW_CHAT_NAME, null);
+export function insertSession(
+	db: MaliniDatabase,
+	session: AgentSession,
+	identity: SessionIdentity = USER_CHAT,
+): void {
+	const displayName =
+		identity.origin === 'job'
+			? (identity.displayName ?? JOB_NAME)
+			: uniqueSessionDisplayName(
+					db,
+					session.workstreamId,
+					identity.displayName ?? NEW_CHAT_NAME,
+					null,
+				);
 	run(
 		db,
 		`INSERT INTO agent_sessions
-		 (id, workstream_id, model, provider_session_id, status, started_at, display_name)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		 (id, workstream_id, model, provider_session_id, status, started_at, display_name, origin)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		session.id,
 		session.workstreamId,
 		session.model,
 		session.providerSessionId,
 		session.status,
 		session.startedAt,
-		fallbackName,
+		displayName,
+		identity.origin,
 	);
 }
 
@@ -197,11 +219,13 @@ export function ensureSessionDisplayNames(db: MaliniDatabase, workstreamId: stri
 	}
 }
 
-export function sessionHasUserRun(db: MaliniDatabase, sessionId: string): boolean {
+export function sessionAwaitsTitle(db: MaliniDatabase, sessionId: string): boolean {
 	return (
 		scalar(
 			db,
-			'SELECT COUNT(*) FROM agent_runs WHERE session_id = ? AND automated = 0',
+			`SELECT COUNT(*) FROM agent_sessions s
+			 WHERE s.id = ? AND s.origin = 'user'
+			 AND NOT EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id AND r.automated = 0)`,
 			sessionId,
 		) > 0
 	);
@@ -274,9 +298,10 @@ export function listSessionSummaries(
 		model: string | null;
 		projected_status: SessionStatus;
 		started_at: string;
+		origin: AgentSessionOrigin;
 	}>(
 		db,
-		`SELECT s.id, s.workstream_id, s.display_name, s.model,
+		`SELECT s.id, s.workstream_id, s.display_name, s.model, s.origin,
 		        COALESCE((
 		            SELECT CASE
 		                WHEN r.completed_at IS NULL THEN
@@ -301,6 +326,7 @@ export function listSessionSummaries(
 		model: row.model,
 		status: row.projected_status,
 		startedAt: row.started_at,
+		origin: row.origin,
 	}));
 }
 
@@ -354,7 +380,7 @@ export function latestSessionForWorkstream(
 	const row = get<{ id: string; model: string | null; provider_session_id: string | null }>(
 		db,
 		`SELECT id, model, provider_session_id FROM agent_sessions
-		 WHERE workstream_id = ? AND archived_at IS NULL
+		 WHERE workstream_id = ? AND archived_at IS NULL AND origin = 'user'
 		 ORDER BY rowid DESC LIMIT 1`,
 		workstreamId,
 	);

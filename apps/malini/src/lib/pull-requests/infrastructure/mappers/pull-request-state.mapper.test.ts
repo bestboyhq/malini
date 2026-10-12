@@ -53,78 +53,15 @@ describe('PullRequestStateMapper', () => {
 		expect(PullRequestStateMapper.fromRaw(pullRequest({ state: 'closed' }))).toBe('closed');
 	});
 
-	it('calls a pull request ready only when checks, review, and mergeability all agree', () => {
-		expect(PullRequestStateMapper.fromRaw(pullRequest())).toBe('ready');
-		expect(
-			PullRequestStateMapper.fromRaw(
-				pullRequest({ checks: 'failed', checkItems: [check(), check({ name: 'Lint' })] }),
-			),
-		).toBe('ready');
-	});
-
-	it('does not call a pull request ready on green checks alone', () => {
-		expect(
-			PullRequestStateMapper.fromRaw(pullRequest({ reviewDecision: 'changes_requested' })),
-		).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ reviewDecision: 'review_required' }))).toBe(
-			'open',
-		);
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ unresolvedReviewThreadCount: 2 }))).toBe(
-			'open',
-		);
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ unresolvedReviewThreadCount: null }))).toBe(
-			'open',
-		);
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ mergeable: false }))).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ mergeableState: 'blocked' }))).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ mergeableState: 'dirty' }))).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ mergeableState: 'behind' }))).toBe('open');
-	});
-
-	it('keeps pending, unknown, and absent checks on open', () => {
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ checks: 'pending' }))).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ checks: 'unknown' }))).toBe('open');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ checks: 'none' }))).toBe('open');
-		expect(
-			PullRequestStateMapper.fromRaw(pullRequest({ checks: 'unknown', checkItems: [check()] })),
-		).toBe('open');
-		expect(
-			PullRequestStateMapper.fromRaw(
-				pullRequest({
-					checks: 'pending',
-					checkItems: [check({ state: 'in_progress', conclusion: null })],
-				}),
-			),
-		).toBe('open');
-	});
-
-	it('reports failing only for a genuinely blocking failed check', () => {
-		expect(
-			PullRequestStateMapper.fromRaw(
-				pullRequest({
-					checks: 'failed',
-					checkItems: [check({ state: 'completed', conclusion: 'failure' })],
-				}),
-			),
-		).toBe('failing');
-		expect(
-			PullRequestStateMapper.fromRaw(
-				pullRequest({
-					checks: 'failed',
-					checkItems: [check({ required: null, state: 'failure', conclusion: null })],
-				}),
-			),
-		).toBe('failing');
-		expect(PullRequestStateMapper.fromRaw(pullRequest({ checks: 'failed', checkItems: [] }))).toBe(
-			'failing',
-		);
-		expect(
-			PullRequestStateMapper.fromRaw(
-				pullRequest({
-					checks: 'failed',
-					checkItems: [check({ required: false, state: 'completed', conclusion: 'failure' })],
-				}),
-			),
-		).not.toBe('failing');
+	it('calls every published, non-draft pull request open, whatever its checks or review', () => {
+		for (const overrides of [
+			{},
+			{ reviewDecision: 'changes_requested' as const },
+			{ mergeable: false, mergeableState: 'dirty' },
+			{ checks: 'failed' as const, checkItems: [check({ conclusion: 'failure' })] },
+			{ checks: 'pending' as const },
+		]) {
+			expect(PullRequestStateMapper.fromRaw(pullRequest(overrides))).toBe('open');
+		}
 	});
 });

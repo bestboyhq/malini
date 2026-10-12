@@ -5,3 +5,4 @@ export {
 } from './platform/checkpoints.repository';
 export { getWorkstreamRun } from './platform/runs.repository';
 export { adoptSnapshotRefNamespace } from './platform/snapshot-refs';
+export { workstreamShipContext } from './platform/ship-context.repository';

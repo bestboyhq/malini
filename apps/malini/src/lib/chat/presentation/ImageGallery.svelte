@@ -112,6 +112,7 @@
 							<img
 								src={preview.src}
 								alt={image.name}
+								data-workstream-image={image.kind === 'workstream' ? image.id : undefined}
 								class="pointer-events-auto absolute inset-0 m-auto max-h-full max-w-full rounded-md object-contain"
 							/>
 						{:else if preview?.status === 'unavailable'}
@@ -176,7 +177,12 @@
 						onclick={() => show(at, Math.sign(at - index))}
 					>
 						{#if thumbnailPreview?.status === 'ready'}
-							<img src={thumbnailPreview.src} alt="" class="size-full object-cover" />
+							<img
+								src={thumbnailPreview.src}
+								alt=""
+								class="size-full object-cover"
+								data-workstream-image={thumbnail.kind === 'workstream' ? thumbnail.id : undefined}
+							/>
 						{:else if thumbnailPreview?.status === 'unavailable'}
 							<Icon name="alert" size={16} class="text-fg-tertiary" />
 						{:else}

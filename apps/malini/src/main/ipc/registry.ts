@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import type { CommandName, CommandResult } from '../../contract/commands';
+import type { CommandArgs, CommandName, CommandResult } from '../../contract/commands';
 import {
 	INVOKE_CHANNEL,
 	type CommandFailure,
@@ -47,6 +47,13 @@ export class CommandRegistry {
 			throw new Error(`command "${name}" is already registered`);
 		}
 		this.handlers.set(name, handler);
+	}
+
+	call<Name extends CommandName>(name: Name, args: CommandArgs<Name>): Promise<CommandResult<Name>>;
+	async call(name: CommandName, args: unknown): Promise<unknown> {
+		const handler = this.handlers.get(name);
+		if (!handler) throw new Error(`unknown command "${name}"`);
+		return handler(args);
 	}
 
 	has(name: string): boolean {

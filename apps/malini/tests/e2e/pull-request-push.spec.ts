@@ -1,28 +1,35 @@
 import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
-import { commitByHand, headOf, seedWorkstreamOnFakeGithub } from './fake-github';
+import {
+	commitByHand,
+	expectMergedAndArchived,
+	headOf,
+	queueMerge,
+	seedWorkstreamOnFakeGithub,
+} from './fake-github';
 
-test('pushing commits that are already made pushes them as they are', async () => {
-	test.setTimeout(120_000);
+test('Queue merge pushes commits that are already made as they are, then merges them', async () => {
+	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-push-only', {
+			liveHead: true,
 			mergeable: 'MERGEABLE',
 			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
 		});
 		await commitByHand(worktree, 'by-hand.txt');
+		const committed = headOf(worktree);
 		await openWorkstream(page, 'e2e-push-only');
 
-		const push = page.getByRole('button', { name: 'Commit and push changes #7' });
-		await expect(push).toBeEnabled({ timeout: 30_000 });
-		await push.click();
+		await queueMerge(page);
 
-		await expect(page.getByRole('status').filter({ hasText: 'Waiting for GitHub…' })).toBeVisible({
-			timeout: 30_000,
-		});
-		await expect(push).toHaveCount(0);
-		expect(github.pushedHead()).toBe(headOf(worktree));
-		expect(github.pushedSubjects()[0]).toBe('Commit by-hand.txt by hand');
+		await expectMergedAndArchived(page, 'e2e-push-only');
+		expect(github.pushedHead()).toBe(committed);
+		expect(github.pushedSubjects()).toEqual(['Commit by-hand.txt by hand', 'seed']);
+		expect(github.calls().find(([command, sub]) => command === 'pr' && sub === 'merge')).toContain(
+			committed,
+		);
 		await captureFlow(app, 'pull-request-pushed');
 		expectCleanConsole(app);
 	} finally {

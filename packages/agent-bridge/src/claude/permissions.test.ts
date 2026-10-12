@@ -43,7 +43,21 @@ describe('run profile mapping', () => {
 	});
 
 	it('lets sandboxed shell commands run without asking', () => {
-		expect(sandboxFor(undefined)).toEqual({ enabled: true, autoAllowBashIfSandboxed: true });
+		expect(sandboxFor(undefined)).toMatchObject({ enabled: true, autoAllowBashIfSandboxed: true });
+	});
+
+	it('lets sandboxed commands reach GitHub, its Actions logs, and verify certificates', () => {
+		const network = sandboxFor(undefined).network;
+		expect(network?.allowedDomains).toEqual(
+			expect.arrayContaining([
+				'github.com',
+				'api.github.com',
+				'productionresultssa0.blob.core.windows.net',
+				'productionresultssa19.blob.core.windows.net',
+			]),
+		);
+		expect(network?.allowedDomains).not.toContain('*.blob.core.windows.net');
+		expect(network?.allowMachLookup).toEqual(['com.apple.trustd.agent']);
 	});
 
 	it('refuses the git and pull request commands malini owns', () => {

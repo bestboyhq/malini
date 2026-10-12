@@ -1,4 +1,13 @@
-import { app, BrowserWindow, clipboard, Notification, safeStorage, screen, shell } from 'electron';
+import {
+	app,
+	BrowserWindow,
+	clipboard,
+	ClipboardItem,
+	Notification,
+	safeStorage,
+	screen,
+	shell,
+} from 'electron';
 
 const LIVE_NOTIFICATION_LIMIT = 32;
 
@@ -23,6 +32,7 @@ export interface ShellHost {
 	readonly executablePath: string;
 	openExternal(url: string): Promise<void>;
 	clipboardWriteText(text: string): Promise<void> | void;
+	clipboardWriteImage(png: Buffer): Promise<void>;
 	isEncryptionAvailable(): boolean;
 	encryptString(plainText: string): Buffer;
 	decryptString(encrypted: Buffer): string;
@@ -39,6 +49,8 @@ export function createElectronShellHost(): ShellHost {
 		executablePath: process.execPath,
 		openExternal: (url) => shell.openExternal(url),
 		clipboardWriteText: (text) => clipboard.writeText(text),
+		clipboardWriteImage: (png) =>
+			clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]),
 		isEncryptionAvailable: () => safeStorage.isEncryptionAvailable(),
 		encryptString: (plainText) => safeStorage.encryptString(plainText),
 		decryptString: (encrypted) => safeStorage.decryptString(encrypted),

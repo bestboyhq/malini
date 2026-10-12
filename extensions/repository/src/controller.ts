@@ -1,32 +1,20 @@
 import {
 	type ExtensionAPI,
-	type ExtensionPullRequestCheckDiagnostics,
 	type ExtensionPullRequestContext,
-	type ExtensionPullRequestMergeMethod,
 	type ExtensionRepositoryDiffScope,
 	type ExtensionRepositoryOperation,
 	type ExtensionRepositoryStatus,
-	type ExtensionPullRequestReviewFeedback,
 	type ExtensionSettingScope,
 	type ExtensionSettingValue,
 	type ExtensionWorkstream,
 	EXTENSION_EVENTS,
 } from '@malini/extension-api';
 import {
-	contextFromRepository,
 	contextFromWorkstream,
 	createFileList,
 	isRecord,
 	parseRepositoryContext,
-	pullRequestBlockingChecks,
-	pullRequestCheckFailed,
-	pullRequestConflictsWithBase,
-	pullRequestHasReviewBlockers,
-	pullRequestChecksAllowMerge,
-	pullRequestMergeReadiness,
-	pullRequestReviewStatusUnavailable,
 	repositoryLocalSignals,
-	selectPullRequestMergeMethod,
 	parseRepositoryAgentSessionDiff,
 	renderRepositoryDiff,
 	type RepositoryAgentSessionDiff,
@@ -34,11 +22,6 @@ import {
 	type RepositoryDiff,
 	type RepositoryFile,
 } from './domain.js';
-import {
-	automatedPullRequestMetadata,
-	type AutomatedPullRequestMetadata,
-	type PullRequestAutomationContext,
-} from './pull-request-metadata.js';
 import {
 	REPOSITORY_TODO_LIMITS,
 	cloneRepositoryTodos,
@@ -94,14 +77,6 @@ export type RepositoryViewState = {
 	todoError: string | null;
 };
 
-export type RepositoryPullRequestFixContext = Readonly<{
-	state: RepositoryViewState;
-	pullRequestNumber: number;
-	headSha: string;
-	reviewFeedback: ExtensionPullRequestReviewFeedback | null;
-	checkDiagnostics: ExtensionPullRequestCheckDiagnostics | null;
-}>;
-
 export type RepositorySurfaceState = Readonly<{
 	status: RepositoryStatus;
 	workstreamId: string | null;
@@ -146,12 +121,6 @@ type LocalRepositorySnapshot = Readonly<{
 	uncommittedDiffs: Awaited<ReturnType<ExtensionAPI['repository']['diff']>>;
 }>;
 
-type PullRequestMergePreflight = Readonly<{
-	status: ExtensionRepositoryStatus;
-	pullRequest: ExtensionPullRequestContext & { number: number; headSha: string };
-	mergeMethod: ExtensionPullRequestMergeMethod;
-}>;
-
 export type RepositoryControllerOptions = Readonly<{
 	prepareTree?: (paths: readonly string[]) => Promise<void>;
 }>;
@@ -167,18 +136,7 @@ type RefreshSlices = Readonly<{
 	pullRequest: boolean;
 }>;
 
-type RepositoryErrorSlice = 'local' | 'pullRequest';
-
 const PULL_REQUEST_BINDING_STATE_KEY = 'pull-request-binding.v1';
-
-const GENERATED_PULL_REQUEST_METADATA_STATE_KEY = 'pull-request-generated-metadata.v1';
-
-type GeneratedPullRequestMetadata = Readonly<{
-	version: 1;
-	pullRequestNumber: number;
-	title: string | null;
-	body: string | null;
-}>;
 
 export const REPOSITORY_WORKSTREAM_SNAPSHOT_LIMIT = 8;
 
@@ -203,12 +161,6 @@ class StaleWorkstreamOperationError extends Error {
 	}
 }
 
-export type PullRequestActionInput = Readonly<{
-	draft?: boolean;
-	context?: PullRequestAutomationContext;
-	changedPaths?: readonly string[];
-}>;
-
 type RepositoryControllerWorkstreamHost = Pick<
 	ExtensionAPI['workstream'],
 	'current' | 'listFiles' | 'readFile'
@@ -216,22 +168,7 @@ type RepositoryControllerWorkstreamHost = Pick<
 
 type RepositoryControllerRepositoryHost = Pick<
 	ExtensionAPI['repository'],
-	| 'status'
-	| 'diff'
-	| 'pullRequest'
-	| 'createPullRequest'
-	| 'markPullRequestReadyForReview'
-	| 'mergePullRequest'
-	| 'updatePullRequestMetadata'
-	| 'pullRequestReviewFeedback'
-	| 'pullRequestCheckDiagnostics'
-	| 'refresh'
-	| 'commit'
-	| 'push'
-	| 'pullLatest'
-	| 'restartOnBase'
-	| 'abortOperation'
-	| 'baseFiles'
+	'status' | 'diff' | 'pullRequest' | 'refresh' | 'abortOperation' | 'baseFiles'
 >;
 
 type RepositoryControllerSettingsHost = {
@@ -487,50 +424,6 @@ export class RepositoryController {
 		});
 	}
 
-	async resetTodos(): Promise<RepositoryViewState> {
-		const operation = this.#captureWorkstreamOperation();
-		const previous = this.#todoMutationTail;
-		const queued = (async () => {
-			await previous;
-			this.#assertCurrentWorkstreamOperation(operation);
-			try {
-				const todos = await this.#todoStore.reset(operation.workstream.id);
-				this.#assertCurrentWorkstreamOperation(operation);
-				this.#publish({
-					...this.#state,
-					todos: cloneRepositoryTodos(todos),
-					todoStatus: 'ready',
-					todosObservedAt: this.#api.clock.now(),
-					todoError: null,
-				});
-			} catch (error) {
-				this.#assertCurrentWorkstreamOperation(operation);
-				this.#publish({
-					...this.#state,
-					todos: [],
-					todoStatus: 'error',
-					todosObservedAt: null,
-					todoError: `Could not reset workstream todos: ${errorMessage(error)}`,
-				});
-				throw error;
-			}
-			this.#assertCurrentWorkstreamOperation(operation);
-		})();
-		this.#todoMutationTail = queued.catch(() => undefined);
-		try {
-			await queued;
-		} catch (error) {
-			if (
-				error instanceof StaleWorkstreamOperationError ||
-				!this.#isCurrentWorkstreamOperation(operation)
-			) {
-				return this.snapshot();
-			}
-			throw error;
-		}
-		return this.snapshot();
-	}
-
 	todosForPrompt(): RepositoryTodosSnapshot {
 		const operation = this.#captureWorkstreamOperation();
 		if (this.#state.todoStatus !== 'ready') {
@@ -540,74 +433,6 @@ export class RepositoryController {
 			workstreamId: operation.workstream.id,
 			todos: cloneRepositoryTodos(this.#state.todos),
 		};
-	}
-
-	async preparePullRequestFix(): Promise<RepositoryPullRequestFixContext | null> {
-		return this.#runWorkstreamDiagnosticOperation(async (operation) => {
-			this.#publish(
-				withSynchronizedErrors({
-					...this.#state,
-					pullRequestRefreshStatus: 'loading',
-					pullRequestError: null,
-				}),
-			);
-			const pullRequest = await this.#runOperationStep(operation, 'pullRequest', () =>
-				this.#fetchPullRequest(operation),
-			);
-			this.#publishPullRequestSnapshot(operation, pullRequest);
-			const conflictsWithBase = pullRequestConflictsWithBase(pullRequest);
-			if (!conflictsWithBase && !pullRequestNeedsFixDiagnostics(pullRequest)) return null;
-			if (pullRequest.number === null || !pullRequest.headSha) {
-				this.#throwOperationError(
-					operation,
-					'pullRequest',
-					new Error('Pull request identity is incomplete; refresh before reading diagnostics'),
-				);
-			}
-			const pullRequestNumber = pullRequest.number;
-			const headSha = pullRequest.headSha;
-			if (conflictsWithBase) {
-				return {
-					state: await this.#holdBaseConflicts(operation, pullRequest.baseBranch),
-					pullRequestNumber,
-					headSha,
-					reviewFeedback: null,
-					checkDiagnostics: null,
-				};
-			}
-			const query = { number: pullRequestNumber, expectedHeadSha: headSha } as const;
-			const [reviewFeedback, checkDiagnostics] = await Promise.all([
-				this.#api.repository.pullRequestReviewFeedback
-					? this.#runOperationStep(operation, 'pullRequest', () =>
-							this.#api.repository.pullRequestReviewFeedback!(query, operation.workstream.id),
-						)
-					: Promise.resolve(null),
-				this.#api.repository.pullRequestCheckDiagnostics
-					? this.#runOperationStep(operation, 'pullRequest', () =>
-							this.#api.repository.pullRequestCheckDiagnostics!(query, operation.workstream.id),
-						)
-					: Promise.resolve(null),
-			]);
-			this.#assertCurrentWorkstreamOperation(operation);
-			const verified = await this.#runOperationStep(operation, 'pullRequest', () =>
-				this.#fetchPullRequest(operation),
-			);
-			if (verified.number !== pullRequestNumber || verified.headSha !== headSha) {
-				this.#throwOperationError(
-					operation,
-					'pullRequest',
-					new Error('Pull request head changed while reading diagnostics; retry Fix errors'),
-				);
-			}
-			this.#publishPullRequestSnapshot(operation, verified);
-			return {
-				state: this.snapshot(),
-				pullRequestNumber,
-				headSha,
-				reviewFeedback,
-				checkDiagnostics,
-			};
-		});
 	}
 
 	async #refreshSlices(
@@ -979,23 +804,6 @@ export class RepositoryController {
 		return pullRequest;
 	}
 
-	async #fetchPullRequestForStatus(
-		operation: WorkstreamOperation,
-		status: ExtensionRepositoryStatus,
-	): Promise<ExtensionPullRequestContext> {
-		return this.#runOperationStep(operation, 'pullRequest', async () => {
-			const bindingRequest = this.#beginPullRequestBindingRequest();
-			const pullRequest = await this.#fetchPullRequest(operation, bindingRequest);
-			if (
-				!isTerminalPullRequest(pullRequest) ||
-				!hasChangesAfterTerminalPullRequest(status, pullRequest)
-			) {
-				return pullRequest;
-			}
-			return this.#retireTerminalPullRequestAndDiscover(operation, bindingRequest);
-		});
-	}
-
 	async #retireTerminalPullRequestAndDiscover(
 		operation: WorkstreamOperation,
 		bindingRequest: PullRequestBindingRequest = this.#beginPullRequestBindingRequest(),
@@ -1224,348 +1032,6 @@ export class RepositoryController {
 		return this.snapshot();
 	}
 
-	async createOrOpenPullRequest(input: PullRequestActionInput = {}): Promise<RepositoryViewState> {
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			const existing = await this.#fetchPullRequestForStatus(operation, status);
-			if (existing.state === 'open' || existing.state === 'draft') {
-				if (status.dirtyPaths.length > 0 || status.ahead > 0) {
-					await this.#publishChanges(operation, status, input.context, input.changedPaths);
-				}
-				this.#publish({
-					...this.#state,
-					context: contextFromRepository(
-						operation.workstream,
-						{
-							...status,
-							dirtyPaths: status.dirtyPaths.length > 0 ? [] : status.dirtyPaths,
-							ahead: status.ahead > 0 ? 0 : status.ahead,
-						},
-						existing,
-					),
-					localError: null,
-					pullRequestRefreshStatus: 'ready',
-					pullRequestSettledAt: this.#api.clock.now(),
-					pullRequestRefreshedAt: this.#api.clock.now(),
-					pullRequestError: null,
-					error: null,
-				});
-				return status.dirtyPaths.length > 0 || status.ahead > 0
-					? this.refresh()
-					: this.refreshPullRequest();
-			}
-			return this.#createPullRequest(operation, status, input);
-		});
-	}
-
-	async createPullRequest(input: PullRequestActionInput = {}): Promise<RepositoryViewState> {
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			const existing = await this.#fetchPullRequestForStatus(operation, status);
-			if (existing.state === 'open' || existing.state === 'draft') {
-				this.#publish({
-					...this.#state,
-					context: contextFromRepository(operation.workstream, status, existing),
-					localError: null,
-					pullRequestRefreshStatus: 'ready',
-					pullRequestSettledAt: this.#api.clock.now(),
-					pullRequestRefreshedAt: this.#api.clock.now(),
-					pullRequestError: null,
-					error: null,
-				});
-				return this.snapshot();
-			}
-			return this.#createPullRequest(operation, status, input);
-		});
-	}
-
-	async markPullRequestReadyForReview(): Promise<RepositoryViewState> {
-		const mutation = this.#api.repository.markPullRequestReadyForReview;
-		if (!mutation) return this.refreshPullRequest();
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			const pullRequest = await this.#fetchPullRequestForStatus(operation, status);
-			if (pullRequest.state !== 'draft' || pullRequest.number === null) {
-				this.#throwOperationError(
-					operation,
-					'pullRequest',
-					new Error('Only a draft pull request can be marked ready for review'),
-				);
-			}
-			const updated = await this.#runOperationStep(operation, 'pullRequest', () =>
-				mutation({ number: pullRequest.number! }, operation.workstream.id),
-			);
-			await this.#runOperationStep(operation, 'pullRequest', () =>
-				this.#reconcilePullRequestBinding(operation, updated),
-			);
-			return this.refresh();
-		});
-	}
-
-	async mergePullRequest(
-		preferredMergeMethod: ExtensionPullRequestMergeMethod | undefined,
-		expectedHeadSha: string,
-	): Promise<RepositoryViewState> {
-		const mutation = this.#api.repository.mergePullRequest;
-		if (!mutation) return this.refreshPullRequest();
-		return this.#runWorkstreamMutation(async (operation) => {
-			return this.#withFreshTodosForMerge(operation, async (todos) => {
-				if (!expectedHeadSha) {
-					this.#throwOperationError(
-						operation,
-						'pullRequest',
-						new Error('Review the current pull request head before merging'),
-					);
-				}
-				const preflight = await this.#loadMergePreflight(operation, preferredMergeMethod, todos);
-				this.#publishMergePreflight(operation, preflight);
-				if (preflight.pullRequest.headSha !== expectedHeadSha) {
-					this.#throwOperationError(
-						operation,
-						'pullRequest',
-						new Error(
-							'The pull request changed since it was last read; review the latest head and retry',
-						),
-					);
-				}
-				const updated = await this.#runOperationStep(operation, 'pullRequest', () =>
-					mutation(
-						{
-							number: preflight.pullRequest.number,
-							expectedHeadSha,
-							mergeMethod: preflight.mergeMethod,
-						},
-						operation.workstream.id,
-					),
-				);
-				await this.#runOperationStep(operation, 'pullRequest', () =>
-					this.#reconcilePullRequestBinding(operation, updated),
-				);
-				return this.refresh();
-			});
-		});
-	}
-
-	async #loadMergePreflight(
-		operation: WorkstreamOperation,
-		preferredMergeMethod: ExtensionPullRequestMergeMethod | undefined,
-		todos: readonly RepositoryTodo[],
-	): Promise<PullRequestMergePreflight> {
-		const status = await this.#loadMutationStatus(operation);
-		const pullRequest = await this.#fetchPullRequestForStatus(operation, status);
-		if (status.dirtyPaths.length > 0 || status.ahead > 0) {
-			this.#throwOperationError(
-				operation,
-				'local',
-				new Error('Commit and push all local changes before merging'),
-			);
-		}
-		if (pullRequest.state !== 'open' || pullRequest.number === null) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Only an open pull request can be merged'),
-			);
-		}
-		const pullRequestNumber = pullRequest.number;
-		const openTodos = repositoryTodoOpenCount(todos);
-		if (openTodos > 0) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error(
-					`Complete ${openTodos} open workstream todo${openTodos === 1 ? '' : 's'} before merging`,
-				),
-			);
-		}
-		if (!pullRequestChecksAllowMerge(pullRequest.checks, pullRequest.checkItems ?? [])) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Pull request checks must pass before merging'),
-			);
-		}
-		if (pullRequestHasReviewBlockers(pullRequest)) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Resolve requested changes and review threads before merging'),
-			);
-		}
-		if (pullRequestReviewStatusUnavailable(pullRequest)) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Pull request review thread status is unavailable; retry status before merging'),
-			);
-		}
-		if (pullRequest.viewerCanMerge !== true) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error(
-					pullRequest.viewerCanMerge === false
-						? 'You do not have permission to merge this pull request'
-						: 'Pull request merge permission is unavailable; retry status before merging',
-				),
-			);
-		}
-		if (
-			preferredMergeMethod &&
-			!(pullRequest.allowedMergeMethods ?? []).includes(preferredMergeMethod)
-		) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('The selected merge method is no longer available for this repository'),
-			);
-		}
-		const mergeMethod = selectPullRequestMergeMethod(pullRequest, preferredMergeMethod);
-		if (!mergeMethod) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('This repository does not expose an available merge method'),
-			);
-		}
-		if (!pullRequest.headSha) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Pull request head status is unavailable; retry before merging'),
-			);
-		}
-		const headSha = pullRequest.headSha;
-		const readiness = pullRequestMergeReadiness(pullRequest);
-		if (readiness === 'behind') {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('Pull the latest target branch before merging'),
-			);
-		}
-		if (readiness === 'blocked') {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('GitHub reports that this pull request is blocked from merging'),
-			);
-		}
-		if (readiness === 'checking') {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('GitHub is still computing pull request mergeability'),
-			);
-		}
-		return {
-			status,
-			pullRequest: { ...pullRequest, number: pullRequestNumber, headSha },
-			mergeMethod,
-		};
-	}
-
-	#publishMergePreflight(
-		operation: WorkstreamOperation,
-		preflight: PullRequestMergePreflight,
-	): void {
-		this.#publish(
-			withSynchronizedErrors({
-				...this.#state,
-				context: contextFromRepository(
-					operation.workstream,
-					preflight.status,
-					preflight.pullRequest,
-				),
-				refreshedAt: this.#api.clock.now(),
-				localError: null,
-				pullRequestRefreshStatus: 'ready',
-				pullRequestSettledAt: this.#api.clock.now(),
-				pullRequestRefreshedAt: this.#api.clock.now(),
-				pullRequestError: null,
-			}),
-		);
-	}
-
-	#publishPullRequestSnapshot(
-		operation: WorkstreamOperation,
-		pullRequest: ExtensionPullRequestContext,
-	): void {
-		this.#assertCurrentWorkstreamOperation(operation);
-		this.#publish(
-			withSynchronizedErrors({
-				...this.#state,
-				context: {
-					...(this.#state.context ?? contextFromWorkstream(operation.workstream)),
-					pullRequest: clonePullRequest(pullRequest),
-				},
-				refreshedAt: this.#api.clock.now(),
-				pullRequestRefreshStatus: 'ready',
-				pullRequestSettledAt: this.#api.clock.now(),
-				pullRequestRefreshedAt: this.#api.clock.now(),
-				pullRequestError: null,
-			}),
-		);
-	}
-
-	async pullLatest(): Promise<RepositoryViewState> {
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			const pullRequest = await this.#fetchPullRequestForStatus(operation, status);
-			if (status.dirtyPaths.length > 0) {
-				this.#throwOperationError(
-					operation,
-					'local',
-					new Error('Commit or discard local changes before pulling the target branch'),
-				);
-			}
-			const upstreamBehind = status.behind > 0;
-			const targetBranchBehind =
-				pullRequestMergeReadiness(pullRequest) === 'behind' || (pullRequest.behindBase ?? 0) > 0;
-			if (!upstreamBehind && !targetBranchBehind) {
-				this.#throwOperationError(
-					operation,
-					'local',
-					new Error('This workstream branch is already up to date'),
-				);
-			}
-			const pulled = await this.#pullHoldingConflicts(
-				operation,
-				upstreamBehind ? status.branch : pullRequest.baseBranch,
-			);
-			if (pulled === 'merged') {
-				await this.#runOperationStep(operation, 'local', () =>
-					this.#api.repository.push(operation.workstream.id),
-				);
-			}
-			return this.refresh();
-		});
-	}
-
-	async continueAfterMerge(): Promise<RepositoryViewState> {
-		const restart = this.#api.repository.restartOnBase;
-		if (!restart) throw new Error('Continuing after a merge is unavailable in this host');
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			const pullRequest = await this.#fetchPullRequestForStatus(operation, status);
-			const mergedHeadSha = pullRequest.state === 'merged' ? pullRequest.headSha : null;
-			if (!mergedHeadSha) {
-				this.#throwOperationError(
-					operation,
-					'pullRequest',
-					new Error('This workstream has no merged pull request to continue from'),
-				);
-			}
-			await this.#runOperationStep(operation, 'local', () =>
-				restart(
-					{ baseBranch: pullRequest.baseBranch || status.baseBranch, mergedHeadSha },
-					operation.workstream.id,
-				),
-			);
-			return this.refresh();
-		});
-	}
-
 	async abortOperation(): Promise<RepositoryViewState> {
 		const abort = this.#api.repository.abortOperation;
 		if (!abort)
@@ -1573,201 +1039,9 @@ export class RepositoryController {
 				'Aborting a merge, rebase, cherry-pick or revert is unavailable in this host',
 			);
 		return this.#runWorkstreamMutation(async (operation) => {
-			await this.#runOperationStep(operation, 'local', () => abort(operation.workstream.id));
+			await this.#runLocalStep(operation, () => abort(operation.workstream.id));
 			return this.refresh();
 		});
-	}
-
-	async #holdBaseConflicts(
-		operation: WorkstreamOperation,
-		baseBranch: string,
-	): Promise<RepositoryViewState> {
-		const workstreamId = operation.workstream.id;
-		this.#assertNoActiveMutation(workstreamId);
-		this.#activeMutationWorkstreams.add(workstreamId);
-		try {
-			const status = await this.#loadMutationStatus(operation);
-			if (!status.mergeInProgress) {
-				const pulled = await this.#pullHoldingConflicts(operation, baseBranch);
-				if (pulled === 'merged') {
-					await this.#runOperationStep(operation, 'local', () =>
-						this.#api.repository.push(workstreamId),
-					);
-				}
-			}
-			return await this.refresh();
-		} finally {
-			this.#activeMutationWorkstreams.delete(workstreamId);
-		}
-	}
-
-	async #pullHoldingConflicts(
-		operation: WorkstreamOperation,
-		ref: string,
-	): Promise<'merged' | 'conflicted'> {
-		await this.#runOperationStep(operation, 'local', () =>
-			this.#api.repository.pullLatest(ref, operation.workstream.id),
-		);
-		const status = await this.#loadMutationStatus(operation);
-		return status.mergeInProgress ? 'conflicted' : 'merged';
-	}
-
-	async commitAndPush(
-		context?: PullRequestAutomationContext,
-		changedPaths?: readonly string[],
-	): Promise<RepositoryViewState> {
-		return this.#runWorkstreamMutation(async (operation) => {
-			const status = await this.#loadMutationStatus(operation);
-			await this.#publishChanges(operation, status, context, changedPaths);
-			return this.refresh();
-		});
-	}
-
-	async #createPullRequest(
-		operation: WorkstreamOperation,
-		status: Awaited<ReturnType<ExtensionAPI['repository']['status']>>,
-		input: PullRequestActionInput,
-	): Promise<RepositoryViewState> {
-		this.#assertStatusMatchesWorkstream(operation, status);
-		const metadata = automatedPullRequestMetadata({
-			branch: status.branch,
-			baseBranch: status.baseBranch,
-			workstreamPath: operation.workstream.path,
-			changedPaths: mergedChangedPaths(status.dirtyPaths, input.changedPaths),
-			...(input.context ? { context: input.context } : {}),
-		});
-		if (status.dirtyPaths.length > 0) {
-			await this.#runOperationStep(operation, 'local', () =>
-				this.#api.repository.commit(
-					metadata.commitMessage,
-					operation.workstream.id,
-					metadata.commitRun ?? undefined,
-				),
-			);
-		}
-		await this.#runOperationStep(operation, 'local', () =>
-			this.#api.repository.push(operation.workstream.id),
-		);
-		const created = await this.#runOperationStep(operation, 'pullRequest', () =>
-			this.#api.repository.createPullRequest(
-				{
-					title: metadata.title,
-					body: metadata.body,
-					...(input.draft === undefined ? {} : { draft: input.draft }),
-					baseBranch: status.baseBranch,
-				},
-				operation.workstream.id,
-			),
-		);
-		if (!created.url) {
-			this.#throwOperationError(
-				operation,
-				'pullRequest',
-				new Error('The pull request was created without a URL'),
-			);
-		}
-		await this.#runOperationStep(operation, 'pullRequest', () =>
-			this.#reconcilePullRequestBinding(operation, created),
-		);
-		if (isPositivePullRequestNumber(created.number)) {
-			await this.#rememberGeneratedMetadata(operation, {
-				version: 1,
-				pullRequestNumber: created.number,
-				title: metadata.title,
-				body: metadata.body,
-			});
-		}
-		this.#publish({
-			...this.#state,
-			context: contextFromRepository(
-				operation.workstream,
-				{ ...status, dirtyPaths: [], ahead: 0 },
-				created,
-			),
-			localError: null,
-			pullRequestRefreshStatus: 'ready',
-			pullRequestSettledAt: this.#api.clock.now(),
-			pullRequestRefreshedAt: this.#api.clock.now(),
-			pullRequestError: null,
-			error: null,
-		});
-		return this.refreshLocal();
-	}
-
-	async #publishChanges(
-		operation: WorkstreamOperation,
-		status: Awaited<ReturnType<ExtensionAPI['repository']['status']>>,
-		context?: PullRequestAutomationContext,
-		changedPaths?: readonly string[],
-	): Promise<void> {
-		this.#assertStatusMatchesWorkstream(operation, status);
-		const metadata = automatedPullRequestMetadata({
-			branch: status.branch,
-			baseBranch: status.baseBranch,
-			workstreamPath: operation.workstream.path,
-			changedPaths: mergedChangedPaths(status.dirtyPaths, changedPaths),
-			...(context ? { context } : {}),
-		});
-		if (status.dirtyPaths.length > 0) {
-			await this.#runOperationStep(operation, 'local', () =>
-				this.#api.repository.commit(
-					metadata.commitMessage,
-					operation.workstream.id,
-					metadata.commitRun ?? undefined,
-				),
-			);
-		}
-		await this.#runOperationStep(operation, 'local', () =>
-			this.#api.repository.push(operation.workstream.id),
-		);
-		if ((context?.runSummaries?.length ?? 0) > 0) {
-			await this.#refreshGeneratedMetadata(operation, metadata);
-		}
-	}
-
-	async #refreshGeneratedMetadata(
-		operation: WorkstreamOperation,
-		metadata: Pick<AutomatedPullRequestMetadata, 'title' | 'body'>,
-	): Promise<void> {
-		const update = this.#api.repository.updatePullRequestMetadata;
-		const store = this.#api.state;
-		if (!update || !store) return;
-		try {
-			const scope = pullRequestBindingScope(operation.workstream.id);
-			const generated = parseGeneratedMetadata(
-				await store.get(GENERATED_PULL_REQUEST_METADATA_STATE_KEY, scope),
-			);
-			if (!generated || (generated.title === null && generated.body === null)) return;
-			const owned = await update(
-				{
-					number: generated.pullRequestNumber,
-					...(generated.title === null
-						? {}
-						: { title: { expected: generated.title, next: metadata.title } }),
-					...(generated.body === null
-						? {}
-						: { body: { expected: generated.body, next: metadata.body } }),
-				},
-				operation.workstream.id,
-			);
-			await this.#rememberGeneratedMetadata(operation, { ...generated, ...owned });
-		} catch {
-			return;
-		}
-	}
-
-	async #rememberGeneratedMetadata(
-		operation: WorkstreamOperation,
-		generated: GeneratedPullRequestMetadata,
-	): Promise<void> {
-		this.#assertCurrentWorkstreamOperation(operation);
-		await this.#api.state
-			?.set(
-				GENERATED_PULL_REQUEST_METADATA_STATE_KEY,
-				generated,
-				pullRequestBindingScope(operation.workstream.id),
-			)
-			.catch(() => undefined);
 	}
 
 	async #mutateTodos(
@@ -1817,53 +1091,6 @@ export class RepositoryController {
 			throw error;
 		}
 		return this.snapshot();
-	}
-
-	async #withFreshTodosForMerge<T>(
-		operation: WorkstreamOperation,
-		action: (todos: readonly RepositoryTodo[]) => Promise<T>,
-	): Promise<T> {
-		const previous = this.#todoMutationTail;
-		const queued = (async () => {
-			await previous;
-			this.#assertCurrentWorkstreamOperation(operation);
-			let todos: readonly RepositoryTodo[];
-			try {
-				todos = await this.#todoStore.load(operation.workstream.id);
-			} catch (error) {
-				this.#assertCurrentWorkstreamOperation(operation);
-				this.#publish({
-					...this.#state,
-					todos: [],
-					todoStatus: 'error',
-					todosObservedAt: null,
-					todoError: errorMessage(error),
-				});
-				this.#throwOperationError(
-					operation,
-					'pullRequest',
-					new Error('Workstream todos are unreadable; review and repair them before merging'),
-				);
-			}
-			this.#assertCurrentWorkstreamOperation(operation);
-			const snapshot = cloneRepositoryTodos(todos);
-			this.#publish({
-				...this.#state,
-				todos: snapshot,
-				todoStatus: 'ready',
-				todosObservedAt: this.#api.clock.now(),
-				todoError: null,
-			});
-			return action(snapshot);
-		})();
-		this.#todoMutationTail = (async () => {
-			try {
-				await queued;
-			} catch {
-				return;
-			}
-		})();
-		return queued;
 	}
 
 	#nextTodoId(todos: readonly RepositoryTodo[]): string {
@@ -2158,38 +1385,7 @@ export class RepositoryController {
 		}
 	}
 
-	async #loadMutationStatus(operation: WorkstreamOperation): Promise<ExtensionRepositoryStatus> {
-		const status = await this.#runOperationStep(operation, 'local', () =>
-			this.#api.repository.status(operation.workstream.id),
-		);
-		this.#assertStatusMatchesWorkstream(operation, status);
-		return status;
-	}
-
-	#assertStatusMatchesWorkstream(
-		operation: WorkstreamOperation,
-		status: ExtensionRepositoryStatus,
-	): void {
-		if (
-			status.branch === operation.workstream.branch &&
-			status.baseBranch === operation.workstream.baseBranch
-		) {
-			return;
-		}
-		this.#throwOperationError(
-			operation,
-			'local',
-			new Error(
-				'The repository branch changed; refresh the workstream before modifying repository state',
-			),
-		);
-	}
-
-	async #runOperationStep<T>(
-		operation: WorkstreamOperation,
-		slice: RepositoryErrorSlice,
-		action: () => Promise<T>,
-	): Promise<T> {
+	async #runLocalStep<T>(operation: WorkstreamOperation, action: () => Promise<T>): Promise<T> {
 		try {
 			const result = await action();
 			this.#assertCurrentWorkstreamOperation(operation);
@@ -2201,32 +1397,15 @@ export class RepositoryController {
 			) {
 				throw new StaleWorkstreamOperationError();
 			}
-			this.#throwOperationError(operation, slice, error);
+			this.#publish(
+				withSynchronizedErrors({
+					...this.#state,
+					status: 'error',
+					localError: errorMessage(error),
+				}),
+			);
+			throw error;
 		}
-	}
-
-	#throwOperationError(
-		operation: WorkstreamOperation,
-		slice: RepositoryErrorSlice,
-		error: unknown,
-	): never {
-		if (!this.#isCurrentWorkstreamOperation(operation)) {
-			throw new StaleWorkstreamOperationError();
-		}
-		const message = errorMessage(error);
-		this.#publish(
-			withSynchronizedErrors({
-				...this.#state,
-				...(slice === 'local'
-					? { status: 'error' as const, localError: message }
-					: {
-							pullRequestRefreshStatus: 'error' as const,
-							pullRequestSettledAt: this.#api.clock.now(),
-							pullRequestError: message,
-						}),
-			}),
-		);
-		throw error;
 	}
 
 	async #runWorkstreamOperation(
@@ -2234,23 +1413,6 @@ export class RepositoryController {
 	): Promise<RepositoryViewState> {
 		const operation = this.#captureWorkstreamOperation();
 		return this.#runCapturedWorkstreamOperation(operation, action);
-	}
-
-	async #runWorkstreamDiagnosticOperation<T>(
-		action: (operation: WorkstreamOperation) => Promise<T>,
-	): Promise<T | null> {
-		const operation = this.#captureWorkstreamOperation();
-		try {
-			return await action(operation);
-		} catch (error) {
-			if (
-				error instanceof StaleWorkstreamOperationError ||
-				!this.#isCurrentWorkstreamOperation(operation)
-			) {
-				return null;
-			}
-			throw error;
-		}
 	}
 
 	async #runWorkstreamMutation(
@@ -2359,17 +1521,6 @@ function pullRequestBindingScope(
 	return { kind: 'workstream', id: workstreamId };
 }
 
-function parseGeneratedMetadata(input: unknown): GeneratedPullRequestMetadata | null {
-	if (!isRecord(input) || input.version !== 1) return null;
-	const text = (value: unknown): string | null | undefined =>
-		value === null || typeof value === 'string' ? value : undefined;
-	const title = text(input.title);
-	const body = text(input.body);
-	if (!isPositivePullRequestNumber(input.pullRequestNumber)) return null;
-	if (title === undefined || body === undefined) return null;
-	return { version: 1, pullRequestNumber: input.pullRequestNumber, title, body };
-}
-
 function parsePullRequestBinding(input: unknown): PullRequestBinding | null {
 	if (!isRecord(input)) return null;
 	const value = input;
@@ -2469,13 +1620,6 @@ function changedPathCount(
 	return new Set([...dirtyPaths, ...diffs.map(({ path }) => path)]).size;
 }
 
-function mergedChangedPaths(
-	statusPaths: readonly string[],
-	evidencePaths?: readonly string[],
-): readonly string[] {
-	return [...new Set([...statusPaths, ...(evidencePaths ?? [])])];
-}
-
 function hasUnpublishedChanges(status: ExtensionRepositoryStatus): boolean {
 	return status.dirtyPaths.length > 0 || status.ahead > 0;
 }
@@ -2495,22 +1639,6 @@ function hasChangesAfterTerminalPullRequest(
 
 function isTerminalPullRequest(pullRequest: ExtensionPullRequestContext): boolean {
 	return pullRequest.state === 'merged' || pullRequest.state === 'closed';
-}
-
-function pullRequestNeedsFixDiagnostics(pullRequest: ExtensionPullRequestContext): boolean {
-	if (pullRequest.state !== 'open') return false;
-	const checkItems = pullRequest.checkItems ?? [];
-	const hasFailedBlockingCheck = pullRequestBlockingChecks(checkItems).some(pullRequestCheckFailed);
-	const hasFixableReviewBlocker =
-		pullRequest.reviewDecision === 'changes_requested' ||
-		(pullRequest.unresolvedReviewThreadCount ?? 0) > 0;
-	return (
-		(checkItems.length === 0 && pullRequest.checks === 'failed') ||
-		hasFailedBlockingCheck ||
-		hasFixableReviewBlocker ||
-		pullRequest.mergeable === false ||
-		['blocked', 'dirty'].includes(pullRequest.mergeableState?.trim().toLocaleLowerCase() ?? '')
-	);
 }
 
 function notOpenPullRequest(workstream: ExtensionWorkstream): ExtensionPullRequestContext {
