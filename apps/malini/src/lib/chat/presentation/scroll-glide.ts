@@ -4,6 +4,8 @@ export const SCROLL_GLIDE_SETTLE_PX = 0.5;
 
 export const SCROLL_GLIDE_SETTLE_VELOCITY = 8;
 
+const DEVICE_PIXEL_ROUNDING_PX = 1;
+
 const MAX_SUBSTEP_MS = 1000 / 240;
 
 const OCCLUDED_FRAME_MS = 1000;
@@ -127,7 +129,9 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 			if (!Number.isFinite(nextTarget)) return;
 			target = nextTarget;
 
-			state = { position: node.scrollTop, velocity: state.velocity };
+			const shown = node.scrollTop;
+			const rounded = Math.abs(shown - state.position) < DEVICE_PIXEL_ROUNDING_PX;
+			state = { position: rounded ? state.position : shown, velocity: state.velocity };
 			if (
 				Math.abs(state.position - target) <= SCROLL_GLIDE_SETTLE_PX &&
 				Math.abs(state.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
