@@ -43,10 +43,16 @@
 	const needle = new GaugeNeedle(untrack(() => wheelPointOf(appearance)));
 	let grabbing = $state(false);
 	const point: GaugePoint = $derived([needle.at(0), needle.at(1)]);
+	const target = $derived(wheelPointOf(appearance));
 	const shown = $derived(tintAtWheel(point));
 	const neutral = $derived(!shown.chroma);
 
-	$effect(() => needle.moveTo(wheelPointOf(appearance), driving));
+	$effect(() => needle.moveTo(target, driving));
+
+	function tintText(tint: Tint): string {
+		if (!tint.chroma) return 'Neutral';
+		return `Hue ${degreesLabel(tint.hue ?? 0)}, chroma ${chromaLabel(tint.chroma)}`;
+	}
 
 	function radial(angle: number, from: number, to: number): Omit<ScaleTick, 'major'> {
 		const start = polar(angle, from);
@@ -75,13 +81,12 @@
 	{/snippet}
 	<Instrument
 		label="Tint wheel"
-		valueText={neutral
-			? 'Neutral'
-			: `Hue ${degreesLabel(shown.hue ?? 0)}, chroma ${chromaLabel(shown.chroma ?? 0)}`}
+		valueText={tintText(tintAtWheel(target))}
 		width={SIZE}
 		height={SIZE}
 		inset={INSET}
 		{point}
+		value={target}
 		colorAt={wheelColorAt}
 		onmove={(at) => ontune(tintAtWheel(at))}
 		onnudge={(right, up) => ontune(nudgedTint(appearance, -right, up))}

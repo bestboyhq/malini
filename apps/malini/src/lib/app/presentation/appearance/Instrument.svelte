@@ -12,6 +12,7 @@
 		height: number;
 		inset: number;
 		point: GaugePoint;
+		value: GaugePoint;
 		colorAt: (point: GaugePoint) => Oklch;
 		onmove: (point: GaugePoint) => void;
 		onnudge: (right: number, up: number) => void;
@@ -28,6 +29,7 @@
 		height,
 		inset,
 		point,
+		value,
 		colorAt,
 		onmove,
 		onnudge,
@@ -74,7 +76,7 @@
 		tabindex="0"
 		aria-label={label}
 		aria-valuetext={valueText}
-		aria-valuenow={Math.round(u * 100)}
+		aria-valuenow={Math.round(value[0] * 100)}
 		aria-valuemin={0}
 		aria-valuemax={100}
 		onkeydown={arrowNudge((right, up) => onnudge(right, up))}
