@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
+	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
+	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Textarea } from '$hyper-ui/components/textarea';
 	import { Icon } from '$hyper-ui/icons';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
@@ -13,6 +15,9 @@
 		RunProfileControls,
 	} from '$shared/providers/providers.api';
 	import InlinePromptContent from '../InlinePromptContent.svelte';
+	import PromptEditField from '../PromptEditField.svelte';
+	import { describeInlinePromptChip } from '../inline-prompt-chips';
+	import { promptClipboardHtml } from '../prompt-editor/prompt-markdown';
 	import SessionRuntimeControls from '../SessionRuntimeControls.svelte';
 	import { checkpointRestoreWarning } from './checkpoint-edit.svelte';
 	import { OPEN_RUN_BLOCKS_RESTORE } from './destructive-confirm.svelte';
@@ -54,6 +59,29 @@
 		return () => document.removeEventListener('pointerdown', onPointerDown, true);
 	});
 
+	let copyRequestId = $state<ChatRequestId | null>(null);
+	const copyOutcome = $derived(chatRequestQuery.data(copyRequestId));
+	const copied = $derived(copyOutcome?.status === 'accepted');
+
+	function copyPrompt(): void {
+		const references = {
+			attachments: item.attachments ?? [],
+			issueReferences: item.issueReferences ?? [],
+			transcriptReferences: item.transcriptReferences ?? [],
+			elementReferences: item.elementReferences ?? [],
+		};
+		const requestId = newChatRequestId();
+		copyRequestId = requestId;
+		copyTextCommand({
+			requestId,
+			text: item.text,
+			html: promptClipboardHtml(
+				item.text,
+				(ref) => describeInlinePromptChip(ref, references).label,
+			),
+		});
+	}
+
 	const promptBoxClass =
 		'w-full rounded-xl border px-3 py-2.5 text-left text-sm leading-6 select-none';
 </script>
@@ -69,6 +97,27 @@
 			onopenimage={transcript.openImageGallery}
 		/>
 	</span>
+{/snippet}
+
+{#snippet copyPromptButton()}
+	<Tooltip
+		content={copied ? 'Copied' : 'Copy prompt'}
+		placement="top"
+		class="absolute top-1.5 right-1.5"
+	>
+		<IconButton
+			bare
+			class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-6 w-6 cursor-pointer place-items-center rounded-md bg-inherit opacity-0 transition-opacity group-hover/prompt:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+			ariaLabel="Copy prompt"
+			data-testid="chat-copy-prompt"
+			onclick={copyPrompt}
+			onkeydown={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+			}}
+		>
+			<Icon name="copy" size={14} />
+		</IconButton>
+	</Tooltip>
 {/snippet}
 
 <div
@@ -93,15 +142,13 @@
 				footerTestId="chat-message-editor-toolbar"
 				mode={transcript.composerControls?.profile.mode ?? 'agent'}
 			>
-				<Textarea
-					bind:element={checkpointEdit.element}
-					bind:value={checkpointEdit.editingPrompt}
-					bare
-					rows={1}
-					textareaClass="block w-full overflow-hidden border-0 bg-transparent px-3 py-2.5 text-sm leading-6 select-text"
+				<PromptEditField
+					bind:this={checkpointEdit.field}
+					workstreamId={transcript.workstreamId}
+					scope={checkpointEdit.editingScope}
 					ariaLabel="Edit message"
+					testId="chat-message-edit-input"
 					disabled={submitting}
-					oninput={checkpointEdit.autosizeCheckpointEditor}
 					onkeydown={(event) => {
 						if (event.key === 'Escape') checkpointEdit.cancelCheckpointEdit();
 						if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -224,6 +271,7 @@
 				use:clampPrompt
 			>
 				{@render promptBody()}
+				{@render copyPromptButton()}
 			</div>
 		{:else}
 			<div
@@ -236,6 +284,7 @@
 				use:clampPrompt
 			>
 				{@render promptBody()}
+				{@render copyPromptButton()}
 			</div>
 		{/if}
 	{/if}

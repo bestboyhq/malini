@@ -6,13 +6,18 @@ import {
 	defaultMarkdownSerializer,
 	type MarkdownSerializerState,
 } from 'prosemirror-markdown';
-import { Fragment, type Node as PMNode, type Schema } from '@tiptap/pm/model';
+import { DOMSerializer, Fragment, Slice, type Node as PMNode, type Schema } from '@tiptap/pm/model';
 
 import {
 	isPromptChipKind,
 	promptChipMarker,
 	promptChipSegments,
+	type PromptChipRef,
 } from '$lib/chat/domain/prompt-chip';
+
+type ChipLabeler = (ref: PromptChipRef) => string | null;
+
+const unlabelled: ChipLabeler = () => null;
 
 import { promptEditorExtensions } from './minimal-extensions';
 import { PROMPT_CHIP_NODE_NAME } from './prompt-chip-node';
@@ -185,25 +190,39 @@ export function promptDocToMarkdown(doc: PMNode): string {
 	return exactSerializer.serialize(markdownToPromptDoc(readable)) === exact ? readable : exact;
 }
 
-export function markdownToPromptDoc(markdown: string): PMNode {
-	return replaceChipMarkers(parser.parse(markdown));
+export function markdownToPromptDoc(markdown: string, labelOf: ChipLabeler = unlabelled): PMNode {
+	return rewriteNode(parser.parse(markdown), labelOf);
 }
 
 export function replaceChipMarkers(doc: PMNode): PMNode {
-	return rewriteNode(doc);
+	return rewriteNode(doc, unlabelled);
 }
 
-function rewriteNode(node: PMNode): PMNode {
+export function replaceChipMarkersInSlice(slice: Slice): Slice {
+	return new Slice(rewriteFragment(slice.content, unlabelled), slice.openStart, slice.openEnd);
+}
+
+export function promptClipboardHtml(markdown: string, labelOf: ChipLabeler): string {
+	const holder = document.createElement('div');
+	holder.append(
+		DOMSerializer.fromSchema(promptEditorSchema).serializeFragment(
+			markdownToPromptDoc(markdown, labelOf).content,
+		),
+	);
+	return holder.innerHTML;
+}
+
+function rewriteNode(node: PMNode, labelOf: ChipLabeler): PMNode {
 	if (node.isLeaf || node.isAtom || node.type.spec.code) return node;
-	return node.copy(rewriteFragment(node.content));
+	return node.copy(rewriteFragment(node.content, labelOf));
 }
 
-function rewriteFragment(fragment: Fragment): Fragment {
+function rewriteFragment(fragment: Fragment, labelOf: ChipLabeler): Fragment {
 	const children: PMNode[] = [];
 
 	fragment.forEach((child) => {
 		if (!child.isText) {
-			children.push(rewriteNode(child));
+			children.push(rewriteNode(child, labelOf));
 			return;
 		}
 
@@ -221,7 +240,7 @@ function rewriteFragment(fragment: Fragment): Fragment {
 
 			children.push(
 				chipType.create(
-					{ kind: segment.ref.kind, id: segment.ref.id, label: null },
+					{ kind: segment.ref.kind, id: segment.ref.id, label: labelOf(segment.ref) },
 					null,
 					child.marks,
 				),

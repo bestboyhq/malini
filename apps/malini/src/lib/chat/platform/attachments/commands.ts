@@ -1,11 +1,16 @@
 import type {
+	AdoptAttachmentsArgs,
 	StageAttachmentBytesArgs,
 	StagedAttachmentArgs,
 	StageForkTranscriptArgs,
 	WorkstreamIdArgs,
 } from '$contract/commands';
 import type { MainContext } from '$main/context';
-import { stagedAttachmentExpiryFrom } from '../attachments.repository';
+import {
+	MAX_ATTACHMENT_FILES,
+	renewStagedAttachments,
+	stagedAttachmentExpiryFrom,
+} from '../attachments.repository';
 import { listEventRowsForSession } from '../events.repository';
 import { forkTranscript, forkTranscriptFileName } from '../fork-transcript';
 import { sessionContextIdentity } from '../sessions.repository';
@@ -14,6 +19,7 @@ import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import { createElectronFilePicker, type FilePicker } from './picker';
 import {
+	adoptAttachments,
 	gcStaged,
 	persistStagedAttachments,
 	readStaged,
@@ -24,11 +30,13 @@ import {
 import { deleteAttachmentDirectory } from './layout';
 
 export const ATTACHMENT_COMMAND_NAMES = [
+	'chat.adopt-attachments',
 	'chat.pick-and-stage-attachments',
 	'chat.stage-attachment-bytes',
 	'chat.stage-fork-transcript',
 	'chat.read-staged-attachment',
 	'chat.remove-staged-attachment',
+	'chat.renew-staged-attachments',
 ] as const;
 
 export type WorkstreamCheckoutResolver = (workstreamId: string) => Promise<string> | string;
@@ -58,6 +66,14 @@ function requireString(args: unknown, key: string): string {
 	const value = isRecord(args) ? args[key] : undefined;
 	if (typeof value !== 'string') {
 		throw new Error(`invalid args: \`${key}\` must be a string`);
+	}
+	return value;
+}
+
+function requireStringArray(args: unknown, key: string): string[] {
+	const value = isRecord(args) ? args[key] : undefined;
+	if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+		throw new Error(`invalid args: \`${key}\` must be a list of strings`);
 	}
 	return value;
 }
@@ -115,6 +131,33 @@ export function installAttachments(context: MainContext, deps: AttachmentsDeps =
 		const base64 = requireString(args, 'base64');
 		const { worktree, now, expiresAt } = await prepareStaging(workstreamId);
 		return stageBytes(db, worktree, workstreamId, fileName, base64, now, expiresAt);
+	});
+
+	commands.define('chat.adopt-attachments', async (args: AdoptAttachmentsArgs) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		const attachmentIds = requireStringArray(args, 'attachmentIds');
+		if (attachmentIds.length > MAX_ATTACHMENT_FILES) {
+			throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
+		}
+		const { worktree, now, expiresAt } = await prepareStaging(workstreamId);
+		return adoptAttachments(
+			db,
+			resolveCheckout,
+			workstreamId,
+			worktree,
+			attachmentIds,
+			now,
+			expiresAt,
+		);
+	});
+
+	commands.define('chat.renew-staged-attachments', (args: AdoptAttachmentsArgs) => {
+		renewStagedAttachments(
+			db,
+			requireString(args, 'workstreamId'),
+			requireStringArray(args, 'attachmentIds'),
+			nowAndExpiry().expiresAt,
+		);
 	});
 
 	commands.define('chat.stage-fork-transcript', async (args: StageForkTranscriptArgs) => {

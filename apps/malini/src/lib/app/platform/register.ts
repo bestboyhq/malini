@@ -90,7 +90,10 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	});
 	commands.define('app.copy-text', async (args: SetClipboardTextArgs) => {
 		if (typeof args?.text !== 'string') throw new Error('text must be a string');
-		await host.clipboardWriteText(args.text);
+		if (args.html !== undefined && typeof args.html !== 'string') {
+			throw new Error('html must be a string');
+		}
+		await host.clipboardWriteText(args.text, args.html);
 	});
 	commands.define('app.copy-image', async (args: SetClipboardImageArgs) => {
 		const pngDataUrl = args?.pngDataUrl;

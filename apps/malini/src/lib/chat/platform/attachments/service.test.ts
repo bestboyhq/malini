@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	loadStoredAttachment,
+	renewStagedAttachments,
 	MAX_ATTACHMENT_FILE_BYTES,
 	MAX_ATTACHMENT_FILES,
 	MAX_ATTACHMENT_TOTAL_BYTES,
@@ -21,11 +22,14 @@ import type { AgentRun } from '../runs.repository';
 import { insertSession } from '../sessions.repository';
 import { get, run, scalar } from '$main/db/rows';
 import { ATTACHMENT_ROOT, MAX_ATTACHMENT_BASE64_CHARS, MAX_PREVIEW_BYTES } from './layout';
+import { workstreamPath } from '$main/git/paths';
 import {
+	adoptAttachments,
 	bindRunAttachments,
 	decodeStrictBase64,
 	gcStaged,
 	persistStagedAttachments,
+	prepareAttachmentsToSend,
 	readStaged,
 	removeStaged,
 	stageBytes,
@@ -231,6 +235,14 @@ describe('remove and gc', () => {
 		expect(
 			scalar(test.db, 'SELECT COUNT(*) FROM agent_attachments WHERE id = ?', attachment.id),
 		).toBe(0);
+	});
+
+	it('keeps a file a draft still holds past its staging ttl once the draft renews it', () => {
+		const held = stagedInDb(test, worktree, 'held', '2026-07-11T00:30:00.000Z');
+		renewStagedAttachments(test.db, WORKSTREAM_ID, [held.id], '2026-07-12T02:00:00.000Z');
+
+		expect(gcStaged(test.db, worktree, WORKSTREAM_ID, '2026-07-11T02:00:00.000Z')).toBe(0);
+		expect(existsSync(join(worktree, held.relativePath))).toBe(true);
 	});
 
 	it('leaves a live staged attachment alone', () => {
@@ -638,5 +650,120 @@ describe('decodeStrictBase64', () => {
 				'decode pasted attachment: invalid base64',
 			);
 		}
+	});
+});
+
+describe('reusing an attachment in another prompt', () => {
+	const NOW = '2026-07-11T01:00:00.000Z';
+	const checkoutOf = (workstreamId: string): string =>
+		workstreamPath(test.appDataRoot, workstreamId);
+
+	function storedFile(id: string): string {
+		const stored = loadStoredAttachment(test.db, id);
+		if (!stored) throw new Error(`no attachment ${id}`);
+		return readFileSync(join(worktree, stored.descriptor.relativePath), 'utf8');
+	}
+
+	it('sends an attachment again by copying it and pointing the prompt at the copy', async () => {
+		const sent = stagedInDb(test, worktree, 'screenshot bytes');
+		bindRunAttachments(test.db, worktree, {
+			workstreamId: WORKSTREAM_ID,
+			run: agentRun('run-first'),
+			attachmentIds: [sent.id],
+			now: NOW,
+		});
+
+		const prepared = await prepareAttachmentsToSend(
+			test.db,
+			checkoutOf,
+			{
+				workstreamId: WORKSTREAM_ID,
+				worktree,
+				prompt: `again [[attachment:${sent.id}]]`,
+				attachmentIds: [],
+			},
+			NOW,
+			EXPIRES_TOMORROW,
+		);
+
+		const [copy = ''] = prepared.attachmentIds;
+		expect(copy).not.toBe(sent.id);
+		expect(prepared.prompt).toBe(`again [[attachment:${copy}]]`);
+		expect(storedFile(copy)).toBe('screenshot bytes');
+		expect(attachmentRow(sent.id).state).toBe('bound');
+		expect(
+			bindRunAttachments(test.db, worktree, {
+				workstreamId: WORKSTREAM_ID,
+				run: agentRun('run-again'),
+				attachmentIds: prepared.attachmentIds,
+				now: NOW,
+			}),
+		).toHaveLength(1);
+	});
+
+	it('sends an attachment staged for this workstream as it is', async () => {
+		const staged = stagedInDb(test, worktree, 'fresh');
+		const prompt = `look [[attachment:${staged.id}]]`;
+
+		expect(
+			await prepareAttachmentsToSend(
+				test.db,
+				checkoutOf,
+				{ workstreamId: WORKSTREAM_ID, worktree, prompt, attachmentIds: [staged.id] },
+				NOW,
+				EXPIRES_TOMORROW,
+			),
+		).toEqual({ prompt, attachmentIds: [staged.id] });
+	});
+
+	it('copies an attachment pasted from another workstream into this checkout', async () => {
+		const otherWorktree = test.seed('workstream-other', 'session-other');
+		const foreign = stagedInDb(
+			test,
+			otherWorktree,
+			'from elsewhere',
+			EXPIRES_TOMORROW,
+			'workstream-other',
+		);
+
+		const [adopted] = await adoptAttachments(
+			test.db,
+			checkoutOf,
+			WORKSTREAM_ID,
+			worktree,
+			[foreign.id],
+			STAGED_AT,
+			EXPIRES_TOMORROW,
+		);
+
+		if (!adopted || !('attachment' in adopted)) throw new Error('the paste was not adopted');
+		expect(adopted.sourceId).toBe(foreign.id);
+		expect(adopted.attachment).toMatchObject({ displayName: 'notes.txt', sha256: foreign.sha256 });
+		expect(storedFile(adopted.attachment.id)).toBe('from elsewhere');
+		expect(attachmentRow(adopted.attachment.id)).toMatchObject({
+			workstream_id: WORKSTREAM_ID,
+			state: 'staged',
+		});
+		expect(attachmentRow(foreign.id).state).toBe('staged');
+	});
+
+	it('says why a pasted attachment whose file is gone cannot be attached', async () => {
+		const gone = stagedInDb(test, worktree, 'deleted soon');
+		removeStaged(test.db, worktree, WORKSTREAM_ID, gone.id, NOW);
+
+		expect(
+			await adoptAttachments(
+				test.db,
+				checkoutOf,
+				WORKSTREAM_ID,
+				worktree,
+				[gone.id, 'att-not-a-real-id'],
+				STAGED_AT,
+				EXPIRES_TOMORROW,
+			),
+		).toEqual([
+			{ sourceId: gone.id, error: expect.stringContaining('is no longer available') },
+			{ sourceId: 'att-not-a-real-id', error: 'this attachment no longer exists' },
+		]);
 	});
 });

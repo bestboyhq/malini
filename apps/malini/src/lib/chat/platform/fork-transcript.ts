@@ -98,8 +98,12 @@ function renderRun(rows: readonly AgentEventRow[]): string {
 	].join(SECTION_SEPARATOR);
 }
 
+export function userPromptText(payload: unknown): string {
+	return userBlocks(payload).join(SECTION_SEPARATOR);
+}
+
 function userBlocks(payload: unknown): string[] {
-	const attachments = namedReferences(payload, 'attachments', 'id', 'displayName');
+	const attachments = attachmentLinks(payload);
 	const transcripts = namedReferences(payload, 'transcriptReferences', 'sessionId', 'label');
 	const segments = promptChipSegments(text(payload, 'text'));
 	const prompt = segments
@@ -112,11 +116,25 @@ function userBlocks(payload: unknown): string[] {
 	const inline = new Set(
 		segments.flatMap((segment) => (segment.kind === 'chip' ? [segment.ref.id] : [])),
 	);
-	const unmentioned = [...attachments].flatMap(([id, name]) => (inline.has(id) ? [] : [name]));
+	const unmentioned = [...attachments].flatMap(([id, link]) => (inline.has(id) ? [] : [link]));
 	return [
 		...nonEmpty(prompt),
 		...(unmentioned.length > 0 ? [`[Attached: ${unmentioned.join(', ')}]`] : []),
 	];
+}
+
+function attachmentLinks(payload: unknown): Map<string, string> {
+	const references = isRecord(payload) ? payload['attachments'] : undefined;
+	if (!Array.isArray(references)) return new Map();
+	return new Map(
+		references.flatMap((reference) => {
+			const id = text(reference, 'id');
+			const name = text(reference, 'displayName').trim();
+			const path = text(reference, 'relativePath').trim();
+			if (!id || !name) return [];
+			return [[id, path ? `[${name}](<${path}>)` : name] as const];
+		}),
+	);
 }
 
 function namedReferences(

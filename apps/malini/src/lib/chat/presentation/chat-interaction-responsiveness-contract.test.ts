@@ -6,7 +6,7 @@ const surface = readFileSync(new URL('./ChatSurface.svelte', import.meta.url), '
 
 describe('native chat interaction responsiveness', () => {
 	it('snapshots every Send before it hands the prompt to the serial composer submission', () => {
-		const submitStart = composer.indexOf('function submit(): void');
+		const submitStart = composer.indexOf('function submit(steer = false): void');
 		const submitEnd = composer.indexOf('\n\tfunction continueTodoSubmission', submitStart);
 		const submit = composer.slice(submitStart, submitEnd);
 		const deliverStart = composer.indexOf('function deliver(submission: ComposerDelivery');

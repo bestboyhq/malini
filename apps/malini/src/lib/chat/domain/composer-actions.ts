@@ -9,6 +9,10 @@ export type AgentComposerFileAttachment = Readonly<{
 
 export type StagedAgentAttachment = AgentComposerFileAttachment;
 
+export type AdoptedAttachment =
+	| Readonly<{ sourceId: string; attachment: StagedAgentAttachment }>
+	| Readonly<{ sourceId: string; error: string }>;
+
 export const MAX_COMPOSER_ATTACHMENTS = 10;
 
 export function isImageAttachment(attachment: StagedAgentAttachment): boolean {

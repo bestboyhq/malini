@@ -109,6 +109,21 @@ describe('submitting while a run is active', () => {
 		await vi.waitFor(() => expect(queuedPrompts()).toEqual([]));
 	});
 
+	it('steers a prompt past the queue by interrupting the run, where a plain one waits', async () => {
+		const { platform } = await openPromptPipeline([chat('s-a1', { status: 'running' })]);
+		rememberChatTurn('s-a1');
+		chatSessionStore.sessionId = 's-a1';
+		const cancelRun = { command: 'chat.cancel-run', args: { sessionId: 's-a1' } };
+
+		await submit(submission({ sessionId: 's-a1', prompt: 'Queued first' }));
+		expect(platform.calls).not.toContainEqual(cancelRun);
+
+		await submit(submission({ sessionId: 's-a1', prompt: 'Steer now', steer: true }));
+
+		await vi.waitFor(() => expect(platform.calls).toContainEqual(cancelRun));
+		expect(queuedPrompts()).toEqual(['Steer now', 'Queued first']);
+	});
+
 	it('moves a queued prompt from the queue into the transcript in one step', async () => {
 		await openPromptPipeline([chat('s-a1')]);
 		rememberChatTurn('s-a1');

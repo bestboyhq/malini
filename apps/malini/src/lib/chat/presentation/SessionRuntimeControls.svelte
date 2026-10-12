@@ -145,7 +145,7 @@
 						r={GAUGE_RADIUS}
 						fill="none"
 						stroke="currentColor"
-						stroke-width="1.5"
+						stroke-width="2"
 						class="opacity-25"
 					/>
 					{#if contextPercent}
@@ -155,7 +155,7 @@
 							r={GAUGE_RADIUS}
 							fill="none"
 							stroke="currentColor"
-							stroke-width="1.5"
+							stroke-width="2"
 							stroke-linecap="round"
 							stroke-dasharray={GAUGE_CIRCUMFERENCE}
 							stroke-dashoffset={gaugeDashOffset}

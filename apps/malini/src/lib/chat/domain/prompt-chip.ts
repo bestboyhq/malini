@@ -61,6 +61,29 @@ export function promptChipIds(prompt: string, kind: PromptChipKind): string[] {
 		.map((ref) => ref.id);
 }
 
+export function foreignAttachmentIds(
+	prompt: string,
+	known: readonly Readonly<{ id: string }>[],
+): string[] {
+	const ids = new Set(known.map(({ id }) => id));
+	return promptChipIds(prompt, 'attachment').filter((id) => !ids.has(id));
+}
+
+export function rewritePromptChips(
+	prompt: string,
+	kind: PromptChipKind,
+	rewrite: (id: string) => string | null,
+): string {
+	return promptChipSegments(prompt)
+		.map((segment) => {
+			if (segment.kind === 'text') return segment.text;
+			if (segment.ref.kind !== kind) return promptChipMarker(segment.ref);
+			const id = rewrite(segment.ref.id);
+			return id === null ? '' : promptChipMarker({ kind, id });
+		})
+		.join('');
+}
+
 export function promptChipSegments(prompt: string): PromptChipSegment[] {
 	const segments: PromptChipSegment[] = [];
 	let cursor = 0;
