@@ -298,6 +298,34 @@ describe('glide driver', () => {
 		expect(element.scrollTop).toBe(1_000);
 	});
 
+	it('keeps its sub-pixel progress through retargets when the element snaps writes to whole pixels', () => {
+		const snappingScheduler = testScheduler();
+		const exactScheduler = testScheduler();
+		const snapping = createScrollGlide(snappingScheduler);
+		const exact = createScrollGlide(exactScheduler);
+		let stored = 0;
+		const snapped = {
+			get scrollTop(): number {
+				return stored;
+			},
+			set scrollTop(value: number) {
+				stored = Math.round(value);
+			},
+		};
+		const fractional = { scrollTop: 0 };
+		let drift = 0;
+
+		for (let frame = 1; frame <= 120; frame += 1) {
+			snapping.glide(snapped, frame * 3);
+			exact.glide(fractional, frame * 3);
+			snappingScheduler.advance(FRAME_MS);
+			exactScheduler.advance(FRAME_MS);
+			drift = Math.max(drift, Math.abs(snapped.scrollTop - Math.round(fractional.scrollTop)));
+		}
+
+		expect(drift).toBe(0);
+	});
+
 	it('exposes the constant the transcript is tuned against', () => {
 		expect(SCROLL_SPRING_STIFFNESS).toBe(420);
 	});
