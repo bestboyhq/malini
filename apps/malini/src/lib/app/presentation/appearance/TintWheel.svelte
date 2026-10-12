@@ -45,6 +45,7 @@
 	const point: GaugePoint = $derived([needle.at(0), needle.at(1)]);
 	const shown = $derived(tintAtWheel(point));
 	const neutral = $derived(!shown.chroma);
+	const tuned = $derived(tintAtWheel(wheelPointOf(appearance)));
 
 	$effect(() => needle.moveTo(wheelPointOf(appearance), driving));
 
@@ -75,9 +76,9 @@
 	{/snippet}
 	<Instrument
 		label="Tint wheel"
-		valueText={neutral
-			? 'Neutral'
-			: `Hue ${degreesLabel(shown.hue ?? 0)}, chroma ${chromaLabel(shown.chroma ?? 0)}`}
+		valueText={tuned.chroma
+			? `Hue ${degreesLabel(tuned.hue ?? 0)}, chroma ${chromaLabel(tuned.chroma)}`
+			: 'Neutral'}
 		width={SIZE}
 		height={SIZE}
 		inset={INSET}

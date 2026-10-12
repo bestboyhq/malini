@@ -1,7 +1,7 @@
 import { untrack } from 'svelte';
 import { prefersReducedMotion, Spring } from 'svelte/motion';
 
-const STIFFNESS = 0.072;
+const STIFFNESS = 0.0001;
 const DAMPING = 0.38;
 const PRECISION = 0.0005;
 
