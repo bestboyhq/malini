@@ -111,7 +111,7 @@
 		disabled?: boolean;
 		onnewchat: () => void | Promise<void>;
 		onclosefresh: () => void | Promise<void>;
-		oncloseworkstream: () => void;
+		oncloseworkstream?: () => void;
 		freshCloseNavigationTarget?: string | undefined;
 	}
 
@@ -402,7 +402,7 @@
 			workstreamTabs.select(workstreamId, openDocument.document.id);
 			return;
 		}
-		oncloseworkstream();
+		oncloseworkstream?.();
 	}
 
 	function closeSessionTab(event: MouseEvent, session: SessionRecord): void {

@@ -36,7 +36,11 @@ export function toolOutputBlock(
 	readsFile: boolean,
 ): ToolPayloadBlock {
 	if (typeof output !== 'string') return jsonBlock('Output', output);
-	return { label: 'Output', code: output, language: readsFile && path ? languageForPath(path) : null };
+	return {
+		label: 'Output',
+		code: output,
+		language: readsFile && path ? languageForPath(path) : null,
+	};
 }
 
 function jsonBlock(label: string, value: unknown): ToolPayloadBlock {

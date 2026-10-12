@@ -842,7 +842,9 @@ function isYamlDocument(head: string): boolean {
 		.filter((line) => line.trim().length > 0 && !line.trim().startsWith('#'));
 	if (lines.length < 2) return false;
 	const mapped = lines.filter((line) => YAML_SHAPE.test(line) || /^[ \t]*-[ \t]+\S/u.test(line));
-	return mapped.length / lines.length >= 0.8 && !lines.some((line) => /[;{]$|^\}/u.test(line.trim()));
+	return (
+		mapped.length / lines.length >= 0.8 && !lines.some((line) => /[;{]$|^\}/u.test(line.trim()))
+	);
 }
 
 const DETECTION_MEMO_LIMIT = 64;

@@ -13,7 +13,9 @@ describe('hover card interaction wiring', () => {
 		expect(hoverCard).toMatch(
 			/import \{[^}]*\bcalculatePosition\b[^}]*\} from '\.\.\/\.\.\/overlay';/su,
 		);
-		expect(hoverCard).toContain('const position = calculatePosition(triggerRect, layoutRect(cardEl)');
+		expect(hoverCard).toContain(
+			'const position = calculatePosition(triggerRect, layoutRect(cardEl)',
+		);
 		expect(hoverCard).not.toContain('cardEl.getBoundingClientRect()');
 		expect(hoverCard).toContain('cardEl.style.left = `${position.left}px`');
 		expect(hoverCard).not.toContain('tick()');
