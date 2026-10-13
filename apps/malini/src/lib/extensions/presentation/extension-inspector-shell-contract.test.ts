@@ -126,7 +126,9 @@ describe('ExtensionInspectorShell contract', () => {
 		expect(source).toContain('onselect={() => selectPanel(panel.id)}');
 		expect(source).toContain('onclick={() => openPanel(panel.id)}');
 		expect(source).toContain("'data-navigation-panel-id': adjacentPanelId ?? undefined");
-		expect(source).toContain('onclose={(event) => closePanel(event, panel.id)}');
+		expect(source).toContain(
+			'onclose={visiblePanels.length > 1 ? (event) => closePanel(event, panel.id) : undefined}',
+		);
 		expect(source).toContain('visiblePanels.find((candidate) => candidate.id !== panel.id)?.id');
 		expect(source).toContain('data-navigation-panel-id={hideActiveTargetPanelId ?? undefined}');
 		expect(source).toContain(

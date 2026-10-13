@@ -103,6 +103,7 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		await expect(closeExtensions).toBeFocused();
 		await page.keyboard.press('Enter');
 		await expectPanels(page, ['tab "Files" [selected]']);
+		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
