@@ -114,7 +114,7 @@ describe('the top bar primary action', () => {
 		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Open draft');
 
 		runPullRequestActionCommand(noStaleStatus);
-		expect(pullRequestBusyQuery.label).toBe('Opening draft…');
+		expect(pullRequestBusyQuery.label).toBe('Opening draft');
 		await settle();
 
 		expect(sent('pull-requests.open-draft')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
@@ -163,7 +163,7 @@ describe('the top bar primary action', () => {
 
 		runPullRequestActionCommand(noStaleStatus);
 
-		expect(pullRequestBusyQuery.label).toBe('Aborting rebase…');
+		expect(pullRequestBusyQuery.label).toBe('Aborting rebase');
 	});
 
 	it('names a refused intent in a toast and frees the button', async () => {

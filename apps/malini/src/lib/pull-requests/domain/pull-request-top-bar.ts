@@ -65,7 +65,7 @@ function workstreamStatus(
 	if (operation) return operation;
 
 	const pullRequest = read.pullRequest;
-	if (pullRequest?.state === 'merged') return merged(read);
+	if (pullRequest?.state === 'merged') return MERGED;
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return { ...openStatus(read, pullRequest), action: queueMerge(pullRequest.number, ship) };
 	}
@@ -136,7 +136,7 @@ function openingDraft(ship: PullRequestShip): WorkstreamStatus {
 			? 'Retrying after an error'
 			: waiting
 				? 'After the agent finishes'
-				: 'Committing and pushing',
+				: null,
 		tooltip: ship.lastError
 			? `Opening the draft failed and malini retries it: ${ship.lastError}`
 			: waiting
@@ -150,7 +150,7 @@ const NOTHING_YET: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
 	label: 'Build something great',
-	detail: 'Ask the agent for a change',
+	detail: null,
 	tooltip: null,
 	action: null,
 };
@@ -159,7 +159,7 @@ const EXTENSION_OFF: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
 	label: 'Repository extension is off',
-	detail: 'Add it back from the inspector',
+	detail: null,
 	tooltip: 'Turn the Repository extension back on to open or merge a pull request',
 	action: null,
 };
@@ -168,7 +168,7 @@ function withoutGithub(read: RepositorySurface): WorkstreamStatus {
 	const changed = changedFileCount(read);
 	if (changed === 0) return NOTHING_YET;
 	return {
-		...line('idle', filesChanged(changed), 'No GitHub remote to publish to'),
+		...line('idle', filesChanged(changed), 'No GitHub remote'),
 		tooltip: 'Connect this workstream to a GitHub repository to open a pull request',
 		action: null,
 	};
@@ -217,16 +217,11 @@ function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
 	);
 }
 
-function merged(read: RepositorySurface): WorkstreamStatus {
-	return {
-		...line('merged', 'Merged', read.baseBranch ? `Into ${read.baseBranch}` : null),
-		action: null,
-	};
-}
+const MERGED: WorkstreamStatus = { ...line('merged', 'Merged', null), action: null };
 
 function closed(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	return {
-		...line('idle', 'Closed', 'Not merged'),
+		...line('idle', 'Closed', null),
 		action: changedFileCount(read) > 0 ? openDraft(ship, true) : null,
 	};
 }
@@ -235,7 +230,7 @@ function local(read: RepositorySurface, ship: PullRequestShip | null): Workstrea
 	const changed = changedFileCount(read);
 	if (changed === 0) return NOTHING_YET;
 	return {
-		...line('idle', filesChanged(changed), 'Not on GitHub yet'),
+		...line('idle', filesChanged(changed), null),
 		action: openDraft(ship, false),
 	};
 }
@@ -247,9 +242,9 @@ function openBeforeRead(pullRequestNumber: number, ship: PullRequestShip): Works
 function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): StatusLine {
 	const base = read.baseBranch ?? 'its base';
 	if (pullRequestConflictsWithBase(pullRequest) || read.conflictMarkerPaths.length > 0) {
-		return line('idle', 'Merge conflicts', `With ${base}`);
+		return line('idle', `Conflicts with ${base}`, null);
 	}
-	if (pullRequest.githubLagsPush) return running('Starting on GitHub');
+	if (pullRequest.githubLagsPush) return CHECKS_STARTING;
 
 	const checks = pullRequest.checkItems;
 	const failing = surfaceBlockingChecks(checks).filter(
@@ -261,14 +256,19 @@ function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): S
 	}
 	const threads = pullRequest.unresolvedReviewThreadCount ?? 0;
 	if (threads > 0) {
-		return line('idle', `${threads} unresolved ${plural(threads, 'thread')}`, 'Comments on GitHub');
+		return line('idle', `${threads} unresolved ${plural(threads, 'thread')}`, null);
 	}
 
 	const pending = checks.filter(
 		(check) => !check.passed && !check.failed && !check.notStartedReason,
 	).length;
-	if (pending > 0) return running(`${pending} of ${checks.length} pending`);
-	if (pullRequest.checks === 'pending') return running('Starting on GitHub');
+	if (pending > 0) {
+		return {
+			...line('idle', 'Checks running', `${pending} of ${checks.length} pending`),
+			busy: true,
+		};
+	}
+	if (pullRequest.checks === 'pending') return CHECKS_STARTING;
 	const notStartedReason = checks.find((check) => check.notStartedReason)?.notStartedReason;
 	if (notStartedReason) {
 		return {
@@ -281,14 +281,11 @@ function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): S
 
 	const mergeState = pullRequest.mergeableState?.trim().toLocaleLowerCase();
 	if (read.behind > 0 || mergeState === 'behind') {
-		return line(
-			'idle',
-			`Behind ${base}`,
-			read.behind > 0 ? `${read.behind} ${plural(read.behind, 'commit')}` : null,
-		);
+		const commits = read.behind > 0 ? `${read.behind} ${plural(read.behind, 'commit')} ` : '';
+		return line('idle', sentenceCase(`${commits}behind ${base}`), null);
 	}
 	if (pullRequest.reviewDecision === 'review_required') {
-		return line('idle', 'Review required', 'Needs an approval');
+		return line('idle', 'Review required', null);
 	}
 	if (optional > 0) {
 		return line(
@@ -297,10 +294,8 @@ function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): S
 			`${optional} optional ${plural(optional, 'check')} failed`,
 		);
 	}
-	if (checks.length > 1)
-		return line('ready', 'Ready to merge', `All ${checks.length} checks passed`);
-	if (checks.length === 1 || pullRequest.checks === 'success') {
-		return line('ready', 'Ready to merge', 'Checks passed');
+	if (checks.length > 0 || pullRequest.checks === 'success') {
+		return line('ready', 'Ready to merge', null);
 	}
 	return line('idle', 'Open', 'No checks configured');
 }
@@ -309,9 +304,7 @@ function line(tone: WorkstreamStatus['tone'], label: string, detail: string | nu
 	return { tone, busy: false, label, detail, tooltip: null };
 }
 
-function running(detail: string): StatusLine {
-	return { tone: 'idle', busy: true, label: 'Checks running', detail, tooltip: null };
-}
+const CHECKS_STARTING: StatusLine = { ...line('idle', 'Checks starting', null), busy: true };
 
 function attention(
 	detail: string | null,

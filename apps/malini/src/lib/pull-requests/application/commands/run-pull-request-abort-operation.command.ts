@@ -18,7 +18,7 @@ function runPullRequestAbortOperationCommand(
 	onGitStatusStale: () => void,
 ): void {
 	if (pullRequestActionStore.busy) return;
-	const scope = pullRequestScopeStore.claim(`Aborting ${operation}…`);
+	const scope = pullRequestScopeStore.claim(`Aborting ${operation}`);
 	if (!scope) return;
 	void (async () => {
 		try {

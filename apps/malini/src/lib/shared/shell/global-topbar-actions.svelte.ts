@@ -150,7 +150,7 @@ export type GlobalTopBarGithubStatus = Readonly<{
 
 class GlobalTopBarGithubStatusStore {
 	current = $state<GlobalTopBarGithubStatus | null>(null);
-	#owner: string | null = null;
+	#owner = $state<string | null>(null);
 
 	publish(owner: string, status: GlobalTopBarGithubStatus | null): void {
 		this.#owner = owner;
