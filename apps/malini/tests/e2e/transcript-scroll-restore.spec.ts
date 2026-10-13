@@ -245,7 +245,7 @@ test('a chat reopens where its reader left it after malini restarts', async () =
 			'data-scroll-follow',
 			'reader',
 		);
-		await expect(page.getByRole('button', { name: 'New messages below' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Jump to latest' })).toBeVisible();
 		await captureFlow(app, 'transcript-scroll-restore-restarted');
 
 		expectCleanConsole(app);

@@ -14,6 +14,9 @@ const TOOL_ROWS = ['tool', 'bash', 'file', 'activity-group']
 
 const OVERLAYS = '[data-overlay-layer]';
 
+const DISCLOSURE_OPENERS =
+	'details:not([open]) > summary, [aria-expanded="false"]:not([aria-haspopup])';
+
 const SCROLL_UP_KEYS: ReadonlySet<string> = new Set(['PageUp', 'ArrowUp', 'Home']);
 const SCROLL_KEYS: ReadonlySet<string> = new Set([
 	...SCROLL_UP_KEYS,
@@ -32,6 +35,7 @@ const SUBPIXEL_SLACK_PX = 1;
 export type TranscriptScroll = {
 	readonly follow: TranscriptFollow;
 	readonly contentBelow: boolean;
+	readonly newContentBelow: boolean;
 	readonly opening: boolean;
 	observe(viewport: HTMLElement, messageList: HTMLElement): () => void;
 	handleScroll(element: HTMLElement): void;
@@ -61,6 +65,7 @@ export function createTranscriptScroll(
 	let messageListEl: HTMLElement | null = null;
 	let follow = $state<TranscriptFollow>('bottom');
 	let contentBelow = $state(false);
+	let newContentBelow = $state(false);
 	let openKey: string | null = null;
 	let opening = true;
 	let heldTop = 0;
@@ -156,6 +161,7 @@ export function createTranscriptScroll(
 
 	function updateContentBelow(): void {
 		const viewport = viewportEl;
+		if (follow === 'bottom' && !hovering) newContentBelow = false;
 		contentBelow =
 			viewport !== null &&
 			(follow === 'reader' || hovering) &&
@@ -315,6 +321,10 @@ export function createTranscriptScroll(
 		if (event.relatedTarget === null) releaseHoverSoon();
 	}
 
+	function onListClick(event: MouseEvent): void {
+		if (event.target instanceof Element && event.target.closest(DISCLOSURE_OPENERS)) becomeReader();
+	}
+
 	function onViewportPointerDown(event: PointerEvent): void {
 		if (event.target !== viewportEl || !scrollsBeyondView()) return;
 		pointerScrolling = true;
@@ -345,6 +355,10 @@ export function createTranscriptScroll(
 			return contentBelow;
 		},
 
+		get newContentBelow(): boolean {
+			return newContentBelow;
+		},
+
 		get opening(): boolean {
 			return opening;
 		},
@@ -372,8 +386,10 @@ export function createTranscriptScroll(
 			document.addEventListener('pointermove', onDocumentPointerMove, true);
 			document.addEventListener('pointerout', onDocumentPointerOut, true);
 			viewport.addEventListener('pointerdown', onViewportPointerDown);
+			messageList.addEventListener('click', onListClick, true);
 			window.addEventListener('pagehide', rememberNow);
 			return () => {
+				messageList.removeEventListener('click', onListClick, true);
 				document.removeEventListener('keydown', onDocumentKeydown, true);
 				document.removeEventListener('pointerup', onPointerUp, true);
 				document.removeEventListener('pointermove', onDocumentPointerMove, true);
@@ -436,6 +452,7 @@ export function createTranscriptScroll(
 
 		open(key: string, remembered: TranscriptAnchor | null): void {
 			openKey = key;
+			newContentBelow = false;
 			bottomAnchor = null;
 			opening = true;
 			anchor = remembered;
@@ -456,6 +473,7 @@ export function createTranscriptScroll(
 		leave: rememberNow,
 
 		followNewContent(): void {
+			if (!opening && (follow === 'reader' || hovering)) newContentBelow = true;
 			opening = false;
 			scheduleReconcile();
 		},

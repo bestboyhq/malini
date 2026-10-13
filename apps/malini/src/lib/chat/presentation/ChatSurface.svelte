@@ -115,7 +115,8 @@
 
 	let footerHeight = $state(0);
 	let transcript: ChatMessageList | null = $state(null);
-	let newMessagesBelow = $state(false);
+	let contentBelow = $state(false);
+	let newContentBelow = $state(false);
 	const nudgeMotion = (): { y: number; duration: number } => ({
 		y: 4,
 		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
@@ -289,7 +290,8 @@
 								>
 									<ChatMessageList
 										bind:this={transcript}
-										bind:newMessagesBelow
+										bind:contentBelow
+										bind:newContentBelow
 										workstreamId={presentedWorkstreamId}
 										sessionId={presentedSessionId}
 										envelopes={presentedTranscript.envelopes}
@@ -316,7 +318,7 @@
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
 						>
-							{#if stage === 'transcript' && newMessagesBelow && !presentationPending}
+							{#if stage === 'transcript' && contentBelow && !presentationPending}
 								<div
 									class="chat-stage-inset pointer-events-none absolute inset-x-0 bottom-full flex justify-center pr-[var(--scrollbar-gutter)] pb-3"
 									transition:fly={nudgeMotion()}
@@ -327,11 +329,11 @@
 										radius="full"
 										bordered
 										class="shadow-popup pointer-events-auto gap-1.5 pr-3.5 pl-3"
-										data-testid="chat-new-messages-below"
+										data-testid="chat-jump-to-latest"
 										onclick={() => transcript?.jumpToLatest()}
 									>
 										<Icon name="arrow-down" size={14} />
-										New messages below
+										{newContentBelow ? 'New messages below' : 'Jump to latest'}
 									</Button>
 								</div>
 							{/if}
