@@ -1,6 +1,7 @@
 import type { RepositoryImportSource } from './github-auth';
 import { projectIdentityCandidatesForRepoUrl } from './project-identity';
 import type { Project, Repository } from './repository';
+import { DEFAULT_SIDEBAR_ORDER, inSidebarOrder, type SidebarOrder } from './sidebar-order';
 import type { Workstream } from './workstream';
 
 export type ConnectedRepositoryContext = {
@@ -18,12 +19,15 @@ export function connectedRepositoryContexts(input: {
 	repositories: readonly Repository[];
 	workstreams: readonly Workstream[];
 	activeWorkstreamId?: string | null;
+	order?: SidebarOrder;
 }): ConnectedRepositoryContext[] {
 	const contexts: ConnectedRepositoryContext[] = [];
 	const ownerByWorkstreamId = resolveWorkstreamOwners(input);
+	const order = input.order ?? DEFAULT_SIDEBAR_ORDER;
+	const listedWorkstreams = inSidebarOrder(input.workstreams, order.workstreamIds);
 
-	for (const repo of input.repositories) {
-		const workstreams = input.workstreams.filter(
+	for (const repo of inSidebarOrder(input.repositories, order.repositoryIds)) {
+		const workstreams = listedWorkstreams.filter(
 			(stream) => ownerByWorkstreamId.get(stream.id) === repo.id,
 		);
 		if (workstreams.length === 0 && isLocalRepositoryId(repo.id)) {
@@ -106,6 +110,7 @@ export function nextListedWorkstream(input: {
 	repositories: readonly Repository[];
 	workstreams: readonly Workstream[];
 	workstreamId: string;
+	order: SidebarOrder;
 }): Workstream | null {
 	const listed = connectedRepositoryContexts(input).flatMap((context) => context.workstreams);
 	const index = listed.findIndex((workstream) => workstream.id === input.workstreamId);
