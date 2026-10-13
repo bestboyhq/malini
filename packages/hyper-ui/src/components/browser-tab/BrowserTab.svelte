@@ -16,7 +16,7 @@
 		selected: boolean;
 		closeLabel: string;
 		icon?: Snippet | undefined;
-		onclose: (event: MouseEvent) => void;
+		onclose?: ((event: MouseEvent) => void) | undefined;
 		onselect?: (event: MouseEvent) => void;
 		trailing?: Snippet | undefined;
 		surface?: BrowserTabSurface;
@@ -128,20 +128,15 @@
 	};
 
 	const closeRevealClass: Record<BrowserTabSurface, string> = {
-		panel: 'mr-1 h-4 w-4 group-data-[selected=true]/browser-tab:opacity-100',
-		band: 'h-5 w-5 translate-x-1.5 duration-150 ease-out group-hover/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:opacity-100',
-	};
-
-	const closeIconSize: Record<BrowserTabSurface, number> = {
-		panel: 8,
-		band: 14,
+		panel: 'mr-1 group-data-[selected=true]/browser-tab:opacity-100',
+		band: 'translate-x-1.5 duration-150 ease-out group-hover/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:opacity-100',
 	};
 
 	const hiddenUnderCloseClass =
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
 	const tabPaddingClass = $derived(
-		surface === 'band' ? (icon ? 'pr-2 pl-1.5' : 'px-2') : 'pr-0.5 pl-1.5',
+		surface === 'panel' && onclose ? 'pr-0.5 pl-1.5' : icon ? 'pr-2 pl-1.5' : 'px-2',
 	);
 
 	const surfaceClass = $derived(
@@ -170,23 +165,25 @@
 	{#if description !== undefined}
 		<span id={descriptionId} hidden>{description}</span>
 	{/if}
-	<Tooltip content={closeLabel} placement={tooltipPlacement} class={closeAnchorClass[surface]}>
-		<IconButton
-			bare
-			ariaLabel={closeLabel}
-			disabled={closeDisabled}
-			class={[
-				'focus-visible:ring-button-primary/40 relative grid shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color,translate] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
-				closeRevealClass[surface],
-				tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
-				closeHoverClass[surface],
-			]}
-			onclick={onclose}
-			{...closeAttributes}
-		>
-			<Icon name="close" size={closeIconSize[surface]} />
-		</IconButton>
-	</Tooltip>
+	{#if onclose}
+		<Tooltip content={closeLabel} placement={tooltipPlacement} class={closeAnchorClass[surface]}>
+			<IconButton
+				bare
+				ariaLabel={closeLabel}
+				disabled={closeDisabled}
+				class={[
+					'focus-visible:ring-button-primary/40 relative grid size-5 shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color,translate] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
+					closeRevealClass[surface],
+					tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
+					closeHoverClass[surface],
+				]}
+				onclick={onclose}
+				{...closeAttributes}
+			>
+				<Icon name="close" size={14} />
+			</IconButton>
+		</Tooltip>
+	{/if}
 </div>
 
 {#snippet tab()}

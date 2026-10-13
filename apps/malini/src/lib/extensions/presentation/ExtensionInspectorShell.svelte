@@ -394,7 +394,7 @@
 	function closePanel(event: MouseEvent, panelId: string): void {
 		event.preventDefault();
 		event.stopPropagation();
-		if (!inspectorInteractive || visiblePanels.length <= 1) return;
+		if (!inspectorInteractive) return;
 
 		const closingIndex = visiblePanels.findIndex((panel) => panel.id === panelId);
 		const closingPanel = visiblePanels[closingIndex];
@@ -644,7 +644,7 @@
 						tabindex={panel.id === inspectorTabStopKey ? 0 : -1}
 						ariaControls={controlledPanel(panel.id)}
 						closeLabel={`Close ${panel.label}`}
-						closeDisabled={!inspectorInteractive || visiblePanels.length <= 1}
+						closeDisabled={!inspectorInteractive}
 						data-active={String(isActive)}
 						data-panel-id={panel.id}
 						tabAttributes={{
@@ -672,7 +672,7 @@
 							'data-panel-id': panel.id,
 						}}
 						onselect={() => selectPanel(panel.id)}
-						onclose={(event) => closePanel(event, panel.id)}
+						onclose={visiblePanels.length > 1 ? (event) => closePanel(event, panel.id) : undefined}
 					>
 						{#snippet icon()}
 							<span class="grid place-items-center" aria-hidden="true">
@@ -735,21 +735,26 @@
 				{/if}
 
 				<span class="shrink-0" bind:this={panelPickerAnchor}>
-					<Tooltip content="Open inspector panel" placement="bottom" suppressed={panelPickerOpen}>
+					<Tooltip
+						content="Open inspector panel"
+						placement="bottom"
+						suppressed={panelPickerOpen}
+						class="size-7 items-center justify-center"
+					>
 						<IconButton
+							bare
 							ariaLabel="Open inspector panel"
-							variant="ghost"
 							ariaHasPopup="menu"
 							ariaExpanded={panelPickerOpen}
 							disabled={!inspectorInteractive}
-							class="text-fg-tertiary h-7 w-7 rounded-md"
+							class="text-fg-tertiary hover:bg-surface-50-selected hover:text-fg-default aria-expanded:bg-surface-50-selected aria-expanded:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
 							data-testid="extension-inspector-add"
 							onclick={() => {
 								settingsOpen = false;
 								panelPickerOpen = !panelPickerOpen;
 							}}
 						>
-							<Icon name="plus" size={13} />
+							<Icon name="plus" size={14} />
 						</IconButton>
 					</Tooltip>
 				</span>
