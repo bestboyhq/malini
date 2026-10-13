@@ -41,6 +41,7 @@
 	} from './render-state';
 	import BufferedStreamingMarkdown from './BufferedStreamingMarkdown.svelte';
 	import BufferedStreamingText from './BufferedStreamingText.svelte';
+	import ExpandMark from './ExpandMark.svelte';
 	import RunStatusLine from './RunStatusLine.svelte';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
@@ -895,20 +896,18 @@
 							{#if isLastRun && run.terminal === null}
 								{#each liveThinkingBlocks as block (block.contentId)}
 									<details
-										class="group/live-thought text-fg-tertiary w-full"
+										class="group/expand text-fg-tertiary w-full text-sm"
 										use:stageEnter={blockKey(sessionId, block.runId, block.contentId)}
 										data-message-kind="thinking-live"
 										data-testid="thinking-live"
 									>
 										<summary
-											class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-1.5 text-xs transition-[color,border-color]"
+											class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 										>
-											<Icon
-												name="chevron-right"
-												size={12}
-												class="shrink-0 transition-transform group-open/live-thought:rotate-90"
-											/>
-											<span class="shrink-0 font-medium">Thinking…</span>
+											<ExpandMark live>
+												<Icon name="brain" size={14} />
+											</ExpandMark>
+											<span class="shrink-0">Thinking…</span>
 											<span
 												class="text-fg-tertiary/75 min-w-0 truncate"
 												data-testid="thinking-live-preview"
@@ -917,7 +916,7 @@
 											</span>
 										</summary>
 										<div
-											class="text-fg-secondary pt-0.5 pb-1 pl-[1.125rem] text-xs leading-relaxed whitespace-pre-wrap select-text"
+											class="text-fg-secondary pt-1 pb-2 pl-5.5 text-xs leading-relaxed whitespace-pre-wrap select-text"
 										>
 											<BufferedStreamingText text={block.text} />
 										</div>
