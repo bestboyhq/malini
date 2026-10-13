@@ -18,6 +18,7 @@ type TimelineDerivation = {
 	limit: number;
 	window: RunTimelineWindow;
 	grouped: readonly GroupedRunTimelineItem[] | null;
+	shownLinear: boolean;
 };
 
 export type TimelineDerivations = {
@@ -74,6 +75,7 @@ export function createTimelineDerivations(input: {
 			limit,
 			window: windowRunTimeline(items, limit),
 			grouped: null,
+			shownLinear: cached?.shownLinear ?? false,
 		};
 		timelineDerivations.set(run.runId, fresh);
 		return fresh;
@@ -112,8 +114,9 @@ export function createTimelineDerivations(input: {
 			window: RunTimelineWindow,
 			isLastRun: boolean,
 		): readonly GroupedRunTimelineItem[] {
-			if (isLastRun) return window.items;
 			const derivation = derivationFor(run);
+			if (derivation && isLastRun) derivation.shownLinear = true;
+			if (isLastRun || derivation?.shownLinear) return window.items;
 			if (!derivation) return groupRunTimeline(window.items);
 			derivation.grouped ??= groupRunTimeline(window.items);
 			return derivation.grouped;

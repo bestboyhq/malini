@@ -49,13 +49,16 @@
 >
 	{#if statusText && openRun}
 		<div
-			class="flex min-w-0 flex-1 items-center gap-1.5 text-xs"
+			class="flex min-w-0 flex-1 items-center gap-2 text-xs"
 			use:stageEnter={timelineKey(openRun, 'status')}
 			data-testid="run-status-line"
 			data-message-kind="assistant-working"
 		>
 			{#if waitingForUser}
-				<span class="text-fg-tertiary grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+				<span
+					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+					aria-hidden="true"
+				>
 					<Icon name="pause" size={12} />
 				</span>
 				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
@@ -63,7 +66,7 @@
 				</span>
 			{:else}
 				<span
-					class="text-fg-tertiary grid h-5 w-5 shrink-0 place-items-center"
+					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
 					aria-hidden="true"
 					data-testid="agent-working-loader"
 				>

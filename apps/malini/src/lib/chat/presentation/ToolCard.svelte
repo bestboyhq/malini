@@ -3,6 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import EditDiffPreview from './EditDiffPreview.svelte';
+	import ExpandMark from './ExpandMark.svelte';
 	import ToolImageRow from './ToolImageRow.svelte';
 	import { toolImageRead } from './tool-image-read';
 	import { toolInputBlocks, toolOutputBlock } from './tool-payload';
@@ -124,36 +125,25 @@
 		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} {onopenimage} />
 	</div>
 {:else}
-	<details class="group/tool text-sm" data-tool-status={status} bind:open={expanded}>
+	<details class="group/expand text-sm" data-tool-status={status} bind:open={expanded}>
 		<summary
-			class="group/summary text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
+			class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 			aria-label={`${expanded ? 'Hide' : 'Show'} input and output for ${displayName}`}
 			data-testid="tool-card-summary"
 		>
-			<span class="relative h-3.5 w-3.5 shrink-0" aria-hidden="true">
-				<span
-					class={[
-						'absolute inset-0 grid place-items-center transition-opacity group-open/tool:opacity-0 group-hover/summary:opacity-0',
-						status === 'running' && !waiting && 'tool-mark-live text-fg-secondary',
-					]}
-				>
-					{#if actionKind === 'edit'}
-						<Icon name="pencil" class="shrink-0" size={13} />
-					{:else if actionKind === 'command'}
-						<Icon name="terminal" size={14} class="shrink-0" />
-					{:else if actionKind === 'read'}
-						<Icon name="note" size={14} class="shrink-0" />
-					{:else if actionKind === 'search'}
-						<Icon name="search" size={14} class="shrink-0" />
-					{:else}
-						<Icon name="wrench" size={14} class="shrink-0" />
-					{/if}
-				</span>
-				<Icon
-					name="chevron-right"
-					class="absolute inset-0 h-3.5 w-3.5 opacity-0 transition-[opacity,transform] duration-150 group-open/tool:rotate-90 group-open/tool:opacity-100 group-hover/summary:opacity-100"
-				/>
-			</span>
+			<ExpandMark live={status === 'running' && !waiting}>
+				{#if actionKind === 'edit'}
+					<Icon name="pencil" class="shrink-0" size={13} />
+				{:else if actionKind === 'command'}
+					<Icon name="terminal" size={14} class="shrink-0" />
+				{:else if actionKind === 'read'}
+					<Icon name="note" size={14} class="shrink-0" />
+				{:else if actionKind === 'search'}
+					<Icon name="search" size={14} class="shrink-0" />
+				{:else}
+					<Icon name="wrench" size={14} class="shrink-0" />
+				{/if}
+			</ExpandMark>
 			{#if actionKind === 'edit' && workstreamId && editPath}
 				<EditDiffPreview {workstreamId} path={editPath} {label} />
 			{:else if description}
@@ -190,7 +180,7 @@
 		</summary>
 
 		{#if expanded}
-			<div class="text-2xs mt-1 ml-5 grid grid-cols-1 gap-1.5 pb-2">
+			<div class="text-2xs mt-1 ml-5.5 grid grid-cols-1 gap-1.5 pb-2">
 				{#each inputBlocks as block (block.label)}
 					<div>
 						<div class="text-fg-tertiary mb-1 text-[10px]">{block.label}</div>
@@ -220,25 +210,5 @@
 <style>
 	summary::-webkit-details-marker {
 		display: none;
-	}
-
-	:global(.tool-mark-live) {
-		animation: tool-mark-breathe 1.6s ease-in-out infinite;
-	}
-
-	@keyframes tool-mark-breathe {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.45;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		:global(.tool-mark-live) {
-			animation: none;
-		}
 	}
 </style>

@@ -8,6 +8,7 @@
 	import { relativizeWorkstreamPath } from '../workstream-path';
 	import BashToolCall from '../BashToolCall.svelte';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
+	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
@@ -35,7 +36,7 @@
 	<ChatPromptBubble {item} {run} {isLastRun} />
 {:else if item.kind === 'thought'}
 	<details
-		class="group/thought text-fg-tertiary w-full text-sm"
+		class="group/expand text-fg-tertiary w-full text-sm"
 		use:stageEnter={timelineKey(run, item.contentId)}
 		data-message-kind="thinking"
 		data-testid="thinking-summary"
@@ -43,17 +44,13 @@
 		<summary
 			class="hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
 		>
-			<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
-				<Icon
-					name="chevron-right"
-					size={10}
-					class="transition-transform duration-150 group-open/thought:rotate-90"
-				/>
-			</span>
+			<ExpandMark>
+				<Icon name="brain" size={14} />
+			</ExpandMark>
 			<span>{thoughtLabel(item.durationSeconds)}</span>
 		</summary>
 		<div
-			class="text-fg-secondary pt-1 pb-2 pl-[1.375rem] text-xs leading-relaxed select-text"
+			class="text-fg-secondary pt-1 pb-2 pl-5.5 text-xs leading-relaxed select-text"
 			data-testid="thinking-summary-text"
 		>
 			<MarkdownText
@@ -101,7 +98,7 @@
 	</div>
 {:else if item.kind === 'assistant'}
 	<div
-		class="text-fg-agent-message w-full text-sm leading-relaxed"
+		class="text-fg-default w-full text-sm leading-relaxed"
 		use:stageEnter={timelineKey(run, item.contentId ?? item.key)}
 		data-message-kind="assistant"
 		data-testid="chat-message-bubble"
