@@ -24,7 +24,12 @@ describe('picking a model', () => {
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
 		selectModelCommand('opus');
-		selectRunProfileCommand({ mode: 'plan', effort: 'medium', access: 'sandboxed' });
+		selectRunProfileCommand({
+			mode: 'plan',
+			effort: 'medium',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 		selectModelCommand('sonnet');
 
 		await navigateChatRoute(`/workstreams/${SIBLING_WORKSTREAM}`);
@@ -32,7 +37,12 @@ describe('picking a model', () => {
 
 		expect(runProfileQuery.data.mode).toBe('agent');
 		expect(activeModelQuery.data).toBe('opus');
-		selectRunProfileCommand({ mode: 'plan', effort: 'medium', access: 'sandboxed' });
+		selectRunProfileCommand({
+			mode: 'plan',
+			effort: 'medium',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 		expect(activeModelQuery.data).toBe('sonnet');
 	});
 });

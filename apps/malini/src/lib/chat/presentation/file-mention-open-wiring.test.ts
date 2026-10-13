@@ -8,6 +8,7 @@ const bufferedMarkdown = readFileSync(
 	new URL('./BufferedStreamingMarkdown.svelte', import.meta.url),
 	'utf8',
 );
+const turnReportCard = readFileSync(new URL('./TurnReportCard.svelte', import.meta.url), 'utf8');
 const target = readFileSync(
 	new URL('../infrastructure/services/agent-file-mention-target.service.ts', import.meta.url),
 	'utf8',
@@ -15,7 +16,8 @@ const target = readFileSync(
 
 describe('a file link the agent wrote is wired to an open', () => {
 	it('reaches every surface in the transcript that renders agent text', () => {
-		const renderers = transcript.match(/<(?:MarkdownText|BufferedStreamingMarkdown)\b/gu) ?? [];
+		const renderers =
+			transcript.match(/<(?:MarkdownText|BufferedStreamingMarkdown|TurnReportCard)\b/gu) ?? [];
 		const wired = transcript.match(/onopenfile=\{transcript\.openFileMention\}/gu) ?? [];
 		const wiredFromShell = transcript.match(/onopenfile=\{openFileMention\}/gu) ?? [];
 		expect(renderers.length).toBeGreaterThan(0);
@@ -23,7 +25,8 @@ describe('a file link the agent wrote is wired to an open', () => {
 	});
 
 	it('tells every one of those surfaces which named files can be opened', () => {
-		const renderers = transcript.match(/<(?:MarkdownText|BufferedStreamingMarkdown)\b/gu) ?? [];
+		const renderers =
+			transcript.match(/<(?:MarkdownText|BufferedStreamingMarkdown|TurnReportCard)\b/gu) ?? [];
 		const wired = transcript.match(/canopenfile=\{transcript\.canOpenFileMention\}/gu) ?? [];
 		const wiredFromShell = transcript.match(/canopenfile=\{canOpenFileMention\}/gu) ?? [];
 		expect(wired.length + wiredFromShell.length).toBe(renderers.length);
@@ -33,6 +36,12 @@ describe('a file link the agent wrote is wired to an open', () => {
 		expect(bufferedMarkdown).toContain('onopenfile?:');
 		expect(bufferedMarkdown).toContain('{onopenfile}');
 		expect(bufferedMarkdown).toContain('{canopenfile}');
+	});
+
+	it('threads the callback through the result card into its folded details', () => {
+		expect(turnReportCard).toContain('onopenfile?:');
+		expect(turnReportCard).toContain('{onopenfile}');
+		expect(turnReportCard).toContain('{canopenfile}');
 	});
 
 	it('keeps the leaf free of transcript context, because it renders elsewhere too', () => {

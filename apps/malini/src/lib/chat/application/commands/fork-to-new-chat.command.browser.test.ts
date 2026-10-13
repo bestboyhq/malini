@@ -17,6 +17,14 @@ import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.s
 
 const NEW_CHAT = agentDraftScopeKey(WORKSTREAM, null);
 const PARENT_CHAT = agentDraftScopeKey(WORKSTREAM, CHECKPOINTED_CHAT);
+const NOTES = {
+	id: 'att-notes',
+	displayName: 'notes.md',
+	relativePath: '.malini/agent-attachments/att-notes/notes.md',
+	mediaType: 'text/markdown',
+	size: 12,
+	sha256: 'a'.repeat(64),
+};
 
 afterEach(async () => {
 	agentDrafts.clear(NEW_CHAT);
@@ -35,8 +43,9 @@ function attachedNames(scope: string): readonly string[] {
 }
 
 describe('forking a chat into a new chat', () => {
-	it('opens a chat of its own whose composer holds only the transcript up to the run', async () => {
+	it('opens a chat of its own that takes over the unsent message, after the transcript', async () => {
 		const { platform } = await openCheckpointedChat();
+		updateDraftCommand(PARENT_CHAT, { text: 'carry this over', attachments: [NOTES] });
 		updateDraftCommand(NEW_CHAT, { text: 'a draft the fork must not touch' });
 
 		await expect(settled(fork(3))).resolves.toEqual({ status: 'accepted' });
@@ -48,17 +57,22 @@ describe('forking a chat into a new chat', () => {
 		expect(forked).not.toBeNull();
 		expect(forked).not.toBe(CHECKPOINTED_CHAT);
 		const forkedChat = agentDraftScopeKey(WORKSTREAM, forked);
-		expect(attachedNames(forkedChat)).toEqual([`Transcript of ${CHECKPOINTED_CHAT}.md`]);
-		expect(composerDraftQuery.data(forkedChat).text).toBe('');
+		expect(attachedNames(forkedChat)).toEqual([
+			`Transcript of ${CHECKPOINTED_CHAT}.md`,
+			'notes.md',
+		]);
+		expect(composerDraftQuery.data(forkedChat).text).toBe('carry this over');
+		expect(composerDraftQuery.data(PARENT_CHAT).text).toBe('');
+		expect(attachedNames(PARENT_CHAT)).toEqual([]);
 		expect(attachedNames(NEW_CHAT)).toEqual([]);
 		expect(composerDraftQuery.data(NEW_CHAT).text).toBe('a draft the fork must not touch');
-		expect(attachedNames(PARENT_CHAT)).toEqual([]);
 		expect(callsTo(platform, 'chat.send-prompt')).toEqual([]);
 		agentDrafts.clear(forkedChat);
 	});
 
-	it('stays on the chat and reports a transcript that could not be staged', async () => {
+	it('stays on the chat with its message and reports a transcript that could not be staged', async () => {
 		const { platform } = await openCheckpointedChat();
+		updateDraftCommand(PARENT_CHAT, { text: 'still mine' });
 		platform.define('chat.stage-fork-transcript', async () => {
 			throw new Error('attachments exceed the total limit');
 		});
@@ -68,6 +82,7 @@ describe('forking a chat into a new chat', () => {
 			error: 'attachments exceed the total limit',
 		});
 		expect(chatSessionStore.sessionId).toBe(CHECKPOINTED_CHAT);
+		expect(composerDraftQuery.data(PARENT_CHAT).text).toBe('still mine');
 		expect(attachedNames(NEW_CHAT)).toEqual([]);
 	});
 

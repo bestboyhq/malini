@@ -1,6 +1,6 @@
 import type { AgentEvent } from '../types.js';
 import type { AgentRunProfile } from '../agent-profile.js';
-import type { ConversationHistoryMessage } from '../protocol.js';
+import type { BrowserRequest, BrowserResult, ConversationHistoryMessage } from '../protocol.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
 
 export interface ProviderContext {
@@ -10,7 +10,10 @@ export interface ProviderContext {
 	readonly model?: string;
 	readonly providerSessionId?: string;
 	readonly conversationHistory?: readonly ConversationHistoryMessage[];
+	readonly requestBrowser: BrowserRequester;
 }
+
+export type BrowserRequester = (request: BrowserRequest) => Promise<BrowserResult>;
 
 export type ProviderEventListener = (ev: AgentEvent) => void;
 

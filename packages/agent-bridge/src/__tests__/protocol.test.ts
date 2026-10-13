@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	bridgeBrowserRequestFrame,
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
@@ -156,6 +157,50 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses the report resolution of a profile and rejects an unknown one', () => {
+			const send = (report: string): ReturnType<typeof parseCommandLine> =>
+				parseCommandLine(
+					`{"cmd":"send_prompt","id":"cmd-send","sessionId":"s1","runId":"r1","prompt":"hello","profile":{"effort":"high","mode":"agent","access":"auto","report":"${report}"}}`,
+				);
+			expect(send('low')).toMatchObject({
+				ok: true,
+				command: { profile: { effort: 'high', mode: 'agent', access: 'auto', report: 'low' } },
+			});
+			expect(send('verbose')).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+		});
+
+		it('parses a browser result and rejects one main could not have sent', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"browser_result","id":"b1","sessionId":"s1","requestId":"q1","ok":true,"text":"Saved","imagePath":"/w/.malini/sandbox/screenshots/x.jpg"}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'browser_result',
+					id: 'b1',
+					sessionId: 's1',
+					requestId: 'q1',
+					ok: true,
+					text: 'Saved',
+					imagePath: '/w/.malini/sandbox/screenshots/x.jpg',
+				},
+			});
+			expect(
+				parseCommandLine(
+					'{"cmd":"browser_result","id":"b2","sessionId":"s1","requestId":"q1","ok":false,"error":"Nothing is open"}',
+				),
+			).toMatchObject({ ok: true, command: { ok: false, error: 'Nothing is open' } });
+			for (const invalid of [
+				'{"cmd":"browser_result","id":"b3","sessionId":"s1","requestId":"q1"}',
+				'{"cmd":"browser_result","id":"b4","sessionId":"s1","ok":true}',
+				'{"cmd":"browser_result","id":"b5","sessionId":"s1","requestId":"q1","ok":true,"imagePath":"x.jpg"}',
+				'{"cmd":"browser_result","id":"b6","sessionId":"s1","requestId":"q1","ok":false,"error":42}',
+			]) {
+				expect(parseCommandLine(invalid)).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD' });
+			}
+		});
+
 		it('rejects an unknown profile value at the stdio boundary', () => {
 			const r = parseCommandLine(
 				'{"cmd":"send_prompt","id":"cmd-send","sessionId":"s1","runId":"r1","prompt":"hello","profile":{"effort":"unlimited","mode":"plan"}}',
@@ -275,6 +320,7 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_capabilities',
 				'refresh_mcp_status',
 				'suggest_title',
+				'browser_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(21);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
@@ -284,6 +330,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.command_ack',
 				'bridge.protocol_error',
 				'bridge.title',
+				'bridge.browser_request',
 			]);
 		});
 
@@ -321,6 +368,23 @@ describe('protocol: parseCommandLine', () => {
 				type: 'bridge.heartbeat',
 				protocolVersion: BRIDGE_PROTOCOL_VERSION,
 				ts: 42,
+			});
+			expect(
+				bridgeBrowserRequestFrame('q1', 's1', { action: 'open', url: 'http://localhost:5173' }),
+			).toEqual({
+				type: 'bridge.browser_request',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				requestId: 'q1',
+				sessionId: 's1',
+				action: 'open',
+				url: 'http://localhost:5173',
+			});
+			expect(bridgeBrowserRequestFrame('q2', 's1', { action: 'screenshot' })).toEqual({
+				type: 'bridge.browser_request',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				requestId: 'q2',
+				sessionId: 's1',
+				action: 'screenshot',
 			});
 			expect(bridgeCommandAckFrame('c1')).toMatchObject({
 				type: 'bridge.command_ack',

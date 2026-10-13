@@ -71,7 +71,7 @@ describe('AgentPromptQueue', () => {
 				issueReferences: [issueReference],
 				transcriptReferences: [],
 				elementReferences: [],
-				profile: { effort: 'medium', mode: 'agent', access: 'sandboxed' },
+				profile: { effort: 'medium', mode: 'agent', access: 'sandboxed', report: 'medium' },
 				automated: false,
 				createdAt: 123,
 			},
@@ -89,7 +89,7 @@ describe('AgentPromptQueue', () => {
 				issueReferences: [],
 				transcriptReferences: [],
 				elementReferences: [],
-				profile: { effort: 'medium', mode: 'agent', access: 'sandboxed' },
+				profile: { effort: 'medium', mode: 'agent', access: 'sandboxed', report: 'medium' },
 				automated: false,
 				createdAt: 123,
 			},
@@ -215,13 +215,19 @@ describe('AgentPromptQueue', () => {
 		const queue = new AgentPromptQueue({ storage, createId: () => 'implementation' });
 		queue.hydrate(workstreamId);
 		expect(queue.entriesFor(workstreamId)[0]?.role).toBe('planning');
+		expect(queue.entriesFor(workstreamId)[0]?.profile).toEqual({
+			effort: 'high',
+			mode: 'plan',
+			access: 'sandboxed',
+			report: 'medium',
+		});
 
 		queue.enqueue({
 			workstreamId,
 			prompt: 'implement the plan',
 			role: 'implementation',
 			model: 'sonnet[1m]',
-			profile: { effort: 'xhigh', mode: 'agent', access: 'sandboxed' },
+			profile: { effort: 'xhigh', mode: 'agent', access: 'sandboxed', report: 'high' },
 		});
 		expect(queue.entriesFor(workstreamId).map((entry) => entry.role)).toEqual([
 			'planning',

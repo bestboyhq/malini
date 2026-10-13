@@ -1,7 +1,8 @@
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { AgentEvent } from './events';
+import { parseTurnReport } from './turn-report';
 
-export type AgentAttentionKind = 'completed' | 'failed' | 'approval';
+export type AgentAttentionKind = 'completed' | 'input' | 'failed' | 'approval';
 
 export type AgentAttention = {
 	kind: AgentAttentionKind;
@@ -35,6 +36,10 @@ type AgentAttentionInput = {
 	branch: string;
 	now?: number;
 };
+
+export function attentionNeedsUser(attention: AgentAttention | null): boolean {
+	return attention !== null && attention.kind !== 'completed';
+}
 
 function compact(value: string, max = 140): string {
 	const normalized = value.replace(/\s+/gu, ' ').trim();
@@ -74,13 +79,34 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 
 	if (input.event.type === 'run.completed') {
 		if (input.queueCount > 0) return null;
-		return {
-			kind: 'completed',
+		const run = {
 			runId: input.runId,
 			...(input.sessionId ? { sessionId: input.sessionId } : {}),
 			updatedAt,
+		};
+		const report = parseTurnReport(input.event.summary);
+		if (report.outcome === null) {
+			return {
+				kind: 'completed',
+				...run,
+				title: `${input.workstreamLabel} finished`,
+				body: compact(input.event.summary) || context || 'Ready for review',
+			};
+		}
+		const firstNeed = report.needs[0];
+		if (firstNeed) {
+			return {
+				kind: 'input',
+				...run,
+				title: `${input.workstreamLabel} needs you`,
+				body: compact(firstNeed),
+			};
+		}
+		return {
+			kind: 'completed',
+			...run,
 			title: `${input.workstreamLabel} finished`,
-			body: compact(input.event.summary) || context || 'Ready for review',
+			body: compact(report.outcome),
 		};
 	}
 

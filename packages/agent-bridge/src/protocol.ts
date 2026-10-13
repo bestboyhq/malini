@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path';
 import {
 	BRIDGE_COMMAND_NAMES,
 	BRIDGE_CONTRACT_NAME,
@@ -22,7 +23,8 @@ export type AgentCommand =
 	| AnswerQuestionCommand
 	| RefreshCapabilitiesCommand
 	| RefreshMcpStatusCommand
-	| SuggestTitleCommand;
+	| SuggestTitleCommand
+	| BrowserResultCommand;
 
 export interface StartSessionCommand {
 	readonly cmd: 'start_session';
@@ -110,6 +112,25 @@ export interface SuggestTitleCommand {
 	readonly prompt: string;
 }
 
+export type BrowserRequest =
+	| { readonly action: 'open'; readonly url: string }
+	| { readonly action: 'screenshot' }
+	| { readonly action: 'click'; readonly selector: string };
+
+export interface BrowserResult {
+	readonly ok: boolean;
+	readonly text?: string;
+	readonly imagePath?: string;
+	readonly error?: string;
+}
+
+export interface BrowserResultCommand extends BrowserResult {
+	readonly cmd: 'browser_result';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly requestId: string;
+}
+
 export type CommandName = AgentCommand['cmd'];
 
 export const COMMAND_NAMES = BRIDGE_COMMAND_NAMES satisfies readonly CommandName[];
@@ -192,13 +213,21 @@ export interface BridgeTitleFrame {
 	readonly title: string;
 }
 
+export type BridgeBrowserRequestFrame = {
+	readonly type: 'bridge.browser_request';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly requestId: string;
+	readonly sessionId: string;
+} & BrowserRequest;
+
 export type BridgeControlFrame =
 	| BridgeReadyFrame
 	| BridgeCapabilitiesFrame
 	| BridgeHeartbeatFrame
 	| BridgeCommandAckFrame
 	| BridgeProtocolErrorFrame
-	| BridgeTitleFrame;
+	| BridgeTitleFrame
+	| BridgeBrowserRequestFrame;
 
 export function bridgeReadyFrame(capabilities: readonly ProviderCapability[]): BridgeReadyFrame {
 	return {
@@ -227,6 +256,20 @@ export function bridgeCapabilitiesFrame(
 
 export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 	return { type: 'bridge.title', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, title };
+}
+
+export function bridgeBrowserRequestFrame(
+	requestId: string,
+	sessionId: string,
+	request: BrowserRequest,
+): BridgeBrowserRequestFrame {
+	return {
+		type: 'bridge.browser_request',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		requestId,
+		sessionId,
+		...request,
+	};
 }
 
 export function bridgeCommandAckFrame(id: string, error?: string): BridgeCommandAckFrame {
@@ -261,6 +304,7 @@ export interface ParseError {
 	readonly id?: string;
 	readonly runId?: string;
 	readonly sessionId?: string;
+	readonly requestId?: string;
 }
 
 export interface ParseSuccess {
@@ -318,6 +362,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateRefreshMcpStatus(obj);
 		case 'suggest_title':
 			return validateSuggestTitle(obj);
+		case 'browser_result':
+			return validateBrowserResult(obj);
 	}
 }
 
@@ -482,7 +528,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (profile !== undefined && !isAgentRunProfile(profile)) {
 		return err(
 			'INVALID_PAYLOAD',
-			'send_prompt: profile must contain effort (low|medium|high|xhigh|max), mode (agent|plan) and access (sandboxed|auto|full)',
+			'send_prompt: profile must contain effort (low|medium|high|xhigh|max), mode (agent|plan), access (sandboxed|auto|full) and, when present, report (low|medium|high)',
 			obj,
 		);
 	}
@@ -663,6 +709,47 @@ function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {
 	return { ok: true, command: { cmd: 'suggest_title', id: id.value, prompt } };
 }
 
+function validateBrowserResult(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'browser_result');
+	if (!id.ok) return id;
+	const { sessionId, requestId, ok, text, imagePath, error } = obj;
+	if (typeof sessionId !== 'string' || sessionId.length === 0) {
+		return err('INVALID_PAYLOAD', 'browser_result: sessionId required (non-empty string)', obj);
+	}
+	if (typeof requestId !== 'string' || requestId.length === 0) {
+		return err('INVALID_PAYLOAD', 'browser_result: requestId required (non-empty string)', obj);
+	}
+	if (typeof ok !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'browser_result: ok required (boolean)', obj);
+	}
+	if (text !== undefined && typeof text !== 'string') {
+		return err('INVALID_PAYLOAD', 'browser_result: text, when present, must be a string', obj);
+	}
+	if (imagePath !== undefined && (typeof imagePath !== 'string' || !isAbsolute(imagePath))) {
+		return err(
+			'INVALID_PAYLOAD',
+			'browser_result: imagePath, when present, must be an absolute path',
+			obj,
+		);
+	}
+	if (error !== undefined && typeof error !== 'string') {
+		return err('INVALID_PAYLOAD', 'browser_result: error, when present, must be a string', obj);
+	}
+	return {
+		ok: true,
+		command: {
+			cmd: 'browser_result',
+			id: id.value,
+			sessionId,
+			requestId,
+			ok,
+			...(text !== undefined ? { text } : {}),
+			...(imagePath !== undefined ? { imagePath } : {}),
+			...(error !== undefined ? { error } : {}),
+		},
+	};
+}
+
 function commandId(
 	obj: Record<string, unknown>,
 	command: CommandName,
@@ -681,5 +768,6 @@ function err(code: ParseErrorCode, message: string, obj?: Record<string, unknown
 		...(typeof obj?.id === 'string' ? { id: obj.id } : {}),
 		...(typeof obj?.runId === 'string' ? { runId: obj.runId } : {}),
 		...(typeof obj?.sessionId === 'string' ? { sessionId: obj.sessionId } : {}),
+		...(typeof obj?.requestId === 'string' ? { requestId: obj.requestId } : {}),
 	};
 }

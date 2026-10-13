@@ -44,12 +44,17 @@ describe('editing a message', () => {
 	it('restores its checkpoint, then resends the edit to the same chat with the model captured at edit time', async () => {
 		const { platform } = await openCheckpointedChat();
 		chatModelStore.model = defaultAgentModel();
-		chatModelStore.profile = { mode: 'agent', effort: 'high', access: 'sandboxed' };
+		chatModelStore.profile = {
+			mode: 'agent',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'medium',
+		};
 		const sends = recordPromptDelivery();
 
 		const id = edit();
 		chatModelStore.model = OTHER_MODEL;
-		chatModelStore.profile = { mode: 'plan', effort: 'low', access: 'sandboxed' };
+		chatModelStore.profile = { mode: 'plan', effort: 'low', access: 'sandboxed', report: 'medium' };
 
 		expect(outcome(id)).toEqual({ status: 'pending' });
 		await expect(settled(id)).resolves.toEqual({ status: 'accepted' });
@@ -61,7 +66,7 @@ describe('editing a message', () => {
 				sessionId: CHECKPOINTED_CHAT,
 				prompt: 'Write b.txt instead',
 				contextFiles: ['src/b.ts'],
-				profile: { mode: 'agent', effort: 'high', access: 'sandboxed' },
+				profile: { mode: 'agent', effort: 'high', access: 'sandboxed', report: 'medium' },
 			}),
 		]);
 	});

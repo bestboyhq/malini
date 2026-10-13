@@ -572,7 +572,7 @@ describe('prompt round trips', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		const profile = { effort: 'high', mode: 'agent', access: 'full' };
+		const profile = { effort: 'high', mode: 'agent', access: 'full', report: 'low' };
 		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG', profile });
 		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
 
@@ -605,6 +605,22 @@ describe('prompt round trips', () => {
 			profile: JSON.stringify(profile),
 			automated: 1,
 		});
+	});
+
+	it('refuses a prompt whose profile names an unknown report', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+
+		expect(
+			await invokeError('chat.send-prompt', {
+				sessionId,
+				prompt: 'hello',
+				profile: { effort: 'high', mode: 'agent', report: 'verbose' },
+			}),
+		).toBe(
+			'invalid args: `profile` must contain effort (low|medium|high|xhigh|max), mode (agent|plan), an optional access (sandboxed|auto|full) and an optional report (low|medium|high)',
+		);
 	});
 
 	it('lets a terminal capture finish before stop returns, so quitting never closes the database under it', async () => {

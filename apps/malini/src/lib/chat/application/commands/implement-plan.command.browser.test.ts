@@ -53,7 +53,12 @@ describe('implementing a prepared plan', () => {
 		});
 		await sessionActivation.hydrate('s-plan');
 		chatSessionStore.sessionId = 's-plan';
-		chatModelStore.profile = { mode: 'plan', effort: 'high', access: 'sandboxed' };
+		chatModelStore.profile = {
+			mode: 'plan',
+			effort: 'high',
+			access: 'sandboxed',
+			report: 'medium',
+		};
 		const sends = recordPromptDelivery();
 
 		await expect(implementPlan('s-plan')).resolves.toEqual({ status: 'accepted' });

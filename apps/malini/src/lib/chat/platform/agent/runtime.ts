@@ -35,6 +35,7 @@ import {
 	eventToPersistable,
 	isEphemeralEvent,
 	isTerminalEvent,
+	type BridgeBrowserRequest,
 	type BridgeEvent,
 } from './protocol';
 import {
@@ -62,6 +63,7 @@ export interface RunFinishedInput {
 
 export interface BridgeRuntimeHooks {
 	readonly onRunFinished?: (input: RunFinishedInput) => Promise<void> | void;
+	readonly onBrowserRequest?: (request: BridgeBrowserRequest, supervisor: BridgeSupervisor) => void;
 }
 
 export interface BridgeRuntimeDeps {
@@ -647,6 +649,13 @@ export class BridgeRuntime {
 			const previous = chain;
 			chain = this.pumpAfter(previous, correlator, generation, event);
 			this.pumps.set(generation, chain);
+		});
+		const unsubscribeBrowser = supervisor.onBrowserRequest((request) => {
+			if (this.eventGeneration !== generation) {
+				unsubscribeBrowser();
+				return;
+			}
+			this.hooks.onBrowserRequest?.(request, supervisor);
 		});
 	}
 

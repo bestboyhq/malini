@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { createInterface, type Interface as RLInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import {
+	bridgeBrowserRequestFrame,
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
@@ -10,6 +12,8 @@ import {
 	parseCommandLine,
 	type AgentCommand,
 	type BridgeControlFrame,
+	type BrowserRequest,
+	type BrowserResult,
 	type ProviderCapability,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
@@ -37,6 +41,7 @@ export interface RunOptions {
 	capabilityProbe?: () => Promise<ProviderCapability>;
 	suggestTitle?: (task: string) => Promise<string>;
 	closeSessionTimeoutMs?: number;
+	browserRequestTimeoutMs?: number;
 }
 
 export interface IpcBundle {
@@ -53,6 +58,12 @@ export interface AttachedIpc extends IpcBundle {
 }
 
 const CAPABILITY_DISCOVERY_FAILURE_MESSAGE = 'Could not check Claude Code';
+const BROWSER_REQUEST_TIMEOUT_MS = 60_000;
+
+interface PendingBrowserRequest {
+	readonly sessionId: string;
+	readonly settle: (result: BrowserResult) => void;
+}
 
 export class BridgeOutputWriter {
 	readonly #stream: OutputSink;
@@ -186,6 +197,8 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 	const activeRunSessions = new Set<string>();
 	const activeRunIdsBySession = new Map<string, Set<string>>();
 	const closeSessionTimeoutMs = options.closeSessionTimeoutMs ?? 3_500;
+	const browserRequestTimeoutMs = options.browserRequestTimeoutMs ?? BROWSER_REQUEST_TIMEOUT_MS;
+	const pendingBrowserRequests = new Map<string, PendingBrowserRequest>();
 	const stdout = options.stdout ?? process.stdout;
 	const output = new BridgeOutputWriter(stdout);
 
@@ -198,6 +211,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 	async function run(line: string): Promise<void> {
 		const parsed = parseCommandLine(line);
 		if (!parsed.ok) {
+			if (parsed.requestId !== undefined && parsed.sessionId !== undefined) {
+				settleBrowserRequest(parsed.sessionId, parsed.requestId, {
+					ok: false,
+					error: `malini's browser sent an invalid answer: ${parsed.message}`,
+				});
+			}
 			emitControl(bridgeProtocolErrorFrame(parsed));
 			return;
 		}
@@ -254,6 +273,60 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				const error = await handleAnswerQuestion(cmd);
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
 				return;
+			}
+			case 'browser_result': {
+				const known = settleBrowserRequest(cmd.sessionId, cmd.requestId, cmd);
+				emitControl(
+					bridgeCommandAckFrame(
+						cmd.id,
+						known
+							? undefined
+							: `UNKNOWN_BROWSER_REQUEST: ${cmd.requestId} is not pending in session ${cmd.sessionId}`,
+					),
+				);
+				return;
+			}
+		}
+	}
+
+	function requestBrowser(sessionId: string, request: BrowserRequest): Promise<BrowserResult> {
+		const requestId = randomUUID();
+		return new Promise((resolve) => {
+			const timeout = setTimeout(
+				() =>
+					settleBrowserRequest(sessionId, requestId, {
+						ok: false,
+						error: `malini's browser did not answer within ${browserRequestTimeoutMs} ms.`,
+					}),
+				browserRequestTimeoutMs,
+			);
+			pendingBrowserRequests.set(requestId, {
+				sessionId,
+				settle: (result) => {
+					clearTimeout(timeout);
+					resolve(result);
+				},
+			});
+			emitControl(bridgeBrowserRequestFrame(requestId, sessionId, request));
+		});
+	}
+
+	function settleBrowserRequest(
+		sessionId: string,
+		requestId: string,
+		result: BrowserResult,
+	): boolean {
+		const pending = pendingBrowserRequests.get(requestId);
+		if (pending?.sessionId !== sessionId) return false;
+		pendingBrowserRequests.delete(requestId);
+		pending.settle(result);
+		return true;
+	}
+
+	function abandonBrowserRequests(sessionId: string, error: string): void {
+		for (const [requestId, pending] of pendingBrowserRequests) {
+			if (pending.sessionId === sessionId) {
+				settleBrowserRequest(sessionId, requestId, { ok: false, error });
 			}
 		}
 	}
@@ -367,6 +440,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			...(cmd.conversationHistory !== undefined
 				? { conversationHistory: cmd.conversationHistory }
 				: {}),
+			requestBrowser: (request) => requestBrowser(cmd.sessionId, request),
 		};
 	}
 
@@ -424,6 +498,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			emitFailure('NO_SESSION', `no active session for ${cmd.sessionId}`);
 			return `NO_SESSION: no active session for ${cmd.sessionId}`;
 		}
+		abandonBrowserRequests(cmd.sessionId, 'The run was cancelled.');
 		try {
 			await handle.cancel(cmd.runId);
 		} catch {
@@ -443,6 +518,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 	async function handleCloseSession(cmd: AgentCommand): Promise<string | null> {
 		if (cmd.cmd !== 'close_session') return 'invalid close_session command';
+		abandonBrowserRequests(cmd.sessionId, 'The session closed.');
 		const starting = startingSessions.get(cmd.sessionId);
 		if (starting) {
 			try {

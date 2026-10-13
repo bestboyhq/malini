@@ -107,7 +107,29 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
 	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
-	| { cmd: 'suggest_title'; id: string; prompt: string };
+	| { cmd: 'suggest_title'; id: string; prompt: string }
+	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer);
+
+export interface BrowserAnswer {
+	ok: boolean;
+	text?: string;
+	imagePath?: string;
+	error?: string;
+}
+
+export function browserResultCommand(
+	id: string,
+	request: BridgeBrowserRequest,
+	answer: BrowserAnswer,
+): BridgeCommand {
+	return {
+		cmd: 'browser_result',
+		id,
+		sessionId: request.sessionId,
+		requestId: request.requestId,
+		...answer,
+	};
+}
 
 export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number {
 	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
@@ -235,7 +257,20 @@ export type BridgeControlFrame =
 			code: string;
 			message: string;
 	  }
-	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string };
+	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
+	| BridgeBrowserRequest;
+
+export type BrowserRequestAction =
+	| { action: 'open'; url: string }
+	| { action: 'screenshot' }
+	| { action: 'click'; selector: string };
+
+export type BridgeBrowserRequest = {
+	type: 'bridge.browser_request';
+	protocolVersion: number;
+	requestId: string;
+	sessionId: string;
+} & BrowserRequestAction;
 
 export type Decoded<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -656,11 +691,36 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						title: f.string('title'),
 					},
 				};
+			case 'bridge.browser_request':
+				return decodeBrowserRequest(type, f);
 			default:
 				return { ok: false, error: `unknown variant \`${type}\`` };
 		}
 	} catch (error) {
 		return { ok: false, error: error instanceof Error ? error.message : String(error) };
+	}
+}
+
+function decodeBrowserRequest(
+	type: 'bridge.browser_request',
+	f: Fields,
+): Decoded<BridgeControlFrame> {
+	const requestId = f.string('requestId');
+	const sessionId = f.string('sessionId');
+	if (requestId.length === 0 || sessionId.length === 0) {
+		return { ok: false, error: `${type}: \`requestId\` and \`sessionId\` must not be empty` };
+	}
+	const base = { type, protocolVersion: f.number('protocolVersion'), requestId, sessionId };
+	const action = f.string('action');
+	switch (action) {
+		case 'open':
+			return { ok: true, value: { ...base, action, url: f.string('url') } };
+		case 'screenshot':
+			return { ok: true, value: { ...base, action } };
+		case 'click':
+			return { ok: true, value: { ...base, action, selector: f.string('selector') } };
+		default:
+			return { ok: false, error: `${type}: unknown action \`${action}\`` };
 	}
 }
 

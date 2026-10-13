@@ -127,8 +127,8 @@ function seedMixedRuns(): void {
 	);
 }
 
-async function mountCenter(): Promise<void> {
-	app = mount(JobCenter, { target: host });
+async function mountCenter(props: { docked?: boolean } = {}): Promise<void> {
+	app = mount(JobCenter, { target: host, props });
 	await vi.waitFor(() =>
 		expect(platform.calls.some(({ command }) => command === 'jobs.list-runs')).toBe(true),
 	);
@@ -190,6 +190,13 @@ describe('the Job center', () => {
 		await settle();
 
 		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: 1 running');
+	});
+
+	it('stays in the workstream gutter while idle, linking to the jobs', async () => {
+		await mountCenter({ docked: true });
+
+		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: ready when you are');
+		expect(control('Manage jobs')?.getAttribute('href')).toBe('/jobs');
 	});
 
 	it('sums up the jobs and lists the ones in progress, the one that needs you first', async () => {

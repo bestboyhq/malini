@@ -11,8 +11,12 @@
 	import {
 		AGENT_ACCESS_DETAILS,
 		AGENT_ACCESS_LEVELS,
+		AGENT_REPORT_DETAILS,
+		AGENT_REPORTS,
+		DEFAULT_AGENT_REPORT,
 		type AgentAccess,
 		type AgentReasoningEffort,
+		type AgentReport,
 		type AgentRunProfile,
 	} from '$shared/providers/domain/run-profile';
 	import { Icon, type IconName } from '$hyper-ui/icons';
@@ -49,6 +53,7 @@
 	let effortOpen = $state(false);
 	let optionsTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let accessChip: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let reportChip: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let optionsAnchor: HTMLElement | null = $state(null);
 	let optionsOpen = $state(false);
 	let modelSettings: ModelDefaultsSettings | null = $state(null);
@@ -58,6 +63,11 @@
 		sandboxed: 'lock',
 		auto: 'unlock',
 		full: 'shield-alert',
+	};
+	const reportIcons: Record<AgentReport, IconName> = {
+		low: 'preview',
+		medium: 'checklist',
+		high: 'note',
 	};
 	const catalog = $derived(modelCatalogQuery.data);
 	const efforts = $derived(effortsForModel(catalog, model));
@@ -98,6 +108,12 @@
 	function selectAccess(access: AgentAccess): void {
 		if (disabled) return;
 		onchange({ ...profile, access });
+		closeOptions();
+	}
+
+	function selectReport(report: AgentReport): void {
+		if (disabled) return;
+		onchange({ ...profile, report });
 		closeOptions();
 	}
 
@@ -232,7 +248,37 @@
 			</Button>
 		</Tooltip>
 	{/if}
-	<Tooltip content="Plan mode, agent access, and models" placement="top" suppressed={optionsOpen}>
+	{#if profile.report !== DEFAULT_AGENT_REPORT}
+		<Tooltip
+			content={AGENT_REPORT_DETAILS[profile.report].description}
+			placement="top"
+			suppressed={optionsOpen}
+		>
+			<Button
+				bind:element={reportChip}
+				variant="ghost"
+				size="md"
+				active={optionsOpenFrom(reportChip)}
+				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				{disabled}
+				ariaLabel={`Report: ${AGENT_REPORT_DETAILS[profile.report].label}`}
+				ariaHasPopup="menu"
+				ariaExpanded={optionsOpenFrom(reportChip)}
+				data-testid="chat-report"
+				onclick={() => toggleOptions(reportChip)}
+			>
+				<Icon name={reportIcons[profile.report]} size={15} />
+				<span class="@max-3xl/composer:hidden">
+					{AGENT_REPORT_DETAILS[profile.report].label} report
+				</span>
+			</Button>
+		</Tooltip>
+	{/if}
+	<Tooltip
+		content="Plan mode, agent access, report, and models"
+		placement="top"
+		suppressed={optionsOpen}
+	>
 		<IconButton
 			bind:element={optionsTrigger}
 			variant="ghost"
@@ -306,6 +352,37 @@
 							</span>
 						</span>
 						{#if profile.access === access}
+							<Icon name="check" size={14} class="mt-0.5 shrink-0" />
+						{/if}
+					</DropdownItem>
+				{/each}
+			</div>
+
+			<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+			<div role="group" aria-labelledby="chat-report-heading">
+				<p
+					id="chat-report-heading"
+					class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium"
+				>
+					Report
+				</p>
+				{#each AGENT_REPORTS as report (report)}
+					<DropdownItem
+						role="menuitemradio"
+						aria-checked={profile.report === report}
+						checked={profile.report === report}
+						focusOnHover={false}
+						class="items-start gap-2.5 py-2"
+						onclick={() => selectReport(report)}
+					>
+						<Icon name={reportIcons[report]} size={15} class="mt-0.5 shrink-0" />
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span>{AGENT_REPORT_DETAILS[report].label}</span>
+							<span class="text-fg-tertiary text-xs whitespace-normal">
+								{AGENT_REPORT_DETAILS[report].description}
+							</span>
+						</span>
+						{#if profile.report === report}
 							<Icon name="check" size={14} class="mt-0.5 shrink-0" />
 						{/if}
 					</DropdownItem>

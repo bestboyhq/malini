@@ -21,6 +21,12 @@ import type {
 	StagedAgentAttachment,
 	StagedAgentAttachmentBytes,
 } from './agent';
+import type {
+	BrowserElementPrompt,
+	BrowserNavigateArgs,
+	BrowserShowArgs,
+	BrowserState,
+} from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
 import type {
@@ -322,6 +328,16 @@ export type NotifyArgs = Readonly<{
 export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: string }>;
 
 export interface ContractCommands {
+	'browser.show': { args: BrowserShowArgs; result: void };
+	'browser.hide': { args: WorkstreamIdArgs; result: void };
+	'browser.navigate': { args: BrowserNavigateArgs; result: void };
+	'browser.go-back': { args: WorkstreamIdArgs; result: void };
+	'browser.go-forward': { args: WorkstreamIdArgs; result: void };
+	'browser.reload': { args: WorkstreamIdArgs; result: void };
+	'browser.state': { args: WorkstreamIdArgs; result: BrowserState };
+	'browser.snapshot': { args: WorkstreamIdArgs; result: string | null };
+	'browser.pick-element': { args: WorkstreamIdArgs; result: BrowserElementPrompt | null };
+	'browser.cancel-pick': { args: WorkstreamIdArgs; result: void };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
@@ -565,6 +581,16 @@ export type CommandArgs<Name extends CommandName> = ContractCommands[Name]['args
 export type CommandResult<Name extends CommandName> = ContractCommands[Name]['result'];
 
 export const COMMAND_NAMES: readonly CommandName[] = [
+	'browser.show',
+	'browser.hide',
+	'browser.navigate',
+	'browser.go-back',
+	'browser.go-forward',
+	'browser.reload',
+	'browser.state',
+	'browser.snapshot',
+	'browser.pick-element',
+	'browser.cancel-pick',
 	'app.copy-text',
 	'app.copy-image',
 	'chat.activate-session',

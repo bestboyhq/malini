@@ -6,10 +6,13 @@ export type AgentRunMode = 'agent' | 'plan';
 
 export type AgentAccess = 'sandboxed' | 'auto' | 'full';
 
+export type AgentReport = 'low' | 'medium' | 'high';
+
 export interface AgentRunProfile {
 	effort: AgentReasoningEffort;
 	mode: AgentRunMode;
 	access: AgentAccess;
+	report?: AgentReport;
 }
 
 export type ProviderCapabilityState = 'ready' | 'needs_auth' | 'missing' | 'unknown';
@@ -84,6 +87,7 @@ export interface AgentElementReference {
 	domPath: string;
 	rect: AgentElementRect;
 	html: string;
+	source?: string;
 }
 
 export type AgentApprovalDecision = 'allow' | 'deny';

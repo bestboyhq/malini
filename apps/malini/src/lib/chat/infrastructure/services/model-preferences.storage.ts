@@ -17,6 +17,7 @@ export const MODEL_MEMORY_KEY = 'malini.chat.model-memory:v2';
 const CHAT_SNAPSHOT_PREFIX = 'malini.chat.chat-model:v1:';
 const WORKSTREAM_PROFILE_PREFIX = 'malini.chat.profile:';
 export const LAST_EFFORT_KEY = 'malini.chat.last-effort:v1';
+const LAST_REPORT_KEY = 'malini.chat.last-report:v1';
 
 export function readStoredRunProfile(
 	workstreamId: string,
@@ -29,9 +30,14 @@ export function readStoredRunProfile(
 	);
 	if (stored) return stored;
 	const fresh = { ...DEFAULT_AGENT_RUN_PROFILE, access };
-	return (
+	const withEffort =
 		normalizeAgentRunProfile({ ...fresh, effort: readJson(LAST_EFFORT_KEY, storage) }, access) ??
-		fresh
+		fresh;
+	return (
+		normalizeAgentRunProfile(
+			{ ...withEffort, report: readJson(LAST_REPORT_KEY, storage) },
+			access,
+		) ?? withEffort
 	);
 }
 
@@ -50,6 +56,7 @@ export function writeStoredRunProfile(
 ): void {
 	writeJson(`${WORKSTREAM_PROFILE_PREFIX}${workstreamId}`, profile, storage);
 	writeJson(LAST_EFFORT_KEY, profile.effort, storage);
+	writeJson(LAST_REPORT_KEY, profile.report, storage);
 }
 
 export function chatModelSnapshotKey(sessionId: string): string {

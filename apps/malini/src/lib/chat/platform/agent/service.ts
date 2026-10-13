@@ -7,6 +7,7 @@ import {
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { IdSequence } from '../id-sequence';
 import type { AgentRunLeases } from './lifecycle';
 import {
@@ -17,10 +18,26 @@ import {
 } from './commands';
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
+import { browserResultCommand, type BridgeBrowserRequest, type BrowserAnswer } from './protocol';
 import { BridgeRuntime, type BridgeRuntimeHooks } from './runtime';
+import { persistedBridgeSession, worktreePath } from './sessions';
 import type { BridgeHealth, BridgeSupervisor } from './supervisor';
 
 const PAUSE_BUDGET_MS = 5_000;
+
+export interface BrowserPageInfo {
+	readonly url: string;
+	readonly title: string;
+}
+
+export interface BrowserAutomation {
+	open(workstreamId: string, url: string): Promise<BrowserPageInfo>;
+	screenshot(
+		workstreamId: string,
+		worktree: string,
+	): Promise<{ readonly path: string; readonly previewPath: string; readonly url: string }>;
+	click(workstreamId: string, selector: string): Promise<BrowserPageInfo>;
+}
 
 export interface AgentServiceDeps {
 	readonly processFactory?: BridgeProcessFactory;
@@ -31,7 +48,61 @@ export interface AgentServiceDeps {
 	readonly collectAttachmentGarbage?: SendPromptHooks['collectAttachmentGarbage'];
 	readonly prepareAttachments?: SendPromptHooks['prepareAttachments'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
+	readonly browser?: BrowserAutomation;
 	readonly log?: (line: string) => void;
+}
+
+export interface BrowserRequestDeps {
+	readonly db: MaliniDatabase;
+	readonly appDataRoot: string;
+	readonly browser: BrowserAutomation | undefined;
+}
+
+export async function answerBrowserRequest(
+	request: BridgeBrowserRequest,
+	deps: BrowserRequestDeps,
+): Promise<BrowserAnswer> {
+	try {
+		const { browser } = deps;
+		if (!browser) return { ok: false, error: 'The malini browser is not available.' };
+		const session = persistedBridgeSession(deps.db, request.sessionId);
+		if (!session) return { ok: false, error: `Agent session \`${request.sessionId}\` is unknown.` };
+		const { workstreamId } = session;
+		switch (request.action) {
+			case 'open': {
+				const page = await browser.open(workstreamId, request.url);
+				return {
+					ok: true,
+					text: `Opened ${describePage(page)}. Call browser_screenshot to see it.`,
+				};
+			}
+			case 'screenshot': {
+				const shot = await browser.screenshot(
+					workstreamId,
+					worktreePath(deps.appDataRoot, workstreamId),
+				);
+				return {
+					ok: true,
+					text: `Screenshot of ${shot.url} saved to ${shot.path}. Embed it in your report as ![what it shows](${shot.path}).`,
+					imagePath: shot.previewPath,
+				};
+			}
+			case 'click': {
+				const page = await browser.click(workstreamId, request.selector);
+				return {
+					ok: true,
+					text: `Clicked \`${request.selector}\`. The page is now ${describePage(page)}.`,
+				};
+			}
+		}
+	} catch (error) {
+		return { ok: false, error: describe(error) };
+	}
+}
+
+function describePage(page: BrowserPageInfo): string {
+	const title = page.title.trim();
+	return title.length > 0 && title !== page.url ? `${page.url} ("${title}")` : page.url;
 }
 
 export interface AgentService {
@@ -127,9 +198,30 @@ export async function startAgentService(
 			},
 			log,
 		},
-		hooks: deps.hooks,
+		hooks: {
+			...deps.hooks,
+			onBrowserRequest: (request, supervisor) => void answerOn(supervisor, request),
+		},
 		log,
 	});
+
+	async function answerOn(
+		supervisor: BridgeSupervisor,
+		request: BridgeBrowserRequest,
+	): Promise<void> {
+		const answer = await answerBrowserRequest(request, {
+			db,
+			appDataRoot: context.appDataRoot,
+			browser: deps.browser,
+		});
+		try {
+			await supervisor.sendCommand(
+				browserResultCommand(supervisor.nextCommandId(), request, answer),
+			);
+		} catch (error) {
+			log(`agent: could not answer browser request \`${request.requestId}\`: ${describe(error)}`);
+		}
+	}
 
 	let started = false;
 	if (existsSync(bridgeScriptPath)) {

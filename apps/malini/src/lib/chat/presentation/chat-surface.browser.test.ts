@@ -13,6 +13,8 @@ import { preloadWorkstreamChatsCommand } from '$lib/chat/application/commands/pr
 import { stopWorkstreamChatsPreloadCommand } from '$lib/chat/application/commands/stop-workstream-chats-preload.command';
 import { warmWorkstreamChatCommand } from '$lib/chat/application/commands/warm-workstream-chat.command';
 import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
+import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
+import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
 import { workstreamFilesAggregate } from '$lib/chat/infrastructure/aggregates/workstream-files.aggregate.svelte';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
@@ -868,21 +870,22 @@ describe('the chat surface', () => {
 		expect(find(host, 'chat-composer-input')?.textContent).toContain('Ship the fix');
 	});
 
-	it('stages a forked run transcript in the fork draft only, never in the chat it came from', async () => {
+	it('moves the unsent message into the fork next to the run transcript, emptying the chat it came from', async () => {
 		const platform = await openChatRoute(
 			`/workstreams/${WORKSTREAM}?agent=s-planned`,
 			platformWithChats(),
 		);
+		const parentScope = agentDraftScopeKey(WORKSTREAM, 's-planned');
+		updateDraftCommand(parentScope, { text: 'Carry this over' });
 		const host = render();
 		await vi.waitFor(() => expect(find(host, 'chat-message-list')).not.toBeNull());
+		const composerText = (): string => find(host, 'chat-composer-input')?.textContent ?? '';
 		const chipRemovals = (): readonly string[] =>
 			[...(find(host, 'chat-composer-input')?.querySelectorAll('button[aria-label]') ?? [])].map(
 				(removal) => removal.getAttribute('aria-label') ?? '',
 			);
+		expect(composerText()).toContain('Carry this over');
 
-		const parentDraft = (): string =>
-			JSON.stringify(composerDraftQuery.data(agentDraftScopeKey(WORKSTREAM, 's-planned')));
-		const draftBeforeFork = parentDraft();
 		const activations = (): readonly unknown[] =>
 			platform.calls
 				.filter(({ command }) => command === 'chat.activate-session')
@@ -894,11 +897,14 @@ describe('the chat surface', () => {
 		const fork = selectedChatTab(host);
 		expect(fork).not.toBe('s-planned');
 		expect(activations().slice(activationsBeforeFork)).toEqual([fork]);
-		expect(parentDraft()).toEqual(draftBeforeFork);
+		expect(composerText()).toContain('Carry this over');
+		expect(composerDraftQuery.data(parentScope).text).toBe('');
 
 		await navigateChatRoute(`/workstreams/${WORKSTREAM}?agent=s-planned`);
 		await vi.waitFor(() => expect(selectedChatTab(host)).toBe('s-planned'));
 		expect(chipRemovals()).toEqual([]);
+		expect(composerText()).not.toContain('Carry this over');
+		agentDrafts.clear(agentDraftScopeKey(WORKSTREAM, fork));
 	});
 
 	it('offers a new chat the recent transcripts and plans of its workstream as context', async () => {

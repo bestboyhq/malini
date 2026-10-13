@@ -30,6 +30,46 @@ describe('agentAttentionDecision', () => {
 		});
 	});
 
+	it('reads the turn report: an outcome alone finishes, a need asks for the user', () => {
+		const report = [
+			'![Sticky header](.malini/sandbox/screenshots/header.png)',
+			'',
+			'Outcome: The header stays pinned while the page scrolls.',
+		];
+		expect(
+			agentAttentionDecision({
+				...base,
+				sessionId: 'session-1',
+				event: {
+					type: 'run.completed',
+					runId: 'run-1',
+					summary: [...report, 'Needs: nothing'].join('\n'),
+				},
+			}),
+		).toEqual({
+			kind: 'completed',
+			runId: 'run-1',
+			sessionId: 'session-1',
+			updatedAt: 42,
+			title: 'Homepage polish finished',
+			body: 'The header stays pinned while the page scrolls.',
+		});
+		expect(
+			agentAttentionDecision({
+				...base,
+				event: {
+					type: 'run.completed',
+					runId: 'run-1',
+					summary: [...report, 'Needs: Add R2_TOKEN to .env; Approve the copy'].join('\n'),
+				},
+			}),
+		).toMatchObject({
+			kind: 'input',
+			title: 'Homepage polish needs you',
+			body: 'Add R2_TOKEN to .env',
+		});
+	});
+
 	it('suppresses intermediate queue completions and work the user is already viewing', () => {
 		const completed = { type: 'run.completed', runId: 'run-1', summary: 'Done.' } as const;
 		expect(agentAttentionDecision({ ...base, queueCount: 1, event: completed })).toBeNull();

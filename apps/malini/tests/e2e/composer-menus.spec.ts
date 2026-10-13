@@ -31,6 +31,13 @@ test('composer menus hand focus back to the prompt, and an outside click lands o
 		await expect(page.getByRole('button', { name: 'Agent access: Auto' })).toBeVisible();
 		await expect(input).toBeFocused();
 
+		await expect(page.getByRole('button', { name: /^Report: / })).toBeHidden();
+		await options.click();
+		await optionsMenu.getByRole('menuitemradio', { name: /^Low/u }).click();
+		await expect(optionsMenu).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Report: Low' })).toBeVisible();
+		await expect(input).toBeFocused();
+
 		await options.click();
 		await optionsMenu.getByRole('menuitemcheckbox', { name: /^Plan mode/u }).click();
 		const plan = page.getByRole('button', { name: 'Plan mode' });

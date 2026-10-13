@@ -378,12 +378,13 @@
 
 	type ChatTone = 'running' | 'waiting' | 'queued' | 'failed' | 'completed' | 'draft';
 
-	type ChatAttention = Readonly<{ kind: 'completed' | 'failed' | 'approval' }>;
+	type ChatAttention = Readonly<{ kind: 'completed' | 'input' | 'failed' | 'approval' }>;
 
 	type ChatSummary = Readonly<{
 		sessionId: string | null;
 		queueCount: number;
 		attention: ChatAttention | null;
+		needsYou: boolean;
 		hasDraft: boolean;
 		state: Readonly<{ label: string; tone: ChatTone }> | null;
 	}>;
@@ -458,7 +459,7 @@
 	function attentionLabel(attention: ChatAttention): string {
 		if (attention.kind === 'failed') return 'Agent run needs attention';
 		if (attention.kind === 'approval') return 'Agent is waiting for approval';
-		return 'Agent run completed';
+		return 'Agent needs your input';
 	}
 
 	function visualStateTooltip(
@@ -470,7 +471,7 @@
 			state.label,
 			pullRequest.label,
 			chat.hasDraft ? 'Unsent draft' : null,
-			chat.attention ? attentionLabel(chat.attention) : null,
+			chat.needsYou && chat.attention ? attentionLabel(chat.attention) : null,
 		]
 			.filter(Boolean)
 			.join(' · ');
@@ -776,15 +777,13 @@
 															{/if}
 														</span>
 													</Tooltip>
-													{#if attention}
+													{#if attention && chat.needsYou}
 														<span
 															class={[
 																'absolute top-1/2 left-2.5 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
 																attention.kind === 'failed'
 																	? 'bg-error-content'
-																	: attention.kind === 'approval'
-																		? 'bg-warning-content'
-																		: 'bg-brand',
+																	: 'bg-warning-content',
 															]}
 															aria-hidden="true"
 															data-testid="sidebar-agent-attention"

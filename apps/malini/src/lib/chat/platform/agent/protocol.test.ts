@@ -4,6 +4,7 @@ import {
 	BRIDGE_CONTRACT_NAME,
 	BRIDGE_PROTOCOL_VERSION,
 	BRIDGE_START_SESSION_ACK_TIMEOUT_MS,
+	browserResultCommand,
 	commandAcknowledgementTimeoutMs,
 	decodeBridgeEvent,
 	decodeControlFrame,
@@ -13,6 +14,7 @@ import {
 	isEphemeralEvent,
 	readyFrameMismatch,
 	validateCapabilities,
+	type BridgeBrowserRequest,
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
@@ -257,6 +259,83 @@ describe('event frames', () => {
 				reason: 'x',
 			}),
 		).toEqual({ kind: 'approval.requested', payload: { approvalId: 'a', reason: 'x' } });
+	});
+});
+
+describe('browser requests', () => {
+	const frame = {
+		type: 'bridge.browser_request',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		requestId: 'req-1',
+		sessionId: 'sess-1',
+	};
+
+	it('decodes each action the agent can ask for', () => {
+		expect(decodeControlFrame({ ...frame, action: 'open', url: 'localhost:5173' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'open', url: 'localhost:5173' },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'screenshot', url: 'ignored' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'screenshot' },
+		});
+		expect(decodeControlFrame({ ...frame, action: 'click', selector: '#buy' })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'click', selector: '#buy' },
+		});
+	});
+
+	it('refuses a request it cannot route or act on', () => {
+		expect(decodeControlFrame({ ...frame, action: 'scroll' })).toEqual({
+			ok: false,
+			error: 'bridge.browser_request: unknown action `scroll`',
+		});
+		expect(decodeControlFrame({ ...frame, action: 'open' })).toEqual({
+			ok: false,
+			error: 'bridge.browser_request: field `url` must be a string',
+		});
+		expect(decodeControlFrame({ ...frame, action: 'click' })).toMatchObject({ ok: false });
+		expect(decodeControlFrame({ ...frame, sessionId: '', action: 'screenshot' })).toEqual({
+			ok: false,
+			error: 'bridge.browser_request: `requestId` and `sessionId` must not be empty',
+		});
+		expect(decodeControlFrame({ ...frame, requestId: 7, action: 'screenshot' })).toMatchObject({
+			ok: false,
+		});
+	});
+
+	it('answers a request on the command channel with its ids', () => {
+		const request: BridgeBrowserRequest = {
+			...frame,
+			type: 'bridge.browser_request',
+			action: 'screenshot',
+		};
+		expect(
+			browserResultCommand('cmd-9', request, {
+				ok: true,
+				text: 'Screenshot saved.',
+				imagePath: '/tmp/shot.jpg',
+			}),
+		).toEqual({
+			cmd: 'browser_result',
+			id: 'cmd-9',
+			sessionId: 'sess-1',
+			requestId: 'req-1',
+			ok: true,
+			text: 'Screenshot saved.',
+			imagePath: '/tmp/shot.jpg',
+		});
+		expect(browserResultCommand('cmd-10', request, { ok: false, error: 'No page.' })).toEqual({
+			cmd: 'browser_result',
+			id: 'cmd-10',
+			sessionId: 'sess-1',
+			requestId: 'req-1',
+			ok: false,
+			error: 'No page.',
+		});
+		expect(commandAcknowledgementTimeoutMs(browserResultCommand('c', request, { ok: true }))).toBe(
+			BRIDGE_COMMAND_ACK_TIMEOUT_MS,
+		);
 	});
 });
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
-	import type { ExtensionWorkstream } from '@malini/extension-api';
+	import type { ExtensionPanelRegistration, ExtensionWorkstream } from '@malini/extension-api';
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
 	import { goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
@@ -29,6 +29,7 @@
 		oncreationannounced: (workstreamId: string) => void;
 		onruntimeretry: () => void;
 		toolbarEnd: Snippet;
+		builtInPanels?: readonly ExtensionPanelRegistration[];
 	}
 
 	let {
@@ -42,6 +43,7 @@
 		oncreationannounced,
 		onruntimeretry,
 		toolbarEnd,
+		builtInPanels = [],
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -72,8 +74,11 @@
 			? shallowExtensionDirectory.extensionId
 			: page.url.searchParams.get('extension'),
 	);
-	const panels = $derived(inspectorPanelsQuery.data);
+	const extensionPanels = $derived(inspectorPanelsQuery.data);
 	const ready = $derived(extensionRuntimeReadyQuery.data(workstreamId));
+	const panels = $derived(
+		extensionPanels.length > 0 || ready ? [...extensionPanels, ...builtInPanels] : extensionPanels,
+	);
 	const runtimeError = $derived(extensionRuntimeErrorQuery.data);
 	const activationRetry = $derived(extensionActivationRetryQuery.data);
 	const panelContext = $derived(extensionPanelContextQuery.data(workstream));

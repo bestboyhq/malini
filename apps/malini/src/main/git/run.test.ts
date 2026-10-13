@@ -75,6 +75,18 @@ describe('runGit', () => {
 		expect(await readFile(join(dir, '.git', 'index'))).toEqual(index);
 	});
 
+	it('calls a checkout whose .git went away mid-delete missing, however git words it', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		await runGit(['init', '--bare', dir]);
+
+		await expect(runGit(['-C', dir, 'status', '--porcelain'])).rejects.toMatchObject({
+			kind: 'io',
+			code: 'ENOENT',
+			message: expect.stringMatching(/^The folder .+ is missing\.$/u),
+		});
+	});
+
 	it('turns a non-zero exit into what git said, keeping argv and the exit code as its cause', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

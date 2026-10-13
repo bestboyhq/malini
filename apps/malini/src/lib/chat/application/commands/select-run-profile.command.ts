@@ -24,6 +24,7 @@ function selectRunProfileCommand(nextProfile: AgentRunProfile): void {
 		mode: role === 'planning' ? 'plan' : 'agent',
 		effort: nextProfile.effort,
 		access: nextProfile.access,
+		report: nextProfile.report,
 	};
 	writeStoredRunProfile(workstreamId, chatModelStore.profile);
 	chatSessionStore.createFreshSessionOnNextPrompt = chatOccupancy.freshSessionRequired(

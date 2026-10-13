@@ -183,6 +183,7 @@ class SessionActivationService {
 				mode: role === 'planning' ? 'plan' : 'agent',
 				effort: storedProfile.effort,
 				access: storedProfile.access,
+				report: storedProfile.report,
 			},
 			remembered,
 		};
@@ -359,6 +360,7 @@ class SessionActivationService {
 					mode: role === 'planning' ? 'plan' : 'agent',
 					effort: chatModelStore.profile.effort,
 					access: chatModelStore.profile.access,
+					report: chatModelStore.profile.report,
 				};
 				chatSessionStore.sessionId = sessionId;
 				chatSessionStore.createFreshSessionOnNextPrompt = false;

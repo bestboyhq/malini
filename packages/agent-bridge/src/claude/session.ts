@@ -16,6 +16,7 @@ import type { ProviderApprovalReply, ProviderQuestionReply } from '../interactio
 import type { ConversationHistoryMessage } from '../protocol.js';
 import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
+import { maliniTools } from './browser-tools.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
 import {
@@ -303,7 +304,7 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(this.#context.cwd),
+				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium'),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
@@ -311,6 +312,7 @@ export class ClaudeSession implements ProviderHandle {
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
 			sandbox: sandboxFor(profile),
 			disallowedTools: disallowedTools(),
+			...maliniTools(this.#context.requestBrowser),
 			canUseTool: this.#canUseTool(runId),
 			...(model && model !== 'default' ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),

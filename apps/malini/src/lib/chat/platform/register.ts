@@ -2,7 +2,7 @@ import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
-import { startAgentService, type AgentService } from './agent/service';
+import { startAgentService, type AgentService, type BrowserAutomation } from './agent/service';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
@@ -22,6 +22,7 @@ export interface ChatDeps {
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly picker?: FilePicker;
+	readonly browser?: BrowserAutomation;
 	readonly processFactory?: BridgeProcessFactory;
 	readonly bridgeScriptPath?: string;
 	readonly log?: (line: string) => void;
@@ -73,6 +74,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			},
 		},
 		...(deps.log ? { log: deps.log } : {}),
+		...(deps.browser ? { browser: deps.browser } : {}),
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
 	});
