@@ -7,6 +7,7 @@ import {
 	type WorkstreamSnapshotRefs,
 } from '$lib/chat/chat.platform';
 import type { MaliniDatabase } from '$main/db/driver';
+import { nowIso8601 } from '$main/db/rows';
 import { describeError, failureOutput, isErrnoException, isNotFoundError } from '$main/errors';
 import { redactSensitiveText } from '$main/diagnostics/redaction';
 import {
@@ -39,7 +40,12 @@ import {
 } from '$main/git/worktrees';
 import { recordedBaseRepository, recordedCheckoutPath } from './checkout-resolver';
 import { listProjects } from './projects.repository';
-import { deleteWorkstream, getWorkstream, listWorkstreams } from './workstreams.repository';
+import {
+	archiveWorkstreamRecord,
+	deleteWorkstream,
+	getWorkstream,
+	listWorkstreams,
+} from './workstreams.repository';
 
 const CHECKOUT_TRASH_DIR_NAME = '.trash';
 
@@ -58,9 +64,12 @@ export interface RetiredCheckout {
 	readonly savedWork: ArchivedWork | null;
 }
 
+export type WorkstreamRetirement = 'archived' | 'deleted';
+
 export async function teardownWorkstreamCheckout(
 	deps: TeardownDeps,
 	workstreamId: string,
+	retirement: WorkstreamRetirement,
 ): Promise<RetiredCheckout> {
 	const { db, appDataRoot } = deps;
 	let resolved: string | null;
@@ -78,7 +87,7 @@ export async function teardownWorkstreamCheckout(
 
 	let leftovers: TeardownLeftovers;
 	try {
-		leftovers = await guard(() => retireCheckout(deps, workstreamId, resolved));
+		leftovers = await guard(() => retireCheckout(deps, workstreamId, resolved, retirement));
 	} catch (error) {
 		throw removalFailure(error);
 	}
@@ -110,11 +119,18 @@ async function retireCheckout(
 	deps: TeardownDeps,
 	workstreamId: string,
 	checkout: string | null,
+	retirement: WorkstreamRetirement,
 ): Promise<TeardownLeftovers> {
 	const { db, appDataRoot } = deps;
 	const row = getWorkstream(db, workstreamId);
+	const wasArchived = row?.status === 'archived';
+	if (wasArchived && retirement === 'archived') {
+		throw new WorkstreamRemovalError('failed', 'It is already archived', null);
+	}
 	const branch =
-		row && acceptedWorkstreamBranchNames(workstreamId).includes(row.branch) ? row.branch : null;
+		row && !wasArchived && acceptedWorkstreamBranchNames(workstreamId).includes(row.branch)
+			? row.branch
+			: null;
 	const repository =
 		(checkout === null ? null : await owningRepositoryOfCheckout(checkout)) ??
 		recordedBaseRepository(db, appDataRoot, workstreamId);
@@ -123,27 +139,28 @@ async function retireCheckout(
 		repository !== null && branch !== null
 			? await saveWorkBeforeRemoval(workstreamId, { repository, branch, baseBranch, checkout })
 			: null;
+	const snapshotRefs =
+		retirement === 'deleted' ? listWorkstreamSnapshotRefs(db, workstreamId) : null;
+	const retireRecord = (): void => {
+		if (retirement === 'archived') {
+			archiveWorkstreamRecord(db, workstreamId, savedWork?.ref ?? null, nowIso8601());
+		} else {
+			deleteWorkstream(db, workstreamId);
+		}
+	};
+	const leftovers = { workstreamId, repository, branch, baseBranch, snapshotRefs, savedWork };
 	if (checkout === null) {
-		deleteWorkstream(db, workstreamId);
-		return {
-			workstreamId,
-			repository,
-			branch,
-			baseBranch,
-			snapshotRefs: null,
-			trash: null,
-			savedWork,
-		};
+		retireRecord();
+		return { ...leftovers, trash: null };
 	}
-	const snapshotRefs = listWorkstreamSnapshotRefs(db, workstreamId);
 	const trash = await moveCheckoutToTrash(appDataRoot, workstreamId, checkout);
 	try {
-		deleteWorkstream(db, workstreamId);
+		retireRecord();
 	} catch (error) {
 		await putCheckoutBack(workstreamId, trash, checkout, error);
 		throw error;
 	}
-	return { workstreamId, repository, branch, baseBranch, snapshotRefs, trash, savedWork };
+	return { ...leftovers, trash };
 }
 
 async function saveWorkBeforeRemoval(

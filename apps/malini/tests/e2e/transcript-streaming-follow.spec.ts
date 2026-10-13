@@ -22,6 +22,7 @@ const SCROLLER = '[data-testid="chat-message-scroller"]';
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const LATEST_PROMPT = `${LATEST_RUN} [data-prompt-row]`;
 const LATEST_COMMAND = `${LATEST_RUN} [data-testid="bash-command-toggle"]`;
+const LATEST_STATUS = `${LATEST_RUN} [data-testid="run-status-line"]`;
 const COMPOSER = '[data-testid="chat-composer"]';
 const STILL_PX = 1;
 const BLANK_PX = 32;
@@ -145,6 +146,17 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
+async function untilLatestRunShows(page: Page, line: string): Promise<void> {
+	const latestRunText = (): Promise<string> =>
+		page
+			.getByTestId('chat-message-scroller')
+			.evaluate(
+				(scroller, selector) => scroller.ownerDocument.querySelector(selector)?.textContent ?? '',
+				LATEST_RUN,
+			);
+	await expect.poll(latestRunText, { intervals: [50], timeout: 10_000 }).toContain(line);
+}
+
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
@@ -155,10 +167,7 @@ test('a prompt sent into a long chat lands right above the composer, then the tr
 		await startSampling(page, []);
 		await sendPrompt(page, 'STREAM:40 Walk me through it');
 		await expect(page.getByTestId('chat-message-bubble-user').last()).toBeInViewport();
-		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
-			'Streamed line 30 of 40.',
-			{ timeout: 10_000 },
-		);
+		await untilLatestRunShows(page, 'Streamed line 30 of 40.');
 		const streaming = await stopSampling(page);
 
 		softly(
@@ -192,6 +201,35 @@ test('a prompt sent into a long chat lands right above the composer, then the tr
 		);
 		await expect(newMessagesBelow(page)).toHaveCount(0);
 		await captureFlow(app, 'transcript-streaming-follow-streamed');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the working status holds still above the composer while the reply streams in above it', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await longChat(app, 'e2e-streaming-follow-status-ws');
+		await sendPrompt(page, 'STREAM:80 Keep talking');
+		const reply = page.getByTestId('chat-message-bubble-live');
+		await expect(reply).toContainText('Streamed line 3 of 80.', { timeout: 10_000 });
+
+		await startSampling(page, [LATEST_STATUS]);
+		await expect(reply).toContainText('Streamed line 20 of 80.', { timeout: 10_000 });
+		const streaming = await stopSampling(page);
+
+		expect(
+			drift(streaming, 1),
+			'px the working status moved while lines arrived above it',
+		).toBeLessThanOrEqual(STILL_PX);
+		expect(
+			(streaming.at(-1)?.[SCROLL_TOP] ?? 0) - (streaming[0]?.[SCROLL_TOP] ?? 0),
+			'px the transcript scrolled to follow the reply',
+		).toBeGreaterThan(200);
 
 		expectCleanConsole(app);
 	} finally {

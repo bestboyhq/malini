@@ -1,7 +1,11 @@
 import type { ExtensionWorkstream } from '@malini/extension-api';
 import { REPOSITORY_STATE_CHANGED_EVENT } from '@malini-extension/repository';
 import { createPlatformRoutineGateStore } from '$shared/extensions/automation-gate';
-import { loadAutomationRules } from '$shared/extensions/automation-rules.store.svelte';
+import { createPlatformRoutineJobRunner } from '$shared/extensions/automation-jobs';
+import {
+	automationRulesStore,
+	loadAutomationRules,
+} from '$shared/extensions/automation-rules.store.svelte';
 import { extensionCommands } from '$shared/extensions/commands.store.svelte';
 import { workstreamSnapshotsHook } from '$shared/repositories/repositories.api';
 
@@ -22,6 +26,12 @@ export function startExtensionRuntimeCommand(start: ExtensionRuntimeStart = {}):
 		...(start.knownWorkstreams ? { knownWorkstreams: start.knownWorkstreams } : {}),
 		workstreamSnapshots: workstreamSnapshotsHook(),
 		routineGate: createPlatformRoutineGateStore(),
+		routineJobs: createPlatformRoutineJobRunner(),
+		onAutomationFailuresChanged: () => {
+			automationRulesStore.publishFailures(
+				extensionRuntimeStore.service?.automations.failures ?? [],
+			);
+		},
 		routinesLoader: () => loadAutomationRules(),
 	});
 	extensionRuntimeStore.service = service;
@@ -51,6 +61,11 @@ export function startExtensionRuntimeCommand(start: ExtensionRuntimeStart = {}):
 	);
 
 	extensionRuntimeStore.registerTeardown(attachRoutineGateDecisions(service.automations));
+	extensionRuntimeStore.registerTeardown(
+		automationRulesStore.connectRunner((routine, workstreamId) =>
+			service.automations.runNow(routine, workstreamId),
+		),
+	);
 	extensionRuntimeStore.registerTeardown(
 		onRoutinesChanged(() => {
 			void coordinator.reloadRoutines();

@@ -8,7 +8,7 @@
 	--color-base-100: var(--color-base-100-dark);
 	--color-base-200: var(--color-base-200-dark);
 	--color-base-300: var(--color-base-300-dark);
-	--color-base-content: var(--color-content-on-base-dark);
+	--color-base-content: var(--color-fg-default-dark);
 
 	--color-primary: var(--color-primary-dark);
 	--color-primary-content: var(--color-text-on-primary-dark);
@@ -29,6 +29,7 @@
 	--color-success-content: var(--color-text-on-success-dark);
 
 	--themed-color-merged-content: #c472fb;
+	--themed-color-queued-content: var(--ds-blue-900-dark);
 
 	--themed-color-tertiary: var(--color-tertiary-dark);
 	--themed-color-tertiary-content: var(--color-text-on-tertiary-dark);
@@ -181,7 +182,6 @@
 	--syntax-removed: var(--color-red-300);
 
 	--themed-color-fg-default: var(--color-fg-default-dark);
-	--themed-color-fg-agent-message: var(--color-fg-agent-message-dark);
 	--themed-color-fg-agent-message-strong: var(--color-fg-agent-message-strong-dark);
 	--themed-color-fg-secondary: var(--color-fg-secondary-dark);
 	--themed-color-fg-tertiary: var(--color-fg-tertiary-dark);

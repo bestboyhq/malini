@@ -46,6 +46,7 @@ export interface AgentServiceDeps {
 	readonly bridgeScriptPath?: string;
 	readonly verifyAttachment?: SendPromptHooks['verifyAttachment'];
 	readonly collectAttachmentGarbage?: SendPromptHooks['collectAttachmentGarbage'];
+	readonly prepareAttachments?: SendPromptHooks['prepareAttachments'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
 	readonly log?: (line: string) => void;
@@ -240,6 +241,7 @@ export async function startAgentService(
 			...(deps.collectAttachmentGarbage
 				? { collectAttachmentGarbage: deps.collectAttachmentGarbage }
 				: {}),
+			...(deps.prepareAttachments ? { prepareAttachments: deps.prepareAttachments } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			notifySessionRenamed(workstreamId, sessionId, name) {

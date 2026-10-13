@@ -13,7 +13,7 @@ import {
 	seedWorkstream,
 } from './harness';
 
-test('removing a repository from the sidebar archives its workstreams and keeps their work', async () => {
+test('removing a repository from the sidebar deletes its workstreams and keeps their work', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -35,11 +35,11 @@ test('removing a repository from the sidebar archives its workstreams and keeps 
 		await sidebar.getByRole('link', { name: 'Open alpha' }).hover();
 		await sidebar.getByRole('button', { name: 'Remove alpha' }).click();
 		const confirm = sidebar.getByRole('button', {
-			name: 'Archive 2 workstreams and remove alpha',
+			name: 'Delete 2 workstreams and remove alpha',
 		});
-		await expect(confirm).toHaveText('Archive 2 and remove');
+		await expect(confirm).toHaveText('Delete 2 and remove');
 		const tooltip = page.getByRole('tooltip');
-		await expect(tooltip).toContainText('Archives 2 workstreams');
+		await expect(tooltip).toContainText('Deletes 2 workstreams');
 		await tooltip.evaluate((element) =>
 			Promise.all(
 				element
@@ -93,7 +93,7 @@ test('the sidebar row actions are reachable from the keyboard', async () => {
 		await expect(remove).toBeFocused();
 		await captureFlow(app, 'sidebar-remove-focused-by-keyboard');
 		await page.keyboard.press('Enter');
-		const confirm = sidebar.getByRole('button', { name: 'Archive 1 workstream and remove alpha' });
+		const confirm = sidebar.getByRole('button', { name: 'Delete 1 workstream and remove alpha' });
 		await expect(confirm).toBeFocused();
 		await page.keyboard.press('Escape');
 		await expect(remove).toBeVisible();

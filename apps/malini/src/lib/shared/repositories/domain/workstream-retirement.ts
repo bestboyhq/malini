@@ -1,5 +1,3 @@
-export const WORKSTREAM_UNDO_WINDOW_MS = 5000;
-
 export type WorkstreamLifecycleAction = 'archived' | 'deleted';
 
 export type WorkstreamLifecycleAnnouncer = (
@@ -8,33 +6,14 @@ export type WorkstreamLifecycleAnnouncer = (
 ) => void;
 
 export type WorkstreamRetirementOutcome =
-	| Readonly<{ status: 'retired' }>
-	| Readonly<{ status: 'undone' }>
-	| Readonly<{ status: 'failed'; message: string }>;
-
-export type SavedWorkstreamWork = Readonly<{
-	ref: string;
-	uncommitted: boolean;
-	commits: number;
-}>;
-
-export function savedWorkNote(saved: SavedWorkstreamWork): string {
-	const commits = saved.commits === 1 ? 'commit' : `${saved.commits} commits`;
-	if (saved.uncommitted && saved.commits > 0) {
-		return `Its ${commits} and uncommitted work are saved`;
-	}
-	if (saved.uncommitted) {
-		return 'Its uncommitted work is saved';
-	}
-	return `Its ${commits} ${saved.commits === 1 ? 'is' : 'are'} saved`;
-}
+	Readonly<{ status: 'retired' }> | Readonly<{ status: 'failed'; message: string }>;
 
 export function workstreamCount(count: number): string {
 	return count === 1 ? '1 workstream' : `${count} workstreams`;
 }
 
 export function retirementFailureToast(
-	action: 'archive' | 'delete' | 'remove',
+	action: 'archive' | 'delete' | 'remove' | 'restore',
 	workstreamName: string,
 	reason: string,
 ): string {

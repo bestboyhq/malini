@@ -26,6 +26,14 @@ export interface Workstream {
 	createdAt: string;
 }
 
+export interface ArchivedWorkstreamDto {
+	id: string;
+	projectId: string;
+	name: string;
+	baseBranch: string;
+	archivedAt: string;
+}
+
 export interface WorkstreamDto extends Workstream {
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
@@ -224,6 +232,7 @@ export interface CheckDiagnosticsDto {
 export interface ReviewCommentDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	createdAt: string;
 	updatedAt: string;
@@ -244,6 +253,7 @@ export interface ReviewThreadDto {
 export interface RequestedChangeReviewDto {
 	id: string;
 	authorLogin: string | null;
+	authorIsBot: boolean;
 	body: string;
 	submittedAt: string;
 	updatedAt: string;

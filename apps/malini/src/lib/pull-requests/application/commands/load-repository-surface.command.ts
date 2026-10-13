@@ -2,7 +2,6 @@ import { acceptRepositorySurfaceCommand } from '$lib/pull-requests/application/c
 import { REPOSITORY_EXTENSION_COMMANDS } from '$lib/pull-requests/domain/pull-request-action';
 import { repositorySurfaceAggregate } from '$lib/pull-requests/infrastructure/aggregates/repository-surface.aggregate.svelte';
 import { repositoryExtensionService } from '$lib/pull-requests/infrastructure/services/repository-extension.service';
-import { pullRequestActionStore } from '$lib/pull-requests/infrastructure/stores/pull-request-action.store.svelte';
 
 export { loadRepositorySurfaceCommand };
 
@@ -22,7 +21,6 @@ function loadRepositorySurfaceCommand(workstreamId: string): void {
 		} catch {
 			if (!repositorySurfaceAggregate.loadIsCurrent(workstreamId, generation)) return;
 			repositorySurfaceAggregate.finishLoad(workstreamId, generation, 'failed');
-			if (pullRequestActionStore.deferredFor(workstreamId)) pullRequestActionStore.dropDeferred();
 		}
 	})();
 }

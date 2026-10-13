@@ -2,8 +2,8 @@ import type {
 	AgentRunChangePatch,
 	AgentSessionChangePatch,
 	AgentSessionChanges,
+	AgentSessionOrigin,
 	LiveEventEnvelope,
-	ClaudeSetupStep,
 	ProviderCapability,
 	StagedAgentAttachment,
 } from '$contract/agent';
@@ -42,6 +42,7 @@ export type FakeSession = {
 	hasSentPrompt: boolean;
 	currentRunId: string | null;
 	cancelled: boolean;
+	origin: AgentSessionOrigin;
 };
 
 export type FakeState = {
@@ -65,7 +66,6 @@ export type FakeState = {
 	secrets: Map<string, string>;
 	agentScript: readonly FakeAgentScriptStep[];
 	providerCapabilities: ProviderCapability[];
-	claudeSetupSteps: ClaudeSetupStep[];
 	nextSession: number;
 	agentSessionBootstrapFailures: number;
 	agentSessionBootstrapError: string;
@@ -136,7 +136,6 @@ export function createFakeState(seed: PlatformSeed): FakeState {
 		providerCapabilities: (merged.providerCapabilities ?? defaultProviderCapabilities).map(
 			cloneProviderCapability,
 		),
-		claudeSetupSteps: [],
 		nextSession: 1,
 		agentSessionBootstrapFailures: merged.agentSessionBootstrapFailures ?? 0,
 		agentSessionBootstrapError:
@@ -213,6 +212,7 @@ export function buildSeededSessions(
 				eventSeeds.some((entry) => entry.event.type === 'user.message'),
 			currentRunId: sessionSeed.currentRunId ?? null,
 			cancelled: false,
+			origin: sessionSeed.origin ?? 'user',
 		});
 	}
 	return sessions;

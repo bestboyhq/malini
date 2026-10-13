@@ -11,7 +11,7 @@
 
 	export type MarkdownRenderMode = 'markdown' | 'prose' | 'plain';
 
-	export type ManagedCodeBlockProps = { code: string; safeHtml: string };
+	export type ManagedCodeBlockProps = { code: string; language: string | null };
 
 	export type ManagedCodeBlock = {
 		update?(props: ManagedCodeBlockProps): void;
@@ -323,7 +323,7 @@
 			pending.push({
 				target,
 				code: codeElement.textContent ?? '',
-				safeHtml: codeElement.innerHTML,
+				language: /(?:^|\s)language-(\S+)/u.exec(codeElement.className)?.[1] ?? null,
 			});
 		}
 		return { fragment: template.content, pending };
@@ -443,8 +443,8 @@
 				source: chunkSource,
 				nodes,
 				decorated: tailCharacters > 0,
-				blocks: pending.map(({ target, code, safeHtml }) => ({
-					block: options.mountCodeBlock(target, { code, safeHtml }),
+				blocks: pending.map(({ target, code, language }) => ({
+					block: options.mountCodeBlock(target, { code, language }),
 					host: target,
 					code,
 				})),
@@ -494,9 +494,9 @@
 				const mounted = segment.blocks[index];
 				const incoming = pending[index];
 				if (mounted === undefined || incoming === undefined) continue;
-				const { code, safeHtml } = incoming;
+				const { code, language } = incoming;
 				if (code === mounted.code) continue;
-				mounted.block.update?.({ code, safeHtml });
+				mounted.block.update?.({ code, language });
 				mounted.code = code;
 			}
 			segment.source = chunkSource;
@@ -614,7 +614,7 @@
 		target: HTMLElement,
 		props: ManagedCodeBlockProps,
 	): ManagedCodeBlock {
-		const live = $state({ code: props.code, safeHtml: props.safeHtml });
+		const live = $state({ code: props.code, language: props.language });
 		let instance: ReturnType<typeof mount> | null = null;
 		let cancelled = false;
 		queueMicrotask(() => {
@@ -624,7 +624,7 @@
 		return {
 			update: (next) => {
 				live.code = next.code;
-				live.safeHtml = next.safeHtml;
+				live.language = next.language;
 			},
 			destroy: () => {
 				cancelled = true;
@@ -914,12 +914,15 @@
 		width: auto;
 		max-width: 100%;
 		max-height: 16rem;
+		margin: 0.25rem 0.25rem 0.25rem 0;
+		vertical-align: top;
 		object-fit: contain;
+		border: 0.5px solid var(--color-border-default);
+		border-radius: 0.375em;
 	}
 
 	.markdown-text :global(img[data-gallery-image]) {
 		cursor: zoom-in;
-		border-radius: 0.375em;
 	}
 
 	.markdown-text :global(img[data-gallery-image]:focus-visible) {

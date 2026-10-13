@@ -12,7 +12,7 @@ export type TurnReport = Readonly<{
 type FooterKey = 'outcome' | 'needs' | 'commit' | 'pull request';
 
 const FOOTER_LINE =
-	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(outcome|needs|commit|pull request)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*?)\s*$/iu;
+	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(outcome|needs|commit|pull request|resolved)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*?)\s*$/iu;
 const NOTHING_NEEDED = /^(?:nothing|none|no|n\/a|-|—)\.?$/iu;
 const MARKDOWN_IMAGE = /!\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/gu;
 
@@ -25,6 +25,10 @@ export function parseTurnReport(text: string): TurnReport {
 		if (line.trim() === '') continue;
 		const match = FOOTER_LINE.exec(line);
 		const key = match?.[1]?.toLowerCase();
+		if (match && key === 'resolved') {
+			bodyEnd = index;
+			continue;
+		}
 		if (!match || !isFooterKey(key) || footer.has(key)) break;
 		footer.set(key, stripEmphasis(match[2] ?? ''));
 		bodyEnd = index;

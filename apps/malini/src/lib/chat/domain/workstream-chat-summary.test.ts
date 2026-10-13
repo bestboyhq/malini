@@ -5,6 +5,7 @@ import { summarizeWorkstreamChat } from './workstream-chat-summary';
 function summary(kind: AgentAttentionKind): ReturnType<typeof summarizeWorkstreamChat> {
 	return summarizeWorkstreamChat({
 		session: null,
+		jobRunning: false,
 		queueCount: 0,
 		attention: { kind, runId: 'run-1', updatedAt: 1 },
 		hasDraft: false,

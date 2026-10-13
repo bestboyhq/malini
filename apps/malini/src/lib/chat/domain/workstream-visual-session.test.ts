@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionRecord, SessionState } from '$lib/chat/domain/session-record';
-import { preferredVisualSessionsByWorkstream } from './workstream-visual-session';
+import {
+	preferredVisualSessionsByWorkstream,
+	workstreamsRunningJobs,
+} from './workstream-visual-session';
 
 describe('preferredVisualSessionsByWorkstream', () => {
 	it('preserves approval, running, then newest priority independently per workstream', () => {
@@ -31,6 +34,24 @@ describe('preferredVisualSessionsByWorkstream', () => {
 
 		expect(preferred.get('workstream')?.id).toBe('first');
 	});
+
+	it('never picks a job transcript, but reports the workstreams a job is running in', () => {
+		const sessions = [
+			session('chat', 'workstream', 'completed', '2026-07-01T00:00:00Z'),
+			{
+				...session('job', 'workstream', 'running', '2026-07-02T00:00:00Z'),
+				origin: 'job' as const,
+			},
+			{
+				...session('job-done', 'quiet', 'completed', '2026-07-02T00:00:00Z'),
+				origin: 'job' as const,
+			},
+		];
+
+		expect(preferredVisualSessionsByWorkstream(sessions).get('workstream')?.id).toBe('chat');
+		expect(preferredVisualSessionsByWorkstream(sessions).has('quiet')).toBe(false);
+		expect([...workstreamsRunningJobs(sessions)]).toEqual(['workstream']);
+	});
 });
 
 function session(
@@ -48,5 +69,6 @@ function session(
 		currentRunId: null,
 		lastError: null,
 		startedAt,
+		origin: 'user',
 	};
 }

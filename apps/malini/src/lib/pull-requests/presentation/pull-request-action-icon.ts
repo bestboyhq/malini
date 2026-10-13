@@ -2,22 +2,14 @@ import type { IconName } from '$hyper-ui/icons';
 import type { PullRequestActionKind } from '$lib/pull-requests/domain/pull-request-action';
 
 const ACTION_ICONS: Readonly<Record<PullRequestActionKind, IconName>> = {
-	unavailable: 'plug',
+	'open-draft': 'pr-draft',
+	'queue-merge': 'pr-merged',
+	'cancel-merge': 'close',
+	'open-pull-request': 'external-link',
+	'open-job': 'arrow-right',
 	reconnect: 'link',
-	retry: 'refresh',
-	fix: 'wrench',
-	push: 'arrow-up',
-	update: 'branch',
-	create: 'pr-open',
-	ready: 'eye',
-	todos: 'checklist',
-	merge: 'pr-merged',
-	merged: 'archive',
-	open: 'external-link',
-	'agent-running': 'sparkles',
-	checking: 'clock',
-	operation: 'warning',
-	'no-changes': 'circle-slash',
+	refresh: 'refresh',
+	'abort-operation': 'undo',
 };
 
 export function pullRequestActionIcon(kind: PullRequestActionKind): IconName {

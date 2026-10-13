@@ -2,9 +2,19 @@ import type { WorktreeOperation } from '$contract/repositories';
 import {
 	worktreeOperationNoun,
 	type PullRequestAvailability,
-	type PullRequestTopBarPresentation,
+	type PullRequestMenuItem,
+	type PullRequestTopBar,
+	type PullRequestTopBarAction,
+	type WorkstreamStatus,
 } from './pull-request-action';
-import type { PullRequestMergeMethod } from './pull-request';
+import {
+	needsYouDestination,
+	needsYouReasonDescription,
+	needsYouReasonLabel,
+	shipStepDescription,
+	shipStepDetail,
+	type PullRequestShip,
+} from './pull-request-ship';
 import {
 	repositorySurfaceHasBeenRead,
 	type RepositorySurface,
@@ -12,574 +22,482 @@ import {
 	type SurfacePullRequestCheck,
 } from './repository-surface';
 
-export function pullRequestTopBarPresentation(
-	state: RepositorySurface | null,
+type StatusLine = Omit<WorkstreamStatus, 'action'>;
+
+export function pullRequestTopBar(
+	ship: PullRequestShip | null,
+	surface: RepositorySurface | null,
 	availability: PullRequestAvailability,
-): PullRequestTopBarPresentation | null {
-	return topBarPresentation(state, availability);
+): PullRequestTopBar {
+	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
+	const remoteFailure = surface === null ? null : surfaceFailure(surface);
+	const url = read?.pullRequest?.url ?? ship?.pullRequestUrl ?? null;
+	const status = workstreamStatus(ship, read, availability, surface, url);
+	return {
+		status,
+		menu: topBarMenu(ship, surface, remoteFailure).filter(
+			(item) => item.id !== status?.action?.kind,
+		),
+		remoteFailure,
+		pullRequestNumber: read?.pullRequest?.number ?? ship?.pullRequestNumber ?? null,
+		url,
+	};
 }
 
-export function pullRequestFixIsActionable(state: RepositorySurface): boolean {
-	return topBarPresentation(state, 'ready')?.kind === 'fix';
+function workstreamStatus(
+	ship: PullRequestShip | null,
+	read: RepositorySurface | null,
+	availability: PullRequestAvailability,
+	surface: RepositorySurface | null,
+	url: string | null,
+): WorkstreamStatus | null {
+	if (ship?.phase === 'needs-you') return needsYou(ship, read, url);
+	if (ship?.phase === 'queued') return queued(ship);
+	if (ship?.step && ship.pullRequestNumber === null) return openingDraft(ship);
+	if (availability === 'extension-unavailable') return EXTENSION_OFF;
+	if (availability === 'github-unavailable') return read ? withoutGithub(read) : null;
+
+	const blocker = connectionBlocker(read, surface);
+	if (blocker) return blocker;
+	if (!read) return ship?.pullRequestNumber ? openBeforeRead(ship.pullRequestNumber, ship) : null;
+
+	const operation = blockingOperation(read);
+	if (operation) return operation;
+
+	const pullRequest = read.pullRequest;
+	if (pullRequest?.state === 'merged') return merged(read);
+	if (pullRequest && publishedPullRequest(pullRequest)) {
+		return { ...openStatus(read, pullRequest), action: queueMerge(pullRequest.number, ship) };
+	}
+	if (ship?.pullRequestNumber && pullRequest?.state !== 'closed') {
+		return openBeforeRead(ship.pullRequestNumber, ship);
+	}
+	if (pullRequest?.state === 'closed') return closed(read, ship);
+	return local(read, ship);
 }
 
-export function pullRequestConflictsWithBase(pullRequest: SurfacePullRequest | null): boolean {
-	return (
-		publishedPullRequest(pullRequest) &&
-		pullRequest?.mergeableState?.trim().toLocaleLowerCase() === 'dirty'
+function needsYou(
+	ship: PullRequestShip,
+	read: RepositorySurface | null,
+	url: string | null,
+): WorkstreamStatus {
+	const reason = ship.needsYou?.reason ?? null;
+	const operation = read?.operationInProgress ?? null;
+	const explanation =
+		ship.needsYou?.detail.trim() || (reason ? needsYouReasonDescription(reason) : '');
+	return attention(
+		reason ? needsYouReasonLabel(reason, operation) : null,
+		[sentence(explanation), NEEDS_YOU_NEXT_STEP].filter(Boolean).join(' '),
+		needsYouAction(ship, operation, url),
 	);
 }
 
-export function surfaceBlockingChecks(
+const NEEDS_YOU_NEXT_STEP = 'Retry or cancel the merge from the pull request menu.';
+
+function needsYouAction(
+	ship: PullRequestShip,
+	operation: WorktreeOperation | null,
+	url: string | null,
+): PullRequestTopBarAction | null {
+	const destination = ship.needsYou ? needsYouDestination(ship.needsYou) : null;
+	if (destination === 'repositories') return RECONNECT;
+	if (destination === 'job') return OPEN_JOB;
+	if (destination === 'pull-request') return url ? OPEN_PULL_REQUEST : null;
+	return operation ? abortOperation(operation) : null;
+}
+
+function queued(ship: PullRequestShip): WorkstreamStatus {
+	const merging = ship.step === 'merging' || ship.step === 'archiving';
+	const description =
+		ship.step === null ? 'Malini is shipping this pull request' : shipStepDescription(ship.step);
+	return {
+		tone: 'queued',
+		busy: true,
+		label: merging ? 'Merging' : 'Queued for merge',
+		detail: ship.lastError
+			? 'Retrying after an error'
+			: ship.step === null
+				? null
+				: shipStepDetail(ship.step),
+		tooltip: ship.lastError
+			? `${description}. The last attempt failed and malini retries it: ${ship.lastError}`
+			: `${description}.`,
+		action: merging ? null : CANCEL_MERGE,
+	};
+}
+
+function openingDraft(ship: PullRequestShip): WorkstreamStatus {
+	const waiting = ship.step === 'waiting-for-agent';
+	return {
+		tone: 'idle',
+		busy: true,
+		label: 'Opening draft',
+		detail: ship.lastError
+			? 'Retrying after an error'
+			: waiting
+				? 'After the agent finishes'
+				: 'Committing and pushing',
+		tooltip: ship.lastError
+			? `Opening the draft failed and malini retries it: ${ship.lastError}`
+			: waiting
+				? 'Malini opens the draft pull request once the agent finishes its run'
+				: 'Malini is committing, pushing and opening a draft pull request',
+		action: null,
+	};
+}
+
+const NOTHING_YET: WorkstreamStatus = {
+	tone: 'idle',
+	busy: false,
+	label: 'Build something great',
+	detail: 'Ask the agent for a change',
+	tooltip: null,
+	action: null,
+};
+
+const EXTENSION_OFF: WorkstreamStatus = {
+	tone: 'idle',
+	busy: false,
+	label: 'Repository extension is off',
+	detail: 'Add it back from the inspector',
+	tooltip: 'Turn the Repository extension back on to open or merge a pull request',
+	action: null,
+};
+
+function withoutGithub(read: RepositorySurface): WorkstreamStatus {
+	const changed = changedFileCount(read);
+	if (changed === 0) return NOTHING_YET;
+	return {
+		...line('idle', filesChanged(changed), 'No GitHub remote to publish to'),
+		tooltip: 'Connect this workstream to a GitHub repository to open a pull request',
+		action: null,
+	};
+}
+
+function connectionBlocker(
+	read: RepositorySurface | null,
+	surface: RepositorySurface | null,
+): WorkstreamStatus | null {
+	if (read?.pullRequest?.state === 'unavailable') {
+		return attention(
+			'GitHub account not connected',
+			'Connect the repository GitHub account to open or merge a pull request.',
+			CONNECT,
+		);
+	}
+	if (read?.github?.session === 'reconnect-required') {
+		return attention(
+			'GitHub sign-in expired',
+			'GitHub no longer accepts the stored sign-in. Sign in with GitHub again to restore this workstream.',
+			RECONNECT,
+		);
+	}
+	const failure = surface === null ? null : surfaceFailure(surface);
+	if (!failure) return null;
+	return attention(
+		surface?.localError ? "Couldn't read the worktree" : 'GitHub is unreachable',
+		failure,
+		RETRY,
+	);
+}
+
+function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
+	const operation = read.operationInProgress;
+	if (operation === null) return null;
+	const marked = read.conflictMarkerPaths.length;
+	if (operation === 'merge' && marked === 0) return null;
+	return attention(
+		operation === 'merge'
+			? 'Merge has conflicts'
+			: needsYouReasonLabel('operation-in-progress', operation),
+		operation === 'merge'
+			? `${marked} file${marked === 1 ? ' still has' : 's still have'} conflict markers. Resolve them, or abort the merge.`
+			: `A ${operation} stopped part-way in this workstream. Finish it in a terminal, or abort it.`,
+		abortOperation(operation),
+	);
+}
+
+function merged(read: RepositorySurface): WorkstreamStatus {
+	return {
+		...line('merged', 'Merged', read.baseBranch ? `Into ${read.baseBranch}` : null),
+		action: null,
+	};
+}
+
+function closed(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
+	return {
+		...line('idle', 'Closed', 'Not merged'),
+		action: changedFileCount(read) > 0 ? openDraft(ship, true) : null,
+	};
+}
+
+function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
+	const changed = changedFileCount(read);
+	if (changed === 0) return NOTHING_YET;
+	return {
+		...line('idle', filesChanged(changed), 'Not on GitHub yet'),
+		action: openDraft(ship, false),
+	};
+}
+
+function openBeforeRead(pullRequestNumber: number, ship: PullRequestShip): WorkstreamStatus {
+	return { ...line('idle', 'Open', null), action: queueMerge(pullRequestNumber, ship) };
+}
+
+function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): StatusLine {
+	const base = read.baseBranch ?? 'its base';
+	if (pullRequestConflictsWithBase(pullRequest) || read.conflictMarkerPaths.length > 0) {
+		return line('idle', 'Merge conflicts', `With ${base}`);
+	}
+	if (pullRequest.githubLagsPush) return running('Starting on GitHub');
+
+	const checks = pullRequest.checkItems;
+	const failing = surfaceBlockingChecks(checks).filter(
+		(check) => check.failed && !check.notStartedReason,
+	);
+	if (failing.length > 0) return line('idle', 'Checks failed', checkNames(failing));
+	if (pullRequest.reviewDecision === 'changes_requested') {
+		return line('idle', 'Changes requested', null);
+	}
+	const threads = pullRequest.unresolvedReviewThreadCount ?? 0;
+	if (threads > 0) {
+		return line('idle', `${threads} unresolved ${plural(threads, 'thread')}`, 'Comments on GitHub');
+	}
+
+	const pending = checks.filter(
+		(check) => !check.passed && !check.failed && !check.notStartedReason,
+	).length;
+	if (pending > 0) return running(`${pending} of ${checks.length} pending`);
+	if (pullRequest.checks === 'pending') return running('Starting on GitHub');
+	const notStartedReason = checks.find((check) => check.notStartedReason)?.notStartedReason;
+	if (notStartedReason) {
+		return {
+			...line('idle', "CI didn't start", sentenceCase(notStartedReason)),
+			tooltip: `GitHub didn't start CI: ${notStartedReason}`,
+		};
+	}
+	const optional = checks.filter((check) => check.required === false && check.failed).length;
+	if (pullRequest.checks === 'failed' && optional === 0) return line('idle', 'Checks failed', null);
+
+	const mergeState = pullRequest.mergeableState?.trim().toLocaleLowerCase();
+	if (read.behind > 0 || mergeState === 'behind') {
+		return line(
+			'idle',
+			`Behind ${base}`,
+			read.behind > 0 ? `${read.behind} ${plural(read.behind, 'commit')}` : null,
+		);
+	}
+	if (pullRequest.reviewDecision === 'review_required') {
+		return line('idle', 'Review required', 'Needs an approval');
+	}
+	if (optional > 0) {
+		return line(
+			'ready',
+			'Ready to merge',
+			`${optional} optional ${plural(optional, 'check')} failed`,
+		);
+	}
+	if (checks.length > 1)
+		return line('ready', 'Ready to merge', `All ${checks.length} checks passed`);
+	if (checks.length === 1 || pullRequest.checks === 'success') {
+		return line('ready', 'Ready to merge', 'Checks passed');
+	}
+	return line('idle', 'Open', 'No checks configured');
+}
+
+function line(tone: WorkstreamStatus['tone'], label: string, detail: string | null): StatusLine {
+	return { tone, busy: false, label, detail, tooltip: null };
+}
+
+function running(detail: string): StatusLine {
+	return { tone: 'idle', busy: true, label: 'Checks running', detail, tooltip: null };
+}
+
+function attention(
+	detail: string | null,
+	tooltip: string | null,
+	action: PullRequestTopBarAction | null,
+): WorkstreamStatus {
+	return { tone: 'needs-you', busy: false, label: 'Needs you', detail, tooltip, action };
+}
+
+function changedFileCount(read: RepositorySurface): number {
+	return Math.max(read.changedFiles, read.dirtyPaths.length);
+}
+
+function filesChanged(count: number): string {
+	return `${count} ${plural(count, 'file')} changed`;
+}
+
+function checkNames(checks: readonly SurfacePullRequestCheck[]): string {
+	const [first, second, ...rest] = checks.map((check) => check.name);
+	const named = [first, second].filter(Boolean).join(', ');
+	return rest.length > 0 ? `${named} +${rest.length}` : named;
+}
+
+function plural(count: number, noun: string): string {
+	return count === 1 ? noun : `${noun}s`;
+}
+
+function topBarMenu(
+	ship: PullRequestShip | null,
+	surface: RepositorySurface | null,
+	remoteFailure: string | null,
+): readonly PullRequestMenuItem[] {
+	const merging = ship?.phase === 'queued' || ship?.phase === 'needs-you';
+	const operation = surface?.operationInProgress ?? null;
+	const numbered = Boolean(surface?.pullRequest?.number ?? ship?.pullRequestNumber);
+	return [
+		...(ship?.phase === 'needs-you' ? [RETRY_MERGE] : []),
+		...(merging ? [CANCEL_MERGE_ITEM] : []),
+		...(operation ? [abortOperationItem(operation)] : []),
+		...(surface && (numbered || remoteFailure) ? [REFRESH] : []),
+	];
+}
+
+const RETRY_MERGE: PullRequestMenuItem = { id: 'retry-merge', label: 'Retry', confirmLabel: null };
+
+const CANCEL_MERGE_ITEM: PullRequestMenuItem = {
+	id: 'cancel-merge',
+	label: 'Cancel merge',
+	confirmLabel: 'Confirm cancel',
+};
+
+const REFRESH: PullRequestMenuItem = { id: 'refresh', label: 'Refresh', confirmLabel: null };
+
+function abortOperationItem(operation: WorktreeOperation): PullRequestMenuItem {
+	return { id: 'abort-operation', label: `Abort ${operation}`, confirmLabel: 'Confirm abort' };
+}
+
+function surfaceFailure(surface: RepositorySurface): string | null {
+	if (surface.localError) return surface.localError;
+	if (surface.pullRequestError) return surface.pullRequestError;
+	if (surface.pullRequestRefreshStatus === 'error') return 'Pull request status is unavailable';
+	return null;
+}
+
+function queueMerge(
+	pullRequestNumber: number | null,
+	ship: PullRequestShip | null,
+): PullRequestTopBarAction {
+	return {
+		kind: 'queue-merge',
+		label: 'Queue merge',
+		ariaLabel:
+			pullRequestNumber === null
+				? 'Queue merge'
+				: `Queue merge for pull request #${pullRequestNumber}`,
+		tooltip: ship?.lastError
+			? `Pushing the latest work failed and malini retries it: ${ship.lastError}`
+			: 'Malini marks the pull request ready, keeps it up to date and its checks green, and merges it once GitHub allows',
+		tone: 'primary',
+		confirmLabel: null,
+	};
+}
+
+function openDraft(ship: PullRequestShip | null, replacing: boolean): PullRequestTopBarAction {
+	return {
+		kind: 'open-draft',
+		label: 'Open draft',
+		ariaLabel: replacing ? 'Open a replacement draft pull request' : 'Open a draft pull request',
+		tooltip: ship?.lastError
+			? `Opening the draft failed: ${ship.lastError}. Try again`
+			: replacing
+				? 'The previous pull request is closed. Commit, push and open a new draft pull request'
+				: 'Commit and push this workstream, then open a draft pull request',
+		tone: 'primary',
+		confirmLabel: null,
+	};
+}
+
+const CANCEL_MERGE: PullRequestTopBarAction = {
+	kind: 'cancel-merge',
+	label: 'Cancel',
+	ariaLabel: 'Cancel the queued merge',
+	tooltip: 'Stops the merge queue. The pull request stays open',
+	tone: 'secondary',
+	confirmLabel: 'Confirm cancel',
+};
+
+const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
+	kind: 'open-pull-request',
+	label: 'Open PR',
+	ariaLabel: 'Open the pull request on GitHub',
+	tooltip: 'Opens the pull request on GitHub',
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+const OPEN_JOB: PullRequestTopBarAction = {
+	kind: 'open-job',
+	label: 'Open job',
+	ariaLabel: 'Open the transcript of the job that stopped',
+	tooltip: "Opens the job's transcript",
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+const RECONNECT: PullRequestTopBarAction = {
+	kind: 'reconnect',
+	label: 'Reconnect',
+	ariaLabel: 'Reconnect your GitHub account',
+	tooltip: 'Opens the repositories page to sign in with GitHub again',
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+const CONNECT: PullRequestTopBarAction = {
+	kind: 'reconnect',
+	label: 'Connect',
+	ariaLabel: 'Connect the repository GitHub account',
+	tooltip: 'Opens the repositories page to connect GitHub',
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+const RETRY: PullRequestTopBarAction = {
+	kind: 'refresh',
+	label: 'Retry',
+	ariaLabel: 'Read the repository status again',
+	tooltip: 'Reads the worktree and the pull request again',
+	tone: 'primary',
+	confirmLabel: null,
+};
+
+function abortOperation(operation: WorktreeOperation): PullRequestTopBarAction {
+	return {
+		kind: 'abort-operation',
+		label: `Abort ${operation}`,
+		ariaLabel: `Abort the ${operation} in this workstream`,
+		tooltip: `Returns the worktree to its last commit and drops the stopped ${worktreeOperationNoun(operation).toLocaleLowerCase()}`,
+		tone: 'primary',
+		confirmLabel: 'Confirm abort',
+	};
+}
+
+function pullRequestConflictsWithBase(pullRequest: SurfacePullRequest): boolean {
+	return (
+		publishedPullRequest(pullRequest) &&
+		pullRequest.mergeableState?.trim().toLocaleLowerCase() === 'dirty'
+	);
+}
+
+function surfaceBlockingChecks(
 	checkItems: readonly SurfacePullRequestCheck[],
 ): readonly SurfacePullRequestCheck[] {
 	return checkItems.filter((check) => check.required !== false && !check.passed);
 }
 
-type NextAction = Omit<PullRequestTopBarPresentation, 'remoteFailure'>;
-
-function resting(action: NextAction): PullRequestTopBarPresentation {
-	return { ...action, remoteFailure: null };
+function publishedPullRequest(pullRequest: SurfacePullRequest): boolean {
+	return pullRequest.state === 'open' || pullRequest.state === 'draft';
 }
 
-function topBarPresentation(
-	state: RepositorySurface | null,
-	availability: PullRequestAvailability,
-): PullRequestTopBarPresentation | null {
-	if (availability === 'github-unavailable') {
-		return resting(
-			unavailable(
-				'Connect GitHub',
-				'Connecting GitHub…',
-				'Connect GitHub to publish this workstream',
-				'Connect this workstream to a GitHub repository to create a pull request',
-			),
-		);
-	}
-
-	if (availability === 'extension-unavailable') {
-		return resting(
-			unavailable(
-				'Enable Repository',
-				'Enabling Repository…',
-				'Enable the Repository extension for pull request actions',
-				'Enable the Repository extension to create or update a pull request',
-			),
-		);
-	}
-
-	if (!state || !repositorySurfaceHasBeenRead(state)) return null;
-
-	if (availability === 'agent-running') return resting(agentRunning());
-
-	const pullRequest = state.pullRequest;
-	if (pullRequest?.state === 'unavailable') {
-		return resting(
-			unavailable(
-				'Connect GitHub',
-				'Connecting GitHub…',
-				'Connect the repository GitHub account',
-				'Connect the repository GitHub account to create or update a pull request',
-			),
-		);
-	}
-
-	if (state.localError) return resting(retry(state.localError, pullRequest?.number ?? null));
-
-	if (githubSessionFinished(state)) return resting(reconnect());
-
-	const remoteFailure = pullRequestReadFailure(state);
-
-	const worktreeVerb = worktreeOnlyNextAction(state, pullRequest);
-	if (worktreeVerb) return { ...worktreeVerb, remoteFailure };
-
-	if (remoteFailure) {
-		return resting(retry(remoteFailure, pullRequest?.number ?? null));
-	}
-
-	if (state.status === 'loading' || state.pullRequestRefreshStatus === 'loading') {
-		return topBarPresentation(
-			{
-				...state,
-				status: state.status === 'loading' ? 'ready' : state.status,
-				pullRequestRefreshStatus: 'ready',
-			},
-			'ready',
-		);
-	}
-
-	return resting(pullRequestNextAction(state, pullRequest));
+function sentenceCase(text: string): string {
+	return text.charAt(0).toLocaleUpperCase() + text.slice(1);
 }
 
-function pullRequestReadFailure(state: RepositorySurface): string | null {
-	if (state.pullRequestError) return state.pullRequestError;
-	if (state.pullRequestRefreshStatus === 'error') return 'Pull request status is unavailable';
-	return null;
-}
-
-function worktreeOnlyNextAction(
-	state: RepositorySurface,
-	pullRequest: SurfacePullRequest | null,
-): NextAction | null {
-	const operation = state.operationInProgress;
-	if (operation !== null && operation !== 'merge') return operationInProgress(operation);
-
-	if (state.conflictMarkerPaths.length > 0) {
-		return fix(
-			'Resolve conflicts',
-			'Resolving conflicts…',
-			pullRequestNumberLabel('Resolve merge conflicts', pullRequest?.number),
-			conflictTooltip(state),
-		);
-	}
-
-	if (operation !== 'merge' && pullRequest?.state === 'merged') return null;
-
-	if (
-		operation === 'merge' ||
-		state.dirtyPaths.length > 0 ||
-		(state.ahead > 0 && !nothingToShip(state, pullRequest))
-	) {
-		return push(state, pullRequest);
-	}
-
-	return null;
-}
-
-function nothingToShip(state: RepositorySurface, pullRequest: SurfacePullRequest | null): boolean {
-	return (
-		state.changedFiles === 0 && state.dirtyPaths.length === 0 && !publishedPullRequest(pullRequest)
-	);
-}
-
-function githubSessionFinished(state: RepositorySurface): boolean {
-	return state.github?.session === 'reconnect-required';
-}
-
-function pullRequestNextAction(
-	state: RepositorySurface,
-	pullRequest: SurfacePullRequest | null,
-): NextAction {
-	const mergeState = pullRequest?.mergeableState?.trim().toLocaleLowerCase() ?? '';
-
-	if (pullRequestConflictsWithBase(pullRequest)) {
-		return fix(
-			'Resolve conflicts',
-			'Resolving conflicts…',
-			pullRequestNumberLabel('Resolve merge conflicts', pullRequest?.number),
-			conflictTooltip(state),
-		);
-	}
-
-	const worktreeVerb = worktreeOnlyNextAction(state, pullRequest);
-	if (worktreeVerb) return worktreeVerb;
-
-	if (publishedPullRequest(pullRequest) && !state.hasUpstream) {
-		return push(state, pullRequest);
-	}
-
-	if (pullRequest?.state === 'merged') return merged(state, pullRequest);
-
-	if (nothingToShip(state, pullRequest)) return noChanges();
-
-	if (state.behind > 0 || mergeState === 'behind') {
-		return update(state, pullRequest);
-	}
-
-	if (!pullRequest || pullRequest.state === 'not_open' || pullRequest.state === 'closed') {
-		return create(pullRequest);
-	}
-
-	if (pullRequest.state === 'draft') {
-		return {
-			kind: 'ready',
-			label: 'Ready for review',
-			busyLabel: 'Publishing…',
-			ariaLabel: pullRequestNumberLabel('Mark pull request ready for review', pullRequest.number),
-			tooltip: 'Move this draft pull request into review',
-			disabled: false,
-			tone: 'primary',
-		};
-	}
-
-	return openPullRequestNextAction(state, pullRequest, mergeState);
-}
-
-function openPullRequestNextAction(
-	state: RepositorySurface,
-	pullRequest: SurfacePullRequest,
-	mergeState: string,
-): NextAction {
-	if (pullRequest.githubLagsPush) {
-		return checking(pullRequest, 'GitHub has not picked up the latest push yet');
-	}
-
-	const checkItems = pullRequest.checkItems;
-	const blockingChecks = surfaceBlockingChecks(checkItems);
-	const unresolvedThreads = pullRequest.unresolvedReviewThreadCount ?? 0;
-
-	if (unresolvedThreads > 0 || pullRequest.reviewDecision === 'changes_requested') {
-		return fix(
-			'Fix errors',
-			'Fixing errors…',
-			pullRequestNumberLabel('Resolve pull request review blockers', pullRequest.number),
-			unresolvedThreads > 0
-				? `Resolve ${unresolvedThreads} review thread${unresolvedThreads === 1 ? '' : 's'} in this workstream`
-				: 'Address requested changes in this workstream before merging',
-		);
-	}
-
-	if (pullRequest.reviewDecision === 'review_required') {
-		return open(
-			pullRequest,
-			'A required human approval is still outstanding. Open the pull request on GitHub',
-		);
-	}
-
-	if (pullRequest.reviewStatusUnavailable) {
-		return retry(
-			'Review thread status is unavailable; retry the remote pull request read',
-			pullRequest.number,
-		);
-	}
-
-	if (pullRequest.checks === 'unknown') {
-		return retry(
-			'Check status is unavailable; retry the remote pull request read',
-			pullRequest.number,
-		);
-	}
-
-	const failing = blockingChecks.filter((check) => check.failed).length;
-	if (failing > 0) {
-		return fix(
-			'Fix errors',
-			'Fixing errors…',
-			pullRequestNumberLabel('Fix pull request errors', pullRequest.number),
-			`${failing} blocking check${failing === 1 ? '' : 's'} failed; inspect the failures in this workstream`,
-		);
-	}
-
-	const notStartedReason = blockingChecks.find((check) => check.notStartedReason)?.notStartedReason;
-	if (notStartedReason) return ciNotStarted(pullRequest, notStartedReason);
-
-	const checksRunning =
-		blockingChecks.length > 0 || (checkItems.length === 0 && pullRequest.checks === 'pending');
-
-	if (
-		(checkItems.length === 0 && pullRequest.checks === 'failed') ||
-		pullRequest.mergeable === false ||
-		(mergeState === 'blocked' && !checksRunning)
-	) {
-		return fix(
-			'Fix errors',
-			'Fixing errors…',
-			pullRequestNumberLabel('Fix pull request errors', pullRequest.number),
-			pullRequest.checks === 'failed'
-				? 'Checks failed; inspect the failures in this workstream and continue the agent'
-				: 'The pull request has merge blockers to resolve in this workstream',
-		);
-	}
-
-	if (checksRunning) {
-		return open(
-			pullRequest,
-			blockingChecks.length > 0
-				? `${blockingChecks.length} required check${blockingChecks.length === 1 ? '' : 's'} still running. Watch ${blockingChecks.length === 1 ? 'it' : 'them'} on GitHub`
-				: 'Checks are still running. Watch them on GitHub',
-		);
-	}
-
-	if (state.todoStatus !== 'ready') {
-		return todos(
-			pullRequest,
-			state.todoError ??
-				'Workstream todo state is unavailable; review it in this workstream before merging',
-		);
-	}
-
-	if (state.todoOpenCount > 0) {
-		return todos(
-			pullRequest,
-			`Complete ${state.todoOpenCount} open workstream todo${state.todoOpenCount === 1 ? '' : 's'} before merging`,
-		);
-	}
-
-	if (mergeState === 'unknown') {
-		return checking(pullRequest, 'GitHub is still working out whether this branch merges cleanly');
-	}
-
-	if (pullRequest.mergeReadiness !== 'ready') {
-		return retry('GitHub is still computing mergeability; read it again', pullRequest.number);
-	}
-
-	if (pullRequest.viewerCanMerge === null || pullRequest.viewerCanMerge === undefined) {
-		return retry(
-			'Merge permission is unavailable; retry the remote pull request read',
-			pullRequest.number,
-		);
-	}
-
-	if (!pullRequest.headSha) {
-		return retry(
-			'Pull request head status is unavailable; retry before merging',
-			pullRequest.number,
-		);
-	}
-
-	const mergeMethod = pullRequest.mergeMethod;
-	if (pullRequest.viewerCanMerge === false || mergeMethod === null) {
-		return open(
-			pullRequest,
-			pullRequest.viewerCanMerge === false
-				? 'You do not have merge permission on this repository. Open the pull request on GitHub'
-				: 'No repository merge method is available. Open the pull request on GitHub',
-		);
-	}
-
-	return {
-		kind: 'merge',
-		label: 'Merge',
-		busyLabel: 'Merging…',
-		ariaLabel: pullRequestNumberLabel('Merge pull request', pullRequest.number),
-		tooltip: `${pullRequest.checksHeadline}. ${mergeMethodInstruction(mergeMethod)}`,
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function conflictTooltip(state: RepositorySurface): string {
-	const marked = state.conflictMarkerPaths.length;
-	if (marked > 0) {
-		return `${marked} file${marked === 1 ? ' still has' : 's still have'} conflict markers. Have the agent resolve them, or abort the merge from the pull request menu`;
-	}
-	return `This branch conflicts with ${state.baseBranch ?? 'its base'}. Merge it into this workstream and have the agent resolve the conflicts`;
-}
-
-function publishedPullRequest(pullRequest: SurfacePullRequest | null): boolean {
-	return pullRequest?.state === 'open' || pullRequest?.state === 'draft';
-}
-
-function push(state: RepositorySurface, pullRequest: SurfacePullRequest | null): NextAction {
-	const uncommitted = state.dirtyPaths.length;
-	const published = publishedPullRequest(pullRequest);
-	const work =
-		state.operationInProgress === 'merge'
-			? 'Commit the resolved merge and push it'
-			: uncommitted > 0
-				? `Commit and push ${uncommitted} changed file${uncommitted === 1 ? '' : 's'}`
-				: state.hasUpstream
-					? `Push ${commitCount(state.ahead)}`
-					: 'Push this branch, which does not track a remote yet';
-	return {
-		kind: 'push',
-		label: 'Commit and push',
-		busyLabel: 'Pushing…',
-		ariaLabel: pullRequestNumberLabel('Commit and push changes', pullRequest?.number),
-		tooltip: published ? work : `${work}, then open a pull request`,
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function operationInProgress(operation: Exclude<WorktreeOperation, 'merge'>): NextAction {
-	const noun = worktreeOperationNoun(operation);
-	return {
-		kind: 'operation',
-		label: `${noun} in progress`,
-		busyLabel: `${noun} in progress`,
-		ariaLabel: `${noun} in progress in this workstream`,
-		tooltip: `A ${operation} stopped part-way in this workstream. Finish it in a terminal, or abort it from the pull request menu`,
-		disabled: true,
-		tone: 'secondary',
-	};
-}
-
-function update(state: RepositorySurface, pullRequest: SurfacePullRequest | null): NextAction {
-	return {
-		kind: 'update',
-		label: 'Update branch',
-		busyLabel: 'Updating branch…',
-		ariaLabel: pullRequestNumberLabel('Update this branch', pullRequest?.number),
-		tooltip:
-			state.behind > 0
-				? `Pull ${commitCount(state.behind)}, push the reconciled branch, and refresh status`
-				: 'Pull the target branch, push the result, and refresh checks',
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function create(pullRequest: SurfacePullRequest | null): NextAction {
-	const replacing = pullRequest?.state === 'closed';
-	return {
-		kind: 'create',
-		label: 'Create PR',
-		busyLabel: 'Creating PR…',
-		ariaLabel: replacing ? 'Create a replacement pull request' : 'Create pull request',
-		tooltip: replacing
-			? 'The previous pull request is closed; open a new one for this branch'
-			: 'Push this workstream and open a pull request',
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function todos(pullRequest: SurfacePullRequest, tooltip: string): NextAction {
-	return {
-		kind: 'todos',
-		label: 'Review todos',
-		busyLabel: 'Opening todos…',
-		ariaLabel: pullRequestNumberLabel('Review open workstream todos', pullRequest.number),
-		tooltip,
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function open(pullRequest: SurfacePullRequest, tooltip: string): NextAction {
-	return {
-		kind: 'open',
-		label: 'Open PR',
-		busyLabel: 'Opening PR…',
-		ariaLabel: pullRequestNumberLabel('Open pull request on GitHub', pullRequest.number),
-		tooltip,
-		disabled: pullRequest.url === null,
-		tone: 'secondary',
-	};
-}
-
-function ciNotStarted(pullRequest: SurfacePullRequest, reason: string): NextAction {
-	return {
-		...open(pullRequest, `GitHub didn't start CI: ${reason}. Open the pull request on GitHub`),
-		label: "CI didn't start",
-		ariaLabel: pullRequestNumberLabel(
-			"CI didn't start. Open pull request on GitHub",
-			pullRequest.number,
-		),
-	};
-}
-
-function merged(state: RepositorySurface, pullRequest: SurfacePullRequest): NextAction {
-	const leftover = state.dirtyPaths.length > 0 || state.ahead > 0;
-	return {
-		kind: 'merged',
-		label: 'Archive',
-		busyLabel: 'Archiving…',
-		ariaLabel: pullRequestNumberLabel('Archive this workstream, merged in', pullRequest.number),
-		tooltip: leftover
-			? 'The pull request merged. Archiving keeps the work made since then as a saved ref'
-			: 'The pull request merged. Archive this workstream',
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function fix(label: string, busyLabel: string, ariaLabel: string, tooltip: string): NextAction {
-	return {
-		kind: 'fix',
-		label,
-		busyLabel,
-		ariaLabel,
-		tooltip,
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function checking(pullRequest: SurfacePullRequest, tooltip: string): NextAction {
-	return {
-		kind: 'checking',
-		label: 'Checking…',
-		busyLabel: 'Checking…',
-		ariaLabel: pullRequestNumberLabel(
-			'Waiting for GitHub to report on pull request',
-			pullRequest.number,
-		),
-		tooltip,
-		disabled: true,
-		tone: 'secondary',
-	};
-}
-
-function noChanges(): NextAction {
-	return {
-		kind: 'no-changes',
-		label: 'No changes',
-		busyLabel: 'No changes',
-		ariaLabel: 'No changes to open a pull request for',
-		tooltip:
-			'There is nothing to open a pull request for yet. Change a file in this workstream to publish it',
-		disabled: true,
-		tone: 'secondary',
-	};
-}
-
-function agentRunning(): NextAction {
-	return {
-		kind: 'agent-running',
-		label: 'Agent working…',
-		busyLabel: 'Agent working…',
-		ariaLabel: 'Waiting for the agent to finish',
-		tooltip:
-			'The agent is still changing this workstream. Pull request actions return once it finishes',
-		disabled: true,
-		tone: 'primary',
-	};
-}
-
-function reconnect(): NextAction {
-	return {
-		kind: 'reconnect',
-		label: 'Reconnect GitHub',
-		busyLabel: 'Reconnecting GitHub…',
-		ariaLabel: 'Reconnect your GitHub account',
-		tooltip:
-			'GitHub no longer accepts the stored sign-in. Sign in with GitHub again to restore this workstream',
-		disabled: false,
-		tone: 'primary',
-	};
-}
-
-function retry(tooltip: string, number: number | null | undefined): NextAction {
-	return {
-		kind: 'retry',
-		label: 'Retry status',
-		busyLabel: 'Retrying…',
-		ariaLabel: pullRequestNumberLabel('Retry repository and pull request status', number),
-		tooltip,
-		disabled: false,
-		tone: 'secondary',
-	};
-}
-
-function unavailable(
-	label: string,
-	busyLabel: string,
-	ariaLabel: string,
-	tooltip: string,
-): NextAction {
-	return {
-		kind: 'unavailable',
-		label,
-		busyLabel,
-		ariaLabel,
-		tooltip,
-		disabled: true,
-		tone: 'secondary',
-	};
-}
-
-function pullRequestNumberLabel(label: string, number: number | null | undefined): string {
-	return number === null || number === undefined ? label : `${label} #${number}`;
-}
-
-function mergeMethodInstruction(method: PullRequestMergeMethod): string {
-	if (method === 'squash') return 'Squash and merge';
-	if (method === 'rebase') return 'Rebase and merge';
-	return 'Merge';
-}
-
-function commitCount(count: number): string {
-	return `${count} ${count === 1 ? 'commit' : 'commits'}`;
+function sentence(text: string): string {
+	const trimmed = text.trim();
+	if (!trimmed) return '';
+	return /[.!?]$/u.test(trimmed) ? trimmed : `${trimmed}.`;
 }

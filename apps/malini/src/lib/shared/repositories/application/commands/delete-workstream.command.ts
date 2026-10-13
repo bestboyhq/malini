@@ -4,14 +4,12 @@ import { workstreamActionFailureMessage } from '$shared/repositories/domain/work
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import {
 	retirementFailureToast,
-	savedWorkNote,
 	type WorkstreamRetirementOutcome,
 } from '$shared/repositories/domain/workstream-retirement';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 import { workstreamActionsStore } from '$shared/repositories/infrastructure/stores/workstream-actions.store.svelte';
 import { workstreamRetirementStore } from '$shared/repositories/infrastructure/stores/workstream-retirement.store.svelte';
-import { clipboardService } from '$shared/system/clipboard.service';
 
 export { deleteWorkstreamCommand };
 
@@ -27,18 +25,8 @@ async function deleteWorkstream(
 ): Promise<WorkstreamRetirementOutcome> {
 	const name = workstreamName(workstreamId);
 	try {
-		const savedWork = await workstreamsService.delete(workstreamId);
+		await workstreamsService.delete(workstreamId);
 		workstreamsAggregate.remove(workstreamId);
-		if (savedWork) {
-			const { ref } = savedWork;
-			toast.info(`Deleted ${name} · ${savedWorkNote(savedWork)}`, {
-				...aboutWorkstream(workstreamId),
-				action: {
-					label: 'Copy ref',
-					onclick: () => void clipboardService.write(ref),
-				},
-			});
-		}
 		workstreamActionsStore.finish(workstreamId);
 		onDeleted?.();
 		return { status: 'retired' };

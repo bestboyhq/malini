@@ -574,6 +574,31 @@ describe('createEventStream', () => {
 			await stream.dispose();
 		});
 
+		it('replays a forgotten session from the start and delivers its events again', async () => {
+			const { createEventStream } = await importHook();
+			const replayCalls: number[] = [];
+			const received: number[] = [];
+			const history = [
+				env('restored', 'r1', 1, { type: 'run.started', runId: 'r1', sessionId: 'restored' }),
+			];
+			const stream = createEventStream((e) => received.push(e.seq), {
+				replay: async (_sessionId, afterSeq) => {
+					replayCalls.push(afterSeq);
+					return history;
+				},
+			});
+			await stream.start();
+
+			await stream.hydrate('restored');
+			stream.forget('restored');
+			await stream.hydrate('restored');
+
+			expect(replayCalls).toEqual([0, 0]);
+			expect(received).toEqual([1, 1]);
+
+			await stream.dispose();
+		});
+
 		it('a fresh session with no prior events hydrates with afterSeq 0', async () => {
 			const { createEventStream } = await importHook();
 			const replayCalls: Array<{ sessionId: string; afterSeq: number }> = [];

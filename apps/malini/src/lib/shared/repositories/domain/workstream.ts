@@ -26,6 +26,14 @@ export type Workstream = {
 	resolvedPath: string | null;
 };
 
+export type ArchivedWorkstream = Readonly<{
+	id: WorkstreamId;
+	projectId: string;
+	name: string;
+	baseBranch: string;
+	archivedAt: string;
+}>;
+
 export function isWorkstreamCheckoutUsable(workstream: Workstream): boolean {
 	return (
 		workstream.checkoutState === 'healthy' ||

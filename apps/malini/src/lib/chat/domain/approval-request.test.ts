@@ -59,8 +59,10 @@ describe('approval request', () => {
 	});
 
 	it('shows the exact resolved target and a short name for the settled line', () => {
-		expect(approvalTargets(externalRead)).toEqual(['/Users/me/notes/README.md']);
-		expect(approvalTargets(command)).toEqual(['touch /opt/probe']);
+		expect(approvalTargets(externalRead)).toEqual([
+			{ kind: 'path', value: '/Users/me/notes/README.md' },
+		]);
+		expect(approvalTargets(command)).toEqual([{ kind: 'command', value: 'touch /opt/probe' }]);
 		expect(approvalShortTarget('Read', externalRead)).toBe('README.md');
 		expect(approvalShortTarget('Bash', command)).toBe('touch /opt/probe');
 		expect(approvalShortTarget('Task', undefined)).toBe('Task');

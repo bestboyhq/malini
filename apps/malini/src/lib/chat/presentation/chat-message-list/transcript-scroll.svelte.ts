@@ -1,5 +1,5 @@
 import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
-import { createScrollGlide } from '../scroll-glide';
+import { createScrollGlide, snapToDevicePixel } from '../scroll-glide';
 import { arrivalMotion } from '../arrival-motion';
 
 export type TranscriptFollow = 'bottom' | 'reader';
@@ -27,15 +27,17 @@ const BOTTOM_ANCHOR_HOLD_MS = 600;
 const HOVER_RELEASE_MS = 200;
 const REMEMBER_DELAY_MS = 250;
 const AT_BOTTOM_PX = 2;
+const SUBPIXEL_SLACK_PX = 1;
 
 export type TranscriptScroll = {
 	readonly follow: TranscriptFollow;
 	readonly contentBelow: boolean;
+	readonly opening: boolean;
 	observe(viewport: HTMLElement, messageList: HTMLElement): () => void;
 	handleScroll(element: HTMLElement): void;
 	handleWheel(event: WheelEvent): void;
 	releaseScrollPin(): void;
-	followSpaceBelowChange(): void;
+	followSpaceBelowChange(spaceBelowPx: number): void;
 	holdBottomAnchor(): void;
 	open(key: string, remembered: TranscriptAnchor | null): void;
 	leave(): void;
@@ -64,6 +66,7 @@ export function createTranscriptScroll(
 	let heldTop = 0;
 	let shownTop = 0;
 	let holdSpacePx = 0;
+	let spaceBelowPx = 0;
 	let bottomAnchor: Readonly<{ distance: number; until: number }> | null = null;
 	let userIntentUntil = 0;
 	let pointerScrolling = false;
@@ -80,12 +83,12 @@ export function createTranscriptScroll(
 			return viewportEl?.scrollTop ?? 0;
 		},
 		set scrollTop(value: number) {
-			scrollTo(value);
+			scrollTo(snapToDevicePixel(value));
 		},
 	};
 
 	const scrollGlide = createScrollGlide({
-		stiffness: () => arrivalMotion().scrollStiffness,
+		stiffness: () => arrivalMotion().glideStiffness,
 		onSettle: () => reconcile('content'),
 	});
 
@@ -97,6 +100,7 @@ export function createTranscriptScroll(
 	function setHoldSpace(px: number): void {
 		const next = Math.max(0, Math.round(px));
 		if (next === holdSpacePx) return;
+		if (next > 0 && Math.abs(px - holdSpacePx) <= SUBPIXEL_SLACK_PX) return;
 		holdSpacePx = next;
 		messageListEl?.style.setProperty('--chat-hold-space', `${next}px`);
 	}
@@ -172,17 +176,25 @@ export function createTranscriptScroll(
 		return !opening && !hovering && !prefersReducedMotion() && follow === 'bottom';
 	}
 
+	function browserClamped(viewport: HTMLElement): boolean {
+		const top = viewport.scrollTop;
+		return top < shownTop && top >= viewport.scrollHeight - viewport.clientHeight - 1;
+	}
+
 	function reconcile(cause: LayoutCause): void {
 		const viewport = viewportEl;
 		const list = messageListEl;
 		if (!viewport || !list) return;
-		if (!userIsScrolling()) shownTop = viewport.scrollTop;
+		const shrunkUnderView = !userIsScrolling() && browserClamped(viewport);
+		if (!userIsScrolling() && !shrunkUnderView) shownTop = viewport.scrollTop;
 		const target = targetTop(viewport, list);
 		const animate = glides() && cause === 'content';
-		const reach = animate && scrollGlide.isGliding ? Math.max(target, shownTop) : target;
+		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView);
+		const reach = holdShown ? Math.max(target, shownTop) : target;
 		setHoldSpace(reach - naturalMaxTop(viewport));
 		heldTop = target;
 		if (animate) {
+			if (shrunkUnderView) scrollTo(shownTop);
 			scrollGlide.glide(glideTarget, target);
 		} else {
 			scrollGlide.cancel();
@@ -333,6 +345,10 @@ export function createTranscriptScroll(
 			return contentBelow;
 		},
 
+		get opening(): boolean {
+			return opening;
+		},
+
 		observe(viewport: HTMLElement, messageList: HTMLElement): () => void {
 			viewportEl = viewport;
 			messageListEl = messageList;
@@ -378,13 +394,11 @@ export function createTranscriptScroll(
 				acceptUserScroll(element, true);
 				return;
 			}
-			const top = element.scrollTop;
-			if (Math.abs(top - shownTop) <= 1) {
+			if (Math.abs(element.scrollTop - shownTop) <= 1) {
 				updateContentBelow();
 				return;
 			}
-			const clamped = top < shownTop && top >= element.scrollHeight - element.clientHeight - 1;
-			if (clamped) {
+			if (browserClamped(element)) {
 				reconcile('content');
 				return;
 			}
@@ -398,8 +412,15 @@ export function createTranscriptScroll(
 
 		releaseScrollPin: becomeReader,
 
-		followSpaceBelowChange(): void {
-			reconcile('frame');
+		followSpaceBelowChange(px: number): void {
+			const moved = px - spaceBelowPx;
+			spaceBelowPx = px;
+			if (!glides()) {
+				reconcile('frame');
+				return;
+			}
+			scrollTo(shownTop + moved);
+			reconcile('content');
 		},
 
 		holdBottomAnchor(): void {

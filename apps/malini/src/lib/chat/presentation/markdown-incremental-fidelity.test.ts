@@ -9,7 +9,7 @@ import {
 	splitMarkdownChunks,
 } from './MarkdownText.svelte';
 
-type CodeBlockProps = { code: string; safeHtml: string };
+type CodeBlockProps = { code: string; language: string | null };
 
 function mountStubCodeBlock(target: HTMLElement, props: CodeBlockProps) {
 	const live = { ...props };

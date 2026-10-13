@@ -14,6 +14,7 @@
 	--color-tertiary: var(--themed-color-tertiary);
 	--color-tertiary-content: var(--themed-color-tertiary-content);
 	--color-merged-content: var(--themed-color-merged-content);
+	--color-queued-content: var(--themed-color-queued-content);
 
 	--color-custom-bg-1: var(--themed-color-custom-bg-1);
 	--color-custom-bg-2: var(--themed-color-custom-bg-2);
@@ -128,7 +129,6 @@
 	--color-border-subtle: var(--themed-color-border-subtle);
 
 	--color-fg-default: var(--themed-color-fg-default);
-	--color-fg-agent-message: var(--themed-color-fg-agent-message);
 	--color-fg-agent-message-strong: var(--themed-color-fg-agent-message-strong);
 	--color-fg-secondary: var(--themed-color-fg-secondary);
 	--color-fg-tertiary: var(--themed-color-fg-tertiary);

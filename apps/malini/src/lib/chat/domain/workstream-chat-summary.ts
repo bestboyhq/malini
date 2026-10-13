@@ -19,12 +19,15 @@ export type WorkstreamChatSummary = Readonly<{
 	state: WorkstreamChatState | null;
 }>;
 
-export function summarizeWorkstreamChat(input: {
+type WorkstreamChatSummaryInput = Readonly<{
 	session: SessionRecord | null;
+	jobRunning: boolean;
 	queueCount: number;
 	attention: AgentAttention | null;
 	hasDraft: boolean;
-}): WorkstreamChatSummary {
+}>;
+
+export function summarizeWorkstreamChat(input: WorkstreamChatSummaryInput): WorkstreamChatSummary {
 	return {
 		sessionId: input.session?.id ?? null,
 		queueCount: input.queueCount,
@@ -35,15 +38,10 @@ export function summarizeWorkstreamChat(input: {
 	};
 }
 
-function workstreamChatState(input: {
-	session: SessionRecord | null;
-	queueCount: number;
-	attention: AgentAttention | null;
-	hasDraft: boolean;
-}): WorkstreamChatState | null {
+function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatState | null {
 	const status = input.session?.status;
-	if (status === 'running') return { label: 'Running', tone: 'running' };
 	if (status === 'waiting_for_approval') return { label: 'Approval', tone: 'waiting' };
+	if (status === 'running' || input.jobRunning) return { label: 'Running', tone: 'running' };
 	if (input.queueCount > 0) return { label: `${input.queueCount} queued`, tone: 'queued' };
 	if (input.attention?.kind === 'failed') return { label: 'Failed', tone: 'failed' };
 	if (input.attention?.kind === 'approval') return { label: 'Approval', tone: 'waiting' };

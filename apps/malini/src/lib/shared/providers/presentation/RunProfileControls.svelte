@@ -5,12 +5,15 @@
 		effortsForModel,
 		normalizeReasoningEffort,
 	} from '$shared/providers/domain/model-catalog';
+	import type { ModelPreferences } from '$shared/providers/domain/model-preferences';
+	import { agentAccessDefaultQuery } from '$shared/providers/application/queries/agent-access-default.query.svelte';
 	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
 	import {
 		AGENT_ACCESS_DETAILS,
 		AGENT_ACCESS_LEVELS,
 		AGENT_REPORT_DETAILS,
 		AGENT_REPORTS,
+		DEFAULT_AGENT_REPORT,
 		type AgentAccess,
 		type AgentReasoningEffort,
 		type AgentReport,
@@ -20,26 +23,51 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
+	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import { getOverlayFocusReturn } from '$hyper-ui/overlay';
+	import ModelDefaultsSettings from './ModelDefaultsSettings.svelte';
 
 	interface Props {
 		model: AgentModel;
 		profile: AgentRunProfile;
+		modelDefaults: ModelPreferences;
+		rememberedModels: ModelPreferences;
 		disabled?: boolean;
+		isRunning?: boolean;
 		onchange: (profile: AgentRunProfile) => void;
+		onmodelsettingschange?: (preferences: ModelPreferences) => void;
 	}
 
-	let { model, profile, disabled = false, onchange }: Props = $props();
+	let {
+		model,
+		profile,
+		modelDefaults,
+		rememberedModels,
+		disabled = false,
+		isRunning = false,
+		onchange,
+		onmodelsettingschange,
+	}: Props = $props();
 	let effortTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let effortOpen = $state(false);
-	let reportTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
-	let reportOpen = $state(false);
-	let accessTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
-	let accessOpen = $state(false);
+	let optionsTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let accessChip: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let reportChip: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
+	let optionsAnchor: HTMLElement | null = $state(null);
+	let optionsOpen = $state(false);
+	let modelSettings: ModelDefaultsSettings | null = $state(null);
+	const focusReturn = getOverlayFocusReturn();
+	const defaultAccess = $derived(agentAccessDefaultQuery.data);
 	const accessIcons: Record<AgentRunProfile['access'], IconName> = {
 		sandboxed: 'lock',
 		auto: 'unlock',
 		full: 'shield-alert',
+	};
+	const reportIcons: Record<AgentReport, IconName> = {
+		low: 'preview',
+		medium: 'checklist',
+		high: 'note',
 	};
 	const catalog = $derived(modelCatalogQuery.data);
 	const efforts = $derived(effortsForModel(catalog, model));
@@ -49,7 +77,6 @@
 			? 'Adjust reasoning effort'
 			: `${catalogModelLabel(catalog, model)} does not take a reasoning effort`,
 	);
-	const planHelp = $derived(profile.mode === 'plan' ? 'Exit plan mode' : 'Enter plan mode');
 
 	function effortLabel(value: AgentReasoningEffort): string {
 		if (value === 'xhigh') return 'Extra high';
@@ -78,29 +105,50 @@
 		effortOpen = !effortOpen;
 	}
 
-	function selectReport(report: AgentReport): void {
-		if (disabled) return;
-		onchange({ ...profile, report });
-		closeReport();
-	}
-
-	function closeReport(): void {
-		reportOpen = false;
-	}
-
 	function selectAccess(access: AgentAccess): void {
 		if (disabled) return;
 		onchange({ ...profile, access });
-		closeAccess();
+		closeOptions();
 	}
 
-	function closeAccess(): void {
-		accessOpen = false;
+	function selectReport(report: AgentReport): void {
+		if (disabled) return;
+		onchange({ ...profile, report });
+		closeOptions();
+	}
+
+	function toggleOptions(anchor: HTMLElement | null): void {
+		if (disabled) return;
+		if (optionsOpen && optionsAnchor === anchor) {
+			closeOptions();
+			return;
+		}
+		optionsAnchor = anchor;
+		optionsOpen = true;
+	}
+
+	function closeOptions(): void {
+		optionsOpen = false;
+	}
+
+	function optionsOpenFrom(trigger: HTMLElement | null): boolean {
+		return optionsOpen && optionsAnchor === trigger;
+	}
+
+	function exitPlanMode(): void {
+		togglePlan();
+		focusReturn?.();
 	}
 
 	function togglePlan(): void {
 		if (disabled) return;
 		onchange({ ...profile, mode: profile.mode === 'plan' ? 'agent' : 'plan' });
+		closeOptions();
+	}
+
+	function openModelSettings(): void {
+		closeOptions();
+		modelSettings?.show();
 	}
 </script>
 
@@ -137,7 +185,7 @@
 			owner="chat-composer"
 		>
 			<div role="listbox" aria-label="Reasoning effort levels">
-				{#each efforts as effort}
+				{#each efforts as effort (effort)}
 					<DropdownItem
 						checked={profile.effort === effort}
 						focusOnHover={false}
@@ -156,124 +204,148 @@
 		</DropdownLayer>
 	</div>
 
-	<div>
-		<Tooltip content="Adjust report detail" placement="top" suppressed={reportOpen}>
+	{#if profile.mode === 'plan'}
+		<Tooltip content="Exit plan mode" placement="top">
 			<Button
-				bind:element={reportTrigger}
-				variant="ghost"
+				variant="primary-soft"
 				size="md"
-				active={reportOpen}
-				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				class="gap-1.5 rounded-md text-xs font-normal"
 				{disabled}
-				ariaLabel="Report"
-				ariaHasPopup="listbox"
-				ariaExpanded={reportOpen}
-				data-testid="chat-report"
-				onclick={() => (reportOpen = !reportOpen)}
+				ariaLabel="Plan mode"
+				ariaPressed={true}
+				data-testid="chat-plan-mode"
+				onclick={exitPlanMode}
 			>
-				<Icon name="note" size={15} />
-				<span class="@max-2xl/composer:hidden">{AGENT_REPORT_DETAILS[profile.report].label}</span>
+				<Icon name="route" class="shrink-0" size={16} />
+				<span class="@max-3xl/composer:hidden">Plan</span>
 			</Button>
 		</Tooltip>
-
-		<DropdownLayer
-			open={reportOpen}
-			anchor={reportTrigger}
-			onclose={closeReport}
-			side="top"
-			align="start"
-			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
-			testId="chat-report-menu"
-			owner="chat-composer"
-		>
-			<div role="listbox" aria-label="Report levels">
-				{#each AGENT_REPORTS as report (report)}
-					<DropdownItem
-						checked={profile.report === report}
-						focusOnHover={false}
-						class="items-start justify-between gap-3 py-2"
-						role="option"
-						aria-selected={profile.report === report}
-						onclick={() => selectReport(report)}
-					>
-						<span class="flex min-w-0 flex-col gap-0.5">
-							<span>{AGENT_REPORT_DETAILS[report].label}</span>
-							<span class="text-fg-tertiary text-xs whitespace-normal">
-								{AGENT_REPORT_DETAILS[report].description}
-							</span>
-						</span>
-						{#if profile.report === report}
-							<Icon name="check" size={14} class="mt-0.5 shrink-0" />
-						{/if}
-					</DropdownItem>
-				{/each}
-			</div>
-		</DropdownLayer>
-	</div>
-
-	<Tooltip content={planHelp} placement="top">
-		<Button
-			variant={profile.mode === 'plan' ? 'primary-soft' : 'ghost'}
-			size="md"
-			class={[
-				'gap-1.5 rounded-md text-xs font-normal',
-				profile.mode === 'plan' ? '' : 'text-fg-tertiary hover:bg-surface-50',
-			]}
-			{disabled}
-			ariaLabel="Plan mode"
-			ariaPressed={profile.mode === 'plan'}
-			data-testid="chat-plan-mode"
-			onclick={togglePlan}
-		>
-			<Icon name="route" class="shrink-0" size={16} />
-			<span class="@max-2xl/composer:hidden">Plan</span>
-		</Button>
-	</Tooltip>
-	<div>
+	{/if}
+	{#if profile.access !== defaultAccess}
 		<Tooltip
 			content={AGENT_ACCESS_DETAILS[profile.access].description}
 			placement="top"
-			suppressed={accessOpen}
+			suppressed={optionsOpen}
 		>
 			<Button
-				bind:element={accessTrigger}
+				bind:element={accessChip}
 				variant="ghost"
 				size="md"
-				active={accessOpen}
-				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				active={optionsOpenFrom(accessChip)}
+				class={[
+					'hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal',
+					profile.access === 'full' ? 'text-warning-content' : 'text-fg-tertiary',
+				]}
 				{disabled}
-				ariaLabel="Agent access"
-				ariaHasPopup="listbox"
-				ariaExpanded={accessOpen}
+				ariaLabel={`Agent access: ${AGENT_ACCESS_DETAILS[profile.access].label}`}
+				ariaHasPopup="menu"
+				ariaExpanded={optionsOpenFrom(accessChip)}
 				data-testid="chat-agent-access"
-				onclick={() => (accessOpen = !accessOpen)}
+				onclick={() => toggleOptions(accessChip)}
 			>
 				<Icon name={accessIcons[profile.access]} size={15} />
-				<span class="@max-2xl/composer:hidden">{AGENT_ACCESS_DETAILS[profile.access].label}</span>
+				<span class="@max-3xl/composer:hidden">{AGENT_ACCESS_DETAILS[profile.access].label}</span>
 			</Button>
 		</Tooltip>
-
-		<DropdownLayer
-			open={accessOpen}
-			anchor={accessTrigger}
-			onclose={closeAccess}
-			side="top"
-			align="start"
-			panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
-			testId="chat-agent-access-menu"
-			owner="chat-composer"
+	{/if}
+	{#if profile.report !== DEFAULT_AGENT_REPORT}
+		<Tooltip
+			content={AGENT_REPORT_DETAILS[profile.report].description}
+			placement="top"
+			suppressed={optionsOpen}
 		>
-			<div role="listbox" aria-label="Agent access levels">
-				{#each AGENT_ACCESS_LEVELS as access}
+			<Button
+				bind:element={reportChip}
+				variant="ghost"
+				size="md"
+				active={optionsOpenFrom(reportChip)}
+				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				{disabled}
+				ariaLabel={`Report: ${AGENT_REPORT_DETAILS[profile.report].label}`}
+				ariaHasPopup="menu"
+				ariaExpanded={optionsOpenFrom(reportChip)}
+				data-testid="chat-report"
+				onclick={() => toggleOptions(reportChip)}
+			>
+				<Icon name={reportIcons[profile.report]} size={15} />
+				<span class="@max-3xl/composer:hidden">
+					{AGENT_REPORT_DETAILS[profile.report].label} report
+				</span>
+			</Button>
+		</Tooltip>
+	{/if}
+	<Tooltip
+		content="Plan mode, agent access, report, and models"
+		placement="top"
+		suppressed={optionsOpen}
+	>
+		<IconButton
+			bind:element={optionsTrigger}
+			variant="ghost"
+			size="md"
+			ariaLabel="Run options"
+			ariaHasPopup="menu"
+			ariaExpanded={optionsOpenFrom(optionsTrigger)}
+			active={optionsOpenFrom(optionsTrigger)}
+			class="text-fg-tertiary hover:bg-surface-50 rounded-lg"
+			data-testid="chat-run-options"
+			{disabled}
+			onclick={() => toggleOptions(optionsTrigger)}
+		>
+			<Icon name="settings" size={15} />
+		</IconButton>
+	</Tooltip>
+
+	<DropdownLayer
+		open={optionsOpen}
+		anchor={optionsAnchor}
+		onclose={closeOptions}
+		side="top"
+		align="start"
+		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
+		testId="chat-run-options-menu"
+		owner="chat-composer"
+	>
+		<div role="menu" aria-label="Run options" class="space-y-0.5">
+			<DropdownItem
+				role="menuitemcheckbox"
+				aria-checked={profile.mode === 'plan'}
+				checked={profile.mode === 'plan'}
+				focusOnHover={false}
+				class="items-start gap-2.5 py-2"
+				onclick={togglePlan}
+			>
+				<Icon name="route" size={15} class="mt-0.5 shrink-0" />
+				<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+					<span>Plan mode</span>
+					<span class="text-fg-tertiary text-xs whitespace-normal">
+						Plan the change first, then start the implementation from the plan.
+					</span>
+				</span>
+				{#if profile.mode === 'plan'}
+					<Icon name="check" size={14} class="mt-0.5 shrink-0" />
+				{/if}
+			</DropdownItem>
+
+			<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+			<div role="group" aria-labelledby="chat-agent-access-heading">
+				<p
+					id="chat-agent-access-heading"
+					class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium"
+				>
+					Agent access
+				</p>
+				{#each AGENT_ACCESS_LEVELS as access (access)}
 					<DropdownItem
+						role="menuitemradio"
+						aria-checked={profile.access === access}
 						checked={profile.access === access}
 						focusOnHover={false}
-						class="items-start justify-between gap-3 py-2"
-						role="option"
-						aria-selected={profile.access === access}
+						class="items-start gap-2.5 py-2"
 						onclick={() => selectAccess(access)}
 					>
-						<span class="flex min-w-0 flex-col gap-0.5">
+						<Icon name={accessIcons[access]} size={15} class="mt-0.5 shrink-0" />
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
 							<span>{AGENT_ACCESS_DETAILS[access].label}</span>
 							<span class="text-fg-tertiary text-xs whitespace-normal">
 								{AGENT_ACCESS_DETAILS[access].description}
@@ -285,6 +357,56 @@
 					</DropdownItem>
 				{/each}
 			</div>
-		</DropdownLayer>
-	</div>
+
+			<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+			<div role="group" aria-labelledby="chat-report-heading">
+				<p
+					id="chat-report-heading"
+					class="text-2xs text-fg-tertiary px-2.5 pt-1 pb-0.5 font-medium"
+				>
+					Report
+				</p>
+				{#each AGENT_REPORTS as report (report)}
+					<DropdownItem
+						role="menuitemradio"
+						aria-checked={profile.report === report}
+						checked={profile.report === report}
+						focusOnHover={false}
+						class="items-start gap-2.5 py-2"
+						onclick={() => selectReport(report)}
+					>
+						<Icon name={reportIcons[report]} size={15} class="mt-0.5 shrink-0" />
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span>{AGENT_REPORT_DETAILS[report].label}</span>
+							<span class="text-fg-tertiary text-xs whitespace-normal">
+								{AGENT_REPORT_DETAILS[report].description}
+							</span>
+						</span>
+						{#if profile.report === report}
+							<Icon name="check" size={14} class="mt-0.5 shrink-0" />
+						{/if}
+					</DropdownItem>
+				{/each}
+			</div>
+
+			<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+			<DropdownItem
+				role="menuitem"
+				focusOnHover={false}
+				class="gap-2.5"
+				onclick={openModelSettings}
+			>
+				<Icon name="settings" size={15} class="shrink-0" />
+				Model settings…
+			</DropdownItem>
+		</div>
+	</DropdownLayer>
 </div>
+
+<ModelDefaultsSettings
+	bind:this={modelSettings}
+	defaults={modelDefaults}
+	{rememberedModels}
+	{isRunning}
+	onchange={(preferences) => onmodelsettingschange?.(preferences)}
+/>

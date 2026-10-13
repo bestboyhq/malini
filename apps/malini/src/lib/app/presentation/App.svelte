@@ -6,6 +6,7 @@
 	import { router } from '$shared/router/hash-router.svelte';
 	import { ChatLifecycleMonitor } from '$lib/chat/chat.api';
 	import { ExtensionRuntimeHost } from '$lib/extensions/extensions.api';
+	import { JobCenter } from '$lib/jobs/jobs.api';
 	import { watchRepositorySurfaceHook } from '$lib/pull-requests/application/hooks/watch-repository-surface.hook';
 	import { notFound, routes } from '$lib/app/routes';
 	import { bootAppHook } from '$lib/app/application/hooks/boot-app.hook';
@@ -42,5 +43,9 @@
 </AppShell>
 
 <CloseConfirmationDialog />
+
+{#if !page.params.workstreamId}
+	<JobCenter />
+{/if}
 
 <ToastHost />

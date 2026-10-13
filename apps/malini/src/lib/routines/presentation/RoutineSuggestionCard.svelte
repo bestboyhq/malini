@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
+	import { acceptRoutineSuggestionCommand } from '$lib/routines/application/commands/accept-routine-suggestion.command';
 	import { dismissRoutineSuggestionCommand } from '$lib/routines/application/commands/dismiss-routine-suggestion.command';
 	import { routineActionStateQuery } from '$lib/routines/application/queries/routine-action-state.query.svelte';
 	import type { RoutineSuggestion } from '$lib/routines/domain/routine-suggestion';
@@ -8,10 +9,9 @@
 
 	interface Props {
 		suggestion: RoutineSuggestion;
-		onaccept: (suggestion: RoutineSuggestion) => void;
 	}
 
-	let { suggestion, onaccept }: Props = $props();
+	let { suggestion }: Props = $props();
 
 	const actionState = $derived(routineActionStateQuery.data(suggestion.id));
 	const prompts = $derived(suggestion.evidence.map(({ text }) => text));
@@ -32,7 +32,7 @@
 				{prompts.length}
 				{prompts.length === 1 ? 'prompt' : 'prompts'} like this since {formatRoutineTimestamp(
 					suggestion.createdAt,
-				)}. A routine could run it for you.
+				)}. A job could do it for you, and a routine can run that job.
 			</p>
 			<ul class="mt-1.5 space-y-1">
 				{#each prompts.slice(0, 3) as prompt, index (index)}
@@ -50,7 +50,7 @@
 				ariaLabel="Accept this suggestion as a draft routine"
 				disabled={actionState.busy}
 				data-testid="routine-suggestion-accept"
-				onclick={() => onaccept(suggestion)}
+				onclick={() => acceptRoutineSuggestionCommand(suggestion)}
 			>
 				Accept as draft
 			</Button>

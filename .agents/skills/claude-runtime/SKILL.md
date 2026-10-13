@@ -15,7 +15,8 @@ Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, a
 
 malini owns the rest, and the adapter enforces it:
 
-- Git history: `disallowedTools` refuses the commands in `MALINI_OWNED_GIT_COMMANDS`; the agent leaves changes in the working tree and names the commit in its last message.
+- Git history: `disallowedTools` refuses the commands in `MALINI_OWNED_GIT_COMMANDS` and every stash write, but not reads or file-level `git restore`; the agent leaves changes in the working tree and names the commit in its last message.
+  Claude Code matches each part of a compound command, so one refused part denies the whole command.
 - Approvals and questions: every `canUseTool` call becomes a malini interaction; `AskUserQuestion` answers return as `updatedInput.answers`, keyed by question text.
   A user's deny returns `interrupt: true`, so the run stops the way it does in the `claude` CLI and ends as cancelled.
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to malini's UI, which starts the implementation.

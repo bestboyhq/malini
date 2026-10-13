@@ -1,7 +1,7 @@
-import { derivedCommitMessage } from '@malini-extension/repository';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { setPlatformForTest } from '$shared/port/platform';
+import { derivedCommitMessage } from '$shared/repositories/domain/pull-request-metadata';
 import { workstreamSnapshotsService } from './workstream-snapshots.service';
 import { workstreamsService } from './workstreams.service';
 

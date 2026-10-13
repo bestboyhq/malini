@@ -24,12 +24,15 @@ const ALL_TABLES = [
 	'agent_user_baselines',
 	'connected_repositories',
 	'docker_containers',
+	'job_definitions',
+	'job_runs',
 	'projects',
 	'routine_gated_runs',
 	'routine_suggestions',
 	'routines',
 	'settings',
 	'workstream_commit_runs',
+	'workstream_ship',
 	'workstreams',
 ];
 
@@ -87,6 +90,8 @@ const ALL_INDEXES = [
 	'idx_agent_user_baselines_workstream_created',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
+	'idx_job_runs_session',
+	'idx_job_runs_status_created',
 	'idx_routine_gated_runs_routine',
 	'idx_routine_gated_runs_workstream_state',
 	'idx_routine_suggestions_cluster',
@@ -296,10 +301,10 @@ describe('migrate', () => {
 		expect(appTables(db)).toEqual(ALL_TABLES);
 		db.exec(`
 			INSERT INTO routines
-			  (id, status, origin, label, trigger_when, run_json, evidence_json, created_at, updated_at)
+			  (id, status, origin, label, trigger_when, steps_json, evidence_json, created_at, updated_at)
 			VALUES
 			  ('rt-1', 'candidate', 'user', 'Ensure preview', 'when a frontend resource becomes ready',
-			   '{"command":"malini.preview.open","args":[]}', '[]', '2026-09-18T00:00:00Z', '2026-09-18T00:00:00Z');
+			   '[{"command":"malini.preview.open","args":[]}]', '[]', '2026-09-18T00:00:00Z', '2026-09-18T00:00:00Z');
 			INSERT INTO routine_gated_runs
 			  (id, routine_id, workstream_id, run_key, event, payload_json, state, created_at, decided_at)
 			VALUES
@@ -323,6 +328,53 @@ describe('migrate', () => {
 		).toThrow(/UNIQUE/u);
 		db.exec("DELETE FROM routines WHERE id = 'rt-1';");
 		expect(scalar(db, 'SELECT COUNT(*) FROM routine_gated_runs')).toBe(0);
+		db.close();
+	});
+
+	it('v38 turns each routine run into a one-step routine and marks sessions as user-owned', () => {
+		const db = openDatabase(':memory:');
+		migrate(db);
+		db.exec(`
+			ALTER TABLE routines ADD COLUMN run_json TEXT NOT NULL DEFAULT '{}';
+			ALTER TABLE routines DROP COLUMN steps_json;
+			ALTER TABLE agent_sessions DROP COLUMN origin;
+			PRAGMA user_version = 37;
+			INSERT INTO routines
+			  (id, status, origin, label, trigger_when, run_json, evidence_json, created_at, updated_at)
+			VALUES
+			  ('rt-1', 'routine', 'user', 'Ensure preview', 'when a frontend resource becomes ready',
+			   '{"command":"malini.preview.open","args":[]}', '[]', '2026-09-18T00:00:00Z', '2026-09-18T00:00:00Z');
+		`);
+		migrate(db);
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(columnsOf(db, 'routines')).not.toContain('run_json');
+		expect(all<{ steps_json: string }>(db, 'SELECT steps_json FROM routines')).toEqual([
+			{ steps_json: '[{"command":"malini.preview.open","args":[]}]' },
+		]);
+		expect(columnsOf(db, 'agent_sessions')).toContain('origin');
+		db.close();
+	});
+
+	it('v40 stops the Resolve conflicts job from running the git merge malini refuses', () => {
+		const db = openDatabase(':memory:');
+		migrate(db);
+		db.exec(`
+			PRAGMA user_version = 39;
+			INSERT INTO job_definitions
+			  (id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at)
+			VALUES
+			  ('jd-1', 'Resolve conflicts',
+			   'Resolve them.' || char(10) || '- If no merge is in progress, fetch origin and run \`git merge --no-commit origin/<base branch>\`.' || char(10) || '- Keep my extra rule.',
+			   'default', 'high', 'workstream', 'none', 'resolve-conflicts', '2026-10-11T00:00:00Z', '2026-10-11T00:00:00Z');
+		`);
+		migrate(db);
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(all(db, "SELECT instructions FROM job_definitions WHERE id = 'jd-1'")).toEqual([
+			{
+				instructions:
+					'Resolve them.\n- malini starts the merge. If none is in progress, there is nothing to resolve: say so and stop.\n- Keep my extra rule.',
+			},
+		]);
 		db.close();
 	});
 
@@ -1011,6 +1063,7 @@ describe('migrate', () => {
 			'agent_sessions.workstream_id -> workstreams',
 			'agent_user_baselines.workstream_id -> workstreams',
 			'workstream_commit_runs.workstream_id -> workstreams',
+			'workstream_ship.workstream_id -> workstreams',
 		]);
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
 		expect(indexColumns(db, 'idx_agent_sessions_workstream_archived_started')).toEqual([

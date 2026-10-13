@@ -85,7 +85,7 @@ test('the pull request detail names each check result in words and keeps its dur
 	}
 });
 
-test('a pull request without checks says so on Merge and in its detail, never that checks passed', async () => {
+test('a pull request without checks says so in its detail, never that checks passed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -95,10 +95,11 @@ test('a pull request without checks says so on Merge and in its detail, never th
 		});
 		await openWorkstream(page, 'e2e-no-checks');
 
-		const merge = page.getByRole('button', { name: 'Merge pull request #7' });
-		await expect(merge).toBeVisible({ timeout: 30_000 });
-		await merge.hover();
-		await expect(page.getByRole('tooltip')).toHaveText('No checks configured. Squash and merge');
+		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeVisible(
+			{
+				timeout: 30_000,
+			},
+		);
 
 		const detail = await openPullRequestDetail(page);
 		await expect(detail).toContainText('No checks configured');

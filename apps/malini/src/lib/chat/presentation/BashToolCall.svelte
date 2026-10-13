@@ -3,7 +3,8 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import CodeTokens from './CodeTokens.svelte';
+	import { CodeTokens } from '$hyper-ui/components/code-tokens';
+	import ExpandMark from './ExpandMark.svelte';
 	import { shellCommandLabel, toolFailureReason } from './tool-display-name';
 
 	interface Props {
@@ -62,23 +63,15 @@
 <div class="w-full text-sm" data-message-kind="bash" data-bash-status={status}>
 	<Button
 		bare
-		class="group/command text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex min-h-6 w-full cursor-pointer items-center gap-2 bg-transparent text-left transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
+		class="group/expand text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex min-h-6 w-full cursor-pointer items-center gap-2 bg-transparent text-left transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none"
 		ariaLabel={`${expanded ? 'Collapse' : 'Expand'} output for ${description ?? activityLabel}`}
 		ariaExpanded={expanded}
 		data-testid="bash-command-toggle"
 		onclick={() => (expanded = !expanded)}
 	>
-		<span class="relative h-3.5 w-3.5 shrink-0" aria-hidden="true">
-			<Icon
-				name="command"
-				class={`absolute inset-0 transition-[opacity,color] ${expanded ? 'opacity-0' : 'opacity-100 group-hover/command:opacity-0'} ${status === 'running' && !waiting ? 'command-mark-live text-fg-secondary' : ''}`}
-				size={14}
-			/>
-			<Icon
-				name="chevron-right"
-				class={`absolute inset-0 h-3.5 w-3.5 transition-[opacity,transform] duration-150 ${expanded ? 'rotate-90 opacity-100' : 'opacity-0 group-hover/command:opacity-100'}`}
-			/>
-		</span>
+		<ExpandMark live={status === 'running' && !waiting}>
+			<Icon name="command" size={14} />
+		</ExpandMark>
 		{#if description}
 			<span class="flex min-w-0 flex-1 items-baseline gap-2">
 				<span class="text-fg-secondary min-w-0 truncate" data-bash-description>
@@ -102,7 +95,7 @@
 
 	{#if status === 'failed'}
 		<div
-			class="bg-error text-2xs text-error-content mt-1 ml-5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
+			class="bg-error text-2xs text-error-content mt-1 ml-5.5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
 			data-testid="bash-command-failure"
 		>
 			<Icon name="warning" size={12} class="mt-px shrink-0" />
@@ -115,7 +108,7 @@
 	{#if expanded}
 		<ScrollableDiv
 			orientation="xy"
-			class="border-surface-50-border mt-1 ml-5 max-h-64 rounded-lg border-[0.5px]"
+			class="border-surface-50-border mt-1 ml-5.5 max-h-64 rounded-lg border-[0.5px]"
 			viewportClass="max-h-64 max-w-full"
 			ariaLabel="Command output"
 			testId="command-output-scroll"
@@ -127,32 +120,10 @@
 				/></pre>
 			{#if outputText}
 				<pre
-					class="text-2xs text-fg-secondary m-0 min-w-max bg-transparent px-2.5 pt-1.5 pb-2 font-mono leading-snug select-text"><SensitiveText
-						text={outputText}
+					class="text-2xs text-fg-secondary m-0 min-w-max bg-transparent px-2.5 pt-1.5 pb-2 font-mono leading-snug select-text"><CodeTokens
+						code={outputText}
 					/></pre>
 			{/if}
 		</ScrollableDiv>
 	{/if}
 </div>
-
-<style>
-	:global(.command-mark-live) {
-		animation: command-mark-breathe 1.6s ease-in-out infinite;
-	}
-
-	@keyframes command-mark-breathe {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.45;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		:global(.command-mark-live) {
-			animation: none;
-		}
-	}
-</style>

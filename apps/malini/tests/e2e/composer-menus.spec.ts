@@ -23,18 +23,33 @@ test('composer menus hand focus back to the prompt, and an outside click lands o
 		const input = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 		await expect(input).toBeVisible({ timeout: 20_000 });
 
-		const access = page.getByRole('button', { name: 'Agent access' });
-		const accessLevels = page.getByRole('listbox', { name: 'Agent access levels' });
-		await access.click();
-		await accessLevels.getByRole('option', { name: /^Auto/u }).click();
-		await expect(accessLevels).toBeHidden();
-		await expect(access).toHaveAccessibleName('Agent access');
+		const options = page.getByRole('button', { name: 'Run options' });
+		const optionsMenu = page.getByRole('menu', { name: 'Run options' });
+		await options.click();
+		await optionsMenu.getByRole('menuitemradio', { name: /^Auto/u }).click();
+		await expect(optionsMenu).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Agent access: Auto' })).toBeVisible();
 		await expect(input).toBeFocused();
 
-		await access.click();
-		await expect(accessLevels).toBeVisible();
+		await expect(page.getByRole('button', { name: /^Report: / })).toBeHidden();
+		await options.click();
+		await optionsMenu.getByRole('menuitemradio', { name: /^Low/u }).click();
+		await expect(optionsMenu).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Report: Low' })).toBeVisible();
+		await expect(input).toBeFocused();
+
+		await options.click();
+		await optionsMenu.getByRole('menuitemcheckbox', { name: /^Plan mode/u }).click();
+		const plan = page.getByRole('button', { name: 'Plan mode' });
+		await expect(plan).toHaveAttribute('aria-pressed', 'true');
+		await plan.click();
+		await expect(plan).toBeHidden();
+		await expect(input).toBeFocused();
+
+		await options.click();
+		await expect(optionsMenu).toBeVisible();
 		await page.keyboard.press('Escape');
-		await expect(accessLevels).toBeHidden();
+		await expect(optionsMenu).toBeHidden();
 		await expect(input).toBeFocused();
 
 		const model = page.getByRole('button', { name: /^Model: / });
@@ -46,9 +61,9 @@ test('composer menus hand focus back to the prompt, and an outside click lands o
 
 		await model.click();
 		await expect(models).toBeVisible();
-		await access.click();
+		await options.click();
 		await expect(models).toBeHidden();
-		await expect(accessLevels).toBeVisible();
+		await expect(optionsMenu).toBeVisible();
 		await page.keyboard.press('Escape');
 		await expect(input).toBeFocused();
 

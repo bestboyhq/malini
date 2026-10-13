@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
 	git,
+	invoke,
 	seedWorkstream,
 	type LaunchedApp,
 	type SeededWorkstream,
@@ -13,18 +14,26 @@ import {
 const REPOSITORY = 'e2e/hutch';
 const GITHUB_URL = `https://github.com/${REPOSITORY}.git`;
 const PULL_REQUEST_NUMBER = 7;
+export const WORKSTREAM_NAME = 'Pull request workstream';
 
 export type FakePullRequest = Record<string, unknown>;
+
+export interface FakeReviewComment {
+	readonly body: string;
+	readonly author?: string;
+	readonly authorType?: 'Bot' | 'User';
+}
 
 export interface FakeReviewThread {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
 	readonly line: number;
-	readonly comments: readonly { readonly body: string }[];
+	readonly comments: readonly FakeReviewComment[];
 }
 
 export interface FakeGithub {
+	readonly remote: string;
 	pullRequest(): FakePullRequest | null;
 	setPullRequest(update: FakePullRequest): void;
 	calls(): string[][];
@@ -32,6 +41,7 @@ export interface FakeGithub {
 	reviewThreads(): FakeReviewThread[];
 	pushedHead(): string;
 	pushedSubjects(): string[];
+	setOffline(offline: boolean): void;
 }
 
 export interface PullRequestWorkstream {
@@ -40,20 +50,80 @@ export interface PullRequestWorkstream {
 	readonly github: FakeGithub;
 }
 
-export function reviewThread(id: string, path: string, body: string): FakeReviewThread {
-	return { id, isResolved: false, path, line: 1, comments: [{ body }] };
+export function reviewThread(
+	id: string,
+	path: string,
+	body: string,
+	author: Pick<FakeReviewComment, 'author' | 'authorType'> = {},
+): FakeReviewThread {
+	return { id, isResolved: false, path, line: 1, comments: [{ body, ...author }] };
 }
 
 export async function seedWorkstreamOnFakeGithub(
 	app: LaunchedApp,
 	workstreamId: string,
 	pullRequest: FakePullRequest | null,
+	beforePublish: (seeded: SeededWorkstream) => Promise<void> = async () => {},
 ): Promise<PullRequestWorkstream> {
 	const { page } = app;
 	const source = await createSourceRepo(app.root);
-	const seeded = await seedWorkstream(page, source, workstreamId, 'Pull request workstream');
+	const seeded = await seedWorkstream(page, source, workstreamId, WORKSTREAM_NAME);
+	await beforePublish(seeded);
 	const github = await fakeGithubFor(app, seeded, pullRequest);
 	return { page, worktree: seeded.worktree, github };
+}
+
+export function holdAgentRuns(app: LaunchedApp, held: boolean): void {
+	const hold = join(app.home, 'hold-agent-runs');
+	if (held) writeFileSync(hold, '');
+	else rmSync(hold, { force: true });
+}
+
+export function sidebarStatus(page: Page, workstreamId: string): Locator {
+	return page
+		.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`)
+		.getByRole('status', { name: /^Workstream status:/u });
+}
+
+export function topBarStatus(page: Page, name: string | RegExp): Locator {
+	return page.getByRole('navigation', { name: 'Global actions' }).getByRole('status', { name });
+}
+
+export function toastSaying(page: Page, text: string): Locator {
+	return page.getByRole('status').filter({ hasText: text });
+}
+
+export async function queueMerge(page: Page): Promise<void> {
+	const queue = page.getByRole('button', {
+		name: `Queue merge for pull request #${PULL_REQUEST_NUMBER}`,
+	});
+	await expect(queue).toBeEnabled({ timeout: 30_000 });
+	await queue.click();
+}
+
+export async function workstreamName(page: Page, workstreamId: string): Promise<string> {
+	const workstreams = await invoke<{ id: string; name: string }[]>(
+		page,
+		'repositories.list-workstreams',
+		undefined,
+	);
+	const name = workstreams.find(({ id }) => id === workstreamId)?.name;
+	if (!name) throw new Error(`repositories.list-workstreams does not list ${workstreamId}`);
+	return name;
+}
+
+export async function expectMergedAndArchived(
+	page: Page,
+	workstreamId: string,
+	name = WORKSTREAM_NAME,
+): Promise<void> {
+	await expect(toastSaying(page, `Merged #${PULL_REQUEST_NUMBER} · ${name} archived`)).toBeVisible({
+		timeout: 90_000,
+	});
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 }
 
 export async function commitByHand(worktree: string, file: string): Promise<void> {
@@ -90,6 +160,7 @@ async function fakeGithubFor(
 	const remote = join(state, 'remote.git');
 	const pullRequestFile = join(state, 'pull-request.json');
 	const callsFile = join(state, 'gh-calls.log');
+	const offline = join(state, 'offline');
 	mkdirSync(state, { recursive: true });
 	await git(state, ['init', '-q', '--bare', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
@@ -118,7 +189,7 @@ async function fakeGithubFor(
 	writeFileSync(callsFile, '');
 	for (const dir of [join(app.home, '.local/bin'), app.bin]) {
 		installStub(join(dir, 'gh'), ghStub(state, remote, revParse(seeded.basePath, 'main')));
-		installStub(join(dir, 'git'), gitShim(remote));
+		installStub(join(dir, 'git'), gitShim(remote, offline));
 	}
 
 	const read = (): FakePullRequest | null => {
@@ -131,6 +202,7 @@ async function fakeGithubFor(
 			.filter(Boolean)
 			.map((line): string[] => JSON.parse(line));
 	return {
+		remote,
 		pullRequest: read,
 		setPullRequest: (update) =>
 			writeAtomically(pullRequestFile, JSON.stringify({ ...(read() ?? seed), ...update })),
@@ -151,6 +223,7 @@ async function fakeGithubFor(
 			execFileSync('git', ['-C', remote, 'log', '--format=%s', branch], { encoding: 'utf8' })
 				.split('\n')
 				.filter(Boolean),
+		setOffline: (next) => (next ? writeFileSync(offline, '') : rmSync(offline, { force: true })),
 	};
 }
 
@@ -168,9 +241,10 @@ function installStub(path: string, script: string): void {
 	chmodSync(path, 0o755);
 }
 
-function gitShim(remote: string): string {
+function gitShim(remote: string, offline: string): string {
 	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 	return `#!/bin/sh
+[ -f "${offline}" ] && exec "${realGit}" "$@"
 fetching=
 for arg do
   shift
@@ -192,7 +266,34 @@ const state = ${JSON.stringify(state)};
 const file = path.join(state, 'pull-request.json');
 const args = process.argv.slice(2);
 fs.appendFileSync(path.join(state, 'gh-calls.log'), JSON.stringify(args) + '\\n');
-const read = () => JSON.parse(fs.readFileSync(file, 'utf8'));
+const remote = ${JSON.stringify(remote)};
+const remoteHead = (branch) => {
+	try {
+		return execFileSync('git', ['-C', remote, 'rev-parse', '--verify', '--quiet', 'refs/heads/' + branch], { encoding: 'utf8' }).trim();
+	} catch {
+		return null;
+	}
+};
+const read = () => {
+	const current = JSON.parse(fs.readFileSync(file, 'utf8'));
+	if (!current || !current.liveHead || current.state !== 'OPEN') return current;
+	const headRefOid = remoteHead(current.headRefName) ?? current.headRefOid;
+	const rerun = current.checksHead && current.checksHead !== headRefOid;
+	return {
+		...current,
+		headRefOid,
+		...(rerun ? { statusCheckRollup: current.nextChecks || [] } : {}),
+		...(current.liveMergeable ? mergeability(headRefOid) : {}),
+	};
+};
+const mergeability = (head) => {
+	try {
+		execFileSync('git', ['-C', remote, 'merge-base', '--is-ancestor', 'refs/heads/main', head]);
+		return { mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN' };
+	} catch {
+		return { mergeable: 'CONFLICTING', mergeStateStatus: 'DIRTY' };
+	}
+};
 const save = (next) => {
 	fs.writeFileSync(file + '.tmp', JSON.stringify(next));
 	fs.renameSync(file + '.tmp', file);
@@ -243,7 +344,10 @@ if (command === 'auth' && sub === 'status') {
 					body: comment.body,
 					createdAt: '2026-10-02T10:00:00Z',
 					updatedAt: '2026-10-02T10:00:00Z',
-					author: { login: 'reviewer' },
+					author: {
+						__typename: comment.authorType || 'User',
+						login: comment.author || 'reviewer',
+					},
 				})),
 			},
 		}));
@@ -255,8 +359,25 @@ if (command === 'auth' && sub === 'status') {
 			},
 		});
 	}
-} else if (command === 'api' && /\\/compare\\//u.test(sub)) {
-	out('0\\n');
+} else if (command === 'api' && sub.includes('/compare/')) {
+	const [base, head] = sub.split('/compare/')[1].split('...');
+	const commit = (ref) => {
+		try {
+			return execFileSync('git', ['-C', remote, 'rev-parse', '--verify', '--quiet', ref + '^{commit}'], { encoding: 'utf8' }).trim();
+		} catch {
+			return null;
+		}
+	};
+	const [baseSha, headSha] = [commit(base), commit(head)];
+	if (!baseSha || !headSha) {
+		process.stderr.write('gh: Not Found (HTTP 404)\\n');
+		process.exit(1);
+	}
+	const count = (from, to) =>
+		Number(execFileSync('git', ['-C', remote, 'rev-list', '--count', from + '..' + to], { encoding: 'utf8' }));
+	const [behind, ahead] = [count(headSha, baseSha), count(baseSha, headSha)];
+	const status = behind === 0 ? (ahead === 0 ? 'identical' : 'ahead') : ahead === 0 ? 'behind' : 'diverged';
+	out((flag('--jq') === '.status' ? status : String(behind)) + '\\n');
 } else if (command === 'api' && /\\/check-runs\\/\\d+\\/annotations/u.test(sub)) {
 	const job = /\\/check-runs\\/(\\d+)\\//u.exec(sub)[1];
 	const check = ((read() || {}).statusCheckRollup || []).find((candidate) =>
@@ -301,8 +422,17 @@ if (command === 'auth' && sub === 'status') {
 		process.exit(1);
 	}
 	const seed = JSON.parse(fs.readFileSync(path.join(state, 'seed.json'), 'utf8'));
-	save({ ...seed, title: flag('--title'), body: flag('--body') ?? '' });
+	save({
+		...seed,
+		liveHead: true,
+		isDraft: args.includes('--draft'),
+		title: flag('--title'),
+		body: flag('--body') ?? '',
+	});
 	out(seed.url + '\\n');
+} else if (command === 'pr' && sub === 'ready') {
+	save({ ...read(), isDraft: false });
+	out('');
 } else if (command === 'pr' && sub === 'edit') {
 	const title = flag('--title');
 	const body = flag('--body');

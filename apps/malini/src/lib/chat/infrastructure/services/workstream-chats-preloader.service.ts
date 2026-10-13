@@ -130,7 +130,7 @@ class WorkstreamChatsPreloader {
 	): void {
 		const targets: PreactivationTarget[] = [];
 		for (const summaries of batches) {
-			const firstDurableSession = summaries[0];
+			const firstDurableSession = summaries.find(({ origin }) => origin === 'user');
 			if (!firstDurableSession) continue;
 			targets.push({
 				workstreamId: firstDurableSession.workstreamId,
@@ -321,6 +321,7 @@ function hydrateSummaries(summaries: readonly ChatSessionSummary[]): void {
 			model: summary.model,
 			status: summary.status,
 			startedAt: summary.startedAt,
+			origin: summary.origin,
 		});
 	}
 }

@@ -5,8 +5,10 @@ import type {
 	ExtensionPanelContext,
 	ExtensionPanelInstance,
 	ExtensionPanelRegistration,
+	ExtensionRepositoryDiff,
 } from '@malini/extension-api';
 import { createTestHost as createHost } from '@malini/extension-api/test';
+import { repositoryFileTabRows } from '../src/file-tab.js';
 import extension from '../src/index.js';
 import type { DOMWindow } from 'jsdom';
 import { withDom } from './dom.js';
@@ -316,6 +318,156 @@ test('the line-number gutter is the same width in a 3-line file and a 1,500-line
 		}
 	});
 });
+
+test('removed lines sit where they were cut, before what replaced them, and trailing ones end the file', () => {
+	const diff = {
+		lines: [
+			{ kind: 'context', oldLine: 1, newLine: 1, text: 'a' },
+			{ kind: 'deletion', oldLine: 2, newLine: null, text: 'b' },
+			{ kind: 'addition', oldLine: null, newLine: 2, text: 'B' },
+			{ kind: 'addition', oldLine: null, newLine: 3, text: 'B2' },
+			{ kind: 'context', oldLine: 3, newLine: 4, text: 'c' },
+			{ kind: 'deletion', oldLine: 9, newLine: null, text: 'i' },
+			{ kind: 'deletion', oldLine: 10, newLine: null, text: 'j' },
+		],
+	} as const;
+
+	assert.deepEqual(repositoryFileTabRows(10, diff), [
+		{ kind: 'line', line: 1, added: false },
+		{ kind: 'removed', line: 2, text: 'b' },
+		{ kind: 'line', line: 2, added: true },
+		{ kind: 'line', line: 3, added: true },
+		...[4, 5, 6, 7, 8, 9].map((line) => ({ kind: 'line', line, added: false })),
+		{ kind: 'removed', line: 9, text: 'i' },
+		{ kind: 'removed', line: 10, text: 'j' },
+		{ kind: 'line', line: 10, added: false },
+	]);
+	assert.deepEqual(repositoryFileTabRows(2, null), [
+		{ kind: 'line', line: 1, added: false },
+		{ kind: 'line', line: 2, added: false },
+	]);
+});
+
+test('a changed file shows its uncommitted lines in place and counts them over the contents', async () => {
+	await withDom(async (window) => {
+		const host = await createHost({
+			manifest,
+			fixtureRepository: {
+				name: 'file-tab-changes',
+				files: { 'src/app.ts': 'const a = 1;\nconst b = 3;\nconst c = 3;\n' },
+			},
+			repository: {
+				status: { dirtyPaths: ['src/app.ts'] },
+				uncommittedDiffs: [replacement('src/app.ts', 2, 'const b = 2;', 'const b = 3;')],
+			},
+		});
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			try {
+				assert.deepEqual(rowTexts(tab.lines), [
+					'1 const a = 1;',
+					'2 Removed: const b = 2;',
+					'2 Added: const b = 3;',
+					'3 const c = 3;',
+					'4  ',
+				]);
+				const stat = tab.root.querySelector<HTMLElement>('[aria-label$="since the last commit"]');
+				assert.equal(
+					stat?.getAttribute('aria-label'),
+					'1 line added, 1 line removed since the last commit',
+				);
+				assert.equal(stat?.textContent, '+1−1');
+			} finally {
+				await tab.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('an open tab follows the file when the tree reads a new change to it', async () => {
+	await withDom(async (window) => {
+		const repository: {
+			status: { dirtyPaths: string[] };
+			uncommittedDiffs: ExtensionRepositoryDiff[];
+		} = {
+			status: { dirtyPaths: [] },
+			uncommittedDiffs: [],
+		};
+		const host = await createHost({
+			manifest,
+			fixtureRepository: { name: 'file-tab-follow', files: { 'src/app.ts': 'const b = 2;\n' } },
+			repository,
+		});
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			try {
+				assert.deepEqual(rowTexts(tab.lines), ['1 const b = 2;', '2  ']);
+
+				await host.api.workstream.writeFile('src/app.ts', 'const b = 3;\n');
+				repository.status.dirtyPaths = ['src/app.ts'];
+				repository.uncommittedDiffs = [
+					replacement('src/app.ts', 1, 'const b = 2;', 'const b = 3;'),
+				];
+				await host.invokeCommand('malini.repository.refresh');
+
+				const lines = await eventually(() => {
+					const shown = tab.root.querySelector<HTMLElement>('.repository-file-tab__lines');
+					return shown && rowTexts(shown).length === 3 ? shown : null;
+				});
+				assert.deepEqual(rowTexts(lines), [
+					'1 Removed: const b = 2;',
+					'1 Added: const b = 3;',
+					'2  ',
+				]);
+			} finally {
+				await tab.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+function replacement(
+	path: string,
+	line: number,
+	before: string,
+	after: string,
+): ExtensionRepositoryDiff {
+	return {
+		path,
+		patch: [
+			`diff --git a/${path} b/${path}`,
+			`--- a/${path}`,
+			`+++ b/${path}`,
+			`@@ -${String(line)} +${String(line)} @@`,
+			`-${before}`,
+			`+${after}`,
+		].join('\n'),
+		additions: 1,
+		deletions: 1,
+	};
+}
+
+function rowTexts(lines: HTMLElement): readonly string[] {
+	return [...lines.children].map((row) => {
+		const [gutter, ...cells] = row.children;
+		return `${gutter?.textContent ?? ''} ${cells.map((cell) => cell.textContent).join('')}`;
+	});
+}
+
+async function eventually<T>(read: () => T | null): Promise<T> {
+	for (let attempt = 0; attempt < 100; attempt += 1) {
+		const value = read();
+		if (value !== null) return value;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error('The tab never showed the change');
+}
 
 async function mountFileTab(
 	host: Awaited<ReturnType<typeof createHost>>,

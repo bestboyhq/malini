@@ -1,4 +1,5 @@
 import type {
+	AdoptedAgentAttachment,
 	AgentApprovalDecision,
 	AgentApprovalDecisionResult,
 	AgentApprovalScope,
@@ -10,10 +11,11 @@ import type {
 	AgentSessionChangePatch,
 	AgentSessionChanges,
 	AgentSessionChangeScope,
+	AgentSessionOrigin,
 	AgentSessionSummary,
 	AgentTranscriptReference,
 	CheckpointRestoreRedoResult,
-	ClaudeSetupStep,
+	ClaudeSignInOutcome,
 	ProviderCapability,
 	RestoreCheckpointResult,
 	StagedAgentAttachment,
@@ -27,9 +29,19 @@ import type {
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
+import type {
+	JobDefinitionIdArgs,
+	JobDefinitionRecord,
+	JobRunIdArgs,
+	JobRunRecord,
+	RunJobArgs,
+	SaveJobDefinitionArgs,
+} from './jobs';
+import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type { RuntimeInfo } from './runtime';
 import type {
 	AddressedReviewThreadsDto,
+	ArchivedWorkstreamDto,
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
@@ -59,6 +71,7 @@ import type {
 	RoutineRecord,
 	RoutineSuggestionIdArgs,
 	RoutineSuggestionRecord,
+	UpdateRoutineArgs,
 } from './routines';
 import type {
 	DesktopRuntimeIdentity,
@@ -88,7 +101,7 @@ export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string 
 
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
 
-export type ClaudeSetupArgs = Readonly<{ step: ClaudeSetupStep }>;
+export type ClaudeSignInArgs = Readonly<{ email?: string }>;
 
 export type SecretKeyArgs = Readonly<{ service: string; key: string }>;
 
@@ -101,6 +114,8 @@ export type ExtensionFileArgs = Readonly<{
 export type StartAgentSessionArgs = Readonly<{
 	workstreamId: string;
 	model?: string;
+	origin?: AgentSessionOrigin;
+	displayName?: string;
 }>;
 
 export type StageForkTranscriptArgs = Readonly<{
@@ -258,6 +273,11 @@ export type StageAttachmentBytesArgs = Readonly<{
 
 export type StagedAttachmentArgs = Readonly<{ workstreamId: string; attachmentId: string }>;
 
+export type AdoptAttachmentsArgs = Readonly<{
+	workstreamId: string;
+	attachmentIds: readonly string[];
+}>;
+
 export type ClaimDockerServiceArgs = Readonly<{
 	repository: string;
 	scope: string;
@@ -291,7 +311,9 @@ export type SetSecretArgs = SecretKeyArgs & Readonly<{ value: string }>;
 
 export type OpenExternalUrlArgs = Readonly<{ url: string }>;
 
-export type SetClipboardTextArgs = Readonly<{ text: string }>;
+export type SetClipboardTextArgs = Readonly<{ text: string; html?: string }>;
+
+export type SetClipboardImageArgs = Readonly<{ pngDataUrl: string }>;
 
 export type AppendRendererErrorArgs = Readonly<{ payload: RendererErrorPayload }>;
 
@@ -318,7 +340,9 @@ export interface ContractCommands {
 	'browser.cancel-pick': { args: WorkstreamIdArgs; result: void };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
-	'providers.run-claude-setup': { args: ClaudeSetupArgs; result: void };
+	'providers.install-claude-code': { args: undefined; result: void };
+	'providers.sign-in-to-claude': { args: ClaudeSignInArgs; result: ClaudeSignInOutcome };
+	'providers.cancel-claude-sign-in': { args: undefined; result: void };
 	'chat.agent-capabilities': { args: ModelRefreshArgs; result: ProviderCapability[] };
 	'chat.workstream-has-open-run': { args: WorkstreamIdArgs; result: boolean };
 	'chat.answer-question': { args: AnswerAgentQuestionArgs; result: void };
@@ -398,6 +422,18 @@ export interface ContractCommands {
 		result: AddressedReviewThreadsDto;
 	};
 	'pull-requests.status': { args: PullRequestStatusArgs; result: PullRequestStatusDto };
+	'pull-requests.open-draft': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.queue-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.cancel-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord | null };
+	'pull-requests.retry-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
+	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
+	'jobs.save-definition': { args: SaveJobDefinitionArgs; result: JobDefinitionRecord };
+	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
+	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
+	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
+	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
+	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-recent-events': { args: ListRecentAgentEventsArgs; result: RecentAgentEvents };
@@ -413,6 +449,10 @@ export interface ContractCommands {
 	'repositories.workstream-files': { args: WorkstreamIdArgs; result: WorkstreamFileEntry[] };
 	'repositories.base-files': { args: RepositoryBaseFilesArgs; result: string[] };
 	'repositories.list-workstreams': { args: undefined; result: WorkstreamDto[] };
+	'repositories.list-archived-workstreams': {
+		args: undefined;
+		result: ArchivedWorkstreamDto[];
+	};
 	'repositories.open-workstream-in-editor': { args: WorkstreamIdArgs; result: void };
 	'app.shutdown-impact': { args: undefined; result: ShutdownImpact };
 	'chat.pick-and-stage-attachments': {
@@ -452,6 +492,7 @@ export interface ContractCommands {
 		args: RestoreCheckpointArgs;
 		result: RestoreCheckpointResult;
 	};
+	'repositories.restore-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.reveal-workstream': { args: WorkstreamIdArgs; result: void };
 	'repositories.sync-workstream-base': {
 		args: WorkstreamIdArgs;
@@ -463,6 +504,7 @@ export interface ContractCommands {
 	};
 	'routines.confirm-run': { args: RoutineGatedRunIdArgs; result: RoutineGatedRunRecord };
 	'routines.create-draft': { args: CreateRoutineDraftArgs; result: RoutineRecord };
+	'routines.update': { args: UpdateRoutineArgs; result: RoutineRecord };
 	'routines.delete': { args: RoutineIdArgs; result: null };
 	'routines.demote': { args: RoutineIdArgs; result: RoutineRecord };
 	'routines.dismiss-suggestion': {
@@ -492,6 +534,11 @@ export interface ContractCommands {
 		args: StageAttachmentBytesArgs;
 		result: StagedAgentAttachment;
 	};
+	'chat.adopt-attachments': {
+		args: AdoptAttachmentsArgs;
+		result: AdoptedAgentAttachment[];
+	};
+	'chat.renew-staged-attachments': { args: AdoptAttachmentsArgs; result: void };
 	'chat.stage-fork-transcript': {
 		args: StageForkTranscriptArgs;
 		result: StagedAgentAttachment;
@@ -506,6 +553,7 @@ export interface ContractCommands {
 		result: void;
 	};
 	'app.copy-text': { args: SetClipboardTextArgs; result: void };
+	'app.copy-image': { args: SetClipboardImageArgs; result: void };
 	'app.focus-window': { args: undefined; result: void };
 	'app.runtime-identity': { args: undefined; result: DesktopRuntimeIdentity };
 	'app.delete-secret': { args: SecretKeyArgs; result: void };
@@ -544,9 +592,13 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.pick-element',
 	'browser.cancel-pick',
 	'app.copy-text',
+	'app.copy-image',
 	'chat.activate-session',
+	'chat.adopt-attachments',
 	'chat.agent-health',
-	'providers.run-claude-setup',
+	'providers.install-claude-code',
+	'providers.sign-in-to-claude',
+	'providers.cancel-claude-sign-in',
 	'chat.agent-capabilities',
 	'chat.workstream-has-open-run',
 	'chat.answer-question',
@@ -587,6 +639,18 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
 	'pull-requests.status',
+	'pull-requests.open-draft',
+	'pull-requests.queue-merge',
+	'pull-requests.cancel-merge',
+	'pull-requests.retry-merge',
+	'pull-requests.ship-states',
+	'jobs.list-definitions',
+	'jobs.save-definition',
+	'jobs.delete-definition',
+	'jobs.reset-definition',
+	'jobs.list-runs',
+	'jobs.run',
+	'jobs.cancel-run',
 	'repositories.disconnect',
 	'chat.list-events',
 	'chat.list-recent-events',
@@ -599,6 +663,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-files',
 	'repositories.base-files',
 	'repositories.list-workstreams',
+	'repositories.list-archived-workstreams',
 	'repositories.open-workstream-in-editor',
 	'app.shutdown-impact',
 	'chat.pick-and-stage-attachments',
@@ -617,14 +682,17 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.release-owned-docker-container',
 	'repositories.remove',
 	'chat.remove-staged-attachment',
+	'chat.renew-staged-attachments',
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.restore-checkpoint',
+	'repositories.restore-workstream',
 	'repositories.reveal-workstream',
 	'repositories.sync-workstream-base',
 	'extensions.rollback-managed',
 	'routines.confirm-run',
 	'routines.create-draft',
+	'routines.update',
 	'routines.delete',
 	'routines.demote',
 	'routines.dismiss-suggestion',

@@ -60,7 +60,9 @@ import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	createRepository,
 	createWorkstream,
+	listArchived,
 	removeRepository,
+	restoreWorkstream,
 	retireWorkstream,
 } from './workstreams.service';
 
@@ -104,12 +106,26 @@ export function registerRepositories(
 	const checkouts = createCheckoutResolver({ db, appDataRoot });
 	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts });
 
+	const watchers = createWorkstreamWatchers({
+		db,
+		events,
+		resolveWorktree: (workstreamId) => checkouts.resolveCheckout(workstreamId),
+		...(deps.log ? { log: deps.log } : {}),
+	});
+	void watchers.start();
+
 	const guardRunLease = deps.guardRunLease;
 	const guardTeardown: TeardownGuard = async (workstreamId, teardown) => {
-		await installs.abortAndWait(workstreamId);
-		return baseSync.whileTearingDown(workstreamId, () =>
-			guardRunLease ? guardRunLease(workstreamId, teardown) : teardown(),
-		);
+		watchers.unwatch(workstreamId);
+		try {
+			await installs.abortAndWait(workstreamId);
+			return await baseSync.whileTearingDown(workstreamId, () =>
+				guardRunLease ? guardRunLease(workstreamId, teardown) : teardown(),
+			);
+		} catch (error) {
+			void watchers.watch(workstreamId);
+			throw error;
+		}
 	};
 	const workstreams = {
 		db,
@@ -120,17 +136,11 @@ export function registerRepositories(
 		guardTeardown,
 	};
 
-	const watchers = createWorkstreamWatchers({
-		db,
-		events,
-		resolveWorktree: (workstreamId) => checkouts.resolveCheckout(workstreamId),
-		...(deps.log ? { log: deps.log } : {}),
-	});
-	void watchers.start();
-
 	commands.define('repositories.list-workstreams', () =>
 		listWorkstreams(db).map((row) => workstreamDto(appDataRoot, row)),
 	);
+
+	commands.define('repositories.list-archived-workstreams', () => listArchived(workstreams));
 
 	commands.define('repositories.list-repositories', () =>
 		Promise.all(listProjects(db).map(projectDto)),
@@ -164,6 +174,10 @@ export function registerRepositories(
 
 	commands.define('repositories.archive-workstream', (args: unknown) =>
 		retireWorkstream(workstreams, requireString(args, 'workstreamId'), 'archived'),
+	);
+
+	commands.define('repositories.restore-workstream', (args: unknown) =>
+		restoreWorkstream(workstreams, checkedWorkstreamId(args)),
 	);
 
 	commands.define('repositories.workstream-diff', async (args: unknown) => {

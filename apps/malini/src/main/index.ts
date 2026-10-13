@@ -50,9 +50,6 @@ async function boot(): Promise<void> {
 		return;
 	}
 	await app.whenReady();
-	if (!app.isPackaged && process.platform === 'darwin') {
-		app.dock?.setIcon(join(__dirname, '../../build/icon.png'));
-	}
 	const appDataRoot = app.getPath('userData');
 	db = openMigratedDatabase(join(appDataRoot, DATABASE_FILE_NAME));
 

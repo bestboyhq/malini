@@ -8,6 +8,7 @@ import {
 	settleChatRoute,
 	startChatRouter,
 } from '$lib/chat/application/chat-route.testkit.svelte';
+import { forgetWorkstreamChatsCommand } from '$lib/chat/application/commands/forget-workstream-chats.command';
 import { connectAgentEventsHook } from '$lib/chat/application/hooks/connect-agent-events.hook';
 import { agentSessionPreactivation } from '$lib/chat/domain/agent-session-preactivation';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
@@ -173,6 +174,18 @@ describe('cold chat activation', () => {
 
 		expect(phases[0]).toBe('Listing workstream chats');
 		expect(listedInsidePhase).toBe(true);
+	});
+
+	it('replays the whole history of a chat whose workstream was forgotten and restored', async () => {
+		await expect(sessionActivation.activate('s-a2', 'ws-a')).resolves.toBe(true);
+		expect(transcriptAggregate.envelopesFor('s-a2')).toHaveLength(2);
+
+		forgetWorkstreamChatsCommand('ws-a');
+		await sessionActivation.refreshSessionTabs('ws-a');
+
+		await expect(sessionActivation.activate('s-a2', 'ws-a')).resolves.toBe(true);
+		expect(transcriptAggregate.isReady('s-a2')).toBe(true);
+		expect(transcriptAggregate.envelopesFor('s-a2')).toHaveLength(2);
 	});
 
 	it('joins a background registration already running for the same chat', async () => {

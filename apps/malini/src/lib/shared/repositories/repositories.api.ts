@@ -80,6 +80,13 @@ export {
 } from './domain/diff';
 
 export {
+	AUTOMATION_INPUT_STRING_LIMIT,
+	automatedPullRequestMetadata,
+	type PullRequestAutomationContext,
+	type PullRequestAutomationEvent,
+} from './domain/pull-request-metadata';
+
+export {
 	WORKSTREAM_INSTALL_STATUS_EVENT,
 	WORKSTREAM_PROVISIONING_PHASES,
 	planWorkstreamProvisioning,
@@ -132,7 +139,6 @@ export { refreshRepositoriesCommand } from './application/commands/refresh-repos
 export { refreshWorkstreamAfterChangeCommand } from './application/commands/refresh-workstream-after-change.command';
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
-export { removeFailedWorkstreamCommand } from './application/commands/remove-failed-workstream.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
@@ -182,6 +188,7 @@ export { checkedOutWorkstreamsQuery } from './application/queries/checked-out-wo
 export { workstreamCheckedOutQuery } from './application/queries/workstream-checked-out.query.svelte';
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
 
+export { default as ArchivedWorkstreamsMenu } from './presentation/ArchivedWorkstreamsMenu.svelte';
 export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export { default as RepositoryListSkeleton } from './presentation/RepositoryListSkeleton.svelte';
@@ -190,7 +197,4 @@ export { default as WorkstreamActionsMenu } from './presentation/WorkstreamActio
 export { default as WorkstreamProvisioningFrame } from './presentation/WorkstreamProvisioningFrame.svelte';
 export { default as DependencyInstallBanner } from './presentation/DependencyInstallBanner.svelte';
 export { default as WorkstreamTitle } from './presentation/WorkstreamTitle.svelte';
-export {
-	provisioningTopBarStatus,
-	type ProvisioningTopBarActions,
-} from './presentation/provisioning-top-bar-status';
+export { provisioningTopBarStatus } from './presentation/provisioning-top-bar-status';

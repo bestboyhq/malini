@@ -20,7 +20,15 @@ export type RoutineCommandRun = Readonly<{
 	args: readonly RoutineJsonValue[];
 }>;
 
-export type RoutineRun = RoutineWorkflowRun | RoutineCommandRun;
+export type RoutineJobRun = Readonly<{ job: string }>;
+
+export type RoutineRun = RoutineWorkflowRun | RoutineCommandRun | RoutineJobRun;
+
+export type RoutineStepKind = 'job' | 'command' | 'workflow';
+
+export const ROUTINE_LABEL_MAX_LENGTH = 120;
+
+export const ROUTINE_MAX_STEPS = 10;
 
 export type RoutinePromptEvidence = Readonly<{
 	kind: 'prompt';
@@ -47,18 +55,24 @@ export type Routine = Readonly<{
 	origin: RoutineOrigin;
 	label: string;
 	when: string;
-	run: RoutineRun;
+	steps: readonly RoutineRun[];
 	evidence: readonly RoutineEvidence[];
 	createdAt: string;
 	updatedAt: string;
 }>;
 
-export type RoutineChange = 'created' | 'promoted' | 'demoted' | 'deleted';
+export type RoutineChange = 'created' | 'updated' | 'promoted' | 'demoted' | 'deleted';
 
 export type RoutinesLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
-export function routineRunTarget(run: RoutineRun): string {
-	return 'workflow' in run ? run.workflow : run.command;
+export function routineStepKind(step: RoutineRun): RoutineStepKind {
+	if ('job' in step) return 'job';
+	return 'workflow' in step ? 'workflow' : 'command';
+}
+
+export function routineStepTarget(step: RoutineRun): string {
+	if ('job' in step) return step.job;
+	return 'workflow' in step ? step.workflow : step.command;
 }
 
 export function sortRoutinesOldestFirst(routines: readonly Routine[]): readonly Routine[] {

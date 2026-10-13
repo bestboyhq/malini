@@ -30,7 +30,10 @@ function rowOf(height: number): HTMLElement {
 	return row;
 }
 
-function glidingRun(...heights: number[]): { run: HTMLElement; rows: HTMLElement[] } {
+function glidingRun(
+	heights: readonly number[],
+	{ opening = false } = {},
+): { run: HTMLElement; rows: HTMLElement[] } {
 	const run = document.createElement('li');
 	const rows = heights.map(rowOf);
 	run.append(...rows);
@@ -41,6 +44,7 @@ function glidingRun(...heights: number[]): { run: HTMLElement; rows: HTMLElement
 			resettleTranscript: () => undefined,
 			destroy: () => undefined,
 		},
+		opening: () => opening,
 		prefersReducedMotion: () => false,
 	});
 	release = arrivals.glideRowLayout(run);
@@ -57,7 +61,7 @@ function framesPass(count: number): void {
 
 describe('a live run whose rows change', () => {
 	it('keeps the rows below a new row where they were on screen, then glides them to their place', async () => {
-		const { run, rows } = glidingRun(40, 24);
+		const { run, rows } = glidingRun([40, 24]);
 		const status = rows[1] ?? null;
 
 		run.insertBefore(rowOf(30), status);
@@ -68,25 +72,39 @@ describe('a live run whose rows change', () => {
 		expect(status?.style.translate).toBe('');
 	});
 
-	it('unrolls the new row instead of drawing it under the row still gliding away', async () => {
-		const { run, rows } = glidingRun(40, 24);
+	it('lets the new row emerge above the row still gliding away instead of drawing under it', async () => {
+		const { run, rows } = glidingRun([40, 24]);
 		const arriving = rowOf(30);
 
 		run.insertBefore(arriving, rows[1] ?? null);
 		await mutationsDelivered();
 
-		expect(arriving.style.clipPath).toBe('inset(-1rem -1rem 30px -1rem)');
+		expect(arriving.style.maskImage).toContain('transparent 30px');
 		framesPass(60);
-		expect(arriving.style.clipPath).toBe('');
+		expect(arriving.style.maskImage).toBe('');
 	});
 
 	it('lets the rows below a removed row glide up into the space it leaves', async () => {
-		const { rows } = glidingRun(40, 30, 24);
+		const { rows } = glidingRun([40, 30, 24]);
 
 		rows[1]?.remove();
 		await mutationsDelivered();
 
 		expect(rows[2]?.style.translate).toBe('0 30px');
-		expect(rows[0]?.style.clipPath).toBe('');
+		expect(rows[0]?.style.maskImage).toBe('');
+	});
+});
+
+describe('a chat that is still opening', () => {
+	it('leaves the rows below a message where they land when its late content loads', async () => {
+		const { rows } = glidingRun([40, 24], { opening: true });
+		const [message, footer] = rows;
+
+		message?.append(document.createElement('img'));
+		if (message) message.dataset['height'] = '340';
+		await mutationsDelivered();
+
+		expect(footer?.style.translate).toBe('');
+		expect(message?.style.maskImage).toBe('');
 	});
 });

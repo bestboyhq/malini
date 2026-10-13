@@ -6,10 +6,11 @@
 		kind: SensitiveKind;
 		revealed?: boolean;
 		onreveal?: () => void;
+		interactive?: boolean;
 		children: Snippet;
 	}
 
-	let { kind, revealed, onreveal, children }: Props = $props();
+	let { kind, revealed, onreveal, interactive = true, children }: Props = $props();
 	let revealedHere = $state(false);
 	const shown = $derived(revealed ?? revealedHere);
 
@@ -25,7 +26,12 @@
 	}
 </script>
 
-{#if shown}{@render children()}{:else}<span
+{#if shown}{@render children()}{:else if !interactive}<span
+		class="hyper-sensitive-mask inline-block"
+		data-sensitive={kind}
+	>
+		{@render children()}
+	</span>{:else}<span
 		class="hyper-sensitive"
 		data-sensitive={kind}
 		role="button"

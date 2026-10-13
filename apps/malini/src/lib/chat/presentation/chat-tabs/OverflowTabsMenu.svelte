@@ -81,7 +81,9 @@
 						tab.open();
 					}}
 				>
-					<span class="min-w-0 flex-1 truncate text-left"><SensitiveText text={tab.name} /></span>
+					<span class="min-w-0 flex-1 truncate text-left">
+						<SensitiveText text={tab.name} interactive={false} />
+					</span>
 					<span class="text-fg-tertiary max-w-28 shrink-0 truncate text-[10px]">{tab.detail}</span>
 				</DropdownItem>
 			{/each}

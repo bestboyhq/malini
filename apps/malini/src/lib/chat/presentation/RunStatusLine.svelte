@@ -3,19 +3,18 @@
 	import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
 	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import type { RenderState } from './render-state';
+	import type { RunGroup } from './render-state';
 	import { backgroundAgentsStatus, deriveRunStatus } from './run-status';
 	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
-		renderState: RenderState;
+		runs: readonly RunGroup[];
 		waitingForUser?: boolean;
 	}
 
-	let { renderState, waitingForUser = false }: Props = $props();
+	let { runs, waitingForUser = false }: Props = $props();
 	const { stageEnter, timelineKey } = transcriptContext();
 
-	const runs = $derived(renderState.runs);
 	const openRun = $derived.by(() => {
 		const last = runs[runs.length - 1];
 		return last && last.terminal === null ? last : null;
@@ -50,13 +49,16 @@
 >
 	{#if statusText && openRun}
 		<div
-			class="flex min-w-0 flex-1 items-center gap-1.5 text-xs"
+			class="flex min-w-0 flex-1 items-center gap-2 text-xs"
 			use:stageEnter={timelineKey(openRun, 'status')}
 			data-testid="run-status-line"
 			data-message-kind="assistant-working"
 		>
 			{#if waitingForUser}
-				<span class="text-fg-tertiary grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+				<span
+					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+					aria-hidden="true"
+				>
 					<Icon name="pause" size={12} />
 				</span>
 				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
@@ -64,7 +66,7 @@
 				</span>
 			{:else}
 				<span
-					class="text-fg-tertiary grid h-5 w-5 shrink-0 place-items-center"
+					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
 					aria-hidden="true"
 					data-testid="agent-working-loader"
 				>

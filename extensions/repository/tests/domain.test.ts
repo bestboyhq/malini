@@ -6,8 +6,6 @@ import {
 	parseRepositoryAgentSessionDiff,
 	parseDiffRequest,
 	parseRepositoryContext,
-	pullRequestChecksAllowMerge,
-	pullRequestBlockingChecks,
 	pullRequestHasReviewBlockers,
 	pullRequestMergeReadiness,
 	pullRequestReviewStatusUnavailable,
@@ -17,7 +15,6 @@ import {
 	renderRepositoryDiff,
 	repositoryFileMatches,
 } from '../src/domain.js';
-import { highlightFileLines, highlightLine, languageForPath } from '../src/code-tokens.js';
 
 test('normalizes, filters, deduplicates, and describes repository files', () => {
 	assert.deepEqual(
@@ -440,46 +437,6 @@ test('rejects excessive agent diff fan-out and payloads before rendering', () =>
 	);
 });
 
-test('paints a diff line with the app-wide lexer, not a panel-local one', () => {
-	const tokens = highlightLine(
-		'src/value.ts',
-		'export const answer: Result = compute("forty-two"); // stable',
-	);
-	const painted = tokens.filter(({ kind }) => kind !== 'plain' && kind !== 'punctuation');
-	assert.deepEqual(
-		painted.map(({ kind, text }) => [kind, text]),
-		[
-			['keyword', 'export'],
-			['keyword', 'const'],
-			['type', 'Result'],
-			['function', 'compute'],
-			['string', '"forty-two"'],
-			['comment', '// stable'],
-		],
-	);
-});
-
-test('cuts a file into lines after tokenizing it, so a block comment survives', () => {
-	const lines = highlightFileLines('src/value.ts', '/* one\n   two */\nconst a = 1;\n');
-	assert.equal(lines.length, 4);
-	assert.deepEqual(
-		lines[0]?.map(({ kind }) => kind),
-		['comment'],
-	);
-	assert.deepEqual(
-		lines[1]?.map(({ kind }) => kind),
-		['comment'],
-	);
-	assert.equal(lines[2]?.find(({ text }) => text === 'const')?.kind, 'keyword');
-});
-
-test('reads the language from a path, and says nothing about a dotfile', () => {
-	assert.equal(languageForPath('src/main.rs'), 'rust');
-	assert.equal(languageForPath('apps/a/vite.config.mts'), 'typescript');
-	assert.equal(languageForPath('.gitignore'), null);
-	assert.equal(languageForPath('Makefile'), null);
-});
-
 test('parses workstream and pull request context without accepting partial records', () => {
 	assert.deepEqual(
 		parseRepositoryContext({
@@ -574,53 +531,6 @@ test('reads the operation a worktree holds and refuses one it does not know', ()
 		error:
 			'Malformed repository context: operationInProgress must be merge, rebase, cherry-pick, revert or null',
 	});
-});
-
-test('allows successful or genuinely absent checks but not uncertain checks', () => {
-	assert.equal(pullRequestChecksAllowMerge('success'), true);
-	assert.equal(pullRequestChecksAllowMerge('none'), true);
-	assert.equal(pullRequestChecksAllowMerge('pending'), false);
-	assert.equal(pullRequestChecksAllowMerge('failed'), false);
-	assert.equal(pullRequestChecksAllowMerge('unknown'), false);
-});
-
-test('gates on detailed required checks while optional failures remain visible but non-blocking', () => {
-	const optionalFailure = {
-		name: 'Preview deploy',
-		appId: 15_368,
-		state: 'completed',
-		conclusion: 'failure',
-		required: false,
-		url: 'https://example.test/check/preview',
-		startedAt: '2026-07-22T08:00:00Z',
-		completedAt: '2026-07-22T08:01:00Z',
-	} as const;
-	const requiredSuccess = {
-		...optionalFailure,
-		name: 'Unit tests',
-		required: true,
-		conclusion: 'success',
-	} as const;
-	assert.equal(pullRequestChecksAllowMerge('failed', [optionalFailure, requiredSuccess]), true);
-	assert.equal(
-		pullRequestChecksAllowMerge('unknown', [requiredSuccess]),
-		false,
-		'partial successful rows must not override an unknown aggregate gate',
-	);
-	const unknownRequirednessPending = {
-		...optionalFailure,
-		name: 'Policy',
-		state: 'queued',
-		conclusion: null,
-		required: null,
-	} as const;
-	assert.deepEqual(pullRequestBlockingChecks([optionalFailure, unknownRequirednessPending]), [
-		unknownRequirednessPending,
-	]);
-	assert.equal(
-		pullRequestChecksAllowMerge('success', [optionalFailure, unknownRequirednessPending]),
-		false,
-	);
 });
 
 test('selects only enabled merge methods and distinguishes review blockers from unavailable reads', () => {

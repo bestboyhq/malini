@@ -13,10 +13,7 @@
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
-	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
-	import { openInspectorPanelCommand } from '$lib/extensions/application/commands/open-inspector-panel.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
-	import { extensionRuntimeErrorQuery } from '$lib/extensions/application/queries/extension-runtime-error.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
@@ -24,7 +21,6 @@
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
 	import {
 		WorkstreamActionsMenu,
-		archiveWorkstreamCommand,
 		changeTotalsQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
@@ -33,7 +29,6 @@
 		provisioningTopBarStatus,
 		refreshRepositoriesCommand,
 		refreshWorkstreamsCommand,
-		removeFailedWorkstreamCommand,
 		repositoryContextQuery,
 		retryProvisioningCommand,
 		supportsRemotePullRequests,
@@ -65,7 +60,6 @@
 	const extensionWorkstream = $derived(extensionWorkstreamQuery.data);
 	const extensionGeneration = $derived(extensionActivationGenerationQuery.data);
 	const extensionReady = $derived(extensionRuntimeReadyQuery.data(workstreamId));
-	const extensionError = $derived(extensionRuntimeErrorQuery.data);
 	const repositoryExtensionRegistered = $derived(
 		inspectorPanelsQuery.data.some(({ id }) => id === 'malini.repository.files-panel'),
 	);
@@ -73,10 +67,9 @@
 		repositoryContext !== null && supportsRemotePullRequests(repositoryContext.repo),
 	);
 	const provisioningStatus = $derived(
-		provisioningTopBarStatus(provisioning, provisioningRetrying, {
-			onRetry: () => retryProvisioningCommand(workstreamId),
-			onRemove: () => removeFailedWorkstreamCommand(workstreamId),
-		}),
+		provisioningTopBarStatus(provisioning, provisioningRetrying, () =>
+			retryProvisioningCommand(workstreamId),
+		),
 	);
 	const inspectedWorkstream = $derived<ExtensionWorkstream | null>(
 		workstream
@@ -108,19 +101,12 @@
 			{extensionWorkstream}
 			{extensionGeneration}
 			{extensionReady}
-			{extensionError}
 			{repositoryScopeReady}
 			{remotePullRequestsSupported}
 			{repositoryExtensionRegistered}
 			agentRunning={chat.agentRunning}
 			overrideStatus={provisioningStatus}
-			submitPrompt={chat.submitAutomatedPrompt}
-			chatEvidence={chat.chatEvidence}
-			onpanelrequested={(panelId) => openInspectorPanelCommand(workstreamId, panelId)}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
-			onarchive={() => {
-				if (workstream) archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand);
-			}}
 		/>
 	{/snippet}
 </WorkstreamChatBridge>

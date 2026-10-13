@@ -14,7 +14,7 @@ export function newestWorkstreamChats(
 	workstreamId: string,
 ): readonly SessionRecord[] {
 	return sessions
-		.filter((session) => session.workstreamId === workstreamId)
+		.filter((session) => session.workstreamId === workstreamId && session.origin === 'user')
 		.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 }
 

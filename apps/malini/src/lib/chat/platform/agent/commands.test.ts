@@ -194,6 +194,7 @@ describe('session commands', () => {
 				model: 'sonnet',
 				status: 'idle',
 				startedAt: expect.any(String),
+				origin: 'user',
 			},
 		]);
 
@@ -209,6 +210,46 @@ describe('session commands', () => {
 			workstreamId: 'ws-1',
 		});
 		expect(fresh).not.toBe(sessionId);
+	});
+
+	it('starts a named job transcript beside the chats, and never hands it out as the chat to reuse', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const chatId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const jobId = await invokeString('chat.start-session', {
+			workstreamId: 'ws-1',
+			origin: 'job',
+			displayName: '  Fix\n\tchecks\u0007 ',
+		});
+
+		const summaries = await invokeRecords('chat.list-sessions', { workstreamId: 'ws-1' });
+		expect(summaries.map(({ id, displayName, origin }) => ({ id, displayName, origin }))).toEqual([
+			{ id: jobId, displayName: 'Fix checks', origin: 'job' },
+			{ id: chatId, displayName: 'New chat', origin: 'user' },
+		]);
+		expect(await invokeString('chat.get-or-create-session', { workstreamId: 'ws-1' })).toBe(chatId);
+	});
+
+	it('refuses an unknown session origin and an empty or overlong display name', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', origin: 'bot' })).toBe(
+			"invalid args: `origin` must be 'user' or 'job'",
+		);
+		expect(
+			await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: ' \n ' }),
+		).toBe('invalid args: `displayName` must be 1-80 characters');
+		expect(
+			await invokeError('chat.start-session', {
+				workstreamId: 'ws-1',
+				origin: 'job',
+				displayName: 'x'.repeat(81),
+			}),
+		).toBe('invalid args: `displayName` must be 1-80 characters');
+		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: 42 })).toBe(
+			'invalid args: `displayName` must be a string',
+		);
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_sessions')).toBe(0);
 	});
 
 	it('activates a chat whose workstream folder is gone so it stays readable, and refuses its prompts', async () => {
@@ -682,6 +723,49 @@ describe('prompt round trips', () => {
 		await waitFor(() => getRun(test.db, written)?.completedAt !== null);
 		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Fix the login bug');
 		expect(getSession(test.db, sessionId)?.displayName).toBe('Fix the login bug');
+	});
+
+	it('never renames a job transcript or its workstream, whether the job or the user prompts it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
+		const before = getWorkstream(test.db, 'ws-1')?.name;
+		const jobId = await invokeString('chat.start-session', {
+			workstreamId: 'ws-1',
+			origin: 'job',
+			displayName: 'Fix checks',
+		});
+		const automated = await invokeString('chat.send-prompt', {
+			sessionId: jobId,
+			prompt: 'Fix the failing checks',
+			clientRequestId: 'req-job',
+			automated: true,
+		});
+		await waitFor(() => getRun(test.db, automated)?.completedAt !== null);
+		const steered = await invokeString('chat.send-prompt', {
+			sessionId: jobId,
+			prompt: 'hey so every time i log in the page goes blank',
+			clientRequestId: 'req-steer',
+		});
+		await waitFor(() => getRun(test.db, steered)?.completedAt !== null);
+
+		expect(getSession(test.db, jobId)?.displayName).toBe('Fix checks');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe(before);
+		expect(
+			test.events.frames.filter(
+				(f) =>
+					f.channel === CHAT_SESSION_RENAMED_CHANNEL ||
+					f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
+			),
+		).toEqual([]);
+
+		const chatId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		await invokeString('chat.send-prompt', {
+			sessionId: chatId,
+			prompt: 'hey so every time i log in the page goes blank',
+			clientRequestId: 'req-chat',
+		});
+		await waitFor(() => getWorkstream(test.db, 'ws-1')?.name === 'Login bug');
+		expect(getSession(test.db, chatId)?.displayName).toBe('Login bug');
 	});
 
 	it('names the chat and the workstream with the title Claude suggests and announces both', async () => {

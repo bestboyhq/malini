@@ -1,7 +1,10 @@
 <script lang="ts">
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
+	import { currentPlanLimits, planLimitAlert } from '$lib/chat/domain/plan-usage';
 	import { liveContextUsageQuery } from '$lib/chat/application/queries/live-context-usage.query.svelte';
+	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
+	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
@@ -9,6 +12,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 	import {
+		contextBreakdown,
 		contextPressure,
 		contextPressureAdvice,
 		contextRemainingTokens,
@@ -17,6 +21,7 @@
 		contextWindowUnknownMessage,
 		deriveSessionRuntimeMetadata,
 		mcpUnavailableMessage,
+		usagePressure,
 		type ContextPressure,
 		type McpServerSnapshot,
 	} from './session-runtime-metadata';
@@ -29,7 +34,9 @@
 	let { envelopes, sessionId = null }: Props = $props();
 	let contextOpen = $state(false);
 	let mcpOpen = $state(false);
+	let nowMs = $state(Date.now());
 	const liveContext = $derived(sessionId ? liveContextUsageQuery.data(sessionId) : null);
+	const planUsage = $derived(planUsageQuery.data);
 	const metadata = $derived(deriveSessionRuntimeMetadata(envelopes, liveContext));
 	const contextPercent = $derived(metadata.context ? contextUsagePercent(metadata.context) : null);
 	const pressure = $derived<ContextPressure>(
@@ -39,17 +46,18 @@
 	const remainingTokens = $derived(
 		metadata.context ? contextRemainingTokens(metadata.context) : null,
 	);
-	const pressureToneClass = $derived(
-		pressure === 'critical'
-			? 'text-error-content'
-			: pressure === 'high'
-				? 'text-warning-content'
-				: 'text-fg-tertiary',
-	);
+	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
+	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
+	const planAlert = $derived(planLimitAlert(planLimits));
 	const triggerLabel = $derived(
-		contextPercent === null
-			? 'View context usage'
-			: `View context usage, ${contextPercent.toFixed(0)}% of the window used`,
+		[
+			contextPercent === null
+				? 'View context and plan usage'
+				: `View context and plan usage, ${contextPercent.toFixed(0)}% of the context window used`,
+			planAlert && `${planAlert.label} ${Math.round(planAlert.usedPercent)}% used`,
+		]
+			.filter(Boolean)
+			.join(', '),
 	);
 
 	const GAUGE_RADIUS = 5.75;
@@ -61,9 +69,17 @@
 		).length ?? 0,
 	);
 
+	$effect(() => {
+		const clock = setInterval(() => (nowMs = Date.now()), 60_000);
+		return () => clearInterval(clock);
+	});
+
 	function onContextOpenChange(next: boolean): void {
 		contextOpen = next;
-		if (next) mcpOpen = false;
+		if (next) {
+			mcpOpen = false;
+			nowMs = Date.now();
+		}
 	}
 
 	function onMcpOpenChange(next: boolean): void {
@@ -71,29 +87,40 @@
 		if (next) contextOpen = false;
 	}
 
-	function remainingPercent(utilization: number | null): number | null {
-		return utilization === null ? null : Math.max(0, Math.min(100, 100 - utilization));
+	function toneClass(level: ContextPressure): string {
+		if (level === 'critical') return 'text-error-content';
+		if (level === 'high') return 'text-warning-content';
+		return 'text-fg-tertiary';
 	}
 
-	const contextTokenFormat = new Intl.NumberFormat('en', {
+	function fillClass(level: ContextPressure): string {
+		if (level === 'critical') return 'bg-error-content';
+		if (level === 'high') return 'bg-warning-content';
+		return 'bg-primary';
+	}
+
+	const tokenFormat = new Intl.NumberFormat('en', {
 		notation: 'compact',
 		maximumFractionDigits: 1,
 	});
 
-	function formatContextTokens(value: number): string {
-		return contextTokenFormat.format(value);
+	function formatTokens(value: number): string {
+		return tokenFormat.format(value);
 	}
 
-	function resetLabel(value: string | null): string | null {
-		if (!value) return null;
-		const date = new Date(value);
-		if (Number.isNaN(date.getTime())) return null;
-		return date.toLocaleString(undefined, {
-			month: 'short',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit',
-		});
+	function formatShare(percent: number): string {
+		return percent < 0.1 ? '<0.1%' : `${percent.toFixed(1)}%`;
+	}
+
+	function resetLabel(resetsAt: string, now: number): string {
+		const minutes = Math.max(1, Math.ceil((Date.parse(resetsAt) - now) / 60_000));
+		const days = Math.floor(minutes / 1_440);
+		const hours = Math.floor((minutes % 1_440) / 60);
+		const parts =
+			days > 0
+				? [`${days}d`, hours && `${hours}h`]
+				: [hours && `${hours}h`, minutes % 60 && `${minutes % 60}m`];
+		return `Resets in ${parts.filter(Boolean).join(' ')}`;
 	}
 
 	function mcpStatusLabel(server: McpServerSnapshot): string {
@@ -106,63 +133,98 @@
 	}
 </script>
 
+{#snippet meter(label: string, percent: number, level: ContextPressure)}
+	<div
+		class="bg-surface-elevated-selected mt-2 h-1.5 overflow-hidden rounded-full"
+		role="progressbar"
+		aria-label={label}
+		aria-valuemin="0"
+		aria-valuemax="100"
+		aria-valuenow={Math.round(percent)}
+	>
+		<div class={['h-full rounded-full', fillClass(level)]} style={`width: ${percent}%`}></div>
+	</div>
+{/snippet}
+
+{#snippet gauge()}
+	<svg
+		width="16"
+		height="16"
+		viewBox="0 0 16 16"
+		aria-hidden="true"
+		class={['shrink-0 -rotate-90', toneClass(pressure)]}
+		data-testid="session-context-usage-gauge"
+		data-context-percent={contextPercent?.toFixed(1)}
+		data-context-pressure={pressure}
+	>
+		<circle
+			cx="8"
+			cy="8"
+			r={GAUGE_RADIUS}
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			class="opacity-25"
+		/>
+		{#if contextPercent}
+			<circle
+				cx="8"
+				cy="8"
+				r={GAUGE_RADIUS}
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-dasharray={GAUGE_CIRCUMFERENCE}
+				stroke-dashoffset={gaugeDashOffset}
+			/>
+		{/if}
+	</svg>
+{/snippet}
+
 <div class="flex items-center gap-0.5" data-testid="session-runtime-controls">
 	<HoverCard
 		bind:open={contextOpen}
 		side="top"
-		align="start"
+		align="end"
 		openDelay={160}
 		closeDelay={140}
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
 		backdropTestId="session-context-backdrop"
 		owner="chat-composer"
-		panelClass="w-72 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+		panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
 	>
 		{#snippet trigger({ open })}
-			<IconButton
-				variant="ghost"
-				size="md"
-				ariaLabel={triggerLabel}
-				ariaExpanded={open}
-				ariaControls="session-context-usage-panel"
-				class="text-fg-tertiary"
-				data-testid="session-context-usage-open"
-			>
-				<svg
-					width="16"
-					height="16"
-					viewBox="0 0 16 16"
-					aria-hidden="true"
-					class={['-rotate-90', pressureToneClass]}
-					data-testid="session-context-usage-gauge"
-					data-context-percent={contextPercent?.toFixed(1)}
-					data-context-pressure={pressure}
+			{#if planAlert}
+				<Button
+					variant="danger-ghost"
+					size="md"
+					class="gap-1.5 rounded-md text-xs font-normal"
+					ariaLabel={triggerLabel}
+					ariaExpanded={open}
+					ariaControls="session-context-usage-panel"
+					data-testid="session-context-usage-open"
 				>
-					<circle
-						cx="8"
-						cy="8"
-						r={GAUGE_RADIUS}
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						class="opacity-25"
-					/>
-					{#if contextPercent}
-						<circle
-							cx="8"
-							cy="8"
-							r={GAUGE_RADIUS}
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-							stroke-linecap="round"
-							stroke-dasharray={GAUGE_CIRCUMFERENCE}
-							stroke-dashoffset={gaugeDashOffset}
-						/>
-					{/if}
-				</svg>
-			</IconButton>
+					{@render gauge()}
+					<span class="tabular-nums" data-testid="session-plan-limit-alert">
+						<span class="@max-2xl/composer:hidden">{planAlert.label} ·</span>
+						{Math.round(planAlert.usedPercent)}% used
+					</span>
+				</Button>
+			{:else}
+				<IconButton
+					variant="ghost"
+					size="md"
+					ariaLabel={triggerLabel}
+					ariaExpanded={open}
+					ariaControls="session-context-usage-panel"
+					class="text-fg-tertiary"
+					data-testid="session-context-usage-open"
+				>
+					{@render gauge()}
+				</IconButton>
+			{/if}
 		{/snippet}
 
 		{#snippet content()}
@@ -170,7 +232,7 @@
 				id="session-context-usage-panel"
 				role="dialog"
 				tabindex="-1"
-				aria-label="Context usage"
+				aria-label="Context and plan usage"
 				data-testid="session-context-usage-panel"
 			>
 				<div class="flex items-baseline justify-between gap-3">
@@ -180,9 +242,9 @@
 							class="text-fg-tertiary text-xs tabular-nums"
 							data-testid="session-context-usage-count"
 						>
-							{formatContextTokens(metadata.context.usedTokens)}
+							{formatTokens(metadata.context.usedTokens)}
 							{metadata.context.maxTokens
-								? ` / ${formatContextTokens(metadata.context.maxTokens)}`
+								? ` / ${formatTokens(metadata.context.maxTokens)}`
 								: ' used'}
 						</span>
 					{/if}
@@ -190,84 +252,88 @@
 
 				{#if metadata.context}
 					{#if contextPercent !== null}
-						<div
-							class="bg-chip mt-3 h-2 overflow-hidden rounded-full"
-							role="progressbar"
-							aria-label="Context window used"
-							aria-valuemin="0"
-							aria-valuemax="100"
-							aria-valuenow={Math.round(contextPercent)}
-						>
-							<div
-								class={[
-									'h-full rounded-full',
-									pressure === 'critical'
-										? 'bg-error-content'
-										: pressure === 'high'
-											? 'bg-warning-content'
-											: 'bg-primary',
-								]}
-								style={`width: ${contextPercent}%`}
-							></div>
-						</div>
+						{@render meter('Context window used', contextPercent, pressure)}
 						<div class="text-fg-tertiary mt-1.5 flex justify-between text-xs">
 							<span class="tabular-nums">{contextPercent.toFixed(1)}% used</span>
 							{#if remainingTokens !== null}
 								<span class="tabular-nums" data-testid="session-context-usage-remaining">
-									{formatContextTokens(remainingTokens)} left
+									{formatTokens(remainingTokens)} left
 								</span>
 							{/if}
 						</div>
 						{#if advice}
 							<p
-								class={[
-									'mt-2 text-xs leading-5',
-									pressure === 'critical' ? 'text-error-content' : 'text-warning-content',
-								]}
+								class={['mt-2 text-xs leading-5', toneClass(pressure)]}
 								data-testid="session-context-usage-advice"
 							>
 								{advice}
 							</p>
+						{/if}
+						{#if breakdown.length > 0}
+							<dl
+								class="border-border-subtle mt-3 space-y-1 border-t pt-3 text-xs"
+								aria-label="Context window breakdown"
+								data-testid="session-context-breakdown"
+							>
+								{#each breakdown as row (row.name)}
+									<div
+										class="flex items-baseline gap-3"
+										data-testid="session-context-breakdown-row"
+									>
+										<dt
+											class={[
+												'min-w-0 flex-1 truncate',
+												row.kind === 'used' ? 'text-fg-secondary' : 'text-fg-tertiary',
+											]}
+										>
+											{row.name}
+										</dt>
+										<dd class="text-fg-tertiary tabular-nums">{formatTokens(row.tokens)}</dd>
+										<dd class="text-fg-secondary w-12 text-right tabular-nums">
+											{formatShare(row.percent)}
+										</dd>
+									</div>
+								{/each}
+							</dl>
 						{/if}
 					{:else}
 						<p class="text-fg-tertiary mt-2 text-xs leading-5">
 							{contextWindowUnknownMessage()}
 						</p>
 					{/if}
-
-					{#each metadata.context.rateLimits as limit (limit.label)}
-						{@const remaining = remainingPercent(limit.utilization)}
-						<div
-							class="border-border-subtle mt-3 border-t pt-3"
-							data-testid="session-rate-limit-row"
-						>
-							<div class="flex items-center justify-between gap-3 text-xs">
-								<span class="text-fg-tertiary">{limit.label}</span>
-								<span class="text-fg-default font-medium tabular-nums">
-									{remaining === null ? 'Unavailable' : `${Math.round(remaining)}% left`}
-								</span>
-							</div>
-							{#if remaining !== null}
-								<div
-									class="bg-chip mt-2 h-1.5 overflow-hidden rounded-full"
-									role="progressbar"
-									aria-label={`${limit.label} remaining`}
-									aria-valuemin="0"
-									aria-valuemax="100"
-									aria-valuenow={Math.round(remaining)}
-								>
-									<div class="bg-primary h-full rounded-full" style={`width: ${remaining}%`}></div>
-								</div>
-							{/if}
-							{#if resetLabel(limit.resetsAt)}
-								<p class="text-2xs text-fg-tertiary mt-1.5">Resets {resetLabel(limit.resetsAt)}</p>
-							{/if}
-						</div>
-					{/each}
 				{:else}
 					<p class="text-fg-tertiary mt-2 text-xs leading-5">
 						{contextUnavailableMessage()}
 					</p>
+				{/if}
+
+				{#if planLimits.length > 0}
+					<section
+						class="border-border-subtle mt-3 border-t pt-3"
+						aria-label="Plan usage"
+						data-testid="session-plan-usage"
+					>
+						<h3 class="text-fg-default text-sm font-medium">Plan usage</h3>
+						{#each planLimits as limit (limit.label)}
+							{@const level = usagePressure(limit.usedPercent)}
+							<div class="mt-2.5" data-testid="session-rate-limit-row">
+								<div class="flex items-baseline justify-between gap-3 text-xs">
+									<span class="text-fg-secondary">{limit.label}</span>
+									<span
+										class={['tabular-nums', level === 'ok' ? 'text-fg-default' : toneClass(level)]}
+									>
+										{Math.round(limit.usedPercent)}% used
+									</span>
+								</div>
+								{@render meter(`${limit.label} used`, limit.usedPercent, level)}
+								{#if limit.resetsAt}
+									<p class="text-2xs text-fg-tertiary mt-1.5">
+										{resetLabel(limit.resetsAt, nowMs)}
+									</p>
+								{/if}
+							</div>
+						{/each}
+					</section>
 				{/if}
 			</div>
 		{/snippet}

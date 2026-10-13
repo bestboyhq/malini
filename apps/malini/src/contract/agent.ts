@@ -40,12 +40,9 @@ export interface ProviderCapability {
 	message: string;
 }
 
-export type ClaudeSetupStep = 'install' | 'sign-in';
+export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh | bash';
 
-export const CLAUDE_SETUP_COMMANDS: Readonly<Record<ClaudeSetupStep, string>> = {
-	install: 'curl -fsSL https://claude.ai/install.sh | bash',
-	'sign-in': 'claude auth login',
-};
+export type ClaudeSignInOutcome = 'signed-in' | 'cancelled';
 
 export interface AgentQuestionAnswer {
 	questionId: string;
@@ -61,6 +58,8 @@ export interface AgentEventEnvelope {
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
 
+export type AgentSessionOrigin = 'user' | 'job';
+
 export interface AgentSessionSummary {
 	id: string;
 	workstreamId: string;
@@ -68,6 +67,7 @@ export interface AgentSessionSummary {
 	model: string | null;
 	status: SessionStatus;
 	startedAt: string;
+	origin: AgentSessionOrigin;
 }
 
 export interface AgentTranscriptReference {
@@ -109,6 +109,9 @@ export interface StagedAgentAttachment {
 	size: number;
 	sha256: string;
 }
+
+export type AdoptedAgentAttachment =
+	{ sourceId: string; attachment: StagedAgentAttachment } | { sourceId: string; error: string };
 
 export interface StagedAgentAttachmentBytes {
 	mediaType: string;

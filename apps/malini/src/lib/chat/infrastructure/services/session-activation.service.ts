@@ -49,6 +49,7 @@ class SessionActivationService {
 				model: summary.model,
 				status: summary.status,
 				startedAt: summary.startedAt,
+				origin: summary.origin,
 			});
 			this.ensureRecord(summary.id, workstreamId);
 		}
@@ -93,6 +94,7 @@ class SessionActivationService {
 	}
 
 	async hydrate(sessionId: SessionId, options: { publishReadiness?: boolean } = {}): Promise<void> {
+		if (!sessionsAggregate.isTranscriptHydrated(sessionId)) agentEventStream.forget(sessionId);
 		await agentEventStream.hydrate(sessionId);
 		if (options.publishReadiness === false) return;
 		this.publishHydrated(sessionId);

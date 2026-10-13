@@ -8,6 +8,7 @@
 		"types": ["node", "electron-vite/node"],
 		"allowJs": true,
 		"checkJs": true,
+		"allowImportingTsExtensions": true,
 		"noEmit": true,
 		"paths": {
 			"$main/*": ["./src/main/*"],
@@ -28,7 +29,8 @@
 		"src/lib/**/*.platform.ts",
 		"tests/**/*.ts",
 		"scripts/third-party-notices*.mjs",
-		"scripts/dogfood*.mjs"
+		"scripts/dogfood*.mjs",
+		"scripts/dev-bundle*.mjs"
 	],
 	"exclude": ["src/lib/**/domain/**/*.test.ts"]
 }

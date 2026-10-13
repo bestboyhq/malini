@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { parseAutomationTrigger } from '$contract/automation-trigger';
 import type {
 	RoutineChange,
 	RoutineChangedEvent,
@@ -21,6 +22,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import type { EventBus } from '$main/events';
 import type { CommandRegistry } from '$main/ipc/registry';
+import { ROUTINE_LABEL_MAX_LENGTH, ROUTINE_MAX_STEPS } from '../domain/routine';
 import {
 	deleteRoutine,
 	getGatedRun,
@@ -34,6 +36,7 @@ import {
 	recordGatedRun,
 	rejectPendingGatedRuns,
 	setSuggestionStatus,
+	updateRoutine,
 	updateRoutineStatus,
 } from './routines.repository';
 
@@ -46,6 +49,7 @@ export const ROUTINE_EVENT_CHANNELS = {
 export const ROUTINE_COMMAND_NAMES: readonly RoutineCommandName[] = [
 	'routines.list',
 	'routines.create-draft',
+	'routines.update',
 	'routines.promote',
 	'routines.demote',
 	'routines.delete',
@@ -92,9 +96,9 @@ export function defineRoutineCommands(commands: CommandRegistry, deps: RoutineCo
 	commands.define('routines.list', (): RoutineRecord[] => listRoutines(db));
 
 	commands.define('routines.create-draft', (args: unknown): RoutineRecord => {
-		const label = requireString(args, 'label');
-		const when = requireString(args, 'when');
-		const runSpec = parseRoutineRun(field(args, 'run'));
+		const label = parseLabel(field(args, 'label'));
+		const when = parseWhen(field(args, 'when'));
+		const steps = parseSteps(field(args, 'steps'));
 		const suggestionId = optionalString(args, 'suggestionId');
 		const now = nowIso8601();
 
@@ -114,7 +118,7 @@ export function defineRoutineCommands(commands: CommandRegistry, deps: RoutineCo
 			origin,
 			label,
 			when,
-			run: runSpec,
+			steps,
 			evidence,
 			createdAt: now,
 			updatedAt: now,
@@ -122,6 +126,29 @@ export function defineRoutineCommands(commands: CommandRegistry, deps: RoutineCo
 		insertRoutine(db, routine);
 		emitChanged(routine.id, 'created', routine);
 		return routine;
+	});
+
+	commands.define('routines.update', (args: unknown): RoutineRecord => {
+		const routineId = requireString(args, 'routineId');
+		const routine = requireRoutine(db, routineId);
+		const label = field(args, 'label');
+		const when = field(args, 'when');
+		const steps = field(args, 'steps');
+		if (label === undefined && when === undefined && steps === undefined) {
+			throw new Error('`routines.update` needs a label, when or steps to change');
+		}
+		const updated = updateRoutine(
+			db,
+			routineId,
+			{
+				label: label === undefined ? routine.label : parseLabel(label),
+				when: when === undefined ? routine.when : parseWhen(when),
+				steps: steps === undefined ? routine.steps : parseSteps(steps),
+			},
+			nowIso8601(),
+		);
+		emitChanged(routineId, 'updated', updated);
+		return updated;
 	});
 
 	commands.define('routines.promote', (args: unknown): RoutineRecord => {
@@ -262,33 +289,59 @@ function isGatedRunState(value: unknown): value is RoutineGatedRunState {
 	return value === 'pending' || value === 'confirmed' || value === 'rejected';
 }
 
-function parseRoutineRun(value: unknown): RoutineRun {
-	if (!isRecord(value)) throw new Error('`run` must be an object');
-	const hasWorkflow = Object.hasOwn(value, 'workflow');
-	const hasCommand = Object.hasOwn(value, 'command');
-	if (hasWorkflow === hasCommand) {
-		throw new Error('`run` must select exactly one of workflow or command');
+function parseLabel(value: unknown): string {
+	const label = typeof value === 'string' ? value.trim() : '';
+	if (label.length === 0 || label.length > ROUTINE_LABEL_MAX_LENGTH) {
+		throw new Error(`\`label\` must be 1-${ROUTINE_LABEL_MAX_LENGTH} characters`);
 	}
-	if (hasWorkflow) {
-		if (typeof value['workflow'] !== 'string' || !value['workflow'].trim()) {
-			throw new Error('`run.workflow` must be a non-empty string');
-		}
+	return label;
+}
+
+function parseWhen(value: unknown): string {
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new Error('`when` must be a non-empty string');
+	}
+	parseAutomationTrigger(value);
+	return value.trim();
+}
+
+function parseSteps(value: unknown): readonly RoutineRun[] {
+	if (!Array.isArray(value) || value.length === 0 || value.length > ROUTINE_MAX_STEPS) {
+		throw new Error(`\`steps\` must list 1-${ROUTINE_MAX_STEPS} steps`);
+	}
+	return value.map((step, index) => parseStep(step, `steps[${index}]`));
+}
+
+function parseStep(value: unknown, path: string): RoutineRun {
+	if (!isRecord(value)) throw new Error(`\`${path}\` must be an object`);
+	const kinds = ['workflow', 'command', 'job'].filter((kind) => Object.hasOwn(value, kind));
+	if (kinds.length !== 1) {
+		throw new Error(`\`${path}\` must select exactly one of workflow, command or job`);
+	}
+	if (Object.hasOwn(value, 'job')) {
+		return { job: requireStepString(value['job'], `${path}.job`) };
+	}
+	if (Object.hasOwn(value, 'workflow')) {
 		const input = value['input'] ?? {};
-		if (!isRecord(input)) throw new Error('`run.input` must be an object');
+		if (!isRecord(input)) throw new Error(`\`${path}.input\` must be an object`);
 		return {
-			workflow: value['workflow'],
-			input: asJson<RoutineWorkflowRun['input']>(input, '`run.input`'),
+			workflow: requireStepString(value['workflow'], `${path}.workflow`),
+			input: asJson<RoutineWorkflowRun['input']>(input, `\`${path}.input\``),
 		};
 	}
-	if (typeof value['command'] !== 'string' || !value['command'].trim()) {
-		throw new Error('`run.command` must be a non-empty string');
-	}
 	const commandArgs = value['args'] ?? [];
-	if (!Array.isArray(commandArgs)) throw new Error('`run.args` must be an array');
+	if (!Array.isArray(commandArgs)) throw new Error(`\`${path}.args\` must be an array`);
 	return {
-		command: value['command'],
-		args: asJson<RoutineCommandRun['args']>(commandArgs, '`run.args`'),
+		command: requireStepString(value['command'], `${path}.command`),
+		args: asJson<RoutineCommandRun['args']>(commandArgs, `\`${path}.args\``),
 	};
+}
+
+function requireStepString(value: unknown, path: string): string {
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new Error(`\`${path}\` must be a non-empty string`);
+	}
+	return value.trim();
 }
 
 function parseEvidence(value: unknown): readonly RoutineEvidence[] | null {

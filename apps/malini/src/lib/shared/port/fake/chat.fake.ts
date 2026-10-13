@@ -73,6 +73,25 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		return { ...attachment };
 	});
 
+	bridge.define('chat.adopt-attachments', async (input) => {
+		const known = Object.values(state.stagedAgentAttachments).flat();
+		return input.attachmentIds.map((sourceId) => {
+			const source = known.find((attachment) => attachment.id === sourceId);
+			if (!source) return { sourceId, error: 'this attachment no longer exists' };
+			const staged = state.stagedAgentAttachments[input.workstreamId] ?? [];
+			const id = `att-${stableHex(`${input.workstreamId}:${sourceId}:${staged.length}`, 32)}`;
+			const attachment: StagedAgentAttachment = {
+				...source,
+				id,
+				relativePath: `.malini/agent-attachments/${id}/${source.displayName}`,
+			};
+			state.stagedAgentAttachments[input.workstreamId] = [...staged, attachment];
+			return { sourceId, attachment: { ...attachment } };
+		});
+	});
+
+	bridge.define('chat.renew-staged-attachments', async () => {});
+
 	bridge.define('chat.stage-fork-transcript', async (input) => {
 		const parent = state.sessions.get(input.sessionId);
 		if (parent?.workstreamId !== input.workstreamId) {
@@ -129,10 +148,14 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		}
 		const id = `fake-session-${state.nextSession}`;
 		state.nextSession += 1;
+		const origin = input.origin ?? 'user';
 		state.sessions.set(id, {
 			id,
 			workstreamId: input.workstreamId,
-			displayName: nextFakeChatFallback(state.sessions, input.workstreamId),
+			displayName:
+				origin === 'job'
+					? (input.displayName ?? 'Job')
+					: uniqueFakeChatName(state.sessions, input.workstreamId, input.displayName ?? 'New chat'),
 			model: input.model,
 			startedAt: new Date(state.nextSession * 1_000).toISOString(),
 			archivedAt: null,
@@ -140,6 +163,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 			hasSentPrompt: false,
 			currentRunId: null,
 			cancelled: false,
+			origin,
 		});
 		return id;
 	});
@@ -152,7 +176,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		if (session.archivedAt !== null) {
 			throw new Error(`Cannot send a prompt to archived fake session: ${input.sessionId}`);
 		}
-		if (!session.hasSentPrompt && input.automated !== true) {
+		if (!session.hasSentPrompt && input.automated !== true && session.origin === 'user') {
 			const baseName = deriveAgentChatDisplayName(input.prompt);
 			if (baseName) {
 				session.displayName = uniqueFakeChatName(
@@ -250,6 +274,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 				model: session.model ?? null,
 				status: session.status,
 				startedAt: session.startedAt,
+				origin: session.origin,
 			}))
 			.sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 	});
@@ -568,7 +593,11 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 			throw new Error(state.agentSessionBootstrapError);
 		}
 		for (const session of state.sessions.values()) {
-			if (session.archivedAt === null && session.workstreamId === input.workstreamId) {
+			if (
+				session.archivedAt === null &&
+				session.workstreamId === input.workstreamId &&
+				session.origin === 'user'
+			) {
 				return session.id;
 			}
 		}
@@ -585,6 +614,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 			hasSentPrompt: false,
 			currentRunId: null,
 			cancelled: false,
+			origin: 'user',
 		});
 		return id;
 	});

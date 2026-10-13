@@ -5,43 +5,32 @@ import {
 } from '$shared/repositories/domain/provisioning';
 import type { GlobalTopBarGithubStatus } from '$shared/shell/global-topbar-actions.svelte';
 
-export type ProvisioningTopBarActions = Readonly<{
-	onRetry(): void;
-	onRemove(): void;
-}>;
-
 export function provisioningTopBarStatus(
 	record: WorkstreamProvisioningRecord | null,
 	retrying: boolean,
-	actions: ProvisioningTopBarActions,
+	onRetry: () => void,
 ): GlobalTopBarGithubStatus | null {
 	if (!record) return null;
-	if (record.failure) return failedSetupStatus(record, record.failure, retrying, actions);
+	if (record.failure) return failedSetupStatus(record, record.failure, retrying, onRetry);
 	return settingUpStatus(record);
 }
 
 function settingUpStatus(record: WorkstreamProvisioningRecord): GlobalTopBarGithubStatus {
 	const step = provisioningStepLabel(record);
 	return {
-		reference: null,
+		...detailless(record),
 		title: 'Setting up workstream',
-		branch: record.plan.branch,
-		checks: [],
-		checksSummary: '',
-		review: null,
-		todos: null,
-		action: {
-			label:
+		headline: {
+			tone: 'idle',
+			busy: true,
+			label: 'Setting up',
+			detail:
 				record.phase === 'cloning' && record.clonePercent !== null
 					? `Cloning ${record.clonePercent}%`
-					: 'Setting up…',
-			ariaLabel: `Setting up this workstream: ${step}`,
+					: step,
 			tooltip: `${step}. A prompt sent now runs once setup finishes`,
-			tone: 'secondary',
-			disabled: true,
-			busy: true,
-			onInvoke: () => undefined,
 		},
+		action: null,
 	};
 }
 
@@ -49,47 +38,44 @@ function failedSetupStatus(
 	record: WorkstreamProvisioningRecord,
 	failure: string,
 	retrying: boolean,
-	actions: ProvisioningTopBarActions,
+	onRetry: () => void,
 ): GlobalTopBarGithubStatus {
 	const reconnect = provisioningFailureIsAuth(failure);
+	const explanation = `${asSentence(failure)} ${failedSetupRemedy(failure, reconnect)}`;
+	return {
+		...detailless(record),
+		title: 'Workstream setup did not finish',
+		remoteFailure: failure,
+		headline: {
+			tone: 'needs-you',
+			busy: retrying,
+			label: 'Needs you',
+			detail: retrying ? 'Retrying setup' : 'Setup failed',
+			tooltip: explanation,
+		},
+		action: {
+			label: 'Retry',
+			ariaLabel: reconnect
+				? 'Retry this workstream’s setup after signing in to GitHub'
+				: 'Retry this workstream’s setup',
+			tooltip: explanation,
+			tone: 'primary',
+			icon: 'refresh',
+			disabled: retrying,
+			onInvoke: onRetry,
+		},
+	};
+}
+
+function detailless(record: WorkstreamProvisioningRecord) {
 	return {
 		reference: null,
-		title: 'Workstream setup did not finish',
 		branch: record.plan.branch,
 		checks: [],
 		checksSummary: '',
 		review: null,
 		todos: null,
-		remoteFailure: failure,
-		action: {
-			label: 'Retry setup',
-			ariaLabel: reconnect
-				? 'Retry this workstream’s setup after signing in to GitHub'
-				: 'Retry this workstream’s setup',
-			tooltip: `${asSentence(failure)} ${failedSetupRemedy(failure, reconnect)}`,
-			tone: 'primary',
-			disabled: false,
-			busy: retrying,
-			onInvoke: actions.onRetry,
-		},
-		detailActions: [
-			{
-				id: 'discard',
-				label: 'Remove workstream',
-				onInvoke: actions.onRemove,
-			},
-			...(reconnect
-				? [
-						{
-							id: 'retry-setup',
-							label: 'Retry setup',
-							disabled: retrying,
-							onInvoke: actions.onRetry,
-						},
-					]
-				: []),
-		],
-	};
+	} as const;
 }
 
 function asSentence(text: string): string {

@@ -203,6 +203,7 @@ function budgetOf(level: MainDiagnosticLevel): RecordBudget {
 const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
 	GhError: new Set(['auth-required', 'not-installed', 'unreachable']),
 	LifecycleError: new Set(['already_running', 'cancel_race']),
+	ShipError: new Set(['nothing-to-ship', 'not-github', 'not-queued']),
 };
 
 export function commandFailureLevel(failure: CommandFailure): MainDiagnosticLevel {

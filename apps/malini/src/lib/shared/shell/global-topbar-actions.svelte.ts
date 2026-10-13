@@ -103,20 +103,24 @@ export type GlobalTopBarStatusNote = Readonly<{
 	tone: GlobalTopBarStatusTone;
 }>;
 
-export type GlobalTopBarStatusHeadline = GlobalTopBarStatusNote &
-	Readonly<{
-		detail: string | null;
-	}>;
+export type GlobalTopBarZoneTone = 'idle' | 'ready' | 'queued' | 'needs-you' | 'merged';
+
+export type GlobalTopBarStatusHeadline = Readonly<{
+	tone: GlobalTopBarZoneTone;
+	busy: boolean;
+	label: string;
+	detail: string | null;
+	tooltip: string | null;
+}>;
 
 export type GlobalTopBarStatusAction = Readonly<{
 	label: string;
 	ariaLabel: string;
 	tooltip: string;
 	tone: 'primary' | 'secondary';
-	icon?: IconName | null;
-	compactIcon?: IconName | null;
+	icon: IconName;
+	confirmLabel?: string | null;
 	disabled: boolean;
-	busy: boolean;
 	onInvoke(): void | Promise<void>;
 }>;
 
@@ -138,8 +142,7 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	review: GlobalTopBarStatusNote | null;
 	todos: GlobalTopBarStatusNote | null;
 	changes?: GlobalTopBarStatusNote | null;
-	headline?: GlobalTopBarStatusHeadline | null;
-	secondaryAction?: GlobalTopBarStatusAction | null;
+	headline: GlobalTopBarStatusHeadline | null;
 	action: GlobalTopBarStatusAction | null;
 	detailActions?: readonly GlobalTopBarStatusDetailAction[];
 	remoteFailure?: string | null;

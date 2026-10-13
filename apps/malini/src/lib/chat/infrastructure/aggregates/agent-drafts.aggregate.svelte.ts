@@ -174,6 +174,13 @@ export class AgentDrafts {
 		);
 	}
 
+	attachmentsForWorkstream(workstreamId: string): StagedAgentAttachment[] {
+		this.hydrateWorkstream(workstreamId);
+		return (this.#scopesByWorkstream[workstreamId] ?? []).flatMap((scope) => [
+			...this.draftFor(scope).attachments,
+		]);
+	}
+
 	hasDraftForWorkstream(workstreamId: string): boolean {
 		return (this.#scopesByWorkstream[workstreamId]?.length ?? 0) > 0;
 	}

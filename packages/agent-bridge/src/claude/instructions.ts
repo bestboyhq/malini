@@ -18,7 +18,7 @@ export function maliniInstructions(report: AgentReport): string {
 		'<malini>',
 		'You are running inside malini, a desktop app that gives each workstream its own git worktree.',
 		`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool.`,
-		`- malini owns commits, pushes, branches and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} are refused.`,
+		`- malini owns commits, pushes, branches, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset.`,
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
 		'- Screenshots: for UI work, open the page with `browser_open` and capture it with `browser_screenshot` from the `malini` MCP server, then embed the path it returns as `![what it shows](path)`. Embed a screenshot taken another way by its path relative to the worktree. Work with no UI gets a small diagram in a fenced code block instead.',

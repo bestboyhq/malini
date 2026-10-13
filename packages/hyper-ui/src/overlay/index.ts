@@ -10,6 +10,7 @@ export {
 export { bodyPortal } from './portal';
 export {
 	calculatePosition,
+	layoutRect,
 	type MenuAlign,
 	type MenuSide,
 	type PositionConfig,

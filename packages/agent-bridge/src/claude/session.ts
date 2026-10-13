@@ -6,6 +6,7 @@ import {
 	type PermissionMode,
 	type PermissionResult,
 	type Query,
+	type SDKControlGetContextUsageResponse,
 	type SDKMessage,
 	type SDKResultMessage,
 	type SDKUserMessage,
@@ -28,17 +29,27 @@ import {
 	sandboxFor,
 } from './permissions.js';
 import { ClaudeTranscript } from './transcript.js';
+import { anthropicMetrics } from './usage.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
 const PLAN_HANDOFF_MESSAGE =
 	'malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
+export type ClaudeContextUsage = Pick<SDKControlGetContextUsageResponse, 'categories'> & {
+	readonly rawMaxTokens: number;
+};
+
 export type ClaudeQuery = AsyncIterable<SDKMessage> &
 	Pick<
 		Query,
-		'interrupt' | 'setPermissionMode' | 'mcpServerStatus' | 'initializationResult' | 'close'
+		| 'interrupt'
+		| 'setPermissionMode'
+		| 'mcpServerStatus'
+		| 'initializationResult'
+		| 'close'
+		| 'usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET'
 	> & {
-		getContextUsage(opts: { detail: 'summary' }): Promise<{ readonly rawMaxTokens: number }>;
+		getContextUsage(opts: { detail: 'summary' }): Promise<ClaudeContextUsage>;
 	};
 
 export type QueryFunction = (params: {
@@ -60,6 +71,7 @@ interface ActiveRun {
 	readonly finished: Promise<void>;
 	readonly transcript: ClaudeTranscript;
 	cancelled: boolean;
+	metrics: Record<string, unknown> | null;
 }
 
 export class ClaudeSession implements ProviderHandle {
@@ -138,7 +150,15 @@ export class ClaudeSession implements ProviderHandle {
 			prompt: openUserTurn(this.#promptWithSeed(prompt), promptId, finished),
 			options: this.#options(executable, runId, profile, resumeAt, abort),
 		});
-		const active: ActiveRun = { runId, query, abort, finished, transcript, cancelled: false };
+		const active: ActiveRun = {
+			runId,
+			query,
+			abort,
+			finished,
+			transcript,
+			cancelled: false,
+			metrics: null,
+		};
 		this.#active = active;
 		try {
 			const results = await this.#consume(active, promptId);
@@ -177,6 +197,7 @@ export class ClaudeSession implements ProviderHandle {
 			if (message.type !== 'result') continue;
 			if (results.length === 0 && !answersPrompt(message, promptId)) continue;
 			results.push(message);
+			if (!active.cancelled) active.metrics = await anthropicMetrics(active.query, new Date());
 			if (!reportsSessionState || active.cancelled) return results;
 		}
 		return results;
@@ -240,6 +261,7 @@ export class ClaudeSession implements ProviderHandle {
 				...(transcript.contextWindowTokens
 					? { contextWindowTokens: transcript.contextWindowTokens }
 					: {}),
+				...(active.metrics ? { providerMetrics: active.metrics } : {}),
 				interim: false,
 			});
 		}

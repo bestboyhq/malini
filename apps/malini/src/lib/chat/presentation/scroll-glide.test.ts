@@ -298,6 +298,110 @@ describe('glide driver', () => {
 		expect(element.scrollTop).toBe(1_000);
 	});
 
+	it('keeps its sub-pixel progress through retargets when the element snaps writes to whole pixels', () => {
+		const snappingScheduler = testScheduler();
+		const exactScheduler = testScheduler();
+		const snapping = createScrollGlide(snappingScheduler);
+		const exact = createScrollGlide(exactScheduler);
+		let stored = 0;
+		const snapped = {
+			get scrollTop(): number {
+				return stored;
+			},
+			set scrollTop(value: number) {
+				stored = Math.round(value);
+			},
+		};
+		const fractional = { scrollTop: 0 };
+		let drift = 0;
+
+		for (let frame = 1; frame <= 120; frame += 1) {
+			snapping.glide(snapped, frame * 3);
+			exact.glide(fractional, frame * 3);
+			snappingScheduler.advance(FRAME_MS);
+			exactScheduler.advance(FRAME_MS);
+			drift = Math.max(drift, Math.abs(snapped.scrollTop - Math.round(fractional.scrollTop)));
+		}
+
+		expect(drift).toBe(0);
+	});
+
+	it('keeps its own subpixel position when the browser rounds the scroll to a device pixel', () => {
+		const scheduler = testScheduler();
+		const glide = createScrollGlide(scheduler);
+		let stored = 0;
+		const element = {
+			get scrollTop(): number {
+				return stored;
+			},
+			set scrollTop(value: number) {
+				stored = Math.round(value);
+			},
+		};
+		const exact = createScrollGlide(scheduler);
+		const unrounded = { scrollTop: 0 };
+
+		for (let line = 1; line <= 12; line += 1) {
+			glide.glide(element, line * 35);
+			exact.glide(unrounded, line * 35);
+			for (let frame = 0; frame < 4; frame += 1) scheduler.advance(FRAME_MS);
+			expect(Math.abs(element.scrollTop - unrounded.scrollTop)).toBeLessThanOrEqual(0.5);
+		}
+	});
+
+	it('follows a stream on a whole-pixel display as closely as the display can show', () => {
+		const follow = (snap: (top: number) => number): number[] => {
+			const scheduler = testScheduler();
+			const glide = createScrollGlide(scheduler);
+			let stored = 0;
+			const element = {
+				get scrollTop(): number {
+					return stored;
+				},
+				set scrollTop(value: number) {
+					stored = snap(value);
+				},
+			};
+			const shown: number[] = [];
+			for (let line = 1; line <= 20; line += 1) {
+				glide.glide(element, line * 22.75);
+				for (let frame = 0; frame < 6; frame += 1) {
+					scheduler.advance(FRAME_MS);
+					shown.push(stored);
+				}
+			}
+			return shown;
+		};
+		const exact = follow((top) => top);
+		const misses = follow(Math.round).map((top, frame) => Math.abs(top - (exact[frame] ?? 0)));
+
+		expect(Math.max(...misses)).toBeLessThanOrEqual(0.5);
+	});
+
+	it('stays within a device pixel of the ideal curve while a stream keeps retargeting it', () => {
+		const scheduler = testScheduler();
+		const ideal = { glide: createScrollGlide(scheduler), element: { scrollTop: 0 } };
+		let snappedTop = 0;
+		const snapped = {
+			glide: createScrollGlide(scheduler),
+			element: {
+				get scrollTop(): number {
+					return snappedTop;
+				},
+				set scrollTop(value: number) {
+					snappedTop = Math.floor(value);
+				},
+			},
+		};
+
+		for (let line = 1; line <= 30; line += 1) {
+			for (const column of [ideal, snapped]) column.glide.glide(column.element, line * 20);
+			scheduler.advance(FRAME_MS);
+			scheduler.advance(FRAME_MS);
+			expect(Math.abs(ideal.element.scrollTop - snappedTop)).toBeLessThan(1);
+		}
+	});
+
 	it('exposes the constant the transcript is tuned against', () => {
 		expect(SCROLL_SPRING_STIFFNESS).toBe(420);
 	});

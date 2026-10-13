@@ -20,7 +20,9 @@
 		globalTopBarBandSlotHost,
 		globalTopBarGithubStatus,
 		type GlobalTopBarAction,
+		type GlobalTopBarStatusAction,
 		type GlobalTopBarStatusDetailAction,
+		type GlobalTopBarStatusHeadline,
 	} from '$shared/shell/global-topbar-actions.svelte';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
@@ -57,7 +59,9 @@
 	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubPanelHeadline = $derived(
-		githubStatus?.title ?? githubStatus?.branch ?? 'No pull request',
+		githubStatus?.title ??
+			githubStatus?.branch ??
+			(githubStatus?.reference ? 'Pull request' : 'No pull request'),
 	);
 	let githubZoneElement: HTMLDivElement | undefined = $state();
 	let githubDisclosureElement: HTMLButtonElement | undefined = $state();
@@ -65,53 +69,15 @@
 	let githubPopoverAnchor = $state({ x: 0, y: 0 });
 	let armedDetailId = $state<string | null>(null);
 
-	const githubPrimaryAction = $derived.by<GlobalTopBarAction | null>(() => {
-		const status = githubStatus;
-		const action = status?.action;
-		if (!action) return null;
-		return {
-			id: 'github-primary',
-			label: action.label,
-			ariaLabel: action.ariaLabel,
-			tooltip: action.tooltip,
-			tone: action.tone,
-			icon: action.icon ?? null,
-			compactIcon: action.compactIcon ?? null,
-			disabled: action.disabled,
-			busy: action.busy,
-			testId: 'global-topbar-github-action',
-			onInvoke: action.onInvoke,
-		};
-	});
-
-	const githubSecondaryAction = $derived.by<GlobalTopBarAction | null>(() => {
-		const action = githubStatus?.secondaryAction;
-		if (!action) return null;
-		return {
-			id: 'github-secondary',
-			label: action.label,
-			ariaLabel: action.ariaLabel,
-			tooltip: action.tooltip,
-			tone: action.tone,
-			compactIcon: action.compactIcon ?? null,
-			disabled: action.disabled,
-			busy: action.busy,
-			testId: 'global-topbar-github-secondary-action',
-			onInvoke: action.onInvoke,
-		};
-	});
-
+	const PRIMARY_ARM_ID = 'github-primary';
+	const githubHeadline = $derived(githubStatus?.headline ?? null);
+	const githubPrimary = $derived(githubStatus?.action ?? null);
 	const githubDetailActions = $derived(githubStatus?.detailActions ?? []);
 	const githubRemoteFailure = $derived(githubStatus?.remoteFailure ?? null);
-	const githubDetailOffered = $derived(
-		githubDetailActions.length > 0 || githubRemoteFailure !== null,
-	);
-	const githubDisclosureTone = $derived(githubPrimaryAction?.tone ?? 'secondary');
-	const githubDisclosureLook = $derived.by((): 'busy' | 'disabled' | undefined => {
-		if (!githubPrimaryAction) return undefined;
-		if (githubPrimaryAction.busy) return 'busy';
-		return githubPrimaryAction.disabled || routeTransitionPending ? 'disabled' : undefined;
-	});
+	const armableIds = $derived([
+		...(githubPrimary?.confirmLabel ? [PRIMARY_ARM_ID] : []),
+		...githubDetailActions.filter((detail) => detail.confirmLabel).map((detail) => detail.id),
+	]);
 	const githubDisclosureLabel = $derived(
 		githubStatus?.reference ? `Pull request ${githubStatus.reference} detail` : 'Repository detail',
 	);
@@ -121,9 +87,7 @@
 	});
 
 	$effect(() => {
-		if (githubDetailActions.some((detail) => detail.id === armedDetailId && detail.confirmLabel)) {
-			return;
-		}
+		if (armedDetailId && armableIds.includes(armedDetailId)) return;
 		disarmDetail();
 	});
 
@@ -154,6 +118,21 @@
 		githubPopoverOpen = false;
 	}
 
+	function statusText(headline: GlobalTopBarStatusHeadline): string {
+		return headline.detail ? `${headline.label} · ${headline.detail}` : headline.label;
+	}
+
+	function onPrimaryClicked(action: GlobalTopBarStatusAction): void {
+		if (action.disabled) return;
+		if (action.confirmLabel && armedDetailId !== PRIMARY_ARM_ID) {
+			armedDetailId = PRIMARY_ARM_ID;
+			return;
+		}
+		disarmDetail();
+		closeGithubPopover();
+		void action.onInvoke();
+	}
+
 	function onBarActionClicked(action: GlobalTopBarAction): void {
 		if (action.disabled || action.busy) return;
 		closeGithubPopover();
@@ -177,48 +156,41 @@
 	}
 </script>
 
-{#snippet githubAction(action: GlobalTopBarAction, className: string)}
-	{@const compactIcon = dockCompact ? action.compactIcon : null}
+{#snippet statusAction(action: GlobalTopBarStatusAction)}
+	{@const armed = armedDetailId === PRIMARY_ARM_ID}
+	{@const iconOnly = dockCompact && !armed}
 	<Tooltip
-		content={compactIcon ? `${action.label} · ${action.tooltip}` : action.tooltip}
+		content={iconOnly ? `${action.label} · ${action.tooltip}` : action.tooltip}
 		placement="bottom"
 	>
 		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			type="button"
-			class={['topbar-action', className]}
-			class:topbar-action--icon={compactIcon}
-			data-tone={action.tone ?? 'secondary'}
-			disabled={action.disabled || action.busy || routeTransitionPending}
-			aria-label={action.ariaLabel}
-			aria-busy={action.busy || undefined}
-			data-testid={action.testId}
-			onclick={() => onBarActionClicked(action)}
+			class="topbar-action topbar-git__action"
+			class:topbar-action--icon={iconOnly}
+			data-tone={action.tone}
+			data-armed={armed || undefined}
+			disabled={action.disabled || routeTransitionPending}
+			aria-label={armed && action.confirmLabel ? action.confirmLabel : action.ariaLabel}
+			data-testid="global-topbar-github-action"
+			onclick={() => onPrimaryClicked(action)}
 		>
-			{#if action.busy}
-				<BusyIcon size={12} />
-			{:else if compactIcon}
-				<Icon name={compactIcon} size={13} />
-			{:else if action.icon}
-				<Icon name={action.icon} size={12} />
-			{/if}
-			{#if !compactIcon}
-				<span>{action.label}</span>
+			{#if iconOnly}
+				<Icon name={action.icon} size={13} />
+			{:else}
+				<span>{armed && action.confirmLabel ? action.confirmLabel : action.label}</span>
 			{/if}
 		</button>
 	</Tooltip>
 {/snippet}
 
-{#snippet githubDisclosure(reference: string | null)}
+{#snippet githubDisclosure(reference: string)}
 	<Tooltip content={githubRemoteFailure ?? githubDisclosureLabel} placement="bottom">
-		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			bind:this={githubDisclosureElement}
 			type="button"
-			class={reference ? 'topbar-git__pill-part' : 'topbar-action topbar-git__disclosure'}
-			class:topbar-git__disclosure--solo={!reference && !githubPrimaryAction}
-			data-tone={reference ? undefined : githubDisclosureTone}
-			data-look={reference ? undefined : githubDisclosureLook}
+			class="topbar-git__pill-part"
 			data-stale={githubRemoteFailure ? '' : undefined}
 			data-testid="global-topbar-github-status"
 			aria-label={githubRemoteFailure
@@ -228,11 +200,7 @@
 			aria-expanded={githubPopoverOpen}
 			onclick={toggleGithubPopover}
 		>
-			{#if reference}
-				{reference}
-			{:else}
-				<Icon name="chevron-down" size={10} />
-			{/if}
+			{reference}
 		</button>
 	</Tooltip>
 {/snippet}
@@ -341,7 +309,7 @@
 			<div
 				bind:this={githubZoneElement}
 				class="topbar-git"
-				data-zone={githubStatus.headline?.tone}
+				data-zone={githubHeadline?.tone ?? 'idle'}
 				data-testid="global-topbar-github"
 			>
 				{#if githubStatus.reference}
@@ -364,47 +332,34 @@
 						{/if}
 					</div>
 				{/if}
-				{#if githubStatus.headline}
-					{@const headline = githubStatus.headline}
+				{#if githubHeadline}
+					{@const text = statusText(githubHeadline)}
 					<Tooltip
-						content={headline.detail ?? headline.label}
+						content={githubHeadline.tooltip ?? text}
 						placement="bottom"
-						class="mr-auto min-w-0"
+						class="min-w-0 flex-1"
 					>
 						<span
-							class="topbar-git__headline"
-							data-tone={headline.tone}
+							class="topbar-git__status"
 							role="status"
+							aria-label={text}
+							data-tone={githubHeadline.tone}
 							data-testid="global-topbar-github-headline"
 						>
-							{#if headline.tone === 'progress'}
+							{#if githubHeadline.busy}
 								<BusyIcon size={12} />
 							{/if}
-							<span class="topbar-git__headline-label">{headline.label}</span>
+							<span class="topbar-git__lines">
+								<span class="topbar-git__label">{githubHeadline.label}</span>
+								{#if githubHeadline.detail}
+									<span class="topbar-git__detail">{githubHeadline.detail}</span>
+								{/if}
+							</span>
 						</span>
 					</Tooltip>
 				{/if}
-				{#if githubSecondaryAction}
-					{@render githubAction(githubSecondaryAction, 'topbar-git__secondary')}
-				{/if}
-				{#if githubStatus.reference}
-					{#if githubPrimaryAction}
-						{@render githubAction(githubPrimaryAction, 'topbar-git__action')}
-					{/if}
-				{:else}
-					<div class="topbar-git__split">
-						{#if githubPrimaryAction}
-							{@render githubAction(
-								githubPrimaryAction,
-								githubDetailOffered
-									? 'topbar-git__action topbar-git__action--split'
-									: 'topbar-git__action',
-							)}
-						{/if}
-						{#if githubDetailOffered}
-							{@render githubDisclosure(null)}
-						{/if}
-					</div>
+				{#if githubPrimary}
+					{@render statusAction(githubPrimary)}
 				{/if}
 			</div>
 			<Popover
@@ -445,23 +400,25 @@
 							</div>
 						{/if}
 
-						<div class="github-panel__section">
-							<div class="github-panel__section-head">
-								<span>Checks</span>
-								<span class="github-panel__section-meta">{githubStatus.checksSummary}</span>
+						{#if githubStatus.checksSummary || githubStatus.checks.length > 0}
+							<div class="github-panel__section">
+								<div class="github-panel__section-head">
+									<span>Checks</span>
+									<span class="github-panel__section-meta">{githubStatus.checksSummary}</span>
+								</div>
+								{#if githubStatus.checks.length > 0}
+									<ul class="github-panel__checks">
+										{#each githubStatus.checks as check (check.id)}
+											<li class="github-panel__check" data-blocking={check.blocking}>
+												<span class="tone-dot" data-tone={check.tone} aria-hidden="true"></span>
+												<span class="github-panel__check-name">{check.name}</span>
+												<span class="github-panel__check-detail">{check.detail}</span>
+											</li>
+										{/each}
+									</ul>
+								{/if}
 							</div>
-							{#if githubStatus.checks.length > 0}
-								<ul class="github-panel__checks">
-									{#each githubStatus.checks as check (check.id)}
-										<li class="github-panel__check" data-blocking={check.blocking}>
-											<span class="tone-dot" data-tone={check.tone} aria-hidden="true"></span>
-											<span class="github-panel__check-name">{check.name}</span>
-											<span class="github-panel__check-detail">{check.detail}</span>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						</div>
+						{/if}
 
 						{#if githubStatus.changes || githubStatus.review || githubStatus.todos}
 							<ul class="github-panel__notes">
@@ -669,8 +626,10 @@
 	}
 
 	.topbar-right[data-docked] {
+		--dock-ink: var(--color-fg-secondary);
 		--dock-tint: transparent;
 		--dock-edge: var(--color-surface-50-border);
+		--dock-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 		align-self: end;
 		width: var(--dock-width);
 		max-width: none;
@@ -679,7 +638,10 @@
 		border: 0.5px solid var(--dock-edge);
 		border-bottom: 0;
 		border-radius: 24px 24px 0 0;
-		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
+		background:
+			repeating-linear-gradient(225deg, var(--dock-stripe) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
+			linear-gradient(var(--dock-tint), var(--dock-tint)),
+			var(--color-surface-50);
 		padding: 0 16px 24px;
 	}
 
@@ -707,49 +669,33 @@
 		}
 	}
 
-	.topbar-right[data-docked]:has(
-			.topbar-git[data-zone='progress'],
-			.topbar-git:not([data-zone]) [aria-busy='true'],
-			.topbar-git[data-zone='neutral'] [aria-busy='true']
-		) {
-		--dock-tint: light-dark(var(--color-surface-50-hover), transparent);
-		--dock-edge: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
-		background:
-			repeating-linear-gradient(225deg, var(--dock-edge) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
-			linear-gradient(var(--dock-tint), var(--dock-tint)),
-			var(--color-surface-50);
-	}
-
-	.topbar-right[data-docked]:has(.topbar-git[data-zone='success']) {
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='ready']) {
+		--dock-ink: var(--color-success-content);
 		--dock-tint: var(--color-success);
-		--dock-edge: color-mix(in srgb, var(--color-success-content) 40%, transparent);
 	}
 
-	.topbar-right[data-docked]:has(.topbar-git[data-zone='warning']) {
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='needs-you']) {
+		--dock-ink: var(--color-warning-content);
 		--dock-tint: var(--color-warning);
-		--dock-edge: color-mix(in srgb, var(--color-warning-content) 40%, transparent);
 	}
 
-	.topbar-right[data-docked]:has(.topbar-git[data-zone='danger']) {
-		--dock-tint: var(--color-error);
-		--dock-edge: color-mix(in srgb, var(--color-error-content) 40%, transparent);
+	.topbar-right[data-docked]:has(.topbar-git[data-zone='queued']) {
+		--dock-ink: var(--color-queued-content);
+		--dock-tint: color-mix(in srgb, var(--color-queued-content) 12%, transparent);
 	}
 
 	.topbar-right[data-docked]:has(.topbar-git[data-zone='merged']) {
+		--dock-ink: var(--color-merged-content);
 		--dock-tint: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
-		--dock-edge: color-mix(in srgb, var(--color-merged-content) 40%, transparent);
+	}
+
+	.topbar-right[data-docked]:has(.topbar-git:not([data-zone='idle'])) {
+		--dock-edge: color-mix(in srgb, var(--dock-ink) 40%, transparent);
+		--dock-stripe: color-mix(in srgb, var(--dock-ink) 16%, transparent);
 	}
 
 	.topbar-right[data-docked] .topbar-git {
 		flex: 1 1 auto;
-	}
-
-	.topbar-right[data-docked] .topbar-git[data-zone] {
-		height: auto;
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		padding: 0;
 	}
 
 	.topbar-right :global(.foreground-activity) {
@@ -843,80 +789,65 @@
 
 	.topbar-git {
 		--zone-ink: var(--color-fg-secondary);
+		--zone-tint: transparent;
 		--zone-edge: var(--color-button-secondary-border);
 		--zone-hover: var(--color-button-secondary-hover);
-		display: flex;
-		min-width: 0;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.topbar-git[data-zone] {
+		--zone-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 		--topbar-control-height: 24px;
 		--topbar-control-radius: 5px;
+		display: flex;
 		height: 32px;
-		gap: 12px;
-		border: 0.5px solid var(--zone-edge);
-		border-radius: 9px;
-		background: color-mix(in srgb, var(--color-surface-150) 68%, transparent);
-		padding: 0 3.5px;
+		min-width: 0;
+		align-items: center;
+		gap: 10px;
 	}
 
-	.topbar-git[data-zone='progress'] .topbar-git__pill {
-		background: var(--color-surface-50);
-	}
-
-	.topbar-git[data-zone='success'] {
+	.topbar-git[data-zone='ready'] {
 		--zone-ink: var(--color-success-content);
-		background: var(--color-success);
+		--zone-tint: var(--color-success);
 	}
 
-	.topbar-git[data-zone='warning'] {
+	.topbar-git[data-zone='needs-you'] {
 		--zone-ink: var(--color-warning-content);
-		background: var(--color-warning);
+		--zone-tint: var(--color-warning);
 	}
 
-	.topbar-git[data-zone='danger'] {
-		--zone-ink: var(--color-error-content);
-		background: var(--color-error);
+	.topbar-git[data-zone='queued'] {
+		--zone-ink: var(--color-queued-content);
+		--zone-tint: color-mix(in srgb, var(--color-queued-content) 12%, transparent);
 	}
 
 	.topbar-git[data-zone='merged'] {
 		--zone-ink: var(--color-merged-content);
-		background: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
+		--zone-tint: color-mix(in srgb, var(--color-merged-content) 10%, transparent);
 	}
 
-	.topbar-git:is(
-		[data-zone='success'],
-		[data-zone='warning'],
-		[data-zone='danger'],
-		[data-zone='merged']
-	) {
-		--zone-edge: color-mix(in srgb, var(--zone-ink) 20%, transparent);
+	.topbar-git:not([data-zone='idle']) {
+		--zone-edge: color-mix(in srgb, var(--zone-ink) 30%, transparent);
 		--zone-hover: color-mix(in srgb, var(--zone-ink) 10%, transparent);
+		--zone-stripe: color-mix(in srgb, var(--zone-ink) 16%, transparent);
 		--color-button-primary: var(--zone-ink);
 		--color-button-primary-hover: color-mix(in srgb, var(--zone-ink) 88%, transparent);
-		--color-button-primary-busy: color-mix(in srgb, var(--zone-ink) 60%, transparent);
 	}
 
-	.topbar-git[data-zone] .topbar-git__action {
-		gap: 4px;
-		padding: 0 8px;
-	}
-
-	.topbar-git__split {
-		display: flex;
-		flex-shrink: 0;
-		align-items: center;
+	.topbar-right:not([data-docked]) .topbar-git {
+		height: 40px;
+		border: 0.5px solid var(--zone-edge);
+		border-radius: 10px;
+		background:
+			repeating-linear-gradient(225deg, var(--zone-stripe) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
+			linear-gradient(var(--zone-tint), var(--zone-tint)),
+			color-mix(in srgb, var(--color-surface-150) 68%, transparent);
+		padding: 0 7px;
 	}
 
 	.topbar-git__pill {
 		display: flex;
-		height: var(--topbar-control-height, 26px);
+		height: var(--topbar-control-height);
 		flex-shrink: 0;
 		overflow: hidden;
 		border: 0.5px solid var(--zone-edge);
-		border-radius: var(--topbar-control-radius, 7px);
+		border-radius: var(--topbar-control-radius);
 		font-size: var(--text-2xs);
 		font-weight: 500;
 		font-variant-numeric: tabular-nums;
@@ -948,69 +879,74 @@
 		padding: 0 6px;
 	}
 
-	.topbar-git__headline {
-		display: inline-flex;
+	.topbar-git__status {
+		display: flex;
 		min-width: 0;
+		flex: 1 1 auto;
 		align-items: center;
 		gap: 6px;
-		padding: 0 4px;
-		font-size: var(--text-sm);
-		font-weight: 500;
-		white-space: nowrap;
 		color: var(--zone-ink);
 	}
 
-	.topbar-git__headline-label {
-		overflow: hidden;
-		text-overflow: ellipsis;
+	.topbar-git__status > :global(svg) {
+		flex-shrink: 0;
 	}
 
-	.topbar-git__secondary {
-		border-width: 1px;
-		border-style: dashed;
-		border-color: color-mix(in srgb, currentColor 35%, transparent);
-		background: transparent;
+	.topbar-git__lines {
+		display: flex;
+		min-width: 0;
+		flex-direction: column;
+		justify-content: center;
+		gap: 1px;
+	}
+
+	.topbar-git__label,
+	.topbar-git__detail {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.topbar-git__label {
+		font-size: var(--text-sm);
+		font-weight: 500;
+		line-height: 16px;
+	}
+
+	.topbar-git__detail {
+		font-size: var(--text-2xs);
+		line-height: 14px;
+		color: color-mix(in srgb, var(--zone-ink) 68%, transparent);
+	}
+
+	.topbar-git__action {
+		margin-left: auto;
+		gap: 4px;
+		padding: 0 8px;
+	}
+
+	.topbar-git .topbar-action[data-tone='secondary'] {
+		border-color: var(--zone-edge);
+		background: color-mix(in srgb, var(--zone-ink) 8%, transparent);
+		color: var(--zone-ink);
+	}
+
+	.topbar-git .topbar-action[data-tone='secondary']:hover:not(:disabled) {
+		background: var(--zone-hover);
+		color: var(--zone-ink);
+	}
+
+	.topbar-git .topbar-action[data-armed],
+	.topbar-git .topbar-action[data-armed]:hover:not(:disabled) {
+		border-color: transparent;
+		background: var(--color-error);
+		color: var(--color-error-content);
 	}
 
 	.topbar-git .topbar-action.topbar-action--icon {
-		width: var(--topbar-control-height, 26px);
+		width: var(--topbar-control-height);
 		justify-content: center;
 		padding: 0;
-	}
-
-	.topbar-git__action--split {
-		border-top-right-radius: 0;
-		border-bottom-right-radius: 0;
-		border-right-width: 0;
-	}
-
-	.topbar-git__disclosure {
-		width: 22px;
-		justify-content: center;
-		padding: 0;
-		border-top-left-radius: 0;
-		border-bottom-left-radius: 0;
-	}
-
-	.topbar-git__disclosure--solo {
-		border-radius: var(--topbar-control-radius, 7px);
-	}
-
-	.topbar-git__disclosure[data-look='busy'] {
-		border-color: transparent;
-		background: var(--color-button-secondary-busy);
-		color: var(--color-fg-default);
-	}
-
-	.topbar-git__disclosure[data-tone='primary'][data-look='busy'] {
-		background: var(--color-button-primary-busy);
-		color: var(--color-button-primary-busy-content);
-	}
-
-	.topbar-git__disclosure[data-look='disabled'] {
-		border-color: transparent;
-		background: var(--color-button-disabled);
-		color: var(--color-button-disabled-content);
 	}
 
 	.topbar-git [data-stale] {
@@ -1026,16 +962,6 @@
 		width: 5px;
 		border-radius: 9999px;
 		background: var(--color-warning-content);
-	}
-
-	.topbar-git__disclosure[aria-expanded='true'] {
-		background: var(--color-button-secondary-hover);
-		color: var(--color-fg-default);
-	}
-
-	.topbar-git__disclosure[data-tone='primary'][aria-expanded='true'] {
-		background: var(--color-button-primary-hover);
-		color: var(--color-button-primary-content);
 	}
 
 	.github-panel {

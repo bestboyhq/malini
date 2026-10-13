@@ -37,6 +37,11 @@ export class ProviderCapabilitiesStore {
 		return this.#loadCapabilities(true);
 	}
 
+	async reload(): Promise<void> {
+		await this.#inflight;
+		return this.refresh();
+	}
+
 	refreshIfStale(maxAgeMs = PROVIDER_CAPABILITY_FRESHNESS_MS, now = Date.now()): Promise<void> {
 		if (!this.#hasProbed) return this.loadOnce();
 		if (this.#inflight) return this.#inflight;
