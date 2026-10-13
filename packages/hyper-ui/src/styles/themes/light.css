@@ -184,7 +184,6 @@
 	--syntax-removed: var(--color-red-700);
 
 	--themed-color-fg-default: var(--color-fg-default-light);
-	--themed-color-fg-agent-message: var(--color-fg-agent-message-light);
 	--themed-color-fg-agent-message-strong: var(--color-fg-agent-message-strong-light);
 	--themed-color-fg-secondary: var(--color-fg-secondary-light);
 	--themed-color-fg-tertiary: var(--color-fg-tertiary-light);

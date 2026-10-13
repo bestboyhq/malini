@@ -926,7 +926,7 @@
 
 								{#each liveAssistantBlocks as block (block.contentId)}
 									<div
-										class="text-fg-agent-message w-full text-sm leading-relaxed"
+										class="text-fg-default w-full text-sm leading-relaxed"
 										use:stageEnter={blockKey(sessionId, block.runId, block.contentId)}
 										data-message-kind="assistant-live"
 										data-testid="chat-message-bubble-live"

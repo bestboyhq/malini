@@ -124,12 +124,10 @@
 	--color-border-subtle-dark: var(--color-grey-750);
 
 	--color-fg-default-light: var(--color-grey-900);
-	--color-fg-default-dark: var(--color-grey-100);
+	--color-fg-default-dark: var(--color-grey-300);
 
-	--color-fg-agent-message-light: var(--color-grey-900);
-	--color-fg-agent-message-dark: var(--color-grey-100);
 	--color-fg-agent-message-strong-light: var(--color-grey-950);
-	--color-fg-agent-message-strong-dark: var(--color-grey-50);
+	--color-fg-agent-message-strong-dark: var(--color-grey-100);
 	--color-fg-secondary-light: var(--color-grey-700);
 	--color-fg-secondary-dark: var(--color-grey-400);
 	--color-fg-tertiary-light: var(--color-grey-600);

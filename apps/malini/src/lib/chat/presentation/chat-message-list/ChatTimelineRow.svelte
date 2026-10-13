@@ -101,7 +101,7 @@
 	</div>
 {:else if item.kind === 'assistant'}
 	<div
-		class="text-fg-agent-message w-full text-sm leading-relaxed"
+		class="text-fg-default w-full text-sm leading-relaxed"
 		use:stageEnter={timelineKey(run, item.contentId ?? item.key)}
 		data-message-kind="assistant"
 		data-testid="chat-message-bubble"
