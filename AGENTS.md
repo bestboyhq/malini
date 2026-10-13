@@ -95,7 +95,7 @@ pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
 ```
 
-PR titles are Conventional Commits.
+Commit subjects and PR titles are Conventional Commits.
 A squash merge makes the title the commit subject, and a `feat`, `fix` or `perf` on `main` ships a release (`docs/packaging.md`).
 
 ## Dependencies
