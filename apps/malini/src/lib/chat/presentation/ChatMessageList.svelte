@@ -85,7 +85,8 @@
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
 		spaceBelow?: number;
-		newMessagesBelow?: boolean;
+		contentBelow?: boolean;
+		newContentBelow?: boolean;
 		empty: Snippet;
 	}
 
@@ -95,7 +96,8 @@
 		envelopes,
 		composerControls = null,
 		spaceBelow = 0,
-		newMessagesBelow = $bindable(false),
+		contentBelow = $bindable(false),
+		newContentBelow = $bindable(false),
 		empty,
 	}: Props = $props();
 
@@ -739,7 +741,8 @@
 	});
 
 	$effect(() => {
-		newMessagesBelow = !isEmpty && transcriptScroll.contentBelow;
+		contentBelow = !isEmpty && transcriptScroll.contentBelow;
+		newContentBelow = transcriptScroll.newContentBelow;
 	});
 
 	export function jumpToLatest(): void {

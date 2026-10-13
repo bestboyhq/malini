@@ -152,6 +152,23 @@ describe('a transcript while it opens', () => {
 		expect(transcript.distanceFromBottom()).toBe(0);
 		expect(transcript.gapBelowLastRow()).toBe(0);
 	});
+
+	it('counts the history a restored reader opens onto as seen, and only what arrives after it as new', async () => {
+		const transcript = transcriptOf([200, 300]);
+		transcript.scroll.open('restored-chat', { runId: 'run-1', row: 0, offset: 0 });
+
+		transcript.scroll.followNewContent();
+		transcript.replaceLastRow(600);
+		await mutationsDelivered();
+
+		expect(transcript.scroll.newContentBelow).toBe(false);
+
+		transcript.scroll.followNewContent();
+		transcript.replaceLastRow(700);
+		await mutationsDelivered();
+
+		expect(transcript.scroll.newContentBelow).toBe(true);
+	});
 });
 
 describe('a transcript while its reply streams', () => {
@@ -186,12 +203,14 @@ describe('a transcript while its reply streams', () => {
 		transcript.scroll.followNewContent();
 
 		transcript.scrollUpBy(10);
+		transcript.scroll.followNewContent();
 		transcript.replaceLastRow(600);
 		await mutationsDelivered();
 
 		expect(transcript.scroll.follow).toBe('reader');
 		expect(transcript.distanceFromBottom()).toBe(310);
 		expect(transcript.scroll.contentBelow).toBe(true);
+		expect(transcript.scroll.newContentBelow).toBe(true);
 	});
 
 	it('keeps following when the browser clamps the glide up while a reply settles', async () => {
@@ -233,11 +252,13 @@ describe('a transcript while its reply streams', () => {
 		transcript.scroll.followNewContent();
 
 		hoverOver(transcript.toolRow);
+		transcript.scroll.followNewContent();
 		transcript.replaceLastRow(600);
 		await mutationsDelivered();
 
 		expect(transcript.distanceFromBottom()).toBe(300);
 		expect(transcript.scroll.contentBelow).toBe(true);
+		expect(transcript.scroll.newContentBelow).toBe(true);
 
 		hoverOver(transcript.textRow);
 		await new Promise((resolve) => setTimeout(resolve, 250));
@@ -245,6 +266,32 @@ describe('a transcript while its reply streams', () => {
 		expect(transcript.distanceFromBottom()).toBe(0);
 		expect(transcript.scroll.follow).toBe('bottom');
 		expect(transcript.scroll.contentBelow).toBe(false);
+		expect(transcript.scroll.newContentBelow).toBe(false);
+	});
+
+	it('grows a tool call the reader expands at the bottom downward, and keeps it there once the pointer leaves', async () => {
+		const transcript = transcriptOf([100, 100, 300]);
+		transcript.scroll.open('idle-chat', null);
+		const details = document.createElement('details');
+		const summary = document.createElement('summary');
+		details.append(summary);
+		transcript.toolRow.append(details);
+		await mutationsDelivered();
+
+		hoverOver(summary);
+		summary.click();
+		transcript.toolRow.dataset['height'] = '300';
+		details.append(document.createElement('pre'));
+		await mutationsDelivered();
+
+		expect(transcript.distanceFromBottom()).toBe(200);
+
+		hoverOver(transcript.textRow);
+		await new Promise((resolve) => setTimeout(resolve, 250));
+
+		expect(transcript.distanceFromBottom()).toBe(200);
+		expect(transcript.scroll.contentBelow).toBe(true);
+		expect(transcript.scroll.newContentBelow).toBe(false);
 	});
 
 	it('ends where its last row ends, however often the reader scrolls down, when its height has a fraction of a pixel', () => {
