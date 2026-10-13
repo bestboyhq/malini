@@ -9,6 +9,10 @@ import {
 	sendPrompt,
 } from './harness';
 
+declare global {
+	var tickerLines: string[];
+}
+
 test('a thinking agent narrates each step live and leaves its reasoning between its tool calls', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -17,19 +21,30 @@ test('a thinking agent narrates each step live and leaves its reasoning between 
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-thinking', 'Thinking');
 		await openWorkstream(page, seeded.workstreamId);
+		await page.locator('body').evaluate((body) => {
+			const lines: string[] = [];
+			globalThis.tickerLines = lines;
+			const view = body.ownerDocument.defaultView;
+			if (!view) throw new Error('the transcript has no window');
+			new view.MutationObserver(() => {
+				const line = body
+					.querySelector('[data-testid="thinking-live-preview"] > :last-child')
+					?.textContent.trim();
+				if (line && line !== lines.at(-1)) lines.push(line);
+			}).observe(body, { childList: true, subtree: true, characterData: true });
+		});
 		await sendPrompt(page, 'THINK');
 
 		const live = page.getByTestId('thinking-live');
 		await expect(live).toContainText('Thinking');
-		const ticker = live.getByTestId('thinking-live-preview');
-		for (const sentence of [
-			'The user wants the preview fixed.',
-			'It stays open after the gallery closes.',
-			'Focus returns to the chip that opened it.',
-			'I should read the hover card first.',
-		]) {
-			await expect(ticker).toHaveText(sentence);
-		}
+		await expect
+			.poll(() => page.evaluate(() => globalThis.tickerLines.slice(0, 4)))
+			.toEqual([
+				'The user wants the preview fixed.',
+				'It stays open after the gallery closes.',
+				'Focus returns to the chip that opened it.',
+				'I should read the hover card first.',
+			]);
 		await captureFlow(app, 'thinking-live');
 
 		await expect(page.getByTestId('chat-message-bubble')).toContainText(
