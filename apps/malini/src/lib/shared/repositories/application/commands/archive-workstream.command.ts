@@ -17,6 +17,7 @@ import { workstreamProvisioning } from '$shared/repositories/infrastructure/aggr
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 import { repositoryRemovalStore } from '$shared/repositories/infrastructure/stores/repository-removal.store.svelte';
+import { sidebarOrderStore } from '$shared/repositories/infrastructure/stores/sidebar-order.store.svelte';
 import { workstreamRetirementStore } from '$shared/repositories/infrastructure/stores/workstream-retirement.store.svelte';
 import { goto } from '$shared/router/navigation';
 import { REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
@@ -69,6 +70,7 @@ function destinationAfter(workstreamId: string): string {
 			(candidate) => candidate.status !== 'archived',
 		),
 		workstreamId,
+		order: sidebarOrderStore.order,
 	});
 	return next ? workstreamHref(next.id) : REPOSITORIES_HREF;
 }

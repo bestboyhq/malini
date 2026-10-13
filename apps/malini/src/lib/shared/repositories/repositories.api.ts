@@ -54,6 +54,13 @@ export {
 
 export { displayWorkstreamName, generatedWorkstreamName } from './domain/workstream-names';
 
+export {
+	readIds,
+	type SidebarMove,
+	type SidebarOrder,
+	type SidebarPlacement,
+} from './domain/sidebar-order';
+
 export { type WorkstreamCreationContext } from './domain/workstream-creation-context';
 
 export { type PullRequestActivity } from './domain/workstream-freshness';
@@ -130,6 +137,7 @@ export { dismissDependencyInstallCommand } from './application/commands/dismiss-
 export { ensureWorkstreamChangeTotalsCommand } from './application/commands/ensure-workstream-change-totals.command';
 export { loadGithubAuthCommand } from './application/commands/load-github-auth.command';
 export { loadRepositoryAvatarCommand } from './application/commands/load-repository-avatar.command';
+export { moveInSidebarCommand } from './application/commands/move-in-sidebar.command';
 export { loadWorkstreamDiffCommand } from './application/commands/load-workstream-diff.command';
 export { loadWorkstreamGitStatusCommand } from './application/commands/load-workstream-git-status.command';
 export { openRepositoryFolderCommand } from './application/commands/open-repository-folder.command';
@@ -173,6 +181,7 @@ export { repositoriesScopeRetryingQuery } from './application/queries/repositori
 export { repositoryAvatarQuery } from './application/queries/repository-avatar.query.svelte';
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
+export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
 export { workstreamByIdQuery } from './application/queries/workstream-by-id.query.svelte';

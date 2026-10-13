@@ -2,9 +2,17 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { afterNavigate } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import { connectedRepositoryContexts } from '$shared/repositories/repositories.api';
+	import {
+		connectedRepositoryContexts,
+		moveInSidebarCommand,
+		sidebarOrderQuery,
+		type SidebarMove,
+		type SidebarPlacement,
+	} from '$shared/repositories/repositories.api';
+	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
+	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
 	import { JobsNavBadge } from '$lib/jobs/jobs.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
@@ -67,7 +75,10 @@
 	const scopeFailure = $derived(
 		scopeError ? describeFailure(scopeError, { subject: 'Workstream data' }) : null,
 	);
-	let collapsedRepositoryIds = $state<Set<string>>(new Set());
+	const sidebarOrder = $derived(sidebarOrderQuery.data);
+	const collapsedRepositoryIds = $derived(collapsedRepositoriesQuery.data);
+	let drag = $state<SidebarItem | null>(null);
+	let dropTarget = $state<SidebarDropTarget | null>(null);
 	let armedRemovalKey = $state<string | null>(null);
 	let optimisticDestination = $state<{
 		target: string;
@@ -82,7 +93,12 @@
 			repositories,
 			workstreams,
 			activeWorkstreamId,
+			order: sidebarOrder,
 		}),
+	);
+	const listedRepositoryIds = $derived(rows.map((row) => row.repo.id));
+	const listedWorkstreamIds = $derived(
+		rows.flatMap((row) => row.workstreams.map((workstream) => workstream.id)),
 	);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
@@ -351,14 +367,90 @@
 		};
 	}
 
-	function toggleRepository(repositoryId: string): void {
-		const next = new Set(collapsedRepositoryIds);
-		if (next.has(repositoryId)) {
-			next.delete(repositoryId);
-		} else {
-			next.add(repositoryId);
+	type SidebarItem = Readonly<{ kind: SidebarMove['kind']; id: string; groupId: string }>;
+
+	type SidebarDropTarget = Readonly<{ id: string; placement: SidebarPlacement }>;
+
+	const SIDEBAR_DRAG_TYPE = 'application/x-malini-sidebar-item';
+
+	function listedIds(kind: SidebarMove['kind']): readonly string[] {
+		return kind === 'repository' ? listedRepositoryIds : listedWorkstreamIds;
+	}
+
+	function onRowDragStart(event: DragEvent, next: SidebarItem): void {
+		event.stopPropagation();
+		const transfer = event.dataTransfer;
+		if (!transfer || !(event.currentTarget instanceof Element)) return;
+		const image =
+			event.currentTarget.querySelector('[data-sidebar-drag-image]') ?? event.currentTarget;
+		const box = image.getBoundingClientRect();
+		transfer.clearData();
+		transfer.setData(SIDEBAR_DRAG_TYPE, next.id);
+		transfer.effectAllowed = 'move';
+		transfer.setDragImage(image, event.clientX - box.left, event.clientY - box.top);
+		drag = next;
+	}
+
+	function onRowDragOver(event: DragEvent, target: SidebarItem): void {
+		if (!drag) return;
+		const { kind, id, groupId } = target;
+		const element = event.currentTarget;
+		if (drag.kind !== kind || drag.id === id || drag.groupId !== groupId) {
+			dropTarget = null;
+			return;
 		}
-		collapsedRepositoryIds = next;
+		if (!(element instanceof Element)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		const box = element.getBoundingClientRect();
+		const placement = event.clientY < box.top + box.height / 2 ? 'before' : 'after';
+		if (dropTarget?.id === id && dropTarget.placement === placement) return;
+		dropTarget = { id, placement };
+	}
+
+	function onSidebarDrop(event: DragEvent): void {
+		if (!drag || !dropTarget) return;
+		event.preventDefault();
+		moveInSidebarCommand({
+			kind: drag.kind,
+			listedIds: listedIds(drag.kind),
+			movedId: drag.id,
+			targetId: dropTarget.id,
+			placement: dropTarget.placement,
+		});
+		endDrag();
+	}
+
+	function onSidebarDragLeave(event: DragEvent): void {
+		if (event.relatedTarget instanceof Node && event.currentTarget instanceof Node) {
+			if (event.currentTarget.contains(event.relatedTarget)) return;
+		}
+		dropTarget = null;
+	}
+
+	function endDrag(): void {
+		drag = null;
+		dropTarget = null;
+	}
+
+	async function onMoveKey(
+		event: KeyboardEvent,
+		kind: SidebarMove['kind'],
+		id: string,
+		siblingIds: readonly string[],
+	): Promise<void> {
+		if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+		if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+		event.preventDefault();
+		const placement = event.key === 'ArrowUp' ? 'before' : 'after';
+		const index = siblingIds.indexOf(id);
+		const targetId = siblingIds[placement === 'before' ? index - 1 : index + 1];
+		if (index === -1 || !targetId) return;
+		const focused = event.currentTarget;
+		moveInSidebarCommand({ kind, listedIds: listedIds(kind), movedId: id, targetId, placement });
+		await tick();
+		if (focused instanceof HTMLElement) focused.focus();
 	}
 
 	type WorkstreamVisualState = {
@@ -479,7 +571,13 @@
 </script>
 
 <SidebarFrame testId="repository-sidebar">
-	<nav class="min-h-0 flex-1" aria-label="Connected repositories">
+	<nav
+		class="min-h-0 flex-1"
+		aria-label="Connected repositories"
+		ondrop={onSidebarDrop}
+		ondragend={endDrag}
+		ondragleave={onSidebarDragLeave}
+	>
 		<ScrollableDiv
 			class="h-full"
 			viewportClass="px-2 pb-3"
@@ -540,9 +638,28 @@
 					{#each rows as row (row.repo.id)}
 						{@const collapsed = collapsedRepositoryIds.has(row.repo.id)}
 						{@const removal = repositoryRemoval(row.repo, row.workstreams)}
-						<li class="w-full min-w-0">
+						{@const repositoryItem = { kind: 'repository' as const, id: row.repo.id, groupId: '' }}
+						<li
+							class={['relative w-full min-w-0', drag?.id === row.repo.id && 'opacity-50']}
+							ondragstart={(event) => onRowDragStart(event, repositoryItem)}
+							ondragover={(event) => onRowDragOver(event, repositoryItem)}
+						>
+							{#if dropTarget?.id === row.repo.id}
+								<span
+									class={[
+										'bg-brand pointer-events-none absolute inset-x-2 h-0.5 rounded-full',
+										dropTarget.placement === 'before'
+											? '-top-1.5 -translate-y-1/2'
+											: '-bottom-1.5 translate-y-1/2',
+									]}
+									aria-hidden="true"
+									data-testid="sidebar-drop-indicator"
+								></span>
+							{/if}
 							<div
 								class="group/repo text-fg-secondary flex h-8 w-full items-center gap-2 rounded-xl pr-1 pl-2"
+								draggable="true"
+								data-sidebar-drag-image
 								data-testid="sidebar-connected-repository"
 								data-full-name={row.repo.fullName}
 								data-workstream-count={row.workstreams.length}
@@ -562,7 +679,7 @@
 									>
 										<IconButton
 											bare
-											onclick={() => toggleRepository(row.repo.id)}
+											onclick={() => toggleRepositoryCollapsedCommand(row.repo.id)}
 											ariaLabel={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
 											ariaExpanded={!collapsed}
 											ariaControls={`repository-workstreams-${row.repo.id}`}
@@ -590,8 +707,11 @@
 										abandonDestinationPreview(rowHref(row.targetWorkstream?.id))}
 									onpointerleave={() =>
 										abandonDestinationPreview(rowHref(row.targetWorkstream?.id))}
-									onkeydown={(event) =>
-										previewDestinationFromKeyboard(event, row.targetWorkstream?.id)}
+									aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+									onkeydown={(event) => {
+										previewDestinationFromKeyboard(event, row.targetWorkstream?.id);
+										void onMoveKey(event, 'repository', row.repo.id, listedRepositoryIds);
+									}}
 									onkeyup={(event) =>
 										scheduleKeyboardDestinationPreviewCleanup(
 											event,
@@ -691,8 +811,33 @@
 											{@const pullRequest = pullRequestVisual(badge)}
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
-											<li class="group/row relative w-full min-w-0">
+											{@const workstreamItem = {
+												kind: 'workstream' as const,
+												id: workstream.id,
+												groupId: row.repo.id,
+											}}
+											<li
+												class={[
+													'group/row relative w-full min-w-0',
+													drag?.id === workstream.id && 'opacity-50',
+												]}
+												ondragstart={(event) => onRowDragStart(event, workstreamItem)}
+												ondragover={(event) => onRowDragOver(event, workstreamItem)}
+											>
+												{#if dropTarget?.id === workstream.id}
+													<span
+														class={[
+															'bg-brand pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full',
+															dropTarget.placement === 'before'
+																? '-top-px -translate-y-1/2'
+																: '-bottom-px translate-y-1/2',
+														]}
+														aria-hidden="true"
+														data-testid="sidebar-drop-indicator"
+													></span>
+												{/if}
 												<a
+													data-sidebar-drag-image
 													href={rowHref(workstream.id, targetSessionId)}
 													data-navigation-path-id="expected-path:workstream-sidebar.switch"
 													aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
@@ -727,8 +872,16 @@
 														abandonDestinationPreview(rowHref(workstream.id, targetSessionId))}
 													onpointerleave={() =>
 														abandonDestinationPreview(rowHref(workstream.id, targetSessionId))}
-													onkeydown={(event) =>
-														previewDestinationFromKeyboard(event, workstream.id, targetSessionId)}
+													aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+													onkeydown={(event) => {
+														previewDestinationFromKeyboard(event, workstream.id, targetSessionId);
+														void onMoveKey(
+															event,
+															'workstream',
+															workstream.id,
+															row.workstreams.map((sibling) => sibling.id),
+														);
+													}}
 													onkeyup={(event) =>
 														scheduleKeyboardDestinationPreviewCleanup(
 															event,
