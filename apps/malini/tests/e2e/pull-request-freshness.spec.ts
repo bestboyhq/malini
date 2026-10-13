@@ -24,7 +24,7 @@ test('after a push the top bar waits for GitHub to report the pushed head before
 		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
 			timeout: 30_000,
 		});
-		await expect(topBarStatus(page, /Merge conflicts/u)).toHaveCount(0);
+		await expect(topBarStatus(page, /Conflicts with/u)).toHaveCount(0);
 		await expect(sidebarStatus(page, 'e2e-push-lag')).toHaveAttribute(
 			'data-workstream-pull-request-state',
 			'queued',

@@ -30,7 +30,7 @@ test('a queued merge brings a conflicting branch up to date, has a job resolve t
 		const { page, github } = await conflictingPullRequest(app, 'e2e-conflict');
 		const branchHead = github.pushedHead();
 		await openWorkstream(page, 'e2e-conflict');
-		await expect(page.getByRole('status').filter({ hasText: 'Merge conflicts' })).toBeVisible({
+		await expect(page.getByRole('status').filter({ hasText: 'Conflicts with main' })).toBeVisible({
 			timeout: 30_000,
 		});
 

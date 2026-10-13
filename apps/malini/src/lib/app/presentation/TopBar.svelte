@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { cubicOut, quartOut } from 'svelte/easing';
+	import type { TransitionConfig } from 'svelte/transition';
 	import { navigating, page } from '$shared/router/state';
 	import {
 		historyIndexFromState,
@@ -58,6 +60,7 @@
 	const dockWidth = $derived(inspectorDock.width);
 	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
+	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
 		githubStatus?.title ??
 			githubStatus?.branch ??
@@ -116,6 +119,60 @@
 
 	function closeGithubPopover(): void {
 		githubPopoverOpen = false;
+	}
+
+	const prefersReducedMotion = (): boolean =>
+		window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	function fadeOnly(duration: number): TransitionConfig {
+		return { duration, css: (t) => `opacity: ${t};` };
+	}
+
+	function textIn(_node: Element): TransitionConfig {
+		if (prefersReducedMotion()) return fadeOnly(160);
+		return {
+			duration: 220,
+			easing: quartOut,
+			css: (t, u) => `opacity: ${t}; translate: 0 ${u * 5}px; filter: blur(${u * 2}px);`,
+		};
+	}
+
+	function textOut(_node: Element): TransitionConfig {
+		if (prefersReducedMotion()) return fadeOnly(120);
+		return {
+			duration: 140,
+			easing: cubicOut,
+			css: (t, u) => `opacity: ${t}; translate: 0 ${u * -5}px; filter: blur(${u * 2}px);`,
+		};
+	}
+
+	function actionIn(_node: Element): TransitionConfig {
+		if (prefersReducedMotion()) return fadeOnly(160);
+		return {
+			duration: 220,
+			easing: quartOut,
+			css: (t, u) => `opacity: ${t}; scale: ${1 - u * 0.06}; filter: blur(${u * 2}px);`,
+		};
+	}
+
+	function actionOut(_node: Element): TransitionConfig {
+		if (prefersReducedMotion()) return fadeOnly(120);
+		return {
+			duration: 140,
+			easing: cubicOut,
+			css: (t, u) => `opacity: ${t}; scale: ${1 - u * 0.06};`,
+		};
+	}
+
+	function unfold(node: HTMLElement): TransitionConfig {
+		if (prefersReducedMotion()) return fadeOnly(160);
+		const width = node.offsetWidth;
+		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).columnGap) || 0;
+		return {
+			duration: 260,
+			easing: quartOut,
+			css: (t, u) => `width: ${t * width}px; margin-right: ${u * -gap}px; opacity: ${t};`,
+		};
 	}
 
 	function statusText(headline: GlobalTopBarStatusHeadline): string {
@@ -312,55 +369,67 @@
 				data-zone={githubHeadline?.tone ?? 'idle'}
 				data-testid="global-topbar-github"
 			>
-				{#if githubStatus.reference}
-					<div class="topbar-git__pill">
-						{@render githubDisclosure(githubStatus.reference)}
-						{#if githubStatus.url}
-							{@const url = githubStatus.url}
-							<Tooltip content="Open on GitHub" placement="bottom">
-								<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-								<button
-									type="button"
-									class="topbar-git__pill-part topbar-git__pill-link"
-									aria-label={`Open pull request ${githubStatus.reference} on GitHub`}
-									data-testid="global-topbar-github-reference"
-									onclick={() => openPullRequestUrl(url)}
-								>
-									<Icon name="external-link" size={12} />
-								</button>
-							</Tooltip>
-						{/if}
-					</div>
-				{/if}
-				{#if githubHeadline}
-					{@const text = statusText(githubHeadline)}
-					<Tooltip
-						content={githubHeadline.tooltip ?? text}
-						placement="bottom"
-						class="min-w-0 flex-1"
-					>
-						<span
-							class="topbar-git__status"
-							role="status"
-							aria-label={text}
-							data-tone={githubHeadline.tone}
-							data-testid="global-topbar-github-headline"
-						>
-							{#if githubHeadline.busy}
-								<BusyIcon size={12} />
+				{#key githubOwner}
+					{#if githubStatus.reference}
+						<div class="topbar-git__pill" transition:unfold>
+							{@render githubDisclosure(githubStatus.reference)}
+							{#if githubStatus.url}
+								{@const url = githubStatus.url}
+								<Tooltip content="Open on GitHub" placement="bottom">
+									<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-git__pill-part` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+									<button
+										type="button"
+										class="topbar-git__pill-part topbar-git__pill-link"
+										aria-label={`Open pull request ${githubStatus.reference} on GitHub`}
+										data-testid="global-topbar-github-reference"
+										onclick={() => openPullRequestUrl(url)}
+									>
+										<Icon name="external-link" size={12} />
+									</button>
+								</Tooltip>
 							{/if}
-							<span class="topbar-git__lines">
-								<span class="topbar-git__label">{githubHeadline.label}</span>
-								{#if githubHeadline.detail}
-									<span class="topbar-git__detail">{githubHeadline.detail}</span>
-								{/if}
+						</div>
+					{/if}
+					{#if githubHeadline}
+						{@const text = statusText(githubHeadline)}
+						<Tooltip
+							content={githubHeadline.tooltip ?? text}
+							placement="bottom"
+							class="min-w-0 flex-1"
+						>
+							<span
+								class="topbar-git__status"
+								role="status"
+								aria-label={text}
+								data-tone={githubHeadline.tone}
+								data-testid="global-topbar-github-headline"
+							>
+								{#key `${githubHeadline.busy} ${githubHeadline.label}`}
+									<span class="topbar-git__line" in:textIn out:textOut>
+										{#if githubHeadline.busy}
+											<BusyIcon size={12} />
+										{/if}
+										<span class="topbar-git__text">
+											<span class="topbar-git__label">{githubHeadline.label}</span>
+											{#if githubHeadline.detail}
+												<span class="topbar-git__detail">
+													{#key githubHeadline.detail}
+														<span in:textIn out:textOut>{githubHeadline.detail}</span>
+													{/key}
+												</span>
+											{/if}
+										</span>
+									</span>
+								{/key}
 							</span>
+						</Tooltip>
+					{/if}
+					{#if githubPrimary}
+						<span class="topbar-git__action-slot" in:actionIn out:actionOut>
+							{@render statusAction(githubPrimary)}
 						</span>
-					</Tooltip>
-				{/if}
-				{#if githubPrimary}
-					{@render statusAction(githubPrimary)}
-				{/if}
+					{/if}
+				{/key}
 			</div>
 			<Popover
 				open={githubPopoverOpen}
@@ -633,16 +702,31 @@
 		align-self: end;
 		width: var(--dock-width);
 		max-width: none;
-		height: 68px;
-		margin-bottom: -40px;
+		height: 80px;
+		margin-bottom: -52px;
 		border: 0.5px solid var(--dock-edge);
 		border-bottom: 0;
 		border-radius: 24px 24px 0 0;
-		background:
-			repeating-linear-gradient(225deg, var(--dock-stripe) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
-			linear-gradient(var(--dock-tint), var(--dock-tint)),
-			var(--color-surface-50);
+		background: linear-gradient(var(--dock-tint), var(--dock-tint)), var(--color-surface-50);
 		padding: 0 16px 24px;
+		position: relative;
+		isolation: isolate;
+	}
+
+	.topbar-right[data-docked]::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		border-radius: inherit;
+		background: repeating-linear-gradient(225deg, var(--dock-stripe) 0 1px, transparent 0 50%) 0 0 /
+			8px 8px;
+		mask-image: linear-gradient(
+			to bottom,
+			black,
+			color-mix(in srgb, black 35%, transparent) calc(100% - 24px)
+		);
+		pointer-events: none;
 	}
 
 	.topbar-right[data-docked]:not(:has(> *)) {
@@ -879,48 +963,72 @@
 		padding: 0 6px;
 	}
 
-	.topbar-git__status {
-		display: flex;
+	.topbar-git__status,
+	.topbar-git__detail {
+		display: grid;
 		min-width: 0;
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.topbar-git__status {
 		flex: 1 1 auto;
-		align-items: center;
-		gap: 6px;
 		color: var(--zone-ink);
 	}
 
-	.topbar-git__status > :global(svg) {
-		flex-shrink: 0;
+	.topbar-git__status > *,
+	.topbar-git__detail > * {
+		grid-area: 1 / 1;
 	}
 
-	.topbar-git__lines {
+	.topbar-git__line {
 		display: flex;
 		min-width: 0;
-		flex-direction: column;
-		justify-content: center;
-		gap: 1px;
-	}
-
-	.topbar-git__label,
-	.topbar-git__detail {
-		overflow: hidden;
-		text-overflow: ellipsis;
+		align-items: center;
+		gap: 6px;
+		font-size: var(--text-sm);
+		line-height: 16px;
 		white-space: nowrap;
 	}
 
+	.topbar-git__line > :global(svg) {
+		flex-shrink: 0;
+	}
+
+	.topbar-git__text {
+		display: flex;
+		height: 16px;
+		min-width: 0;
+		flex: 1 1 auto;
+		flex-wrap: wrap;
+		align-content: flex-start;
+		column-gap: 6px;
+		overflow: hidden;
+	}
+
+	.topbar-git__label,
+	.topbar-git__detail > * {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
 	.topbar-git__label {
-		font-size: var(--text-sm);
+		min-width: 0;
 		font-weight: 500;
-		line-height: 16px;
 	}
 
 	.topbar-git__detail {
-		font-size: var(--text-2xs);
-		line-height: 14px;
-		color: color-mix(in srgb, var(--zone-ink) 68%, transparent);
+		flex: 1 1 4.5em;
+		color: color-mix(in srgb, var(--zone-ink) 64%, transparent);
+	}
+
+	.topbar-git__action-slot {
+		display: flex;
+		flex-shrink: 0;
+		margin-left: auto;
+		transform-origin: right center;
 	}
 
 	.topbar-git__action {
-		margin-left: auto;
 		gap: 4px;
 		padding: 0 8px;
 	}

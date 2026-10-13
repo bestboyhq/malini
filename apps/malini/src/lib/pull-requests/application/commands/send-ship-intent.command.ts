@@ -9,10 +9,10 @@ import { pullRequestActionStore } from '$lib/pull-requests/infrastructure/stores
 export { sendShipIntentCommand };
 
 const BUSY_LABELS: Readonly<Record<PullRequestShipIntent, string>> = {
-	'open-draft': 'Opening draft…',
-	'queue-merge': 'Queueing merge…',
-	'cancel-merge': 'Cancelling merge…',
-	'retry-merge': 'Retrying…',
+	'open-draft': 'Opening draft',
+	'queue-merge': 'Queueing merge',
+	'cancel-merge': 'Cancelling merge',
+	'retry-merge': 'Retrying merge',
 };
 
 const FAILURES: Readonly<Record<PullRequestShipIntent, string>> = {

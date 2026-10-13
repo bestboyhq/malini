@@ -103,26 +103,27 @@
 	function statusHeadline(): GlobalTopBarStatusHeadline | null {
 		const status = topBar.status;
 		if (!status) return null;
+		const claimed = busy ? claimedBusyLabel : null;
 		return {
 			tone: status.tone,
 			busy: busy || status.busy,
-			label: status.label,
-			detail: busy ? (claimedBusyLabel ?? status.detail) : status.detail,
-			tooltip: status.tooltip,
+			label: claimed ?? status.label,
+			detail: claimed ? null : status.detail,
+			tooltip: claimed ? null : status.tooltip,
 		};
 	}
 
 	function primaryAction(): GlobalTopBarStatusAction | null {
 		const action = topBar.status?.action;
-		if (!action) return null;
+		if (!action || busy) return null;
 		return {
 			label: action.label,
 			ariaLabel: action.ariaLabel,
-			tooltip: busy ? 'Pull request action in progress' : action.tooltip,
+			tooltip: action.tooltip,
 			tone: action.tone,
 			icon: pullRequestActionIcon(action.kind),
 			confirmLabel: action.confirmLabel,
-			disabled: busy,
+			disabled: false,
 			onInvoke: () => runPullRequestActionCommand(ongitstatusstale),
 		};
 	}

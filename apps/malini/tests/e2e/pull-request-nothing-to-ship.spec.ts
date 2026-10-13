@@ -16,9 +16,7 @@ test('a workstream equal to its base offers no Open draft until a file changes',
 		await openWorkstream(page, 'e2e-nothing-to-ship');
 
 		await expect(page.getByTestId('chat-composer')).toBeVisible({ timeout: 30_000 });
-		await expect(
-			topBarStatus(page, 'Build something great · Ask the agent for a change'),
-		).toBeVisible({ timeout: 30_000 });
+		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByTestId('global-topbar-github-action')).toHaveCount(0);
 		await captureFlow(app, 'pull-request-nothing-to-ship');
 
@@ -27,7 +25,7 @@ test('a workstream equal to its base offers no Open draft until a file changes',
 		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled({
 			timeout: 30_000,
 		});
-		await expect(topBarStatus(page, '1 file changed · Not on GitHub yet')).toBeVisible();
+		await expect(topBarStatus(page, '1 file changed')).toBeVisible();
 		expect(github.calls().filter(([command, sub]) => command === 'pr' && sub === 'create')).toEqual(
 			[],
 		);

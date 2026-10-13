@@ -17,6 +17,7 @@ import { extensionCommands } from '$shared/extensions/commands.store.svelte';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { fakeShips } from '$shared/port/fake/pull-requests.fake';
 import { setPlatformForTest } from '$shared/port/platform';
+import { globalTopBarGithubStatus } from '$shared/shell/global-topbar-actions.svelte';
 import {
 	mountWorkstreamTopBarStatus,
 	type TopBarStatusHarness,
@@ -99,10 +100,13 @@ describe('shipping from the top bar', () => {
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 
-		expect(headlineText()).toBe('1 file changed · Not on GitHub yet');
+		expect(headlineText()).toBe('1 file changed');
 		expect(primaryName()).toBe('Open a draft pull request');
 		expect(primaryText()).toBe('Open draft');
 		primary()?.click();
+		flushSync();
+		expect(headlineText()).toBe('Opening draft');
+		expect(globalTopBarGithubStatus.current?.action).toBeNull();
 
 		await vi.waitFor(() => {
 			flushSync();
@@ -133,7 +137,7 @@ describe('shipping from the top bar', () => {
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, {}, 1);
 
-		expect(headlineText()).toBe('Build something great · Ask the agent for a change');
+		expect(headlineText()).toBe('Build something great');
 		expect(primary()).toBeNull();
 	});
 });
@@ -266,7 +270,7 @@ describe('the top bar across workstream switches', () => {
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 		expect(primaryText()).toBe('Open draft');
 		await visit(extension, GOLDEN, {}, 2);
-		expect(headlineText()).toBe('Build something great · Ask the agent for a change');
+		expect(headlineText()).toBe('Build something great');
 
 		harness.show(route(LUNAR, false, 2));
 
@@ -305,7 +309,7 @@ describe('the top bar across workstream switches', () => {
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(headlineText()).toBe('Build something great · Ask the agent for a change');
+			expect(headlineText()).toBe('Build something great');
 		});
 		expect(statusReads()).toBe(2);
 	});
@@ -395,7 +399,9 @@ function headlineText(): string | null {
 }
 
 function primary(): HTMLButtonElement | null {
-	return document.querySelector<HTMLButtonElement>('[data-testid="global-topbar-github-action"]');
+	return document.querySelector<HTMLButtonElement>(
+		'[data-testid="global-topbar-github-action"]:not([inert] *)',
+	);
 }
 
 function primaryName(): string | null {
