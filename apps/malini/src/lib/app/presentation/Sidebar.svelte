@@ -7,7 +7,6 @@
 	import { connectedRepositoryContexts } from '$shared/repositories/repositories.api';
 	import { JobsNavBadge } from '$lib/jobs/jobs.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
-	import { inboxNeedsYouCountQuery } from '$lib/chat/application/queries/inbox-needs-you-count.query.svelte';
 	import {
 		provisioningRecordQuery,
 		workstreamNativeExistenceQuery,
@@ -64,9 +63,6 @@
 		pullRequestBadge = unknownPullRequestBadge,
 	}: Props = $props();
 	const provisioningRecord = $derived(provisioningRecordQuery.data);
-	const INBOX_HREF = '/inbox';
-	const inboxCount = $derived(inboxNeedsYouCountQuery.data);
-	const inboxOpen = $derived(page.url.pathname === INBOX_HREF);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
 	const scopeFailure = $derived(
 		scopeError ? describeFailure(scopeError, { subject: 'Workstream data' }) : null,
@@ -483,37 +479,6 @@
 </script>
 
 <SidebarFrame testId="repository-sidebar">
-	<div class="shrink-0 px-2 pt-2">
-		<a
-			href={INBOX_HREF}
-			aria-current={inboxOpen ? 'page' : undefined}
-			aria-label={inboxCount > 0 ? `Inbox, ${inboxCount} need you` : 'Inbox'}
-			class={[
-				'sidebar-row w-full gap-2 pr-3 pl-2 outline-none',
-				inboxOpen
-					? 'sidebar-row-active'
-					: 'text-fg-secondary focus-visible:bg-surface-50-hover focus-visible:text-500',
-			]}
-			data-testid="sidebar-open-inbox"
-		>
-			<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-				<Icon name="inbox" size={15} />
-			</span>
-			<span class="sidebar-row-text">
-				<span class="min-w-0 truncate">Inbox</span>
-				{#if inboxCount > 0}
-					<span
-						class="bg-warning text-warning-content text-3xs grid h-4 min-w-4 shrink-0 place-items-center rounded-full px-1 font-medium tabular-nums"
-						aria-hidden="true"
-						data-testid="sidebar-inbox-count"
-					>
-						{inboxCount}
-					</span>
-				{/if}
-			</span>
-		</a>
-	</div>
-
 	<nav class="min-h-0 flex-1" aria-label="Connected repositories">
 		<ScrollableDiv
 			class="h-full"

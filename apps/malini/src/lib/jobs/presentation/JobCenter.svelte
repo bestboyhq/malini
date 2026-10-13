@@ -32,7 +32,7 @@
 	const finished = $derived(recentFinishedJobRunsQuery.data(nowMs));
 	const running = $derived(runningJobCountQuery.data);
 	const needsYou = $derived(needsYouJobCountQuery.data);
-	const visible = $derived(active.length + finished.length > 0);
+	const hasRuns = $derived(active.length + finished.length > 0);
 	const summary = $derived(
 		jobCenterSummary({
 			running,
@@ -48,7 +48,7 @@
 	});
 
 	$effect(() => {
-		if (!visible) return;
+		if (!hasRuns) return;
 		const clock = setInterval(() => (nowMs = Date.now()), 1_000);
 		return () => clearInterval(clock);
 	});
@@ -69,7 +69,7 @@
 	};
 </script>
 
-{#if visible}
+{#if docked || hasRuns}
 	<section
 		class={[
 			'border-surface-50-border bg-surface-50 flex flex-col overflow-hidden rounded-3xl border-[0.5px] p-2',

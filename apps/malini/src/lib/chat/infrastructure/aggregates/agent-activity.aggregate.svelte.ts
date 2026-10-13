@@ -1,29 +1,11 @@
 import type { AgentAttention, AgentWorkstreamContext } from '$lib/chat/domain/agent-attention';
-import { agentAttentionStorage } from '../services/agent-attention.storage';
-
-type AttentionStorage = Readonly<{
-	read(): Record<string, AgentAttention>;
-	write(attentions: Readonly<Record<string, AgentAttention>>): void;
-}>;
-
-const NO_STORAGE: AttentionStorage = { read: () => ({}), write: () => undefined };
 
 export class AgentActivity {
 	#attentionByWorkstream: Record<string, AgentAttention> = $state({});
 	#contextByWorkstream: Record<string, AgentWorkstreamContext> = $state({});
-	readonly #storage: AttentionStorage;
-
-	constructor(storage: AttentionStorage = NO_STORAGE) {
-		this.#storage = storage;
-		this.#attentionByWorkstream = storage.read();
-	}
 
 	attentionFor(workstreamId: string): AgentAttention | null {
 		return this.#attentionByWorkstream[workstreamId] ?? null;
-	}
-
-	attentionByWorkstream(): Readonly<Record<string, AgentAttention>> {
-		return this.#attentionByWorkstream;
 	}
 
 	contextFor(workstreamId: string): AgentWorkstreamContext | null {
@@ -54,6 +36,7 @@ export class AgentActivity {
 				);
 			});
 		if (scopeUnchanged) return false;
+		const previousScopeIds = currentContexts.map((context) => context.workstreamId);
 		const next: Record<string, AgentWorkstreamContext> = {};
 		const retainedIds = new Set<string>();
 		for (const context of normalizedContexts) {
@@ -64,12 +47,13 @@ export class AgentActivity {
 
 		const nextAttention = { ...this.#attentionByWorkstream };
 		let attentionChanged = false;
-		for (const workstreamId of Object.keys(nextAttention)) {
+		for (const workstreamId of previousScopeIds) {
 			if (retainedIds.has(workstreamId)) continue;
+			if (!nextAttention[workstreamId]) continue;
 			delete nextAttention[workstreamId];
 			attentionChanged = true;
 		}
-		if (attentionChanged) this.#replaceAttention(nextAttention);
+		if (attentionChanged) this.#attentionByWorkstream = nextAttention;
 		return true;
 	}
 
@@ -77,10 +61,10 @@ export class AgentActivity {
 		if (!workstreamId) return false;
 		const existing = this.#attentionByWorkstream[workstreamId];
 		if (existing?.runId === attention.runId && existing.kind === attention.kind) return false;
-		this.#replaceAttention({
+		this.#attentionByWorkstream = {
 			...this.#attentionByWorkstream,
 			[workstreamId]: attention,
-		});
+		};
 		return true;
 	}
 
@@ -88,7 +72,7 @@ export class AgentActivity {
 		if (!this.#attentionByWorkstream[workstreamId]) return false;
 		const next = { ...this.#attentionByWorkstream };
 		delete next[workstreamId];
-		this.#replaceAttention(next);
+		this.#attentionByWorkstream = next;
 		return true;
 	}
 
@@ -99,14 +83,9 @@ export class AgentActivity {
 	}
 
 	reset(): void {
-		this.#replaceAttention({});
+		this.#attentionByWorkstream = {};
 		this.#contextByWorkstream = {};
-	}
-
-	#replaceAttention(next: Record<string, AgentAttention>): void {
-		this.#attentionByWorkstream = next;
-		this.#storage.write(next);
 	}
 }
 
-export const agentActivity = new AgentActivity(agentAttentionStorage);
+export const agentActivity = new AgentActivity();

@@ -1,4 +1,5 @@
 import type { ChatRequestId } from '$lib/chat/domain/chat-request';
+import { mergeComposerAttachments } from '$lib/chat/domain/composer-actions';
 import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
@@ -32,7 +33,12 @@ function forkToNewChatCommand(
 				selection: { model: chatModelStore.model ?? defaultAgentModel() },
 				activate: false,
 			});
-			agentDrafts.setAttachments(agentDraftScopeKey(workstreamId, forked), [transcript]);
+			const forkedScope = agentDraftScopeKey(workstreamId, forked);
+			agentDrafts.move(agentDraftScopeKey(workstreamId, sessionId), forkedScope);
+			agentDrafts.setAttachments(
+				forkedScope,
+				mergeComposerAttachments([transcript], agentDrafts.draftFor(forkedScope).attachments),
+			);
 			if (chatRoute.workstreamId === workstreamId) {
 				await sessionActivation.activate(forked, workstreamId);
 			}

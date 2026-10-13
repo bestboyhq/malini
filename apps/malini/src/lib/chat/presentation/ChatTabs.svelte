@@ -29,6 +29,8 @@
 
 	export const OPTIMISTIC_SELECTION_RELEASE_MS = 2_000;
 
+	const DRAFT_LABEL = 'Unsent draft';
+
 	export class AgentChatTabSelection {
 		#armedFresh = $state.raw(false);
 		#releaseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -81,10 +83,12 @@
 	import { afterNavigate, goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
-	import { agentChatIdentity } from '$lib/chat/domain/agent-chat-identity';
+	import { agentChatIdentity, type AgentChatIdentity } from '$lib/chat/domain/agent-chat-identity';
+	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { modelLabel } from '$shared/providers/providers.api';
 	import { closeChatCommand } from '$lib/chat/application/commands/close-chat.command';
 	import { closingChatsQuery } from '$lib/chat/application/queries/closing-chats.query.svelte';
+	import { draftScopesQuery } from '$lib/chat/application/queries/draft-scopes.query.svelte';
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
 	import type { SessionRecord } from '$lib/chat/domain/session-record';
 	import { WorkstreamDocumentTab } from '$lib/extensions/extensions.api';
@@ -133,6 +137,8 @@
 		freshCloseNavigationTarget,
 	}: Props = $props();
 	const closingSessionIds = $derived(closingChatsQuery.data);
+	const draftScopes = $derived(draftScopesQuery.data(workstreamId));
+	const freshHasDraft = $derived(hasDraft(null));
 	let overflowOpen = $state(false);
 	const tabSelection = new AgentChatTabSelection();
 	let tabRow: HTMLElement | undefined = $state();
@@ -318,13 +324,26 @@
 		return {
 			key: entry.key,
 			name: identity.name,
-			detail: identity.statusLabel,
+			detail:
+				identity.activity === 'idle' && hasDraft(session.id) ? DRAFT_LABEL : identity.statusLabel,
 			selected: !documentActive && selectedSessionId === session.id,
 			open: () => {
 				workstreamTabs.leave(workstreamId);
 				location.assign(sessionHref(session));
 			},
 		};
+	}
+
+	function hasDraft(sessionId: SessionId | null): boolean {
+		return draftScopes.includes(agentDraftScopeKey(workstreamId, sessionId));
+	}
+
+	function sessionDescription(identity: AgentChatIdentity, drafted: boolean): string | undefined {
+		const parts = [
+			identity.activity === 'idle' ? null : identity.statusLabel,
+			drafted ? DRAFT_LABEL : null,
+		].filter((part) => part !== null);
+		return parts.length > 0 ? parts.join(' · ') : undefined;
 	}
 
 	function stripTabId(key: string): string {
@@ -454,6 +473,7 @@
 			{#if item.kind === 'chat'}
 				{@const session = item.session}
 				{@const identity = agentChatIdentity(session)}
+				{@const drafted = hasDraft(session.id)}
 				{@const isSelected = selectedSessionId === session.id && !documentActive}
 				{@const isCommitted = activeSessionId === session.id}
 				{@const isPending = isSelected && !isCommitted}
@@ -477,7 +497,7 @@
 					surface="band"
 					tone={isActivePlanSurface ? 'brand' : 'neutral'}
 					label={identity.name}
-					description={identity.activity === 'idle' ? undefined : identity.statusLabel}
+					description={sessionDescription(identity, drafted)}
 					selected={isSelected}
 					href={sessionHref(session)}
 					tabId={stripTabId(item.key)}
@@ -499,7 +519,7 @@
 						'data-navigation-target': closeSessionNavigationTarget(session),
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
-					icon={isActivePlan ? planIcon : undefined}
+					icon={isActivePlan ? planIcon : drafted ? draftIcon : undefined}
 					busy={identity.activity === 'in-progress'}
 					trailing={identity.activity === 'needs-approval' || identity.activity === 'failed'
 						? statusIcon
@@ -519,6 +539,7 @@
 					surface="band"
 					tone={planMode && !documentActive ? 'brand' : 'neutral'}
 					label={planMode ? 'Plan' : 'New chat'}
+					description={freshHasDraft ? DRAFT_LABEL : undefined}
 					selected={!documentActive}
 					{disabled}
 					tabId={stripTabId(item.key)}
@@ -536,7 +557,7 @@
 						'data-navigation-target': freshCloseNavigationTarget,
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
-					icon={planMode ? planIcon : undefined}
+					icon={planMode ? planIcon : freshHasDraft ? draftIcon : undefined}
 					onselect={() => workstreamTabs.leave(workstreamId)}
 					onclose={() => void onclosefresh()}
 				/>
@@ -579,7 +600,7 @@
 				selected={false}
 				preview={entry.kind === 'document' && entry.document.preview}
 				closeLabel=""
-				icon={entry.kind === 'document' ? iconSpace : undefined}
+				icon={entry.kind === 'document' || hasDraft(entry.session.id) ? iconSpace : undefined}
 				trailing={entry.kind === 'chat' &&
 				['needs-approval', 'failed'].includes(agentChatIdentity(entry.session).activity)
 					? iconSpace
@@ -599,7 +620,7 @@
 					label={planMode ? 'Plan' : 'New chat'}
 					selected
 					closeLabel=""
-					icon={planMode ? iconSpace : undefined}
+					icon={planMode || freshHasDraft ? iconSpace : undefined}
 					onclose={() => undefined}
 				/>
 			{/if}
@@ -611,6 +632,12 @@
 {#snippet planIcon()}
 	<span class="grid place-items-center" aria-hidden="true">
 		<Icon name="route" size={12} />
+	</span>
+{/snippet}
+
+{#snippet draftIcon()}
+	<span class="text-fg-tertiary grid place-items-center" aria-hidden="true">
+		<Icon name="pencil" size={12} />
 	</span>
 {/snippet}
 

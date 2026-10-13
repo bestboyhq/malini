@@ -1,6 +1,6 @@
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { AgentEvent } from './events';
-import { parseTurnReport, type TurnReportImage } from './turn-report';
+import { parseTurnReport } from './turn-report';
 
 export type AgentAttentionKind = 'completed' | 'input' | 'failed' | 'approval';
 
@@ -9,10 +9,6 @@ export type AgentAttention = {
 	runId: string;
 	sessionId?: string;
 	updatedAt: number;
-	body?: string;
-	outcome?: string;
-	needs?: readonly string[];
-	images?: readonly TurnReportImage[];
 };
 
 export type AgentAttentionDecision = AgentAttention & {
@@ -97,19 +93,18 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 				body: compact(input.event.summary) || context || 'Ready for review',
 			};
 		}
-		const turn = { ...run, outcome: report.outcome, needs: report.needs, images: report.images };
 		const firstNeed = report.needs[0];
 		if (firstNeed) {
 			return {
 				kind: 'input',
-				...turn,
+				...run,
 				title: `${input.workstreamLabel} needs you`,
 				body: compact(firstNeed),
 			};
 		}
 		return {
 			kind: 'completed',
-			...turn,
+			...run,
 			title: `${input.workstreamLabel} finished`,
 			body: compact(report.outcome),
 		};
@@ -128,48 +123,4 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 	}
 
 	return null;
-}
-
-const ATTENTION_KINDS: readonly AgentAttentionKind[] = ['completed', 'input', 'failed', 'approval'];
-
-export function readAgentAttentions(value: unknown): Record<string, AgentAttention> {
-	if (!isRecord(value)) return {};
-	const attentions: Record<string, AgentAttention> = {};
-	for (const [workstreamId, candidate] of Object.entries(value)) {
-		const attention = readAgentAttention(candidate);
-		if (workstreamId && attention) attentions[workstreamId] = attention;
-	}
-	return attentions;
-}
-
-function readAgentAttention(value: unknown): AgentAttention | null {
-	if (!isRecord(value)) return null;
-	const { kind, runId, sessionId, updatedAt, body, outcome, needs, images } = value;
-	const knownKind = ATTENTION_KINDS.find((candidate) => candidate === kind);
-	if (!knownKind || typeof runId !== 'string' || typeof updatedAt !== 'number') return null;
-	return {
-		kind: knownKind,
-		runId,
-		updatedAt,
-		...(typeof sessionId === 'string' ? { sessionId } : {}),
-		...(typeof body === 'string' ? { body } : {}),
-		...(typeof outcome === 'string' ? { outcome } : {}),
-		...(Array.isArray(needs)
-			? { needs: needs.filter((need): need is string => typeof need === 'string') }
-			: {}),
-		...(Array.isArray(images)
-			? {
-					images: images.filter(
-						(image): image is TurnReportImage =>
-							isRecord(image) &&
-							typeof image['src'] === 'string' &&
-							typeof image['alt'] === 'string',
-					),
-				}
-			: {}),
-	};
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

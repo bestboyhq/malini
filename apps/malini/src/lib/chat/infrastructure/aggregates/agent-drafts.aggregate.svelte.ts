@@ -181,8 +181,12 @@ export class AgentDrafts {
 		]);
 	}
 
+	draftScopesFor(workstreamId: string): readonly string[] {
+		return this.#scopesByWorkstream[workstreamId] ?? [];
+	}
+
 	hasDraftForWorkstream(workstreamId: string): boolean {
-		return (this.#scopesByWorkstream[workstreamId]?.length ?? 0) > 0;
+		return this.draftScopesFor(workstreamId).length > 0;
 	}
 
 	setText(scopeKey: string, text: string): void {
@@ -272,6 +276,12 @@ export class AgentDrafts {
 	clear(scopeKey: string): void {
 		if (!scopeKey) return;
 		this.#commit(scopeKey, EMPTY_DRAFT);
+	}
+
+	move(fromScopeKey: string, toScopeKey: string): void {
+		if (!fromScopeKey || !toScopeKey || fromScopeKey === toScopeKey) return;
+		this.#commit(toScopeKey, this.draftFor(fromScopeKey));
+		this.clear(fromScopeKey);
 	}
 
 	detachAttachment(scopeKey: string, attachmentId: string): void {

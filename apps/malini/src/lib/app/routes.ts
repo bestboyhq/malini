@@ -9,10 +9,6 @@ export const routes: RouteNode = {
 			page: () => import('./presentation/pages/RepositoriesPage.svelte'),
 			children: [
 				{
-					segment: 'inbox',
-					page: () => import('./presentation/pages/InboxPage.svelte'),
-				},
-				{
 					segment: 'workstreams',
 					children: [
 						{
