@@ -92,7 +92,7 @@ describe('agent transcript structure and selection contract', () => {
 	});
 
 	it('folds history into activity groups while the newest run stays a linear loop', () => {
-		expect(messageList).toContain('if (isLastRun) return window.items;');
+		expect(messageList).toContain('if (isLastRun || derivation?.shownLinear) return window.items;');
 		expect(messageList).toMatch(/groupRunTimeline\(window\.items\)/u);
 		expect(messageList).toContain(
 			'{@const runRows = groupedTimelineItems(run, runTimelineWindow, isLastRun)}',

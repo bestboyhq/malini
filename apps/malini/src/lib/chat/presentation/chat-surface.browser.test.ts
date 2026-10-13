@@ -960,7 +960,77 @@ describe('the chat surface', () => {
 	});
 });
 
+function platformWithToolRunInDestination(): FakePlatform {
+	const runId = 'run-destination-tools';
+	return createFakePlatform({
+		agentSessions: [
+			{ id: 's-source', workstreamId: WORKSTREAM },
+			{ id: 's-destination', workstreamId: DESTINATION },
+		],
+		agentEvents: {
+			's-source': [
+				{ runId: 'run-source', event: { type: 'user.message', text: 'Source prompt' } },
+				{ runId: 'run-source', event: { type: 'run.completed', summary: 'done' } },
+			],
+			's-destination': [
+				{ runId, event: { type: 'user.message', text: 'Read two files' } },
+				...['README.md', 'LICENSE'].flatMap((path, index) => [
+					{
+						runId,
+						event: {
+							type: 'tool.started' as const,
+							name: 'Read',
+							toolCallId: `read-${index}`,
+							input: { file_path: path },
+						},
+					},
+					{
+						runId,
+						event: {
+							type: 'tool.completed' as const,
+							name: 'Read',
+							toolCallId: `read-${index}`,
+							output: 'contents',
+						},
+					},
+				]),
+				{ runId, event: { type: 'assistant.message', text: 'Read both' } },
+				{ runId, event: { type: 'run.completed', summary: 'done' } },
+			],
+		},
+	});
+}
+
+function activityGroupsOnScreen(host: HTMLElement): number {
+	return host.querySelectorAll('[data-testid="chat-activity-group"]').length;
+}
+
 describe('the transcript scroller', () => {
+	it('never folds a run already on screen when a new prompt arrives, only when the chat opens again', async () => {
+		const surface = await openSourceSurface(platformWithToolRunInDestination());
+		await navigateChatRoute(`/workstreams/${DESTINATION}`);
+		surface.showWorkstream(DESTINATION);
+		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toEqual(['Read two files']));
+		expect(activityGroupsOnScreen(surface.host)).toBe(0);
+
+		arriveInDestination(surface.platform, 100, {
+			type: 'user.message',
+			runId: 'run-live',
+			text: 'Live prompt',
+		});
+		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('Live prompt'));
+		await tick();
+		expect(activityGroupsOnScreen(surface.host)).toBe(0);
+
+		await navigateChatRoute(`/workstreams/${WORKSTREAM}`);
+		surface.showWorkstream(WORKSTREAM);
+		await vi.waitFor(() => expect(surface.host.textContent).toContain('Source prompt'));
+		await navigateChatRoute(`/workstreams/${DESTINATION}`);
+		surface.showWorkstream(DESTINATION);
+		await vi.waitFor(() => expect(promptsOnScreen(surface.host)).toContain('Live prompt'));
+		await vi.waitFor(() => expect(activityGroupsOnScreen(surface.host)).toBe(1));
+	});
+
 	it('opens a chat already at its bottom when switched to, passing through no other scroll position', async () => {
 		framesOnTestClock();
 		const layout = layOutTranscriptScroller({ rowHeight: 100, viewportHeight: 50 });
