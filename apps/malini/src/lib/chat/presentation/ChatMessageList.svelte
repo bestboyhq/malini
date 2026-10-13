@@ -40,8 +40,6 @@
 		type ToolAggregate,
 	} from './render-state';
 	import BufferedStreamingMarkdown from './BufferedStreamingMarkdown.svelte';
-	import BufferedStreamingText from './BufferedStreamingText.svelte';
-	import ExpandMark from './ExpandMark.svelte';
 	import RunStatusLine from './RunStatusLine.svelte';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
@@ -77,7 +75,7 @@
 		setTranscriptContext,
 		type TranscriptComposerControls,
 	} from './chat-message-list/transcript-context';
-	import { thinkingPreview } from './chat-message-list/transcript-labels';
+	import ThinkingRow from './chat-message-list/ThinkingRow.svelte';
 	import { createTranscriptScroll } from './chat-message-list/transcript-scroll.svelte';
 	import { createTranscriptSettleGate } from './chat-message-list/transcript-settle';
 
@@ -895,32 +893,12 @@
 
 							{#if isLastRun && run.terminal === null}
 								{#each liveThinkingBlocks as block (block.contentId)}
-									<details
-										class="group/expand text-fg-tertiary w-full text-sm"
-										use:stageEnter={blockKey(sessionId, block.runId, block.contentId)}
-										data-message-kind="thinking-live"
-										data-testid="thinking-live"
-									>
-										<summary
-											class="text-fg-tertiary hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
-										>
-											<ExpandMark live>
-												<Icon name="brain" size={14} />
-											</ExpandMark>
-											<span class="shrink-0">Thinking…</span>
-											<span
-												class="text-fg-tertiary/75 min-w-0 truncate"
-												data-testid="thinking-live-preview"
-											>
-												{thinkingPreview(block.text)}
-											</span>
-										</summary>
-										<div
-											class="text-fg-secondary pt-1 pb-2 pl-5.5 text-xs leading-relaxed whitespace-pre-wrap select-text"
-										>
-											<BufferedStreamingText text={block.text} />
-										</div>
-									</details>
+									<ThinkingRow
+										text={block.text}
+										live
+										durationSeconds={null}
+										enterKey={blockKey(sessionId, block.runId, block.contentId)}
+									/>
 								{/each}
 
 								{#each liveAssistantBlocks as block (block.contentId)}

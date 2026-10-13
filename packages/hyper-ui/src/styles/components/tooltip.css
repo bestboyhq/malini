@@ -1,0 +1,140 @@
+@layer components {
+	.hyper-tooltip {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+		transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+
+	.hyper-tooltip.snap {
+		transition: none;
+	}
+
+	.hyper-tooltip-bubble {
+		@apply border-surface-tooltip-border bg-surface-tooltip text-fg-default shadow-popup rounded-lg border-[0.5px] px-2.5 py-1.5 text-center text-xs leading-tight font-normal wrap-break-word whitespace-normal select-none;
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		width: max-content;
+		max-width: min(20rem, calc(100vw - 16px));
+		transform-origin: bottom center;
+		visibility: hidden;
+		opacity: 0;
+		transform: translateX(-50%) translateY(4px) scale(0.96);
+		transition:
+			opacity 160ms cubic-bezier(0.33, 1, 0.68, 1),
+			transform 160ms cubic-bezier(0.33, 1, 0.68, 1),
+			visibility 0s linear 160ms;
+	}
+
+	.hyper-tooltip.open .hyper-tooltip-bubble {
+		visibility: visible;
+		opacity: 1;
+		transform: translateX(-50%);
+		transition-delay: 0s;
+	}
+
+	.hyper-tooltip.below .hyper-tooltip-bubble {
+		top: 0;
+		bottom: auto;
+		transform-origin: top center;
+		transform: translateX(-50%) translateY(-4px) scale(0.96);
+	}
+
+	.hyper-tooltip.below.open .hyper-tooltip-bubble {
+		transform: translateX(-50%);
+	}
+
+	.hyper-tooltip.right .hyper-tooltip-bubble {
+		top: 0;
+		bottom: auto;
+		transform-origin: left center;
+		transform: translateY(-50%) translateX(-4px) scale(0.96);
+	}
+
+	.hyper-tooltip.left .hyper-tooltip-bubble {
+		top: 0;
+		bottom: auto;
+		left: auto;
+		right: 0;
+		transform-origin: right center;
+		transform: translateY(-50%) translateX(4px) scale(0.96);
+	}
+
+	.hyper-tooltip.right.open .hyper-tooltip-bubble,
+	.hyper-tooltip.left.open .hyper-tooltip-bubble {
+		transform: translateY(-50%);
+	}
+
+	.hyper-tooltip-bubble.morph {
+		overflow: hidden;
+		transition:
+			opacity 160ms cubic-bezier(0.33, 1, 0.68, 1),
+			transform 160ms cubic-bezier(0.33, 1, 0.68, 1),
+			width 240ms cubic-bezier(0.32, 0.72, 0, 1),
+			height 240ms cubic-bezier(0.32, 0.72, 0, 1);
+	}
+
+	.hyper-tooltip-view {
+		position: relative;
+		display: block;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+	}
+
+	.hyper-tooltip-text {
+		display: block;
+	}
+
+	.hyper-tooltip-text.enter {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		animation: hyper-tooltip-text-in 240ms cubic-bezier(0.33, 1, 0.68, 1) both;
+	}
+
+	.hyper-tooltip-ghost {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		animation: hyper-tooltip-text-out 160ms cubic-bezier(0.33, 1, 0.68, 1) both;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.hyper-tooltip,
+		.hyper-tooltip-bubble {
+			transition: none;
+		}
+
+		.hyper-tooltip-text.enter,
+		.hyper-tooltip-ghost {
+			animation: none;
+		}
+	}
+}
+
+@keyframes hyper-tooltip-text-in {
+	from {
+		opacity: 0;
+		transform: translate(calc(-50% + var(--dx, 0px)), var(--dy, 0px));
+	}
+	to {
+		opacity: 1;
+		transform: translate(-50%, 0);
+	}
+}
+
+@keyframes hyper-tooltip-text-out {
+	from {
+		opacity: 1;
+		transform: translate(-50%, 0);
+	}
+	to {
+		opacity: 0;
+		transform: translate(calc(-50% - var(--dx, 0px)), calc(0px - var(--dy, 0px)));
+	}
+}

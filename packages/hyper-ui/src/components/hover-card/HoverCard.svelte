@@ -5,12 +5,14 @@
 		announceExclusiveOverlayOpen,
 		bodyPortal,
 		calculatePosition,
+		isReturningFocus,
 		layoutRect,
 		menuClose,
 		menuOpen,
 		onExclusiveOverlayOpen,
 		overlaySurface,
 		resolveOverlayZIndex,
+		returnFocus,
 	} from '../../overlay';
 
 	type Side = 'top' | 'bottom' | 'left' | 'right';
@@ -144,8 +146,14 @@
 		if (event.key !== 'Escape' || !open) return;
 		pinned = false;
 		hoverSuppressed = true;
-		triggerEl.querySelector<HTMLElement>('button,[href],[tabindex]')?.focus();
+		returnFocus(triggerEl.querySelector<HTMLElement>('button,[href],[tabindex]'));
 		setOpen(false);
+	}
+
+	function onTriggerFocusIn(event: FocusEvent): void {
+		if (isReturningFocus()) return;
+		if (event.target instanceof Element && event.target.matches(':focus-visible'))
+			requestOpen(true);
 	}
 
 	function dismissForExclusiveOverlay(): void {
@@ -220,14 +228,14 @@
 	class={['inline-flex', triggerClass]}
 	role="group"
 	data-hovercard-trigger
-	onmouseenter={() => {
-		if (!hoverSuppressed) requestOpen();
+	onpointerenter={(event) => {
+		if (event.pointerType !== 'touch' && !hoverSuppressed) requestOpen();
 	}}
-	onmouseleave={() => {
+	onpointerleave={() => {
 		hoverSuppressed = false;
 		requestClose();
 	}}
-	onfocusin={() => requestOpen(true)}
+	onfocusin={onTriggerFocusIn}
 	onfocusout={(event) => {
 		if (event.relatedTarget instanceof Node && cardEl?.contains(event.relatedTarget)) return;
 		requestClose();

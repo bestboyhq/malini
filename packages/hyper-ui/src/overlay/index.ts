@@ -1,6 +1,8 @@
 export {
 	createRovingFocus,
 	getOverlayFocusReturn,
+	isReturningFocus,
+	returnFocus,
 	setOverlayFocusReturn,
 	type OverlayFocusReturn,
 	type RovingFocus,

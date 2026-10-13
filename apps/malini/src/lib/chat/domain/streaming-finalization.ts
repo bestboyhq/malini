@@ -17,6 +17,8 @@ export function processStreamingEnvelopes(
 		}
 		if (event.type === 'thinking.message') {
 			const finalized = registry.finalizeBlock(envelope.sessionId, envelope.runId, event.contentId);
+			const text = finalized?.text || event.text;
+			if (!text.trim()) continue;
 			thoughtsChanged =
 				streamingProjector.recordFinalizedThought(
 					{
@@ -24,7 +26,7 @@ export function processStreamingEnvelopes(
 						runId: envelope.runId,
 						contentId: event.contentId,
 						seq: envelope.seq,
-						text: finalized?.text || event.text,
+						text,
 						durationSeconds: finalized
 							? Math.max(1, Math.round(finalized.durationMs / 1000))
 							: null,

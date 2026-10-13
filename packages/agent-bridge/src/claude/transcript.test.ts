@@ -47,6 +47,39 @@ describe('ClaudeTranscript', () => {
 		expect(new Set([...thoughts, answer].map((event) => event?.contentId)).size).toBe(3);
 	});
 
+	it('announces each thought the moment it starts, before any summary arrives', () => {
+		const { events } = replayRecorded('readAndBash');
+		const opened = new Map<string, string>();
+		for (const delta of ofType(events, 'thinking.delta')) {
+			if (!opened.has(delta.contentId)) opened.set(delta.contentId, delta.text);
+		}
+		expect([...opened.values()]).toEqual(['', '']);
+	});
+
+	it('closes a thought that carries no summary, so no live thought outlives it', () => {
+		const blanked = recordedMessages('readAndBash').flatMap((message) => {
+			if (
+				message.type === 'stream_event' &&
+				message.event.type === 'content_block_delta' &&
+				message.event.delta.type === 'thinking_delta'
+			) {
+				return [];
+			}
+			const copy = structuredClone(message);
+			if (copy.type === 'assistant') {
+				for (const block of copy.message.content) {
+					if (block.type === 'thinking') block.thinking = '';
+				}
+			}
+			return [copy];
+		});
+		const { events } = replay(blanked);
+		const announced = new Set(ofType(events, 'thinking.delta').map(({ contentId }) => contentId));
+		const closed = ofType(events, 'thinking.message');
+		expect(closed.map(({ text }) => text)).toEqual(['', '']);
+		expect(new Set(closed.map(({ contentId }) => contentId))).toEqual(announced);
+	});
+
 	it('reports parallel tool calls from their streamed input to their results', () => {
 		const { events } = replayRecorded('readAndBash');
 

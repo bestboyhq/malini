@@ -22,7 +22,7 @@ describe('full page modal dismissal comes from the scrim, not the content', () =
 	});
 
 	it('closes on a click on the scrim', () => {
-		const backdrop = markup().match(/<div\s+class="animate-fadeIn absolute[\s\S]*?><\/div>/u)?.[0];
+		const backdrop = markup().match(/<div\s[^>]*role="presentation"[^>]*><\/div>/u)?.[0];
 		expect(backdrop).toContain('onclick={startClose}');
 	});
 

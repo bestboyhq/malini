@@ -56,6 +56,18 @@ function fakeProjector(): FinalizedThoughtRecorder & {
 }
 
 describe('retiring a live block when its persisted copy lands', () => {
+	it('retires a thought that never got a summary without leaving an empty row', () => {
+		const registry = fakeRegistry({ quiet: { text: '', durationMs: 84_000 } });
+		const projector = fakeProjector();
+		processStreamingEnvelopes(
+			[envelope({ type: 'thinking.message', runId: 'run-1', contentId: 'quiet', text: '' })],
+			projector,
+			registry,
+		);
+		expect(registry.finalizedBlocks).toEqual(['session-1:run-1:quiet']);
+		expect(projector.thoughts).toEqual([]);
+	});
+
 	it('finalizes an assistant block by the content id the provider gave it', () => {
 		const registry = fakeRegistry();
 		processStreamingEnvelopes(

@@ -98,9 +98,17 @@ describe('groupRunTimeline folding', () => {
 		expect(groupRunTimeline([read])).toEqual([read]);
 	});
 
-	it('leaves a lone thought unfolded so its own disclosure still owns it', () => {
-		const lone = thought(4);
-		expect(groupRunTimeline([lone])).toEqual([lone]);
+	it('never folds a thought, so the narration between tool calls stays readable', () => {
+		const narration = thought(4);
+		const grouped = groupRunTimeline([
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			narration,
+			tool('Read', { file_path: 'src/c.ts' }),
+			tool('Read', { file_path: 'src/d.ts' }),
+		]);
+		expect(kinds(grouped)).toEqual(['activity-group', 'thought', 'activity-group']);
+		expect(grouped[1]).toBe(narration);
 	});
 
 	it('folds two consecutive tool calls into one group', () => {
@@ -111,14 +119,13 @@ describe('groupRunTimeline folding', () => {
 		expect(group.items).toHaveLength(2);
 	});
 
-	it('folds tools, commands, files and thoughts into the same group', () => {
+	it('folds tools, commands and files into the same group', () => {
 		const group = onlyGroup([
-			thought(1),
 			tool('Read', { file_path: 'src/a.ts' }),
 			command(0),
 			file('src/b.ts'),
 		]);
-		expect(group.items).toHaveLength(4);
+		expect(group.items).toHaveLength(3);
 	});
 
 	it('splits into two groups when prose sits between the tool calls', () => {
@@ -206,21 +213,10 @@ describe('groupRunTimeline verbs', () => {
 		expect(onlyGroup([command(0), tool('Bash', { command: 'ls' })]).verb).toBe('Ran');
 	});
 
-	it('says Thought when the group is only thoughts', () => {
-		expect(onlyGroup([thought(3), thought(4)]).verb).toBe('Thought');
-	});
-
 	it('says Worked for a mix that is neither pure exploration nor pure commands', () => {
 		expect(
 			onlyGroup([tool('Read', { file_path: 'src/a.ts' }), tool('Bash', { command: 'ls' })]).verb,
 		).toBe('Worked');
-	});
-
-	it('lets the tool mix pick the verb even when thoughts are interleaved', () => {
-		expect(onlyGroup([thought(2), tool('Read', { file_path: 'src/a.ts' }), thought(1)]).verb).toBe(
-			'Explored',
-		);
-		expect(onlyGroup([thought(2), command(0)]).verb).toBe('Ran');
 	});
 
 	it.each<[string, Record<string, unknown>, string]>([
@@ -234,10 +230,9 @@ describe('groupRunTimeline verbs', () => {
 		);
 	});
 
-	it('never treats a thought or a bridge file row as unfinished work', () => {
-		expect(onlyGroup([thought(3), thought(null)]).verb).toBe('Thought');
-		expect(onlyGroup([thought(null), file('src/a.ts')]).verb).toBe('Edited');
-		expect(onlyGroup([thought(3), command(null)]).verb).toBe('Running');
+	it('never treats a bridge file row as unfinished work', () => {
+		expect(onlyGroup([file('src/a.ts'), file('src/b.ts')]).verb).toBe('Edited');
+		expect(onlyGroup([file('src/a.ts'), command(null)]).verb).toBe('Editing');
 	});
 
 	it('keeps the present participle when a failure and a running item coexist', () => {
@@ -402,14 +397,6 @@ describe('groupRunTimeline detail', () => {
 		expect(onlyGroup([command(0), file('src/a.ts')]).detail).toBe('a.ts, ran 1 command');
 	});
 
-	it('reports a duration for a group that is only thoughts', () => {
-		expect(onlyGroup([thought(3), thought(4)]).detail).toBe('for 7s');
-	});
-
-	it('falls back to a step count when a thought group has no duration', () => {
-		expect(onlyGroup([thought(null), thought(null)]).detail).toBe('2 steps');
-	});
-
 	it('falls back to a step count when nothing nameable happened', () => {
 		const opaque = { url: 'https://example.com' };
 		expect(onlyGroup([tool('WebFetch', opaque), tool('WebFetch', opaque)]).detail).toBe('2 steps');
@@ -444,8 +431,8 @@ describe('groupRunTimeline action kinds', () => {
 		expect(group.actionKinds).toEqual(['command', 'read', 'edit']);
 	});
 
-	it('leaves a pure thought group without any action kind', () => {
-		expect(onlyGroup([thought(1), thought(2)]).actionKinds).toEqual([]);
+	it('keeps consecutive thoughts as their own rows', () => {
+		expect(kinds(groupRunTimeline([thought(1), thought(2)]))).toEqual(['thought', 'thought']);
 	});
 });
 

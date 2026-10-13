@@ -12,6 +12,22 @@ export function getOverlayFocusReturn(): OverlayFocusReturn | undefined {
 	return getContext<OverlayFocusReturn | undefined>(FOCUS_RETURN_KEY);
 }
 
+let returningFocus = false;
+
+export function returnFocus(target: HTMLElement | null | undefined): void {
+	if (!target?.isConnected) return;
+	returningFocus = true;
+	try {
+		target.focus({ preventScroll: true });
+	} finally {
+		returningFocus = false;
+	}
+}
+
+export function isReturningFocus(): boolean {
+	return returningFocus;
+}
+
 const INTERACTIVE_ITEM_SELECTOR = [
 	'[role="option"]:not([aria-disabled="true"])',
 	'[role="menuitem"]:not([aria-disabled="true"])',
@@ -99,7 +115,7 @@ export function createRovingFocus(options: RovingFocusOptions): RovingFocus {
 		const anchor = options.anchor?.() ?? null;
 		if (!focusIsOurs(anchor)) return;
 		if (options.focusReturn?.()) return;
-		if (anchor?.isConnected) anchor.focus({ preventScroll: true });
+		returnFocus(anchor);
 	}
 
 	return { items, focus, handleArrowKeys, restoreAnchorFocus };

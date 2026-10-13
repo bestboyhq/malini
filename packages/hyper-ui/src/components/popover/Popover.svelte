@@ -10,6 +10,7 @@
 		menuOpen,
 		overlaySurface,
 		resolveOverlayZIndex,
+		returnFocus,
 	} from '../../overlay';
 
 	interface Props {
@@ -85,7 +86,7 @@
 	}
 
 	function restoreAnchorFocus(): void {
-		if (anchor?.isConnected) anchor.focus({ preventScroll: true });
+		returnFocus(anchor);
 	}
 
 	$effect(() => {

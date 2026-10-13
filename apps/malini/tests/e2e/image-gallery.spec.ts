@@ -83,12 +83,92 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 			'aria-current',
 			'true',
 		);
-		await expect(gallery.getByRole('img', { name: 'mockup.png' })).toBeVisible();
-
-		const shown = await gallery.getByRole('img', { name: 'mockup.png' }).boundingBox();
+		const picture = gallery.getByRole('img', { name: 'mockup.png' });
+		await expect(picture).toBeVisible();
+		const shown = await picture.boundingBox();
 		if (!shown) throw new Error('the gallery shows no image');
+		const width = async (): Promise<number> => (await picture.boundingBox())?.width ?? 0;
+		const top = async (): Promise<number> => (await picture.boundingBox())?.y ?? 0;
+		const zoom = gallery.getByRole('group', { name: 'Zoom' });
+
+		await page.keyboard.press('+');
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 1.5×' })).toBeEnabled();
+		await zoom.getByRole('button', { name: 'Zoom in' }).click();
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.3×' })).toBeEnabled();
+		await expect.poll(width).toBeGreaterThan(shown.width * 2);
+		await page.keyboard.press('0');
+		await expect(zoom.getByRole('button', { name: 'Fit to screen', exact: true })).toBeDisabled();
+		await expect.poll(width).toBeLessThan(shown.width * 1.1);
+
+		const center = { x: shown.x + shown.width / 2, y: shown.y + shown.height / 2 };
+		await page.mouse.click(center.x, center.y);
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.5×' })).toBeEnabled();
+		const before = await top();
+		await page.mouse.move(center.x, center.y);
+		await page.mouse.down();
+		await page.mouse.move(center.x, center.y + 60, { steps: 6 });
+		await page.mouse.up();
+		await expect.poll(top).toBeGreaterThan(before + 30);
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.5×' })).toBeEnabled();
+		await page.mouse.click(center.x, center.y);
+		await expect(zoom.getByRole('button', { name: 'Fit to screen', exact: true })).toBeDisabled();
+
+		await page.keyboard.down('Meta');
+		await page.mouse.wheel(0, -100);
+		await page.keyboard.up('Meta');
+		await expect(zoom.getByRole('button', { name: /^Fit to screen from / })).toBeEnabled();
+		await page.keyboard.press('0');
+		await expect.poll(width).toBeLessThan(shown.width * 1.1);
+
+		const tooltip = page.getByRole('tooltip');
+		await zoom.getByRole('button', { name: 'Zoom in' }).hover();
+		await expect(tooltip).toHaveText('Zoom in (+)');
+		await zoom.getByRole('button', { name: 'Zoom out' }).hover();
+		await expect(tooltip).toHaveText('Zoom out (-)');
+		await expect(tooltip).toHaveCount(1);
+
 		await page.mouse.click(shown.x - 24, shown.y + shown.height / 2);
 		await expect(gallery).toBeHidden();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('closing the gallery leaves no image preview open on the chip that opened it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-gallery-hover', 'Gallery hover');
+		mkdirSync(join(seeded.worktree, 'shots'), { recursive: true });
+		copyFileSync(ICON, join(seeded.worktree, 'shots/before.png'));
+		await openWorkstream(page, seeded.workstreamId);
+		await sendPrompt(page, 'READ_IMAGE:shots/before.png');
+		await expectAssistantReply(page);
+
+		const chip = page.getByRole('button', { name: 'Open image before.png in gallery' });
+		const preview = page.getByTestId('tool-image-hovercard');
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		for (const close of ['scrim', 'Escape'] as const) {
+			await chip.hover();
+			await expect(preview).toBeVisible();
+			await chip.click();
+			await expect(gallery.getByRole('img', { name: 'before.png' })).toBeVisible();
+			if (close === 'Escape') {
+				await page.mouse.move(4, 4);
+				await page.keyboard.press('Escape');
+			} else {
+				const shown = await gallery.getByRole('img', { name: 'before.png' }).boundingBox();
+				if (!shown) throw new Error('the gallery shows no image');
+				await page.mouse.click(shown.x - 24, shown.y + shown.height / 2);
+			}
+			await expect(gallery).toBeHidden();
+			await page.waitForTimeout(600);
+			await expect(preview, `preview after closing with ${close}`).toBeHidden();
+			await expect(page.getByRole('tooltip')).toHaveCount(0);
+		}
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

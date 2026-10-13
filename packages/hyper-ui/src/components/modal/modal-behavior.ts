@@ -1,4 +1,4 @@
-import { registerEscapeScope, type OverlayFocusReturn } from '../../overlay';
+import { registerEscapeScope, returnFocus, type OverlayFocusReturn } from '../../overlay';
 
 const FOCUSABLE_SELECTOR = [
 	'a[href]',
@@ -92,7 +92,7 @@ export function modalBehavior(
 			node.removeEventListener('keydown', onKeydown);
 			unlockBodyScroll();
 			if (options.focusReturn?.()) return;
-			previouslyFocused?.focus();
+			returnFocus(previouslyFocused);
 		},
 	};
 }
