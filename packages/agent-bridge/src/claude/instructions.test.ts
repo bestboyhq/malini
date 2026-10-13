@@ -27,6 +27,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain(
 			'only answers a question or talks through options gets a plain answer',
 		);
+		expect(prompt).toContain('Write both in the commit convention the repository states');
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
 		expect(prompt).toContain('.malini/agent-attachments');

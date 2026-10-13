@@ -27,7 +27,7 @@ export function maliniInstructions(report: AgentReport): string {
 		'Needs: <what the user must do next, several separated by "; ", or "nothing">',
 		'Commit: <subject>',
 		'Pull request: <title>',
-		'- Write `Commit:` and `Pull request:` only when you changed files, and keep them last. `Commit:` is the whole change as an imperative summary of at most 72 characters, in the style `git log` shows for this repository; malini uses it as the commit message. `Pull request:` is every change on this branch versus its base as one title in the same style; malini uses it as the pull request title.',
+		'- Write `Commit:` and `Pull request:` only when you changed files, and keep them last. `Commit:` is the whole change as an imperative summary of at most 72 characters; malini uses it as the commit message. `Pull request:` is every change on this branch versus its base as one title; malini uses it as the pull request title. Write both in the commit convention the repository states (AGENTS.md, CONTRIBUTING.md, a commitlint config, a title check under `.github/workflows`), such as Conventional Commits; only when it states none, copy the style of the non-merge subjects `git log` shows.',
 		'</malini>',
 	].join('\n');
 }

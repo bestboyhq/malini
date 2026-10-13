@@ -164,6 +164,38 @@ describe('pull request status mapping', () => {
 		).toBe('failed');
 	});
 
+	it('keeps only the latest run of a check that ran again on the same commit', () => {
+		const run = (conclusion: string, startedAt: string) => ({
+			__typename: 'CheckRun',
+			name: 'conventional',
+			workflowName: 'PR title',
+			status: conclusion ? 'COMPLETED' : 'QUEUED',
+			conclusion,
+			startedAt,
+		});
+		const retitled = mapPullRequestStatus({
+			number: 38,
+			state: 'OPEN',
+			statusCheckRollup: [
+				run('FAILURE', '2026-10-13T23:18:24Z'),
+				run('FAILURE', '2026-10-13T23:18:24Z'),
+				{ ...run('SUCCESS', '2026-10-13T23:19:03Z'), name: 'check and lint', workflowName: 'CI' },
+				run('SUCCESS', '2026-10-13T23:24:01Z'),
+			],
+		});
+		expect(retitled.checks.map(({ name, conclusion }) => [name, conclusion])).toEqual([
+			['conventional', 'SUCCESS'],
+			['check and lint', 'SUCCESS'],
+		]);
+		expect(retitled.checksState).toBe('success');
+
+		const rerunQueued = mapChecks([
+			run('FAILURE', '2026-10-13T23:18:24Z'),
+			run('', '0001-01-01T00:00:00Z'),
+		]);
+		expect(rerunQueued.map(({ state }) => state)).toEqual(['QUEUED']);
+	});
+
 	it('treats an empty rollup as no checks', () => {
 		expect(mapChecks(null)).toHaveLength(0);
 		expect(aggregateChecksState([])).toBe('none');

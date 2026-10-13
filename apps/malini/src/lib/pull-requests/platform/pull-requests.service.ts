@@ -311,22 +311,41 @@ function mapReviewDecision(value: unknown): PullRequestStatusDto['reviewDecision
 
 export function mapChecks(rollup: unknown): PullRequestCheckDto[] {
 	if (!Array.isArray(rollup)) return [];
-	return rollup.map((entry) => {
+	const latestRuns = new Map<string, PullRequestCheckDto>();
+	for (const entry of rollup) {
 		const record = isRecord(entry) ? entry : {};
-		const conclusion = textOrNull(record.conclusion);
-		const contextState = textOrNull(record.state);
-		return {
-			name: textOrNull(record.name) ?? textOrNull(record.context) ?? '',
-			appId: numberOrNull(record.appId ?? nested(record, ['app', 'id'])),
-			state: textOrNull(record.status) ?? contextState ?? 'UNKNOWN',
-			conclusion,
-			required: typeof record.isRequired === 'boolean' ? record.isRequired : null,
-			url: textOrNull(record.detailsUrl) ?? textOrNull(record.targetUrl),
-			startedAt: textOrNull(record.startedAt),
-			completedAt: textOrNull(record.completedAt),
-			notStartedReason: null,
-		};
-	});
+		const check = mapCheck(record);
+		const key = `${textOrNull(record.workflowName) ?? ''}\n${check.name}`;
+		const previous = latestRuns.get(key);
+		if (!previous || supersedes(check, previous)) latestRuns.set(key, check);
+	}
+	return [...latestRuns.values()];
+}
+
+function mapCheck(record: Record<string, unknown>): PullRequestCheckDto {
+	return {
+		name: textOrNull(record.name) ?? textOrNull(record.context) ?? '',
+		appId: numberOrNull(record.appId ?? nested(record, ['app', 'id'])),
+		state: textOrNull(record.status) ?? textOrNull(record.state) ?? 'UNKNOWN',
+		conclusion: textOrNull(record.conclusion),
+		required: typeof record.isRequired === 'boolean' ? record.isRequired : null,
+		url: textOrNull(record.detailsUrl) ?? textOrNull(record.targetUrl),
+		startedAt: textOrNull(record.startedAt),
+		completedAt: textOrNull(record.completedAt),
+		notStartedReason: null,
+	};
+}
+
+const GH_ZERO_TIME = '0001-01-01T00:00:00Z';
+
+function startTime(check: PullRequestCheckDto): string | null {
+	return check.startedAt && check.startedAt !== GH_ZERO_TIME ? check.startedAt : null;
+}
+
+function supersedes(check: PullRequestCheckDto, previous: PullRequestCheckDto): boolean {
+	const started = startTime(check);
+	const previousStarted = startTime(previous);
+	return started === null || (previousStarted !== null && started >= previousStarted);
 }
 
 export async function withNotStartedReasons(
