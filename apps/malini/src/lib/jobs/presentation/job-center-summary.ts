@@ -15,5 +15,5 @@ export function jobCenterSummary(counts: JobCenterCounts): string {
 	].filter((part) => part !== null);
 	if (parts.length > 0) return parts.join(', ');
 	if (counts.finished > 0) return `${counts.finished} finished recently`;
-	return 'nothing running';
+	return 'ready when you are';
 }

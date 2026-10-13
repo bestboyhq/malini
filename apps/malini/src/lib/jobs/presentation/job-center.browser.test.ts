@@ -192,10 +192,10 @@ describe('the Job center', () => {
 		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: 1 running');
 	});
 
-	it('stays in the workstream gutter with nothing running, linking to the jobs', async () => {
+	it('stays in the workstream gutter while idle, linking to the jobs', async () => {
 		await mountCenter({ docked: true });
 
-		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: nothing running');
+		expect(jobsRegion()?.getAttribute('aria-label')).toBe('Jobs: ready when you are');
 		expect(control('Manage jobs')?.getAttribute('href')).toBe('/jobs');
 	});
 
