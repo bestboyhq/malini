@@ -144,6 +144,49 @@ const streamRun = (sessionId, runId, lines) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, STREAM_LINE_MS);
 };
+const THINK_STEP_MS = 700;
+const THOUGHTS = [
+	[
+		'The user wants the preview fixed. ',
+		'It stays open after the gallery closes.\n\n',
+		'Focus returns to the chip that opened it. ',
+		'I should read the hover card first.\n\n',
+	],
+	['The hover card opens on any focus. ', 'I will gate it on keyboard focus.\n\n'],
+];
+const thinkRun = (sessionId, runId) => {
+	pendingRuns.set(runId, sessionId);
+	const steps = [];
+	THOUGHTS.forEach((chunks, index) => {
+		const contentId = 'thought-' + index;
+		steps.push(() => event({ type: 'thinking.delta', runId, contentId, text: '' }));
+		for (const text of chunks) {
+			steps.push(() => event({ type: 'thinking.delta', runId, contentId, text }));
+		}
+		steps.push(() => event({ type: 'thinking.message', runId, contentId, text: chunks.join('') }));
+		for (const file of ['src/a.ts', 'src/b.ts']) {
+			const toolCallId = contentId + '-' + file;
+			steps.push(() => {
+				event({
+					type: 'tool.started',
+					runId,
+					name: 'Read',
+					toolCallId,
+					input: { file_path: file },
+				});
+				event({ type: 'tool.completed', runId, name: 'Read', toolCallId, output: 'ok' });
+			});
+		}
+	});
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		const next = steps.shift();
+		if (next) return next();
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		completeRun(sessionId, runId, 'done');
+	}, THINK_STEP_MS);
+};
 const BACKGROUND_RELEASE = 'release-background-agent';
 const backgroundAgentRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
@@ -264,6 +307,7 @@ const respond = (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
+	if (prompt.includes('THINK')) return thinkRun(sessionId, runId);
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	if (stream) return streamRun(sessionId, runId, Number(stream[1]));
 	const commitLine = /COMMIT=([^"\n]+?)(?: PR=([^"\n]+?))?(?:"|$)/.exec(prompt);

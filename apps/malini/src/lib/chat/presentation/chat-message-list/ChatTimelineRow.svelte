@@ -8,15 +8,14 @@
 	import { relativizeWorkstreamPath } from '../workstream-path';
 	import BashToolCall from '../BashToolCall.svelte';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
-	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
+	import ThinkingRow from './ThinkingRow.svelte';
 	import ContextHandoffDivider from './ContextHandoffDivider.svelte';
 	import { blockKey } from './streaming-finalization';
 	import { commandStatus } from './tool-row-model';
-	import { thoughtLabel } from './transcript-labels';
 	import { transcriptContext } from './transcript-context';
 
 	interface Props {
@@ -35,31 +34,12 @@
 {#if item.kind === 'user'}
 	<ChatPromptBubble {item} {run} {isLastRun} />
 {:else if item.kind === 'thought'}
-	<details
-		class="group/expand text-fg-tertiary w-full text-sm"
-		use:stageEnter={timelineKey(run, item.contentId)}
-		data-message-kind="thinking"
-		data-testid="thinking-summary"
-	>
-		<summary
-			class="hover:text-fg-secondary flex min-h-6 cursor-pointer list-none items-center gap-2 transition-[color,border-color]"
-		>
-			<ExpandMark>
-				<Icon name="brain" size={14} />
-			</ExpandMark>
-			<span>{thoughtLabel(item.durationSeconds)}</span>
-		</summary>
-		<div
-			class="text-fg-secondary pt-1 pb-2 pl-5.5 text-xs leading-relaxed select-text"
-			data-testid="thinking-summary-text"
-		>
-			<MarkdownText
-				text={item.text}
-				onopenfile={transcript.openFileMention}
-				canopenfile={transcript.canOpenFileMention}
-			/>
-		</div>
-	</details>
+	<ThinkingRow
+		text={item.text}
+		live={false}
+		durationSeconds={item.durationSeconds}
+		enterKey={timelineKey(run, item.contentId)}
+	/>
 {:else if item.kind === 'plan'}
 	<div
 		class="bg-surface-50 w-full rounded-md px-3 py-2.5"

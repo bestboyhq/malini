@@ -133,10 +133,11 @@ export class ClaudeTranscript {
 				const block = event['content_block'];
 				if (typeof index !== 'number' || !isRecord(block)) return;
 				if (block['type'] === 'text' || block['type'] === 'thinking') {
-					this.#streamBlocks.set(index, {
-						kind: block['type'],
-						id: contentId(this.#streamMessageId, index),
-					});
+					const id = contentId(this.#streamMessageId, index);
+					this.#streamBlocks.set(index, { kind: block['type'], id });
+					if (block['type'] === 'thinking') {
+						this.#emit({ type: 'thinking.delta', runId: this.#runId, contentId: id, text: '' });
+					}
 				} else if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
 					this.#streamBlocks.set(index, { kind: 'tool', id: block['id'] });
 					this.#toolNames.set(block['id'], { name: String(block['name'] ?? ''), input: {} });
@@ -211,16 +212,12 @@ export class ClaudeTranscript {
 					contentId: contentId(messageId, index),
 					text: block['text'],
 				});
-			} else if (
-				block['type'] === 'thinking' &&
-				typeof block['thinking'] === 'string' &&
-				block['thinking']
-			) {
+			} else if (block['type'] === 'thinking') {
 				this.#emit({
 					type: 'thinking.message',
 					runId: this.#runId,
 					contentId: contentId(messageId, index),
-					text: block['thinking'],
+					text: typeof block['thinking'] === 'string' ? block['thinking'] : '',
 				});
 			}
 		}

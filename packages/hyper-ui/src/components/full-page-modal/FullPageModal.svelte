@@ -78,7 +78,7 @@
 		use:overlaySurface
 	>
 		<div
-			class="animate-fadeIn absolute inset-0 bg-black/80"
+			class={['absolute inset-0 bg-black/80', isClosing ? 'animate-fadeOut' : 'animate-fadeIn']}
 			role="presentation"
 			onclick={startClose}
 		></div>
@@ -95,7 +95,10 @@
 				<Tooltip
 					content="Close"
 					placement="bottom"
-					class="pointer-events-auto absolute top-12 right-2 z-10 sm:right-5"
+					class={[
+						'pointer-events-auto absolute top-12 right-2 z-10 sm:right-5',
+						isClosing ? 'animate-fadeOut' : 'animate-fadeIn',
+					]}
 				>
 					<button type="button" class="icon-btn fcc p-0.5" onclick={startClose} aria-label="Close">
 						<Icon name="close" size={40} class="text-white" />
@@ -111,10 +114,10 @@
 				<div
 					class={[
 						'styled-scrollbar flex h-full w-full flex-col rounded-lg bg-transparent',
-						isClosing ? 'animate-scaleOut' : 'animate-scaleIn',
+						isClosing && 'animate-scaleOut',
 					]}
 				>
-					<div class="animate-fadeIn h-full w-full flex-1 px-4 pb-4">
+					<div class="h-full w-full flex-1 px-4 pb-4">
 						{@render children()}
 					</div>
 				</div>

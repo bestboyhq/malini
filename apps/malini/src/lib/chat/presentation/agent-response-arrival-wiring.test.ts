@@ -6,10 +6,6 @@ const buffered = readFileSync(
 	new URL('./BufferedStreamingMarkdown.svelte', import.meta.url),
 	'utf8',
 );
-const bufferedText = readFileSync(
-	new URL('./BufferedStreamingText.svelte', import.meta.url),
-	'utf8',
-);
 const messages = readChatMessageListSource(new URL('./', import.meta.url));
 const status = readFileSync(new URL('./RunStatusLine.svelte', import.meta.url), 'utf8');
 const arrivalMotion = readFileSync(new URL('./arrival-motion.ts', import.meta.url), 'utf8');
@@ -26,14 +22,15 @@ describe('agent response arrival wiring', () => {
 	});
 
 	it('uses compact staged activity instead of opening raw thought text by default', () => {
-		const liveThinking =
-			messages.match(/<details[\s\S]*?data-testid="thinking-live"[\s\S]*?<\/details>/u)?.[0] ?? '';
-		expect(liveThinking).not.toMatch(/<details\s+open/u);
-		expect(liveThinking).toContain('data-testid="thinking-live-preview"');
-		expect(liveThinking).toContain('thinkingPreview(block.text)');
-		expect(liveThinking).toContain('<BufferedStreamingText text={block.text} />');
-		expect(bufferedText).toContain('untrack(() =>');
-		expect(bufferedText).toContain('intervalMs = 220');
+		const thinking =
+			messages.match(
+				/<details[\s\S]*?data-testid=\{live \? 'thinking-live'[\s\S]*?<\/details>/u,
+			)?.[0] ?? '';
+		expect(thinking).toContain('bind:open');
+		expect(thinking).not.toMatch(/<details\s+open/u);
+		expect(thinking).toContain("data-testid={live ? 'thinking-live-preview' : 'thinking-outcome'}");
+		expect(messages).toContain('const steps = $derived(open ? thinkingSteps(text) : []);');
+		expect(messages).toContain('<ThinkingRow');
 		expect(messages).toContain(
 			'use:stageEnter={blockKey(sessionId, block.runId, block.contentId)}',
 		);
@@ -55,7 +52,7 @@ describe('agent response arrival wiring', () => {
 		const rowSites = messages.match(/use:stageEnter=/gu) ?? [];
 		expect(rowSites.length).toBeGreaterThanOrEqual(12);
 		for (const marker of [
-			'data-message-kind="thinking"',
+			"data-message-kind={live ? 'thinking-live' : 'thinking'}",
 			'data-message-kind="plan"',
 			'data-message-kind="assistant"',
 			'data-message-kind="tool"',
@@ -80,7 +77,7 @@ describe('agent response arrival wiring', () => {
 			/function resettleTranscript\(\)[\s\S]{0,300}transcriptSettled = true;/u,
 		);
 		expect(messages).toContain('use:stageEnter={timelineKey(run, item.contentId ?? item.key)}');
-		expect(messages).toContain('use:stageEnter={timelineKey(run, item.contentId)}');
+		expect(messages).toContain('enterKey={timelineKey(run, item.contentId)}');
 	});
 
 	it('never animates a layout property in the transcript', () => {

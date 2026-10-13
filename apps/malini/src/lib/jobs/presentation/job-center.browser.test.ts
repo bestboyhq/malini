@@ -232,10 +232,11 @@ describe('the Job center', () => {
 		expect(rowTexts(list ?? document)).toEqual(['Update the changelog · Signal Arc 30m ago']);
 	});
 
-	it('tells why a job needs you when its row is focused', async () => {
+	it('tells why a job needs you when its row gets keyboard focus', async () => {
 		seedMixedRuns();
 		await mountCenter();
 
+		document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
 		requireControl(/^Open transcript: Address bot review/u).focus();
 
 		await vi.waitFor(() =>

@@ -32,20 +32,16 @@ export const ACTIVITY_GROUP_MIN_ITEMS = 2;
 
 export const ACTIVITY_GROUP_DETAIL_MAX_CHARS = 64;
 
-type MachineActivityItem = Extract<
-	RunTimelineItem,
-	{ kind: 'tool' | 'command' | 'file' | 'thought' }
->;
+type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' | 'file' }>;
 
 type ItemStatus = 'running' | 'completed' | 'failed';
 
-type ActivityVerbStem = 'explore' | 'edit' | 'run' | 'think' | 'work';
+type ActivityVerbStem = 'explore' | 'edit' | 'run' | 'work';
 
 const VERB_FORMS: Readonly<Record<ActivityVerbStem, { past: string; present: string }>> = {
 	explore: { past: 'Explored', present: 'Exploring' },
 	edit: { past: 'Edited', present: 'Editing' },
 	run: { past: 'Ran', present: 'Running' },
-	think: { past: 'Thought', present: 'Thinking' },
 	work: { past: 'Worked', present: 'Working' },
 };
 
@@ -86,8 +82,7 @@ function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	return (
 		(item.kind === 'tool' && !isBackgroundAgent(item.tool.name, item.tool.input)) ||
 		item.kind === 'command' ||
-		item.kind === 'file' ||
-		item.kind === 'thought'
+		item.kind === 'file'
 	);
 }
 
@@ -111,7 +106,7 @@ function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGrou
 	};
 }
 
-function itemActionKind(item: MachineActivityItem): ToolActionKind | null {
+function itemActionKind(item: MachineActivityItem): ToolActionKind {
 	switch (item.kind) {
 		case 'tool':
 			return toolActionKind(item.tool.name, item.tool.input);
@@ -119,8 +114,6 @@ function itemActionKind(item: MachineActivityItem): ToolActionKind | null {
 			return 'command';
 		case 'file':
 			return 'edit';
-		case 'thought':
-			return null;
 	}
 }
 
@@ -161,16 +154,11 @@ function groupStatus(statuses: readonly ItemStatus[]): ItemStatus {
 	return 'completed';
 }
 
-function distinct(actions: readonly (ToolActionKind | null)[]): ToolActionKind[] {
-	const kinds: ToolActionKind[] = [];
-	for (const action of actions) {
-		if (action !== null && !kinds.includes(action)) kinds.push(action);
-	}
-	return kinds;
+function distinct(actions: readonly ToolActionKind[]): ToolActionKind[] {
+	return [...new Set(actions)];
 }
 
 function verbStem(actionKinds: readonly ToolActionKind[]): ActivityVerbStem {
-	if (actionKinds.length === 0) return 'think';
 	if (actionKinds.includes('edit')) return 'edit';
 	if (actionKinds.every((kind) => kind === 'read' || kind === 'search')) return 'explore';
 	if (actionKinds.every((kind) => kind === 'command')) return 'run';
@@ -179,7 +167,7 @@ function verbStem(actionKinds: readonly ToolActionKind[]): ActivityVerbStem {
 
 function groupDetail(
 	items: readonly MachineActivityItem[],
-	actions: readonly (ToolActionKind | null)[],
+	actions: readonly ToolActionKind[],
 ): string {
 	const files = distinctFiles(items, actions);
 	let searches = 0;
@@ -198,17 +186,14 @@ function groupDetail(
 	if (searches > 0) clauses.push(pluralize(searches, 'search', 'searches'));
 	if (commands > 0) clauses.push(`ran ${pluralize(commands, 'command')}`);
 
-	if (clauses.length === 0) {
-		const seconds = actions.every((action) => action === null) ? thoughtSeconds(items) : null;
-		clauses.push(seconds === null ? pluralize(items.length, 'step') : `for ${seconds}s`);
-	}
+	if (clauses.length === 0) clauses.push(pluralize(items.length, 'step'));
 
 	return capDetail(clauses);
 }
 
 function distinctFiles(
 	items: readonly MachineActivityItem[],
-	actions: readonly (ToolActionKind | null)[],
+	actions: readonly ToolActionKind[],
 ): string[] {
 	const paths = new Set<string>();
 	for (const [index, item] of items.entries()) {
@@ -225,19 +210,6 @@ function filePathOf(item: MachineActivityItem, action: ToolActionKind | null): s
 	if (item.kind !== 'tool') return null;
 	if (action !== 'read' && action !== 'edit') return null;
 	return stringField(item.tool.input, TOOL_PATH_KEYS);
-}
-
-function thoughtSeconds(items: readonly MachineActivityItem[]): number | null {
-	let total = 0;
-	let measured = false;
-	for (const item of items) {
-		if (item.kind !== 'thought' || item.durationSeconds === null) continue;
-		total += item.durationSeconds;
-		measured = true;
-	}
-	if (!measured) return null;
-	const rounded = Math.round(total);
-	return rounded >= 1 ? rounded : null;
 }
 
 function capDetail(clauses: readonly string[]): string {

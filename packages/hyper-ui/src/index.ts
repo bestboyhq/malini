@@ -24,6 +24,7 @@ export * from './components/scrollable-div';
 export * from './components/select';
 export * from './components/sensitive';
 export * from './components/sheet';
+export * from './components/shimmer-text';
 export * from './components/skeleton';
 export * from './components/status-pill';
 export * from './components/surface-card';
