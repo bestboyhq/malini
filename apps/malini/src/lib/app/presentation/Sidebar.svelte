@@ -666,7 +666,7 @@
 							>
 								<div class="relative h-5 w-5 shrink-0">
 									<span
-										class="absolute inset-0 grid place-items-center group-focus-within/repo:opacity-0 group-hover/repo:opacity-0"
+										class="absolute inset-0 grid place-items-center group-hover/repo:opacity-0 group-has-focus-visible/repo:opacity-0"
 										aria-hidden="true"
 										data-testid="sidebar-repository-icon"
 									>
@@ -683,7 +683,7 @@
 											ariaLabel={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
 											ariaExpanded={!collapsed}
 											ariaControls={`repository-workstreams-${row.repo.id}`}
-											class="text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-focus-within/repo:pointer-events-auto group-focus-within/repo:opacity-100 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+											class="text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
 											data-testid="sidebar-repository-disclosure"
 										>
 											<Icon
@@ -736,7 +736,7 @@
 										iconOnly={!removal.armed}
 										class={[
 											!removal.armed &&
-												'pointer-events-none opacity-0 transition-none group-focus-within/repo:pointer-events-auto group-focus-within/repo:opacity-100 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100',
+												'pointer-events-none opacity-0 transition-none group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100',
 										]}
 										disabled={!onRemoveRepository || removal.blocked}
 										ariaLabel={removal.ariaLabel}
@@ -843,7 +843,7 @@
 													aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
 													aria-busy={workstream.id === pendingWorkstreamId || undefined}
 													class={[
-														'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none group-focus-within/row:pr-8 group-hover/row:pr-8',
+														'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
 														isSelected
 															? 'sidebar-row-active'
 															: [
@@ -956,7 +956,7 @@
 														</Tooltip>
 														{#if hasDraft}
 															<span
-																class="text-fg-tertiary shrink-0 group-focus-within/row:hidden group-hover/row:hidden"
+																class="text-fg-tertiary shrink-0 group-hover/row:hidden group-has-focus-visible/row:hidden"
 																aria-hidden="true"
 																data-testid="sidebar-workstream-draft"
 															>
@@ -965,7 +965,7 @@
 														{/if}
 														{#if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
 															<span
-																class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-focus-within/row:hidden group-hover/row:hidden"
+																class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
 																aria-label={`${changeTotals.additions} additions, ${changeTotals.deletions} deletions`}
 																data-testid="sidebar-workstream-change-totals"
 																data-additions={changeTotals.additions}
@@ -980,7 +980,7 @@
 															</span>
 														{:else if changeTotals && changeTotals.files > 0}
 															<span
-																class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-focus-within/row:hidden group-hover/row:hidden"
+																class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
 																data-testid="sidebar-workstream-changed-files"
 																data-files={changeTotals.files}
 															>
@@ -998,7 +998,7 @@
 													<IconButton
 														variant="ghost"
 														size="sm"
-														class="pointer-events-none opacity-0 transition-none group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100"
+														class="pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100"
 														disabled={!onArchiveWorkstream || lifecycle.kind === 'blocked'}
 														ariaLabel={lifecycle.ariaLabel}
 														data-testid="sidebar-archive-workstream"
