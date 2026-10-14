@@ -1,3 +1,5 @@
+import type { BrowserTabArgs } from '$contract/browser';
+
 export interface BrowserPageInfo {
 	readonly url: string;
 	readonly title: string;
@@ -10,16 +12,16 @@ export interface BrowserScreenshotFile {
 }
 
 export interface BrowserPlatform {
-	open(workstreamId: string, url: string): Promise<BrowserPageInfo>;
-	screenshot(workstreamId: string, worktree: string): Promise<BrowserScreenshotFile>;
-	click(workstreamId: string, selector: string): Promise<BrowserPageInfo>;
+	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
+	screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile>;
+	click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo>;
 	type(
-		workstreamId: string,
+		tab: BrowserTabArgs,
 		selector: string,
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo>;
-	goBack(workstreamId: string): Promise<BrowserPageInfo>;
-	goForward(workstreamId: string): Promise<BrowserPageInfo>;
-	reload(workstreamId: string): Promise<BrowserPageInfo>;
+	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 }

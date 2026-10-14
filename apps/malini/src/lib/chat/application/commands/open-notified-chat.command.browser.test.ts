@@ -20,7 +20,6 @@ const CREDENTIALS = {
 
 afterEach(async () => {
 	await resetChatState();
-	workstreamTabs.reset();
 });
 
 describe('opening a chat from its notification', () => {

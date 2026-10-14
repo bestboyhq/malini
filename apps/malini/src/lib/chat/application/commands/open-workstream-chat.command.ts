@@ -1,4 +1,3 @@
-import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
@@ -12,7 +11,6 @@ function openWorkstreamChatCommand(workstreamId: string): void {
 		chatRoute.readSessionParam(),
 	);
 	agentPromptQueue.hydrate(workstreamId);
-	agentActivity.clear(workstreamId);
 	chatSessionStore.sessionId =
 		cachedSessionId && transcriptAggregate.isReady(cachedSessionId) ? cachedSessionId : null;
 	chatSessionStore.emptySessionMode = 'setup';

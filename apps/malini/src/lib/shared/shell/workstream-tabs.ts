@@ -21,7 +21,7 @@ export type WorkstreamTabs = Readonly<{
 	activeDocumentId: string | null;
 	routedChatId: string | null;
 	anchorKey: string | null;
-	fresh: Readonly<{ afterKey: string | null }> | null;
+	fresh: boolean;
 }>;
 
 export const NO_WORKSTREAM_TABS: WorkstreamTabs = {
@@ -29,7 +29,7 @@ export const NO_WORKSTREAM_TABS: WorkstreamTabs = {
 	activeDocumentId: null,
 	routedChatId: null,
 	anchorKey: null,
-	fresh: null,
+	fresh: false,
 };
 
 export function workstreamTabKey(tab: WorkstreamTab): string {
@@ -109,7 +109,7 @@ export function startWorkstreamFreshChat(state: WorkstreamTabs): WorkstreamTabs 
 	return settle({
 		...state,
 		activeDocumentId: null,
-		fresh: state.fresh ?? { afterKey: currentTabKey(state) ?? state.anchorKey },
+		fresh: true,
 	});
 }
 
@@ -122,13 +122,15 @@ export function syncWorkstreamChats(
 	const added = chatIds
 		.filter((id) => !known.has(id))
 		.map((id): WorkstreamChatTab => ({ kind: 'chat', id }));
-	const fresh = routedChatId === null ? (state.fresh ?? { afterKey: state.anchorKey }) : null;
+	const fresh =
+		routedChatId === null ||
+		(state.fresh && !known.has(routedChatId) && !chatIds.includes(routedChatId));
 	if (added.length === 0 && routedChatId === state.routedChatId && fresh === state.fresh) {
 		return state;
 	}
 	return settle({
 		...state,
-		tabs: insertAfter(state.tabs, state.fresh ? state.fresh.afterKey : state.anchorKey, added),
+		tabs: insertAfter(state.tabs, state.fresh ? null : state.anchorKey, added),
 		routedChatId,
 		fresh,
 	});
@@ -150,9 +152,7 @@ export function readWorkstreamTabs(value: unknown): WorkstreamTabs {
 		activeDocumentId: typeof value.activeDocumentId === 'string' ? value.activeDocumentId : null,
 		routedChatId: typeof value.routedChatId === 'string' ? value.routedChatId : null,
 		anchorKey: typeof value.anchorKey === 'string' ? value.anchorKey : null,
-		fresh: isRecord(value.fresh)
-			? { afterKey: typeof value.fresh.afterKey === 'string' ? value.fresh.afterKey : null }
-			: null,
+		fresh: value.fresh === true,
 	};
 	return settle({
 		...state,

@@ -1,64 +1,64 @@
 import type {
 	BrowserBounds,
 	BrowserElementPrompt,
-	BrowserPageOpened,
 	BrowserState,
+	BrowserTabArgs,
 } from '$contract/browser';
-import { BROWSER_PAGE_OPENED_CHANNEL, BROWSER_STATE_CHANGED_CHANNEL } from '$contract/events';
+import { BROWSER_STATE_CHANGED_CHANNEL, BROWSER_TAB_OPENED_CHANNEL } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class BrowserService {
-	state(workstreamId: string): Promise<BrowserState> {
-		return invoke('browser.state', { workstreamId });
+	state(tab: BrowserTabArgs): Promise<BrowserState> {
+		return invoke('browser.state', tab);
 	}
 
 	onStateChanged(listener: (state: BrowserState) => void): () => void {
 		return onPlatformEvent(BROWSER_STATE_CHANGED_CHANNEL, listener);
 	}
 
-	onPageOpened(listener: (opened: BrowserPageOpened) => void): () => void {
-		return onPlatformEvent(BROWSER_PAGE_OPENED_CHANNEL, listener);
+	onTabOpened(listener: (tab: BrowserTabArgs) => void): () => void {
+		return onPlatformEvent(BROWSER_TAB_OPENED_CHANNEL, listener);
 	}
 
-	show(workstreamId: string, bounds: BrowserBounds): Promise<void> {
-		return invoke('browser.show', { workstreamId, bounds });
+	show(tab: BrowserTabArgs, bounds: BrowserBounds): Promise<void> {
+		return invoke('browser.show', { ...tab, bounds });
 	}
 
-	hide(workstreamId: string): Promise<void> {
-		return invoke('browser.hide', { workstreamId });
+	hide(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.hide', tab);
 	}
 
-	snapshot(workstreamId: string): Promise<string | null> {
-		return invoke('browser.snapshot', { workstreamId });
+	snapshot(tab: BrowserTabArgs): Promise<string | null> {
+		return invoke('browser.snapshot', tab);
 	}
 
-	navigate(workstreamId: string, url: string): Promise<void> {
-		return invoke('browser.navigate', { workstreamId, url });
+	navigate(tab: BrowserTabArgs, url: string): Promise<void> {
+		return invoke('browser.navigate', { ...tab, url });
 	}
 
-	goBack(workstreamId: string): Promise<void> {
-		return invoke('browser.go-back', { workstreamId });
+	goBack(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.go-back', tab);
 	}
 
-	goForward(workstreamId: string): Promise<void> {
-		return invoke('browser.go-forward', { workstreamId });
+	goForward(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.go-forward', tab);
 	}
 
-	reload(workstreamId: string): Promise<void> {
-		return invoke('browser.reload', { workstreamId });
+	reload(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.reload', tab);
 	}
 
-	pickElement(workstreamId: string): Promise<BrowserElementPrompt | null> {
-		return invoke('browser.pick-element', { workstreamId });
+	pickElement(tab: BrowserTabArgs): Promise<BrowserElementPrompt | null> {
+		return invoke('browser.pick-element', tab);
 	}
 
-	cancelPick(workstreamId: string): Promise<void> {
-		return invoke('browser.cancel-pick', { workstreamId });
+	cancelPick(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.cancel-pick', tab);
 	}
 
-	close(workstreamId: string): Promise<void> {
-		return invoke('browser.close', { workstreamId });
+	close(tab: BrowserTabArgs): Promise<void> {
+		return invoke('browser.close', tab);
 	}
 }
 

@@ -13,7 +13,9 @@ import {
 	listSessions,
 	openWorkstream,
 	seedWorkstream,
+	selectChat,
 	sendPrompt,
+	startFreshChat,
 } from './harness';
 
 function conversation(
@@ -425,6 +427,39 @@ test('a new fork is named New chat again once the earlier fork tab is closed', a
 			await expect(newChatTab).toHaveCount(0);
 		}
 		await expect(strip.getByRole('tab', { name: /New chat \d+$/u })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a finished chat forks while another chat in its workstream is still running', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-fork-busy-ws', 'Fork busy');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Explain the login flow');
+		await expectAssistantReply(page);
+		const finished = currentSessionId(page);
+		if (!finished) throw new Error('the first chat did not commit a session id');
+
+		await startFreshChat(page);
+		await sendPrompt(page, 'EDIT:b.txt HANG');
+		await expect
+			.poll(async () => (await listSessions(page, workstreamId)).map(({ status }) => status))
+			.toContain('running');
+		await selectChat(page, finished);
+
+		const fork = page.getByRole('button', { name: 'Fork to new chat' });
+		await expect(fork).toBeEnabled();
+		await fork.click();
+		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(finished);
+		await expect(
+			page.getByTestId('chat-composer-input').getByLabel(/^Attached file: Transcript of /u),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

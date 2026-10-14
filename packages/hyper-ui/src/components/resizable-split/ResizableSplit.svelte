@@ -141,12 +141,16 @@
 
 	function onPointerMove(event: PointerEvent): void {
 		if (!dragState || dragState.pointerId !== event.pointerId) return;
+		if (event.buttons === 0) {
+			endDrag(event);
+			return;
+		}
 		const delta =
 			axis === 'horizontal' ? event.clientX - dragState.startX : event.clientY - dragState.startY;
 		applySize(dragState.startSize + delta);
 	}
 
-	function onPointerUp(event: PointerEvent): void {
+	function endDrag(event: PointerEvent): void {
 		if (!dragState || dragState.pointerId !== event.pointerId) return;
 		const target = event.currentTarget;
 		if (target instanceof HTMLButtonElement && target.hasPointerCapture(event.pointerId)) {
@@ -295,8 +299,9 @@
 			data-panel-id={panelId}
 			onpointerdown={onPointerDown}
 			onpointermove={onPointerMove}
-			onpointerup={onPointerUp}
-			onpointercancel={onPointerUp}
+			onpointerup={endDrag}
+			onpointercancel={endDrag}
+			onlostpointercapture={endDrag}
 			ondblclick={resetSize}
 			onkeydown={onKeyDown}
 		></button>
@@ -326,14 +331,14 @@
 
 	.resizable-split-handle[data-axis='horizontal'] {
 		width: 8px;
-		margin-right: -8px;
+		margin-inline: -4px;
 		height: 100%;
 		cursor: col-resize;
 	}
 
 	.resizable-split-handle[data-axis='vertical'] {
 		height: 8px;
-		margin-bottom: -8px;
+		margin-block: -4px;
 		width: 100%;
 		cursor: row-resize;
 	}
@@ -347,14 +352,14 @@
 	.resizable-split-handle[data-axis='horizontal']::after {
 		top: 0;
 		bottom: 0;
-		left: 0;
+		left: 4px;
 		width: 1px;
 	}
 
 	.resizable-split-handle[data-axis='vertical']::after {
 		left: 0;
 		right: 0;
-		top: 0;
+		top: 4px;
 		height: 1px;
 	}
 

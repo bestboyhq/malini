@@ -1,46 +1,47 @@
 import { tick } from 'svelte';
-import type { BrowserBounds } from '$contract/browser';
+import type { BrowserBounds, BrowserTabArgs } from '$contract/browser';
 
 import type { BrowserPlacement } from '../../domain/browser-placement';
+import { browserTabKey } from '../../domain/browser-tab';
 import { browserService } from '../../infrastructure/services/browser.service';
 import { browserViewStore } from '../../infrastructure/stores/browser-view.store.svelte';
 
 export { placeBrowserViewCommand };
 
-function placeBrowserViewCommand(workstreamId: string, placement: BrowserPlacement): void {
-	const turn = browserViewStore.place(workstreamId, placement);
+function placeBrowserViewCommand(tab: BrowserTabArgs, placement: BrowserPlacement): void {
+	const turn = browserViewStore.place(browserTabKey(tab), placement);
 	if (turn === null) return;
-	if (placement.kind === 'shown') void show(workstreamId, placement.bounds, turn);
-	else if (placement.kind === 'covered') void cover(workstreamId, turn);
-	else void hide(workstreamId);
+	if (placement.kind === 'shown') void show(tab, placement.bounds, turn);
+	else if (placement.kind === 'covered') void cover(tab, turn);
+	else void hide(tab);
 }
 
-async function show(workstreamId: string, bounds: BrowserBounds, turn: number): Promise<void> {
+async function show(tab: BrowserTabArgs, bounds: BrowserBounds, turn: number): Promise<void> {
 	try {
-		await browserService.show(workstreamId, bounds);
+		await browserService.show(tab, bounds);
 	} catch {
 		return;
 	}
-	if (!browserViewStore.isLatest(workstreamId, turn)) return;
-	browserViewStore.setSnapshot(workstreamId, null);
+	if (!browserViewStore.isLatest(browserTabKey(tab), turn)) return;
+	browserViewStore.setSnapshot(browserTabKey(tab), null);
 }
 
-async function cover(workstreamId: string, turn: number): Promise<void> {
-	const snapshot = await paintedSnapshot(workstreamId);
-	if (!browserViewStore.isLatest(workstreamId, turn)) return;
-	browserViewStore.setSnapshot(workstreamId, snapshot);
+async function cover(tab: BrowserTabArgs, turn: number): Promise<void> {
+	const snapshot = await paintedSnapshot(tab);
+	if (!browserViewStore.isLatest(browserTabKey(tab), turn)) return;
+	browserViewStore.setSnapshot(browserTabKey(tab), snapshot);
 	if (snapshot !== null) await nextPaint();
-	if (browserViewStore.isLatest(workstreamId, turn)) await hideView(workstreamId);
+	if (browserViewStore.isLatest(browserTabKey(tab), turn)) await hideView(tab);
 }
 
-async function hide(workstreamId: string): Promise<void> {
-	browserViewStore.setSnapshot(workstreamId, null);
-	await hideView(workstreamId);
+async function hide(tab: BrowserTabArgs): Promise<void> {
+	browserViewStore.setSnapshot(browserTabKey(tab), null);
+	await hideView(tab);
 }
 
-async function paintedSnapshot(workstreamId: string): Promise<string | null> {
+async function paintedSnapshot(tab: BrowserTabArgs): Promise<string | null> {
 	try {
-		const snapshot = await browserService.snapshot(workstreamId);
+		const snapshot = await browserService.snapshot(tab);
 		if (snapshot === null) return null;
 		const image = new Image();
 		image.src = snapshot;
@@ -51,9 +52,9 @@ async function paintedSnapshot(workstreamId: string): Promise<string | null> {
 	}
 }
 
-async function hideView(workstreamId: string): Promise<void> {
+async function hideView(tab: BrowserTabArgs): Promise<void> {
 	try {
-		await browserService.hide(workstreamId);
+		await browserService.hide(tab);
 	} catch {
 		return;
 	}

@@ -5,6 +5,7 @@ import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.serv
 import { chatOccupancy } from '$lib/chat/infrastructure/services/chat-occupancy.service';
 import { promptDelivery } from '$lib/chat/infrastructure/services/prompt-delivery.service';
 import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svelte';
+import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
 import { queueErrorsStore } from '$lib/chat/infrastructure/stores/queue-errors.store.svelte';
 import { queueSendingStore } from '$lib/chat/infrastructure/stores/queue-sending.store.svelte';
 import { toast } from '$hyper-ui/components/toast';
@@ -31,12 +32,17 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 		if (outcome !== 'busy-retry') queueSendingStore.release(workstreamId, id);
 		return;
 	}
+	const holderPending = pendingPromptStore.for(holder);
+	if (holderPending === null && target.targetSessionId === holder) {
+		promptDelivery.showInTranscript(holder, entry);
+	}
 	try {
-		await agentRunner.cancelRun(holder);
+		await agentRunner.cancelRun(holder, holderPending?.runId ?? null);
 	} catch (error) {
 		const message = errorMessage(error, 'Failed to send queued prompt');
 		const failure = classifyPromptDispatchFailure({ stage: 'cancel', message });
 		if (failure !== 'already-running' && failure !== 'cancel-race') {
+			promptDelivery.withdrawFromTranscript(holder, id);
 			queueSendingStore.release(workstreamId, id);
 			queueErrorsStore.set(id, message);
 			if (chatRoute.workstreamId === workstreamId) {
@@ -46,6 +52,7 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 		}
 	}
 	if (chatRoute.workstreamId !== workstreamId) {
+		promptDelivery.withdrawFromTranscript(holder, id);
 		queueSendingStore.release(workstreamId, id);
 		return;
 	}

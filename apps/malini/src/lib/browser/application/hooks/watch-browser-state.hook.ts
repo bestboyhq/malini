@@ -7,6 +7,6 @@ export { watchBrowserStateHook };
 function watchBrowserStateHook(): () => void {
 	return browserService.onStateChanged((state) => {
 		browserStatesAggregate.accept(state);
-		rememberBrowserPage(state.workstreamId, state.url);
+		rememberBrowserPage(state, state.url);
 	});
 }

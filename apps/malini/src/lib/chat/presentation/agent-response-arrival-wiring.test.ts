@@ -39,7 +39,7 @@ describe('agent response arrival wiring', () => {
 		expect(status).toContain('<BusyIcon');
 		expect(status).not.toContain('Tooltip');
 		const openRun = messages.slice(
-			messages.indexOf('{#if isLastRun && run.terminal === null}'),
+			messages.indexOf('{#if run.runId === openRunId}'),
 			messages.indexOf("{#if run.terminal !== null && run.terminal !== 'completed'}"),
 		);
 		expect(openRun).toContain('<RunStatusLine');

@@ -1,3 +1,4 @@
+import type { BrowserTabArgs } from '$contract/browser';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 
@@ -6,12 +7,12 @@ import { browserService } from '../../infrastructure/services/browser.service';
 
 export { goBackBrowserCommand };
 
-function goBackBrowserCommand(workstreamId: string): void {
+function goBackBrowserCommand(tab: BrowserTabArgs): void {
 	void (async () => {
 		try {
-			await browserService.goBack(workstreamId);
+			await browserService.goBack(tab);
 		} catch (error) {
-			toast.error(browserFailure('Could not go back', error), aboutWorkstream(workstreamId));
+			toast.error(browserFailure('Could not go back', error), aboutWorkstream(tab.workstreamId));
 		}
 	})();
 }

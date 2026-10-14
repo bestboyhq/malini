@@ -1,5 +1,6 @@
 import type { SessionId } from '$lib/chat/domain/session';
 import { agentDraftScopeKey } from '$lib/chat/domain/draft';
+import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
 import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
@@ -19,6 +20,7 @@ function forgetChatCommand(workstreamId: string, sessionId: SessionId): void {
 	]);
 	agentDrafts.clear(draftScope);
 	sessionsAggregate.removeSession(sessionId);
+	agentActivity.clearChat(sessionId);
 	transcriptAggregate.forgetSession(sessionId);
 	transcriptAnchors.forget([sessionId]);
 	workstreamChatsPreloader.forgetChat(sessionId);

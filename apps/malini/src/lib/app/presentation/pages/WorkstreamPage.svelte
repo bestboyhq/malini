@@ -1,17 +1,18 @@
 <script module lang="ts">
-	import { browserInspectorPanel } from '$lib/browser/browser.api';
+	import type { BrowserElementPrompt } from '$contract/browser';
 	import { submitElementPromptCommand } from '$lib/chat/application/commands/submit-element-prompt.command';
 
-	const builtInPanels = [
-		browserInspectorPanel({
-			onElementPrompt: (workstreamId, picked) =>
-				submitElementPromptCommand({ requestId: crypto.randomUUID(), workstreamId, picked }),
-		}),
-	];
+	function submitElementPrompt(workstreamId: string, picked: BrowserElementPrompt): void {
+		submitElementPromptCommand({ requestId: crypto.randomUUID(), workstreamId, picked });
+	}
 </script>
 
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
+	import { loadBrowserTabsCommand } from '$lib/browser/application/commands/load-browser-tabs.command';
+	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
+	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
+	import { browserTabPanels } from '$lib/browser/browser.api';
 	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
@@ -47,6 +48,18 @@
 	import { page } from '$shared/router/state';
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
+	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
+	const builtInPanels = $derived(browserTabPanels(workstreamId, browserTabs, submitElementPrompt));
+	const panelActions = $derived([
+		{
+			id: 'new-browser-tab',
+			label: 'New browser tab',
+			icon: 'browser',
+			run: () => openBrowserTabCommand(workstreamId),
+		},
+	]);
+
+	$effect.pre(() => loadBrowserTabsCommand(workstreamId));
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
 	const repositoryScopeReady = $derived(workstreamsLoadedQuery.data);
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
@@ -141,4 +154,5 @@
 	onruntimeretry={retryRepositoryScope}
 	{toolbarEnd}
 	{builtInPanels}
+	{panelActions}
 />

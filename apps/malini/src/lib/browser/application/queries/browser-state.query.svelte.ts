@@ -5,8 +5,8 @@ import { browserStatesAggregate } from '../../infrastructure/aggregates/browser-
 export { browserStateQuery };
 
 class BrowserStateQuery {
-	public readonly data: (workstreamId: string) => BrowserState | null = $derived(
-		(workstreamId: string) => browserStatesAggregate.byWorkstream[workstreamId] ?? null,
+	public readonly data: (tabKey: string) => BrowserState | null = $derived(
+		(tabKey: string) => browserStatesAggregate.byTab[tabKey] ?? null,
 	);
 }
 

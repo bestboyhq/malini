@@ -7,7 +7,7 @@ export type AgentAttentionKind = 'completed' | 'input' | 'failed' | 'approval';
 export type AgentAttention = {
 	kind: AgentAttentionKind;
 	runId: string;
-	sessionId?: string;
+	sessionId: string;
 	updatedAt: number;
 };
 
@@ -26,7 +26,7 @@ export type AgentWorkstreamContext = {
 type AgentAttentionInput = {
 	event: AgentEvent;
 	runId: string;
-	sessionId?: string;
+	sessionId: string;
 	queueCount: number;
 	workstreamLabel: string;
 	repositoryFullName: string;
@@ -36,6 +36,22 @@ type AgentAttentionInput = {
 
 export function attentionNeedsUser(attention: AgentAttention | null): boolean {
 	return attention !== null && attention.kind !== 'completed';
+}
+
+export function mostPressingAttention(
+	attentions: readonly AgentAttention[],
+): AgentAttention | null {
+	let pressing: AgentAttention | null = null;
+	for (const attention of attentions) {
+		if (!pressing || pressesHarder(attention, pressing)) pressing = attention;
+	}
+	return pressing;
+}
+
+function pressesHarder(candidate: AgentAttention, current: AgentAttention): boolean {
+	const candidateNeedsUser = attentionNeedsUser(candidate);
+	if (candidateNeedsUser !== attentionNeedsUser(current)) return candidateNeedsUser;
+	return candidate.updatedAt > current.updatedAt;
 }
 
 function compact(value: string, max = 140): string {
@@ -64,7 +80,7 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 		return {
 			kind: 'approval',
 			runId: input.runId,
-			...(input.sessionId ? { sessionId: input.sessionId } : {}),
+			sessionId: input.sessionId,
 			updatedAt,
 			title: `${input.workstreamLabel} is waiting`,
 			body: compact(requestText) || context || 'Input required',
@@ -75,7 +91,7 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 		if (input.queueCount > 0) return null;
 		const run = {
 			runId: input.runId,
-			...(input.sessionId ? { sessionId: input.sessionId } : {}),
+			sessionId: input.sessionId,
 			updatedAt,
 		};
 		const report = parseTurnReport(input.event.summary);
@@ -109,7 +125,7 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 		return {
 			kind: 'failed',
 			runId: input.runId,
-			...(input.sessionId ? { sessionId: input.sessionId } : {}),
+			sessionId: input.sessionId,
 			updatedAt,
 			title: `${input.workstreamLabel} needs attention`,
 			body: compact(input.event.error) || context || 'Agent run failed',

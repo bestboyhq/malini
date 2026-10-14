@@ -1,3 +1,4 @@
+import type { BrowserTabArgs } from '$contract/browser';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 
@@ -8,16 +9,19 @@ import { loadBrowserStateCommand } from './load-browser-state.command';
 
 export { navigateBrowserCommand };
 
-function navigateBrowserCommand(workstreamId: string, address: string): void {
+function navigateBrowserCommand(tab: BrowserTabArgs, address: string): void {
 	const url = address.trim();
 	if (!url) return;
-	browserStatesAggregate.expect(workstreamId, url);
+	browserStatesAggregate.expect(tab, url);
 	void (async () => {
 		try {
-			await browserService.navigate(workstreamId, url);
+			await browserService.navigate(tab, url);
 		} catch (error) {
-			loadBrowserStateCommand(workstreamId);
-			toast.error(browserFailure(`Could not open ${url}`, error), aboutWorkstream(workstreamId));
+			loadBrowserStateCommand(tab);
+			toast.error(
+				browserFailure(`Could not open ${url}`, error),
+				aboutWorkstream(tab.workstreamId),
+			);
 		}
 	})();
 }

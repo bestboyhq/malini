@@ -16,6 +16,7 @@
 	import ExtensionDirectoryDetailPage from './ExtensionDirectoryDetailPage.svelte';
 	import ExtensionDirectoryPage from './ExtensionDirectoryPage.svelte';
 	import ExtensionInspectorShell from './ExtensionInspectorShell.svelte';
+	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { extensionDirectoryHref, extensionInspectorHref } from './extension-directory-navigation';
 
 	interface Props {
@@ -30,6 +31,7 @@
 		onruntimeretry: () => void;
 		toolbarEnd: Snippet;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
+		panelActions?: readonly InspectorPanelAction[];
 	}
 
 	let {
@@ -44,6 +46,7 @@
 		onruntimeretry,
 		toolbarEnd,
 		builtInPanels = [],
+		panelActions = [],
 	}: Props = $props();
 
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
@@ -145,6 +148,7 @@
 	addExtensionsActive={directoryOpen}
 	addExtensionsContent={directoryContent}
 	{toolbarEnd}
+	{panelActions}
 	onpanelselect={closeDirectory}
 	requestedPanelId={routePanelId}
 />

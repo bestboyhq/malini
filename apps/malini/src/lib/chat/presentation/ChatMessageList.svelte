@@ -8,9 +8,7 @@
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
 	import { keepWorkstreamFilesFreshHook } from '$lib/chat/application/hooks/keep-workstream-files-fresh.hook';
 	import { openFileMentionHook } from '$lib/chat/application/hooks/open-file-mention.hook';
-	import { previewWorkstreamImageCommand } from '$lib/chat/application/commands/preview-workstream-image.command';
-	import { releaseImagePreviewsCommand } from '$lib/chat/application/commands/release-image-previews.command';
-	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
+	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
 	import { fileMentionIndexQuery } from '$lib/chat/application/queries/file-mention-index.query.svelte';
 	import { resolveFileMention } from '$lib/chat/domain/file-mention-index';
 	import { finalizeStreamingHook } from '$lib/chat/application/hooks/finalize-streaming.hook';
@@ -114,9 +112,11 @@
 
 	let showUndone = $state(false);
 
+	const visibleRuns = $derived(
+		showUndone ? renderState.runs : renderState.runs.filter((run) => !run.superseded),
+	);
 	const runs = $derived.by(() => {
-		const projected = renderState.runs;
-		const visible = showUndone ? projected : projected.filter((run) => !run.superseded);
+		const visible = visibleRuns;
 		const runId = pendingPrompt?.runId;
 		if (!pendingPrompt || !runId) return visible;
 		if (visible.some((run) => run.runId === runId)) return visible;
@@ -239,23 +239,8 @@
 
 	$effect(() => keepWorkstreamFilesFreshHook(workstreamId));
 
-	const markdownImageOwner = newChatRequestId();
-	const markdownImageSource = $derived.by(() => {
-		const previews = imagePreviewQuery.owned(markdownImageOwner);
-		const id = workstreamId;
-		return (path: string): string | null => {
-			const preview = previews[path];
-			if (!preview) {
-				previewWorkstreamImageCommand({ owner: markdownImageOwner, workstreamId: id, path });
-			}
-			return preview?.status === 'ready' ? preview.src : null;
-		};
-	});
-
-	$effect(() => {
-		void workstreamId;
-		return () => releaseImagePreviewsCommand(markdownImageOwner);
-	});
+	const transcriptImageSource = workstreamImageSourceHook(() => workstreamId);
+	const markdownImageSource = $derived(transcriptImageSource());
 
 	let gallery = $state.raw<Readonly<{ images: readonly GalleryImage[]; startId: string }> | null>(
 		null,
@@ -330,7 +315,8 @@
 		});
 	}
 
-	const openRunId = $derived(isLatestRunOpen && latestRun ? latestRun.runId : null);
+	const latestVisibleRun = $derived(visibleRuns.at(-1) ?? null);
+	const openRunId = $derived(latestVisibleRun?.terminal === null ? latestVisibleRun.runId : null);
 
 	const persistedStreamingMembership = $derived(sessionProjectors.streaming.project(envelopes));
 
@@ -554,6 +540,9 @@
 		runUndo,
 		get workstreamRunInFlight() {
 			return workstreamRunInFlight;
+		},
+		get chatRunInFlight() {
+			return isLatestRunOpen;
 		},
 		get waitingForUser() {
 			return waitingForUser;
@@ -899,7 +888,7 @@
 								{/if}
 							{/each}
 
-							{#if isLastRun && run.terminal === null}
+							{#if run.runId === openRunId}
 								{#each liveThinkingBlocks as block (block.contentId)}
 									<ThinkingRow
 										text={block.text}
@@ -920,6 +909,7 @@
 											text={block.text}
 											class="select-text"
 											playbackKey={blockKey(sessionId, block.runId, block.contentId)}
+											flush={!isLastRun}
 											revealOnMount={!settle.isSettled()}
 											onopenfile={openFileMention}
 											canopenfile={canOpenFileMention}

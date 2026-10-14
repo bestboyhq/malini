@@ -36,6 +36,10 @@ export function createMainWindow(): BrowserWindow {
 		void shell.openExternal(url);
 		return { action: 'deny' };
 	});
+	window.webContents.on('will-navigate', (event, url) => {
+		event.preventDefault();
+		if (isWebLink(url)) void shell.openExternal(url);
+	});
 
 	if (DEV_SERVER_URL) {
 		void window.loadURL(DEV_SERVER_URL);
@@ -44,6 +48,10 @@ export function createMainWindow(): BrowserWindow {
 	}
 
 	return window;
+}
+
+function isWebLink(url: string): boolean {
+	return /^https?:/u.test(url) && !(DEV_SERVER_URL && url.startsWith(DEV_SERVER_URL));
 }
 
 function behindEverythingAtTheScreenEdge(): {

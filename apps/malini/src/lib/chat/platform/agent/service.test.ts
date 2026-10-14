@@ -133,11 +133,11 @@ describe('browser requests from the agent', () => {
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const calls: string[] = [];
 		const browser: BrowserAutomation = {
-			open: async (workstreamId, url) => {
-				calls.push(`open ${workstreamId} ${url}`);
+			open: async ({ workstreamId, tabId }, url) => {
+				calls.push(`open ${workstreamId} ${tabId} ${url}`);
 				return { url: 'http://localhost:5173/', title: 'Pricing' };
 			},
-			screenshot: async (workstreamId, worktree) => {
+			screenshot: async ({ workstreamId }, worktree) => {
 				calls.push(`screenshot ${workstreamId} ${worktree}`);
 				return {
 					path: '.malini/sandbox/screenshots/2026-10-11-104512.png',
@@ -145,23 +145,23 @@ describe('browser requests from the agent', () => {
 					url: 'http://localhost:5173/',
 				};
 			},
-			click: async (workstreamId, selector) => {
+			click: async ({ workstreamId }, selector) => {
 				calls.push(`click ${workstreamId} ${selector}`);
 				throw new Error(`Nothing on the page matches \`${selector}\`.`);
 			},
-			type: async (workstreamId, selector, text, submit) => {
+			type: async ({ workstreamId }, selector, text, submit) => {
 				calls.push(`type ${workstreamId} ${selector} ${text} ${submit}`);
 				return { url: 'http://localhost:5173/search?q=pro', title: 'Search' };
 			},
-			goBack: async (workstreamId) => {
+			goBack: async ({ workstreamId }) => {
 				calls.push(`back ${workstreamId}`);
 				return { url: 'http://localhost:5173/', title: 'Pricing' };
 			},
-			goForward: async (workstreamId) => {
+			goForward: async ({ workstreamId }) => {
 				calls.push(`forward ${workstreamId}`);
 				throw new Error('There is no page to go forward to.');
 			},
-			reload: async (workstreamId) => {
+			reload: async ({ workstreamId }) => {
 				calls.push(`reload ${workstreamId}`);
 				return { url: 'http://localhost:5173/', title: 'http://localhost:5173/' };
 			},
@@ -196,7 +196,7 @@ describe('browser requests from the agent', () => {
 
 		const worktree = realpathSync(checkout);
 		expect(calls).toEqual([
-			'open ws-1 localhost:5173',
+			'open ws-1 chat-sess-1 localhost:5173',
 			`screenshot ws-1 ${worktree}`,
 			'click ws-1 #buy',
 			'type ws-1 #q pro true',

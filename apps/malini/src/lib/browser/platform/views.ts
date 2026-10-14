@@ -1,4 +1,9 @@
-import type { BrowserBounds, BrowserElementPrompt, BrowserState } from '$contract/browser';
+import type {
+	BrowserBounds,
+	BrowserElementPrompt,
+	BrowserState,
+	BrowserTabArgs,
+} from '$contract/browser';
 import type { BrowserPageInfo, BrowserPlatform, BrowserScreenshotFile } from '../browser.platform';
 import {
 	clickSelector,
@@ -24,7 +29,7 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
 	stateChanged(state: BrowserState): void;
-	pageOpened(workstreamId: string): void;
+	tabOpened(tab: BrowserTabArgs): void;
 }
 
 interface OpenPick {
@@ -33,7 +38,9 @@ interface OpenPick {
 }
 
 interface Entry<W extends HostWindow> {
+	readonly tab: BrowserTabArgs;
 	readonly view: PageView<W>;
+	favicon: string | null;
 	window: W | null;
 	alive: boolean;
 	shown: boolean;
@@ -48,8 +55,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	constructor(private readonly deps: BrowserViewsDeps<W>) {}
 
-	show(workstreamId: string, bounds: BrowserBounds): void {
-		const entry = this.ensure(workstreamId);
+	show(tab: BrowserTabArgs, bounds: BrowserBounds): void {
+		const entry = this.ensure(tab);
 		const window = entry.window;
 		if (!window || window.isDestroyed()) return;
 		const zoom = window.webContents.getZoomFactor();
@@ -60,28 +67,28 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		entry.view.setBorderRadius(Math.round(CORNER_RADIUS * zoom));
 	}
 
-	hide(workstreamId: string): void {
-		const entry = this.entries.get(workstreamId);
+	hide(tab: BrowserTabArgs): void {
+		const entry = this.entries.get(tabKey(tab));
 		if (!entry?.alive || !entry.window || entry.window.isDestroyed()) return;
 		entry.shown = false;
 		entry.view.placeIn(entry.window, 'back');
 	}
 
-	navigate(workstreamId: string, url: string): void {
-		void this.ensure(workstreamId)
+	navigate(tab: BrowserTabArgs, url: string): void {
+		void this.ensure(tab)
 			.view.contents.loadURL(url)
 			.catch(() => undefined);
 	}
 
-	async goBack(workstreamId: string): Promise<BrowserPageInfo> {
-		const contents = this.page(workstreamId);
+	async goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		const contents = this.page(tab);
 		if (!contents.navigationHistory.canGoBack()) throw new Error('There is no page to go back to.');
 		contents.navigationHistory.goBack();
 		return settledPage(contents);
 	}
 
-	async goForward(workstreamId: string): Promise<BrowserPageInfo> {
-		const contents = this.page(workstreamId);
+	async goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		const contents = this.page(tab);
 		if (!contents.navigationHistory.canGoForward()) {
 			throw new Error('There is no page to go forward to.');
 		}
@@ -89,28 +96,29 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return settledPage(contents);
 	}
 
-	async reload(workstreamId: string): Promise<BrowserPageInfo> {
-		const contents = this.page(workstreamId);
+	async reload(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		const contents = this.page(tab);
 		contents.reload();
 		return settledPage(contents);
 	}
 
-	state(workstreamId: string): BrowserState {
-		const entry = this.entries.get(workstreamId);
-		if (entry?.alive) return stateOf(workstreamId, entry.view.contents);
+	state(tab: BrowserTabArgs): BrowserState {
+		const entry = this.entries.get(tabKey(tab));
+		if (entry?.alive) return stateOf(entry);
 		return {
-			workstreamId,
+			...tab,
 			url: entry?.lastUrl ?? '',
 			title: '',
+			favicon: null,
 			loading: false,
 			canGoBack: false,
 			canGoForward: false,
 		};
 	}
 
-	async snapshot(workstreamId: string): Promise<string | null> {
-		const contents = this.openContents(workstreamId);
-		const entry = this.entries.get(workstreamId);
+	async snapshot(tab: BrowserTabArgs): Promise<string | null> {
+		const contents = this.openContents(tab);
+		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) return null;
 		const image = await this.rendered(entry, () =>
 			contents.capturePage(undefined, { stayHidden: true }),
@@ -119,9 +127,9 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
-	async pick(workstreamId: string): Promise<BrowserElementPrompt | null> {
-		const contents = this.openContents(workstreamId);
-		const entry = this.entries.get(workstreamId);
+	async pick(tab: BrowserTabArgs): Promise<BrowserElementPrompt | null> {
+		const contents = this.openContents(tab);
+		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) throw new Error('Open a page before picking an element.');
 		while (entry.pick) {
 			entry.pick.controller.abort();
@@ -140,44 +148,51 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 	}
 
-	cancelPick(workstreamId: string): void {
-		this.entries.get(workstreamId)?.pick?.controller.abort();
+	cancelPick(tab: BrowserTabArgs): void {
+		this.entries.get(tabKey(tab))?.pick?.controller.abort();
 	}
 
-	destroy(workstreamId: string): void {
-		const entry = this.entries.get(workstreamId);
+	destroy(tab: BrowserTabArgs): void {
+		const entry = this.entries.get(tabKey(tab));
 		if (!entry) return;
-		this.entries.delete(workstreamId);
+		this.entries.delete(tabKey(tab));
 		this.dispose(entry);
 	}
 
-	async open(workstreamId: string, url: string): Promise<BrowserPageInfo> {
-		const { contents } = this.ensure(workstreamId).view;
+	destroyWorkstream(workstreamId: string): void {
+		for (const entry of [...this.entries.values()]) {
+			if (entry.tab.workstreamId === workstreamId) this.destroy(entry.tab);
+		}
+	}
+
+	async open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
+		const fresh = this.openContents(tab) === null;
+		const { contents } = this.ensure(tab).view;
 		await openUrl(contents, normalizeBrowserUrl(url));
-		this.deps.pageOpened(workstreamId);
+		if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
 		return pageInfo(contents);
 	}
 
-	async screenshot(workstreamId: string, worktree: string): Promise<BrowserScreenshotFile> {
-		const contents = this.openContents(workstreamId);
-		const entry = this.entries.get(workstreamId);
+	async screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile> {
+		const contents = this.openContents(tab);
+		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) throw new Error(NOTHING_OPEN);
 		return this.rendered(entry, () => saveScreenshot(contents, worktree, new Date()));
 	}
 
-	async click(workstreamId: string, selector: string): Promise<BrowserPageInfo> {
-		const contents = this.page(workstreamId);
+	async click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
+		const contents = this.page(tab);
 		await clickSelector(contents, selector);
 		return pageInfo(contents);
 	}
 
 	async type(
-		workstreamId: string,
+		tab: BrowserTabArgs,
 		selector: string,
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo> {
-		const contents = this.page(workstreamId);
+		const contents = this.page(tab);
 		await typeIntoSelector(contents, selector, text, submit);
 		return pageInfo(contents);
 	}
@@ -198,37 +213,43 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 	}
 
-	private page(workstreamId: string): PageContents {
-		const contents = this.openContents(workstreamId);
+	private page(tab: BrowserTabArgs): PageContents {
+		const contents = this.openContents(tab);
 		if (!contents) throw new Error(NOTHING_OPEN);
 		return contents;
 	}
 
-	private openContents(workstreamId: string): PageContents | null {
-		if (!this.entries.has(workstreamId)) return null;
-		const { contents } = this.ensure(workstreamId).view;
+	private openContents(tab: BrowserTabArgs): PageContents | null {
+		if (!this.entries.has(tabKey(tab))) return null;
+		const { contents } = this.ensure(tab).view;
 		const url = contents.getURL();
 		return url.length > 0 && url !== BLANK_PAGE ? contents : null;
 	}
 
-	private ensure(workstreamId: string): Entry<W> {
-		const existing = this.entries.get(workstreamId);
+	private ensure(tab: BrowserTabArgs): Entry<W> {
+		const existing = this.entries.get(tabKey(tab));
 		const entry =
 			existing?.alive && !existing.view.contents.isDestroyed()
 				? existing
-				: this.create(workstreamId, existing);
+				: this.create(tab, existing);
 		this.attach(entry);
 		return entry;
 	}
 
-	private create(workstreamId: string, previous: Entry<W> | undefined): Entry<W> {
-		if (!this.deps.workstreamExists(workstreamId)) {
-			throw new Error(`unknown workstream \`${workstreamId}\``);
+	private create(tab: BrowserTabArgs, previous: Entry<W> | undefined): Entry<W> {
+		if (!this.deps.workstreamExists(tab.workstreamId)) {
+			throw new Error(`unknown workstream \`${tab.workstreamId}\``);
 		}
 		if (previous) this.dispose(previous);
 		const entry: Entry<W> = {
+			tab: { workstreamId: tab.workstreamId, tabId: tab.tabId },
+			favicon: null,
 			view: this.deps.createView({
-				changed: () => this.changed(workstreamId, entry),
+				changed: () => this.changed(entry),
+				favicon: (favicon) => {
+					entry.favicon = favicon;
+					this.changed(entry);
+				},
 				navigating: () => entry.pick?.controller.abort(),
 				gone: () => {
 					entry.alive = false;
@@ -243,7 +264,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			pick: null,
 		};
 		entry.view.setBounds(entry.bounds);
-		this.entries.set(workstreamId, entry);
+		this.entries.set(tabKey(tab), entry);
 		if (entry.lastUrl) void entry.view.contents.loadURL(entry.lastUrl).catch(() => undefined);
 		return entry;
 	}
@@ -268,9 +289,9 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 	}
 
-	private changed(workstreamId: string, entry: Entry<W>): void {
-		if (!entry.alive || this.entries.get(workstreamId) !== entry) return;
-		const state = stateOf(workstreamId, entry.view.contents);
+	private changed(entry: Entry<W>): void {
+		if (!entry.alive || this.entries.get(tabKey(entry.tab)) !== entry) return;
+		const state = stateOf(entry);
 		if (state.url.length > 0) entry.lastUrl = state.url;
 		this.deps.stateChanged(state);
 	}
@@ -300,11 +321,17 @@ export function toDip(bounds: BrowserBounds, zoom: number): Rectangle {
 	};
 }
 
-function stateOf(workstreamId: string, contents: PageContents): BrowserState {
+function tabKey(tab: BrowserTabArgs): string {
+	return `${tab.workstreamId}/${tab.tabId}`;
+}
+
+function stateOf<W extends HostWindow>({ tab, view, favicon }: Entry<W>): BrowserState {
+	const { contents } = view;
 	return {
-		workstreamId,
+		...tab,
 		url: contents.getURL(),
 		title: contents.getTitle(),
+		favicon,
 		loading: contents.isLoading(),
 		canGoBack: contents.navigationHistory.canGoBack(),
 		canGoForward: contents.navigationHistory.canGoForward(),

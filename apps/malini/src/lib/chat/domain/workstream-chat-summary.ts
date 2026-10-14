@@ -21,6 +21,7 @@ export type WorkstreamChatSummary = Readonly<{
 
 type WorkstreamChatSummaryInput = Readonly<{
 	session: SessionRecord | null;
+	openingSessionId: SessionId | null;
 	jobRunning: boolean;
 	queueCount: number;
 	attention: AgentAttention | null;
@@ -29,7 +30,7 @@ type WorkstreamChatSummaryInput = Readonly<{
 
 export function summarizeWorkstreamChat(input: WorkstreamChatSummaryInput): WorkstreamChatSummary {
 	return {
-		sessionId: input.session?.id ?? null,
+		sessionId: input.openingSessionId ?? input.session?.id ?? null,
 		queueCount: input.queueCount,
 		attention: input.attention,
 		needsYou: attentionNeedsUser(input.attention),

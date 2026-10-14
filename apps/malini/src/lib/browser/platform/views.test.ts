@@ -165,6 +165,9 @@ class FakeView implements PageView<FakeWindow> {
 	}
 }
 
+const TAB = { workstreamId: 'ws-1', tabId: 'tab-1' } as const;
+const OTHER_TAB = { workstreamId: 'ws-2', tabId: 'tab-1' } as const;
+
 const roots: string[] = [];
 
 afterEach(() => {
@@ -175,7 +178,7 @@ function setup(zoom = 1) {
 	let window: FakeWindow | null = new FakeWindow(zoom);
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
-	const opened: string[] = [];
+	const opened: unknown[] = [];
 	const resets = new Map<FakeWindow, () => void>();
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
@@ -190,7 +193,7 @@ function setup(zoom = 1) {
 		},
 		workstreamExists: (workstreamId) => workstreamId.startsWith('ws-'),
 		stateChanged: (state) => states.push(state),
-		pageOpened: (workstreamId) => opened.push(workstreamId),
+		tabOpened: (tab) => opened.push(tab),
 	});
 	const viewAt = (index: number): FakeView => {
 		const view = views[index];
@@ -220,7 +223,7 @@ function setup(zoom = 1) {
 describe('BrowserViews', () => {
 	it('creates a view on first show behind malini, then raises it to the reported bounds', () => {
 		const { browser, views, viewAt, window } = setup(1.25);
-		browser.show('ws-1', { x: 10, y: 20, width: 300, height: 200 });
+		browser.show(TAB, { x: 10, y: 20, width: 300, height: 200 });
 
 		expect(views).toHaveLength(1);
 		const view = viewAt(0);
@@ -237,9 +240,9 @@ describe('BrowserViews', () => {
 
 	it('sends every view behind malini when its own page reloads, since no panel is left to hide them', () => {
 		const { browser, viewAt, window, resetRenderer } = setup();
-		browser.show('ws-1', { x: 0, y: 0, width: 100, height: 100 });
-		browser.show('ws-2', { x: 0, y: 0, width: 100, height: 100 });
-		browser.show('ws-1', { x: 0, y: 0, width: 100, height: 100 });
+		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
+		browser.show(OTHER_TAB, { x: 0, y: 0, width: 100, height: 100 });
+		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
 
 		resetRenderer(window());
 
@@ -249,21 +252,21 @@ describe('BrowserViews', () => {
 
 	it('sends a hidden view behind malini and keeps its size', () => {
 		const { browser, views, viewAt, window } = setup();
-		browser.hide('ws-1');
+		browser.hide(TAB);
 		expect(views).toHaveLength(0);
 
-		browser.show('ws-1', { x: 0, y: 0, width: 640, height: 480 });
-		browser.hide('ws-1');
+		browser.show(TAB, { x: 0, y: 0, width: 640, height: 480 });
+		browser.hide(TAB);
 		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
 		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 0, y: 0, width: 640, height: 480 });
 	});
 
 	it('moves views into a main window that was recreated', () => {
 		const { browser, viewAt, replaceWindow } = setup();
-		browser.show('ws-1', { x: 0, y: 0, width: 100, height: 100 });
+		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
 		const replacement = new FakeWindow();
 		replaceWindow(replacement);
-		browser.show('ws-1', { x: 0, y: 0, width: 100, height: 100 });
+		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
 
 		expect(viewAt(0).removedFrom).toEqual([]);
 		expect(viewAt(0).placements.slice(-2)).toEqual([
@@ -274,76 +277,97 @@ describe('BrowserViews', () => {
 
 	it('reports page changes as browser state', () => {
 		const { browser, states, viewAt } = setup();
-		browser.navigate('ws-1', 'http://localhost:5173/');
+		browser.navigate(TAB, 'http://localhost:5173/');
 		viewAt(0).events.changed();
 
 		expect(states).toEqual([
 			{
-				workstreamId: 'ws-1',
+				...TAB,
 				url: 'http://localhost:5173/',
 				title: 'Title of http://localhost:5173/',
+				favicon: null,
 				loading: false,
 				canGoBack: false,
 				canGoForward: false,
 			},
 		]);
-		expect(browser.state('ws-2')).toMatchObject({ workstreamId: 'ws-2', url: '' });
+		expect(browser.state(OTHER_TAB)).toMatchObject({ ...OTHER_TAB, url: '' });
 	});
 
 	it('recreates a view whose page died and reloads the address it showed', () => {
 		const { browser, views, viewAt } = setup();
-		browser.navigate('ws-1', 'http://localhost:5173/');
+		browser.navigate(TAB, 'http://localhost:5173/');
 		viewAt(0).events.changed();
 		viewAt(0).events.gone();
-		expect(browser.state('ws-1')).toMatchObject({ url: 'http://localhost:5173/', loading: false });
+		expect(browser.state(TAB)).toMatchObject({ url: 'http://localhost:5173/', loading: false });
 
-		browser.reload('ws-1');
+		browser.reload(TAB);
 		expect(views).toHaveLength(2);
 		expect(viewAt(0).closed).toBe(true);
 		expect(viewAt(1).contents.loads).toEqual(['http://localhost:5173/']);
 		expect(viewAt(1).contents.reloads).toBe(1);
 	});
 
-	it('destroys the view of a workstream that went away', () => {
+	it('gives every tab its own page and closes one tab without touching the others', () => {
 		const { browser, viewAt, window } = setup();
-		browser.navigate('ws-1', 'http://localhost:5173/');
-		browser.destroy('ws-1');
+		const second = { ...TAB, tabId: 'tab-2' };
+		browser.navigate(TAB, 'http://localhost:5173/');
+		browser.navigate(second, 'https://music.example/');
+		browser.navigate(OTHER_TAB, 'https://example.com/');
+		expect(browser.state(second).url).toBe('https://music.example/');
 
+		browser.destroy(TAB);
 		expect(viewAt(0).closed).toBe(true);
 		expect(viewAt(0).removedFrom).toEqual([window()]);
-		expect(browser.state('ws-1').url).toBe('');
+		expect(browser.state(TAB).url).toBe('');
+		expect(viewAt(1).closed).toBe(false);
+
+		browser.destroyWorkstream('ws-1');
+		expect(viewAt(1).closed).toBe(true);
+		expect(viewAt(2).closed).toBe(false);
+	});
+
+	it('reports the favicon of the page in its state', () => {
+		const { browser, states, viewAt } = setup();
+		browser.navigate(TAB, 'http://localhost:5173/');
+		viewAt(0).events.favicon('data:image/png;base64,AA==');
+
+		expect(states.at(-1)).toMatchObject({ ...TAB, favicon: 'data:image/png;base64,AA==' });
+		expect(browser.state(TAB).favicon).toBe('data:image/png;base64,AA==');
 	});
 
 	it('refuses a workstream it does not know', () => {
 		const { browser } = setup();
-		expect(() => browser.show('nope', { x: 0, y: 0, width: 1, height: 1 })).toThrow(
-			'unknown workstream `nope`',
-		);
+		expect(() =>
+			browser.show({ workstreamId: 'nope', tabId: 'tab-1' }, { x: 0, y: 0, width: 1, height: 1 }),
+		).toThrow('unknown workstream `nope`');
 	});
 
 	it('opens a typed address for the agent, waits for the page, then says a page is open', async () => {
 		const { browser, viewAt, opened } = setup();
-		await expect(browser.open('ws-1', 'localhost:5173')).resolves.toEqual({
+		await expect(browser.open(TAB, 'localhost:5173')).resolves.toEqual({
 			url: 'http://localhost:5173/',
 			title: 'Title of http://localhost:5173/',
 		});
 		expect(viewAt(0).contents.loads).toEqual(['http://localhost:5173/']);
-		expect(opened).toEqual(['ws-1']);
+		expect(opened).toEqual([TAB]);
+		await browser.open(TAB, 'localhost:5173/next');
+		expect(opened).toEqual([TAB]);
 	});
 
 	it('steps back and forward for the agent and says when there is nowhere to go', async () => {
 		const { browser, viewAt } = setup();
-		await expect(browser.goBack('ws-1')).rejects.toThrow(NOTHING_OPEN);
-		await browser.open('ws-1', 'https://example.com');
-		await expect(browser.goBack('ws-1')).rejects.toThrow('There is no page to go back to.');
-		await expect(browser.goForward('ws-1')).rejects.toThrow('There is no page to go forward to.');
+		await expect(browser.goBack(TAB)).rejects.toThrow(NOTHING_OPEN);
+		await browser.open(TAB, 'https://example.com');
+		await expect(browser.goBack(TAB)).rejects.toThrow('There is no page to go back to.');
+		await expect(browser.goForward(TAB)).rejects.toThrow('There is no page to go forward to.');
 
-		await browser.open('ws-1', 'https://example.com/next');
-		await expect(browser.goBack('ws-1')).resolves.toMatchObject({
+		await browser.open(TAB, 'https://example.com/next');
+		await expect(browser.goBack(TAB)).resolves.toMatchObject({
 			url: 'https://example.com/next',
 		});
-		await browser.goForward('ws-1');
-		await browser.reload('ws-1');
+		await browser.goForward(TAB);
+		await browser.reload(TAB);
 
 		expect(viewAt(0).contents.steps).toEqual(['back', 'forward']);
 		expect(viewAt(0).contents.reloads).toBe(1);
@@ -351,15 +375,15 @@ describe('BrowserViews', () => {
 
 	it('types for the agent and says when the target is not a field', async () => {
 		const { browser, viewAt } = setup();
-		await expect(browser.type('ws-1', '#q', 'malini', true)).rejects.toThrow(NOTHING_OPEN);
-		await browser.open('ws-1', 'https://example.com');
+		await expect(browser.type(TAB, '#q', 'malini', true)).rejects.toThrow(NOTHING_OPEN);
+		await browser.open(TAB, 'https://example.com');
 
-		await expect(browser.type('ws-1', '#q', 'malini', true)).resolves.toMatchObject({
+		await expect(browser.type(TAB, '#q', 'malini', true)).resolves.toMatchObject({
 			url: 'https://example.com/',
 		});
 		expect(viewAt(0).contents.scripts.at(-1)).toMatch(/\("#q", "malini", true\)$/u);
 		viewAt(0).contents.actionOutcome = 'readonly';
-		await expect(browser.type('ws-1', 'h1', 'x', false)).rejects.toThrow(
+		await expect(browser.type(TAB, 'h1', 'x', false)).rejects.toThrow(
 			'`h1` is not a field you can type into.',
 		);
 	});
@@ -368,13 +392,13 @@ describe('BrowserViews', () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-shots-'));
 		roots.push(worktree);
 		const { browser } = setup();
-		await expect(browser.screenshot('ws-1', worktree)).rejects.toThrow(NOTHING_OPEN);
-		browser.show('ws-1', { x: 0, y: 0, width: 10, height: 10 });
-		await expect(browser.screenshot('ws-1', worktree)).rejects.toThrow(NOTHING_OPEN);
+		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(NOTHING_OPEN);
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(NOTHING_OPEN);
 
-		await browser.open('ws-1', 'https://example.com');
-		const first = await browser.screenshot('ws-1', worktree);
-		const second = await browser.screenshot('ws-1', worktree);
+		await browser.open(TAB, 'https://example.com');
+		const first = await browser.screenshot(TAB, worktree);
+		const second = await browser.screenshot(TAB, worktree);
 
 		expect(first.path).toMatch(/^\.malini\/sandbox\/screenshots\/\d{4}-\d\d-\d\d-\d{6}\.png$/);
 		expect(second.path).toMatch(/-\d{6}(?:-2)?\.png$/);
@@ -390,11 +414,11 @@ describe('BrowserViews', () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-hidden-'));
 		roots.push(worktree);
 		const { browser, viewAt } = setup();
-		browser.show('ws-1', { x: 40, y: 50, width: 300, height: 200 });
-		browser.hide('ws-1');
-		await browser.open('ws-1', 'https://example.com');
+		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
+		browser.hide(TAB);
+		await browser.open(TAB, 'https://example.com');
 
-		await browser.screenshot('ws-1', worktree);
+		await browser.screenshot(TAB, worktree);
 
 		expect(viewAt(0).bounds.slice(-2)).toEqual([
 			{ x: -364, y: 0, width: 300, height: 200 },
@@ -405,30 +429,30 @@ describe('BrowserViews', () => {
 
 	it('clicks for the agent and says so when nothing matches', async () => {
 		const { browser, viewAt } = setup();
-		await expect(browser.click('ws-1', '#buy')).rejects.toThrow(NOTHING_OPEN);
-		await browser.open('ws-1', 'https://example.com');
+		await expect(browser.click(TAB, '#buy')).rejects.toThrow(NOTHING_OPEN);
+		await browser.open(TAB, 'https://example.com');
 
-		await expect(browser.click('ws-1', '#buy')).resolves.toEqual({
+		await expect(browser.click(TAB, '#buy')).resolves.toEqual({
 			url: 'https://example.com/',
 			title: 'Title of https://example.com/',
 		});
 		viewAt(0).contents.actionOutcome = 'missing';
-		await expect(browser.click('ws-1', '#gone')).rejects.toThrow(
+		await expect(browser.click(TAB, '#gone')).rejects.toThrow(
 			'Nothing on the page matches `#gone`.',
 		);
 		viewAt(0).contents.actionOutcome = 'invalid';
-		await expect(browser.click('ws-1', '[')).rejects.toThrow('`[` is not a valid CSS selector.');
+		await expect(browser.click(TAB, '[')).rejects.toThrow('`[` is not a valid CSS selector.');
 	});
 
 	it('keeps one pick per view: a new pick or a cancel ends the open one', async () => {
 		const { browser, viewAt, window } = setup();
-		await expect(browser.pick('ws-1')).rejects.toThrow('Open a page before picking an element.');
-		await browser.open('ws-1', 'https://example.com');
+		await expect(browser.pick(TAB)).rejects.toThrow('Open a page before picking an element.');
+		await browser.open(TAB, 'https://example.com');
 
-		const first = browser.pick('ws-1');
-		const second = browser.pick('ws-1');
+		const first = browser.pick(TAB);
+		const second = browser.pick(TAB);
 		await expect(first).resolves.toBeNull();
-		browser.cancelPick('ws-1');
+		browser.cancelPick(TAB);
 		await expect(second).resolves.toBeNull();
 
 		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));

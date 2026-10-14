@@ -23,6 +23,7 @@
 		playbackKey?: string | undefined;
 		complete?: boolean;
 		revealOnMount?: boolean;
+		flush?: boolean;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
@@ -35,6 +36,7 @@
 		playbackKey,
 		complete = false,
 		revealOnMount = false,
+		flush = false,
 		onopenfile,
 		canopenfile,
 		imagesrc,
@@ -45,7 +47,7 @@
 	const MIN_LINE_WIDTH_PX = 120;
 	const TAIL_SETTLE_MS = 320;
 	const initialPlayback = untrack<PlaybackSnapshot>(() => {
-		if (revealOnMount) return { visibleText: text, revealedLength: text.length };
+		if (revealOnMount || flush) return { visibleText: text, revealedLength: text.length };
 		const snapshot = playbackKey ? playbackCache.get(playbackKey) : undefined;
 		const resumable = snapshot !== undefined && text.startsWith(snapshot.visibleText);
 		if (complete && !resumable) return { visibleText: text, revealedLength: text.length };
@@ -130,7 +132,7 @@
 	function syncQueue(source: string, lineWidth: number): void {
 		const sourceContracted = source.length < latestSource.length;
 		latestSource = source;
-		if (complete && !draining) {
+		if (flush || (complete && !draining)) {
 			stopTimer();
 			visibleText = source;
 			revealedLength = source.length;
@@ -146,6 +148,7 @@
 	$effect(() => {
 		const source = text;
 		const width = availableWidth;
+		void flush;
 		untrack(() => syncQueue(source, width));
 	});
 

@@ -39,8 +39,8 @@ import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { roleForAgentMode, sameModelSelection } from '$shared/providers/providers.api';
 import { workstreamReadyForPromptsQuery } from '$shared/repositories/repositories.api';
 
-const QUEUE_INTERRUPT_RETRY_INTERVAL_MS = 500;
-const QUEUE_INTERRUPT_MAX_ATTEMPTS = 20;
+const QUEUE_INTERRUPT_RETRY_INTERVAL_MS = 100;
+const QUEUE_INTERRUPT_MAX_ATTEMPTS = 100;
 
 class PromptDeliveryService {
 	#openings = 0;
@@ -279,11 +279,25 @@ class PromptDeliveryService {
 		queueInterruptRecoveryStore.delete(workstreamId);
 		queueSendingStore.release(workstreamId, recovery.entryId);
 		if (!queuedPromptById(workstreamId, recovery.entryId)) return;
-		agentPromptQueue.takeBack(recovery.entryId);
-		if (
-			pendingPromptStore.for(recovery.sessionId)?.runId === runIdForPromptRequest(recovery.entryId)
-		) {
-			pendingPromptStore.clearForSession(recovery.sessionId);
+		this.withdrawFromTranscript(recovery.sessionId, recovery.entryId);
+	}
+
+	showInTranscript(sessionId: SessionId, entry: QueuedPrompt): void {
+		agentPromptQueue.handOff(entry.id);
+		pendingPromptStore.set({
+			sessionId,
+			origin: 'composer',
+			runId: runIdForPromptRequest(entry.id),
+			text: entry.prompt,
+			attachments: entry.attachments.map((attachment) => ({ ...attachment })),
+			issueReferences: entry.issueReferences.map((reference) => ({ ...reference })),
+		});
+	}
+
+	withdrawFromTranscript(sessionId: SessionId, entryId: string): void {
+		agentPromptQueue.takeBack(entryId);
+		if (pendingPromptStore.for(sessionId)?.runId === runIdForPromptRequest(entryId)) {
+			pendingPromptStore.clearForSession(sessionId);
 		}
 	}
 

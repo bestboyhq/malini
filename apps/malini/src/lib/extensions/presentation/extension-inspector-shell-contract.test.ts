@@ -214,8 +214,11 @@ describe('ExtensionInspectorShell contract', () => {
 			source.indexOf('if (finalizedWorkstreamId !== workstreamId) {'),
 			source.indexOf('function replayPendingMutations('),
 		);
-		expect(finalize).not.toContain('saveInspectorPanelPreferences');
-		expect(source.match(/saveInspectorPanelPreferences\(/gu)).toHaveLength(1);
+		expect(finalize.match(/saveInspectorPanelPreferences\(/gu)).toHaveLength(1);
+		expect(finalize).toContain(
+			'if (chosenWhileLoading) saveInspectorPanelPreferences(workstreamId, finalized, storage);',
+		);
+		expect(source.match(/saveInspectorPanelPreferences\(/gu)).toHaveLength(2);
 		expect(source).toContain(
 			'if (finalizedWorkstreamId === workstreamId) {\n\t\t\tsaveInspectorPanelPreferences(workstreamId, next, storage);',
 		);

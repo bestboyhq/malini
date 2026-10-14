@@ -13,6 +13,7 @@
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
 	import { revealOpenedBrowserHook } from '$lib/browser/application/hooks/reveal-opened-browser.hook';
+	import { watchBrowserStateHook } from '$lib/browser/application/hooks/watch-browser-state.hook';
 	import { forgetRemovedWorkstreamChatsHook } from '$lib/chat/application/hooks/forget-removed-workstream-chats.hook';
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
 	import { announceLocalBaseSyncHook } from '$lib/pull-requests/application/hooks/announce-local-base-sync.hook';
@@ -53,7 +54,9 @@
 		const stopAnnouncingLocalBaseSync = announceLocalBaseSyncHook();
 		const stopWatchingShips = watchShipStatesHook(workstreamName);
 		const stopRevealingBrowsers = revealOpenedBrowserHook();
+		const stopWatchingBrowsers = watchBrowserStateHook();
 		return () => {
+			stopWatchingBrowsers();
 			stopRevealingBrowsers();
 			stopWatchingShips();
 			stopAnnouncingLocalBaseSync();

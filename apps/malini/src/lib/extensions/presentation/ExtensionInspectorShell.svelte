@@ -17,6 +17,7 @@
 	import ExtensionPanelHost from './ExtensionPanelHost.svelte';
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
+	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
 	import { inspectorMinWidth } from '$shared/extensions/inspector-min-width';
 	import {
@@ -66,6 +67,7 @@
 		addExtensionsContent?: Snippet;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		toolbarEnd?: Snippet;
+		panelActions?: readonly InspectorPanelAction[];
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
 		onpanelselect?: (panelId: string) => void;
@@ -91,6 +93,7 @@
 		addExtensionsContent,
 		renderIcon,
 		toolbarEnd,
+		panelActions = [],
 		storage,
 		onactivechange,
 		onpanelselect,
@@ -177,6 +180,7 @@
 	const gutterSource = {
 		workstreamId: () => workstreamId,
 		minWidth: () => minWidth,
+		presentedPanelId: () => (drawerOpen && !addExtensionsActive ? presentedPanelId : null),
 	};
 
 	$effect(() => inspectorGutter.connect(gutterSource));
@@ -300,11 +304,14 @@
 		}
 
 		if (finalizedWorkstreamId !== workstreamId) {
+			const chosenWhileLoading =
+				pendingMutationWorkstreamId === workstreamId && pendingPreferenceMutations.length > 0;
 			const finalized = replayPendingMutations(
 				workstreamId,
 				loadInspectorPanelPreferences(workstreamId, panels, storage),
 			);
 			replacePreferences(finalized);
+			if (chosenWhileLoading) saveInspectorPanelPreferences(workstreamId, finalized, storage);
 			finalizedWorkstreamId = workstreamId;
 			pendingMutationWorkstreamId = null;
 			pendingPreferenceMutations = [];
@@ -383,7 +390,6 @@
 	}
 
 	function revealPanel(panelId: string): void {
-		if (!presentedPreferences.hidden.includes(panelId)) return;
 		persist((current) =>
 			selectInspectorPanel(setInspectorPanelVisible(current, panelId, true), panelId),
 		);
@@ -860,6 +866,31 @@
 							<Icon name="plus" size={11} />
 						</span>
 					{/if}
+				</DropdownItem>
+			{/each}
+			{#each panelActions as action (action.id)}
+				<DropdownItem
+					role="menuitem"
+					focusOnHover={false}
+					data-testid="extension-inspector-picker-action"
+					onclick={() => {
+						panelPickerOpen = false;
+						action.run();
+					}}
+				>
+					<span
+						class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
+						aria-hidden="true"
+					>
+						{#if renderIcon}{@render renderIcon(action.icon, 13)}{:else}<ExtensionPanelIcon
+								icon={action.icon}
+								size={13}
+							/>{/if}
+					</span>
+					<span class="min-w-0 flex-1 truncate">{action.label}</span>
+					<span class="text-fg-tertiary" aria-hidden="true">
+						<Icon name="plus" size={11} />
+					</span>
 				</DropdownItem>
 			{/each}
 			{#if addExtensionsHref}

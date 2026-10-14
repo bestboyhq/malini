@@ -38,10 +38,18 @@ describe('the center tab strip', () => {
 		expect(strip(chatsAB)).toEqual(['chat a', 'chat b']);
 	});
 
-	it('puts a new chat right after the chat it was started from, even through a fresh chat', () => {
+	it('puts a new chat at the end of the strip', () => {
 		const fresh = syncWorkstreamChats(chatsAB, ['a', 'b'], null);
 		const started = syncWorkstreamChats(fresh, ['c', 'a', 'b'], 'c');
-		expect(strip(started)).toEqual(['chat a', 'chat c', 'chat b']);
+		expect(strip(started)).toEqual(['chat a', 'chat b', 'chat c']);
+	});
+
+	it('puts a new chat at the end even when the route reaches it before the chat list does', () => {
+		const fresh = syncWorkstreamChats(chatsAB, ['a', 'b'], null);
+		const routedFirst = syncWorkstreamChats(fresh, ['a', 'b'], 'c');
+		const listed = syncWorkstreamChats(routedFirst, ['c', 'a', 'b'], 'c');
+		expect(strip(listed)).toEqual(['chat a', 'chat b', 'chat c']);
+		expect(listed.fresh).toBe(false);
 	});
 
 	it('puts a branch right after its parent when it shows up before or after the route moves', () => {
@@ -66,11 +74,11 @@ describe('the center tab strip', () => {
 		expect(strip(state)).toEqual(['f.ts', '(g.ts)', 'chat n']);
 	});
 
-	it('starts a new chat after the file in view', () => {
+	it('starts a new chat at the end, even from a file in view', () => {
 		let state = startWorkstreamFreshChat(open(chatsAB, 'f.ts'));
 		expect(state.activeDocumentId).toBeNull();
 		state = syncWorkstreamChats(syncWorkstreamChats(state, ['a', 'b'], null), ['a', 'b', 'n'], 'n');
-		expect(strip(state)).toEqual(['chat a', '(f.ts)', 'chat n', 'chat b']);
+		expect(strip(state)).toEqual(['chat a', '(f.ts)', 'chat b', 'chat n']);
 	});
 
 	it('opens a file as a preview right after the current chat', () => {

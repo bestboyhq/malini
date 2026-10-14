@@ -105,6 +105,7 @@
 					? blockKey(transcript.sessionId, run.runId, item.contentId)
 					: undefined}
 				complete={true}
+				flush={!isLastRun}
 				revealOnMount={!transcript.transcriptSettled()}
 				onopenfile={transcript.openFileMention}
 				canopenfile={transcript.canOpenFileMention}

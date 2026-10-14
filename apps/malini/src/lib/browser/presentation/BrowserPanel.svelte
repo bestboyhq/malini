@@ -17,23 +17,26 @@
 	import { placeBrowserViewCommand } from '../application/commands/place-browser-view.command';
 	import { reloadBrowserCommand } from '../application/commands/reload-browser.command';
 	import { pickElementHook } from '../application/hooks/pick-element.hook';
-	import { watchBrowserStateHook } from '../application/hooks/watch-browser-state.hook';
 	import { browserPickingQuery } from '../application/queries/browser-picking.query.svelte';
 	import { browserSnapshotQuery } from '../application/queries/browser-snapshot.query.svelte';
 	import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
 	import { browserAddressLabel } from '../domain/browser-address';
+	import { browserTabKey } from '../domain/browser-tab';
 	import { HIDDEN_BROWSER, browserPlacementFor } from '../domain/browser-placement';
 
 	interface Props {
 		workstreamId: string;
+		tabId: string;
 		onElementPrompt: (workstreamId: string, picked: BrowserElementPrompt) => void;
 	}
 
-	let { workstreamId, onElementPrompt }: Props = $props();
+	let { workstreamId, tabId, onElementPrompt }: Props = $props();
 
-	const browser = $derived(browserStateQuery.data(workstreamId));
-	const picking = $derived(browserPickingQuery.data(workstreamId));
-	const snapshot = $derived(browserSnapshotQuery.data(workstreamId));
+	const tab = $derived({ workstreamId, tabId });
+	const tabKey = $derived(browserTabKey(tab));
+	const browser = $derived(browserStateQuery.data(tabKey));
+	const picking = $derived(browserPickingQuery.data(tabKey));
+	const snapshot = $derived(browserSnapshotQuery.data(tabKey));
 	const url = $derived(browser?.url ?? '');
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
@@ -43,13 +46,11 @@
 	const pickElement = pickElementHook((id, picked) => onElementPrompt(id, picked));
 
 	onMount(() => {
-		loadBrowserStateCommand(workstreamId);
+		loadBrowserStateCommand(tab);
 		return () => {
-			if (picking) cancelElementPickCommand(workstreamId);
+			if (picking) cancelElementPickCommand(tab);
 		};
 	});
-
-	$effect(() => watchBrowserStateHook());
 
 	function followViewport(element: HTMLElement): () => void {
 		let frame = requestAnimationFrame(place);
@@ -61,12 +62,12 @@
 				width: rect.width,
 				height: rect.height,
 			});
-			placeBrowserViewCommand(workstreamId, browserPlacementFor(rect, hasPage, covered));
+			placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage, covered));
 			frame = requestAnimationFrame(place);
 		}
 		return () => {
 			cancelAnimationFrame(frame);
-			placeBrowserViewCommand(workstreamId, HIDDEN_BROWSER);
+			placeBrowserViewCommand(tab, HIDDEN_BROWSER);
 		};
 	}
 
@@ -87,7 +88,7 @@
 		if (!(field instanceof HTMLInputElement)) return;
 		if (event.key === 'Enter') {
 			event.preventDefault();
-			navigateBrowserCommand(workstreamId, field.value);
+			navigateBrowserCommand(tab, field.value);
 			field.blur();
 			return;
 		}
@@ -98,8 +99,8 @@
 	}
 
 	function onPickToggle(): void {
-		if (picking) cancelElementPickCommand(workstreamId);
-		else pickElement(workstreamId);
+		if (picking) cancelElementPickCommand(tab);
+		else pickElement(tab);
 	}
 </script>
 
@@ -111,7 +112,7 @@
 				variant="ghost"
 				size="md"
 				disabled={!browser?.canGoBack}
-				onclick={() => goBackBrowserCommand(workstreamId)}
+				onclick={() => goBackBrowserCommand(tab)}
 			>
 				<Icon name="chevron-left" size={14} />
 			</IconButton>
@@ -122,7 +123,7 @@
 				variant="ghost"
 				size="md"
 				disabled={!browser?.canGoForward}
-				onclick={() => goForwardBrowserCommand(workstreamId)}
+				onclick={() => goForwardBrowserCommand(tab)}
 			>
 				<Icon name="chevron-right" size={14} />
 			</IconButton>
@@ -133,7 +134,7 @@
 				variant="ghost"
 				size="md"
 				disabled={!hasPage}
-				onclick={() => reloadBrowserCommand(workstreamId)}
+				onclick={() => reloadBrowserCommand(tab)}
 			>
 				<Icon name="refresh" size={14} />
 			</IconButton>

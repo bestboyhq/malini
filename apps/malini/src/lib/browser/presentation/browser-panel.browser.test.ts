@@ -5,10 +5,12 @@ import { overlaySuppression } from '$hyper-ui/overlay';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { setPlatformForTest } from '$shared/port/platform';
 
+import { watchBrowserStateHook } from '../application/hooks/watch-browser-state.hook';
 import BrowserPanel from './BrowserPanel.svelte';
 
 const SNAPSHOT = 'data:image/jpeg;base64,c25hcHNob3Q=';
 const VIEWPORT = { x: 420, y: 92, width: 360, height: 600 };
+const TAB_ID = 'tab-1';
 
 const PICKED: BrowserElementPrompt = {
 	prompt: 'Make this button primary',
@@ -65,18 +67,20 @@ describe('the browser panel', () => {
 
 		const workstreamId = workstreamOf(platform);
 		expect(commands(platform, 'browser.navigate')).toEqual([
-			{ workstreamId, url: 'localhost:5173' },
+			{ workstreamId, tabId: TAB_ID, url: 'localhost:5173' },
 		]);
 		await vi.waitFor(() =>
-			expect(commands(platform, 'browser.show')).toEqual([{ workstreamId, bounds: VIEWPORT }]),
+			expect(commands(platform, 'browser.show')).toEqual([
+				{ workstreamId, tabId: TAB_ID, bounds: VIEWPORT },
+			]),
 		);
 		expect(addressField(host).value).toBe('localhost:5173');
 		expect(host.textContent).not.toContain('Open a page');
 	});
 
-	it('reopens the page a workstream showed before malini restarted', async () => {
+	it('reopens the page a tab showed before malini restarted', async () => {
 		localStorage.setItem(
-			`malini.browser.last-page:v1:browser-panel-${nextWorkstream + 1}`,
+			`malini.browser.last-page:v2:browser-panel-${nextWorkstream + 1}/${TAB_ID}`,
 			'http://localhost:5173/admin',
 		);
 		const { host, platform } = render();
@@ -84,7 +88,7 @@ describe('the browser panel', () => {
 		const workstreamId = workstreamOf(platform);
 		await vi.waitFor(() =>
 			expect(commands(platform, 'browser.navigate')).toEqual([
-				{ workstreamId, url: 'http://localhost:5173/admin' },
+				{ workstreamId, tabId: TAB_ID, url: 'http://localhost:5173/admin' },
 			]),
 		);
 		expect(addressField(host).value).toBe('localhost:5173/admin');
@@ -148,16 +152,19 @@ function render(): Harness {
 		target: host,
 		props: {
 			workstreamId,
+			tabId: TAB_ID,
 			onElementPrompt: (id: string, picked: BrowserElementPrompt) =>
 				prompts.push({ workstreamId: id, picked }),
 		},
 	});
+	const stopWatching = watchBrowserStateHook();
 	flushSync();
 	const harness: Harness = {
 		host,
 		platform,
 		prompts,
 		stop: () => {
+			stopWatching();
 			void unmount(app);
 			host.remove();
 		},

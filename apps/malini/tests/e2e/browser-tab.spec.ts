@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
 	expectCleanConsole,
@@ -9,14 +9,23 @@ import {
 	seedWorkstream,
 } from './harness';
 
-test('the Browser tab shows only once opened, and closing it closes its page', async () => {
+async function openTab(page: Page, origin: string, path: string): Promise<void> {
+	await page.getByRole('button', { name: 'Open inspector panel' }).click();
+	await page.getByRole('menuitem', { name: 'New browser tab' }).click();
+	const address = page.getByRole('textbox', { name: 'Page address' }).last();
+	await address.fill(`${origin}${path}`);
+	await address.press('Enter');
+}
+
+test('browser tabs show only once opened, each with its own page, and closing one closes only its page', async () => {
 	test.setTimeout(120_000);
-	const server = createServer((_request, response) => {
+	const server = createServer((request, response) => {
+		const title = request.url === '/music' ? 'Lobby music' : 'Served page';
 		response.writeHead(200, { 'content-type': 'text/html' });
-		response.end('<!doctype html><title>Served page</title><h1>Served page</h1>');
+		response.end(`<!doctype html><title>${title}</title><h1>${title}</h1>`);
 	});
-	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-	const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
 	const app = await launchMalini();
 	try {
 		const { page, electronApp } = app;
@@ -25,30 +34,27 @@ test('the Browser tab shows only once opened, and closing it closes its page', a
 				webContents
 					.getAllWebContents()
 					.map((contents) => contents.getURL())
-					.filter((url) => url.startsWith('http')),
+					.filter((url) => url.startsWith('http'))
+					.sort(),
 			);
 		const source = await createSourceRepo(app.root);
 		const seeded = await seedWorkstream(page, source, 'e2e-browser-tab-ws', 'Browser tab');
 		await openWorkstream(page, seeded.workstreamId);
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
-		await expect(inspector.getByRole('tab', { name: 'Browser' })).toHaveCount(0);
+		await expect(inspector.getByRole('tab')).toHaveCount(1);
 
-		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'Open Browser' }).click();
-		const address = page.getByRole('textbox', { name: 'Page address' });
-		await address.fill(origin);
-		await address.press('Enter');
-		await expect.poll(webPages).toEqual([`${origin}/`]);
+		await openTab(page, origin, '/');
+		await expect(inspector.getByRole('tab', { name: 'Served page' })).toBeVisible();
+		await openTab(page, origin, '/music');
+		await expect(inspector.getByRole('tab', { name: 'Lobby music', selected: true })).toBeVisible();
+		await expect.poll(webPages).toEqual([`${origin}/`, `${origin}/music`]);
 
-		await page.getByRole('button', { name: 'Close Browser', exact: true }).click();
-		await expect(inspector.getByRole('tab', { name: 'Browser' })).toHaveCount(0);
-		await expect.poll(webPages).toEqual([]);
-
-		await page.getByRole('button', { name: 'Open inspector panel' }).click();
-		await page.getByRole('menuitem', { name: 'Open Browser' }).click();
-		await expect(inspector.getByText('Open a page')).toBeVisible();
-		expect(await webPages()).toEqual([]);
+		await inspector.getByRole('tab', { name: 'Served page' }).hover();
+		await page.getByRole('button', { name: 'Close Served page', exact: true }).click();
+		await expect(inspector.getByRole('tab', { name: 'Served page' })).toHaveCount(0);
+		await expect.poll(webPages).toEqual([`${origin}/music`]);
+		await expect(inspector.getByRole('tab', { name: 'Lobby music' })).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

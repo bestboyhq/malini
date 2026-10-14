@@ -10,6 +10,7 @@
 	let { icon, size = 14 }: Props = $props();
 
 	const PATH_ICON_PREFIX = 'path:';
+	const IMAGE_ICON_PREFIX = 'image:';
 	const PANEL_ICONS: Readonly<Record<string, IconName>> = {
 		terminal: 'terminal',
 		browser: 'globe',
@@ -29,7 +30,15 @@
 	);
 </script>
 
-{#if iconPath !== null}
+{#if icon.startsWith(IMAGE_ICON_PREFIX)}
+	<img
+		src={icon.slice(IMAGE_ICON_PREFIX.length)}
+		alt=""
+		width={size}
+		height={size}
+		class="shrink-0 rounded-[3px] object-contain"
+	/>
+{:else if iconPath !== null}
 	<FileTypeIcon path={iconPath} {size} />
 {:else}
 	<Icon name={PANEL_ICONS[icon] ?? 'puzzle'} {size} />

@@ -7,13 +7,17 @@ function inspector(
 	workstreamId: string,
 	minWidth: number,
 ): {
-	state: { workstreamId: string; minWidth: number };
+	state: { workstreamId: string; minWidth: number; presentedPanelId: string | null };
 	source: InspectorGutterSource;
 } {
-	const state = { workstreamId, minWidth };
+	const state = { workstreamId, minWidth, presentedPanelId: null as string | null };
 	return {
 		state,
-		source: { workstreamId: () => state.workstreamId, minWidth: () => state.minWidth },
+		source: {
+			workstreamId: () => state.workstreamId,
+			minWidth: () => state.minWidth,
+			presentedPanelId: () => state.presentedPanelId,
+		},
 	};
 }
 
@@ -39,6 +43,19 @@ describe('inspector gutter source', () => {
 		expect(inspectorGutter.minWidthFor('workstream-2')).toBe(600);
 
 		disconnect();
+	});
+
+	it('tells the layout which panel the inspector presents, only for its workstream', () => {
+		const { state, source } = inspector('workstream-1', 520);
+		const disconnect = inspectorGutter.connect(source);
+
+		expect(inspectorGutter.presentedPanelFor('workstream-1')).toBeNull();
+		state.presentedPanelId = 'malini.browser';
+		expect(inspectorGutter.presentedPanelFor('workstream-1')).toBe('malini.browser');
+		expect(inspectorGutter.presentedPanelFor('workstream-2')).toBeNull();
+
+		disconnect();
+		expect(inspectorGutter.presentedPanelFor('workstream-1')).toBeNull();
 	});
 
 	it('lets a replacement inspector take over without the old one clearing it', () => {

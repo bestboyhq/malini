@@ -2,10 +2,14 @@ import type { AgentElementReference } from './agent';
 
 export type BrowserBounds = Readonly<{ x: number; y: number; width: number; height: number }>;
 
+export type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
+
 export type BrowserState = Readonly<{
 	workstreamId: string;
+	tabId: string;
 	url: string;
 	title: string;
+	favicon: string | null;
 	loading: boolean;
 	canGoBack: boolean;
 	canGoForward: boolean;
@@ -19,8 +23,6 @@ export type BrowserElementPrompt = Readonly<{
 	screenshot: BrowserScreenshot;
 }>;
 
-export type BrowserShowArgs = Readonly<{ workstreamId: string; bounds: BrowserBounds }>;
+export type BrowserShowArgs = BrowserTabArgs & Readonly<{ bounds: BrowserBounds }>;
 
-export type BrowserNavigateArgs = Readonly<{ workstreamId: string; url: string }>;
-
-export type BrowserPageOpened = Readonly<{ workstreamId: string }>;
+export type BrowserNavigateArgs = BrowserTabArgs & Readonly<{ url: string }>;
