@@ -120,6 +120,50 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 	}
 });
 
+test('forking with an unsent message puts the transcript first and the message after it', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-fork-draft-ws',
+			'Fork draft workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Explain the login flow');
+		await expectAssistantReply(page);
+		const composer = page.getByTestId('chat-composer-input');
+		await composer.click();
+		await page.keyboard.type('now refactor it');
+
+		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		const transcriptChip = composer.getByLabel(
+			'Attached file: Transcript of Explain the login flow.md',
+		);
+		await expect(transcriptChip).toBeVisible({ timeout: 20_000 });
+		await expect(composer).toHaveText(
+			/Transcript of Explain the login flow\.md\s+now refactor it\s*$/u,
+		);
+		const forked = currentSessionId(page);
+
+		await page.getByTestId('chat-composer-submit').click();
+		await expectAssistantReply(page);
+		const prompt = (await listEvents(page, forked ?? '')).find(
+			(entry) => entry.event.type === 'user.message',
+		)?.event;
+		expect(prompt?.['text']).toMatch(/^\[\[attachment:[^\]]+\]\] now refactor it$/u);
+		await expect(page.getByTestId('chat-message-bubble-user')).toHaveText(
+			/Transcript of Explain the login flow\.md\s+now refactor it\s*$/u,
+		);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('forking twice opens a new chat for each fork, right after the chat it came from', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
