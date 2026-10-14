@@ -2,7 +2,9 @@ import {
 	INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
 	INSPECTOR_PANEL_PREFERENCES_VERSION,
 	LEGACY_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
+	PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
 	defaultInspectorPanelPreferences,
+	hideDefaultHiddenInspectorPanels,
 	isUnchosenLegacyInspectorPanelPreferences,
 	reconcileInspectorPanelPreferences,
 	type InspectorPanelPreferences,
@@ -11,6 +13,7 @@ import type { InspectorPanel } from './inspector-panel';
 import type { InspectorPreferenceStorage } from './inspector-preference-storage';
 
 const LEGACY_INSPECTOR_PANEL_PREFERENCES_VERSION = 1;
+const PREVIOUS_INSPECTOR_PANEL_PREFERENCES_VERSION = 2;
 
 export function browserInspectorPreferenceStorage(): InspectorPreferenceStorage | null {
 	try {
@@ -34,6 +37,18 @@ export function loadInspectorPanelPreferences(
 		INSPECTOR_PANEL_PREFERENCES_VERSION,
 	);
 	if (saved) return reconcileInspectorPanelPreferences(panels, saved);
+
+	const previous = readStoredPreferences(
+		storage,
+		`${PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}${workstreamId}`,
+		PREVIOUS_INSPECTOR_PANEL_PREFERENCES_VERSION,
+	);
+	if (previous) {
+		return reconcileInspectorPanelPreferences(
+			panels,
+			hideDefaultHiddenInspectorPanels(panels, previous),
+		);
+	}
 
 	const legacy = readStoredPreferences(
 		storage,

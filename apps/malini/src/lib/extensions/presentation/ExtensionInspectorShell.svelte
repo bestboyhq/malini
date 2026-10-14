@@ -268,7 +268,8 @@
 		const request = inspectorPanelCommands.requestFor(workstreamId);
 		if (!request || !inspectorInteractive) return;
 		if (!panels.some((panel) => panel.id === request.panelId)) return;
-		openPanel(request.panelId);
+		if (request.reveal) revealPanel(request.panelId);
+		else openPanel(request.panelId);
 		inspectorPanelCommands.consume(workstreamId, request.revision);
 	});
 
@@ -381,6 +382,13 @@
 		void focusPanelTab(panelId);
 	}
 
+	function revealPanel(panelId: string): void {
+		if (!presentedPreferences.hidden.includes(panelId)) return;
+		persist((current) =>
+			selectInspectorPanel(setInspectorPanelVisible(current, panelId, true), panelId),
+		);
+	}
+
 	async function focusPanelTab(panelId: string | null): Promise<void> {
 		if (!panelId) return;
 		await tick();
@@ -465,7 +473,7 @@
 		if (!panel?.onDidClose) return;
 		void (async () => {
 			try {
-				await panel.onDidClose?.();
+				await panel.onDidClose?.(context);
 			} catch (cause) {
 				panelError(cause, panel);
 			}
@@ -636,6 +644,23 @@
 					{@const adjacentPanelId = isActive
 						? (visiblePanels[panelIndex + 1]?.id ?? visiblePanels[panelIndex - 1]?.id ?? null)
 						: null}
+					{#snippet badgeCount()}
+						{#if badge}
+							<span
+								class={[
+									'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
+									isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
+									badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
+								]}
+								aria-label={badge.ariaLabel}
+								data-testid="extension-inspector-tab-badge"
+								data-panel-id={panel.id}
+								data-count={badge.count}
+							>
+								{compactBadgeCount(badge.count)}
+							</span>
+						{/if}
+					{/snippet}
 					<BrowserTab
 						label={panel.label}
 						selected={isActive}
@@ -673,6 +698,7 @@
 						}}
 						onselect={() => selectPanel(panel.id)}
 						onclose={visiblePanels.length > 1 ? (event) => closePanel(event, panel.id) : undefined}
+						trailing={badge ? badgeCount : undefined}
 					>
 						{#snippet icon()}
 							<span class="grid place-items-center" aria-hidden="true">
@@ -681,23 +707,6 @@
 										size={14}
 									/>{/if}
 							</span>
-						{/snippet}
-						{#snippet trailing()}
-							{#if badge}
-								<span
-									class={[
-										'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
-										isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
-										badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
-									]}
-									aria-label={badge.ariaLabel}
-									data-testid="extension-inspector-tab-badge"
-									data-panel-id={panel.id}
-									data-count={badge.count}
-								>
-									{compactBadgeCount(badge.count)}
-								</span>
-							{/if}
 						{/snippet}
 					</BrowserTab>
 				{/each}

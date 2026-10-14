@@ -60,13 +60,14 @@ class FakeContents implements PageContents {
 	reloads = 0;
 	readonly loads: string[] = [];
 	readonly scripts: string[] = [];
-	clickOutcome: unknown = 'clicked';
+	actionOutcome: unknown = 'done';
 	frame = new FakeImage(2_560, 1_600);
+	readonly steps: string[] = [];
 	readonly navigationHistory = {
 		canGoBack: (): boolean => this.loads.length > 1,
-		canGoForward: (): boolean => false,
-		goBack: (): void => undefined,
-		goForward: (): void => undefined,
+		canGoForward: (): boolean => this.steps.includes('back'),
+		goBack: (): void => void this.steps.push('back'),
+		goForward: (): void => void this.steps.push('forward'),
 	};
 
 	loadURL(url: string): Promise<void> {
@@ -124,7 +125,7 @@ class FakeContents implements PageContents {
 		this.scripts.push(code);
 		if (code.includes('"kind":"select"')) return new Promise(() => undefined);
 		if (code.includes('"kind":"end"')) return Promise.resolve(null);
-		return Promise.resolve(this.clickOutcome);
+		return Promise.resolve(this.actionOutcome);
 	}
 }
 
@@ -174,6 +175,7 @@ function setup(zoom = 1) {
 	let window: FakeWindow | null = new FakeWindow(zoom);
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
+	const opened: string[] = [];
 	const resets = new Map<FakeWindow, () => void>();
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
@@ -188,6 +190,7 @@ function setup(zoom = 1) {
 		},
 		workstreamExists: (workstreamId) => workstreamId.startsWith('ws-'),
 		stateChanged: (state) => states.push(state),
+		pageOpened: (workstreamId) => opened.push(workstreamId),
 	});
 	const viewAt = (index: number): FakeView => {
 		const view = views[index];
@@ -198,6 +201,7 @@ function setup(zoom = 1) {
 		browser,
 		views,
 		states,
+		opened,
 		viewAt,
 		resetRenderer(of: FakeWindow): void {
 			resets.get(of)?.();
@@ -317,13 +321,47 @@ describe('BrowserViews', () => {
 		);
 	});
 
-	it('opens a typed address for the agent and waits for the page', async () => {
-		const { browser, viewAt } = setup();
+	it('opens a typed address for the agent, waits for the page, then says a page is open', async () => {
+		const { browser, viewAt, opened } = setup();
 		await expect(browser.open('ws-1', 'localhost:5173')).resolves.toEqual({
 			url: 'http://localhost:5173/',
 			title: 'Title of http://localhost:5173/',
 		});
 		expect(viewAt(0).contents.loads).toEqual(['http://localhost:5173/']);
+		expect(opened).toEqual(['ws-1']);
+	});
+
+	it('steps back and forward for the agent and says when there is nowhere to go', async () => {
+		const { browser, viewAt } = setup();
+		await expect(browser.goBack('ws-1')).rejects.toThrow(NOTHING_OPEN);
+		await browser.open('ws-1', 'https://example.com');
+		await expect(browser.goBack('ws-1')).rejects.toThrow('There is no page to go back to.');
+		await expect(browser.goForward('ws-1')).rejects.toThrow('There is no page to go forward to.');
+
+		await browser.open('ws-1', 'https://example.com/next');
+		await expect(browser.goBack('ws-1')).resolves.toMatchObject({
+			url: 'https://example.com/next',
+		});
+		await browser.goForward('ws-1');
+		await browser.reload('ws-1');
+
+		expect(viewAt(0).contents.steps).toEqual(['back', 'forward']);
+		expect(viewAt(0).contents.reloads).toBe(1);
+	});
+
+	it('types for the agent and says when the target is not a field', async () => {
+		const { browser, viewAt } = setup();
+		await expect(browser.type('ws-1', '#q', 'malini', true)).rejects.toThrow(NOTHING_OPEN);
+		await browser.open('ws-1', 'https://example.com');
+
+		await expect(browser.type('ws-1', '#q', 'malini', true)).resolves.toMatchObject({
+			url: 'https://example.com/',
+		});
+		expect(viewAt(0).contents.scripts.at(-1)).toMatch(/\("#q", "malini", true\)$/u);
+		viewAt(0).contents.actionOutcome = 'readonly';
+		await expect(browser.type('ws-1', 'h1', 'x', false)).rejects.toThrow(
+			'`h1` is not a field you can type into.',
+		);
 	});
 
 	it('saves screenshots into the worktree sandbox with a small preview beside them', async () => {
@@ -374,11 +412,11 @@ describe('BrowserViews', () => {
 			url: 'https://example.com/',
 			title: 'Title of https://example.com/',
 		});
-		viewAt(0).contents.clickOutcome = 'missing';
+		viewAt(0).contents.actionOutcome = 'missing';
 		await expect(browser.click('ws-1', '#gone')).rejects.toThrow(
 			'Nothing on the page matches `#gone`.',
 		);
-		viewAt(0).contents.clickOutcome = 'invalid';
+		viewAt(0).contents.actionOutcome = 'invalid';
 		await expect(browser.click('ws-1', '[')).rejects.toThrow('`[` is not a valid CSS selector.');
 	});
 

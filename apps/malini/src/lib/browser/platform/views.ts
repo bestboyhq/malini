@@ -1,6 +1,13 @@
 import type { BrowserBounds, BrowserElementPrompt, BrowserState } from '$contract/browser';
 import type { BrowserPageInfo, BrowserPlatform, BrowserScreenshotFile } from '../browser.platform';
-import { clickSelector, delay, openUrl, saveScreenshot } from './automation';
+import {
+	clickSelector,
+	delay,
+	openUrl,
+	saveScreenshot,
+	settleAfterAction,
+	typeIntoSelector,
+} from './automation';
 import type { HostWindow, PageContents, PageEvents, PageView, Rectangle } from './page';
 import { pickElement, pickerPage } from './picker';
 import { BLANK_PAGE, normalizeBrowserUrl } from './url';
@@ -17,6 +24,7 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
 	stateChanged(state: BrowserState): void;
+	pageOpened(workstreamId: string): void;
 }
 
 interface OpenPick {
@@ -65,18 +73,26 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			.catch(() => undefined);
 	}
 
-	goBack(workstreamId: string): void {
-		const history = this.ensure(workstreamId).view.contents.navigationHistory;
-		if (history.canGoBack()) history.goBack();
+	async goBack(workstreamId: string): Promise<BrowserPageInfo> {
+		const contents = this.page(workstreamId);
+		if (!contents.navigationHistory.canGoBack()) throw new Error('There is no page to go back to.');
+		contents.navigationHistory.goBack();
+		return settledPage(contents);
 	}
 
-	goForward(workstreamId: string): void {
-		const history = this.ensure(workstreamId).view.contents.navigationHistory;
-		if (history.canGoForward()) history.goForward();
+	async goForward(workstreamId: string): Promise<BrowserPageInfo> {
+		const contents = this.page(workstreamId);
+		if (!contents.navigationHistory.canGoForward()) {
+			throw new Error('There is no page to go forward to.');
+		}
+		contents.navigationHistory.goForward();
+		return settledPage(contents);
 	}
 
-	reload(workstreamId: string): void {
-		this.ensure(workstreamId).view.contents.reload();
+	async reload(workstreamId: string): Promise<BrowserPageInfo> {
+		const contents = this.page(workstreamId);
+		contents.reload();
+		return settledPage(contents);
 	}
 
 	state(workstreamId: string): BrowserState {
@@ -138,6 +154,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	async open(workstreamId: string, url: string): Promise<BrowserPageInfo> {
 		const { contents } = this.ensure(workstreamId).view;
 		await openUrl(contents, normalizeBrowserUrl(url));
+		this.deps.pageOpened(workstreamId);
 		return pageInfo(contents);
 	}
 
@@ -149,9 +166,19 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	async click(workstreamId: string, selector: string): Promise<BrowserPageInfo> {
-		const contents = this.openContents(workstreamId);
-		if (!contents) throw new Error(NOTHING_OPEN);
+		const contents = this.page(workstreamId);
 		await clickSelector(contents, selector);
+		return pageInfo(contents);
+	}
+
+	async type(
+		workstreamId: string,
+		selector: string,
+		text: string,
+		submit: boolean,
+	): Promise<BrowserPageInfo> {
+		const contents = this.page(workstreamId);
+		await typeIntoSelector(contents, selector, text, submit);
 		return pageInfo(contents);
 	}
 
@@ -169,6 +196,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				entry.view.setBounds(entry.bounds);
 			}
 		}
+	}
+
+	private page(workstreamId: string): PageContents {
+		const contents = this.openContents(workstreamId);
+		if (!contents) throw new Error(NOTHING_OPEN);
+		return contents;
 	}
 
 	private openContents(workstreamId: string): PageContents | null {
@@ -276,6 +309,11 @@ function stateOf(workstreamId: string, contents: PageContents): BrowserState {
 		canGoBack: contents.navigationHistory.canGoBack(),
 		canGoForward: contents.navigationHistory.canGoForward(),
 	};
+}
+
+async function settledPage(contents: PageContents): Promise<BrowserPageInfo> {
+	await settleAfterAction(contents);
+	return pageInfo(contents);
 }
 
 function pageInfo(contents: PageContents): BrowserPageInfo {

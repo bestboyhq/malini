@@ -9,7 +9,7 @@ export const SCREENSHOTS_PATH = `${SANDBOX_SCRATCH_PATH}/screenshots`;
 export const PREVIEW_LONG_EDGE = 1_568;
 
 const OPEN_TIMEOUT_MS = 20_000;
-const CLICK_SETTLE_MS = 10_000;
+const ACTION_SETTLE_MS = 10_000;
 const NAVIGATION_GRACE_MS = 250;
 const LOAD_POLL_MS = 50;
 const MAX_NAME_ATTEMPTS = 1_000;
@@ -27,15 +27,41 @@ export async function openUrl(contents: PageContents, url: string): Promise<void
 }
 
 export async function clickSelector(contents: PageContents, selector: string): Promise<void> {
+	await actOnSelector(contents, CLICK_PROGRAM, [selector]);
+	await settleAfterAction(contents);
+}
+
+export async function typeIntoSelector(
+	contents: PageContents,
+	selector: string,
+	text: string,
+	submit: boolean,
+): Promise<void> {
+	await actOnSelector(contents, TYPE_PROGRAM, [selector, text, submit]);
+	await settleAfterAction(contents);
+}
+
+export async function settleAfterAction(contents: PageContents): Promise<void> {
+	await delay(NAVIGATION_GRACE_MS);
+	await settled(contents, Date.now() + ACTION_SETTLE_MS);
+}
+
+async function actOnSelector(
+	contents: PageContents,
+	program: string,
+	args: readonly [selector: string, ...rest: unknown[]],
+): Promise<void> {
+	const call = args.map((arg) => JSON.stringify(arg)).join(', ');
 	const outcome = await contents.executeJavaScriptInIsolatedWorld(
 		MALINI_WORLD_ID,
-		[{ code: `(${CLICK_PROGRAM})(${JSON.stringify(selector)})` }],
+		[{ code: `(${program})(${call})` }],
 		true,
 	);
+	const selector = args[0];
+	if (outcome === 'done') return;
 	if (outcome === 'invalid') throw new Error(`\`${selector}\` is not a valid CSS selector.`);
-	if (outcome !== 'clicked') throw new Error(`Nothing on the page matches \`${selector}\`.`);
-	await delay(NAVIGATION_GRACE_MS);
-	await settled(contents, Date.now() + CLICK_SETTLE_MS);
+	if (outcome === 'readonly') throw new Error(`\`${selector}\` is not a field you can type into.`);
+	throw new Error(`Nothing on the page matches \`${selector}\`.`);
 }
 
 export async function saveScreenshot(
@@ -143,5 +169,31 @@ const CLICK_PROGRAM = String.raw`(selector) => {
 	element.dispatchEvent(new PointerEvent('pointerup', { ...point, ...pointer }));
 	element.dispatchEvent(new MouseEvent('mouseup', { ...point, detail: 1 }));
 	element.dispatchEvent(new MouseEvent('click', { ...point, detail: 1 }));
-	return 'clicked';
+	return 'done';
+}`;
+
+const TYPE_PROGRAM = String.raw`(selector, text, submit) => {
+	let element;
+	try {
+		element = document.querySelector(selector);
+	} catch {
+		return 'invalid';
+	}
+	if (!element) return 'missing';
+	const field = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+	if (!element.isContentEditable && (!field || element.readOnly || element.disabled)) {
+		return 'readonly';
+	}
+	element.scrollIntoView({ block: 'center', inline: 'center' });
+	element.focus({ preventScroll: true });
+	if (field) element.select();
+	else getSelection()?.selectAllChildren(element);
+	document.execCommand(text ? 'insertText' : 'delete', false, text);
+	if (!submit) return 'done';
+	const enter = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
+	const proceed = element.dispatchEvent(new KeyboardEvent('keydown', enter));
+	element.dispatchEvent(new KeyboardEvent('keypress', enter));
+	if (proceed && element instanceof HTMLInputElement && element.form) element.form.requestSubmit();
+	element.dispatchEvent(new KeyboardEvent('keyup', enter));
+	return 'done';
 }`;

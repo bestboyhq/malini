@@ -40,6 +40,9 @@ export function installBrowserFake(bridge: FakeBridge): void {
 	bridge.define('browser.snapshot', async () => null);
 	bridge.define('browser.pick-element', async () => null);
 	bridge.define('browser.cancel-pick', async () => {});
+	bridge.define('browser.close', async ({ workstreamId }) => {
+		pages.delete(workstreamId);
+	});
 
 	bridge.define('browser.navigate', async ({ workstreamId, url }) => {
 		const page = pageFor(workstreamId);

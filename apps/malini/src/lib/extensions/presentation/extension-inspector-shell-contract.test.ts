@@ -97,7 +97,7 @@ describe('ExtensionInspectorShell contract', () => {
 		expect(source).toContain('updated = selectInspectorPanel(updated, adjacentPanel.id)');
 		expect(source).toContain('const closingPanel = visiblePanels[closingIndex]');
 		expect(source).toContain('notifyPanelClosed(closingPanel)');
-		expect(source).toContain('panel.onDidClose?.()');
+		expect(source).toContain('panel.onDidClose?.(context)');
 	});
 
 	it('keeps tab chrome and only the destination workstream panel visible during hydration', () => {

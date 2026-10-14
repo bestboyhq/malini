@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import {
+	BROWSER_PAGE_OPENED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
@@ -22,6 +23,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		watchRendererReset,
 		workstreamExists: (workstreamId) => getWorkstream(db, workstreamId) !== null,
 		stateChanged: (state) => events.emit(BROWSER_STATE_CHANGED_CHANNEL, state),
+		pageOpened: (workstreamId) => events.emit(BROWSER_PAGE_OPENED_CHANNEL, { workstreamId }),
 	});
 
 	commands.define('browser.show', (args) => views.show(readWorkstreamId(args), readBounds(args)));
@@ -29,13 +31,20 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	commands.define('browser.navigate', (args) =>
 		views.navigate(readWorkstreamId(args), readUrl(args)),
 	);
-	commands.define('browser.go-back', (args) => views.goBack(readWorkstreamId(args)));
-	commands.define('browser.go-forward', (args) => views.goForward(readWorkstreamId(args)));
-	commands.define('browser.reload', (args) => views.reload(readWorkstreamId(args)));
+	commands.define('browser.go-back', async (args) => {
+		await views.goBack(readWorkstreamId(args));
+	});
+	commands.define('browser.go-forward', async (args) => {
+		await views.goForward(readWorkstreamId(args));
+	});
+	commands.define('browser.reload', async (args) => {
+		await views.reload(readWorkstreamId(args));
+	});
 	commands.define('browser.state', (args) => views.state(readWorkstreamId(args)));
 	commands.define('browser.snapshot', (args) => views.snapshot(readWorkstreamId(args)));
 	commands.define('browser.pick-element', (args) => views.pick(readWorkstreamId(args)));
 	commands.define('browser.cancel-pick', (args) => views.cancelPick(readWorkstreamId(args)));
+	commands.define('browser.close', (args) => views.destroy(readWorkstreamId(args)));
 
 	events.subscribe(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, ({ workstreamId }) =>
 		views.destroy(workstreamId),

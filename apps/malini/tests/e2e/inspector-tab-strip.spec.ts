@@ -56,7 +56,7 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'inspector-tab-strip-1-files-extensions');
 
-		await expectPanels(page, ['tab "Files"', 'tab "Browser"', 'tab "Extensions" [selected]']);
+		await expectPanels(page, ['tab "Files"', 'tab "Extensions" [selected]']);
 		await expectControlsItsPanel(page, extensions, 'Extensions');
 		await expect(files).not.toHaveAttribute('aria-controls');
 		writeFileSync(
@@ -102,8 +102,6 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		await page.keyboard.press('Tab');
 		await expect(closeExtensions).toBeFocused();
 		await page.keyboard.press('Enter');
-		await expectPanels(page, ['tab "Files" [selected]', 'tab "Browser"']);
-		await page.getByRole('button', { name: 'Close Browser', exact: true }).click();
 		await expectPanels(page, ['tab "Files" [selected]']);
 		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);

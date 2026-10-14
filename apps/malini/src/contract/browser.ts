@@ -22,3 +22,5 @@ export type BrowserElementPrompt = Readonly<{
 export type BrowserShowArgs = Readonly<{ workstreamId: string; bounds: BrowserBounds }>;
 
 export type BrowserNavigateArgs = Readonly<{ workstreamId: string; url: string }>;
+
+export type BrowserPageOpened = Readonly<{ workstreamId: string }>;

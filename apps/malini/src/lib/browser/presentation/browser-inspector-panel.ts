@@ -6,9 +6,9 @@ import type {
 import { mount, unmount } from 'svelte';
 import type { BrowserElementPrompt } from '$contract/browser';
 
+import { closeBrowserCommand } from '../application/commands/close-browser.command';
+import { BROWSER_PANEL_ID } from '../domain/browser-panel';
 import BrowserPanel from './BrowserPanel.svelte';
-
-export const BROWSER_PANEL_ID = 'malini.browser';
 
 type ElementPromptHandler = (workstreamId: string, picked: BrowserElementPrompt) => void;
 
@@ -25,10 +25,13 @@ export function browserInspectorPanel(
 		label: 'Browser',
 		icon: 'browser',
 		order: 30,
-		defaultVisible: true,
+		defaultVisible: false,
 		component: {
 			workstreamScope: 'context',
 			mount: (target, context) => mountBrowserPanel(target, context, options.onElementPrompt),
+		},
+		onDidClose: (context) => {
+			if (context.workstream) closeBrowserCommand(context.workstream.id);
 		},
 	};
 }

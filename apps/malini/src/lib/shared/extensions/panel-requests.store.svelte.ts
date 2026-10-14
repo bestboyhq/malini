@@ -2,6 +2,7 @@ export type InspectorPanelOpenRequest = Readonly<{
 	workstreamId: string;
 	panelId: string;
 	revision: number;
+	reveal: boolean;
 }>;
 
 class InspectorPanelCommands {
@@ -9,10 +10,19 @@ class InspectorPanelCommands {
 	#revision = 0;
 
 	open(workstreamId: string, panelId: string): void {
+		this.#request(workstreamId, panelId, false);
+	}
+
+	reveal(workstreamId: string, panelId: string): void {
+		if (this.requests[workstreamId]?.reveal === false) return;
+		this.#request(workstreamId, panelId, true);
+	}
+
+	#request(workstreamId: string, panelId: string, reveal: boolean): void {
 		if (!workstreamId || !panelId) return;
 		this.requests = {
 			...this.requests,
-			[workstreamId]: { workstreamId, panelId, revision: ++this.#revision },
+			[workstreamId]: { workstreamId, panelId, revision: ++this.#revision, reveal },
 		};
 	}
 

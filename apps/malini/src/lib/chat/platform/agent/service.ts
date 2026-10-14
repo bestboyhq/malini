@@ -37,6 +37,15 @@ export interface BrowserAutomation {
 		worktree: string,
 	): Promise<{ readonly path: string; readonly previewPath: string; readonly url: string }>;
 	click(workstreamId: string, selector: string): Promise<BrowserPageInfo>;
+	type(
+		workstreamId: string,
+		selector: string,
+		text: string,
+		submit: boolean,
+	): Promise<BrowserPageInfo>;
+	goBack(workstreamId: string): Promise<BrowserPageInfo>;
+	goForward(workstreamId: string): Promise<BrowserPageInfo>;
+	reload(workstreamId: string): Promise<BrowserPageInfo>;
 }
 
 export interface AgentServiceDeps {
@@ -94,6 +103,26 @@ export async function answerBrowserRequest(
 					text: `Clicked \`${request.selector}\`. The page is now ${describePage(page)}.`,
 				};
 			}
+			case 'type': {
+				const { selector, text, submit } = request;
+				const page = await browser.type(workstreamId, selector, text, submit);
+				const enter = submit ? ' and pressed Enter' : '';
+				return {
+					ok: true,
+					text: `Typed into \`${selector}\`${enter}. The page is now ${describePage(page)}.`,
+				};
+			}
+			case 'back':
+				return {
+					ok: true,
+					text: `Went back to ${describePage(await browser.goBack(workstreamId))}.`,
+				};
+			case 'forward': {
+				const page = await browser.goForward(workstreamId);
+				return { ok: true, text: `Went forward to ${describePage(page)}.` };
+			}
+			case 'reload':
+				return { ok: true, text: `Reloaded ${describePage(await browser.reload(workstreamId))}.` };
 		}
 	} catch (error) {
 		return { ok: false, error: describe(error) };

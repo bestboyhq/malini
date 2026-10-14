@@ -263,7 +263,11 @@ export type BridgeControlFrame =
 export type BrowserRequestAction =
 	| { action: 'open'; url: string }
 	| { action: 'screenshot' }
-	| { action: 'click'; selector: string };
+	| { action: 'click'; selector: string }
+	| { action: 'type'; selector: string; text: string; submit: boolean }
+	| { action: 'back' }
+	| { action: 'forward' }
+	| { action: 'reload' };
 
 export type BridgeBrowserRequest = {
 	type: 'bridge.browser_request';
@@ -716,9 +720,23 @@ function decodeBrowserRequest(
 		case 'open':
 			return { ok: true, value: { ...base, action, url: f.string('url') } };
 		case 'screenshot':
+		case 'back':
+		case 'forward':
+		case 'reload':
 			return { ok: true, value: { ...base, action } };
 		case 'click':
 			return { ok: true, value: { ...base, action, selector: f.string('selector') } };
+		case 'type':
+			return {
+				ok: true,
+				value: {
+					...base,
+					action,
+					selector: f.string('selector'),
+					text: f.string('text'),
+					submit: f.boolean('submit'),
+				},
+			};
 		default:
 			return { ok: false, error: `${type}: unknown action \`${action}\`` };
 	}

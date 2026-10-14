@@ -338,6 +338,7 @@ export interface ContractCommands {
 	'browser.snapshot': { args: WorkstreamIdArgs; result: string | null };
 	'browser.pick-element': { args: WorkstreamIdArgs; result: BrowserElementPrompt | null };
 	'browser.cancel-pick': { args: WorkstreamIdArgs; result: void };
+	'browser.close': { args: WorkstreamIdArgs; result: void };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
@@ -593,6 +594,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.snapshot',
 	'browser.pick-element',
 	'browser.cancel-pick',
+	'browser.close',
 	'app.copy-text',
 	'app.copy-image',
 	'chat.activate-session',

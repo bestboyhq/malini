@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
 	LEGACY_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
+	PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
 	REPOSITORY_CHANGES_PANEL_ID,
 	REPOSITORY_FILES_PANEL_ID,
 	moveInspectorPanel,
@@ -107,7 +108,7 @@ describe('extension inspector panel preferences', () => {
 				panel('beta'),
 			],
 			{
-				version: 2,
+				version: 3,
 				order: ['removed', 'beta', 'alpha'],
 				hidden: ['removed'],
 				activeId: 'removed',
@@ -115,7 +116,7 @@ describe('extension inspector panel preferences', () => {
 		);
 
 		expect(preferences).toEqual({
-			version: 2,
+			version: 3,
 			order: ['beta', 'alpha', 'new-hidden'],
 			hidden: ['new-hidden'],
 			activeId: 'beta',
@@ -129,7 +130,7 @@ describe('extension inspector panel preferences', () => {
 				panel('malini.repository.files-panel', { order: 20 }),
 			],
 			{
-				version: 2,
+				version: 3,
 				order: ['example.workstream-setup.panel', 'example.terminal.panel'],
 				hidden: [],
 				activeId: 'example.workstream-setup.panel',
@@ -149,7 +150,7 @@ describe('extension inspector panel preferences', () => {
 
 	it('selects, hides, and reorders by contribution id without panel-name knowledge', () => {
 		const initial: InspectorPanelPreferences = {
-			version: 2,
+			version: 3,
 			order: ['one', 'two', 'three'],
 			hidden: [],
 			activeId: 'one',
@@ -166,7 +167,7 @@ describe('extension inspector panel preferences', () => {
 
 	it('drops a panel at the index a drag lands on, clamped to the ends', () => {
 		const preferences = {
-			version: 2 as const,
+			version: 3 as const,
 			order: ['a', 'b', 'c', 'd'],
 			hidden: [],
 			activeId: 'a',
@@ -181,7 +182,7 @@ describe('extension inspector panel preferences', () => {
 
 	it('does not allow the final visible panel to be hidden', () => {
 		const onlyOneVisible = {
-			version: 2 as const,
+			version: 3 as const,
 			order: ['one', 'two'],
 			hidden: ['two'],
 			activeId: 'one',
@@ -194,7 +195,7 @@ describe('extension inspector panel preferences', () => {
 			[`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-2`]: '{broken',
 		});
 		expect(loadInspectorPanelPreferences('workstream-2', [panel('safe')], storage)).toEqual({
-			version: 2,
+			version: 3,
 			order: ['safe'],
 			hidden: [],
 			activeId: 'safe',
@@ -204,7 +205,7 @@ describe('extension inspector panel preferences', () => {
 	it('keeps a saved Changes tab selected now that Changes is its own panel again', () => {
 		const storage = memoryStorage({
 			[`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-changes`]: JSON.stringify({
-				version: 2,
+				version: 3,
 				order: ['example.terminal.panel', REPOSITORY_CHANGES_PANEL_ID, REPOSITORY_FILES_PANEL_ID],
 				hidden: [REPOSITORY_FILES_PANEL_ID],
 				activeId: REPOSITORY_CHANGES_PANEL_ID,
@@ -227,6 +228,32 @@ describe('extension inspector panel preferences', () => {
 		]);
 		expect(preferences.hidden).toEqual([REPOSITORY_FILES_PANEL_ID]);
 		expect(preferences.activeId).toBe(REPOSITORY_CHANGES_PANEL_ID);
+	});
+
+	it('hides a panel that is hidden by default again when it moves a v2 entry forward, unless it is the open one', () => {
+		const panels = [
+			panel('files', { order: 10 }),
+			panel('browser', { order: 30, defaultVisible: false }),
+		];
+		const v2 = (activeId: string) =>
+			memoryStorage({
+				[`${PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-v2`]: JSON.stringify({
+					version: 2,
+					order: ['files', 'browser'],
+					hidden: [],
+					activeId,
+				}),
+			});
+
+		expect(loadInspectorPanelPreferences('workstream-v2', panels, v2('files'))).toEqual({
+			version: 3,
+			order: ['files', 'browser'],
+			hidden: ['browser'],
+			activeId: 'files',
+		});
+		expect(loadInspectorPanelPreferences('workstream-v2', panels, v2('browser')).hidden).toEqual(
+			[],
+		);
 	});
 
 	describe('v1 key migration', () => {
@@ -255,7 +282,7 @@ describe('extension inspector panel preferences', () => {
 			);
 
 			expect(loadInspectorPanelPreferences('workstream-legacy', panels, storage)).toEqual({
-				version: 2,
+				version: 3,
 				order: ['files', 'terminal', 'preview'],
 				hidden: ['terminal', 'preview'],
 				activeId: 'files',
@@ -272,14 +299,14 @@ describe('extension inspector panel preferences', () => {
 			);
 
 			expect(loadInspectorPanelPreferences('workstream-legacy', panels, storage)).toEqual({
-				version: 2,
+				version: 3,
 				order: ['terminal', 'files', 'preview'],
 				hidden: ['preview'],
 				activeId: 'terminal',
 			});
 		});
 
-		it('never writes back to the v1 key and prefers v2 once a choice is recorded', () => {
+		it('never writes back to the v1 key and prefers the current key once a choice is recorded', () => {
 			const storage = memoryStorage(
 				legacyEntry({ order: ['terminal', 'files', 'preview'], hidden: [], activeId: 'terminal' }),
 			);
@@ -289,7 +316,7 @@ describe('extension inspector panel preferences', () => {
 
 			saveInspectorPanelPreferences(
 				'workstream-legacy',
-				{ version: 2, order: ['files', 'terminal', 'preview'], hidden: [], activeId: 'preview' },
+				{ version: 3, order: ['files', 'terminal', 'preview'], hidden: [], activeId: 'preview' },
 				storage,
 			);
 

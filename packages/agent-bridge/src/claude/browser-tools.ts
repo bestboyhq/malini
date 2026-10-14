@@ -37,6 +37,34 @@ export function maliniTools(
 			{ selector: z.string().min(1).describe('A CSS selector, for example button[type=submit]') },
 			({ selector }) => run({ action: 'click', selector }),
 		),
+		tool(
+			'browser_type',
+			"Replace the text in the first field that matches a CSS selector in malini's browser, optionally pressing Enter after it.",
+			{
+				selector: z.string().min(1).describe('A CSS selector, for example input[name=email]'),
+				text: z.string().describe('The text the field holds afterwards'),
+				submit: z.boolean().default(false).describe('Press Enter after typing'),
+			},
+			({ selector, text, submit }) => run({ action: 'type', selector, text, submit }),
+		),
+		tool(
+			'browser_back',
+			"Go back one page in malini's browser history and wait for the page to load.",
+			{},
+			() => run({ action: 'back' }),
+		),
+		tool(
+			'browser_forward',
+			"Go forward one page in malini's browser history and wait for the page to load.",
+			{},
+			() => run({ action: 'forward' }),
+		),
+		tool(
+			'browser_reload',
+			"Reload the page open in malini's browser and wait for it to load.",
+			{},
+			() => run({ action: 'reload' }),
+		),
 	];
 	return {
 		mcpServers: {

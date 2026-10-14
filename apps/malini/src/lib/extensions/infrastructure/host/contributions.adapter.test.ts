@@ -97,7 +97,7 @@ describe('DesktopExtensionContributionHost', () => {
 		]);
 		await panels.panels[0]?.onDidOpen?.(panelContext());
 		expect(openCount).toBe(1);
-		await panels.panels[0]?.onDidClose?.();
+		await panels.panels[0]?.onDidClose?.(panelContext());
 		expect(closeCount).toBe(1);
 		expect(() =>
 			api.panels.register({

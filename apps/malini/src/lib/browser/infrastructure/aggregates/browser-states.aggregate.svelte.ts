@@ -25,6 +25,12 @@ class BrowserStatesAggregate {
 		});
 	}
 
+	forget(workstreamId: string): void {
+		this.#leaving.delete(workstreamId);
+		const { [workstreamId]: _forgotten, ...rest } = this.byWorkstream;
+		this.byWorkstream = rest;
+	}
+
 	#write(state: BrowserState): void {
 		this.byWorkstream = { ...this.byWorkstream, [state.workstreamId]: state };
 	}
