@@ -4,9 +4,6 @@ import { AgentActivity } from './agent-activity.aggregate.svelte';
 
 const base = {
 	runId: 'run-1',
-	activeWorkstreamId: 'ws-active',
-	workstreamId: 'ws-background',
-	appFocused: true,
 	queueCount: 0,
 	workstreamLabel: 'Homepage polish',
 	repositoryFullName: 'szymeo/blog.dev',
@@ -70,17 +67,9 @@ describe('agentAttentionDecision', () => {
 		});
 	});
 
-	it('suppresses intermediate queue completions and work the user is already viewing', () => {
+	it('suppresses intermediate queue completions', () => {
 		const completed = { type: 'run.completed', runId: 'run-1', summary: 'Done.' } as const;
 		expect(agentAttentionDecision({ ...base, queueCount: 1, event: completed })).toBeNull();
-		expect(
-			agentAttentionDecision({
-				...base,
-				workstreamId: 'ws-active',
-				appFocused: true,
-				event: completed,
-			}),
-		).toBeNull();
 	});
 
 	it('surfaces failures and approvals but ignores expected cancellation noise', () => {

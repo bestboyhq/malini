@@ -19,6 +19,7 @@ function monitorHarness() {
 		sessionId: string;
 	}> = [];
 	const unlisten = vi.fn();
+	const chime = vi.fn();
 	let subscribeCount = 0;
 
 	const monitor = new AgentLifecycleMonitor({
@@ -53,6 +54,7 @@ function monitorHarness() {
 			attentions.set(workstreamId, attention);
 			return true;
 		},
+		chime,
 		notify: (title, body, workstreamId, sessionId) => {
 			notifications.push({ title, body, workstreamId, sessionId });
 		},
@@ -64,6 +66,7 @@ function monitorHarness() {
 		contexts,
 		attentions,
 		notifications,
+		chime,
 		unlisten,
 		subscribeCount: () => subscribeCount,
 		emit(payload: LiveEventEnvelope) {
@@ -130,6 +133,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('session-a')?.status).toBe('completed');
 		expect(harness.attentions.has('stream-a')).toBe(false);
 		expect(harness.notifications).toHaveLength(1);
+		expect(harness.chime).toHaveBeenCalledTimes(2);
 	});
 
 	it('leaves job runs to the Job center: no attention, no notification, no cleared dot', () => {
@@ -172,6 +176,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('job-session')?.status).toBe('completed');
 		expect(harness.attentions.get('stream-b')?.runId).toBe('user-run');
 		expect(harness.notifications).toEqual([]);
+		expect(harness.chime).not.toHaveBeenCalled();
 	});
 
 	it('clears old terminal attention when a new background run starts', () => {
@@ -219,6 +224,7 @@ describe('AgentLifecycleMonitor', () => {
 			},
 		]);
 		expect(harness.attentions.get('stream-a')?.kind).toBe('completed');
+		expect(harness.chime).toHaveBeenCalledOnce();
 	});
 
 	it('retires approval attention when that run is explicitly cancelled', () => {

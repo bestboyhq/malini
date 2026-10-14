@@ -43,7 +43,7 @@ function attachedNames(scope: string): readonly string[] {
 }
 
 describe('forking a chat into a new chat', () => {
-	it('opens a chat of its own that takes over the unsent message, after the transcript', async () => {
+	it('opens a chat of its own that leads with the transcript, then the unsent message', async () => {
 		const { platform } = await openCheckpointedChat();
 		updateDraftCommand(PARENT_CHAT, { text: 'carry this over', attachments: [NOTES] });
 		updateDraftCommand(NEW_CHAT, { text: 'a draft the fork must not touch' });
@@ -61,7 +61,10 @@ describe('forking a chat into a new chat', () => {
 			`Transcript of ${CHECKPOINTED_CHAT}.md`,
 			'notes.md',
 		]);
-		expect(composerDraftQuery.data(forkedChat).text).toBe('carry this over');
+		const [transcript] = composerDraftQuery.data(forkedChat).attachments;
+		expect(composerDraftQuery.data(forkedChat).text).toBe(
+			`[[attachment:${transcript?.id}]] carry this over`,
+		);
 		expect(composerDraftQuery.data(PARENT_CHAT).text).toBe('');
 		expect(attachedNames(PARENT_CHAT)).toEqual([]);
 		expect(attachedNames(NEW_CHAT)).toEqual([]);
