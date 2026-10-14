@@ -811,6 +811,7 @@
 											{@const pullRequest = pullRequestVisual(badge)}
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
+											{@const unread = attention !== null && !isSelected}
 											{@const workstreamItem = {
 												kind: 'workstream' as const,
 												id: workstream.id,
@@ -844,12 +845,12 @@
 													aria-busy={workstream.id === pendingWorkstreamId || undefined}
 													class={[
 														'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none group-focus-within/row:pr-8 group-hover/row:pr-8',
+														unread
+															? 'text-500'
+															: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary',
 														isSelected
 															? 'sidebar-row-active'
-															: [
-																	'group-hover/row:bg-surface-50-hover group-hover/row:text-500',
-																	'text-fg-secondary focus-visible:bg-surface-50-hover focus-visible:text-500',
-																],
+															: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover',
 													]}
 													data-testid="sidebar-workstream"
 													data-workstream-id={workstream.id}

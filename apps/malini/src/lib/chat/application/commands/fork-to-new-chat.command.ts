@@ -1,6 +1,7 @@
 import type { ChatRequestId } from '$lib/chat/domain/chat-request';
 import { mergeComposerAttachments } from '$lib/chat/domain/composer-actions';
 import { agentDraftScopeKey } from '$lib/chat/domain/draft';
+import { promptChipMarker } from '$lib/chat/domain/prompt-chip';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
 import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
@@ -35,10 +36,17 @@ function forkToNewChatCommand(
 			});
 			const forkedScope = agentDraftScopeKey(workstreamId, forked);
 			agentDrafts.move(agentDraftScopeKey(workstreamId, sessionId), forkedScope);
+			const carried = agentDrafts.draftFor(forkedScope);
 			agentDrafts.setAttachments(
 				forkedScope,
-				mergeComposerAttachments([transcript], agentDrafts.draftFor(forkedScope).attachments),
+				mergeComposerAttachments([transcript], carried.attachments),
 			);
+			if (carried.text) {
+				agentDrafts.setText(
+					forkedScope,
+					`${promptChipMarker({ kind: 'attachment', id: transcript.id })} ${carried.text}`,
+				);
+			}
 			if (chatRoute.workstreamId === workstreamId) {
 				await sessionActivation.activate(forked, workstreamId);
 			}

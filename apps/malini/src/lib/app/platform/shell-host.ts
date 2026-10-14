@@ -59,7 +59,11 @@ export function createElectronShellHost(): ShellHost {
 		decryptString: (encrypted) => safeStorage.decryptString(encrypted),
 		notificationsSupported: () => Notification.isSupported(),
 		showNotification: (options) => {
-			const notification = new Notification({ title: options.title, body: options.body });
+			const notification = new Notification({
+				title: options.title,
+				body: options.body,
+				silent: true,
+			});
 			const onClick = options.onClick;
 			if (onClick) notification.on('click', () => onClick());
 			holdUntilSettled(notification);
