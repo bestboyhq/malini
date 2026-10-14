@@ -250,6 +250,8 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		return input.baseBranch;
 	});
 
+	bridge.define('repositories.count-behind-base', async () => 0);
+
 	bridge.define('repositories.restart-workstream-on-base', async (input) => {
 		const branch =
 			state.workstreams.find((entry) => entry.id === input.workstreamId)?.branch ??

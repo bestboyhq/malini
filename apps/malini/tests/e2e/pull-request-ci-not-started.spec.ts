@@ -33,7 +33,7 @@ function notStartedCheck(name: string, job: number): Record<string, unknown> {
 	};
 }
 
-test("checks GitHub never started say CI didn't start and leave Queue merge to the user", async () => {
+test("checks GitHub never started say CI didn't start and leave Merge to the user", async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -49,9 +49,7 @@ test("checks GitHub never started say CI didn't start and leave Queue merge to t
 
 		const status = page.getByRole('status').filter({ hasText: "CI didn't start" });
 		await expect(status).toBeVisible({ timeout: 30_000 });
-		await expect(
-			page.getByRole('button', { name: 'Queue merge for pull request #7' }),
-		).toBeEnabled();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled();
 		await expect(page.getByRole('button', { name: /^Jobs:/u })).toHaveCount(0);
 		await status.hover();
 		await expect(page.getByRole('tooltip')).toHaveText(

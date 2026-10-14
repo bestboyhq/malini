@@ -3,6 +3,8 @@ import type { WorktreeOperation } from '$contract/repositories';
 export type PullRequestActionKind =
 	| 'open-draft'
 	| 'queue-merge'
+	| 'continue'
+	| 'archive'
 	| 'cancel-merge'
 	| 'open-pull-request'
 	| 'open-job'
@@ -30,6 +32,7 @@ export type WorkstreamStatus = Readonly<{
 	detail: string | null;
 	tooltip: string | null;
 	action: PullRequestTopBarAction | null;
+	secondaryAction?: PullRequestTopBarAction;
 }>;
 
 export type PullRequestMenuItemId = 'retry-merge' | 'cancel-merge' | 'abort-operation' | 'refresh';

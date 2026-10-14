@@ -21,9 +21,9 @@ function queueStatus(onQueue: () => void, onCancel: () => void): GlobalTopBarGit
 		todos: null,
 		headline: { tone: 'ready', busy: false, label: 'Ready to merge', detail: null, tooltip: null },
 		action: {
-			label: 'Queue merge',
-			ariaLabel: 'Queue merge for pull request #42',
-			tooltip: 'Malini merges it once GitHub allows',
+			label: 'Merge',
+			ariaLabel: 'Merge pull request #42',
+			tooltip: 'Merge once GitHub allows',
 			tone: 'primary',
 			icon: 'pr-merged',
 			disabled: false,
@@ -84,7 +84,7 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe('the top bar Queue merge', () => {
+describe('the top bar Merge', () => {
 	it('queues on the first click', () => {
 		let queues = 0;
 		const bar = mountBar(
@@ -97,7 +97,7 @@ describe('the top bar Queue merge', () => {
 			bar.action.click();
 			flushSync();
 			expect(queues).toBe(1);
-			expect(bar.action.textContent?.trim()).toBe('Queue merge');
+			expect(bar.action.textContent?.trim()).toBe('Merge');
 		} finally {
 			bar.stop();
 		}

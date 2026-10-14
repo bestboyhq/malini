@@ -54,7 +54,7 @@ export function pullRequestBadge(
 			label: reason ? `Needs you · ${needsYouReasonLabel(reason, null)}` : 'Needs you',
 		};
 	}
-	if (ship && (state === 'none' || state === 'draft' || state === 'unknown')) {
+	if (ship?.phase === 'draft' && (state === 'none' || state === 'draft' || state === 'unknown')) {
 		return {
 			phase: 'draft',
 			label: ship.pullRequestNumber === null ? 'Opening draft' : 'Draft pull request',

@@ -53,14 +53,14 @@ interface ShipDbRow {
 	updated_at: string;
 }
 
-const PHASES: readonly ShipPhase[] = ['draft', 'queued', 'needs-you'];
+const PHASES: readonly ShipPhase[] = ['local', 'draft', 'queued', 'needs-you'];
 const STEPS: readonly ShipStep[] = [
 	'waiting-for-agent',
 	'opening-draft',
 	'pushing',
 	'marking-ready',
 	'updating-branch',
-	'resolving-conflicts',
+	'updating-from-main',
 	'fixing-checks',
 	'addressing-review',
 	'waiting-for-checks',
@@ -90,7 +90,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 	const reason = member(REASONS, row.needs_you_reason);
 	return {
 		workstreamId: row.workstream_id,
-		phase: member(PHASES, row.phase) ?? 'draft',
+		phase: member(PHASES, row.phase) ?? 'local',
 		step: member(STEPS, row.step),
 		pullRequestNumber: row.pull_request_number,
 		pullRequestUrl: row.pull_request_url,

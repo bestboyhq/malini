@@ -85,7 +85,7 @@ function seedRoutine(): Promise<RoutineRecord> {
 	return fake.invoke('routines.create-draft', {
 		label: 'Fix then rebase',
 		when: 'when I run it',
-		steps: [{ job: 'fake-job-fix-checks' }, { job: 'fake-job-resolve-conflicts' }],
+		steps: [{ job: 'fake-job-fix-checks' }, { job: 'fake-job-update-from-main' }],
 	});
 }
 
@@ -101,7 +101,7 @@ describe('the routine steps editor', () => {
 		type(labelled('Command for step 2', form), 'malini.repository.refresh');
 
 		click(element('[data-testid="routine-step-add"]', form));
-		choose(labelled('Job for step 3', form), 'fake-job-resolve-conflicts');
+		choose(labelled('Job for step 3', form), 'fake-job-update-from-main');
 		click(labelled('Move step 3 up', form));
 		click(labelled('Move step 1 down', form));
 
@@ -112,14 +112,14 @@ describe('the routine steps editor', () => {
 			label: 'Fix, refresh, rebase',
 			when: 'when I run it',
 			steps: [
-				{ job: 'fake-job-resolve-conflicts' },
+				{ job: 'fake-job-update-from-main' },
 				{ job: 'fake-job-fix-checks' },
 				{ command: 'malini.repository.refresh', args: [] },
 			],
 		});
 		await vi.waitFor(() =>
 			expect(rowSteps('Fix, refresh, rebase')).toEqual([
-				'1. Job · Resolve conflicts',
+				'1. Job · Update from main',
 				'2. Job · Fix checks',
 				'3. Extension command · malini.repository.refresh',
 			]),
@@ -156,7 +156,7 @@ describe('the routine steps editor', () => {
 		await vi.waitFor(() =>
 			expect(rowSteps('Fix then rebase')).toEqual([
 				'1. Job · Fix checks',
-				'2. Job · Resolve conflicts',
+				'2. Job · Update from main',
 			]),
 		);
 
@@ -169,13 +169,13 @@ describe('the routine steps editor', () => {
 		expect(argsOf('routines.update')[0]).toMatchObject({
 			label: 'Fix then rebase',
 			when: 'when I run it',
-			steps: [{ job: 'fake-job-resolve-conflicts' }, { job: 'fake-job-fix-checks' }],
+			steps: [{ job: 'fake-job-update-from-main' }, { job: 'fake-job-fix-checks' }],
 		});
 		await vi.waitFor(() =>
 			expect(host.querySelector('[aria-label="Editing Fix then rebase"]')).toBeNull(),
 		);
 		expect(rowSteps('Fix then rebase')).toEqual([
-			'1. Job · Resolve conflicts',
+			'1. Job · Update from main',
 			'2. Job · Fix checks',
 		]);
 	});

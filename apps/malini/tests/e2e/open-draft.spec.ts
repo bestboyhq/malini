@@ -20,7 +20,7 @@ import {
 } from './fake-github';
 
 const OPEN_DRAFT = 'Open a draft pull request';
-const QUEUE_MERGE = 'Queue merge for pull request #7';
+const QUEUE_MERGE = 'Merge pull request #7';
 
 test('Open draft commits and pushes the work under its generated title, and every later run is pushed once the workstream goes idle', async () => {
 	test.setTimeout(180_000);
@@ -38,7 +38,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		await expectAssistantReply(page);
 		await expect(status).toHaveAttribute('data-workstream-pull-request-state', 'none');
 		const open = page.getByRole('button', { name: OPEN_DRAFT });
-		await expect(open).toHaveText('Open draft', { timeout: 30_000 });
+		await expect(open).toHaveText('Draft', { timeout: 30_000 });
 		await open.click();
 
 		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled({

@@ -144,6 +144,7 @@ export type GlobalTopBarGithubStatus = Readonly<{
 	changes?: GlobalTopBarStatusNote | null;
 	headline: GlobalTopBarStatusHeadline | null;
 	action: GlobalTopBarStatusAction | null;
+	secondaryAction?: GlobalTopBarStatusAction | null;
 	detailActions?: readonly GlobalTopBarStatusDetailAction[];
 	remoteFailure?: string | null;
 }>;

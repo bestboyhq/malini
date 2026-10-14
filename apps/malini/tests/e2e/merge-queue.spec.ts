@@ -23,7 +23,7 @@ const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-test('Queue merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
+test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -32,9 +32,9 @@ test('Queue merge marks the draft ready, waits for the checks, merges and archiv
 		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
 		await expectAssistantReply(page);
 		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
-		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeEnabled(
-			{ timeout: 30_000 },
-		);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
 		github.setPullRequest({
 			mergeable: 'MERGEABLE',
 			mergeStateStatus: 'CLEAN',
@@ -137,7 +137,7 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 	}
 });
 
-test('Cancel takes a confirming click in the bar and hands the pull request back to Queue merge', async () => {
+test('Cancel takes a confirming click in the bar and hands the pull request back to Merge', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -159,9 +159,9 @@ test('Cancel takes a confirming click in the bar and hands the pull request back
 		await captureFlow(app, 'merge-queue-cancel-armed');
 		await confirm.click();
 
-		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeEnabled(
-			{ timeout: 30_000 },
-		);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
 		await expect(sidebarStatus(page, 'e2e-cancel-merge')).not.toHaveAttribute(
 			'data-workstream-pull-request-state',
 			'queued',

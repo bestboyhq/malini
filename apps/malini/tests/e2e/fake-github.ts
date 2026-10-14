@@ -95,7 +95,7 @@ export function toastSaying(page: Page, text: string): Locator {
 
 export async function queueMerge(page: Page): Promise<void> {
 	const queue = page.getByRole('button', {
-		name: `Queue merge for pull request #${PULL_REQUEST_NUMBER}`,
+		name: `Merge pull request #${PULL_REQUEST_NUMBER}`,
 	});
 	await expect(queue).toBeEnabled({ timeout: 30_000 });
 	await queue.click();

@@ -106,7 +106,7 @@ function seedMixedRuns(): void {
 		platform,
 		jobRun('run-running', { status: 'running', sessionId: 'session-7', startedAt: minutesAgo(2) }),
 	);
-	seedFakeJobRun(platform, jobRun('run-queued', { title: 'Resolve conflicts' }));
+	seedFakeJobRun(platform, jobRun('run-queued', { title: 'Update from main' }));
 	seedFakeJobRun(
 		platform,
 		jobRun('run-stuck', {
@@ -217,7 +217,7 @@ describe('the Job center', () => {
 		).toEqual([
 			'Open transcript: Address bot review · Signal Arc, Needs you',
 			'Open transcript: Fix checks · Signal Arc, Running',
-			'Resolve conflicts · Signal Arc, Queued. The transcript opens once the job starts',
+			'Update from main · Signal Arc, Queued. The transcript opens once the job starts',
 		]);
 	});
 
@@ -282,7 +282,7 @@ describe('the Job center', () => {
 
 		expect(control('Cancel Address bot review')).toBeNull();
 		expect(control('Cancel Update the changelog')).toBeNull();
-		expect(control('Cancel Resolve conflicts')).not.toBeNull();
+		expect(control('Cancel Update from main')).not.toBeNull();
 	});
 
 	it('opens the transcript of a job that has one', async () => {
@@ -303,7 +303,7 @@ describe('the Job center', () => {
 		seedMixedRuns();
 		await mountCenter();
 
-		const queued = requireControl(/^Resolve conflicts · Signal Arc, Queued/u);
+		const queued = requireControl(/^Update from main · Signal Arc, Queued/u);
 		expect(queued.tagName).toBe('BUTTON');
 		expect(queued.hasAttribute('disabled')).toBe(true);
 	});

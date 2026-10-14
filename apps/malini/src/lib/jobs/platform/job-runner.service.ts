@@ -7,6 +7,7 @@ import {
 	type SessionStatus,
 } from '$contract/agent-state-machine';
 import { CHAT_AGENT_EVENT_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
+import type { WorktreeStatus } from '$contract/repositories';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	JOBS_MAX_CONCURRENT_SETTING,
@@ -19,6 +20,7 @@ import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import type { CommandOutcome } from '$main/ipc/registry';
 import {
+	getWorkstream,
 	listProjects,
 	listWorkstreams,
 	planWorkstreamProvisioning,
@@ -30,6 +32,7 @@ import {
 	jobsMaxConcurrent,
 	workstreamWasBusy,
 } from '../domain/job-run';
+import { updateFromMainJobContext } from '../domain/update-from-main-context';
 import { getJobDefinition } from './job-definitions.repository';
 import {
 	findActiveJobRunForSession,
@@ -176,8 +179,14 @@ export class JobRunner {
 		try {
 			const definition = getJobDefinition(db, jobRun.definitionId);
 			if (!definition) throw new Error('This job no longer exists.');
+			const updating = definition.builtin === 'update-from-main';
+			if (updating && jobRun.workstreamId === null) {
+				throw new Error('Update from main needs a workstream to update.');
+			}
 			const workstreamId = jobRun.workstreamId ?? (await this.#createWorkstream(jobRun));
 			if (!this.#dispatching(jobRun.id)) return;
+			const updateContext = updating ? await this.#updateFromMain(jobRun.id, workstreamId) : '';
+			if (updateContext === null) return;
 			const sessionId =
 				jobRun.sessionId ??
 				(await commands.call('chat.start-session', {
@@ -193,7 +202,10 @@ export class JobRunner {
 			// ponytail: jobs run in auto mode like the user's chats; sandbox them once the sandbox can run gh, e2e and scratch worktrees without asking
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
-				prompt: jobPrompt(definition.instructions, getJobRunContext(db, jobRun.id)),
+				prompt: jobPrompt(
+					jobPrompt(definition.instructions, getJobRunContext(db, jobRun.id)),
+					updateContext,
+				),
 				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
 			});
@@ -209,6 +221,56 @@ export class JobRunner {
 			if (workstreamWasBusy(error) && this.#requeue(jobRun.id)) return;
 			this.#finish(jobRun.id, 'failed', `Could not start the job: ${describeError(error)}`);
 		}
+	}
+
+	async #updateFromMain(jobRunId: string, workstreamId: string): Promise<string | null> {
+		const { db, commands } = this.#context;
+		const workstream = getWorkstream(db, workstreamId);
+		if (!workstream) throw new Error('The workstream for this job no longer exists.');
+		const baseBranch =
+			workstream.baseBranch ||
+			(await resolveConnectedRepository(db, workstream.projectId))?.defaultBranch;
+		if (!baseBranch) throw new Error('This workstream has no base branch to update from.');
+		const status = await commands.call('repositories.workstream-status', { workstreamId });
+		const conflicted = hasConflictedMerge(status)
+			? status
+			: await this.#mergeBase(jobRunId, status, workstreamId, baseBranch);
+		if (conflicted === null || !this.#dispatching(jobRunId)) return null;
+		return updateFromMainJobContext({
+			branch: workstream.branch,
+			baseBranch,
+			conflictedPaths: conflicted.conflictedPaths,
+			conflictMarkerPaths: conflicted.conflictMarkerPaths,
+		});
+	}
+
+	async #mergeBase(
+		jobRunId: string,
+		status: WorktreeStatus,
+		workstreamId: string,
+		baseBranch: string,
+	): Promise<WorktreeStatus | null> {
+		const { commands } = this.#context;
+		const blocker = updateBlocker(status);
+		if (blocker !== null) {
+			this.#finish(jobRunId, 'failed', blocker);
+			return null;
+		}
+		const args = { workstreamId, baseBranch };
+		const behind = await commands.call('repositories.count-behind-base', args);
+		if (!this.#dispatching(jobRunId)) return null;
+		if (behind === 0) {
+			this.#succeed(jobRunId, `Already up to date with ${baseBranch}`);
+			return null;
+		}
+		await commands.call('repositories.pull-workstream', args);
+		const merged = await commands.call('repositories.workstream-status', { workstreamId });
+		if (merged.operationInProgress === 'merge') return merged;
+		this.#succeed(
+			jobRunId,
+			`Merged ${behind} ${behind === 1 ? 'commit' : 'commits'} from ${baseBranch}`,
+		);
+		return null;
 	}
 
 	#dispatching(jobRunId: string): boolean {
@@ -492,6 +554,20 @@ export class JobRunner {
 	#background(work: Promise<void>): void {
 		void work.catch((error: unknown) => this.#log(`jobs: ${describeError(error)}`));
 	}
+}
+
+function hasConflictedMerge(status: WorktreeStatus): boolean {
+	return status.operationInProgress === 'merge' && status.conflictedPaths.length > 0;
+}
+
+function updateBlocker(status: WorktreeStatus): string | null {
+	if (status.operationInProgress !== null) {
+		return `A ${status.operationInProgress} is in progress in this workstream. Finish or abort it first.`;
+	}
+	if (status.dirtyPaths.length > 0) {
+		return 'Commit or discard the uncommitted changes, then update from main again.';
+	}
+	return null;
 }
 
 function isActive(status: JobRunStatus): boolean {

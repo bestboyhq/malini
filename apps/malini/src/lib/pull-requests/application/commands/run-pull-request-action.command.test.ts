@@ -5,6 +5,8 @@ import type { ShipStateRecord } from '$contract/pull-requests';
 import { createFakePlatform, type FakePlatform } from '$shared/port/fake/create-fake-platform';
 import { fakeShips } from '$shared/port/fake/pull-requests.fake';
 import { setPlatformForTest } from '$shared/port/platform';
+import { refreshWorkstreamsCommand } from '$shared/repositories/repositories.api';
+import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
 import { pullRequestTopBarQuery } from '$lib/pull-requests/application/queries/pull-request-top-bar.query.svelte';
 import type { RepositorySurface } from '$lib/pull-requests/domain/repository-surface';
@@ -21,7 +23,7 @@ const router = vi.hoisted(() => ({ goto: vi.fn(async (_href: string) => undefine
 vi.mock('$shared/router/navigation', () => ({ goto: router.goto }));
 
 const WORKSTREAM_ID = 'ws-signal';
-const noStaleStatus = (): void => undefined;
+const effects = { onGitStatusStale: (): void => undefined, onArchive: (): void => undefined };
 const PULL_REQUEST_URL = 'https://github.com/acme/fake/pull/500';
 
 let platform: FakePlatform;
@@ -61,6 +63,7 @@ afterEach(() => {
 	releasePullRequestScopeCommand();
 	repositorySurfaceAggregate.clear();
 	pullRequestShipAggregate.reset();
+	workstreamsAggregate.reset();
 	setPlatformForTest(null);
 	router.goto.mockClear();
 	vi.restoreAllMocks();
@@ -109,24 +112,36 @@ async function settle(): Promise<void> {
 }
 
 describe('the top bar primary action', () => {
-	it('opens a draft, busy while main takes the intent, then offers Queue merge', async () => {
+	it('opens a draft, busy while main takes the intent, then offers Merge', async () => {
 		readWorkstream();
-		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Open draft');
+		expect(pullRequestTopBarQuery.data.status?.secondaryAction?.label).toBe('Draft');
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('open-draft', effects);
 		expect(pullRequestBusyQuery.label).toBe('Opening draft');
 		await settle();
 
 		expect(sent('pull-requests.open-draft')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
 		expect(pullRequestBusyQuery.data).toBe(false);
-		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Queue merge');
+		expect(pullRequestTopBarQuery.data.status?.action?.ariaLabel).toBe('Merge pull request #500');
+	});
+
+	it('runs the button the user clicked only while the bar still offers it', async () => {
+		readWorkstream();
+
+		runPullRequestActionCommand('cancel-merge', effects);
+		runPullRequestActionCommand('queue-merge', effects);
+		await settle();
+
+		expect(sent('pull-requests.cancel-merge')).toEqual([]);
+		expect(sent('pull-requests.open-draft')).toEqual([]);
+		expect(sent('pull-requests.queue-merge')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
 	});
 
 	it('queues the merge of an existing pull request', async () => {
 		ship({ phase: 'draft', pullRequestNumber: 500 });
 		readWorkstream({ dirtyPaths: [], changedFiles: 0 });
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('queue-merge', effects);
 		await settle();
 
 		expect(sent('pull-requests.queue-merge')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
@@ -140,7 +155,7 @@ describe('the top bar primary action', () => {
 	it('cancels a queued merge', async () => {
 		ship({ phase: 'queued', step: 'fixing-checks', pullRequestNumber: 500 });
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('cancel-merge', effects);
 		await settle();
 
 		expect(sent('pull-requests.cancel-merge')).toEqual([{ workstreamId: WORKSTREAM_ID }]);
@@ -151,7 +166,7 @@ describe('the top bar primary action', () => {
 		readWorkstream({ pullRequestError: 'HTTP 502' });
 		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Retry');
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('refresh', effects);
 
 		expect(pullRequestBusyQuery.label).toBe('Refreshing…');
 	});
@@ -161,7 +176,7 @@ describe('the top bar primary action', () => {
 		readWorkstream({ operationInProgress: 'rebase' });
 		expect(pullRequestTopBarQuery.data.status?.action?.label).toBe('Abort rebase');
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('abort-operation', effects);
 
 		expect(pullRequestBusyQuery.label).toBe('Aborting rebase');
 	});
@@ -173,7 +188,7 @@ describe('the top bar primary action', () => {
 		});
 		readWorkstream();
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('open-draft', effects);
 		await settle();
 
 		expect(error).toHaveBeenCalledWith(
@@ -181,6 +196,80 @@ describe('the top bar primary action', () => {
 			expect.objectContaining({ context: { workstream: WORKSTREAM_ID } }),
 		);
 		expect(pullRequestBusyQuery.data).toBe(false);
+	});
+});
+
+describe('a pull request merged on GitHub', () => {
+	const MERGED_HEAD = 'a'.repeat(40);
+
+	function readMerged(): void {
+		readWorkstream({
+			dirtyPaths: [],
+			pullRequest: {
+				state: 'merged',
+				number: 500,
+				url: PULL_REQUEST_URL,
+				headSha: MERGED_HEAD,
+				githubLagsPush: false,
+				mergeable: null,
+				mergeableState: null,
+				behindBase: null,
+				checks: 'success',
+				checksHeadline: 'Checks passed',
+				checkItems: [],
+				reviewDecision: null,
+				unresolvedReviewThreadCount: 0,
+				reviewStatusUnavailable: false,
+				viewerCanMerge: null,
+				mergeReadiness: 'ready',
+				mergeMethod: 'squash',
+			},
+		});
+	}
+
+	it('archives the workstream, or continues it on the latest base', async () => {
+		platform.seed({
+			projects: [
+				{
+					id: 'project-signal',
+					name: 'signal',
+					repoPath: '/tmp/base/signal',
+					defaultBranch: 'main',
+					remoteUrl: 'https://github.com/acme/signal.git',
+				},
+			],
+			workstreams: [
+				{
+					id: WORKSTREAM_ID,
+					projectId: 'project-signal',
+					name: 'Signal Arc',
+					path: '/tmp/worktrees/ws-signal',
+					branch: 'malini/ws-signal',
+					baseBranch: 'main',
+					status: 'active',
+				},
+			],
+		});
+		refreshWorkstreamsCommand();
+		await vi.waitFor(() => expect(workstreamsAggregate.loaded).toBe(true));
+		readMerged();
+		const onArchive = vi.fn<() => void>();
+
+		runPullRequestActionCommand('archive', { ...effects, onArchive });
+		expect(onArchive).toHaveBeenCalledOnce();
+
+		runPullRequestActionCommand('continue', effects);
+		expect(pullRequestBusyQuery.label).toBe('Continuing');
+		await vi.waitFor(() =>
+			expect(sent('repositories.restart-workstream-on-base')).toEqual([
+				{
+					workstreamId: WORKSTREAM_ID,
+					baseBranch: 'main',
+					mergedHeadSha: MERGED_HEAD,
+					expectedRepositoryFullName: 'acme/signal',
+				},
+			]),
+		);
 	});
 });
 
@@ -196,7 +285,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'reply-to-reviewer', detail: 'Octo asked for tests', jobRunId: null },
 		});
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('open-pull-request', effects);
 		await settle();
 
 		expect(sent('app.open-external-url')).toEqual([{ url: PULL_REQUEST_URL }]);
@@ -226,7 +315,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-7' },
 		});
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('open-job', effects);
 		await settle();
 
 		expect(router.goto).toHaveBeenCalledWith('/workstreams/ws-signal?agent=session-7');
@@ -240,7 +329,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'fix-gave-up', detail: '', jobRunId: 'run-gone' },
 		});
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('open-job', effects);
 		await settle();
 
 		expect(router.goto).not.toHaveBeenCalled();
@@ -254,7 +343,7 @@ describe('the needs-you action', () => {
 			needsYou: { reason: 'github-reconnect', detail: '', jobRunId: null },
 		});
 
-		runPullRequestActionCommand(noStaleStatus);
+		runPullRequestActionCommand('reconnect', effects);
 		await settle();
 
 		expect(router.goto).toHaveBeenCalledWith('/');

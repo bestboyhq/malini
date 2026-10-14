@@ -44,7 +44,7 @@ async function renderTabs(path: string, activeSessionId: string): Promise<HTMLEl
 	await startChatRouter(path);
 	hydrate('s-chat', 'user', 'Login flow', 1);
 	hydrate('s-job', 'job', 'Fix checks', 2);
-	hydrate('s-other-job', 'job', 'Resolve conflicts', 3);
+	hydrate('s-other-job', 'job', 'Update from main', 3);
 	const host = document.createElement('div');
 	document.body.append(host);
 	const app = mount(ChatTabs, {

@@ -137,7 +137,7 @@ describe('the Jobs section', () => {
 	it('lists the built-in jobs with Reset and without Delete or Run', () => {
 		expect(rowNames('Built-in jobs')).toEqual([
 			'Fix checks',
-			'Resolve conflicts',
+			'Update from main',
 			'Address bot review',
 		]);
 		expect(list('Built-in jobs').textContent).toContain('Built-in');

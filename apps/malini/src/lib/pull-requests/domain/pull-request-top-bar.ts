@@ -53,7 +53,10 @@ function workstreamStatus(
 ): WorkstreamStatus | null {
 	if (ship?.phase === 'needs-you') return needsYou(ship, read, url);
 	if (ship?.phase === 'queued') return queued(ship);
-	if (ship?.step && ship.pullRequestNumber === null) return openingDraft(ship);
+	if (ship?.step === 'updating-from-main') return UPDATING_FROM_MAIN;
+	if (ship?.phase === 'draft' && ship.step && ship.pullRequestNumber === null) {
+		return openingDraft(ship);
+	}
 	if (availability === 'extension-unavailable') return EXTENSION_OFF;
 	if (availability === 'github-unavailable') return read ? withoutGithub(read) : null;
 
@@ -65,7 +68,7 @@ function workstreamStatus(
 	if (operation) return operation;
 
 	const pullRequest = read.pullRequest;
-	if (pullRequest?.state === 'merged') return MERGED;
+	if (pullRequest?.state === 'merged') return merged(read, pullRequest);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return { ...openStatus(read, pullRequest), action: queueMerge(pullRequest.number, ship) };
 	}
@@ -146,6 +149,15 @@ function openingDraft(ship: PullRequestShip): WorkstreamStatus {
 	};
 }
 
+const UPDATING_FROM_MAIN: WorkstreamStatus = {
+	tone: 'idle',
+	busy: true,
+	label: 'Updating from main',
+	detail: null,
+	tooltip: 'Malini is merging main into this workstream. An agent resolves any conflicts',
+	action: null,
+};
+
 const NOTHING_YET: WorkstreamStatus = {
 	tone: 'idle',
 	busy: false,
@@ -217,7 +229,36 @@ function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
 	);
 }
 
-const MERGED: WorkstreamStatus = { ...line('merged', 'Merged', null), action: null };
+function merged(read: RepositorySurface, pullRequest: SurfacePullRequest): WorkstreamStatus {
+	const leftover = read.dirtyPaths.length > 0 || read.ahead > 0;
+	return {
+		...line('merged', 'Merged', null),
+		action: {
+			kind: 'archive',
+			label: 'Archive',
+			ariaLabel: 'Archive this workstream',
+			tooltip: leftover
+				? 'Archive this workstream. Work made after the merge is kept as a saved ref'
+				: 'Archive this workstream',
+			tone: 'primary',
+			confirmLabel: null,
+		},
+		...(read.baseBranch && pullRequest.headSha
+			? { secondaryAction: continueOnBase(read.baseBranch) }
+			: {}),
+	};
+}
+
+function continueOnBase(baseBranch: string): PullRequestTopBarAction {
+	return {
+		kind: 'continue',
+		label: 'Continue',
+		ariaLabel: `Continue on top of the latest ${baseBranch}`,
+		tooltip: `Keep working on top of the latest ${baseBranch}`,
+		tone: 'secondary',
+		confirmLabel: null,
+	};
+}
 
 function closed(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	return {
@@ -229,9 +270,12 @@ function closed(read: RepositorySurface, ship: PullRequestShip | null): Workstre
 function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	const changed = changedFileCount(read);
 	if (changed === 0) return NOTHING_YET;
+	const drafting = ship?.phase === 'draft' ? ship : null;
 	return {
 		...line('idle', filesChanged(changed), null),
-		action: openDraft(ship, false),
+		tooltip: ship?.phase === 'local' ? ship.lastError : null,
+		action: MERGE,
+		secondaryAction: { ...openDraft(drafting, false), tone: 'secondary' },
 	};
 }
 
@@ -374,30 +418,33 @@ function queueMerge(
 	ship: PullRequestShip | null,
 ): PullRequestTopBarAction {
 	return {
-		kind: 'queue-merge',
-		label: 'Queue merge',
-		ariaLabel:
-			pullRequestNumber === null
-				? 'Queue merge'
-				: `Queue merge for pull request #${pullRequestNumber}`,
+		...MERGE,
+		ariaLabel: pullRequestNumber === null ? 'Merge' : `Merge pull request #${pullRequestNumber}`,
 		tooltip: ship?.lastError
-			? `Pushing the latest work failed and malini retries it: ${ship.lastError}`
-			: 'Malini marks the pull request ready, keeps it up to date and its checks green, and merges it once GitHub allows',
-		tone: 'primary',
-		confirmLabel: null,
+			? `Push failed, retrying: ${ship.lastError}`
+			: 'Merge once GitHub allows',
 	};
 }
+
+const MERGE: PullRequestTopBarAction = {
+	kind: 'queue-merge',
+	label: 'Merge',
+	ariaLabel: 'Merge',
+	tooltip: 'Open a pull request and merge it once GitHub allows',
+	tone: 'primary',
+	confirmLabel: null,
+};
 
 function openDraft(ship: PullRequestShip | null, replacing: boolean): PullRequestTopBarAction {
 	return {
 		kind: 'open-draft',
-		label: 'Open draft',
+		label: 'Draft',
 		ariaLabel: replacing ? 'Open a replacement draft pull request' : 'Open a draft pull request',
 		tooltip: ship?.lastError
-			? `Opening the draft failed: ${ship.lastError}. Try again`
+			? `Opening the draft failed: ${ship.lastError}`
 			: replacing
-				? 'The previous pull request is closed. Commit, push and open a new draft pull request'
-				: 'Commit and push this workstream, then open a draft pull request',
+				? 'The previous pull request is closed. Open a new draft pull request'
+				: 'Open a draft pull request',
 		tone: 'primary',
 		confirmLabel: null,
 	};

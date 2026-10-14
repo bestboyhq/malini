@@ -146,6 +146,7 @@ export function fakeShips(bridge: FakeBridge): FakeShips {
 	shipStates.set(bridge, created);
 
 	bridge.define('pull-requests.ship-states', async () => [...ships.values()]);
+	bridge.define('pull-requests.workstream-opened', async () => null);
 
 	bridge.define('pull-requests.open-draft', async (input) =>
 		created.set(input.workstreamId, {

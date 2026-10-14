@@ -126,6 +126,17 @@ export function getWorkstreamRun(
 	return row ? runFromRow(row) : null;
 }
 
+export function getRunWorkstreamId(db: MaliniDatabase, runId: string): string | null {
+	return (
+		get<{ workstream_id: string }>(
+			db,
+			`SELECT s.workstream_id FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE r.id = ?`,
+			runId,
+		)?.workstream_id ?? null
+	);
+}
+
 export function finalizeRunLifecycle(
 	db: MaliniDatabase,
 	sessionId: string,

@@ -17,6 +17,7 @@ import {
 	abortWorkstreamOperation,
 	commitWorkstreamBranch,
 	commitWorktreeChanges,
+	countCommitsBehindBase,
 	MAX_ADDED_FILES_PER_COMMIT,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
@@ -491,6 +492,36 @@ describe('pullWorkstreamBaseBranch', () => {
 		await expect(
 			pullWorkstreamBaseBranch(checkout, 'ws-1', 'main', null, noPromptCredentialEnv),
 		).rejects.toThrow('a merge is already in progress in this workstream');
+	});
+});
+
+describe('countCommitsBehindBase', () => {
+	it('fetches the base branch and counts the commits the workstream lacks', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
+		const count = () =>
+			countCommitsBehindBase(checkout, 'ws-1', 'main', null, noPromptCredentialEnv);
+		expect(await count()).toBe(0);
+
+		const other = join(dir, 'other');
+		await realGit(dir, ['clone', '-q', remote, other]);
+		await realGit(other, ['config', 'user.email', 't@example.com']);
+		await realGit(other, ['config', 'user.name', 't']);
+		for (const name of ['one', 'two']) {
+			await writeFile(join(other, `${name}.txt`), `${name}\n`);
+			await realGit(other, ['add', '.']);
+			await realGit(other, ['commit', '-q', '-m', name]);
+		}
+		await realGit(other, ['push', '-q', 'origin', 'main']);
+
+		expect(await count()).toBe(2);
+		await expect(
+			countCommitsBehindBase(checkout, 'ws-2', 'main', null, noPromptCredentialEnv),
+		).rejects.toThrow('workstream branch mismatch');
+		await expect(
+			countCommitsBehindBase(checkout, 'ws-1', '-main', null, noPromptCredentialEnv),
+		).rejects.toThrow('invalid base branch');
 	});
 });
 

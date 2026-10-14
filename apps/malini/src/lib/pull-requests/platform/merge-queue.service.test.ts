@@ -322,11 +322,12 @@ let pushes: string[];
 let pulls: string[];
 let archived: string[];
 let pullConflicts: string[];
+let behind: Map<string, number>;
 let shaCounter: number;
 let clockOffsetMs: number;
 
 const DEFINITIONS: JobDefinitionRecord[] = (
-	['fix-checks', 'resolve-conflicts', 'address-review'] as const
+	['fix-checks', 'update-from-main', 'address-review'] as const
 ).map((builtin) => ({
 	id: `def-${builtin}`,
 	name: builtin,
@@ -492,6 +493,10 @@ function defineFakes(): void {
 		);
 		return 'abc1234';
 	});
+	commands.define(
+		'repositories.count-behind-base',
+		(args: unknown) => behind.get(String(Reflect.get(Object(args), 'workstreamId'))) ?? 0,
+	);
 	commands.define('repositories.archive-workstream', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
 		expect(shipEvents.at(-1)).toMatchObject({ workstreamId, state: null, merged: {} });
@@ -631,6 +636,7 @@ beforeEach(() => {
 	pulls = [];
 	archived = [];
 	pullConflicts = [];
+	behind = new Map();
 	shaCounter = 0;
 	clockOffsetMs = 0;
 	runCounter = 0;
@@ -739,12 +745,118 @@ describe('pushing automatically', () => {
 		expect(github.only().title).toBe('My own title');
 	});
 
-	it('never pushes a workstream that has no ship state', async () => {
+	it('commits each finished run locally and never pushes before a pull request exists', async () => {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search', ['src/search.ts']);
+		const runId = finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+
+		await until(() =>
+			expect(commits).toMatchObject([{ message: 'Added search to the header', runId }]),
+		);
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 3));
 		expect(pushes).toEqual([]);
+		expect(github.pulls).toHaveLength(0);
+		expect(ship('ws-1')).toMatchObject({ phase: 'local', step: null });
+	});
+});
+
+describe('keeping a workstream current with main', () => {
+	async function openDraft(): Promise<void> {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
+	}
+
+	function mergeMain(workstreamId: string, conflicts: string[] = []): void {
+		const current = worktree(workstreamId);
+		behind.set(workstreamId, 0);
+		worktrees.set(
+			workstreamId,
+			conflicts.length === 0
+				? { ...current, ahead: current.ahead + 1, headSha: nextSha() }
+				: {
+						...current,
+						operationInProgress: 'merge',
+						mergeInProgress: true,
+						dirtyPaths: [...conflicts],
+						conflictedPaths: [...conflicts],
+						conflictMarkerPaths: [...conflicts],
+					},
+		);
+	}
+
+	it('leaves a workstream that is up to date alone', async () => {
+		seedWorkstream('ws-1');
+		start();
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'local' }));
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(0);
+	});
+
+	it('runs Update from main when a draft behind main opens, then pushes the clean merge', async () => {
+		await openDraft();
+		behind.set('ws-1', 3);
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		const job = activeJob();
+		expect(job).toMatchObject({ definitionId: 'def-update-from-main', origin: 'merge-queue' });
+		mergeMain('ws-1');
+		finishJob(job.id, 'succeeded', { summary: 'Merged 3 commits from main' });
+
+		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
+		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
+		expect(jobRuns.size).toBe(1);
+	});
+
+	it('retries conflicts the update could not resolve, then commits and pushes the merge', async () => {
+		await openDraft();
+		behind.set('ws-1', 2);
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		const first = activeJob();
+		mergeMain('ws-1', ['src/search.ts']);
+		finishJob(first.id, 'succeeded');
+
+		await until(() => expect(jobRuns.size).toBe(2));
+		const second = activeJob();
+		expect(second.definitionId).toBe('def-update-from-main');
+		finishJob(second.id, 'succeeded', { resolveConflicts: true });
+
+		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
+		expect(commits.at(-1)).toMatchObject({ message: 'Merge main into malini/ws-1' });
+	});
+
+	it('commits leftover work when a local workstream opens, then updates it from main', async () => {
+		seedWorkstream('ws-1', { dirtyPaths: ['src/notes.ts'] });
+		start();
+		behind.set('ws-1', 2);
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+
+		await until(() => expect(commits).toHaveLength(1));
+		await until(() => expect(activeJob().definitionId).toBe('def-update-from-main'));
+		expect(pushes).toEqual([]);
+	});
+
+	it('does not reopen the same workstream within a minute', async () => {
+		seedWorkstream('ws-1');
+		start();
+		behind.set('ws-1', 1);
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(jobRuns.size).toBe(1));
+		finishJob(activeJob().id, 'cancelled');
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(1);
 	});
 });
 
@@ -802,7 +914,8 @@ describe('the merge queue', () => {
 		expect(record.queuedAt).not.toBeNull();
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(github.count(['pr', 'create'])).toBe(1);
-		expect(github.count(['pr', 'ready'])).toBe(1);
+		expect(github.count(['pr', 'ready'])).toBe(0);
+		expect(github.only()).toMatchObject({ isDraft: false });
 	});
 
 	it('waits for the agent to go idle and ships the new work in the same pull request', async () => {
@@ -853,11 +966,10 @@ describe('the merge queue', () => {
 
 		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
 
-		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
 		expect(pulls).toEqual(['ws-1']);
 		const job = activeJob();
-		expect(job.definitionId).toBe('def-resolve-conflicts');
-		expect(jobContexts.get(job.id)).toContain('- src/search.ts');
+		expect(job.definitionId).toBe('def-update-from-main');
 
 		pullConflicts = [];
 		finishJob(job.id, 'succeeded', { resolveConflicts: true });

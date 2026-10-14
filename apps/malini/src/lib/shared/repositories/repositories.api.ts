@@ -148,6 +148,7 @@ export { refreshWorkstreamAfterChangeCommand } from './application/commands/refr
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
+export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
 export { retryRepositoriesScopeCommand } from './application/commands/retry-repositories-scope.command';

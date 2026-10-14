@@ -19,6 +19,10 @@ class PullRequestShipService {
 		return raw === null ? null : PullRequestShipMapper.fromRaw(raw);
 	}
 
+	async opened(workstreamId: string): Promise<void> {
+		await invoke('pull-requests.workstream-opened', { workstreamId });
+	}
+
 	onChanged(listener: (change: PullRequestShipChange) => void): () => void {
 		return onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (raw) =>
 			listener(PullRequestShipMapper.changeFromRaw(raw)),
