@@ -787,8 +787,8 @@ describe('keeping a workstream current with main', () => {
 		);
 	}
 
-	it('leaves a workstream that is up to date alone', async () => {
-		seedWorkstream('ws-1');
+	it('leaves a workstream that is up to date alone, uncommitted work included', async () => {
+		seedWorkstream('ws-1', { dirtyPaths: ['src/notes.ts'] });
 		start();
 
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
@@ -796,6 +796,7 @@ describe('keeping a workstream current with main', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'local' }));
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
 		expect(jobRuns.size).toBe(0);
+		expect(commits).toEqual([]);
 	});
 
 	it('runs Update from main when a draft behind main opens, then pushes the clean merge', async () => {

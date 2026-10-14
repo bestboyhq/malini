@@ -257,7 +257,6 @@ export class MergeQueue {
 		const row = await this.#tracked(workstreamId);
 		if (!row || (row.phase !== 'local' && row.phase !== 'draft')) return;
 		this.#updateRequestedAt.set(workstreamId, this.#now());
-		if (row.phase === 'local') this.#requestPush(workstreamId);
 		this.#updateRequests.set(workstreamId, (this.#updateRequests.get(workstreamId) ?? 0) + 1);
 		this.wake(workstreamId);
 	}

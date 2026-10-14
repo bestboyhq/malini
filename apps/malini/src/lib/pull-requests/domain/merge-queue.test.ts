@@ -207,7 +207,7 @@ describe('keeping a local or draft workstream current', () => {
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
-	it('reads how far main moved, then updates only a clean workstream that is behind', () => {
+	it('reads how far main moved, then commits leftover local work and updates only a workstream that is behind', () => {
 		expect(nextMergeQueueMove(local({ updateRequested: true }))).toEqual({ kind: 'read-base' });
 		expect(nextMergeQueueMove(local({ updateRequested: true, behindBase: 0 }))).toEqual({
 			kind: 'idle',
@@ -226,6 +226,25 @@ describe('keeping a local or draft workstream current', () => {
 		expect(
 			nextMergeQueueMove(
 				local({
+					updateRequested: true,
+					behindBase: 4,
+					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
+				}),
+			),
+		).toEqual({ kind: 'commit' });
+		expect(
+			nextMergeQueueMove(
+				local({
+					updateRequested: true,
+					behindBase: 0,
+					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
+				}),
+			),
+		).toEqual({ kind: 'idle', problem: null });
+		expect(
+			nextMergeQueueMove(
+				queued({
+					phase: 'draft',
 					updateRequested: true,
 					behindBase: 4,
 					worktree: { ...worktree, dirtyPaths: ['a.ts'] },

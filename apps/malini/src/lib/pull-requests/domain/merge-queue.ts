@@ -205,17 +205,20 @@ function workingMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
 		};
 	}
 	if (snapshot.pushRequested && hasUnsavedWork(snapshot)) return saveMove(snapshot);
-	if (snapshot.updateRequested && worktree.dirtyPaths.length === 0) {
-		if (snapshot.pullRequest === null) return { kind: 'read-pull-request' };
-		const finished =
-			snapshot.pullRequest.state === 'merged' || snapshot.pullRequest.state === 'closed';
-		if (finished) return { kind: 'idle', problem: null };
-		if (snapshot.behindBase === null) return { kind: 'read-base' };
-		if (snapshot.behindBase > 0) {
-			return { kind: 'run-job', builtin: 'update-from-main', signature: 'update', attempt: 1 };
-		}
-	}
-	return { kind: 'idle', problem: null };
+	return snapshot.updateRequested ? updateMove(snapshot) : { kind: 'idle', problem: null };
+}
+
+function updateMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
+	const dirty = snapshot.worktree.dirtyPaths.length > 0;
+	if (dirty && snapshot.phase !== 'local') return { kind: 'idle', problem: null };
+	if (snapshot.pullRequest === null) return { kind: 'read-pull-request' };
+	const finished =
+		snapshot.pullRequest.state === 'merged' || snapshot.pullRequest.state === 'closed';
+	if (finished) return { kind: 'idle', problem: null };
+	if (snapshot.behindBase === null) return { kind: 'read-base' };
+	if (snapshot.behindBase === 0) return { kind: 'idle', problem: null };
+	if (dirty) return { kind: 'commit' };
+	return { kind: 'run-job', builtin: 'update-from-main', signature: 'update', attempt: 1 };
 }
 
 function hasUnsavedWork(snapshot: MergeQueueSnapshot): boolean {
