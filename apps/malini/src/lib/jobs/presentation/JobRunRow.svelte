@@ -131,14 +131,14 @@
 			<span
 				class={[
 					'text-fg-tertiary text-2xs pointer-events-none justify-self-end pr-1 tabular-nums [grid-area:1/1]',
-					cancellable && 'group-focus-within:opacity-0 group-hover:opacity-0',
+					cancellable && 'group-hover:opacity-0 group-has-focus-visible:opacity-0',
 				]}
 			>
 				{jobRunTime(run, nowMs)}
 			</span>
 			{#if cancellable}
 				<span
-					class="justify-self-end opacity-0 [grid-area:1/1] group-focus-within:opacity-100 group-hover:opacity-100"
+					class="justify-self-end opacity-0 [grid-area:1/1] group-hover:opacity-100 group-has-focus-visible:opacity-100"
 				>
 					<Tooltip content="Cancel job" placement="top">
 						<IconButton
