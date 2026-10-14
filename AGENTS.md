@@ -111,6 +111,11 @@ Plain JavaScript (`.mjs` scripts, the eslint plugin) is checked too, through `ch
 No `any`, no `@ts-ignore`, no `@ts-expect-error` in product code; a guard beats a non-null assertion.
 `pnpm check` runs every package's check.
 
+## Decisions
+
+`docs/adr/` records why malini is built the way it is, one architecture decision per file.
+A change that makes or reverses one is done only once its ADR is written with the `adr` skill.
+
 ## Rules
 
 The full rule set is in `.agents/rules/`.
