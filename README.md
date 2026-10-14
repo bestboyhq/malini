@@ -29,6 +29,7 @@ pnpm dist         # release/mac-arm64/malini.app
 
 Each domain folder holds its renderer layers and its main-process code.
 Conventions for agents are in `AGENTS.md`, and the rules are in `.agents/rules/`.
+Why it is built this way is in `docs/adr/`.
 
 ## Usage data
 
