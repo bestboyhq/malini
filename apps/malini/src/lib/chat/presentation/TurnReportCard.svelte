@@ -6,13 +6,21 @@
 
 	interface Props {
 		report: TurnReport;
+		needsOpen?: boolean;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
 	}
 
-	let { report, onopenfile, canopenfile, imagesrc, onopenimage }: Props = $props();
+	let {
+		report,
+		needsOpen = true,
+		onopenfile,
+		canopenfile,
+		imagesrc,
+		onopenimage,
+	}: Props = $props();
 
 	const needsHeadingId = $props.id();
 	const images = $derived(report.images.map(({ alt, src }) => `![${alt}](${src})`).join('\n\n'));
@@ -39,13 +47,37 @@
 
 	{#if report.needs.length > 0}
 		<section
-			class="border-warning-content/25 bg-warning text-warning-content rounded-md border-[0.5px] px-2.5 py-2"
+			class={[
+				'rounded-md px-2.5 py-2',
+				needsOpen ? 'bg-brand/10' : 'border-surface-150-border border-[0.5px]',
+			]}
 			aria-labelledby={needsHeadingId}
 		>
-			<h3 id={needsHeadingId} class="text-2xs font-medium tracking-wider uppercase">Needs you</h3>
-			<ul class="mt-1 flex flex-col gap-0.5 text-sm leading-relaxed select-text">
+			<h3
+				id={needsHeadingId}
+				class={['text-xs font-medium', needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary']}
+			>
+				{needsOpen ? 'Your turn' : 'You were asked'}
+			</h3>
+			<ul
+				class={[
+					'mt-1.5 flex flex-col gap-1 text-sm leading-relaxed select-text',
+					needsOpen ? 'text-fg-default' : 'text-fg-tertiary',
+				]}
+			>
 				{#each report.needs as need, index (index)}
-					<li>{need}</li>
+					<li class="flex items-start gap-2">
+						<span
+							class={[
+								'grid h-[1lh] shrink-0 place-items-center',
+								needsOpen ? 'text-brand-foreground' : 'text-fg-tertiary',
+							]}
+							aria-hidden="true"
+						>
+							<Icon name="circle" size={12} />
+						</span>
+						<span class="min-w-0">{need}</span>
+					</li>
 				{/each}
 			</ul>
 		</section>

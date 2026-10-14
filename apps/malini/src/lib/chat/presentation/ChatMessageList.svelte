@@ -86,6 +86,7 @@
 		sessionId: SessionId;
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
+		pullRequestShipped?: boolean;
 		spaceBelow?: number;
 		newMessagesBelow?: boolean;
 		empty: Snippet;
@@ -96,6 +97,7 @@
 		sessionId,
 		envelopes,
 		composerControls = null,
+		pullRequestShipped = false,
 		spaceBelow = 0,
 		newMessagesBelow = $bindable(false),
 		empty,
@@ -555,6 +557,9 @@
 		},
 		get waitingForUser() {
 			return waitingForUser;
+		},
+		get pullRequestShipped() {
+			return pullRequestShipped;
 		},
 		get copiedErrorKey() {
 			return copiedErrorKey;
