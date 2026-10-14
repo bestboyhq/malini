@@ -27,9 +27,6 @@ type AgentAttentionInput = {
 	event: AgentEvent;
 	runId: string;
 	sessionId?: string;
-	activeWorkstreamId: string;
-	workstreamId: string;
-	appFocused: boolean;
 	queueCount: number;
 	workstreamLabel: string;
 	repositoryFullName: string;
@@ -57,9 +54,6 @@ function isExpectedCancellation(error: string): boolean {
 }
 
 export function agentAttentionDecision(input: AgentAttentionInput): AgentAttentionDecision | null {
-	const userAlreadyLooking = input.workstreamId === input.activeWorkstreamId && input.appFocused;
-	if (userAlreadyLooking) return null;
-
 	const updatedAt = input.now ?? Date.now();
 	const context = contextSuffix(input);
 	if (input.event.type === 'approval.requested' || input.event.type === 'question.requested') {

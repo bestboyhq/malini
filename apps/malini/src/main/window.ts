@@ -68,6 +68,7 @@ function behindEverythingAtTheScreenEdge(): {
 }
 
 function stayInBackground(window: BrowserWindow): void {
+	window.webContents.setAudioMuted(true);
 	window.show = () => window.showInactive();
 	window.focus = () => {};
 }

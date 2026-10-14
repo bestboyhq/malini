@@ -28,6 +28,20 @@ describe('turn report', () => {
 		expect(hasTurnReport(report)).toBe(true);
 	});
 
+	it('keeps image markdown quoted in code as text, not as a report image', () => {
+		const body = [
+			'The agent wrote `![...](/Users/me/Desktop/preview.png)` outside the worktree.',
+			'',
+			'```md',
+			'![shot](a.png)',
+			'```',
+		].join('\n');
+		const report = parseTurnReport(`${body}\n\nOutcome: Explained.`);
+
+		expect(report.images).toEqual([]);
+		expect(report.details).toBe(body);
+	});
+
 	it('reads nothing needed as no needs, and tolerates bold labels', () => {
 		const report = parseTurnReport('**Outcome:** The header is sticky.\n**Needs:** nothing');
 

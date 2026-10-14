@@ -5,6 +5,7 @@ import type { LiveEventEnvelope } from '$contract/agent';
 import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { notificationService } from '$shared/system/notification.service';
+import { chime } from '$shared/system/chime.service';
 import { agentAttentionDecision } from '$lib/chat/domain/agent-attention';
 import { agentActivity } from '../aggregates/agent-activity.aggregate.svelte';
 import { agentPromptQueue } from '../aggregates/prompt-queue.aggregate.svelte';
@@ -27,6 +28,7 @@ type AgentLifecycleMonitorDependencies = {
 	clearAttention: typeof agentActivity.clear;
 	clearAttentionForRun: typeof agentActivity.clearForRun;
 	markAttention: typeof agentActivity.mark;
+	chime(): void;
 	notify(
 		title: string,
 		body: string,
@@ -141,15 +143,14 @@ export class AgentLifecycleMonitor {
 			event: envelope.event,
 			runId: envelope.runId,
 			sessionId: envelope.sessionId,
-			activeWorkstreamId: this.#activeWorkstreamId,
-			workstreamId: owner,
-			appFocused: this.dependencies.appFocused(),
 			queueCount: this.dependencies.queueCountFor(owner),
 			workstreamLabel: context.label,
 			repositoryFullName: context.repositoryFullName,
 			branch: context.branch,
 		});
 		if (!decision) return true;
+		this.dependencies.chime();
+		if (owner === this.#activeWorkstreamId && this.dependencies.appFocused()) return true;
 		if (this.dependencies.markAttention(owner, decision)) {
 			void this.dependencies.notify(decision.title, decision.body, owner, envelope.sessionId);
 		}
@@ -167,6 +168,7 @@ export const agentLifecycleMonitor = new AgentLifecycleMonitor({
 	clearAttention: (workstreamId) => agentActivity.clear(workstreamId),
 	clearAttentionForRun: (workstreamId, runId) => agentActivity.clearForRun(workstreamId, runId),
 	markAttention: (workstreamId, attention) => agentActivity.mark(workstreamId, attention),
+	chime,
 	notify: (title, body, workstreamId, sessionId) =>
 		notificationService.notify(title, body, workstreamId, sessionId),
 });

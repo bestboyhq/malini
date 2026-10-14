@@ -14,7 +14,8 @@ type FooterKey = 'outcome' | 'needs' | 'commit' | 'pull request';
 const FOOTER_LINE =
 	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(outcome|needs|commit|pull request|resolved)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*?)\s*$/iu;
 const NOTHING_NEEDED = /^(?:nothing|none|no|n\/a|-|—)\.?$/iu;
-const MARKDOWN_IMAGE = /!\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/gu;
+const CODE_OR_MARKDOWN_IMAGE =
+	/((?:^|\n) {0,3}(`{3,}|~{3,})[\s\S]*?(?:\n {0,3}\2|$)|(`+)[^\n]*?\3)|!\[([^\]\n]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/gu;
 
 export function parseTurnReport(text: string): TurnReport {
 	const lines = text.replace(/\r\n?/gu, '\n').split('\n');
@@ -39,12 +40,11 @@ export function parseTurnReport(text: string): TurnReport {
 		needs: neededActions(footer.get('needs') ?? ''),
 		commit: footer.get('commit') || null,
 		pullRequest: footer.get('pull request') || null,
-		images: [...body.matchAll(MARKDOWN_IMAGE)].map((image) => ({
-			alt: image[1]?.trim() ?? '',
-			src: image[2] ?? '',
-		})),
+		images: [...body.matchAll(CODE_OR_MARKDOWN_IMAGE)]
+			.filter((match) => match[1] === undefined)
+			.map((image) => ({ alt: image[4]?.trim() ?? '', src: image[5] ?? '' })),
 		details: body
-			.replace(MARKDOWN_IMAGE, '')
+			.replace(CODE_OR_MARKDOWN_IMAGE, (_image, code: string | undefined) => code ?? '')
 			.replace(/\n{3,}/gu, '\n\n')
 			.trim(),
 	};
