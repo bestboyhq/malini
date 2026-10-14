@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
+	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import {
@@ -14,14 +15,18 @@
 		connectedRepositoriesQuery,
 		createWorkstreamForRepositoryCommand,
 		githubAuthQuery,
+		hiddenRepositoriesQuery,
 		loadGithubAuthCommand,
 		openRepositoryFolderCommand,
+		RemoveRepositoryButton,
+		removeRepositoryCommand,
 		repositoriesScopeErrorQuery,
 		repositoriesScopeReadyQuery,
 		repositoriesScopeRetryingQuery,
 		repositoryConnectErrorQuery,
 		repositoryConnectingQuery,
 		retryRepositoriesScopeCommand,
+		setRepositoryHiddenCommand,
 		workstreamsForRepository,
 		RepositoryAvatar,
 		RepositoryListSkeleton,
@@ -32,8 +37,12 @@
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
 
+	const REVEAL_ON_ROW_HOVER =
+		'pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100';
+
 	let query = $state('');
 	let cloneDialogOpen = $state(false);
+	let hiddenOpen = $state(false);
 
 	const workstreams = $derived(activeWorkstreamsQuery.data);
 	const repositories = $derived(connectedRepositoriesQuery.data);
@@ -65,11 +74,19 @@
 			'The GitHub CLI is not signed in, so pull requests are off. Run `gh auth login` in a terminal.'
 		);
 	});
-	const filteredRepositories = $derived.by(() => {
+	const hiddenIds = $derived(hiddenRepositoriesQuery.data);
+	const matchingRepositories = $derived.by(() => {
 		const needle = query.trim().toLowerCase();
 		if (needle.length === 0) return repositories;
 		return repositories.filter((repo) => repo.fullName.toLowerCase().includes(needle));
 	});
+	const filteredRepositories = $derived(
+		matchingRepositories.filter((repo) => !hiddenIds.has(repo.id)),
+	);
+	const hiddenRepositories = $derived(
+		matchingRepositories.filter((repo) => hiddenIds.has(repo.id)),
+	);
+	const allHidden = $derived(query.trim().length === 0 && hiddenRepositories.length > 0);
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
@@ -170,7 +187,7 @@
 	data-navigation-error={workstreamScopeError ? 'true' : undefined}
 	data-navigation-error-message={workstreamScopeError ?? undefined}
 >
-	<div class="mx-auto flex w-full max-w-[640px] flex-col px-6 pt-20 pb-16">
+	<div class="mx-auto flex w-full max-w-[640px] flex-col px-6 pt-20 pb-32">
 		{#if firstRun}
 			<header data-testid="first-run-setup">
 				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Set up malini</h1>
@@ -350,7 +367,7 @@
 						{@render connectErrorBlock(connectError)}
 					{/if}
 
-					{#if filteredRepositories.length === 0}
+					{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
 						<div
 							class="border-border-subtle flex items-center justify-center rounded-2xl border border-dashed"
 							data-testid="repositories-empty-state"
@@ -358,13 +375,19 @@
 							<StateBlock
 								heading={query.trim().length > 0
 									? 'No matching repositories'
-									: 'No repositories yet'}
+									: allHidden
+										? 'Every repository is hidden'
+										: 'No repositories yet'}
 								detail={query.trim().length > 0
 									? `Nothing connected matches “${query.trim()}”.`
-									: 'A repository is a folder on this Mac, or a URL git can clone.'}
+									: allHidden
+										? 'Hidden repositories keep their workstreams.'
+										: 'A repository is a folder on this Mac, or a URL git can clone.'}
 								remedy={query.trim().length > 0
 									? 'Clear the search, or connect the repository first.'
-									: 'Open a folder to start a workstream in it.'}
+									: allHidden
+										? 'Unhide one below, or open another folder.'
+										: 'Open a folder to start a workstream in it.'}
 								testId="repositories-empty-block"
 							>
 								{#snippet icon()}
@@ -402,7 +425,7 @@
 								{/snippet}
 							</StateBlock>
 						</div>
-					{:else}
+					{:else if filteredRepositories.length > 0}
 						<ul
 							class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 							data-testid="repository-list"
@@ -415,7 +438,7 @@
 									data-repository-id={repo.id}
 									data-full-name={repo.fullName}
 									data-default-branch={repo.defaultBranch}
-									class="flex items-center gap-3 px-4 py-3"
+									class="group/row flex items-center gap-3 px-4 py-3"
 								>
 									<RepositoryAvatar fullName={repo.fullName} size={28} />
 									<div class="min-w-0 flex-1">
@@ -428,6 +451,26 @@
 											<SensitiveText text={repositoryDetail(repo, streams)} />
 										</p>
 									</div>
+									<Tooltip content={`Hide ${repo.fullName}`} placement="top">
+										<IconButton
+											variant="ghost"
+											size="sm"
+											class={REVEAL_ON_ROW_HOVER}
+											ariaLabel={`Hide ${repo.fullName}`}
+											data-testid="repository-hide-button"
+											onclick={() => setRepositoryHiddenCommand(repo, true)}
+										>
+											<Icon name="eye-off" size={14} />
+										</IconButton>
+									</Tooltip>
+									<RemoveRepositoryButton
+										repository={repo}
+										workstreams={streams}
+										onremove={removeRepositoryCommand}
+										placement="top"
+										restingClass={REVEAL_ON_ROW_HOVER}
+										testId="repository-remove-button"
+									/>
 									<Button
 										variant="secondary"
 										size="sm"
@@ -450,6 +493,73 @@
 								</li>
 							{/each}
 						</ul>
+					{/if}
+
+					{#if hiddenRepositories.length > 0}
+						<details
+							class={['group/hidden', filteredRepositories.length > 0 && 'mt-6']}
+							bind:open={() => hiddenOpen || query.trim().length > 0, (open) => (hiddenOpen = open)}
+							data-testid="hidden-repositories"
+						>
+							<summary
+								class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex h-7 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+							>
+								<Icon
+									name="chevron-right"
+									size={13}
+									class="transition-transform duration-100 group-open/hidden:rotate-90"
+								/>
+								Hidden ({hiddenRepositories.length})
+							</summary>
+							<ul
+								class="border-surface-50-border bg-surface-50 divide-surface-50-border mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								aria-label="Hidden repositories"
+								data-testid="hidden-repository-list"
+							>
+								{#each hiddenRepositories as repo (repo.id)}
+									{@const streams = workstreamsFor(repo)}
+									<li
+										data-testid="hidden-repository-row"
+										data-repository-id={repo.id}
+										data-full-name={repo.fullName}
+										class="flex items-center gap-3 px-4 py-3"
+									>
+										<span class="opacity-60">
+											<RepositoryAvatar fullName={repo.fullName} size={28} />
+										</span>
+										<div class="min-w-0 flex-1">
+											<Tooltip content={repo.fullName} placement="top" class="min-w-0">
+												<span class="text-fg-secondary block truncate text-sm font-medium">
+													{repo.fullName}
+												</span>
+											</Tooltip>
+											<p class="text-fg-tertiary truncate text-xs">
+												<SensitiveText text={repositoryDetail(repo, streams)} />
+											</p>
+										</div>
+										<RemoveRepositoryButton
+											repository={repo}
+											workstreams={streams}
+											onremove={removeRepositoryCommand}
+											placement="top"
+											testId="repository-remove-button"
+										/>
+										<Button
+											variant="secondary"
+											size="sm"
+											ariaLabel={`Unhide ${repo.fullName}`}
+											data-testid="repository-unhide-button"
+											onclick={() => setRepositoryHiddenCommand(repo, false)}
+										>
+											{#snippet leading()}
+												<Icon name="eye" size={14} />
+											{/snippet}
+											Unhide
+										</Button>
+									</li>
+								{/each}
+							</ul>
+						</details>
 					{/if}
 				</section>
 			{/if}

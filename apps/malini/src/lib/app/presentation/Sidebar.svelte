@@ -6,7 +6,10 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import {
 		connectedRepositoryContexts,
+		hiddenRepositoriesQuery,
 		moveInSidebarCommand,
+		RemoveRepositoryButton,
+		setRepositoryHiddenCommand,
 		sidebarOrderQuery,
 		type SidebarMove,
 		type SidebarPlacement,
@@ -21,7 +24,7 @@
 		type WorkstreamChangeTotals,
 		type WorkstreamProvisioningRecord,
 	} from '$shared/repositories/repositories.api';
-	import { displayWorkstreamName, workstreamCount } from '$shared/repositories/repositories.api';
+	import { displayWorkstreamName } from '$shared/repositories/repositories.api';
 	import type {
 		PullRequestBadge,
 		PullRequestPhase,
@@ -41,7 +44,6 @@
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { RepositorySidebarSkeleton } from '$shared/repositories/repositories.api';
 	import { describeFailure } from '$shared/errors/failure-copy';
-	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 
 	interface Props {
 		repositories: readonly Repository[];
@@ -70,6 +72,8 @@
 		changeTotalsByWorkstream = {},
 		pullRequestBadge = unknownPullRequestBadge,
 	}: Props = $props();
+	const REVEAL_ON_ROW_HOVER =
+		'pointer-events-none opacity-0 transition-none group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100';
 	const provisioningRecord = $derived(provisioningRecordQuery.data);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
 	const scopeFailure = $derived(
@@ -79,7 +83,6 @@
 	const collapsedRepositoryIds = $derived(collapsedRepositoriesQuery.data);
 	let drag = $state<SidebarItem | null>(null);
 	let dropTarget = $state<SidebarDropTarget | null>(null);
-	let armedRemovalKey = $state<string | null>(null);
 	let optimisticDestination = $state<{
 		target: string;
 		workstreamId: string | null;
@@ -88,7 +91,8 @@
 	let activeNavigationTarget: string | null = null;
 	let previewCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
-	const rows = $derived(
+	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
+	const contexts = $derived(
 		connectedRepositoryContexts({
 			repositories,
 			workstreams,
@@ -96,6 +100,8 @@
 			order: sidebarOrder,
 		}),
 	);
+	const rows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
+	const everyRepositoryHidden = $derived(contexts.length > 0 && rows.length === 0);
 	const listedRepositoryIds = $derived(rows.map((row) => row.repo.id));
 	const listedWorkstreamIds = $derived(
 		rows.flatMap((row) => row.workstreams.map((workstream) => workstream.id)),
@@ -263,71 +269,6 @@
 		event.preventDefault();
 		event.stopPropagation();
 		onArchiveWorkstream?.(workstream);
-	}
-
-	$effect(() => {
-		if (!armedRemovalKey) return;
-		return disarmOnDismiss(() => (armedRemovalKey = null));
-	});
-
-	type RepositoryRemoval = Readonly<{
-		armed: boolean;
-		blocked: boolean;
-		label: string;
-		ariaLabel: string;
-		tooltip: string;
-	}>;
-
-	function removalKey(repo: Repository, repoWorkstreams: readonly Workstream[]): string {
-		return `${repo.id}:${repoWorkstreams.length}`;
-	}
-
-	function repositoryRemoval(
-		repo: Repository,
-		repoWorkstreams: readonly Workstream[],
-	): RepositoryRemoval {
-		const blocked = repoWorkstreams.some(
-			(workstream) => nativeExistence(workstream.id) === 'in-flight',
-		);
-		const count = repoWorkstreams.length;
-		const workstreams = workstreamCount(count);
-		if (armedRemovalKey !== removalKey(repo, repoWorkstreams)) {
-			return {
-				armed: false,
-				blocked,
-				label: '',
-				ariaLabel: `Remove ${repo.fullName}`,
-				tooltip: blocked
-					? 'Still setting up a workstream. Remove the repository once setup finishes or fails.'
-					: 'Remove repository',
-			};
-		}
-		if (count === 0) {
-			return {
-				armed: true,
-				blocked,
-				label: 'Confirm remove',
-				ariaLabel: `Confirm remove ${repo.fullName}`,
-				tooltip: `Removes ${repo.fullName}. Escape cancels it`,
-			};
-		}
-		return {
-			armed: true,
-			blocked,
-			label: `Delete ${count} and remove`,
-			ariaLabel: `Delete ${workstreams} and remove ${repo.fullName}`,
-			tooltip: `Deletes ${workstreams} with their work saved in git, then removes ${repo.fullName}. Escape cancels it`,
-		};
-	}
-
-	function requestRemoval(repo: Repository, repoWorkstreams: readonly Workstream[]): void {
-		const key = removalKey(repo, repoWorkstreams);
-		if (armedRemovalKey !== key) {
-			armedRemovalKey = key;
-			return;
-		}
-		armedRemovalKey = null;
-		onRemoveRepository?.(repo, repoWorkstreams);
 	}
 
 	function workstreamLabel(workstream: Workstream, repositoryFullName: string): string {
@@ -615,18 +556,26 @@
 				</StateBlock>
 			{/if}
 
-			{#if rows.length === 0 && scopeLoading}
+			{#if scopeLoading}
 				<RepositorySidebarSkeleton label="Loading connected repositories" />
 			{:else if rows.length === 0 && !scopeFailure}
 				<StateBlock
 					layout="inline"
-					heading={repositories.length > 0 ? 'No workstreams yet' : 'No repositories connected'}
-					detail={repositories.length > 0
-						? 'Workstreams live here, one group per repository.'
-						: 'Connected repositories and their workstreams live here, one group per repository.'}
-					remedy={repositories.length > 0
-						? 'Start one from the repository list.'
-						: 'Connect a repository to start a workstream.'}
+					heading={everyRepositoryHidden
+						? 'Every repository is hidden'
+						: repositories.length > 0
+							? 'No workstreams yet'
+							: 'No repositories connected'}
+					detail={everyRepositoryHidden
+						? 'Hidden repositories keep their workstreams.'
+						: repositories.length > 0
+							? 'Workstreams live here, one group per repository.'
+							: 'Connected repositories and their workstreams live here, one group per repository.'}
+					remedy={everyRepositoryHidden
+						? 'Unhide one from the repository list.'
+						: repositories.length > 0
+							? 'Start one from the repository list.'
+							: 'Connect a repository to start a workstream.'}
 					testId="repository-sidebar-empty"
 				>
 					{#snippet icon()}
@@ -637,7 +586,6 @@
 				<ul class="flex w-full flex-col gap-3 pt-2">
 					{#each rows as row (row.repo.id)}
 						{@const collapsed = collapsedRepositoryIds.has(row.repo.id)}
-						{@const removal = repositoryRemoval(row.repo, row.workstreams)}
 						{@const repositoryItem = { kind: 'repository' as const, id: row.repo.id, groupId: '' }}
 						<li
 							class={['relative w-full min-w-0', drag?.id === row.repo.id && 'opacity-50']}
@@ -729,28 +677,26 @@
 										{row.name}
 									</span>
 								</a>
-								<Tooltip content={removal.tooltip} placement="right">
-									<Button
-										variant={removal.armed ? 'danger' : 'ghost'}
+								<Tooltip content={`Hide ${row.repo.fullName}`} placement="right">
+									<IconButton
+										variant="ghost"
 										size="sm"
-										iconOnly={!removal.armed}
-										class={[
-											!removal.armed &&
-												'pointer-events-none opacity-0 transition-none group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100',
-										]}
-										disabled={!onRemoveRepository || removal.blocked}
-										ariaLabel={removal.ariaLabel}
-										data-armed={removal.armed ? '' : undefined}
-										data-testid="sidebar-remove-repository"
-										onclick={() => requestRemoval(row.repo, row.workstreams)}
+										class={REVEAL_ON_ROW_HOVER}
+										ariaLabel={`Hide ${row.repo.fullName}`}
+										data-testid="sidebar-hide-repository"
+										onclick={() => setRepositoryHiddenCommand(row.repo, true)}
 									>
-										{#if removal.armed}
-											{removal.label}
-										{:else}
-											<Icon name="trash" size={14} />
-										{/if}
-									</Button>
+										<Icon name="eye-off" size={14} />
+									</IconButton>
 								</Tooltip>
+								<RemoveRepositoryButton
+									repository={row.repo}
+									workstreams={row.workstreams}
+									onremove={onRemoveRepository}
+									placement="right"
+									restingClass={REVEAL_ON_ROW_HOVER}
+									testId="sidebar-remove-repository"
+								/>
 								<Tooltip content={`New workstream for ${row.repo.fullName}`} placement="right">
 									<IconButton
 										variant="ghost"

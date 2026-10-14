@@ -89,6 +89,8 @@ test('the sidebar row actions are reachable from the keyboard', async () => {
 
 		await sidebar.getByRole('link', { name: 'Open alpha' }).focus();
 		await page.keyboard.press('Tab');
+		await expect(sidebar.getByRole('button', { name: 'Hide alpha' })).toBeFocused();
+		await page.keyboard.press('Tab');
 		const remove = sidebar.getByRole('button', { name: 'Remove alpha' });
 		await expect(remove).toBeFocused();
 		await captureFlow(app, 'sidebar-remove-focused-by-keyboard');

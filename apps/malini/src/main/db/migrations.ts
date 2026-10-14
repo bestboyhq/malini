@@ -1229,6 +1229,13 @@ DROP TABLE workstream_ship;
 ALTER TABLE workstream_ship_v41 RENAME TO workstream_ship;
 `;
 
+export const MIGRATION_0042_HIDDEN_REPOSITORIES = `
+CREATE TABLE IF NOT EXISTS hidden_repositories (
+  repository_id TEXT PRIMARY KEY,
+  hidden_at TEXT NOT NULL
+);
+`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1238,7 +1245,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 41;
+export const TARGET_USER_VERSION = 42;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1402,6 +1409,7 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				db.exec(MIGRATION_0041_UPDATE_FROM_MAIN_JOB);
 				db.exec(MIGRATION_0041_WORKSTREAM_SHIP_LOCAL_PHASE);
 			}
+			if (existing < 42) db.exec(MIGRATION_0042_HIDDEN_REPOSITORIES);
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,
