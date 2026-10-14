@@ -1,8 +1,9 @@
-import { session, WebContentsView, type BrowserWindow } from 'electron';
+import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { PageEvents, PageView } from './page';
 import { isAllowedUrl } from './url';
 
 export const BROWSER_PARTITION = 'persist:malini-browser';
+const MAX_FAVICON_BYTES = 64 * 1024;
 
 export function createElectronView(events: PageEvents): PageView<BrowserWindow> {
 	denyPermissions();
@@ -38,6 +39,16 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	contents.on('did-start-navigation', (details) => {
 		if (details.isMainFrame && !details.isSameDocument) events.navigating();
 	});
+	let pageVisit = 0;
+	contents.on('did-navigate', () => {
+		pageVisit += 1;
+		events.favicon(null);
+	});
+	contents.on('page-favicon-updated', async (_event, favicons) => {
+		const visit = pageVisit;
+		const favicon = await faviconDataUrl(contents.session, favicons[0]);
+		if (visit === pageVisit && !contents.isDestroyed()) events.favicon(favicon);
+	});
 	contents.on('render-process-gone', () => events.gone());
 	contents.on('destroyed', () => events.gone());
 	return {
@@ -61,6 +72,20 @@ export function watchRendererReset(window: BrowserWindow, reset: () => void): vo
 		if (details.isMainFrame && !details.isSameDocument) reset();
 	});
 	window.webContents.on('render-process-gone', () => reset());
+}
+
+async function faviconDataUrl(partition: Session, url: string | undefined): Promise<string | null> {
+	if (!url || !/^(?:https?|data):/u.test(url)) return null;
+	try {
+		const response = await partition.fetch(url);
+		const type = response.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
+		if (!response.ok || !type.startsWith('image/')) return null;
+		const bytes = Buffer.from(await response.arrayBuffer());
+		if (bytes.length === 0 || bytes.length > MAX_FAVICON_BYTES) return null;
+		return `data:${type};base64,${bytes.toString('base64')}`;
+	} catch {
+		return null;
+	}
 }
 
 function denyPermissions(): void {

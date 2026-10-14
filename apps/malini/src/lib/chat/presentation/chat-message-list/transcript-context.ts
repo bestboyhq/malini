@@ -38,6 +38,7 @@ export type TranscriptContext = {
 	readonly composerControls: TranscriptComposerControls | null;
 	readonly runUndo: DestructiveConfirm;
 	readonly workstreamRunInFlight: boolean;
+	readonly chatRunInFlight: boolean;
 	readonly waitingForUser: boolean;
 	readonly pullRequestShipped: boolean;
 	readonly copiedErrorKey: string | null;

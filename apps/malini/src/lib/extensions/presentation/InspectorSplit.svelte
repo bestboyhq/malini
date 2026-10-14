@@ -43,6 +43,7 @@
 	{secondaryMinSize}
 	{secondaryOpen}
 	class={className}
+	handleClass="z-[52]"
 >
 	{#snippet a()}
 		{@render primary()}

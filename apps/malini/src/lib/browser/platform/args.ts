@@ -1,4 +1,4 @@
-import type { BrowserBounds } from '$contract/browser';
+import type { BrowserBounds, BrowserTabArgs } from '$contract/browser';
 import { normalizeBrowserUrl } from './url';
 
 export function readWorkstreamId(args: unknown): string {
@@ -7,6 +7,14 @@ export function readWorkstreamId(args: unknown): string {
 		throw new Error('invalid args: `workstreamId` must be a non-empty string');
 	}
 	return value;
+}
+
+export function readTab(args: unknown): BrowserTabArgs {
+	const tabId = field(args, 'tabId');
+	if (typeof tabId !== 'string' || tabId.trim().length === 0) {
+		throw new Error('invalid args: `tabId` must be a non-empty string');
+	}
+	return { workstreamId: readWorkstreamId(args), tabId };
 }
 
 export function readBounds(args: unknown): BrowserBounds {

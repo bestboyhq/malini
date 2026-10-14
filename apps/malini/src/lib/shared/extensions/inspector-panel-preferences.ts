@@ -1,7 +1,10 @@
 import type { InspectorPanel } from './inspector-panel';
 
-export const INSPECTOR_PANEL_PREFERENCES_VERSION = 2 as const;
-export const INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX = 'malini.extensions.inspector-panels-v2:';
+export const INSPECTOR_PANEL_PREFERENCES_VERSION = 3 as const;
+export const INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX = 'malini.extensions.inspector-panels-v3:';
+
+export const PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX =
+	'malini.extensions.inspector-panels-v2:';
 
 export const LEGACY_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX =
 	'malini.extensions.inspector-panels-v1:';
@@ -98,6 +101,16 @@ export function reconcileInspectorPanelPreferences(
 		hidden,
 		activeId,
 	};
+}
+
+export function hideDefaultHiddenInspectorPanels(
+	panels: readonly InspectorPanel[],
+	preferences: InspectorPanelPreferences,
+): InspectorPanelPreferences {
+	const defaultHidden = panels
+		.filter((panel) => panel.defaultVisible === false && panel.id !== preferences.activeId)
+		.map((panel) => panel.id);
+	return { ...preferences, hidden: [...new Set([...preferences.hidden, ...defaultHidden])] };
 }
 
 export function isUnchosenLegacyInspectorPanelPreferences(

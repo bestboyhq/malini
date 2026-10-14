@@ -25,7 +25,7 @@ type AgentLifecycleMonitorDependencies = {
 	appFocused(): boolean;
 	queueCountFor(workstreamId: string): number;
 	contextFor: typeof agentActivity.contextFor;
-	clearAttention: typeof agentActivity.clear;
+	clearAttention: typeof agentActivity.clearChat;
 	clearAttentionForRun: typeof agentActivity.clearForRun;
 	markAttention: typeof agentActivity.mark;
 	chime(): void;
@@ -73,11 +73,13 @@ export class AgentLifecycleMonitor {
 	#handledLifecycleKeys = new Set<string>();
 	#handledLifecycleOrder: string[] = [];
 	#activeWorkstreamId = '';
+	#shownChatId: SessionId | null = null;
 
 	constructor(private readonly dependencies: AgentLifecycleMonitorDependencies) {}
 
-	setActiveWorkstream(workstreamId: string): void {
+	setShown(workstreamId: string, chatId: SessionId | null): void {
 		this.#activeWorkstreamId = workstreamId;
+		this.#shownChatId = chatId;
 	}
 
 	start(): void {
@@ -115,11 +117,7 @@ export class AgentLifecycleMonitor {
 
 		if (envelope.event.type === 'run.started') {
 			this.#pendingAttentionBySession.delete(envelope.sessionId);
-			const session = this.dependencies.sessionFor(envelope.sessionId);
-			const owner = session?.workstreamId;
-			if (owner && owner !== '_unknown' && session?.origin !== 'job') {
-				this.dependencies.clearAttention(owner);
-			}
+			this.dependencies.clearAttention(envelope.sessionId);
 			return;
 		}
 
@@ -136,7 +134,7 @@ export class AgentLifecycleMonitor {
 		const context = this.dependencies.contextFor(owner);
 		if (!context) return false;
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {
-			this.dependencies.clearAttentionForRun(owner, envelope.runId);
+			this.dependencies.clearAttentionForRun(envelope.sessionId, envelope.runId);
 		}
 
 		const decision = agentAttentionDecision({
@@ -150,8 +148,10 @@ export class AgentLifecycleMonitor {
 		});
 		if (!decision) return true;
 		this.dependencies.chime();
-		if (owner === this.#activeWorkstreamId && this.dependencies.appFocused()) return true;
-		if (this.dependencies.markAttention(owner, decision)) {
+		const focused = this.dependencies.appFocused();
+		if (focused && envelope.sessionId === this.#shownChatId) return true;
+		const marked = this.dependencies.markAttention(owner, decision);
+		if (marked && !(focused && owner === this.#activeWorkstreamId)) {
 			void this.dependencies.notify(decision.title, decision.body, owner, envelope.sessionId);
 		}
 		return true;
@@ -165,8 +165,8 @@ export const agentLifecycleMonitor = new AgentLifecycleMonitor({
 	appFocused: () => (typeof document === 'undefined' ? true : document.hasFocus()),
 	queueCountFor: (workstreamId) => agentPromptQueue.countFor(workstreamId),
 	contextFor: (workstreamId) => agentActivity.contextFor(workstreamId),
-	clearAttention: (workstreamId) => agentActivity.clear(workstreamId),
-	clearAttentionForRun: (workstreamId, runId) => agentActivity.clearForRun(workstreamId, runId),
+	clearAttention: (sessionId) => agentActivity.clearChat(sessionId),
+	clearAttentionForRun: (sessionId, runId) => agentActivity.clearForRun(sessionId, runId),
 	markAttention: (workstreamId, attention) => agentActivity.mark(workstreamId, attention),
 	chime,
 	notify: (title, body, workstreamId, sessionId) =>

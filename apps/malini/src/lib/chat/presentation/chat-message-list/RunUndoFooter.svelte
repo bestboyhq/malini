@@ -30,6 +30,7 @@
 	const failed = $derived(runUndo.state === 'failed' && runUndo.errorKey === run.runId);
 
 	const blocked = $derived(transcript.workstreamRunInFlight);
+	const forkBlocked = $derived(transcript.chatRunInFlight);
 	const warning = $derived(target ? runUndoWarning(target.changeCount) : '');
 	const showFork = $derived(forkAtSeq !== null && !run.obsoleted && !run.superseded);
 
@@ -49,7 +50,7 @@
 	}
 
 	function forkToNewChat(): void {
-		if (blocked || forking || forkAtSeq === null) return;
+		if (forkBlocked || forking || forkAtSeq === null) return;
 		const requestId = newChatRequestId();
 		forkRequestId = requestId;
 		forkToNewChatCommand({ requestId, atSeq: forkAtSeq });
@@ -127,7 +128,7 @@
 			</span>
 		{/if}
 		<Tooltip
-			content={blocked
+			content={forkBlocked
 				? 'Finish the open run before forking'
 				: 'Start a new chat with this transcript attached'}
 			placement="top"
@@ -138,7 +139,7 @@
 				data-testid="chat-run-fork"
 				ariaLabel="Fork to new chat"
 				ariaBusy={forking}
-				disabled={forking || blocked}
+				disabled={forking || forkBlocked}
 				onclick={forkToNewChat}
 			>
 				<Icon name="branch" size={14} />

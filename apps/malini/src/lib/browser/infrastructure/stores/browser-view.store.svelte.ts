@@ -10,31 +10,31 @@ class BrowserViewStore {
 	readonly #placements = new Map<string, Readonly<{ placement: BrowserPlacement; turn: number }>>();
 	#turns = 0;
 
-	place(workstreamId: string, placement: BrowserPlacement): number | null {
-		const current = this.#placements.get(workstreamId)?.placement ?? HIDDEN_BROWSER;
+	place(tabKey: string, placement: BrowserPlacement): number | null {
+		const current = this.#placements.get(tabKey)?.placement ?? HIDDEN_BROWSER;
 		if (sameBrowserPlacement(current, placement)) return null;
 		this.#turns += 1;
-		this.#placements.set(workstreamId, { placement, turn: this.#turns });
+		this.#placements.set(tabKey, { placement, turn: this.#turns });
 		return this.#turns;
 	}
 
-	isLatest(workstreamId: string, turn: number): boolean {
-		return this.#placements.get(workstreamId)?.turn === turn;
+	isLatest(tabKey: string, turn: number): boolean {
+		return this.#placements.get(tabKey)?.turn === turn;
 	}
 
-	setSnapshot(workstreamId: string, snapshot: string | null): void {
-		if ((this.snapshots[workstreamId] ?? null) === snapshot) return;
+	setSnapshot(tabKey: string, snapshot: string | null): void {
+		if ((this.snapshots[tabKey] ?? null) === snapshot) return;
 		const next = { ...this.snapshots };
-		if (snapshot === null) delete next[workstreamId];
-		else next[workstreamId] = snapshot;
+		if (snapshot === null) delete next[tabKey];
+		else next[tabKey] = snapshot;
 		this.snapshots = next;
 	}
 
-	setPicking(workstreamId: string, picking: boolean): void {
-		if (this.picking.has(workstreamId) === picking) return;
+	setPicking(tabKey: string, picking: boolean): void {
+		if (this.picking.has(tabKey) === picking) return;
 		const next = new Set(this.picking);
-		if (picking) next.add(workstreamId);
-		else next.delete(workstreamId);
+		if (picking) next.add(tabKey);
+		else next.delete(tabKey);
 		this.picking = next;
 	}
 }

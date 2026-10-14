@@ -1,32 +1,44 @@
-import type { BrowserState } from '$contract/browser';
+import type { BrowserState, BrowserTabArgs } from '$contract/browser';
+
+import { browserTabKey } from '../../domain/browser-tab';
 
 class BrowserStatesAggregate {
-	byWorkstream: Readonly<Record<string, BrowserState>> = $state.raw({});
+	byTab: Readonly<Record<string, BrowserState>> = $state.raw({});
 	readonly #leaving = new Map<string, string>();
 
 	accept(state: BrowserState): void {
-		const current = this.byWorkstream[state.workstreamId];
+		const key = browserTabKey(state);
+		const current = this.byTab[key];
 		const stillLeaving =
-			current !== undefined && state.loading && this.#leaving.get(state.workstreamId) === state.url;
-		if (!stillLeaving) this.#leaving.delete(state.workstreamId);
+			current !== undefined && state.loading && this.#leaving.get(key) === state.url;
+		if (!stillLeaving) this.#leaving.delete(key);
 		this.#write(stillLeaving ? { ...state, url: current.url } : state);
 	}
 
-	expect(workstreamId: string, url: string): void {
-		const current = this.byWorkstream[workstreamId];
-		this.#leaving.set(workstreamId, current?.url ?? '');
+	expect(tab: BrowserTabArgs, url: string): void {
+		const current = this.byTab[browserTabKey(tab)];
+		this.#leaving.set(browserTabKey(tab), current?.url ?? '');
 		this.#write({
-			workstreamId,
+			workstreamId: tab.workstreamId,
+			tabId: tab.tabId,
 			url,
 			title: current?.title ?? '',
+			favicon: current?.favicon ?? null,
 			loading: true,
 			canGoBack: current?.canGoBack ?? false,
 			canGoForward: current?.canGoForward ?? false,
 		});
 	}
 
+	forget(tab: BrowserTabArgs): void {
+		const key = browserTabKey(tab);
+		this.#leaving.delete(key);
+		const { [key]: _forgotten, ...rest } = this.byTab;
+		this.byTab = rest;
+	}
+
 	#write(state: BrowserState): void {
-		this.byWorkstream = { ...this.byWorkstream, [state.workstreamId]: state };
+		this.byTab = { ...this.byTab, [browserTabKey(state)]: state };
 	}
 }
 

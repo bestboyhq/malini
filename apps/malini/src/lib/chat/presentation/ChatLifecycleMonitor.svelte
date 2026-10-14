@@ -3,7 +3,7 @@
 	import { settleWorkstreamSetupQueueCommand } from '$lib/chat/application/commands/settle-workstream-setup-queue.command';
 	import { startChatLifecycleCommand } from '$lib/chat/application/commands/start-chat-lifecycle.command';
 	import { stopChatLifecycleCommand } from '$lib/chat/application/commands/stop-chat-lifecycle.command';
-	import { watchActiveWorkstreamCommand } from '$lib/chat/application/commands/watch-active-workstream.command';
+	import { watchShownChatCommand } from '$lib/chat/application/commands/watch-shown-chat.command';
 	import { connectAgentEventsHook } from '$lib/chat/application/hooks/connect-agent-events.hook';
 	import { drivePromptQueueHook } from '$lib/chat/application/hooks/drive-prompt-queue.hook';
 	import { openNotifiedChatsHook } from '$lib/chat/application/hooks/open-notified-chats.hook';
@@ -14,6 +14,7 @@
 		workstreamsLoadedQuery,
 	} from '$shared/repositories/repositories.api';
 	import { navigating, page } from '$shared/router/state';
+	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 
 	const workstreams = $derived(activeWorkstreamsQuery.data);
 	const workstreamsLoaded = $derived(workstreamsLoadedQuery.data);
@@ -21,9 +22,17 @@
 		navigating.to ? (navigating.to.params.workstreamId ?? '') : (page.params.workstreamId ?? ''),
 	);
 
-	$effect(() => {
-		watchActiveWorkstreamCommand(activeWorkstreamId);
-	});
+	const shownChatId = $derived(
+		navigating.to || workstreamTabs.for(activeWorkstreamId).activeDocumentId !== null
+			? null
+			: page.url.searchParams.get('agent'),
+	);
+
+	function watchShownChat(): void {
+		watchShownChatCommand(activeWorkstreamId, shownChatId);
+	}
+
+	$effect(watchShownChat);
 
 	const releaseAgentEvents = connectAgentEventsHook();
 	const releasePromptQueue = drivePromptQueueHook();
@@ -44,3 +53,5 @@
 		stopChatLifecycleCommand();
 	});
 </script>
+
+<svelte:window onfocus={watchShownChat} />

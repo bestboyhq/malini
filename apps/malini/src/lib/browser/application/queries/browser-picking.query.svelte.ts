@@ -3,8 +3,8 @@ import { browserViewStore } from '../../infrastructure/stores/browser-view.store
 export { browserPickingQuery };
 
 class BrowserPickingQuery {
-	public readonly data: (workstreamId: string) => boolean = $derived((workstreamId: string) =>
-		browserViewStore.picking.has(workstreamId),
+	public readonly data: (tabKey: string) => boolean = $derived((tabKey: string) =>
+		browserViewStore.picking.has(tabKey),
 	);
 }
 

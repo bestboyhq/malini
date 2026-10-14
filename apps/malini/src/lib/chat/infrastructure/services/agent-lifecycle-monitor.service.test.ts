@@ -43,15 +43,15 @@ function monitorHarness() {
 		appFocused: () => true,
 		queueCountFor: () => 0,
 		contextFor: (workstreamId) => contexts.get(workstreamId) ?? null,
-		clearAttention: (workstreamId) => attentions.delete(workstreamId),
-		clearAttentionForRun: (workstreamId, runId) => {
-			if (attentions.get(workstreamId)?.runId !== runId) return false;
-			return attentions.delete(workstreamId);
+		clearAttention: (sessionId) => attentions.delete(sessionId),
+		clearAttentionForRun: (sessionId, runId) => {
+			if (attentions.get(sessionId)?.runId !== runId) return false;
+			return attentions.delete(sessionId);
 		},
-		markAttention: (workstreamId, attention) => {
-			const existing = attentions.get(workstreamId);
+		markAttention: (_workstreamId, attention) => {
+			const existing = attentions.get(attention.sessionId);
 			if (existing?.runId === attention.runId && existing.kind === attention.kind) return false;
-			attentions.set(workstreamId, attention);
+			attentions.set(attention.sessionId, attention);
 			return true;
 		},
 		chime,
@@ -101,7 +101,7 @@ describe('AgentLifecycleMonitor', () => {
 		harness.sessions.set('session-b', { workstreamId: 'stream-b', status: 'running' });
 		harness.contexts.set('stream-a', context('acme', 'stream-a'));
 		harness.contexts.set('stream-b', context('globex', 'stream-b'));
-		harness.monitor.setActiveWorkstream('stream-a');
+		harness.monitor.setShown('stream-a', 'session-a');
 		harness.monitor.start();
 
 		harness.emit(
@@ -112,7 +112,7 @@ describe('AgentLifecycleMonitor', () => {
 			}),
 		);
 		expect(harness.sessions.get('session-b')?.status).toBe('completed');
-		expect(harness.attentions.get('stream-b')?.kind).toBe('completed');
+		expect(harness.attentions.get('session-b')?.kind).toBe('completed');
 		expect(harness.notifications).toEqual([
 			{
 				title: 'stream-b label finished',
@@ -121,7 +121,6 @@ describe('AgentLifecycleMonitor', () => {
 				sessionId: 'session-b',
 			},
 		]);
-		expect(harness.attentions.get('stream-b')?.sessionId).toBe('session-b');
 
 		harness.emit(
 			envelope('session-a', 'run-a', 2, {
@@ -131,9 +130,29 @@ describe('AgentLifecycleMonitor', () => {
 			}),
 		);
 		expect(harness.sessions.get('session-a')?.status).toBe('completed');
-		expect(harness.attentions.has('stream-a')).toBe(false);
+		expect(harness.attentions.has('session-a')).toBe(false);
 		expect(harness.notifications).toHaveLength(1);
 		expect(harness.chime).toHaveBeenCalledTimes(2);
+	});
+
+	it('marks a background chat of the workstream on screen unread without notifying', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-shown', { workstreamId: 'stream-a', status: 'idle' });
+		harness.sessions.set('session-behind', { workstreamId: 'stream-a', status: 'running' });
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.monitor.setShown('stream-a', 'session-shown');
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-behind', 'run-behind', 2, {
+				type: 'run.completed',
+				runId: 'run-behind',
+				summary: 'Behind is ready.',
+			}),
+		);
+
+		expect(harness.attentions.get('session-behind')?.kind).toBe('completed');
+		expect(harness.notifications).toEqual([]);
 	});
 
 	it('leaves job runs to the Job center: no attention, no notification, no cleared dot', () => {
@@ -144,8 +163,13 @@ describe('AgentLifecycleMonitor', () => {
 			origin: 'job',
 		});
 		harness.contexts.set('stream-b', context('globex', 'stream-b'));
-		harness.attentions.set('stream-b', { kind: 'completed', runId: 'user-run', updatedAt: 1 });
-		harness.monitor.setActiveWorkstream('stream-a');
+		harness.attentions.set('user-session', {
+			kind: 'completed',
+			runId: 'user-run',
+			sessionId: 'user-session',
+			updatedAt: 1,
+		});
+		harness.monitor.setShown('stream-a', null);
 		harness.monitor.start();
 
 		harness.emit(
@@ -174,7 +198,7 @@ describe('AgentLifecycleMonitor', () => {
 		harness.monitor.flushKnownSessions();
 
 		expect(harness.sessions.get('job-session')?.status).toBe('completed');
-		expect(harness.attentions.get('stream-b')?.runId).toBe('user-run');
+		expect(harness.attentions.get('user-session')?.runId).toBe('user-run');
 		expect(harness.notifications).toEqual([]);
 		expect(harness.chime).not.toHaveBeenCalled();
 	});
@@ -183,9 +207,10 @@ describe('AgentLifecycleMonitor', () => {
 		const harness = monitorHarness();
 		harness.sessions.set('session-a', { workstreamId: 'stream-a', status: 'completed' });
 		harness.contexts.set('stream-a', context('acme', 'stream-a'));
-		harness.attentions.set('stream-a', {
+		harness.attentions.set('session-a', {
 			kind: 'completed',
 			runId: 'old-run',
+			sessionId: 'session-a',
 			updatedAt: 1,
 		});
 		harness.monitor.start();
@@ -198,7 +223,7 @@ describe('AgentLifecycleMonitor', () => {
 			}),
 		);
 		expect(harness.sessions.get('session-a')?.status).toBe('running');
-		expect(harness.attentions.has('stream-a')).toBe(false);
+		expect(harness.attentions.has('session-a')).toBe(false);
 	});
 
 	it('does not notify twice when the same terminal envelope is delivered again', () => {
@@ -223,7 +248,7 @@ describe('AgentLifecycleMonitor', () => {
 				sessionId: 'session-a',
 			},
 		]);
-		expect(harness.attentions.get('stream-a')?.kind).toBe('completed');
+		expect(harness.attentions.get('session-a')?.kind).toBe('completed');
 		expect(harness.chime).toHaveBeenCalledOnce();
 	});
 
@@ -234,9 +259,10 @@ describe('AgentLifecycleMonitor', () => {
 			status: 'waiting_for_approval',
 		});
 		harness.contexts.set('stream-a', context('acme', 'stream-a'));
-		harness.attentions.set('stream-a', {
+		harness.attentions.set('session-a', {
 			kind: 'approval',
 			runId: 'run-a',
+			sessionId: 'session-a',
 			updatedAt: 1,
 		});
 		harness.monitor.start();
@@ -250,7 +276,7 @@ describe('AgentLifecycleMonitor', () => {
 		);
 
 		expect(harness.sessions.get('session-a')?.status).toBe('failed');
-		expect(harness.attentions.has('stream-a')).toBe(false);
+		expect(harness.attentions.has('session-a')).toBe(false);
 		expect(harness.notifications).toEqual([]);
 	});
 
@@ -271,7 +297,7 @@ describe('AgentLifecycleMonitor', () => {
 
 		harness.sessions.set('session-late', { workstreamId: 'stream-b', status: 'failed' });
 		harness.monitor.flushKnownSessions();
-		expect(harness.attentions.get('stream-b')?.kind).toBe('failed');
+		expect(harness.attentions.get('session-late')?.kind).toBe('failed');
 		expect(harness.notifications).toEqual([
 			{
 				title: 'stream-b label needs attention',

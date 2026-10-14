@@ -26,6 +26,7 @@ import type {
 	BrowserNavigateArgs,
 	BrowserShowArgs,
 	BrowserState,
+	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
@@ -331,15 +332,16 @@ export type ReadWorkstreamImageArgs = Readonly<{ workstreamId: string; path: str
 
 export interface ContractCommands {
 	'browser.show': { args: BrowserShowArgs; result: void };
-	'browser.hide': { args: WorkstreamIdArgs; result: void };
+	'browser.hide': { args: BrowserTabArgs; result: void };
 	'browser.navigate': { args: BrowserNavigateArgs; result: void };
-	'browser.go-back': { args: WorkstreamIdArgs; result: void };
-	'browser.go-forward': { args: WorkstreamIdArgs; result: void };
-	'browser.reload': { args: WorkstreamIdArgs; result: void };
-	'browser.state': { args: WorkstreamIdArgs; result: BrowserState };
-	'browser.snapshot': { args: WorkstreamIdArgs; result: string | null };
-	'browser.pick-element': { args: WorkstreamIdArgs; result: BrowserElementPrompt | null };
-	'browser.cancel-pick': { args: WorkstreamIdArgs; result: void };
+	'browser.go-back': { args: BrowserTabArgs; result: void };
+	'browser.go-forward': { args: BrowserTabArgs; result: void };
+	'browser.reload': { args: BrowserTabArgs; result: void };
+	'browser.state': { args: BrowserTabArgs; result: BrowserState };
+	'browser.snapshot': { args: BrowserTabArgs; result: string | null };
+	'browser.pick-element': { args: BrowserTabArgs; result: BrowserElementPrompt | null };
+	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
+	'browser.close': { args: BrowserTabArgs; result: void };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
@@ -597,6 +599,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.snapshot',
 	'browser.pick-element',
 	'browser.cancel-pick',
+	'browser.close',
 	'app.copy-text',
 	'app.copy-image',
 	'chat.activate-session',

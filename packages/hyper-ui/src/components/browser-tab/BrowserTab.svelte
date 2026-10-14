@@ -122,22 +122,10 @@
 		band: 'text-brand-foreground',
 	};
 
-	const closeAnchorClass: Record<BrowserTabSurface, string> = {
-		panel: '',
-		band: 'absolute inset-y-0 right-1 flex items-center',
-	};
-
-	const closeRevealClass: Record<BrowserTabSurface, string> = {
-		panel: 'mr-1 group-data-[selected=true]/browser-tab:opacity-100',
-		band: 'translate-x-1.5 duration-150 ease-out group-hover/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:opacity-100',
-	};
-
 	const hiddenUnderCloseClass =
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
-	const tabPaddingClass = $derived(
-		surface === 'panel' && onclose ? 'pr-0.5 pl-1.5' : icon ? 'pr-2 pl-1.5' : 'px-2',
-	);
+	const tabPaddingClass = $derived(icon ? 'pr-2 pl-1.5' : 'px-2');
 
 	const surfaceClass = $derived(
 		tone === 'brand' ? brandClass[surface] : selected ? selectedClass[surface] : idleClass[surface],
@@ -149,7 +137,7 @@
 		'browser-tab group/browser-tab has-[[role=tab]:focus-visible]:ring-button-primary/40 flex h-7 items-center rounded-md transition-[color,border-color] has-[[role=tab]:focus-visible]:ring-2 has-[[role=tab]:focus-visible]:ring-inset motion-reduce:transition-none',
 		surface === 'band'
 			? 'band-tab relative max-w-max min-w-16 flex-1'
-			: 'min-w-0 shrink-0 overflow-hidden',
+			: 'relative min-w-0 shrink-0 overflow-hidden',
 		surfaceClass,
 	]}
 	data-selected={selected}
@@ -166,14 +154,17 @@
 		<span id={descriptionId} hidden>{description}</span>
 	{/if}
 	{#if onclose}
-		<Tooltip content={closeLabel} placement={tooltipPlacement} class={closeAnchorClass[surface]}>
+		<Tooltip
+			content={closeLabel}
+			placement={tooltipPlacement}
+			class="absolute inset-y-0 right-1 flex items-center"
+		>
 			<IconButton
 				bare
 				ariaLabel={closeLabel}
 				disabled={closeDisabled}
 				class={[
-					'focus-visible:ring-button-primary/40 relative grid size-5 shrink-0 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color,translate] outline-none group-hover/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
-					closeRevealClass[surface],
+					'focus-visible:ring-button-primary/40 relative grid size-5 shrink-0 translate-x-1.5 cursor-pointer place-items-center rounded-sm opacity-0 transition-[opacity,color,translate] duration-150 ease-out outline-none group-hover/browser-tab:translate-x-0 group-hover/browser-tab:opacity-100 group-has-[:focus-visible]/browser-tab:translate-x-0 group-has-[:focus-visible]/browser-tab:opacity-100 before:absolute before:-inset-1 before:content-[""] focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30 motion-reduce:transition-none',
 					tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
 					closeHoverClass[surface],
 				]}
@@ -208,7 +199,7 @@
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
-				surface === 'band' && !trailing && 'tab-label-faded',
+				onclose && !trailing && 'tab-label-faded',
 			]}
 			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
 			style:--tab-label-overflow={labelOverflow}
@@ -230,15 +221,21 @@
 			<span
 				class={[
 					'hidden h-4 w-4 shrink-0 place-items-center motion-reduce:grid',
-					surface === 'band' && hiddenUnderCloseClass,
+					onclose && hiddenUnderCloseClass,
 				]}
 				aria-hidden="true"
 			>
 				<BusyIcon size={12} />
 			</span>
 		{/if}
-		{#if trailing && surface === 'band'}
-			<span class={['grid h-4 w-4 shrink-0 place-items-center', hiddenUnderCloseClass]}>
+		{#if trailing && onclose}
+			<span
+				class={[
+					surface === 'band' ? 'grid h-4 w-4 place-items-center' : 'flex',
+					'shrink-0',
+					hiddenUnderCloseClass,
+				]}
+			>
 				{@render trailing()}
 			</span>
 		{:else}

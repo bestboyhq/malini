@@ -86,6 +86,27 @@ describe('switching workstreams in the inspector', () => {
 		harness.stop();
 	});
 
+	it('keeps a panel picked while the runtime was still reaching the workstream', async () => {
+		const harness = render([
+			contextBoundPanel('malini.repository.files-panel', []),
+			contextBoundPanel('malini.browser', []),
+		]);
+		await harness.visit('workstream-a');
+		await harness.visit('workstream-b');
+
+		await harness.arrive('workstream-a');
+		inspectorTab(harness.host, 'malini.browser')?.click();
+		await settle();
+		await harness.commit();
+		await harness.visit('workstream-b');
+		await harness.arrive('workstream-a');
+
+		expect(inspectorTab(harness.host, 'malini.browser')?.getAttribute('aria-selected')).toBe(
+			'true',
+		);
+		harness.stop();
+	});
+
 	it('holds back a runtime-bound panel until the runtime reaches the workstream', async () => {
 		const runtime = new RuntimeWorkstream();
 		const harness = render([runtimeBoundPanel('example.terminal.panel', runtime)], runtime);
@@ -167,6 +188,12 @@ function presented(host: HTMLElement): readonly Presented[] {
 			workstreamId: content.getAttribute('data-navigation-workstream-id'),
 			text: content.textContent?.trim() ?? '',
 		}),
+	);
+}
+
+function inspectorTab(host: HTMLElement, panelId: string): HTMLElement | null {
+	return host.querySelector<HTMLElement>(
+		`[data-testid="extension-inspector-tab"][data-panel-id="${panelId}"]`,
 	);
 }
 

@@ -6,6 +6,7 @@ import {
 	type SessionRenamedPayload,
 	type WorkstreamRenamedPayload,
 } from '$contract/events';
+import type { BrowserTabArgs } from '$contract/browser';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { IdSequence } from '../id-sequence';
@@ -31,12 +32,21 @@ export interface BrowserPageInfo {
 }
 
 export interface BrowserAutomation {
-	open(workstreamId: string, url: string): Promise<BrowserPageInfo>;
+	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
 	screenshot(
-		workstreamId: string,
+		tab: BrowserTabArgs,
 		worktree: string,
 	): Promise<{ readonly path: string; readonly previewPath: string; readonly url: string }>;
-	click(workstreamId: string, selector: string): Promise<BrowserPageInfo>;
+	click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo>;
+	type(
+		tab: BrowserTabArgs,
+		selector: string,
+		text: string,
+		submit: boolean,
+	): Promise<BrowserPageInfo>;
+	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 }
 
 export interface AgentServiceDeps {
@@ -68,19 +78,17 @@ export async function answerBrowserRequest(
 		const session = persistedBridgeSession(deps.db, request.sessionId);
 		if (!session) return { ok: false, error: `Agent session \`${request.sessionId}\` is unknown.` };
 		const { workstreamId } = session;
+		const tab = { workstreamId, tabId: agentBrowserTabId(request.sessionId) };
 		switch (request.action) {
 			case 'open': {
-				const page = await browser.open(workstreamId, request.url);
+				const page = await browser.open(tab, request.url);
 				return {
 					ok: true,
 					text: `Opened ${describePage(page)}. Call browser_screenshot to see it.`,
 				};
 			}
 			case 'screenshot': {
-				const shot = await browser.screenshot(
-					workstreamId,
-					worktreePath(deps.appDataRoot, workstreamId),
-				);
+				const shot = await browser.screenshot(tab, worktreePath(deps.appDataRoot, workstreamId));
 				return {
 					ok: true,
 					text: `Screenshot of ${shot.url} saved to ${shot.path}. Embed it in your report as ![what it shows](${shot.path}).`,
@@ -88,16 +96,40 @@ export async function answerBrowserRequest(
 				};
 			}
 			case 'click': {
-				const page = await browser.click(workstreamId, request.selector);
+				const page = await browser.click(tab, request.selector);
 				return {
 					ok: true,
 					text: `Clicked \`${request.selector}\`. The page is now ${describePage(page)}.`,
 				};
 			}
+			case 'type': {
+				const { selector, text, submit } = request;
+				const page = await browser.type(tab, selector, text, submit);
+				const enter = submit ? ' and pressed Enter' : '';
+				return {
+					ok: true,
+					text: `Typed into \`${selector}\`${enter}. The page is now ${describePage(page)}.`,
+				};
+			}
+			case 'back':
+				return {
+					ok: true,
+					text: `Went back to ${describePage(await browser.goBack(tab))}.`,
+				};
+			case 'forward': {
+				const page = await browser.goForward(tab);
+				return { ok: true, text: `Went forward to ${describePage(page)}.` };
+			}
+			case 'reload':
+				return { ok: true, text: `Reloaded ${describePage(await browser.reload(tab))}.` };
 		}
 	} catch (error) {
 		return { ok: false, error: describe(error) };
 	}
+}
+
+export function agentBrowserTabId(sessionId: string): string {
+	return `chat-${sessionId}`;
 }
 
 function describePage(page: BrowserPageInfo): string {

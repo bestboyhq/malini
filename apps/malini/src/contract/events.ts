@@ -1,5 +1,5 @@
 import type { LiveEventEnvelope } from './agent';
-import type { BrowserState } from './browser';
+import type { BrowserState, BrowserTabArgs } from './browser';
 import type { JobDefinitionChangedEvent, JobRunChangedEvent } from './jobs';
 import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
@@ -102,6 +102,7 @@ export interface ContractEvents {
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
 	'browser:state-changed': BrowserState;
+	'browser:tab-opened': BrowserTabArgs;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -139,6 +140,8 @@ export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChan
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
 
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
+
+export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
 
 export const ROUTINES_SUGGESTED_CHANNEL = 'routines:suggested' satisfies EventChannel;
 

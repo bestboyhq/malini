@@ -69,6 +69,7 @@
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
+	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
 	import SessionRuntimeControls from './SessionRuntimeControls.svelte';
 	import { formatRunUsage, lastRunUsage } from './session-runtime-metadata';
@@ -157,6 +158,7 @@
 	const pendingSubmissionCount = $derived(composerPendingSubmissionsQuery.data);
 	let outgoingBandEl: HTMLDivElement | null = null;
 	let outgoingPrompts = $state(0);
+	let landOutgoingPrompt: (() => void) | null = null;
 	const claudeCodeStatus = $derived(claudeCodeStatusQuery.data);
 	const agentUsable = $derived(
 		claudeCodeStatus.kind !== 'missing' && claudeCodeStatus.kind !== 'signed-out',
@@ -633,7 +635,6 @@
 		const source = band?.querySelector('.prompt-editor-host');
 		if (!band || !(source instanceof HTMLElement)) return;
 		if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-		if (typeof source.animate !== 'function') return;
 		const sourceRect = source.getBoundingClientRect();
 		const bandRect = band.getBoundingClientRect();
 		if (sourceRect.height <= 0) return;
@@ -666,24 +667,55 @@
 		ghost.style.userSelect = 'none';
 		band.appendChild(ghost);
 		outgoingPrompts += 1;
-
-		const motion = arrivalMotion();
-		const travel = sourceRect.bottom - bandRect.top;
-		const animation = ghost.animate(
-			[
-				{ transform: 'translateY(0)', opacity: 1 },
-				{ transform: `translateY(-${travel}px)`, opacity: 0 },
-			],
-			{ duration: motion.durationMs, easing: motion.easing, fill: 'forwards' },
-		);
-		const remove = (): void => {
-			ghost.remove();
-			outgoingPrompts -= 1;
-		};
 		void (async () => {
-			await animation.finished.catch(() => undefined);
-			remove();
+			await tick();
+			flyOutgoingPrompt(band, ghost, bandRect.height, sourceRect.bottom - bandRect.top);
 		})();
+	}
+
+	function flyOutgoingPrompt(
+		band: HTMLElement,
+		ghost: HTMLElement,
+		fromPx: number,
+		travelPx: number,
+	): void {
+		landOutgoingPrompt?.();
+		band.style.height = '';
+		const foldPx = Math.max(0, fromPx - band.getBoundingClientRect().height);
+		let glide: GlideState = { position: 0, velocity: 0 };
+		let previousFrameMs: number | null = null;
+		let frame: number | null = null;
+		const paint = (): void => {
+			const progress = glide.position / travelPx;
+			ghost.style.transform = `translateY(${-glide.position}px)`;
+			ghost.style.opacity = String(1 - progress);
+			if (foldPx > 0) band.style.height = `${fromPx - foldPx * progress}px`;
+		};
+		const land = (): void => {
+			if (frame !== null) cancelAnimationFrame(frame);
+			ghost.remove();
+			band.style.height = '';
+			outgoingPrompts -= 1;
+			landOutgoingPrompt = null;
+		};
+		const step = (nowMs: number): void => {
+			const elapsedMs = previousFrameMs === null ? 0 : nowMs - previousFrameMs;
+			previousFrameMs = nowMs;
+			glide = stepGlideSpring(glide, travelPx, elapsedMs, arrivalMotion().glideStiffness);
+			if (glide.position === travelPx) {
+				land();
+				return;
+			}
+			paint();
+			frame = requestAnimationFrame(step);
+		};
+		landOutgoingPrompt = land;
+		if (travelPx <= 0) {
+			land();
+			return;
+		}
+		paint();
+		frame = requestAnimationFrame(step);
 	}
 
 	type ComposerDelivery = Readonly<{

@@ -115,7 +115,16 @@ export interface SuggestTitleCommand {
 export type BrowserRequest =
 	| { readonly action: 'open'; readonly url: string }
 	| { readonly action: 'screenshot' }
-	| { readonly action: 'click'; readonly selector: string };
+	| { readonly action: 'click'; readonly selector: string }
+	| {
+			readonly action: 'type';
+			readonly selector: string;
+			readonly text: string;
+			readonly submit: boolean;
+	  }
+	| { readonly action: 'back' }
+	| { readonly action: 'forward' }
+	| { readonly action: 'reload' };
 
 export interface BrowserResult {
 	readonly ok: boolean;

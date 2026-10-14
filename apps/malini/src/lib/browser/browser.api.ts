@@ -1,1 +1,1 @@
-export { browserInspectorPanel } from './presentation/browser-inspector-panel';
+export { browserTabPanels, presentsBrowser } from './presentation/browser-inspector-panel';

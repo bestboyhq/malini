@@ -1,61 +1,64 @@
-import type {
-	ExtensionPanelContext,
-	ExtensionPanelInstance,
-	ExtensionPanelRegistration,
-} from '@malini/extension-api';
+import type { ExtensionPanelRegistration } from '@malini/extension-api';
 import { mount, unmount } from 'svelte';
-import type { BrowserElementPrompt } from '$contract/browser';
+import type { BrowserElementPrompt, BrowserTabArgs } from '$contract/browser';
 
+import { closeBrowserTabCommand } from '../application/commands/close-browser-tab.command';
+import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
+import {
+	BROWSER_TAB_PANEL_PREFIX,
+	browserTabKey,
+	browserTabLabel,
+	browserTabPanelId,
+} from '../domain/browser-tab';
 import BrowserPanel from './BrowserPanel.svelte';
-
-export const BROWSER_PANEL_ID = 'malini.browser';
 
 type ElementPromptHandler = (workstreamId: string, picked: BrowserElementPrompt) => void;
 
-type MountedBrowserPanel = Readonly<{
-	workstreamId: string | null;
-	dispose: () => Promise<void>;
-}>;
+const BROWSER_TAB_ORDER = 30;
+const registrations = new Map<string, ExtensionPanelRegistration>();
 
-export function browserInspectorPanel(
-	options: Readonly<{ onElementPrompt: ElementPromptHandler }>,
+export function browserTabPanels(
+	workstreamId: string,
+	tabIds: readonly string[],
+	onElementPrompt: ElementPromptHandler,
+): readonly ExtensionPanelRegistration[] {
+	const open = new Set(tabIds.map((tabId) => browserTabKey({ workstreamId, tabId })));
+	for (const key of registrations.keys()) {
+		if (key.startsWith(`${workstreamId}/`) && !open.has(key)) registrations.delete(key);
+	}
+	return tabIds.map((tabId) => browserTabPanel({ workstreamId, tabId }, onElementPrompt));
+}
+
+export function presentsBrowser(panelId: string | null): boolean {
+	return panelId?.startsWith(BROWSER_TAB_PANEL_PREFIX) ?? false;
+}
+
+function browserTabPanel(
+	tab: BrowserTabArgs,
+	onElementPrompt: ElementPromptHandler,
 ): ExtensionPanelRegistration {
-	return {
-		id: BROWSER_PANEL_ID,
-		label: 'Browser',
-		icon: 'browser',
-		order: 30,
-		defaultVisible: true,
+	const key = browserTabKey(tab);
+	const existing = registrations.get(key);
+	if (existing) return existing;
+	const registration: ExtensionPanelRegistration = {
+		id: browserTabPanelId(tab.tabId),
+		get label() {
+			return browserTabLabel(browserStateQuery.data(key));
+		},
+		get icon() {
+			const favicon = browserStateQuery.data(key)?.favicon;
+			return favicon ? `image:${favicon}` : 'browser';
+		},
+		order: BROWSER_TAB_ORDER,
 		component: {
 			workstreamScope: 'context',
-			mount: (target, context) => mountBrowserPanel(target, context, options.onElementPrompt),
+			mount: (target) => {
+				const panel = mount(BrowserPanel, { target, props: { ...tab, onElementPrompt } });
+				return { dispose: () => unmount(panel) };
+			},
 		},
+		onDidClose: () => closeBrowserTabCommand(tab),
 	};
-}
-
-function mountBrowserPanel(
-	target: HTMLElement,
-	context: ExtensionPanelContext,
-	onElementPrompt: ElementPromptHandler,
-): ExtensionPanelInstance {
-	let mounted = mountFor(target, context.workstream?.id ?? null, onElementPrompt);
-	return {
-		update: async (next) => {
-			const workstreamId = next.workstream?.id ?? null;
-			if (workstreamId === mounted.workstreamId) return;
-			await mounted.dispose();
-			mounted = mountFor(target, workstreamId, onElementPrompt);
-		},
-		dispose: () => mounted.dispose(),
-	};
-}
-
-function mountFor(
-	target: HTMLElement,
-	workstreamId: string | null,
-	onElementPrompt: ElementPromptHandler,
-): MountedBrowserPanel {
-	if (workstreamId === null) return { workstreamId, dispose: async () => undefined };
-	const panel = mount(BrowserPanel, { target, props: { workstreamId, onElementPrompt } });
-	return { workstreamId, dispose: () => unmount(panel) };
+	registrations.set(key, registration);
+	return registration;
 }

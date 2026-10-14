@@ -1,3 +1,4 @@
+import type { BrowserTabArgs } from '$contract/browser';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 
@@ -6,12 +7,12 @@ import { browserService } from '../../infrastructure/services/browser.service';
 
 export { goForwardBrowserCommand };
 
-function goForwardBrowserCommand(workstreamId: string): void {
+function goForwardBrowserCommand(tab: BrowserTabArgs): void {
 	void (async () => {
 		try {
-			await browserService.goForward(workstreamId);
+			await browserService.goForward(tab);
 		} catch (error) {
-			toast.error(browserFailure('Could not go forward', error), aboutWorkstream(workstreamId));
+			toast.error(browserFailure('Could not go forward', error), aboutWorkstream(tab.workstreamId));
 		}
 	})();
 }

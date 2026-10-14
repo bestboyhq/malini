@@ -7,10 +7,10 @@ class FakeBrowserWindow extends EventEmitter {
 	destroyed = false;
 	shown: string[] = [];
 	contentsDestroyed = false;
-	webContents = {
+	webContents = Object.assign(new EventEmitter(), {
 		setWindowOpenHandler: () => undefined,
 		isDestroyed: () => this.contentsDestroyed,
-	};
+	});
 	visibilityChecks = 0;
 	constructor() {
 		super();
@@ -42,7 +42,8 @@ class FakeBrowserWindow extends EventEmitter {
 	}
 }
 
-vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, shell: { openExternal: vi.fn() } }));
+const openExternal = vi.fn();
+vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, shell: { openExternal } }));
 
 const { createMainWindow } = await import('./window');
 
@@ -79,5 +80,21 @@ describe('createMainWindow', () => {
 		window.destroyed = true;
 		expect(() => window.emit('hide')).not.toThrow();
 		expect(window.visibilityChecks).toBe(1);
+	});
+
+	it('never lets the app page navigate away, and hands web links to the browser', () => {
+		createMainWindow();
+		const window = created.at(-1);
+		if (!window) throw new Error('no window was created');
+		const navigate = (url: string): boolean => {
+			let prevented = false;
+			window.webContents.emit('will-navigate', { preventDefault: () => (prevented = true) }, url);
+			return prevented;
+		};
+
+		expect(navigate('file:///workstreams/ws-1?agent=s-1')).toBe(true);
+		expect(openExternal).not.toHaveBeenCalled();
+		expect(navigate('https://github.com/szymeo/malini')).toBe(true);
+		expect(openExternal).toHaveBeenCalledWith('https://github.com/szymeo/malini');
 	});
 });

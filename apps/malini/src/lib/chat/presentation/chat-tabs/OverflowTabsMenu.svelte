@@ -16,6 +16,7 @@
 	let query = $state('');
 	let filterInput = $state<HTMLInputElement | null>(null);
 	const filteredTabs = $derived(tabs.filter((tab) => fuzzyMatch(tab.name, query)));
+	const unreadCount = $derived(tabs.filter((tab) => tab.unread).length);
 
 	$effect(() => {
 		if (!open) {
@@ -50,12 +51,20 @@
 			variant="ghost"
 			size="md"
 			class="text-fg-tertiary h-7 gap-1 text-xs focus-visible:ring-inset"
-			ariaLabel={`${tabs.length} more chats and files`}
+			ariaLabel={`${tabs.length} more chats and files${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
 			ariaHasPopup="menu"
 			ariaExpanded={open}
 			data-testid="chat-agent-overflow"
 		>
-			<Icon name="more" size={14} />
+			{#if unreadCount > 0}
+				<span
+					class="bg-brand size-1.5 rounded-full"
+					aria-hidden="true"
+					data-testid="chat-agent-overflow-unread"
+				></span>
+			{:else}
+				<Icon name="more" size={14} />
+			{/if}
 			<span>{tabs.length}</span>
 		</Button>
 	{/snippet}
@@ -81,6 +90,10 @@
 						tab.open();
 					}}
 				>
+					{#if tab.unread}
+						<span class="bg-brand size-1.5 shrink-0 rounded-full" aria-hidden="true"></span>
+						<span class="sr-only">Unread</span>
+					{/if}
 					<span class="min-w-0 flex-1 truncate text-left">
 						<SensitiveText text={tab.name} interactive={false} />
 					</span>

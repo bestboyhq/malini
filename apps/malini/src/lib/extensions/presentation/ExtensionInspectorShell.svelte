@@ -17,6 +17,7 @@
 	import ExtensionPanelHost from './ExtensionPanelHost.svelte';
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
+	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
 	import { inspectorMinWidth } from '$shared/extensions/inspector-min-width';
 	import {
@@ -66,6 +67,7 @@
 		addExtensionsContent?: Snippet;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		toolbarEnd?: Snippet;
+		panelActions?: readonly InspectorPanelAction[];
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
 		onpanelselect?: (panelId: string) => void;
@@ -91,6 +93,7 @@
 		addExtensionsContent,
 		renderIcon,
 		toolbarEnd,
+		panelActions = [],
 		storage,
 		onactivechange,
 		onpanelselect,
@@ -177,6 +180,7 @@
 	const gutterSource = {
 		workstreamId: () => workstreamId,
 		minWidth: () => minWidth,
+		presentedPanelId: () => (drawerOpen && !addExtensionsActive ? presentedPanelId : null),
 	};
 
 	$effect(() => inspectorGutter.connect(gutterSource));
@@ -268,7 +272,8 @@
 		const request = inspectorPanelCommands.requestFor(workstreamId);
 		if (!request || !inspectorInteractive) return;
 		if (!panels.some((panel) => panel.id === request.panelId)) return;
-		openPanel(request.panelId);
+		if (request.reveal) revealPanel(request.panelId);
+		else openPanel(request.panelId);
 		inspectorPanelCommands.consume(workstreamId, request.revision);
 	});
 
@@ -299,11 +304,14 @@
 		}
 
 		if (finalizedWorkstreamId !== workstreamId) {
+			const chosenWhileLoading =
+				pendingMutationWorkstreamId === workstreamId && pendingPreferenceMutations.length > 0;
 			const finalized = replayPendingMutations(
 				workstreamId,
 				loadInspectorPanelPreferences(workstreamId, panels, storage),
 			);
 			replacePreferences(finalized);
+			if (chosenWhileLoading) saveInspectorPanelPreferences(workstreamId, finalized, storage);
 			finalizedWorkstreamId = workstreamId;
 			pendingMutationWorkstreamId = null;
 			pendingPreferenceMutations = [];
@@ -379,6 +387,12 @@
 		panelPickerOpen = false;
 		onpanelselect?.(panelId);
 		void focusPanelTab(panelId);
+	}
+
+	function revealPanel(panelId: string): void {
+		persist((current) =>
+			selectInspectorPanel(setInspectorPanelVisible(current, panelId, true), panelId),
+		);
 	}
 
 	async function focusPanelTab(panelId: string | null): Promise<void> {
@@ -465,7 +479,7 @@
 		if (!panel?.onDidClose) return;
 		void (async () => {
 			try {
-				await panel.onDidClose?.();
+				await panel.onDidClose?.(context);
 			} catch (cause) {
 				panelError(cause, panel);
 			}
@@ -636,6 +650,23 @@
 					{@const adjacentPanelId = isActive
 						? (visiblePanels[panelIndex + 1]?.id ?? visiblePanels[panelIndex - 1]?.id ?? null)
 						: null}
+					{#snippet badgeCount()}
+						{#if badge}
+							<span
+								class={[
+									'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
+									isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
+									badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
+								]}
+								aria-label={badge.ariaLabel}
+								data-testid="extension-inspector-tab-badge"
+								data-panel-id={panel.id}
+								data-count={badge.count}
+							>
+								{compactBadgeCount(badge.count)}
+							</span>
+						{/if}
+					{/snippet}
 					<BrowserTab
 						label={panel.label}
 						selected={isActive}
@@ -673,6 +704,7 @@
 						}}
 						onselect={() => selectPanel(panel.id)}
 						onclose={visiblePanels.length > 1 ? (event) => closePanel(event, panel.id) : undefined}
+						trailing={badge ? badgeCount : undefined}
 					>
 						{#snippet icon()}
 							<span class="grid place-items-center" aria-hidden="true">
@@ -681,23 +713,6 @@
 										size={14}
 									/>{/if}
 							</span>
-						{/snippet}
-						{#snippet trailing()}
-							{#if badge}
-								<span
-									class={[
-										'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
-										isActive ? 'bg-surface-100-selected' : 'bg-surface-50-selected',
-										badge.count > 0 ? 'text-fg-default' : 'text-fg-tertiary',
-									]}
-									aria-label={badge.ariaLabel}
-									data-testid="extension-inspector-tab-badge"
-									data-panel-id={panel.id}
-									data-count={badge.count}
-								>
-									{compactBadgeCount(badge.count)}
-								</span>
-							{/if}
 						{/snippet}
 					</BrowserTab>
 				{/each}
@@ -851,6 +866,31 @@
 							<Icon name="plus" size={11} />
 						</span>
 					{/if}
+				</DropdownItem>
+			{/each}
+			{#each panelActions as action (action.id)}
+				<DropdownItem
+					role="menuitem"
+					focusOnHover={false}
+					data-testid="extension-inspector-picker-action"
+					onclick={() => {
+						panelPickerOpen = false;
+						action.run();
+					}}
+				>
+					<span
+						class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center"
+						aria-hidden="true"
+					>
+						{#if renderIcon}{@render renderIcon(action.icon, 13)}{:else}<ExtensionPanelIcon
+								icon={action.icon}
+								size={13}
+							/>{/if}
+					</span>
+					<span class="min-w-0 flex-1 truncate">{action.label}</span>
+					<span class="text-fg-tertiary" aria-hidden="true">
+						<Icon name="plus" size={11} />
+					</span>
 				</DropdownItem>
 			{/each}
 			{#if addExtensionsHref}

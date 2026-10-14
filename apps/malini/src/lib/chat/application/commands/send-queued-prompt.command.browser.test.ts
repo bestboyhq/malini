@@ -11,8 +11,10 @@ import {
 } from '$lib/chat/application/prompt-pipeline.testkit';
 import { removeQueuedPromptCommand } from '$lib/chat/application/commands/remove-queued-prompt.command';
 import { sendQueuedPromptCommand } from '$lib/chat/application/commands/send-queued-prompt.command';
+import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
 import { queueErrorsQuery } from '$lib/chat/application/queries/queue-errors.query.svelte';
 import { queueSendingQuery } from '$lib/chat/application/queries/queue-sending.query.svelte';
+import { queuedPromptsQuery } from '$lib/chat/application/queries/queued-prompts.query.svelte';
 import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionState } from '$lib/chat/domain/session-record';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
@@ -75,7 +77,7 @@ describe('sending a queued prompt now', () => {
 		expect(sends().map((sent) => sent.clientRequestId)).toEqual([second.id, first.id]);
 	});
 
-	it('interrupts the running chat and sends the prompt 500 ms later once it is idle', async () => {
+	it('interrupts the running chat and sends the prompt 100 ms later once it is idle', async () => {
 		const { platform, entry } = await queueBehindRunningChat();
 		const sends = recordPromptDelivery();
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -90,7 +92,7 @@ describe('sending a queued prompt now', () => {
 		expect(queueSendingQuery.data).toBe(entry.id);
 		reportChatStatus('s-a1', 'failed');
 
-		await vi.advanceTimersByTimeAsync(499);
+		await vi.advanceTimersByTimeAsync(99);
 		expect(sends()).toEqual([]);
 
 		await vi.advanceTimersByTimeAsync(1);
@@ -102,7 +104,19 @@ describe('sending a queued prompt now', () => {
 		expect(agentPromptQueue.entriesFor(WORKSTREAM)).toEqual([]);
 	});
 
-	it('keeps retrying every 500 ms while the interrupted run lingers, then gives up', async () => {
+	it('moves the prompt into the transcript while the running chat is still stopping', async () => {
+		const { platform, entry } = await queueBehindRunningChat();
+		let stopped = (): void => undefined;
+		platform.define('chat.cancel-run', () => new Promise<void>((resolve) => (stopped = resolve)));
+
+		sendQueuedPromptCommand(entry.id);
+
+		expect(pendingPromptQuery.data('s-a1')).toMatchObject({ text: 'Send me next' });
+		expect(queuedPromptsQuery.data).toEqual([]);
+		stopped();
+	});
+
+	it('keeps retrying every 100 ms for 10 s while the interrupted run lingers, then gives up', async () => {
 		const { entry } = await queueBehindRunningChat();
 		const error = vi.spyOn(toast, 'error');
 		const sends = recordPromptDelivery();
@@ -111,7 +125,7 @@ describe('sending a queued prompt now', () => {
 		sendQueuedPromptCommand(entry.id);
 		await settleMicrotasks();
 
-		await vi.advanceTimersByTimeAsync(500 * 21 - 1);
+		await vi.advanceTimersByTimeAsync(100 * 101 - 1);
 		expect(queueErrorsQuery.data).toEqual({});
 		expect(queueSendingQuery.data).toBe(entry.id);
 
@@ -126,6 +140,8 @@ describe('sending a queued prompt now', () => {
 		expect(agentPromptQueue.entriesFor(WORKSTREAM)).toEqual([
 			expect.objectContaining({ id: entry.id }),
 		]);
+		expect(pendingPromptQuery.data('s-a1')).toBeNull();
+		expect(queuedPromptsQuery.data.map((queued) => queued.id)).toEqual([entry.id]);
 	});
 
 	it('stops retrying when the prompt is removed from the queue', async () => {
@@ -161,5 +177,7 @@ describe('sending a queued prompt now', () => {
 		expect(error).toHaveBeenCalledWith('bridge unreachable', {
 			context: { workstream: WORKSTREAM },
 		});
+		expect(pendingPromptQuery.data('s-a1')).toBeNull();
+		expect(queuedPromptsQuery.data.map((queued) => queued.id)).toEqual([entry.id]);
 	});
 });

@@ -58,7 +58,7 @@
 	});
 </script>
 
-<div class="shrink-0">
+<div class="flex min-w-0">
 	<Dropdown
 		bind:open
 		side="top"
@@ -78,7 +78,7 @@
 				ariaHasPopup="listbox"
 				ariaExpanded={open}
 				{disabled}
-				class="text-fg-secondary hover:bg-surface-50 max-w-40 gap-1.5 rounded-md text-xs font-normal"
+				class="text-fg-secondary hover:bg-surface-50 max-w-40 min-w-0 gap-1.5 rounded-md text-xs font-normal"
 				data-testid="chat-composer-model"
 			>
 				<ClaudeIcon class="text-fg-secondary shrink-0" size={13} />

@@ -170,6 +170,10 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_open',
 			'mcp__malini__browser_screenshot',
 			'mcp__malini__browser_click',
+			'mcp__malini__browser_type',
+			'mcp__malini__browser_back',
+			'mcp__malini__browser_forward',
+			'mcp__malini__browser_reload',
 		]);
 		expect(claude.runs.map(({ options }) => options.systemPrompt)).toEqual([
 			expect.objectContaining({ append: expect.stringContaining('at the low report resolution') }),

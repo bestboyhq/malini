@@ -10,8 +10,8 @@ export function preloadAttentionChatsHook(readWorkstreamIds: () => readonly stri
 			const workstreamIds = new Set(readWorkstreamIds());
 			const sessionIds = new Set<SessionId>();
 			for (const workstreamId of workstreamIds) {
-				const sessionId = agentActivity.attentionFor(workstreamId)?.sessionId;
-				if (sessionId) sessionIds.add(sessionId);
+				for (const sessionId of agentActivity.unreadChatsIn(workstreamId))
+					sessionIds.add(sessionId);
 			}
 			for (const session of sessionsAggregate.listSessions()) {
 				if (

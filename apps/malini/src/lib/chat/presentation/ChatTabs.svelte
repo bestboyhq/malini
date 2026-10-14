@@ -87,6 +87,7 @@
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { modelLabel } from '$shared/providers/providers.api';
 	import { closeChatCommand } from '$lib/chat/application/commands/close-chat.command';
+	import { chatAttentionQuery } from '$lib/chat/application/queries/chat-attention.query.svelte';
 	import { closingChatsQuery } from '$lib/chat/application/queries/closing-chats.query.svelte';
 	import { draftScopesQuery } from '$lib/chat/application/queries/draft-scopes.query.svelte';
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
@@ -253,17 +254,8 @@
 	const hiddenTabs = $derived(hiddenEntries.map(overflowTab));
 	const stripItems = $derived.by((): readonly StripItem[] => {
 		const visibleKeys = new Set(overflowTabs.visible.map(({ key }) => key));
-		const freshAfterKey = strip.fresh ? strip.fresh.afterKey : strip.anchorKey;
-		const items: StripItem[] = [];
-		for (const entry of entries) {
-			if (visibleKeys.has(entry.key)) items.push(entry);
-			if (freshSelected && entry.key === freshAfterKey) {
-				items.push({ kind: 'fresh', key: 'fresh' });
-			}
-		}
-		if (freshSelected && !items.some(({ kind }) => kind === 'fresh')) {
-			items.push({ kind: 'fresh', key: 'fresh' });
-		}
+		const items: StripItem[] = entries.filter(({ key }) => visibleKeys.has(key));
+		if (freshSelected) items.push({ kind: 'fresh', key: 'fresh' });
 		return items;
 	});
 	const selectedTabKey = $derived(selectedKey ?? (freshSelected ? 'fresh' : null));
@@ -316,6 +308,7 @@
 				name: file.label,
 				detail: file.tooltip,
 				selected: strip.activeDocumentId === file.id,
+				unread: false,
 				open: () => workstreamTabs.select(workstreamId, file.id),
 			};
 		}
@@ -327,9 +320,10 @@
 			detail:
 				identity.activity === 'idle' && hasDraft(session.id) ? DRAFT_LABEL : identity.statusLabel,
 			selected: !documentActive && selectedSessionId === session.id,
+			unread: chatAttentionQuery.data(session.id) !== null,
 			open: () => {
 				workstreamTabs.leave(workstreamId);
-				location.assign(sessionHref(session));
+				void goto(sessionHref(session));
 			},
 		};
 	}
@@ -338,8 +332,13 @@
 		return draftScopes.includes(agentDraftScopeKey(workstreamId, sessionId));
 	}
 
-	function sessionDescription(identity: AgentChatIdentity, drafted: boolean): string | undefined {
+	function sessionDescription(
+		identity: AgentChatIdentity,
+		drafted: boolean,
+		unread: boolean,
+	): string | undefined {
 		const parts = [
+			unread ? 'Unread' : null,
 			identity.activity === 'idle' ? null : identity.statusLabel,
 			drafted ? DRAFT_LABEL : null,
 		].filter((part) => part !== null);
@@ -474,6 +473,7 @@
 				{@const session = item.session}
 				{@const identity = agentChatIdentity(session)}
 				{@const drafted = hasDraft(session.id)}
+				{@const unread = chatAttentionQuery.data(session.id) !== null}
 				{@const isSelected = selectedSessionId === session.id && !documentActive}
 				{@const isCommitted = activeSessionId === session.id}
 				{@const isPending = isSelected && !isCommitted}
@@ -497,7 +497,7 @@
 					surface="band"
 					tone={isActivePlanSurface ? 'brand' : 'neutral'}
 					label={identity.name}
-					description={sessionDescription(identity, drafted)}
+					description={sessionDescription(identity, drafted, unread)}
 					selected={isSelected}
 					href={sessionHref(session)}
 					tabId={stripTabId(item.key)}
@@ -513,13 +513,14 @@
 						'data-navigation-workstream-id': workstreamId,
 						'data-navigation-pending': isPending ? 'true' : undefined,
 						'data-plan-mode': isActivePlan ? 'true' : undefined,
+						'data-unread': unread ? 'true' : undefined,
 					}}
 					closeAttributes={{
 						'data-testid': 'chat-agent-tab-close',
 						'data-navigation-target': closeSessionNavigationTarget(session),
 						'data-navigation-path-id': 'expected-path:transcript.switch-chat',
 					}}
-					icon={isActivePlan ? planIcon : drafted ? draftIcon : undefined}
+					icon={unread ? unreadIcon : isActivePlan ? planIcon : drafted ? draftIcon : undefined}
 					busy={identity.activity === 'in-progress'}
 					trailing={identity.activity === 'needs-approval' || identity.activity === 'failed'
 						? statusIcon
@@ -600,7 +601,11 @@
 				selected={false}
 				preview={entry.kind === 'document' && entry.document.preview}
 				closeLabel=""
-				icon={entry.kind === 'document' || hasDraft(entry.session.id) ? iconSpace : undefined}
+				icon={entry.kind === 'document' ||
+				hasDraft(entry.session.id) ||
+				chatAttentionQuery.data(entry.session.id) !== null
+					? iconSpace
+					: undefined}
 				trailing={entry.kind === 'chat' &&
 				['needs-approval', 'failed'].includes(agentChatIdentity(entry.session).activity)
 					? iconSpace
@@ -639,6 +644,10 @@
 	<span class="text-fg-tertiary grid place-items-center" aria-hidden="true">
 		<Icon name="pencil" size={12} />
 	</span>
+{/snippet}
+
+{#snippet unreadIcon()}
+	<span class="bg-brand size-1.5 rounded-full" aria-hidden="true"></span>
 {/snippet}
 
 {#snippet iconSpace()}

@@ -57,7 +57,7 @@ export type ExtensionPanelComponent = {
 export type ExtensionPanelRegistration = ExtensionPanelManifest & {
 	component: ExtensionPanelComponent;
 	onDidOpen?(context: ExtensionPanelContext): MaybePromise<void>;
-	onDidClose?(): MaybePromise<void>;
+	onDidClose?(context: ExtensionPanelContext): MaybePromise<void>;
 };
 
 export type ExtensionCommandHandler = (...args: readonly unknown[]) => MaybePromise<unknown>;

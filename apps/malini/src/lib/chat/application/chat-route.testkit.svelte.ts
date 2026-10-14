@@ -13,6 +13,7 @@ import type { FakeAgentEventSeed, FakeAgentSessionSeed } from '$shared/port/fake
 import { setPlatformForTest } from '$shared/port/platform';
 import { router, type RouteNode } from '$shared/router/hash-router.svelte';
 import { goto } from '$shared/router/navigation';
+import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 
 const fixturePage = () => import('$shared/router/fixtures/FixturePage.svelte');
 
@@ -166,4 +167,5 @@ export async function resetChatState(): Promise<void> {
 	transcriptAnchors.reset();
 	setPlatformForTest(null);
 	globalThis.localStorage?.clear();
+	workstreamTabs.reset();
 }

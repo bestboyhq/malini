@@ -48,7 +48,7 @@ async function connect(answer: (request: BrowserRequest) => Promise<BrowserResul
 }
 
 describe('malini MCP server', () => {
-	it('lists the three browser tools with their input schemas', async () => {
+	it('lists the browser tools with their input schemas', async () => {
 		const { call } = await connect(async () => ({ ok: true }));
 
 		const listed = await call('tools/list', {});
@@ -73,9 +73,48 @@ describe('malini MCP server', () => {
 							required: ['selector'],
 						},
 					},
+					{
+						name: 'browser_type',
+						inputSchema: {
+							type: 'object',
+							properties: {
+								selector: { type: 'string' },
+								text: { type: 'string' },
+								submit: { type: 'boolean', default: false },
+							},
+							required: ['selector', 'text'],
+						},
+					},
+					{ name: 'browser_back', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'browser_forward', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'browser_reload', inputSchema: { type: 'object', properties: {} } },
 				],
 			},
 		});
+	});
+
+	it('types into a field, submitting only when asked, and steps through history', async () => {
+		const { call, requests } = await connect(async () => ({ ok: true }));
+
+		await call('tools/call', {
+			name: 'browser_type',
+			arguments: { selector: 'input[name=q]', text: 'malini' },
+		});
+		await call('tools/call', {
+			name: 'browser_type',
+			arguments: { selector: 'input[name=q]', text: '', submit: true },
+		});
+		await call('tools/call', { name: 'browser_back', arguments: {} });
+		await call('tools/call', { name: 'browser_forward', arguments: {} });
+		await call('tools/call', { name: 'browser_reload', arguments: {} });
+
+		expect(requests).toEqual([
+			{ action: 'type', selector: 'input[name=q]', text: 'malini', submit: false },
+			{ action: 'type', selector: 'input[name=q]', text: '', submit: true },
+			{ action: 'back' },
+			{ action: 'forward' },
+			{ action: 'reload' },
+		]);
 	});
 
 	it('opens a page through malini and returns what the browser answered', async () => {

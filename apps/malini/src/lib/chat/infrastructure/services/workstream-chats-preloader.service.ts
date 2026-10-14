@@ -294,6 +294,7 @@ function chatBelongsTo(sessionId: SessionId, workstreamId: string): boolean {
 
 function openingSessionFor(workstreamId: string): SessionId | null {
 	return (
+		sessionsAggregate.openingSessionFor(workstreamId) ??
 		preferredVisualSessionsByWorkstream(sessionsAggregate.listSessions()).get(workstreamId)?.id ??
 		null
 	);

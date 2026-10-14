@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInterface } from 'node:readline';
 import { BridgeOutputWriter, createIpc, attachStdio, runCli, type OutputSink } from '../cli';
 import { unknownCapability } from '../claude/capabilities';
-import { BRIDGE_EVENT_TYPES } from '../generated/protocol-contract';
+import { BRIDGE_EVENT_TYPES, BRIDGE_PROTOCOL_VERSION } from '../generated/protocol-contract';
 import type { AgentEvent } from '../types';
 import {
 	bridgeCommandAckFrame,
@@ -664,7 +664,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		});
 		expect(request).toEqual({
 			type: 'bridge.browser_request',
-			protocolVersion: 19,
+			protocolVersion: BRIDGE_PROTOCOL_VERSION,
 			requestId: expect.any(String),
 			sessionId: 's-browser',
 			action: 'open',

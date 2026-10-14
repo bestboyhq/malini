@@ -4,6 +4,7 @@ import { AgentActivity } from './agent-activity.aggregate.svelte';
 
 const base = {
 	runId: 'run-1',
+	sessionId: 'session-1',
 	queueCount: 0,
 	workstreamLabel: 'Homepage polish',
 	repositoryFullName: 'szymeo/blog.dev',
@@ -21,6 +22,7 @@ describe('agentAttentionDecision', () => {
 		).toEqual({
 			kind: 'completed',
 			runId: 'run-1',
+			sessionId: 'session-1',
 			updatedAt: 42,
 			title: 'Homepage polish finished',
 			body: 'Ready for review.',
@@ -36,7 +38,6 @@ describe('agentAttentionDecision', () => {
 		expect(
 			agentAttentionDecision({
 				...base,
-				sessionId: 'session-1',
 				event: {
 					type: 'run.completed',
 					runId: 'run-1',
@@ -125,24 +126,56 @@ describe('AgentActivity', () => {
 		activity = new AgentActivity();
 	});
 
-	it('deduplicates a run and clears attention when the workstream is opened', () => {
-		const attention = { kind: 'completed' as const, runId: 'run-1', updatedAt: 1 };
-		expect(activity.mark('ws-1', attention)).toBe(true);
-		expect(activity.mark('ws-1', attention)).toBe(false);
-		expect(activity.attentionFor('ws-1')).toEqual(attention);
-		expect(activity.clear('ws-1')).toBe(true);
+	it('keeps a workstream unread while any of its chats is unread', () => {
+		const finished = {
+			kind: 'completed' as const,
+			runId: 'run-1',
+			sessionId: 'chat-1',
+			updatedAt: 1,
+		};
+		const asking = { kind: 'input' as const, runId: 'run-2', sessionId: 'chat-2', updatedAt: 2 };
+		expect(activity.mark('ws-1', finished)).toBe(true);
+		expect(activity.mark('ws-1', finished)).toBe(false);
+		activity.mark('ws-1', asking);
+
+		expect(activity.unreadChatsIn('ws-1')).toEqual(['chat-1', 'chat-2']);
+		expect(activity.attentionFor('ws-1')).toMatchObject(asking);
+
+		expect(activity.clearChat('chat-2')).toBe(true);
+		expect(activity.attentionForChat('chat-2')).toBeNull();
+		expect(activity.attentionFor('ws-1')).toMatchObject(finished);
+
+		activity.clearChat('chat-1');
 		expect(activity.attentionFor('ws-1')).toBeNull();
 	});
 
+	it('leads with the chat that needs the user, then the latest one', () => {
+		activity.mark('ws-1', { kind: 'failed', runId: 'run-1', sessionId: 'chat-1', updatedAt: 1 });
+		activity.mark('ws-1', { kind: 'completed', runId: 'run-2', sessionId: 'chat-2', updatedAt: 3 });
+		activity.mark('ws-1', { kind: 'approval', runId: 'run-3', sessionId: 'chat-3', updatedAt: 2 });
+
+		expect(activity.attentionFor('ws-1')?.sessionId).toBe('chat-3');
+	});
+
 	it('only clears prior approval attention for the matching terminal run', () => {
-		activity.mark('ws-1', { kind: 'approval', runId: 'run-new', updatedAt: 2 });
-		expect(activity.clearForRun('ws-1', 'run-old')).toBe(false);
+		activity.mark('ws-1', {
+			kind: 'approval',
+			runId: 'run-new',
+			sessionId: 'session-1',
+			updatedAt: 2,
+		});
+		expect(activity.clearForRun('session-1', 'run-old')).toBe(false);
 		expect(activity.attentionFor('ws-1')?.runId).toBe('run-new');
-		expect(activity.clearForRun('ws-1', 'run-new')).toBe(true);
+		expect(activity.clearForRun('session-1', 'run-new')).toBe(true);
 		expect(activity.attentionFor('ws-1')).toBeNull();
 
-		activity.mark('ws-1', { kind: 'completed', runId: 'run-new', updatedAt: 3 });
-		expect(activity.clearForRun('ws-1', 'run-new')).toBe(false);
+		activity.mark('ws-1', {
+			kind: 'completed',
+			runId: 'run-new',
+			sessionId: 'session-1',
+			updatedAt: 3,
+		});
+		expect(activity.clearForRun('session-1', 'run-new')).toBe(false);
 		expect(activity.attentionFor('ws-1')?.kind).toBe('completed');
 	});
 
@@ -167,7 +200,12 @@ describe('AgentActivity', () => {
 				branch: 'malini/beta',
 			},
 		]);
-		activity.mark('stream-a', { kind: 'failed', runId: 'run-a', updatedAt: 1 });
+		activity.mark('stream-a', {
+			kind: 'failed',
+			runId: 'run-a',
+			sessionId: 'session-a',
+			updatedAt: 1,
+		});
 
 		expect(activity.workstreamIds()).toEqual(['stream-a', 'stream-b']);
 		expect(activity.contextFor('stream-b')?.repositoryFullName).toBe('bestboyhq/beta');

@@ -113,7 +113,12 @@ describe('the sidebar chat summary of a workstream', () => {
 		const summary = render([attention]);
 		expect(summary(attention).textContent?.trim()).toBe('Ready');
 
-		agentActivity.mark(attention, { kind: 'failed', runId: 'run-1', updatedAt: 1 });
+		agentActivity.mark(attention, {
+			kind: 'failed',
+			runId: 'run-1',
+			sessionId: 'done',
+			updatedAt: 1,
+		});
 
 		expect(summary(attention).dataset['attention']).toBe('failed');
 		expect(summary(attention).textContent?.trim()).toBe('Failed');

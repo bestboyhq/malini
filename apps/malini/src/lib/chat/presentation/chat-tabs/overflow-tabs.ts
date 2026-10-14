@@ -3,6 +3,7 @@ export type OverflowTab = Readonly<{
 	name: string;
 	detail: string;
 	selected: boolean;
+	unread: boolean;
 	open: () => void;
 }>;
 

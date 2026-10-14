@@ -757,7 +757,7 @@
 											{@const pullRequest = pullRequestVisual(badge)}
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
-											{@const unread = attention !== null && !isSelected}
+											{@const unread = attention !== null}
 											{@const workstreamItem = {
 												kind: 'workstream' as const,
 												id: workstream.id,

@@ -1,11 +1,25 @@
-import type { AgentAttention, AgentWorkstreamContext } from '$lib/chat/domain/agent-attention';
+import {
+	mostPressingAttention,
+	type AgentAttention,
+	type AgentWorkstreamContext,
+} from '$lib/chat/domain/agent-attention';
+
+type ChatAttention = AgentAttention & Readonly<{ workstreamId: string }>;
 
 export class AgentActivity {
-	#attentionByWorkstream: Record<string, AgentAttention> = $state({});
+	#attentionByChat: Record<string, ChatAttention> = $state({});
 	#contextByWorkstream: Record<string, AgentWorkstreamContext> = $state({});
 
 	attentionFor(workstreamId: string): AgentAttention | null {
-		return this.#attentionByWorkstream[workstreamId] ?? null;
+		return mostPressingAttention(this.#chatsIn(workstreamId));
+	}
+
+	attentionForChat(sessionId: string): AgentAttention | null {
+		return this.#attentionByChat[sessionId] ?? null;
+	}
+
+	unreadChatsIn(workstreamId: string): readonly string[] {
+		return this.#chatsIn(workstreamId).map(({ sessionId }) => sessionId);
 	}
 
 	contextFor(workstreamId: string): AgentWorkstreamContext | null {
@@ -36,55 +50,55 @@ export class AgentActivity {
 				);
 			});
 		if (scopeUnchanged) return false;
-		const previousScopeIds = currentContexts.map((context) => context.workstreamId);
 		const next: Record<string, AgentWorkstreamContext> = {};
-		const retainedIds = new Set<string>();
-		for (const context of normalizedContexts) {
-			next[context.workstreamId] = { ...context };
-			retainedIds.add(context.workstreamId);
-		}
+		for (const context of normalizedContexts) next[context.workstreamId] = { ...context };
+		const previousScopeIds = new Set(currentContexts.map((context) => context.workstreamId));
 		this.#contextByWorkstream = next;
 
-		const nextAttention = { ...this.#attentionByWorkstream };
-		let attentionChanged = false;
-		for (const workstreamId of previousScopeIds) {
-			if (retainedIds.has(workstreamId)) continue;
-			if (!nextAttention[workstreamId]) continue;
-			delete nextAttention[workstreamId];
-			attentionChanged = true;
+		const retained = Object.entries(this.#attentionByChat).filter(
+			([, attention]) =>
+				!previousScopeIds.has(attention.workstreamId) || attention.workstreamId in next,
+		);
+		if (retained.length !== Object.keys(this.#attentionByChat).length) {
+			this.#attentionByChat = Object.fromEntries(retained);
 		}
-		if (attentionChanged) this.#attentionByWorkstream = nextAttention;
 		return true;
 	}
 
 	mark(workstreamId: string, attention: AgentAttention): boolean {
-		if (!workstreamId) return false;
-		const existing = this.#attentionByWorkstream[workstreamId];
+		if (!workstreamId || !attention.sessionId) return false;
+		const existing = this.#attentionByChat[attention.sessionId];
 		if (existing?.runId === attention.runId && existing.kind === attention.kind) return false;
-		this.#attentionByWorkstream = {
-			...this.#attentionByWorkstream,
-			[workstreamId]: attention,
+		this.#attentionByChat = {
+			...this.#attentionByChat,
+			[attention.sessionId]: { ...attention, workstreamId },
 		};
 		return true;
 	}
 
-	clear(workstreamId: string): boolean {
-		if (!this.#attentionByWorkstream[workstreamId]) return false;
-		const next = { ...this.#attentionByWorkstream };
-		delete next[workstreamId];
-		this.#attentionByWorkstream = next;
+	clearChat(sessionId: string): boolean {
+		if (!this.#attentionByChat[sessionId]) return false;
+		const next = { ...this.#attentionByChat };
+		delete next[sessionId];
+		this.#attentionByChat = next;
 		return true;
 	}
 
-	clearForRun(workstreamId: string, runId: string): boolean {
-		const attention = this.#attentionByWorkstream[workstreamId];
+	clearForRun(sessionId: string, runId: string): boolean {
+		const attention = this.#attentionByChat[sessionId];
 		if (attention?.runId !== runId || attention.kind !== 'approval') return false;
-		return this.clear(workstreamId);
+		return this.clearChat(sessionId);
 	}
 
 	reset(): void {
-		this.#attentionByWorkstream = {};
+		this.#attentionByChat = {};
 		this.#contextByWorkstream = {};
+	}
+
+	#chatsIn(workstreamId: string): readonly ChatAttention[] {
+		return Object.values(this.#attentionByChat).filter(
+			(attention) => attention.workstreamId === workstreamId,
+		);
 	}
 }
 

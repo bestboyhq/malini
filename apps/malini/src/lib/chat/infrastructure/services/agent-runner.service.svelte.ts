@@ -114,14 +114,17 @@ export class AgentRunner {
 		return runId;
 	}
 
-	async cancelRun(sessionId: SessionId): Promise<void> {
+	async cancelRun(
+		sessionId: SessionId,
+		pendingRunId = pendingPromptStore.for(sessionId)?.runId ?? null,
+	): Promise<void> {
 		await runtimeDiagnostics.measure(
 			{
 				category: 'agent',
 				label: 'Stopping agent',
 				budgetMs: PERFORMANCE_BUDGETS.agentCancellationMs,
 			},
-			() => agentSessions.cancelRun(sessionId, pendingPromptStore.for(sessionId)?.runId ?? null),
+			() => agentSessions.cancelRun(sessionId, pendingRunId),
 		);
 	}
 

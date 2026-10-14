@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { presentsBrowser } from '$lib/browser/browser.api';
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
@@ -11,7 +12,12 @@
 		archiveWorkstreamCommand,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
+	import { inspectorGutter } from '$shared/extensions/inspector-gutter.store.svelte';
 	import { page } from '$shared/router/state';
+	import {
+		WORKSTREAM_BROWSER_RATIO_KEY,
+		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
+	} from '$shared/storage/panel-storage-keys';
 
 	interface Props {
 		children: Snippet;
@@ -21,6 +27,12 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const browserFirst = $derived(presentsBrowser(inspectorGutter.presentedPanelFor(workstreamId)));
+	const split = $derived(
+		browserFirst
+			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
+			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
+	);
 	const pullRequestShipped = $derived(
 		['queued', 'merged'].includes(pullRequestBadgesQuery.data(workstreamId).phase),
 	);
@@ -33,7 +45,7 @@
 <WorkstreamTitle {workstreamId} />
 
 <WorkstreamProvisioningFrame {workstreamId}>
-	<InspectorSplit {workstreamId}>
+	<InspectorSplit {workstreamId} {...split}>
 		{#snippet primary()}
 			<ChatSurface {workstreamId} {pullRequestShipped} oncloseworkstream={closeWorkstream} />
 		{/snippet}

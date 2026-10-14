@@ -3,8 +3,8 @@ import { browserViewStore } from '../../infrastructure/stores/browser-view.store
 export { browserSnapshotQuery };
 
 class BrowserSnapshotQuery {
-	public readonly data: (workstreamId: string) => string | null = $derived(
-		(workstreamId: string) => browserViewStore.snapshots[workstreamId] ?? null,
+	public readonly data: (tabKey: string) => string | null = $derived(
+		(tabKey: string) => browserViewStore.snapshots[tabKey] ?? null,
 	);
 }
 

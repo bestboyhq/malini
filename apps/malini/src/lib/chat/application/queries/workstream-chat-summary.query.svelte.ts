@@ -21,6 +21,7 @@ class WorkstreamChatSummaryQuery {
 		return (workstreamId: string) =>
 			summarizeWorkstreamChat({
 				session: visualSessions.get(workstreamId) ?? null,
+				openingSessionId: sessionsAggregate.openingSessionFor(workstreamId),
 				jobRunning: runningJobs.has(workstreamId),
 				queueCount: agentPromptQueue.waitingCountFor(workstreamId),
 				attention: agentActivity.attentionFor(workstreamId),

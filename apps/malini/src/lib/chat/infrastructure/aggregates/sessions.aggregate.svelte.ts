@@ -14,6 +14,8 @@ import {
 	mergeCanonicalEnvelopes,
 	type CanonicalEnvelopeIndexStats,
 } from '$lib/chat/domain/canonical-envelope-index';
+import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
+import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 
 class SessionsAggregate {
 	sessionsById: Record<SessionId, SessionRecord> = $state({});
@@ -181,7 +183,18 @@ class SessionsAggregate {
 			const requested = this.getSession(requestedSessionId);
 			if (requested?.workstreamId === workstreamId) return requested.id;
 		}
-		return this.latestSessionFor(workstreamId);
+		return this.openingSessionFor(workstreamId) ?? this.latestSessionFor(workstreamId);
+	}
+
+	openingSessionFor(workstreamId: string): SessionId | null {
+		const unread = agentActivity.attentionFor(workstreamId)?.sessionId;
+		const visited = workstreamTabs.for(workstreamId).routedChatId;
+		return (
+			[unread, visited].find(
+				(sessionId): sessionId is SessionId =>
+					!!sessionId && this.getSession(sessionId)?.workstreamId === workstreamId,
+			) ?? null
+		);
 	}
 
 	latestSessionFor(workstreamId: string): SessionId | null {

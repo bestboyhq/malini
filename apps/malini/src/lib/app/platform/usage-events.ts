@@ -13,6 +13,7 @@ const plain = (): UsageProperties => ({});
 
 export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'browser.cancel-pick': false,
+	'browser.close': false,
 	'browser.go-back': false,
 	'browser.go-forward': false,
 	'browser.hide': false,

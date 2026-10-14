@@ -283,6 +283,17 @@ describe('browser requests', () => {
 			ok: true,
 			value: { ...frame, action: 'click', selector: '#buy' },
 		});
+		const typing = { action: 'type', selector: '#q', text: 'malini', submit: true };
+		expect(decodeControlFrame({ ...frame, ...typing })).toEqual({
+			ok: true,
+			value: { ...frame, ...typing },
+		});
+		for (const action of ['back', 'forward', 'reload']) {
+			expect(decodeControlFrame({ ...frame, action })).toEqual({
+				ok: true,
+				value: { ...frame, action },
+			});
+		}
 	});
 
 	it('refuses a request it cannot route or act on', () => {
@@ -295,6 +306,9 @@ describe('browser requests', () => {
 			error: 'bridge.browser_request: field `url` must be a string',
 		});
 		expect(decodeControlFrame({ ...frame, action: 'click' })).toMatchObject({ ok: false });
+		expect(
+			decodeControlFrame({ ...frame, action: 'type', selector: '#q', text: 'x' }),
+		).toMatchObject({ ok: false });
 		expect(decodeControlFrame({ ...frame, sessionId: '', action: 'screenshot' })).toEqual({
 			ok: false,
 			error: 'bridge.browser_request: `requestId` and `sessionId` must not be empty',

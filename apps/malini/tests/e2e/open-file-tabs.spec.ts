@@ -130,12 +130,7 @@ test('clicking a file mention opens it in a center tab and leaves the inspector 
 		await expect(fileTab(page, 'alpha.ts')).toHaveAccessibleDescription('Preview');
 		await expectStrip(page, ['tab /MENTION/', 'tab "alpha.ts"']);
 		await expect(page.getByRole('tablist', { name: 'Inspector panels' })).toMatchAriaSnapshot(
-			[
-				'- tablist "Inspector panels":',
-				'  - /children: equal',
-				'  - tab "Files"',
-				'  - tab "Browser"',
-			].join('\n'),
+			['- tablist "Inspector panels":', '  - /children: equal', '  - tab "Files"'].join('\n'),
 		);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'open-file-1-center-tab');
@@ -155,7 +150,7 @@ test('clicking a file mention opens it in a center tab and leaves the inspector 
 			'aria-selected',
 			'true',
 		);
-		await expectStrip(page, ['tab /MENTION/', 'tab "New chat"', 'tab "alpha.ts"']);
+		await expectStrip(page, ['tab /MENTION/', 'tab "alpha.ts"', 'tab "New chat"']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -412,7 +407,7 @@ test('the strip is a tab list of tabs only, walked with the arrow keys, with eac
 	}
 });
 
-test('new chats, forks and files open directly after the current tab', async () => {
+test('new chats open last, forks and files directly after the current tab', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -427,14 +422,14 @@ test('new chats, forks and files open directly after the current tab', async () 
 
 		await chatTab(page, /One/u).click();
 		await chatAbout(page, 'Three');
-		await expectStrip(page, ['tab /One/', 'tab /Three$/', 'tab /Two/']);
+		await expectStrip(page, ['tab /One/', 'tab /Two/', 'tab /Three$/']);
 
 		await chatTab(page, /One/u).click();
 		await page.getByRole('link', { name: 'Open alpha.ts' }).click();
 		await expectShowing(page, 'alpha.ts');
-		await expectStrip(page, ['tab /One/', 'tab "alpha.ts"', 'tab /Three$/', 'tab /Two/']);
+		await expectStrip(page, ['tab /One/', 'tab "alpha.ts"', 'tab /Two/', 'tab /Three$/']);
 
-		await chatTab(page, /Three$/u).click();
+		await chatTab(page, /Two/u).click();
 		await page.getByRole('button', { name: 'Fork to new chat' }).click();
 		await expect(chatTab(page, /New chat$/u)).toHaveAttribute('aria-selected', 'true', {
 			timeout: 30_000,
@@ -442,9 +437,9 @@ test('new chats, forks and files open directly after the current tab', async () 
 		await expectStrip(page, [
 			'tab /One/',
 			'tab "alpha.ts"',
-			'tab /Three$/',
-			'tab /New chat$/',
 			'tab /Two/',
+			'tab /New chat$/',
+			'tab /Three$/',
 		]);
 		await sendPrompt(page, 'Four');
 		await expectAssistantReply(page);
@@ -454,9 +449,9 @@ test('new chats, forks and files open directly after the current tab', async () 
 		await expectStrip(page, [
 			'tab /One/',
 			'tab "alpha.ts"',
-			'tab /Three$/',
-			'tab /Four/',
 			'tab /Two/',
+			'tab /Four/',
+			'tab /Three$/',
 		]);
 
 		await captureFlow(app, 'open-file-5-tab-order');

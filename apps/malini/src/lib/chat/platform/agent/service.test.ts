@@ -133,11 +133,11 @@ describe('browser requests from the agent', () => {
 		seedSession(test.db, 'sess-1', 'ws-1');
 		const calls: string[] = [];
 		const browser: BrowserAutomation = {
-			open: async (workstreamId, url) => {
-				calls.push(`open ${workstreamId} ${url}`);
+			open: async ({ workstreamId, tabId }, url) => {
+				calls.push(`open ${workstreamId} ${tabId} ${url}`);
 				return { url: 'http://localhost:5173/', title: 'Pricing' };
 			},
-			screenshot: async (workstreamId, worktree) => {
+			screenshot: async ({ workstreamId }, worktree) => {
 				calls.push(`screenshot ${workstreamId} ${worktree}`);
 				return {
 					path: '.malini/sandbox/screenshots/2026-10-11-104512.png',
@@ -145,9 +145,25 @@ describe('browser requests from the agent', () => {
 					url: 'http://localhost:5173/',
 				};
 			},
-			click: async (workstreamId, selector) => {
+			click: async ({ workstreamId }, selector) => {
 				calls.push(`click ${workstreamId} ${selector}`);
 				throw new Error(`Nothing on the page matches \`${selector}\`.`);
+			},
+			type: async ({ workstreamId }, selector, text, submit) => {
+				calls.push(`type ${workstreamId} ${selector} ${text} ${submit}`);
+				return { url: 'http://localhost:5173/search?q=pro', title: 'Search' };
+			},
+			goBack: async ({ workstreamId }) => {
+				calls.push(`back ${workstreamId}`);
+				return { url: 'http://localhost:5173/', title: 'Pricing' };
+			},
+			goForward: async ({ workstreamId }) => {
+				calls.push(`forward ${workstreamId}`);
+				throw new Error('There is no page to go forward to.');
+			},
+			reload: async ({ workstreamId }) => {
+				calls.push(`reload ${workstreamId}`);
+				return { url: 'http://localhost:5173/', title: 'http://localhost:5173/' };
 			},
 		};
 		const bridge = scriptedBridge();
@@ -165,18 +181,28 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-2', { action: 'screenshot' }));
 		bridge.send(browserRequest('req-3', { action: 'click', selector: '#buy' }));
 		bridge.send(browserRequest('req-4', { action: 'screenshot' }, 'sess-unknown'));
+		bridge.send(
+			browserRequest('req-5', { action: 'type', selector: '#q', text: 'pro', submit: true }),
+		);
+		bridge.send(browserRequest('req-6', { action: 'back' }));
+		bridge.send(browserRequest('req-7', { action: 'forward' }));
+		bridge.send(browserRequest('req-8', { action: 'reload' }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 4, 5_000, 'four browser results');
+		await waitFor(() => results().length === 8, 5_000, 'eight browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
 		const worktree = realpathSync(checkout);
 		expect(calls).toEqual([
-			'open ws-1 localhost:5173',
+			'open ws-1 chat-sess-1 localhost:5173',
 			`screenshot ws-1 ${worktree}`,
 			'click ws-1 #buy',
+			'type ws-1 #q pro true',
+			'back ws-1',
+			'forward ws-1',
+			'reload ws-1',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -203,6 +229,22 @@ describe('browser requests from the agent', () => {
 			sessionId: 'sess-unknown',
 			ok: false,
 			error: 'Agent session `sess-unknown` is unknown.',
+		});
+		expect(answerTo('req-5')).toMatchObject({
+			ok: true,
+			text: 'Typed into `#q` and pressed Enter. The page is now http://localhost:5173/search?q=pro ("Search").',
+		});
+		expect(answerTo('req-6')).toMatchObject({
+			ok: true,
+			text: 'Went back to http://localhost:5173/ ("Pricing").',
+		});
+		expect(answerTo('req-7')).toMatchObject({
+			ok: false,
+			error: 'There is no page to go forward to.',
+		});
+		expect(answerTo('req-8')).toMatchObject({
+			ok: true,
+			text: 'Reloaded http://localhost:5173/.',
 		});
 	});
 
