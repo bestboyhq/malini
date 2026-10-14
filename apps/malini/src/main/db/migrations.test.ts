@@ -27,6 +27,7 @@ const ALL_TABLES = [
 	'agent_user_baselines',
 	'connected_repositories',
 	'docker_containers',
+	'hidden_repositories',
 	'job_definitions',
 	'job_runs',
 	'projects',

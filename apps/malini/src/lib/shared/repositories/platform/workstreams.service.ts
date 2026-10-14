@@ -63,6 +63,7 @@ import {
 	type TeardownGuard,
 	type WorkstreamRetirement,
 } from './teardown.service';
+import { setRepositoryHidden } from './hidden-repositories.repository';
 import { projectDto } from './workstream-dto';
 import {
 	getArchivedWorkstream,
@@ -319,6 +320,7 @@ export async function removeRepository(deps: WorkstreamsDeps, repositoryId: stri
 	const projectIds = repositoryProjectIds(repository, projects);
 	db.transaction(() => {
 		deleteConnectedRepository(db, repository.id);
+		setRepositoryHidden(db, repository.id, false);
 		for (const projectId of projectIds) deleteProjectWithoutWorkstreams(db, projectId);
 	});
 }

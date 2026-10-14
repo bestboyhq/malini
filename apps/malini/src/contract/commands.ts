@@ -224,6 +224,8 @@ export type RestartWorkstreamOnBaseArgs = Readonly<{
 
 export type RepositoryIdArgs = Readonly<{ repoId: string }>;
 
+export type SetRepositoryHiddenArgs = RepositoryIdArgs & Readonly<{ hidden: boolean }>;
+
 export type ImportRepositoryArgs = Readonly<{ source: ImportSource }>;
 
 export type OwnerAvatarArgs = Readonly<{ owner: string }>;
@@ -436,6 +438,8 @@ export interface ContractCommands {
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
+	'repositories.list-hidden': { args: undefined; result: string[] };
+	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-recent-events': { args: ListRecentAgentEventsArgs; result: RecentAgentEvents };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
@@ -655,6 +659,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.run',
 	'jobs.cancel-run',
 	'repositories.disconnect',
+	'repositories.list-hidden',
+	'repositories.set-hidden',
 	'chat.list-events',
 	'chat.list-recent-events',
 	'chat.list-sessions',

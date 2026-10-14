@@ -34,7 +34,13 @@ import {
 import { statusCollector } from '$main/git/status';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
 import type { RepositoriesPlatform } from '../repositories.platform';
-import { field, optionalString, requireNonEmptyString, requireString } from './args';
+import {
+	field,
+	optionalString,
+	requireBoolean,
+	requireNonEmptyString,
+	requireString,
+} from './args';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
 import { WorkstreamBaseSync } from './base-sync.service';
@@ -42,6 +48,7 @@ import { createCheckoutResolver } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
 import { deleteConnectedRepository } from './connected-repositories.repository';
+import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
 	defaultGhRunner,
@@ -327,6 +334,12 @@ export function registerRepositories(
 
 	commands.define('repositories.disconnect', (args: unknown) => {
 		deleteConnectedRepository(db, requireNonEmptyString(args, 'repoId'));
+	});
+
+	commands.define('repositories.list-hidden', () => listHiddenRepositoryIds(db));
+
+	commands.define('repositories.set-hidden', (args: unknown) => {
+		setRepositoryHidden(db, requireNonEmptyString(args, 'repoId'), requireBoolean(args, 'hidden'));
 	});
 
 	commands.define('repositories.remove', (args: unknown) =>

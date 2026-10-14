@@ -13,7 +13,7 @@ export function workstreamCount(count: number): string {
 }
 
 export function retirementFailureToast(
-	action: 'archive' | 'delete' | 'remove' | 'restore',
+	action: 'archive' | 'delete' | 'remove' | 'restore' | 'hide' | 'unhide',
 	workstreamName: string,
 	reason: string,
 ): string {

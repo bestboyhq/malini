@@ -37,6 +37,14 @@ class GithubService {
 		return withGitHubAuth(() => invoke('repositories.disconnect', { repoId }));
 	}
 
+	listHiddenRepositoryIds(): Promise<string[]> {
+		return invoke('repositories.list-hidden', undefined);
+	}
+
+	setRepositoryHidden(repoId: string, hidden: boolean): Promise<void> {
+		return invoke('repositories.set-hidden', { repoId, hidden });
+	}
+
 	removeRepository(repoId: string): Promise<void> {
 		return invoke('repositories.remove', { repoId });
 	}

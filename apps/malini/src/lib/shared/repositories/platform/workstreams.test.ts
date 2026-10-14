@@ -543,6 +543,28 @@ describe('removing a repository', () => {
 			app.invoke('repositories.remove', { repoId: 'local:local__beta' }),
 		).rejects.toThrow('Unknown repository: local:local__beta');
 	});
+
+	it('hides a repository without touching its workstreams, and forgets it on remove', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const app = await connectedSources(dir);
+		const workstreamIds = listWorkstreams(app.db).map((row) => row.id);
+
+		await app.invoke('repositories.set-hidden', { repoId: app.connected.id, hidden: true });
+		await app.invoke('repositories.set-hidden', { repoId: app.connected.id, hidden: true });
+		await app.invoke('repositories.set-hidden', { repoId: 'local:local__beta', hidden: true });
+		await app.invoke('repositories.set-hidden', { repoId: 'local:local__beta', hidden: false });
+
+		expect(await app.invoke('repositories.list-hidden', undefined)).toEqual([app.connected.id]);
+		expect(listWorkstreams(app.db).map((row) => row.id)).toEqual(workstreamIds);
+		await expect(
+			app.invoke('repositories.set-hidden', { repoId: app.connected.id, hidden: 'yes' }),
+		).rejects.toThrow('`hidden` must be a boolean');
+
+		await app.invoke('repositories.remove', { repoId: app.connected.id });
+
+		expect(await app.invoke('repositories.list-hidden', undefined)).toEqual([]);
+	});
 });
 
 async function sourceRepository(path: string): Promise<string> {

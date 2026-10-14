@@ -8,6 +8,7 @@ export const REPOSITORIES_POLL_INTERVAL_ACTIVE_MS = 5_000;
 
 export class RepositoriesAggregate {
 	items = $state<Repository[]>([]);
+	hiddenIds = $state<ReadonlySet<string>>(new Set());
 	loading = $state<boolean>(false);
 	loaded = $state<boolean>(false);
 	lastError = $state<string | null>(null);
@@ -20,9 +21,13 @@ export class RepositoriesAggregate {
 		const generation = ++this.refreshGeneration;
 		this.loading = true;
 		try {
-			const list = await githubService.listRepositories();
+			const [list, hiddenIds] = await Promise.all([
+				githubService.listRepositories(),
+				githubService.listHiddenRepositoryIds(),
+			]);
 			if (generation !== this.refreshGeneration) return;
 			this.items = sortByCreatedAtDesc(list.filter((repo) => !this.connecting.has(repo.id)));
+			this.hiddenIds = new Set(hiddenIds);
 			this.lastError = null;
 			this.lastRefreshedAt = new Date().toISOString();
 		} catch (err) {
@@ -65,14 +70,32 @@ export class RepositoriesAggregate {
 		}
 	}
 
+	async setHidden(id: string, hidden: boolean): Promise<void> {
+		const previous = this.hiddenIds;
+		const next = new Set(previous);
+		if (hidden) next.add(id);
+		else next.delete(id);
+		this.hiddenIds = next;
+		try {
+			await githubService.setRepositoryHidden(id, hidden);
+		} catch (err) {
+			this.hiddenIds = previous;
+			throw err;
+		}
+	}
+
 	forget(id: string): void {
 		this.items = this.items.filter((existing) => existing.id !== id);
+		if (this.hiddenIds.has(id)) {
+			this.hiddenIds = new Set([...this.hiddenIds].filter((hiddenId) => hiddenId !== id));
+		}
 	}
 
 	reset(): void {
 		this.refreshGeneration += 1;
 		this.connecting.clear();
 		this.items = [];
+		this.hiddenIds = new Set();
 		this.loading = false;
 		this.loaded = false;
 		this.lastError = null;

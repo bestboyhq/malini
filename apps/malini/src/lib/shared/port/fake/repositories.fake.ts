@@ -40,6 +40,7 @@ const FAKE_GITHUB_AUTH: AuthStatusDto = Object.freeze({
 export type FakeGithubState = {
 	clones: ConnectedRepositoryDto[];
 	nextCloneId: number;
+	hiddenIds: Set<string>;
 	pullRequests: Map<string, PullRequestStatusDto>;
 };
 
@@ -48,11 +49,17 @@ const githubStates = new WeakMap<FakeBridge, FakeGithubState>();
 export function fakeGithubState(bridge: FakeBridge): FakeGithubState {
 	const existing = githubStates.get(bridge);
 	if (existing) return existing;
-	const created: FakeGithubState = { clones: [], nextCloneId: 1, pullRequests: new Map() };
+	const created: FakeGithubState = {
+		clones: [],
+		nextCloneId: 1,
+		hiddenIds: new Set(),
+		pullRequests: new Map(),
+	};
 	githubStates.set(bridge, created);
 	bridge.onReset(() => {
 		created.clones = [];
 		created.nextCloneId = 1;
+		created.hiddenIds.clear();
 		created.pullRequests.clear();
 	});
 	return created;
@@ -228,6 +235,7 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		state.workstreams = state.workstreams.filter((workstream) => !deleted.includes(workstream));
 		state.projects = state.projects.filter((project) => project.id !== projectId);
 		github.clones = github.clones.filter((candidate) => candidate !== clone);
+		github.hiddenIds.delete(input.repoId);
 		for (const workstream of deleted) {
 			emit('repositories:workstream-removed', { workstreamId: workstream.id, deleted: true });
 		}
@@ -414,6 +422,13 @@ function installGithubFake(bridge: FakeBridge): void {
 
 	bridge.define('repositories.disconnect', async (input) => {
 		github.clones = github.clones.filter((clone) => clone.id !== input.repoId);
+	});
+
+	bridge.define('repositories.list-hidden', async () => [...github.hiddenIds]);
+
+	bridge.define('repositories.set-hidden', async (input) => {
+		if (input.hidden) github.hiddenIds.add(input.repoId);
+		else github.hiddenIds.delete(input.repoId);
 	});
 }
 

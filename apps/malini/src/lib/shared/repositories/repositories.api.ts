@@ -148,6 +148,7 @@ export { refreshWorkstreamAfterChangeCommand } from './application/commands/refr
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
+export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
 export { retryDependencyInstallCommand } from './application/commands/retry-dependency-install.command';
 export { retryProvisioningCommand } from './application/commands/retry-provisioning.command';
@@ -171,6 +172,7 @@ export { activeWorkstreamsQuery } from './application/queries/active-workstreams
 export { changeTotalsQuery } from './application/queries/change-totals.query.svelte';
 export { connectedRepositoriesQuery } from './application/queries/connected-repositories.query.svelte';
 export { dependencyInstallQuery } from './application/queries/dependency-install.query.svelte';
+export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
@@ -200,6 +202,7 @@ export { workstreamReadyForPromptsQuery } from './application/queries/workstream
 
 export { default as ArchivedWorkstreamsMenu } from './presentation/ArchivedWorkstreamsMenu.svelte';
 export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
+export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export { default as RepositoryListSkeleton } from './presentation/RepositoryListSkeleton.svelte';
 export { default as RepositorySidebarSkeleton } from './presentation/RepositorySidebarSkeleton.svelte';
