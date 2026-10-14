@@ -64,6 +64,7 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 	'pull-requests.cancel-merge',
 	'pull-requests.retry-merge',
 	'pull-requests.ship-states',
+	'pull-requests.workstream-opened',
 ] as const;
 
 export interface PullRequestsDeps {

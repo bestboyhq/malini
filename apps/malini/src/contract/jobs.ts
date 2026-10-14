@@ -4,7 +4,7 @@ export type JobRunsIn = 'workstream' | 'new-workstream';
 
 export type JobOutput = 'none' | 'draft' | 'merge';
 
-export type JobBuiltin = 'fix-checks' | 'resolve-conflicts' | 'address-review';
+export type JobBuiltin = 'fix-checks' | 'update-from-main' | 'address-review';
 
 export type JobDefinitionRecord = Readonly<{
 	id: string;

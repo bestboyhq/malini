@@ -326,6 +326,21 @@ export async function pullWorkstreamBaseBranch(
 	return (await runGit(['-C', worktreePath, 'rev-parse', '--short', 'HEAD'])).trim();
 }
 
+export async function countCommitsBehindBase(
+	worktreePath: string,
+	workstreamId: string,
+	baseBranch: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<number> {
+	validateBaseBranch(baseBranch);
+	requireWorkstreamBranch(workstreamId, (await statusCollector(worktreePath)).branch);
+	const remoteRef = await syncRemoteBase(worktreePath, baseBranch, githubToken, credentials);
+	return Number(
+		(await runGit(['-C', worktreePath, 'rev-list', '--count', `HEAD..${remoteRef}`])).trim(),
+	);
+}
+
 export async function abortWorkstreamOperation(
 	worktreePath: string,
 	workstreamId: string,

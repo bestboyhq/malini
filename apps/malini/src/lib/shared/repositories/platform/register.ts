@@ -26,6 +26,7 @@ import {
 import {
 	abortWorkstreamOperation,
 	commitWorkstreamBranch,
+	countCommitsBehindBase,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
 	restartWorkstreamOnBase,
@@ -264,6 +265,19 @@ export function registerRepositories(
 		const baseBranch = requireString(args, 'baseBranch');
 		const githubToken = optionalString(args, 'githubToken');
 		return pullWorkstreamBaseBranch(
+			await checkout(args),
+			workstreamId,
+			baseBranch,
+			githubToken,
+			credentials,
+		);
+	});
+
+	commands.define('repositories.count-behind-base', async (args: unknown) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		const baseBranch = requireString(args, 'baseBranch');
+		const githubToken = optionalString(args, 'githubToken');
+		return countCommitsBehindBase(
 			await checkout(args),
 			workstreamId,
 			baseBranch,

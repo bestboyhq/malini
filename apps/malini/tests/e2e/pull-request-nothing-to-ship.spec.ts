@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, git, launchMalini, openWorkstream } from './harness';
 import { commitByHand, headOf, seedWorkstreamOnFakeGithub, topBarStatus } from './fake-github';
 
-test('a workstream equal to its base offers no Open draft until a file changes', async () => {
+test('a workstream equal to its base offers no Draft until a file changes', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -35,7 +35,7 @@ test('a workstream equal to its base offers no Open draft until a file changes',
 	}
 });
 
-test('a workstream reset to its base after its pull request merged stays merged and offers no new pull request', async () => {
+test('a workstream reset to its base after its pull request merged stays merged and offers Continue and Archive, never a new pull request', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -58,8 +58,12 @@ test('a workstream reset to its base after its pull request merged stays merged 
 		).toBeVisible({
 			timeout: 30_000,
 		});
+		await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
+		await expect(
+			page.getByRole('button', { name: 'Continue on top of the latest main' }),
+		).toBeEnabled();
 		await expect(page.getByRole('button', { name: /pull request$/u })).toHaveCount(0);
-		await expect(page.getByTestId('global-topbar-github-action')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Merge', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

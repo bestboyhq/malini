@@ -12,6 +12,7 @@ import {
 	type SaveJobDefinitionArgs,
 } from '$contract/jobs';
 import type { ShipStateRecord } from '$contract/pull-requests';
+import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -24,6 +25,7 @@ import {
 	upsertWorkstream,
 } from '$shared/repositories/repositories.platform';
 import type { JobsPlatform } from '../jobs.platform';
+import { updateFromMainJobContext } from '../domain/update-from-main-context';
 import { BUSY_RETRY_MS } from './job-runner.service';
 import { insertJobRun } from './job-runs.repository';
 import { registerJobs } from './register';
@@ -52,6 +54,9 @@ function createFakes() {
 		createWorkstream: vi.fn((_args: unknown): string => '/tmp/new-workstream'),
 		syncBase: vi.fn((_args: unknown) => 'current' as const),
 		provision: vi.fn((_args: unknown) => 'succeeded' as const),
+		workstreamStatus: vi.fn((_args: unknown): WorktreeStatus => worktree()),
+		countBehind: vi.fn((_args: unknown): number | Promise<number> => 0),
+		pull: vi.fn((_args: unknown): string => 'abc1234'),
 	};
 }
 
@@ -81,6 +86,9 @@ function harness(database: MaliniDatabase): MainContext {
 	commands.define('repositories.create-workstream', fakes.createWorkstream);
 	commands.define('repositories.sync-workstream-base', fakes.syncBase);
 	commands.define('repositories.provision-dependencies', fakes.provision);
+	commands.define('repositories.workstream-status', fakes.workstreamStatus);
+	commands.define('repositories.count-behind-base', fakes.countBehind);
+	commands.define('repositories.pull-workstream', fakes.pull);
 	return {
 		db: database,
 		commands,
@@ -125,6 +133,32 @@ function shipState(): ShipStateRecord {
 		nextAttemptAt: null,
 		updatedAt: NOW,
 	};
+}
+
+function worktree(overrides: Partial<WorktreeStatus> = {}): WorktreeStatus {
+	return {
+		branch: 'malini/ws-a',
+		dirtyPaths: [],
+		conflictedPaths: [],
+		conflictMarkerPaths: [],
+		ahead: 0,
+		behind: 0,
+		hasUpstream: true,
+		mergeInProgress: false,
+		operationInProgress: null,
+		headSha: 'a'.repeat(40),
+		...overrides,
+	};
+}
+
+function conflictedMerge(): WorktreeStatus {
+	return worktree({
+		dirtyPaths: ['src/shared.ts'],
+		conflictedPaths: ['src/shared.ts'],
+		conflictMarkerPaths: ['src/shared.ts'],
+		mergeInProgress: true,
+		operationInProgress: 'merge',
+	});
 }
 
 function seedWorkstream(workstreamId: string): void {
@@ -244,8 +278,8 @@ describe('job definitions', () => {
 				output: 'none',
 			},
 			{
-				key: 'resolve-conflicts',
-				name: 'Resolve conflicts',
+				key: 'update-from-main',
+				name: 'Update from main',
 				effort: 'high',
 				model: 'default',
 				runsIn: 'workstream',
@@ -587,6 +621,110 @@ describe('scheduling', () => {
 			projectRepoPath: '/tmp/acme-app',
 			projectId: 'local__acme__app',
 		});
+	});
+});
+
+describe('update from main', () => {
+	async function runUpdate(jobContext?: string): Promise<JobRunRecord> {
+		const definition = await builtin('update-from-main');
+		return context.commands.call('jobs.run', {
+			definitionId: definition.id,
+			workstreamId: 'ws-a',
+			...(jobContext === undefined ? {} : { context: jobContext }),
+		});
+	}
+
+	const conflictContext = updateFromMainJobContext({
+		branch: 'malini/ws-a',
+		baseBranch: 'main',
+		conflictedPaths: ['src/shared.ts'],
+		conflictMarkerPaths: ['src/shared.ts'],
+	});
+
+	it('merges a clean base branch itself and finishes without an agent', async () => {
+		fakes.countBehind.mockReturnValueOnce(3);
+		const queued = await runUpdate();
+
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Merged 3 commits from main',
+		});
+		expect(fakes.countBehind).toHaveBeenCalledWith({ workstreamId: 'ws-a', baseBranch: 'main' });
+		expect(fakes.pull).toHaveBeenCalledWith({ workstreamId: 'ws-a', baseBranch: 'main' });
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+
+	it('finishes at once when the workstream already has every base commit', async () => {
+		const queued = await runUpdate();
+
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Already up to date with main',
+		});
+		expect(fakes.pull).not.toHaveBeenCalled();
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+
+	it('starts the agent on the conflicts a merge left, after the context the run carries', async () => {
+		fakes.countBehind.mockReturnValueOnce(1);
+		fakes.workstreamStatus.mockReturnValueOnce(worktree()).mockReturnValueOnce(conflictedMerge());
+		const queued = await runUpdate('Pull request: #7');
+
+		await session(queued.id);
+		const { instructions } = await builtin('update-from-main');
+		expect(fakes.pull).toHaveBeenCalledTimes(1);
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: `${instructions}\n\nPull request: #7\n\n${conflictContext}`,
+		});
+	});
+
+	it('hands a merge already stopped on conflicts straight to the agent', async () => {
+		fakes.workstreamStatus.mockReturnValueOnce(conflictedMerge());
+		const queued = await runUpdate();
+
+		await session(queued.id);
+		const { instructions } = await builtin('update-from-main');
+		expect(fakes.countBehind).not.toHaveBeenCalled();
+		expect(fakes.pull).not.toHaveBeenCalled();
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: `${instructions}\n\n${conflictContext}`,
+		});
+	});
+
+	it.each([
+		[
+			'uncommitted changes',
+			worktree({ dirtyPaths: ['notes.md'] }),
+			'Commit or discard the uncommitted changes, then update from main again.',
+		],
+		[
+			'a stopped rebase',
+			worktree({ mergeInProgress: true, operationInProgress: 'rebase' }),
+			'A rebase is in progress in this workstream. Finish or abort it first.',
+		],
+	])('refuses to merge over %s', async (_label, status, detail) => {
+		fakes.workstreamStatus.mockReturnValueOnce(status);
+		const queued = await runUpdate();
+
+		expect(await until(queued.id, 'failed')).toMatchObject({ detail });
+		expect(fakes.countBehind).not.toHaveBeenCalled();
+		expect(fakes.pull).not.toHaveBeenCalled();
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+
+	it('neither merges nor starts the agent once cancelled mid-update', async () => {
+		let behind: (count: number) => void = () => {};
+		fakes.countBehind.mockImplementationOnce(
+			() => new Promise<number>((resolve) => (behind = resolve)),
+		);
+		const queued = await runUpdate();
+		await vi.waitFor(() => expect(fakes.countBehind).toHaveBeenCalled());
+
+		await context.commands.call('jobs.cancel-run', { jobRunId: queued.id });
+		behind(2);
+		await settle();
+
+		expect((await jobRun(queued.id)).status).toBe('cancelled');
+		expect(fakes.pull).not.toHaveBeenCalled();
+		expect(fakes.startSession).not.toHaveBeenCalled();
 	});
 });
 

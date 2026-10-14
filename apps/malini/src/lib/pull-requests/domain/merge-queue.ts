@@ -24,10 +24,13 @@ export type MergeQueueWorktree = Pick<
 export type MergeQueueSnapshot = Readonly<{
 	phase: ShipPhase;
 	pushRequested: boolean;
+	updateRequested: boolean;
+	behindBase: number | null;
 	pullRequestNumber: number | null;
 	idle: boolean;
 	job: MergeQueueJob | null;
 	lastJobRunId: string | null;
+	lastJobBuiltin: JobBuiltin | null;
 	settledJob: JobBuiltin | null;
 	worktree: MergeQueueWorktree;
 	threadResolutionRunId: string | null;
@@ -46,6 +49,8 @@ export type MergeQueueMove =
 	| Readonly<{ kind: 'wait'; step: ShipStep }>
 	| Readonly<{ kind: 'backoff' }>
 	| Readonly<{ kind: 'read-pull-request' }>
+	| Readonly<{ kind: 'read-base' }>
+	| Readonly<{ kind: 'commit' }>
 	| Readonly<{ kind: 'push' }>
 	| Readonly<{ kind: 'open-draft' }>
 	| Readonly<{ kind: 'mark-ready' }>
@@ -74,6 +79,7 @@ export const DEFAULT_SHIP_DELAYS = Object.freeze({
 	checksPollMs: 45_000,
 	reviewPollMs: 120_000,
 	githubPollMs: 15_000,
+	baseCheckMs: 60_000,
 	backoffBaseMs: 30_000,
 	backoffCapMs: 600_000,
 });
@@ -101,12 +107,12 @@ const READY_MERGE_STATES = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 const CHECKS_RERUN_GRACE_MS = 60_000;
 const JOB_STEPS: Readonly<Record<JobBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
-	'resolve-conflicts': 'resolving-conflicts',
+	'update-from-main': 'updating-from-main',
 	'address-review': 'addressing-review',
 };
 const JOB_LABELS: Readonly<Record<JobBuiltin, string>> = {
 	'fix-checks': 'Fixing the checks',
-	'resolve-conflicts': 'Resolving the conflicts',
+	'update-from-main': 'Updating from main',
 	'address-review': 'Addressing the review',
 };
 
@@ -115,7 +121,7 @@ export function nextMergeQueueMove(snapshot: MergeQueueSnapshot): MergeQueueMove
 	if (snapshot.backoffUntil !== null && snapshot.backoffUntil > snapshot.now) {
 		return { kind: 'backoff' };
 	}
-	return snapshot.phase === 'draft' ? draftMove(snapshot) : queuedMove(snapshot);
+	return snapshot.phase === 'queued' ? queuedMove(snapshot) : workingMove(snapshot);
 }
 
 export function jobIsActive(job: MergeQueueJob | null): boolean {
@@ -176,20 +182,58 @@ export function clampedFixAttempts(value: string | undefined, fallback: number):
 	return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 20) : fallback;
 }
 
-function draftMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
-	if (!snapshot.pushRequested) return { kind: 'idle', problem: null };
-	if (!snapshot.idle || jobIsActive(snapshot.job)) {
-		return { kind: 'wait', step: 'waiting-for-agent' };
+function workingMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
+	const { worktree } = snapshot;
+	if (jobIsActive(snapshot.job)) {
+		return { kind: 'wait', step: jobStep(snapshot.job?.builtin ?? null) };
 	}
-	const operation = snapshot.worktree.operationInProgress;
+	if (!snapshot.pushRequested && !snapshot.updateRequested) return { kind: 'idle', problem: null };
+	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
+	const operation = worktree.operationInProgress;
+	if (operation === 'merge' && snapshot.lastJobBuiltin === 'update-from-main') {
+		if (worktree.conflictedPaths.length > 0 && !conflictsResolved(snapshot)) {
+			return withoutNeedsYou(
+				fixJob(snapshot, 'update-from-main', signature('conflicts', worktree.conflictedPaths)),
+			);
+		}
+		return saveMove(snapshot);
+	}
 	if (operation !== null) {
 		return {
 			kind: 'idle',
-			problem: `A ${operation} is in progress in this workstream. Finish or abort it, then push again.`,
+			problem: `A ${operation} is in progress in this workstream. Finish or abort it, then try again.`,
 		};
 	}
-	if (snapshot.pullRequestNumber === null) return { kind: 'open-draft' };
-	return hasUnpushedWork(snapshot.worktree) ? { kind: 'push' } : { kind: 'idle', problem: null };
+	if (snapshot.pushRequested && hasUnsavedWork(snapshot)) return saveMove(snapshot);
+	return snapshot.updateRequested ? updateMove(snapshot) : { kind: 'idle', problem: null };
+}
+
+function updateMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
+	const dirty = snapshot.worktree.dirtyPaths.length > 0;
+	if (dirty && snapshot.phase !== 'local') return { kind: 'idle', problem: null };
+	if (snapshot.pullRequest === null) return { kind: 'read-pull-request' };
+	const finished =
+		snapshot.pullRequest.state === 'merged' || snapshot.pullRequest.state === 'closed';
+	if (finished) return { kind: 'idle', problem: null };
+	if (snapshot.behindBase === null) return { kind: 'read-base' };
+	if (snapshot.behindBase === 0) return { kind: 'idle', problem: null };
+	if (dirty) return { kind: 'commit' };
+	return { kind: 'run-job', builtin: 'update-from-main', signature: 'update', attempt: 1 };
+}
+
+function hasUnsavedWork(snapshot: MergeQueueSnapshot): boolean {
+	return snapshot.phase === 'local'
+		? snapshot.worktree.dirtyPaths.length > 0
+		: snapshot.pullRequestNumber === null || hasUnpushedWork(snapshot.worktree);
+}
+
+function saveMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
+	if (snapshot.phase === 'local') return { kind: 'commit' };
+	return snapshot.pullRequestNumber === null ? { kind: 'open-draft' } : { kind: 'push' };
+}
+
+function withoutNeedsYou(move: MergeQueueMove): MergeQueueMove {
+	return move.kind === 'needs-you' ? { kind: 'idle', problem: move.detail } : move;
 }
 
 function queuedMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
@@ -211,7 +255,7 @@ function queuedMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
 		worktree.conflictedPaths.length > 0 &&
 		!conflictsResolved(snapshot)
 	) {
-		return fixJob(snapshot, 'resolve-conflicts', signature('conflicts', worktree.conflictedPaths));
+		return fixJob(snapshot, 'update-from-main', signature('conflicts', worktree.conflictedPaths));
 	}
 	if (snapshot.pullRequestNumber === null) return { kind: 'open-draft' };
 	if (operation === 'merge' || hasUnpushedWork(worktree)) return { kind: 'push' };
@@ -384,8 +428,7 @@ function signature(kind: string, parts: readonly string[]): string {
 
 function conflictsResolved(snapshot: MergeQueueSnapshot): boolean {
 	return (
-		snapshot.settledJob === 'resolve-conflicts' &&
-		snapshot.worktree.conflictMarkerPaths.length === 0
+		snapshot.settledJob === 'update-from-main' && snapshot.worktree.conflictMarkerPaths.length === 0
 	);
 }
 

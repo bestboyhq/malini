@@ -8,7 +8,7 @@ import {
 	seedWorkstreamOnFakeGithub,
 } from './fake-github';
 
-test('Queue merge pushes commits that are already made as they are, then merges them', async () => {
+test('Merge pushes commits that are already made as they are, then merges them', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {

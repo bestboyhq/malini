@@ -13,13 +13,6 @@ type RemoteDiagnostics = Readonly<{
 	checkDiagnostics: CheckDiagnosticsDto | null;
 }>;
 
-export type ConflictFixInput = Readonly<{
-	branch: string;
-	baseBranch: string;
-	conflictedPaths: readonly string[];
-	conflictMarkerPaths: readonly string[];
-}>;
-
 export type CheckFixInput = Readonly<{
 	pullRequestNumber: number;
 	failingChecks: readonly PullRequestCheckDto[];
@@ -49,11 +42,6 @@ type RemoteRecordBuilder = Readonly<{
 	sanitizeTail(value: string | null, limit: number): string | null;
 	clientTruncated(): boolean;
 }>;
-
-export function conflictFixJobContext(input: ConflictFixInput): string {
-	const hint = unmarkedConflictHint(input);
-	return [...hint, ...(hint.length > 0 ? [''] : []), ...conflictDetails(input)].join('\n');
-}
 
 export function checkFixJobContext(input: CheckFixInput): string {
 	const prefix = [
@@ -116,35 +104,6 @@ function checkDetails(checks: readonly PullRequestCheckDto[]): string {
 			),
 		)
 		.join('; ');
-}
-
-const CONFLICT_PATH_LIMIT = 40;
-
-function unmarkedConflictHint(state: ConflictFixInput): string[] {
-	const marked = new Set(state.conflictMarkerPaths);
-	return state.conflictedPaths.slice(0, CONFLICT_PATH_LIMIT).some((path) => !marked.has(path))
-		? [
-				"A file without conflict markers holds this branch's version. Keep it, delete it, or replace it with the incoming version (`git show MERGE_HEAD:<path>` prints it), whichever is the intended result.",
-			]
-		: [];
-}
-
-function conflictDetails(state: ConflictFixInput): string[] {
-	const marked = new Set(state.conflictMarkerPaths);
-	const paths = state.conflictedPaths.slice(0, CONFLICT_PATH_LIMIT);
-	const omitted = state.conflictedPaths.length - paths.length;
-	return [
-		'Conflicted files:',
-		...paths.map(
-			(path) =>
-				`- ${diagnosticValue(path)}${marked.has(path) ? '' : ' (no conflict markers: binary, or deleted on one side)'}`,
-		),
-		...(omitted > 0 ? [`- and ${omitted} more`] : []),
-		'',
-		'Repository context:',
-		`Branch: ${diagnosticValue(state.branch)}`,
-		`Base branch: ${diagnosticValue(state.baseBranch)}`,
-	];
 }
 
 function buildUntrustedRemoteDiagnostics(

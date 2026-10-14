@@ -35,7 +35,8 @@ export type PullRequestShipAnnouncement = Readonly<{
 
 const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'waiting-for-agent': 'Waiting for the agent',
-	'resolving-conflicts': 'Resolving conflicts',
+	'opening-draft': 'Opening the pull request',
+	'updating-from-main': 'Updating from main',
 	'fixing-checks': 'Fixing checks',
 	'addressing-review': 'Addressing review',
 	'waiting-for-checks': 'Waiting for checks',
@@ -44,11 +45,11 @@ const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 
 const STEP_DESCRIPTIONS: Readonly<Record<ShipStep, string>> = {
 	'waiting-for-agent': 'Malini waits for the agent to finish, then ships its work',
-	'opening-draft': 'Malini is opening the draft pull request',
+	'opening-draft': 'Malini is opening the pull request',
 	pushing: 'Malini is pushing the latest work',
 	'marking-ready': 'Malini is marking the pull request ready for review',
 	'updating-branch': 'Malini is bringing the branch up to date with its base',
-	'resolving-conflicts': 'An agent is resolving the conflicts with the base branch',
+	'updating-from-main': 'Malini is updating the branch from main and resolving any conflicts',
 	'fixing-checks': 'An agent is fixing the failing checks',
 	'addressing-review': 'An agent is addressing the bot review comments',
 	'waiting-for-checks': 'Malini waits for the checks to finish on GitHub',

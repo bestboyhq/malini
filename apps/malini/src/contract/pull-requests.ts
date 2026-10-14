@@ -1,4 +1,4 @@
-export type ShipPhase = 'draft' | 'queued' | 'needs-you';
+export type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';
 
 export type ShipStep =
 	| 'waiting-for-agent'
@@ -6,7 +6,7 @@ export type ShipStep =
 	| 'pushing'
 	| 'marking-ready'
 	| 'updating-branch'
-	| 'resolving-conflicts'
+	| 'updating-from-main'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'

@@ -18,15 +18,16 @@ function occurrences(haystack: string, needle: string): number {
 }
 
 describe('the resting global top bar', () => {
-	it('draws one git action, one status and one way to open the detail', () => {
-		expect(occurrences(restingState, 'data-testid="global-topbar-github-action"')).toBe(1);
+	it('draws the git actions, one status and one way to open the detail', () => {
+		expect(occurrences(restingState, "'global-topbar-github-action'")).toBe(1);
+		expect(occurrences(restingState, "'global-topbar-github-secondary-action'")).toBe(1);
 		expect(occurrences(restingState, 'data-testid="global-topbar-github-headline"')).toBe(1);
 		expect(occurrences(restingState, 'data-testid="global-topbar-github-status"')).toBe(1);
 		expect(restingState).toContain('aria-haspopup="dialog"');
 	});
 
 	it('runs a confirming action only on its second click', () => {
-		expect(source).toContain('if (action.confirmLabel && armedDetailId !== PRIMARY_ARM_ID)');
+		expect(source).toContain('if (action.confirmLabel && armedDetailId !== armId)');
 	});
 
 	it.each([

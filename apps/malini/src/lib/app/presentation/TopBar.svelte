@@ -73,12 +73,15 @@
 	let armedDetailId = $state<string | null>(null);
 
 	const PRIMARY_ARM_ID = 'github-primary';
+	const SECONDARY_ARM_ID = 'github-secondary';
 	const githubHeadline = $derived(githubStatus?.headline ?? null);
 	const githubPrimary = $derived(githubStatus?.action ?? null);
+	const githubSecondary = $derived(githubStatus?.secondaryAction ?? null);
 	const githubDetailActions = $derived(githubStatus?.detailActions ?? []);
 	const githubRemoteFailure = $derived(githubStatus?.remoteFailure ?? null);
 	const armableIds = $derived([
 		...(githubPrimary?.confirmLabel ? [PRIMARY_ARM_ID] : []),
+		...(githubSecondary?.confirmLabel ? [SECONDARY_ARM_ID] : []),
 		...githubDetailActions.filter((detail) => detail.confirmLabel).map((detail) => detail.id),
 	]);
 	const githubDisclosureLabel = $derived(
@@ -179,10 +182,10 @@
 		return headline.detail ? `${headline.label} · ${headline.detail}` : headline.label;
 	}
 
-	function onPrimaryClicked(action: GlobalTopBarStatusAction): void {
+	function onStatusActionClicked(action: GlobalTopBarStatusAction, armId: string): void {
 		if (action.disabled) return;
-		if (action.confirmLabel && armedDetailId !== PRIMARY_ARM_ID) {
-			armedDetailId = PRIMARY_ARM_ID;
+		if (action.confirmLabel && armedDetailId !== armId) {
+			armedDetailId = armId;
 			return;
 		}
 		disarmDetail();
@@ -213,8 +216,8 @@
 	}
 </script>
 
-{#snippet statusAction(action: GlobalTopBarStatusAction)}
-	{@const armed = armedDetailId === PRIMARY_ARM_ID}
+{#snippet statusAction(action: GlobalTopBarStatusAction, armId: string, testId: string)}
+	{@const armed = armedDetailId === armId}
 	{@const iconOnly = dockCompact && !armed}
 	<Tooltip
 		content={iconOnly ? `${action.label} · ${action.tooltip}` : action.tooltip}
@@ -229,8 +232,8 @@
 			data-armed={armed || undefined}
 			disabled={action.disabled || routeTransitionPending}
 			aria-label={armed && action.confirmLabel ? action.confirmLabel : action.ariaLabel}
-			data-testid="global-topbar-github-action"
-			onclick={() => onPrimaryClicked(action)}
+			data-testid={testId}
+			onclick={() => onStatusActionClicked(action, armId)}
 		>
 			{#if iconOnly}
 				<Icon name={action.icon} size={13} />
@@ -424,9 +427,18 @@
 							</span>
 						</Tooltip>
 					{/if}
-					{#if githubPrimary}
+					{#if githubPrimary || githubSecondary}
 						<span class="topbar-git__action-slot" in:actionIn out:actionOut>
-							{@render statusAction(githubPrimary)}
+							{#if githubSecondary}
+								{@render statusAction(
+									githubSecondary,
+									SECONDARY_ARM_ID,
+									'global-topbar-github-secondary-action',
+								)}
+							{/if}
+							{#if githubPrimary}
+								{@render statusAction(githubPrimary, PRIMARY_ARM_ID, 'global-topbar-github-action')}
+							{/if}
 						</span>
 					{/if}
 				{/key}
@@ -702,7 +714,7 @@
 		align-self: end;
 		width: var(--dock-width);
 		max-width: none;
-		height: 80px;
+		height: calc(var(--native-titlebar-safe-area) + 40px);
 		margin-bottom: -52px;
 		border: 0.5px solid var(--dock-edge);
 		border-bottom: 0;
@@ -1024,6 +1036,7 @@
 	.topbar-git__action-slot {
 		display: flex;
 		flex-shrink: 0;
+		gap: 4px;
 		margin-left: auto;
 		transform-origin: right center;
 	}

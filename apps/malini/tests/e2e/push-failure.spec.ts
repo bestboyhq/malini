@@ -87,9 +87,9 @@ test('Open draft without network says github.com is unreachable in its tooltip a
 
 		github.setOffline(false);
 
-		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeEnabled(
-			{ timeout: 90_000 },
-		);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 90_000,
+		});
 		expect(github.pullRequest()).toMatchObject({ isDraft: true });
 		expect(github.pushedSubjects()[0]).toBe('EDIT:a.txt');
 		expectCleanConsole(app);

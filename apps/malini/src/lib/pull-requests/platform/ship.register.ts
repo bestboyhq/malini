@@ -31,11 +31,15 @@ export function registerShip(
 		queue.retryMerge(workstreamId(args)),
 	);
 	commands.define('pull-requests.ship-states', () => queue.states());
+	commands.define('pull-requests.workstream-opened', async (args: unknown) => {
+		await queue.workstreamOpened(workstreamId(args));
+		return null;
+	});
 
 	const subscriptions = [
 		events.subscribe('chat:agent-event', (envelope) => {
 			if (envelope.ephemeral || !TERMINAL_RUN_EVENTS.has(String(envelope.event['type']))) return;
-			queue.agentRunEnded(envelope.runId);
+			void queue.agentRunEnded(envelope.runId);
 		}),
 		events.subscribe('jobs:run-changed', ({ run }) => queue.jobChanged(run)),
 		events.subscribe('repositories:workstream-removed', (removed) =>

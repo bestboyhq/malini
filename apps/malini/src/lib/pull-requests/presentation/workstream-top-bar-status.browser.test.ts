@@ -95,22 +95,24 @@ const NO_PULL_REQUEST: ExtensionPullRequestContext = {
 };
 
 describe('shipping from the top bar', () => {
-	it('opens a draft, then offers to queue its merge', async () => {
+	it('opens a draft, then offers to merge it', async () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
 
 		expect(headlineText()).toBe('1 file changed');
-		expect(primaryName()).toBe('Open a draft pull request');
-		expect(primaryText()).toBe('Open draft');
-		primary()?.click();
+		expect(secondaryName()).toBe('Open a draft pull request');
+		expect(secondary()?.textContent?.trim()).toBe('Draft');
+		expect(primaryName()).toBe('Merge');
+		secondary()?.click();
 		flushSync();
 		expect(headlineText()).toBe('Opening draft');
 		expect(globalTopBarGithubStatus.current?.action).toBeNull();
+		expect(globalTopBarGithubStatus.current?.secondaryAction).toBeNull();
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(primaryName()).toBe('Queue merge for pull request #500');
+			expect(primaryName()).toBe('Merge pull request #500');
 		});
 		expect(sent('pull-requests.open-draft')).toEqual([{ workstreamId: LUNAR }]);
 		expect(reference()).toBe('#500');
@@ -121,7 +123,7 @@ describe('shipping from the top bar', () => {
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { pullRequest: 'open' }, 1);
 
-		expect(primaryText()).toBe('Queue merge');
+		expect(primaryText()).toBe('Merge');
 		primary()?.click();
 
 		await vi.waitFor(() => {
@@ -168,7 +170,7 @@ describe('a queued merge in the top bar', () => {
 
 		await vi.waitFor(() => {
 			flushSync();
-			expect(primaryText()).toBe('Queue merge');
+			expect(primaryText()).toBe('Merge');
 		});
 		expect(sent('pull-requests.cancel-merge')).toEqual([{ workstreamId: LUNAR }]);
 	});
@@ -268,13 +270,13 @@ describe('the top bar across workstream switches', () => {
 		const extension = connectExtension();
 		harness = mountWorkstreamTopBarStatus(route(LUNAR, false, 1));
 		await visit(extension, LUNAR, { dirtyPaths: ['src/index.ts'] }, 1);
-		expect(primaryText()).toBe('Open draft');
+		expect(primaryText()).toBe('Merge');
 		await visit(extension, GOLDEN, {}, 2);
 		expect(headlineText()).toBe('Build something great');
 
 		harness.show(route(LUNAR, false, 2));
 
-		expect(primaryText()).toBe('Open draft');
+		expect(primaryText()).toBe('Merge');
 	});
 
 	it('keeps the last read action in place while a fresh read is still loading', async () => {
@@ -293,7 +295,7 @@ describe('the top bar across workstream switches', () => {
 		);
 		flushSync();
 
-		expect(primaryText()).toBe('Open draft');
+		expect(primaryText()).toBe('Merge');
 	});
 
 	it('reads the status once per activation, again when the extension reactivates the workstream', async () => {
@@ -406,6 +408,16 @@ function primary(): HTMLButtonElement | null {
 
 function primaryName(): string | null {
 	return primary()?.getAttribute('aria-label') ?? null;
+}
+
+function secondary(): HTMLButtonElement | null {
+	return document.querySelector<HTMLButtonElement>(
+		'[data-testid="global-topbar-github-secondary-action"]:not([inert] *)',
+	);
+}
+
+function secondaryName(): string | null {
+	return secondary()?.getAttribute('aria-label') ?? null;
 }
 
 function primaryText(): string | null {

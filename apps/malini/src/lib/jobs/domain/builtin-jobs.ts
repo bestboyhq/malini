@@ -11,7 +11,7 @@ export type BuiltinJobDefaults = Readonly<{
 
 export const BUILTIN_JOB_KEYS: readonly JobBuiltin[] = [
 	'fix-checks',
-	'resolve-conflicts',
+	'update-from-main',
 	'address-review',
 ];
 
@@ -39,16 +39,15 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			'End with a one-paragraph summary: what failed, why, and what you changed.',
 		].join('\n'),
 	},
-	'resolve-conflicts': {
-		name: 'Resolve conflicts',
+	'update-from-main': {
+		name: 'Update from main',
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
 		instructions: [
-			"Resolve the merge conflicts between this workstream's branch and its base branch.",
+			"Bring this workstream's branch up to date with its base branch.",
 			'',
 			UNTRUSTED_CONTEXT,
-			'- malini starts the merge. If none is in progress, there is nothing to resolve: say so and stop.',
-			'- Resolve every conflict by hand so both sides keep working. Never discard one side wholesale.',
+			'- malini merges the base branch before you start. If the merge stopped on conflicts, resolve every conflict by hand so both sides keep working. Never discard one side wholesale.',
 			'- Keep the change minimal: nothing beyond what the merge needs.',
 			...VERIFY_AND_HAND_BACK,
 			'',

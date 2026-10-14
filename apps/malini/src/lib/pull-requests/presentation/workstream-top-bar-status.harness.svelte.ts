@@ -25,6 +25,7 @@ export function mountWorkstreamTopBarStatus(route: TopBarStatusRoute): TopBarSta
 		agentRunning: false,
 		overrideStatus: null,
 		ongitstatusstale: (): void => undefined,
+		onarchive: (): void => undefined,
 	});
 	const app = mount(WorkstreamTopBarStatus, { target: host, props });
 	flushSync();

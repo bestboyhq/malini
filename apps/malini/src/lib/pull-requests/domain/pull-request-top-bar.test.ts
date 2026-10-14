@@ -176,7 +176,7 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'counts local changes and offers Open draft',
+			'counts local changes and offers Merge',
 			null,
 			surface({ changedFiles: 3 }),
 			'ready',
@@ -185,7 +185,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: '3 files changed',
 				detail: null,
-				action: 'Open draft',
+				action: 'Merge',
 			},
 		],
 		[
@@ -198,7 +198,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: '1 file changed',
 				detail: null,
-				action: 'Open draft',
+				action: 'Merge',
 			},
 		],
 		[
@@ -263,7 +263,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Open',
 				detail: 'No checks configured',
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -276,7 +276,7 @@ describe('the workstream status', () => {
 				busy: true,
 				label: 'Checks running',
 				detail: '1 of 2 pending',
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -289,7 +289,7 @@ describe('the workstream status', () => {
 				busy: true,
 				label: 'Checks starting',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -302,7 +302,7 @@ describe('the workstream status', () => {
 				busy: true,
 				label: 'Checks starting',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -318,7 +318,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Checks failed',
 				detail: 'lint, e2e +1',
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -334,7 +334,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: "CI didn't start",
 				detail: 'Spending limit reached',
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -347,7 +347,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Conflicts with main',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -360,7 +360,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: '3 commits behind main',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -373,7 +373,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Changes requested',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -386,7 +386,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: '2 unresolved threads',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -399,7 +399,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Review required',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -412,7 +412,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Ready to merge',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -425,7 +425,7 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Ready to merge',
 				detail: '1 optional check failed',
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
@@ -438,15 +438,15 @@ describe('the workstream status', () => {
 				busy: false,
 				label: 'Ready to merge',
 				detail: null,
-				action: 'Queue merge',
+				action: 'Merge',
 			},
 		],
 		[
-			'offers Queue merge from the draft phase before the first read',
+			'offers Merge from the draft phase before the first read',
 			ship(),
 			null,
 			'ready',
-			{ tone: 'idle', busy: false, label: 'Open', detail: null, action: 'Queue merge' },
+			{ tone: 'idle', busy: false, label: 'Open', detail: null, action: 'Merge' },
 		],
 		[
 			'is queued in blue with Cancel',
@@ -636,7 +636,7 @@ describe('the workstream status', () => {
 			ship(),
 			open({ state: 'closed' }),
 			'ready',
-			{ tone: 'idle', busy: false, label: 'Closed', detail: null, action: 'Open draft' },
+			{ tone: 'idle', busy: false, label: 'Closed', detail: null, action: 'Draft' },
 		],
 		[
 			'shows a closed pull request with nothing new as closed only',
@@ -650,7 +650,7 @@ describe('the workstream status', () => {
 			null,
 			open({ state: 'merged' }),
 			'ready',
-			{ tone: 'merged', busy: false, label: 'Merged', detail: null, action: null },
+			{ tone: 'merged', busy: false, label: 'Merged', detail: null, action: 'Archive' },
 		],
 	])('%s', (_, shipState, read, availability, expected) => {
 		expect(lineOf(status(shipState, read, availability))).toEqual(expected);
@@ -713,11 +713,53 @@ describe('the workstream status', () => {
 		});
 	});
 
-	it('names the pull request in the Queue merge label for assistive tech', () => {
+	it('names the pull request in the Merge label for assistive tech', () => {
 		expect(status(null, open())?.action).toMatchObject({
 			kind: 'queue-merge',
-			ariaLabel: 'Queue merge for pull request #42',
+			ariaLabel: 'Merge pull request #42',
 			tone: 'primary',
+		});
+	});
+
+	it('offers Draft beside Merge before a pull request exists', () => {
+		const shown = status(null, surface({ changedFiles: 3 }));
+		expect([shown?.secondaryAction, shown?.action]).toMatchObject([
+			{ kind: 'open-draft', label: 'Draft', tone: 'secondary' },
+			{ kind: 'queue-merge', label: 'Merge', tone: 'primary' },
+		]);
+		expect(status(null, open({ state: 'closed' }))?.secondaryAction).toBeUndefined();
+	});
+
+	it('offers Continue beside Archive once the pull request merged', () => {
+		const shown = status(null, open({ state: 'merged' }));
+		expect([shown?.secondaryAction, shown?.action]).toMatchObject([
+			{ kind: 'continue', label: 'Continue', tooltip: 'Keep working on top of the latest main' },
+			{ kind: 'archive', label: 'Archive' },
+		]);
+		expect(status(null, open({ state: 'merged' }, { dirtyPaths: ['a.ts'] }))?.action?.tooltip).toBe(
+			'Archive this workstream. Work made after the merge is kept as a saved ref',
+		);
+		expect(status(null, open({ state: 'merged', headSha: null }))?.secondaryAction).toBeUndefined();
+	});
+
+	it('shows an update from main, and never a draft for a workstream kept only locally', () => {
+		const local = (overrides: Parameters<typeof ship>[0] = {}) =>
+			ship({ phase: 'local', pullRequestNumber: null, pullRequestUrl: null, ...overrides });
+		expect(status(local({ step: 'updating-from-main' }), surface())).toMatchObject({
+			label: 'Updating from main',
+			busy: true,
+			action: null,
+		});
+		expect(status(ship({ step: 'updating-from-main' }), open())?.label).toBe('Updating from main');
+		const committed = status(
+			local({ step: 'waiting-for-agent', lastError: 'Nothing merged: offline' }),
+			surface({ changedFiles: 2 }),
+		);
+		expect(committed).toMatchObject({
+			label: '2 files changed',
+			tooltip: 'Nothing merged: offline',
+			action: { kind: 'queue-merge' },
+			secondaryAction: { kind: 'open-draft', tooltip: 'Open a draft pull request' },
 		});
 	});
 
@@ -743,13 +785,13 @@ describe('the workstream status', () => {
 		);
 		expect(
 			status(ship({ step: 'pushing', lastError: 'push rejected' }), open())?.action?.tooltip,
-		).toBe('Pushing the latest work failed and malini retries it: push rejected');
+		).toBe('Push failed, retrying: push rejected');
 		expect(
 			status(
 				ship({ pullRequestNumber: null, pullRequestUrl: null, lastError: 'push rejected' }),
 				surface(),
-			)?.action?.tooltip,
-		).toBe('Opening the draft failed: push rejected. Try again');
+			)?.secondaryAction?.tooltip,
+		).toBe('Opening the draft failed: push rejected');
 	});
 
 	it('keeps the full reason GitHub gave for not starting CI in the tooltip', () => {
@@ -763,7 +805,7 @@ describe('the workstream status', () => {
 
 	it('ships a merge whose conflicts are resolved', () => {
 		expect(status(null, surface({ operationInProgress: 'merge' }))?.action?.kind).toBe(
-			'open-draft',
+			'queue-merge',
 		);
 	});
 });

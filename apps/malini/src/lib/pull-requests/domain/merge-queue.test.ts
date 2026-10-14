@@ -102,10 +102,13 @@ function queued(overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot
 	return {
 		phase: 'queued',
 		pushRequested: false,
+		updateRequested: false,
+		behindBase: null,
 		pullRequestNumber: 7,
 		idle: true,
 		job: null,
 		lastJobRunId: 'job-last',
+		lastJobBuiltin: null,
 		settledJob: null,
 		worktree: {
 			dirtyPaths: [],
@@ -174,7 +177,156 @@ describe('a draft workstream', () => {
 			nextMergeQueueMove(draft({ worktree: { ...worktree, operationInProgress: 'rebase' } })),
 		).toEqual({
 			kind: 'idle',
-			problem: 'A rebase is in progress in this workstream. Finish or abort it, then push again.',
+			problem: 'A rebase is in progress in this workstream. Finish or abort it, then try again.',
+		});
+	});
+});
+
+describe('keeping a local or draft workstream current', () => {
+	const local = (overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot =>
+		queued({
+			phase: 'local',
+			pullRequestNumber: null,
+			pullRequest: pullRequest({ state: 'not_open', number: null, url: null }),
+			...overrides,
+		});
+	const merging = (paths: Partial<typeof worktree>) => ({
+		...worktree,
+		operationInProgress: 'merge' as const,
+		...paths,
+	});
+
+	it('commits finished work locally and never pushes before a pull request exists', () => {
+		expect(
+			nextMergeQueueMove(
+				local({ pushRequested: true, worktree: { ...worktree, dirtyPaths: ['a.ts'] } }),
+			),
+		).toEqual({ kind: 'commit' });
+		expect(
+			nextMergeQueueMove(local({ pushRequested: true, worktree: { ...worktree, ahead: 3 } })),
+		).toEqual({ kind: 'idle', problem: null });
+	});
+
+	it('reads how far main moved, then commits leftover local work and updates only a workstream that is behind', () => {
+		expect(nextMergeQueueMove(local({ updateRequested: true }))).toEqual({ kind: 'read-base' });
+		expect(nextMergeQueueMove(local({ updateRequested: true, behindBase: 0 }))).toEqual({
+			kind: 'idle',
+			problem: null,
+		});
+		const update = {
+			kind: 'run-job',
+			builtin: 'update-from-main',
+			signature: 'update',
+			attempt: 1,
+		};
+		expect(nextMergeQueueMove(local({ updateRequested: true, behindBase: 4 }))).toEqual(update);
+		expect(
+			nextMergeQueueMove(queued({ phase: 'draft', updateRequested: true, behindBase: 4 })),
+		).toEqual(update);
+		expect(
+			nextMergeQueueMove(
+				local({
+					updateRequested: true,
+					behindBase: 4,
+					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
+				}),
+			),
+		).toEqual({ kind: 'commit' });
+		expect(
+			nextMergeQueueMove(
+				local({
+					updateRequested: true,
+					behindBase: 0,
+					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
+				}),
+			),
+		).toEqual({ kind: 'idle', problem: null });
+		expect(
+			nextMergeQueueMove(
+				queued({
+					phase: 'draft',
+					updateRequested: true,
+					behindBase: 4,
+					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
+				}),
+			),
+		).toEqual({ kind: 'idle', problem: null });
+	});
+
+	it('reads the branch pull request first and never updates one that merged or closed', () => {
+		const draft = (overrides: Partial<MergeQueueSnapshot>) =>
+			queued({ phase: 'draft', updateRequested: true, behindBase: 4, ...overrides });
+		expect(nextMergeQueueMove(draft({ pullRequest: null }))).toEqual({ kind: 'read-pull-request' });
+		expect(
+			nextMergeQueueMove(local({ updateRequested: true, behindBase: 4, pullRequest: null })),
+		).toEqual({ kind: 'read-pull-request' });
+		for (const state of ['merged', 'closed'] as const) {
+			expect(nextMergeQueueMove(draft({ pullRequest: pullRequest({ state }) }))).toEqual({
+				kind: 'idle',
+				problem: null,
+			});
+			expect(
+				nextMergeQueueMove(
+					local({ updateRequested: true, behindBase: 4, pullRequest: pullRequest({ state }) }),
+				),
+			).toEqual({ kind: 'idle', problem: null });
+		}
+		expect(nextMergeQueueMove(draft({}))).toMatchObject({ kind: 'run-job' });
+	});
+
+	it('shows the update job while it runs', () => {
+		expect(
+			nextMergeQueueMove(local({ job: { builtin: 'update-from-main', status: 'running' } })),
+		).toEqual({ kind: 'wait', step: 'updating-from-main' });
+	});
+
+	it('retries conflicts its own update left, then saves the merge, giving up quietly', () => {
+		const conflicted = merging({ conflictedPaths: ['a.ts'], conflictMarkerPaths: ['a.ts'] });
+		const afterUpdate = {
+			pushRequested: true,
+			lastJobBuiltin: 'update-from-main' as const,
+			settledJob: 'update-from-main' as const,
+		};
+		expect(nextMergeQueueMove(local({ ...afterUpdate, worktree: conflicted }))).toEqual({
+			kind: 'run-job',
+			builtin: 'update-from-main',
+			signature: 'conflicts:["a.ts"]',
+			attempt: 1,
+		});
+		expect(
+			nextMergeQueueMove(
+				local({ ...afterUpdate, worktree: merging({ conflictedPaths: ['a.ts'] }) }),
+			),
+		).toEqual({ kind: 'commit' });
+		expect(
+			nextMergeQueueMove(
+				queued({
+					phase: 'draft',
+					...afterUpdate,
+					worktree: merging({ conflictedPaths: ['a.ts'] }),
+				}),
+			),
+		).toEqual({ kind: 'push' });
+		expect(
+			nextMergeQueueMove(
+				local({
+					...afterUpdate,
+					failureSignature: 'conflicts:["a.ts"]',
+					attempts: 3,
+					worktree: conflicted,
+				}),
+			),
+		).toEqual({ kind: 'idle', problem: 'Updating from main did not work. malini tried 3 times.' });
+	});
+
+	it('leaves a merge the user started alone', () => {
+		expect(
+			nextMergeQueueMove(
+				local({ pushRequested: true, worktree: merging({ conflictedPaths: ['a.ts'] }) }),
+			),
+		).toEqual({
+			kind: 'idle',
+			problem: 'A merge is in progress in this workstream. Finish or abort it, then try again.',
 		});
 	});
 });
@@ -215,26 +367,26 @@ describe('a queued workstream', () => {
 			nextMergeQueueMove(queued({ worktree: { ...merging, conflictedPaths: ['b.ts', 'a.ts'] } })),
 		).toEqual({
 			kind: 'run-job',
-			builtin: 'resolve-conflicts',
+			builtin: 'update-from-main',
 			signature: 'conflicts:["a.ts","b.ts"]',
 			attempt: 1,
 		});
 		expect(nextMergeQueueMove(queued({ worktree: merging }))).toEqual({ kind: 'push' });
 	});
 
-	it('commits conflicts a resolve-conflicts job cleared of markers, even when it left them unstaged', () => {
+	it('commits conflicts an update-from-main job cleared of markers, even when it left them unstaged', () => {
 		const unstaged = {
 			...worktree,
 			operationInProgress: 'merge' as const,
 			conflictedPaths: ['a.ts'],
 		};
 		expect(
-			nextMergeQueueMove(queued({ settledJob: 'resolve-conflicts', worktree: unstaged })),
+			nextMergeQueueMove(queued({ settledJob: 'update-from-main', worktree: unstaged })),
 		).toEqual({ kind: 'push' });
 		expect(
 			nextMergeQueueMove(
 				queued({
-					settledJob: 'resolve-conflicts',
+					settledJob: 'update-from-main',
 					failureSignature: 'conflicts:["a.ts"]',
 					attempts: 1,
 					worktree: { ...unstaged, conflictMarkerPaths: ['a.ts'] },
@@ -242,7 +394,7 @@ describe('a queued workstream', () => {
 			),
 		).toEqual({
 			kind: 'run-job',
-			builtin: 'resolve-conflicts',
+			builtin: 'update-from-main',
 			signature: 'conflicts:["a.ts"]',
 			attempt: 2,
 		});

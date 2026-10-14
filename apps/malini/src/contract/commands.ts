@@ -427,6 +427,7 @@ export interface ContractCommands {
 	'pull-requests.cancel-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord | null };
 	'pull-requests.retry-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
 	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
+	'pull-requests.workstream-opened': { args: ShipWorkstreamArgs; result: null };
 	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
 	'jobs.save-definition': { args: SaveJobDefinitionArgs; result: JobDefinitionRecord };
 	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
@@ -465,6 +466,7 @@ export interface ContractCommands {
 		result: InstallOutcomeStatus;
 	};
 	'repositories.pull-workstream': { args: PullWorkstreamArgs; result: string };
+	'repositories.count-behind-base': { args: PullWorkstreamArgs; result: number };
 	'repositories.push-workstream': { args: PushWorkstreamArgs; result: string };
 	'repositories.restart-workstream-on-base': { args: RestartWorkstreamOnBaseArgs; result: string };
 	'extensions.read-repository-file': { args: ExtensionFileArgs; result: string };
@@ -644,6 +646,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.cancel-merge',
 	'pull-requests.retry-merge',
 	'pull-requests.ship-states',
+	'pull-requests.workstream-opened',
 	'jobs.list-definitions',
 	'jobs.save-definition',
 	'jobs.delete-definition',
@@ -670,6 +673,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.pick-folder',
 	'repositories.provision-dependencies',
 	'repositories.pull-workstream',
+	'repositories.count-behind-base',
 	'repositories.push-workstream',
 	'repositories.restart-workstream-on-base',
 	'extensions.read-repository-file',

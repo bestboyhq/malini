@@ -38,7 +38,7 @@ function fakeRunsOf(bridge: FakeBridge): Map<string, JobRunRecord> {
 
 const FAKE_BUILTINS: readonly (readonly [JobBuiltin, string])[] = [
 	['fix-checks', 'Fix checks'],
-	['resolve-conflicts', 'Resolve conflicts'],
+	['update-from-main', 'Update from main'],
 	['address-review', 'Address bot review'],
 ];
 

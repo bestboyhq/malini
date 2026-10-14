@@ -95,11 +95,9 @@ test('a pull request without checks says so in its detail, never that checks pas
 		});
 		await openWorkstream(page, 'e2e-no-checks');
 
-		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeVisible(
-			{
-				timeout: 30_000,
-			},
-		);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeVisible({
+			timeout: 30_000,
+		});
 
 		const detail = await openPullRequestDetail(page);
 		await expect(detail).toContainText('No checks configured');

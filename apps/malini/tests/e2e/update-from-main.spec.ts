@@ -23,7 +23,7 @@ import {
 const execFileAsync = promisify(execFile);
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
-test('a queued merge brings a conflicting branch up to date, has a job resolve the conflicts and pushes a two-parent merge', async () => {
+test('a queued merge updates a conflicting branch from main, has the agent resolve the conflicts and pushes a two-parent merge', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -53,7 +53,7 @@ test('a queued merge brings a conflicting branch up to date, has a job resolve t
 			'branch line\nmain line',
 		);
 		await expect(page.getByRole('region', { name: 'Jobs: 1 finished recently' })).toBeVisible();
-		await captureFlow(app, 'resolve-conflicts');
+		await captureFlow(app, 'update-from-main');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -79,9 +79,9 @@ test('Abort merge takes a confirming click in the bar, then returns the worktree
 		await captureFlow(app, 'abort-merge-armed');
 		await confirm.click();
 
-		await expect(page.getByRole('button', { name: 'Queue merge for pull request #7' })).toBeEnabled(
-			{ timeout: 60_000 },
-		);
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 60_000,
+		});
 		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(head);
 		expect(await output(worktree, ['status', '--porcelain'])).toBe('');
 		expectCleanConsole(app);

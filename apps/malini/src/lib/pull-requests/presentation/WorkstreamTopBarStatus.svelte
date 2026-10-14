@@ -20,6 +20,7 @@
 	import type {
 		PullRequestMenuItem,
 		PullRequestMenuItemId,
+		PullRequestTopBarAction,
 	} from '$lib/pull-requests/domain/pull-request-action';
 	import { pullRequestActionIcon } from './pull-request-action-icon';
 
@@ -35,6 +36,7 @@
 		agentRunning: boolean;
 		overrideStatus: GlobalTopBarGithubStatus | null;
 		ongitstatusstale: () => void;
+		onarchive: () => void;
 	}
 
 	let {
@@ -49,6 +51,7 @@
 		agentRunning,
 		overrideStatus,
 		ongitstatusstale,
+		onarchive,
 	}: Props = $props();
 
 	const surface = $derived(repositorySurfaceQuery.data);
@@ -96,7 +99,8 @@
 			headline: statusHeadline(),
 			remoteFailure: topBar.remoteFailure,
 			detailActions: topBar.menu.map(detailAction),
-			action: primaryAction(),
+			action: statusAction(topBar.status?.action ?? null),
+			secondaryAction: statusAction(topBar.status?.secondaryAction ?? null),
 		};
 	}
 
@@ -113,8 +117,7 @@
 		};
 	}
 
-	function primaryAction(): GlobalTopBarStatusAction | null {
-		const action = topBar.status?.action;
+	function statusAction(action: PullRequestTopBarAction | null): GlobalTopBarStatusAction | null {
 		if (!action || busy) return null;
 		return {
 			label: action.label,
@@ -124,7 +127,11 @@
 			icon: pullRequestActionIcon(action.kind),
 			confirmLabel: action.confirmLabel,
 			disabled: false,
-			onInvoke: () => runPullRequestActionCommand(ongitstatusstale),
+			onInvoke: () =>
+				runPullRequestActionCommand(action.kind, {
+					onGitStatusStale: ongitstatusstale,
+					onArchive: onarchive,
+				}),
 		};
 	}
 

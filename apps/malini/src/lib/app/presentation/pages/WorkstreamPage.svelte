@@ -13,6 +13,7 @@
 <script lang="ts">
 	import type { ExtensionWorkstream } from '@malini/extension-api';
 	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
+	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
@@ -21,6 +22,7 @@
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
 	import {
 		WorkstreamActionsMenu,
+		archiveWorkstreamCommand,
 		changeTotalsQuery,
 		consumeWorkstreamCreationCommand,
 		loadWorkstreamGitStatusCommand,
@@ -87,6 +89,10 @@
 			: null,
 	);
 
+	function archiveWorkstream(): void {
+		if (workstream) archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand);
+	}
+
 	function retryRepositoryScope(): void {
 		refreshWorkstreamsCommand();
 		refreshRepositoriesCommand();
@@ -107,6 +113,7 @@
 			agentRunning={chat.agentRunning}
 			overrideStatus={provisioningStatus}
 			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
+			onarchive={archiveWorkstream}
 		/>
 	{/snippet}
 </WorkstreamChatBridge>
