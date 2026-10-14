@@ -39,6 +39,7 @@ export type TranscriptContext = {
 	readonly runUndo: DestructiveConfirm;
 	readonly workstreamRunInFlight: boolean;
 	readonly waitingForUser: boolean;
+	readonly pullRequestShipped: boolean;
 	readonly copiedErrorKey: string | null;
 	copyErrorText(key: string, error: string): void;
 	readonly expandedActivityGroups: Record<string, boolean>;

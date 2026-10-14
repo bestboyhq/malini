@@ -91,6 +91,7 @@
 		{#if turnReport}
 			<TurnReportCard
 				report={turnReport}
+				needsOpen={isLastRun && !transcript.pullRequestShipped}
 				onopenfile={transcript.openFileMention}
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}

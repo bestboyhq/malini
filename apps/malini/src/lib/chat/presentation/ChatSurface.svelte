@@ -65,10 +65,11 @@
 
 	interface Props {
 		workstreamId: string;
+		pullRequestShipped?: boolean;
 		oncloseworkstream: () => void;
 	}
 
-	let { workstreamId, oncloseworkstream }: Props = $props();
+	let { workstreamId, pullRequestShipped = false, oncloseworkstream }: Props = $props();
 
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
@@ -296,6 +297,7 @@
 										sessionId={presentedSessionId}
 										envelopes={presentedTranscript.envelopes}
 										composerControls={editorComposerControls}
+										{pullRequestShipped}
 										spaceBelow={footerHeight}
 									>
 										{#snippet empty()}

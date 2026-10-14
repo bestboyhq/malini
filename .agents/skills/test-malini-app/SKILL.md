@@ -43,10 +43,12 @@ for ws in "$P"/workstreams/*/; do
 	echo "gitdir: $ng" > "$ws.git"; echo "${ws}.git" > "$ng/gitdir"
 done
 sqlite3 "$P/malini.sqlite" "update projects set repo_path = replace(repo_path, '$L', '$P');
-	update workstreams set path = replace(path, '$L', '$P');"
+	update workstreams set path = replace(path, '$L', '$P');
+	delete from workstream_ship;"
 ```
 
 Rewrite those paths before the first launch: `projects.repo_path` is absolute, and a new workstream otherwise branches off the user's live repository.
+Empty the merge queue too: a snapshot keeps the user's queued pull requests, and the sandbox would mark them ready, push to them and merge them on GitHub.
 
 The clones push to the same remotes as the user's branches: send prompts, commit, and push only in workstreams created inside the sandbox.
 

@@ -4,6 +4,7 @@
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
 	import { JobCenter } from '$lib/jobs/jobs.api';
+	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import {
 		WorkstreamProvisioningFrame,
 		WorkstreamTitle,
@@ -20,6 +21,9 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const pullRequestShipped = $derived(
+		['queued', 'merged'].includes(pullRequestBadgesQuery.data(workstreamId).phase),
+	);
 
 	function closeWorkstream(): void {
 		if (workstream) archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand);
@@ -31,7 +35,7 @@
 <WorkstreamProvisioningFrame {workstreamId}>
 	<InspectorSplit {workstreamId}>
 		{#snippet primary()}
-			<ChatSurface {workstreamId} oncloseworkstream={closeWorkstream} />
+			<ChatSurface {workstreamId} {pullRequestShipped} oncloseworkstream={closeWorkstream} />
 		{/snippet}
 		{#snippet secondary()}
 			<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">

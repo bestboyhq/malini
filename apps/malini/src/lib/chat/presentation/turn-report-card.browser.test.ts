@@ -23,7 +23,7 @@ afterEach(() => {
 	while (unmounts.length > 0) unmounts.pop()?.();
 });
 
-function render(text: string): { host: HTMLElement; opened: string[] } {
+function render(text: string, needsOpen = true): { host: HTMLElement; opened: string[] } {
 	const host = document.createElement('div');
 	document.body.append(host);
 	const opened: string[] = [];
@@ -31,6 +31,7 @@ function render(text: string): { host: HTMLElement; opened: string[] } {
 		target: host,
 		props: {
 			report: parseTurnReport(text),
+			needsOpen,
 			imagesrc: () => null,
 			onopenimage: (id: string) => opened.push(id),
 		},
@@ -46,7 +47,9 @@ function render(text: string): { host: HTMLElement; opened: string[] } {
 function labelledBy(host: HTMLElement, name: string): HTMLElement {
 	const match = [...host.querySelectorAll<HTMLElement>('[aria-labelledby]')].find(
 		(element) =>
-			document.getElementById(element.getAttribute('aria-labelledby') ?? '')?.textContent === name,
+			document
+				.getElementById(element.getAttribute('aria-labelledby') ?? '')
+				?.textContent?.trim() === name,
 	);
 	if (!match) throw new Error(`Nothing is named ${name}`);
 	return match;
@@ -66,7 +69,7 @@ describe('the result card at the end of a turn', () => {
 		expect(opened).toEqual(['.malini/sandbox/screenshots/header.png']);
 
 		expect(card?.textContent).toContain('The header stays pinned while the page scrolls.');
-		const needs = labelledBy(host, 'Needs you');
+		const needs = labelledBy(host, 'Your turn');
 		expect([...needs.querySelectorAll('li')].map((need) => need.textContent?.trim())).toEqual([
 			'Approve the new shadow',
 			'Merge the pull request',
@@ -89,8 +92,19 @@ describe('the result card at the end of a turn', () => {
 	it('leaves out the needs block when the agent needs nothing', () => {
 		const { host } = render('Outcome: Done.\nNeeds: nothing');
 
-		expect(() => labelledBy(host, 'Needs you')).toThrow();
+		expect(() => labelledBy(host, 'Your turn')).toThrow();
 		expect(host.querySelector('details')).toBeNull();
+	});
+
+	it('stops asking once the user has moved on or shipped the pull request', () => {
+		const { host } = render(REPORT, false);
+
+		expect(() => labelledBy(host, 'Your turn')).toThrow();
+		expect(
+			[...labelledBy(host, 'You were asked').querySelectorAll('li')].map((need) =>
+				need.textContent?.trim(),
+			),
+		).toEqual(['Approve the new shadow', 'Merge the pull request']);
 	});
 });
 
