@@ -1,8 +1,8 @@
-import type { BrowserTabArgs } from '$contract/browser';
+import { BROWSER_WORKTREE_SCHEME, type BrowserTabArgs } from '$contract/browser';
 
 const LAST_PAGE_PREFIX = 'malini.browser.last-page:v2:';
 const TABS_PREFIX = 'malini.browser.tabs:v1:';
-const WEB_PAGE = /^https?:\/\//u;
+const WEB_PAGE = new RegExp(`^(?:https?|${BROWSER_WORKTREE_SCHEME}):\\/\\/`, 'u');
 
 type PageStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
