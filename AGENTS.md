@@ -61,6 +61,8 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `routines`             | triggers that run job steps in order, suggestions, gated runs         |
 | `skills`               | skill presets, the skills each chat and job loads, setup's skill step |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
+| `browser`              | browser tabs in the inspector and the agent's browser tools           |
+| `stats`                | sidebar resource readout and stats panel: memory, CPU, run activity   |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle  |
 | `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities  |
 

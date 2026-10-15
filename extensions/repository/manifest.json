@@ -97,15 +97,6 @@
 				"title": "Repository: Warm Workstream",
 				"description": "Read another workstream's repository state ahead of its first visit."
 			}
-		],
-		"settings": [
-			{
-				"id": "malini.repository.show-hidden",
-				"label": "Show hidden files",
-				"description": "Include dotfiles and files inside hidden directories in the Files panel.",
-				"type": "boolean",
-				"default": false
-			}
 		]
 	}
 }

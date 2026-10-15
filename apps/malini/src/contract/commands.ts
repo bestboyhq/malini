@@ -52,6 +52,7 @@ import type {
 	SkillRecord,
 } from './skills';
 import type { RuntimeInfo } from './runtime';
+import type { ActivityStats, ResourceHistory } from './stats';
 import type {
 	AddressedReviewThreadsDto,
 	ArchivedWorkstreamDto,
@@ -600,6 +601,8 @@ export interface ContractCommands {
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
+	'stats.activity': { args: undefined; result: ActivityStats };
+	'stats.resources': { args: undefined; result: ResourceHistory };
 }
 
 export type CommandName = keyof ContractCommands;
@@ -767,4 +770,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.logical-viewport',
 	'app.interface-scale',
 	'app.runtime-info',
+	'stats.activity',
+	'stats.resources',
 ];

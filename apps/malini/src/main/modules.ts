@@ -24,6 +24,7 @@ import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerRoutines } from '$lib/routines/platform/register';
 import { registerSkills } from '$lib/skills/platform/register';
+import { registerStats } from '$lib/stats/platform/register';
 
 export interface ModuleOptions {
 	getMainWindow(): BrowserWindow | null;
@@ -116,9 +117,24 @@ export async function registerModules(
 	jobs.start();
 	pullRequests.start();
 
+	const stats = registerStats(context, {
+		runner: processRunner,
+		browserTabProcessIds: () => browser.processIds(),
+		agentHostProcessId: () => chat.bridgeProcessId(),
+		runningContainerIds: async () => {
+			if (repositories.containerCount() === 0) return [];
+			const containers = await repositories.listOwnedContainers();
+			return containers
+				.filter((container) => container.state === 'running')
+				.map((container) => container.containerId);
+		},
+	});
+	stats.start();
+
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
+			stats.stop();
 			pullRequests.dispose();
 			jobs.dispose();
 			repositories.watchers.dispose();

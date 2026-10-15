@@ -102,6 +102,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return settledPage(contents);
 	}
 
+	processIds(): number[] {
+		return [...this.entries.values()]
+			.filter((entry) => entry.alive && !entry.view.contents.isDestroyed())
+			.map((entry) => entry.view.contents.getOSProcessId());
+	}
+
 	state(tab: BrowserTabArgs): BrowserState {
 		const entry = this.entries.get(tabKey(tab));
 		if (entry?.alive) return stateOf(entry);

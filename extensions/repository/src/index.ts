@@ -4,7 +4,6 @@ import type {
 	ExtensionCommandManifest,
 	ExtensionDisposable,
 	ExtensionPanelManifest,
-	ExtensionSettingManifest,
 	ExtensionWorkstream,
 } from '@malini/extension-api';
 import { EXTENSION_EVENTS } from '@malini/extension-api';
@@ -39,7 +38,6 @@ const repositoryExtension: ExtensionModule = {
 		nextOwned.push({ dispose: () => fileTabs.dispose() }, { dispose: () => controller.dispose() });
 
 		try {
-			const setting = requireContribution(api, 'settings', 'malini.repository.show-hidden');
 			const filesPanel = requireContribution(api, 'panels', 'malini.repository.files-panel');
 			const refreshCommand = requireContribution(api, 'commands', 'malini.repository.refresh');
 			const refreshPullRequestCommand = requireContribution(
@@ -84,7 +82,6 @@ const repositoryExtension: ExtensionModule = {
 						.emit(REPOSITORY_STATE_CHANGED_EVENT, repositorySurfaceState(state))
 						.catch(() => undefined);
 				}),
-				api.settings.register(setting),
 				api.commands.register({
 					...refreshCommand,
 					handler: () => controller.refresh(),
@@ -243,20 +240,11 @@ function parseOpenFileTarget(input: unknown): { path: string; line: number | nul
 
 function requireContribution(
 	api: ExtensionAPI,
-	kind: 'settings',
-	id: string,
-): ExtensionSettingManifest;
-function requireContribution(
-	api: ExtensionAPI,
 	kind: 'commands',
 	id: string,
 ): ExtensionCommandManifest;
 function requireContribution(api: ExtensionAPI, kind: 'panels', id: string): ExtensionPanelManifest;
-function requireContribution(
-	api: ExtensionAPI,
-	kind: 'settings' | 'commands' | 'panels',
-	id: string,
-) {
+function requireContribution(api: ExtensionAPI, kind: 'commands' | 'panels', id: string) {
 	const contribution = api.manifest.contributes?.[kind]?.find((candidate) => candidate.id === id);
 	if (!contribution)
 		throw new Error(`Repository extension manifest is missing ${kind} contribution ${id}`);

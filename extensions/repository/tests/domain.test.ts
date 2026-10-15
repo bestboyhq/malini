@@ -18,33 +18,33 @@ import {
 
 test('normalizes, filters, deduplicates, and describes repository files', () => {
 	assert.deepEqual(
-		createFileList(
-			['src\\index.ts', './README.md', 'src/index.ts', '.env', 'src/.cache/value'],
-			false,
-		),
-		[
-			{ path: 'README.md', name: 'README.md', directory: '', extension: 'md' },
-			{ path: 'src/index.ts', name: 'index.ts', directory: 'src', extension: 'ts' },
-		],
+		createFileList([
+			'src\\index.ts',
+			'./README.md',
+			'src/index.ts',
+			'.env',
+			'.git/HEAD',
+			'src/.cache/value',
+		]).map(({ path }) => path),
+		['.env', 'README.md', 'src/.cache/value', 'src/index.ts'],
 	);
-	assert.deepEqual(
-		createFileList(['.env', 'src/.cache/value'], true).map(({ path }) => path),
-		['.env', 'src/.cache/value'],
-	);
-	assert.throws(() => createFileList(['../secret'], true), /Invalid repository-relative path/u);
+	assert.deepEqual(createFileList(['src/index.ts'])[0], {
+		path: 'src/index.ts',
+		name: 'index.ts',
+		directory: 'src',
+		extension: 'ts',
+	});
+	assert.throws(() => createFileList(['../secret']), /Invalid repository-relative path/u);
 });
 
 test('resolves a file named by its path, by its name, or by the end of its path', () => {
-	const files = createFileList(
-		[
-			'remote.ts',
-			'src/git/remote.ts',
-			'src/git/credentials.ts',
-			'packages/a/index.ts',
-			'packages/b/index.ts',
-		],
-		false,
-	);
+	const files = createFileList([
+		'remote.ts',
+		'src/git/remote.ts',
+		'src/git/credentials.ts',
+		'packages/a/index.ts',
+		'packages/b/index.ts',
+	]);
 
 	assert.deepEqual(repositoryFileMatches(files, 'remote.ts'), ['remote.ts']);
 	assert.deepEqual(repositoryFileMatches(files, 'credentials.ts'), ['src/git/credentials.ts']);
