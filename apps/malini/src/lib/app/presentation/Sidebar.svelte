@@ -896,6 +896,7 @@
 															content={label}
 															placement="right"
 															offset={40}
+															onlyWhenTruncated
 															class="min-w-0 flex-1 truncate"
 														>
 															<span class="min-w-0 flex-1 truncate">

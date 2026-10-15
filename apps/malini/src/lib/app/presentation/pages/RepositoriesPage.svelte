@@ -442,7 +442,12 @@
 								>
 									<RepositoryAvatar fullName={repo.fullName} size={28} />
 									<div class="min-w-0 flex-1">
-										<Tooltip content={repo.fullName} placement="top" class="min-w-0">
+										<Tooltip
+											content={repo.fullName}
+											placement="top"
+											onlyWhenTruncated
+											class="min-w-0"
+										>
 											<span class="text-fg-default block truncate text-sm font-medium">
 												{repo.fullName}
 											</span>
@@ -528,7 +533,12 @@
 											<RepositoryAvatar fullName={repo.fullName} size={28} />
 										</span>
 										<div class="min-w-0 flex-1">
-											<Tooltip content={repo.fullName} placement="top" class="min-w-0">
+											<Tooltip
+												content={repo.fullName}
+												placement="top"
+												onlyWhenTruncated
+												class="min-w-0"
+											>
 												<span class="text-fg-secondary block truncate text-sm font-medium">
 													{repo.fullName}
 												</span>

@@ -16,6 +16,7 @@ export interface TooltipRequest {
 	source?: HTMLElement | undefined;
 	placement: TooltipPlacement;
 	offset?: number | undefined;
+	onlyWhenTruncated?: boolean | undefined;
 }
 
 const OPEN_DELAY = 420;
@@ -189,6 +190,23 @@ function hasContent(request: TooltipRequest): boolean {
 	return Boolean(request.text || request.source);
 }
 
+function shows(node: HTMLElement, request: TooltipRequest): boolean {
+	return hasContent(request) && (!request.onlyWhenTruncated || truncated(node));
+}
+
+function truncated(node: HTMLElement): boolean {
+	return [node, ...node.querySelectorAll('*')].some(clipsContent);
+}
+
+function clipsContent(element: Element): boolean {
+	const hiddenWidth = element.scrollWidth - element.clientWidth;
+	const hiddenHeight = element.scrollHeight - element.clientHeight;
+	if (hiddenWidth <= 0 && hiddenHeight <= 0) return false;
+	const style = getComputedStyle(element);
+	if (style.overflow === 'visible') return false;
+	return hiddenWidth > 0 || hiddenHeight > parseFloat(style.fontSize) / 2;
+}
+
 function within(value: number, low: number, high: number): number {
 	return Math.min(Math.max(value, low), Math.max(low, high));
 }
@@ -290,7 +308,7 @@ function commit(snap: boolean): void {
 }
 
 function showTooltip(next: HTMLElement, request: TooltipRequest, immediate = false): void {
-	if (!hasContent(request) || isExclusiveOverlayActive(next)) return;
+	if (!shows(next, request) || isExclusiveOverlayActive(next)) return;
 	ensure();
 	placement = request.placement;
 	gap = request.offset ?? ANCHOR_GAP;
@@ -352,7 +370,7 @@ function hideTooltip(from: HTMLElement, immediate = false): void {
 
 function refresh(node: HTMLElement, request: TooltipRequest | null): void {
 	if (anchor !== node) return;
-	if (!request || !hasContent(request)) {
+	if (!request || !shows(node, request)) {
 		hideTooltip(node, true);
 		return;
 	}

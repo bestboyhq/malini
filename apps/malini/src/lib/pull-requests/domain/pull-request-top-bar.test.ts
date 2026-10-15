@@ -733,12 +733,9 @@ describe('the workstream status', () => {
 	it('offers Continue beside Archive once the pull request merged', () => {
 		const shown = status(null, open({ state: 'merged' }));
 		expect([shown?.secondaryAction, shown?.action]).toMatchObject([
-			{ kind: 'continue', label: 'Continue', tooltip: 'Keep working on top of the latest main' },
+			{ kind: 'continue', label: 'Continue' },
 			{ kind: 'archive', label: 'Archive' },
 		]);
-		expect(status(null, open({ state: 'merged' }, { dirtyPaths: ['a.ts'] }))?.action?.tooltip).toBe(
-			'Archive this workstream. Work made after the merge is kept as a saved ref',
-		);
 		expect(status(null, open({ state: 'merged', headSha: null }))?.secondaryAction).toBeUndefined();
 	});
 
@@ -759,11 +756,15 @@ describe('the workstream status', () => {
 			label: '2 files changed',
 			tooltip: 'Nothing merged: offline',
 			action: { kind: 'queue-merge' },
-			secondaryAction: { kind: 'open-draft', tooltip: 'Open a draft pull request' },
+			secondaryAction: { kind: 'open-draft' },
 		});
 	});
 
-	it('says why the last attempt failed while malini retries it', () => {
+	it('says why the last attempt failed while malini retries it, and stays quiet otherwise', () => {
+		expect(
+			status(ship({ step: 'opening-draft', pullRequestNumber: null }), null)?.tooltip,
+		).toBeNull();
+		expect(status(ship({ phase: 'queued', step: 'merging' }), null)?.tooltip).toBeNull();
 		expect(
 			status(
 				ship({
@@ -775,32 +776,30 @@ describe('the workstream status', () => {
 			),
 		).toMatchObject({
 			detail: 'Retrying after an error',
-			tooltip: "Opening the draft failed and malini retries it: Couldn't reach github.com.",
+			tooltip: "Couldn't reach github.com.",
 		});
 		expect(
 			status(ship({ phase: 'queued', step: 'merging', lastError: 'GitHub answered 502' }), null)
 				?.tooltip,
-		).toBe(
-			'Malini is merging the pull request. The last attempt failed and malini retries it: GitHub answered 502',
+		).toBe('GitHub answered 502');
+		expect(status(ship({ step: 'pushing', lastError: 'push rejected' }), open())?.tooltip).toBe(
+			'push rejected',
 		);
-		expect(
-			status(ship({ step: 'pushing', lastError: 'push rejected' }), open())?.action?.tooltip,
-		).toBe('Push failed, retrying: push rejected');
 		expect(
 			status(
 				ship({ pullRequestNumber: null, pullRequestUrl: null, lastError: 'push rejected' }),
 				surface(),
-			)?.secondaryAction?.tooltip,
-		).toBe('Opening the draft failed: push rejected');
+			)?.tooltip,
+		).toBe('push rejected');
 	});
 
-	it('keeps the full reason GitHub gave for not starting CI in the tooltip', () => {
+	it('shows the reason GitHub gave for not starting CI', () => {
 		expect(
 			status(
 				null,
 				open({ checks: 'failed', checkItems: [{ ...failing, notStartedReason: 'billing' }] }),
-			)?.tooltip,
-		).toBe("GitHub didn't start CI: billing");
+			),
+		).toMatchObject({ label: "CI didn't start", detail: 'Billing', tooltip: null });
 	});
 
 	it('ships a merge whose conflicts are resolved', () => {

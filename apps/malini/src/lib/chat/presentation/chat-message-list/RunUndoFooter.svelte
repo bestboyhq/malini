@@ -103,7 +103,7 @@
 					{runUndo.error}
 				</span>
 			{/if}
-			<Tooltip content={blocked ? OPEN_RUN_BLOCKS_RESTORE : warning} placement="top">
+			<Tooltip content={OPEN_RUN_BLOCKS_RESTORE} placement="top" suppressed={!blocked}>
 				<Button
 					bare
 					class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
@@ -127,12 +127,7 @@
 				{forkFailed}
 			</span>
 		{/if}
-		<Tooltip
-			content={forkBlocked
-				? 'Finish the open run before forking'
-				: 'Start a new chat with this transcript attached'}
-			placement="top"
-		>
+		<Tooltip content="Finish the open run before forking" placement="top" suppressed={!forkBlocked}>
 			<Button
 				bare
 				class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
