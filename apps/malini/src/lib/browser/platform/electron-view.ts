@@ -1,9 +1,10 @@
 import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
 import type { PageEvents, PageView } from './page';
-import { isAllowedUrl } from './url';
+import { isAllowedNavigation } from './url';
 
 export const BROWSER_PARTITION = 'persist:malini-browser';
 const MAX_FAVICON_BYTES = 64 * 1024;
+const ERR_ABORTED = -3;
 
 export function createElectronView(events: PageEvents): PageView<BrowserWindow> {
 	denyPermissions();
@@ -20,13 +21,17 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	});
 	const contents = view.webContents;
 	contents.on('will-navigate', (event) => {
-		if (!isAllowedUrl(event.url)) event.preventDefault();
+		if (!isAllowedNavigation(contents.getURL(), event.url)) event.preventDefault();
 	});
 	contents.on('will-redirect', (event) => {
-		if (event.isMainFrame && !isAllowedUrl(event.url)) event.preventDefault();
+		if (event.isMainFrame && !isAllowedNavigation(contents.getURL(), event.url)) {
+			event.preventDefault();
+		}
 	});
 	contents.setWindowOpenHandler(({ url }) => {
-		if (isAllowedUrl(url)) void contents.loadURL(url).catch(() => undefined);
+		if (isAllowedNavigation(contents.getURL(), url)) {
+			void contents.loadURL(url).catch(() => undefined);
+		}
 		return { action: 'deny' };
 	});
 	contents.on('did-start-loading', () => events.changed());
@@ -38,6 +43,9 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	contents.on('page-title-updated', () => events.changed());
 	contents.on('did-start-navigation', (details) => {
 		if (details.isMainFrame && !details.isSameDocument) events.navigating();
+	});
+	contents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+		if (isMainFrame && code !== ERR_ABORTED) events.failed(description);
 	});
 	let pageVisit = 0;
 	contents.on('did-navigate', () => {

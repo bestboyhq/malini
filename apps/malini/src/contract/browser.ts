@@ -1,5 +1,7 @@
 import type { AgentElementReference } from './agent';
 
+export const BROWSER_WORKTREE_SCHEME = 'malini-worktree';
+
 export type BrowserBounds = Readonly<{ x: number; y: number; width: number; height: number }>;
 
 export type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;

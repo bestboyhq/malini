@@ -1,13 +1,13 @@
-# 0012 - Setup suggests skill presets with a built-in job
+# 0013 - Setup suggests skill presets with a built-in job
 
 Status: accepted
 
 ## Context
 
-ADR 0011 lets the user group skills into presets, and setup asked them to drag every skill in by hand.
+ADR 0012 lets the user group skills into presets, and setup asked them to drag every skill in by hand.
 With 40-odd skills that is a lot of dragging before the first chat.
 The user asked setup to suggest presets from the skills they already have, with a short Haiku call through the Claude Code they just signed in to.
-ADR 0010 makes every piece of agent work malini starts on its own a built-in job, so the prompt cannot live in the bridge.
+ADR 0011 makes every piece of agent work malini starts on its own a built-in job, so the prompt cannot live in the bridge.
 
 ## Decision
 

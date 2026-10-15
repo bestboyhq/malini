@@ -45,6 +45,7 @@ export interface PageEvents {
 	changed(): void;
 	favicon(favicon: string | null): void;
 	navigating(): void;
+	failed(reason: string): void;
 	gone(): void;
 }
 
