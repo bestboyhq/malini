@@ -5,9 +5,9 @@
 <h1 align="center">malini</h1>
 
 <p align="center">
-  <b>Run a team of coding agents. Merge what they ship.</b><br>
+  <b>You had one job. Now you can have hundreds.</b><br>
   Every task gets its own git worktree and its own Claude Code, side by side in one window.<br>
-  A free and open source agentic development environment for the Mac.
+  Free and open source, for the Mac.
 </p>
 
 <p align="center">
@@ -32,13 +32,17 @@
 
 ---
 
-One coding agent is fast.
-Five at once is a mess.
-They share one checkout and trip over each other's changes, commit half-finished work, and leave you babysitting terminals, branches, and red pull requests.
-malini gives every task its own workstream: a git worktree on its own branch, its own Claude Code, and as many chats as you need.
-Start as many workstreams as you like and keep each one moving with a prompt queue.
-malini commits, pushes, opens the pull request, fixes the checks, and merges it.
-You stay on the work that needs you.
+If Cursor, Codex, Conductor, and Claude Code had a baby, it would probably look a lot like malini.
+We use and admire all four, and malini borrows openly from each of them.
+From Cursor, an app built around working with an agent rather than next to one.
+From Codex, handing off a task and coming back to a finished change.
+From Conductor, giving every agent a workspace of its own.
+And from Claude Code, the agent itself: malini runs your own `claude`, signed in with your own account.
+
+malini puts those ideas together in one window on your Mac.
+Every task gets a workstream: a git worktree on its own branch, its own Claude Code, and as many chats as you need.
+Start one, or start a hundred, and keep each of them moving with a prompt queue.
+When the work is ready, malini commits it, opens the pull request, and helps it get merged, so you can spend your time on the parts that need you.
 
 ## Why malini
 
@@ -52,9 +56,9 @@ You stay on the work that needs you.
   Your code goes to Anthropic through your Claude Code and to GitHub through your `gh`, and nowhere else.
 - **Free and open source.** No subscription, no seat, no telemetry you can't turn off.
 
-### The usual agent-tool bugs, designed out
+### Made for many agents at once
 
-| The usual bug                                                            | How malini rules it out                                                                                                                          |
+| The problem                                                              | What malini does                                                                                                                                 |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Two agents edit one checkout and clobber each other                      | Every workstream is its own **git worktree** on `malini/<id>`, branched from a private clone of the repository.                                  |
 | An agent commits half-done work or opens a pull request you never wanted | The agent bridge **refuses commit, push, rebase, reset, and `gh pr create`**. malini owns the history.                                           |
