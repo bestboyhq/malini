@@ -41,9 +41,9 @@ describe('choosing skills', () => {
 		]);
 		expect(skillShortName('ponytail:ponytail-review')).toBe('ponytail-review');
 		expect([formatTokens(728), formatTokens(7440), formatTokens(12_400)]).toEqual([
-			'728 tokens',
-			'7.4k tokens',
-			'12k tokens',
+			'728 tok.',
+			'7.4k tok.',
+			'12k tok.',
 		]);
 	});
 });

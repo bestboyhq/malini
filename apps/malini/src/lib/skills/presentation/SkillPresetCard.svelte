@@ -49,7 +49,7 @@
 	let deleteArmed = $state(false);
 	let nameInput: HTMLInputElement | null = $state(null);
 
-	const known = $derived(new Set(skills.map(({ name }) => name)));
+	const skillTokensByName = $derived(new Map(skills.map(({ name, tokens }) => [name, tokens])));
 	const tokens = $derived(skillTokens(skills, preset.skills));
 	const alreadyHere = $derived(dragging !== null && preset.skills.includes(dragging));
 	const headingId = $props.id();
@@ -146,8 +146,7 @@
 			{/if}
 		{/if}
 		<span class="text-fg-tertiary text-2xs ml-auto shrink-0 tabular-nums">
-			{preset.skills.length}
-			{preset.skills.length === 1 ? 'skill' : 'skills'} · {formatTokens(tokens)}
+			{formatTokens(tokens)}
 		</span>
 		<IconButton
 			bind:element={menuTrigger}
@@ -169,13 +168,18 @@
 			<li
 				class={[
 					'bg-chip border-chip-border flex h-7 items-center gap-1 rounded-lg border-[0.5px] pr-0.5 pl-2',
-					!known.has(skill) && 'opacity-50',
+					!skillTokensByName.has(skill) && 'opacity-50',
 				]}
 				animate:flip={{ duration: 180, easing: cubicOut }}
 				in:scale={{ start: 0.85, duration: 180, easing: cubicOut }}
 				data-testid="skill-preset-skill"
 			>
 				<span class="text-fg-default max-w-40 truncate text-xs">{skillShortName(skill)}</span>
+				{#if skillTokensByName.has(skill)}
+					<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
+						{skillTokensByName.get(skill)}
+					</span>
+				{/if}
 				<IconButton
 					variant="ghost"
 					size="xs"

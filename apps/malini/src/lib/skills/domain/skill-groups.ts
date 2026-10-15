@@ -64,6 +64,6 @@ export function skillTokens(
 }
 
 export function formatTokens(tokens: number): string {
-	if (tokens < 1_000) return `${tokens} tokens`;
-	return `${(tokens / 1_000).toFixed(tokens < 10_000 ? 1 : 0)}k tokens`;
+	if (tokens < 1_000) return `${tokens} tok.`;
+	return `${(tokens / 1_000).toFixed(tokens < 10_000 ? 1 : 0)}k tok.`;
 }

@@ -16,14 +16,17 @@
 
 	const blank = $derived(suggestion.skills.length === 0);
 	const tokens = $derived(skillTokens(skills, suggestion.skills));
+	const skillTokensByName = $derived(new Map(skills.map(({ name, tokens }) => [name, tokens])));
 	const headingId = $props.id();
 </script>
 
 <section
 	class={[
-		'flex flex-col gap-2 rounded-xl border-[0.5px] border-dashed px-3 pt-2.5 pb-3',
+		'group/suggestion relative flex flex-col gap-2 rounded-xl border-[0.5px] border-dashed px-3 pt-2.5 pb-3',
 		'transition-[border-color,scale] duration-150 ease-out motion-reduce:transition-none',
 		blank && 'h-[88px] justify-center',
+		!blank &&
+			'hover:bg-surface-root-hover has-[:focus-visible]:ring-border-default has-[:focus-visible]:ring-2',
 		over ? 'border-primary bg-surface-root-selected scale-[1.01]' : 'border-border-default',
 	]}
 	aria-labelledby={headingId}
@@ -45,20 +48,15 @@
 		</h4>
 		{#if !blank}
 			<span class="text-fg-tertiary text-2xs ml-auto shrink-0 tabular-nums">
-				{suggestion.skills.length} skills · {formatTokens(tokens)}
+				{formatTokens(tokens)}
 			</span>
-			<Button
-				variant="secondary"
-				size="sm"
-				radius="full"
-				ariaLabel={`Add the ${suggestion.name} preset`}
-				onclick={onadd}
-			>
-				{#snippet leading()}
-					<Icon name="plus" size={12} />
-				{/snippet}
-				Add
-			</Button>
+			<span class="-mr-1 grid size-7 shrink-0 place-items-center" aria-hidden="true">
+				<Icon
+					name="plus"
+					size={14}
+					class="text-fg-secondary opacity-0 transition-opacity group-hover/suggestion:opacity-100 group-has-[:focus-visible]/suggestion:opacity-100"
+				/>
+			</span>
 		{/if}
 	</header>
 	{#if blank}
@@ -67,11 +65,22 @@
 		<ul class="flex flex-wrap gap-1" aria-label={`Skills suggested for ${suggestion.name}`}>
 			{#each suggestion.skills as skill (skill)}
 				<li
-					class="border-border-default text-fg-tertiary flex h-6 items-center rounded-md border-[0.5px] px-2 text-xs"
+					class="border-border-default text-fg-tertiary flex h-6 items-center gap-1 rounded-md border-[0.5px] px-2 text-xs"
 				>
 					<span class="max-w-40 truncate">{skillShortName(skill)}</span>
+					{#if skillTokensByName.has(skill)}
+						<span class="text-3xs font-mono tabular-nums opacity-70">
+							{skillTokensByName.get(skill)}
+						</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>
+		<Button
+			bare
+			class="absolute inset-0 cursor-pointer rounded-xl outline-0"
+			ariaLabel={`Add the ${suggestion.name} preset`}
+			onclick={onadd}
+		/>
 	{/if}
 </section>
