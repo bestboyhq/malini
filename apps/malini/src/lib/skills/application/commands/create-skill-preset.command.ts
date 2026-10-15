@@ -5,15 +5,14 @@ import { skillBoardStore } from '$lib/skills/infrastructure/stores/skill-board.s
 
 export { createSkillPresetCommand };
 
-function createSkillPresetCommand(
-	name: string,
-	skills: readonly string[] = [],
-	rename = false,
-): void {
+type PresetDraft = Readonly<{ name: string; skills: readonly string[]; emoji?: string | null }>;
+
+function createSkillPresetCommand(draft: PresetDraft, rename = false): void {
+	const { name } = draft;
 	const first = skillPresetsAggregate.presets.length === 0;
 	void (async () => {
 		try {
-			const created = await skillsService.savePreset({ name, skills });
+			const created = await skillsService.savePreset(draft);
 			skillPresetsAggregate.upsert(created);
 			if (rename) skillBoardStore.renamingPresetId = created.id;
 			if (first) skillPresetsAggregate.replaceAll(await skillsService.setDefaultPreset(created.id));

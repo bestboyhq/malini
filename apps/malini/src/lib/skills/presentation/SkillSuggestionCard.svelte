@@ -32,6 +32,14 @@
 	data-preset={suggestion.name}
 >
 	<header class="flex min-h-7 items-center gap-2">
+		{#if suggestion.emoji}
+			<span
+				class="grid size-7 shrink-0 place-items-center text-base leading-none"
+				aria-hidden="true"
+			>
+				{suggestion.emoji}
+			</span>
+		{/if}
 		<h4 id={headingId} class="text-fg-secondary min-w-0 truncate text-sm font-medium">
 			{suggestion.name}
 		</h4>

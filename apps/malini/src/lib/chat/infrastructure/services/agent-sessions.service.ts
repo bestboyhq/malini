@@ -43,6 +43,10 @@ class AgentSessionsService {
 		});
 	}
 
+	stopBackgroundTask(sessionId: SessionId, taskId: string): Promise<void> {
+		return invoke('chat.stop-background-task', { sessionId, taskId });
+	}
+
 	resetWorkstreamRuns(workstreamId: string): Promise<number> {
 		return invoke('chat.reset-workstream-runs', { workstreamId });
 	}

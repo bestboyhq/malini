@@ -11,20 +11,26 @@ const SKILLS = [
 ];
 
 describe('cleanPresetSuggestions', () => {
-	it('keeps known skills, resolves a plugin skill by its short name, and trims names', () => {
+	it('keeps known skills, resolves a plugin skill by its short name, trims names, and keeps one emoji', () => {
 		expect(
 			cleanPresetSuggestions(
 				{
 					presets: [
-						{ name: ' Motion  designer ', skills: ['animate', 'css-animations', 'animate'] },
-						{ name: 'Builder', skills: ['ponytail', 'adr', 'made-up'] },
+						{
+							name: ' Motion  designer ',
+							emoji: '🎬',
+							skills: ['animate', 'css-animations', 'animate'],
+						},
+						{ name: 'Builder', emoji: 'hammer 🛠️', skills: ['ponytail', 'adr', 'made-up'] },
+						{ name: 'Writer', emoji: 'pen', skills: ['humanizer', 'landing-arch'] },
 					],
 				},
 				SKILLS,
 			),
 		).toEqual([
-			{ name: 'Motion designer', skills: ['animate', 'css-animations'] },
-			{ name: 'Builder', skills: ['ponytail:ponytail', 'adr'] },
+			{ name: 'Motion designer', emoji: '🎬', skills: ['animate', 'css-animations'] },
+			{ name: 'Builder', emoji: '🛠️', skills: ['ponytail:ponytail', 'adr'] },
+			{ name: 'Writer', skills: ['humanizer', 'landing-arch'] },
 		]);
 	});
 

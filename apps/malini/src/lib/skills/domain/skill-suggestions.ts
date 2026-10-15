@@ -6,8 +6,8 @@ export type SkillSuggestions = Readonly<{
 }>;
 
 const BLANK_SUGGESTIONS: readonly SkillPresetSuggestion[] = [
-	{ name: 'Builder', skills: [] },
-	{ name: 'Marketer', skills: [] },
+	{ name: 'Builder', emoji: '🛠️', skills: [] },
+	{ name: 'Marketer', emoji: '📣', skills: [] },
 ];
 
 export function offeredSuggestions(

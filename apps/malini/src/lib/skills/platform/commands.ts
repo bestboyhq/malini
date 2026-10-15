@@ -17,6 +17,7 @@ import {
 	listProjects,
 } from '$shared/repositories/repositories.platform';
 import { isSkillChoice, isSkillNameList } from '../domain/skill-choice';
+import { isPresetEmoji } from '../domain/skill-preset-emoji';
 import { getSkillChoice, setSkillChoice } from './skill-choices.repository';
 import {
 	deleteSkillPreset,
@@ -72,11 +73,13 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 		const id = optionalString(args, 'id');
 		const name = presetName(args);
 		const skills = presetSkills(args);
+		const emoji = presetEmoji(args);
 		const now = nowIso8601();
 		if (id === null) {
 			const created: SkillPresetRecord = {
 				id: randomUUID(),
 				name,
+				emoji: emoji ?? null,
 				skills,
 				isDefault: false,
 				createdAt: now,
@@ -85,7 +88,14 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 			insertSkillPreset(db, created);
 			return created;
 		}
-		const saved: SkillPresetRecord = { ...requirePreset(db, id), name, skills, updatedAt: now };
+		const existing = requirePreset(db, id);
+		const saved: SkillPresetRecord = {
+			...existing,
+			name,
+			emoji: emoji === undefined ? existing.emoji : emoji,
+			skills,
+			updatedAt: now,
+		};
 		updateSkillPreset(db, saved);
 		return saved;
 	});
@@ -154,6 +164,13 @@ function presetName(args: unknown): string {
 		throw invalid(`\`name\` must be 1 to ${SKILL_PRESET_NAME_MAX_LENGTH} characters`);
 	}
 	return name;
+}
+
+function presetEmoji(args: unknown): string | null | undefined {
+	const emoji = field(args, 'emoji');
+	if (emoji === undefined || emoji === null) return emoji;
+	if (!isPresetEmoji(emoji)) throw invalid('`emoji` must be a single emoji or null');
+	return emoji;
 }
 
 function presetSkills(args: unknown): string[] {

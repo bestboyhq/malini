@@ -1312,6 +1312,8 @@ DROP TABLE job_definitions;
 ALTER TABLE job_definitions_v45 RENAME TO job_definitions;
 `;
 
+export const MIGRATION_0045_SKILL_PRESET_EMOJI = `ALTER TABLE skill_presets ADD COLUMN emoji TEXT;`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1506,7 +1508,10 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 					MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
 				);
 			}
-			if (existing < 45) db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
+			if (existing < 45) {
+				db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
+				addColumnIfMissing(db, 'skill_presets', 'emoji', MIGRATION_0045_SKILL_PRESET_EMOJI);
+			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,

@@ -1,21 +1,22 @@
-# 0011 - Setup suggests skill presets with a built-in job
+# 0012 - Setup suggests skill presets with a built-in job
 
 Status: accepted
 
 ## Context
 
-ADR 0010 lets the user group skills into presets, and setup asked them to drag every skill in by hand.
+ADR 0011 lets the user group skills into presets, and setup asked them to drag every skill in by hand.
 With 40-odd skills that is a lot of dragging before the first chat.
 The user asked setup to suggest presets from the skills they already have, with a short Haiku call through the Claude Code they just signed in to.
-ADR 0009 makes every piece of agent work malini starts on its own a built-in job, so the prompt cannot live in the bridge.
+ADR 0010 makes every piece of agent work malini starts on its own a built-in job, so the prompt cannot live in the bridge.
 
 ## Decision
 
 - A fifth built-in job, `suggest-presets` ("Suggest skill presets", Haiku, low effort), holds the instructions in `BUILTIN_JOBS`; migration 45 adds its key to the `job_definitions.builtin` check.
 - Like `name-chats`, it only runs on its own: `isAutomaticJobBuiltin` in `src/contract/jobs.ts` keeps both out of `jobs.run`, the job picker, routine steps and the merge queue.
-- `skills.suggest-presets` lists skills from the same folders as `skills.list`, then sends their names and descriptions with the job's instructions and model in the bridge's `suggest_presets` command (bridge protocol v23).
+- `skills.suggest-presets` lists skills from the same folders as `skills.list`, then sends their names and descriptions with the job's instructions and model in the bridge's `suggest_presets` command (bridge protocol v24).
 - The bridge runs one tool-less `query()` with `outputFormat: { type: 'json_schema' }` and answers with a `bridge.presets` frame.
-  `cleanPresetSuggestions` keeps only skill names it was sent (a plugin skill may come back by its short name), drops presets with fewer than two skills, and keeps at most five.
+  `cleanPresetSuggestions` keeps only skill names it was sent (a plugin skill may come back by its short name), drops presets with fewer than two skills, keeps at most five, and keeps each preset's emoji when it is a single emoji.
+- A preset carries an optional emoji (`skill_presets.emoji`, also migration 45), which the user picks from a short grid or types, and which marks the preset in the composer, the job editor and each skill's row.
 - Setup starts the call when it opens, so suggestions are usually ready by the skills step.
   Each shows as a dashed card listing its skills, added with one click or by dropping a skill on it.
   When Claude Code cannot answer, setup offers blank Builder and Marketer cards as before.

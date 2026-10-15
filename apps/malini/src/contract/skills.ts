@@ -10,6 +10,7 @@ export type SkillRecord = Readonly<{
 export type SkillPresetRecord = Readonly<{
 	id: string;
 	name: string;
+	emoji: string | null;
 	skills: readonly string[];
 	isDefault: boolean;
 	createdAt: string;
@@ -18,6 +19,7 @@ export type SkillPresetRecord = Readonly<{
 
 export type SkillPresetSuggestion = Readonly<{
 	name: string;
+	emoji: string | null;
 	skills: readonly string[];
 }>;
 
@@ -32,6 +34,7 @@ export type ListSkillsArgs = Readonly<{ workstreamId?: string }>;
 export type SaveSkillPresetArgs = Readonly<{
 	id?: string;
 	name: string;
+	emoji?: string | null;
 	skills: readonly string[];
 }>;
 

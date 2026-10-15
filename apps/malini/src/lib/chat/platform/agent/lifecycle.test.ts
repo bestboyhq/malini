@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { listEventRowsForSession } from '../events.repository';
+import { appendEvent, listEventRowsForSession } from '../events.repository';
 import { getInteraction, recordPendingInteraction } from '../interactions.repository';
 import { get, run, scalar } from '$main/db/rows';
 import { getRun } from '../runs.repository';
@@ -104,6 +104,25 @@ describe('leases', () => {
 		);
 		overlapping.release();
 		expect(leases.acquireRun(test.db, 'ws-1', 'sess-2').workstreamId).toBe('ws-1');
+	});
+
+	it('lets a prompt take over a run that only waits on background work, and nothing else', () => {
+		seedRunning();
+		const task = { taskId: 'b1', kind: 'command', description: 'e2e', startedAt: 1 };
+		appendEvent(test.db, 'sess-1', 'run-1', 'background.updated', {
+			waiting: false,
+			tasks: [task],
+		});
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow('already has an active run');
+
+		appendEvent(test.db, 'sess-1', 'run-1', 'background.updated', { waiting: true, tasks: [task] });
+		const takeover = leases.acquireRun(test.db, 'ws-1', 'sess-1');
+		expect(takeover.handsOff).toBe(true);
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow('already has an active run');
+		takeover.release();
+
+		appendEvent(test.db, 'sess-1', 'run-1', 'background.updated', { waiting: false, tasks: [] });
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow('already has an active run');
 	});
 
 	it('refuses teardown of a workstream with a persisted open run without leaking its fence', () => {

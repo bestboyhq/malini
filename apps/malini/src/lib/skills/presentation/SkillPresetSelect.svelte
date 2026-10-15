@@ -19,7 +19,7 @@
 		{ value: INHERIT, label: 'Same as the workstream' },
 		...presets.map((preset) => ({
 			value: preset.id,
-			label: `${preset.name} · ${preset.skills.length} ${preset.skills.length === 1 ? 'skill' : 'skills'}`,
+			label: `${preset.emoji ? `${preset.emoji} ` : ''}${preset.name} · ${preset.skills.length} ${preset.skills.length === 1 ? 'skill' : 'skills'}`,
 		})),
 	]);
 	const known = $derived(value !== null && presets.some(({ id }) => id === value));

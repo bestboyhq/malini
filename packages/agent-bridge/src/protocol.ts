@@ -23,6 +23,7 @@ export type AgentCommand =
 	| AnswerQuestionCommand
 	| RefreshCapabilitiesCommand
 	| RefreshMcpStatusCommand
+	| StopTaskCommand
 	| SuggestTitleCommand
 	| ListSkillsCommand
 	| SuggestPresetsCommand
@@ -111,6 +112,14 @@ export interface RefreshMcpStatusCommand {
 	readonly id: string;
 	readonly sessionId: string;
 	readonly runId: string;
+}
+
+export interface StopTaskCommand {
+	readonly cmd: 'stop_task';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly runId: string;
+	readonly taskId: string;
 }
 
 export interface SuggestTitleCommand {
@@ -215,6 +224,7 @@ export interface AgentSkillSummary {
 
 export interface AgentPresetSuggestion {
 	readonly name: string;
+	readonly emoji?: string;
 	readonly skills: readonly string[];
 }
 
@@ -438,6 +448,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateRefreshCapabilities(obj);
 		case 'refresh_mcp_status':
 			return validateRefreshMcpStatus(obj);
+		case 'stop_task':
+			return validateStopTask(obj);
 		case 'suggest_title':
 			return validateSuggestTitle(obj);
 		case 'list_skills':
@@ -801,6 +813,22 @@ function validateRefreshMcpStatus(obj: Record<string, unknown>): ParseResult {
 		ok: true,
 		command: { cmd: 'refresh_mcp_status', id: id.value, sessionId, runId },
 	};
+}
+
+function validateStopTask(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'stop_task');
+	if (!id.ok) return id;
+	const { sessionId, runId, taskId } = obj;
+	if (typeof sessionId !== 'string' || sessionId.length === 0) {
+		return err('INVALID_PAYLOAD', 'stop_task: sessionId required (non-empty string)', obj);
+	}
+	if (typeof runId !== 'string' || runId.length === 0) {
+		return err('INVALID_PAYLOAD', 'stop_task: runId required (non-empty string)', obj);
+	}
+	if (typeof taskId !== 'string' || taskId.length === 0) {
+		return err('INVALID_PAYLOAD', 'stop_task: taskId required (non-empty string)', obj);
+	}
+	return { ok: true, command: { cmd: 'stop_task', id: id.value, sessionId, runId, taskId } };
 }
 
 function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {

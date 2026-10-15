@@ -12,11 +12,6 @@ function setRepositoryHiddenCommand(repository: Repository, hidden: boolean): vo
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error);
 			toast.error(retirementFailureToast(hidden ? 'hide' : 'unhide', repository.fullName, reason));
-			return;
 		}
-		if (!hidden) return;
-		toast.success(`Hid ${repository.fullName}`, {
-			action: { label: 'Undo', onclick: () => setRepositoryHiddenCommand(repository, false) },
-		});
 	})();
 }

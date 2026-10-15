@@ -11,7 +11,7 @@
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { ensureSkillSuggestionsCommand } from '$lib/skills/application/commands/ensure-skill-suggestions.command';
 	import { skillCatalogTotalsQuery } from '$lib/skills/application/queries/skill-catalog-totals.query.svelte';
-	import { BuiltinJobsIntro } from '$lib/jobs/jobs.api';
+	import { JobsIntro } from '$lib/jobs/jobs.api';
 	import { SkillPresetBoard } from '$lib/skills/skills.api';
 	import { ClaudeCodeSetup } from '$shared/providers/providers.api';
 	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
@@ -124,7 +124,7 @@
 							Your first preset becomes the default for new chats. Switch a chat's preset from its composer.
 						</p>
 					{:else if onboarding.step === 'jobs'}
-						<BuiltinJobsIntro />
+						<JobsIntro />
 					{:else}
 						<OnboardingRepositoryStep />
 					{/if}

@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
 	import { JOBS_HREF, NEW_JOB_HREF, jobHref } from '$shared/router/routes-hrefs';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { builtinJobDefinitionsQuery } from '$lib/jobs/application/queries/builtin-job-definitions.query.svelte';
+	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { jobWhen } from './job-definition-copy';
 
-	const builtins = $derived(builtinJobDefinitionsQuery.data);
+	const definitions = $derived([
+		...builtinJobDefinitionsQuery.data,
+		...customJobDefinitionsQuery.data,
+	]);
 
 	onMount(() => {
 		loadJobsCommand();
@@ -16,20 +21,21 @@
 	});
 </script>
 
-<div data-testid="builtin-jobs-intro">
-	<ul class="flex flex-col gap-px" aria-label="Built-in jobs">
-		{#each builtins as definition (definition.id)}
+<div data-testid="jobs-intro">
+	<ul class="flex flex-col gap-px" aria-label="Jobs">
+		{#each definitions as definition (definition.id)}
 			<li>
 				<a
 					href={jobHref(definition.id)}
 					class="sidebar-row text-fg-secondary -mx-2 gap-3 px-2"
-					data-testid="builtin-jobs-intro-job"
+					data-testid="jobs-intro-job"
 				>
 					<Icon name="checklist" size={14} class="text-fg-tertiary shrink-0" />
 					<span class="text-fg-default shrink-0 text-xs font-medium">{definition.name}</span>
-					<span class="text-fg-tertiary min-w-0 flex-1 truncate text-right text-xs">
+					<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
 						{jobWhen(definition)}
 					</span>
+					<Badge class="shrink-0">{definition.builtin === null ? 'Custom' : 'Built-in'}</Badge>
 				</a>
 			</li>
 		{/each}

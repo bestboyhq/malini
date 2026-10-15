@@ -23,7 +23,7 @@ let context: MainContext;
 let folders: string[];
 const listSkills = vi.fn(async (cwd: string): Promise<SkillRecord[]> => skillsOf(cwd));
 const suggestPresets = vi.fn(async (skills: readonly SkillRecord[]) => [
-	{ name: 'Builder', skills: skills.map(({ name }) => name) },
+	{ name: 'Builder', emoji: '🛠️', skills: skills.map(({ name }) => name) },
 ]);
 
 beforeEach(() => {
@@ -85,6 +85,22 @@ describe('skill presets', () => {
 
 		await context.commands.call('skills.set-default-preset', { presetId: null });
 		expect((await presets()).some(({ isDefault }) => isDefault)).toBe(false);
+	});
+
+	it('keeps a preset emoji through a rename, clears it with null, and refuses anything but one emoji', async () => {
+		const builder = await savePreset({ name: 'Builder', emoji: '🛠️', skills: ['adr'] });
+		expect(builder.emoji).toBe('🛠️');
+
+		const renamed = await savePreset({ id: builder.id, name: 'Frontend', skills: ['adr'] });
+		expect(renamed).toMatchObject({ name: 'Frontend', emoji: '🛠️' });
+
+		const cleared = await savePreset({ id: builder.id, name: 'Frontend', emoji: null, skills: [] });
+		expect(cleared.emoji).toBeNull();
+
+		await expect(savePreset({ name: 'Writer', emoji: 'W', skills: [] })).rejects.toThrow(/emoji/u);
+		await expect(savePreset({ name: 'Writer', emoji: '✍️✍️', skills: [] })).rejects.toThrow(
+			/emoji/u,
+		);
 	});
 
 	it('refuses a nameless preset, a list that is not skill names, and an unknown preset', async () => {
@@ -198,7 +214,7 @@ describe('listing skills', () => {
 
 	it('asks Claude to suggest presets for every skill it sees, and skips the call without skills', async () => {
 		expect(await context.commands.call('skills.suggest-presets', undefined)).toEqual([
-			{ name: 'Builder', skills: skillsOf(homedir()).map(({ name }) => name) },
+			{ name: 'Builder', emoji: '🛠️', skills: skillsOf(homedir()).map(({ name }) => name) },
 		]);
 
 		listSkills.mockResolvedValueOnce([]);
@@ -215,7 +231,12 @@ function skillsOf(cwd: string): SkillRecord[] {
 	];
 }
 
-async function savePreset(args: { id?: string; name: string; skills: string[] }) {
+async function savePreset(args: {
+	id?: string;
+	name: string;
+	emoji?: string | null;
+	skills: string[];
+}) {
 	return context.commands.call('skills.save-preset', args);
 }
 

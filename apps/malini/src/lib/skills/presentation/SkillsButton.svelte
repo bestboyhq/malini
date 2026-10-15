@@ -49,6 +49,8 @@
 			: new Set(resolved.skills),
 	);
 	const label = $derived(choiceLabel(choice));
+	const emoji = $derived(choice.kind === 'custom' ? null : (resolved.preset?.emoji ?? null));
+	const marked = $derived(presets.some((preset) => preset.emoji !== null));
 	const count = $derived(
 		resolved.skills === 'all' && catalog.state !== 'ready' ? null : active.size,
 	);
@@ -109,7 +111,13 @@
 		data-testid="chat-skills"
 		onclick={toggleOpen}
 	>
-		<Icon name="puzzle" size={15} />
+		{#if emoji}
+			<span class="grid size-[15px] place-items-center text-[13px] leading-none" aria-hidden="true">
+				{emoji}
+			</span>
+		{:else}
+			<Icon name="puzzle" size={15} />
+		{/if}
 		<span class="max-w-28 truncate @max-md/composer:hidden">{label}</span>
 		{#if count !== null}
 			<span class="tabular-nums">{count}</span>
@@ -162,6 +170,11 @@
 					onclick={() => choose({ kind: 'preset', presetId: preset.id })}
 				>
 					<span class="flex min-w-0 items-center gap-1.5">
+						{#if marked}
+							<span class="w-4 shrink-0 text-center leading-none" aria-hidden="true">
+								{preset.emoji ?? ''}
+							</span>
+						{/if}
 						<span class="truncate">{preset.name}</span>
 						{#if preset.isDefault}
 							<span class="text-fg-tertiary text-2xs shrink-0">Default</span>

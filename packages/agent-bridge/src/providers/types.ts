@@ -30,6 +30,7 @@ export interface ProviderHandle {
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
 	respondToQuestion?(reply: ProviderQuestionReply): Promise<void>;
 	refreshMcpStatus?(runId: string): Promise<void>;
+	stopTask?(runId: string, taskId: string): Promise<void>;
 	close(): Promise<void>;
 }
 

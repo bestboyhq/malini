@@ -15,6 +15,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { formatTokens, skillShortName, skillTokens } from '$lib/skills/domain/skill-groups';
+	import SkillPresetEmojiPicker from './SkillPresetEmojiPicker.svelte';
 
 	interface Props {
 		preset: SkillPresetRecord;
@@ -26,6 +27,7 @@
 		onrename: (name: string) => void;
 		onstartrename: () => void;
 		onmakedefault: () => void;
+		onemoji: (emoji: string | null) => void;
 		ondelete: () => void;
 	}
 
@@ -39,6 +41,7 @@
 		onrename,
 		onstartrename,
 		onmakedefault,
+		onemoji,
 		ondelete,
 	}: Props = $props();
 	let menuTrigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
@@ -108,6 +111,7 @@
 	data-preset={preset.name}
 >
 	<header class="flex h-7 items-center gap-2">
+		<SkillPresetEmojiPicker {preset} onpick={onemoji} />
 		{#if renaming}
 			<TextInput
 				bind:element={nameInput}

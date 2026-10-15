@@ -153,7 +153,7 @@ const handle = (command) => {
     case 'suggest_presets': {
       if (env.FAKE_BRIDGE_SKIP_PRESETS_FRAME) return ack(command.id);
       write({ type: 'bridge.presets', protocolVersion: version, id: command.id, presets: [
-        { name: 'Builder', skills: command.skills.map((skill) => skill.name) },
+        { name: 'Builder', emoji: '🛠️', skills: command.skills.map((skill) => skill.name) },
       ] });
       return ack(command.id);
     }

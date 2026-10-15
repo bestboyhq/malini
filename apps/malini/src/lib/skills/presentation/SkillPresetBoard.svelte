@@ -26,6 +26,7 @@
 	import { loadSkillPresetsCommand } from '$lib/skills/application/commands/load-skill-presets.command';
 	import { removeSkillFromPresetCommand } from '$lib/skills/application/commands/remove-skill-from-preset.command';
 	import { renameSkillPresetCommand } from '$lib/skills/application/commands/rename-skill-preset.command';
+	import { setSkillPresetEmojiCommand } from '$lib/skills/application/commands/set-skill-preset-emoji.command';
 	import { setDefaultSkillPresetCommand } from '$lib/skills/application/commands/set-default-skill-preset.command';
 	import { startRenamingSkillPresetCommand } from '$lib/skills/application/commands/start-renaming-skill-preset.command';
 	import { renamingSkillPresetQuery } from '$lib/skills/application/queries/renaming-skill-preset.query.svelte';
@@ -75,13 +76,17 @@
 
 	function onDrop(skill: string, target: string): void {
 		if (target === NEW_PRESET) {
-			createSkillPresetCommand(nextPresetName(), [skill], true);
+			createSkillPresetCommand({ name: nextPresetName(), skills: [skill] }, true);
 			return;
 		}
 		if (target.startsWith(SUGGESTED)) {
 			const name = target.slice(SUGGESTED.length);
 			const suggestion = suggested.find((candidate) => candidate.name === name);
-			createSkillPresetCommand(name, [...(suggestion?.skills ?? []), skill]);
+			createSkillPresetCommand({
+				name,
+				emoji: suggestion?.emoji ?? null,
+				skills: [...(suggestion?.skills ?? []), skill],
+			});
 			return;
 		}
 		addSkillToPresetCommand(target, skill);
@@ -181,7 +186,11 @@
 										onpress={(event, row) => drag.press(event, skill.name, row)}
 										consumeClick={() => drag.consumeClick()}
 										ontoggle={(preset) => onToggle(preset, skill.name)}
-										oncreate={() => createSkillPresetCommand(nextPresetName(), [skill.name], true)}
+										oncreate={() =>
+											createSkillPresetCommand(
+												{ name: nextPresetName(), skills: [skill.name] },
+												true,
+											)}
 									/>
 								</li>
 							{/each}
@@ -199,7 +208,7 @@
 				variant="ghost"
 				size="sm"
 				class="text-fg-secondary ml-auto"
-				onclick={() => createSkillPresetCommand(nextPresetName(), [], true)}
+				onclick={() => createSkillPresetCommand({ name: nextPresetName(), skills: [] }, true)}
 			>
 				{#snippet leading()}
 					<Icon name="plus" size={14} />
@@ -224,6 +233,7 @@
 						onrename={(name) => renameSkillPresetCommand(preset.id, name)}
 						onstartrename={() => startRenamingSkillPresetCommand(preset.id)}
 						onmakedefault={() => setDefaultSkillPresetCommand(preset.id)}
+						onemoji={(emoji) => setSkillPresetEmojiCommand(preset.id, emoji)}
 						ondelete={() => deleteSkillPresetCommand(preset.id)}
 					/>
 				</div>
@@ -251,7 +261,7 @@
 					skills={catalog.skills}
 					dropTarget={`${SUGGESTED}${suggestion.name}`}
 					over={drag.target === `${SUGGESTED}${suggestion.name}`}
-					onadd={() => createSkillPresetCommand(suggestion.name, suggestion.skills)}
+					onadd={() => createSkillPresetCommand(suggestion)}
 				/>
 			{/each}
 			<div

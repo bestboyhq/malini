@@ -5,6 +5,7 @@
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Icon } from '$hyper-ui/icons';
 	import { skillPlugin, skillShortName } from '$lib/skills/domain/skill-groups';
+	import { presetMark } from '$lib/skills/domain/skill-preset-emoji';
 
 	interface Props {
 		skill: SkillRecord;
@@ -85,11 +86,15 @@
 	{#if memberOf.length > 0}
 		<span class="flex shrink-0 items-center gap-0.5" aria-hidden="true">
 			{#each memberOf.slice(0, 3) as preset (preset.id)}
-				<span
-					class="bg-chip border-chip-border text-fg-secondary text-3xs grid size-4 place-items-center rounded-[5px] border-[0.5px] font-medium uppercase"
-				>
-					{preset.name.slice(0, 1)}
-				</span>
+				{#if preset.emoji}
+					<span class="grid size-4 place-items-center text-xs leading-none">{preset.emoji}</span>
+				{:else}
+					<span
+						class="bg-chip border-chip-border text-fg-secondary text-3xs grid size-4 place-items-center rounded-[5px] border-[0.5px] font-medium"
+					>
+						{presetMark(preset)}
+					</span>
+				{/if}
 			{/each}
 		</span>
 	{/if}

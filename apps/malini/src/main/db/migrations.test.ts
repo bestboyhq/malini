@@ -1394,7 +1394,7 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('v45 accepts the Suggest skill presets job and keeps every job with its preset', () => {
+	it('v45 accepts the Suggest skill presets job, keeps every job with its preset, and gives presets an emoji', () => {
 		const db = v38JobsDatabase(42);
 		db.exec(MIGRATION_0043_NAME_CHATS_JOB);
 		db.exec(MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET);
@@ -1420,6 +1420,14 @@ describe('migrate', () => {
 		).toEqual([
 			{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' },
 			{ id: 'jd-presets', builtin: 'suggest-presets', skill_preset_id: null },
+		]);
+		run(
+			db,
+			`INSERT INTO skill_presets (id, name, skills, emoji, created_at, updated_at)
+			 VALUES ('builder', 'Builder', '[]', '🛠️', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z')`,
+		);
+		expect(all(db, 'SELECT id, emoji FROM skill_presets')).toEqual([
+			{ id: 'builder', emoji: '🛠️' },
 		]);
 		expect(foreignKeyErrors(db)).toBe(0);
 		db.close();

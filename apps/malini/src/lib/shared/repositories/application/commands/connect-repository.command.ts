@@ -1,4 +1,3 @@
-import { toast } from '$hyper-ui/components/toast';
 import {
 	isDuplicateRepositoryError,
 	type RepositoryImportSource,
@@ -11,7 +10,6 @@ import {
 import type { Project, Repository } from '$shared/repositories/domain/repository';
 import {
 	repositoryConnectFailure,
-	repositoryConnectFailureLine,
 	repositoryConnectionFor,
 	repositoryMatchesImportSource,
 } from '$shared/repositories/domain/repository-connection';
@@ -46,7 +44,6 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 		} catch (caught) {
 			const failure = repositoryConnectFailure(caught, 'Failed to connect repository', source);
 			repositoryConnectionStore.error = failure;
-			toast.error(`Could not connect repository · ${repositoryConnectFailureLine(failure)}`);
 		} finally {
 			repositoryConnectionStore.connecting = null;
 		}

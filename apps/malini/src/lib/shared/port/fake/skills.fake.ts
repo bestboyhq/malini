@@ -27,8 +27,8 @@ export function installSkillsFake(bridge: FakeBridge): void {
 	bridge.define('skills.list-presets', async () => [...presets.values()]);
 
 	bridge.define('skills.suggest-presets', async () => [
-		{ name: 'Builder', skills: ['adr', 'ponytail:ponytail', 'dataviz'] },
-		{ name: 'Writer', skills: ['humanizer', 'animate'] },
+		{ name: 'Builder', emoji: '🛠️', skills: ['adr', 'ponytail:ponytail', 'dataviz'] },
+		{ name: 'Writer', emoji: '✍️', skills: ['humanizer', 'animate'] },
 	]);
 
 	bridge.define('skills.save-preset', async (input) => {
@@ -36,6 +36,7 @@ export function installSkillsFake(bridge: FakeBridge): void {
 		const preset: SkillPresetRecord = {
 			id: existing?.id ?? `fake-preset-${nextPreset++}`,
 			name: input.name.trim(),
+			emoji: input.emoji === undefined ? (existing?.emoji ?? null) : input.emoji,
 			skills: [...new Set(input.skills)],
 			isDefault: existing?.isDefault ?? false,
 			createdAt: existing?.createdAt ?? FAKE_SKILL_TIME,

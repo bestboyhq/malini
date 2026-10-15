@@ -140,6 +140,7 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 	});
 
 	bridge.define('chat.refresh-mcp-status', async () => {});
+	bridge.define('chat.stop-background-task', async () => {});
 
 	bridge.define('chat.start-session', async (input) => {
 		if (state.agentSessionBootstrapFailures > 0) {

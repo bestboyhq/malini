@@ -9,6 +9,9 @@ const PRESETS_TIMEOUT_MS = 45_000;
 const MAX_PRESETS = 5;
 const MIN_PRESET_SKILLS = 2;
 const MAX_PRESET_NAME_CHARACTERS = 40;
+const MAX_EMOJI_LENGTH = 32;
+const GRAPHEMES = new Intl.Segmenter('en', { granularity: 'grapheme' });
+const PICTOGRAPH = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
 
 const PRESETS_SCHEMA = {
 	type: 'object',
@@ -19,9 +22,10 @@ const PRESETS_SCHEMA = {
 				type: 'object',
 				properties: {
 					name: { type: 'string' },
+					emoji: { type: 'string' },
 					skills: { type: 'array', items: { type: 'string' } },
 				},
-				required: ['name', 'skills'],
+				required: ['name', 'emoji', 'skills'],
 			},
 		},
 	},
@@ -111,7 +115,8 @@ export function cleanPresetSuggestions(
 		];
 		if (skills.length < MIN_PRESET_SKILLS) continue;
 		taken.add(key);
-		presets.push({ name, skills });
+		const emoji = typeof preset.emoji === 'string' ? firstEmoji(preset.emoji) : null;
+		presets.push({ name, ...(emoji === null ? {} : { emoji }), skills });
 	}
 	return presets.slice(0, MAX_PRESETS);
 }
@@ -128,6 +133,13 @@ function skillResolver(skillNames: readonly string[]): (reply: string) => string
 		if (exact.has(name)) return name;
 		return byShortName.get(shortName(name)) ?? null;
 	};
+}
+
+function firstEmoji(text: string): string | null {
+	for (const { segment } of GRAPHEMES.segment(text)) {
+		if (PICTOGRAPH.test(segment) && segment.length <= MAX_EMOJI_LENGTH) return segment;
+	}
+	return null;
 }
 
 function shortName(name: string): string {

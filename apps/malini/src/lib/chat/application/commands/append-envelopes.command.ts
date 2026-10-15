@@ -8,6 +8,7 @@ import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcr
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { planUsageStore } from '$lib/chat/infrastructure/stores/plan-usage.store.svelte';
+import { streamingStore } from '$lib/chat/infrastructure/stores/streaming.store.svelte';
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
 
 export { appendEnvelopesCommand };
@@ -40,6 +41,9 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 			chatSessionStore.setDispatchPending(envelope.sessionId, false);
 		}
 		if (envelope.event.type === 'run.started') observeRunStartCommand(envelope.runId);
+		if (envelope.event.type === 'background.updated') {
+			streamingStore.clearLiveBackground(envelope.sessionId);
+		}
 		pendingPromptStore.clearOnEnvelope(envelope);
 		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {
 			const workstreamId = ownerOf(envelope.sessionId);

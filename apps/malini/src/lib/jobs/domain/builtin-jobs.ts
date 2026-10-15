@@ -57,7 +57,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			'',
 			'Rules:',
 			'- Suggest 3 to 5 presets, each for a broad role a person switches between, like Builder, Marketer, Designer or Game designer. Never a narrow topic.',
-			'- Name each preset for the role, in one or two words, sentence case.',
+			'- Name each preset for the role, in one or two words, sentence case, and give it one emoji that fits the role.',
 			'- Keep skills about one topic together in the same preset.',
 			'- Place most skills. Leave out only skills that fit no role.',
 			'- A preset holds at least 2 skills. A skill may sit in more than one preset.',

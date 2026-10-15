@@ -32,6 +32,7 @@ test('setup offers presets Claude suggests, groups skills by dragging, and walks
 			/landing-arch/u,
 		]);
 		await expect(writer.getByTestId('skill-preset-default')).toBeVisible();
+		await expect(writer.getByRole('button', { name: 'Emoji for Writer' })).toHaveText('✍️');
 
 		await dragSkill(page, 'animate', page.getByTestId('skill-preset-suggestion'));
 		const builder = preset(page, 'Builder');
@@ -48,10 +49,31 @@ test('setup offers presets Claude suggests, groups skills by dragging, and walks
 		await page.getByRole('textbox', { name: 'Preset name' }).fill('Analyst');
 		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
 		await expect(preset(page, 'Analyst')).toContainText('dataviz');
+		const analystEmoji = page.getByRole('button', { name: 'Emoji for Analyst' });
+		await expect(analystEmoji).toHaveText('A');
+		await analystEmoji.click();
+		await page
+			.getByRole('dialog', { name: 'Emoji for Analyst' })
+			.getByRole('button', { name: '📊' })
+			.click();
+		await expect(analystEmoji).toHaveText('📊');
+		await expect(page.getByRole('button', { name: 'dataviz. Add to a preset' })).toContainText(
+			'📊',
+		);
+
+		await builder.getByRole('button', { name: 'Emoji for Builder' }).click();
+		await page
+			.getByRole('dialog', { name: 'Emoji for Builder' })
+			.getByRole('textbox', { name: 'Type any emoji' })
+			.fill('unicorn 🦄');
+		await expect(builder.getByRole('button', { name: 'Emoji for Builder' })).toHaveText('🦄');
 		await captureFlow(app, 'skills-setup-presets');
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await expect(setup.getByRole('link', { name: /^Suggest skill presets/u })).toContainText(
+			'Built-in',
+		);
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Skip for now' }).click();

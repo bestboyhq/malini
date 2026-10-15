@@ -143,7 +143,7 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		] as const;
 		const supervisor = await spawn();
 		expect(await supervisor.suggestPresets(skills, PRESET_JOB)).toEqual([
-			{ name: 'Builder', skills: ['adr', 'run'] },
+			{ name: 'Builder', emoji: '🛠️', skills: ['adr', 'run'] },
 		]);
 
 		const silent = await spawn({ FAKE_BRIDGE_SKIP_PRESETS_FRAME: '1' });

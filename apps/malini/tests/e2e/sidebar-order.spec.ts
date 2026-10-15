@@ -69,12 +69,23 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		await expect.poll(() => listedRepositories(page)).toEqual([bottom, top]);
 		repositories = [bottom, top];
 
+		const grabbed = await workstreamRow(page, 'e2e-order-a2').boundingBox();
+		if (!grabbed) throw new Error('expected the workstream row on screen');
+		await page.mouse.move(grabbed.x + 40, grabbed.y + grabbed.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(grabbed.x + 40, grabbed.y - 40, { steps: 8 });
+		await page.keyboard.press('Escape');
+		await page.mouse.up();
+		await expect
+			.poll(() => listedWorkstreams(page))
+			.toEqual(['e2e-order-a1', 'e2e-order-a2', 'e2e-order-b1']);
+		await expect(page).not.toHaveURL(/e2e-order-a2/u);
+
 		await repositoryHeader(page, top).hover();
 		await sidebar(page)
 			.getByRole('button', { name: `Collapse ${top}` })
 			.click();
 		await expect(workstreamRow(page, 'e2e-order-b1')).toBeHidden();
-		await expect(sidebar(page).getByTestId('sidebar-drop-indicator')).toHaveCount(0);
 		expectCleanConsole(first);
 		await first.quit();
 	} catch (error) {

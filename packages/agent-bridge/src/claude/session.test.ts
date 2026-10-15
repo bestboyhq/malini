@@ -556,6 +556,159 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[0]?.closed).toBe(true);
 	});
 
+	it('keeps the run open while a background command runs, through the turn Claude Code starts when it ends', async () => {
+		const { session, claude, events } = harness([recordedScript('backgroundCommand')]);
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		expect(ofType(events, 'run.failed')).toEqual([]);
+		const waiting = events.findIndex(
+			(event) => event.type === 'background.updated' && event.waiting,
+		);
+		const settled = events.findIndex(
+			(event) => event.type === 'background.updated' && event.tasks.length === 0,
+		);
+		const runDone = events.findIndex((event) => event.type === 'run.completed');
+		expect(waiting).toBeGreaterThan(
+			events.findIndex((event) => event.type === 'assistant.message'),
+		);
+		expect(settled).toBeGreaterThan(waiting);
+		expect(runDone).toBeGreaterThan(settled);
+		expect(ofType(events, 'run.completed')).toEqual([
+			expect.objectContaining({ runId: 'run-1', summary: 'bg-done' }),
+		]);
+		expect(claude.runs[0]?.closed).toBe(true);
+	});
+
+	it('stops one background task on request and ends the run once nothing is left', async () => {
+		const script = recordedScript('stoppedBackgroundCommand');
+		const firstIdle = script.findIndex(
+			(step) =>
+				typeof step !== 'string' &&
+				'type' in step &&
+				step.type === 'system' &&
+				step.subtype === 'session_state_changed' &&
+				step.state === 'idle',
+		);
+		const { session, claude, events } = harness(
+			[[...script.slice(0, firstIdle + 1), 'wait-for-stop-task', ...script.slice(firstIdle + 1)]],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'background.updated' && event.waiting) {
+						const [task] = event.tasks;
+						if (task) void current.stopTask('run-1', task.taskId);
+					}
+				},
+			},
+		);
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		expect(claude.runs[0]?.stoppedTasks).toEqual(['b6od5yi4e']);
+		expect(ofType(events, 'background.updated').at(-1)?.tasks).toEqual([]);
+		expect(events.at(-1)).toEqual(
+			expect.objectContaining({ type: 'run.completed', runId: 'run-1', summary: 'launched' }),
+		);
+	});
+
+	it('hands the open conversation and its background command to a prompt sent while the run waits', async () => {
+		const script = recordedScript('backgroundCommand');
+		const firstIdle = script.findIndex(
+			(step) =>
+				typeof step !== 'string' &&
+				'type' in step &&
+				step.type === 'system' &&
+				step.subtype === 'session_state_changed' &&
+				step.state === 'idle',
+		);
+		let followUp: Promise<void> | null = null;
+		const { session, claude, events } = harness(
+			[[...script.slice(0, firstIdle + 1), 'wait-for-prompt', ...script.slice(firstIdle + 1)]],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'background.updated' && event.waiting && !followUp) {
+						followUp = current.sendPrompt('Anything else?', 'run-2', {
+							...profile(),
+							effort: 'low',
+						});
+					}
+				},
+			},
+		);
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+		await followUp;
+
+		expect(claude.runs).toHaveLength(1);
+		expect(claude.runs[0]?.followUps).toEqual(['Anything else?']);
+		expect(claude.runs[0]?.efforts).toEqual(['low']);
+		const handOff = events
+			.filter(
+				(event) =>
+					event.type === 'run.started' ||
+					event.type === 'run.completed' ||
+					event.type === 'background.updated',
+			)
+			.map((event) =>
+				event.type === 'background.updated'
+					? `${event.runId} tasks:${event.tasks.length}`
+					: `${event.type} ${event.runId}`,
+			);
+		expect(
+			handOff.slice(handOff.indexOf('run-1 tasks:0'), handOff.indexOf('run-2 tasks:1') + 1),
+		).toEqual(['run-1 tasks:0', 'run.completed run-1', 'run.started run-2', 'run-2 tasks:1']);
+		expect(handOff.at(-1)).toBe('run.completed run-2');
+		expect(
+			ofType(events, 'run.completed').map(({ summary, handedOff }) => [summary, handedOff]),
+		).toEqual([
+			['launched', true],
+			['bg-done', undefined],
+		]);
+		const handedOver = ofType(events, 'background.updated').filter(
+			({ runId, tasks }) => runId === 'run-2' && tasks.length > 0,
+		);
+		expect(handedOver[0]?.tasks.map(({ taskId }) => taskId)).toEqual(['biv864hkk']);
+		expect(
+			ofType(events, 'background.updated')
+				.filter(({ runId }) => runId === 'run-1')
+				.at(-1),
+		).toMatchObject({ tasks: [] });
+	});
+
+	it('keeps a prompt that changes the access level out of a run waiting on background work', async () => {
+		const script = recordedScript('backgroundCommand');
+		let refused: Promise<void> | null = null;
+		const { session } = harness([script], {
+			onEvent: (event, current) => {
+				if (event.type === 'background.updated' && event.waiting && !refused) {
+					refused = current.sendPrompt('Go', 'run-2', profile('agent', 'full'));
+					refused.catch(() => undefined);
+				}
+			},
+		});
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		await expect(refused).rejects.toThrow('RUN_ACTIVE: run-1 is still running');
+	});
+
+	it('keeps a prompt with other skills out of a run waiting on background work', async () => {
+		const script = recordedScript('backgroundCommand');
+		let refused: Promise<void> | null = null;
+		const { session } = harness([script], {
+			onEvent: (event, current) => {
+				if (event.type === 'background.updated' && event.waiting && !refused) {
+					refused = current.sendPrompt('Go', 'run-2', profile(), undefined, undefined, ['adr']);
+					refused.catch(() => undefined);
+				}
+			},
+		});
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		await expect(refused).rejects.toThrow('RUN_ACTIVE: run-1 is still running');
+	});
+
 	it('stops a background agent with the run when the user cancels while it runs', async () => {
 		const script = recordedScript('backgroundAgent');
 		const firstResult = script.findIndex(

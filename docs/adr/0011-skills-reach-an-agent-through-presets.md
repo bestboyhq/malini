@@ -1,4 +1,4 @@
-# 0010 - Skills reach an agent through presets
+# 0011 - Skills reach an agent through presets
 
 Status: accepted
 

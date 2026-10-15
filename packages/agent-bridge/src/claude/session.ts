@@ -28,10 +28,12 @@ import {
 	rememberedPermissions,
 	sandboxFor,
 } from './permissions.js';
+import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicMetrics } from './usage.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
+const BACKGROUND_OUTPUT_POLL_MS = 2_000;
 const PLAN_HANDOFF_MESSAGE =
 	'malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
@@ -50,6 +52,8 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 		| 'mcpServerStatus'
 		| 'initializationResult'
 		| 'close'
+		| 'stopTask'
+		| 'applyFlagSettings'
 		| 'usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET'
 	> & {
 		getContextUsage(opts: { detail: 'summary' }): Promise<ClaudeContextUsage>;
@@ -73,8 +77,14 @@ interface RunSettings {
 }
 
 interface ActiveRun {
-	readonly runId: string;
+	runId: string;
+	promptId: UUID;
+	profile: AgentRunProfile | undefined;
+	readonly skills: readonly string[] | undefined;
+	results: SDKResultMessage[];
+	costBefore: number;
 	readonly query: ClaudeQuery;
+	readonly turns: UserTurns;
 	readonly abort: AbortController;
 	readonly finished: Promise<void>;
 	readonly transcript: ClaudeTranscript;
@@ -117,7 +127,14 @@ export class ClaudeSession implements ProviderHandle {
 		freshConversation?: boolean,
 		skills?: readonly string[],
 	): Promise<void> {
-		if (this.#active) throw new Error(`RUN_ACTIVE: ${this.#active.runId} is still running`);
+		const active = this.#active;
+		if (active) {
+			if (!canHandOff(active, { profile, skills }, resumeAt, freshConversation)) {
+				throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
+			}
+			await this.#handOff(active, prompt, runId, profile);
+			return;
+		}
 		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });
 		const executable = this.#executable;
 		if (!executable) {
@@ -156,13 +173,21 @@ export class ClaudeSession implements ProviderHandle {
 		let settle!: () => void;
 		const finished = new Promise<void>((resolve) => (settle = resolve));
 		const promptId = randomUUID();
+		const turns = userTurns(finished);
+		turns.push(userTurn(this.#promptWithSeed(prompt), promptId));
 		const query = this.#query({
-			prompt: openUserTurn(this.#promptWithSeed(prompt), promptId, finished),
-			options: this.#options(executable, runId, run, resumeAt, abort),
+			prompt: turns.messages,
+			options: this.#options(executable, run, resumeAt, abort),
 		});
 		const active: ActiveRun = {
 			runId,
+			promptId,
+			profile: run.profile,
+			skills: run.skills,
+			results: [],
+			costBefore: 0,
 			query,
+			turns,
 			abort,
 			finished,
 			transcript,
@@ -170,23 +195,29 @@ export class ClaudeSession implements ProviderHandle {
 			metrics: null,
 		};
 		this.#active = active;
+		const outputPoll = setInterval(
+			() => void this.#readBackgroundOutput(transcript),
+			BACKGROUND_OUTPUT_POLL_MS,
+		).unref();
 		try {
-			const results = await this.#consume(active, promptId);
-			if (resumed && !this.#initialized && !active.cancelled && results[0]?.is_error) {
+			await this.#consume(active);
+			if (resumed && !this.#initialized && !active.cancelled && active.results[0]?.is_error) {
 				return 'transcript-missing';
 			}
 			this.#seedHistory = undefined;
-			this.#finish(runId, active, transcript, results);
+			transcript.endBackgroundWork();
+			this.#finish(active);
 		} catch (error) {
-			transcript.stopBackgroundAgents();
+			transcript.endBackgroundWork();
 			this.#emit({
 				type: 'run.failed',
-				runId,
+				runId: active.runId,
 				error: active.cancelled ? 'cancelled' : describe(error),
 				...cursor(transcript),
 			});
 		} finally {
-			this.#interactions.cancelRun(runId);
+			clearInterval(outputPoll);
+			this.#interactions.cancelRun(active.runId);
 			query.close();
 			this.#active = null;
 			settle();
@@ -194,23 +225,50 @@ export class ClaudeSession implements ProviderHandle {
 		return 'done';
 	}
 
-	async #consume(active: ActiveRun, promptId: string): Promise<SDKResultMessage[]> {
-		const results: SDKResultMessage[] = [];
+	async #consume(active: ActiveRun): Promise<void> {
 		let reportsSessionState = false;
 		for await (const message of active.query) {
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
 			active.transcript.accept(message);
 			if (message.type === 'system' && message.subtype === 'session_state_changed') {
 				reportsSessionState = true;
-				if (results.length > 0 && message.state === 'idle') return results;
+				const settled = message.state === 'idle' && !active.transcript.hasBackgroundTasks;
+				if (active.results.length > 0 && settled) return;
 			}
 			if (message.type !== 'result') continue;
-			if (results.length === 0 && !answersPrompt(message, promptId)) continue;
-			results.push(message);
+			if (active.results.length === 0 && !answersPrompt(message, active.promptId)) continue;
+			active.results.push(message);
 			if (!active.cancelled) active.metrics = await anthropicMetrics(active.query, new Date());
-			if (!reportsSessionState || active.cancelled) return results;
+			if (!reportsSessionState || active.cancelled) return;
 		}
-		return results;
+	}
+
+	async #handOff(
+		active: ActiveRun,
+		prompt: string,
+		runId: string,
+		profile: AgentRunProfile | undefined,
+	): Promise<void> {
+		active.transcript.releaseBackgroundWork();
+		this.#finish(active, true);
+		this.#interactions.cancelRun(active.runId);
+		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });
+		active.costBefore = active.results.at(-1)?.total_cost_usd ?? active.costBefore;
+		active.runId = runId;
+		active.promptId = randomUUID();
+		active.results = [];
+		active.metrics = null;
+		active.transcript.handOff(runId);
+		await this.#applyEffort(active, profile);
+		active.turns.push(userTurn(prompt, active.promptId));
+		await active.finished;
+	}
+
+	async #applyEffort(active: ActiveRun, profile: AgentRunProfile | undefined): Promise<void> {
+		if (profile && profile.effort !== active.profile?.effort) {
+			await active.query.applyFlagSettings({ effortLevel: profile.effort });
+		}
+		active.profile = profile;
 	}
 
 	#acceptInit(message: Extract<SDKMessage, { type: 'system'; subtype: 'init' }>): void {
@@ -241,13 +299,8 @@ export class ClaudeSession implements ProviderHandle {
 		if (usage) active.transcript.recordContextWindow(usage.rawMaxTokens);
 	}
 
-	#finish(
-		runId: string,
-		active: ActiveRun,
-		transcript: ClaudeTranscript,
-		results: readonly SDKResultMessage[],
-	): void {
-		transcript.stopBackgroundAgents();
+	#finish(active: ActiveRun, handedOff = false): void {
+		const { runId, transcript, results } = active;
 		const result = results.at(-1);
 		if (result) {
 			if (!transcript.contextWindowTokens) {
@@ -266,7 +319,7 @@ export class ClaudeSession implements ProviderHandle {
 					),
 				),
 				outputTokens: sum(usages.map((usage) => usage.output_tokens)),
-				costUsd: result.total_cost_usd,
+				costUsd: result.total_cost_usd - active.costBefore,
 				...(transcript.usage ? { contextTokens: transcript.usage.contextTokens } : {}),
 				...(transcript.contextWindowTokens
 					? { contextWindowTokens: transcript.contextWindowTokens }
@@ -289,7 +342,13 @@ export class ClaudeSession implements ProviderHandle {
 			return;
 		}
 		if (result.subtype === 'success' && !result.is_error) {
-			this.#emit({ type: 'run.completed', runId, summary: result.result, ...cursor(transcript) });
+			this.#emit({
+				type: 'run.completed',
+				runId,
+				summary: result.result,
+				...cursor(transcript),
+				...(handedOff ? { handedOff } : {}),
+			});
 			return;
 		}
 		this.#emit({ type: 'run.failed', runId, error: resultError(result), ...cursor(transcript) });
@@ -297,7 +356,6 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		runId: string,
 		{ profile, skills }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
@@ -323,7 +381,7 @@ export class ClaudeSession implements ProviderHandle {
 			sandbox: sandboxFor(profile),
 			disallowedTools: disallowedTools(),
 			...maliniTools(this.#context.requestBrowser),
-			canUseTool: this.#canUseTool(runId),
+			canUseTool: this.#canUseTool(),
 			...(model && model !== 'default' ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
 			...(skills ? { skills: [...skills] } : {}),
@@ -333,8 +391,9 @@ export class ClaudeSession implements ProviderHandle {
 		};
 	}
 
-	#canUseTool(runId: string): CanUseTool {
+	#canUseTool(): CanUseTool {
 		return async (toolName, input, options): Promise<PermissionResult> => {
+			const runId = this.#active?.runId ?? '';
 			const toolCallId = options.toolUseID;
 			if (toolName === 'AskUserQuestion') {
 				const questions = claudeQuestions(input);
@@ -412,6 +471,19 @@ export class ClaudeSession implements ProviderHandle {
 		await active.finished;
 	}
 
+	async stopTask(runId: string, taskId: string): Promise<void> {
+		const active = this.#active;
+		if (!active || active.runId !== runId) return;
+		await active.query.stopTask(taskId);
+	}
+
+	async #readBackgroundOutput(transcript: ClaudeTranscript): Promise<void> {
+		for (const [taskId, file] of transcript.backgroundOutputFiles) {
+			const line = await lastOutputLine(file).catch(() => '');
+			transcript.recordBackgroundOutput(taskId, line);
+		}
+	}
+
 	async respondToApproval(reply: ProviderApprovalReply): Promise<void> {
 		this.#interactions.resolveApproval(reply);
 	}
@@ -442,18 +514,72 @@ export class ClaudeSession implements ProviderHandle {
 	}
 }
 
-async function* openUserTurn(
-	text: string,
-	promptId: UUID,
-	finished: Promise<void>,
-): AsyncIterable<SDKUserMessage> {
-	yield {
+interface UserTurns {
+	readonly messages: AsyncIterable<SDKUserMessage>;
+	push(message: SDKUserMessage): void;
+}
+
+function userTurns(finished: Promise<void>): UserTurns {
+	const pending: SDKUserMessage[] = [];
+	let arrived = signal();
+	let open = true;
+	void (async () => {
+		await finished;
+		open = false;
+		arrived.resolve();
+	})();
+	async function* messages(): AsyncIterable<SDKUserMessage> {
+		for (;;) {
+			const next = pending.shift();
+			if (next) {
+				yield next;
+				continue;
+			}
+			if (!open) return;
+			await arrived.promise;
+			arrived = signal();
+		}
+	}
+	return {
+		messages: messages(),
+		push(message) {
+			pending.push(message);
+			arrived.resolve();
+		},
+	};
+}
+
+function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+	let resolve!: () => void;
+	const promise = new Promise<void>((settle) => (resolve = settle));
+	return { promise, resolve };
+}
+
+function userTurn(text: string, promptId: UUID): SDKUserMessage {
+	return {
 		type: 'user',
 		uuid: promptId,
 		message: { role: 'user', content: text },
 		parent_tool_use_id: null,
 	};
-	await finished;
+}
+
+function canHandOff(
+	active: ActiveRun,
+	{ profile, skills }: RunSettings,
+	resumeAt: string | undefined,
+	freshConversation: boolean | undefined,
+): boolean {
+	return (
+		active.transcript.waiting &&
+		!active.cancelled &&
+		!resumeAt &&
+		!freshConversation &&
+		(profile?.access ?? 'sandboxed') === (active.profile?.access ?? 'sandboxed') &&
+		profile?.mode === active.profile?.mode &&
+		profile?.report === active.profile?.report &&
+		skills?.join('\n') === active.skills?.join('\n')
+	);
 }
 
 function answersPrompt(result: SDKResultMessage, promptId: string): boolean {

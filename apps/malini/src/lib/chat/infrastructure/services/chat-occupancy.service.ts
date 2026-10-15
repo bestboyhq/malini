@@ -1,3 +1,4 @@
+import { latestBackgroundWork, type BackgroundWork } from '$lib/chat/domain/background-work';
 import type { QueuedPrompt } from '$lib/chat/domain/queued-prompt';
 import type { SessionId } from '$lib/chat/domain/session';
 import {
@@ -10,6 +11,7 @@ import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcr
 import { readChatModelSnapshot } from '$lib/chat/infrastructure/services/model-preferences.storage';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
+import { streamingStore } from '$lib/chat/infrastructure/stores/streaming.store.svelte';
 import {
 	sameModelSelection,
 	type ModelRole,
@@ -18,11 +20,16 @@ import {
 
 class ChatOccupancyService {
 	sessionIsBusy(sessionId: SessionId): boolean {
+		if (chatSessionStore.isDispatchPending(sessionId)) return true;
 		const status = sessionsAggregate.getSession(sessionId)?.status ?? 'idle';
-		return (
-			status === 'running' ||
-			status === 'waiting_for_approval' ||
-			chatSessionStore.isDispatchPending(sessionId)
+		if (status === 'waiting_for_approval') return true;
+		return status === 'running' && !this.backgroundWork(sessionId)?.waiting;
+	}
+
+	backgroundWork(sessionId: SessionId): BackgroundWork | null {
+		return latestBackgroundWork(
+			transcriptAggregate.envelopesFor(sessionId),
+			streamingStore.liveBackgroundFor(sessionId),
 		);
 	}
 

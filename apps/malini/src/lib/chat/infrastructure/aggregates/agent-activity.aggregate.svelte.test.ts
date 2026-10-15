@@ -73,6 +73,16 @@ describe('agentAttentionDecision', () => {
 		expect(agentAttentionDecision({ ...base, queueCount: 1, event: completed })).toBeNull();
 	});
 
+	it('stays quiet when a prompt took over a run that only waited on background work', () => {
+		const handedOff = {
+			type: 'run.completed',
+			runId: 'run-1',
+			summary: 'launched',
+			handedOff: true,
+		} as const;
+		expect(agentAttentionDecision({ ...base, event: handedOff })).toBeNull();
+	});
+
 	it('surfaces failures and approvals but ignores expected cancellation noise', () => {
 		expect(
 			agentAttentionDecision({

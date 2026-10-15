@@ -7,7 +7,9 @@ export { saveSkillPresetCommand };
 
 function saveSkillPresetCommand(
 	presetId: string,
-	change: (preset: SkillPresetRecord) => Pick<SkillPresetRecord, 'name' | 'skills'>,
+	change: (
+		preset: SkillPresetRecord,
+	) => Partial<Pick<SkillPresetRecord, 'name' | 'skills' | 'emoji'>>,
 ): void {
 	const previous = skillPresetsAggregate.find(presetId);
 	if (!previous) return;
@@ -16,7 +18,12 @@ function saveSkillPresetCommand(
 	void (async () => {
 		try {
 			skillPresetsAggregate.upsert(
-				await skillsService.savePreset({ id: presetId, name: next.name, skills: next.skills }),
+				await skillsService.savePreset({
+					id: presetId,
+					name: next.name,
+					emoji: next.emoji,
+					skills: next.skills,
+				}),
 			);
 		} catch (error) {
 			skillPresetsAggregate.upsert(previous);

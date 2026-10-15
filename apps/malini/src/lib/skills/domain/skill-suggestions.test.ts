@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { SkillPresetRecord } from '$contract/skills';
 import { offeredSuggestions } from './skill-suggestions';
 
-const WRITER = { name: 'Writer', skills: ['humanizer', 'landing-arch'] };
-const BUILDER = { name: 'Builder', skills: ['adr', 'run'] };
+const WRITER = { name: 'Writer', emoji: '✍️', skills: ['humanizer', 'landing-arch'] };
+const BUILDER = { name: 'Builder', emoji: null, skills: ['adr', 'run'] };
 
 describe('offeredSuggestions', () => {
 	it('offers nothing while Claude is still suggesting', () => {
@@ -27,5 +27,13 @@ describe('offeredSuggestions', () => {
 });
 
 function preset(name: string): SkillPresetRecord {
-	return { id: name, name, skills: [], isDefault: false, createdAt: '', updatedAt: '' };
+	return {
+		id: name,
+		name,
+		emoji: null,
+		skills: [],
+		isDefault: false,
+		createdAt: '',
+		updatedAt: '',
+	};
 }

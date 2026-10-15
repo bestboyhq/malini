@@ -522,6 +522,7 @@ describe('scheduling', () => {
 		insertSkillPreset(db, {
 			id: 'marketer',
 			name: 'Marketer',
+			emoji: null,
 			skills: ['humanizer'],
 			isDefault: false,
 			createdAt: NOW,

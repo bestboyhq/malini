@@ -1,3 +1,4 @@
+import type { BackgroundWork } from '$lib/chat/domain/background-work';
 import type { RunId } from '$lib/chat/domain/run';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { EphemeralEnvelope } from '$lib/chat/domain/ephemeral-envelope';
@@ -30,6 +31,7 @@ class StreamingStore {
 	#blocksBySession: Record<SessionId, SessionBlocks> = $state({});
 	#toolInputsBySession: Record<SessionId, SessionToolInputs> = $state({});
 	#liveContextBySession: Record<SessionId, LiveContextUsage> = $state({});
+	#liveBackgroundBySession: Record<SessionId, BackgroundWork> = $state({});
 	#ingestionStats: StreamingIngestionStats = {
 		trackedEnvelopes: 0,
 		reactiveCommits: 0,
@@ -62,6 +64,7 @@ class StreamingStore {
 		const blocks = new Map<string, BlockBatch>();
 		const tools = new Map<string, ToolBatch>();
 		const liveContext = new Map<SessionId, LiveContextUsage>();
+		const liveBackground = new Map<SessionId, BackgroundWork>();
 		for (const envelope of envelopes) {
 			const sessionId = envelope.sessionId;
 			const event = envelope.event;
@@ -129,9 +132,23 @@ class StreamingStore {
 					});
 					break;
 				}
+				case 'background.updated':
+					liveBackground.set(sessionId, {
+						runId: envelope.runId,
+						waiting: event.waiting,
+						tasks: event.tasks,
+					});
+					break;
 				default:
 					break;
 			}
+		}
+
+		if (liveBackground.size > 0) {
+			this.#liveBackgroundBySession = {
+				...this.#liveBackgroundBySession,
+				...Object.fromEntries(liveBackground),
+			};
 		}
 
 		if (blocks.size > 0) {
@@ -272,6 +289,17 @@ class StreamingStore {
 		}
 	}
 
+	clearLiveBackground(sessionId: SessionId): void {
+		if (!this.#liveBackgroundBySession[sessionId]) return;
+		const next = { ...this.#liveBackgroundBySession };
+		delete next[sessionId];
+		this.#liveBackgroundBySession = next;
+	}
+
+	liveBackgroundFor(sessionId: SessionId): BackgroundWork | null {
+		return this.#liveBackgroundBySession[sessionId] ?? null;
+	}
+
 	liveContextUsageFor(sessionId: SessionId): LiveContextUsage | null {
 		return this.#liveContextBySession[sessionId] ?? null;
 	}
@@ -301,6 +329,7 @@ class StreamingStore {
 		this.#blocksBySession = {};
 		this.#toolInputsBySession = {};
 		this.#liveContextBySession = {};
+		this.#liveBackgroundBySession = {};
 		this.#ingestionStats = {
 			trackedEnvelopes: 0,
 			reactiveCommits: 0,
