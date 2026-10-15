@@ -17,6 +17,7 @@ export type { WorkstreamFilesChangedPayload };
 
 export const DEFAULT_FILES_CHANGED_DEBOUNCE_MS = 250;
 export const DEFAULT_FILES_CHANGED_MAX_WAIT_MS = 2_000;
+export const MAX_RECORDED_CHANGED_PATHS = 1_000;
 
 const GIT_DIR_HEADS: ReadonlySet<string> = new Set(['HEAD', 'ORIG_HEAD', 'MERGE_HEAD']);
 
@@ -64,6 +65,11 @@ function workstreamIdOf(payload: unknown): string | null {
 	if (typeof payload !== 'object' || payload === null) return null;
 	const value = Reflect.get(payload, 'workstreamId');
 	return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function recordChangedPath(paths: Set<string> | null, name: string | null): Set<string> | null {
+	if (paths === null || name === null || paths.size >= MAX_RECORDED_CHANGED_PATHS) return null;
+	return paths.add(name.split(sep).join('/'));
 }
 
 function firstSegment(relativePath: string): string {
@@ -129,10 +135,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		const watcher = watch(path, { recursive, persistent: false }, (_eventType, filename) => {
 			const name = fileName(filename);
 			if (!accept(name)) return;
-			if (recordsPaths) {
-				if (name === null) set.changedPaths = null;
-				else set.changedPaths?.add(name.split(sep).join('/'));
-			}
+			if (recordsPaths) set.changedPaths = recordChangedPath(set.changedPaths, name);
 			schedule(set);
 		});
 		watcher.on('error', (error) => drop(set, describe(error)));

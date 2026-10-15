@@ -183,6 +183,7 @@ export class AgentRunLeases {
 	private readonly dispatching = new Map<string, string>();
 	private readonly capturing = new Map<string, number>();
 	private readonly tearingDown = new Set<string>();
+	private readonly movingCheckouts = new Map<string, Promise<void>>();
 	private readonly cancelledDispatches = new Map<string, string>();
 
 	cancelDispatch(sessionId: string, runId: string): void {
@@ -222,6 +223,30 @@ export class AgentRunLeases {
 		return { ...lease(workstreamId, () => this.dispatching.delete(sessionId)), handsOff };
 	}
 
+	async checkoutSettled(workstreamId: string): Promise<void> {
+		while (this.movingCheckouts.has(workstreamId)) await this.movingCheckouts.get(workstreamId);
+	}
+
+	acquireCheckoutMove(db: MaliniDatabase, workstreamId: string): Lease {
+		if (this.tearingDown.has(workstreamId)) {
+			throw new LifecycleError('workstream_teardown_pending', workstreamId);
+		}
+		if (this.isBusy(workstreamId) || activeRunRows(db, workstreamId).length > 0) {
+			throw new LifecycleError('already_running', workstreamId);
+		}
+		let settle = (): void => {};
+		this.movingCheckouts.set(
+			workstreamId,
+			new Promise<void>((resolve) => {
+				settle = resolve;
+			}),
+		);
+		return lease(workstreamId, () => {
+			this.movingCheckouts.delete(workstreamId);
+			settle();
+		});
+	}
+
 	acquireRunChangeCapture(workstreamId: string): Lease {
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
@@ -258,7 +283,9 @@ export class AgentRunLeases {
 
 	private isBusy(workstreamId: string): boolean {
 		return (
-			this.capturing.has(workstreamId) || [...this.dispatching.values()].includes(workstreamId)
+			this.capturing.has(workstreamId) ||
+			this.movingCheckouts.has(workstreamId) ||
+			[...this.dispatching.values()].includes(workstreamId)
 		);
 	}
 }

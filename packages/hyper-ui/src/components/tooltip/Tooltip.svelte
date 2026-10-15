@@ -8,6 +8,7 @@
 		placement?: TooltipPlacement;
 		offset?: number;
 		suppressed?: boolean;
+		onlyWhenTruncated?: boolean;
 		class?: ClassValue;
 		children: Snippet;
 	}
@@ -17,6 +18,7 @@
 		placement = 'bottom',
 		offset,
 		suppressed = false,
+		onlyWhenTruncated = false,
 		class: className,
 		children,
 	}: Props = $props();
@@ -30,7 +32,7 @@
 {/if}
 <span
 	class={['flex', className]}
-	use:tooltip={suppressed ? null : { text, source, placement, offset }}
+	use:tooltip={suppressed ? null : { text, source, placement, offset, onlyWhenTruncated }}
 >
 	{@render children()}
 </span>

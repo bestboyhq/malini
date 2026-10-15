@@ -43,22 +43,6 @@ const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'waiting-for-review': 'Waiting for review',
 };
 
-const STEP_DESCRIPTIONS: Readonly<Record<ShipStep, string>> = {
-	'waiting-for-agent': 'Malini waits for the agent to finish, then ships its work',
-	'opening-draft': 'Malini is opening the pull request',
-	pushing: 'Malini is pushing the latest work',
-	'marking-ready': 'Malini is marking the pull request ready for review',
-	'updating-branch': 'Malini is bringing the branch up to date with its base',
-	'updating-from-main': 'Malini is updating the branch from main and resolving any conflicts',
-	'fixing-checks': 'An agent is fixing the failing checks',
-	'addressing-review': 'An agent is addressing the bot review comments',
-	'waiting-for-checks': 'Malini waits for the checks to finish on GitHub',
-	'waiting-for-review': 'Malini waits for a required approval on GitHub',
-	'waiting-for-github': 'Malini waits for GitHub to report whether the branch merges',
-	merging: 'Malini is merging the pull request',
-	archiving: 'The pull request merged. Malini is archiving the workstream',
-};
-
 const REASON_LABELS: Readonly<
 	Record<Exclude<ShipNeedsYouReason, 'operation-in-progress'>, string>
 > = {
@@ -80,10 +64,6 @@ const REASON_DESCRIPTIONS: Readonly<Record<ShipNeedsYouReason, string>> = {
 
 export function shipStepDetail(step: ShipStep): string | null {
 	return STEP_DETAILS[step] ?? null;
-}
-
-export function shipStepDescription(step: ShipStep): string {
-	return STEP_DESCRIPTIONS[step];
 }
 
 export function needsYouReasonLabel(

@@ -23,7 +23,6 @@ function queueStatus(onQueue: () => void, onCancel: () => void): GlobalTopBarGit
 		action: {
 			label: 'Merge',
 			ariaLabel: 'Merge pull request #42',
-			tooltip: 'Merge once GitHub allows',
 			tone: 'primary',
 			icon: 'pr-merged',
 			disabled: false,
@@ -121,7 +120,6 @@ describe('the top bar Cancel of a queued merge', () => {
 			action: {
 				label: 'Cancel',
 				ariaLabel: 'Cancel the queued merge',
-				tooltip: 'Stops the merge queue',
 				tone: 'secondary',
 				icon: 'close',
 				confirmLabel: 'Confirm cancel',

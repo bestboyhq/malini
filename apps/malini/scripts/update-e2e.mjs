@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
 
@@ -10,7 +10,7 @@ const ID = 'app.malini.updatetest';
 const PORT = 8765;
 const BACKGROUND = { MALINI_BACKGROUND_WINDOW: '1', MALINI_USAGE_DATA: 'off' };
 const appRoot = resolve(import.meta.dirname, '..');
-const dir = resolve(appRoot, '../../.context/update-e2e');
+const dir = join(tmpdir(), 'malini-update-e2e');
 const applications = join(dir, 'Applications');
 const bundle = join(applications, `${NAME}.app`);
 const executable = join(bundle, 'Contents/MacOS', NAME);

@@ -957,46 +957,36 @@
 		owner="chat-composer"
 	>
 		<div role="menu" aria-label="Add to prompt" class="space-y-0.5">
-			<Tooltip content="Choose files from this Mac" placement="right" class="w-full">
-				<DropdownItem
-					role="menuitem"
-					focusOnHover={false}
-					class="gap-2.5"
-					data-testid="chat-add-files"
-					onclick={openNativeFilePicker}
-				>
-					<Icon name="paperclip" class="shrink-0" size={15} />
-					Attach files
-				</DropdownItem>
-			</Tooltip>
-			<Tooltip
-				content="Reference files already in this workstream"
-				placement="right"
-				class="w-full"
+			<DropdownItem
+				role="menuitem"
+				focusOnHover={false}
+				class="gap-2.5"
+				data-testid="chat-add-files"
+				onclick={openNativeFilePicker}
 			>
-				<DropdownItem
-					role="menuitem"
-					focusOnHover={false}
-					class="gap-2.5"
-					data-testid="chat-add-context"
-					onclick={() => void openContextPicker()}
-				>
-					<Icon name="folder-search" class="shrink-0" size={15} />
-					Workstream context
-				</DropdownItem>
-			</Tooltip>
-			<Tooltip content="Link an issue to this prompt" placement="right" class="w-full">
-				<DropdownItem
-					role="menuitem"
-					focusOnHover={false}
-					class="gap-2.5"
-					data-testid="chat-link-issue"
-					onclick={openIssueSheet}
-				>
-					<Icon name="hash" class="shrink-0" size={15} />
-					Link issue
-				</DropdownItem>
-			</Tooltip>
+				<Icon name="paperclip" class="shrink-0" size={15} />
+				Attach files
+			</DropdownItem>
+			<DropdownItem
+				role="menuitem"
+				focusOnHover={false}
+				class="gap-2.5"
+				data-testid="chat-add-context"
+				onclick={() => void openContextPicker()}
+			>
+				<Icon name="folder-search" class="shrink-0" size={15} />
+				Workstream context
+			</DropdownItem>
+			<DropdownItem
+				role="menuitem"
+				focusOnHover={false}
+				class="gap-2.5"
+				data-testid="chat-link-issue"
+				onclick={openIssueSheet}
+			>
+				<Icon name="hash" class="shrink-0" size={15} />
+				Link issue
+			</DropdownItem>
 		</div>
 	</DropdownLayer>
 
@@ -1034,28 +1024,22 @@
 			</div>
 			<div class="styled-scrollbar max-h-72 overflow-y-auto p-1.5">
 				{#if showTodosContext}
-					<Tooltip
-						content="Reference this workstream's current todos"
-						placement="right"
-						class="w-full"
+					<DropdownItem
+						selected={contextSelectionIndex === 0}
+						focusOnHover={false}
+						class="w-full gap-2.5 px-2.5 py-2 text-left"
+						data-testid="chat-context-todos"
+						onmouseenter={() => (contextSelectionIndex = 0)}
+						onclick={addTodosContext}
 					>
-						<DropdownItem
-							selected={contextSelectionIndex === 0}
-							focusOnHover={false}
-							class="w-full gap-2.5 px-2.5 py-2 text-left"
-							data-testid="chat-context-todos"
-							onmouseenter={() => (contextSelectionIndex = 0)}
-							onclick={addTodosContext}
-						>
-							<Icon name="hash" class="text-fg-tertiary shrink-0" size={15} />
-							<span class="min-w-0 flex-1">
-								<span class="block truncate text-xs font-medium">@todos</span>
-								<span class="text-2xs text-fg-tertiary mt-0.5 block truncate">
-									Current bounded workstream todo list
-								</span>
+						<Icon name="hash" class="text-fg-tertiary shrink-0" size={15} />
+						<span class="min-w-0 flex-1">
+							<span class="block truncate text-xs font-medium">@todos</span>
+							<span class="text-2xs text-fg-tertiary mt-0.5 block truncate">
+								Current bounded workstream todo list
 							</span>
-						</DropdownItem>
-					</Tooltip>
+						</span>
+					</DropdownItem>
 				{/if}
 				{#if contextLoading}
 					<div
@@ -1098,29 +1082,27 @@
 					/>
 				{:else}
 					{#each filteredContextFiles as file, index (file.path)}
-						<Tooltip content={`Attach ${file.path}`} placement="right" class="w-full">
-							<DropdownItem
-								selected={index + (showTodosContext ? 1 : 0) === contextSelectionIndex}
-								focusOnHover={false}
-								class="w-full gap-2.5 px-2.5 py-2 text-left"
-								data-testid="chat-context-result"
-								data-context-path={file.path}
-								onmouseenter={() => (contextSelectionIndex = index + (showTodosContext ? 1 : 0))}
-								onclick={() => addContextFile(file.path)}
-							>
-								<FileTypeIcon path={file.path} size={15} />
-								<span class="min-w-0 flex-1">
-									<span class="block truncate text-xs font-medium">
-										{contextFileName(file.path)}
-									</span>
-									{#if contextFileDirectory(file.path)}
-										<span class="text-2xs text-fg-tertiary mt-0.5 block truncate font-mono">
-											{contextFileDirectory(file.path)}
-										</span>
-									{/if}
+						<DropdownItem
+							selected={index + (showTodosContext ? 1 : 0) === contextSelectionIndex}
+							focusOnHover={false}
+							class="w-full gap-2.5 px-2.5 py-2 text-left"
+							data-testid="chat-context-result"
+							data-context-path={file.path}
+							onmouseenter={() => (contextSelectionIndex = index + (showTodosContext ? 1 : 0))}
+							onclick={() => addContextFile(file.path)}
+						>
+							<FileTypeIcon path={file.path} size={15} />
+							<span class="min-w-0 flex-1">
+								<span class="block truncate text-xs font-medium">
+									{contextFileName(file.path)}
 								</span>
-							</DropdownItem>
-						</Tooltip>
+								{#if contextFileDirectory(file.path)}
+									<span class="text-2xs text-fg-tertiary mt-0.5 block truncate font-mono">
+										{contextFileDirectory(file.path)}
+									</span>
+								{/if}
+							</span>
+						</DropdownItem>
 					{/each}
 				{/if}
 			</div>
@@ -1242,22 +1224,16 @@
 
 	<div class="flex h-6 justify-end px-3">
 		{#if runUsage}
-			<Tooltip
-				content="Tokens sent to the model and generated during the last run"
-				placement="top"
-				class="w-fit"
+			<p
+				class="text-2xs flex h-6 items-center gap-1.5 tabular-nums select-none"
+				data-testid="chat-run-usage"
 			>
-				<p
-					class="text-2xs flex h-6 items-center gap-1.5 tabular-nums select-none"
-					data-testid="chat-run-usage"
-				>
-					<span class="text-fg-tertiary">Last run</span>
-					<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
-					<span class="text-fg-tertiary">
-						{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
-					</span>
-				</p>
-			</Tooltip>
+				<span class="text-fg-tertiary">Last run</span>
+				<span class="text-fg-tertiary/60" aria-hidden="true">·</span>
+				<span class="text-fg-tertiary">
+					{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
+				</span>
+			</p>
 		{/if}
 	</div>
 </form>
@@ -1294,19 +1270,17 @@
 		{/if}
 		<div class="flex justify-end gap-2">
 			<Button variant="ghost" size="sm" onclick={() => (issueSheetOpen = false)}>Cancel</Button>
-			<Tooltip content="Add this issue reference" placement="top">
-				<Button
-					variant="primary"
-					size="sm"
-					class="font-normal"
-					disabled={!issueUrl.trim() || issueSubmitting}
-					ariaLabel="Link issue"
-					ariaBusy={issueSubmitting}
-					onclick={linkIssue}
-				>
-					Link issue
-				</Button>
-			</Tooltip>
+			<Button
+				variant="primary"
+				size="sm"
+				class="font-normal"
+				disabled={!issueUrl.trim() || issueSubmitting}
+				ariaLabel="Link issue"
+				ariaBusy={issueSubmitting}
+				onclick={linkIssue}
+			>
+				Link issue
+			</Button>
 		</div>
 	</div>
 </Sheet>
