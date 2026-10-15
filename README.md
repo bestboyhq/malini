@@ -70,6 +70,14 @@ That leaves your time for the work that matters, instead of fighting your setup.
   <img src=".github/readme/jobs.webp" width="100%" alt="The Jobs page: an empty Your jobs section and the three built-in jobs, Fix checks, Update from main, and Address bot review, each with its model, effort, and an Edit and a Reset button.">
 </p>
 
+<p align="center">
+  <img src=".github/readme/job-running.webp" width="50%" alt="The top of a chat's composer: 71 files changed in this chat, and the Update from main job running.">
+</p>
+
+<p align="center">
+  <sub>A job running inside a chat.</sub>
+</p>
+
 ## How it works
 
 1. **Start a task.**
