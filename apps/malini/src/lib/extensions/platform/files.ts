@@ -1,9 +1,9 @@
-import { lstat, mkdir, readdir, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { lstat, mkdir, readFile as readFileBytes, realpath, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describeError, errorCode } from '$main/errors';
 import { atomicReplaceFile } from '$main/fs/atomic';
 import { isAtOrInsideDirectory, SKIPPED_DIRECTORIES } from '$main/fs/paths';
-import { isAppManagedGitPath } from '$main/git/paths';
+import { listWorkstreamFiles, type WorkstreamFileEntry } from '$main/git/diff';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import type { ExtensionFileKind, ExtensionFileStat } from '$contract/system';
 
@@ -189,61 +189,36 @@ async function prepareWriteTarget(root: string, segments: string[]): Promise<str
 
 export async function listFiles(root: string, glob?: string | null): Promise<string[]> {
 	const canonicalRoot = await canonicalWorkstreamRoot(root);
-	const files: string[] = [];
-	await collectFiles(canonicalRoot, canonicalRoot, files);
-	const filtered = glob ? files.filter((path) => globMatches(glob, path)) : files;
-	return filtered.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-}
-
-async function collectFiles(root: string, directory: string, files: string[]): Promise<void> {
-	let names: string[];
+	let listed: readonly WorkstreamFileEntry[];
 	try {
-		names = await readdir(directory);
+		listed = await listWorkstreamFiles(canonicalRoot);
 	} catch (error) {
-		if (directory !== root && isNotFound(error)) return;
 		throw new Error(`Could not list extension workstream files: ${describeError(error)}`);
 	}
-	for (const name of names) {
-		if (SKIPPED_DIRECTORIES.has(name)) continue;
-		const path = join(directory, name);
-		if (isAppManagedGitPath(relativePath(root, path))) continue;
-		let metadata;
-		try {
-			metadata = await lstat(path);
-		} catch (error) {
-			if (isNotFound(error)) continue;
-			throw new Error(`Could not inspect extension workstream path: ${describeError(error)}`);
-		}
-		if (metadata.isSymbolicLink()) {
-			let canonical: string;
-			try {
-				canonical = await realpath(path);
-			} catch {
-				continue;
-			}
-			if (isAtOrInsideDirectory(root, canonical) && (await stat(canonical)).isFile()) {
-				pushRelative(root, path, files);
-			}
-		} else if (metadata.isDirectory()) {
-			await collectFiles(root, path, files);
-		} else if (metadata.isFile()) {
-			pushRelative(root, path, files);
-		}
-	}
+	const candidates = listed
+		.map(({ path }) => path)
+		.filter((path) => !path.split('/').some((segment) => SKIPPED_DIRECTORIES.has(segment)))
+		.filter((path) => !glob || globMatches(glob, path));
+	const listable = await Promise.all(candidates.map((path) => isListableFile(canonicalRoot, path)));
+	return candidates.filter((_path, index) => listable[index]);
 }
 
-function pushRelative(root: string, path: string, files: string[]): void {
-	if (!isAtOrInsideDirectory(root, path)) {
-		throw new Error('Extension workstream listing escaped its root');
+async function isListableFile(root: string, path: string): Promise<boolean> {
+	const absolute = join(root, path);
+	let metadata;
+	try {
+		metadata = await lstat(absolute);
+	} catch (error) {
+		if (isNotFound(error)) return false;
+		throw new Error(`Could not inspect extension workstream path: ${describeError(error)}`);
 	}
-	files.push(relativePath(root, path));
-}
-
-function relativePath(root: string, path: string): string {
-	return path
-		.slice(root.length + 1)
-		.split(sep)
-		.join('/');
+	if (!metadata.isSymbolicLink()) return metadata.isFile();
+	try {
+		const canonical = await realpath(absolute);
+		return isAtOrInsideDirectory(root, canonical) && (await stat(canonical)).isFile();
+	} catch {
+		return false;
+	}
 }
 
 export function globMatches(pattern: string, value: string): boolean {

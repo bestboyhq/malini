@@ -33,11 +33,16 @@ sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '.context/p
 ```
 
 The app looks for workstream checkouts inside the sandbox profile, so the snapshot alone shows every workstream without its checkout.
-Clone the checkouts in too (APFS clones cost almost nothing) and repoint their git metadata at the clones:
+Copy the checkouts in too and repoint their git metadata at the copies.
+Never copy a workstream's `.context` or `node_modules`: `.context` holds other agents' sandbox profiles, so each copy nests every earlier one, and one profile grew to 1.5 million files that malini then had to watch and list.
 
 ```sh
 L=~/Library/Application\ Support/malini; P=$PWD/.context/profile-<topic>
-cp -cR "$L/repositories" "$L/workstreams" "$P/"
+cp -cR "$L/repositories" "$P/"
+mkdir -p "$P/workstreams"
+for ws in "$L"/workstreams/*/; do
+	rsync -a --exclude=.context --exclude=node_modules "$ws" "$P/workstreams/$(basename "$ws")/"
+done
 for ws in "$P"/workstreams/*/; do
 	g=$(sed 's/^gitdir: //' "$ws.git"); ng="${g/$L/$P}"
 	echo "gitdir: $ng" > "$ws.git"; echo "${ws}.git" > "$ng/gitdir"

@@ -21,6 +21,7 @@ import {
 	validateOwner,
 	writeFile,
 } from './files';
+import { realGit } from '$main/git/fixtures.test-support';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 
 const dirs: string[] = [];
@@ -32,6 +33,12 @@ async function tempdir(label: string): Promise<string> {
 afterEach(async () => {
 	await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
+
+async function workstreamRoot(): Promise<string> {
+	const root = await tempdir('ws');
+	await realGit(root, ['init', '-q']);
+	return root;
+}
 
 function resolver(input: {
 	workstreams: Record<string, { projectId: string; path: string }>;
@@ -102,7 +109,7 @@ describe('repository reads', () => {
 
 describe('workstream files', () => {
 	it('reads, writes, stats and lists workstream-relative files', async () => {
-		const root = await tempdir('ws');
+		const root = await workstreamRoot();
 		await writeBytes(join(root, 'README.md'), 'hello');
 		await writeFile(root, 'src/new.ts', 'export const shipped = true;');
 		await expect(readFile(root, 'README.md')).resolves.toBe('hello');
@@ -152,9 +159,11 @@ describe('workstream files', () => {
 		expect((await stat(join(root, 'plain.txt'))).mode & 0o777).toBe(0o644);
 	});
 
-	it('listing skips generated, dependency, build and agent scratch trees', async () => {
-		const root = await tempdir('ws');
+	it('listing skips generated, dependency, build, ignored and agent scratch trees', async () => {
+		const root = await workstreamRoot();
+		await writeBytes(join(root, '.gitignore'), '.context/\n');
 		for (const directory of [
+			'.context/profile/workstreams/ws-1',
 			'node_modules/pkg',
 			'target/debug',
 			'.svelte-kit/output',
@@ -169,6 +178,11 @@ describe('workstream files', () => {
 		await writeBytes(join(root, 'apps/web/package.json'), '{}');
 		await writeBytes(join(root, '.malini/package.json'), '{}');
 		await expect(listFiles(root, '**/package.json')).resolves.toEqual([
+			'.malini/package.json',
+			'apps/web/package.json',
+		]);
+		await expect(listFiles(root)).resolves.toEqual([
+			'.gitignore',
 			'.malini/package.json',
 			'apps/web/package.json',
 		]);
@@ -191,7 +205,7 @@ describe('workstream files', () => {
 	});
 
 	it('rejects symlink escapes for reads, stats and writes', async () => {
-		const root = await tempdir('ws');
+		const root = await workstreamRoot();
 		const outside = await tempdir('outside');
 		await writeBytes(join(outside, 'secret.txt'), 'secret');
 		await symlink(outside, join(root, 'escape'));
@@ -209,7 +223,7 @@ describe('workstream files', () => {
 	});
 
 	it('lists a symlinked file inside the workstream under its link name', async () => {
-		const root = await tempdir('ws');
+		const root = await workstreamRoot();
 		await writeBytes(join(root, 'real.txt'), 'x');
 		await symlink(join(root, 'real.txt'), join(root, 'link.txt'));
 		await symlink(join(root, 'missing.txt'), join(root, 'dangling.txt'));
