@@ -6,10 +6,13 @@ import { UNKNOWN_WORKSTREAM_REPOSITORY, type CheckoutResolver } from './checkout
 import { getProject } from './projects.repository';
 import { getWorkstream } from './workstreams.repository';
 
+export type CheckoutMoveGuard = <T>(workstreamId: string, move: () => Promise<T>) => Promise<T>;
+
 export interface BaseSyncDeps {
 	readonly db: MaliniDatabase;
 	readonly credentials: GitCredentialEnv;
 	readonly checkouts: CheckoutResolver;
+	readonly guardCheckoutMove: CheckoutMoveGuard;
 }
 
 interface InFlightSync {
@@ -80,7 +83,9 @@ export class WorkstreamBaseSync {
 			}
 			const remoteRef = await this.#fetch(project.repoPath, workstream.baseBranch, null);
 			if (entry.cancelled) return 'cancelled';
-			entry.fastForward = fastForwardCheckout(checkout, remoteRef);
+			entry.fastForward = this.deps.guardCheckoutMove(workstreamId, () =>
+				fastForwardCheckout(checkout, remoteRef),
+			);
 			return await entry.fastForward;
 		} finally {
 			if (this.#syncs.get(workstreamId)?.entry === entry) this.#syncs.delete(workstreamId);
