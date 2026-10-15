@@ -563,6 +563,7 @@ export async function sendAgentPrompt(
 	log: (line: string) => void = defaultLog,
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
+	await leases.checkoutSettled(input.workstreamId);
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId);
 	try {
 		return await sendAgentPromptLeased(db, supervisor, input, hooks, emit, ids, leases, lease, log);
