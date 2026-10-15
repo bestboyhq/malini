@@ -90,8 +90,8 @@ async function watchFooterCoverage(page: Page): Promise<void> {
 						const x = box.left + 2 + ((box.width - 4) * column) / 12;
 						const y = box.top + 2 + ((box.height - 4) * row) / 3;
 						const hit = body.ownerDocument.elementFromPoint(x, y);
-						const opened = hit?.closest('[data-sidebar-overlay]');
-						if (hit && !opened && !footer?.contains(hit) && covered.length < 20) {
+						const openedOrPaneBorder = hit?.closest('[data-sidebar-overlay], [role="separator"]');
+						if (hit && !openedOrPaneBorder && !footer?.contains(hit) && covered.length < 20) {
 							const toast = hit.closest('[data-testid="toast"]');
 							covered.push(
 								`${Math.round(x)},${Math.round(y)}: ${toast?.textContent ?? hit.tagName}`,

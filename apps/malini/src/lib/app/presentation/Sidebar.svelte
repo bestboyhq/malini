@@ -12,8 +12,8 @@
 		setRepositoryHiddenCommand,
 		sidebarOrderQuery,
 		type SidebarMove,
-		type SidebarPlacement,
 	} from '$shared/repositories/repositories.api';
+	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
 	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
 	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
 	import { JobsNavBadge } from '$lib/jobs/jobs.api';
@@ -81,8 +81,9 @@
 	);
 	const sidebarOrder = $derived(sidebarOrderQuery.data);
 	const collapsedRepositoryIds = $derived(collapsedRepositoriesQuery.data);
-	let drag = $state<SidebarItem | null>(null);
-	let dropTarget = $state<SidebarDropTarget | null>(null);
+	let reorder = $state<SidebarReorder | null>(null);
+	let settling = false;
+	let clickSuppressed = false;
 	let optimisticDestination = $state<{
 		target: string;
 		workstreamId: string | null;
@@ -308,71 +309,153 @@
 		};
 	}
 
-	type SidebarItem = Readonly<{ kind: SidebarMove['kind']; id: string; groupId: string }>;
+	type SidebarItem = Readonly<{ kind: SidebarMove['kind']; id: string }>;
 
-	type SidebarDropTarget = Readonly<{ id: string; placement: SidebarPlacement }>;
+	type SidebarReorder = Readonly<{
+		item: SidebarItem;
+		siblingIds: readonly string[];
+		slots: readonly SidebarSlot[];
+		from: number;
+		to: number;
+		offset: number;
+	}>;
 
-	const SIDEBAR_DRAG_TYPE = 'application/x-malini-sidebar-item';
+	const REORDER_THRESHOLD_PX = 4;
+	const SETTLE_MS = 150;
 
 	function listedIds(kind: SidebarMove['kind']): readonly string[] {
 		return kind === 'repository' ? listedRepositoryIds : listedWorkstreamIds;
 	}
 
-	function onRowDragStart(event: DragEvent, next: SidebarItem): void {
-		event.stopPropagation();
-		const transfer = event.dataTransfer;
-		if (!transfer || !(event.currentTarget instanceof Element)) return;
-		const image =
-			event.currentTarget.querySelector('[data-sidebar-drag-image]') ?? event.currentTarget;
-		const box = image.getBoundingClientRect();
-		transfer.clearData();
-		transfer.setData(SIDEBAR_DRAG_TYPE, next.id);
-		transfer.effectAllowed = 'move';
-		transfer.setDragImage(image, event.clientX - box.left, event.clientY - box.top);
-		drag = next;
+	function reorderSiblings(row: HTMLElement): HTMLElement[] {
+		return [...(row.parentElement?.children ?? [])].filter(
+			(element): element is HTMLElement =>
+				element instanceof HTMLElement && element.dataset['sidebarItem'] !== undefined,
+		);
 	}
 
-	function onRowDragOver(event: DragEvent, target: SidebarItem): void {
-		if (!drag) return;
-		const { kind, id, groupId } = target;
-		const element = event.currentTarget;
-		if (drag.kind !== kind || drag.id === id || drag.groupId !== groupId) {
-			dropTarget = null;
+	function beginReorder(row: HTMLElement, item: SidebarItem): SidebarReorder | null {
+		const siblings = reorderSiblings(row);
+		const from = siblings.indexOf(row);
+		if (from === -1 || siblings.length < 2) return null;
+		return {
+			item,
+			siblingIds: siblings.map((sibling) => sibling.dataset['sidebarItem'] ?? ''),
+			slots: siblings.map((sibling) => {
+				const { top, bottom } = sibling.getBoundingClientRect();
+				return { top, bottom };
+			}),
+			from,
+			to: from,
+			offset: 0,
+		};
+	}
+
+	function armReorder(event: PointerEvent, item: SidebarItem): void {
+		if (event.button !== 0 || reorder || settling) return;
+		const row = event.currentTarget;
+		if (!(row instanceof HTMLElement) || !(event.target instanceof Element)) return;
+		if (event.target.closest('button') || event.target.closest('[data-sidebar-item]') !== row)
 			return;
+		const { pointerId, clientY: startY } = event;
+		let dragging = false;
+
+		const track = (move: PointerEvent): void => {
+			if (move.pointerId !== pointerId || settling) return;
+			const offset = move.clientY - startY;
+			if (!dragging) {
+				if (Math.abs(offset) < REORDER_THRESHOLD_PX) return;
+				reorder = beginReorder(row, item);
+				if (!reorder) return disarm();
+				dragging = true;
+				abandonUnclaimedDestinationPreview();
+			}
+			if (!reorder) return;
+			reorder = { ...reorder, offset, to: reorderIndex(reorder.slots, reorder.from, offset) };
+		};
+		const release = (end: PointerEvent): void => {
+			if (end.pointerId !== pointerId) return;
+			disarm();
+			if (!dragging) return;
+			suppressNextClick();
+			if (!settling) settleReorder(row, end.type === 'pointerup');
+		};
+		const cancel = (key: KeyboardEvent): void => {
+			if (key.key !== 'Escape' || !dragging || settling) return;
+			key.preventDefault();
+			key.stopPropagation();
+			settleReorder(row, false);
+		};
+		function disarm(): void {
+			window.removeEventListener('pointermove', track);
+			window.removeEventListener('pointerup', release);
+			window.removeEventListener('pointercancel', release);
+			window.removeEventListener('keydown', cancel, true);
 		}
-		if (!(element instanceof Element)) return;
+		window.addEventListener('pointermove', track);
+		window.addEventListener('pointerup', release);
+		window.addEventListener('pointercancel', release);
+		window.addEventListener('keydown', cancel, true);
+	}
+
+	function settleReorder(row: HTMLElement, commit: boolean): void {
+		const current = reorder;
+		if (!current) return;
+		const to = commit ? current.to : current.from;
+		const offset = settledOffset(current.slots, current.from, to);
+		settling = true;
+		reorder = { ...current, to, offset };
+		const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const settle = row.animate(
+			[{ transform: `translateY(${current.offset}px)` }, { transform: `translateY(${offset}px)` }],
+			{ duration: reducedMotion ? 0 : SETTLE_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+		);
+		const finish = (): void => {
+			settling = false;
+			reorder = null;
+			const targetId = current.siblingIds[to];
+			if (to === current.from || !targetId) return;
+			moveInSidebarCommand({
+				kind: current.item.kind,
+				listedIds: listedIds(current.item.kind),
+				movedId: current.item.id,
+				targetId,
+				placement: to > current.from ? 'after' : 'before',
+			});
+		};
+		settle.onfinish = finish;
+		settle.oncancel = finish;
+	}
+
+	function suppressNextClick(): void {
+		clickSuppressed = true;
+		setTimeout(() => {
+			clickSuppressed = false;
+		}, 0);
+	}
+
+	function swallowDragClick(event: MouseEvent): void {
+		if (!clickSuppressed) return;
+		clickSuppressed = false;
 		event.preventDefault();
 		event.stopPropagation();
-		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-		const box = element.getBoundingClientRect();
-		const placement = event.clientY < box.top + box.height / 2 ? 'before' : 'after';
-		if (dropTarget?.id === id && dropTarget.placement === placement) return;
-		dropTarget = { id, placement };
 	}
 
-	function onSidebarDrop(event: DragEvent): void {
-		if (!drag || !dropTarget) return;
-		event.preventDefault();
-		moveInSidebarCommand({
-			kind: drag.kind,
-			listedIds: listedIds(drag.kind),
-			movedId: drag.id,
-			targetId: dropTarget.id,
-			placement: dropTarget.placement,
-		});
-		endDrag();
+	function reorderTransform(id: string): string | undefined {
+		if (!reorder) return undefined;
+		const index = reorder.siblingIds.indexOf(id);
+		if (index === -1) return undefined;
+		const y =
+			index === reorder.from
+				? reorder.offset
+				: reorderShift(reorder.slots, reorder.from, reorder.to, index);
+		return y === 0 ? undefined : `translateY(${y}px)`;
 	}
 
-	function onSidebarDragLeave(event: DragEvent): void {
-		if (event.relatedTarget instanceof Node && event.currentTarget instanceof Node) {
-			if (event.currentTarget.contains(event.relatedTarget)) return;
-		}
-		dropTarget = null;
-	}
-
-	function endDrag(): void {
-		drag = null;
-		dropTarget = null;
+	function reorderClass(id: string): string | undefined {
+		if (!reorder?.siblingIds.includes(id)) return undefined;
+		if (reorder.item.id === id) return 'bg-surface-50 z-10 rounded-xl shadow-md';
+		return 'transition-transform duration-150 ease-out motion-reduce:transition-none';
 	}
 
 	async function onMoveKey(
@@ -513,11 +596,9 @@
 
 <SidebarFrame testId="repository-sidebar">
 	<nav
-		class="min-h-0 flex-1"
+		class={['min-h-0 flex-1 select-none', reorder && 'cursor-grabbing']}
 		aria-label="Connected repositories"
-		ondrop={onSidebarDrop}
-		ondragend={endDrag}
-		ondragleave={onSidebarDragLeave}
+		onclickcapture={swallowDragClick}
 	>
 		<ScrollableDiv
 			class="h-full"
@@ -583,31 +664,18 @@
 					{/snippet}
 				</StateBlock>
 			{:else if rows.length > 0}
-				<ul class="flex w-full flex-col gap-3 pt-2">
+				<ul class={['flex w-full flex-col gap-3 pt-2', reorder && 'pointer-events-none']}>
 					{#each rows as row (row.repo.id)}
 						{@const collapsed = collapsedRepositoryIds.has(row.repo.id)}
-						{@const repositoryItem = { kind: 'repository' as const, id: row.repo.id, groupId: '' }}
+						{@const repositoryItem = { kind: 'repository' as const, id: row.repo.id }}
 						<li
-							class={['relative w-full min-w-0', drag?.id === row.repo.id && 'opacity-50']}
-							ondragstart={(event) => onRowDragStart(event, repositoryItem)}
-							ondragover={(event) => onRowDragOver(event, repositoryItem)}
+							class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
+							style:transform={reorderTransform(row.repo.id)}
+							data-sidebar-item={row.repo.id}
+							onpointerdown={(event) => armReorder(event, repositoryItem)}
 						>
-							{#if dropTarget?.id === row.repo.id}
-								<span
-									class={[
-										'bg-brand pointer-events-none absolute inset-x-2 h-0.5 rounded-full',
-										dropTarget.placement === 'before'
-											? '-top-1.5 -translate-y-1/2'
-											: '-bottom-1.5 translate-y-1/2',
-									]}
-									aria-hidden="true"
-									data-testid="sidebar-drop-indicator"
-								></span>
-							{/if}
 							<div
 								class="group/repo text-fg-secondary flex h-8 w-full items-center gap-2 rounded-xl pr-1 pl-2"
-								draggable="true"
-								data-sidebar-drag-image
 								data-testid="sidebar-connected-repository"
 								data-full-name={row.repo.fullName}
 								data-workstream-count={row.workstreams.length}
@@ -667,7 +735,7 @@
 										)}
 									onblur={() =>
 										scheduleAbandonedDestinationPreviewCleanup(rowHref(row.targetWorkstream?.id))}
-									ondragstart={() => abandonDestinationPreview(rowHref(row.targetWorkstream?.id))}
+									draggable="false"
 									onclick={(event) =>
 										beginWorkstreamNavigation(event, row.targetWorkstream?.id, row.repo.fullName)}
 								>
@@ -758,33 +826,15 @@
 											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
 											{@const unread = attention !== null}
-											{@const workstreamItem = {
-												kind: 'workstream' as const,
-												id: workstream.id,
-												groupId: row.repo.id,
-											}}
+											{@const workstreamItem = { kind: 'workstream' as const, id: workstream.id }}
 											<li
-												class={[
-													'group/row relative w-full min-w-0',
-													drag?.id === workstream.id && 'opacity-50',
-												]}
-												ondragstart={(event) => onRowDragStart(event, workstreamItem)}
-												ondragover={(event) => onRowDragOver(event, workstreamItem)}
+												class={['group/row relative w-full min-w-0', reorderClass(workstream.id)]}
+												style:transform={reorderTransform(workstream.id)}
+												data-sidebar-item={workstream.id}
+												onpointerdown={(event) => armReorder(event, workstreamItem)}
 											>
-												{#if dropTarget?.id === workstream.id}
-													<span
-														class={[
-															'bg-brand pointer-events-none absolute inset-x-2 z-10 h-0.5 rounded-full',
-															dropTarget.placement === 'before'
-																? '-top-px -translate-y-1/2'
-																: '-bottom-px translate-y-1/2',
-														]}
-														aria-hidden="true"
-														data-testid="sidebar-drop-indicator"
-													></span>
-												{/if}
 												<a
-													data-sidebar-drag-image
+													draggable="false"
 													href={rowHref(workstream.id, targetSessionId)}
 													data-navigation-path-id="expected-path:workstream-sidebar.switch"
 													aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
@@ -838,8 +888,6 @@
 														scheduleAbandonedDestinationPreviewCleanup(
 															rowHref(workstream.id, targetSessionId),
 														)}
-													ondragstart={() =>
-														abandonDestinationPreview(rowHref(workstream.id, targetSessionId))}
 													onclick={(event) =>
 														beginWorkstreamNavigation(event, workstream.id, label, targetSessionId)}
 												>
