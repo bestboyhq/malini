@@ -6,6 +6,13 @@ import { ClaudeTranscript } from './transcript.js';
 
 const SUBAGENT_TOOL_CALL = 'toolu_01FeTa8kst16VYXGjiDS1bL9';
 const BACKGROUND_AGENT_TOOL_CALL = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
+const BACKGROUND_COMMAND_TOOL_CALL = 'toolu_01LDqMBnrAzfmPQHcjxrTv6v';
+const BACKGROUND_COMMAND = {
+	taskId: 'biv864hkk',
+	kind: 'command',
+	description: 'Sleep 20 seconds then echo bg-done',
+	startedAt: expect.any(Number),
+};
 
 function replay(messages: readonly SDKMessage[]): {
 	events: AgentEvent[];
@@ -261,8 +268,8 @@ describe('ClaudeTranscript', () => {
 		const firstResult = messages.findIndex((message) => message.type === 'result');
 		const { events, transcript } = replay(messages.slice(0, firstResult + 1));
 
-		transcript.stopBackgroundAgents();
-		transcript.stopBackgroundAgents();
+		transcript.endBackgroundWork();
+		transcript.endBackgroundWork();
 
 		expect(ofType(events, 'tool.completed')).not.toContainEqual(
 			expect.objectContaining({ toolCallId: BACKGROUND_AGENT_TOOL_CALL }),
@@ -276,5 +283,70 @@ describe('ClaudeTranscript', () => {
 				error: 'Background agent stopped when the run ended.',
 			},
 		]);
+	});
+
+	it('lists a background command while it runs, marks the wait, and clears it once it ends', () => {
+		const { events } = replayRecorded('backgroundCommand');
+
+		expect(ofType(events, 'background.updated')).toEqual([
+			{ type: 'background.updated', runId: 'run-1', waiting: false, tasks: [BACKGROUND_COMMAND] },
+			{
+				type: 'background.updated',
+				runId: 'run-1',
+				waiting: false,
+				tasks: [{ ...BACKGROUND_COMMAND, toolCallId: BACKGROUND_COMMAND_TOOL_CALL }],
+			},
+			{
+				type: 'background.updated',
+				runId: 'run-1',
+				waiting: true,
+				tasks: [{ ...BACKGROUND_COMMAND, toolCallId: BACKGROUND_COMMAND_TOOL_CALL }],
+			},
+			{ type: 'background.updated', runId: 'run-1', waiting: false, tasks: [] },
+		]);
+	});
+
+	it('finds where a background command writes its output and shows its latest line', () => {
+		const messages = recordedMessages('backgroundCommand');
+		const firstResult = messages.findIndex((message) => message.type === 'result');
+		const { events, transcript } = replay(messages.slice(0, firstResult + 1));
+
+		expect(transcript.backgroundOutputFiles).toEqual(
+			new Map([
+				[
+					'biv864hkk',
+					'/tmp/claude/work-repo/99ceef72-2791-4374-856a-f9008b097a84/tasks/biv864hkk.output',
+				],
+			]),
+		);
+		transcript.recordBackgroundOutput('biv864hkk', 'bg-done');
+		transcript.recordBackgroundOutput('biv864hkk', 'bg-done');
+
+		expect(ofType(events, 'background.updated').at(-1)).toEqual({
+			type: 'background.updated',
+			runId: 'run-1',
+			waiting: false,
+			tasks: [
+				{ ...BACKGROUND_COMMAND, toolCallId: BACKGROUND_COMMAND_TOOL_CALL, detail: 'bg-done' },
+			],
+			interim: true,
+		});
+		expect(ofType(events, 'background.updated')).toHaveLength(3);
+	});
+
+	it('clears the background tasks when the run ends while they still run', () => {
+		const messages = recordedMessages('backgroundCommand');
+		const firstResult = messages.findIndex((message) => message.type === 'result');
+		const { events, transcript } = replay(messages.slice(0, firstResult + 1));
+
+		transcript.endBackgroundWork();
+
+		expect(transcript.hasBackgroundTasks).toBe(false);
+		expect(ofType(events, 'background.updated').at(-1)).toEqual({
+			type: 'background.updated',
+			runId: 'run-1',
+			waiting: false,
+			tasks: [],
+		});
 	});
 });

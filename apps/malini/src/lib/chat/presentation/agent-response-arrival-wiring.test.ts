@@ -106,7 +106,7 @@ describe('agent response arrival wiring', () => {
 		expect(status).not.toContain('run-status-shimmer');
 		expect(status).not.toContain('run-status-pulse');
 
-		expect(messages).toContain('<RunStatusLine {runs} {waitingForUser} />');
+		expect(messages).toContain('<RunStatusLine {runs} {waitingForUser} background={backgroundWork} />');
 		expect(messages).not.toContain('idle=');
 		expect(status).not.toContain('MIN_VISIBLE_MS');
 		expect(status).not.toContain('HIDE_DWELL_MS');

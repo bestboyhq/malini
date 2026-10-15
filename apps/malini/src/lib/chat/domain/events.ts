@@ -1,3 +1,4 @@
+import type { AgentBackgroundTask } from '$contract/agent';
 import type { StagedAgentAttachment } from './composer-actions';
 import type { AgentElementReference } from './element-reference';
 import type { AgentTranscriptReference } from './transcript-reference';
@@ -93,7 +94,14 @@ export type AgentEvent =
 			runId: string;
 			servers: { name: string; status: string; error?: string }[];
 	  }
-	| { type: 'run.completed'; runId: string; summary: string }
+	| {
+			type: 'background.updated';
+			runId: string;
+			waiting: boolean;
+			tasks: AgentBackgroundTask[];
+			interim?: boolean;
+	  }
+	| { type: 'run.completed'; runId: string; summary: string; handedOff?: boolean }
 	| { type: 'run.failed'; runId: string; error: string }
 	| { type: 'command.output'; runId: string; stream: 'stdout' | 'stderr'; text: string }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }

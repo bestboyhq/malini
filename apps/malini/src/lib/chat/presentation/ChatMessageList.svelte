@@ -19,6 +19,7 @@
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
 	import { sessionDisplayNameQuery } from '$lib/chat/application/queries/session-display-name.query.svelte';
 	import { sessionWaitingForUserQuery } from '$lib/chat/application/queries/session-waiting-for-user.query.svelte';
+	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { streamingBlocksQuery } from '$lib/chat/application/queries/streaming-blocks.query.svelte';
 	import { transcriptAnchorQuery } from '$lib/chat/application/queries/transcript-anchor.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
@@ -112,6 +113,7 @@
 	const pendingPrompt = $derived(pendingPromptQuery.data(sessionId));
 	const rememberedAnchor = $derived(transcriptAnchorQuery.data(sessionId));
 	const waitingForUser = $derived(sessionWaitingForUserQuery.data(sessionId));
+	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
 
 	let showUndone = $state(false);
 
@@ -926,7 +928,7 @@
 							{/if}
 
 							{#if isLastRun}
-								<RunStatusLine {runs} {waitingForUser} />
+								<RunStatusLine {runs} {waitingForUser} background={backgroundWork} />
 							{/if}
 
 							{#if run.terminal !== null && run.terminal !== 'completed'}

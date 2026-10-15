@@ -75,6 +75,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'chat.renew-staged-attachments': false,
 	'chat.reset-workstream-runs': plain,
 	'chat.restart-agent': plain,
+	'chat.stop-background-task': plain,
 	'chat.restore-checkpoint': plain,
 	'chat.run-change-patch': false,
 	'chat.send-prompt': (args) => {
