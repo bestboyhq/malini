@@ -389,12 +389,16 @@ export function tooltip(
 	initial: TooltipRequest | null,
 ): { update(next: TooltipRequest | null): void; destroy(): void } {
 	let request = initial;
+	let hovered = false;
 
 	function onPointerEnter(event: PointerEvent): void {
-		if (event.pointerType !== 'touch' && request) showTooltip(node, request);
+		if (event.pointerType === 'touch') return;
+		hovered = true;
+		if (request) showTooltip(node, request);
 	}
 
 	function onPointerLeave(): void {
+		hovered = false;
 		hideTooltip(node);
 	}
 
@@ -418,7 +422,8 @@ export function tooltip(
 	return {
 		update(next: TooltipRequest | null): void {
 			request = next;
-			refresh(node, next);
+			if (hovered && next && anchor !== node) showTooltip(node, next);
+			else refresh(node, next);
 		},
 		destroy(): void {
 			node.removeEventListener('pointerenter', onPointerEnter);
