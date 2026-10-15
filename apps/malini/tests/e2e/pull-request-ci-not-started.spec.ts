@@ -53,7 +53,7 @@ test("checks GitHub never started say CI didn't start and leave Merge to the use
 		await expect(page.getByRole('button', { name: /^Jobs:/u })).toHaveCount(0);
 		await status.hover();
 		await expect(page.getByRole('tooltip')).toHaveText(
-			"GitHub didn't start CI: recent account payments have failed or your spending limit needs to be increased",
+			"CI didn't start · Recent account payments have failed or your spending limit needs to be increased",
 		);
 
 		const detail = await openPullRequestDetail(page);

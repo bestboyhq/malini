@@ -116,7 +116,6 @@ export type GlobalTopBarStatusHeadline = Readonly<{
 export type GlobalTopBarStatusAction = Readonly<{
 	label: string;
 	ariaLabel: string;
-	tooltip: string;
 	tone: 'primary' | 'secondary';
 	icon: IconName;
 	confirmLabel?: string | null;

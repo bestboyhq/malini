@@ -131,7 +131,12 @@
 		<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
 			<Icon name="pencil" size={13} />
 		</span>
-		<Tooltip content={relativizeWorkstreamPath(item.path)} placement="right" class="min-w-0">
+		<Tooltip
+			content={relativizeWorkstreamPath(item.path)}
+			placement="right"
+			onlyWhenTruncated
+			class="min-w-0"
+		>
 			<span class="block truncate select-text">Edited {relativizeWorkstreamPath(item.path)}</span>
 		</Tooltip>
 	</div>

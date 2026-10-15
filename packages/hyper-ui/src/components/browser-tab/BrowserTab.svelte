@@ -144,7 +144,12 @@
 	{...rest}
 >
 	{#if tooltip}
-		<Tooltip content={tooltip} placement={tooltipPlacement} class="h-full min-w-0">
+		<Tooltip
+			content={tooltip}
+			placement={tooltipPlacement}
+			onlyWhenTruncated={tooltip === label}
+			class="h-full min-w-0"
+		>
 			{@render tab()}
 		</Tooltip>
 	{:else}

@@ -61,6 +61,10 @@ describe('run profile mapping', () => {
 		expect(network?.allowMachLookup).toEqual(['com.apple.trustd.agent']);
 	});
 
+	it("lets sandboxed commands serve on localhost so malini's browser can open their pages", () => {
+		expect(sandboxFor(undefined).network?.allowLocalBinding).toBe(true);
+	});
+
 	it('refuses the git and pull request commands malini owns', () => {
 		expect(disallowedTools()).toEqual(
 			expect.arrayContaining([

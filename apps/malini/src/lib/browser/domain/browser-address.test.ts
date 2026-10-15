@@ -9,6 +9,12 @@ describe('browser address label', () => {
 		);
 	});
 
+	it('shows a worktree file as the path that opens it again', () => {
+		expect(browserAddressLabel('malini-worktree://ws-1/docs/a%20b.html#top')).toBe(
+			'./docs/a b.html#top',
+		);
+	});
+
 	it('leaves anything that is not a web address as typed', () => {
 		expect(browserAddressLabel('about:blank')).toBe('about:blank');
 		expect(browserAddressLabel('')).toBe('');

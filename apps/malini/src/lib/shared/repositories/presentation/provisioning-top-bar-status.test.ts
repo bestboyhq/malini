@@ -40,7 +40,7 @@ describe('the provisioning top bar status', () => {
 				busy: true,
 				label: 'Setting up',
 				detail: 'Updating main from origin',
-				tooltip: 'Updating main from origin. A prompt sent now runs once setup finishes',
+				tooltip: null,
 			},
 			action: null,
 		});
@@ -94,16 +94,17 @@ describe('the provisioning top bar status', () => {
 			noRetry,
 		);
 
-		expect(status?.action).toMatchObject({
-			ariaLabel: 'Retry this workstream’s setup after signing in to GitHub',
-			tooltip:
-				'Authentication failed for repo. Sign in with `gh auth login` in a terminal, then retry',
-		});
+		expect(status?.action?.ariaLabel).toBe(
+			'Retry this workstream’s setup after signing in to GitHub',
+		);
+		expect(status?.headline?.tooltip).toBe(
+			'Authentication failed for repo. Sign in with `gh auth login` in a terminal, then retry',
+		);
 	});
 
 	it('does not repeat a sign-in remedy the failure already names', () => {
 		const failure = 'GitHub rejected the credentials. Run `gh auth login` and try again.';
-		expect(provisioningTopBarStatus(record(failure), false, noRetry)?.action?.tooltip).toBe(
+		expect(provisioningTopBarStatus(record(failure), false, noRetry)?.headline?.tooltip).toBe(
 			`${failure} Then retry this workstream’s setup`,
 		);
 	});
