@@ -15,6 +15,7 @@ import type {
 	ProviderCapability,
 	ProviderCapabilityState,
 } from '$contract/agent';
+import type { SkillRecord, SkillSource } from '$contract/skills';
 
 export type {
 	AgentQuestionAnswer,
@@ -38,6 +39,7 @@ export {
 
 export const BRIDGE_START_SESSION_ACK_TIMEOUT_MS = 30_000;
 export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
+export const BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS = 20_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -85,6 +87,7 @@ export type BridgeCommand =
 			profile?: AgentRunProfile;
 			resumeAt?: string;
 			freshConversation?: true;
+			skills?: readonly string[];
 	  }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }
@@ -107,7 +110,8 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
 	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
-	| { cmd: 'suggest_title'; id: string; prompt: string }
+	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
+	| { cmd: 'list_skills'; id: string; cwd: string }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer);
 
 export interface BrowserAnswer {
@@ -134,6 +138,7 @@ export function browserResultCommand(
 export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number {
 	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
 	if (command.cmd === 'suggest_title') return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
+	if (command.cmd === 'list_skills') return BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS;
 	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
@@ -258,6 +263,7 @@ export type BridgeControlFrame =
 			message: string;
 	  }
 	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
+	| { type: 'bridge.skills'; protocolVersion: number; id: string; skills: SkillRecord[] }
 	| BridgeBrowserRequest;
 
 export type BrowserRequestAction =
@@ -404,6 +410,30 @@ function decodeMcpServer(value: unknown, index: number): AgentMcpServerStatus {
 		status: fields.string('status'),
 		...optional('error', fields.optionalString('error')),
 	};
+}
+
+const SKILL_SOURCES: ReadonlySet<string> = new Set<SkillSource>([
+	'personal',
+	'repository',
+	'plugin',
+	'claude-code',
+	'other',
+]);
+
+function decodeSkill(value: unknown, index: number): SkillRecord {
+	if (!isRecord(value)) throw new Error(`bridge.skills: skills[${index}] is not an object`);
+	const fields = new Fields(value, `bridge.skills: skills[${index}]`);
+	const source = fields.string('source');
+	return {
+		name: fields.string('name'),
+		description: fields.string('description'),
+		source: isSkillSource(source) ? source : 'other',
+		tokens: fields.number('tokens'),
+	};
+}
+
+function isSkillSource(value: string): value is SkillSource {
+	return SKILL_SOURCES.has(value);
 }
 
 const EVENT_TYPES: ReadonlySet<string> = new Set(BRIDGE_EVENT_TYPES);
@@ -693,6 +723,16 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						title: f.string('title'),
+					},
+				};
+			case 'bridge.skills':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						skills: f.array('skills').map(decodeSkill),
 					},
 				};
 			case 'bridge.browser_request':

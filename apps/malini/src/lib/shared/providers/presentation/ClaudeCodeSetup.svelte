@@ -23,11 +23,11 @@
 	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
 
 	interface Props {
-		step?: number;
+		setup?: boolean;
 		nested?: boolean;
 	}
 
-	let { step, nested = false }: Props = $props();
+	let { setup = false, nested = false }: Props = $props();
 	let copied = $state(false);
 	let switchOpen = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -99,11 +99,7 @@
 			class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
 			aria-hidden="true"
 		>
-			{#if step !== undefined && status.kind !== 'ready'}
-				<span class="text-fg-secondary text-sm font-medium tabular-nums">{step}</span>
-			{:else}
-				<ClaudeIcon size={16} />
-			{/if}
+			<ClaudeIcon size={16} />
 		</div>
 		<div class="min-w-0 flex-1" role="status">
 			<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
@@ -126,7 +122,7 @@
 			{/if}
 		{:else if status.kind === 'checking'}
 			<LoadingCircle size={16} />
-		{:else if status.kind === 'ready' && step !== undefined}
+		{:else if status.kind === 'ready' && setup}
 			<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
 				<Icon name="check" size={14} />
 				Ready

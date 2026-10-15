@@ -31,6 +31,7 @@ import type {
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
 import type {
+	ChatJobRunsArgs,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
 	JobRunIdArgs,
@@ -39,6 +40,17 @@ import type {
 	SaveJobDefinitionArgs,
 } from './jobs';
 import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
+import type {
+	ChooseSkillsArgs,
+	DefaultSkillPresetArgs,
+	ListSkillsArgs,
+	SaveSkillPresetArgs,
+	SkillChoice,
+	SkillChoiceScopeArgs,
+	SkillPresetIdArgs,
+	SkillPresetRecord,
+	SkillRecord,
+} from './skills';
 import type { RuntimeInfo } from './runtime';
 import type {
 	AddressedReviewThreadsDto,
@@ -437,8 +449,16 @@ export interface ContractCommands {
 	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
 	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
 	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
+	'jobs.list-chat-runs': { args: ChatJobRunsArgs; result: JobRunRecord[] };
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
+	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
+	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
+	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
+	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
+	'skills.set-default-preset': { args: DefaultSkillPresetArgs; result: SkillPresetRecord[] };
+	'skills.choice': { args: SkillChoiceScopeArgs; result: SkillChoice };
+	'skills.choose': { args: ChooseSkillsArgs; result: SkillChoice };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
@@ -659,8 +679,16 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.delete-definition',
 	'jobs.reset-definition',
 	'jobs.list-runs',
+	'jobs.list-chat-runs',
 	'jobs.run',
 	'jobs.cancel-run',
+	'skills.list',
+	'skills.list-presets',
+	'skills.save-preset',
+	'skills.delete-preset',
+	'skills.set-default-preset',
+	'skills.choice',
+	'skills.choose',
 	'repositories.disconnect',
 	'repositories.list-hidden',
 	'repositories.set-hidden',

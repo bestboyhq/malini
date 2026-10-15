@@ -116,6 +116,25 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		expect(silent.providerCapabilities()[0]).toMatchObject({ version: 'fixture-1.0.0' });
 	});
 
+	it('lists the skills of a folder and refuses an ack without a skills frame', async () => {
+		const supervisor = await spawn();
+		expect(await supervisor.listSkills('/repo')).toEqual([
+			{
+				name: 'adr',
+				description: 'Record a decision in /repo',
+				source: 'repository',
+				tokens: 128,
+			},
+			{ name: 'ponytail:ponytail', description: 'Do less', source: 'plugin', tokens: 282 },
+			{ name: 'house-style', description: 'Managed', source: 'other', tokens: 40 },
+		]);
+
+		const silent = await spawn({ FAKE_BRIDGE_SKIP_SKILLS_FRAME: '1' });
+		await expect(silent.listSkills('/repo')).rejects.toThrow(
+			'skills were acknowledged without a bridge.skills frame',
+		);
+	});
+
 	it('fails the handshake on a protocol version mismatch and kills the child', async () => {
 		const bridge = fixture();
 		await expect(

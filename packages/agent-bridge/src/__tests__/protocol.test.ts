@@ -292,14 +292,74 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
-		it('parses suggest_title and rejects an empty prompt', () => {
+		it('parses suggest_title with the naming job and rejects a missing part', () => {
 			expect(
-				parseCommandLine('{"cmd":"suggest_title","id":"t1","prompt":"Version the bundle"}'),
+				parseCommandLine(
+					'{"cmd":"suggest_title","id":"t1","prompt":"Version the bundle","instructions":"Name it.","model":"haiku"}',
+				),
 			).toEqual({
 				ok: true,
-				command: { cmd: 'suggest_title', id: 't1', prompt: 'Version the bundle' },
+				command: {
+					cmd: 'suggest_title',
+					id: 't1',
+					prompt: 'Version the bundle',
+					instructions: 'Name it.',
+					model: 'haiku',
+				},
 			});
-			expect(parseCommandLine('{"cmd":"suggest_title","id":"t2","prompt":"  "}').ok).toBe(false);
+			expect(
+				parseCommandLine(
+					'{"cmd":"suggest_title","id":"t2","prompt":"  ","instructions":"Name it.","model":"haiku"}',
+				).ok,
+			).toBe(false);
+			expect(
+				parseCommandLine('{"cmd":"suggest_title","id":"t3","prompt":"Version it","model":"haiku"}')
+					.ok,
+			).toBe(false);
+			expect(
+				parseCommandLine(
+					'{"cmd":"suggest_title","id":"t4","prompt":"Version it","instructions":"Name it."}',
+				).ok,
+			).toBe(false);
+		});
+
+		it('parses list_skills for an absolute folder and rejects any other', () => {
+			expect(parseCommandLine('{"cmd":"list_skills","id":"k1","cwd":"/repo"}')).toEqual({
+				ok: true,
+				command: { cmd: 'list_skills', id: 'k1', cwd: '/repo' },
+			});
+			expect(parseCommandLine('{"cmd":"list_skills","id":"k2","cwd":"repo"}').ok).toBe(false);
+			expect(parseCommandLine('{"cmd":"list_skills","id":"k3"}').ok).toBe(false);
+		});
+
+		it('parses the skills a prompt may use and rejects a list that is not skill names', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi","skills":["adr","ponytail:ponytail"]}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'send_prompt',
+					id: 'p1',
+					sessionId: 's1',
+					runId: 'r1',
+					prompt: 'hi',
+					skills: ['adr', 'ponytail:ponytail'],
+				},
+			});
+			expect(
+				parseCommandLine(
+					'{"cmd":"send_prompt","id":"p2","sessionId":"s1","runId":"r1","prompt":"hi","skills":[]}',
+				),
+			).toMatchObject({ ok: true, command: { skills: [] } });
+			for (const skills of ['"adr"', '[""]', '[1]', JSON.stringify(Array(1001).fill('adr'))]) {
+				expect(
+					parseCommandLine(
+						`{"cmd":"send_prompt","id":"p3","sessionId":"s1","runId":"r1","prompt":"hi","skills":${skills}}`,
+					).ok,
+				).toBe(false);
+			}
 		});
 
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
@@ -320,6 +380,7 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_capabilities',
 				'refresh_mcp_status',
 				'suggest_title',
+				'list_skills',
 				'browser_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(21);
@@ -330,6 +391,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.command_ack',
 				'bridge.protocol_error',
 				'bridge.title',
+				'bridge.skills',
 				'bridge.browser_request',
 			]);
 		});

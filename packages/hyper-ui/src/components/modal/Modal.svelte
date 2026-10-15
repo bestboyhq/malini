@@ -14,6 +14,8 @@
 
 	type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
+	type ModalBackdrop = 'dim' | 'clear';
+
 	type NavigationOutcomeKey = string;
 
 	interface Props {
@@ -23,8 +25,9 @@
 		ariaLabel?: string;
 		onclose: () => void;
 		onsubmit?: () => void;
-		children: Snippet;
+		children: Snippet<[dismiss: () => void]>;
 		size?: ModalSize;
+		backdrop?: ModalBackdrop;
 		class?: ClassValue;
 		contentClass?: ClassValue;
 		closeOnBackdrop?: boolean;
@@ -44,6 +47,7 @@
 		onsubmit,
 		children,
 		size = 'md',
+		backdrop = 'dim',
 		class: className,
 		contentClass,
 		closeOnBackdrop = true,
@@ -129,7 +133,10 @@
 		use:overlaySurface
 	>
 		<div
-			class="absolute inset-0 bg-black/60 backdrop-blur-xs"
+			class={[
+				'absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-200 motion-reduce:transition-none',
+				backdrop === 'clear' && 'opacity-0',
+			]}
 			role="presentation"
 			onclick={() => closeOnBackdrop && startClose()}
 		></div>
@@ -148,7 +155,8 @@
 		>
 			<div
 				class={[
-					'border-surface-modal-border bg-surface-modal text-fg-default shadow-popup inset-0 border',
+					'border-surface-modal-border bg-surface-modal text-fg-default inset-0 border',
+					backdrop === 'dim' ? 'shadow-popup' : 'shadow-2xl',
 					hasConsumerRounded ? null : 'rounded-xl',
 					title ? sizeClass[size] : null,
 					className,
@@ -183,11 +191,11 @@
 					</header>
 
 					<div class={['p-5', contentClass]}>
-						{@render children()}
+						{@render children(startClose)}
 					</div>
 				{:else}
 					<div class={contentClass}>
-						{@render children()}
+						{@render children(startClose)}
 					</div>
 				{/if}
 			</div>

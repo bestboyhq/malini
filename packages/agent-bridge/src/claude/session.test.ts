@@ -240,6 +240,17 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[0]?.options).not.toHaveProperty('model');
 	});
 
+	it('limits a run to the skills it was given, and leaves every skill on otherwise', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+
+		await session.sendPrompt('Focus', 'run-1', profile(), undefined, undefined, ['adr']);
+		await session.sendPrompt('Anything', 'run-2', profile());
+
+		expect(claude.runs[0]?.options.skills).toEqual(['adr']);
+		expect(claude.runs[1]?.options).not.toHaveProperty('skills');
+	});
+
 	it('starts a new Claude conversation when every earlier turn was undone', async () => {
 		const { session, claude } = harness([recordedScript('readAndBash')], {
 			context: { providerSessionId: 'persisted-session' },

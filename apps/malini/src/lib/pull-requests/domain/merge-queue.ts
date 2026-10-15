@@ -1,4 +1,4 @@
-import type { JobBuiltin, JobRunStatus } from '$contract/jobs';
+import type { JobRunStatus, ShippingJobBuiltin } from '$contract/jobs';
 import type { ShipNeedsYouReason, ShipPhase, ShipStep } from '$contract/pull-requests';
 import type {
 	PullRequestCheckDto,
@@ -9,7 +9,7 @@ import type {
 	WorktreeStatus,
 } from '$contract/repositories';
 
-export type MergeQueueJob = Readonly<{ builtin: JobBuiltin | null; status: JobRunStatus }>;
+export type MergeQueueJob = Readonly<{ builtin: ShippingJobBuiltin | null; status: JobRunStatus }>;
 
 export type MergeQueueWorktree = Pick<
 	WorktreeStatus,
@@ -30,8 +30,8 @@ export type MergeQueueSnapshot = Readonly<{
 	idle: boolean;
 	job: MergeQueueJob | null;
 	lastJobRunId: string | null;
-	lastJobBuiltin: JobBuiltin | null;
-	settledJob: JobBuiltin | null;
+	lastJobBuiltin: ShippingJobBuiltin | null;
+	settledJob: ShippingJobBuiltin | null;
 	worktree: MergeQueueWorktree;
 	threadResolutionRunId: string | null;
 	failureSignature: string | null;
@@ -55,7 +55,7 @@ export type MergeQueueMove =
 	| Readonly<{ kind: 'open-draft' }>
 	| Readonly<{ kind: 'mark-ready' }>
 	| Readonly<{ kind: 'update-branch' }>
-	| Readonly<{ kind: 'run-job'; builtin: JobBuiltin; signature: string; attempt: number }>
+	| Readonly<{ kind: 'run-job'; builtin: ShippingJobBuiltin; signature: string; attempt: number }>
 	| Readonly<{ kind: 'resolve-threads'; agentRunId: string }>
 	| Readonly<{ kind: 'merge'; method: string; headSha: string }>
 	| Readonly<{ kind: 'archive' }>
@@ -105,12 +105,12 @@ const PENDING_CHECK_STATES = new Set([
 ]);
 const READY_MERGE_STATES = new Set(['CLEAN', 'HAS_HOOKS', 'UNSTABLE']);
 const CHECKS_RERUN_GRACE_MS = 60_000;
-const JOB_STEPS: Readonly<Record<JobBuiltin, ShipStep>> = {
+const JOB_STEPS: Readonly<Record<ShippingJobBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
 	'update-from-main': 'updating-from-main',
 	'address-review': 'addressing-review',
 };
-const JOB_LABELS: Readonly<Record<JobBuiltin, string>> = {
+const JOB_LABELS: Readonly<Record<ShippingJobBuiltin, string>> = {
 	'fix-checks': 'Fixing the checks',
 	'update-from-main': 'Updating from main',
 	'address-review': 'Addressing the review',
@@ -128,7 +128,7 @@ export function jobIsActive(job: MergeQueueJob | null): boolean {
 	return job !== null && ACTIVE_JOB_STATUSES.has(job.status);
 }
 
-export function jobStep(builtin: JobBuiltin | null): ShipStep {
+export function jobStep(builtin: ShippingJobBuiltin | null): ShipStep {
 	return builtin === null ? 'waiting-for-agent' : JOB_STEPS[builtin];
 }
 
@@ -389,7 +389,7 @@ function notPermitted(snapshot: MergeQueueSnapshot): MergeQueueMove {
 
 function fixJob(
 	snapshot: MergeQueueSnapshot,
-	builtin: JobBuiltin,
+	builtin: ShippingJobBuiltin,
 	failure: string,
 ): MergeQueueMove {
 	const repeated = snapshot.failureSignature === failure;

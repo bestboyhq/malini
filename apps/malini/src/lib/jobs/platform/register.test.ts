@@ -29,6 +29,8 @@ import { updateFromMainJobContext } from '../domain/update-from-main-context';
 import { BUSY_RETRY_MS } from './job-runner.service';
 import { insertJobRun } from './job-runs.repository';
 import { registerJobs } from './register';
+import { skillsForRun } from '$lib/skills/skills.platform';
+import { insertSkillPreset } from '$lib/skills/platform/skill-presets.repository';
 
 const NOW = '2026-10-11T00:00:00.000Z';
 
@@ -254,7 +256,7 @@ async function failure(command: string, args: unknown): Promise<CommandFailure> 
 }
 
 describe('job definitions', () => {
-	it('seeds the three built-in jobs once, with their defaults', async () => {
+	it('seeds the four built-in jobs once, with their defaults', async () => {
 		const second = registerJobs(harness(db), { log: () => {} });
 		second.dispose();
 
@@ -269,6 +271,14 @@ describe('job definitions', () => {
 				output,
 			})),
 		).toEqual([
+			{
+				key: 'name-chats',
+				name: 'Name chats',
+				effort: 'low',
+				model: 'haiku',
+				runsIn: 'workstream',
+				output: 'none',
+			},
 			{
 				key: 'fix-checks',
 				name: 'Fix checks',
@@ -376,8 +386,16 @@ describe('job definitions', () => {
 			output: 'none',
 		};
 		const fixChecks = await builtin('fix-checks');
+		const nameChats = await builtin('name-chats');
 		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
 		const cases: ReadonlyArray<readonly [string, unknown, string]> = [
+			['jobs.run', { definitionId: nameChats.id, workstreamId: 'ws-a' }, 'builtin'],
+			[
+				'jobs.run',
+				{ definitionId: fixChecks.id, workstreamId: 'ws-a', chatSessionId: '' },
+				'invalid-args',
+			],
+			['jobs.list-chat-runs', {}, 'invalid-args'],
 			['jobs.save-definition', { ...valid, name: '   ' }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, name: 'x'.repeat(81) }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, instructions: '' }, 'invalid-args'],
@@ -412,6 +430,28 @@ describe('job definitions', () => {
 			).toMatchObject({ kind });
 		}
 		expect(await context.commands.call('jobs.list-runs', undefined)).toEqual([]);
+	});
+
+	it('keeps the chat a job was run from, for its transcript', async () => {
+		const fixChecks = await builtin('fix-checks');
+		const fromChat = await context.commands.call('jobs.run', {
+			definitionId: fixChecks.id,
+			workstreamId: 'ws-a',
+			chatSessionId: 'chat-1',
+			chatAfterRunId: 'agent-run-9',
+		});
+		const elsewhere = await context.commands.call('jobs.run', {
+			definitionId: fixChecks.id,
+			workstreamId: 'ws-b',
+		});
+
+		expect(fromChat).toMatchObject({ chatSessionId: 'chat-1', chatAfterRunId: 'agent-run-9' });
+		expect(elsewhere).toMatchObject({ chatSessionId: null, chatAfterRunId: null });
+		expect(
+			(await context.commands.call('jobs.list-chat-runs', { chatSessionId: 'chat-1' })).map(
+				({ id }) => id,
+			),
+		).toEqual([fromChat.id]);
 	});
 });
 
@@ -464,6 +504,36 @@ describe('scheduling', () => {
 		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
 			prompt: `${definition.instructions}\n\nFailing: lint`,
 		});
+	});
+
+	it('runs a job with its skill preset, and with the workstream skills when it has none', async () => {
+		const presetDefinition = await saveDefinition({ name: 'Copy pass', skillPresetId: 'marketer' });
+		const plainDefinition = await saveDefinition({ name: 'Plain pass' });
+		insertSkillPreset(db, {
+			id: 'marketer',
+			name: 'Marketer',
+			skills: ['humanizer'],
+			isDefault: false,
+			createdAt: NOW,
+			updatedAt: NOW,
+		});
+		expect(presetDefinition.skillPresetId).toBe('marketer');
+		expect(plainDefinition.skillPresetId).toBeNull();
+
+		const withPreset = await context.commands.call('jobs.run', {
+			definitionId: presetDefinition.id,
+			workstreamId: 'ws-a',
+		});
+		const withPresetSession = await session(withPreset.id);
+		await until(withPreset.id, 'running');
+		const plain = await context.commands.call('jobs.run', {
+			definitionId: plainDefinition.id,
+			workstreamId: 'ws-b',
+		});
+		const plainSession = await session(plain.id);
+
+		expect(skillsForRun(db, 'ws-a', withPresetSession)).toEqual(['humanizer']);
+		expect(skillsForRun(db, 'ws-b', plainSession)).toBeNull();
 	});
 
 	it("waits for the user's own run in that workstream to end", async () => {
@@ -832,6 +902,8 @@ describe('restart', () => {
 				origin: 'merge-queue',
 				status,
 				detail: null,
+				chatSessionId: null,
+				chatAfterRunId: null,
 				createdAt: `2026-10-10T00:00:0${id.length}.000Z`,
 				startedAt: status === 'queued' ? null : NOW,
 				finishedAt: null,

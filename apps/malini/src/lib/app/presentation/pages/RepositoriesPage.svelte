@@ -34,6 +34,9 @@
 		type Workstream,
 	} from '$shared/repositories/repositories.api';
 	import { ClaudeCodeSetup, claudeCodeStatusQuery } from '$shared/providers/providers.api';
+	import { loadOnboardingCommand } from '$lib/app/application/commands/load-onboarding.command';
+	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import Onboarding from '../onboarding/Onboarding.svelte';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { describeFailure } from '$shared/errors/failure-copy';
 
@@ -87,6 +90,7 @@
 		matchingRepositories.filter((repo) => hiddenIds.has(repo.id)),
 	);
 	const allHidden = $derived(query.trim().length === 0 && hiddenRepositories.length > 0);
+	const onboarding = $derived(onboardingQuery.data);
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
 	);
@@ -95,6 +99,7 @@
 	);
 
 	onMount(() => {
+		loadOnboardingCommand();
 		clearRepositoryConnectErrorCommand();
 		loadGithubAuthCommand();
 	});
@@ -132,10 +137,10 @@
 	}
 </script>
 
-{#snippet cloneButton()}
+{#snippet cloneButton(size: 'sm' | 'md')}
 	<Button
 		variant="secondary"
-		size="sm"
+		{size}
 		disabled={connecting !== null}
 		ariaBusy={connecting === 'clone'}
 		ariaHasPopup="dialog"
@@ -144,7 +149,7 @@
 		onclick={() => (cloneDialogOpen = true)}
 	>
 		{#snippet leading()}
-			<Icon name="link" size={14} />
+			<Icon name="link" size={size === 'md' ? 16 : 14} />
 		{/snippet}
 		Clone repo
 	</Button>
@@ -152,7 +157,7 @@
 
 {#snippet connectErrorBlock(failure: NonNullable<typeof connectError>)}
 	<div
-		class="border-surface-50-border bg-surface-50 mb-3 rounded-2xl border-[0.5px] px-2"
+		class="border-surface-50-border bg-surface-50 -mx-4 mb-3 rounded-2xl border-[0.5px] px-2"
 		data-testid="repository-connect-error"
 	>
 		<StateBlock
@@ -187,86 +192,23 @@
 	data-navigation-error={workstreamScopeError ? 'true' : undefined}
 	data-navigation-error-message={workstreamScopeError ?? undefined}
 >
-	<div class="mx-auto flex w-full max-w-[640px] flex-col px-6 pt-20 pb-32">
-		{#if firstRun}
-			<header data-testid="first-run-setup">
-				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Set up malini</h1>
-				<p class="text-fg-tertiary mt-1 text-sm">
-					Two steps. Then every workstream gets its own git worktree and its own Claude Code.
-				</p>
-			</header>
-			<ol class="mt-8 flex flex-col gap-3" aria-label="Setup steps">
-				<li>
-					<ClaudeCodeSetup step={1} />
-				</li>
-				<li
-					class="border-surface-50-border bg-surface-50 rounded-2xl border-[0.5px] px-4 py-3.5"
-					data-testid="repository-setup-step"
-				>
-					<div class="flex items-center gap-3">
-						<div
-							class="bg-surface-150 text-fg-secondary grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-medium tabular-nums"
-							aria-hidden="true"
-						>
-							2
-						</div>
-						<div class="min-w-0 flex-1">
-							<h3 class="text-fg-default text-sm font-medium">Add a repository</h3>
-							<p class="text-fg-tertiary text-xs leading-5">
-								A folder on this Mac, or a URL git can clone.
-							</p>
-						</div>
-						{@render cloneButton()}
-						<Button
-							variant="primary"
-							size="sm"
-							disabled={connecting !== null}
-							ariaBusy={connecting === 'folder'}
-							ariaLabel="Open a local repository folder"
-							data-testid="repository-open-folder"
-							onclick={openRepositoryFolderCommand}
-						>
-							Open folder
-						</Button>
-					</div>
-				</li>
-			</ol>
-			{#if connectError}
-				<div class="mt-3">
-					{@render connectErrorBlock(connectError)}
-				</div>
-			{/if}
-		{:else}
-			<header class="flex items-center justify-between gap-3">
+	{#if firstRun && onboarding.finished === false}
+		<Onboarding />
+	{:else if !(firstRun && onboarding.finished === null)}
+		<div class="mx-auto flex w-full max-w-[640px] flex-col px-6 pt-20 pb-32">
+			<header>
 				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Repositories</h1>
-				<div class="flex items-center gap-2">
-					{@render cloneButton()}
-					<Button
-						variant="primary"
-						size="sm"
-						disabled={connecting !== null}
-						ariaBusy={connecting === 'folder'}
-						ariaLabel="Open a local repository folder"
-						data-testid="repository-open-folder"
-						onclick={openRepositoryFolderCommand}
-					>
-						{#snippet leading()}
-							<Icon name="folder-plus" size={14} />
-						{/snippet}
-						Open folder
-					</Button>
-				</div>
 			</header>
 
 			{#if claudeNeedsSetup}
-				<div class="mt-6">
+				<div class="-mx-4 mt-6">
 					<ClaudeCodeSetup />
 				</div>
 			{/if}
 
 			{#if githubSignedOut && githubHint}
 				<div
-					class="border-surface-50-border bg-surface-50 mt-6 rounded-2xl border-[0.5px] px-2"
+					class="border-surface-50-border bg-surface-50 -mx-4 mt-6 rounded-2xl border-[0.5px] px-2"
 					data-testid="github-auth-hint"
 				>
 					<StateBlock
@@ -297,9 +239,46 @@
 				</div>
 			{/if}
 
+			<div class="mt-6 flex h-7 items-center gap-2">
+				{#if workstreamScopeReady && !workstreamScopeFailure && repositories.length > 0}
+					<TextInput
+						bind:value={query}
+						type="search"
+						size="xs"
+						ariaLabel="Search repositories"
+						placeholder={searchPlaceholder}
+						autocomplete="off"
+						class="min-w-0 flex-1"
+						inputClass="text-xs [&::-webkit-search-cancel-button]:hidden"
+						data-testid="repository-search"
+					>
+						{#snippet icon()}
+							<Icon name="search" size={14} />
+						{/snippet}
+					</TextInput>
+				{/if}
+				<div class="ml-auto flex shrink-0 items-center gap-2">
+					{@render cloneButton('md')}
+					<Button
+						variant="primary"
+						size="md"
+						disabled={connecting !== null}
+						ariaBusy={connecting === 'folder'}
+						ariaLabel="Open a local repository folder"
+						data-testid="repository-open-folder"
+						onclick={openRepositoryFolderCommand}
+					>
+						{#snippet leading()}
+							<Icon name="folder-plus" size={16} />
+						{/snippet}
+						Open folder
+					</Button>
+				</div>
+			</div>
+
 			{#if workstreamScopeFailure}
 				<div
-					class="border-border-subtle mt-8 flex items-center justify-center rounded-2xl border border-dashed"
+					class="border-border-subtle -mx-4 mt-3 flex items-center justify-center rounded-2xl border border-dashed"
 				>
 					<StateBlock
 						live="alert"
@@ -333,43 +312,22 @@
 				</div>
 			{:else if !workstreamScopeReady}
 				<section
-					class="mt-8"
+					class="-mx-4 mt-3"
 					data-testid="repository-cold-shell"
 					data-navigation-cold-shell="true"
 					aria-label="Repositories unavailable until their local scope is verified"
 				>
-					<div class="mb-2 h-7"></div>
 					<RepositoryListSkeleton />
 				</section>
 			{:else}
-				<section class="mt-8" aria-label="Repositories">
-					{#if repositories.length > 0}
-						<div class="mb-2 flex h-7 items-center">
-							<TextInput
-								bind:value={query}
-								type="search"
-								size="xs"
-								ariaLabel="Search repositories"
-								placeholder={searchPlaceholder}
-								autocomplete="off"
-								class="w-64"
-								inputClass="text-xs [&::-webkit-search-cancel-button]:hidden"
-								data-testid="repository-search"
-							>
-								{#snippet icon()}
-									<Icon name="search" size={14} />
-								{/snippet}
-							</TextInput>
-						</div>
-					{/if}
-
+				<section class="mt-3" aria-label="Repositories">
 					{#if connectError}
 						{@render connectErrorBlock(connectError)}
 					{/if}
 
 					{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
 						<div
-							class="border-border-subtle flex items-center justify-center rounded-2xl border border-dashed"
+							class="border-border-subtle -mx-4 flex items-center justify-center rounded-2xl border border-dashed"
 							data-testid="repositories-empty-state"
 						>
 							<StateBlock
@@ -427,7 +385,7 @@
 						</div>
 					{:else if filteredRepositories.length > 0}
 						<ul
-							class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+							class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 							data-testid="repository-list"
 						>
 							{#each filteredRepositories as repo (repo.id)}
@@ -475,9 +433,7 @@
 										variant="secondary"
 										size="sm"
 										disabled={connecting !== null}
-										ariaLabel={target
-											? `Open ${repo.fullName}`
-											: `Start a workstream in ${repo.fullName}`}
+										ariaLabel={`Open ${repo.fullName}`}
 										data-testid="repository-open-button"
 										data-navigation-target={target}
 										data-navigation-dynamic-target={target ? undefined : 'true'}
@@ -485,7 +441,7 @@
 										data-navigation-outcome-key={target ? 'selected' : 'created'}
 										onclick={() => openRepository(repo)}
 									>
-										{target ? 'Open' : 'New workstream'}
+										Open
 										{#snippet trailing()}
 											<Icon name="arrow-right" size={14} />
 										{/snippet}
@@ -502,7 +458,7 @@
 							data-testid="hidden-repositories"
 						>
 							<summary
-								class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 flex h-7 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+								class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 -ml-1 flex h-7 w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
 							>
 								<Icon
 									name="chevron-right"
@@ -512,7 +468,7 @@
 								Hidden ({hiddenRepositories.length})
 							</summary>
 							<ul
-								class="border-surface-50-border bg-surface-50 divide-surface-50-border mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 								aria-label="Hidden repositories"
 								data-testid="hidden-repository-list"
 							>
@@ -563,6 +519,6 @@
 					{/if}
 				</section>
 			{/if}
-		{/if}
-	</div>
+		</div>
+	{/if}
 </div>

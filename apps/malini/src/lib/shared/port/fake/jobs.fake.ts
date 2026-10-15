@@ -37,6 +37,7 @@ function fakeRunsOf(bridge: FakeBridge): Map<string, JobRunRecord> {
 }
 
 const FAKE_BUILTINS: readonly (readonly [JobBuiltin, string])[] = [
+	['name-chats', 'Name chats'],
 	['fix-checks', 'Fix checks'],
 	['update-from-main', 'Update from main'],
 	['address-review', 'Address bot review'],
@@ -60,6 +61,7 @@ export function installJobsFake(bridge: FakeBridge): void {
 				effort: 'medium',
 				runsIn: 'workstream',
 				output: 'none',
+				skillPresetId: null,
 				builtin,
 				createdAt: FAKE_JOB_TIME,
 				updatedAt: FAKE_JOB_TIME,
@@ -89,6 +91,7 @@ export function installJobsFake(bridge: FakeBridge): void {
 			effort: input.effort,
 			runsIn: existing?.builtin ? 'workstream' : input.runsIn,
 			output: existing?.builtin ? 'none' : input.output,
+			skillPresetId: input.skillPresetId ?? null,
 			builtin: existing?.builtin ?? null,
 			createdAt: existing?.createdAt ?? FAKE_JOB_TIME,
 			updatedAt: FAKE_JOB_TIME,
@@ -127,8 +130,15 @@ export function installJobsFake(bridge: FakeBridge): void {
 		[...runs.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
 	);
 
+	bridge.define('jobs.list-chat-runs', async (input) =>
+		[...runs.values()]
+			.filter((run) => run.chatSessionId === input.chatSessionId)
+			.sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+	);
+
 	bridge.define('jobs.run', async (input) => {
 		const definition = requireDefinition(definitions, input.definitionId);
+		if (definition.builtin === 'name-chats') throw new Error('Name chats runs on its own');
 		const run: JobRunRecord = {
 			id: `fake-job-run-${nextRun++}`,
 			definitionId: definition.id,
@@ -140,6 +150,8 @@ export function installJobsFake(bridge: FakeBridge): void {
 			origin: input.origin ?? 'manual',
 			status: 'queued',
 			detail: null,
+			chatSessionId: input.chatSessionId ?? null,
+			chatAfterRunId: input.chatAfterRunId ?? null,
 			createdAt: new Date(Date.parse(FAKE_JOB_TIME) + nextRun * 1_000).toISOString(),
 			startedAt: null,
 			finishedAt: null,

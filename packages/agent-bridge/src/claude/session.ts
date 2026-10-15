@@ -35,7 +35,10 @@ const INTERRUPT_GRACE_MS = 3_000;
 const PLAN_HANDOFF_MESSAGE =
 	'malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
-export type ClaudeContextUsage = Pick<SDKControlGetContextUsageResponse, 'categories'> & {
+export type ClaudeContextUsage = Pick<
+	SDKControlGetContextUsageResponse,
+	'categories' | 'skills'
+> & {
 	readonly rawMaxTokens: number;
 };
 
@@ -62,6 +65,11 @@ export interface ClaudeSessionOptions {
 	readonly emit: ProviderEventListener;
 	readonly executable: string | null;
 	readonly query?: QueryFunction;
+}
+
+interface RunSettings {
+	readonly profile: AgentRunProfile | undefined;
+	readonly skills: readonly string[] | undefined;
 }
 
 interface ActiveRun {
@@ -107,6 +115,7 @@ export class ClaudeSession implements ProviderHandle {
 		profile?: AgentRunProfile,
 		resumeAt?: string,
 		freshConversation?: boolean,
+		skills?: readonly string[],
 	): Promise<void> {
 		if (this.#active) throw new Error(`RUN_ACTIVE: ${this.#active.runId} is still running`);
 		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });
@@ -124,11 +133,12 @@ export class ClaudeSession implements ProviderHandle {
 			this.#seedHistory = undefined;
 		}
 		const resumed = this.#claudeSessionId !== undefined;
-		const outcome = await this.#attempt(executable, prompt, runId, profile, resumeAt, resumed);
+		const run: RunSettings = { profile, skills };
+		const outcome = await this.#attempt(executable, prompt, runId, run, resumeAt, resumed);
 		if (outcome === 'transcript-missing') {
 			this.#claudeSessionId = undefined;
 			this.#seedHistory = this.#context.conversationHistory;
-			await this.#attempt(executable, prompt, runId, profile, undefined, false);
+			await this.#attempt(executable, prompt, runId, run, undefined, false);
 		}
 	}
 
@@ -136,7 +146,7 @@ export class ClaudeSession implements ProviderHandle {
 		executable: string,
 		prompt: string,
 		runId: string,
-		profile: AgentRunProfile | undefined,
+		run: RunSettings,
 		resumeAt: string | undefined,
 		resumed: boolean,
 	): Promise<'done' | 'transcript-missing'> {
@@ -148,7 +158,7 @@ export class ClaudeSession implements ProviderHandle {
 		const promptId = randomUUID();
 		const query = this.#query({
 			prompt: openUserTurn(this.#promptWithSeed(prompt), promptId, finished),
-			options: this.#options(executable, runId, profile, resumeAt, abort),
+			options: this.#options(executable, runId, run, resumeAt, abort),
 		});
 		const active: ActiveRun = {
 			runId,
@@ -288,7 +298,7 @@ export class ClaudeSession implements ProviderHandle {
 	#options(
 		executable: string,
 		runId: string,
-		profile: AgentRunProfile | undefined,
+		{ profile, skills }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -316,6 +326,7 @@ export class ClaudeSession implements ProviderHandle {
 			canUseTool: this.#canUseTool(runId),
 			...(model && model !== 'default' ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
+			...(skills ? { skills: [...skills] } : {}),
 			...(this.#claudeSessionId ? { resume: this.#claudeSessionId } : {}),
 			...(this.#claudeSessionId && resumeAt ? { resumeSessionAt: resumeAt } : {}),
 			stderr: (data) => process.stderr.write(`[claude] ${data}`),

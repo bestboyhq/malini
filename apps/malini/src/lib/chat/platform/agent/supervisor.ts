@@ -16,6 +16,8 @@ import {
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
+import type { ChatNamingJob } from '$lib/jobs/jobs.platform';
+import type { SkillRecord } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
 import { IdSequence } from '../id-sequence';
 import type { BridgeProcess, BridgeProcessFactory, BridgeSpawnSpec } from './process';
@@ -183,6 +185,7 @@ export class BridgeSupervisor {
 	private stderrTail = '';
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
+	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly browserRequestListeners = new Set<(request: BridgeBrowserRequest) => void>();
 	private readonly startedAtMs: number;
@@ -431,6 +434,16 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.suggestedTitles.set(control.id, control.title);
 				return;
 			}
+			case 'bridge.skills': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: skills v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.listedSkills.set(control.id, control.skills);
+				return;
+			}
 			case 'bridge.browser_request': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
@@ -567,10 +580,10 @@ export class BridgeSupervisor {
 		return this.providerCapabilities();
 	}
 
-	async suggestTitle(prompt: string): Promise<string> {
+	async suggestTitle(prompt: string, job: ChatNamingJob): Promise<string> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'suggest_title', id, prompt });
+			await this.sendCommand({ cmd: 'suggest_title', id, prompt, ...job });
 			const title = this.suggestedTitles.get(id);
 			if (title === undefined) {
 				throw new SupervisorError(
@@ -581,6 +594,23 @@ export class BridgeSupervisor {
 			return title;
 		} finally {
 			this.suggestedTitles.delete(id);
+		}
+	}
+
+	async listSkills(cwd: string): Promise<SkillRecord[]> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'list_skills', id, cwd });
+			const skills = this.listedSkills.get(id);
+			if (skills === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'skills were acknowledged without a bridge.skills frame',
+				);
+			}
+			return skills;
+		} finally {
+			this.listedSkills.delete(id);
 		}
 	}
 

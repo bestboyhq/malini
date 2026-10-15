@@ -25,6 +25,7 @@
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 	import { composerDraftRestorationQuery } from '$lib/chat/application/queries/composer-draft-restoration.query.svelte';
 	import { composerPendingSubmissionsQuery } from '$lib/chat/application/queries/composer-pending-submissions.query.svelte';
+	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
 	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { workstreamFileListingQuery } from '$lib/chat/application/queries/workstream-file-listing.query.svelte';
@@ -66,6 +67,8 @@
 	import { setOverlayFocusReturn } from '$hyper-ui/overlay';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { JobPicker } from '$lib/jobs/jobs.api';
+	import { SkillsButton } from '$lib/skills/skills.api';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
@@ -169,6 +172,8 @@
 	let contextSearchEl: HTMLInputElement | null = $state(null);
 	let contextSelectionIndex = $state(0);
 	let contextOpenedByTyping = $state(false);
+	let jobPickerOpen = $state(false);
+	let jobPickerOpenedByTyping = $state(false);
 	let selectedContextFiles = $state<string[]>([]);
 	const todosResolution = $derived(workstreamTodosResolutionQuery.data);
 	const todoContextResolving = $derived(todosResolution?.status === 'resolving');
@@ -301,6 +306,17 @@
 		contextLoadError ? describeFailure(contextLoadError, { subject: 'Workstream files' }) : null,
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
+	const jobChatSessionId = $derived(forceFreshSession ? null : sessionId);
+	const pendingPrompt = $derived(sessionId ? pendingPromptQuery.data(sessionId) : null);
+	const jobChatAfterRunId = $derived(pendingPrompt?.runId || lastRunId(envelopes));
+
+	function lastRunId(transcript: readonly EventEnvelope[]): string | null {
+		for (let index = transcript.length - 1; index >= 0; index -= 1) {
+			const runId = transcript[index]?.runId;
+			if (runId) return runId;
+		}
+		return null;
+	}
 
 	function readDraft(id: string): string {
 		return id ? composerDraftQuery.data(id).text : '';
@@ -399,6 +415,7 @@
 		issueError = null;
 		contextOpen = false;
 		contextQuery = '';
+		jobPickerOpen = false;
 	});
 
 	$effect(() => {
@@ -462,6 +479,26 @@
 		await tick();
 		contextSearchEl?.focus();
 		loadWorkstreamFilesCommand(workstreamId);
+	}
+
+	function openJobPicker(byTyping: boolean): void {
+		if (disabled) return;
+		addMenuOpen = false;
+		contextOpen = false;
+		jobPickerOpen = true;
+		jobPickerOpenedByTyping = byTyping;
+	}
+
+	function closeJobPicker(restore: string): void {
+		jobPickerOpen = false;
+		if (restore) {
+			promptEditor?.insertText(restore);
+			return;
+		}
+		void (async () => {
+			await tick();
+			promptEditor?.focusEditor();
+		})();
 	}
 
 	function openNativeFilePicker(): void {
@@ -612,16 +649,25 @@
 		return text.length === 0 || /\s$/u.test(text);
 	}
 
-	function onKeydown(event: KeyboardEvent): void {
-		if (
-			event.key === '@' &&
+	function opensPicker(event: KeyboardEvent, key: string): boolean {
+		return (
+			event.key === key &&
 			!event.metaKey &&
 			!event.ctrlKey &&
 			!event.altKey &&
 			isStandaloneMentionTrigger()
-		) {
+		);
+	}
+
+	function onKeydown(event: KeyboardEvent): void {
+		if (opensPicker(event, '@')) {
 			event.preventDefault();
 			void openContextPicker(true);
+			return;
+		}
+		if (opensPicker(event, '/')) {
+			event.preventDefault();
+			openJobPicker(true);
 			return;
 		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -997,8 +1043,32 @@
 					Link issue
 				</DropdownItem>
 			</Tooltip>
+			<div class="border-surface-elevated-border mx-1 my-1 border-t" role="separator"></div>
+			<Tooltip content="Start one of your jobs from this chat" placement="right" class="w-full">
+				<DropdownItem
+					role="menuitem"
+					focusOnHover={false}
+					class="gap-2.5"
+					data-testid="chat-run-job"
+					onclick={() => openJobPicker(false)}
+				>
+					<Icon name="checklist" class="shrink-0" size={15} />
+					Run a job
+				</DropdownItem>
+			</Tooltip>
 		</div>
 	</DropdownLayer>
+
+	{#if jobPickerOpen}
+		<JobPicker
+			anchor={contextTriggerEl}
+			openedByTyping={jobPickerOpenedByTyping}
+			{workstreamId}
+			chatSessionId={jobChatSessionId}
+			chatAfterRunId={jobChatAfterRunId}
+			onclose={closeJobPicker}
+		/>
+	{/if}
 
 	<DropdownLayer
 		open={contextOpen}
@@ -1022,6 +1092,7 @@
 					placeholder="Find a file or @todos"
 					ariaLabel="Find workstream context"
 					class="h-7 min-w-0 flex-1 text-sm"
+					inputClass="[&::-webkit-search-cancel-button]:hidden"
 					data-testid="chat-context-search"
 					oninput={() => (contextSelectionIndex = 0)}
 					onkeydown={onContextSearchKeydown}
@@ -1178,7 +1249,11 @@
 
 		{#snippet footer()}
 			<div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
-				<Tooltip content="Add files, context, or an issue" placement="top" suppressed={addMenuOpen}>
+				<Tooltip
+					content="Add files, context, an issue, or run a job"
+					placement="top"
+					suppressed={addMenuOpen || contextOpen || jobPickerOpen}
+				>
 					<IconButton
 						bind:element={contextTriggerEl}
 						variant="ghost"
@@ -1203,6 +1278,11 @@
 					onchange={(nextProfile) => onprofilechange?.(nextProfile)}
 					onmodelsettingschange={(preferences) => onmodelsettingschange?.(preferences)}
 				/>
+				{#if workstreamId}
+					{#key `${workstreamId}:${sessionId ?? ''}`}
+						<SkillsButton {workstreamId} {sessionId} {disabled} />
+					{/key}
+				{/if}
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1">

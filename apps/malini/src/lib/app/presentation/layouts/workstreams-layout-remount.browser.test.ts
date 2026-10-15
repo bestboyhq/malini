@@ -25,7 +25,12 @@ const routes: RouteNode = {
 			layout: () => import('./WorkstreamsLayout.svelte'),
 			page: () => import('../pages/RepositoriesPage.svelte'),
 		},
-		{ segment: 'settings', page: () => import('$shared/router/fixtures/FixturePage.svelte') },
+		{
+			segment: 'dev',
+			children: [
+				{ segment: 'runtime', page: () => import('$shared/router/fixtures/FixturePage.svelte') },
+			],
+		},
 	],
 };
 
@@ -202,7 +207,7 @@ describe('coming back to the repositories from a page outside the shell', () => 
 
 	it('renders the cached repositories, workstreams, change totals and pull request states in the first frame while they refresh', async () => {
 		await openShellAndLoad();
-		await router.goto('/settings');
+		await router.goto('/dev/runtime');
 		await settle();
 		expect(frame()).toMatchObject({ repositoryRows: 0, sidebarWorkstreams: 0 });
 
@@ -234,7 +239,7 @@ describe('coming back to the repositories from a page outside the shell', () => 
 			flushSync();
 			expect(all('repository-sidebar-empty')).toHaveLength(1);
 		});
-		await router.goto('/settings');
+		await router.goto('/dev/runtime');
 		await settle();
 
 		const held = holdRefreshes();
@@ -242,7 +247,7 @@ describe('coming back to the repositories from a page outside the shell', () => 
 		await settle();
 
 		expect(all('repository-sidebar-empty')).toHaveLength(1);
-		expect(all('first-run-setup')).toHaveLength(1);
+		expect(all('onboarding')).toHaveLength(1);
 		expect(frame()).toMatchObject({ listSkeletons: 0, sidebarSkeletons: 0 });
 		held.resolve();
 	});

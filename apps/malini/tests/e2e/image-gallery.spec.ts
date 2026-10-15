@@ -52,6 +52,10 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await expect(gallery.getByRole('status')).toHaveText('1 of 3');
 		await expect(gallery.getByRole('img', { name: 'mockup.png' })).toBeVisible();
+		await expect(gallery.getByRole('button', { name: 'Close', exact: true })).toHaveCSS(
+			'-webkit-app-region',
+			'no-drag',
+		);
 
 		await page.keyboard.press('Escape');
 		await expect(gallery).toBeHidden();

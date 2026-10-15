@@ -1,3 +1,5 @@
+import type { JobDefinitionRecord } from '$contract/jobs';
+import { isRunnableJob } from '$lib/jobs/domain/builtin-jobs';
 import type { RoutineSuggestion } from './routine-suggestion';
 
 export type RoutineJob = Readonly<{ id: string; name: string }>;
@@ -5,6 +7,10 @@ export type RoutineJob = Readonly<{ id: string; name: string }>;
 export type RoutineJobDraft = Readonly<{ name: string; instructions: string }>;
 
 const SUGGESTED_JOB_NAME_LENGTH = 60;
+
+export function isRoutineStepJob(definition: Pick<JobDefinitionRecord, 'builtin'>): boolean {
+	return isRunnableJob(definition);
+}
 
 export function sortRoutineJobsByName(jobs: readonly RoutineJob[]): readonly RoutineJob[] {
 	return [...jobs].sort(

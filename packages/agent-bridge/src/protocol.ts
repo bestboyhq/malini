@@ -24,6 +24,7 @@ export type AgentCommand =
 	| RefreshCapabilitiesCommand
 	| RefreshMcpStatusCommand
 	| SuggestTitleCommand
+	| ListSkillsCommand
 	| BrowserResultCommand;
 
 export interface StartSessionCommand {
@@ -60,7 +61,11 @@ export interface SendPromptCommand {
 	readonly profile?: AgentRunProfile;
 	readonly resumeAt?: string;
 	readonly freshConversation?: boolean;
+	readonly skills?: readonly string[];
 }
+
+const MAX_SKILLS = 1_000;
+const MAX_SKILL_NAME_CHARACTERS = 200;
 
 export interface CancelRunCommand {
 	readonly cmd: 'cancel_run';
@@ -110,6 +115,14 @@ export interface SuggestTitleCommand {
 	readonly cmd: 'suggest_title';
 	readonly id: string;
 	readonly prompt: string;
+	readonly instructions: string;
+	readonly model: string;
+}
+
+export interface ListSkillsCommand {
+	readonly cmd: 'list_skills';
+	readonly id: string;
+	readonly cwd: string;
 }
 
 export type BrowserRequest =
@@ -176,6 +189,15 @@ export interface ProviderCapability {
 	readonly message: string;
 }
 
+export type AgentSkillSource = 'personal' | 'repository' | 'plugin' | 'claude-code' | 'other';
+
+export interface AgentSkill {
+	readonly name: string;
+	readonly description: string;
+	readonly source: AgentSkillSource;
+	readonly tokens: number;
+}
+
 export interface BridgeReadyFrame {
 	readonly type: 'bridge.ready';
 	readonly contractName: typeof BRIDGE_CONTRACT_NAME;
@@ -222,6 +244,13 @@ export interface BridgeTitleFrame {
 	readonly title: string;
 }
 
+export interface BridgeSkillsFrame {
+	readonly type: 'bridge.skills';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly skills: readonly AgentSkill[];
+}
+
 export type BridgeBrowserRequestFrame = {
 	readonly type: 'bridge.browser_request';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -236,6 +265,7 @@ export type BridgeControlFrame =
 	| BridgeCommandAckFrame
 	| BridgeProtocolErrorFrame
 	| BridgeTitleFrame
+	| BridgeSkillsFrame
 	| BridgeBrowserRequestFrame;
 
 export function bridgeReadyFrame(capabilities: readonly ProviderCapability[]): BridgeReadyFrame {
@@ -265,6 +295,10 @@ export function bridgeCapabilitiesFrame(
 
 export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 	return { type: 'bridge.title', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, title };
+}
+
+export function bridgeSkillsFrame(id: string, skills: readonly AgentSkill[]): BridgeSkillsFrame {
+	return { type: 'bridge.skills', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, skills };
 }
 
 export function bridgeBrowserRequestFrame(
@@ -371,6 +405,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateRefreshMcpStatus(obj);
 		case 'suggest_title':
 			return validateSuggestTitle(obj);
+		case 'list_skills':
+			return validateListSkills(obj);
 		case 'browser_result':
 			return validateBrowserResult(obj);
 	}
@@ -525,6 +561,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const profile = obj.profile;
 	const resumeAt = obj.resumeAt;
 	const freshConversation = obj.freshConversation;
+	const skills = obj.skills;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -547,6 +584,13 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (freshConversation !== undefined && typeof freshConversation !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: freshConversation must be a boolean', obj);
 	}
+	if (skills !== undefined && !isSkillList(skills)) {
+		return err(
+			'INVALID_PAYLOAD',
+			`send_prompt: skills, when present, must be at most ${MAX_SKILLS} skill names`,
+			obj,
+		);
+	}
 	return {
 		ok: true,
 		command: {
@@ -558,8 +602,22 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(profile !== undefined ? { profile } : {}),
 			...(resumeAt !== undefined ? { resumeAt } : {}),
 			...(freshConversation === true ? { freshConversation } : {}),
+			...(skills !== undefined ? { skills } : {}),
 		},
 	};
+}
+
+function isSkillList(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) &&
+		value.length <= MAX_SKILLS &&
+		value.every(
+			(name) =>
+				typeof name === 'string' &&
+				name.trim().length > 0 &&
+				name.length <= MAX_SKILL_NAME_CHARACTERS,
+		)
+	);
 }
 
 function validateCancelRun(obj: Record<string, unknown>): ParseResult {
@@ -715,7 +773,28 @@ function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {
 	if (typeof prompt !== 'string' || prompt.trim().length === 0) {
 		return err('INVALID_PAYLOAD', 'suggest_title: prompt required (non-empty string)', obj);
 	}
-	return { ok: true, command: { cmd: 'suggest_title', id: id.value, prompt } };
+	const instructions = obj.instructions;
+	if (typeof instructions !== 'string' || instructions.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'suggest_title: instructions required (non-empty string)', obj);
+	}
+	const model = obj.model;
+	if (typeof model !== 'string' || model.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'suggest_title: model required (non-empty string)', obj);
+	}
+	return {
+		ok: true,
+		command: { cmd: 'suggest_title', id: id.value, prompt, instructions, model },
+	};
+}
+
+function validateListSkills(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'list_skills');
+	if (!id.ok) return id;
+	const cwd = obj.cwd;
+	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
+		return err('INVALID_PAYLOAD', 'list_skills: cwd required (absolute path)', obj);
+	}
+	return { ok: true, command: { cmd: 'list_skills', id: id.value, cwd } };
 }
 
 function validateBrowserResult(obj: Record<string, unknown>): ParseResult {

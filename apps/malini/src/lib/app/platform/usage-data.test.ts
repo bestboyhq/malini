@@ -132,11 +132,11 @@ describe('usage data', () => {
 			true,
 		);
 		webContents.emit('did-navigate-in-page', {}, 'file:///app/index.html#/workstreams/w2', true);
-		webContents.emit('did-navigate-in-page', {}, 'file:///app/index.html#/settings', true);
+		webContents.emit('did-navigate-in-page', {}, 'file:///app/index.html#/jobs', true);
 		expect(events('$screen').map((message) => message.properties['$screen_name'])).toEqual([
 			'/',
 			'/workstreams/:workstreamId',
-			'/settings',
+			'/jobs',
 		]);
 	});
 });

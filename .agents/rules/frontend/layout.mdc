@@ -22,6 +22,7 @@ apps/malini/src/
     chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints
     pull-requests/     pull request state, actions, top-bar status, merge
     routines/          drafts, routines, suggestions, gated runs
+    skills/            skill presets, the skills a chat or job loads, the preset board
     extensions/        runtime, host adapters, inspector, directory, configuration
     shared/                                                                         alias $shared
       repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle

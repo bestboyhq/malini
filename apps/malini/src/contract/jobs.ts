@@ -4,7 +4,13 @@ export type JobRunsIn = 'workstream' | 'new-workstream';
 
 export type JobOutput = 'none' | 'draft' | 'merge';
 
-export type JobBuiltin = 'fix-checks' | 'update-from-main' | 'address-review';
+export type JobBuiltin = 'name-chats' | 'fix-checks' | 'update-from-main' | 'address-review';
+
+export type ShippingJobBuiltin = Exclude<JobBuiltin, 'name-chats'>;
+
+export function isShippingJobBuiltin(builtin: JobBuiltin | null): builtin is ShippingJobBuiltin {
+	return builtin !== null && builtin !== 'name-chats';
+}
 
 export type JobDefinitionRecord = Readonly<{
 	id: string;
@@ -14,6 +20,7 @@ export type JobDefinitionRecord = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
+	skillPresetId: string | null;
 	builtin: JobBuiltin | null;
 	createdAt: string;
 	updatedAt: string;
@@ -35,6 +42,8 @@ export type JobRunRecord = Readonly<{
 	origin: JobRunOrigin;
 	status: JobRunStatus;
 	detail: string | null;
+	chatSessionId: string | null;
+	chatAfterRunId: string | null;
 	createdAt: string;
 	startedAt: string | null;
 	finishedAt: string | null;
@@ -48,6 +57,7 @@ export type SaveJobDefinitionArgs = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
+	skillPresetId?: string | null;
 }>;
 
 export type JobDefinitionIdArgs = Readonly<{ definitionId: string }>;
@@ -58,7 +68,11 @@ export type RunJobArgs = Readonly<{
 	repositoryId?: string;
 	context?: string;
 	origin?: JobRunOrigin;
+	chatSessionId?: string;
+	chatAfterRunId?: string;
 }>;
+
+export type ChatJobRunsArgs = Readonly<{ chatSessionId: string }>;
 
 export type JobRunIdArgs = Readonly<{ jobRunId: string }>;
 
@@ -68,6 +82,7 @@ export type JobCommandName =
 	| 'jobs.delete-definition'
 	| 'jobs.reset-definition'
 	| 'jobs.list-runs'
+	| 'jobs.list-chat-runs'
 	| 'jobs.run'
 	| 'jobs.cancel-run';
 

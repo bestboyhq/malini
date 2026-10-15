@@ -112,10 +112,14 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'extensions.write-workstream-file': false,
 	'jobs.cancel-run': plain,
 	'jobs.delete-definition': plain,
+	'jobs.list-chat-runs': false,
 	'jobs.list-definitions': false,
 	'jobs.list-runs': false,
 	'jobs.reset-definition': plain,
-	'jobs.run': (args) => ({ origin: text(args, 'origin') ?? 'manual' }),
+	'jobs.run': (args) => ({
+		origin: text(args, 'origin') ?? 'manual',
+		from_chat: text(args, 'chatSessionId') !== undefined,
+	}),
 	'jobs.save-definition': (args) => ({
 		runs_in: text(args, 'runsIn'),
 		output: text(args, 'output'),
@@ -192,6 +196,19 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'routines.record-gated-run': (args) => ({ trigger: text(args, 'event') }),
 	'routines.reject-run': plain,
 	'routines.update': (args) => ({ steps: count(args, 'steps') }),
+	'skills.choice': false,
+	'skills.choose': (args) => ({
+		kind: text(field(args, 'choice'), 'kind'),
+		skills: count(field(args, 'choice'), 'skills'),
+	}),
+	'skills.delete-preset': plain,
+	'skills.list': false,
+	'skills.list-presets': false,
+	'skills.save-preset': (args) => ({
+		new: text(args, 'id') === undefined,
+		skills: count(args, 'skills'),
+	}),
+	'skills.set-default-preset': (args) => ({ cleared: field(args, 'presetId') === null }),
 };
 
 const USAGE_BY_NAME: Readonly<Record<string, CommandUsage>> = COMMAND_USAGE;

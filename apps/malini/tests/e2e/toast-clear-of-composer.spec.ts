@@ -91,7 +91,8 @@ async function watchFooterCoverage(page: Page): Promise<void> {
 						const y = box.top + 2 + ((box.height - 4) * row) / 3;
 						const hit = body.ownerDocument.elementFromPoint(x, y);
 						const opened = hit?.closest('[data-sidebar-overlay]');
-						if (hit && !opened && !footer?.contains(hit) && covered.length < 20) {
+						const splitHandle = hit?.closest('[role="separator"]');
+						if (hit && !opened && !splitHandle && !footer?.contains(hit) && covered.length < 20) {
 							const toast = hit.closest('[data-testid="toast"]');
 							covered.push(
 								`${Math.round(x)},${Math.round(y)}: ${toast?.textContent ?? hit.tagName}`,

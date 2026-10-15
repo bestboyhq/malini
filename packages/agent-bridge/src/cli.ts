@@ -8,17 +8,22 @@ import {
 	bridgeHeartbeatFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
+	bridgeSkillsFrame,
 	bridgeTitleFrame,
 	parseCommandLine,
 	type AgentCommand,
+	type AgentSkill,
 	type BridgeControlFrame,
+	type ListSkillsCommand,
+	type SuggestTitleCommand,
 	type BrowserRequest,
 	type BrowserResult,
 	type ProviderCapability,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { registerClaudeProvider } from './claude/index.js';
-import { suggestClaudeTitle } from './claude/titles.js';
+import { listClaudeSkills } from './claude/skills.js';
+import { suggestClaudeTitle, type TitleJob } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
 import { sanitizePublicError } from './error-sanitizer.js';
 import { SessionManager, UnknownSessionError } from './session-manager.js';
@@ -39,7 +44,8 @@ export interface RunOptions {
 	idleTimeoutMs?: number | null;
 	exit?: (code: number) => void;
 	capabilityProbe?: () => Promise<ProviderCapability>;
-	suggestTitle?: (task: string) => Promise<string>;
+	suggestTitle?: (task: string, job: TitleJob) => Promise<string>;
+	listSkills?: (cwd: string) => Promise<readonly AgentSkill[]>;
 	closeSessionTimeoutMs?: number;
 	browserRequestTimeoutMs?: number;
 }
@@ -228,13 +234,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			return;
 		}
 		if (cmd.cmd === 'suggest_title') {
-			try {
-				const title = await (options.suggestTitle ?? suggestClaudeTitle)(cmd.prompt);
-				emitControl(bridgeTitleFrame(cmd.id, title));
-				emitControl(bridgeCommandAckFrame(cmd.id));
-			} catch (err) {
-				emitControl(bridgeCommandAckFrame(cmd.id, `TITLE_FAILED: ${errorMessage(err)}`));
-			}
+			trackInFlight(answerTitle(cmd));
+			return;
+		}
+		if (cmd.cmd === 'list_skills') {
+			trackInFlight(answerSkills(cmd));
 			return;
 		}
 		switch (cmd.cmd) {
@@ -479,6 +483,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.profile,
 				cmd.resumeAt,
 				cmd.freshConversation,
+				cmd.skills,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));
@@ -488,6 +493,29 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				activeRunIdsBySession.delete(cmd.sessionId);
 				activeRunSessions.delete(cmd.sessionId);
 			}
+		}
+	}
+
+	async function answerTitle(cmd: SuggestTitleCommand): Promise<void> {
+		try {
+			const title = await (options.suggestTitle ?? suggestClaudeTitle)(cmd.prompt, {
+				instructions: cmd.instructions,
+				model: cmd.model,
+			});
+			emitControl(bridgeTitleFrame(cmd.id, title));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `TITLE_FAILED: ${errorMessage(err)}`));
+		}
+	}
+
+	async function answerSkills(cmd: ListSkillsCommand): Promise<void> {
+		try {
+			const skills = await (options.listSkills ?? listClaudeSkills)(cmd.cwd);
+			emitControl(bridgeSkillsFrame(cmd.id, skills));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `SKILLS_FAILED: ${errorMessage(err)}`));
 		}
 	}
 

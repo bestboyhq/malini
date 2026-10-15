@@ -23,6 +23,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerRoutines } from '$lib/routines/platform/register';
+import { registerSkills } from '$lib/skills/platform/register';
 
 export interface ModuleOptions {
 	getMainWindow(): BrowserWindow | null;
@@ -92,6 +93,11 @@ export async function registerModules(
 		...(overrides.filePicker ? { picker: overrides.filePicker } : {}),
 		...(overrides.bridgeProcessFactory ? { processFactory: overrides.bridgeProcessFactory } : {}),
 		...(overrides.bridgeScriptPath ? { bridgeScriptPath: overrides.bridgeScriptPath } : {}),
+	});
+
+	registerSkills(context, {
+		listSkills: (cwd) => chat.listSkills(cwd),
+		resolveCheckout: (workstreamId) => repositories.checkouts.resolveCheckout(workstreamId),
 	});
 
 	const app = registerApp(context, {

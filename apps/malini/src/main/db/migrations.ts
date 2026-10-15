@@ -1236,6 +1236,57 @@ CREATE TABLE IF NOT EXISTS hidden_repositories (
 );
 `;
 
+export const MIGRATION_0043_NAME_CHATS_JOB = `
+CREATE TABLE job_definitions_v43 (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  output TEXT NOT NULL CHECK (output IN ('none','draft','merge')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','fix-checks','update-from-main','address-review')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+INSERT INTO job_definitions_v43 (
+  rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at
+)
+SELECT rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at
+FROM job_definitions;
+
+DROP TABLE job_definitions;
+ALTER TABLE job_definitions_v43 RENAME TO job_definitions;
+`;
+
+export const MIGRATION_0043_JOB_RUNS_CHAT_SESSION = `ALTER TABLE job_runs ADD COLUMN chat_session_id TEXT;`;
+
+export const MIGRATION_0043_JOB_RUNS_CHAT_AFTER_RUN = `ALTER TABLE job_runs ADD COLUMN chat_after_run_id TEXT;`;
+
+export const MIGRATION_0043_JOB_RUNS_CHAT_INDEX = `CREATE INDEX IF NOT EXISTS idx_job_runs_chat_session ON job_runs(chat_session_id);`;
+
+export const MIGRATION_0044_SKILL_PRESETS = `
+CREATE TABLE IF NOT EXISTS skill_presets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+  skills TEXT NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_presets_default ON skill_presets(is_default) WHERE is_default = 1;
+CREATE TABLE IF NOT EXISTS skill_choices (
+  scope TEXT NOT NULL CHECK (scope IN ('workstream','session')),
+  owner_id TEXT NOT NULL,
+  choice TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (scope, owner_id)
+);
+`;
+
+export const MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET = `ALTER TABLE job_definitions ADD COLUMN skill_preset_id TEXT;`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1245,7 +1296,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 42;
+export const TARGET_USER_VERSION = 44;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1410,6 +1461,26 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				db.exec(MIGRATION_0041_WORKSTREAM_SHIP_LOCAL_PHASE);
 			}
 			if (existing < 42) db.exec(MIGRATION_0042_HIDDEN_REPOSITORIES);
+			if (existing < 43) {
+				db.exec(MIGRATION_0043_NAME_CHATS_JOB);
+				addColumnIfMissing(db, 'job_runs', 'chat_session_id', MIGRATION_0043_JOB_RUNS_CHAT_SESSION);
+				addColumnIfMissing(
+					db,
+					'job_runs',
+					'chat_after_run_id',
+					MIGRATION_0043_JOB_RUNS_CHAT_AFTER_RUN,
+				);
+				db.exec(MIGRATION_0043_JOB_RUNS_CHAT_INDEX);
+			}
+			if (existing < 44) {
+				db.exec(MIGRATION_0044_SKILL_PRESETS);
+				addColumnIfMissing(
+					db,
+					'job_definitions',
+					'skill_preset_id',
+					MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
+				);
+			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,

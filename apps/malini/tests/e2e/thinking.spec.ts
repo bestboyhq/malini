@@ -38,13 +38,22 @@ test('a thinking agent narrates each step live and leaves its reasoning between 
 		const live = page.getByTestId('thinking-live');
 		await expect(live).toContainText('Thinking');
 		await expect
-			.poll(() => page.evaluate(() => globalThis.tickerLines.slice(0, 4)))
+			.poll(() =>
+				page.evaluate(() =>
+					globalThis.tickerLines.filter((line) => /[.!?]$/u.test(line)).slice(0, 4),
+				),
+			)
 			.toEqual([
 				'The user wants the preview fixed.',
 				'It stays open after the gallery closes.',
 				'Focus returns to the chip that opened it.',
 				'I should read the hover card first.',
 			]);
+		expect(await page.evaluate(() => globalThis.tickerLines.slice(0, 3))).toEqual([
+			'The',
+			'The user',
+			'The user wants',
+		]);
 		await captureFlow(app, 'thinking-live');
 
 		await expect(page.getByTestId('chat-message-bubble')).toContainText(

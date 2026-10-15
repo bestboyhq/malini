@@ -1,10 +1,15 @@
-import type { RoutineJob, RoutineJobDraft } from '$lib/routines/domain/routine-job';
+import {
+	isRoutineStepJob,
+	type RoutineJob,
+	type RoutineJobDraft,
+} from '$lib/routines/domain/routine-job';
 import { RoutineJobMapper } from '$lib/routines/infrastructure/mappers/routine-job.mapper';
 import { invoke } from '$shared/port/invoke';
 
 class RoutineJobsService {
 	async list(): Promise<readonly RoutineJob[]> {
-		return RoutineJobMapper.fromRawList(await invoke('jobs.list-definitions', undefined));
+		const definitions = await invoke('jobs.list-definitions', undefined);
+		return RoutineJobMapper.fromRawList(definitions.filter(isRoutineStepJob));
 	}
 
 	async create(draft: RoutineJobDraft): Promise<RoutineJob> {
