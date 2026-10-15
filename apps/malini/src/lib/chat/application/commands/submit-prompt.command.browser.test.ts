@@ -472,9 +472,7 @@ describe('prompt dispatch failures', () => {
 		);
 		expect(queuedPrompts()).toEqual(['Queued']);
 		expect(chatSessionStore.bootError).toBeNull();
-		expect(error).toHaveBeenCalledWith('Queued prompt is still waiting · provider exploded', {
-			context: { workstream: WORKSTREAM },
-		});
+		expect(error).not.toHaveBeenCalled();
 	});
 
 	it('reports a queued prompt whose new chat cannot start as a session error', async () => {

@@ -1,15 +1,12 @@
 import { APP_NOTIFICATION_OPENED_CHANNEL, type NotificationTarget } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
-import { toast } from '$hyper-ui/components/toast';
-import { aboutWorkstream } from '$shared/errors/toast-subject';
 
 type NotificationOpenListener = (target: NotificationTarget) => void;
 
 class NotificationService {
 	private permissionChecked = false;
 	private permissionAvailable = false;
-	private readonly openListeners = new Set<NotificationOpenListener>();
 
 	async notify(
 		title: string,
@@ -20,18 +17,14 @@ class NotificationService {
 		const opens = sessionId ? { workstreamId, sessionId } : null;
 		try {
 			await this.ensurePermission();
-			if (!this.permissionAvailable) {
-				this.fallbackToast(title, body, workstreamId, opens);
-				return;
-			}
+			if (!this.permissionAvailable) return;
 			await invoke('app.notify', { options: { title, body, ...(opens ? { opens } : {}) } });
 		} catch {
-			this.fallbackToast(title, body, workstreamId, opens);
+			return;
 		}
 	}
 
 	onOpen(listener: NotificationOpenListener): () => void {
-		this.openListeners.add(listener);
 		let listening = true;
 		const openClicked = async (): Promise<void> => {
 			const target = await invoke('app.take-notification-target', undefined).catch(() => null);
@@ -44,7 +37,6 @@ class NotificationService {
 		return () => {
 			listening = false;
 			stopNative();
-			this.openListeners.delete(listener);
 		};
 	}
 
@@ -61,25 +53,6 @@ class NotificationService {
 		} catch {
 			this.permissionAvailable = false;
 		}
-	}
-
-	private fallbackToast(
-		title: string,
-		body: string,
-		workstreamId: string,
-		opens: NotificationTarget | null,
-	): void {
-		toast.info(
-			`${title} · ${body}`,
-			aboutWorkstream(
-				workstreamId,
-				opens ? { action: { label: 'Open chat', onclick: () => this.announceOpen(opens) } } : {},
-			),
-		);
-	}
-
-	private announceOpen(target: NotificationTarget): void {
-		for (const listener of [...this.openListeners]) listener(target);
 	}
 }
 

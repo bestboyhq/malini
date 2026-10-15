@@ -131,10 +131,7 @@ describe('sending a queued prompt now', () => {
 
 		await vi.advanceTimersByTimeAsync(1);
 		expect(queueErrorsQuery.data).toEqual({ [entry.id]: INTERRUPTED_RUN_NEVER_FINISHED });
-		expect(error).toHaveBeenCalledWith(
-			`Queued prompt is still waiting · ${INTERRUPTED_RUN_NEVER_FINISHED}`,
-			{ context: { workstream: WORKSTREAM } },
-		);
+		expect(error).not.toHaveBeenCalled();
 		expect(queueSendingQuery.data).toBeNull();
 		expect(sends()).toEqual([]);
 		expect(agentPromptQueue.entriesFor(WORKSTREAM)).toEqual([
@@ -174,9 +171,7 @@ describe('sending a queued prompt now', () => {
 			expect(queueErrorsQuery.data).toEqual({ [entry.id]: 'bridge unreachable' }),
 		);
 		expect(queueSendingQuery.data).toBeNull();
-		expect(error).toHaveBeenCalledWith('bridge unreachable', {
-			context: { workstream: WORKSTREAM },
-		});
+		expect(error).not.toHaveBeenCalled();
 		expect(pendingPromptQuery.data('s-a1')).toBeNull();
 		expect(queuedPromptsQuery.data.map((queued) => queued.id)).toEqual([entry.id]);
 	});
