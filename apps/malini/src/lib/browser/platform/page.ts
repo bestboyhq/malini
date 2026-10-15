@@ -22,6 +22,7 @@ export interface PageContents {
 	isLoading(): boolean;
 	isDestroyed(): boolean;
 	isFocused(): boolean;
+	getOSProcessId(): number;
 	focus(): void;
 	reload(): void;
 	getZoomFactor(): number;

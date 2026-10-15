@@ -34,7 +34,6 @@ test('activates, registers declared contributions, reloads, and cleans up', asyn
 			'malini.repository.todo-remove',
 			'malini.repository.warm-workstream',
 		]);
-		assert.equal(host.snapshot().settings['malini.repository.show-hidden'], false);
 		await host.reload();
 		assert.deepEqual(host.snapshot().panels, [
 			'malini.repository.file',

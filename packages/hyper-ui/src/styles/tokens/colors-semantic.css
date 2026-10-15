@@ -154,12 +154,12 @@
 	--color-brand-content-light: var(--color-grey-50);
 	--color-brand-content-dark: var(--color-grey-50);
 
-	--color-usage-search-light: var(--color-custom-primary);
-	--color-usage-search-dark: var(--color-custom-primary);
-	--color-usage-read-light: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
-	--color-usage-read-dark: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
-	--color-usage-curate-light: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
-	--color-usage-curate-dark: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
-	--color-usage-compose-light: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
-	--color-usage-compose-dark: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
+	--color-activity-1-light: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
+	--color-activity-1-dark: color-mix(in oklab, var(--color-custom-primary) 38%, transparent);
+	--color-activity-2-light: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
+	--color-activity-2-dark: color-mix(in oklab, var(--color-custom-primary) 52%, transparent);
+	--color-activity-3-light: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
+	--color-activity-3-dark: color-mix(in oklab, var(--color-custom-primary) 72%, transparent);
+	--color-activity-4-light: var(--color-custom-primary);
+	--color-activity-4-dark: var(--color-custom-primary);
 }

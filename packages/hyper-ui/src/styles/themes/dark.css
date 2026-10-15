@@ -202,8 +202,8 @@
 	--themed-color-brand-foreground: var(--color-brand-foreground-dark);
 	--themed-color-brand-content: var(--color-brand-content-dark);
 
-	--themed-color-usage-search: var(--color-usage-search-dark);
-	--themed-color-usage-read: var(--color-usage-read-dark);
-	--themed-color-usage-curate: var(--color-usage-curate-dark);
-	--themed-color-usage-compose: var(--color-usage-compose-dark);
+	--themed-color-activity-1: var(--color-activity-1-dark);
+	--themed-color-activity-2: var(--color-activity-2-dark);
+	--themed-color-activity-3: var(--color-activity-3-dark);
+	--themed-color-activity-4: var(--color-activity-4-dark);
 }

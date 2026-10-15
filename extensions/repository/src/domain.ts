@@ -305,17 +305,8 @@ export function parseDiffRequest(input: unknown): DiffRequest {
 	return { path: normalizeRepositoryPath(path), before: input.before, after: input.after };
 }
 
-export function createFileList(
-	paths: readonly string[],
-	showHidden: boolean,
-): readonly RepositoryFile[] {
-	const unique = new Set<string>();
-	for (const path of paths) {
-		const normalized = normalizeRepositoryPath(path);
-		if (!showHidden && normalized.split('/').some((part) => part.startsWith('.'))) continue;
-		unique.add(normalized);
-	}
-	return [...unique]
+export function createFileList(paths: readonly string[]): readonly RepositoryFile[] {
+	return [...new Set(paths.map(normalizeRepositoryPath).filter((path) => !isGitInternalPath(path)))]
 		.sort((left, right) => left.localeCompare(right))
 		.map((path) => {
 			const segments = path.split('/');

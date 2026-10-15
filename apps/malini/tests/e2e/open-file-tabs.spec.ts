@@ -581,8 +581,10 @@ test('a file the agent names opens from a bare name or a hidden folder, and the 
 		await expect(
 			hiddenView.getByRole('navigation', { name: 'File path' }).getByRole('listitem'),
 		).toHaveText(['.github', 'workflows', 'ci.yml']);
-		await expect(page.getByRole('treeitem', { selected: true })).toHaveCount(0);
-		await expect(page.getByRole('treeitem', { name: /\.github/u })).toHaveCount(0);
+		await expect(page.getByRole('treeitem', { selected: true })).toHaveAccessibleName(
+			`Open ${HIDDEN_FILE}`,
+		);
+		await expect(treeRow(page, HIDDEN_FILE)).toBeInViewport();
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'open-file-10-hidden-file');
 

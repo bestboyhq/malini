@@ -269,3 +269,38 @@ export function activeRunWorkstreamIdentity(
 	);
 	return row ? { workstreamId: row.id, path: row.path } : null;
 }
+
+export interface RunActivity {
+	readonly date: string;
+	readonly projectId: string;
+	readonly runs: number;
+	readonly jobRuns: number;
+	readonly seconds: number;
+}
+
+export function listRunActivity(db: MaliniDatabase): RunActivity[] {
+	return all<{
+		date: string;
+		project_id: string;
+		runs: number;
+		job_runs: number;
+		seconds: number;
+	}>(
+		db,
+		`SELECT date(r.started_at, 'localtime') AS date, w.project_id,
+		        COUNT(*) AS runs,
+		        SUM(s.origin = 'job') AS job_runs,
+		        COALESCE(SUM((julianday(r.completed_at) - julianday(r.started_at)) * 86400), 0) AS seconds
+		 FROM agent_runs r
+		 JOIN agent_sessions s ON s.id = r.session_id
+		 JOIN workstreams w ON w.id = s.workstream_id
+		 GROUP BY date, w.project_id
+		 ORDER BY date ASC`,
+	).map((row) => ({
+		date: row.date,
+		projectId: row.project_id,
+		runs: row.runs,
+		jobRuns: row.job_runs,
+		seconds: row.seconds,
+	}));
+}
