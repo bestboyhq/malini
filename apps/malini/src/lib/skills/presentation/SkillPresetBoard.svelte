@@ -140,7 +140,12 @@
 				{/snippet}
 			</TextInput>
 		</header>
-		<ScrollableDiv class="min-h-0 flex-1" contentClass="px-1.5 pb-1.5" ariaLabel="Your skills">
+		<ScrollableDiv
+			class="min-h-0 flex-1"
+			contentClass="px-1.5 pb-1.5"
+			ariaLabel="Your skills"
+			fadeEdges
+		>
 			{#if catalog.skills.length === 0 && catalog.state === 'error'}
 				<StateBlock
 					heading="Could not list your skills"
@@ -220,6 +225,7 @@
 			class="min-h-0 flex-1"
 			contentClass="flex flex-col gap-1.5 px-1.5 pb-1.5"
 			ariaLabel="Presets"
+			fadeEdges
 		>
 			{#each presets as preset (preset.id)}
 				<div animate:flip={{ duration: 200, easing: cubicOut }}>

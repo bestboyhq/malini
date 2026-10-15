@@ -205,7 +205,12 @@
 				{/snippet}
 			</TextInput>
 		</div>
-		<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Skills">
+		<ScrollableDiv
+			class="flex min-h-0 flex-1 flex-col [--scrollable-fade-color:var(--color-surface-elevated)]"
+			viewportClass="min-h-0 flex-1"
+			ariaLabel="Skills"
+			fadeEdges
+		>
 			{#if catalog.skills.length === 0}
 				<p class="text-fg-tertiary px-2.5 py-3 text-xs">
 					{catalog.state === 'error'
