@@ -15,7 +15,7 @@ import {
 } from './automation';
 import type { HostWindow, PageContents, PageEvents, PageView, Rectangle } from './page';
 import { pickElement, pickerPage } from './picker';
-import { BLANK_PAGE, normalizeBrowserUrl } from './url';
+import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
@@ -28,6 +28,7 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	createView(events: PageEvents): PageView<W>;
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
+	worktree(workstreamId: string): string;
 	stateChanged(state: BrowserState): void;
 	tabOpened(tab: BrowserTabArgs): void;
 }
@@ -46,6 +47,7 @@ interface Entry<W extends HostWindow> {
 	shown: boolean;
 	bounds: Rectangle;
 	lastUrl: string;
+	failure: string | null;
 	pick: OpenPick | null;
 }
 
@@ -75,8 +77,9 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	navigate(tab: BrowserTabArgs, url: string): void {
+		const address = this.address(tab, url);
 		void this.ensure(tab)
-			.view.contents.loadURL(url)
+			.view.contents.loadURL(address)
 			.catch(() => undefined);
 	}
 
@@ -172,22 +175,21 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	async open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
+		const address = this.address(tab, url);
 		const fresh = this.openContents(tab) === null;
 		const { contents } = this.ensure(tab).view;
-		await openUrl(contents, normalizeBrowserUrl(url));
+		await openUrl(contents, address);
 		if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
 		return pageInfo(contents);
 	}
 
 	async screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile> {
-		const contents = this.openContents(tab);
-		const entry = this.entries.get(tabKey(tab));
-		if (!contents || !entry) throw new Error(NOTHING_OPEN);
+		const { contents, entry } = this.loaded(tab);
 		return this.rendered(entry, () => saveScreenshot(contents, worktree, new Date()));
 	}
 
 	async click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
-		const contents = this.page(tab);
+		const { contents } = this.loaded(tab);
 		await clickSelector(contents, selector);
 		return pageInfo(contents);
 	}
@@ -198,7 +200,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo> {
-		const contents = this.page(tab);
+		const { contents } = this.loaded(tab);
 		await typeIntoSelector(contents, selector, text, submit);
 		return pageInfo(contents);
 	}
@@ -217,6 +219,24 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				entry.view.setBounds(entry.bounds);
 			}
 		}
+	}
+
+	private address(tab: BrowserTabArgs, input: string): string {
+		return isFileAddress(input)
+			? worktreeFileUrl(input, tab.workstreamId, this.deps.worktree(tab.workstreamId))
+			: normalizeBrowserUrl(input);
+	}
+
+	private loaded(tab: BrowserTabArgs): { contents: PageContents; entry: Entry<W> } {
+		const contents = this.openContents(tab);
+		const entry = this.entries.get(tabKey(tab));
+		if (!contents || !entry) throw new Error(NOTHING_OPEN);
+		if (entry.failure) {
+			throw new Error(
+				`${contents.getURL()} did not load (${entry.failure}). Fix it, then call browser_reload or browser_open.`,
+			);
+		}
+		return { contents, entry };
 	}
 
 	private page(tab: BrowserTabArgs): PageContents {
@@ -256,7 +276,13 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 					entry.favicon = favicon;
 					this.changed(entry);
 				},
-				navigating: () => entry.pick?.controller.abort(),
+				navigating: () => {
+					entry.failure = null;
+					entry.pick?.controller.abort();
+				},
+				failed: (reason) => {
+					entry.failure = reason;
+				},
 				gone: () => {
 					entry.alive = false;
 					entry.pick?.controller.abort();
@@ -267,6 +293,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			shown: false,
 			bounds: previous?.bounds ?? { x: 0, y: 0, ...DEFAULT_VIEW_SIZE },
 			lastUrl: previous?.lastUrl ?? '',
+			failure: null,
 			pick: null,
 		};
 		entry.view.setBounds(entry.bounds);

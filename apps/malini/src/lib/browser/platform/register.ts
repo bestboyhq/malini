@@ -5,23 +5,36 @@ import {
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
 import type { MainContext } from '$main/context';
-import { getWorkstream } from '$shared/repositories/repositories.platform';
+import { resolveWorkstreamCheckoutCanonical } from '$main/git/paths';
+import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
 import type { BrowserPlatform } from '../browser.platform';
 import { readBounds, readTab, readUrl } from './args';
 import { createElectronView, watchRendererReset } from './electron-view';
 import { BrowserViews } from './views';
+import { serveWorktreeFiles } from './worktree-files';
 
 export interface BrowserDeps {
 	getMainWindow(): BrowserWindow | null;
 }
 
 export function registerBrowser(context: MainContext, deps: BrowserDeps): BrowserPlatform {
-	const { commands, events, db } = context;
+	const { commands, events, db, appDataRoot } = context;
+	const worktree = (workstreamId: string): string =>
+		resolveWorkstreamCheckoutCanonical(appDataRoot, workstreamId);
+	serveWorktreeFiles((host) => {
+		const workstream = listWorkstreams(db).find(({ id }) => id.toLowerCase() === host);
+		try {
+			return workstream ? worktree(workstream.id) : null;
+		} catch {
+			return null;
+		}
+	});
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
 		createView: createElectronView,
 		watchRendererReset,
 		workstreamExists: (workstreamId) => getWorkstream(db, workstreamId) !== null,
+		worktree,
 		stateChanged: (state) => events.emit(BROWSER_STATE_CHANGED_CHANNEL, state),
 		tabOpened: (tab) => events.emit(BROWSER_TAB_OPENED_CHANNEL, tab),
 	});

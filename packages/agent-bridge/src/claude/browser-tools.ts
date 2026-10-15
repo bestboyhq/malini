@@ -21,8 +21,13 @@ export function maliniTools(
 	const tools = [
 		tool(
 			'browser_open',
-			"Open a URL in malini's browser, the one the user sees beside the chat, and wait for the page to load.",
-			{ url: z.string().min(1).describe('The page to open, for example http://localhost:5173') },
+			"Open a web page or a file from your worktree in malini's browser, the one the user sees beside the chat, and wait for the page to load. A worktree file needs no server: pass its absolute path, a path starting with ./, or a file:// URL. A localhost URL waits up to 20s for a server that is still starting.",
+			{
+				url: z
+					.string()
+					.min(1)
+					.describe('The page to open, for example http://localhost:5173 or ./docs/report.html'),
+			},
 			({ url }) => run({ action: 'open', url }),
 		),
 		tool(

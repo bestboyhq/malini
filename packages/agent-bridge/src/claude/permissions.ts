@@ -73,6 +73,7 @@ export function sandboxFor(profile: AgentRunProfile | undefined): SandboxSetting
 				network: {
 					allowedDomains: GITHUB_HOSTS,
 					allowMachLookup: [MACOS_CERTIFICATE_TRUST_SERVICE],
+					allowLocalBinding: true,
 				},
 			}
 		: { enabled: false };

@@ -35,11 +35,8 @@ describe('browser command arguments', () => {
 		}
 	});
 
-	it('reads a URL as the address the browser will load', () => {
-		expect(readUrl({ url: 'localhost:5173/pricing' })).toBe('http://localhost:5173/pricing');
+	it('reads a URL as typed', () => {
+		expect(readUrl({ url: 'localhost:5173/pricing' })).toBe('localhost:5173/pricing');
 		expect(() => readUrl({})).toThrow('`url` must be a string');
-		expect(() => readUrl({ url: 'file:///etc/hosts' })).toThrow(
-			'Only http and https pages open in the browser.',
-		);
 	});
 });

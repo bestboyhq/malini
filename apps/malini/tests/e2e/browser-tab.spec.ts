@@ -1,5 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	createSourceRepo,
@@ -59,5 +61,41 @@ test('browser tabs show only once opened, each with its own page, and closing on
 	} finally {
 		await app.close();
 		server.close();
+	}
+});
+
+test('a browser tab opens files of its worktree and follows their links without a server', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-browser-file-ws', 'Browser file');
+		mkdirSync(join(seeded.worktree, 'docs'), { recursive: true });
+		writeFileSync(
+			join(seeded.worktree, 'docs', 'report.html'),
+			'<!doctype html><title>Report</title><a href="next.html">Next</a>',
+		);
+		writeFileSync(join(seeded.worktree, 'docs', 'next.html'), '<!doctype html><title>Next</title>');
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		await openTab(page, '', './docs/report.html');
+		await expect(inspector.getByRole('tab', { name: 'Report', exact: true })).toBeVisible();
+		await expect(page.getByRole('textbox', { name: 'Page address' }).last()).toHaveValue(
+			'./docs/report.html',
+		);
+
+		await electronApp.evaluate(async ({ webContents }) => {
+			const report = webContents
+				.getAllWebContents()
+				.find((contents) => contents.getTitle() === 'Report');
+			await report?.executeJavaScript('document.querySelector("a").click()');
+		});
+		await expect(inspector.getByRole('tab', { name: 'Next', exact: true })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
 	}
 });

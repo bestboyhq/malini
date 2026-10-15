@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { app, BrowserWindow, dialog } from 'electron';
 import { bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
+import { declareWorktreeScheme } from '$lib/browser/platform/worktree-files';
 import { COMMAND_NAMES, type CommandName } from '../contract/commands';
 import type { MainContext } from './context';
 import type { MaliniDatabase } from './db/driver';
@@ -15,6 +16,7 @@ import { waitForPreviousInstanceToExit } from './single-instance';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 if (BACKGROUND_WINDOW) app.dock?.hide();
+declareWorktreeScheme();
 
 const appDataProblem = adoptLegacyAppData(app.getPath('userData'));
 if (appDataProblem) {

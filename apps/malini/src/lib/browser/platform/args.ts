@@ -1,5 +1,4 @@
 import type { BrowserBounds, BrowserTabArgs } from '$contract/browser';
-import { normalizeBrowserUrl } from './url';
 
 export function readWorkstreamId(args: unknown): string {
 	const value = field(args, 'workstreamId');
@@ -41,7 +40,7 @@ export function readBounds(args: unknown): BrowserBounds {
 export function readUrl(args: unknown): string {
 	const value = field(args, 'url');
 	if (typeof value !== 'string') throw new Error('invalid args: `url` must be a string');
-	return normalizeBrowserUrl(value);
+	return value;
 }
 
 function field(args: unknown, key: string): unknown {

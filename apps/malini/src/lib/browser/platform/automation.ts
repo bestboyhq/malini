@@ -4,26 +4,45 @@ import { isErrnoException } from '$main/errors';
 import { SANDBOX_SCRATCH_PATH } from '$main/git/paths';
 import type { BrowserScreenshotFile } from '../browser.platform';
 import { MALINI_WORLD_ID, type PageContents, type PageImage } from './page';
+import { isLocalUrl } from './url';
 
 export const SCREENSHOTS_PATH = `${SANDBOX_SCRATCH_PATH}/screenshots`;
 export const PREVIEW_LONG_EDGE = 1_568;
 
 const OPEN_TIMEOUT_MS = 20_000;
+const SERVER_RETRY_MS = 500;
+const REFUSED = 'ERR_CONNECTION_REFUSED';
 const ACTION_SETTLE_MS = 10_000;
 const NAVIGATION_GRACE_MS = 250;
 const LOAD_POLL_MS = 50;
 const MAX_NAME_ATTEMPTS = 1_000;
 
 export async function openUrl(contents: PageContents, url: string): Promise<void> {
+	const serverDeadline = Date.now() + OPEN_TIMEOUT_MS;
+	const waitsForServer = isLocalUrl(url);
+	let failure = await load(contents, url);
+	while (failure === REFUSED && waitsForServer && Date.now() < serverDeadline) {
+		await delay(SERVER_RETRY_MS);
+		failure = await load(contents, url);
+	}
+	if (failure === REFUSED && waitsForServer) {
+		throw new Error(
+			`Could not open ${url}: nothing listened on that port for ${OPEN_TIMEOUT_MS / 1_000}s (${REFUSED}). Start the server, then open it again.`,
+		);
+	}
+	if (failure !== null) throw new Error(`Could not open ${url}: ${failure}`);
+}
+
+async function load(contents: PageContents, url: string): Promise<string | null> {
 	const deadline = Date.now() + OPEN_TIMEOUT_MS;
 	try {
 		await within(contents.loadURL(url), OPEN_TIMEOUT_MS);
 	} catch (error) {
-		if (loadErrorCode(error) !== 'ERR_ABORTED') {
-			throw new Error(`Could not open ${url}: ${loadErrorCode(error) ?? describe(error)}`);
-		}
+		const code = loadErrorCode(error);
+		if (code !== 'ERR_ABORTED') return code ?? describe(error);
 	}
 	await settled(contents, deadline);
+	return null;
 }
 
 export async function clickSelector(contents: PageContents, selector: string): Promise<void> {

@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserState } from '$contract/browser';
 import { PREVIEW_LONG_EDGE } from './automation';
 import type { PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
@@ -59,6 +59,7 @@ class FakeContents implements PageContents {
 	focused = false;
 	reloads = 0;
 	readonly loads: string[] = [];
+	readonly loadFailures: string[] = [];
 	readonly scripts: string[] = [];
 	actionOutcome: unknown = 'done';
 	static #nextProcessId = 4_000;
@@ -76,7 +77,10 @@ class FakeContents implements PageContents {
 		this.loads.push(url);
 		this.url = url;
 		this.title = `Title of ${url}`;
-		return Promise.resolve();
+		const failure = this.loadFailures.shift();
+		return failure
+			? Promise.reject(Object.assign(new Error(failure), { code: failure }))
+			: Promise.resolve();
 	}
 
 	getURL(): string {
@@ -198,6 +202,7 @@ function setup(zoom = 1) {
 			resets.set(watched, reset);
 		},
 		workstreamExists: (workstreamId) => workstreamId.startsWith('ws-'),
+		worktree: (workstreamId) => `/work/${workstreamId}`,
 		stateChanged: (state) => states.push(state),
 		tabOpened: (tab) => opened.push(tab),
 	});
@@ -373,6 +378,69 @@ describe('BrowserViews', () => {
 		expect(opened).toEqual([TAB]);
 		await browser.open(TAB, 'localhost:5173/next');
 		expect(opened).toEqual([TAB]);
+	});
+
+	it('opens a file from the worktree as a page of its own workstream', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, '/work/ws-1/docs/a b.html');
+		browser.navigate(TAB, './index.html');
+
+		expect(viewAt(0).contents.loads).toEqual([
+			'malini-worktree://ws-1/docs/a%20b.html',
+			'malini-worktree://ws-1/index.html',
+		]);
+		await expect(browser.open(TAB, '/work/ws-2/index.html')).rejects.toThrow(
+			'is outside the worktree',
+		);
+	});
+
+	it('waits for a local server that is still starting, but not for a remote one', async () => {
+		const { browser, viewAt } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		viewAt(0).contents.loadFailures.push('ERR_CONNECTION_REFUSED');
+		await expect(browser.open(TAB, 'localhost:5173')).resolves.toMatchObject({
+			url: 'http://localhost:5173/',
+		});
+		expect(viewAt(0).contents.loads).toEqual(['http://localhost:5173/', 'http://localhost:5173/']);
+
+		viewAt(0).contents.loadFailures.push('ERR_CONNECTION_REFUSED');
+		await expect(browser.open(TAB, 'https://example.com')).rejects.toThrow(
+			'Could not open https://example.com/: ERR_CONNECTION_REFUSED',
+		);
+	});
+
+	it('gives up on a local server that never starts', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+			viewAt(0).contents.loadFailures.push(...Array<string>(100).fill('ERR_CONNECTION_REFUSED'));
+			const opening = browser.open(TAB, 'localhost:5173');
+			const outcome = expect(opening).rejects.toThrow(
+				'Could not open http://localhost:5173/: nothing listened on that port for 20s',
+			);
+			await vi.advanceTimersByTimeAsync(21_000);
+			await outcome;
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('refuses to capture or act on a page that did not load, until it loads again', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-failed-'));
+		roots.push(worktree);
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'localhost:5173');
+		viewAt(0).events.navigating();
+		viewAt(0).events.failed('ERR_CONNECTION_REFUSED');
+
+		const failed = 'http://localhost:5173/ did not load (ERR_CONNECTION_REFUSED).';
+		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(failed);
+		await expect(browser.click(TAB, 'a')).rejects.toThrow(failed);
+		viewAt(0).events.navigating();
+		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({
+			url: 'http://localhost:5173/',
+		});
 	});
 
 	it('steps back and forward for the agent and says when there is nowhere to go', async () => {

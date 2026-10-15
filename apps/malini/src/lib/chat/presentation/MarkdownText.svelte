@@ -885,6 +885,8 @@
 		border-radius: 0.375em;
 		background: var(--color-surface-100);
 		color: var(--color-fg-default);
+		overflow-wrap: anywhere;
+		box-decoration-break: clone;
 	}
 
 	.markdown-text :global(a[data-file-path]:not([data-file-missing]):hover) {
