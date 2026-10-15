@@ -1,0 +1,3 @@
+export const RESOURCE_SAMPLE_INTERVAL_MS = 5_000;
+
+export const RESOURCE_HISTORY_MS = 60 * 60 * 1_000;

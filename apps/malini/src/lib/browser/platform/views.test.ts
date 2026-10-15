@@ -61,6 +61,8 @@ class FakeContents implements PageContents {
 	readonly loads: string[] = [];
 	readonly scripts: string[] = [];
 	actionOutcome: unknown = 'done';
+	static #nextProcessId = 4_000;
+	readonly processId = FakeContents.#nextProcessId++;
 	frame = new FakeImage(2_560, 1_600);
 	readonly steps: string[] = [];
 	readonly navigationHistory = {
@@ -95,6 +97,10 @@ class FakeContents implements PageContents {
 
 	isFocused(): boolean {
 		return this.focused;
+	}
+
+	getOSProcessId(): number {
+		return this.processId;
 	}
 
 	focus(): void {
@@ -325,6 +331,20 @@ describe('BrowserViews', () => {
 		browser.destroyWorkstream('ws-1');
 		expect(viewAt(1).closed).toBe(true);
 		expect(viewAt(2).closed).toBe(false);
+	});
+
+	it('lists the page process of every open tab and forgets a closed one', () => {
+		const { browser, viewAt } = setup();
+		const second = { ...TAB, tabId: 'tab-2' };
+		browser.navigate(TAB, 'http://localhost:5173/');
+		browser.navigate(second, 'https://music.example/');
+		expect(browser.processIds()).toEqual([
+			viewAt(0).contents.processId,
+			viewAt(1).contents.processId,
+		]);
+
+		browser.destroy(TAB);
+		expect(browser.processIds()).toEqual([viewAt(1).contents.processId]);
 	});
 
 	it('reports the favicon of the page in its state', () => {

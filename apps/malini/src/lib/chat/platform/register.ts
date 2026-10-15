@@ -32,6 +32,7 @@ export interface ChatPlatform {
 	closeOpenRunsForExit(): Promise<number>;
 	stop(): Promise<void>;
 	sessionModel(sessionId: string): string | null;
+	bridgeProcessId(): number | null;
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -83,5 +84,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: () => agent.stop(),
 		sessionModel: (sessionId) => getSession(context.db, sessionId)?.model ?? null,
+		bridgeProcessId: () => {
+			const health = agent.health();
+			return health.state === 'healthy' ? health.pid : null;
+		},
 	};
 }

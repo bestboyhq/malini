@@ -3,6 +3,12 @@ export {
 	listWorkstreamSnapshotRefs,
 	type WorkstreamSnapshotRefs,
 } from './platform/checkpoints.repository';
-export { getRunWorkstreamId, getWorkstreamRun } from './platform/runs.repository';
+export {
+	getRunWorkstreamId,
+	getWorkstreamRun,
+	listOpenRuns,
+	listRunActivity,
+	type RunActivity,
+} from './platform/runs.repository';
 export { adoptSnapshotRefNamespace } from './platform/snapshot-refs';
 export { workstreamShipContext } from './platform/ship-context.repository';
