@@ -292,6 +292,28 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
+		it('parses a stop_task command and rejects one without a task', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"stop_task","id":"stop-1","sessionId":"session-1","runId":"run-1","taskId":"b1"}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'stop_task',
+					id: 'stop-1',
+					sessionId: 'session-1',
+					runId: 'run-1',
+					taskId: 'b1',
+				},
+			});
+			expect(
+				parseCommandLine(
+					'{"cmd":"stop_task","id":"stop-2","sessionId":"session-1","runId":"run-1"}',
+				).ok,
+			).toBe(false);
+		});
+
 		it('parses suggest_title and rejects an empty prompt', () => {
 			expect(
 				parseCommandLine('{"cmd":"suggest_title","id":"t1","prompt":"Version the bundle"}'),
@@ -319,10 +341,11 @@ describe('protocol: parseCommandLine', () => {
 				'answer_question',
 				'refresh_capabilities',
 				'refresh_mcp_status',
+				'stop_task',
 				'suggest_title',
 				'browser_result',
 			]);
-			expect(BRIDGE_EVENT_TYPES).toHaveLength(21);
+			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
 				'bridge.ready',
 				'bridge.capabilities',

@@ -2,7 +2,9 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
+	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
+	import type { JobRunRecord } from '$contract/jobs';
 	import { applyModelDefaultsCommand } from '$lib/chat/application/commands/apply-model-defaults.command';
 	import { cancelRunCommand } from '$lib/chat/application/commands/cancel-run.command';
 	import { closeFreshChatCommand } from '$lib/chat/application/commands/close-fresh-chat.command';
@@ -13,6 +15,7 @@
 	import { selectRunProfileCommand } from '$lib/chat/application/commands/select-run-profile.command';
 	import { sendQueuedPromptCommand } from '$lib/chat/application/commands/send-queued-prompt.command';
 	import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
+	import { stopBackgroundTaskCommand } from '$lib/chat/application/commands/stop-background-task.command';
 	import { updateQueuedPromptCommand } from '$lib/chat/application/commands/update-queued-prompt.command';
 	import { followChatRouteHook } from '$lib/chat/application/hooks/follow-chat-route.hook.svelte';
 	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
@@ -20,6 +23,7 @@
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
 	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
+	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
@@ -27,6 +31,7 @@
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
 	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
+	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
 	import { presentedTranscriptQuery } from '$lib/chat/application/queries/presented-transcript.query.svelte';
 	import { queueErrorsQuery } from '$lib/chat/application/queries/queue-errors.query.svelte';
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
@@ -44,6 +49,7 @@
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
+	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { loadModelDefaultsCommand, modelDefaultsQuery } from '$shared/providers/providers.api';
 	import {
@@ -51,6 +57,7 @@
 		type AgentSessionChangedFile,
 	} from '$shared/repositories/repositories.api';
 	import AgentProcessDiedBanner from './AgentProcessDiedBanner.svelte';
+	import BackgroundTaskList from './BackgroundTaskList.svelte';
 	import ChatChangedFiles from './ChatChangedFiles.svelte';
 	import ChatColdShell from './ChatColdShell.svelte';
 	import ChatComposer from './ChatComposer.svelte';
@@ -66,10 +73,18 @@
 	interface Props {
 		workstreamId: string;
 		pullRequestShipped?: boolean;
+		jobRuns?: readonly JobRunRecord[];
 		oncloseworkstream: () => void;
 	}
 
-	let { workstreamId, pullRequestShipped = false, oncloseworkstream }: Props = $props();
+	let {
+		workstreamId,
+		pullRequestShipped = false,
+		jobRuns = [],
+		oncloseworkstream,
+	}: Props = $props();
+
+	const splitInset = resizableSplitInset();
 
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
@@ -97,7 +112,11 @@
 	const profile = $derived(runProfileQuery.data);
 	const modelDefaults = $derived(modelDefaultsQuery.data);
 	const rememberedModels = $derived(rememberedModelsQuery.data);
-	const isRunning = $derived(chatRunningQuery.data);
+	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
+	const handsOffBackgroundWork = $derived(
+		backgroundWork?.waiting === true && !(sessionId && pendingPromptQuery.data(sessionId)),
+	);
+	const isRunning = $derived(chatRunningQuery.data && !handsOffBackgroundWork);
 	const preparing = $derived(chatPreparingQuery.data);
 	const presentedTranscript = $derived(presentedTranscriptQuery.data);
 	const presentedWorkstreamId = $derived(presentedTranscript.workstreamId);
@@ -238,7 +257,8 @@
 
 <div
 	data-testid="chat-surface"
-	class="flex h-full min-h-0 w-full flex-col overflow-hidden pr-[var(--resizable-split-secondary-size)]"
+	class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+	style:padding-right="{splitInset.secondarySize}px"
 >
 	<AgentProcessDiedBanner />
 	<DependencyInstallBanner {workstreamId} />
@@ -272,7 +292,6 @@
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
-						style={`--chat-footer-inset: ${footerHeight}px;`}
 						aria-busy={presentationPending}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>
@@ -281,7 +300,12 @@
 							inert={documentActive || undefined}
 						>
 							{#if stage === 'fresh'}
-								<FreshChatSuggestions {workstreamId} {draftScope} bind:transcriptReferences />
+								<FreshChatSuggestions
+									{workstreamId}
+									{draftScope}
+									footerInset={footerHeight}
+									bind:transcriptReferences
+								/>
 							{:else if stage === 'transcript' && presentedSessionId}
 								<div
 									class="contents"
@@ -301,16 +325,26 @@
 										spaceBelow={footerHeight}
 									>
 										{#snippet empty()}
-											<FreshChatSuggestions {workstreamId} {draftScope} bind:transcriptReferences />
+											<FreshChatSuggestions
+												{workstreamId}
+												{draftScope}
+												footerInset={footerHeight}
+												bind:transcriptReferences
+											/>
 										{/snippet}
 									</ChatMessageList>
 								</div>
 							{:else if stage === 'error' && bootError}
-								<ChatSessionError {workstreamId} {sessionId} error={bootError} />
+								<ChatSessionError
+									{workstreamId}
+									{sessionId}
+									error={bootError}
+									footerInset={footerHeight}
+								/>
 							{:else if stage === 'cold'}
 								<ChatColdShell {workstreamId} pendingSessionId={pendingSessionId ?? sessionId} />
 							{:else}
-								<ChatEmptySession />
+								<ChatEmptySession footerInset={footerHeight} />
 							{/if}
 						</div>
 
@@ -340,7 +374,7 @@
 								</div>
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
-								{#if (showsSessionChanges && sessionChanges) || queuedPrompts.length > 0}
+								{#if (showsSessionChanges && sessionChanges) || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 									<div class="chat-column px-7">
 										<div
 											class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -351,6 +385,17 @@
 													changes={sessionChanges}
 													openingPath={openingChangedFilePath}
 													onopen={onOpenChangedFile}
+												/>
+											{/if}
+
+											{#if jobRuns.length > 0}
+												<WorkstreamJobRuns runs={jobRuns} />
+											{/if}
+
+											{#if backgroundWork && sessionId}
+												<BackgroundTaskList
+													work={backgroundWork}
+													onstop={(taskId) => stopBackgroundTaskCommand(sessionId, taskId)}
 												/>
 											{/if}
 

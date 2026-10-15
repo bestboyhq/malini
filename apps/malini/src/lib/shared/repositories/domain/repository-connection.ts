@@ -67,10 +67,6 @@ export function repositoryConnectFailure(
 	};
 }
 
-export function repositoryConnectFailureLine(failure: RepositoryConnectFailure): string {
-	return failure.remedy ? `${failure.detail} ${failure.remedy}` : failure.detail;
-}
-
 function failureKind(caught: unknown): string | null {
 	if (typeof caught !== 'object' || caught === null) return null;
 	const kind: unknown = Reflect.get(caught, 'kind');

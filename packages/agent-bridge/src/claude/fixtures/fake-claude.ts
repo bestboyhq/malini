@@ -27,7 +27,8 @@ export interface CanUseToolStep {
 	};
 }
 
-export type ScriptStep = SDKMessage | CanUseToolStep | 'wait-for-interrupt';
+export type ScriptStep =
+	SDKMessage | CanUseToolStep | 'wait-for-interrupt' | 'wait-for-stop-task' | 'wait-for-prompt';
 
 export type RecordedScenario =
 	| 'readAndBash'
@@ -37,13 +38,18 @@ export type RecordedScenario =
 	| 'bashFailure'
 	| 'deny'
 	| 'orphanedTask'
-	| 'backgroundAgent';
+	| 'backgroundAgent'
+	| 'backgroundCommand'
+	| 'stoppedBackgroundCommand';
 
 export interface FakeRun {
 	readonly options: Options;
 	readonly prompt: Promise<string>;
 	readonly permissionResults: (PermissionResult | null)[];
 	readonly permissionModes: PermissionMode[];
+	readonly stoppedTasks: string[];
+	readonly followUps: string[];
+	readonly efforts: unknown[];
 	interrupted: boolean;
 	closed: boolean;
 }
@@ -120,12 +126,19 @@ export function fakeClaude(
 		const script = scripts[runs.length] ?? [];
 		let release!: () => void;
 		const interrupted = new Promise<void>((resolve) => (release = resolve));
-		const sent = firstMessage(prompt);
+		let releaseStop!: () => void;
+		const taskStopped = new Promise<void>((resolve) => (releaseStop = resolve));
+		const prompts = prompt[Symbol.asyncIterator]();
+		const sent = nextPrompt(prompts);
+		let latest = sent;
 		const run: FakeRun = {
 			options,
 			prompt: promptText(sent),
 			permissionResults: [],
 			permissionModes: [],
+			stoppedTasks: [],
+			followUps: [],
+			efforts: [],
 			interrupted: false,
 			closed: false,
 		};
@@ -143,11 +156,20 @@ export function fakeClaude(
 							await interrupted;
 							continue;
 						}
+						if (step === 'wait-for-stop-task') {
+							await taskStopped;
+							continue;
+						}
+						if (step === 'wait-for-prompt') {
+							latest = nextPrompt(prompts);
+							run.followUps.push(await promptText(latest));
+							continue;
+						}
 						if ('canUseTool' in step) {
 							run.permissionResults.push(await askPermission(options, step));
 							continue;
 						}
-						yield step.type === 'result' ? echoPrompt(step, (await sent)?.uuid) : step;
+						yield step.type === 'result' ? echoPrompt(step, (await latest)?.uuid) : step;
 					}
 				} finally {
 					iterating = false;
@@ -157,6 +179,13 @@ export function fakeClaude(
 				run.interrupted = true;
 				release();
 				return undefined;
+			},
+			async applyFlagSettings(settings) {
+				run.efforts.push(settings.effortLevel);
+			},
+			async stopTask(taskId) {
+				run.stoppedTasks.push(taskId);
+				releaseStop();
 			},
 			async setPermissionMode(mode) {
 				run.permissionModes.push(mode);
@@ -190,11 +219,11 @@ async function askPermission(
 	return canUseTool(toolName, input, { ...opts, signal });
 }
 
-async function firstMessage(
-	prompt: AsyncIterable<SDKUserMessage>,
+async function nextPrompt(
+	prompts: AsyncIterator<SDKUserMessage>,
 ): Promise<SDKUserMessage | undefined> {
-	for await (const message of prompt) return message;
-	return undefined;
+	const next = await prompts.next();
+	return next.done ? undefined : next.value;
 }
 
 async function promptText(sent: Promise<SDKUserMessage | undefined>): Promise<string> {
@@ -208,7 +237,7 @@ function echoPrompt(result: SDKResultMessage, promptId: string | undefined): SDK
 }
 
 function isMessage(step: ScriptStep): step is SDKMessage {
-	return step !== 'wait-for-interrupt' && !('canUseTool' in step);
+	return typeof step !== 'string' && !('canUseTool' in step);
 }
 
 function isRecordedStep(value: unknown): value is ScriptStep {

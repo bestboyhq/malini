@@ -34,8 +34,6 @@ import { queueDrainStore } from '$lib/chat/infrastructure/stores/queue-drain.sto
 import { queueErrorsStore } from '$lib/chat/infrastructure/stores/queue-errors.store.svelte';
 import { queueInterruptRecoveryStore } from '$lib/chat/infrastructure/stores/queue-interrupt-recovery.store';
 import { queueSendingStore } from '$lib/chat/infrastructure/stores/queue-sending.store.svelte';
-import { toast } from '$hyper-ui/components/toast';
-import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { roleForAgentMode, sameModelSelection } from '$shared/providers/providers.api';
 import { workstreamReadyForPromptsQuery } from '$shared/repositories/repositories.api';
 
@@ -248,12 +246,11 @@ class PromptDeliveryService {
 				}
 				return 'busy-retry';
 			}
-			if (failure === 'session-boot') {
-				if (chatRoute.workstreamId === workstreamId) chatSessionStore.bootError = message;
+			if (failure === 'session-boot' && chatRoute.workstreamId === workstreamId) {
+				chatSessionStore.bootError = message;
 			} else {
 				queueErrorsStore.set(next.id, message);
 			}
-			toast.error(`Queued prompt is still waiting · ${message}`, aboutWorkstream(workstreamId));
 			return 'failed';
 		} finally {
 			queueDrainStore.unlock(workstreamId, lock);
@@ -331,7 +328,6 @@ class PromptDeliveryService {
 			const message =
 				'The interrupted response never finished. Send this prompt again once the chat is idle.';
 			queueErrorsStore.set(entryId, message);
-			toast.error(`Queued prompt is still waiting · ${message}`, aboutWorkstream(workstreamId));
 			return;
 		}
 		recovery.attempts += 1;

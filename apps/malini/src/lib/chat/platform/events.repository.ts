@@ -151,6 +151,19 @@ export function providerResumePoint(db: MaliniDatabase, sessionId: string): Prov
 	return undoneCursor ? { freshConversation: true } : {};
 }
 
+export function runIsWaitingOnBackgroundWork(db: MaliniDatabase, runId: string): boolean {
+	const row = get<{ event: string }>(
+		db,
+		`SELECT event FROM agent_events
+		 WHERE run_id = ? AND event LIKE 'background.updated' || char(10) || '%'
+		 ORDER BY seq DESC LIMIT 1`,
+		runId,
+	);
+	if (!row) return false;
+	const { payload } = eventFromBlob(row.event);
+	return isRecord(payload) && payload['waiting'] === true;
+}
+
 export function latestEventId(db: MaliniDatabase, sessionId: string): number {
 	const row = get<{ seq: number | null }>(
 		db,

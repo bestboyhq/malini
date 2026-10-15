@@ -4,6 +4,7 @@ import {
 	appendEvent,
 	envelopeJson,
 	eventJsonFromKindPayload,
+	runIsWaitingOnBackgroundWork,
 	type AgentEventEnvelope,
 } from '../events.repository';
 import {
@@ -162,6 +163,10 @@ export interface Lease {
 	release(): void;
 }
 
+export interface RunLease extends Lease {
+	readonly handsOff: boolean;
+}
+
 function lease(workstreamId: string, onRelease: () => void): Lease {
 	let active = true;
 	return {
@@ -191,14 +196,17 @@ export class AgentRunLeases {
 		return true;
 	}
 
-	acquireRun(db: MaliniDatabase, workstreamId: string, sessionId: string): Lease {
+	acquireRun(db: MaliniDatabase, workstreamId: string, sessionId: string): RunLease {
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
 		if (this.capturing.has(workstreamId)) {
 			throw new LifecycleError('already_running', workstreamId);
 		}
-		if (this.dispatching.has(sessionId) || listActiveRunIdsForSession(db, sessionId).length > 0) {
+		const openRunIds = listActiveRunIdsForSession(db, sessionId);
+		const handsOff =
+			openRunIds.length > 0 && openRunIds.every((runId) => runIsWaitingOnBackgroundWork(db, runId));
+		if (this.dispatching.has(sessionId) || (openRunIds.length > 0 && !handsOff)) {
 			throw new LifecycleError('already_running', sessionId);
 		}
 		repairSessionStatusesWithoutOpenRuns(db, workstreamId);
@@ -208,11 +216,11 @@ export class AgentRunLeases {
 			 WHERE id = ? AND status IN ('running', 'waiting_for_approval')`,
 			sessionId,
 		);
-		if (busy > 0) {
+		if (busy > 0 && !handsOff) {
 			throw new LifecycleError('already_running', sessionId);
 		}
 		this.dispatching.set(sessionId, workstreamId);
-		return lease(workstreamId, () => this.dispatching.delete(sessionId));
+		return { ...lease(workstreamId, () => this.dispatching.delete(sessionId)), handsOff };
 	}
 
 	async checkoutSettled(workstreamId: string): Promise<void> {

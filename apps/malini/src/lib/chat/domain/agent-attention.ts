@@ -88,7 +88,7 @@ export function agentAttentionDecision(input: AgentAttentionInput): AgentAttenti
 	}
 
 	if (input.event.type === 'run.completed') {
-		if (input.queueCount > 0) return null;
+		if (input.queueCount > 0 || input.event.handedOff) return null;
 		const run = {
 			runId: input.runId,
 			sessionId: input.sessionId,

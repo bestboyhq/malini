@@ -78,7 +78,7 @@ import {
 	resetWorkstreamRuns,
 	type AgentRunLeases,
 	type EmitEnvelope,
-	type Lease,
+	type RunLease,
 } from './lifecycle';
 import type { AgentQuestionAnswer, AgentRunProfile, ProviderCapability } from './protocol';
 import type { BridgeRuntime } from './runtime';
@@ -580,7 +580,7 @@ async function sendAgentPromptLeased(
 	emit: EmitEnvelope,
 	ids: IdSequence,
 	leases: AgentRunLeases,
-	lease: Lease,
+	lease: RunLease,
 	log: (line: string) => void,
 ): Promise<string> {
 	const { sessionId, workstreamId, prompt } = input;
@@ -671,7 +671,7 @@ async function sendAgentPromptLeased(
 		await hooks.captureRunFinish(runId);
 		return runId;
 	}
-	const resumePoint = providerResumePoint(db, sessionId);
+	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
 	lease.release();
 	try {
 		await supervisor.sendCommand({
@@ -1213,6 +1213,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.restart-agent',
 	'chat.send-prompt',
 	'chat.start-session',
+	'chat.stop-background-task',
 ] as const;
 
 export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeCommandDeps): void {
@@ -1407,6 +1408,25 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 
 	commands.define('chat.restart-agent', async () => {
 		await runtime.ensureReady();
+	});
+
+	commands.define('chat.stop-background-task', async (args: unknown) => {
+		const sessionId = requireString(args, 'sessionId');
+		const taskId = requireString(args, 'taskId');
+		const supervisor = await runtime.ensureSessionReady(sessionId);
+		for (const runId of listActiveRunIdsForSession(db, sessionId)) {
+			try {
+				await supervisor.sendCommand({
+					cmd: 'stop_task',
+					id: supervisor.nextCommandId(),
+					sessionId,
+					runId,
+					taskId,
+				});
+			} catch (error) {
+				throw bridgeUnavailable(error);
+			}
+		}
 	});
 
 	commands.define('chat.refresh-mcp-status', async (args: unknown) => {

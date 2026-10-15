@@ -5,15 +5,18 @@ import {
 	BRIDGE_HEARTBEAT_INTERVAL_MS,
 	BRIDGE_PROTOCOL_VERSION,
 } from '$contract/protocol-contract.generated';
-import type {
-	AgentAccount,
-	AgentModelInfo,
-	AgentQuestionAnswer,
-	AgentReasoningEffort,
-	AgentRunMode,
-	AgentRunProfile,
-	ProviderCapability,
-	ProviderCapabilityState,
+import {
+	AGENT_BACKGROUND_TASK_KINDS,
+	type AgentAccount,
+	type AgentBackgroundTask,
+	type AgentBackgroundTaskKind,
+	type AgentModelInfo,
+	type AgentQuestionAnswer,
+	type AgentReasoningEffort,
+	type AgentRunMode,
+	type AgentRunProfile,
+	type ProviderCapability,
+	type ProviderCapabilityState,
 } from '$contract/agent';
 
 export type {
@@ -107,6 +110,7 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
 	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
+	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer);
 
@@ -211,7 +215,20 @@ export type BridgeEvent =
 			interim?: boolean;
 	  }
 	| { type: 'mcp.status'; runId: string; servers: AgentMcpServerStatus[] }
-	| { type: 'run.completed'; runId: string; summary: string; providerCursor?: string }
+	| {
+			type: 'background.updated';
+			runId: string;
+			waiting: boolean;
+			tasks: AgentBackgroundTask[];
+			interim?: boolean;
+	  }
+	| {
+			type: 'run.completed';
+			runId: string;
+			summary: string;
+			providerCursor?: string;
+			handedOff?: boolean;
+	  }
 	| { type: 'run.failed'; runId: string; error: string; providerCursor?: string }
 	| { type: 'session.state'; sessionId: string; status: string; providerSessionId?: string }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }
@@ -406,6 +423,27 @@ function decodeMcpServer(value: unknown, index: number): AgentMcpServerStatus {
 	};
 }
 
+function isBackgroundTaskKind(value: string): value is AgentBackgroundTaskKind {
+	return AGENT_BACKGROUND_TASK_KINDS.some((kind) => kind === value);
+}
+
+function decodeBackgroundTask(value: unknown, index: number): AgentBackgroundTask {
+	if (!isRecord(value)) throw new Error(`background.updated: tasks[${index}] is not an object`);
+	const fields = new Fields(value, `background.updated: tasks[${index}]`);
+	const kind = fields.string('kind');
+	if (!isBackgroundTaskKind(kind)) {
+		throw new Error(`background.updated: tasks[${index}].kind \`${kind}\` is unknown`);
+	}
+	return {
+		taskId: fields.string('taskId'),
+		kind,
+		description: fields.string('description'),
+		startedAt: fields.number('startedAt'),
+		...optional('toolCallId', fields.optionalString('toolCallId')),
+		...optional('detail', fields.optionalString('detail')),
+	};
+}
+
 const EVENT_TYPES: ReadonlySet<string> = new Set(BRIDGE_EVENT_TYPES);
 
 function isEventType(value: string): value is BridgeEventType {
@@ -529,12 +567,21 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					runId: f.string('runId'),
 					servers: f.array('servers').map(decodeMcpServer),
 				});
+			case 'background.updated':
+				return ok({
+					type: kind,
+					runId: f.string('runId'),
+					waiting: f.boolean('waiting'),
+					tasks: f.array('tasks').map(decodeBackgroundTask),
+					...optional('interim', f.optionalBoolean('interim')),
+				});
 			case 'run.completed':
 				return ok({
 					type: kind,
 					runId: f.string('runId'),
 					summary: f.string('summary'),
 					...optional('providerCursor', f.optionalString('providerCursor')),
+					...optional('handedOff', f.optionalBoolean('handedOff')),
 				});
 			case 'run.failed':
 				return ok({
@@ -765,6 +812,7 @@ export function isEphemeralEvent(event: BridgeEvent): boolean {
 		case 'tool.input.delta':
 			return true;
 		case 'usage.updated':
+		case 'background.updated':
 			return event.interim === true;
 		default:
 			return false;

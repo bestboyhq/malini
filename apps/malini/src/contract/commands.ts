@@ -101,6 +101,8 @@ export type SessionIdArgs = Readonly<{ sessionId: string }>;
 
 export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string | null }>;
 
+export type StopBackgroundTaskArgs = Readonly<{ sessionId: string; taskId: string }>;
+
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
 
 export type ClaudeSignInArgs = Readonly<{ email?: string }>;
@@ -552,6 +554,7 @@ export interface ContractCommands {
 		args: StageForkTranscriptArgs;
 		result: StagedAgentAttachment;
 	};
+	'chat.stop-background-task': { args: StopBackgroundTaskArgs; result: void };
 	'chat.start-session': { args: StartAgentSessionArgs; result: string };
 	'extensions.stat-workstream-file': {
 		args: ExtensionFileArgs;
@@ -725,6 +728,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.stage-attachment-bytes',
 	'chat.stage-fork-transcript',
 	'chat.start-session',
+	'chat.stop-background-task',
 	'extensions.stat-workstream-file',
 	'extensions.write-workstream-file',
 	'app.focus-window',
