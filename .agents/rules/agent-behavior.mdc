@@ -18,8 +18,10 @@ alwaysApply: true
 - Do not amend, rebase, reset, or force-push unless asked.
 
 ## Scratch files
-- Transient files (PR body drafts, dumps, notes) live under `.context/`.
-- Do not use `/tmp`, the repo root, or the home directory.
+- `.context/` holds only files you show the user in chat: screenshots, images, SVGs.
+- Everything else transient (sandbox profiles, clones, builds, probes, dumps, drafts, notes) goes in a directory from `mktemp -d`, outside the worktree. Remove it when you are done.
+- Never clone, copy, or build a repository inside the worktree: malini watches every file in it.
+- Do not use the repo root or the home directory.
 
 ## Comments (non-negotiable, every language)
 - Do not write comments in code. No narration, no rationale, no "why", no TODOs, no section headers.

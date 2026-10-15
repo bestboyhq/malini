@@ -18,7 +18,6 @@ export type PullRequestTopBarAction = Readonly<{
 	kind: PullRequestActionKind;
 	label: string;
 	ariaLabel: string;
-	tooltip: string;
 	tone: 'primary' | 'secondary';
 	confirmLabel: string | null;
 }>;

@@ -28,7 +28,7 @@ function settingUpStatus(record: WorkstreamProvisioningRecord): GlobalTopBarGith
 				record.phase === 'cloning' && record.clonePercent !== null
 					? `Cloning ${record.clonePercent}%`
 					: step,
-			tooltip: `${step}. A prompt sent now runs once setup finishes`,
+			tooltip: null,
 		},
 		action: null,
 	};
@@ -58,7 +58,6 @@ function failedSetupStatus(
 			ariaLabel: reconnect
 				? 'Retry this workstream’s setup after signing in to GitHub'
 				: 'Retry this workstream’s setup',
-			tooltip: explanation,
 			tone: 'primary',
 			icon: 'refresh',
 			disabled: retrying,

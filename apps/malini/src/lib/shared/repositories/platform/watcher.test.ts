@@ -16,6 +16,7 @@ import {
 } from '$contract/events';
 import {
 	createWorkstreamWatchers,
+	MAX_RECORDED_CHANGED_PATHS,
 	type WorkstreamFilesChangedPayload,
 	type WorkstreamWatchers,
 } from './watcher';
@@ -158,6 +159,25 @@ describe('createWorkstreamWatchers', () => {
 		expect(emitted).toHaveLength(1);
 		expect(emitted[0]?.paths).toEqual(
 			expect.arrayContaining(Array.from({ length: 10 }, (_, index) => `file-${index}.txt`)),
+		);
+	});
+
+	it('reports an oversized burst as changed everywhere instead of listing every path', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		mkdirSync(join(path, '.context'));
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		for (let index = 0; index <= MAX_RECORDED_CHANGED_PATHS; index += 1) {
+			writeFileSync(join(path, '.context', `copy-${index}.txt`), `${index}\n`);
+		}
+		await waitFor(() => emitted.length > 0);
+		await sleep(SETTLE_MS);
+
+		expect(emitted.some((frame) => frame.paths === null)).toBe(true);
+		expect(emitted.every((frame) => (frame.paths?.length ?? 0) <= MAX_RECORDED_CHANGED_PATHS)).toBe(
+			true,
 		);
 	});
 

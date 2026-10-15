@@ -43,7 +43,7 @@ import {
 } from './args';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
-import { WorkstreamBaseSync } from './base-sync.service';
+import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
@@ -90,6 +90,7 @@ export interface RepositoriesDeps {
 	readonly bundleIdentifier?: string;
 	readonly startupReclaim?: boolean;
 	readonly guardRunLease?: TeardownGuard;
+	readonly guardCheckoutMove?: CheckoutMoveGuard;
 	readonly log?: (line: string) => void;
 }
 
@@ -112,7 +113,9 @@ export function registerRepositories(
 	const ownership = new DockerOwnership({ db, runner, appDataRoot, bundleIdentifier });
 	const installs = new InstallRegistry(runner);
 	const checkouts = createCheckoutResolver({ db, appDataRoot });
-	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts });
+	const guardCheckoutMove: CheckoutMoveGuard =
+		deps.guardCheckoutMove ?? ((_workstreamId, move) => move());
+	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts, guardCheckoutMove });
 
 	const watchers = createWorkstreamWatchers({
 		db,
@@ -277,6 +280,7 @@ export function registerRepositories(
 			baseBranch,
 			githubToken,
 			credentials,
+			(move) => guardCheckoutMove(workstreamId, move),
 		);
 	});
 
@@ -303,6 +307,7 @@ export function registerRepositories(
 			requireString(args, 'expectedRepositoryFullName'),
 			optionalString(args, 'githubToken'),
 			credentials,
+			(move) => guardCheckoutMove(workstreamId, move),
 		);
 	});
 

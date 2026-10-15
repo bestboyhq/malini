@@ -231,6 +231,10 @@ const MERGED_BRANCH_ALREADY_GONE = /remote ref does not exist|stale info/u;
 
 const FULL_COMMIT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
+export type CheckoutMove = <T>(move: () => Promise<T>) => Promise<T>;
+
+const unguardedMove: CheckoutMove = (move) => move();
+
 export async function restartWorkstreamOnBase(
 	worktreePath: string,
 	workstreamId: string,
@@ -239,6 +243,7 @@ export async function restartWorkstreamOnBase(
 	expectedRepositoryFullName: string,
 	githubToken: string | null | undefined,
 	credentials: GitCredentialEnv,
+	guardMove: CheckoutMove = unguardedMove,
 ): Promise<string> {
 	validateBaseBranch(baseBranch);
 	if (!FULL_COMMIT_ID.test(mergedHeadSha)) {
@@ -275,22 +280,24 @@ export async function restartWorkstreamOnBase(
 	await runGit(['-C', worktreePath, 'update-ref', '-d', `refs/remotes/origin/${branch}`]);
 	await runGit(['-C', worktreePath, 'branch', '--unset-upstream']).catch(() => undefined);
 
-	try {
-		await runGit([
-			'-C',
-			worktreePath,
-			...AGENT_COMMIT_CONFIG,
-			'-c',
-			DISABLED_GIT_HOOKS_CONFIG,
-			'rebase',
-			'--autostash',
-			'--onto',
-			baseRef,
-			forkPoint,
-		]);
-	} catch (error) {
-		if ((await inProgressOperation(worktreePath)) !== 'rebase') throw error;
-	}
+	await guardMove(async () => {
+		try {
+			await runGit([
+				'-C',
+				worktreePath,
+				...AGENT_COMMIT_CONFIG,
+				'-c',
+				DISABLED_GIT_HOOKS_CONFIG,
+				'rebase',
+				'--autostash',
+				'--onto',
+				baseRef,
+				forkPoint,
+			]);
+		} catch (error) {
+			if ((await inProgressOperation(worktreePath)) !== 'rebase') throw error;
+		}
+	});
 	return (await runGit(['-C', worktreePath, 'rev-parse', '--short', 'HEAD'])).trim();
 }
 
@@ -309,6 +316,7 @@ export async function pullWorkstreamBaseBranch(
 	baseBranch: string,
 	githubToken: string | null | undefined,
 	credentials: GitCredentialEnv,
+	guardMove: CheckoutMove = unguardedMove,
 ): Promise<string> {
 	validateBaseBranch(baseBranch);
 	const status = await statusCollector(worktreePath);
@@ -322,7 +330,7 @@ export async function pullWorkstreamBaseBranch(
 		throw GitError.git('commit or discard local changes before pulling the target branch');
 	}
 	const remoteRef = await syncRemoteBase(worktreePath, baseBranch, githubToken, credentials);
-	await mergeRemoteRef(worktreePath, remoteRef, branch, 'hold');
+	await guardMove(() => mergeRemoteRef(worktreePath, remoteRef, branch, 'hold'));
 	return (await runGit(['-C', worktreePath, 'rev-parse', '--short', 'HEAD'])).trim();
 }
 

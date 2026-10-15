@@ -13,6 +13,7 @@ import { openDatabase } from '$main/db/driver';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { registerExtensions } from './register';
+import { realGit } from '$main/git/fixtures.test-support';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 
 let root: string;
@@ -20,6 +21,7 @@ let context: MainContext;
 
 beforeEach(async () => {
 	root = await mkdtemp(join(tmpdir(), 'malini-ext-host-'));
+	await realGit(root, ['init', '-q']);
 	const resolver: CheckoutResolver = {
 		resolveCheckout: async (id) => {
 			if (id !== 'workstream-1') throw new Error(`Unknown extension workstream: ${id}`);

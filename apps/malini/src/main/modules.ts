@@ -4,7 +4,7 @@ import { describeError } from '$main/errors';
 import { buildSpawnEnvironment } from '$main/process/environment';
 import { createNodeProcessRunner } from '$main/process/runner';
 import { registerBrowser } from '$lib/browser/platform/register';
-import { AgentRunLeases } from '$lib/chat/chat.platform';
+import { AgentRunLeases, type Lease } from '$lib/chat/chat.platform';
 import type { FilePicker } from '$lib/chat/platform/attachments/picker';
 import type { BridgeProcessFactory } from '$lib/chat/platform/agent/process';
 import { registerChat, type ChatPlatform } from '$lib/chat/platform/register';
@@ -48,6 +48,15 @@ export interface Modules {
 	shutdown(): Promise<void>;
 }
 
+async function leased<T>(acquire: () => Lease, body: () => Promise<T>): Promise<T> {
+	const lease = acquire();
+	try {
+		return await body();
+	} finally {
+		lease.release();
+	}
+}
+
 export async function registerModules(
 	context: MainContext,
 	options: ModuleOptions,
@@ -62,14 +71,10 @@ export async function registerModules(
 		getMainWindow: options.getMainWindow,
 		runner: processRunner,
 		log,
-		guardRunLease: async (workstreamId, teardown) => {
-			const lease = agentRunLeases.acquireWorkstreamTeardown(context.db, workstreamId);
-			try {
-				return await teardown();
-			} finally {
-				lease.release();
-			}
-		},
+		guardRunLease: (workstreamId, teardown) =>
+			leased(() => agentRunLeases.acquireWorkstreamTeardown(context.db, workstreamId), teardown),
+		guardCheckoutMove: (workstreamId, move) =>
+			leased(() => agentRunLeases.acquireCheckoutMove(context.db, workstreamId), move),
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});
 

@@ -46,7 +46,7 @@
 {#if shownContextFiles.length}
 	<div class="flex w-full flex-wrap gap-1" data-testid="chat-message-context-files">
 		{#each shownContextFiles as path (path)}
-			<Tooltip content={path} placement="top" class="max-w-56">
+			<Tooltip content={path} placement="top" onlyWhenTruncated class="max-w-56">
 				<span class={CHIP_CLASS} data-context-path={path}>
 					<FileTypeIcon {path} size={12} />
 					<span class="truncate font-mono">{path}</span>

@@ -36,8 +36,8 @@ Map only shapes you have seen the real SDK emit; the `.d.ts` lists what may arri
 Fire a tracer bullet from a scratch directory, since the agent really runs its tools there:
 
 ```sh
-mkdir -p .context/probe-cwd && cd .context/probe-cwd
-node ../../.agents/skills/claude-runtime/scripts/record.mjs 'Create probe.txt containing x, then run ls.' default > ../write.json
+W=$PWD; S=$(mktemp -d); mkdir "$S/cwd" && cd "$S/cwd"
+node "$W/.agents/skills/claude-runtime/scripts/record.mjs" 'Create probe.txt containing x, then run ls.' default > ../write.json
 ```
 
 It records every message and `canUseTool` call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.

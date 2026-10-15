@@ -1,6 +1,5 @@
 import type { WorktreeOperation } from '$contract/repositories';
 import {
-	worktreeOperationNoun,
 	type PullRequestAvailability,
 	type PullRequestMenuItem,
 	type PullRequestTopBar,
@@ -11,7 +10,6 @@ import {
 	needsYouDestination,
 	needsYouReasonDescription,
 	needsYouReasonLabel,
-	shipStepDescription,
 	shipStepDetail,
 	type PullRequestShip,
 } from './pull-request-ship';
@@ -70,7 +68,11 @@ function workstreamStatus(
 	const pullRequest = read.pullRequest;
 	if (pullRequest?.state === 'merged') return merged(read, pullRequest);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
-		return { ...openStatus(read, pullRequest), action: queueMerge(pullRequest.number, ship) };
+		return {
+			...openStatus(read, pullRequest),
+			tooltip: ship?.lastError ?? null,
+			action: queueMerge(pullRequest.number),
+		};
 	}
 	if (ship?.pullRequestNumber && pullRequest?.state !== 'closed') {
 		return openBeforeRead(ship.pullRequestNumber, ship);
@@ -111,8 +113,6 @@ function needsYouAction(
 
 function queued(ship: PullRequestShip): WorkstreamStatus {
 	const merging = ship.step === 'merging' || ship.step === 'archiving';
-	const description =
-		ship.step === null ? 'Malini is shipping this pull request' : shipStepDescription(ship.step);
 	return {
 		tone: 'queued',
 		busy: true,
@@ -122,9 +122,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 			: ship.step === null
 				? null
 				: shipStepDetail(ship.step),
-		tooltip: ship.lastError
-			? `${description}. The last attempt failed and malini retries it: ${ship.lastError}`
-			: `${description}.`,
+		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
 	};
 }
@@ -140,11 +138,7 @@ function openingDraft(ship: PullRequestShip): WorkstreamStatus {
 			: waiting
 				? 'After the agent finishes'
 				: null,
-		tooltip: ship.lastError
-			? `Opening the draft failed and malini retries it: ${ship.lastError}`
-			: waiting
-				? 'Malini opens the draft pull request once the agent finishes its run'
-				: 'Malini is committing, pushing and opening a draft pull request',
+		tooltip: ship.lastError,
 		action: null,
 	};
 }
@@ -154,7 +148,7 @@ const UPDATING_FROM_MAIN: WorkstreamStatus = {
 	busy: true,
 	label: 'Updating from main',
 	detail: null,
-	tooltip: 'Malini is merging main into this workstream. An agent resolves any conflicts',
+	tooltip: null,
 	action: null,
 };
 
@@ -172,18 +166,14 @@ const EXTENSION_OFF: WorkstreamStatus = {
 	busy: false,
 	label: 'Repository extension is off',
 	detail: null,
-	tooltip: 'Turn the Repository extension back on to open or merge a pull request',
+	tooltip: null,
 	action: null,
 };
 
 function withoutGithub(read: RepositorySurface): WorkstreamStatus {
 	const changed = changedFileCount(read);
 	if (changed === 0) return NOTHING_YET;
-	return {
-		...line('idle', filesChanged(changed), 'No GitHub remote'),
-		tooltip: 'Connect this workstream to a GitHub repository to open a pull request',
-		action: null,
-	};
+	return { ...line('idle', filesChanged(changed), 'No GitHub remote'), action: null };
 }
 
 function connectionBlocker(
@@ -191,18 +181,10 @@ function connectionBlocker(
 	surface: RepositorySurface | null,
 ): WorkstreamStatus | null {
 	if (read?.pullRequest?.state === 'unavailable') {
-		return attention(
-			'GitHub account not connected',
-			'Connect the repository GitHub account to open or merge a pull request.',
-			CONNECT,
-		);
+		return attention('GitHub account not connected', null, CONNECT);
 	}
 	if (read?.github?.session === 'reconnect-required') {
-		return attention(
-			'GitHub sign-in expired',
-			'GitHub no longer accepts the stored sign-in. Sign in with GitHub again to restore this workstream.',
-			RECONNECT,
-		);
+		return attention('GitHub sign-in expired', null, RECONNECT);
 	}
 	const failure = surface === null ? null : surfaceFailure(surface);
 	if (!failure) return null;
@@ -230,16 +212,12 @@ function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
 }
 
 function merged(read: RepositorySurface, pullRequest: SurfacePullRequest): WorkstreamStatus {
-	const leftover = read.dirtyPaths.length > 0 || read.ahead > 0;
 	return {
 		...line('merged', 'Merged', null),
 		action: {
 			kind: 'archive',
 			label: 'Archive',
 			ariaLabel: 'Archive this workstream',
-			tooltip: leftover
-				? 'Archive this workstream. Work made after the merge is kept as a saved ref'
-				: 'Archive this workstream',
 			tone: 'primary',
 			confirmLabel: null,
 		},
@@ -254,7 +232,6 @@ function continueOnBase(baseBranch: string): PullRequestTopBarAction {
 		kind: 'continue',
 		label: 'Continue',
 		ariaLabel: `Continue on top of the latest ${baseBranch}`,
-		tooltip: `Keep working on top of the latest ${baseBranch}`,
 		tone: 'secondary',
 		confirmLabel: null,
 	};
@@ -263,24 +240,28 @@ function continueOnBase(baseBranch: string): PullRequestTopBarAction {
 function closed(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	return {
 		...line('idle', 'Closed', null),
-		action: changedFileCount(read) > 0 ? openDraft(ship, true) : null,
+		tooltip: ship?.lastError ?? null,
+		action: changedFileCount(read) > 0 ? openDraft(true) : null,
 	};
 }
 
 function local(read: RepositorySurface, ship: PullRequestShip | null): WorkstreamStatus {
 	const changed = changedFileCount(read);
 	if (changed === 0) return NOTHING_YET;
-	const drafting = ship?.phase === 'draft' ? ship : null;
 	return {
 		...line('idle', filesChanged(changed), null),
-		tooltip: ship?.phase === 'local' ? ship.lastError : null,
+		tooltip: ship?.lastError ?? null,
 		action: MERGE,
-		secondaryAction: { ...openDraft(drafting, false), tone: 'secondary' },
+		secondaryAction: { ...openDraft(false), tone: 'secondary' },
 	};
 }
 
 function openBeforeRead(pullRequestNumber: number, ship: PullRequestShip): WorkstreamStatus {
-	return { ...line('idle', 'Open', null), action: queueMerge(pullRequestNumber, ship) };
+	return {
+		...line('idle', 'Open', null),
+		tooltip: ship.lastError,
+		action: queueMerge(pullRequestNumber),
+	};
 }
 
 function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): StatusLine {
@@ -314,12 +295,7 @@ function openStatus(read: RepositorySurface, pullRequest: SurfacePullRequest): S
 	}
 	if (pullRequest.checks === 'pending') return CHECKS_STARTING;
 	const notStartedReason = checks.find((check) => check.notStartedReason)?.notStartedReason;
-	if (notStartedReason) {
-		return {
-			...line('idle', "CI didn't start", sentenceCase(notStartedReason)),
-			tooltip: `GitHub didn't start CI: ${notStartedReason}`,
-		};
-	}
+	if (notStartedReason) return line('idle', "CI didn't start", sentenceCase(notStartedReason));
 	const optional = checks.filter((check) => check.required === false && check.failed).length;
 	if (pullRequest.checks === 'failed' && optional === 0) return line('idle', 'Checks failed', null);
 
@@ -413,16 +389,10 @@ function surfaceFailure(surface: RepositorySurface): string | null {
 	return null;
 }
 
-function queueMerge(
-	pullRequestNumber: number | null,
-	ship: PullRequestShip | null,
-): PullRequestTopBarAction {
+function queueMerge(pullRequestNumber: number | null): PullRequestTopBarAction {
 	return {
 		...MERGE,
 		ariaLabel: pullRequestNumber === null ? 'Merge' : `Merge pull request #${pullRequestNumber}`,
-		tooltip: ship?.lastError
-			? `Push failed, retrying: ${ship.lastError}`
-			: 'Merge once GitHub allows',
 	};
 }
 
@@ -430,21 +400,15 @@ const MERGE: PullRequestTopBarAction = {
 	kind: 'queue-merge',
 	label: 'Merge',
 	ariaLabel: 'Merge',
-	tooltip: 'Open a pull request and merge it once GitHub allows',
 	tone: 'primary',
 	confirmLabel: null,
 };
 
-function openDraft(ship: PullRequestShip | null, replacing: boolean): PullRequestTopBarAction {
+function openDraft(replacing: boolean): PullRequestTopBarAction {
 	return {
 		kind: 'open-draft',
 		label: 'Draft',
 		ariaLabel: replacing ? 'Open a replacement draft pull request' : 'Open a draft pull request',
-		tooltip: ship?.lastError
-			? `Opening the draft failed: ${ship.lastError}`
-			: replacing
-				? 'The previous pull request is closed. Open a new draft pull request'
-				: 'Open a draft pull request',
 		tone: 'primary',
 		confirmLabel: null,
 	};
@@ -454,7 +418,6 @@ const CANCEL_MERGE: PullRequestTopBarAction = {
 	kind: 'cancel-merge',
 	label: 'Cancel',
 	ariaLabel: 'Cancel the queued merge',
-	tooltip: 'Stops the merge queue. The pull request stays open',
 	tone: 'secondary',
 	confirmLabel: 'Confirm cancel',
 };
@@ -463,7 +426,6 @@ const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
 	kind: 'open-pull-request',
 	label: 'Open PR',
 	ariaLabel: 'Open the pull request on GitHub',
-	tooltip: 'Opens the pull request on GitHub',
 	tone: 'primary',
 	confirmLabel: null,
 };
@@ -472,7 +434,6 @@ const OPEN_JOB: PullRequestTopBarAction = {
 	kind: 'open-job',
 	label: 'Open job',
 	ariaLabel: 'Open the transcript of the job that stopped',
-	tooltip: "Opens the job's transcript",
 	tone: 'primary',
 	confirmLabel: null,
 };
@@ -481,7 +442,6 @@ const RECONNECT: PullRequestTopBarAction = {
 	kind: 'reconnect',
 	label: 'Reconnect',
 	ariaLabel: 'Reconnect your GitHub account',
-	tooltip: 'Opens the repositories page to sign in with GitHub again',
 	tone: 'primary',
 	confirmLabel: null,
 };
@@ -490,7 +450,6 @@ const CONNECT: PullRequestTopBarAction = {
 	kind: 'reconnect',
 	label: 'Connect',
 	ariaLabel: 'Connect the repository GitHub account',
-	tooltip: 'Opens the repositories page to connect GitHub',
 	tone: 'primary',
 	confirmLabel: null,
 };
@@ -499,7 +458,6 @@ const RETRY: PullRequestTopBarAction = {
 	kind: 'refresh',
 	label: 'Retry',
 	ariaLabel: 'Read the repository status again',
-	tooltip: 'Reads the worktree and the pull request again',
 	tone: 'primary',
 	confirmLabel: null,
 };
@@ -509,7 +467,6 @@ function abortOperation(operation: WorktreeOperation): PullRequestTopBarAction {
 		kind: 'abort-operation',
 		label: `Abort ${operation}`,
 		ariaLabel: `Abort the ${operation} in this workstream`,
-		tooltip: `Returns the worktree to its last commit and drops the stopped ${worktreeOperationNoun(operation).toLocaleLowerCase()}`,
 		tone: 'primary',
 		confirmLabel: 'Confirm abort',
 	};

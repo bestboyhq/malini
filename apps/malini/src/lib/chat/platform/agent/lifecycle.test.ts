@@ -141,6 +141,30 @@ describe('leases', () => {
 		teardown.release();
 		expect(hasActiveRun(test.db, 'ws-1')).toBe(false);
 	});
+
+	it('moves a checkout only while no run is open, and holds new runs until the move settles', async () => {
+		seedRunning();
+		expect(() => leases.acquireCheckoutMove(test.db, 'ws-1')).toThrow(
+			'`ws-1` already has an active run',
+		);
+		run(test.db, 'UPDATE agent_runs SET completed_at = ? WHERE id = ?', 'now', 'run-1');
+		const move = leases.acquireCheckoutMove(test.db, 'ws-1');
+		expect(() => leases.acquireCheckoutMove(test.db, 'ws-1')).toThrow('already has an active run');
+		let settled = false;
+		const waiting = (async () => {
+			await leases.checkoutSettled('ws-1');
+			settled = true;
+		})();
+		await Promise.resolve();
+		expect(settled).toBe(false);
+		move.release();
+		await waiting;
+		expect(settled).toBe(true);
+		const sending = leases.acquireRun(test.db, 'ws-1', 'sess-1');
+		expect(() => leases.acquireCheckoutMove(test.db, 'ws-1')).toThrow('already has an active run');
+		sending.release();
+		leases.acquireCheckoutMove(test.db, 'ws-1').release();
+	});
 });
 
 describe('recovery', () => {
