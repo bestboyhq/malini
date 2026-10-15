@@ -2,6 +2,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
+	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Icon } from '$hyper-ui/icons';
 	import { applyModelDefaultsCommand } from '$lib/chat/application/commands/apply-model-defaults.command';
 	import { cancelRunCommand } from '$lib/chat/application/commands/cancel-run.command';
@@ -70,6 +71,8 @@
 	}
 
 	let { workstreamId, pullRequestShipped = false, oncloseworkstream }: Props = $props();
+
+	const splitInset = resizableSplitInset();
 
 	const releaseChatRoute = followChatRouteHook();
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
@@ -238,7 +241,8 @@
 
 <div
 	data-testid="chat-surface"
-	class="flex h-full min-h-0 w-full flex-col overflow-hidden pr-[var(--resizable-split-secondary-size)]"
+	class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+	style:padding-right="{splitInset.secondarySize}px"
 >
 	<AgentProcessDiedBanner />
 	<DependencyInstallBanner {workstreamId} />
@@ -272,7 +276,6 @@
 
 					<div
 						class="transcript-stage relative min-h-0 flex-1"
-						style={`--chat-footer-inset: ${footerHeight}px;`}
 						aria-busy={presentationPending}
 						data-session-switching={presentationPending ? 'true' : undefined}
 					>
@@ -281,7 +284,12 @@
 							inert={documentActive || undefined}
 						>
 							{#if stage === 'fresh'}
-								<FreshChatSuggestions {workstreamId} {draftScope} bind:transcriptReferences />
+								<FreshChatSuggestions
+									{workstreamId}
+									{draftScope}
+									footerInset={footerHeight}
+									bind:transcriptReferences
+								/>
 							{:else if stage === 'transcript' && presentedSessionId}
 								<div
 									class="contents"
@@ -301,16 +309,26 @@
 										spaceBelow={footerHeight}
 									>
 										{#snippet empty()}
-											<FreshChatSuggestions {workstreamId} {draftScope} bind:transcriptReferences />
+											<FreshChatSuggestions
+												{workstreamId}
+												{draftScope}
+												footerInset={footerHeight}
+												bind:transcriptReferences
+											/>
 										{/snippet}
 									</ChatMessageList>
 								</div>
 							{:else if stage === 'error' && bootError}
-								<ChatSessionError {workstreamId} {sessionId} error={bootError} />
+								<ChatSessionError
+									{workstreamId}
+									{sessionId}
+									error={bootError}
+									footerInset={footerHeight}
+								/>
 							{:else if stage === 'cold'}
 								<ChatColdShell {workstreamId} pendingSessionId={pendingSessionId ?? sessionId} />
 							{:else}
-								<ChatEmptySession />
+								<ChatEmptySession footerInset={footerHeight} />
 							{/if}
 						</div>
 

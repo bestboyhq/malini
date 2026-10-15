@@ -1,5 +1,14 @@
+<script lang="ts">
+	interface Props {
+		footerInset: number;
+	}
+
+	let { footerInset }: Props = $props();
+</script>
+
 <div
-	class="chat-stage-inset grid min-h-0 flex-1 place-items-center px-6 pt-10 pb-[calc(2.5rem+var(--chat-footer-inset,0px))] text-center"
+	class="chat-stage-inset grid min-h-0 flex-1 place-items-center px-6 pt-10 text-center"
+	style:padding-bottom="calc(2.5rem + {footerInset}px)"
 	data-testid="chat-empty-session"
 >
 	<div class="max-w-sm">

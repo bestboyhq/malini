@@ -27,6 +27,7 @@
 	import type { SessionId } from '$lib/chat/domain/session';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import {
@@ -100,6 +101,8 @@
 		newContentBelow = $bindable(false),
 		empty,
 	}: Props = $props();
+
+	const splitInset = resizableSplitInset();
 
 	const requestOutcome = $derived(chatRequestQuery.data);
 	const implementationModelLabel = $derived(implementationModelLabelQuery.data);
@@ -752,7 +755,8 @@
 </script>
 
 <div
-	class="relative -mr-[var(--resizable-split-secondary-size)] min-h-0 min-w-0 flex-1 overflow-hidden"
+	class="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+	style:margin-right="{-splitInset.secondarySize}px"
 	data-testid="chat-message-viewport"
 	data-session-id={sessionId}
 	data-scroll-follow={transcriptScroll.follow}
@@ -760,7 +764,8 @@
 >
 	{#if isEmpty}
 		<div
-			class="flex h-full min-h-0 flex-col pr-[var(--resizable-split-secondary-size)]"
+			class="flex h-full min-h-0 flex-col"
+			style:padding-right="{splitInset.secondarySize}px"
 			data-testid="chat-empty-readiness"
 		>
 			{@render empty()}
@@ -768,7 +773,8 @@
 	{:else}
 		<div
 			bind:this={viewportEl}
-			class="chat-scroller flex h-full w-full flex-col overflow-x-hidden overflow-y-auto pr-[var(--resizable-split-secondary-size)]"
+			class="chat-scroller flex h-full w-full flex-col overflow-x-hidden overflow-y-auto"
+			style:padding-right="{splitInset.secondarySize}px"
 			aria-label="Agent chat messages"
 			data-testid="chat-message-scroller"
 			onscroll={(event) => transcriptScroll.handleScroll(event.currentTarget)}
@@ -827,7 +833,7 @@
 				<ol
 					bind:this={messageListEl}
 					class="chat-column flex flex-col gap-8 px-7 pt-2 select-none"
-					style="padding-bottom: calc(1.25rem + var(--chat-footer-inset, 0px) + var(--chat-hold-space, 0px));"
+					style:padding-bottom="calc(1.25rem + {spaceBelow}px + var(--chat-hold-space))"
 					data-testid="chat-message-list"
 					data-transcript-presentation="all-runs-timeline-window"
 					data-transcript-total-runs={runs.length}
@@ -982,3 +988,11 @@
 		onclose={() => (fileMentionChooserOpen = false)}
 	/>
 </div>
+
+<style>
+	@property --chat-hold-space {
+		syntax: '<length>';
+		inherits: false;
+		initial-value: 0px;
+	}
+</style>

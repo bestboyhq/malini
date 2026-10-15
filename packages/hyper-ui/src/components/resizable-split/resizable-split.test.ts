@@ -201,6 +201,12 @@ describe('ResizableSplit closed secondary pane', () => {
 		expect(source).not.toContain('{#if secondaryOpen}');
 	});
 
+	it('hands its sizes to the panes without an inherited custom property, so a drag restyles no pane subtree', () => {
+		expect(source).not.toMatch(/style:--|style=\{`--|--resizable-split-/u);
+		expect(source).not.toContain('document.body.style');
+		expect(source).toContain('setResizableSplitInset({');
+	});
+
 	it('removes the drag handle while there is no boundary to drag', () => {
 		expect(source).toContain('const showHandle = $derived(!secondaryClosed)');
 		expect(source).toContain('{#if showHandle}');
