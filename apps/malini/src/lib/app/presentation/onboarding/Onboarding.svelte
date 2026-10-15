@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
@@ -6,14 +7,15 @@
 	import { ONBOARDING_STEPS, type OnboardingStep } from '$lib/app/domain/onboarding';
 	import { finishOnboardingCommand } from '$lib/app/application/commands/finish-onboarding.command';
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
+	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import { ensureSkillSuggestionsCommand } from '$lib/skills/application/commands/ensure-skill-suggestions.command';
 	import { skillCatalogTotalsQuery } from '$lib/skills/application/queries/skill-catalog-totals.query.svelte';
 	import { BuiltinJobsIntro } from '$lib/jobs/jobs.api';
 	import { SkillPresetBoard } from '$lib/skills/skills.api';
 	import { ClaudeCodeSetup } from '$shared/providers/providers.api';
 	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
 
-	const PRESET_SUGGESTIONS = ['Builder', 'Marketer'];
 	const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 	const STEP_COPY: Readonly<
 		Record<OnboardingStep, Readonly<{ title: string; description: string }>>
@@ -51,6 +53,11 @@
 			: copy.description,
 	);
 	let moved = false;
+
+	onMount(() => {
+		ensureSkillSuggestionsCommand();
+		return showOnboardingHook();
+	});
 
 	function go(step: number): void {
 		moved = true;
@@ -111,7 +118,7 @@
 					{#if onboarding.step === 'claude-code'}
 						<ClaudeCodeSetup setup />
 					{:else if onboarding.step === 'skills'}
-						<SkillPresetBoard suggestions={PRESET_SUGGESTIONS} class="min-h-[280px] flex-1" />
+						<SkillPresetBoard suggest class="min-h-[280px] flex-1" />
 						<p class="text-fg-tertiary mt-3 flex items-center gap-1.5 text-xs">
 							<Icon name="info" size={13} class="shrink-0" />
 							Your first preset becomes the default for new chats. Switch a chat's preset from its composer.

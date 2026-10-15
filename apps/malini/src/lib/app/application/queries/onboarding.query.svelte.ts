@@ -6,6 +6,7 @@ type Onboarding = Readonly<{
 	step: OnboardingStep;
 	index: number;
 	direction: 1 | -1;
+	shown: boolean;
 }>;
 
 class OnboardingQuery {
@@ -14,6 +15,7 @@ class OnboardingQuery {
 		step: ONBOARDING_STEPS[onboardingStore.step] ?? 'claude-code',
 		index: onboardingStore.step,
 		direction: onboardingStore.direction,
+		shown: onboardingStore.shown,
 	});
 }
 

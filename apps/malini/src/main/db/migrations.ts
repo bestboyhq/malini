@@ -1287,6 +1287,31 @@ CREATE TABLE IF NOT EXISTS skill_choices (
 
 export const MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET = `ALTER TABLE job_definitions ADD COLUMN skill_preset_id TEXT;`;
 
+export const MIGRATION_0045_SUGGEST_PRESETS_JOB = `
+CREATE TABLE job_definitions_v45 (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  output TEXT NOT NULL CHECK (output IN ('none','draft','merge')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','suggest-presets','fix-checks','update-from-main','address-review')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  skill_preset_id TEXT
+);
+
+INSERT INTO job_definitions_v45 (
+  rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at, skill_preset_id
+)
+SELECT rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at, skill_preset_id
+FROM job_definitions;
+
+DROP TABLE job_definitions;
+ALTER TABLE job_definitions_v45 RENAME TO job_definitions;
+`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1296,7 +1321,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 44;
+export const TARGET_USER_VERSION = 45;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1481,6 +1506,7 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 					MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
 				);
 			}
+			if (existing < 45) db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,

@@ -16,8 +16,8 @@ import {
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
-import type { ChatNamingJob } from '$lib/jobs/jobs.platform';
-import type { SkillRecord } from '$contract/skills';
+import type { AutomaticJob } from '$lib/jobs/jobs.platform';
+import type { SkillPresetSuggestion, SkillRecord } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
 import { IdSequence } from '../id-sequence';
 import type { BridgeProcess, BridgeProcessFactory, BridgeSpawnSpec } from './process';
@@ -186,6 +186,7 @@ export class BridgeSupervisor {
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
+	private readonly suggestedPresets = new Map<string, SkillPresetSuggestion[]>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly browserRequestListeners = new Set<(request: BridgeBrowserRequest) => void>();
 	private readonly startedAtMs: number;
@@ -444,6 +445,18 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.listedSkills.set(control.id, control.skills);
 				return;
 			}
+			case 'bridge.presets': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: presets v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) {
+					this.suggestedPresets.set(control.id, control.presets);
+				}
+				return;
+			}
 			case 'bridge.browser_request': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
@@ -580,7 +593,7 @@ export class BridgeSupervisor {
 		return this.providerCapabilities();
 	}
 
-	async suggestTitle(prompt: string, job: ChatNamingJob): Promise<string> {
+	async suggestTitle(prompt: string, job: AutomaticJob): Promise<string> {
 		const id = this.nextCommandId();
 		try {
 			await this.sendCommand({ cmd: 'suggest_title', id, prompt, ...job });
@@ -611,6 +624,31 @@ export class BridgeSupervisor {
 			return skills;
 		} finally {
 			this.listedSkills.delete(id);
+		}
+	}
+
+	async suggestPresets(
+		skills: readonly SkillRecord[],
+		job: AutomaticJob,
+	): Promise<SkillPresetSuggestion[]> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({
+				cmd: 'suggest_presets',
+				id,
+				skills: skills.map(({ name, description }) => ({ name, description })),
+				...job,
+			});
+			const presets = this.suggestedPresets.get(id);
+			if (presets === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'presets were acknowledged without a bridge.presets frame',
+				);
+			}
+			return presets;
+		} finally {
+			this.suggestedPresets.delete(id);
 		}
 	}
 

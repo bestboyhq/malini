@@ -135,6 +135,23 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		);
 	});
 
+	it('suggests presets for skills and refuses an ack without a presets frame', async () => {
+		const PRESET_JOB = { instructions: 'Sort the skills.', model: 'haiku' };
+		const skills = [
+			{ name: 'adr', description: 'Record a decision', source: 'repository', tokens: 128 },
+			{ name: 'run', description: 'Run the app', source: 'claude-code', tokens: 123 },
+		] as const;
+		const supervisor = await spawn();
+		expect(await supervisor.suggestPresets(skills, PRESET_JOB)).toEqual([
+			{ name: 'Builder', skills: ['adr', 'run'] },
+		]);
+
+		const silent = await spawn({ FAKE_BRIDGE_SKIP_PRESETS_FRAME: '1' });
+		await expect(silent.suggestPresets(skills, PRESET_JOB)).rejects.toThrow(
+			'presets were acknowledged without a bridge.presets frame',
+		);
+	});
+
 	it('fails the handshake on a protocol version mismatch and kills the child', async () => {
 		const bridge = fixture();
 		await expect(

@@ -15,3 +15,4 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0008](0008-releases-from-conventional-commit-subjects.md)            | Conventional Commit subjects pick the version; CI signs, notarizes, publishes; packaged builds update themselves    |
 | [0009](0009-malini-own-agent-work-runs-as-jobs.md)                    | malini's own agent work (naming chats, shipping fixes) is built-in jobs; the bridge holds no prompt of its own      |
 | [0010](0010-skills-reach-an-agent-through-presets.md)                 | Each chat and job loads only the skills of its preset, resolved by main and passed to the SDK's `skills` option     |
+| [0011](0011-setup-suggests-skill-presets-with-a-built-in-job.md)      | Setup asks Haiku, through the built-in Suggest skill presets job, for presets shaped by the user's own skills       |

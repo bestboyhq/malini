@@ -256,7 +256,7 @@ async function failure(command: string, args: unknown): Promise<CommandFailure> 
 }
 
 describe('job definitions', () => {
-	it('seeds the four built-in jobs once, with their defaults', async () => {
+	it('seeds the five built-in jobs once, with their defaults', async () => {
 		const second = registerJobs(harness(db), { log: () => {} });
 		second.dispose();
 
@@ -274,6 +274,14 @@ describe('job definitions', () => {
 			{
 				key: 'name-chats',
 				name: 'Name chats',
+				effort: 'low',
+				model: 'haiku',
+				runsIn: 'workstream',
+				output: 'none',
+			},
+			{
+				key: 'suggest-presets',
+				name: 'Suggest skill presets',
 				effort: 'low',
 				model: 'haiku',
 				runsIn: 'workstream',
@@ -387,9 +395,11 @@ describe('job definitions', () => {
 		};
 		const fixChecks = await builtin('fix-checks');
 		const nameChats = await builtin('name-chats');
+		const suggestPresets = await builtin('suggest-presets');
 		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
 		const cases: ReadonlyArray<readonly [string, unknown, string]> = [
 			['jobs.run', { definitionId: nameChats.id, workstreamId: 'ws-a' }, 'builtin'],
+			['jobs.run', { definitionId: suggestPresets.id, workstreamId: 'ws-a' }, 'builtin'],
 			[
 				'jobs.run',
 				{ definitionId: fixChecks.id, workstreamId: 'ws-a', chatSessionId: '' },

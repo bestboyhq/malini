@@ -332,6 +332,36 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine('{"cmd":"list_skills","id":"k3"}').ok).toBe(false);
 		});
 
+		it('parses suggest_presets with named skills and its job, and rejects a list or job missing', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"suggest_presets","id":"p1","skills":[{"name":"adr","description":"Record a decision","tokens":9}],"instructions":"Sort them","model":"haiku"}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'suggest_presets',
+					id: 'p1',
+					skills: [{ name: 'adr', description: 'Record a decision' }],
+					instructions: 'Sort them',
+					model: 'haiku',
+				},
+			});
+			expect(
+				parseCommandLine(
+					'{"cmd":"suggest_presets","id":"p2","skills":[],"instructions":"Sort them","model":"haiku"}',
+				).ok,
+			).toBe(false);
+			expect(
+				parseCommandLine(
+					'{"cmd":"suggest_presets","id":"p4","skills":[{"name":"adr","description":"d"}],"model":"haiku"}',
+				).ok,
+			).toBe(false);
+			expect(
+				parseCommandLine('{"cmd":"suggest_presets","id":"p3","skills":[{"description":"x"}]}').ok,
+			).toBe(false);
+		});
+
 		it('parses the skills a prompt may use and rejects a list that is not skill names', () => {
 			expect(
 				parseCommandLine(
@@ -381,6 +411,7 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_mcp_status',
 				'suggest_title',
 				'list_skills',
+				'suggest_presets',
 				'browser_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(21);
@@ -392,6 +423,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.protocol_error',
 				'bridge.title',
 				'bridge.skills',
+				'bridge.presets',
 				'bridge.browser_request',
 			]);
 		});

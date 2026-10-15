@@ -22,6 +22,9 @@ let db: MaliniDatabase;
 let context: MainContext;
 let folders: string[];
 const listSkills = vi.fn(async (cwd: string): Promise<SkillRecord[]> => skillsOf(cwd));
+const suggestPresets = vi.fn(async (skills: readonly SkillRecord[]) => [
+	{ name: 'Builder', skills: skills.map(({ name }) => name) },
+]);
 
 beforeEach(() => {
 	db = openMigratedDatabase(':memory:');
@@ -36,8 +39,10 @@ beforeEach(() => {
 	};
 	folders = [];
 	listSkills.mockClear();
+	suggestPresets.mockClear();
 	registerSkills(context, {
 		listSkills,
+		suggestPresets,
 		resolveCheckout: async (workstreamId) => `/checkouts/${workstreamId}`,
 	});
 	seedWorkstream('ws-1');
@@ -189,6 +194,16 @@ describe('listing skills', () => {
 		await context.commands.call('skills.list', {});
 
 		expect(listSkills).toHaveBeenCalledWith(homedir());
+	});
+
+	it('asks Claude to suggest presets for every skill it sees, and skips the call without skills', async () => {
+		expect(await context.commands.call('skills.suggest-presets', undefined)).toEqual([
+			{ name: 'Builder', skills: skillsOf(homedir()).map(({ name }) => name) },
+		]);
+
+		listSkills.mockResolvedValueOnce([]);
+		expect(await context.commands.call('skills.suggest-presets', undefined)).toEqual([]);
+		expect(suggestPresets).toHaveBeenCalledTimes(1);
 	});
 });
 

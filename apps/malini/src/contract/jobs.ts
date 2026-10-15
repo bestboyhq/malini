@@ -4,12 +4,19 @@ export type JobRunsIn = 'workstream' | 'new-workstream';
 
 export type JobOutput = 'none' | 'draft' | 'merge';
 
-export type JobBuiltin = 'name-chats' | 'fix-checks' | 'update-from-main' | 'address-review';
+export type JobBuiltin =
+	'name-chats' | 'suggest-presets' | 'fix-checks' | 'update-from-main' | 'address-review';
 
-export type ShippingJobBuiltin = Exclude<JobBuiltin, 'name-chats'>;
+export type AutomaticJobBuiltin = 'name-chats' | 'suggest-presets';
+
+export type ShippingJobBuiltin = Exclude<JobBuiltin, AutomaticJobBuiltin>;
+
+export function isAutomaticJobBuiltin(builtin: JobBuiltin | null): builtin is AutomaticJobBuiltin {
+	return builtin === 'name-chats' || builtin === 'suggest-presets';
+}
 
 export function isShippingJobBuiltin(builtin: JobBuiltin | null): builtin is ShippingJobBuiltin {
-	return builtin !== null && builtin !== 'name-chats';
+	return builtin !== null && !isAutomaticJobBuiltin(builtin);
 }
 
 export type JobDefinitionRecord = Readonly<{

@@ -26,6 +26,11 @@ export function installSkillsFake(bridge: FakeBridge): void {
 
 	bridge.define('skills.list-presets', async () => [...presets.values()]);
 
+	bridge.define('skills.suggest-presets', async () => [
+		{ name: 'Builder', skills: ['adr', 'ponytail:ponytail', 'dataviz'] },
+		{ name: 'Writer', skills: ['humanizer', 'animate'] },
+	]);
+
 	bridge.define('skills.save-preset', async (input) => {
 		const existing = input.id ? presets.get(input.id) : undefined;
 		const preset: SkillPresetRecord = {

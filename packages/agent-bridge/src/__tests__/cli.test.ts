@@ -652,6 +652,47 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 	});
 
+	it('createIpc.run answers suggest_presets with a presets frame, or a failed ack', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			suggestPresets: async (skills, job) => {
+				if (skills.some(({ name }) => name === 'broken')) throw new Error('timed out');
+				return [{ name: job.model, skills: skills.map(({ name }) => name) }];
+			},
+		});
+
+		await ipc.run(
+			'{"cmd":"suggest_presets","id":"presets-1","skills":[{"name":"adr","description":"d"},{"name":"run","description":"d"}],"instructions":"Sort","model":"haiku"}',
+		);
+		await ipc.run(
+			'{"cmd":"suggest_presets","id":"presets-2","skills":[{"name":"broken","description":"d"}],"instructions":"Sort","model":"haiku"}',
+		);
+		await ipc.drain();
+
+		const frames = parseFrames(writes.join(''));
+		const framesFor = (id: string): WireFrame[] => frames.filter((frame) => frame.id === id);
+		expect(framesFor('presets-1')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.presets',
+				presets: [{ name: 'haiku', skills: ['adr', 'run'] }],
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+		expect(framesFor('presets-2')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				accepted: false,
+				error: 'PRESETS_FAILED: timed out',
+			}),
+		]);
+	});
+
 	it('createIpc.run passes start_session worktreePath as provider cwd', async () => {
 		let capturedCwd: string | null = null;
 		defaultProviderRegistry.setProvider(async (ctx) => {

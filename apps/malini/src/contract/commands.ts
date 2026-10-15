@@ -49,6 +49,7 @@ import type {
 	SkillChoiceScopeArgs,
 	SkillPresetIdArgs,
 	SkillPresetRecord,
+	SkillPresetSuggestion,
 	SkillRecord,
 } from './skills';
 import type { RuntimeInfo } from './runtime';
@@ -455,6 +456,7 @@ export interface ContractCommands {
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
+	'skills.suggest-presets': { args: undefined; result: SkillPresetSuggestion[] };
 	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
 	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
 	'skills.set-default-preset': { args: DefaultSkillPresetArgs; result: SkillPresetRecord[] };
@@ -687,6 +689,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.cancel-run',
 	'skills.list',
 	'skills.list-presets',
+	'skills.suggest-presets',
 	'skills.save-preset',
 	'skills.delete-preset',
 	'skills.set-default-preset',

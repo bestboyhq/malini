@@ -5,6 +5,7 @@ import {
 	SKILL_PRESET_NAME_MAX_LENGTH,
 	type SkillChoice,
 	type SkillPresetRecord,
+	type SkillPresetSuggestion,
 	type SkillRecord,
 } from '$contract/skills';
 import type { MainContext } from '$main/context';
@@ -29,6 +30,9 @@ import { effectiveSkillChoice } from './skill-resolution';
 
 export interface SkillsDeps {
 	readonly listSkills: (cwd: string) => Promise<readonly SkillRecord[]>;
+	readonly suggestPresets: (
+		skills: readonly SkillRecord[],
+	) => Promise<readonly SkillPresetSuggestion[]>;
 	readonly resolveCheckout: (workstreamId: string) => Promise<string>;
 }
 
@@ -57,6 +61,12 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 	});
 
 	commands.define('skills.list-presets', () => listSkillPresets(db));
+
+	commands.define('skills.suggest-presets', async () => {
+		const skills = await skillsIn(repositoryFolders(db), deps.listSkills);
+		if (skills.length === 0) return [];
+		return [...(await deps.suggestPresets(skills))];
+	});
 
 	commands.define('skills.save-preset', (args: unknown) => {
 		const id = optionalString(args, 'id');

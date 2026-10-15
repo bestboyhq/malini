@@ -487,6 +487,18 @@ const handle = (command) => {
 			});
 			return ack(command.id);
 		}
+		case 'suggest_presets': {
+			write({
+				type: 'bridge.presets',
+				protocolVersion: version,
+				id: command.id,
+				presets: [
+					{ name: 'Builder', skills: ['adr', 'test-malini-app', 'ponytail:ponytail'] },
+					{ name: 'Writer', skills: ['humanizer', 'landing-arch'] },
+				],
+			});
+			return ack(command.id);
+		}
 		case 'suggest_title': {
 			if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
 			write({

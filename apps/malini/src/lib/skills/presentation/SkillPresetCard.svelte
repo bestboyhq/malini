@@ -96,11 +96,11 @@
 
 <section
 	class={[
-		'bg-surface-root relative flex flex-col gap-2.5 rounded-[18px] border-[0.5px] px-3 pt-2.5 pb-3',
+		'bg-surface-100 relative flex flex-col gap-2.5 rounded-xl border-[0.5px] px-3 pt-2.5 pb-3',
 		'transition-[border-color,box-shadow,scale] duration-150 ease-out motion-reduce:transition-none',
 		over && !alreadyHere
 			? 'border-primary scale-[1.01] shadow-lg'
-			: 'border-border-default shadow-none',
+			: 'border-surface-100-border shadow-xs',
 	]}
 	aria-labelledby={headingId}
 	data-skill-drop={preset.id}

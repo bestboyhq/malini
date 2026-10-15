@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { JobDefinitionRecord } from '$contract/jobs';
+	import { isAutomaticJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { Select, type SelectOption } from '$hyper-ui/components/select';
 	import { TextInput } from '$hyper-ui/components/text-input';
@@ -48,7 +48,7 @@
 	const submission = $derived(jobFormSubmissionQuery.data);
 	const catalog = $derived(modelCatalogQuery.data);
 	const builtin = $derived(definition?.builtin ?? null);
-	const thinks = $derived(builtin !== 'name-chats');
+	const thinks = $derived(!isAutomaticJobBuiltin(builtin));
 	const efforts = $derived(effortsForModel(catalog, draft.model));
 	const modelOptions: SelectOption[] = $derived([
 		...catalog.map((model) => ({ value: model.id, label: catalogModelLabel(catalog, model.id) })),

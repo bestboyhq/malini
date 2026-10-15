@@ -209,6 +209,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 		skills: count(args, 'skills'),
 	}),
 	'skills.set-default-preset': (args) => ({ cleared: field(args, 'presetId') === null }),
+	'skills.suggest-presets': plain,
 	'stats.activity': plain,
 	'stats.resources': false,
 };

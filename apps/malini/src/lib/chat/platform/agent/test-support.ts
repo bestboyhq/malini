@@ -150,6 +150,13 @@ const handle = (command) => {
       ] });
       return ack(command.id);
     }
+    case 'suggest_presets': {
+      if (env.FAKE_BRIDGE_SKIP_PRESETS_FRAME) return ack(command.id);
+      write({ type: 'bridge.presets', protocolVersion: version, id: command.id, presets: [
+        { name: 'Builder', skills: command.skills.map((skill) => skill.name) },
+      ] });
+      return ack(command.id);
+    }
     case 'suggest_title': {
       if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
       write({ type: 'bridge.title', protocolVersion: version, id: command.id, title: env.FAKE_BRIDGE_TITLE });

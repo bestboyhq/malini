@@ -2,6 +2,8 @@ const PICKUP_DISTANCE = 4;
 const SETTLE_MS = 200;
 const SETTLE_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
 const DROP_ZONE = '[data-skill-drop]';
+const SCROLL_EDGE = 56;
+const MAX_SCROLL_STEP = 14;
 
 type Press = Readonly<{
 	pointerId: number;
@@ -25,6 +27,9 @@ export class SkillDrag {
 	#grab: Point = { x: 0, y: 0 };
 	#pointer: Point = { x: 0, y: 0 };
 	#swallowClick = false;
+	#scroller: HTMLElement | null = null;
+	#scrollStep = 0;
+	#scrollFrame = 0;
 
 	constructor(ondrop: (skill: string, target: string) => void) {
 		this.#ondrop = ondrop;
@@ -71,9 +76,34 @@ export class SkillDrag {
 			this.#pickUp(press);
 		}
 		this.#place(this.#pointer);
-		const zone = document.elementFromPoint(event.clientX, event.clientY)?.closest(DROP_ZONE);
+		this.#aim();
+		this.#scrollNearEdge();
+	};
+
+	#aim(): void {
+		const { x, y } = this.#pointer;
+		const zone = document.elementFromPoint(x, y)?.closest(DROP_ZONE);
 		const target = zone instanceof HTMLElement ? (zone.dataset['skillDrop'] ?? null) : null;
 		if (target !== this.target) this.target = target;
+	}
+
+	#scrollNearEdge(): void {
+		const { x, y } = this.#pointer;
+		this.#scroller = scrollerAt(x, y);
+		this.#scrollStep = this.#scroller
+			? edgeScrollStep(this.#scroller.getBoundingClientRect(), y)
+			: 0;
+		if (this.#scrollStep !== 0 && this.#scrollFrame === 0) {
+			this.#scrollFrame = requestAnimationFrame(this.#scrollTick);
+		}
+	}
+
+	#scrollTick = (): void => {
+		this.#scrollFrame = 0;
+		if (this.skill === null || this.#scroller === null || this.#scrollStep === 0) return;
+		this.#scroller.scrollTop += this.#scrollStep;
+		this.#aim();
+		this.#scrollFrame = requestAnimationFrame(this.#scrollTick);
 	};
 
 	#release = (event: PointerEvent): void => {
@@ -160,11 +190,32 @@ export class SkillDrag {
 	}
 
 	#detach(): void {
+		cancelAnimationFrame(this.#scrollFrame);
+		this.#scrollFrame = 0;
+		this.#scroller = null;
+		this.#scrollStep = 0;
 		window.removeEventListener('pointermove', this.#move);
 		window.removeEventListener('pointerup', this.#release);
 		window.removeEventListener('pointercancel', this.#cancel);
 		window.removeEventListener('keydown', this.#escape, true);
 	}
+}
+
+export function edgeScrollStep(box: Readonly<{ top: number; bottom: number }>, y: number): number {
+	const edge = Math.min(SCROLL_EDGE, (box.bottom - box.top) / 3);
+	const intoTop = box.top + edge - y;
+	const intoBottom = y - (box.bottom - edge);
+	if (intoTop > 0) return -Math.ceil(MAX_SCROLL_STEP * Math.min(intoTop / edge, 1));
+	if (intoBottom > 0) return Math.ceil(MAX_SCROLL_STEP * Math.min(intoBottom / edge, 1));
+	return 0;
+}
+
+function scrollerAt(x: number, y: number): HTMLElement | null {
+	for (let node = document.elementFromPoint(x, y); node; node = node.parentElement) {
+		if (!(node instanceof HTMLElement) || node.scrollHeight <= node.clientHeight) continue;
+		if (/auto|scroll/u.test(getComputedStyle(node).overflowY)) return node;
+	}
+	return null;
 }
 
 function prefersReducedMotion(): boolean {

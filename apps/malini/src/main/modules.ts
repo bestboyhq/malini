@@ -98,6 +98,7 @@ export async function registerModules(
 
 	registerSkills(context, {
 		listSkills: (cwd) => chat.listSkills(cwd),
+		suggestPresets: (skills) => chat.suggestPresets(skills),
 		resolveCheckout: (workstreamId) => repositories.checkouts.resolveCheckout(workstreamId),
 	});
 

@@ -1,4 +1,9 @@
-import type { JobBuiltin, JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
+import {
+	isAutomaticJobBuiltin,
+	type JobBuiltin,
+	type JobDefinitionRecord,
+	type JobRunRecord,
+} from '$contract/jobs';
 import type { FakeBridge } from './fake-bridge';
 
 const FAKE_JOB_TIME = '2026-01-01T00:00:00.000Z';
@@ -38,6 +43,7 @@ function fakeRunsOf(bridge: FakeBridge): Map<string, JobRunRecord> {
 
 const FAKE_BUILTINS: readonly (readonly [JobBuiltin, string])[] = [
 	['name-chats', 'Name chats'],
+	['suggest-presets', 'Suggest skill presets'],
 	['fix-checks', 'Fix checks'],
 	['update-from-main', 'Update from main'],
 	['address-review', 'Address bot review'],
@@ -138,7 +144,9 @@ export function installJobsFake(bridge: FakeBridge): void {
 
 	bridge.define('jobs.run', async (input) => {
 		const definition = requireDefinition(definitions, input.definitionId);
-		if (definition.builtin === 'name-chats') throw new Error('Name chats runs on its own');
+		if (isAutomaticJobBuiltin(definition.builtin)) {
+			throw new Error(`${definition.name} runs on its own`);
+		}
 		const run: JobRunRecord = {
 			id: `fake-job-run-${nextRun++}`,
 			definitionId: definition.id,

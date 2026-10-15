@@ -16,6 +16,11 @@ export type SkillPresetRecord = Readonly<{
 	updatedAt: string;
 }>;
 
+export type SkillPresetSuggestion = Readonly<{
+	name: string;
+	skills: readonly string[];
+}>;
+
 export type SkillChoice =
 	| Readonly<{ kind: 'default' }>
 	| Readonly<{ kind: 'all' }>

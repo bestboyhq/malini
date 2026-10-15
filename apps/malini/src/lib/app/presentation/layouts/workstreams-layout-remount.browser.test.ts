@@ -228,7 +228,11 @@ describe('coming back to the repositories from a page outside the shell', () => 
 	});
 
 	it('keeps the empty states, not skeletons, while an empty scope refreshes', async () => {
-		platform.seed({ projects: [], workstreams: [] });
+		platform.seed({
+			projects: [],
+			workstreams: [],
+			settings: { 'onboarding.finished-at': '2026-10-15T00:00:00.000Z' },
+		});
 		router.start({
 			routes,
 			notFound: () => import('$shared/router/fixtures/FixtureNotFound.svelte'),
@@ -247,7 +251,33 @@ describe('coming back to the repositories from a page outside the shell', () => 
 		await settle();
 
 		expect(all('repository-sidebar-empty')).toHaveLength(1);
+		expect(all('onboarding')).toHaveLength(0);
+		expect(frame()).toMatchObject({ listSkeletons: 0, sidebarSkeletons: 0 });
+		held.resolve();
+	});
+
+	it('keeps setup on screen without the sidebar while an empty scope refreshes', async () => {
+		platform.seed({ projects: [], workstreams: [] });
+		router.start({
+			routes,
+			notFound: () => import('$shared/router/fixtures/FixtureNotFound.svelte'),
+		});
+		app = mount(Router, { target: host });
+		await settle();
+		await vi.waitFor(() => {
+			flushSync();
+			expect(all('onboarding')).toHaveLength(1);
+		});
+		expect(all('repository-sidebar-empty')).toHaveLength(0);
+		await router.goto('/dev/runtime');
+		await settle();
+
+		const held = holdRefreshes();
+		await router.goto('/');
+		await settle();
+
 		expect(all('onboarding')).toHaveLength(1);
+		expect(all('repository-sidebar-empty')).toHaveLength(0);
 		expect(frame()).toMatchObject({ listSkeletons: 0, sidebarSkeletons: 0 });
 		held.resolve();
 	});

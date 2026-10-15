@@ -9,7 +9,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('setup groups skills into presets by dragging them, and walks on to the first repository', async () => {
+test('setup offers presets Claude suggests, groups skills by dragging, and walks on to the first repository', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -21,21 +21,33 @@ test('setup groups skills into presets by dragging them, and walks on to the fir
 			setup.getByRole('heading', { name: 'Group your skills into presets' }),
 		).toBeVisible();
 		await expect(setup).toContainText('Right now every chat loads all 7 skills');
+		await expect(setup.getByText('Suggested by Claude from your skills')).toBeVisible();
+		await expect(page.getByTestId('global-topbar-sidebar-toggle')).toHaveCount(0);
+		await captureFlow(app, 'skills-setup-suggestions');
 
-		await dragSkill(page, 'humanizer', page.getByTestId('skill-preset-suggestion').nth(1));
-		const marketer = preset(page, 'Marketer');
-		await expect(marketer.getByRole('list', { name: 'Skills in Marketer' })).toContainText(
-			'humanizer',
-		);
-		await expect(marketer.getByTestId('skill-preset-default')).toBeVisible();
+		await setup.getByRole('button', { name: 'Add the Writer preset' }).click();
+		const writer = preset(page, 'Writer');
+		await expect(writer.getByTestId('skill-preset-skill')).toHaveText([
+			/humanizer/u,
+			/landing-arch/u,
+		]);
+		await expect(writer.getByTestId('skill-preset-default')).toBeVisible();
 
-		await page.getByRole('button', { name: 'adr. Add to a preset' }).click();
-		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
+		await dragSkill(page, 'animate', page.getByTestId('skill-preset-suggestion'));
 		const builder = preset(page, 'Builder');
-		await expect(builder.getByRole('list', { name: 'Skills in Builder' })).toContainText('adr');
+		await expect(builder.getByTestId('skill-preset-skill')).toHaveText([
+			/adr/u,
+			/test-malini-app/u,
+			/ponytail/u,
+			/animate/u,
+		]);
+		await expect(page.getByTestId('skill-preset-suggestion')).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'dataviz. Add to a preset' }).click();
+		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
+		await page.getByRole('textbox', { name: 'Preset name' }).fill('Analyst');
 		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
-		await dragSkill(page, 'animate', builder);
-		await expect(builder.getByTestId('skill-preset-skill')).toHaveCount(2);
+		await expect(preset(page, 'Analyst')).toContainText('dataviz');
 		await captureFlow(app, 'skills-setup-presets');
 
 		await setup.getByRole('button', { name: 'Continue' }).click();
@@ -45,6 +57,7 @@ test('setup groups skills into presets by dragging them, and walks on to the fir
 		await setup.getByRole('button', { name: 'Skip for now' }).click();
 		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 		await expect(page.getByTestId('onboarding')).toHaveCount(0);
+		await expect(page.getByTestId('global-topbar-sidebar-toggle')).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -52,11 +52,11 @@
 	bind:element={row}
 	bare
 	class={[
-		'group/skill hover:bg-surface-root-hover flex w-full cursor-grab touch-none items-center gap-2.5 rounded-xl px-2.5 py-2 text-left select-none active:cursor-grabbing',
+		'group/skill border-surface-100-border flex w-full cursor-grab touch-none items-center gap-2.5 rounded-xl border-[0.5px] px-2.5 py-2 text-left shadow-xs select-none active:cursor-grabbing',
 		'focus-visible:ring-border-default outline-0 focus-visible:ring-2',
 		'transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none',
 		lifted && 'scale-[0.98] opacity-35',
-		menuOpen && 'bg-surface-root-selected',
+		menuOpen ? 'bg-surface-100-selected' : 'bg-surface-100 hover:bg-surface-100-hover',
 	]}
 	ariaLabel={`${skill.name}. Add to a preset`}
 	ariaHasPopup="menu"

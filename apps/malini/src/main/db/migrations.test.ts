@@ -5,6 +5,8 @@ import {
 	MIGRATION_0022_AGENT_RUN_CHECKPOINT_FAILURES,
 	MIGRATION_0038_JOBS,
 	MIGRATION_0038_WORKSTREAM_SHIP,
+	MIGRATION_0043_NAME_CHATS_JOB,
+	MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
 	TARGET_USER_VERSION,
 	migrate,
 	tableNames,
@@ -1389,6 +1391,37 @@ describe('migrate', () => {
 		expect(all(db, 'SELECT id, skill_preset_id FROM job_definitions')).toEqual([
 			{ id: 'jd-fix', skill_preset_id: null },
 		]);
+		db.close();
+	});
+
+	it('v45 accepts the Suggest skill presets job and keeps every job with its preset', () => {
+		const db = v38JobsDatabase(42);
+		db.exec(MIGRATION_0043_NAME_CHATS_JOB);
+		db.exec(MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET);
+		db.exec('PRAGMA user_version = 44;');
+		insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats');
+		db.exec("UPDATE job_definitions SET skill_preset_id = 'builder'");
+		expect(() =>
+			insertJobDefinition(
+				db,
+				'jd-presets',
+				'Suggest skill presets',
+				'Sort them.',
+				'suggest-presets',
+			),
+		).toThrow(/CHECK/u);
+
+		migrate(db);
+		insertJobDefinition(db, 'jd-presets', 'Suggest skill presets', 'Sort them.', 'suggest-presets');
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(
+			all(db, 'SELECT id, builtin, skill_preset_id FROM job_definitions ORDER BY rowid'),
+		).toEqual([
+			{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' },
+			{ id: 'jd-presets', builtin: 'suggest-presets', skill_preset_id: null },
+		]);
+		expect(foreignKeyErrors(db)).toBe(0);
 		db.close();
 	});
 

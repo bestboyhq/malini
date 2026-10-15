@@ -2,6 +2,7 @@ import type {
 	SaveSkillPresetArgs,
 	SkillChoice,
 	SkillPresetRecord,
+	SkillPresetSuggestion,
 	SkillRecord,
 } from '$contract/skills';
 import { invoke } from '$shared/port/invoke';
@@ -13,6 +14,10 @@ class SkillsService {
 
 	listPresets(): Promise<SkillPresetRecord[]> {
 		return invoke('skills.list-presets', undefined);
+	}
+
+	suggestPresets(): Promise<SkillPresetSuggestion[]> {
+		return invoke('skills.suggest-presets', undefined);
 	}
 
 	savePreset(args: SaveSkillPresetArgs): Promise<SkillPresetRecord> {

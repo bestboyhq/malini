@@ -14,6 +14,7 @@ export const JOB_OUTPUT_OPTIONS: readonly Readonly<{ value: JobOutput; label: st
 
 const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
 	'name-chats': 'Your first message in a chat',
+	'suggest-presets': 'You group your skills in setup',
 	'fix-checks': 'Checks fail while shipping',
 	'update-from-main': 'The branch falls behind while shipping',
 	'address-review': 'A bot reviews while shipping',
@@ -22,6 +23,8 @@ const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
 const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	'name-chats':
 		'Runs on its own when you send the first message in a chat. It names the chat, and the workstream on its first chat.',
+	'suggest-presets':
+		'Runs on its own when setup opens. It reads the name and description of every skill Claude Code finds and suggests presets you can add in one click.',
 	'fix-checks':
 		'The merge queue runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
 	'update-from-main':
