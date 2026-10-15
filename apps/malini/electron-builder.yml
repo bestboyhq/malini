@@ -30,6 +30,7 @@ mac:
       arch: arm64
 dmg:
   sign: true
+  artifactName: ${productName}-${arch}.${ext}
 publish:
   provider: github
   owner: bestboyhq

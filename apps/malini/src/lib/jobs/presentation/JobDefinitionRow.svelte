@@ -36,29 +36,15 @@
 	data-testid="job-definition-row"
 	data-job-definition-id={definition.id}
 >
-	<div class="flex items-start gap-3">
-		<div class="min-w-0 flex-1">
-			<div class="flex min-w-0 items-center gap-2">
-				<span class="text-fg-default truncate text-sm font-medium">{definition.name}</span>
-				{#if builtin}
-					<Badge>Built-in</Badge>
-				{/if}
-				{#if editing}
-					<Badge variant="primary">Editing</Badge>
-				{/if}
-			</div>
-			<p class="text-fg-tertiary mt-0.5 truncate text-xs">
-				{catalogModelLabel(catalog, definition.model)} · {effortLabel(definition.effort)} effort ·
-				{jobShapeSummary(definition)}
-			</p>
-			<p class="text-fg-secondary mt-1.5 line-clamp-2 text-xs">
-				{instructionsPreview(definition.instructions)}
-			</p>
-			{#if actionState.error}
-				<p class="text-error-content mt-1.5 text-xs" role="alert">{actionState.error}</p>
-			{/if}
-		</div>
-		<div class="flex shrink-0 items-center gap-1.5">
+	<div class="flex min-w-0 items-center gap-2">
+		<span class="text-fg-default truncate text-sm font-medium">{definition.name}</span>
+		{#if builtin}
+			<Badge>Built-in</Badge>
+		{/if}
+		{#if editing}
+			<Badge variant="primary">Editing</Badge>
+		{/if}
+		<div class="ml-auto flex shrink-0 items-center gap-1.5">
 			{#if confirming}
 				<span class="text-fg-secondary text-xs">
 					{confirming === 'delete' ? 'Delete this job?' : 'Undo your edits?'}
@@ -120,6 +106,16 @@
 			{/if}
 		</div>
 	</div>
+	<p class="text-fg-tertiary mt-0.5 truncate text-xs">
+		{catalogModelLabel(catalog, definition.model)} · {effortLabel(definition.effort)} effort ·
+		{jobShapeSummary(definition)}
+	</p>
+	<p class="text-fg-secondary mt-1.5 line-clamp-2 text-xs">
+		{instructionsPreview(definition.instructions)}
+	</p>
+	{#if actionState.error}
+		<p class="text-error-content mt-1.5 text-xs" role="alert">{actionState.error}</p>
+	{/if}
 	{#if choosingTarget && !builtin}
 		<JobRunTarget {definition} onclose={() => (choosingTarget = false)} />
 	{/if}

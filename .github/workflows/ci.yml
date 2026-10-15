@@ -106,13 +106,14 @@ jobs:
       - run: pnpm --filter malini release
         env:
           APPLE_KEYCHAIN_PROFILE: malini
-      - run: dmg="apps/malini/release/malini-$V-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
+      - run: dmg="apps/malini/release/malini-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
       - uses: actions/upload-artifact@v7
         with:
           name: release
           if-no-files-found: error
           path: |
             apps/malini/release/malini-${{ env.V }}-arm64*
+            apps/malini/release/malini-arm64.dmg*
             apps/malini/release/latest-mac.yml
 
   update:
@@ -136,7 +137,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: release
-      - run: gh release create "v$V" --generate-notes --target "$GITHUB_SHA" malini-"$V"-arm64* latest-mac.yml
+      - run: gh release create "v$V" --generate-notes --target "$GITHUB_SHA" malini-"$V"-arm64* malini-arm64.dmg* latest-mac.yml
         env:
           V: ${{ needs.version.outputs.next }}
           GH_REPO: ${{ github.repository }}
