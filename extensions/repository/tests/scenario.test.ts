@@ -77,7 +77,7 @@ test('lists, selects, diffs, counts, refreshes, and carries repository metadata'
 		assert.equal(state.refreshedAt, 123_000);
 		assert.deepEqual(
 			state.files.map(({ path }) => path),
-			['README.md', 'src/index.ts'],
+			['.env.example', 'README.md', 'src/index.ts'],
 		);
 		assert.equal(state.context?.branch, 'feature/repository');
 		assert.deepEqual(state.context?.dirtyPaths, ['src/index.ts']);
@@ -134,13 +134,6 @@ test('lists, selects, diffs, counts, refreshes, and carries repository metadata'
 			host.recording().filter(({ kind }) => kind === 'repository.diff').length,
 			repositoryReadsBeforeAgentDiff,
 			'the attributed command must not reread current worktree dirt',
-		);
-
-		await host.api.settings.set('malini.repository.show-hidden', true);
-		state = await host.invokeCommand<RepositoryViewState>('malini.repository.refresh');
-		assert.deepEqual(
-			state.files.map(({ path }) => path),
-			['.env.example', 'README.md', 'src/index.ts'],
 		);
 
 		await host.api.workstream.writeFile('src/new.ts', 'new');
