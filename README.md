@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The malini window: tony, grip and malini in the sidebar, each with a workstream, a fresh chat with the composer in the middle, and the inspector on the right with the Files panel and a browser tab showing the malini repository on GitHub.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The malini window: six workstreams across malini, grip and tony in the sidebar, a finished malini chat that read the code, edited package.json and docs/packaging.md, ran the new script, and ended with a commit subject and a pull request title, and 2 files changed with Draft and Merge in the top bar.">
 </p>
 
 <p align="center">
@@ -68,6 +68,7 @@ When the work is ready, malini commits it, opens the pull request, and helps it 
 | You come back to ten agents and can't tell which one needs you           | Every turn ends with a **Your turn** list, unread workstreams are marked, and a chime and a notification tell you a run finished.                |
 | The pull request sits red for hours                                      | The merge queue runs **Fix checks**, **Update from main**, and **Address bot review** until it merges, and says **Needs you** only when it must. |
 | The merge lands a commit nobody checked                                  | malini merges with `--match-head-commit`, so GitHub merges **exactly the commit that passed**.                                                   |
+| Quitting the app halfway through a run loses the work in flight          | Runs that a restart cut short **pick up where they left off** the next time malini opens.                                                        |
 
 ## Workstreams, side by side
 
@@ -81,10 +82,18 @@ When the work is ready, malini commits it, opens the pull request, and helps it 
 - **Your tools, one click away.** Open a workstream in your editor or reveal it in Finder.
 - **Any repository.** Clone one from GitHub, with your recent repositories one search away, or open a folder on your Mac.
 
+<p align="center">
+  <img src=".github/readme/answers.webp" width="100%" alt="A grip workstream answering how captions, zooms and keystrokes stay in sync after cuts and speed changes, with a file and line reference for each step, next to the other workstreams in the sidebar.">
+</p>
+
+<p align="center">
+  <sub>Ask about the code and get an answer with file references. Every workstream keeps its own chats.</sub>
+</p>
+
 ## A chat that keeps up
 
 <p align="center">
-  <img src=".github/readme/run-options.webp" width="100%" alt="The Run options menu over the composer: Plan mode, Agent access with Sandboxed checked, Auto, and Full access, Report with Low, Medium checked, and High, and Model settings.">
+  <img src=".github/readme/run-options.webp" width="100%" alt="The Run options menu open over a chat: Plan mode, Agent access with Sandboxed checked, Auto, and Full access, Report with Low, Medium checked, and High, and Model settings.">
 </p>
 
 <p align="center">

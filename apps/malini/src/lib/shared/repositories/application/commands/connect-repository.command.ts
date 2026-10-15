@@ -26,6 +26,7 @@ import { workstreamsService } from '$shared/repositories/infrastructure/services
 import { repositoryConnectionStore } from '$shared/repositories/infrastructure/stores/repository-connection.store.svelte';
 import { goto } from '$shared/router/navigation';
 import { workstreamHref } from '$shared/router/routes-hrefs';
+import { seedWorkstreamDependenciesCommand } from './seed-workstream-dependencies.command';
 
 export { connectRepositoryCommand };
 
@@ -38,6 +39,7 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 	void (async () => {
 		try {
 			const workstream = await connectAndOpenWorkstream(source);
+			seedWorkstreamDependenciesCommand(workstream.id);
 			void repositoriesAggregate.refresh();
 			await goto(workstreamHref(workstream.id));
 			onConnected?.();
