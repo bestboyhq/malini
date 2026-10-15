@@ -5,7 +5,7 @@
 <h1 align="center">malini</h1>
 
 <p align="center">
-  <b>You had one job. Now you can have hundreds.</b><br>
+  <b>You had one job. Now have hundreds.</b><br>
   Many Claude Code agents, one window, one merged pull request each.<br>
   Free and open source, for the Mac.
 </p>
