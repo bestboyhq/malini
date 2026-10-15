@@ -134,7 +134,7 @@ describe('connecting a repository', () => {
 
 		expect(commands()).toEqual(['repositories.connect']);
 		expect(repositoryConnectErrorQuery.data?.detail).toBe('REPOSITORY_SCOPE_MISMATCH');
-		expect(error).toHaveBeenCalledWith('Could not connect repository · REPOSITORY_SCOPE_MISMATCH');
+		expect(error).not.toHaveBeenCalled();
 		expect(onConnected).not.toHaveBeenCalled();
 		expect(navigation.goto).not.toHaveBeenCalled();
 	});
@@ -259,10 +259,7 @@ describe('connecting a repository', () => {
 			technical:
 				"git could not authenticate: could not read Username for 'https://github.com': terminal prompts disabled",
 		});
-		expect(error).toHaveBeenCalledOnce();
-		expect(error).toHaveBeenCalledWith(
-			"Could not connect repository · GitHub didn't give access to bestboyhq/does-not-exist-o11y-probe. Check the URL, or sign in with `gh auth login` as an account that can see it.",
-		);
+		expect(error).not.toHaveBeenCalled();
 	});
 
 	it('still asks to reconnect when the GitHub CLI rejects its own sign-in', async () => {

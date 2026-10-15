@@ -16,9 +16,15 @@
 		workstreamId: string;
 		draftScope: string;
 		transcriptReferences: AgentTranscriptReference[];
+		footerInset: number;
 	}
 
-	let { workstreamId, draftScope, transcriptReferences = $bindable() }: Props = $props();
+	let {
+		workstreamId,
+		draftScope,
+		transcriptReferences = $bindable(),
+		footerInset,
+	}: Props = $props();
 
 	const recentChats = $derived(recentChatsQuery.data(workstreamId));
 	const plans = $derived(preparedPlansQuery.data(workstreamId));
@@ -39,7 +45,8 @@
 </script>
 
 <div
-	class="chat-stage-inset flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-6 pt-14 pb-[var(--chat-footer-inset,0px)]"
+	class="chat-stage-inset flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-6 pt-14"
+	style:padding-bottom="{footerInset}px"
 	data-testid="chat-fresh-session"
 	role="region"
 	aria-label="New agent chat. The next message starts a separate context."

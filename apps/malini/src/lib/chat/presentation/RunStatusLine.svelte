@@ -3,16 +3,18 @@
 	import { observeRunStartCommand } from '$lib/chat/application/commands/observe-run-start.command';
 	import { runStartedAtQuery } from '$lib/chat/application/queries/run-started-at.query.svelte';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { backgroundWorkSummary, type BackgroundWork } from '$lib/chat/domain/background-work';
 	import type { RunGroup } from './render-state';
-	import { backgroundAgentsStatus, deriveRunStatus } from './run-status';
+	import { deriveRunStatus } from './run-status';
 	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
 		runs: readonly RunGroup[];
 		waitingForUser?: boolean;
+		background?: BackgroundWork | null;
 	}
 
-	let { runs, waitingForUser = false }: Props = $props();
+	let { runs, waitingForUser = false, background = null }: Props = $props();
 	const { stageEnter, timelineKey } = transcriptContext();
 
 	const openRun = $derived.by(() => {
@@ -38,7 +40,10 @@
 
 	const status = $derived(deriveRunStatus({ isRunOpen: openRun !== null, runStartedAtMs, nowMs }));
 	const statusText = $derived(status.text);
-	const backgroundAgents = $derived(openRun ? backgroundAgentsStatus(runs) : null);
+	const backgroundSummary = $derived(
+		openRun && background?.runId === openRun.runId ? backgroundWorkSummary(background.tasks) : null,
+	);
+	const waitingOnBackground = $derived(backgroundSummary !== null && background?.waiting === true);
 </script>
 
 <div
@@ -64,6 +69,16 @@
 				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
 					Waiting for you
 				</span>
+			{:else if waitingOnBackground}
+				<span
+					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
+					aria-hidden="true"
+				>
+					<Icon name="clock" size={12} />
+				</span>
+				<span class="text-fg-tertiary min-w-0 truncate" data-testid="run-status-text">
+					Waiting on {backgroundSummary}
+				</span>
 			{:else}
 				<span
 					class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center"
@@ -81,9 +96,9 @@
 					{statusText}
 				</span>
 			{/if}
-			{#if backgroundAgents}
+			{#if backgroundSummary && !waitingOnBackground && !waitingForUser}
 				<span class="text-fg-tertiary" aria-hidden="true">·</span>
-				<span class="text-fg-tertiary min-w-0 flex-1 truncate">{backgroundAgents}</span>
+				<span class="text-fg-tertiary min-w-0 flex-1 truncate">{backgroundSummary} running</span>
 			{/if}
 		</div>
 	{/if}

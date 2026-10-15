@@ -58,7 +58,7 @@ describe('workstream instant navigation contract', () => {
 		expect(sidebar).toContain('if (activeNavigationTarget === target) return;');
 		expect(sidebar).toContain('onpointercancel={() =>');
 		expect(sidebar).toContain('onpointerleave={() =>');
-		expect(sidebar).toContain('ondragstart={() =>');
+		expect(sidebar).toContain('abandonUnclaimedDestinationPreview();');
 		expect(sidebar).toContain('onblur={() =>');
 		expect(sidebar).toContain(
 			"globalThis.addEventListener('blur', abandonUnclaimedDestinationPreview)",

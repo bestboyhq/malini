@@ -2203,5 +2203,561 @@
 			"uuid": "7c8f2e21-cfbf-4b4a-afb9-395afcf13bd4",
 			"session_id": "f141f0a7-7ba8-45ad-a442-4ef076cbcf24"
 		}
+	],
+	"backgroundCommand": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "dc524898-5a86-49f9-ae52-fc236e53ce04",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "bypassPermissions",
+			"mcp_servers": [],
+			"uuid": "adeb44b5-1c3c-403f-a51e-641c255a8f65"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rpkeC1SXA25tFnFVLU",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01LDqMBnrAzfmPQHcjxrTv6v",
+						"name": "Bash",
+						"input": {
+							"command": "sleep 20 && echo bg-done",
+							"description": "Sleep 20 seconds then echo bg-done",
+							"run_in_background": true
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 15532,
+					"output_tokens": 16
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "ce58ceee-a6c8-4b2b-ba46-c57bc1b6b862",
+			"user_message_uuid": "1a5608b9-6e98-476b-ab90-e6513ec29433",
+			"user_message_uuids": ["1a5608b9-6e98-476b-ab90-e6513ec29433"]
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [
+				{
+					"task_id": "biv864hkk",
+					"run_id": "0mv9e6c34-0f2bed2d",
+					"task_type": "local_bash",
+					"description": "Sleep 20 seconds then echo bg-done"
+				}
+			],
+			"uuid": "28a5ab38-0a0a-453d-b9ed-b81c7348f3ec",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "task_started",
+			"task_id": "biv864hkk",
+			"run_id": "0mv9e6c34-0f2bed2d",
+			"tool_use_id": "toolu_01LDqMBnrAzfmPQHcjxrTv6v",
+			"description": "Sleep 20 seconds then echo bg-done",
+			"is_backgrounded": true,
+			"task_type": "local_bash",
+			"uuid": "bd191a84-ba9b-424b-8b5f-0517b1e63823",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01LDqMBnrAzfmPQHcjxrTv6v",
+						"type": "tool_result",
+						"content": "Command running in background with ID: biv864hkk. Output is being written to: /tmp/claude/work-repo/99ceef72-2791-4374-856a-f9008b097a84/tasks/biv864hkk.output. You will be notified when it completes. To check interim output, use Read on that file path.",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "d2d33353-ee87-41cc-ba4b-f67275aa56b8"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rpuoMZ2HqhxG14FC6R",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 2460,
+					"cache_read_input_tokens": 15532,
+					"output_tokens": 5
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "82f2756b-f672-44b6-bff8-0f5ed3d69bfc"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rpuoMZ2HqhxG14FC6R",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "launched"
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 2460,
+					"cache_read_input_tokens": 15532,
+					"output_tokens": 5
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "3a8e69ec-a747-49c7-9bab-bbf5208ccfae"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 2,
+			"result": "launched",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"total_cost_usd": 0.00091004,
+			"usage": {
+				"input_tokens": 4,
+				"cache_creation_input_tokens": 2460,
+				"cache_read_input_tokens": 31064,
+				"output_tokens": 214
+			},
+			"modelUsage": {
+				"claude-haiku-5-5": {
+					"inputTokens": 4,
+					"outputTokens": 214,
+					"cacheReadInputTokens": 31064,
+					"cacheCreationInputTokens": 2460,
+					"contextWindow": 1000000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "621ad31e-0d9a-460c-ba47-c95604f903ae",
+			"user_message_uuid": "1a5608b9-6e98-476b-ab90-e6513ec29433",
+			"user_message_uuids": ["1a5608b9-6e98-476b-ab90-e6513ec29433"]
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "0762a7a8-1af4-4da2-83ce-c833183f8b00",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "task_updated",
+			"task_id": "biv864hkk",
+			"run_id": "0mv9e6c34-0f2bed2d",
+			"patch": {
+				"status": "completed",
+				"end_time": 1792059888359
+			},
+			"uuid": "555b22f7-347c-4ac3-87b9-ce5f670030c8",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "biv864hkk",
+			"run_id": "0mv9e6c34-0f2bed2d",
+			"tool_use_id": "toolu_01LDqMBnrAzfmPQHcjxrTv6v",
+			"status": "completed",
+			"output_file": "/tmp/claude/work-repo/99ceef72-2791-4374-856a-f9008b097a84/tasks/biv864hkk.output",
+			"summary": "Background command \"Sleep 20 seconds then echo bg-done\" completed (exit code 0)",
+			"uuid": "c27a5e5b-75db-4ceb-ab3d-68fc4e2366b4",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [],
+			"uuid": "6cd7ef67-35a6-4f35-99f8-e67bc250c30e",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "e9ecafeb-75e7-48f8-8f3b-420fcd43bc63",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "bypassPermissions",
+			"mcp_servers": [],
+			"uuid": "ac605ae4-2ea9-4b76-87aa-f3566b2376a4"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rrQEQzS4PhNfL3L4or",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 503,
+					"cache_read_input_tokens": 17992,
+					"output_tokens": 5
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "13de6306-7a90-421d-9b23-b5cc9674de16"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rrQEQzS4PhNfL3L4or",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01QRYuk7AKTqJVkQkRaxmkBE",
+						"name": "Read",
+						"input": {
+							"file_path": "/tmp/claude/work-repo/99ceef72-2791-4374-856a-f9008b097a84/tasks/biv864hkk.output"
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"usage": {
+					"input_tokens": 4,
+					"cache_creation_input_tokens": 503,
+					"cache_read_input_tokens": 17992,
+					"output_tokens": 5
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "a9f3eef8-1b50-433a-9dac-837c6903a836"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01QRYuk7AKTqJVkQkRaxmkBE",
+						"type": "tool_result",
+						"content": "1\tbg-done\n2\t\n3\t[exited with code 0]\n4\t"
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "a2e1c26a-06fd-43b1-b688-e91c06d8e196"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3rrY7CGVJNxKMQ6pxpL",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "bg-done"
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 284,
+					"cache_read_input_tokens": 18495,
+					"output_tokens": 6
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"uuid": "e8b97835-d0b4-4c35-90d6-e24c26b17d24"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 2,
+			"result": "bg-done",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84",
+			"total_cost_usd": 0.0015509100000000002,
+			"usage": {
+				"input_tokens": 6,
+				"cache_creation_input_tokens": 787,
+				"cache_read_input_tokens": 36487,
+				"output_tokens": 236
+			},
+			"modelUsage": {
+				"claude-haiku-5-5": {
+					"inputTokens": 10,
+					"outputTokens": 450,
+					"cacheReadInputTokens": 67551,
+					"cacheCreationInputTokens": 3247,
+					"contextWindow": 1000000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "86a9145e-c9b4-4e22-a770-ebfaf1872b67"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "da082f7d-3116-44a5-af98-c9dfdc04384a",
+			"session_id": "99ceef72-2791-4374-856a-f9008b097a84"
+		}
+	],
+	"stoppedBackgroundCommand": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "b4adb3bd-ca47-45ca-812c-72d4371daabd",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "bypassPermissions",
+			"mcp_servers": [],
+			"uuid": "8413d5af-0c23-45d7-b4f8-6d403625b168"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3s8moPp2mm396vBpapv",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "tool_use",
+						"id": "toolu_01TaVCPwpMg54MRUAJjM9GEh",
+						"name": "Bash",
+						"input": {
+							"command": "sleep 60 && echo bg-done",
+							"description": "Sleep 60 seconds then echo bg-done",
+							"run_in_background": true
+						},
+						"caller": {
+							"type": "direct"
+						}
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 4127,
+					"cache_read_input_tokens": 11408,
+					"output_tokens": 16
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"uuid": "c5423133-8864-457b-8b86-7a94ac42173f",
+			"user_message_uuid": "b08170a4-e3ca-4ae8-84ff-0d30ec668bec",
+			"user_message_uuids": ["b08170a4-e3ca-4ae8-84ff-0d30ec668bec"]
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [
+				{
+					"task_id": "b6od5yi4e",
+					"run_id": "0mv9ebkql-3b392d06",
+					"task_type": "local_bash",
+					"description": "Sleep 60 seconds then echo bg-done"
+				}
+			],
+			"uuid": "b1c76521-f4c3-4262-a37b-7f15fcdbaf7a",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "task_started",
+			"task_id": "b6od5yi4e",
+			"run_id": "0mv9ebkql-3b392d06",
+			"tool_use_id": "toolu_01TaVCPwpMg54MRUAJjM9GEh",
+			"description": "Sleep 60 seconds then echo bg-done",
+			"is_backgrounded": true,
+			"task_type": "local_bash",
+			"uuid": "6514d2d9-a504-414b-8648-5d51bf6c4e18",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": [
+					{
+						"tool_use_id": "toolu_01TaVCPwpMg54MRUAJjM9GEh",
+						"type": "tool_result",
+						"content": "Command running in background with ID: b6od5yi4e. Output is being written to: /tmp/claude/work-repo/8c7aa2cc-740a-4ad8-94ae-8d3bf0932913/tasks/b6od5yi4e.output. You will be notified when it completes. To check interim output, use Read on that file path.",
+						"is_error": false
+					}
+				]
+			},
+			"parent_tool_use_id": null,
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"uuid": "9224481f-3350-4df2-b2f3-d456247e8331"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3s8wCD2yJxWTMrsoSRX",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "thinking",
+						"thinking": ""
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 2471,
+					"cache_read_input_tokens": 15535,
+					"output_tokens": 3
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"uuid": "ed9a3a5c-e601-432e-bb8a-017a74cd0770"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"id": "msg_011Cg3s8wCD2yJxWTMrsoSRX",
+				"role": "assistant",
+				"content": [
+					{
+						"type": "text",
+						"text": "launched"
+					}
+				],
+				"usage": {
+					"input_tokens": 2,
+					"cache_creation_input_tokens": 2471,
+					"cache_read_input_tokens": 15535,
+					"output_tokens": 3
+				}
+			},
+			"parent_tool_use_id": null,
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"uuid": "7e7dfbe7-d69e-4e5f-9b0e-32e58890c79b"
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 2,
+			"result": "launched",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913",
+			"total_cost_usd": 0.0017139300000000002,
+			"usage": {
+				"input_tokens": 4,
+				"cache_creation_input_tokens": 6598,
+				"cache_read_input_tokens": 26943,
+				"output_tokens": 249
+			},
+			"modelUsage": {
+				"claude-haiku-5-5": {
+					"inputTokens": 4,
+					"outputTokens": 249,
+					"cacheReadInputTokens": 26943,
+					"cacheCreationInputTokens": 6598,
+					"contextWindow": 1000000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "64caba86-c713-4206-bdd3-04d0f5892a32",
+			"user_message_uuid": "b08170a4-e3ca-4ae8-84ff-0d30ec668bec",
+			"user_message_uuids": ["b08170a4-e3ca-4ae8-84ff-0d30ec668bec"]
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "5be4e23c-02d1-40ef-9a4f-b3db6c30a0ba",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "task_updated",
+			"task_id": "b6od5yi4e",
+			"run_id": "0mv9ebkql-3b392d06",
+			"patch": {
+				"status": "killed",
+				"end_time": 1792060116434
+			},
+			"uuid": "02130a3f-70fb-467a-9eb9-968e5d44edfd",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "task_notification",
+			"task_id": "b6od5yi4e",
+			"run_id": "0mv9ebkql-3b392d06",
+			"tool_use_id": "toolu_01TaVCPwpMg54MRUAJjM9GEh",
+			"status": "stopped",
+			"output_file": "/tmp/claude/work-repo/8c7aa2cc-740a-4ad8-94ae-8d3bf0932913/tasks/b6od5yi4e.output",
+			"summary": "Sleep 60 seconds then echo bg-done",
+			"uuid": "13d76884-aca0-4f8a-8184-ebccbbd15262",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "background_tasks_changed",
+			"tasks": [],
+			"uuid": "c3fbe891-f741-480c-b640-fed1a66d79ae",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "53b6ce89-a773-4550-a370-61e2c1ade8c7",
+			"session_id": "8c7aa2cc-740a-4ad8-94ae-8d3bf0932913"
+		}
 	]
 }

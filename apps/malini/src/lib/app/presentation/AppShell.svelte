@@ -16,7 +16,6 @@
 	import { watchBrowserStateHook } from '$lib/browser/application/hooks/watch-browser-state.hook';
 	import { forgetRemovedWorkstreamChatsHook } from '$lib/chat/application/hooks/forget-removed-workstream-chats.hook';
 	import { forgetRemovedWorkstreamSurfacesHook } from '$lib/pull-requests/application/hooks/forget-removed-workstream-surfaces.hook';
-	import { announceLocalBaseSyncHook } from '$lib/pull-requests/application/hooks/announce-local-base-sync.hook';
 	import { watchShipStatesHook } from '$lib/pull-requests/application/hooks/watch-ship-states.hook';
 	import {
 		activeWorkstreamsQuery,
@@ -51,7 +50,6 @@
 		const hideRuntimeDiagnostics = exposeRuntimeDiagnostics();
 		const stopForgettingChats = forgetRemovedWorkstreamChatsHook();
 		const stopForgettingSurfaces = forgetRemovedWorkstreamSurfacesHook();
-		const stopAnnouncingLocalBaseSync = announceLocalBaseSyncHook();
 		const stopWatchingShips = watchShipStatesHook(workstreamName);
 		const stopRevealingBrowsers = revealOpenedBrowserHook();
 		const stopWatchingBrowsers = watchBrowserStateHook();
@@ -59,7 +57,6 @@
 			stopWatchingBrowsers();
 			stopRevealingBrowsers();
 			stopWatchingShips();
-			stopAnnouncingLocalBaseSync();
 			stopForgettingSurfaces();
 			stopForgettingChats();
 			stopRuntimeWatchdog();

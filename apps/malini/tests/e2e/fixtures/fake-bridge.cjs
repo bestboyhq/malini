@@ -191,6 +191,13 @@ const BACKGROUND_RELEASE = 'release-background-agent';
 const backgroundAgentRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
 	const toolCallId = 'agent-' + runId;
+	const agentTask = {
+		taskId: 'agent-task-' + runId,
+		kind: 'agent',
+		description: 'Sleep probe',
+		startedAt: Date.now(),
+		toolCallId,
+	};
 	event({
 		type: 'tool.started',
 		runId,
@@ -203,12 +210,14 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 			prompt: 'Run sleep 15 && echo probe-done and reply with its output.',
 		},
 	});
+	event({ type: 'background.updated', runId, waiting: false, tasks: [agentTask] });
 	event({ type: 'assistant.message', runId, contentId: 'launched', text: 'launched' });
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
 		if (!fs.existsSync(releasePath)) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
+		event({ type: 'background.updated', runId, waiting: false, tasks: [] });
 		event({
 			type: 'tool.completed',
 			runId,
@@ -225,6 +234,85 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		event({ type: 'run.completed', runId, summary: 'The Sleep probe agent finished.' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
+};
+const backgroundCommands = new Map();
+const backgroundCommandTask = (startedAt) => ({
+	taskId: 'bash-e2e',
+	kind: 'command',
+	description: 'Run the e2e suite',
+	startedAt,
+	toolCallId: 'bash-e2e-call',
+	detail: '✓ 212 passed · 2 running',
+});
+const waitOnBackgroundCommand = (sessionId, runId, text) => {
+	const { startedAt } = backgroundCommands.get(sessionId);
+	backgroundCommands.set(sessionId, { runId, startedAt });
+	pendingRuns.set(runId, sessionId);
+	event({ type: 'assistant.message', runId, contentId: 'reply-' + runId, text });
+	event({
+		type: 'background.updated',
+		runId,
+		waiting: true,
+		tasks: [backgroundCommandTask(startedAt)],
+	});
+};
+const backgroundCommandRun = (sessionId, runId) => {
+	const startedAt = Date.now() - 95_000;
+	backgroundCommands.set(sessionId, { runId, startedAt });
+	const toolCallId = 'bash-e2e-call';
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'Bash',
+		toolCallId,
+		input: {
+			command: 'pnpm --filter malini test:e2e',
+			description: 'Run the e2e suite',
+			run_in_background: true,
+		},
+	});
+	event({
+		type: 'tool.completed',
+		runId,
+		name: 'Bash',
+		toolCallId,
+		output: 'Command running in background with ID: bash-e2e.',
+	});
+	event({
+		type: 'background.updated',
+		runId,
+		waiting: false,
+		tasks: [backgroundCommandTask(startedAt)],
+	});
+	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
+};
+const handOffBackgroundCommand = (sessionId, runId) => {
+	const waiting = backgroundCommands.get(sessionId);
+	event({ type: 'background.updated', runId: waiting.runId, waiting: false, tasks: [] });
+	event({
+		type: 'run.completed',
+		runId: waiting.runId,
+		summary: 'Started the e2e suite in the background.',
+		handedOff: true,
+	});
+	pendingRuns.delete(waiting.runId);
+	event({ type: 'run.started', runId, sessionId });
+	event({
+		type: 'background.updated',
+		runId,
+		waiting: false,
+		tasks: [backgroundCommandTask(waiting.startedAt)],
+	});
+	waitOnBackgroundCommand(sessionId, runId, 'Answered while the e2e suite keeps running.');
+};
+const stopBackgroundCommand = (sessionId) => {
+	const waiting = backgroundCommands.get(sessionId);
+	if (!waiting) return;
+	backgroundCommands.delete(sessionId);
+	pendingRuns.delete(waiting.runId);
+	event({ type: 'background.updated', runId: waiting.runId, waiting: false, tasks: [] });
+	event({ type: 'run.completed', runId: waiting.runId, summary: 'The e2e suite was stopped.' });
+	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
 const respond = (sessionId, runId, prompt) => {
@@ -304,6 +392,7 @@ const respond = (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('BACKGROUND_COMMAND')) return backgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
@@ -361,6 +450,7 @@ const handle = (command) => {
 			ack(command.id);
 			const { sessionId, runId, prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
+			if (backgroundCommands.has(sessionId)) return handOffBackgroundCommand(sessionId, runId);
 			event({ type: 'run.started', runId, sessionId });
 			if (!fs.existsSync(HELD_RUNS)) return respond(sessionId, runId, prompt);
 			pendingRuns.set(runId, sessionId);
@@ -373,7 +463,12 @@ const handle = (command) => {
 			}, 50);
 			return;
 		}
+		case 'stop_task': {
+			stopBackgroundCommand(command.sessionId);
+			return ack(command.id);
+		}
 		case 'cancel_run': {
+			backgroundCommands.delete(command.sessionId);
 			event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
 			pendingRuns.delete(command.runId);
 			return ack(command.id);

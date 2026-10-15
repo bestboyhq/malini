@@ -50,8 +50,9 @@ class AgentRecoveryService {
 			const message = errorMessage(error, 'Agent process restart failed');
 			if (chatRoute.isCurrentWorkstream(deadOwner.workstreamId)) {
 				chatSessionStore.bootError = message;
+			} else {
+				toast.error(message, aboutWorkstream(deadOwner.workstreamId));
 			}
-			toast.error(message);
 		} finally {
 			chatSessionStore.retryingSession = false;
 		}

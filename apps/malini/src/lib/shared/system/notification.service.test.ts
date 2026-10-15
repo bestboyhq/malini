@@ -59,7 +59,7 @@ describe('notificationService', () => {
 		});
 	});
 
-	it('asks for permission and falls back to a toast when it is denied', async () => {
+	it('asks for permission once and stays quiet when it is denied or the notification fails', async () => {
 		const { fake, info, notify } = await harness(false, 'denied');
 
 		await notify('Run finished', 'All checks passed');
@@ -68,22 +68,13 @@ describe('notificationService', () => {
 			'app.notification-permission-granted',
 			'app.request-notification-permission',
 		]);
-		expect(info).toHaveBeenCalledWith('Run finished · All checks passed', {
-			context: { workstream: 'ws-1' },
-		});
-	});
-
-	it('falls back to a toast when the native notification fails', async () => {
-		const { fake, info, notify } = await harness(true, 'granted');
-		fake.define('app.notify', async () => {
+		const granted = await harness(true, 'granted');
+		granted.fake.define('app.notify', async () => {
 			throw new Error('notification center unavailable');
 		});
-
-		await notify('Run finished', 'All checks passed');
-
-		expect(info).toHaveBeenCalledWith('Run finished · All checks passed', {
-			context: { workstream: 'ws-1' },
-		});
+		await granted.notify('Run finished', 'All checks passed');
+		expect(info).not.toHaveBeenCalled();
+		expect(granted.info).not.toHaveBeenCalled();
 	});
 
 	it('asks the platform to open the chat a notification is about when it is clicked', async () => {
@@ -118,27 +109,6 @@ describe('notificationService', () => {
 		const stop = onOpen((target) => opened.push(target));
 
 		await vi.waitFor(() => expect(opened).toEqual([{ workstreamId: 'ws-1', sessionId: 'chat-1' }]));
-		stop();
-	});
-
-	it('offers to open the chat from the toast it falls back to', async () => {
-		const { info, notifyAboutChat, onOpen } = await harness(false, 'denied');
-		const opened: unknown[] = [];
-		const stop = onOpen((target) => opened.push(target));
-
-		await notifyAboutChat('Lunar Relay is waiting', 'Which option?', 'chat-1');
-		const options: unknown = info.mock.calls[0]?.[1];
-		const action =
-			typeof options === 'object' && options !== null && 'action' in options
-				? options.action
-				: null;
-		expect(action).toEqual(expect.objectContaining({ label: 'Open chat' }));
-		if (typeof action === 'object' && action !== null && 'onclick' in action) {
-			const onclick = action.onclick;
-			if (typeof onclick === 'function') onclick();
-		}
-
-		expect(opened).toEqual([{ workstreamId: 'ws-1', sessionId: 'chat-1' }]);
 		stop();
 	});
 });

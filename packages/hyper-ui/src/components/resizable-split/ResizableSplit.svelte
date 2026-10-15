@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack, type Snippet } from 'svelte';
+	import { setResizableSplitInset } from './resizable-split-inset';
 	import type { ClassValue } from 'svelte/elements';
 	import {
 		clampRatio,
@@ -61,7 +62,6 @@
 	let secondaryHeight = $state(0);
 
 	let containerEl: HTMLDivElement | null = $state(null);
-	let secondaryEl: HTMLDivElement | null = $state(null);
 
 	let dragState: { pointerId: number; startX: number; startY: number; startSize: number } | null =
 		null;
@@ -73,7 +73,6 @@
 	);
 	const showHandle = $derived(!secondaryClosed);
 	const orientation = $derived<ResizeAxis>(axis === 'horizontal' ? 'vertical' : 'horizontal');
-	const secondarySize = $derived(axis === 'horizontal' ? secondaryWidth : secondaryHeight);
 	const placement = $derived(
 		axis === 'horizontal'
 			? {
@@ -88,6 +87,17 @@
 				},
 	);
 	const containerExtent = $derived(axis === 'horizontal' ? containerWidth : containerHeight);
+	const measuredSecondarySize = $derived(axis === 'horizontal' ? secondaryWidth : secondaryHeight);
+	const secondarySize = $derived.by(() => {
+		if (secondaryClosed || containerExtent <= 0) return measuredSecondarySize;
+		const track = Math.round(size);
+		return axis === 'horizontal' ? Math.max(0, containerExtent - track) : track;
+	});
+	setResizableSplitInset({
+		get secondarySize() {
+			return secondarySize;
+		},
+	});
 	const effectiveMaxSize = $derived.by(() => {
 		if (containerExtent <= 0 || secondaryMinSize <= 0) {
 			return maxSize;
@@ -135,8 +145,6 @@
 			startY: event.clientY,
 			startSize: size,
 		};
-		document.body.style.userSelect = 'none';
-		document.body.style.cursor = axis === 'horizontal' ? 'col-resize' : 'row-resize';
 	}
 
 	function onPointerMove(event: PointerEvent): void {
@@ -156,8 +164,6 @@
 		if (target instanceof HTMLButtonElement && target.hasPointerCapture(event.pointerId)) {
 			target.releasePointerCapture(event.pointerId);
 		}
-		document.body.style.userSelect = '';
-		document.body.style.cursor = '';
 		persistSize();
 		dragState = null;
 	}
@@ -223,7 +229,6 @@
 	onMount(() => {
 		mounted = true;
 		loadStored();
-		if (!ratioMode) return;
 		const observer = new ResizeObserver(measureContainer);
 		if (containerEl) {
 			observer.observe(containerEl);
@@ -252,35 +257,18 @@
 		if (!mounted || !ratioMode || extent <= 0) return;
 		untrack(() => applySize(usingDefaultSize ? fallbackSize : extent * panelRatio, false));
 	});
-
-	$effect(() => {
-		void gridStyle;
-		if (!secondaryEl) return;
-		secondaryWidth = secondaryEl.clientWidth;
-		secondaryHeight = secondaryEl.clientHeight;
-	});
 </script>
 
 <div
 	bind:this={containerEl}
-	class={[
-		'grid h-full min-h-0 overflow-hidden',
-		axis === 'horizontal'
-			? 'grid-cols-[var(--resizable-split-cols)]'
-			: 'grid-rows-[var(--resizable-split-rows)]',
-		className,
-	]}
-	style={axis === 'horizontal'
-		? `--resizable-split-cols: ${gridStyle}`
-		: `--resizable-split-rows: ${gridStyle}`}
+	class={['grid h-full min-h-0 overflow-hidden', className]}
+	style:grid-template-columns={axis === 'horizontal' ? gridStyle : undefined}
+	style:grid-template-rows={axis === 'horizontal' ? undefined : gridStyle}
 	data-storage-key={key}
 	data-storage-prefix="malini.app.panel"
 	data-secondary-open={secondaryOpen ? 'true' : 'false'}
 >
-	<div
-		class={['min-h-0 min-w-0 overflow-hidden', placement.primary]}
-		style:--resizable-split-secondary-size="{secondarySize}px"
-	>
+	<div class={['min-h-0 min-w-0 overflow-hidden', placement.primary]}>
 		{@render a()}
 	</div>
 	{#if showHandle}
@@ -307,7 +295,6 @@
 		></button>
 	{/if}
 	<div
-		bind:this={secondaryEl}
 		bind:clientWidth={secondaryWidth}
 		bind:clientHeight={secondaryHeight}
 		class={['min-h-0 min-w-0 overflow-hidden', placement.secondary]}
