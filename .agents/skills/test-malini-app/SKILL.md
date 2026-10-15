@@ -20,7 +20,7 @@ After that, rebuild what you changed (`corepack pnpm --filter malini build` for 
 ## Use a sandboxed profile
 
 The live profile is `~/Library/Application Support/malini`; `pnpm dev` and the installed app both write there.
-Every run gets its own profile under `.context/profile-<topic>/`.
+Every run gets its own profile outside the worktree, at `$P` below, which is where `launch(topic)` points the app.
 The single-instance lock is per profile, so the sandbox runs beside the user's own malini.
 The real `HOME` stays, so the bridge reaches the user's `claude` login and git config.
 
@@ -28,16 +28,16 @@ Add real repositories through the app's own UI in the sandbox.
 When the bug needs existing history, snapshot the live database before the first launch:
 
 ```sh
-mkdir -p .context/profile-<topic>
-sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '.context/profile-<topic>/malini.sqlite'"
+P=$(realpath "${TMPDIR:-/tmp}")/malini-profile-<topic>; mkdir -p "$P"
+sqlite3 ~/Library/Application\ Support/malini/malini.sqlite ".backup '$P/malini.sqlite'"
 ```
 
 The app looks for workstream checkouts inside the sandbox profile, so the snapshot alone shows every workstream without its checkout.
 Copy the checkouts in too and repoint their git metadata at the copies.
-Never copy a workstream's `.context` or `node_modules`: `.context` holds other agents' sandbox profiles, so each copy nests every earlier one, and one profile grew to 1.5 million files that malini then had to watch and list.
+Skip each workstream's `.context` and `node_modules`: the sandbox needs neither, and copying them once grew a profile to 1.5 million files.
 
 ```sh
-L=~/Library/Application\ Support/malini; P=$PWD/.context/profile-<topic>
+L=~/Library/Application\ Support/malini
 cp -cR "$L/repositories" "$P/"
 mkdir -p "$P/workstreams"
 for ws in "$L"/workstreams/*/; do
@@ -63,10 +63,10 @@ The clones push to the same remotes as the user's branches: send prompts, commit
 It returns the Playwright `page`, the Electron `app`, `errors` (console and page errors), `shot(name)`, and `close()`.
 `shot` waits for transitions to settle, then captures malini's own window with `screencapture -l` into `.context/<name>.png`.
 
-Write the flow as a script under `.context/` and run it with `node`:
+Write the flow as `$P/flow.mjs`, importing the launcher by its absolute path, and run it with `node`:
 
 ```js
-import { launch } from '../.agents/skills/test-malini-app/scripts/malini.mjs';
+import { launch } from '<worktree>/.agents/skills/test-malini-app/scripts/malini.mjs';
 
 const malini = await launch('model-picker');
 try {
@@ -97,3 +97,4 @@ Pass `{ foreground: true }` only when the user asks to watch.
 - The screenshots are embedded in your final reply.
 - Every app you launched is closed.
   Stop only the processes you started, by their PID; a pattern kill takes the user's own malini down with yours.
+- The profile you made is removed: `rm -rf "$P"`.

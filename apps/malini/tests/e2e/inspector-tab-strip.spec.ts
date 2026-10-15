@@ -1,8 +1,5 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
-	CONTEXT_ROOT,
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
@@ -59,10 +56,6 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		await expectPanels(page, ['tab "Files"', 'tab "Extensions" [selected]']);
 		await expectControlsItsPanel(page, extensions, 'Extensions');
 		await expect(files).not.toHaveAttribute('aria-controls');
-		writeFileSync(
-			join(CONTEXT_ROOT, 'inspector-tab-strip-aria-snapshot.txt'),
-			`${await panels(page).ariaSnapshot()}\n`,
-		);
 
 		const closeExtensions = page.getByRole('button', { name: 'Close Extensions', exact: true });
 		await closeExtensions.focus();

@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
-	CONTEXT_ROOT,
 	captureFlow,
 	createSourceRepo,
 	currentSessionId,
@@ -322,10 +321,6 @@ test('a chat tab is named by its chat and described by its state only while it h
 		await expect(chat).toHaveAccessibleDescription('Waiting for approval', { timeout: 20_000 });
 		await expect(chat).toHaveAccessibleName('Name this chat');
 		await expectStrip(page, ['tab "Name this chat" [selected]']);
-		writeFileSync(
-			join(CONTEXT_ROOT, 'chat-tab-name-aria-snapshot.txt'),
-			`${await strip(page).ariaSnapshot()}\n`,
-		);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'chat-tab-name-waiting-for-approval');
 		expectCleanConsole(app);
@@ -348,10 +343,6 @@ test('the strip is a tab list of tabs only, walked with the arrow keys, with eac
 		await captureFlow(app, 'tab-strip-1-chat-preview-pinned');
 
 		await expectStrip(page, ['tab /MENTION/', 'tab "beta.ts"', 'tab "alpha.ts"']);
-		writeFileSync(
-			join(CONTEXT_ROOT, 'tab-strip-aria-snapshot.txt'),
-			`${await strip(page).ariaSnapshot()}\n`,
-		);
 		const panelId = await page.getByRole('tabpanel', { name: 'beta.ts' }).getAttribute('id');
 		expect(panelId).toBeTruthy();
 		await expect(fileTab(page, 'beta.ts')).toHaveAttribute('aria-controls', panelId ?? '');

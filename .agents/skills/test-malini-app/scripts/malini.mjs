@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,7 +12,7 @@ const { _electron: electron } = createRequire(join(appRoot, 'package.json'))('@p
 const REPAINT_MS = 300;
 
 export async function launch(topic, { foreground = false } = {}) {
-	const userDataDir = join(contextRoot, `profile-${topic}`);
+	const userDataDir = join(realpathSync(tmpdir()), `malini-profile-${topic}`);
 	mkdirSync(userDataDir, { recursive: true });
 	const app = await electron.launch({
 		args: ['.', `--user-data-dir=${userDataDir}`],
