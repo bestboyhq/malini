@@ -193,6 +193,8 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'routines.record-gated-run': (args) => ({ trigger: text(args, 'event') }),
 	'routines.reject-run': plain,
 	'routines.update': (args) => ({ steps: count(args, 'steps') }),
+	'stats.activity': plain,
+	'stats.resources': false,
 };
 
 const USAGE_BY_NAME: Readonly<Record<string, CommandUsage>> = COMMAND_USAGE;

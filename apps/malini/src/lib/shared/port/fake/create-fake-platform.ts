@@ -8,6 +8,7 @@ import { installProvidersFake } from './providers.fake';
 import { installPullRequestsFake } from './pull-requests.fake';
 import { installRepositoriesFake } from './repositories.fake';
 import { installRoutinesFake } from './routines.fake';
+import { installStatsFake } from './stats.fake';
 import type { FakeAgentScriptStep, FakeProject, FakeWorkstream, PlatformSeed } from './seed';
 import { cloneProjects, cloneWorkstreams, createFakeState } from './state';
 
@@ -35,6 +36,7 @@ export class FakePlatform extends FakeBridge {
 		installPullRequestsFake(this);
 		installRoutinesFake(this);
 		installJobsFake(this);
+		installStatsFake(this);
 	}
 
 	script(steps: readonly FakeAgentScriptStep[]): void {

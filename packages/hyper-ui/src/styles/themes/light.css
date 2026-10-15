@@ -204,8 +204,8 @@
 	--themed-color-brand-foreground: var(--color-brand-foreground-light);
 	--themed-color-brand-content: var(--color-brand-content-light);
 
-	--themed-color-usage-search: var(--color-usage-search-light);
-	--themed-color-usage-read: var(--color-usage-read-light);
-	--themed-color-usage-curate: var(--color-usage-curate-light);
-	--themed-color-usage-compose: var(--color-usage-compose-light);
+	--themed-color-activity-1: var(--color-activity-1-light);
+	--themed-color-activity-2: var(--color-activity-2-light);
+	--themed-color-activity-3: var(--color-activity-3-light);
+	--themed-color-activity-4: var(--color-activity-4-light);
 }

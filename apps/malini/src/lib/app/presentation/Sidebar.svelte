@@ -17,6 +17,7 @@
 	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
 	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
 	import { JobsNavBadge } from '$lib/jobs/jobs.api';
+	import { StatsReadout } from '$lib/stats/stats.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
 		provisioningRecordQuery,
@@ -1044,5 +1045,6 @@
 				<Icon name="settings" size={15} />
 			</IconButton>
 		</Tooltip>
+		<StatsReadout />
 	</div>
 </SidebarFrame>

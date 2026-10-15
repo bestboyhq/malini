@@ -21,8 +21,11 @@ apps/malini/src/
     app/               the consumer domain: shell, sidebar, layouts, pages, routes.ts, boot
     chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints
     pull-requests/     pull request state, actions, top-bar status, merge
+    jobs/              job definitions, job runs and their scheduler, Job center
     routines/          drafts, routines, suggestions, gated runs
     extensions/        runtime, host adapters, inspector, directory, configuration
+    browser/           browser tabs in the inspector, the agent's browser tools
+    stats/             sidebar resource readout, stats panel: memory, CPU, run activity
     shared/                                                                         alias $shared
       repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle
       providers/       SHARED DOMAIN: model catalog, model ids, provider auth, capabilities

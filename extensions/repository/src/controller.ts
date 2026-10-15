@@ -734,10 +734,7 @@ export class RepositoryController {
 		}
 		let files: readonly RepositoryFile[];
 		try {
-			files = createFileList(
-				paths,
-				this.#api.settings.get('malini.repository.show-hidden') === true,
-			);
+			files = createFileList(paths);
 		} catch {
 			return;
 		}
@@ -899,10 +896,7 @@ export class RepositoryController {
 		workstream: ExtensionWorkstream,
 		snapshot: LocalRepositorySnapshot,
 	): RepositoryViewState {
-		const files = createFileList(
-			snapshot.paths,
-			this.#api.settings.get('malini.repository.show-hidden') === true,
-		);
+		const files = createFileList(snapshot.paths);
 		const diffs = snapshot.diffs.map(renderRepositoryDiff);
 		const changedFiles = changedPathCount(snapshot.status.dirtyPaths, diffs);
 		const selectedPath = state.agentSessionDiff
@@ -1208,10 +1202,7 @@ export class RepositoryController {
 		this.#baseFileReads.add(key);
 		try {
 			const paths = await readBaseFiles(workstream);
-			const files = createFileList(
-				paths,
-				this.#api.settings.get('malini.repository.show-hidden') === true,
-			);
+			const files = createFileList(paths);
 			await this.#prepareFiles(files);
 			this.#baseFiles.set(key, files);
 		} catch {

@@ -116,7 +116,7 @@ test('a file named by its name alone opens the one file with that name, at the l
 	});
 });
 
-test('a file the Files tree hides opens by its path, but git internals and paths outside never do', async () => {
+test('a dotfile opens selected in the Files tree, but git internals and paths outside never open', async () => {
 	await withDom(async (window) => {
 		const host = await createHost({
 			manifest,
@@ -144,7 +144,7 @@ test('a file the Files tree hides opens by its path, but git internals and paths
 					tooltip: '.github/workflows/ci.yml',
 				},
 			]);
-			assert.equal(await selectedPath(host), null);
+			assert.equal(await selectedPath(host), '.github/workflows/ci.yml');
 			const tab = await mountFileTab(host, window, '.github/workflows/ci.yml', null, false);
 			try {
 				const segments = [...tab.root.querySelectorAll('nav[aria-label="File path"] li')].map(
@@ -152,7 +152,7 @@ test('a file the Files tree hides opens by its path, but git internals and paths
 				);
 				assert.deepEqual(segments, ['.github', 'workflows', 'ci.yml']);
 				assert.match(tab.lines.textContent ?? '', /on: push/u);
-				assert.equal(await selectedPath(host), null);
+				assert.equal(await selectedPath(host), '.github/workflows/ci.yml');
 			} finally {
 				await tab.instance.dispose();
 			}

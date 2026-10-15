@@ -8,6 +8,7 @@ import type {
 	RoutineGatedRunChangedEvent,
 	RoutineSuggestedEvent,
 } from './routines';
+import type { ResourceSample } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
@@ -103,6 +104,7 @@ export interface ContractEvents {
 	'app:notification-opened': NotificationTarget;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
+	'stats:resources-sampled': ResourceSample;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -142,6 +144,8 @@ export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfi
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
+
+export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfies EventChannel;
 
 export const ROUTINES_SUGGESTED_CHANNEL = 'routines:suggested' satisfies EventChannel;
 
