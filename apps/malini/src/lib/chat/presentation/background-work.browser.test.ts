@@ -59,7 +59,7 @@ describe('background work in a chat', () => {
 	it('lists the running command with its latest output while the run waits on it', async () => {
 		const host = await openChatWaitingOnE2e();
 
-		const strip = host.querySelector('section[aria-label="Background work (1)"]');
+		const strip = host.querySelector('section[aria-label="1 background command running"]');
 		expect(strip?.textContent).toContain('Run the e2e suite');
 		expect(strip?.textContent).toContain('✓ 214 passed');
 		expect(strip?.textContent).toContain('2m');

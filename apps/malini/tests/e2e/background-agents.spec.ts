@@ -67,12 +67,11 @@ test('a background command keeps its run waiting, lets the user keep talking, an
 
 		await sendPrompt(page, 'BACKGROUND_COMMAND');
 
-		const strip = page.getByRole('region', { name: 'Background work (1)' });
+		const strip = page.getByRole('region', { name: '1 background command running' });
 		const status = page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' });
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(strip).toContainText('Run the e2e suite', { timeout: 20_000 });
 		await expect(strip).toContainText('✓ 212 passed · 2 running');
-		await expect(strip).toContainText('The agent resumes when they finish');
 		await expect(status).toBeVisible();
 		await expect(page.getByText('Started the e2e suite in the background.')).toBeVisible();
 		await expect(submit).not.toHaveAccessibleName('Stop current run');

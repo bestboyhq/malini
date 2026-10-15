@@ -4,7 +4,7 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { avoidedByToasts } from '$hyper-ui/components/toast';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
 	import {
 		backgroundTaskElapsed,
 		backgroundWorkSummary,
@@ -40,49 +40,35 @@
 
 <section
 	{@attach avoidedByToasts}
-	aria-label={`Background work (${work.tasks.length})`}
+	aria-label={`${backgroundWorkSummary(work.tasks)} running`}
 	data-testid="background-tasks"
 >
-	<header class="text-fg-secondary flex h-8 items-center gap-2 px-3 text-xs">
-		<span class="text-fg-tertiary grid w-4 shrink-0 place-items-center" aria-hidden="true">
-			<BusyIcon size={12} />
-		</span>
-		<span class="min-w-0 flex-1 truncate" data-testid="background-tasks-count">
-			{backgroundWorkSummary(work.tasks)} running
-		</span>
-		{#if work.waiting}
-			<span class="text-2xs text-fg-tertiary shrink-0">The agent resumes when they finish</span>
-		{/if}
-	</header>
-
-	<ul class="max-h-48 overflow-y-auto px-1 pb-1">
+	<ul class="max-h-40 overflow-y-auto p-1">
 		{#each work.tasks as task (task.taskId)}
 			<li
-				class="hover:bg-surface-50-hover flex min-h-8 items-center gap-2 rounded-lg px-2 py-1"
+				class="hover:bg-surface-50-hover flex h-7 items-center gap-2 rounded-xl pr-1 pl-2 text-xs"
 				data-testid="background-task"
 				data-task-kind={task.kind}
 			>
 				<span class="text-fg-tertiary grid w-4 shrink-0 place-items-center" aria-hidden="true">
 					<Icon name={KIND_ICONS[task.kind]} size={12} />
 				</span>
-				<div class="min-w-0 flex-1 leading-4">
-					<p class="text-fg-secondary truncate text-xs">{task.description}</p>
-					{#if task.detail}
-						<p
-							class="text-2xs text-fg-tertiary truncate font-mono"
-							data-testid="background-task-output"
-						>
-							{task.detail}
-						</p>
-					{/if}
-				</div>
+				<span class="text-fg-default max-w-1/2 min-w-0 truncate font-medium">
+					{task.description}
+				</span>
+				<span
+					class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate font-mono"
+					data-testid="background-task-output"
+				>
+					{task.detail ?? ''}
+				</span>
 				<span class="text-2xs text-fg-tertiary shrink-0 tabular-nums">
 					{backgroundTaskElapsed(task.startedAt, nowMs)}
 				</span>
 				<Tooltip content="Stop this task" placement="top">
 					<IconButton
 						variant="ghost"
-						size="sm"
+						size="xs"
 						class="text-fg-tertiary"
 						ariaLabel={`Stop ${task.description}`}
 						disabled={stopping.has(task.taskId)}
