@@ -39,7 +39,7 @@
 		<p class="text-2xs text-fg-default leading-4 font-medium">
 			{provisioningStepLabel(record)} failed, so {label} has no worktree yet
 		</p>
-		<Tooltip content={failure} placement="bottom" class="block min-w-0">
+		<Tooltip content={failure} placement="bottom" onlyWhenTruncated class="block min-w-0">
 			<span
 				class="text-2xs text-fg-tertiary block truncate font-mono leading-4"
 				data-testid="workstream-provisioning-failure-detail"

@@ -40,10 +40,7 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 		await expect(queued).toBeVisible({ timeout: 30_000 });
 		await queued.hover({ force: true });
 		const tooltip = page.getByRole('tooltip');
-		await expect(tooltip).toContainText(
-			`The last attempt failed and malini retries it: ${UNREACHABLE}`,
-			{ timeout: 30_000 },
-		);
+		await expect(tooltip).toHaveText(UNREACHABLE, { timeout: 30_000 });
 		const shown = await tooltip.innerText();
 		for (const leak of ['credential.helper', 'Some(', 'exit=', '-c ', '/var/folders', app.root]) {
 			expect(shown, `the tooltip leaks "${leak}"`).not.toContain(leak);
@@ -77,10 +74,7 @@ test('Open draft without network says github.com is unreachable in its tooltip a
 		const opening = topBarStatus(page, 'Opening draft · Retrying after an error');
 		await expect(opening).toBeVisible({ timeout: 30_000 });
 		await opening.hover({ force: true });
-		await expect(page.getByRole('tooltip')).toContainText(
-			`Opening the draft failed and malini retries it: ${UNREACHABLE}`,
-			{ timeout: 30_000 },
-		);
+		await expect(page.getByRole('tooltip')).toHaveText(UNREACHABLE, { timeout: 30_000 });
 		await expect(toastSaying(page, 'Pull request action failed')).toHaveCount(0);
 		await captureFlow(app, 'push-failure-draft');
 		await page.mouse.move(0, 0);

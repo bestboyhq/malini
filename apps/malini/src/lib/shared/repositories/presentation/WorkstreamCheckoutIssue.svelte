@@ -22,7 +22,7 @@
 		<p class="text-2xs text-fg-default leading-4 font-medium">
 			{workstreamName} has no usable checkout, so prompts sent here wait instead of running
 		</p>
-		<Tooltip content={issue} placement="bottom" class="block min-w-0">
+		<Tooltip content={issue} placement="bottom" onlyWhenTruncated class="block min-w-0">
 			<span
 				class="text-2xs text-fg-tertiary block truncate font-mono leading-4"
 				data-testid="workstream-checkout-issue-detail"

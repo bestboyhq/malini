@@ -122,7 +122,6 @@
 		return {
 			label: action.label,
 			ariaLabel: action.ariaLabel,
-			tooltip: action.tooltip,
 			tone: action.tone,
 			icon: pullRequestActionIcon(action.kind),
 			confirmLabel: action.confirmLabel,
