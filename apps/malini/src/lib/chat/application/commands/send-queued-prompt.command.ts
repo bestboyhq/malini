@@ -8,8 +8,6 @@ import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svel
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
 import { queueErrorsStore } from '$lib/chat/infrastructure/stores/queue-errors.store.svelte';
 import { queueSendingStore } from '$lib/chat/infrastructure/stores/queue-sending.store.svelte';
-import { toast } from '$hyper-ui/components/toast';
-import { aboutWorkstream } from '$shared/errors/toast-subject';
 
 export { sendQueuedPromptCommand };
 
@@ -45,9 +43,6 @@ async function sendQueuedPrompt(id: string): Promise<void> {
 			promptDelivery.withdrawFromTranscript(holder, id);
 			queueSendingStore.release(workstreamId, id);
 			queueErrorsStore.set(id, message);
-			if (chatRoute.workstreamId === workstreamId) {
-				toast.error(message, aboutWorkstream(workstreamId));
-			}
 			return;
 		}
 	}

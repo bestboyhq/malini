@@ -13,9 +13,10 @@
 		workstreamId: string;
 		sessionId: string | null;
 		error: string;
+		footerInset: number;
 	}
 
-	let { workstreamId, sessionId, error }: Props = $props();
+	let { workstreamId, sessionId, error, footerInset }: Props = $props();
 
 	let copyRequest = $state<Readonly<{ requestId: string; error: string }> | null>(null);
 	const copyOutcome = $derived(chatRequestQuery.data(copyRequest?.requestId ?? null));
@@ -30,7 +31,8 @@
 </script>
 
 <div
-	class="chat-stage-inset grid min-h-0 flex-1 place-items-center px-6 pt-10 pb-[calc(2.5rem+var(--chat-footer-inset,0px))]"
+	class="chat-stage-inset grid min-h-0 flex-1 place-items-center px-6 pt-10"
+	style:padding-bottom="calc(2.5rem + {footerInset}px)"
 >
 	<div
 		class="border-surface-50-border bg-surface-50 w-full max-w-md rounded-md border p-4 text-left shadow-sm"

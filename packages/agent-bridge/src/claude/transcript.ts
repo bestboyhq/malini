@@ -1,12 +1,15 @@
 import type {
+	SDKBackgroundTasksChangedMessage,
 	SDKMessage,
 	SDKTaskNotificationMessage,
+	SDKTaskProgressMessage,
 	SDKTaskStartedMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentEvent } from '../types.js';
+import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
 
 const FILE_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+const BACKGROUND_OUTPUT_FILE = /Output is being written to: (\S+\.output)/u;
 
 type StreamBlock = { readonly kind: 'text' | 'thinking' | 'tool'; readonly id: string };
 
@@ -17,12 +20,17 @@ export interface RunUsage {
 }
 
 export class ClaudeTranscript {
-	readonly #runId: string;
+	#runId: string;
 	readonly #emit: (event: AgentEvent) => void;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #blockCounts = new Map<string, number>();
 	readonly #backgroundAgents = new Set<string>();
+	readonly #backgroundTasks = new Map<string, BackgroundTask>();
+	readonly #taskToolCalls = new Map<string, string>();
+	readonly #outputFiles = new Map<string, string>();
+	#idle = false;
+	#lastBackground = '';
 	#streamMessageId = '';
 	#cursor: string | null = null;
 	#usage: RunUsage | null = null;
@@ -46,8 +54,43 @@ export class ClaudeTranscript {
 		return this.#contextWindowTokens;
 	}
 
+	get waiting(): boolean {
+		return this.#idle && this.#backgroundTasks.size > 0;
+	}
+
+	releaseBackgroundWork(): void {
+		this.#emit({ type: 'background.updated', runId: this.#runId, waiting: false, tasks: [] });
+	}
+
+	handOff(runId: string): void {
+		this.#runId = runId;
+		this.#idle = false;
+		this.#lastBackground = '';
+		this.#emitBackground();
+	}
+
+	get hasBackgroundTasks(): boolean {
+		return this.#backgroundTasks.size > 0;
+	}
+
+	get backgroundOutputFiles(): ReadonlyMap<string, string> {
+		const files = new Map<string, string>();
+		for (const task of this.#backgroundTasks.values()) {
+			const file = task.toolCallId ? this.#outputFiles.get(task.toolCallId) : undefined;
+			if (file) files.set(task.taskId, file);
+		}
+		return files;
+	}
+
 	markStoppedByUser(): void {
 		this.#stoppedByUser = true;
+	}
+
+	recordBackgroundOutput(taskId: string, line: string): void {
+		const task = this.#backgroundTasks.get(taskId);
+		if (!task || !line || task.detail === line) return;
+		this.#backgroundTasks.set(taskId, { ...task, detail: line });
+		this.#emitBackground(true);
 	}
 
 	accept(message: SDKMessage): void {
@@ -67,13 +110,21 @@ export class ClaudeTranscript {
 				if (message.subtype === 'compact_boundary' && message.uuid) this.#cursor = message.uuid;
 				if (message.subtype === 'task_started') this.#acceptTaskStarted(message);
 				if (message.subtype === 'task_notification') this.#acceptTaskNotification(message);
+				if (message.subtype === 'task_progress') this.#acceptTaskProgress(message);
+				if (message.subtype === 'background_tasks_changed') this.#acceptBackgroundTasks(message);
+				if (message.subtype === 'session_state_changed') {
+					this.#idle = message.state === 'idle';
+					this.#emitBackground();
+				}
 				return;
 			default:
 				return;
 		}
 	}
 
-	stopBackgroundAgents(): void {
+	endBackgroundWork(): void {
+		this.#backgroundTasks.clear();
+		this.#emitBackground();
 		for (const toolCallId of this.#backgroundAgents) {
 			this.#emit({
 				type: 'tool.failed',
@@ -86,7 +137,52 @@ export class ClaudeTranscript {
 		this.#backgroundAgents.clear();
 	}
 
+	#acceptBackgroundTasks(message: SDKBackgroundTasksChangedMessage): void {
+		const live = message.tasks.filter((task) => !task.ambient);
+		const previous = new Map(this.#backgroundTasks);
+		this.#backgroundTasks.clear();
+		for (const task of live) {
+			const known = previous.get(task.task_id);
+			const toolCallId = this.#taskToolCalls.get(task.task_id);
+			this.#backgroundTasks.set(task.task_id, {
+				taskId: task.task_id,
+				kind: backgroundTaskKind(task.task_type),
+				description: task.description,
+				startedAt: known?.startedAt ?? Date.now(),
+				...(toolCallId ? { toolCallId } : {}),
+				...(known?.detail ? { detail: known.detail } : {}),
+			});
+		}
+		this.#emitBackground();
+	}
+
+	#acceptTaskProgress(message: SDKTaskProgressMessage): void {
+		this.recordBackgroundOutput(message.task_id, message.summary || message.description);
+	}
+
+	#emitBackground(interim = false): void {
+		const tasks = [...this.#backgroundTasks.values()];
+		const snapshot = tasks.length === 0 ? '' : JSON.stringify({ idle: this.#idle, tasks });
+		if (snapshot === this.#lastBackground) return;
+		this.#lastBackground = snapshot;
+		this.#emit({
+			type: 'background.updated',
+			runId: this.#runId,
+			waiting: this.#idle && tasks.length > 0,
+			tasks,
+			...(interim ? { interim } : {}),
+		});
+	}
+
 	#acceptTaskStarted(message: SDKTaskStartedMessage): void {
+		if (message.tool_use_id) {
+			this.#taskToolCalls.set(message.task_id, message.tool_use_id);
+			const task = this.#backgroundTasks.get(message.task_id);
+			if (task && !task.toolCallId) {
+				this.#backgroundTasks.set(message.task_id, { ...task, toolCallId: message.tool_use_id });
+				this.#emitBackground();
+			}
+		}
 		if (!message.tool_use_id || !message.is_backgrounded || message.task_type !== 'local_agent') {
 			return;
 		}
@@ -242,6 +338,8 @@ export class ClaudeTranscript {
 			}
 			const tool = this.#toolNames.get(toolCallId);
 			const name = tool?.name ?? '';
+			const outputFile = BACKGROUND_OUTPUT_FILE.exec(toolResultText(block['content']))?.[1];
+			if (outputFile) this.#outputFiles.set(toolCallId, outputFile);
 			const handedOffPlan = name === 'ExitPlanMode';
 			const output = handedOffPlan ? '' : toolResultText(block['content']);
 			const parent = parentToolUseId ? { parentToolCallId: parentToolUseId } : {};
@@ -307,6 +405,12 @@ export class ClaudeTranscript {
 	recordContextWindow(tokens: number | undefined): void {
 		if (tokens && tokens > 0) this.#contextWindowTokens = tokens;
 	}
+}
+
+function backgroundTaskKind(taskType: string): BackgroundTaskKind {
+	if (taskType === 'local_bash') return 'command';
+	if (taskType === 'local_agent') return 'agent';
+	return 'task';
 }
 
 function contentId(messageId: string, index: number): string {

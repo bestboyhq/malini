@@ -20,9 +20,10 @@
 	interface Props {
 		run: JobRunRecord;
 		nowMs: number;
+		inWorkstream?: boolean;
 	}
 
-	let { run, nowMs }: Props = $props();
+	let { run, nowMs, inWorkstream = false }: Props = $props();
 
 	let armed = $state(false);
 
@@ -30,12 +31,15 @@
 	const projects = $derived(projectsQuery.data);
 	const actionState = $derived(jobActionStateQuery.data(run.id));
 	const look = $derived(JOB_RUN_STATUS[run.status]);
-	const placeName = $derived(
-		workstream
-			? displayWorkstreamName(workstream)
-			: (projects.find((project) => project.id === run.repositoryId)?.name ?? null),
-	);
-	const subject = $derived(placeName ? `${run.title} · ${placeName}` : run.title);
+	const placeName = $derived.by(() => {
+		if (inWorkstream) return `Job · ${JOB_RUN_STATUS[run.status].label}`;
+		if (workstream) return displayWorkstreamName(workstream);
+		return projects.find((project) => project.id === run.repositoryId)?.name ?? null;
+	});
+	const subject = $derived.by(() => {
+		if (inWorkstream) return `${run.title} job`;
+		return placeName ? `${run.title} · ${placeName}` : run.title;
+	});
 	const transcriptHref = $derived(
 		run.workstreamId && run.sessionId
 			? workstreamHref(run.workstreamId, { agentSessionId: run.sessionId })

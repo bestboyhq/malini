@@ -1,9 +1,12 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { presentsBrowser } from '$lib/browser/browser.api';
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
+	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
+	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
+	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
 	import { JobCenter } from '$lib/jobs/jobs.api';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import {
@@ -33,6 +36,15 @@
 			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
+	const jobRuns = $derived(
+		activeJobRunsQuery.data.filter((run) => run.workstreamId === workstreamId),
+	);
+
+	onMount(() => {
+		loadJobsCommand();
+		return watchJobsHook();
+	});
+
 	const pullRequestShipped = $derived(
 		['queued', 'merged'].includes(pullRequestBadgesQuery.data(workstreamId).phase),
 	);
@@ -47,7 +59,12 @@
 <WorkstreamProvisioningFrame {workstreamId}>
 	<InspectorSplit {workstreamId} {...split}>
 		{#snippet primary()}
-			<ChatSurface {workstreamId} {pullRequestShipped} oncloseworkstream={closeWorkstream} />
+			<ChatSurface
+				{workstreamId}
+				{pullRequestShipped}
+				{jobRuns}
+				oncloseworkstream={closeWorkstream}
+			/>
 		{/snippet}
 		{#snippet secondary()}
 			<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">

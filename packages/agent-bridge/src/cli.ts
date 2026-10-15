@@ -264,6 +264,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
 				return;
 			}
+			case 'stop_task': {
+				const error = await handleStopTask(cmd);
+				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
+				return;
+			}
 			case 'approve': {
 				const error = await handleApprove(cmd);
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
@@ -578,6 +583,21 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			return null;
 		} catch (error) {
 			return `MCP_STATUS_REFRESH_FAILED: ${errorMessage(error)}`;
+		}
+	}
+
+	async function handleStopTask(cmd: AgentCommand): Promise<string | null> {
+		if (cmd.cmd !== 'stop_task') return 'invalid stop_task command';
+		const handle = handles.get(cmd.sessionId);
+		if (!handle) return `NO_SESSION: no active session for ${cmd.sessionId}`;
+		if (!handle.stopTask) {
+			return `STOP_TASK_UNSUPPORTED: provider for ${cmd.sessionId} cannot stop a background task`;
+		}
+		try {
+			await handle.stopTask(cmd.runId, cmd.taskId);
+			return null;
+		} catch (error) {
+			return `STOP_TASK_FAILED: ${errorMessage(error)}`;
 		}
 	}
 

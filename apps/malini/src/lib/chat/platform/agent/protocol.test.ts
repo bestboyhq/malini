@@ -88,9 +88,27 @@ describe('event frames', () => {
 			runId: 'r',
 			servers: [{ name: 'fs', status: 'ok' }],
 		});
+		const task = { taskId: 'b1', kind: 'command', description: 'e2e', startedAt: 5, detail: 'ok' };
+		expect(
+			decode({ type: 'background.updated', runId: 'r', waiting: true, tasks: [task] }),
+		).toEqual({ type: 'background.updated', runId: 'r', waiting: true, tasks: [task] });
+		expect(
+			decodeBridgeEvent({
+				type: 'background.updated',
+				runId: 'r',
+				waiting: true,
+				tasks: [{ ...task, kind: 'x' }],
+			}),
+		).toMatchObject({ ok: false });
 		expect(
 			decode({ type: 'run.completed', runId: 'r', summary: 's', providerCursor: 'uuid-1' }),
 		).toEqual({ type: 'run.completed', runId: 'r', summary: 's', providerCursor: 'uuid-1' });
+		expect(decode({ type: 'run.completed', runId: 'r', summary: 's', handedOff: true })).toEqual({
+			type: 'run.completed',
+			runId: 'r',
+			summary: 's',
+			handedOff: true,
+		});
 		expect(decode({ type: 'run.failed', runId: 'r', error: 'e', providerCursor: null })).toEqual({
 			type: 'run.failed',
 			runId: 'r',
@@ -231,6 +249,8 @@ describe('event frames', () => {
 			[{ type: 'usage.updated', runId: 'r', interim: true }, true],
 			[{ type: 'usage.updated', runId: 'r', interim: false }, false],
 			[{ type: 'usage.updated', runId: 'r' }, false],
+			[{ type: 'background.updated', runId: 'r', waiting: false, tasks: [], interim: true }, true],
+			[{ type: 'background.updated', runId: 'r', waiting: true, tasks: [] }, false],
 			[{ type: 'assistant.message', runId: 'r', text: 't' }, false],
 			[{ type: 'run.completed', runId: 'r', summary: 's' }, false],
 			[{ type: 'session.state', sessionId: 's', status: 'idle' }, false],

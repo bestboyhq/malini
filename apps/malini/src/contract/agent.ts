@@ -44,6 +44,19 @@ export const CLAUDE_INSTALL_COMMAND = 'curl -fsSL https://claude.ai/install.sh |
 
 export type ClaudeSignInOutcome = 'signed-in' | 'cancelled';
 
+export const AGENT_BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
+
+export type AgentBackgroundTaskKind = (typeof AGENT_BACKGROUND_TASK_KINDS)[number];
+
+export interface AgentBackgroundTask {
+	taskId: string;
+	kind: AgentBackgroundTaskKind;
+	description: string;
+	startedAt: number;
+	toolCallId?: string;
+	detail?: string;
+}
+
 export interface AgentQuestionAnswer {
 	questionId: string;
 	values: readonly string[];

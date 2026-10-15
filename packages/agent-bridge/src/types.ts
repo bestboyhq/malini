@@ -88,7 +88,20 @@ export type AgentEvent =
 			runId: string;
 			servers: { name: string; status: string; error?: string }[];
 	  }
-	| { type: 'run.completed'; runId: string; summary: string; providerCursor?: string }
+	| {
+			type: 'background.updated';
+			runId: string;
+			waiting: boolean;
+			tasks: BackgroundTask[];
+			interim?: boolean;
+	  }
+	| {
+			type: 'run.completed';
+			runId: string;
+			summary: string;
+			providerCursor?: string;
+			handedOff?: boolean;
+	  }
 	| { type: 'run.failed'; runId: string; error: string; providerCursor?: string }
 	| {
 			type: 'session.state';
@@ -103,5 +116,18 @@ const EVENT_CONTRACT_IS_EXHAUSTIVE: MissingGeneratedEvent extends never ? true :
 const GENERATED_EVENTS_ARE_KNOWN: UnknownGeneratedEvent extends never ? true : never = true;
 void EVENT_CONTRACT_IS_EXHAUSTIVE;
 void GENERATED_EVENTS_ARE_KNOWN;
+
+export const BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
+
+export type BackgroundTaskKind = (typeof BACKGROUND_TASK_KINDS)[number];
+
+export interface BackgroundTask {
+	readonly taskId: string;
+	readonly kind: BackgroundTaskKind;
+	readonly description: string;
+	readonly startedAt: number;
+	readonly toolCallId?: string;
+	readonly detail?: string;
+}
 
 export type SessionStatus = 'idle' | 'running' | 'waiting_for_approval' | 'completed' | 'failed';
