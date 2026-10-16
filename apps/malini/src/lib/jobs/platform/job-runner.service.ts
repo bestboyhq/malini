@@ -42,6 +42,7 @@ import {
 	listUnfinishedJobRuns,
 	saveJobRun,
 } from './job-runs.repository';
+import { chooseSessionSkills } from '$lib/skills/skills.platform';
 
 const SAFETY_INTERVAL_MS = 15_000;
 
@@ -195,6 +196,12 @@ export class JobRunner {
 					origin: 'job',
 					displayName: jobRun.title,
 				}));
+			if (definition.skillPresetId) {
+				chooseSessionSkills(db, sessionId, {
+					kind: 'preset',
+					presetId: definition.skillPresetId,
+				});
+			}
 			const withSession = this.#update(jobRun.id, (current) =>
 				current.status === 'running' && !this.#stopped ? { ...current, sessionId } : null,
 			);

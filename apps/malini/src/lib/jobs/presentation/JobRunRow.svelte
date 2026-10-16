@@ -20,10 +20,11 @@
 	interface Props {
 		run: JobRunRecord;
 		nowMs: number;
+		placeFirst?: boolean;
 		inWorkstream?: boolean;
 	}
 
-	let { run, nowMs, inWorkstream = false }: Props = $props();
+	let { run, nowMs, placeFirst = false, inWorkstream = false }: Props = $props();
 
 	let armed = $state(false);
 
@@ -74,9 +75,13 @@
 		{/if}
 	</span>
 	<span class="min-w-0 flex-1 truncate">
-		<span class="text-fg-default font-medium">{run.title}</span>
-		{#if placeName}
-			<span class="text-fg-tertiary">· {placeName}</span>
+		{#if placeFirst}
+			<span class="text-fg-default font-medium">{placeName ?? 'Closed workstream'}</span>
+		{:else}
+			<span class="text-fg-default font-medium">{run.title}</span>
+			{#if placeName}
+				<span class="text-fg-tertiary">· {placeName}</span>
+			{/if}
 		{/if}
 	</span>
 {/snippet}

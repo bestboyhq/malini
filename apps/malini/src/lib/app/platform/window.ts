@@ -61,9 +61,30 @@ export async function saveMainWindowState(
 	await writeFile(join(appDataRoot, WINDOW_STATE_FILE), JSON.stringify(state, null, 2));
 }
 
-async function restoreBounds(window: ShellWindow, appDataRoot: string): Promise<void> {
+const MIN_VISIBLE_WIDTH = 120;
+const MIN_VISIBLE_HEIGHT = 60;
+
+export function showsOnADisplay(
+	bounds: MainWindowState,
+	workAreas: readonly MainWindowState[],
+): boolean {
+	return workAreas.some((area) => {
+		const width =
+			Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);
+		const height =
+			Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y);
+		return width >= MIN_VISIBLE_WIDTH && height >= MIN_VISIBLE_HEIGHT;
+	});
+}
+
+async function restoreBounds(
+	window: ShellWindow,
+	appDataRoot: string,
+	workAreas: () => readonly MainWindowState[],
+): Promise<void> {
 	const state = await readMainWindowState(appDataRoot);
-	if (state && !window.isDestroyed()) window.setBounds(state);
+	if (!state || window.isDestroyed() || !showsOnADisplay(state, workAreas())) return;
+	window.setBounds(state);
 }
 
 export type ShellWindow = Pick<
@@ -94,6 +115,7 @@ export interface WindowDeps {
 		| 'onWindowCreated'
 		| 'onBeforeQuit'
 		| 'onDisplayMetricsChanged'
+		| 'displayWorkAreas'
 	>;
 	events: EventBus;
 	appDataRoot: string;
@@ -145,7 +167,7 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 	const attach = (window: ShellWindow): void => {
 		if (attached.has(window)) return;
 		attached.add(window);
-		void restoreBounds(window, deps.appDataRoot);
+		void restoreBounds(window, deps.appDataRoot, () => host.displayWorkAreas());
 		const persist = () => {
 			if (window.isDestroyed()) return;
 			unsavedState = window.getBounds();

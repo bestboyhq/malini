@@ -105,6 +105,8 @@ export function installAppFake(bridge: FakeBridge, state: FakeState): void {
 		dataDirectory: FAKE_RUNTIME_IDENTITY.appDataRoot,
 	}));
 
+	bridge.define('app.streaming', async () => false);
+
 	bridge.define('app.logical-viewport', async () => ({ width: 1440, height: 900 }));
 
 	bridge.define('app.close-guard', async () => undefined);

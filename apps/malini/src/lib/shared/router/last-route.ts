@@ -3,7 +3,6 @@ import { matchRoute, routeFromHash, type RouteNode } from './hash-router.svelte'
 const LAST_ROUTE_KEY = 'malini.app.last-route.v2';
 const LEGACY_LAST_ROUTE_KEY = 'malini.app.last-route-v1';
 const LEGACY_WORKSTREAMS_ROOT = '/agentic';
-const TRANSIENT_ROUTE = /^\/settings(?:\/|$)/u;
 
 export function bootRoute(hash: string, remembered: string | null, routes: RouteNode): string {
 	const requested = routeFromHash(hash);
@@ -40,7 +39,6 @@ export function readLastRoute(): string | null {
 }
 
 export function rememberLastRoute(url: URL): void {
-	if (TRANSIENT_ROUTE.test(url.pathname)) return;
 	const route = `${url.pathname}${url.search}${url.hash}`;
 	try {
 		if (url.pathname === '/') globalThis.localStorage?.removeItem(LAST_ROUTE_KEY);

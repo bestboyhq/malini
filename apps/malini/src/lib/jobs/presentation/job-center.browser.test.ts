@@ -94,6 +94,8 @@ function jobRun(id: string, patch: Partial<JobRunRecord>): JobRunRecord {
 		origin: 'merge-queue',
 		status: 'queued',
 		detail: null,
+		chatSessionId: null,
+		chatAfterRunId: null,
 		createdAt: minutesAgo(10),
 		startedAt: null,
 		finishedAt: null,

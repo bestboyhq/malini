@@ -5,6 +5,7 @@ declare global {
 				workstreamId: string;
 				extensionId: string | null;
 			};
+			settings?: string;
 		}
 	}
 }

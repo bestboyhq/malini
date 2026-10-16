@@ -21,6 +21,8 @@ function run(id: string, patch: Partial<JobRunRecord>): JobRunRecord {
 		origin: 'manual',
 		status: 'queued',
 		detail: null,
+		chatSessionId: null,
+		chatAfterRunId: null,
 		createdAt: '2026-10-11T11:00:00.000Z',
 		startedAt: null,
 		finishedAt: null,

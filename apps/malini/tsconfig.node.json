@@ -30,7 +30,8 @@
 		"tests/**/*.ts",
 		"scripts/third-party-notices*.mjs",
 		"scripts/dogfood*.mjs",
-		"scripts/dev-bundle*.mjs"
+		"scripts/dev-bundle*.mjs",
+		"scripts/fetch-gh*.mjs"
 	],
 	"exclude": ["src/lib/**/domain/**/*.test.ts"]
 }

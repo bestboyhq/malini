@@ -7,7 +7,7 @@ import {
 	seedWorkstream,
 } from './harness';
 
-test('typing while nothing holds focus writes at the end of the composer draft', async () => {
+test('typing or pasting while nothing holds focus writes at the end of the composer draft', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -38,11 +38,22 @@ test('typing while nothing holds focus writes at the end of the composer draft',
 		await expect(input).toBeFocused();
 		await expect(input).toHaveText('Fix it @');
 
+		await input.blur();
+		await page.evaluate(`(() => {
+			const data = new DataTransfer();
+			data.setData('text/plain', ' dictated words');
+			document.activeElement.dispatchEvent(
+				new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+			);
+		})()`);
+		await expect(input).toBeFocused();
+		await expect(input).toHaveText('Fix it @ dictated words');
+
 		await page.getByRole('button', { name: /^Model: / }).click();
 		await expect(page.getByRole('listbox', { name: 'Claude models' })).toBeVisible();
 		await page.keyboard.press('x');
 		await expect(input).not.toBeFocused();
-		await expect(input).toHaveText('Fix it @');
+		await expect(input).toHaveText('Fix it @ dictated words');
 		await page.keyboard.press('Escape');
 
 		expectCleanConsole(app);

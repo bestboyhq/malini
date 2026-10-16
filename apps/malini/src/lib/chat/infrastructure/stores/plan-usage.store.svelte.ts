@@ -1,16 +1,20 @@
 import type { EventEnvelope } from '$lib/chat/domain/events';
-import { newerPlanUsage, planUsageOf, type PlanUsage } from '$lib/chat/domain/plan-usage';
+import {
+	planUsageOf,
+	withNewerPlanUsage,
+	type PlanUsageByAccount,
+} from '$lib/chat/domain/plan-usage';
 
 class PlanUsageStore {
-	latest: PlanUsage | null = $state(null);
+	byAccount: PlanUsageByAccount = $state.raw({});
 
 	observe(envelopes: readonly EventEnvelope[]): void {
-		let latest = this.latest;
+		let byAccount = this.byAccount;
 		for (const { event } of envelopes) {
 			const usage = planUsageOf(event);
-			if (usage) latest = newerPlanUsage(latest, usage);
+			if (usage) byAccount = withNewerPlanUsage(byAccount, usage);
 		}
-		if (latest !== this.latest) this.latest = latest;
+		if (byAccount !== this.byAccount) this.byAccount = byAccount;
 	}
 }
 

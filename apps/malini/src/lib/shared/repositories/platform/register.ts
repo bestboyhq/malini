@@ -58,6 +58,7 @@ import {
 	parseImportSource,
 	type GhRunner,
 } from './github.service';
+import { GitHubSignIn } from './github-sign-in.service';
 import { readWorkstreamImage, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
 import { InstallRegistry, installDependencies } from './provisioning.service';
@@ -83,6 +84,7 @@ export interface RepositoriesDeps {
 	readonly credentials?: GitCredentialEnv;
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
+	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
 	readonly avatars?: AvatarStoreOptions;
 	readonly runner?: ProcessRunner;
@@ -102,6 +104,7 @@ export function registerRepositories(
 	const credentials = deps.credentials ?? noPromptCredentialEnv;
 	const shell = deps.shell ?? defaultCheckoutShell;
 	const gh = deps.ghRunner ?? defaultGhRunner;
+	const githubSignIn = deps.githubSignIn ?? new GitHubSignIn();
 	const picker = deps.folderPicker ?? defaultFolderPicker;
 	const getMainWindow = deps.getMainWindow ?? (() => null);
 	const avatars = createAvatarStore({ appDataRoot }, deps.avatars);
@@ -325,6 +328,12 @@ export function registerRepositories(
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
 
+	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());
+
+	commands.define('repositories.finish-github-sign-in', () => githubSignIn.finish());
+
+	commands.define('repositories.cancel-github-sign-in', () => githubSignIn.cancel());
+
 	commands.define('repositories.list-clones', () => listClones(db));
 
 	commands.define('repositories.list-github-repositories', () => listGithubRepositories(gh));
@@ -403,6 +412,7 @@ export function registerRepositories(
 		listOwnedContainers: () => ownership.reconcile(),
 		provisionDependencies,
 		abortInstall: (workstreamId) => installs.abortAndWait(workstreamId),
+		cancelGitHubSignIn: () => githubSignIn.cancel(),
 		listLiveWorkstreamIds: () =>
 			listWorkstreams(db)
 				.filter((row) => row.status === 'active')

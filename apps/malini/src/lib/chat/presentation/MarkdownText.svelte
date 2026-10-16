@@ -1,7 +1,11 @@
 <script module lang="ts">
 	import DOMPurify from 'dompurify';
 	import { marked } from 'marked';
-	import { maskSensitiveHtml, revealSensitiveTarget } from '$hyper-ui/components/sensitive';
+	import {
+		maskSensitiveHtml,
+		revealSensitiveTarget,
+		sensitiveMasking,
+	} from '$hyper-ui/components/sensitive';
 	import { linkifyFileMentions } from './file-mention-links';
 	import { holdWorkstreamImages } from './workstream-images';
 	import {
@@ -253,7 +257,7 @@
 			);
 		}
 
-		const cacheKey = sanitizedMarkdownHtmlCacheKey(mode, chunkSource);
+		const cacheKey = sanitizedMarkdownHtmlCacheKey(mode, sensitiveMasking.on, chunkSource);
 		const cached = sanitizedMarkdownHtmlCache.get(cacheKey);
 		if (cached !== undefined) return cached;
 
@@ -725,21 +729,23 @@
 	handles `streamingTailCharacters === 0` by committing the final sanitized
 	document, so the same node simply stops animating.
 -->
-<div
-	class={['markdown-text', className]}
-	data-render-mode={mode}
-	data-streaming={streamingTailCharacters > 0 ? 'true' : undefined}
-	data-testid="markdown-text"
-	use:markdownLinks
-	use:streamingMarkdown={{
-		text,
-		mode,
-		streamingTailCharacters,
-		canOpenFile: canopenfile,
-		imageSource: imagesrc,
-		galleryImages: onopenimage !== undefined,
-	}}
-></div>
+{#key sensitiveMasking.on}
+	<div
+		class={['markdown-text', className]}
+		data-render-mode={mode}
+		data-streaming={streamingTailCharacters > 0 ? 'true' : undefined}
+		data-testid="markdown-text"
+		use:markdownLinks
+		use:streamingMarkdown={{
+			text,
+			mode,
+			streamingTailCharacters,
+			canOpenFile: canopenfile,
+			imageSource: imagesrc,
+			galleryImages: onopenimage !== undefined,
+		}}
+	></div>
+{/key}
 
 <style>
 	.markdown-text {

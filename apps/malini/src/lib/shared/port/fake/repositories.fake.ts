@@ -383,6 +383,15 @@ function installGithubFake(bridge: FakeBridge): void {
 
 	bridge.define('repositories.github-auth-status', async () => ({ ...FAKE_GITHUB_AUTH }));
 
+	bridge.define('repositories.start-github-sign-in', async () => ({
+		userCode: 'FAKE-CODE',
+		verificationUri: 'https://github.com/login/device',
+	}));
+
+	bridge.define('repositories.finish-github-sign-in', async () => 'signed-in' as const);
+
+	bridge.define('repositories.cancel-github-sign-in', async () => {});
+
 	bridge.define('repositories.pick-folder', async () => null);
 
 	bridge.define('repositories.list-clones', async () =>

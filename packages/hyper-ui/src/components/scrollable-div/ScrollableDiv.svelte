@@ -10,6 +10,7 @@
 		thumbMinSize?: number;
 		alwaysVisible?: boolean;
 		reserveGutter?: boolean;
+		fadeEdges?: boolean;
 		viewportRef?: HTMLDivElement | null;
 		onscroll?: (event: Event & { currentTarget: HTMLDivElement }) => void;
 		children: Snippet;
@@ -26,6 +27,7 @@
 		thumbMinSize = 36,
 		alwaysVisible = false,
 		reserveGutter = false,
+		fadeEdges = false,
 		viewportRef = $bindable(null),
 		onscroll,
 		children,
@@ -57,6 +59,10 @@
 	let maxScrollTop = 0;
 	let maxScrollLeft = 0;
 	let thumbFrame: number | null = null;
+	let fadeTop = $state(0);
+	let fadeBottom = $state(0);
+
+	const FADE_EDGE = 32;
 
 	const scrollsVertically = $derived(orientation === 'y' || orientation === 'xy');
 	const scrollsHorizontally = $derived(orientation === 'x' || orientation === 'xy');
@@ -107,9 +113,16 @@
 		}
 	}
 
+	function positionFades(): void {
+		if (!fadeEdges || !viewport || !scrollsVertically) return;
+		fadeTop = Math.round(Math.min(FADE_EDGE, Math.max(0, viewport.scrollTop)));
+		fadeBottom = Math.round(Math.min(FADE_EDGE, Math.max(0, maxScrollTop - viewport.scrollTop)));
+	}
+
 	function updateScrollbars(): void {
 		measureExtents();
 		positionThumbs();
+		positionFades();
 	}
 
 	function scheduleHide(axis: 'x' | 'y'): void {
@@ -137,6 +150,7 @@
 		thumbFrame = requestAnimationFrame(() => {
 			thumbFrame = null;
 			positionThumbs();
+			positionFades();
 			if (hasVerticalScroll) {
 				showVertical = true;
 				scheduleHide('y');
@@ -269,6 +283,19 @@
 		</div>
 	</div>
 
+	{#if fadeEdges && scrollsVertically}
+		<div
+			class="scrollable-fade scrollable-fade-top"
+			style:height="{fadeTop}px"
+			aria-hidden="true"
+		></div>
+		<div
+			class="scrollable-fade scrollable-fade-bottom"
+			style:height="{fadeBottom}px"
+			aria-hidden="true"
+		></div>
+	{/if}
+
 	{#if hasVerticalScroll}
 		<div
 			class={[
@@ -316,6 +343,32 @@
 </div>
 
 <style>
+	.scrollable-fade {
+		position: absolute;
+		right: 0;
+		left: 0;
+		z-index: 10;
+		pointer-events: none;
+	}
+
+	.scrollable-fade-top {
+		top: 0;
+		background: linear-gradient(
+			to bottom,
+			var(--scrollable-fade-color, var(--color-surface-root)),
+			transparent
+		);
+	}
+
+	.scrollable-fade-bottom {
+		bottom: 0;
+		background: linear-gradient(
+			to top,
+			var(--scrollable-fade-color, var(--color-surface-root)),
+			transparent
+		);
+	}
+
 	.scrollable-viewport {
 		overscroll-behavior: contain;
 		scrollbar-width: none;

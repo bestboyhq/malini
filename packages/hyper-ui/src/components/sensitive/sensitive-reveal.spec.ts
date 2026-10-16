@@ -1,7 +1,8 @@
 import { flushSync, mount, unmount, type Component } from 'svelte';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import TextInput from '../text-input/TextInput.svelte';
 import SensitiveText from './SensitiveText.svelte';
+import { sensitiveMasking } from './sensitive-masking.svelte';
 import { maskSensitiveHtml, revealSensitiveTarget } from './sensitive-dom';
 
 const mounted: Array<{ host: HTMLElement; component: ReturnType<typeof mount> }> = [];
@@ -29,7 +30,12 @@ async function settled(): Promise<void> {
 	flushSync();
 }
 
+beforeEach(() => {
+	sensitiveMasking.on = true;
+});
+
 afterEach(() => {
+	sensitiveMasking.on = false;
 	while (mounted.length > 0) {
 		const entry = mounted.pop();
 		if (!entry) continue;

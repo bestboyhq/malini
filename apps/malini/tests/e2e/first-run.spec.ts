@@ -13,15 +13,19 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 	const app = await launchMalini({ env: { FAKE_BRIDGE_CLAUDE_STATE: 'missing' } });
 	try {
 		const { page } = app;
-		await expect(page.getByRole('heading', { name: 'Set up malini' })).toBeVisible();
-		const steps = page.getByRole('list', { name: 'Setup steps' });
-		const claude = steps.getByTestId('claude-code-setup');
+		const setup = page.getByTestId('onboarding');
+		await expect(
+			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
+		).toBeVisible();
+		await expect(
+			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
+		).toHaveCount(4);
+		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing');
 		await expect(
 			claude.getByRole('button', { name: 'Install Claude Code in Terminal' }),
 		).toBeVisible();
 		await expect(claude.getByText('curl -fsSL https://claude.ai/install.sh | bash')).toBeVisible();
-		await expect(steps.getByRole('heading', { name: 'Add a repository' })).toBeVisible();
 		await captureFlow(app, 'first-run-install-claude');
 		expectCleanConsole(app);
 	} finally {

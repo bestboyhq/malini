@@ -17,6 +17,8 @@ extraResources:
     to: agent-bridge/package.json
   - from: ../../LICENSE
     to: LICENSE
+  - from: vendor/gh
+    to: vendor/gh
 asar: true
 npmRebuild: false
 nodeGypRebuild: false

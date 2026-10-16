@@ -5,14 +5,18 @@ import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
 } from './harness';
 
 const PRIVATE_ACCOUNT = 'me@private.example';
 const WORK_ACCOUNT = 'me@work.example';
+
+const PLAN_ALERT = /5-hour limit 93% used/u;
 
 test('the model picker switches Claude accounts through a browser sign-in, and Settings offers the same', async () => {
 	test.setTimeout(180_000);
@@ -21,7 +25,26 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 	const argsFile = join(claude, 'args');
 	const browserDone = join(claude, 'browser-done');
 	writeFileSync(accountFile, PRIVATE_ACCOUNT);
-	const app = await launchMalini({ env: { FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE: accountFile } });
+	const app = await launchMalini({
+		env: {
+			FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE: accountFile,
+			FAKE_BRIDGE_USAGE: JSON.stringify({
+				providerMetrics: {
+					anthropic: {
+						rateLimits: [
+							{
+								label: '5-hour limit',
+								utilization: 93,
+								resetsAt: new Date(Date.now() + 7_200_000).toISOString(),
+							},
+						],
+						observedAt: new Date().toISOString(),
+						account: PRIVATE_ACCOUNT,
+					},
+				},
+			}),
+		},
+	});
 	try {
 		writeFileSync(
 			join(app.bin, 'claude'),
@@ -37,6 +60,10 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 			'Claude accounts',
 		);
 		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check usage');
+		await expectAssistantReply(page);
+		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
+		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 
 		const picker = page.getByRole('button', { name: /^Model: / });
 		const account = page.getByRole('group', { name: 'Claude account' });
@@ -53,6 +80,7 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		await captureFlow(app, 'claude-account-waiting-for-browser');
 		writeFileSync(browserDone, '');
 		await expect(account).toContainText(`Signed in as ${WORK_ACCOUNT}`, { timeout: 20_000 });
+		await expect(usage).not.toHaveAccessibleName(PLAN_ALERT);
 		await expect(
 			account.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }),
 		).toBeVisible();
@@ -62,6 +90,7 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		await picker.click();
 		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`, { timeout: 20_000 });
 		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login --email=${PRIVATE_ACCOUNT}\n`);
+		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 		await expect(account.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
 
 		rmSync(browserDone);

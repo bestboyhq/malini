@@ -315,8 +315,65 @@ const stopBackgroundCommand = (sessionId) => {
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
+const FIXTURE_SKILLS = [
+	{
+		name: 'animate',
+		description: 'Design web animations that feel right',
+		source: 'personal',
+		tokens: 315,
+	},
+	{
+		name: 'humanizer',
+		description: 'Rewrite AI-sounding text so it reads naturally',
+		source: 'personal',
+		tokens: 102,
+	},
+	{
+		name: 'landing-arch',
+		description: 'An 8-section conversion landing page',
+		source: 'personal',
+		tokens: 193,
+	},
+	{
+		name: 'adr',
+		description: 'Record an architecture decision',
+		source: 'repository',
+		tokens: 128,
+	},
+	{
+		name: 'test-malini-app',
+		description: 'Verify a change in the real app',
+		source: 'repository',
+		tokens: 62,
+	},
+	{
+		name: 'ponytail:ponytail',
+		description: 'Forces the laziest solution that works',
+		source: 'plugin',
+		tokens: 282,
+	},
+	{
+		name: 'dataviz',
+		description: 'Charts that read as one system',
+		source: 'claude-code',
+		tokens: 482,
+	},
+];
+const skillsOfRun = new Map();
 const respond = (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
+	if (prompt.includes('WHICH_SKILLS')) {
+		const skills = skillsOfRun.get(runId);
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: 'Skills: ' + (skills ? skills.join(', ') || 'none' : 'all'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
 	for (const edit of prompt.matchAll(/EDIT:([^\s]+)/g)) {
 		if (!worktree) break;
 		fs.mkdirSync(worktree, { recursive: true });
@@ -450,6 +507,7 @@ const handle = (command) => {
 			ack(command.id);
 			const { sessionId, runId, prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
+			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (backgroundCommands.has(sessionId)) return handOffBackgroundCommand(sessionId, runId);
 			event({ type: 'run.started', runId, sessionId });
 			if (!fs.existsSync(HELD_RUNS)) return respond(sessionId, runId, prompt);
@@ -512,6 +570,31 @@ const handle = (command) => {
 				type: 'mcp.status',
 				runId: command.runId,
 				servers: [{ name: 'fs', status: 'connected' }],
+			});
+			return ack(command.id);
+		}
+		case 'list_skills': {
+			write({
+				type: 'bridge.skills',
+				protocolVersion: version,
+				id: command.id,
+				skills: FIXTURE_SKILLS,
+			});
+			return ack(command.id);
+		}
+		case 'suggest_presets': {
+			write({
+				type: 'bridge.presets',
+				protocolVersion: version,
+				id: command.id,
+				presets: [
+					{
+						name: 'Builder',
+						emoji: '🛠️',
+						skills: ['adr', 'test-malini-app', 'ponytail:ponytail'],
+					},
+					{ name: 'Writer', emoji: '✍️', skills: ['humanizer', 'landing-arch'] },
+				],
 			});
 			return ack(command.id);
 		}

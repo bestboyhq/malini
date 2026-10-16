@@ -203,6 +203,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPageState(value: unknown): value is PageState {
 	if (!isRecord(value)) return false;
+	if (value.settings !== undefined && typeof value.settings !== 'string') return false;
 	const directory = value.extensionDirectory;
 	if (directory === undefined) return true;
 	if (!isRecord(directory)) return false;

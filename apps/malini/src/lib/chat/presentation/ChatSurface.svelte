@@ -210,6 +210,7 @@
 	let composer: {
 		focus(options?: { scrollIntoView?: boolean }): boolean;
 		typeKey(event: KeyboardEvent): void;
+		paste(event: ClipboardEvent): void;
 	} | null = $state(null);
 	const presentationKey = $derived(`${workstreamId}::${presentedSessionId ?? 'fresh'}`);
 	let focusedPresentationKey: string | null = null;
@@ -243,9 +244,16 @@
 		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
 			return;
 		}
-		if (documentActive || !focusIsUnclaimed()) return;
-		if (document.querySelector('[data-dropdown-portal], [aria-modal="true"]')) return;
-		composer?.typeKey(event);
+		if (composerMayClaimInput()) composer?.typeKey(event);
+	}
+
+	function onWindowPaste(event: ClipboardEvent): void {
+		if (!event.defaultPrevented && composerMayClaimInput()) composer?.paste(event);
+	}
+
+	function composerMayClaimInput(): boolean {
+		if (documentActive || !focusIsUnclaimed()) return false;
+		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
 	}
 
 	function onOpenChangedFile(file: AgentSessionChangedFile): void {
@@ -253,7 +261,7 @@
 	}
 </script>
 
-<svelte:window onkeydown={onWindowKeydown} />
+<svelte:window onkeydown={onWindowKeydown} onpaste={onWindowPaste} />
 
 <div
 	data-testid="chat-surface"

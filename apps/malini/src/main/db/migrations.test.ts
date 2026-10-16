@@ -5,6 +5,8 @@ import {
 	MIGRATION_0022_AGENT_RUN_CHECKPOINT_FAILURES,
 	MIGRATION_0038_JOBS,
 	MIGRATION_0038_WORKSTREAM_SHIP,
+	MIGRATION_0043_NAME_CHATS_JOB,
+	MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
 	TARGET_USER_VERSION,
 	migrate,
 	tableNames,
@@ -35,6 +37,8 @@ const ALL_TABLES = [
 	'routine_suggestions',
 	'routines',
 	'settings',
+	'skill_choices',
+	'skill_presets',
 	'workstream_commit_runs',
 	'workstream_ship',
 	'workstreams',
@@ -94,12 +98,14 @@ const ALL_INDEXES = [
 	'idx_agent_user_baselines_workstream_created',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
+	'idx_job_runs_chat_session',
 	'idx_job_runs_session',
 	'idx_job_runs_status_created',
 	'idx_routine_gated_runs_routine',
 	'idx_routine_gated_runs_workstream_state',
 	'idx_routine_suggestions_cluster',
 	'idx_routines_status',
+	'idx_skill_presets_default',
 ];
 
 const V31_RENAMED_TABLES = [
@@ -1332,6 +1338,98 @@ describe('migrate', () => {
 				builtin: 'update-from-main',
 			},
 		]);
+		db.close();
+	});
+
+	it('v43 accepts the Name chats job and links job runs to the chat that ran them', () => {
+		const db = v38JobsDatabase(42);
+		insertJobDefinition(db, 'jd-fix', 'Fix checks', 'Fix them.', 'fix-checks');
+		db.exec(`
+			INSERT INTO job_runs (id, definition_id, title, origin, status, created_at)
+			  VALUES ('run-1', 'jd-fix', 'Fix checks', 'manual', 'succeeded', '2026-10-11T00:00:00Z');
+		`);
+		expect(() =>
+			insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats'),
+		).toThrow(/CHECK/u);
+
+		migrate(db);
+		insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats');
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(all(db, 'SELECT id, builtin FROM job_definitions ORDER BY rowid')).toEqual([
+			{ id: 'jd-fix', builtin: 'fix-checks' },
+			{ id: 'jd-name', builtin: 'name-chats' },
+		]);
+		expect(all(db, 'SELECT id, chat_session_id, chat_after_run_id FROM job_runs')).toEqual([
+			{ id: 'run-1', chat_session_id: null, chat_after_run_id: null },
+		]);
+		expect(foreignKeyErrors(db)).toBe(0);
+		db.close();
+	});
+
+	it('v44 keeps one default skill preset and gives jobs a skill preset', () => {
+		const db = v38JobsDatabase(43);
+		db.exec('DROP TABLE skill_choices; DROP TABLE skill_presets;');
+		insertJobDefinition(db, 'jd-fix', 'Fix checks', 'Fix them.', 'fix-checks');
+
+		migrate(db);
+		const preset = (id: string, isDefault: number): void => {
+			run(
+				db,
+				`INSERT INTO skill_presets (id, name, skills, is_default, created_at, updated_at)
+				 VALUES (?, ?, '[]', ?, '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z')`,
+				id,
+				id,
+				isDefault,
+			);
+		};
+		preset('builder', 1);
+		preset('marketer', 0);
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(() => preset('designer', 1)).toThrow(/UNIQUE/u);
+		expect(all(db, 'SELECT id, skill_preset_id FROM job_definitions')).toEqual([
+			{ id: 'jd-fix', skill_preset_id: null },
+		]);
+		db.close();
+	});
+
+	it('v45 accepts the Suggest skill presets job, keeps every job with its preset, and gives presets an emoji', () => {
+		const db = v38JobsDatabase(42);
+		db.exec(MIGRATION_0043_NAME_CHATS_JOB);
+		db.exec(MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET);
+		db.exec('PRAGMA user_version = 44;');
+		insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats');
+		db.exec("UPDATE job_definitions SET skill_preset_id = 'builder'");
+		expect(() =>
+			insertJobDefinition(
+				db,
+				'jd-presets',
+				'Suggest skill presets',
+				'Sort them.',
+				'suggest-presets',
+			),
+		).toThrow(/CHECK/u);
+
+		migrate(db);
+		insertJobDefinition(db, 'jd-presets', 'Suggest skill presets', 'Sort them.', 'suggest-presets');
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(
+			all(db, 'SELECT id, builtin, skill_preset_id FROM job_definitions ORDER BY rowid'),
+		).toEqual([
+			{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' },
+			{ id: 'jd-presets', builtin: 'suggest-presets', skill_preset_id: null },
+		]);
+		run(
+			db,
+			`INSERT INTO skill_presets (id, name, skills, emoji, created_at, updated_at)
+			 VALUES ('builder', 'Builder', '[]', '🛠️', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z')`,
+		);
+		expect(all(db, 'SELECT id, emoji FROM skill_presets')).toEqual([
+			{ id: 'builder', emoji: '🛠️' },
+		]);
+		expect(foreignKeyErrors(db)).toBe(0);
 		db.close();
 	});
 

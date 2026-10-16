@@ -39,6 +39,7 @@ const KEPT_COMMANDS = [
 	'app.focus-window',
 	'app.runtime-identity',
 	'app.runtime-info',
+	'app.streaming',
 	'app.report-renderer-error',
 	'app.report-toast',
 	'app.recent-diagnostics',

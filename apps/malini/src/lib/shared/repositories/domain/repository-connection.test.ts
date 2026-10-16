@@ -73,8 +73,8 @@ describe('connecting a repository', () => {
 			remedy: null,
 			technical: null,
 		});
-		expect(repositoryConnectFailure(new GitHubAuthRequiredError(), 'Failed').remedy).toContain(
-			'gh auth login',
+		expect(repositoryConnectFailure(new GitHubAuthRequiredError(), 'Failed').remedy).toBe(
+			'Sign in to GitHub, then try again.',
 		);
 		expect(repositoryConnectFailure(42, 'Failed to connect repository').detail).toBe(
 			'Failed to connect repository',
@@ -93,7 +93,7 @@ describe('connecting a repository', () => {
 			"GitHub didn't give access to this repository.",
 		);
 		expect(repositoryConnectFailure(expiredSignIn, 'Failed').remedy).toBe(
-			'Reconnect it with `gh auth login` in a terminal, then try again.',
+			'Sign in to GitHub, then try again.',
 		);
 	});
 

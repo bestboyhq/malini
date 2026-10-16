@@ -2,14 +2,18 @@ import { followSystemThemeCommand } from '$lib/app/application/commands/follow-s
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
+import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
+import { streamerModeStore } from '$lib/app/infrastructure/stores/streamer-mode.store.svelte';
 
 export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
 	const stopFollowingSystemTheme =
 		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
+	const stopWatchingStreaming = watchStreaming();
 	if (!windowLifecycleService.isNativeWindow()) {
 		return () => {
+			stopWatchingStreaming();
 			stopFollowingSystemTheme();
 			stopWatchingZoom();
 		};
@@ -35,7 +39,22 @@ export function bootAppHook(): () => void {
 		disposed = true;
 		disarmCloseGuard?.();
 		disarmCloseGuard = null;
+		stopWatchingStreaming();
 		stopFollowingSystemTheme();
 		stopWatchingZoom();
 	};
+}
+
+function watchStreaming(): () => void {
+	const stop = streamingService.onChange((streaming) =>
+		streamerModeStore.observeStreaming(streaming),
+	);
+	void (async () => {
+		try {
+			streamerModeStore.observeStreaming(await streamingService.current());
+		} catch (error) {
+			console.error('[malini app] could not tell whether a streaming app is running', error);
+		}
+	})();
+	return stop;
 }

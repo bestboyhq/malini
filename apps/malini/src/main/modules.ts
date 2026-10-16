@@ -23,6 +23,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerRoutines } from '$lib/routines/platform/register';
+import { registerSkills } from '$lib/skills/platform/register';
 import { registerStats } from '$lib/stats/platform/register';
 
 export interface ModuleOptions {
@@ -100,6 +101,12 @@ export async function registerModules(
 		...(overrides.bridgeScriptPath ? { bridgeScriptPath: overrides.bridgeScriptPath } : {}),
 	});
 
+	registerSkills(context, {
+		listSkills: (cwd) => chat.listSkills(cwd),
+		suggestPresets: (skills) => chat.suggestPresets(skills),
+		resolveCheckout: (workstreamId) => repositories.checkouts.resolveCheckout(workstreamId),
+	});
+
 	const app = registerApp(context, {
 		getMainWindow: options.getMainWindow,
 		...(overrides.shellHost ? { host: overrides.shellHost } : {}),
@@ -129,14 +136,17 @@ export async function registerModules(
 		},
 	});
 	stats.start();
+	app.streaming.start();
 
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
 			stats.stop();
+			app.streaming.stop();
 			pullRequests.dispose();
 			jobs.dispose();
 			repositories.watchers.dispose();
+			repositories.cancelGitHubSignIn();
 			providers.stop();
 			await chat.stop();
 			try {
