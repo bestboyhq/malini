@@ -20,6 +20,7 @@ import {
 	isValidWindowState,
 	readMainWindowState,
 	saveMainWindowState,
+	showsOnADisplay,
 	type WindowCommands,
 } from './window';
 
@@ -309,6 +310,23 @@ describe('main window state', () => {
 				main.bounds,
 			),
 		);
+	});
+
+	it('opens where it was only while that place is on a connected display', async () => {
+		await saveMainWindowState(root, { x: 3675, y: 2246, width: 1280, height: 800 });
+		const offScreen = setup();
+		if (!offScreen.main) throw new Error('unreachable');
+		offScreen.created(offScreen.main);
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(offScreen.main.calls).not.toContain('setBounds');
+
+		const workAreas = [
+			{ x: 0, y: 0, width: 2056, height: 1290 },
+			{ x: 2056, y: 0, width: 2560, height: 1440 },
+		];
+		expect(showsOnADisplay({ x: 3675, y: 400, width: 1280, height: 800 }, workAreas)).toBe(true);
+		expect(showsOnADisplay({ x: 4615, y: 0, width: 1280, height: 800 }, workAreas)).toBe(false);
+		expect(showsOnADisplay({ x: -1270, y: 0, width: 1280, height: 800 }, workAreas)).toBe(false);
 	});
 
 	it('saves the last bounds of a resize burst, one write at a time', async () => {

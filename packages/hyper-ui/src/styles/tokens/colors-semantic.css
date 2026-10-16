@@ -38,11 +38,11 @@
 	--color-surface-150-border-dark: var(--color-grey-700);
 
 	--color-surface-elevated-light: var(--color-grey-50);
-	--color-surface-elevated-dark: var(--color-grey-800);
+	--color-surface-elevated-dark: var(--color-grey-900);
 	--color-surface-elevated-hover-light: var(--color-grey-100);
-	--color-surface-elevated-hover-dark: var(--color-grey-750);
+	--color-surface-elevated-hover-dark: var(--color-grey-850);
 	--color-surface-elevated-selected-light: var(--color-grey-150);
-	--color-surface-elevated-selected-dark: var(--color-grey-700);
+	--color-surface-elevated-selected-dark: var(--color-grey-800);
 	--color-surface-elevated-border-light: var(--color-grey-250);
 	--color-surface-elevated-border-dark: var(--color-grey-700);
 

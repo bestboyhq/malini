@@ -17,6 +17,7 @@
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
 	import { sidebarOverlayQuery } from '$lib/app/application/queries/sidebar-overlay.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
+	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import {
 		globalTopBarActionMatchesPathname,
 		globalTopBarBandSlotHost,
@@ -44,6 +45,7 @@
 	const sidebarCollapsed = $derived(sidebarCollapsedQuery.data);
 	const sidebarShown = $derived(!sidebarCollapsed || sidebarOverlayQuery.data);
 	const sidebarMounted = $derived(sidebarPresenceQuery.data);
+	const onboardingShown = $derived(onboardingQuery.data.shown);
 	const leftClusterTucked = $derived(sidebarCollapsed || !sidebarMounted);
 	const canNavigateBack = $derived.by(() => {
 		void page.url;
@@ -290,45 +292,47 @@
 				</button>
 			</Tooltip>
 		{/if}
-		<div class="topbar-history">
-			<Tooltip content="Connect repository" placement="bottom">
-				<a
-					href="/"
-					class="topbar-chrome topbar-chrome--connect"
-					aria-label="Connect repository"
-					data-testid="global-topbar-connect-repository"
-					data-navigation-path-id="expected-path:workstream-sidebar.connect-repository"
-				>
-					<Icon name="folder-plus" />
-				</a>
-			</Tooltip>
-			<Tooltip content="Go back" placement="bottom">
-				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-				<button
-					type="button"
-					class="topbar-chrome"
-					disabled={!canNavigateBack}
-					aria-label="Go back"
-					data-testid="global-topbar-history-back"
-					onclick={() => history.back()}
-				>
-					<Icon name="chevron-left" />
-				</button>
-			</Tooltip>
-			<Tooltip content="Go forward" placement="bottom">
-				<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
-				<button
-					type="button"
-					class="topbar-chrome"
-					disabled={!canNavigateForward}
-					aria-label="Go forward"
-					data-testid="global-topbar-history-forward"
-					onclick={() => history.forward()}
-				>
-					<Icon name="chevron-right" />
-				</button>
-			</Tooltip>
-		</div>
+		{#if !onboardingShown}
+			<div class="topbar-history">
+				<Tooltip content="Connect repository" placement="bottom">
+					<a
+						href="/"
+						class="topbar-chrome topbar-chrome--connect"
+						aria-label="Connect repository"
+						data-testid="global-topbar-connect-repository"
+						data-navigation-path-id="expected-path:workstream-sidebar.connect-repository"
+					>
+						<Icon name="folder-plus" />
+					</a>
+				</Tooltip>
+				<Tooltip content="Go back" placement="bottom">
+					<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+					<button
+						type="button"
+						class="topbar-chrome"
+						disabled={!canNavigateBack}
+						aria-label="Go back"
+						data-testid="global-topbar-history-back"
+						onclick={() => history.back()}
+					>
+						<Icon name="chevron-left" />
+					</button>
+				</Tooltip>
+				<Tooltip content="Go forward" placement="bottom">
+					<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-chrome` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
+					<button
+						type="button"
+						class="topbar-chrome"
+						disabled={!canNavigateForward}
+						aria-label="Go forward"
+						data-testid="global-topbar-history-forward"
+						onclick={() => history.forward()}
+					>
+						<Icon name="chevron-right" />
+					</button>
+				</Tooltip>
+			</div>
+		{/if}
 	</div>
 	<div
 		class="topbar-band-slot"

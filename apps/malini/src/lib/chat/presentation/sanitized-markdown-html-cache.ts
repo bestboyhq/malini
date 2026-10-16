@@ -77,9 +77,10 @@ export class SanitizedMarkdownHtmlCache {
 
 export function sanitizedMarkdownHtmlCacheKey(
 	mode: 'markdown' | 'prose' | 'plain',
+	masked: boolean,
 	source: string,
 ): string {
-	return `${mode}\u0000${source}`;
+	return `${mode}\u0000${masked ? 'masked' : 'shown'}\u0000${source}`;
 }
 
 export const sanitizedMarkdownHtmlCache = new SanitizedMarkdownHtmlCache();

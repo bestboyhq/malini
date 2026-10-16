@@ -136,6 +136,13 @@ export interface AuthStatusDto {
 	message: string | null;
 }
 
+export interface GitHubDeviceCodeDto {
+	userCode: string;
+	verificationUri: string;
+}
+
+export type GitHubSignInOutcome = 'signed-in' | 'cancelled';
+
 export interface OwnerAvatar {
 	mediaType: string;
 	base64: string;

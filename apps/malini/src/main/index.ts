@@ -6,6 +6,7 @@ import { COMMAND_NAMES, type CommandName } from '../contract/commands';
 import type { MainContext } from './context';
 import type { MaliniDatabase } from './db/driver';
 import { openMigratedDatabase } from './db/open';
+import { withBundledGh } from './process/gh';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
 import { createEventBus } from './events';
@@ -66,6 +67,7 @@ async function boot(): Promise<void> {
 		isDev: !app.isPackaged,
 		appVersion: app.getVersion(),
 	};
+	process.env.PATH = withBundledGh(process.env.PATH, context.resourcesRoot);
 	const bridgeScriptPath = testBridgeScript();
 	modules = await registerModules(context, {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,

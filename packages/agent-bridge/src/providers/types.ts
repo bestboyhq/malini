@@ -24,6 +24,7 @@ export interface ProviderHandle {
 		profile?: AgentRunProfile,
 		resumeAt?: string,
 		freshConversation?: boolean,
+		skills?: readonly string[],
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

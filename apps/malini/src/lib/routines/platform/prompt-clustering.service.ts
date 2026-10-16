@@ -22,6 +22,7 @@ export interface TokenSetClustererOptions {
 
 export const ROUTINE_CLUSTER_SIMILARITY_THRESHOLD = 0.6;
 export const ROUTINE_CLUSTER_MIN_REPEAT_COUNT = 3;
+export const ROUTINE_CLUSTER_MIN_PROMPT_TOKENS = 3;
 
 export function createTokenSetClusterer(
 	options: TokenSetClustererOptions = {},
@@ -34,7 +35,8 @@ export function createTokenSetClusterer(
 			const drafts: Draft[] = [];
 			for (const prompt of prompts) {
 				const tokens = promptTokenSet(prompt.text);
-				if (tokens.size === 0) continue;
+				// ponytail: a token count stands in for "is this a task"; replies like "done" or "go on" are shorter, a stop-word list or a model would tell them apart better
+				if (tokens.size < ROUTINE_CLUSTER_MIN_PROMPT_TOKENS) continue;
 				const home = drafts.find(
 					(draft) => jaccardSimilarity(draft.representative, tokens) >= threshold,
 				);

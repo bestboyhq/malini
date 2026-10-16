@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { instructionsPreview, jobShapeSummary } from './job-definition-copy';
+import { instructionsPreview, jobWhen } from './job-definition-copy';
 
 describe('job definition copy', () => {
 	it('previews only the first paragraph of the instructions on one line', () => {
@@ -8,12 +8,12 @@ describe('job definition copy', () => {
 		).toBe('Fix the failing checks. Run them locally.');
 	});
 
-	it('says the merge queue runs a built-in job', () => {
-		expect(jobShapeSummary({ runsIn: 'workstream', output: 'none', builtin: 'fix-checks' })).toBe(
-			'the merge queue runs it in the queued workstream',
+	it('says what starts a built-in job, and where your own job runs', () => {
+		expect(jobWhen({ runsIn: 'workstream', builtin: 'name-chats' })).toBe(
+			'Your first message in a chat',
 		);
-		expect(jobShapeSummary({ runsIn: 'new-workstream', output: 'draft', builtin: null })).toBe(
-			'runs in a new workstream, opens a draft PR',
+		expect(jobWhen({ runsIn: 'new-workstream', builtin: null })).toBe(
+			'When you run it, in a new workstream',
 		);
 	});
 });

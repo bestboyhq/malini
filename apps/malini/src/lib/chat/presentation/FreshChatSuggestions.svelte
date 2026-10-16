@@ -11,6 +11,7 @@
 	} from '$lib/chat/domain/transcript-reference';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
+	import { WorkstreamJobs } from '$lib/jobs/jobs.api';
 
 	interface Props {
 		workstreamId: string;
@@ -108,5 +109,7 @@
 				This workstream does not have an earlier transcript or plan yet.
 			</p>
 		{/if}
+
+		<WorkstreamJobs {workstreamId} />
 	</div>
 </div>

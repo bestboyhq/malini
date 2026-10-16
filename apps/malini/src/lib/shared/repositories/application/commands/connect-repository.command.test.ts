@@ -266,7 +266,7 @@ describe('connecting a repository', () => {
 
 		expect(repositoryConnectErrorQuery.data).toEqual({
 			detail: "GitHub didn't give access to bestboyhq/does-not-exist-o11y-probe.",
-			remedy: 'Check the URL, or sign in with `gh auth login` as an account that can see it.',
+			remedy: 'Check the URL, or sign in to GitHub as an account that can see it.',
 			technical:
 				"git could not authenticate: could not read Username for 'https://github.com': terminal prompts disabled",
 		});
@@ -288,8 +288,8 @@ describe('connecting a repository', () => {
 		await settled();
 
 		expect(repositoryConnectErrorQuery.data).toMatchObject({
-			detail: 'The GitHub CLI is not signed in, or its sign-in has expired.',
-			remedy: 'Reconnect it with `gh auth login` in a terminal, then try again.',
+			detail: 'GitHub is not signed in, or its sign-in has expired.',
+			remedy: 'Sign in to GitHub, then try again.',
 		});
 	});
 

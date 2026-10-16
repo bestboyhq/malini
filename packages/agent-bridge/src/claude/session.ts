@@ -38,7 +38,10 @@ const BACKGROUND_OUTPUT_POLL_MS = 2_000;
 const PLAN_HANDOFF_MESSAGE =
 	'malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
-export type ClaudeContextUsage = Pick<SDKControlGetContextUsageResponse, 'categories'> & {
+export type ClaudeContextUsage = Pick<
+	SDKControlGetContextUsageResponse,
+	'categories' | 'skills'
+> & {
 	readonly rawMaxTokens: number;
 };
 
@@ -69,10 +72,16 @@ export interface ClaudeSessionOptions {
 	readonly query?: QueryFunction;
 }
 
+interface RunSettings {
+	readonly profile: AgentRunProfile | undefined;
+	readonly skills: readonly string[] | undefined;
+}
+
 interface ActiveRun {
 	runId: string;
 	promptId: UUID;
 	profile: AgentRunProfile | undefined;
+	readonly skills: readonly string[] | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -117,10 +126,11 @@ export class ClaudeSession implements ProviderHandle {
 		profile?: AgentRunProfile,
 		resumeAt?: string,
 		freshConversation?: boolean,
+		skills?: readonly string[],
 	): Promise<void> {
 		const active = this.#active;
 		if (active) {
-			if (!canHandOff(active, profile, resumeAt, freshConversation)) {
+			if (!canHandOff(active, { profile, skills }, resumeAt, freshConversation)) {
 				throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
 			}
 			await this.#handOff(active, prompt, runId, profile);
@@ -141,11 +151,12 @@ export class ClaudeSession implements ProviderHandle {
 			this.#seedHistory = undefined;
 		}
 		const resumed = this.#claudeSessionId !== undefined;
-		const outcome = await this.#attempt(executable, prompt, runId, profile, resumeAt, resumed);
+		const run: RunSettings = { profile, skills };
+		const outcome = await this.#attempt(executable, prompt, runId, run, resumeAt, resumed);
 		if (outcome === 'transcript-missing') {
 			this.#claudeSessionId = undefined;
 			this.#seedHistory = this.#context.conversationHistory;
-			await this.#attempt(executable, prompt, runId, profile, undefined, false);
+			await this.#attempt(executable, prompt, runId, run, undefined, false);
 		}
 	}
 
@@ -153,7 +164,7 @@ export class ClaudeSession implements ProviderHandle {
 		executable: string,
 		prompt: string,
 		runId: string,
-		profile: AgentRunProfile | undefined,
+		run: RunSettings,
 		resumeAt: string | undefined,
 		resumed: boolean,
 	): Promise<'done' | 'transcript-missing'> {
@@ -167,12 +178,13 @@ export class ClaudeSession implements ProviderHandle {
 		turns.push(userTurn(this.#promptWithSeed(prompt), promptId));
 		const query = this.#query({
 			prompt: turns.messages,
-			options: this.#options(executable, profile, resumeAt, abort),
+			options: this.#options(executable, run, resumeAt, abort),
 		});
 		const active: ActiveRun = {
 			runId,
 			promptId,
-			profile,
+			profile: run.profile,
+			skills: run.skills,
 			results: [],
 			costBefore: 0,
 			query,
@@ -345,7 +357,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		profile: AgentRunProfile | undefined,
+		{ profile, skills }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -374,6 +386,7 @@ export class ClaudeSession implements ProviderHandle {
 			canUseTool: this.#canUseTool(),
 			...(model && model !== 'default' ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
+			...(skills ? { skills: [...skills] } : {}),
 			...(this.#claudeSessionId ? { resume: this.#claudeSessionId } : {}),
 			...(this.#claudeSessionId && resumeAt ? { resumeSessionAt: resumeAt } : {}),
 			stderr: (data) => process.stderr.write(`[claude] ${data}`),
@@ -555,7 +568,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canHandOff(
 	active: ActiveRun,
-	profile: AgentRunProfile | undefined,
+	{ profile, skills }: RunSettings,
 	resumeAt: string | undefined,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -566,7 +579,8 @@ function canHandOff(
 		!freshConversation &&
 		(profile?.access ?? 'sandboxed') === (active.profile?.access ?? 'sandboxed') &&
 		profile?.mode === active.profile?.mode &&
-		profile?.report === active.profile?.report
+		profile?.report === active.profile?.report &&
+		skills?.join('\n') === active.skills?.join('\n')
 	);
 }
 

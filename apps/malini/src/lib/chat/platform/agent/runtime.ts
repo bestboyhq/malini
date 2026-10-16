@@ -47,6 +47,7 @@ import {
 	backoffForAttempt,
 	BridgeSupervisor,
 	sleep,
+	SupervisorError,
 	waitUntil,
 	type BridgeSupervisorConfig,
 } from './supervisor';
@@ -525,7 +526,7 @@ export class BridgeRuntime {
 
 	ensureReady(): Promise<BridgeSupervisor> {
 		if (this.stopped)
-			return Promise.reject(new Error('the agent bridge stopped because malini is closing'));
+			return Promise.reject(new SupervisorError('stopped', 'because malini is closing'));
 		if (this.supervisor?.isHealthy()) return Promise.resolve(this.supervisor);
 		if (this.restartGate) return this.restartGate;
 		this.restartGate = this.replaceChild().finally(() => {

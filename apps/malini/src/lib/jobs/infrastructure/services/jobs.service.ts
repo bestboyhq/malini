@@ -29,6 +29,10 @@ class JobsService {
 		return this.#invoke('jobs.list-runs', undefined);
 	}
 
+	listChatRuns(chatSessionId: string): Promise<JobRunRecord[]> {
+		return this.#invoke('jobs.list-chat-runs', { chatSessionId });
+	}
+
 	run(args: RunJobArgs): Promise<JobRunRecord> {
 		return this.#invoke('jobs.run', args);
 	}

@@ -19,12 +19,20 @@ The bridge's one runtime dependency, the Claude Agent SDK, is resolved out of pn
 electron-builder drops a `node_modules` folder at the root of an `extraResources` source, so `dist/node_modules` is copied by its own entry.
 The SDK's platform binaries are overridden away in `pnpm-workspace.yaml`, because the bridge always runs the user's own `claude`.
 
+## The GitHub CLI
+
+malini reaches GitHub through `gh` (ADR 0014), and a Mac may not have it, so the app carries its own.
+`scripts/fetch-gh.mjs` downloads the `gh` release pinned by `GH_VERSION` for macOS arm64, refuses it unless its sha256 matches `GH_SHA256`, and unpacks `bin/gh` and its `LICENSE` into `apps/malini/vendor/gh`, which git ignores.
+`pnpm dist`, `release` and `test:update` run it before electron-builder, and `extraResources` copies the folder to `Resources/vendor/gh`.
+At boot the main process appends `Resources/vendor/gh/bin` to `PATH`, so a `gh` the user installed still comes first.
+To move to a newer `gh`, change `GH_VERSION` and `GH_SHA256` together, taking the hash from the release's `checksums.txt`.
+
 ## Licenses
 
 `extraResources` ships malini's `LICENSE`.
 Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of every npm package whose code or assets it contains, generated at build time by `scripts/third-party-notices.mjs`.
 The build fails when a bundled package declares no license.
-The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`.
+The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh` its MIT `LICENSE` inside `vendor/gh`.
 
 ## Releases
 

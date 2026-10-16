@@ -59,6 +59,8 @@ import {
 	workstreamHasUserRun,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
+import { chatNamingJob } from '$lib/jobs/jobs.platform';
+import { skillsForRun } from '$lib/skills/skills.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
 import {
@@ -672,6 +674,7 @@ async function sendAgentPromptLeased(
 		return runId;
 	}
 	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
+	const skills = skillsForRun(db, workstreamId, sessionId);
 	lease.release();
 	try {
 		await supervisor.sendCommand({
@@ -682,6 +685,7 @@ async function sendAgentPromptLeased(
 			prompt: bridgePrompt,
 			...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
 			...resumePoint,
+			...(skills === null ? {} : { skills }),
 		});
 	} catch (error) {
 		const errorMessage = `agent bridge send failed: ${describe(error)}`;
@@ -726,7 +730,7 @@ async function nameChat(
 	hooks: SendPromptHooks,
 	log: (line: string) => void,
 ): Promise<void> {
-	const title = await suggestedTitle(supervisor, prompt, log);
+	const title = await suggestedTitle(db, supervisor, prompt, log);
 	try {
 		hooks.notifySessionRenamed?.(
 			workstreamId,
@@ -742,6 +746,7 @@ async function nameChat(
 }
 
 async function suggestedTitle(
+	db: MaliniDatabase,
 	supervisor: BridgeSupervisor,
 	prompt: string,
 	log: (line: string) => void,
@@ -749,7 +754,7 @@ async function suggestedTitle(
 	const task = promptPlainText(prompt).trim();
 	if (task.length === 0) return null;
 	try {
-		return await supervisor.suggestTitle(task);
+		return await supervisor.suggestTitle(task, chatNamingJob(db));
 	} catch (error) {
 		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
 		return conciseSessionTitle(prompt);
@@ -1216,10 +1221,30 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.stop-background-task',
 ] as const;
 
+class PromptsInFlight {
+	readonly #counts = new Map<string, number>();
+
+	has(workstreamId: string): boolean {
+		return this.#counts.has(workstreamId);
+	}
+
+	async during<T>(workstreamId: string, send: () => Promise<T>): Promise<T> {
+		this.#counts.set(workstreamId, (this.#counts.get(workstreamId) ?? 0) + 1);
+		try {
+			return await send();
+		} finally {
+			const left = (this.#counts.get(workstreamId) ?? 1) - 1;
+			if (left > 0) this.#counts.set(workstreamId, left);
+			else this.#counts.delete(workstreamId);
+		}
+	}
+}
+
 export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeCommandDeps): void {
 	const { db, runtime, appDataRoot, ids, leases } = deps;
 	const log = deps.log ?? defaultLog;
 	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
+	const sending = new PromptsInFlight();
 
 	commands.define('chat.start-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
@@ -1272,9 +1297,8 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		activateAgentSession(db, runtime, appDataRoot, requireString(args, 'sessionId')),
 	);
 
-	commands.define('chat.send-prompt', async (args: unknown) => {
+	commands.define('chat.send-prompt', (args: unknown) => {
 		const sessionId = requireString(args, 'sessionId');
-		const prompt = requireString(args, 'prompt');
 		const row = get<{ workstream_id: string }>(
 			db,
 			'SELECT workstream_id FROM agent_sessions WHERE id = ?',
@@ -1282,6 +1306,15 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		);
 		if (!row) throw new Error(`session \`${sessionId}\` not found`);
 		const workstreamId = row.workstream_id;
+		return sending.during(workstreamId, () => sendPromptCommand(args, sessionId, workstreamId));
+	});
+
+	async function sendPromptCommand(
+		args: unknown,
+		sessionId: string,
+		workstreamId: string,
+	): Promise<string> {
+		const prompt = requireString(args, 'prompt');
 		const supervisor = await runtime.ensureSessionReady(sessionId);
 		const requested = optionalStringArray(args, 'attachmentIds');
 		const worktree = resolvePromptWorktree(
@@ -1331,7 +1364,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 			leases,
 			log,
 		);
-	});
+	}
 
 	commands.define('chat.cancel-run', async (args: unknown) => {
 		const sessionId = requireString(args, 'sessionId');
@@ -1378,9 +1411,10 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		listRecentAgentEvents(db, requireString(args, 'sessionId'), requireNumber(args, 'byteBudget')),
 	);
 
-	commands.define('chat.workstream-has-open-run', (args: unknown) =>
-		workstreamHasOpenRun(db, requireString(args, 'workstreamId')),
-	);
+	commands.define('chat.workstream-has-open-run', (args: unknown) => {
+		const workstreamId = requireString(args, 'workstreamId');
+		return sending.has(workstreamId) || workstreamHasOpenRun(db, workstreamId);
+	});
 
 	commands.define('chat.reset-workstream-runs', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');

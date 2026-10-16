@@ -19,9 +19,9 @@
 		"generate:file-icons": "node scripts/generate-file-icons.mjs",
 		"diagnostics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/diagnostics.mjs",
 		"test:e2e": "install-electron && electron-vite build && playwright test",
-		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
-		"release": "pnpm --filter \"malini^...\" build && electron-vite build && electron-builder --mac --publish never",
-		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/update-e2e.mjs"
+		"dist": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && electron-builder --mac --dir -c.mac.identity=null -c.forceCodeSigning=false -c.publish=null",
+		"release": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && electron-builder --mac --publish never",
+		"test:update": "pnpm --filter \"malini^...\" build && electron-vite build && node scripts/fetch-gh.mjs && node scripts/update-e2e.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "catalog:",

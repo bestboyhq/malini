@@ -304,6 +304,8 @@ describe('the needs-you action', () => {
 				origin: 'merge-queue',
 				status: 'needs-you',
 				detail: null,
+				chatSessionId: null,
+				chatAfterRunId: null,
 				createdAt: '2026-01-01T00:00:00.000Z',
 				startedAt: null,
 				finishedAt: null,

@@ -1,5 +1,7 @@
 import type { RouteNode } from '$shared/router/hash-router.svelte';
 
+const jobsPage = () => import('./presentation/pages/JobsPage.svelte');
+
 export const routes: RouteNode = {
 	segment: '',
 	children: [
@@ -18,32 +20,14 @@ export const routes: RouteNode = {
 						},
 					],
 				},
-			],
-		},
-		{
-			segment: 'jobs',
-			page: () => import('./presentation/pages/JobsPage.svelte'),
-		},
-		{
-			segment: 'settings',
-			layout: () => import('./presentation/layouts/SettingsLayout.svelte'),
-			page: () => import('./presentation/pages/AgentSettingsPage.svelte'),
-			children: [
-				{
-					segment: 'agent-access',
-					page: () => import('./presentation/pages/AgentAccessSettingsPage.svelte'),
-				},
-				{
-					segment: 'appearance',
-					page: () => import('./presentation/pages/AppearanceSettingsPage.svelte'),
-				},
 				{
 					segment: 'jobs',
-					page: () => import('./presentation/pages/JobsSettingsPage.svelte'),
-				},
-				{
-					segment: 'privacy',
-					page: () => import('./presentation/pages/PrivacySettingsPage.svelte'),
+					page: jobsPage,
+					children: [
+						{ segment: 'new', page: jobsPage },
+						{ segment: 'routines', page: jobsPage },
+						{ segment: ':jobId', page: jobsPage },
+					],
 				},
 			],
 		},

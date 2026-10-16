@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fly } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
 	import ExpandMark from '../ExpandMark.svelte';
@@ -23,12 +24,32 @@
 
 	let { text, live, durationSeconds, enterKey }: Props = $props();
 
+	const WORD_REVEAL_MS = 28;
+	const BACKLOG_CATCH_UP_MS = 600;
+
 	const transcript = transcriptContext();
 	const { stageEnter } = transcript;
 	let open = $state(false);
 	const line = $derived(live ? thinkingTicker(text) : { key: 0, line: thinkingOutcome(text) });
+	const lineKey = $derived(line.key);
+	const words = $derived(line.line.split(' ').filter(Boolean));
+	let revealed = $state(untrack(() => ({ key: lineKey, count: words.length })));
+	const shown = $derived(!live ? words.length : revealed.key === lineKey ? revealed.count : 0);
+	const revealing = $derived(shown < words.length);
 	const steps = $derived(open ? thinkingSteps(text) : []);
 	const flip = $derived(prefersReducedMotion.current ? 0 : 10);
+
+	$effect(() => {
+		if (!revealing) return;
+		const key = lineKey;
+		const count = shown;
+		const backlog = untrack(() => words.length) - count;
+		const timer = setTimeout(
+			() => (revealed = { key, count: count + 1 }),
+			Math.min(WORD_REVEAL_MS, BACKLOG_CATCH_UP_MS / backlog),
+		);
+		return () => clearTimeout(timer);
+	});
 </script>
 
 <details
@@ -53,13 +74,15 @@
 			class="grid min-w-0 flex-1 overflow-hidden group-open/expand:invisible"
 			data-testid={live ? 'thinking-live-preview' : 'thinking-outcome'}
 		>
-			{#key line.key}
+			{#key lineKey}
 				<span
 					class="text-fg-tertiary/75 truncate [grid-area:1/1]"
 					in:fly={{ y: flip, duration: 260, easing: cubicOut }}
 					out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
 				>
-					{line.line}
+					{#each words.slice(0, shown) as word, index (index)}
+						<span in:fade={{ duration: 190 }}>{index > 0 ? ` ${word}` : word}</span>
+					{/each}
 				</span>
 			{/key}
 		</span>
