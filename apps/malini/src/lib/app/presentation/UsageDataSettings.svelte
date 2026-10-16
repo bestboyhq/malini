@@ -12,9 +12,7 @@
 	});
 </script>
 
-<div
-	class="border-surface-50-border bg-surface-50 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-xl border-[0.5px] px-4 py-3"
->
+<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-3">
 	<div class="min-w-0">
 		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage data</h3>
 		<p class="text-fg-tertiary text-xs">

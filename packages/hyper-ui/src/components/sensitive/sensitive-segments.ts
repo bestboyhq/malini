@@ -1,3 +1,5 @@
+import { sensitiveMasking } from './sensitive-masking.svelte';
+
 export type SensitiveKind = 'email' | 'user';
 
 export type SensitiveSegment = Readonly<{
@@ -13,6 +15,7 @@ const SENSITIVE = new RegExp(`(${EMAIL})|(${HOME_USER})`, 'gu');
 type SensitiveRange = Readonly<{ start: number; end: number; kind: SensitiveKind }>;
 
 function sensitiveRanges(text: string): SensitiveRange[] {
+	if (!sensitiveMasking.on) return [];
 	return [...text.matchAll(SENSITIVE)].map((match) => ({
 		start: match.index,
 		end: match.index + match[0].length,
@@ -21,7 +24,7 @@ function sensitiveRanges(text: string): SensitiveRange[] {
 }
 
 export function hasSensitiveText(text: string): boolean {
-	return text.search(SENSITIVE) !== -1;
+	return sensitiveMasking.on && text.search(SENSITIVE) !== -1;
 }
 
 export function sensitiveSegmentsAcross(parts: readonly string[]): SensitiveSegment[][] {

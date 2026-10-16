@@ -123,6 +123,7 @@ describe('ClaudeSession', () => {
 							{ label: 'Weekly Fable limit', utilization: 12, resetsAt: null },
 						],
 						observedAt: expect.any(String),
+						account: 'ada@example.com',
 					},
 				},
 				interim: false,

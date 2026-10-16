@@ -1,5 +1,6 @@
 export { default as Sensitive } from './Sensitive.svelte';
 export { default as SensitiveText } from './SensitiveText.svelte';
+export { sensitiveMasking } from './sensitive-masking.svelte';
 export { maskSensitiveHtml, maskSensitiveText, revealSensitiveTarget } from './sensitive-dom';
 export {
 	hasSensitiveText,

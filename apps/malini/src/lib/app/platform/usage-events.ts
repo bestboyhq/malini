@@ -47,6 +47,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'app.request-notification-permission': plain,
 	'app.runtime-identity': false,
 	'app.runtime-info': false,
+	'app.streaming': false,
 	'app.set-secret': false,
 	'app.set-setting': false,
 	'app.shutdown-gracefully': false,

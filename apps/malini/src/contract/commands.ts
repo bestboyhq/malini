@@ -611,6 +611,7 @@ export interface ContractCommands {
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
+	'app.streaming': { args: undefined; result: boolean };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
 }
@@ -785,6 +786,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.logical-viewport',
 	'app.interface-scale',
 	'app.runtime-info',
+	'app.streaming',
 	'stats.activity',
 	'stats.resources',
 ];

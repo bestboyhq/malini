@@ -8,6 +8,7 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { worktreePendingQuery } from '$shared/repositories/repositories.api';
 	import { goto } from '$shared/router/navigation';
 	import { SKILL_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import { resolveSkillChoice } from '$lib/skills/domain/skill-choice';
@@ -62,8 +63,13 @@
 		count === null ? label : `${label} · ${count} ${count === 1 ? 'skill' : 'skills'}`,
 	);
 
+	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
+
+	$effect(() => {
+		if (!worktreePending) loadSkillChoiceCommand(workstreamId, sessionId);
+	});
+
 	onMount(() => {
-		loadSkillChoiceCommand(workstreamId, sessionId);
 		loadSkillPresetsCommand();
 		ensureSkillCatalogCommand(workstreamId);
 	});

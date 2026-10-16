@@ -11,12 +11,14 @@
 	import { watchRepositorySurfaceHook } from '$lib/pull-requests/application/hooks/watch-repository-surface.hook';
 	import { notFound, routes } from '$lib/app/routes';
 	import { bootAppHook } from '$lib/app/application/hooks/boot-app.hook';
+	import { hydrateStreamerModeCommand } from '$lib/app/application/commands/hydrate-streamer-mode.command';
 	import { bootRoute, readLastRoute, rememberLastRoute } from '$shared/router/last-route';
 	import AppShell from './AppShell.svelte';
 	import CloseConfirmationDialog from './CloseConfirmationDialog.svelte';
 	import SettingsModal from './settings/SettingsModal.svelte';
 	import { openSettingsOverPage } from './settings/settings-links';
 
+	hydrateStreamerModeCommand();
 	const startingRoute = bootRoute(window.location.hash, readLastRoute(), routes);
 	if (window.location.hash !== `#${startingRoute}`) {
 		window.history.replaceState(window.history.state, '', `#${startingRoute}`);

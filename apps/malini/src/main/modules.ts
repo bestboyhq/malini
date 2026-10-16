@@ -136,11 +136,13 @@ export async function registerModules(
 		},
 	});
 	stats.start();
+	app.streaming.start();
 
 	let shuttingDown: Promise<void> | null = null;
 	const shutdown = (): Promise<void> => {
 		shuttingDown ??= (async () => {
 			stats.stop();
+			app.streaming.stop();
 			pullRequests.dispose();
 			jobs.dispose();
 			repositories.watchers.dispose();

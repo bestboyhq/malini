@@ -112,7 +112,7 @@ export function initializeResponse(models: ModelInfo[]): SDKControlInitializeRes
 		output_style: 'default',
 		available_output_styles: [],
 		models,
-		account: {},
+		account: { email: 'ada@example.com' },
 	};
 }
 
