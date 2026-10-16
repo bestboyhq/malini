@@ -49,7 +49,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 		await expect(github).toHaveAttribute('data-github-status', 'signed-out');
 		await captureFlow(app, 'github-sign-in-signed-out');
 
-		await github.getByRole('button', { name: 'Sign in to GitHub' }).click();
+		await github.getByRole('button', { name: 'Connect GitHub' }).click();
 
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		await expect
@@ -69,7 +69,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 	}
 });
 
-test('the clone dialog offers GitHub sign-in and lists repositories once it succeeds', async () => {
+test('the clone dialog asks only to connect GitHub, then lists repositories once it is connected', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
 	try {
@@ -91,9 +91,12 @@ test('the clone dialog offers GitHub sign-in and lists repositories once it succ
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const github = dialog.getByTestId('github-setup');
 		await expect(github).toHaveAttribute('data-github-status', 'signed-out');
+		await expect(dialog.getByRole('textbox')).toHaveCount(0);
+		await expect(dialog.getByRole('searchbox')).toHaveCount(0);
+		await expect(dialog.getByRole('button', { name: 'Clone repo' })).toHaveCount(0);
 		await captureFlow(app, 'github-sign-in-clone-dialog');
 
-		await github.getByRole('button', { name: 'Sign in to GitHub' }).click();
+		await github.getByRole('button', { name: 'Connect GitHub' }).click();
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		writeFileSync(join(app.home, GITHUB_DEVICE_APPROVED), '');
 

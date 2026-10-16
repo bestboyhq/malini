@@ -24,7 +24,7 @@
 		accounts: {
 			title: 'Connect Claude Code and GitHub',
 			description:
-				'Every chat gets its own Claude Code agent, running on your Claude plan. Your GitHub account lets malini clone your repositories and open pull requests.',
+				'malini runs Claude Code with your Claude plan, and works in your GitHub repositories.',
 		},
 		skills: {
 			title: 'Group your skills into presets',

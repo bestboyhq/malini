@@ -42,9 +42,9 @@
 	const detail = $derived.by(() => {
 		switch (signIn.kind) {
 			case 'starting':
-				return 'Asking GitHub for a sign-in code…';
+				return 'Asking GitHub for a code…';
 			case 'waiting':
-				return 'Paste this code on the GitHub page that just opened, then authorize GitHub CLI.';
+				return 'Paste this code on the GitHub page that opened.';
 			case 'confirming':
 				return 'Checking the new sign-in…';
 			case 'idle':
@@ -52,13 +52,13 @@
 		}
 		switch (status) {
 			case 'checking':
-				return 'Looking for your GitHub sign-in…';
+				return 'Checking your GitHub sign-in…';
 			case 'missing':
-				return 'The GitHub CLI that malini ships with is missing. Reinstall malini to sign in.';
+				return 'Part of malini is missing. Reinstall malini.';
 			case 'unknown':
 				return `Could not check GitHub. ${authError ?? ''}`.trim();
 			case 'signed-out':
-				return 'Sign in so malini can clone your private repositories and open pull requests.';
+				return 'Connect to work on your repositories.';
 			case 'ready':
 				return auth?.login ? `Signed in as ${auth.login}` : 'Signed in';
 		}
@@ -128,11 +128,11 @@
 				variant="primary"
 				size="sm"
 				class="shrink-0"
-				ariaLabel="Sign in to GitHub"
+				ariaLabel="Connect GitHub"
 				data-testid="github-setup-action"
 				onclick={signInToGithubCommand}
 			>
-				Sign in
+				Connect
 			</Button>
 		{:else}
 			<Button
@@ -190,11 +190,7 @@
 			</Button>
 		</div>
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			The code is on your clipboard. malini notices when GitHub approves it.
-		</p>
-	{:else if status === 'signed-out' && signIn.kind === 'idle'}
-		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Sign in opens GitHub in your browser. malini notices when it finishes.
+			It’s on your clipboard. Then authorize GitHub CLI, which malini uses.
 		</p>
 	{/if}
 </div>

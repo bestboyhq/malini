@@ -47,11 +47,11 @@
 	function statusDetail(current: ClaudeCodeStatus): string {
 		switch (current.kind) {
 			case 'checking':
-				return 'Looking for Claude Code on this Mac…';
+				return 'Looking for Claude Code…';
 			case 'missing':
-				return 'malini runs the Claude Code installed on this Mac, signed in with your own Claude plan. Install it to start.';
+				return 'Not installed on this Mac yet.';
 			case 'signed-out':
-				return `Claude Code${current.version ? ` ${current.version}` : ''} is installed. Sign in with your Claude account to start.`;
+				return 'Installed. Sign in with your Claude account.';
 			case 'ready':
 				return [
 					current.account?.email ? `Signed in as ${current.account.email}` : 'Signed in',
@@ -217,7 +217,7 @@
 			</Tooltip>
 		</div>
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Install opens Terminal and runs this command. malini notices when it finishes.
+			Install runs this in Terminal. malini notices when it’s done.
 		</p>
 	{:else if setupStep === 'sign-in' && signIn === 'idle'}
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">

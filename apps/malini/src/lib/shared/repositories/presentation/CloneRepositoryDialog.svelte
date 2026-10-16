@@ -81,35 +81,33 @@
 <svelte:window onkeydown={onWindowKeydown} />
 
 <Modal open title="Clone GitHub repo" size="lg" class="w-xl" {onclose}>
-	<form
-		class="flex flex-col gap-5"
-		data-testid="clone-repository-dialog"
-		onsubmit={(event) => {
-			event.preventDefault();
-			clone();
-		}}
-	>
-		<section class="flex flex-col gap-1.5" aria-labelledby={recentHeadingId}>
-			<h3 id={recentHeadingId} class="text-fg-secondary text-sm font-medium">Recent repos</h3>
-			<TextInput
-				bind:value={query}
-				bind:element={searchInput}
-				type="search"
-				ariaLabel="Search repositories"
-				placeholder="Search repositories…"
-				autocomplete="off"
-				inputClass="[&::-webkit-search-cancel-button]:hidden"
-				onkeydown={onSearchKeydown}
-			>
-				{#snippet icon()}
-					<Icon name="search" size={14} />
-				{/snippet}
-			</TextInput>
-			{#if listing.kind === 'failed' && githubSignedOut}
-				<div class="mt-1">
-					<GitHubSetup nested />
-				</div>
-			{:else}
+	{#if githubSignedOut}
+		<GitHubSetup nested />
+	{:else}
+		<form
+			class="flex flex-col gap-5"
+			data-testid="clone-repository-dialog"
+			onsubmit={(event) => {
+				event.preventDefault();
+				clone();
+			}}
+		>
+			<section class="flex flex-col gap-1.5" aria-labelledby={recentHeadingId}>
+				<h3 id={recentHeadingId} class="text-fg-secondary text-sm font-medium">Recent repos</h3>
+				<TextInput
+					bind:value={query}
+					bind:element={searchInput}
+					type="search"
+					ariaLabel="Search repositories"
+					placeholder="Search repositories…"
+					autocomplete="off"
+					inputClass="[&::-webkit-search-cancel-button]:hidden"
+					onkeydown={onSearchKeydown}
+				>
+					{#snippet icon()}
+						<Icon name="search" size={14} />
+					{/snippet}
+				</TextInput>
 				<div
 					class="border-surface-50-border bg-surface-50 styled-scrollbar mt-1 h-56 overflow-y-auto rounded-xl border-[0.5px]"
 				>
@@ -195,49 +193,49 @@
 						</ul>
 					{/if}
 				</div>
+			</section>
+
+			<TextInput
+				bind:value={url}
+				label="Repository URL"
+				placeholder="https://github.com/user/repo.git"
+				autocomplete="off"
+				data-testid="clone-repository-url"
+			/>
+
+			{#if connectError}
+				<StateBlock
+					layout="inline"
+					live="alert"
+					tone="critical"
+					heading="Could not clone repository"
+					detail={connectError.detail}
+					remedy={connectError.remedy}
+					technical={connectError.technical}
+					testId="clone-repository-error"
+				>
+					{#snippet icon()}
+						<Icon name="alert" size={14} />
+					{/snippet}
+				</StateBlock>
 			{/if}
-		</section>
 
-		<TextInput
-			bind:value={url}
-			label="Repository URL"
-			placeholder="https://github.com/user/repo.git"
-			autocomplete="off"
-			data-testid="clone-repository-url"
-		/>
-
-		{#if connectError}
-			<StateBlock
-				layout="inline"
-				live="alert"
-				tone="critical"
-				heading="Could not clone repository"
-				detail={connectError.detail}
-				remedy={connectError.remedy}
-				technical={connectError.technical}
-				testId="clone-repository-error"
-			>
-				{#snippet icon()}
-					<Icon name="alert" size={14} />
-				{/snippet}
-			</StateBlock>
-		{/if}
-
-		<div class="flex justify-end">
-			<Button
-				type="submit"
-				variant="primary"
-				size="lg"
-				disabled={!cloneUrlValid || connecting === 'folder'}
-				loading={connecting === 'clone'}
-				ariaKeyshortcuts="Meta+Enter"
-				data-testid="clone-repository-submit"
-			>
-				{connecting === 'clone' ? 'Cloning…' : 'Clone repo'}
-				{#snippet trailing()}
-					<kbd class="text-xs font-normal opacity-60" aria-hidden="true">⌘↵</kbd>
-				{/snippet}
-			</Button>
-		</div>
-	</form>
+			<div class="flex justify-end">
+				<Button
+					type="submit"
+					variant="primary"
+					size="lg"
+					disabled={!cloneUrlValid || connecting === 'folder'}
+					loading={connecting === 'clone'}
+					ariaKeyshortcuts="Meta+Enter"
+					data-testid="clone-repository-submit"
+				>
+					{connecting === 'clone' ? 'Cloning…' : 'Clone repo'}
+					{#snippet trailing()}
+						<kbd class="text-xs font-normal opacity-60" aria-hidden="true">⌘↵</kbd>
+					{/snippet}
+				</Button>
+			</div>
+		</form>
+	{/if}
 </Modal>
