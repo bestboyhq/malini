@@ -52,6 +52,7 @@ test('appearance settings tune the greys and the theme, close back to the workst
 		await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
 		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
 		await expect(page).toHaveURL(new RegExp(`#/workstreams/${workstreamId}`, 'u'));
 
 		await page.reload();

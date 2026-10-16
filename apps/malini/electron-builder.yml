@@ -1,6 +1,6 @@
 appId: app.malini.desktop
 productName: malini
-copyright: Copyright (C) 2026 Best Boy
+copyright: Copyright (C) 2026 Szymon Grącki and malini contributors
 forceCodeSigning: true
 directories:
   output: release
@@ -17,6 +17,8 @@ extraResources:
     to: agent-bridge/package.json
   - from: ../../LICENSE
     to: LICENSE
+  - from: vendor/gh
+    to: vendor/gh
 asar: true
 npmRebuild: false
 nodeGypRebuild: false

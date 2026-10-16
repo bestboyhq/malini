@@ -31,6 +31,7 @@
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { JobRunCards } from '$lib/jobs/jobs.api';
 	import {
 		firstPromptKey,
 		stableToolKey,
@@ -154,6 +155,8 @@
 			},
 		];
 	});
+
+	const runIds = $derived(runs.map((run) => run.runId));
 
 	const branchedFrom = $derived.by(() => {
 		for (const envelope of envelopes) {
@@ -848,6 +851,13 @@
 							Branched from {branchedFrom}
 						</li>
 					{/if}
+					{#key sessionId}
+						<JobRunCards
+							chatSessionId={sessionId}
+							afterRunId={null}
+							knownRunIds={runs.length === 0 ? runIds : null}
+						/>
+					{/key}
 					{#each runs as run, runIndex (run.runId)}
 						{@const isLastRun = runIndex === runs.length - 1}
 						{@const runTimelineWindow = timelineWindow(run)}
@@ -971,6 +981,11 @@
 								</div>
 							{/if}
 						</li>
+						<JobRunCards
+							chatSessionId={sessionId}
+							afterRunId={run.runId}
+							knownRunIds={isLastRun ? runIds : null}
+						/>
 					{/each}
 				</ol>
 			</div>

@@ -64,8 +64,8 @@ describe('user prompts keep their newlines verbatim', () => {
 
 describe('the sanitized HTML cache separates the two documents', () => {
 	it('keys prose apart from markdown for identical source', () => {
-		expect(sanitizedMarkdownHtmlCacheKey('prose', MODEL_SOURCE_WRAPPED_PARAGRAPH)).not.toBe(
-			sanitizedMarkdownHtmlCacheKey('markdown', MODEL_SOURCE_WRAPPED_PARAGRAPH),
+		expect(sanitizedMarkdownHtmlCacheKey('prose', false, MODEL_SOURCE_WRAPPED_PARAGRAPH)).not.toBe(
+			sanitizedMarkdownHtmlCacheKey('markdown', false, MODEL_SOURCE_WRAPPED_PARAGRAPH),
 		);
 	});
 

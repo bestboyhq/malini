@@ -15,3 +15,7 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0008](0008-releases-from-conventional-commit-subjects.md)            | Conventional Commit subjects pick the version; CI signs, notarizes, publishes; packaged builds update themselves           |
 | [0009](0009-a-run-stays-open-while-its-background-work-runs.md)       | A run stays open while its background commands and agents run; a prompt sent while it only waits takes it over             |
 | [0010](0010-agents-preview-worktree-files-and-local-servers.md)       | The browser opens worktree files over `malini-worktree://`, one origin per workstream; sandboxed agents may bind localhost |
+| [0011](0011-malini-own-agent-work-runs-as-jobs.md)                    | malini's own agent work (naming chats, shipping fixes) is built-in jobs; the bridge holds no prompt of its own             |
+| [0012](0012-skills-reach-an-agent-through-presets.md)                 | Each chat and job loads only the skills of its preset, resolved by main and passed to the SDK's `skills` option            |
+| [0013](0013-setup-suggests-skill-presets-with-a-built-in-job.md)      | Setup asks Haiku, through the built-in Suggest skill presets job, for presets shaped by the user's own skills              |
+| [0014](0014-malini-ships-gh-and-signs-it-in-from-setup.md)            | Packaged builds ship a pinned `gh`, last on `PATH`; setup signs it in to GitHub with a one-time code, no terminal          |

@@ -13,13 +13,15 @@ interface JobRunRow {
 	origin: JobRunOrigin;
 	status: JobRunStatus;
 	detail: string | null;
+	chat_session_id: string | null;
+	chat_after_run_id: string | null;
 	created_at: string;
 	started_at: string | null;
 	finished_at: string | null;
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, detail, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, detail, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
 
 const UNFINISHED = "status IN ('queued', 'running', 'needs-you')";
 
@@ -35,6 +37,8 @@ function fromRow(row: JobRunRow): JobRunRecord {
 		origin: row.origin,
 		status: row.status,
 		detail: row.detail,
+		chatSessionId: row.chat_session_id,
+		chatAfterRunId: row.chat_after_run_id,
 		createdAt: row.created_at,
 		startedAt: row.started_at,
 		finishedAt: row.finished_at,
@@ -48,7 +52,7 @@ export function insertJobRun(
 ): void {
 	run(
 		db,
-		`INSERT INTO job_runs (${COLUMNS}, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO job_runs (${COLUMNS}, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		jobRun.id,
 		jobRun.definitionId,
 		jobRun.title,
@@ -59,6 +63,8 @@ export function insertJobRun(
 		jobRun.origin,
 		jobRun.status,
 		jobRun.detail,
+		jobRun.chatSessionId,
+		jobRun.chatAfterRunId,
 		jobRun.createdAt,
 		jobRun.startedAt,
 		jobRun.finishedAt,
@@ -109,6 +115,14 @@ export function listRecentFinishedJobRuns(db: MaliniDatabase, limit: number): Jo
 		`SELECT ${COLUMNS} FROM job_runs WHERE NOT ${UNFINISHED}
 		 ORDER BY created_at DESC, rowid DESC LIMIT ?`,
 		limit,
+	).map(fromRow);
+}
+
+export function listChatJobRuns(db: MaliniDatabase, chatSessionId: string): JobRunRecord[] {
+	return all<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE chat_session_id = ? ORDER BY created_at, rowid`,
+		chatSessionId,
 	).map(fromRow);
 }
 

@@ -191,10 +191,10 @@ describe('syncRemoteBase', () => {
 		});
 		cleanups.push(async () => restore());
 		await expect(syncRemoteBase('/base', 'main', null, noPromptCredentialEnv)).rejects.toThrow(
-			'GitHub needs you to sign in. Run `gh auth login` and try again.',
+			'GitHub needs you to sign in. Sign in to GitHub in Settings, then try again.',
 		);
 		await expect(syncRemoteBase('/base', 'main', 'ghs_x', noPromptCredentialEnv)).rejects.toThrow(
-			'GitHub rejected the credentials. Run `gh auth login` and try again.',
+			'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
 		);
 	});
 });

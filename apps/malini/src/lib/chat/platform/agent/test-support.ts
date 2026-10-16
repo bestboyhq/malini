@@ -108,6 +108,7 @@ const handle = (command) => {
           questions: [{ id: 'q1', prompt: 'Which?', options: [{ label: 'A' }, { label: 'B', description: 'second' }], multiSelect: false, allowFreeText: false }] });
         return;
       }
+      if (command.skills) return completeRun(sessionId, runId, 'skills: ' + command.skills.join(', '));
       return completeRun(sessionId, runId, command.resumeAt ? 'done after ' + command.resumeAt : 'done');
     }
     case 'cancel_run': {
@@ -138,6 +139,22 @@ const handle = (command) => {
     }
     case 'refresh_mcp_status': {
       event({ type: 'mcp.status', runId: command.runId, servers: [{ name: 'fs', status: 'connected' }] });
+      return ack(command.id);
+    }
+    case 'list_skills': {
+      if (env.FAKE_BRIDGE_SKIP_SKILLS_FRAME) return ack(command.id);
+      write({ type: 'bridge.skills', protocolVersion: version, id: command.id, skills: [
+        { name: 'adr', description: 'Record a decision in ' + command.cwd, source: 'repository', tokens: 128 },
+        { name: 'ponytail:ponytail', description: 'Do less', source: 'plugin', tokens: 282 },
+        { name: 'house-style', description: 'Managed', source: 'policy', tokens: 40 },
+      ] });
+      return ack(command.id);
+    }
+    case 'suggest_presets': {
+      if (env.FAKE_BRIDGE_SKIP_PRESETS_FRAME) return ack(command.id);
+      write({ type: 'bridge.presets', protocolVersion: version, id: command.id, presets: [
+        { name: 'Builder', emoji: '🛠️', skills: command.skills.map((skill) => skill.name) },
+      ] });
       return ack(command.id);
     }
     case 'suggest_title': {

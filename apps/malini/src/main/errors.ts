@@ -36,8 +36,8 @@ export function credentialOfferFromToken(token: string | null | undefined): GitC
 
 function authFailureMessage(credentials: GitCredentialOffer | undefined): string {
 	return credentials === 'none'
-		? 'GitHub needs you to sign in. Run `gh auth login` and try again.'
-		: 'GitHub rejected the credentials. Run `gh auth login` and try again.';
+		? 'GitHub needs you to sign in. Sign in to GitHub in Settings, then try again.'
+		: 'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.';
 }
 
 export interface GitCommandFailure {
@@ -196,7 +196,7 @@ export function gitFailureVerdict(output: string): GitFailureVerdict {
 	if (REPOSITORY_NOT_FOUND.test(output)) {
 		return {
 			kind: 'repository-not-found',
-			message: `GitHub couldn't find ${remoteName(output)}, or this account can't see it. Check the URL, or run \`gh auth login\` as an account that can.`,
+			message: `GitHub couldn't find ${remoteName(output)}, or this account can't see it. Check the URL, or sign in to GitHub in Settings as an account that can.`,
 		};
 	}
 	if (REMOTE_UNREACHABLE.test(output)) {
@@ -329,7 +329,7 @@ export class GhError extends Error {
 	static notInstalled(): GhError {
 		return new GhError(
 			'not-installed',
-			'GitHub CLI (`gh`) was not found. Install it from https://cli.github.com, then run `gh auth login`.',
+			'The GitHub CLI (`gh`) that malini ships with is missing. Reinstall malini, or install `gh` from https://cli.github.com.',
 			{ code: null },
 		);
 	}

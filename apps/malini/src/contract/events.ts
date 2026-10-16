@@ -81,6 +81,8 @@ export interface LocalBaseSyncedPayload {
 
 export type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
+export type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
+
 export interface ContractEvents {
 	'chat:agent-event': LiveEventEnvelope;
 	'chat:run-changes-captured': RunChangesCapturedPayload;
@@ -102,6 +104,7 @@ export interface ContractEvents {
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
+	'app:streaming-changed': StreamingChangedPayload;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
 	'stats:resources-sampled': ResourceSample;
@@ -140,6 +143,8 @@ export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies Event
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
 
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
+
+export const APP_STREAMING_CHANGED_CHANNEL = 'app:streaming-changed' satisfies EventChannel;
 
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 

@@ -6,6 +6,7 @@ export interface AppPlatform {
 	shutdownUsageData(): Promise<void>;
 	windowStateSaved(): Promise<void>;
 	exit(): void;
+	readonly streaming: { start(): void; stop(): void };
 }
 
 export type { ShellHost } from './platform/shell-host';

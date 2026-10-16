@@ -1,3 +1,5 @@
+import type { SkillPresetSuggestion, SkillRecord } from '$contract/skills';
+import { presetSuggestionJob } from '$lib/jobs/jobs.platform';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
 import type { AgentRunLeases } from './agent/lifecycle';
@@ -32,6 +34,8 @@ export interface ChatPlatform {
 	closeOpenRunsForExit(): Promise<number>;
 	stop(): Promise<void>;
 	sessionModel(sessionId: string): string | null;
+	listSkills(cwd: string): Promise<SkillRecord[]>;
+	suggestPresets(skills: readonly SkillRecord[]): Promise<SkillPresetSuggestion[]>;
 	bridgeProcessId(): number | null;
 }
 
@@ -84,6 +88,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: () => agent.stop(),
 		sessionModel: (sessionId) => getSession(context.db, sessionId)?.model ?? null,
+		listSkills: async (cwd) => (await agent.ensureReady()).listSkills(cwd),
+		suggestPresets: async (skills) =>
+			(await agent.ensureReady()).suggestPresets(skills, presetSuggestionJob(context.db)),
 		bridgeProcessId: () => {
 			const health = agent.health();
 			return health.state === 'healthy' ? health.pid : null;

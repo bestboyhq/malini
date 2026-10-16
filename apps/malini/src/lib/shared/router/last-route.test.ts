@@ -12,7 +12,7 @@ const routes: RouteNode = {
 			page,
 			children: [
 				{ segment: 'workstreams', children: [{ segment: ':workstreamId', page }] },
-				{ segment: 'settings', page },
+				{ segment: 'jobs', page },
 			],
 		},
 	],
@@ -23,7 +23,7 @@ describe('bootRoute', () => {
 		expect(bootRoute('', '/workstreams/ws-1?agent=s-7', routes)).toBe(
 			'/workstreams/ws-1?agent=s-7',
 		);
-		expect(bootRoute('#/', '/settings', routes)).toBe('/settings');
+		expect(bootRoute('#/', '/jobs', routes)).toBe('/jobs');
 	});
 
 	it('respects a hash that was actually asked for', () => {

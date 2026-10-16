@@ -1,5 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sensitiveMasking } from './sensitive-masking.svelte';
 import { hasSensitiveText, sensitiveSegments, sensitiveSegmentsAcross } from './sensitive-segments';
+
+beforeEach(() => {
+	sensitiveMasking.on = true;
+});
+
+afterEach(() => {
+	sensitiveMasking.on = false;
+});
 
 function masked(text: string): string {
 	return sensitiveSegments(text)
@@ -46,5 +55,12 @@ describe('sensitive segments', () => {
 			[[' ok', null]],
 		]);
 		expect(pieces[0]?.[1]?.match).toBe(pieces[1]?.[0]?.match);
+	});
+
+	it('masks nothing while masking is off', () => {
+		sensitiveMasking.on = false;
+		const text = 'Signed in as ada@example.com · /Users/ada/notes.md';
+		expect(masked(text)).toBe(text);
+		expect(hasSensitiveText(text)).toBe(false);
 	});
 });

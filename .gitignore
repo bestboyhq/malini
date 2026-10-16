@@ -2,6 +2,7 @@ node_modules
 out
 dist
 release
+apps/malini/vendor
 coverage
 test-results
 playwright-report

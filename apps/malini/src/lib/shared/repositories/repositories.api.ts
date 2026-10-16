@@ -28,9 +28,11 @@ export {
 export {
 	GITHUB_AUTH_REQUIRED_MESSAGE,
 	GitHubAuthRequiredError,
+	githubSetupStatus,
 	isDuplicateRepositoryError,
 	isGitHubAuthRequiredError,
 	type GitHubAuthStatus,
+	type GitHubSetupStatus,
 	type RepositoryImportSource,
 } from './domain/github-auth';
 
@@ -173,6 +175,7 @@ export { changeTotalsQuery } from './application/queries/change-totals.query.sve
 export { connectedRepositoriesQuery } from './application/queries/connected-repositories.query.svelte';
 export { dependencyInstallQuery } from './application/queries/dependency-install.query.svelte';
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
+export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
@@ -202,6 +205,7 @@ export { workstreamReadyForPromptsQuery } from './application/queries/workstream
 
 export { default as ArchivedWorkstreamsMenu } from './presentation/ArchivedWorkstreamsMenu.svelte';
 export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
+export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export { default as RepositoryListSkeleton } from './presentation/RepositoryListSkeleton.svelte';

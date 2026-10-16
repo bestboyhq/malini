@@ -6,6 +6,18 @@ export type WorkstreamHrefOptions = Readonly<{
 
 export const REPOSITORIES_HREF = '/';
 
+export const JOBS_HREF = '/jobs';
+
+export const NEW_JOB_HREF = '/jobs/new';
+
+export const ROUTINES_HREF = '/jobs/routines';
+
+export const SKILL_SETTINGS_HREF = '/settings/skills';
+
+export function jobHref(definitionId: string): string {
+	return `/jobs/${encodeURIComponent(definitionId)}`;
+}
+
 export function workstreamHref(workstreamId: string, options: WorkstreamHrefOptions = {}): string {
 	const path = `/workstreams/${encodeURIComponent(workstreamId)}`;
 	const search = new URLSearchParams();

@@ -23,11 +23,11 @@
 	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
 
 	interface Props {
-		step?: number;
+		step?: boolean;
 		nested?: boolean;
 	}
 
-	let { step, nested = false }: Props = $props();
+	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
 	let switchOpen = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -37,6 +37,8 @@
 	const otherAccounts = $derived(otherClaudeAccountsQuery.data);
 	const setupStep = $derived(setupStepFor(status));
 	const detail = $derived(signInDetail(signIn) ?? statusDetail(status));
+	const actionSize = $derived(step ? 'md' : 'sm');
+	const actionRadius = $derived(step ? 'full' : 'md');
 
 	function signInDetail(current: ClaudeSignInState): string | null {
 		if (current === 'waiting-for-browser') return 'Continue in your browser to finish signing in.';
@@ -47,11 +49,11 @@
 	function statusDetail(current: ClaudeCodeStatus): string {
 		switch (current.kind) {
 			case 'checking':
-				return 'Looking for Claude Code on this Mac…';
+				return 'Looking for Claude Code…';
 			case 'missing':
-				return 'malini runs the Claude Code installed on this Mac, signed in with your own Claude plan. Install it to start.';
+				return 'Not installed on this Mac yet.';
 			case 'signed-out':
-				return `Claude Code${current.version ? ` ${current.version}` : ''} is installed. Sign in with your Claude account to start.`;
+				return 'Installed. Sign in with your Claude account.';
 			case 'ready':
 				return [
 					current.account?.email ? `Signed in as ${current.account.email}` : 'Signed in',
@@ -86,115 +88,129 @@
 	});
 </script>
 
-<div
-	class={[
-		'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
-		nested ? 'rounded-xl' : 'rounded-2xl',
-	]}
-	data-testid="claude-code-setup"
-	data-claude-code-status={status.kind}
->
-	<div class="flex items-center gap-3">
-		<div
-			class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
-			aria-hidden="true"
+{#snippet action()}
+	{#if signIn !== 'idle'}
+		<LoadingCircle size={16} />
+		{#if signIn === 'waiting-for-browser'}
+			<Button
+				variant="secondary"
+				size={actionSize}
+				radius={actionRadius}
+				class="shrink-0"
+				ariaLabel="Cancel signing in to Claude Code"
+				onclick={cancelClaudeSignInCommand}
+			>
+				Cancel
+			</Button>
+		{/if}
+	{:else if status.kind === 'checking'}
+		<LoadingCircle size={16} />
+	{:else if status.kind === 'ready' && step}
+		<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
+			<Icon name="check" size={14} />
+			Ready
+		</span>
+	{:else if status.kind === 'ready'}
+		<Dropdown
+			bind:open={switchOpen}
+			align="end"
+			panelClass="w-72"
+			testId="claude-account-menu"
+			owner="claude-code-setup"
 		>
-			{#if step !== undefined && status.kind !== 'ready'}
-				<span class="text-fg-secondary text-sm font-medium tabular-nums">{step}</span>
-			{:else}
-				<ClaudeIcon size={16} />
-			{/if}
-		</div>
-		<div class="min-w-0 flex-1" role="status">
-			<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
-			<p class="text-fg-tertiary text-xs leading-5" data-testid="claude-code-detail">
-				<SensitiveText text={detail} />
-			</p>
-		</div>
-		{#if signIn !== 'idle'}
-			<LoadingCircle size={16} />
-			{#if signIn === 'waiting-for-browser'}
+			{#snippet trigger()}
 				<Button
 					variant="secondary"
 					size="sm"
 					class="shrink-0"
-					ariaLabel="Cancel signing in to Claude Code"
-					onclick={cancelClaudeSignInCommand}
+					active={switchOpen}
+					ariaLabel="Switch Claude account"
+					ariaHasPopup="menu"
+					ariaExpanded={switchOpen}
 				>
-					Cancel
+					Switch account
 				</Button>
-			{/if}
-		{:else if status.kind === 'checking'}
-			<LoadingCircle size={16} />
-		{:else if status.kind === 'ready' && step !== undefined}
-			<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
-				<Icon name="check" size={14} />
-				Ready
-			</span>
-		{:else if status.kind === 'ready'}
-			<Dropdown
-				bind:open={switchOpen}
-				align="end"
-				panelClass="w-72"
-				testId="claude-account-menu"
-				owner="claude-code-setup"
+			{/snippet}
+			{#snippet content()}
+				<div role="group" aria-label="Claude accounts">
+					<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
+				</div>
+			{/snippet}
+		</Dropdown>
+	{:else if setupStep === 'install'}
+		<Button
+			variant="primary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Install Claude Code in Terminal"
+			data-testid="claude-code-setup-action"
+			onclick={installClaudeCodeCommand}
+		>
+			Install
+		</Button>
+	{:else if setupStep === 'sign-in'}
+		<Button
+			variant="primary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Sign in to Claude Code"
+			data-testid="claude-code-setup-action"
+			onclick={() => signInToClaudeCommand()}
+		>
+			Sign in
+		</Button>
+	{:else}
+		<Button
+			variant="secondary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Check Claude Code again"
+			onclick={() => loadProviderCapabilitiesCommand('force')}
+		>
+			{#snippet leading()}
+				<Icon name="refresh" size={14} />
+			{/snippet}
+			Check again
+		</Button>
+	{/if}
+{/snippet}
+
+{#snippet statusLine(className: string)}
+	<p class={className} role="status" data-testid="claude-code-detail">
+		<SensitiveText text={detail} />
+	</p>
+{/snippet}
+
+<div
+	class={step
+		? undefined
+		: [
+				'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
+				nested ? 'rounded-xl' : 'rounded-2xl',
+			]}
+	data-testid="claude-code-setup"
+	data-claude-code-status={status.kind}
+>
+	{#if step}
+		{@render statusLine('text-fg-tertiary text-sm leading-6')}
+	{:else}
+		<div class="flex items-center gap-3">
+			<div
+				class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+				aria-hidden="true"
 			>
-				{#snippet trigger()}
-					<Button
-						variant="secondary"
-						size="sm"
-						class="shrink-0"
-						active={switchOpen}
-						ariaLabel="Switch Claude account"
-						ariaHasPopup="menu"
-						ariaExpanded={switchOpen}
-					>
-						Switch account
-					</Button>
-				{/snippet}
-				{#snippet content()}
-					<div role="group" aria-label="Claude accounts">
-						<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
-					</div>
-				{/snippet}
-			</Dropdown>
-		{:else if setupStep === 'install'}
-			<Button
-				variant="primary"
-				size="sm"
-				class="shrink-0"
-				ariaLabel="Install Claude Code in Terminal"
-				data-testid="claude-code-setup-action"
-				onclick={installClaudeCodeCommand}
-			>
-				Install
-			</Button>
-		{:else if setupStep === 'sign-in'}
-			<Button
-				variant="primary"
-				size="sm"
-				class="shrink-0"
-				ariaLabel="Sign in to Claude Code"
-				data-testid="claude-code-setup-action"
-				onclick={() => signInToClaudeCommand()}
-			>
-				Sign in
-			</Button>
-		{:else}
-			<Button
-				variant="secondary"
-				size="sm"
-				class="shrink-0"
-				ariaLabel="Check Claude Code again"
-				onclick={() => loadProviderCapabilitiesCommand('force')}
-			>
-				{#snippet leading()}
-					<Icon name="refresh" size={14} />
-				{/snippet}
-				Check again
-			</Button>
-		{/if}
-	</div>
+				<ClaudeIcon size={16} />
+			</div>
+			<div class="min-w-0 flex-1">
+				<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
+				{@render statusLine('text-fg-tertiary text-xs leading-5')}
+			</div>
+			{@render action()}
+		</div>
+	{/if}
 
 	{#if setupStep === 'install' && signIn === 'idle'}
 		<div
@@ -221,11 +237,17 @@
 			</Tooltip>
 		</div>
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
-			Install opens Terminal and runs this command. malini notices when it finishes.
+			Install runs this in Terminal. malini notices when it’s done.
 		</p>
 	{:else if setupStep === 'sign-in' && signIn === 'idle'}
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
 			Sign in opens your browser. malini notices when it finishes.
 		</p>
+	{/if}
+
+	{#if step}
+		<div class="mt-4 flex items-center justify-end gap-3">
+			{@render action()}
+		</div>
 	{/if}
 </div>

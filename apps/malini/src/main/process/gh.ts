@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { GhError } from '$main/errors';
 
 export interface GhResult {
@@ -14,6 +15,10 @@ export interface RunGhOptions {
 }
 
 export const MAX_GH_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+export function withBundledGh(path: string | undefined, resourcesRoot: string): string {
+	return [path, join(resourcesRoot, 'vendor', 'gh', 'bin')].filter(Boolean).join(':');
+}
 
 export function ghEnvironment(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
 	const home = base.HOME ?? '';

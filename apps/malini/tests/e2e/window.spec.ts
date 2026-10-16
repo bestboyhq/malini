@@ -7,7 +7,9 @@ test('the built app opens a window on a runtime whose SQLite is the bundled one'
 		const { page, electronApp } = app;
 
 		await expect(page).toHaveTitle('malini · Repositories');
-		await expect(page.getByRole('heading', { name: 'Set up malini' })).toBeVisible();
+		await expect(
+			page.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
+		).toBeVisible();
 
 		const runtime = await invoke<RuntimeInfo>(page, 'app.runtime-info', undefined);
 		expect(runtime.app).toBe('0.1.0');

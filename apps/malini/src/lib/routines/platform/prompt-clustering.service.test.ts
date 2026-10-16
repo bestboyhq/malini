@@ -50,6 +50,18 @@ describe('createTokenSetClusterer', () => {
 		expect(cluster?.key).toBe('and dependencies run tests the update');
 	});
 
+	it('never suggests a job from short replies like done', () => {
+		const clusterer = createTokenSetClusterer();
+		expect(
+			clusterer.cluster([
+				sample('done', 0),
+				sample('Done!', 1),
+				sample('done', 2),
+				sample('ok go', 3),
+			]),
+		).toEqual([]);
+	});
+
 	it('reports nothing when every prompt is distinct', () => {
 		const clusterer = createTokenSetClusterer();
 		const clusters = clusterer.cluster([

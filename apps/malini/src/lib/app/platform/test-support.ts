@@ -19,6 +19,7 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	windowCreated: ((window: BrowserWindow) => void)[];
 	beforeQuit: (() => void)[];
 	displayMetricsChanged: (() => void)[];
+	workAreas: { x: number; y: number; width: number; height: number }[];
 }
 
 export function createFakeCipher(): SecretCipher & { available: boolean } {
@@ -49,6 +50,7 @@ export function createFakeHost(): FakeHost {
 		windowCreated: [],
 		beforeQuit: [],
 		displayMetricsChanged: [],
+		workAreas: [{ x: 0, y: 0, width: 1920, height: 1080 }],
 		openExternal: async (url) => {
 			host.opened.push(url);
 		},
@@ -74,6 +76,7 @@ export function createFakeHost(): FakeHost {
 		onDisplayMetricsChanged: (listener) => {
 			host.displayMetricsChanged.push(listener);
 		},
+		displayWorkAreas: () => host.workAreas,
 	};
 	return host;
 }

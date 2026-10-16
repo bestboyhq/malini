@@ -7,7 +7,7 @@
 		headed?: boolean;
 		note?: string | undefined;
 		trailing?: Snippet;
-		children: Snippet;
+		children?: Snippet;
 		class?: ClassValue;
 	}
 
@@ -31,5 +31,5 @@
 			{/if}
 		</header>
 	{/if}
-	{@render children()}
+	{@render children?.()}
 </section>

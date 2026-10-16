@@ -17,16 +17,21 @@ export async function anthropicMetrics(
 	query: ClaudeQuery,
 	observedAt: Date,
 ): Promise<{ readonly anthropic: Record<string, unknown> } | null> {
-	const [context, usage] = await Promise.all([
+	const [context, usage, init] = await Promise.all([
 		settleWithin(query.getContextUsage({ detail: 'summary' })),
 		settleWithin(
 			query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }),
 		),
+		settleWithin(query.initializationResult()),
 	]);
 	const anthropic = {
 		...(context ? { contextCategories: contextCategories(context) } : {}),
 		...(usage?.rate_limits
-			? { rateLimits: planRateLimits(usage.rate_limits), observedAt: observedAt.toISOString() }
+			? {
+					rateLimits: planRateLimits(usage.rate_limits),
+					observedAt: observedAt.toISOString(),
+					account: init?.account.email ?? null,
+				}
 			: {}),
 	};
 	return Object.keys(anthropic).length > 0 ? { anthropic } : null;

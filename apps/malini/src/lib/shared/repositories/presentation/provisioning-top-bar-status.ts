@@ -83,7 +83,7 @@ function asSentence(text: string): string {
 
 function failedSetupRemedy(failure: string, reconnect: boolean): string {
 	if (!reconnect) return 'Continue this workstream’s setup from where it stopped';
-	return failure.includes('gh auth login')
+	return /sign in to github/iu.test(failure)
 		? 'Then retry this workstream’s setup'
-		: 'Sign in with `gh auth login` in a terminal, then retry';
+		: 'Sign in to GitHub in Settings, then retry';
 }

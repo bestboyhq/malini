@@ -1,26 +1,41 @@
 import type { AgentReasoningEffort } from '$contract/agent';
-import type { JobDefinitionRecord, JobOutput, JobRunsIn } from '$contract/jobs';
+import type { JobBuiltin, JobDefinitionRecord, JobOutput, JobRunsIn } from '$contract/jobs';
 
 export const JOB_RUNS_IN_OPTIONS: readonly Readonly<{ value: JobRunsIn; label: string }>[] = [
-	{ value: 'workstream', label: 'This workstream' },
-	{ value: 'new-workstream', label: 'New workstream' },
+	{ value: 'workstream', label: 'The workstream you pick' },
+	{ value: 'new-workstream', label: 'A new workstream' },
 ];
 
 export const JOB_OUTPUT_OPTIONS: readonly Readonly<{ value: JobOutput; label: string }>[] = [
-	{ value: 'none', label: 'None' },
-	{ value: 'draft', label: 'Draft PR' },
-	{ value: 'merge', label: 'Queue merge' },
+	{ value: 'none', label: 'Leave the changes to you' },
+	{ value: 'draft', label: 'Open a draft PR' },
+	{ value: 'merge', label: 'Queue the merge' },
 ];
 
-const RUNS_IN_SUMMARY: Readonly<Record<JobRunsIn, string>> = {
-	workstream: 'runs in a workstream you pick',
-	'new-workstream': 'runs in a new workstream',
+const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
+	'name-chats': 'Your first message in a chat',
+	'suggest-presets': 'You group your skills in setup',
+	'fix-checks': 'Checks fail while shipping',
+	'update-from-main': 'The branch falls behind while shipping',
+	'address-review': 'A bot reviews while shipping',
 };
 
-const OUTPUT_SUMMARY: Readonly<Record<JobOutput, string>> = {
-	none: 'leaves the changes for you',
-	draft: 'opens a draft PR',
-	merge: 'queues the merge',
+const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
+	'name-chats':
+		'Runs on its own when you send the first message in a chat. It names the chat, and the workstream on its first chat.',
+	'suggest-presets':
+		'Runs on its own when setup opens. It reads the name and description of every skill Claude Code finds and suggests presets you can add in one click.',
+	'fix-checks':
+		'The merge queue runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
+	'update-from-main':
+		'The merge queue runs it when a branch it is shipping falls behind its base. Run it yourself from any chat with /.',
+	'address-review':
+		'The merge queue runs it when a bot reviews a pull request it is shipping. Run it yourself from any chat with /.',
+};
+
+const RUNS_IN_WHEN: Readonly<Record<JobRunsIn, string>> = {
+	workstream: 'When you run it',
+	'new-workstream': 'When you run it, in a new workstream',
 };
 
 export function effortLabel(effort: AgentReasoningEffort): string {
@@ -28,11 +43,16 @@ export function effortLabel(effort: AgentReasoningEffort): string {
 	return `${effort.charAt(0).toUpperCase()}${effort.slice(1)}`;
 }
 
-export function jobShapeSummary(
-	definition: Pick<JobDefinitionRecord, 'runsIn' | 'output' | 'builtin'>,
-): string {
-	if (definition.builtin !== null) return 'the merge queue runs it in the queued workstream';
-	return `${RUNS_IN_SUMMARY[definition.runsIn]}, ${OUTPUT_SUMMARY[definition.output]}`;
+export function jobWhen(definition: Pick<JobDefinitionRecord, 'runsIn' | 'builtin'>): string {
+	return definition.builtin === null
+		? RUNS_IN_WHEN[definition.runsIn]
+		: BUILTIN_WHEN[definition.builtin];
+}
+
+export function jobWhenDetail(definition: Pick<JobDefinitionRecord, 'builtin'>): string {
+	return definition.builtin === null
+		? 'Run it from any chat with /, from here, or as a step in a routine.'
+		: BUILTIN_WHEN_DETAIL[definition.builtin];
 }
 
 export function instructionsPreview(instructions: string): string {

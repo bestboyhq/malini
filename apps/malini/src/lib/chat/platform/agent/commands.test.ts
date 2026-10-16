@@ -26,6 +26,7 @@ import {
 	promptWithWorkstreamContext,
 	type CheckpointCaptureInput,
 } from './commands';
+import { chooseSessionSkills } from '$lib/skills/skills.platform';
 import { AgentRunLeases } from './lifecycle';
 import { startAgentService, type AgentService } from './service';
 import type { RunFinishedInput } from './runtime';
@@ -432,6 +433,55 @@ describe('prompt round trips', () => {
 		expect(getRun(test.db, firstRun)).toMatchObject({ completedAt: null, error: null });
 		expect(getSession(test.db, first)?.status).toBe('running');
 		await invoke('chat.cancel-run', { sessionId: first });
+	});
+
+	it('hands a prompt only the skills chosen for its chat, and every skill otherwise', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const focused = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const open = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		chooseSessionSkills(test.db, focused, { kind: 'custom', skills: ['adr', 'humanizer'] });
+
+		const focusedRun = await invokeString('chat.send-prompt', { sessionId: focused, prompt: 'Hi' });
+		const openRun = await invokeString('chat.send-prompt', { sessionId: open, prompt: 'Hi' });
+		await waitFor(() => getRun(test.db, focusedRun)?.completedAt !== null);
+		await waitFor(() => getRun(test.db, openRun)?.completedAt !== null);
+
+		expect(getRun(test.db, focusedRun)?.summary).toBe('skills: adr, humanizer');
+		expect(getRun(test.db, openRun)?.summary).toBe('done');
+	});
+
+	it('counts a prompt still being handed off as an open run, so no job starts beside it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		let capturing = false;
+		let finishCapture: () => void = () => undefined;
+		await boot(
+			{},
+			{
+				hooks: {
+					captureCheckpoint: (input) => {
+						capturing = true;
+						return new Promise((resolve) => {
+							finishCapture = () => resolve(recordCheckpoint(input));
+						});
+					},
+				},
+			},
+		);
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const sent = invokeString('chat.send-prompt', { sessionId, prompt: 'Rename the sidebar' });
+		await waitFor(() => capturing);
+
+		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
+			true,
+		);
+		finishCapture();
+		const runId = await sent;
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		await service.runtime.settlePump();
+		expect(await invokeBoolean('chat.workstream-has-open-run', { workstreamId: 'ws-1' })).toBe(
+			false,
+		);
 	});
 
 	it('stops a prompt whose Stop arrived while its restore point was still being captured', async () => {
