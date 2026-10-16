@@ -6,6 +6,17 @@ export type GitHubAuthStatus = Readonly<{
 	message: string | null;
 }>;
 
+export type GitHubSetupStatus = 'checking' | 'missing' | 'unknown' | 'signed-out' | 'ready';
+
+export function githubSetupStatus(
+	auth: GitHubAuthStatus | null,
+	error: string | null,
+): GitHubSetupStatus {
+	if (auth === null) return error === null ? 'checking' : 'unknown';
+	if (!auth.installed) return 'missing';
+	return auth.authenticated ? 'ready' : 'signed-out';
+}
+
 export type GitHubDeviceCode = Readonly<{ userCode: string; verificationUri: string }>;
 
 export type GitHubSignInOutcome = 'signed-in' | 'cancelled';

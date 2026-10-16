@@ -15,30 +15,23 @@
 	import { githubAuthErrorQuery } from '$shared/repositories/application/queries/github-auth-error.query.svelte';
 	import { githubAuthQuery } from '$shared/repositories/application/queries/github-auth.query.svelte';
 	import { githubSignInQuery } from '$shared/repositories/application/queries/github-sign-in.query.svelte';
+	import { githubSetupStatus } from '$shared/repositories/domain/github-auth';
 
 	interface Props {
-		setup?: boolean;
+		step?: boolean;
 		nested?: boolean;
 	}
 
-	let { setup = false, nested = false }: Props = $props();
+	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const auth = $derived(githubAuthQuery.data);
 	const authError = $derived(githubAuthErrorQuery.data);
 	const signIn = $derived(githubSignInQuery.data);
-	const status = $derived(
-		auth === null
-			? authError === null
-				? 'checking'
-				: 'unknown'
-			: !auth.installed
-				? 'missing'
-				: auth.authenticated
-					? 'ready'
-					: 'signed-out',
-	);
+	const status = $derived(githubSetupStatus(auth, authError));
+	const actionSize = $derived(step ? 'md' : 'sm');
+	const actionRadius = $derived(step ? 'full' : 'md');
 	const detail = $derived.by(() => {
 		switch (signIn.kind) {
 			case 'starting':
@@ -80,75 +73,92 @@
 	});
 </script>
 
+{#snippet action()}
+	{#if signIn.kind !== 'idle'}
+		<LoadingCircle size={16} />
+		{#if signIn.kind === 'starting' || signIn.kind === 'waiting'}
+			<Button
+				variant="secondary"
+				size={actionSize}
+				radius={actionRadius}
+				class="shrink-0"
+				ariaLabel="Cancel signing in to GitHub"
+				onclick={cancelGithubSignInCommand}
+			>
+				Cancel
+			</Button>
+		{/if}
+	{:else if status === 'checking'}
+		<LoadingCircle size={16} />
+	{:else if status === 'ready'}
+		{#if step}
+			<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
+				<Icon name="check" size={14} />
+				Ready
+			</span>
+		{/if}
+	{:else if status === 'signed-out'}
+		<Button
+			variant="primary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Connect GitHub"
+			data-testid="github-setup-action"
+			onclick={signInToGithubCommand}
+		>
+			Connect
+		</Button>
+	{:else}
+		<Button
+			variant="secondary"
+			size={actionSize}
+			radius={actionRadius}
+			class="shrink-0"
+			ariaLabel="Check GitHub again"
+			onclick={loadGithubAuthCommand}
+		>
+			{#snippet leading()}
+				<Icon name="refresh" size={14} />
+			{/snippet}
+			Check again
+		</Button>
+	{/if}
+{/snippet}
+
+{#snippet statusLine(className: string)}
+	<p class={className} role="status" data-testid="github-detail">
+		<SensitiveText text={detail} />
+	</p>
+{/snippet}
+
 <div
-	class={[
-		'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
-		nested ? 'rounded-xl' : 'rounded-2xl',
-	]}
+	class={step
+		? undefined
+		: [
+				'border-surface-50-border bg-surface-50 border-[0.5px] px-4 py-3.5',
+				nested ? 'rounded-xl' : 'rounded-2xl',
+			]}
 	data-testid="github-setup"
 	data-github-status={status}
 >
-	<div class="flex items-center gap-3">
-		<div
-			class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
-			aria-hidden="true"
-		>
-			<GitHubIcon size={17} />
-		</div>
-		<div class="min-w-0 flex-1" role="status">
-			<h3 class="text-fg-default text-sm font-medium">GitHub</h3>
-			<p class="text-fg-tertiary text-xs leading-5" data-testid="github-detail">
-				<SensitiveText text={detail} />
-			</p>
-		</div>
-		{#if signIn.kind !== 'idle'}
-			<LoadingCircle size={16} />
-			{#if signIn.kind === 'starting' || signIn.kind === 'waiting'}
-				<Button
-					variant="secondary"
-					size="sm"
-					class="shrink-0"
-					ariaLabel="Cancel signing in to GitHub"
-					onclick={cancelGithubSignInCommand}
-				>
-					Cancel
-				</Button>
-			{/if}
-		{:else if status === 'checking'}
-			<LoadingCircle size={16} />
-		{:else if status === 'ready'}
-			{#if setup}
-				<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
-					<Icon name="check" size={14} />
-					Ready
-				</span>
-			{/if}
-		{:else if status === 'signed-out'}
-			<Button
-				variant="primary"
-				size="sm"
-				class="shrink-0"
-				ariaLabel="Connect GitHub"
-				data-testid="github-setup-action"
-				onclick={signInToGithubCommand}
+	{#if step}
+		{@render statusLine('text-fg-tertiary text-sm leading-6')}
+	{:else}
+		<div class="flex items-center gap-3">
+			<div
+				class="bg-surface-150 text-fg-default grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+				aria-hidden="true"
 			>
-				Connect
-			</Button>
-		{:else}
-			<Button
-				variant="secondary"
-				size="sm"
-				class="shrink-0"
-				ariaLabel="Check GitHub again"
-				onclick={loadGithubAuthCommand}
-			>
-				{#snippet leading()}
-					<Icon name="refresh" size={14} />
-				{/snippet}
-				Check again
-			</Button>
-		{/if}
-	</div>
+				<GitHubIcon size={17} />
+			</div>
+			<div class="min-w-0 flex-1">
+				<h3 class="text-fg-default text-sm font-medium">GitHub</h3>
+				{@render statusLine('text-fg-tertiary text-xs leading-5')}
+			</div>
+			{@render action()}
+		</div>
+	{/if}
 
 	{#if signIn.kind === 'waiting'}
 		<div
@@ -192,5 +202,11 @@
 		<p class="text-fg-tertiary mt-2 text-xs leading-5">
 			It’s on your clipboard. Then authorize GitHub CLI, which malini uses.
 		</p>
+	{/if}
+
+	{#if step}
+		<div class="mt-4 flex items-center gap-3">
+			{@render action()}
+		</div>
 	{/if}
 </div>
