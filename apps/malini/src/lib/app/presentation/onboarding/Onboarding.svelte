@@ -6,7 +6,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import {
 		ONBOARDING_STEPS,
-		onboardingAccountsReady,
+		onboardingAccountsSettled,
 		type OnboardingAccountStatuses,
 		type OnboardingStep,
 	} from '$lib/app/domain/onboarding';
@@ -63,7 +63,7 @@
 		github: githubSetupStatus(githubAuthQuery.data, githubAuthErrorQuery.data),
 	});
 	const continueWaits = $derived(
-		onboarding.step === 'accounts' && !onboardingAccountsReady(accounts),
+		onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts),
 	);
 	const description = $derived(
 		onboarding.step === 'skills' && totals
@@ -157,16 +157,7 @@
 		{/key}
 
 		<footer class={['flex shrink-0 items-center justify-between gap-3', wide ? 'mt-6' : 'mt-9']}>
-			{#if onboarding.index === 0}
-				<Button
-					variant="ghost"
-					size="lg"
-					class="text-fg-tertiary -ml-3"
-					onclick={finishOnboardingCommand}
-				>
-					Skip setup
-				</Button>
-			{:else}
+			{#if onboarding.index > 0}
 				<Button
 					variant="ghost"
 					size="lg"
@@ -187,10 +178,11 @@
 				</Button>
 			{:else}
 				<Button
-					variant={continueWaits ? 'secondary' : 'primary'}
+					variant="primary"
 					size="lg"
 					radius="full"
-					class="px-6"
+					class="ml-auto px-6"
+					disabled={continueWaits}
 					data-testid="onboarding-continue"
 					onclick={() => go(onboarding.index + 1)}
 				>

@@ -28,8 +28,10 @@ export function clampOnboardingStep(index: number): number {
 	return Math.min(Math.max(index, 0), ONBOARDING_STEPS.length - 1);
 }
 
-export function onboardingAccountsReady(statuses: OnboardingAccountStatuses): boolean {
-	return ONBOARDING_ACCOUNTS.every((account) => statuses[account] === 'ready');
+export function onboardingAccountsSettled(statuses: OnboardingAccountStatuses): boolean {
+	return ONBOARDING_ACCOUNTS.every(
+		(account) => statuses[account] === 'ready' || statuses[account] === 'unknown',
+	);
 }
 
 export function openOnboardingAccount(

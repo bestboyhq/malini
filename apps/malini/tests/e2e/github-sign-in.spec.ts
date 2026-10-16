@@ -6,6 +6,7 @@ import {
 	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	type LaunchedApp,
 } from './harness';
@@ -52,6 +53,8 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 			'aria-expanded',
 			'true',
 		);
+		await expect(setup.getByRole('button', { name: 'Skip setup' })).toHaveCount(0);
+		await expect(setup.getByRole('button', { name: 'Continue' })).toBeDisabled();
 		await captureFlow(app, 'github-sign-in-signed-out');
 
 		await github.getByRole('button', { name: 'Connect GitHub' }).click();
@@ -69,6 +72,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 			setup.getByRole('heading', { name: 'GitHub Signed in as e2e-user' }),
 		).toBeVisible();
 		await expect(setup.getByRole('button', { name: 'Connect GitHub' })).toBeHidden();
+		await expect(setup.getByRole('button', { name: 'Continue' })).toBeEnabled();
 		await captureFlow(app, 'github-sign-in-ready');
 		expectCleanConsole(app);
 	} finally {
@@ -104,7 +108,7 @@ test('setup shows one account at a time, and the user can pick which one to conn
 	}
 });
 
-test('the clone dialog asks only to connect GitHub, then lists repositories once it is connected', async () => {
+test('after setup, a signed-out clone dialog asks only to connect GitHub, then lists repositories', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ env: { E2E_GITHUB_SIGNED_OUT: '1' } });
 	try {
@@ -120,8 +124,11 @@ test('the clone dialog asks only to connect GitHub, then lists repositories once
 				},
 			]),
 		);
-		const setup = page.getByTestId('onboarding');
-		await setup.getByRole('button', { name: 'Skip setup' }).click();
+		await invoke(page, 'app.set-setting', {
+			key: 'onboarding.finished-at',
+			value: new Date().toISOString(),
+		});
+		await page.reload();
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
 		const github = dialog.getByTestId('github-setup');

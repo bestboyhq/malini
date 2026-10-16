@@ -85,7 +85,7 @@ describe('GitHubSignIn', () => {
 	});
 
 	it('gives up and stops gh when it shows no code it can read', async () => {
-		const { signIn } = await fakeGh('mute', 300);
+		const { signIn } = await fakeGh('mute', 2_000);
 
 		await expect(signIn.start()).rejects.toThrow(
 			'GitHub CLI showed no sign-in code. Welcome to a GitHub CLI that words things differently',

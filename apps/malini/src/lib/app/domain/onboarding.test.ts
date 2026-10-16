@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { onboardingAccountsReady, openOnboardingAccount } from './onboarding';
+import { onboardingAccountsSettled, openOnboardingAccount } from './onboarding';
 
 describe('onboarding accounts', () => {
 	it('opens the first account that still needs the user', () => {
@@ -27,10 +27,15 @@ describe('onboarding accounts', () => {
 		expect(openOnboardingAccount({ 'claude-code': 'ready', github: 'checking' }, null)).toBe(null);
 	});
 
-	it('opens nothing and is ready once every account is ready', () => {
+	it('opens nothing and settles once every account is ready', () => {
 		const statuses = { 'claude-code': 'ready', github: 'ready' } as const;
 		expect(openOnboardingAccount(statuses, null)).toBe(null);
-		expect(onboardingAccountsReady(statuses)).toBe(true);
-		expect(onboardingAccountsReady({ 'claude-code': 'ready', github: 'unknown' })).toBe(false);
+		expect(onboardingAccountsSettled(statuses)).toBe(true);
+		expect(onboardingAccountsSettled({ 'claude-code': 'ready', github: 'signed-out' })).toBe(false);
+		expect(onboardingAccountsSettled({ 'claude-code': 'checking', github: 'ready' })).toBe(false);
+	});
+
+	it('settles when an account cannot be checked, so a failed check never traps the user', () => {
+		expect(onboardingAccountsSettled({ 'claude-code': 'ready', github: 'unknown' })).toBe(true);
 	});
 });
