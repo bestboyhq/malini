@@ -6,7 +6,7 @@
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"main": "./out/main/index.js",
-	"author": "Best Boy",
+	"author": "Szymon Grącki",
 	"scripts": {
 		"dev": "install-electron && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-bundle.mjs electron-vite dev --watch",
 		"dogfood": "node scripts/dogfood.mjs",
