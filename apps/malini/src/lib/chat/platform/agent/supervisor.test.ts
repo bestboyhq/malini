@@ -152,6 +152,19 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 		);
 	});
 
+	it('fails a command still in flight when the bridge is stopped as stopped, not as a protocol error', async () => {
+		const supervisor = await spawn({ FAKE_BRIDGE_ACK_DELAY_MS: '5000' });
+		const stopped = expect(
+			supervisor.sendCommand(startSession('cmd-stopped')),
+		).rejects.toMatchObject({
+			name: 'SupervisorError',
+			kind: 'stopped',
+			message: 'bridge stopped before command acknowledgement',
+		});
+		await supervisor.kill();
+		await stopped;
+	});
+
 	it('fails the handshake on a protocol version mismatch and kills the child', async () => {
 		const bridge = fixture();
 		await expect(

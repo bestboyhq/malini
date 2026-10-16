@@ -36,7 +36,8 @@ export type SupervisorErrorKind =
 	| 'db'
 	| 'pid_missing'
 	| 'channel_closed'
-	| 'protocol';
+	| 'protocol'
+	| 'stopped';
 
 export class SupervisorError extends Error {
 	override readonly name = 'SupervisorError';
@@ -69,6 +70,8 @@ export class SupervisorError extends Error {
 				return 'channel closed';
 			case 'protocol':
 				return `bridge protocol error: ${detail}`;
+			case 'stopped':
+				return `bridge stopped ${detail}`;
 		}
 	}
 }
@@ -87,7 +90,7 @@ export interface BridgeSupervisorConfig {
 	readonly log?: (line: string) => void;
 }
 
-type AckResult = { ok: true } | { ok: false; error: string };
+type AckResult = { ok: true } | { ok: false; kind: SupervisorErrorKind; error: string };
 
 interface PendingAck {
 	resolve(result: AckResult): void;
@@ -278,7 +281,7 @@ export class BridgeSupervisor {
 		this.pidValue = 0;
 		this.child = null;
 		if (previousPid !== 0) {
-			this.failPendingAcks('bridge exited before command acknowledgement');
+			this.failPendingAcks('protocol', 'bridge exited before command acknowledgement');
 		}
 	}
 
@@ -296,10 +299,10 @@ export class BridgeSupervisor {
 		this.protocolErrorText = message;
 	}
 
-	private failPendingAcks(message: string): void {
+	private failPendingAcks(kind: SupervisorErrorKind, message: string): void {
 		const pending = [...this.pendingAcks.values()];
 		this.pendingAcks.clear();
-		for (const ack of pending) ack.resolve({ ok: false, error: message });
+		for (const ack of pending) ack.resolve({ ok: false, kind, error: message });
 	}
 
 	private emitEvent(event: BridgeEvent): void {
@@ -413,11 +416,16 @@ export class BridgeSupervisor {
 					control.protocolVersion !== BRIDGE_PROTOCOL_VERSION
 						? {
 								ok: false,
+								kind: 'protocol',
 								error: `PROTOCOL_MISMATCH: command ack v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
 							}
 						: control.accepted
 							? { ok: true }
-							: { ok: false, error: control.error ?? `command ${control.id} was rejected` };
+							: {
+									ok: false,
+									kind: 'protocol',
+									error: control.error ?? `command ${control.id} was rejected`,
+								};
 				const pending = this.pendingAcks.get(control.id);
 				if (pending) {
 					this.pendingAcks.delete(control.id);
@@ -485,7 +493,7 @@ export class BridgeSupervisor {
 					const pending = this.pendingAcks.get(control.id);
 					if (pending) {
 						this.pendingAcks.delete(control.id);
-						pending.resolve({ ok: false, error: failure });
+						pending.resolve({ ok: false, kind: 'protocol', error: failure });
 					}
 				}
 				if (control.runId !== undefined && control.runId.length > 0) {
@@ -562,7 +570,7 @@ export class BridgeSupervisor {
 				`command ${correlationId} was not acknowledged within ${timeoutMs}ms`,
 			);
 		}
-		if (!result.ok) throw new SupervisorError('protocol', result.error);
+		if (!result.ok) throw new SupervisorError(result.kind, result.error);
 	}
 
 	writeRawLine(line: string): void {
@@ -664,7 +672,7 @@ export class BridgeSupervisor {
 
 	async kill(): Promise<void> {
 		this.shuttingDown = true;
-		this.failPendingAcks('bridge stopped before command acknowledgement');
+		this.failPendingAcks('stopped', 'before command acknowledgement');
 		const child = this.child;
 		const pid = this.pidValue;
 		if (child === null || pid === 0) {
