@@ -6,6 +6,7 @@ import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { SessionId } from '$lib/chat/domain/session';
 import type { FileMentionTarget } from '../file-mention-links';
 import type { RunGroup, ToolAggregate } from '../render-state';
+import type { EarlierTurn } from '../turn-result';
 import type { CheckpointEditor } from './checkpoint-edit.svelte';
 import type { DestructiveConfirm } from './destructive-confirm.svelte';
 import type { PromptArrivalAction, RowArrivalAction } from './row-arrival';
@@ -53,6 +54,7 @@ export type TranscriptContext = {
 	readonly canOpenFileMention: ((path: string) => boolean) | undefined;
 	readonly markdownImageSource: (path: string) => string | null;
 	openImageGallery(id: string): void;
+	earlierTurns(runId: string): readonly EarlierTurn[];
 };
 
 export function setTranscriptContext(context: TranscriptContext): void {
