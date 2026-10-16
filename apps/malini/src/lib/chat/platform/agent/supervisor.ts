@@ -16,6 +16,8 @@ import {
 	type BridgeEvent,
 	type ProviderCapability,
 } from './protocol';
+import type { AutomaticJob } from '$lib/jobs/jobs.platform';
+import type { SkillPresetSuggestion, SkillRecord } from '$contract/skills';
 import { killProcessGroup, processGroupIsAlive } from '$main/process/process-group';
 import { IdSequence } from '../id-sequence';
 import type { BridgeProcess, BridgeProcessFactory, BridgeSpawnSpec } from './process';
@@ -34,7 +36,8 @@ export type SupervisorErrorKind =
 	| 'db'
 	| 'pid_missing'
 	| 'channel_closed'
-	| 'protocol';
+	| 'protocol'
+	| 'stopped';
 
 export class SupervisorError extends Error {
 	override readonly name = 'SupervisorError';
@@ -67,6 +70,8 @@ export class SupervisorError extends Error {
 				return 'channel closed';
 			case 'protocol':
 				return `bridge protocol error: ${detail}`;
+			case 'stopped':
+				return `bridge stopped ${detail}`;
 		}
 	}
 }
@@ -85,7 +90,7 @@ export interface BridgeSupervisorConfig {
 	readonly log?: (line: string) => void;
 }
 
-type AckResult = { ok: true } | { ok: false; error: string };
+type AckResult = { ok: true } | { ok: false; kind: SupervisorErrorKind; error: string };
 
 interface PendingAck {
 	resolve(result: AckResult): void;
@@ -183,6 +188,8 @@ export class BridgeSupervisor {
 	private stderrTail = '';
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
+	private readonly listedSkills = new Map<string, SkillRecord[]>();
+	private readonly suggestedPresets = new Map<string, SkillPresetSuggestion[]>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly browserRequestListeners = new Set<(request: BridgeBrowserRequest) => void>();
 	private readonly startedAtMs: number;
@@ -274,7 +281,7 @@ export class BridgeSupervisor {
 		this.pidValue = 0;
 		this.child = null;
 		if (previousPid !== 0) {
-			this.failPendingAcks('bridge exited before command acknowledgement');
+			this.failPendingAcks('protocol', 'bridge exited before command acknowledgement');
 		}
 	}
 
@@ -292,10 +299,10 @@ export class BridgeSupervisor {
 		this.protocolErrorText = message;
 	}
 
-	private failPendingAcks(message: string): void {
+	private failPendingAcks(kind: SupervisorErrorKind, message: string): void {
 		const pending = [...this.pendingAcks.values()];
 		this.pendingAcks.clear();
-		for (const ack of pending) ack.resolve({ ok: false, error: message });
+		for (const ack of pending) ack.resolve({ ok: false, kind, error: message });
 	}
 
 	private emitEvent(event: BridgeEvent): void {
@@ -409,11 +416,16 @@ export class BridgeSupervisor {
 					control.protocolVersion !== BRIDGE_PROTOCOL_VERSION
 						? {
 								ok: false,
+								kind: 'protocol',
 								error: `PROTOCOL_MISMATCH: command ack v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
 							}
 						: control.accepted
 							? { ok: true }
-							: { ok: false, error: control.error ?? `command ${control.id} was rejected` };
+							: {
+									ok: false,
+									kind: 'protocol',
+									error: control.error ?? `command ${control.id} was rejected`,
+								};
 				const pending = this.pendingAcks.get(control.id);
 				if (pending) {
 					this.pendingAcks.delete(control.id);
@@ -429,6 +441,28 @@ export class BridgeSupervisor {
 					return;
 				}
 				if (this.pendingAcks.has(control.id)) this.suggestedTitles.set(control.id, control.title);
+				return;
+			}
+			case 'bridge.skills': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: skills v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.listedSkills.set(control.id, control.skills);
+				return;
+			}
+			case 'bridge.presets': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: presets v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) {
+					this.suggestedPresets.set(control.id, control.presets);
+				}
 				return;
 			}
 			case 'bridge.browser_request': {
@@ -459,7 +493,7 @@ export class BridgeSupervisor {
 					const pending = this.pendingAcks.get(control.id);
 					if (pending) {
 						this.pendingAcks.delete(control.id);
-						pending.resolve({ ok: false, error: failure });
+						pending.resolve({ ok: false, kind: 'protocol', error: failure });
 					}
 				}
 				if (control.runId !== undefined && control.runId.length > 0) {
@@ -536,7 +570,7 @@ export class BridgeSupervisor {
 				`command ${correlationId} was not acknowledged within ${timeoutMs}ms`,
 			);
 		}
-		if (!result.ok) throw new SupervisorError('protocol', result.error);
+		if (!result.ok) throw new SupervisorError(result.kind, result.error);
 	}
 
 	writeRawLine(line: string): void {
@@ -567,10 +601,10 @@ export class BridgeSupervisor {
 		return this.providerCapabilities();
 	}
 
-	async suggestTitle(prompt: string): Promise<string> {
+	async suggestTitle(prompt: string, job: AutomaticJob): Promise<string> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'suggest_title', id, prompt });
+			await this.sendCommand({ cmd: 'suggest_title', id, prompt, ...job });
 			const title = this.suggestedTitles.get(id);
 			if (title === undefined) {
 				throw new SupervisorError(
@@ -581,6 +615,48 @@ export class BridgeSupervisor {
 			return title;
 		} finally {
 			this.suggestedTitles.delete(id);
+		}
+	}
+
+	async listSkills(cwd: string): Promise<SkillRecord[]> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'list_skills', id, cwd });
+			const skills = this.listedSkills.get(id);
+			if (skills === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'skills were acknowledged without a bridge.skills frame',
+				);
+			}
+			return skills;
+		} finally {
+			this.listedSkills.delete(id);
+		}
+	}
+
+	async suggestPresets(
+		skills: readonly SkillRecord[],
+		job: AutomaticJob,
+	): Promise<SkillPresetSuggestion[]> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({
+				cmd: 'suggest_presets',
+				id,
+				skills: skills.map(({ name, description }) => ({ name, description })),
+				...job,
+			});
+			const presets = this.suggestedPresets.get(id);
+			if (presets === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'presets were acknowledged without a bridge.presets frame',
+				);
+			}
+			return presets;
+		} finally {
+			this.suggestedPresets.delete(id);
 		}
 	}
 
@@ -596,7 +672,7 @@ export class BridgeSupervisor {
 
 	async kill(): Promise<void> {
 		this.shuttingDown = true;
-		this.failPendingAcks('bridge stopped before command acknowledgement');
+		this.failPendingAcks('stopped', 'before command acknowledgement');
 		const child = this.child;
 		const pid = this.pidValue;
 		if (child === null || pid === 0) {

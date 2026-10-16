@@ -163,6 +163,7 @@ export function provisioningFailureIsAuth(failure: string): boolean {
 		normalized.includes('auth failed') ||
 		normalized.includes('authentication failed') ||
 		normalized.includes('could not read username') ||
-		normalized.includes('gh auth login')
+		normalized.includes('gh auth login') ||
+		normalized.includes('sign in to github')
 	);
 }

@@ -205,6 +205,31 @@ describe('the main-process diagnostics log', () => {
 		]);
 	});
 
+	it('logs a command the closing app stopped under the agent bridge as a warning', async () => {
+		const diagnostics = log();
+		const registry = new CommandRegistry();
+		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+		const bridgeFailure = (kind: string, message: string): Error =>
+			Object.assign(new Error(message), { name: 'SupervisorError', kind });
+		registry.define('skills.suggest-presets', () => {
+			throw bridgeFailure('stopped', 'bridge stopped before command acknowledgement');
+		});
+		registry.define('chat.send-prompt', () => {
+			throw bridgeFailure(
+				'protocol',
+				'bridge protocol error: bridge exited before acknowledgement',
+			);
+		});
+
+		await registry.invoke({ command: 'skills.suggest-presets', args: undefined });
+		await registry.invoke({ command: 'chat.send-prompt', args: undefined });
+
+		expect(records().map((record) => [record.message, record.level])).toEqual([
+			['bridge stopped before command acknowledgement', 'warn'],
+			['bridge protocol error: bridge exited before acknowledgement', 'error'],
+		]);
+	});
+
 	it('gives routine info lines their own budget so they never crowd out a failure', () => {
 		const diagnostics = log();
 		for (let index = 0; index < MAX_RECORDS_PER_WINDOW + 20; index += 1) {

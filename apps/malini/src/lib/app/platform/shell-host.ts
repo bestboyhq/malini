@@ -7,6 +7,7 @@ import {
 	safeStorage,
 	screen,
 	shell,
+	type Rectangle,
 } from 'electron';
 
 const LIVE_NOTIFICATION_LIMIT = 32;
@@ -41,6 +42,7 @@ export interface ShellHost {
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
 	onDisplayMetricsChanged(listener: () => void): void;
+	displayWorkAreas(): readonly Rectangle[];
 }
 
 export function createElectronShellHost(): ShellHost {
@@ -78,5 +80,6 @@ export function createElectronShellHost(): ShellHost {
 		onDisplayMetricsChanged: (listener) => {
 			screen.on('display-metrics-changed', () => listener());
 		},
+		displayWorkAreas: () => screen.getAllDisplays().map(({ workArea }) => workArea),
 	};
 }

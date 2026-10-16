@@ -3,11 +3,14 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import { JOBS_HREF } from '$shared/router/routes-hrefs';
+	import { page } from '$shared/router/state';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { needsYouJobCountQuery } from '$lib/jobs/application/queries/needs-you-job-count.query.svelte';
 
 	const needsYou = $derived(needsYouJobCountQuery.data);
+	const current = $derived(page.url.pathname.startsWith(JOBS_HREF));
 	const needsYouText = $derived(`${needsYou} ${needsYou === 1 ? 'job needs' : 'jobs need'} you`);
 
 	onMount(() => {
@@ -21,8 +24,10 @@
 		iconOnly
 		variant="ghost"
 		size="sm"
-		href="/jobs"
+		href={JOBS_HREF}
 		ariaLabel="Jobs"
+		active={current}
+		{...current ? { ariaCurrent: 'page' as const } : {}}
 		{...needsYou > 0 ? { ariaDescribedby: 'sidebar-jobs-needs-you' } : {}}
 		data-testid="sidebar-open-jobs"
 	>

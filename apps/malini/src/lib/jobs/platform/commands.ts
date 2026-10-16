@@ -16,7 +16,7 @@ import {
 	getWorkstream,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
-import { BUILTIN_JOBS, BUILTIN_JOB_KEYS } from '../domain/builtin-jobs';
+import { BUILTIN_JOBS, BUILTIN_JOB_KEYS, isRunnableJob } from '../domain/builtin-jobs';
 import {
 	JOB_INSTRUCTIONS_MAX_LENGTH,
 	JOB_NAME_MAX_LENGTH,
@@ -35,6 +35,7 @@ import {
 import {
 	countUnfinishedJobRuns,
 	getJobRun,
+	listChatJobRuns,
 	listRecentFinishedJobRuns,
 	listUnfinishedJobRuns,
 } from './job-runs.repository';
@@ -56,7 +57,7 @@ export class JobError extends Error {
 
 type JobDefinitionFields = Pick<
 	JobDefinitionRecord,
-	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output'
+	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output' | 'skillPresetId'
 >;
 
 export function seedBuiltinJobs(db: MaliniDatabase): void {
@@ -67,6 +68,7 @@ export function seedBuiltinJobs(db: MaliniDatabase): void {
 			...BUILTIN_JOBS[builtin],
 			runsIn: 'workstream',
 			output: 'none',
+			skillPresetId: null,
 			builtin,
 			createdAt: now,
 			updatedAt: now,
@@ -138,6 +140,7 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 			...BUILTIN_JOBS[builtin],
 			runsIn: 'workstream',
 			output: 'none',
+			skillPresetId: null,
 			updatedAt: nowIso8601(),
 		};
 		updateJobDefinition(db, reset);
@@ -151,12 +154,24 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		),
 	);
 
+	commands.define('jobs.list-chat-runs', (args: unknown) =>
+		listChatJobRuns(db, requireString(args, 'chatSessionId')),
+	);
+
 	commands.define('jobs.run', async (args: unknown) => {
 		const definition = requireDefinition(db, requireString(args, 'definitionId'));
+		if (!isRunnableJob(definition)) {
+			throw new JobError(
+				'builtin',
+				`${definition.name} runs on its own when you send the first message in a chat.`,
+			);
+		}
 		const workstreamId = optionalString(args, 'workstreamId');
 		const repositoryId = optionalString(args, 'repositoryId');
 		const jobContext = optionalContext(args);
 		const origin = optionalOrigin(args);
+		const chatSessionId = optionalString(args, 'chatSessionId');
+		const chatAfterRunId = chatSessionId === null ? null : optionalString(args, 'chatAfterRunId');
 		const target =
 			definition.runsIn === 'workstream'
 				? { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null }
@@ -177,6 +192,8 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 			origin,
 			status: 'queued',
 			detail: null,
+			chatSessionId,
+			chatAfterRunId,
 			createdAt: nowIso8601(),
 			startedAt: null,
 			finishedAt: null,
@@ -209,7 +226,8 @@ function definitionFields(args: unknown): JobDefinitionFields {
 	if (!isJobRunsIn(runsIn)) throw invalid('`runsIn` must be workstream or new-workstream');
 	const output = field(args, 'output');
 	if (!isJobOutput(output)) throw invalid('`output` must be none, draft or merge');
-	return { name, instructions, model, effort, runsIn, output };
+	const skillPresetId = optionalString(args, 'skillPresetId');
+	return { name, instructions, model, effort, runsIn, output, skillPresetId };
 }
 
 function requireDefinition(db: MaliniDatabase, definitionId: string): JobDefinitionRecord {

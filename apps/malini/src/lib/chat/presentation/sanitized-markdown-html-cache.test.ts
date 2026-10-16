@@ -55,8 +55,14 @@ describe('SanitizedMarkdownHtmlCache', () => {
 	});
 
 	it('separates plain and markdown rendering for identical source text', () => {
-		expect(sanitizedMarkdownHtmlCacheKey('plain', 'same')).not.toBe(
-			sanitizedMarkdownHtmlCacheKey('markdown', 'same'),
+		expect(sanitizedMarkdownHtmlCacheKey('plain', false, 'same')).not.toBe(
+			sanitizedMarkdownHtmlCacheKey('markdown', false, 'same'),
+		);
+	});
+
+	it('separates masked and shown personal data for identical source text', () => {
+		expect(sanitizedMarkdownHtmlCacheKey('markdown', true, 'same')).not.toBe(
+			sanitizedMarkdownHtmlCacheKey('markdown', false, 'same'),
 		);
 	});
 

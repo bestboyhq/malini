@@ -1,41 +1,54 @@
 <script lang="ts">
-	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
-	import { JobsSection } from '$lib/jobs/jobs.api';
+	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
+	import { JOBS_HREF, ROUTINES_HREF } from '$shared/router/routes-hrefs';
+	import { page } from '$shared/router/state';
+	import { JobsBrowser } from '$lib/jobs/jobs.api';
 	import { RoutinesSection } from '$lib/routines/routines.api';
+
+	const routines = $derived(page.route.id === '/jobs/routines');
+	const creating = $derived(page.route.id === '/jobs/new');
+	const selectedJobId = $derived(page.params.jobId ?? null);
 </script>
 
 <svelte:head>
-	<title>malini · Jobs</title>
+	<title>malini · {routines ? 'Routines' : 'Jobs'}</title>
 </svelte:head>
 
-<main class="native-band-row-reserve h-full min-h-0 overflow-y-auto" data-testid="jobs-page">
-	<div class="mx-auto w-full max-w-[640px] space-y-10 px-6 pt-6 pb-16">
-		<header>
+<main class="flex h-full min-h-0 flex-col" data-testid="jobs-page">
+	<header class="flex shrink-0 items-center gap-4 px-6 pt-3 pb-5">
+		<h1 class="text-fg-default text-xl font-semibold tracking-tight">Jobs</h1>
+		<nav
+			class="bg-surface-50 border-surface-50-border inline-flex gap-0.5 rounded-[9px] border-[0.5px] p-0.5"
+			aria-label="Jobs and routines"
+		>
 			<Button
-				href="/"
-				variant="ghost"
+				href={JOBS_HREF}
 				size="sm"
-				class="-ml-2"
-				ariaLabel="Back to workstreams"
-				data-testid="jobs-back"
+				variant="ghost"
+				active={!routines}
+				{...routines ? {} : { ariaCurrent: 'page' as const }}
 			>
-				{#snippet leading()}
-					<Icon name="chevron-left" size={14} />
-				{/snippet}
-				Back
+				Jobs
 			</Button>
-			<div class="mt-8">
-				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Jobs</h1>
-				<p class="text-fg-tertiary mt-1 text-xs">
-					A job is one piece of agent work that runs in its own chat. Run it yourself, let the merge
-					queue start it, or chain jobs in a routine.
-				</p>
+			<Button
+				href={ROUTINES_HREF}
+				size="sm"
+				variant="ghost"
+				active={routines}
+				{...routines ? { ariaCurrent: 'page' as const } : {}}
+			>
+				Routines
+			</Button>
+		</nav>
+	</header>
+	{#if routines}
+		<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Routines">
+			<div class="mx-auto w-full max-w-[720px] px-8 pb-16">
+				<RoutinesSection />
 			</div>
-		</header>
-
-		<JobsSection />
-
-		<RoutinesSection />
-	</div>
+		</ScrollableDiv>
+	{:else}
+		<JobsBrowser {selectedJobId} {creating} />
+	{/if}
 </main>

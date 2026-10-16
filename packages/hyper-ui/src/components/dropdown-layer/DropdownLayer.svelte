@@ -122,7 +122,7 @@
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
-		if (!open) return;
+		if (!open || event.defaultPrevented) return;
 		roving.handleArrowKeys(event);
 	}
 

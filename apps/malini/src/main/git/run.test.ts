@@ -15,10 +15,10 @@ describe('attributeCredentials', () => {
 
 	it('tells a rejected token apart from a missing one', () => {
 		expect(attributeCredentials(failure(), 'ghs_live').message).toBe(
-			'GitHub rejected the credentials. Run `gh auth login` and try again.',
+			'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
 		);
 		expect(attributeCredentials(failure(), null).message).toBe(
-			'GitHub needs you to sign in. Run `gh auth login` and try again.',
+			'GitHub needs you to sign in. Sign in to GitHub in Settings, then try again.',
 		);
 		expect(attributeCredentials(failure(), '   ').credentials).toBe('none');
 	});
@@ -133,7 +133,7 @@ describe('runGit', () => {
 			),
 		).rejects.toMatchObject({
 			kind: 'auth-failed',
-			message: 'GitHub rejected the credentials. Run `gh auth login` and try again.',
+			message: 'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
 			detail: expect.stringContaining('could not read Username'),
 		});
 	}, 30_000);

@@ -46,8 +46,8 @@ export function repositoryConnectFailure(
 	const kind = failureKind(caught);
 	if (kind === 'auth-required' || caught instanceof GitHubAuthRequiredError) {
 		return {
-			detail: 'The GitHub CLI is not signed in, or its sign-in has expired.',
-			remedy: 'Reconnect it with `gh auth login` in a terminal, then try again.',
+			detail: 'GitHub is not signed in, or its sign-in has expired.',
+			remedy: 'Sign in to GitHub, then try again.',
 			technical: raw,
 		};
 	}
@@ -55,7 +55,7 @@ export function repositoryConnectFailure(
 		const repository = source ? repositoryIdentityForImportSource(source).fullName : null;
 		return {
 			detail: `GitHub didn't give access to ${repository ?? 'this repository'}.`,
-			remedy: 'Check the URL, or sign in with `gh auth login` as an account that can see it.',
+			remedy: 'Check the URL, or sign in to GitHub as an account that can see it.',
 			technical: raw,
 		};
 	}

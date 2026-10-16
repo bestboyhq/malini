@@ -158,6 +158,6 @@ function modelInfo(model: ModelInfo): AgentModelInfo {
 	};
 }
 
-async function* idle(released: Promise<void>): AsyncIterable<SDKUserMessage> {
+export async function* idle(released: Promise<void>): AsyncIterable<SDKUserMessage> {
 	await released;
 }

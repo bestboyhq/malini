@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
-	import { afterNavigate, beforeNavigate } from '$shared/router/navigation';
+	import { afterNavigate } from '$shared/router/navigation';
 	import TopBar from './TopBar.svelte';
 	import {
 		exposeRuntimeDiagnostics,
@@ -23,7 +23,6 @@
 		displayWorkstreamName,
 		repositoryContextForWorkstream,
 	} from '$shared/repositories/repositories.api';
-	import { provideSettingsOrigin } from './settings/settings-origin';
 
 	interface Props {
 		children: Snippet;
@@ -31,15 +30,11 @@
 
 	let { children }: Props = $props();
 	const globalTopBarActions = provideGlobalTopBarActions();
-	const settingsOrigin = provideSettingsOrigin();
 	const stagePaysBandReserve = $derived(
 		sidebarCollapsedQuery.data && sidebarPresenceQuery.data && !globalTopBarBandSlot.adopted,
 	);
 	const workstreams = $derived(activeWorkstreamsQuery.data);
 	const repositories = $derived(connectedRepositoriesQuery.data);
-	let shell: HTMLDivElement | undefined = $state();
-
-	beforeNavigate(({ from, to }) => settingsOrigin.follow(from?.url, to?.url, shell));
 
 	afterNavigate(({ to }) => {
 		if (to?.url) runtimeDiagnostics.completeNavigation(`${to.url.pathname}${to.url.search}`);
@@ -73,7 +68,7 @@
 	}
 </script>
 
-<div class="flex h-screen font-sans" bind:this={shell}>
+<div class="flex h-screen font-sans">
 	<TopBar actions={globalTopBarActions.actions} />
 
 	<div class="native-shell-safe-frame flex h-full w-full">

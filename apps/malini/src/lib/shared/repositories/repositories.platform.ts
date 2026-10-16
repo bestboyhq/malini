@@ -15,6 +15,7 @@ export interface RepositoriesPlatform {
 	listOwnedContainers(): Promise<OwnedContainer[]>;
 	provisionDependencies(workstreamId: string): Promise<InstallOutcome>;
 	abortInstall(workstreamId: string): Promise<void>;
+	cancelGitHubSignIn(): void;
 	listLiveWorkstreamIds(): string[];
 	reclaimAbandonedContainers(budgetMs?: number): Promise<ContainerReclaim>;
 }

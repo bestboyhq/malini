@@ -39,6 +39,7 @@ test('a plan limit past 90% shows in the composer and the panel breaks down the 
 							},
 						],
 						observedAt: new Date(now).toISOString(),
+						account: 'e2e@example.com',
 					},
 				},
 			}),

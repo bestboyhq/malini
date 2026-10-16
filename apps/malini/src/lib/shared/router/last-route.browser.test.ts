@@ -20,12 +20,6 @@ describe('last route storage', () => {
 		expect(readLastRoute()).toBeNull();
 	});
 
-	it('keeps the screen behind settings, so a relaunch never opens on settings', () => {
-		rememberLastRoute(new URL('http://router.local/workstreams/ws-1'));
-		rememberLastRoute(new URL('http://router.local/settings/appearance'));
-		expect(readLastRoute()).toBe('/workstreams/ws-1');
-	});
-
 	it('migrates the v1 key onto the workstreams tree once', () => {
 		globalThis.localStorage.setItem('malini.app.last-route-v1', '/agentic/ws-1?agent=s-7');
 

@@ -123,6 +123,7 @@ describe('ClaudeSession', () => {
 							{ label: 'Weekly Fable limit', utilization: 12, resetsAt: null },
 						],
 						observedAt: expect.any(String),
+						account: 'ada@example.com',
 					},
 				},
 				interim: false,
@@ -238,6 +239,17 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[0]?.options).not.toHaveProperty('resume');
 		expect(claude.runs[0]?.options).not.toHaveProperty('resumeSessionAt');
 		expect(claude.runs[0]?.options).not.toHaveProperty('model');
+	});
+
+	it('limits a run to the skills it was given, and leaves every skill on otherwise', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+
+		await session.sendPrompt('Focus', 'run-1', profile(), undefined, undefined, ['adr']);
+		await session.sendPrompt('Anything', 'run-2', profile());
+
+		expect(claude.runs[0]?.options.skills).toEqual(['adr']);
+		expect(claude.runs[1]?.options).not.toHaveProperty('skills');
 	});
 
 	it('starts a new Claude conversation when every earlier turn was undone', async () => {
@@ -671,6 +683,23 @@ describe('ClaudeSession', () => {
 			onEvent: (event, current) => {
 				if (event.type === 'background.updated' && event.waiting && !refused) {
 					refused = current.sendPrompt('Go', 'run-2', profile('agent', 'full'));
+					refused.catch(() => undefined);
+				}
+			},
+		});
+
+		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+
+		await expect(refused).rejects.toThrow('RUN_ACTIVE: run-1 is still running');
+	});
+
+	it('keeps a prompt with other skills out of a run waiting on background work', async () => {
+		const script = recordedScript('backgroundCommand');
+		let refused: Promise<void> | null = null;
+		const { session } = harness([script], {
+			onEvent: (event, current) => {
+				if (event.type === 'background.updated' && event.waiting && !refused) {
+					refused = current.sendPrompt('Go', 'run-2', profile(), undefined, undefined, ['adr']);
 					refused.catch(() => undefined);
 				}
 			},

@@ -36,6 +36,7 @@
 	import { pullRequestRefreshActivityQuery } from '$lib/pull-requests/application/queries/pull-request-refresh-activity.query.svelte';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
+	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import Sidebar from '../Sidebar.svelte';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
@@ -65,6 +66,7 @@
 	const pullRequestBadge = pullRequestBadgesQuery.data;
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
+	const onboardingShown = $derived(onboardingQuery.data.shown);
 	const releases: (() => void)[] = [];
 
 	onMount(() => {
@@ -112,20 +114,22 @@
 	data-navigation-error-message={scopeError ?? undefined}
 	data-navigation-freshness-phase={activeWorkstreamFreshnessPhase}
 >
-	<Sidebar
-		repositories={connectedRepositories}
-		{workstreams}
-		{activeWorkstreamId}
-		{scopeLoading}
-		{scopeError}
-		onRetryScope={retryRepositoriesScopeCommand}
-		{changeTotalsByWorkstream}
-		{pullRequestBadge}
-		onNewWorkstream={createWorkstreamForRepositoryCommand}
-		onArchiveWorkstream={(workstream) =>
-			archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand)}
-		onRemoveRepository={removeRepositoryCommand}
-	/>
+	{#if !onboardingShown}
+		<Sidebar
+			repositories={connectedRepositories}
+			{workstreams}
+			{activeWorkstreamId}
+			{scopeLoading}
+			{scopeError}
+			onRetryScope={retryRepositoriesScopeCommand}
+			{changeTotalsByWorkstream}
+			{pullRequestBadge}
+			onNewWorkstream={createWorkstreamForRepositoryCommand}
+			onArchiveWorkstream={(workstream) =>
+				archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand)}
+			onRemoveRepository={removeRepositoryCommand}
+		/>
+	{/if}
 
 	<div
 		class="relative flex h-full min-h-0 min-w-0 flex-1 flex-col"

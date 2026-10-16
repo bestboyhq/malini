@@ -3,6 +3,8 @@ import {
 	GitHubAuthRequiredError,
 	isGitHubAuthRequiredError,
 	type GitHubAuthStatus,
+	type GitHubDeviceCode,
+	type GitHubSignInOutcome,
 	type RepositoryImportSource,
 } from '$shared/repositories/domain/github-auth';
 import type { GithubRepository, Repository } from '$shared/repositories/domain/repository';
@@ -11,6 +13,18 @@ import { RepositoryMapper } from '$shared/repositories/infrastructure/mappers/re
 class GithubService {
 	authStatus(): Promise<GitHubAuthStatus> {
 		return withGitHubAuth(() => invoke('repositories.github-auth-status', undefined));
+	}
+
+	startSignIn(): Promise<GitHubDeviceCode> {
+		return invoke('repositories.start-github-sign-in', undefined);
+	}
+
+	finishSignIn(): Promise<GitHubSignInOutcome> {
+		return invoke('repositories.finish-github-sign-in', undefined);
+	}
+
+	cancelSignIn(): Promise<void> {
+		return invoke('repositories.cancel-github-sign-in', undefined);
 	}
 
 	pickRepositoryFolder(): Promise<string | null> {

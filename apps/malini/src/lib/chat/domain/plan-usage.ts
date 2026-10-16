@@ -8,8 +8,11 @@ export type PlanLimit = {
 
 export type PlanUsage = {
 	readonly observedAt: string;
+	readonly account: string | null;
 	readonly limits: readonly PlanLimit[];
 };
+
+export type PlanUsageByAccount = Readonly<Record<string, PlanUsage>>;
 
 export const PLAN_LIMIT_ALERT_PERCENT = 90;
 
@@ -17,13 +20,31 @@ export function planUsageOf(event: AgentEvent): PlanUsage | null {
 	if (event.type !== 'usage.updated') return null;
 	const anthropic = event.providerMetrics?.['anthropic'];
 	if (!isRecord(anthropic)) return null;
-	const { observedAt, rateLimits } = anthropic;
+	const { observedAt, rateLimits, account } = anthropic;
 	if (typeof observedAt !== 'string' || !Array.isArray(rateLimits)) return null;
-	return { observedAt, limits: rateLimits.flatMap(planLimitOf) };
+	return {
+		observedAt,
+		account: typeof account === 'string' && account ? account : null,
+		limits: rateLimits.flatMap(planLimitOf),
+	};
 }
 
-export function newerPlanUsage(current: PlanUsage | null, next: PlanUsage): PlanUsage {
-	return current && current.observedAt >= next.observedAt ? current : next;
+export function withNewerPlanUsage(
+	byAccount: PlanUsageByAccount,
+	next: PlanUsage,
+): PlanUsageByAccount {
+	const key = next.account ?? '';
+	const current = byAccount[key];
+	return current && current.observedAt >= next.observedAt
+		? byAccount
+		: { ...byAccount, [key]: next };
+}
+
+export function planUsageFor(
+	byAccount: PlanUsageByAccount,
+	account: string | null,
+): PlanUsage | null {
+	return byAccount[account ?? ''] ?? null;
 }
 
 export function currentPlanLimits(usage: PlanUsage | null, nowMs: number): readonly PlanLimit[] {

@@ -1,9 +1,10 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
 import {
 	JOB_INTERRUPTED_DETAIL,
-	type JobBuiltin,
+	isShippingJobBuiltin,
 	type JobDefinitionRecord,
 	type JobRunRecord,
+	type ShippingJobBuiltin,
 } from '$contract/jobs';
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
@@ -90,7 +91,7 @@ type ShipTarget = Readonly<{
 	base: string;
 }>;
 
-type SettledJob = Readonly<{ builtin: JobBuiltin | null; agentRunId: string | null }>;
+type SettledJob = Readonly<{ builtin: ShippingJobBuiltin | null; agentRunId: string | null }>;
 
 type Idleness = Readonly<{ idle: boolean; settlesInMs: number | null }>;
 
@@ -129,7 +130,7 @@ export class MergeQueue {
 	readonly #settled = new Map<string, SettledJob>();
 	readonly #failures = new Map<string, number>();
 	readonly #jobs = new Map<string, JobRunRecord>();
-	readonly #builtins = new Map<string, JobBuiltin>();
+	readonly #builtins = new Map<string, ShippingJobBuiltin>();
 	#disposed = false;
 
 	constructor(
@@ -656,7 +657,7 @@ export class MergeQueue {
 
 	async #runJob(
 		context: MoveContext,
-		builtin: JobBuiltin,
+		builtin: ShippingJobBuiltin,
 		signature: string,
 		attempt: number,
 	): Promise<void> {
@@ -699,7 +700,7 @@ export class MergeQueue {
 		);
 	}
 
-	async #jobContext(context: MoveContext, builtin: JobBuiltin): Promise<string | null> {
+	async #jobContext(context: MoveContext, builtin: ShippingJobBuiltin): Promise<string | null> {
 		const { target, snapshot, row } = context;
 		const pullRequestNumber = snapshot.pullRequest?.number ?? row.pullRequestNumber ?? 0;
 		switch (builtin) {
@@ -975,7 +976,8 @@ export class MergeQueue {
 
 	#rememberBuiltins(definitions: readonly JobDefinitionRecord[]): void {
 		for (const definition of definitions) {
-			if (definition.builtin !== null) this.#builtins.set(definition.id, definition.builtin);
+			if (isShippingJobBuiltin(definition.builtin))
+				this.#builtins.set(definition.id, definition.builtin);
 		}
 	}
 

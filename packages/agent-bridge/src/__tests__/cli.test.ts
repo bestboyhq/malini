@@ -549,14 +549,19 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		};
 		const ipc = createIpc({
 			stdout: fakeStdout,
-			suggestTitle: async (task) => {
+			suggestTitle: async (task, job) => {
 				if (task === 'hey') throw new Error('no usable title');
-				return 'Bundle versioning';
+				return job.model === 'haiku' && job.instructions === 'Name it.' ? 'Bundle versioning' : '';
 			},
 		});
 
-		await ipc.run('{"cmd":"suggest_title","id":"title-1","prompt":"Version the JS bundle"}');
-		await ipc.run('{"cmd":"suggest_title","id":"title-2","prompt":"hey"}');
+		await ipc.run(
+			'{"cmd":"suggest_title","id":"title-1","prompt":"Version the JS bundle","instructions":"Name it.","model":"haiku"}',
+		);
+		await ipc.run(
+			'{"cmd":"suggest_title","id":"title-2","prompt":"hey","instructions":"Name it.","model":"haiku"}',
+		);
+		await ipc.drain();
 
 		expect(parseFrames(writes.join(''))).toEqual([
 			expect.objectContaining({ type: 'bridge.title', id: 'title-1', title: 'Bundle versioning' }),
@@ -566,6 +571,124 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				id: 'title-2',
 				accepted: false,
 				error: 'TITLE_FAILED: no usable title',
+			}),
+		]);
+	});
+
+	it('names a chat without holding back the commands sent after it', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		let finishTitle: (title: string) => void = () => undefined;
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			suggestTitle: () => new Promise((resolve) => (finishTitle = resolve)),
+		});
+
+		await ipc.run(
+			'{"cmd":"suggest_title","id":"title-slow","prompt":"Version the JS bundle","instructions":"Name it.","model":"haiku"}',
+		);
+		expect(parseFrames(writes.join(''))).toEqual([]);
+
+		finishTitle('Bundle versioning');
+		await ipc.drain();
+		expect(parseFrames(writes.join(''))).toEqual([
+			expect.objectContaining({ type: 'bridge.title', id: 'title-slow' }),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'title-slow', accepted: true }),
+		]);
+	});
+
+	it('lists the skills of a folder before acknowledging, without holding back other commands', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const asked: string[] = [];
+		let finishListing: () => void = () => undefined;
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			listSkills: async (cwd) => {
+				asked.push(cwd);
+				if (cwd === '/missing') throw new Error('Claude Code is not installed');
+				await new Promise<void>((resolve) => (finishListing = resolve));
+				return [
+					{ name: 'adr', description: 'Record a decision', source: 'repository', tokens: 128 },
+				];
+			},
+		});
+
+		await ipc.run('{"cmd":"list_skills","id":"skills-1","cwd":"/repo"}');
+		await ipc.run('{"cmd":"list_skills","id":"skills-2","cwd":"/missing"}');
+		await ipc.run('{"cmd":"list_skills","id":"skills-3","cwd":"relative"}');
+		finishListing();
+		await ipc.drain();
+
+		const frames = parseFrames(writes.join(''));
+		const framesFor = (id: string): WireFrame[] => frames.filter((frame) => frame.id === id);
+		expect(asked).toEqual(['/repo', '/missing']);
+		expect(framesFor('skills-1')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.skills',
+				skills: [
+					{ name: 'adr', description: 'Record a decision', source: 'repository', tokens: 128 },
+				],
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+		expect(framesFor('skills-2')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				accepted: false,
+				error: 'SKILLS_FAILED: Claude Code is not installed',
+			}),
+		]);
+		expect(framesFor('skills-3')).toEqual([
+			expect.objectContaining({ type: 'bridge.protocol_error' }),
+		]);
+	});
+
+	it('createIpc.run answers suggest_presets with a presets frame, or a failed ack', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			suggestPresets: async (skills, job) => {
+				if (skills.some(({ name }) => name === 'broken')) throw new Error('timed out');
+				return [{ name: job.model, skills: skills.map(({ name }) => name) }];
+			},
+		});
+
+		await ipc.run(
+			'{"cmd":"suggest_presets","id":"presets-1","skills":[{"name":"adr","description":"d"},{"name":"run","description":"d"}],"instructions":"Sort","model":"haiku"}',
+		);
+		await ipc.run(
+			'{"cmd":"suggest_presets","id":"presets-2","skills":[{"name":"broken","description":"d"}],"instructions":"Sort","model":"haiku"}',
+		);
+		await ipc.drain();
+
+		const frames = parseFrames(writes.join(''));
+		const framesFor = (id: string): WireFrame[] => frames.filter((frame) => frame.id === id);
+		expect(framesFor('presets-1')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.presets',
+				presets: [{ name: 'haiku', skills: ['adr', 'run'] }],
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+		expect(framesFor('presets-2')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				accepted: false,
+				error: 'PRESETS_FAILED: timed out',
 			}),
 		]);
 	});
@@ -597,14 +720,20 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		expect(capturedCwd).toBe('/tmp/malini-ws');
 	});
 
-	it('passes the rewind point of a prompt to the provider', async () => {
-		const received: Array<{ runId: string; profile?: AgentRunProfile; resumeAt?: string }> = [];
+	it('passes the rewind point and the skills of a prompt to the provider', async () => {
+		const received: Array<{
+			runId: string;
+			profile?: AgentRunProfile;
+			resumeAt?: string;
+			skills?: readonly string[];
+		}> = [];
 		defaultProviderRegistry.setProvider(async () => ({
-			async sendPrompt(_prompt, runId, profile, resumeAt) {
+			async sendPrompt(_prompt, runId, profile, resumeAt, _fresh, skills) {
 				received.push({
 					runId,
 					...(profile ? { profile } : {}),
 					...(resumeAt ? { resumeAt } : {}),
+					...(skills ? { skills } : {}),
 				});
 			},
 			async cancel() {},
@@ -621,6 +750,9 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		await ipc.run(
 			'{"cmd":"send_prompt","id":"send-plain","sessionId":"s-rewind","runId":"run-plain","prompt":"next"}',
 		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-skills","sessionId":"s-rewind","runId":"run-skills","prompt":"focus","skills":["adr","ponytail:ponytail"]}',
+		);
 		await ipc.drain();
 
 		expect(received).toEqual([
@@ -630,6 +762,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 				resumeAt: 'assistant-uuid',
 			},
 			{ runId: 'run-plain' },
+			{ runId: 'run-skills', skills: ['adr', 'ponytail:ponytail'] },
 		]);
 	});
 

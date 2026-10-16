@@ -11,13 +11,14 @@ interface JobDefinitionRow {
 	effort: AgentReasoningEffort;
 	runs_in: JobRunsIn;
 	output: JobOutput;
+	skill_preset_id: string | null;
 	builtin: JobBuiltin | null;
 	created_at: string;
 	updated_at: string;
 }
 
 const COLUMNS =
-	'id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at';
+	'id, name, instructions, model, effort, runs_in, output, skill_preset_id, builtin, created_at, updated_at';
 
 function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 	return {
@@ -28,6 +29,7 @@ function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 		effort: row.effort,
 		runsIn: row.runs_in,
 		output: row.output,
+		skillPresetId: row.skill_preset_id,
 		builtin: row.builtin,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -46,11 +48,23 @@ export function getJobDefinition(db: MaliniDatabase, id: string): JobDefinitionR
 	return row ? fromRow(row) : null;
 }
 
+export function getBuiltinJobDefinition(
+	db: MaliniDatabase,
+	builtin: JobBuiltin,
+): JobDefinitionRecord | null {
+	const row = get<JobDefinitionRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_definitions WHERE builtin = ?`,
+		builtin,
+	);
+	return row ? fromRow(row) : null;
+}
+
 export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitionRecord): boolean {
 	return (
 		run(
 			db,
-			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT DO NOTHING`,
 			definition.id,
 			definition.name,
@@ -59,6 +73,7 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 			definition.effort,
 			definition.runsIn,
 			definition.output,
+			definition.skillPresetId,
 			definition.builtin,
 			definition.createdAt,
 			definition.updatedAt,
@@ -70,7 +85,8 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	run(
 		db,
 		`UPDATE job_definitions
-		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, output = ?, updated_at = ?
+		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, output = ?,
+		     skill_preset_id = ?, updated_at = ?
 		 WHERE id = ?`,
 		definition.name,
 		definition.instructions,
@@ -78,6 +94,7 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 		definition.effort,
 		definition.runsIn,
 		definition.output,
+		definition.skillPresetId,
 		definition.updatedAt,
 		definition.id,
 	);

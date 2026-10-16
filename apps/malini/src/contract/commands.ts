@@ -31,6 +31,7 @@ import type {
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { NotificationTarget } from './events';
 import type {
+	ChatJobRunsArgs,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
 	JobRunIdArgs,
@@ -39,6 +40,18 @@ import type {
 	SaveJobDefinitionArgs,
 } from './jobs';
 import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
+import type {
+	ChooseSkillsArgs,
+	DefaultSkillPresetArgs,
+	ListSkillsArgs,
+	SaveSkillPresetArgs,
+	SkillChoice,
+	SkillChoiceScopeArgs,
+	SkillPresetIdArgs,
+	SkillPresetRecord,
+	SkillPresetSuggestion,
+	SkillRecord,
+} from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { ActivityStats, ResourceHistory } from './stats';
 import type {
@@ -47,6 +60,8 @@ import type {
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
+	GitHubDeviceCodeDto,
+	GitHubSignInOutcome,
 	GithubRepositoryDto,
 	ImportSource,
 	OwnerAvatar,
@@ -402,6 +417,9 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
+	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
+	'repositories.cancel-github-sign-in': { args: undefined; result: void };
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
 	'repositories.connect': { args: ImportRepositoryArgs; result: ConnectedRepositoryDto };
 	'repositories.list-clones': { args: undefined; result: ConnectedRepositoryDto[] };
@@ -440,8 +458,17 @@ export interface ContractCommands {
 	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
 	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
 	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
+	'jobs.list-chat-runs': { args: ChatJobRunsArgs; result: JobRunRecord[] };
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
+	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
+	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
+	'skills.suggest-presets': { args: undefined; result: SkillPresetSuggestion[] };
+	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
+	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
+	'skills.set-default-preset': { args: DefaultSkillPresetArgs; result: SkillPresetRecord[] };
+	'skills.choice': { args: SkillChoiceScopeArgs; result: SkillChoice };
+	'skills.choose': { args: ChooseSkillsArgs; result: SkillChoice };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
@@ -584,6 +611,7 @@ export interface ContractCommands {
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
+	'app.streaming': { args: undefined; result: boolean };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
 }
@@ -642,6 +670,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.start-github-sign-in',
+	'repositories.finish-github-sign-in',
+	'repositories.cancel-github-sign-in',
 	'pull-requests.create',
 	'repositories.connect',
 	'repositories.list-clones',
@@ -665,8 +696,17 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.delete-definition',
 	'jobs.reset-definition',
 	'jobs.list-runs',
+	'jobs.list-chat-runs',
 	'jobs.run',
 	'jobs.cancel-run',
+	'skills.list',
+	'skills.list-presets',
+	'skills.suggest-presets',
+	'skills.save-preset',
+	'skills.delete-preset',
+	'skills.set-default-preset',
+	'skills.choice',
+	'skills.choose',
 	'repositories.disconnect',
 	'repositories.list-hidden',
 	'repositories.set-hidden',
@@ -746,6 +786,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.logical-viewport',
 	'app.interface-scale',
 	'app.runtime-info',
+	'app.streaming',
 	'stats.activity',
 	'stats.resources',
 ];

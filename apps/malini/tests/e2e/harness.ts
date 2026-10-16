@@ -53,9 +53,22 @@ const FIXTURE_BRIDGE = join(E2E_ROOT, 'fixtures/fake-bridge.cjs');
 export const PULL_REQUEST_FIXTURE = '.e2e-pull-request.json';
 export const GITHUB_REPOSITORIES_FIXTURE = '.e2e-github-repositories.json';
 
+export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
+
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
+APPROVED="$HOME/${GITHUB_DEVICE_APPROVED}"
+if [ "$1 $2" = "auth login" ]; then
+  echo "! First copy your one-time code: E2E0-C0DE" 1>&2
+  echo "Open this URL to continue in your web browser: https://github.com/login/device" 1>&2
+  while [ ! -f "$APPROVED" ]; do sleep 0.1; done
+  exit 0
+fi
+if [ -n "$E2E_GITHUB_SIGNED_OUT" ] && [ ! -f "$APPROVED" ]; then
+  if [ "$1 $2" = "auth status" ]; then echo "You are not logged into any GitHub hosts. To log in, run: gh auth login" 1>&2; exit 1; fi
+  echo "To get started with GitHub CLI, please run:  gh auth login" 1>&2; exit 4
+fi
 case "$1 $2" in
   "api user/repos"*) if [ -f "$GITHUB_REPOSITORIES" ]; then cat "$GITHUB_REPOSITORIES"; else echo "[]"; fi; exit 0 ;;
   "auth status") echo "github.com"; echo "  Logged in to github.com account e2e-user (keyring)"; exit 0 ;;
