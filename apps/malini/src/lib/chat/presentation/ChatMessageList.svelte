@@ -45,6 +45,7 @@
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
+	import { earlierTurns } from './turn-result';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { GroupedRunTimelineItem } from './activity-group';
 	import type { RunTimelineItem } from './run-timeline';
@@ -584,6 +585,7 @@
 			return markdownImageSource;
 		},
 		openImageGallery,
+		earlierTurns: (runId) => earlierTurns(runs, runId),
 	});
 
 	function isInteractionLifecycleEnvelope(envelope: EventEnvelope): boolean {
