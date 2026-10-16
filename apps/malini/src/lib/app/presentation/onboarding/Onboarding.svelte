@@ -14,16 +14,17 @@
 	import { JobsIntro } from '$lib/jobs/jobs.api';
 	import { SkillPresetBoard } from '$lib/skills/skills.api';
 	import { ClaudeCodeSetup } from '$shared/providers/providers.api';
+	import { GitHubSetup } from '$shared/repositories/repositories.api';
 	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
 
 	const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 	const STEP_COPY: Readonly<
 		Record<OnboardingStep, Readonly<{ title: string; description: string }>>
 	> = {
-		'claude-code': {
-			title: 'Connect Claude Code',
+		accounts: {
+			title: 'Connect Claude Code and GitHub',
 			description:
-				'malini runs the Claude Code on this Mac, signed in with your own Claude plan. Every chat gets an agent of its own.',
+				'Every chat gets its own Claude Code agent, running on your Claude plan. Your GitHub account lets malini clone your repositories and open pull requests.',
 		},
 		skills: {
 			title: 'Group your skills into presets',
@@ -115,8 +116,11 @@
 				<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6">{description}</p>
 
 				<div class="mt-7 flex min-h-0 flex-1 flex-col">
-					{#if onboarding.step === 'claude-code'}
-						<ClaudeCodeSetup setup />
+					{#if onboarding.step === 'accounts'}
+						<div class="flex flex-col gap-3">
+							<ClaudeCodeSetup setup />
+							<GitHubSetup setup />
+						</div>
 					{:else if onboarding.step === 'skills'}
 						<SkillPresetBoard suggest class="min-h-[280px] flex-1" />
 						<p class="text-fg-tertiary mt-3 flex items-center gap-1.5 text-xs">

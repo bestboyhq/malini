@@ -12,7 +12,7 @@ type Onboarding = Readonly<{
 class OnboardingQuery {
 	public readonly data: Onboarding = $derived({
 		finished: onboardingStore.finished,
-		step: ONBOARDING_STEPS[onboardingStore.step] ?? 'claude-code',
+		step: ONBOARDING_STEPS[onboardingStore.step] ?? 'accounts',
 		index: onboardingStore.step,
 		direction: onboardingStore.direction,
 		shown: onboardingStore.shown,

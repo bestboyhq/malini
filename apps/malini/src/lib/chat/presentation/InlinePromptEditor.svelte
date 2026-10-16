@@ -229,7 +229,15 @@
 		editor.commands.focus();
 	}
 
-	export { focusEditor, focusNow, insertChip, insertText };
+	function paste(event: ClipboardEvent): void {
+		if (!editor) return;
+		const html = event.clipboardData?.getData('text/html') ?? '';
+		const text = event.clipboardData?.getData('text/plain') ?? '';
+		const pasted = html ? editor.view.pasteHTML(html, event) : editor.view.pasteText(text, event);
+		if (pasted) event.preventDefault();
+	}
+
+	export { focusEditor, focusNow, insertChip, insertText, paste };
 
 	onMount(() => {
 		if (!host) return;

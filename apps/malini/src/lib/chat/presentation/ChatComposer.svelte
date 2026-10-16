@@ -127,6 +127,7 @@
 		focusNow(options?: { atEnd?: boolean }): void;
 		insertChip(chip: PromptChipDescriptor): void;
 		insertText(text: string): void;
+		paste(event: ClipboardEvent): void;
 	} | null = $state(null);
 
 	export function focus(options?: { scrollIntoView?: boolean }): boolean {
@@ -145,6 +146,12 @@
 		if (disabled || !promptEditor) return;
 		promptEditor.focusNow({ atEnd: true });
 		onKeydown(event);
+	}
+
+	export function paste(event: ClipboardEvent): void {
+		if (disabled || !promptEditor) return;
+		promptEditor.focusNow({ atEnd: true });
+		promptEditor.paste(event);
 	}
 	let contextTriggerEl: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 	let addMenuOpen = $state(false);

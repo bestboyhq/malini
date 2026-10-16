@@ -92,10 +92,10 @@ describe('gitFailureVerdict', () => {
 		['a 403', FORBIDDEN],
 		['a 401', UNAUTHORIZED],
 		['missing credentials', NO_CREDENTIALS],
-	])('sends the user to gh auth login for %s', (_, stderr) => {
+	])('sends the user to sign in to GitHub for %s', (_, stderr) => {
 		expect(gitFailureVerdict(stderr)).toEqual({
 			kind: 'auth-failed',
-			message: 'GitHub rejected the credentials. Run `gh auth login` and try again.',
+			message: 'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
 		});
 	});
 
@@ -103,7 +103,7 @@ describe('gitFailureVerdict', () => {
 		expect(gitFailureVerdict(NOT_FOUND)).toEqual({
 			kind: 'repository-not-found',
 			message:
-				"GitHub couldn't find e2e/hutch, or this account can't see it. Check the URL, or run `gh auth login` as an account that can.",
+				"GitHub couldn't find e2e/hutch, or this account can't see it. Check the URL, or sign in to GitHub in Settings as an account that can.",
 		});
 	});
 
@@ -218,13 +218,13 @@ describe('GitError.commandFailed', () => {
 		expect(attributeCredentials(failure, null)).toMatchObject({
 			kind: 'auth-failed',
 			credentials: 'none',
-			message: 'GitHub needs you to sign in. Run `gh auth login` and try again.',
+			message: 'GitHub needs you to sign in. Sign in to GitHub in Settings, then try again.',
 			detail: NO_CREDENTIALS,
 			exitCode: 128,
 			cause: failure.cause,
 		});
 		expect(attributeCredentials(failure, 'ghs_secret_value').message).toBe(
-			'GitHub rejected the credentials. Run `gh auth login` and try again.',
+			'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.',
 		);
 	});
 });

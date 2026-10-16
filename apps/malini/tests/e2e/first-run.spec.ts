@@ -14,7 +14,9 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 	try {
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
-		await expect(setup.getByRole('heading', { name: 'Connect Claude Code' })).toBeVisible();
+		await expect(
+			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
+		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
 		).toHaveCount(4);

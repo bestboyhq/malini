@@ -98,12 +98,13 @@ describe('the provisioning top bar status', () => {
 			'Retry this workstream’s setup after signing in to GitHub',
 		);
 		expect(status?.headline?.tooltip).toBe(
-			'Authentication failed for repo. Sign in with `gh auth login` in a terminal, then retry',
+			'Authentication failed for repo. Sign in to GitHub in Settings, then retry',
 		);
 	});
 
 	it('does not repeat a sign-in remedy the failure already names', () => {
-		const failure = 'GitHub rejected the credentials. Run `gh auth login` and try again.';
+		const failure =
+			'GitHub rejected the sign-in. Sign in to GitHub again in Settings, then try again.';
 		expect(provisioningTopBarStatus(record(failure), false, noRetry)?.headline?.tooltip).toBe(
 			`${failure} Then retry this workstream’s setup`,
 		);

@@ -90,6 +90,11 @@ describe('workstream provisioning rules', () => {
 		expect(
 			provisioningFailureIsAuth('GitHub needs you to sign in. Run `gh auth login` and try again.'),
 		).toBe(true);
+		expect(
+			provisioningFailureIsAuth(
+				'GitHub needs you to sign in. Sign in to GitHub in Settings, then try again.',
+			),
+		).toBe(true);
 		expect(provisioningFailureIsAuth('base branch main is missing')).toBe(false);
 	});
 

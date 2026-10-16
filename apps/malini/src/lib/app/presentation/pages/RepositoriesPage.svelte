@@ -14,6 +14,7 @@
 		CloneRepositoryDialog,
 		connectedRepositoriesQuery,
 		createWorkstreamForRepositoryCommand,
+		GitHubSetup,
 		githubAuthQuery,
 		hiddenRepositoriesQuery,
 		loadGithubAuthCommand,
@@ -67,16 +68,6 @@
 			: null,
 	);
 	const githubSignedOut = $derived(githubAuth !== null && !githubAuth.authenticated);
-	const githubHint = $derived.by(() => {
-		if (!githubAuth || githubAuth.authenticated) return null;
-		if (!githubAuth.installed) {
-			return 'The GitHub CLI (gh) is not installed, so pull requests are off. Install it and run `gh auth login`.';
-		}
-		return (
-			githubAuth.message ??
-			'The GitHub CLI is not signed in, so pull requests are off. Run `gh auth login` in a terminal.'
-		);
-	});
 	const hiddenIds = $derived(hiddenRepositoriesQuery.data);
 	const matchingRepositories = $derived.by(() => {
 		const needle = query.trim().toLowerCase();
@@ -200,42 +191,14 @@
 				<h1 class="text-fg-default text-xl font-semibold tracking-tight">Repositories</h1>
 			</header>
 
-			{#if claudeNeedsSetup}
-				<div class="-mx-4 mt-6">
-					<ClaudeCodeSetup />
-				</div>
-			{/if}
-
-			{#if githubSignedOut && githubHint}
-				<div
-					class="border-surface-50-border bg-surface-50 -mx-4 mt-6 rounded-2xl border-[0.5px] px-2"
-					data-testid="github-auth-hint"
-				>
-					<StateBlock
-						layout="inline"
-						tone="caution"
-						heading="GitHub CLI is not signed in"
-						detail={githubHint}
-						remedy="Pull requests come back the moment `gh auth status` succeeds."
-						testId="github-auth-hint-block"
-					>
-						{#snippet icon()}
-							<Icon name="alert" size={14} />
-						{/snippet}
-						{#snippet action()}
-							<Button
-								variant="secondary"
-								size="sm"
-								ariaLabel="Check GitHub CLI sign-in again"
-								onclick={loadGithubAuthCommand}
-							>
-								{#snippet leading()}
-									<Icon name="refresh" size={14} />
-								{/snippet}
-								Check again
-							</Button>
-						{/snippet}
-					</StateBlock>
+			{#if claudeNeedsSetup || githubSignedOut}
+				<div class="-mx-4 mt-6 flex flex-col gap-3">
+					{#if claudeNeedsSetup}
+						<ClaudeCodeSetup />
+					{/if}
+					{#if githubSignedOut}
+						<GitHubSetup />
+					{/if}
 				</div>
 			{/if}
 

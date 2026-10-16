@@ -8,12 +8,16 @@
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { clearRepositoryConnectErrorCommand } from '$shared/repositories/application/commands/clear-repository-connect-error.command';
 	import { connectRepositoryCommand } from '$shared/repositories/application/commands/connect-repository.command';
+	import { loadGithubAuthCommand } from '$shared/repositories/application/commands/load-github-auth.command';
 	import { loadGithubRepositoriesCommand } from '$shared/repositories/application/commands/load-github-repositories.command';
+	import { reloadGithubRepositoriesOnSignInHook } from '$shared/repositories/application/hooks/reload-github-repositories-on-sign-in.hook';
+	import { githubAuthQuery } from '$shared/repositories/application/queries/github-auth.query.svelte';
 	import { githubRepositoriesQuery } from '$shared/repositories/application/queries/github-repositories.query.svelte';
 	import { repositoryConnectErrorQuery } from '$shared/repositories/application/queries/repository-connect-error.query.svelte';
 	import { repositoryConnectingQuery } from '$shared/repositories/application/queries/repository-connecting.query.svelte';
 	import type { GithubRepository } from '$shared/repositories/domain/repository';
 	import { isCloneUrl } from '$shared/repositories/domain/repository-connection';
+	import GitHubSetup from './GitHubSetup.svelte';
 	import RepositoryAvatar from './RepositoryAvatar.svelte';
 
 	interface Props {
@@ -30,6 +34,7 @@
 	const listing = $derived(githubRepositoriesQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
+	const githubSignedOut = $derived(githubAuthQuery.data?.authenticated === false);
 	const cloneUrlValid = $derived(isCloneUrl(url));
 	const matches = $derived.by((): readonly GithubRepository[] => {
 		if (listing.kind !== 'loaded') return [];
@@ -42,8 +47,10 @@
 
 	onMount(() => {
 		clearRepositoryConnectErrorCommand();
+		loadGithubAuthCommand();
 		loadGithubRepositoriesCommand();
 		void focusSearch();
+		return reloadGithubRepositoriesOnSignInHook();
 	});
 
 	async function focusSearch(): Promise<void> {
@@ -98,91 +105,97 @@
 					<Icon name="search" size={14} />
 				{/snippet}
 			</TextInput>
-			<div
-				class="border-surface-50-border bg-surface-50 styled-scrollbar mt-1 h-56 overflow-y-auto rounded-xl border-[0.5px]"
-			>
-				{#if listing.kind === 'loading'}
-					<ul
-						class="divide-surface-50-border divide-y-[0.5px]"
-						aria-busy="true"
-						aria-label="Loading your GitHub repositories"
-					>
-						{#each ['44%', '32%', '50%', '38%'] as width (width)}
-							<li class="flex h-14 items-center gap-3 px-3">
-								<Skeleton shape="rect" width="1.75rem" height="1.75rem" />
-								<div class="flex min-w-0 flex-1 flex-col gap-2">
-									<Skeleton shape="text" {width} height="0.625rem" />
-									<Skeleton shape="text" width="24%" height="0.5rem" />
-								</div>
-							</li>
-						{/each}
-					</ul>
-				{:else if listing.kind === 'failed'}
-					<StateBlock
-						layout="inline"
-						tone="caution"
-						class="px-3"
-						heading="Could not load your GitHub repositories"
-						detail={listing.failure.detail}
-						remedy={listing.failure.remedy ?? 'Paste the repository URL below instead.'}
-						technical={listing.failure.technical}
-						testId="clone-repository-list-error"
-					>
-						{#snippet icon()}
-							<Icon name="alert" size={14} />
-						{/snippet}
-					</StateBlock>
-				{:else if matches.length === 0}
-					<StateBlock
-						layout="inline"
-						class="px-3"
-						heading={query.trim().length > 0 ? 'No matching repositories' : 'No repositories yet'}
-						detail={query.trim().length > 0
-							? `None of your recent repositories match “${query.trim()}”.`
-							: 'Your GitHub account has no repositories to show.'}
-						remedy="Paste the repository URL below instead."
-						testId="clone-repository-list-empty"
-					>
-						{#snippet icon()}
-							<Icon name="search" size={14} />
-						{/snippet}
-					</StateBlock>
-				{:else}
-					<ul class="divide-surface-50-border divide-y-[0.5px]" aria-label="Recent repositories">
-						{#each matches as repo (repo.fullName)}
-							{@const selected = url.trim() === repo.cloneUrl}
-							<li>
-								<Button
-									bare
-									ariaPressed={selected}
-									class={[
-										'hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left outline-none',
-										selected ? 'bg-surface-50-selected' : null,
-									]}
-									data-testid="clone-repository-option"
-									onclick={() => (url = repo.cloneUrl)}
-									ondblclick={() => clone(repo.cloneUrl)}
-								>
-									<RepositoryAvatar fullName={repo.fullName} size={28} />
-									<span class="min-w-0 flex-1">
-										<span class="text-fg-default block truncate text-sm font-medium">
-											{repo.fullName}
-										</span>
-										{#if repo.description}
-											<span class="text-fg-tertiary block truncate text-xs">
-												{repo.description}
+			{#if listing.kind === 'failed' && githubSignedOut}
+				<div class="mt-1">
+					<GitHubSetup nested />
+				</div>
+			{:else}
+				<div
+					class="border-surface-50-border bg-surface-50 styled-scrollbar mt-1 h-56 overflow-y-auto rounded-xl border-[0.5px]"
+				>
+					{#if listing.kind === 'loading'}
+						<ul
+							class="divide-surface-50-border divide-y-[0.5px]"
+							aria-busy="true"
+							aria-label="Loading your GitHub repositories"
+						>
+							{#each ['44%', '32%', '50%', '38%'] as width (width)}
+								<li class="flex h-14 items-center gap-3 px-3">
+									<Skeleton shape="rect" width="1.75rem" height="1.75rem" />
+									<div class="flex min-w-0 flex-1 flex-col gap-2">
+										<Skeleton shape="text" {width} height="0.625rem" />
+										<Skeleton shape="text" width="24%" height="0.5rem" />
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{:else if listing.kind === 'failed'}
+						<StateBlock
+							layout="inline"
+							tone="caution"
+							class="px-3"
+							heading="Could not load your GitHub repositories"
+							detail={listing.failure.detail}
+							remedy={listing.failure.remedy ?? 'Paste the repository URL below instead.'}
+							technical={listing.failure.technical}
+							testId="clone-repository-list-error"
+						>
+							{#snippet icon()}
+								<Icon name="alert" size={14} />
+							{/snippet}
+						</StateBlock>
+					{:else if matches.length === 0}
+						<StateBlock
+							layout="inline"
+							class="px-3"
+							heading={query.trim().length > 0 ? 'No matching repositories' : 'No repositories yet'}
+							detail={query.trim().length > 0
+								? `None of your recent repositories match “${query.trim()}”.`
+								: 'Your GitHub account has no repositories to show.'}
+							remedy="Paste the repository URL below instead."
+							testId="clone-repository-list-empty"
+						>
+							{#snippet icon()}
+								<Icon name="search" size={14} />
+							{/snippet}
+						</StateBlock>
+					{:else}
+						<ul class="divide-surface-50-border divide-y-[0.5px]" aria-label="Recent repositories">
+							{#each matches as repo (repo.fullName)}
+								{@const selected = url.trim() === repo.cloneUrl}
+								<li>
+									<Button
+										bare
+										ariaPressed={selected}
+										class={[
+											'hover:bg-surface-50-hover focus-visible:bg-surface-50-hover flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left outline-none',
+											selected ? 'bg-surface-50-selected' : null,
+										]}
+										data-testid="clone-repository-option"
+										onclick={() => (url = repo.cloneUrl)}
+										ondblclick={() => clone(repo.cloneUrl)}
+									>
+										<RepositoryAvatar fullName={repo.fullName} size={28} />
+										<span class="min-w-0 flex-1">
+											<span class="text-fg-default block truncate text-sm font-medium">
+												{repo.fullName}
 											</span>
+											{#if repo.description}
+												<span class="text-fg-tertiary block truncate text-xs">
+													{repo.description}
+												</span>
+											{/if}
+										</span>
+										{#if selected}
+											<Icon name="check" size={14} class="text-fg-secondary shrink-0" />
 										{/if}
-									</span>
-									{#if selected}
-										<Icon name="check" size={14} class="text-fg-secondary shrink-0" />
-									{/if}
-								</Button>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</div>
+									</Button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			{/if}
 		</section>
 
 		<TextInput

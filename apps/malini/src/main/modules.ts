@@ -144,6 +144,7 @@ export async function registerModules(
 			pullRequests.dispose();
 			jobs.dispose();
 			repositories.watchers.dispose();
+			repositories.cancelGitHubSignIn();
 			providers.stop();
 			await chat.stop();
 			try {

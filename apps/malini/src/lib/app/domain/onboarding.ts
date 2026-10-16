@@ -1,9 +1,9 @@
 export const ONBOARDING_FINISHED_SETTING = 'onboarding.finished-at';
 
-export type OnboardingStep = 'claude-code' | 'skills' | 'jobs' | 'repository';
+export type OnboardingStep = 'accounts' | 'skills' | 'jobs' | 'repository';
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
-	'claude-code',
+	'accounts',
 	'skills',
 	'jobs',
 	'repository',

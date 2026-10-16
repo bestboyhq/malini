@@ -202,6 +202,7 @@ export { workstreamReadyForPromptsQuery } from './application/queries/workstream
 
 export { default as ArchivedWorkstreamsMenu } from './presentation/ArchivedWorkstreamsMenu.svelte';
 export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
+export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';
 export { default as RepositoryListSkeleton } from './presentation/RepositoryListSkeleton.svelte';

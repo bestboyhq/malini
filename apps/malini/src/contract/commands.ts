@@ -60,6 +60,8 @@ import type {
 	AuthStatusDto,
 	ConnectedRepositoryDto,
 	CheckDiagnosticsDto,
+	GitHubDeviceCodeDto,
+	GitHubSignInOutcome,
 	GithubRepositoryDto,
 	ImportSource,
 	OwnerAvatar,
@@ -415,6 +417,9 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
+	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
+	'repositories.cancel-github-sign-in': { args: undefined; result: void };
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
 	'repositories.connect': { args: ImportRepositoryArgs; result: ConnectedRepositoryDto };
 	'repositories.list-clones': { args: undefined; result: ConnectedRepositoryDto[] };
@@ -664,6 +669,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.start-github-sign-in',
+	'repositories.finish-github-sign-in',
+	'repositories.cancel-github-sign-in',
 	'pull-requests.create',
 	'repositories.connect',
 	'repositories.list-clones',
