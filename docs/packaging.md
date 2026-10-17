@@ -44,6 +44,7 @@ The first release is `0.1.0`, and `package.json`'s version is a placeholder CI o
 The `release` job signs with the Developer ID certificate and notarizes the app and the disk image.
 The `update` job runs `pnpm --filter malini test:update` on its own runner at the same time.
 Once both pass, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
+The dmg is named `malini-arm64.dmg`, without a version, so `releases/latest/download/malini-arm64.dmg` always serves the newest release; the README's download button links there.
 They need the repository secrets `CSC_LINK` (the base64 `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD`.
 `pnpm --filter malini release` builds the same artifacts locally, signed with the keychain's Developer ID and notarized only when `APPLE_KEYCHAIN_PROFILE` is set.
 

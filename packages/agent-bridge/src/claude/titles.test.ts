@@ -6,6 +6,7 @@ describe('cleanTitle', () => {
 		expect(cleanTitle('Bundle versioning')).toBe('Bundle versioning');
 		expect(cleanTitle('"legal pages design."\n')).toBe('Legal pages design');
 		expect(cleanTitle('**Dark mode tokens**')).toBe('Dark mode tokens');
+		expect(cleanTitle('ADR lookup for agent commits')).toBe('ADR lookup for agent commits');
 	});
 
 	it('rejects a reply that is not a name', () => {
