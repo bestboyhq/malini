@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import type {
+	HookCallback,
 	PermissionMode,
 	PermissionUpdate,
 	SandboxSettings,
@@ -31,6 +32,74 @@ export const MALINI_OWNED_GIT_COMMANDS = [
 ] as const;
 
 const STASH_WRITES = ['push', 'save', 'pop', 'apply', 'drop', 'clear', 'store', 'branch'];
+
+const OWNED_GIT_SUBCOMMANDS = new Set(
+	MALINI_OWNED_GIT_COMMANDS.filter((command) => command.startsWith('git ')).map((command) =>
+		command.slice('git '.length),
+	),
+);
+const GIT_OPTIONS_TAKING_A_VALUE = new Set([
+	'-C',
+	'-c',
+	'--git-dir',
+	'--work-tree',
+	'--namespace',
+	'--config-env',
+	'--exec-path',
+]);
+const COMMAND_PREFIXES = new Set(['env', 'command', 'exec', 'sudo', 'nohup', 'time']);
+const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+
+export const refuseMaliniOwnedCommands: HookCallback = async (input) => {
+	if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
+	const command = input.tool_input['command'];
+	const owned = typeof command === 'string' ? maliniOwnedCommand(command) : null;
+	if (owned === null) return {};
+	return {
+		hookSpecificOutput: {
+			hookEventName: 'PreToolUse',
+			permissionDecision: 'deny',
+			permissionDecisionReason: `malini runs \`${owned}\` itself: leave your changes in the working tree, and malini commits, pushes and opens the pull request.`,
+		},
+	};
+};
+
+// ponytail: splits on shell operators with naive quoting, not a shell parser; eval, aliases and scripts still pass. Parse a real shell grammar if agents reach for those.
+export function maliniOwnedCommand(command: string): string | null {
+	for (const segment of command.split(/&&|\|\||[;|&\n`(){}]/u)) {
+		const words = (segment.match(/"[^"]*"|'[^']*'|\S+/gu) ?? []).map((word) =>
+			word.replace(/^(["'])(.*)\1$/u, '$2'),
+		);
+		let at = 0;
+		while (at < words.length && isCommandPrefix(words[at] ?? '', at)) at += 1;
+		const program = basename(words[at] ?? '');
+		const args = words.slice(at + 1);
+		if (program === 'git') {
+			const owned = ownedGitSubcommand(args);
+			if (owned !== null) return owned;
+		}
+		if (program === 'gh' && args[0] === 'pr' && args[1] === 'create') return 'gh pr create';
+	}
+	return null;
+}
+
+function isCommandPrefix(word: string, at: number): boolean {
+	return (
+		ENV_ASSIGNMENT.test(word) || COMMAND_PREFIXES.has(word) || (at > 0 && word.startsWith('-'))
+	);
+}
+
+function ownedGitSubcommand(args: readonly string[]): string | null {
+	let at = 0;
+	while (args[at]?.startsWith('-')) at += GIT_OPTIONS_TAKING_A_VALUE.has(args[at] ?? '') ? 2 : 1;
+	const subcommand = args[at];
+	if (subcommand === undefined) return null;
+	if (OWNED_GIT_SUBCOMMANDS.has(subcommand)) return `git ${subcommand}`;
+	const stashAction = args[at + 1];
+	const writesStash =
+		stashAction === undefined || stashAction.startsWith('-') || STASH_WRITES.includes(stashAction);
+	return subcommand === 'stash' && writesStash ? 'git stash' : null;
+}
 
 export function disallowedTools(): string[] {
 	return [

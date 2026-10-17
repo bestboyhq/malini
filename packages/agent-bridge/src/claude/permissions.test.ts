@@ -7,6 +7,7 @@ import {
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
+	maliniOwnedCommand,
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
@@ -234,5 +235,23 @@ describe('AskUserQuestion mapping', () => {
 			'Which color do you prefer?': 'Blue',
 			'Which sizes?': '',
 		});
+	});
+});
+
+describe('maliniOwnedCommand', () => {
+	it('finds a malini-owned git command behind options, prefixes and other commands', () => {
+		expect(maliniOwnedCommand('git -C /tmp/repo commit --allow-empty -m probe')).toBe('git commit');
+		expect(maliniOwnedCommand('cd app && git push origin HEAD')).toBe('git push');
+		expect(maliniOwnedCommand('GIT_EDITOR=true git -c user.name=a rebase main')).toBe('git rebase');
+		expect(maliniOwnedCommand('env git stash')).toBe('git stash');
+		expect(maliniOwnedCommand('gh pr create --fill')).toBe('gh pr create');
+	});
+
+	it('leaves reads and quoted text alone', () => {
+		expect(maliniOwnedCommand('git -C /tmp/repo status --short')).toBeNull();
+		expect(maliniOwnedCommand('git log --oneline -5 | head')).toBeNull();
+		expect(maliniOwnedCommand('git stash list')).toBeNull();
+		expect(maliniOwnedCommand('echo "git commit"')).toBeNull();
+		expect(maliniOwnedCommand('gh pr view 12')).toBeNull();
 	});
 });

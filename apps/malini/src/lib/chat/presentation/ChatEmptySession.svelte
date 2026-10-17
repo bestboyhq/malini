@@ -12,9 +12,9 @@
 	data-testid="chat-empty-session"
 >
 	<div class="max-w-sm">
-		<p class="text-fg-secondary text-sm">Prepare this workstream</p>
+		<p class="text-fg-secondary text-sm">No chat yet</p>
 		<p class="text-fg-tertiary mt-1 text-xs leading-5">
-			Use the Setup panel to prepare only the components this task needs.
+			Send a prompt below to start the first chat in this workstream.
 		</p>
 	</div>
 </div>
