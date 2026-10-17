@@ -154,7 +154,7 @@ export class AgentInteractionCommands {
 		for (const [key, request] of requests) {
 			const current = nextStates[key];
 			if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
-				if (current?.status !== 'resolved') {
+				if (current?.status !== 'resolved' && current?.status !== 'submitting') {
 					nextStates[key] = { status: 'stale', message: STALE_MESSAGE };
 				}
 			} else if (!current || current.status === 'stale') {
