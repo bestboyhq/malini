@@ -74,3 +74,4 @@ export {
 	type PullRequestAutomationEvent,
 } from './domain/pull-request-metadata';
 export { planWorkstreamProvisioning } from './domain/provisioning';
+export { projectIdentityIdsForRepository, repositoryName } from './domain/repository-context';

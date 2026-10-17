@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { SkillPresetBoard } from '$lib/skills/skills.api';
+	import { SkillUsageList } from '$lib/skills/skills.api';
 	import SettingsSection from './SettingsSection.svelte';
 </script>
 
 <SettingsSection
 	title="Skills"
-	description="Group your skills into presets. A chat's agent loads only the skills of its preset."
+	description="Ranked by how often your agents use them. Turn one off and it leaves every chat, here and in the terminal."
 >
-	<SkillPresetBoard class="h-[min(560px,calc(100vh_-_14rem))]" />
+	<SkillUsageList />
 </SettingsSection>

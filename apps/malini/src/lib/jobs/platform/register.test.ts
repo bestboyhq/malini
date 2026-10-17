@@ -280,14 +280,6 @@ describe('job definitions', () => {
 				output: 'none',
 			},
 			{
-				key: 'suggest-presets',
-				name: 'Suggest skill presets',
-				effort: 'low',
-				model: 'haiku',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
 				key: 'fix-checks',
 				name: 'Fix checks',
 				effort: 'high',
@@ -395,11 +387,9 @@ describe('job definitions', () => {
 		};
 		const fixChecks = await builtin('fix-checks');
 		const nameChats = await builtin('name-chats');
-		const suggestPresets = await builtin('suggest-presets');
 		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
 		const cases: ReadonlyArray<readonly [string, unknown, string]> = [
 			['jobs.run', { definitionId: nameChats.id, workstreamId: 'ws-a' }, 'builtin'],
-			['jobs.run', { definitionId: suggestPresets.id, workstreamId: 'ws-a' }, 'builtin'],
 			[
 				'jobs.run',
 				{ definitionId: fixChecks.id, workstreamId: 'ws-a', chatSessionId: '' },
@@ -516,7 +506,7 @@ describe('scheduling', () => {
 		});
 	});
 
-	it('runs a job with its skill preset, and with the workstream skills when it has none', async () => {
+	it('runs a job with its skill preset, and with every skill when it has none', async () => {
 		const presetDefinition = await saveDefinition({ name: 'Copy pass', skillPresetId: 'marketer' });
 		const plainDefinition = await saveDefinition({ name: 'Plain pass' });
 		insertSkillPreset(db, {
@@ -524,7 +514,6 @@ describe('scheduling', () => {
 			name: 'Marketer',
 			emoji: null,
 			skills: ['humanizer'],
-			isDefault: false,
 			createdAt: NOW,
 			updatedAt: NOW,
 		});
@@ -543,8 +532,8 @@ describe('scheduling', () => {
 		});
 		const plainSession = await session(plain.id);
 
-		expect(skillsForRun(db, 'ws-a', withPresetSession)).toEqual(['humanizer']);
-		expect(skillsForRun(db, 'ws-b', plainSession)).toBeNull();
+		expect(skillsForRun(db, withPresetSession)).toEqual(['humanizer']);
+		expect(skillsForRun(db, plainSession)).toBeNull();
 	});
 
 	it("waits for the user's own run in that workstream to end", async () => {

@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import {
+	SKILL_NAME_MAX_LENGTH,
 	SKILL_PRESET_NAME_MAX_LENGTH,
-	type SkillChoice,
 	type SkillPresetRecord,
-	type SkillPresetSuggestion,
 	type SkillRecord,
+	type SwitchSkillArgs,
+	type TurnedOffSkills,
 } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -15,26 +16,29 @@ import {
 	getWorkstream,
 	listConnectedRepositories,
 	listProjects,
+	projectIdentityIdsForRepository,
+	repositoryName,
 } from '$shared/repositories/repositories.platform';
-import { isSkillChoice, isSkillNameList } from '../domain/skill-choice';
+import { isSkillNameList } from '../domain/skill-choice';
 import { isPresetEmoji } from '../domain/skill-preset-emoji';
-import { getSkillChoice, setSkillChoice } from './skill-choices.repository';
+import {
+	readSkillUsage,
+	readTurnedOff,
+	switchSkill,
+	type ClaudeConfigFiles,
+} from './claude-settings';
 import {
 	deleteSkillPreset,
 	getSkillPreset,
 	insertSkillPreset,
 	listSkillPresets,
-	setDefaultSkillPreset,
 	updateSkillPreset,
 } from './skill-presets.repository';
-import { effectiveSkillChoice } from './skill-resolution';
 
 export interface SkillsDeps {
-	readonly listSkills: (cwd: string) => Promise<readonly SkillRecord[]>;
-	readonly suggestPresets: (
-		skills: readonly SkillRecord[],
-	) => Promise<readonly SkillPresetSuggestion[]>;
+	readonly listSkills: (cwd: string, turnedOff: TurnedOffSkills) => Promise<readonly SkillRecord[]>;
 	readonly resolveCheckout: (workstreamId: string) => Promise<string>;
+	readonly claudeConfig: () => ClaudeConfigFiles;
 }
 
 export type SkillErrorKind = 'invalid-args' | 'not-found';
@@ -57,17 +61,25 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 		const folders =
 			workstreamId === null
 				? repositoryFolders(db)
-				: [await deps.resolveCheckout(requireWorkstream(db, workstreamId))];
-		return skillsIn(folders, deps.listSkills);
+				: [
+						{
+							path: await deps.resolveCheckout(requireWorkstream(db, workstreamId)),
+							repository: null,
+						},
+					];
+		const turnedOff = await readTurnedOff(deps.claudeConfig());
+		return skillsIn(folders, (folder) => deps.listSkills(folder, turnedOff));
+	});
+
+	commands.define('skills.usage', () => readSkillUsage(deps.claudeConfig()));
+
+	commands.define('skills.switch', async (args: unknown) => {
+		const files = deps.claudeConfig();
+		await switchSkill(files, switchArgs(args));
+		return readSkillUsage(files);
 	});
 
 	commands.define('skills.list-presets', () => listSkillPresets(db));
-
-	commands.define('skills.suggest-presets', async () => {
-		const skills = await skillsIn(repositoryFolders(db), deps.listSkills);
-		if (skills.length === 0) return [];
-		return [...(await deps.suggestPresets(skills))];
-	});
 
 	commands.define('skills.save-preset', (args: unknown) => {
 		const id = optionalString(args, 'id');
@@ -81,7 +93,6 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 				name,
 				emoji: emoji ?? null,
 				skills,
-				isDefault: false,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -104,58 +115,68 @@ export function defineSkillCommands(context: MainContext, deps: SkillsDeps): voi
 		deleteSkillPreset(db, requirePreset(db, requireString(args, 'presetId')).id);
 		return null;
 	});
-
-	commands.define('skills.set-default-preset', (args: unknown) => {
-		const presetId = field(args, 'presetId');
-		if (presetId !== null && typeof presetId !== 'string') {
-			throw invalid('`presetId` must be a string or null');
-		}
-		setDefaultSkillPreset(db, presetId === null ? null : requirePreset(db, presetId).id);
-		return listSkillPresets(db);
-	});
-
-	commands.define('skills.choice', (args: unknown) => {
-		const workstreamId = requireWorkstream(db, requireString(args, 'workstreamId'));
-		return effectiveSkillChoice(db, workstreamId, optionalString(args, 'sessionId'));
-	});
-
-	commands.define('skills.choose', (args: unknown) => {
-		const workstreamId = requireWorkstream(db, requireString(args, 'workstreamId'));
-		const sessionId = optionalString(args, 'sessionId');
-		const choice = field(args, 'choice');
-		if (!isSkillChoice(choice)) throw invalid('`choice` must be a skill choice');
-		const ownsChoice = sessionId !== null && getSkillChoice(db, 'session', sessionId) !== null;
-		if (ownsChoice) setSkillChoice(db, 'session', sessionId, cleanChoice(choice));
-		else setSkillChoice(db, 'workstream', workstreamId, cleanChoice(choice));
-		return effectiveSkillChoice(db, workstreamId, sessionId);
-	});
 }
 
+type SkillFolder = Readonly<{ path: string; repository: string | null }>;
+
 async function skillsIn(
-	folders: readonly string[],
-	listSkills: SkillsDeps['listSkills'],
+	folders: readonly SkillFolder[],
+	listSkills: (folder: string) => Promise<readonly SkillRecord[]>,
 ): Promise<SkillRecord[]> {
 	const found = new Map<string, SkillRecord>();
-	for (const folder of folders) {
-		for (const skill of await listSkills(folder)) {
-			if (!found.has(skill.name)) found.set(skill.name, skill);
+	for (const { path, repository } of folders) {
+		for (const skill of await listSkills(path)) {
+			const known = found.get(skill.name) ?? skill;
+			const repositories = known.repositories ?? [];
+			const named =
+				skill.source === 'repository' && repository !== null && !repositories.includes(repository);
+			found.set(
+				skill.name,
+				named ? { ...known, repositories: [...repositories, repository] } : known,
+			);
 		}
 	}
 	return [...found.values()];
 }
 
-function repositoryFolders(db: MaliniDatabase): string[] {
-	const folders = new Set([
-		...listConnectedRepositories(db).flatMap(({ localPath }) => (localPath ? [localPath] : [])),
-		...listProjects(db).map(({ repoPath }) => repoPath),
-	]);
-	const existing = [...folders].filter((folder) => existsSync(folder));
-	return existing.length > 0 ? existing : [homedir()];
+function repositoryFolders(db: MaliniDatabase): SkillFolder[] {
+	const connected = listConnectedRepositories(db);
+	const projectNames = new Map(
+		connected.flatMap(({ fullName }) =>
+			projectIdentityIdsForRepository(fullName).map(
+				(id) => [id, repositoryName(fullName)] as const,
+			),
+		),
+	);
+	const folders = new Map<string, string>();
+	for (const { localPath, fullName } of connected) {
+		if (localPath) folders.set(localPath, repositoryName(fullName));
+	}
+	for (const { id, name, repoPath } of listProjects(db)) {
+		if (!folders.has(repoPath)) folders.set(repoPath, projectNames.get(id) ?? name);
+	}
+	const existing = [...folders]
+		.filter(([path]) => existsSync(path))
+		.map(([path, repository]) => ({ path, repository }));
+	return existing.length > 0 ? existing : [{ path: homedir(), repository: null }];
 }
 
-function cleanChoice(choice: SkillChoice): SkillChoice {
-	if (choice.kind !== 'custom') return choice;
-	return { kind: 'custom', skills: [...new Set(choice.skills.map((skill) => skill.trim()))] };
+function switchArgs(args: unknown): SwitchSkillArgs {
+	const kind = field(args, 'kind');
+	const name = requireString(args, 'name');
+	const on = field(args, 'on');
+	if (kind !== 'skill' && kind !== 'plugin') throw invalid('`kind` must be `skill` or `plugin`');
+	if (typeof on !== 'boolean') throw invalid('`on` must be a boolean');
+	if (name.length > SKILL_NAME_MAX_LENGTH) {
+		throw invalid(`\`name\` must be at most ${SKILL_NAME_MAX_LENGTH} characters`);
+	}
+	if (kind === 'skill' && name.includes(':')) {
+		throw invalid('a plugin skill turns on and off with its plugin');
+	}
+	if (kind === 'plugin' && name.lastIndexOf('@') <= 0) {
+		throw invalid('`name` must be a plugin id like `name@marketplace`');
+	}
+	return { kind, name, on };
 }
 
 function presetName(args: unknown): string {

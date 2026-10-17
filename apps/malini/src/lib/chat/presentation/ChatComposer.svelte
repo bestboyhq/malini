@@ -68,7 +68,6 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { JobPicker } from '$lib/jobs/jobs.api';
-	import { SkillsButton } from '$lib/skills/skills.api';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import { arrivalMotion } from './arrival-motion';
@@ -1265,11 +1264,6 @@
 					onchange={(nextProfile) => onprofilechange?.(nextProfile)}
 					onmodelsettingschange={(preferences) => onmodelsettingschange?.(preferences)}
 				/>
-				{#if workstreamId}
-					{#key `${workstreamId}:${sessionId ?? ''}`}
-						<SkillsButton {workstreamId} {sessionId} {disabled} />
-					{/key}
-				{/if}
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1">

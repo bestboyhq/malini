@@ -1,4 +1,4 @@
-import type { SkillChoice, SkillPresetRecord, SkillRecord } from '$contract/skills';
+import type { SkillPresetRecord, SkillRecord, SkillUsageReport } from '$contract/skills';
 import type { FakeBridge } from './fake-bridge';
 
 const FAKE_SKILL_TIME = '2026-01-01T00:00:00.000Z';
@@ -13,23 +13,18 @@ export const FAKE_SKILLS: readonly SkillRecord[] = [
 
 export function installSkillsFake(bridge: FakeBridge): void {
 	const presets = new Map<string, SkillPresetRecord>();
-	const choices = new Map<string, SkillChoice>();
+	let usage: SkillUsageReport = fakeUsage();
 	let nextPreset = 1;
 
 	bridge.onReset(() => {
 		presets.clear();
-		choices.clear();
+		usage = fakeUsage();
 		nextPreset = 1;
 	});
 
 	bridge.define('skills.list', async () => [...FAKE_SKILLS]);
 
 	bridge.define('skills.list-presets', async () => [...presets.values()]);
-
-	bridge.define('skills.suggest-presets', async () => [
-		{ name: 'Builder', emoji: '🛠️', skills: ['adr', 'ponytail:ponytail', 'dataviz'] },
-		{ name: 'Writer', emoji: '✍️', skills: ['humanizer', 'animate'] },
-	]);
 
 	bridge.define('skills.save-preset', async (input) => {
 		const existing = input.id ? presets.get(input.id) : undefined;
@@ -38,7 +33,6 @@ export function installSkillsFake(bridge: FakeBridge): void {
 			name: input.name.trim(),
 			emoji: input.emoji === undefined ? (existing?.emoji ?? null) : input.emoji,
 			skills: [...new Set(input.skills)],
-			isDefault: existing?.isDefault ?? false,
 			createdAt: existing?.createdAt ?? FAKE_SKILL_TIME,
 			updatedAt: FAKE_SKILL_TIME,
 		};
@@ -51,21 +45,35 @@ export function installSkillsFake(bridge: FakeBridge): void {
 		return null;
 	});
 
-	bridge.define('skills.set-default-preset', async (input) => {
-		for (const [id, preset] of presets) {
-			presets.set(id, { ...preset, isDefault: id === input.presetId });
-		}
-		return [...presets.values()];
-	});
+	bridge.define('skills.usage', async () => usage);
 
-	bridge.define(
-		'skills.choice',
-		async (input) =>
-			choices.get(`${input.workstreamId}:${input.sessionId ?? ''}`) ?? { kind: 'default' },
-	);
-
-	bridge.define('skills.choose', async (input) => {
-		choices.set(`${input.workstreamId}:${input.sessionId ?? ''}`, input.choice);
-		return input.choice;
+	bridge.define('skills.switch', async (input) => {
+		usage =
+			input.kind === 'plugin'
+				? {
+						...usage,
+						plugins: usage.plugins.map((plugin) =>
+							plugin.id === input.name ? { ...plugin, on: input.on } : plugin,
+						),
+					}
+				: {
+						...usage,
+						turnedOff: input.on
+							? usage.turnedOff.filter((name) => name !== input.name)
+							: [...usage.turnedOff, input.name],
+					};
+		return usage;
 	});
+}
+
+function fakeUsage(): SkillUsageReport {
+	return {
+		since: FAKE_SKILL_TIME,
+		uses: [
+			{ name: 'adr', uses: 12, lastUsedAt: FAKE_SKILL_TIME },
+			{ name: 'ponytail:ponytail', uses: 3, lastUsedAt: FAKE_SKILL_TIME },
+		],
+		turnedOff: [],
+		plugins: [{ id: 'ponytail@ponytail', name: 'ponytail', on: true }],
+	};
 }

@@ -7,6 +7,9 @@ import {
 	MIGRATION_0038_WORKSTREAM_SHIP,
 	MIGRATION_0043_NAME_CHATS_JOB,
 	MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET,
+	MIGRATION_0044_SKILL_PRESETS,
+	MIGRATION_0045_SKILL_PRESET_EMOJI,
+	MIGRATION_0045_SUGGEST_PRESETS_JOB,
 	TARGET_USER_VERSION,
 	migrate,
 	tableNames,
@@ -105,7 +108,6 @@ const ALL_INDEXES = [
 	'idx_routine_gated_runs_workstream_state',
 	'idx_routine_suggestions_cluster',
 	'idx_routines_status',
-	'idx_skill_presets_default',
 ];
 
 const V31_RENAMED_TABLES = [
@@ -1367,60 +1369,34 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('v44 keeps one default skill preset and gives jobs a skill preset', () => {
+	it('v44 gives jobs a skill preset', () => {
 		const db = v38JobsDatabase(43);
 		db.exec('DROP TABLE skill_choices; DROP TABLE skill_presets;');
 		insertJobDefinition(db, 'jd-fix', 'Fix checks', 'Fix them.', 'fix-checks');
 
 		migrate(db);
-		const preset = (id: string, isDefault: number): void => {
-			run(
-				db,
-				`INSERT INTO skill_presets (id, name, skills, is_default, created_at, updated_at)
-				 VALUES (?, ?, '[]', ?, '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z')`,
-				id,
-				id,
-				isDefault,
-			);
-		};
-		preset('builder', 1);
-		preset('marketer', 0);
 
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
-		expect(() => preset('designer', 1)).toThrow(/UNIQUE/u);
 		expect(all(db, 'SELECT id, skill_preset_id FROM job_definitions')).toEqual([
 			{ id: 'jd-fix', skill_preset_id: null },
 		]);
 		db.close();
 	});
 
-	it('v45 accepts the Suggest skill presets job, keeps every job with its preset, and gives presets an emoji', () => {
+	it('v45 keeps every job with its preset and gives presets an emoji', () => {
 		const db = v38JobsDatabase(42);
 		db.exec(MIGRATION_0043_NAME_CHATS_JOB);
 		db.exec(MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET);
 		db.exec('PRAGMA user_version = 44;');
 		insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats');
 		db.exec("UPDATE job_definitions SET skill_preset_id = 'builder'");
-		expect(() =>
-			insertJobDefinition(
-				db,
-				'jd-presets',
-				'Suggest skill presets',
-				'Sort them.',
-				'suggest-presets',
-			),
-		).toThrow(/CHECK/u);
 
 		migrate(db);
-		insertJobDefinition(db, 'jd-presets', 'Suggest skill presets', 'Sort them.', 'suggest-presets');
 
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
 		expect(
 			all(db, 'SELECT id, builtin, skill_preset_id FROM job_definitions ORDER BY rowid'),
-		).toEqual([
-			{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' },
-			{ id: 'jd-presets', builtin: 'suggest-presets', skill_preset_id: null },
-		]);
+		).toEqual([{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' }]);
 		run(
 			db,
 			`INSERT INTO skill_presets (id, name, skills, emoji, created_at, updated_at)
@@ -1433,10 +1409,65 @@ describe('migrate', () => {
 		db.close();
 	});
 
-	it('v46 names the model that chats and jobs stored as default', () => {
+	it('v46 drops the Suggest skill presets job, the default preset, and workstream skill choices', () => {
+		const db = v38JobsDatabase(42);
+		db.exec('DROP TABLE skill_choices; DROP TABLE skill_presets;');
+		db.exec(MIGRATION_0043_NAME_CHATS_JOB);
+		db.exec(MIGRATION_0044_SKILL_PRESETS);
+		db.exec(MIGRATION_0044_JOB_DEFINITIONS_SKILL_PRESET);
+		db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
+		db.exec(MIGRATION_0045_SKILL_PRESET_EMOJI);
+		db.exec('PRAGMA user_version = 45;');
+		insertJobDefinition(db, 'jd-name', 'Name chats', 'Name it.', 'name-chats');
+		insertJobDefinition(db, 'jd-presets', 'Suggest skill presets', 'Sort them.', 'suggest-presets');
+		db.exec(`
+			UPDATE job_definitions SET skill_preset_id = 'builder' WHERE id = 'jd-name';
+			INSERT INTO job_runs (id, definition_id, title, origin, status, created_at)
+			  VALUES ('run-1', 'jd-presets', 'Suggest skill presets', 'manual', 'succeeded', '2026-10-15T00:00:00Z');
+			INSERT INTO skill_presets (id, name, skills, is_default, emoji, created_at, updated_at)
+			  VALUES ('builder', 'Builder', '["adr"]', 1, '🛠️', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z');
+			INSERT INTO skill_choices (scope, owner_id, choice, updated_at) VALUES
+			  ('workstream', 'ws-1', '{"kind":"all"}', '2026-10-15T00:00:00Z'),
+			  ('session', 'session-1', '{"kind":"preset","presetId":"builder"}', '2026-10-15T00:00:00Z');
+		`);
+
+		migrate(db);
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(
+			all(db, 'SELECT id, builtin, skill_preset_id FROM job_definitions ORDER BY rowid'),
+		).toEqual([{ id: 'jd-name', builtin: 'name-chats', skill_preset_id: 'builder' }]);
+		expect(all(db, 'SELECT id FROM job_runs')).toEqual([]);
+		expect(() =>
+			insertJobDefinition(
+				db,
+				'jd-presets',
+				'Suggest skill presets',
+				'Sort them.',
+				'suggest-presets',
+			),
+		).toThrow(/CHECK/u);
+		expect(all(db, 'SELECT * FROM skill_presets')).toEqual([
+			{
+				id: 'builder',
+				name: 'Builder',
+				skills: '["adr"]',
+				created_at: '2026-10-15T00:00:00Z',
+				updated_at: '2026-10-15T00:00:00Z',
+				emoji: '🛠️',
+			},
+		]);
+		expect(all(db, 'SELECT scope, owner_id FROM skill_choices')).toEqual([
+			{ scope: 'session', owner_id: 'session-1' },
+		]);
+		expect(foreignKeyErrors(db)).toBe(0);
+		db.close();
+	});
+
+	it('v47 names the model that chats and jobs stored as default', () => {
 		const db = openMigratedDatabase(':memory:');
 		db.exec(`
-			PRAGMA user_version = 45;
+			PRAGMA user_version = 46;
 			INSERT INTO projects (id, name, repo_path, default_branch, created_at)
 			  VALUES ('p-1', 'p', '/tmp/p', 'main', '2026-10-17T00:00:00Z');
 			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at)

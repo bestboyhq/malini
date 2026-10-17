@@ -12,7 +12,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
-The one exception is skills: `send_prompt` carries the skill names malini resolved for the chat (ADR 0011), and the session passes them to the SDK's `skills` option; no list means every skill.
+The one exception is skills: `send_prompt` carries the skill names of a job's preset (ADR 0015), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 
 malini owns the rest, and the adapter enforces it:
 
@@ -28,7 +28,7 @@ malini owns the rest, and the adapter enforces it:
 - Background work: the run stays open while `background_tasks_changed` lists a task that is not `ambient`, and Claude Code's own follow-up turn after a task ends belongs to that run.
   The bridge reports the live tasks as `background.updated`; a prompt that arrives while the run only waits is pushed into the same query and takes the run over (`docs/adr/0009-a-run-stays-open-while-its-background-work-runs.md`).
 
-`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries), `presets.ts` (a tool-less query with a JSON schema output that groups skills into suggested presets, with the instructions and model of the built-in Suggest skill presets job that `suggest_presets` carries).
+`src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries).
 
 ## Shapes come from tracer bullets
 

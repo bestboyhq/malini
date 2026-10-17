@@ -14,10 +14,6 @@ export function chatNamingJob(db: MaliniDatabase): AutomaticJob {
 	return automaticJob(db, 'name-chats');
 }
 
-export function presetSuggestionJob(db: MaliniDatabase): AutomaticJob {
-	return automaticJob(db, 'suggest-presets');
-}
-
 function automaticJob(db: MaliniDatabase, builtin: AutomaticJobBuiltin): AutomaticJob {
 	const { instructions, model } = getBuiltinJobDefinition(db, builtin) ?? BUILTIN_JOBS[builtin];
 	return { instructions, model };

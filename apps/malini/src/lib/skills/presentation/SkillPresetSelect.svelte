@@ -16,7 +16,7 @@
 
 	const presets = $derived(skillPresetsQuery.data);
 	const options: SelectOption[] = $derived([
-		{ value: INHERIT, label: 'Same as the workstream' },
+		{ value: INHERIT, label: 'All skills' },
 		...presets.map((preset) => ({
 			value: preset.id,
 			label: `${preset.emoji ? `${preset.emoji} ` : ''}${preset.name} · ${preset.skills.length} ${preset.skills.length === 1 ? 'skill' : 'skills'}`,
