@@ -51,17 +51,26 @@ describe('measureProcessTree', () => {
 		).toEqual({
 			processes: 0,
 			usage: [],
+			units: [],
 		});
 	});
 });
 
 describe('parseDockerStats', () => {
 	it('adds up the containers and turns Docker units into bytes', () => {
-		expect(parseDockerStats('0.15%\t45MiB / 7.66GiB\n2.00%\t1.5GiB / 7.66GiB\n', 2)).toEqual({
-			kind: 'docker',
-			memoryBytes: 45 * MIB + 1.5 * 1_024 * MIB,
-			cpuPercent: 1.075,
-			processes: 2,
+		expect(
+			parseDockerStats('web\t0.15%\t45MiB / 7.66GiB\ndb\t2.00%\t1.5GiB / 7.66GiB\n', 2),
+		).toEqual({
+			usage: {
+				kind: 'docker',
+				memoryBytes: 45 * MIB + 1.5 * 1_024 * MIB,
+				cpuPercent: 1.075,
+				processes: 2,
+			},
+			containers: [
+				{ label: 'web', workstream: null, memoryBytes: 45 * MIB },
+				{ label: 'db', workstream: null, memoryBytes: 1.5 * 1_024 * MIB },
+			],
 		});
 		expect(parseDockerStats('', 2)).toBeNull();
 	});

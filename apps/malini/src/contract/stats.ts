@@ -15,6 +15,19 @@ export type ResourceSample = Readonly<{
 	usage: readonly ResourceUsage[];
 }>;
 
+export type ResourceItem = Readonly<{
+	label: string;
+	workstream: string | null;
+	memoryBytes: number;
+}>;
+
+export type ResourceKindBreakdown = Readonly<{
+	kind: ResourceKind;
+	items: readonly ResourceItem[];
+	unlisted: number;
+	unlistedMemoryBytes: number;
+}>;
+
 export type ResourceHistory = Readonly<{
 	machineMemoryBytes: number;
 	samples: readonly ResourceSample[];

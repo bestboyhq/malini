@@ -4,7 +4,12 @@ import type {
 	BrowserState,
 	BrowserTabArgs,
 } from '$contract/browser';
-import type { BrowserPageInfo, BrowserPlatform, BrowserScreenshotFile } from '../browser.platform';
+import type {
+	BrowserPageInfo,
+	BrowserPlatform,
+	BrowserScreenshotFile,
+	BrowserTabProcess,
+} from '../browser.platform';
 import {
 	clickSelector,
 	delay,
@@ -105,10 +110,13 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return settledPage(contents);
 	}
 
-	processIds(): number[] {
+	tabProcesses(): BrowserTabProcess[] {
 		return [...this.entries.values()]
 			.filter((entry) => entry.alive && !entry.view.contents.isDestroyed())
-			.map((entry) => entry.view.contents.getOSProcessId());
+			.map(({ view: { contents } }) => ({
+				processId: contents.getOSProcessId(),
+				title: contents.getTitle() || contents.getURL(),
+			}));
 	}
 
 	state(tab: BrowserTabArgs): BrowserState {

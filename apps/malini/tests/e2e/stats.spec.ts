@@ -45,6 +45,16 @@ test('the sidebar reads out what malini uses and opens stats on its runs, tabs a
 			timeout: 20_000,
 		});
 
+		await rightNow.getByRole('button', { name: /^Browser tabs/u }).click();
+		await expect(rightNow.getByText('Pages open in browser tabs.')).toBeVisible();
+		await expect(rightNow.getByRole('list', { name: 'Browser tabs breakdown' })).toContainText(
+			'Served page',
+		);
+		await rightNow.getByRole('button', { name: /^malini/u }).click();
+		await expect(
+			rightNow.getByRole('list', { name: 'malini breakdown' }).getByRole('listitem'),
+		).toContainText([/^Main process/u]);
+
 		const activity = stats.getByRole('region', { name: 'Activity' });
 		await expect(activity.getByText('agent runs')).toBeVisible();
 		await expect(

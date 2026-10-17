@@ -1,4 +1,9 @@
-import type { ActivityStats, ResourceHistory, ResourceSample } from '$contract/stats';
+import type {
+	ActivityStats,
+	ResourceHistory,
+	ResourceKindBreakdown,
+	ResourceSample,
+} from '$contract/stats';
 import { STATS_RESOURCES_SAMPLED_CHANNEL } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -10,6 +15,10 @@ class StatsService {
 
 	resources(): Promise<ResourceHistory> {
 		return invoke('stats.resources', undefined);
+	}
+
+	resourceBreakdown(): Promise<readonly ResourceKindBreakdown[]> {
+		return invoke('stats.resource-breakdown', undefined);
 	}
 
 	onResourcesSampled(listener: (sample: ResourceSample) => void): () => void {
