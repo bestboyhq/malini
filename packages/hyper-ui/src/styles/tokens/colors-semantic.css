@@ -100,6 +100,12 @@
 	--color-button-secondary-busy-light: var(--color-grey-200);
 	--color-button-secondary-busy-dark: var(--color-grey-700);
 
+	--color-button-danger-light: var(--ds-red-800-light);
+	--color-button-danger-dark: var(--ds-red-800-dark);
+	--color-button-danger-hover-light: var(--ds-red-900-light);
+	--color-button-danger-hover-dark: var(--ds-red-900-light);
+	--color-button-danger-content-light: var(--color-grey-50);
+	--color-button-danger-content-dark: var(--color-grey-50);
 	--color-button-danger-busy-light: var(--ds-red-300-light);
 	--color-button-danger-busy-dark: var(--ds-red-300-dark);
 

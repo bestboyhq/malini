@@ -45,6 +45,8 @@ const MAX_LIVE_INPUT_SUMMARY_CHARS = 4_096;
 
 const LEADING_CD_RE = /^(?:cd\s+(?:"[^"]*"|'[^']*'|(?:[^\s;&|\\]|\\.)+)\s*(?:&&|;|\n)\s*)+/u;
 
+const SHELL_EXIT_RE = /^\s*Exit code (\d+)\s*(?:\n|$)/u;
+
 const AGENT_TOOL_NAMES = new Set(['Agent', 'Task']);
 
 const IDENTIFIER_LABELS: Readonly<Record<string, string>> = {
@@ -161,6 +163,15 @@ export function toolFailureReason(error: string | null | undefined): string | nu
 	return firstLine.length > TOOL_FAILURE_REASON_MAX_CHARS
 		? `${firstLine.slice(0, TOOL_FAILURE_REASON_MAX_CHARS - 1)}…`
 		: firstLine;
+}
+
+export function shellExitCode(error: string | null | undefined): number | null {
+	const code = error ? SHELL_EXIT_RE.exec(error)?.[1] : undefined;
+	return code === undefined ? null : Number(code);
+}
+
+export function withoutShellExit(error: string | null): string | null {
+	return error?.replace(SHELL_EXIT_RE, '') || null;
 }
 
 export function shellCommandLabel(command: string): string {

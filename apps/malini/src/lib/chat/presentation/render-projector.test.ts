@@ -146,6 +146,53 @@ describe('IncrementalRenderProjector', () => {
 		]);
 	});
 
+	it('folds the AskUserQuestion tool call into its question row and its answer, exactly as the fold does', () => {
+		const question = {
+			id: 'q0',
+			prompt: 'Which runner?',
+			options: [{ label: 'Vitest' }, { label: 'Playwright' }],
+			multiSelect: false,
+			allowFreeText: true,
+		};
+		const output = 'Your questions have been answered: "Which runner?"="Vitest".';
+		const envelopes = [
+			envelope(1, { type: 'user.message', runId: 'run-1', text: 'Ask me' }),
+			envelope(2, {
+				type: 'tool.started',
+				runId: 'run-1',
+				name: 'AskUserQuestion',
+				toolCallId: 'ask-1',
+				input: { questions: [] },
+			}),
+			envelope(3, {
+				type: 'question.requested',
+				runId: 'run-1',
+				questionId: 'question-ask-1',
+				toolName: 'AskUserQuestion',
+				toolCallId: 'ask-1',
+				questions: [question],
+			}),
+			envelope(4, {
+				type: 'tool.completed',
+				runId: 'run-1',
+				name: 'AskUserQuestion',
+				toolCallId: 'ask-1',
+				output,
+			}),
+			envelope(5, { type: 'assistant.message', runId: 'run-1', text: 'Vitest it is.' }),
+		];
+		const projector = new IncrementalRenderProjector();
+
+		for (let length = 0; length <= envelopes.length; length += 1) {
+			expect(projector.project(envelopes.slice(0, length))).toEqual(
+				foldEnvelopes(envelopes.slice(0, length)),
+			);
+		}
+		const items = firstRun(projector.project(envelopes)).items;
+		expect(items.map(({ kind }) => kind)).toEqual(['user', 'question', 'assistant']);
+		expect(items[1]).toMatchObject({ kind: 'question', answerOutput: output });
+	});
+
 	it('publishes terminal metadata after a synchronous live failure burst', () => {
 		const projector = new IncrementalRenderProjector();
 		const envelopes = [envelope(1, { type: 'user.message', runId: 'run-1', text: 'Try it' })];

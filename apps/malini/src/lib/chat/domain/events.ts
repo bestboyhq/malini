@@ -114,6 +114,12 @@ export type AgentEvent =
 			inputJsonDelta: string;
 	  }
 	| {
+			type: 'stream.discarded';
+			runId: string;
+			contentIds: readonly string[];
+			toolCallIds: readonly string[];
+	  }
+	| {
 			type: 'checkpoint.restored';
 			runId: string;
 			workstreamId: string;

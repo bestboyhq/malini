@@ -31,7 +31,7 @@ describe('agent transcript structure and selection contract', () => {
 	it('lets a stray drag across the chrome paint nothing', () => {
 		for (const [file, name, end] of [
 			[toolCard, 'ToolCard', '{#if expanded}'],
-			[bashCall, 'BashToolCall', "{#if status === 'failed'}"],
+			[bashCall, 'BashToolCall', '{#if failed}'],
 		] as const) {
 			const row = file.slice(0, file.indexOf(end));
 			expect(row, `${name} row`).not.toContain('select-text');

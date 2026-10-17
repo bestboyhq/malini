@@ -56,3 +56,9 @@ export function agentChatIdentity(
 		model: source.model,
 	};
 }
+
+export function closingStopsAgent(activity: AgentChatActivity): boolean {
+	return (
+		activity === 'in-progress' || activity === 'in-background' || activity === 'needs-approval'
+	);
+}

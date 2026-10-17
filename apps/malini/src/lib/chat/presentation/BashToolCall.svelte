@@ -5,7 +5,12 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import ExpandMark from './ExpandMark.svelte';
-	import { shellCommandLabel, toolFailureReason } from './tool-display-name';
+	import {
+		shellCommandLabel,
+		shellExitCode,
+		toolFailureReason,
+		withoutShellExit,
+	} from './tool-display-name';
 
 	interface Props {
 		command: string;
@@ -30,13 +35,15 @@
 	}: Props = $props();
 	let expanded = $state(false);
 
-	const outputText = $derived(formatOutput(output, error));
+	const outputText = $derived(formatOutput(output, withoutShellExit(error)));
 	const commandLabel = $derived(shellCommandLabel(command));
 	const activityLabel = $derived(
 		command === operationName ? operationName : `${operationName} · ${commandLabel}`,
 	);
 
-	const exitLabel = $derived(exitCode !== null && exitCode !== 0 ? `exit ${exitCode}` : null);
+	const shownExitCode = $derived(exitCode ?? shellExitCode(error));
+	const exitLabel = $derived(shownExitCode ? `exit ${shownExitCode}` : null);
+	const failed = $derived(status === 'failed' && shellExitCode(error) === null);
 	const failureReason = $derived(toolFailureReason(error) ?? 'The command could not finish');
 
 	function formatOutput(value: unknown, failure: string | null): string | null {
@@ -89,16 +96,16 @@
 		{#if waiting}
 			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono">waiting</span>
 		{:else if exitLabel}
-			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">{exitLabel}</span>
+			<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">{exitLabel}</span>
 		{/if}
 	</Button>
 
-	{#if status === 'failed'}
+	{#if failed}
 		<div
 			class="bg-error text-2xs text-error-content mt-1 ml-5.5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
 			data-testid="bash-command-failure"
 		>
-			<Icon name="warning" size={12} class="mt-px shrink-0" />
+			<Icon name="warning" size={12} class="mt-1 shrink-0" />
 			<span class="min-w-0 flex-1 break-words select-text">
 				<SensitiveText text={failureReason} />
 			</span>

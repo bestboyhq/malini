@@ -427,6 +427,60 @@ describe('streamingStore', () => {
 		});
 	});
 
+	describe('stream.discarded', () => {
+		it('drops the cut-off thought and tool input, even within the same batch, and keeps the retry', () => {
+			streamingStore.applyEphemeralBatch([
+				ephemeral('s1', 'r1', {
+					type: 'thinking.delta',
+					runId: 'r1',
+					contentId: 'cut:0',
+					text: 'The footer',
+				}),
+				ephemeral('s1', 'r1', {
+					type: 'tool.input.delta',
+					runId: 'r1',
+					toolCallId: 'toolu_cut',
+					name: 'Bash',
+					inputJsonDelta: '{"command":',
+				}),
+				ephemeral('s1', 'r2', {
+					type: 'thinking.delta',
+					runId: 'r2',
+					contentId: 'cut:0',
+					text: 'Another run',
+				}),
+			]);
+			streamingStore.applyEphemeralBatch([
+				ephemeral('s1', 'r1', {
+					type: 'thinking.delta',
+					runId: 'r1',
+					contentId: 'cut:0',
+					text: "'s right side",
+				}),
+				ephemeral('s1', 'r1', {
+					type: 'stream.discarded',
+					runId: 'r1',
+					contentIds: ['cut:0'],
+					toolCallIds: ['toolu_cut'],
+				}),
+				ephemeral('s1', 'r1', {
+					type: 'thinking.delta',
+					runId: 'r1',
+					contentId: 'retry:0',
+					text: 'Actually, simpler',
+				}),
+			]);
+
+			expect(streamingStore.blocksForRun('s1', 'r1').map(({ contentId }) => contentId)).toEqual([
+				'retry:0',
+			]);
+			expect(streamingStore.blocksForRun('s1', 'r2').map(({ text }) => text)).toEqual([
+				'Another run',
+			]);
+			expect(streamingStore.toolInputsForRun('s1', 'r1')).toEqual([]);
+		});
+	});
+
 	describe('reset', () => {
 		it('clears state across every session', () => {
 			streamingStore.applyEphemeral(
