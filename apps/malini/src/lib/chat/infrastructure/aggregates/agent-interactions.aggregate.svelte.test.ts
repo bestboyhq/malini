@@ -186,6 +186,41 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
+	it('shows the decision when the run ends before the bridge confirms it', async () => {
+		let release!: (result: { decision: 'deny'; scope: 'once'; remembered: false }) => void;
+		const decideAgentApproval = vi.fn(
+			() =>
+				new Promise<{ decision: 'deny'; scope: 'once'; remembered: false }>((resolve) => {
+					release = resolve;
+				}),
+		);
+		const commands = new AgentInteractionCommands(() => ({
+			decideAgentApproval,
+			answerAgentQuestion: vi.fn(),
+		}));
+		const requested = envelope(1, externalReadApproval());
+		commands.sync([requested]);
+
+		const decided = commands.decideApproval({
+			sessionId: 'session-1',
+			runId: 'run-1',
+			approvalId: 'approval-1',
+			decision: 'deny',
+			scope: 'once',
+		});
+		commands.sync([
+			requested,
+			envelope(2, { type: 'run.completed', runId: 'run-1', summary: 'done' }),
+		]);
+		release({ decision: 'deny', scope: 'once', remembered: false });
+
+		await expect(decided).resolves.toBe(true);
+		expect(commands.stateFor(approvalReference())).toMatchObject({
+			status: 'resolved',
+			message: 'Denied',
+		});
+	});
+
 	it('only offers and accepts broader scopes for canonical external reads', async () => {
 		expect(canPersistAgentApproval(externalReadApproval().permission)).toBe(true);
 		expect(
