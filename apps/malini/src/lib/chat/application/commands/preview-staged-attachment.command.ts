@@ -18,8 +18,7 @@ function previewStagedAttachmentCommand(
 	void (async () => {
 		try {
 			const bytes = await composerAttachments.readImage(input.workstreamId, input.attachment.id);
-			if (bytes) imagePreviewsStore.settleBytes(key, read, bytes);
-			else imagePreviewsStore.settleUnavailable(key, read, NO_PREVIEW);
+			imagePreviewsStore.settleBytes(key, read, bytes);
 		} catch (error) {
 			imagePreviewsStore.settleUnavailable(key, read, errorMessage(error, NO_PREVIEW));
 		}

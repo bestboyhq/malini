@@ -5,7 +5,7 @@ import { describeError, isErrnoException } from '$main/errors';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import type { WorkstreamImageRead } from '$contract/repositories';
 
-export const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
+export const MAX_PREVIEW_BYTES = 32 * 1024 * 1024;
 
 const IMAGE_HEADER_BYTES = 16;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -91,9 +91,9 @@ export async function readWorkstreamImage(
 		if (!metadata.isFile()) throw new Error('image path is not a file');
 		if (metadata.size > MAX_PREVIEW_BYTES) return { status: 'too-large' };
 
-		const buffer = Buffer.alloc(MAX_PREVIEW_BYTES + 1);
+		const buffer = new Uint8Array(metadata.size);
 		let filled = 0;
-		for (;;) {
+		while (filled < buffer.length) {
 			let read: number;
 			try {
 				({ bytesRead: read } = await file.read(buffer, filled, buffer.length - filled, null));
@@ -102,17 +102,11 @@ export async function readWorkstreamImage(
 			}
 			if (read === 0) break;
 			filled += read;
-			if (filled >= buffer.length) break;
 		}
-		if (filled > MAX_PREVIEW_BYTES) return { status: 'too-large' };
-
-		const bytes = buffer.subarray(0, filled);
-		const mediaType = imageMediaType(bytes.subarray(0, Math.min(filled, IMAGE_HEADER_BYTES)));
+		const data = buffer.subarray(0, filled);
+		const mediaType = imageMediaType(data.subarray(0, IMAGE_HEADER_BYTES));
 		if (mediaType === null) return { status: 'not-an-image' };
-		return {
-			status: 'ready',
-			bytes: { mediaType, size: filled, base64: bytes.toString('base64') },
-		};
+		return { status: 'ready', bytes: { mediaType, data } };
 	} finally {
 		await file.close();
 	}

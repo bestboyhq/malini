@@ -39,7 +39,6 @@ import {
 	deleteAttachmentDirectory,
 	expectedRelativePath,
 	MAX_ATTACHMENT_BASE64_CHARS,
-	MAX_PREVIEW_BYTES,
 	mediaType,
 	openSourceNoFollow,
 	PASTEABLE_MEDIA_TYPES,
@@ -200,7 +199,7 @@ export function readStaged(
 	worktree: string,
 	workstreamId: string,
 	attachmentId: string,
-): StagedAgentAttachmentBytes | null {
+): StagedAgentAttachmentBytes {
 	if (!attachmentIdIsSafe(attachmentId)) {
 		throw new Error('attachment id is unsafe');
 	}
@@ -209,10 +208,6 @@ export function readStaged(
 	if (stored.workstreamId !== workstreamId || stored.state !== 'staged') {
 		throw new Error(`attachment \`${attachmentId}\` is not staged for this workstream`);
 	}
-	if (stored.descriptor.size > MAX_PREVIEW_BYTES) {
-		return null;
-	}
-
 	const attachment = stored.descriptor;
 	const root = attachmentsRoot(worktree);
 	const expected = expectedRelativePath(attachment.id, attachment.displayName);
@@ -222,7 +217,8 @@ export function readStaged(
 	const path = canonicalAttachmentDirectory(worktree, root, attachment, expected);
 
 	const fd = openSourceNoFollow(path);
-	let bytes: Buffer;
+	const buffer = new Uint8Array(attachment.size + 1);
+	let total = 0;
 	try {
 		let metadata: ReturnType<typeof fstatSync>;
 		try {
@@ -233,37 +229,27 @@ export function readStaged(
 		if (!metadata.isFile() || metadata.size !== attachment.size) {
 			throw new Error(`attachment \`${attachment.id}\` changed after staging`);
 		}
-		const limit = MAX_PREVIEW_BYTES + 1;
-		bytes = Buffer.allocUnsafe(Math.min(limit, attachment.size + 1));
-		let total = 0;
-		while (total < limit) {
+		while (total < buffer.length) {
 			let read: number;
 			try {
-				read = readSync(fd, bytes, total, bytes.length - total, null);
+				read = readSync(fd, buffer, total, buffer.length - total, null);
 			} catch (error) {
 				throw new Error(`read staged attachment: ${describe(error)}`);
 			}
 			if (read === 0) break;
 			total += read;
-			if (total === bytes.length && total < limit) {
-				bytes = Buffer.concat([
-					bytes,
-					Buffer.allocUnsafe(Math.min(limit - total, COPY_BUFFER_BYTES)),
-				]);
-			}
 		}
-		bytes = bytes.subarray(0, total);
 	} finally {
 		closeSync(fd);
 	}
-	if (bytes.length !== attachment.size || sha256Hex(bytes) !== attachment.sha256) {
+	const data = buffer.subarray(0, total);
+	if (total !== attachment.size || sha256Hex(data) !== attachment.sha256) {
 		throw new Error(`attachment \`${attachment.id}\` changed after staging`);
 	}
 
 	return {
 		mediaType: mediaType(attachment.displayName),
-		base64: bytes.toString('base64'),
-		size: attachment.size,
+		data,
 	};
 }
 

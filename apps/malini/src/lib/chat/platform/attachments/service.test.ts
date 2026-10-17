@@ -21,7 +21,7 @@ import {
 import type { AgentRun } from '../runs.repository';
 import { insertSession } from '../sessions.repository';
 import { get, run, scalar } from '$main/db/rows';
-import { ATTACHMENT_ROOT, MAX_ATTACHMENT_BASE64_CHARS, MAX_PREVIEW_BYTES } from './layout';
+import { ATTACHMENT_ROOT, MAX_ATTACHMENT_BASE64_CHARS } from './layout';
 import { workstreamPath } from '$main/git/paths';
 import {
 	adoptAttachments,
@@ -385,10 +385,8 @@ describe('readStaged', () => {
 		const [attachment] = stageSelectedPaths(worktree, [source]);
 		persistStagedAttachments(test.db, WORKSTREAM_ID, [attachment!], STAGED_AT, EXPIRES_TOMORROW);
 		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment!.id);
-		expect(read).not.toBeNull();
-		expect(read!.mediaType).toBe('image/png');
-		expect(read!.size).toBe(8);
-		expect(Buffer.from(read!.base64, 'base64')).toEqual(Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'));
+		expect(read.mediaType).toBe('image/png');
+		expect(Buffer.from(read.data)).toEqual(Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'));
 	});
 
 	it('refuses unsafe attachment ids before touching the filesystem', () => {
@@ -454,40 +452,23 @@ describe('readStaged', () => {
 		);
 	});
 
-	it('declines attachments over the preview cap and refuses files that changed', () => {
+	it('refuses files that changed after staging', () => {
 		const attachment = stagedInDb(test, worktree, 'original');
-		run(
-			test.db,
-			'UPDATE agent_attachments SET size = ? WHERE id = ?',
-			MAX_PREVIEW_BYTES + 1,
-			attachment.id,
-		);
-		expect(
-			readStaged(test.db, worktree, WORKSTREAM_ID, attachment.id),
-			'an attachment past the preview cap declines rather than failing',
-		).toBeNull();
-
-		run(
-			test.db,
-			'UPDATE agent_attachments SET size = ? WHERE id = ?',
-			attachment.size,
-			attachment.id,
-		);
 		writeFileSync(join(worktree, attachment.relativePath), 'tampered');
 		expect(() => readStaged(test.db, worktree, WORKSTREAM_ID, attachment.id)).toThrow(
 			`attachment \`${attachment.id}\` changed after staging`,
 		);
 	});
 
-	it('reads a file larger than one copy buffer back intact', () => {
-		const big = Buffer.alloc(200 * 1024);
+	it('reads an attachment as large as the file limit back intact', () => {
+		const big = Buffer.alloc(MAX_ATTACHMENT_FILE_BYTES);
 		for (let index = 0; index < big.length; index += 1) big[index] = index % 251;
 		const source = scratchFile(test, 'big.bin', big);
 		const [attachment] = stageSelectedPaths(worktree, [source]);
 		persistStagedAttachments(test.db, WORKSTREAM_ID, [attachment!], STAGED_AT, EXPIRES_TOMORROW);
-		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment!.id)!;
+		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment!.id);
 		expect(read.mediaType).toBe('application/octet-stream');
-		expect(Buffer.from(read.base64, 'base64')).toEqual(big);
+		expect(Buffer.from(read.data).equals(big)).toBe(true);
 	});
 });
 
@@ -504,9 +485,9 @@ describe('stageBytes', () => {
 		}
 		expect(attachmentRow(attachment.id).state).toBe('staged');
 
-		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment.id)!;
+		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment.id);
 		expect(read.mediaType).toBe('image/png');
-		expect(Buffer.from(read.base64, 'base64')).toEqual(PIXEL_PNG);
+		expect(Buffer.from(read.data)).toEqual(PIXEL_PNG);
 		removeStaged(test.db, worktree, WORKSTREAM_ID, attachment.id, '2026-07-11T01:00:00.000Z');
 		expect(existsSync(join(worktree, attachment.relativePath))).toBe(false);
 	});

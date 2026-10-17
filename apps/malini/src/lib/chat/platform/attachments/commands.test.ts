@@ -257,14 +257,13 @@ describe('chat.stage-attachment-bytes', () => {
 		expect(staged.mediaType).toBe('image/png');
 		expect(staged.relativePath).toBe(`${ATTACHMENT_ROOT}/${staged.id}/pasted-image.png`);
 
-		const read = await invoke<{ mediaType: string; base64: string; size: number }>(
+		const read = await invoke<{ mediaType: string; data: Uint8Array }>(
 			'chat.read-staged-attachment',
 			{ workstreamId: WORKSTREAM_ID, attachmentId: staged.id },
 		);
-		expect(Object.keys(read).sort()).toEqual(['base64', 'mediaType', 'size']);
+		expect(Object.keys(read).sort()).toEqual(['data', 'mediaType']);
 		expect(read.mediaType).toBe('image/png');
-		expect(read.size).toBe(PIXEL_PNG.length);
-		expect(Buffer.from(read.base64, 'base64')).toEqual(PIXEL_PNG);
+		expect(Buffer.from(read.data)).toEqual(PIXEL_PNG);
 
 		const removed = await invoke<null>('chat.remove-staged-attachment', {
 			workstreamId: WORKSTREAM_ID,
@@ -315,22 +314,20 @@ describe('chat.stage-attachment-bytes', () => {
 });
 
 describe('chat.read-staged-attachment', () => {
-	it('answers null past the preview cap and rejects everything else', async () => {
+	it('reads a pasted 5 MB screenshot and rejects a changed file, an unsafe id or another workstream', async () => {
 		test.checkout(WORKSTREAM_ID, { git: true });
+		const screenshot = Buffer.concat([PIXEL_PNG, Buffer.alloc(5 * 1024 * 1024)]);
 		const staged = await invoke<Staged>('chat.stage-attachment-bytes', {
 			workstreamId: WORKSTREAM_ID,
 			fileName: 'shot.png',
-			base64: PIXEL_PNG.toString('base64'),
+			base64: screenshot.toString('base64'),
 		});
-		run(test.db, 'UPDATE agent_attachments SET size = ? WHERE id = ?', 5 * 1024 * 1024, staged.id);
-		expect(
-			await invoke('chat.read-staged-attachment', {
-				workstreamId: WORKSTREAM_ID,
-				attachmentId: staged.id,
-			}),
-		).toBeNull();
+		const read = await invoke<{ data: Uint8Array }>('chat.read-staged-attachment', {
+			workstreamId: WORKSTREAM_ID,
+			attachmentId: staged.id,
+		});
+		expect(Buffer.from(read.data).equals(screenshot)).toBe(true);
 
-		run(test.db, 'UPDATE agent_attachments SET size = ? WHERE id = ?', staged.size, staged.id);
 		writeFileSync(join(worktree, staged.relativePath), 'tampered');
 		expect(
 			await invokeError('chat.read-staged-attachment', {

@@ -11,8 +11,7 @@ import {
 	FAKE_APP_INSTANCE_ID,
 	FAKE_BUNDLE_IDENTIFIER,
 	FAKE_IMAGE_MEDIA_TYPES,
-	FAKE_PIXEL_PNG_BASE64,
-	FAKE_PIXEL_PNG_BYTES,
+	fakePixelPng,
 	fakeComposeSegment,
 } from './fake-constants';
 import type { FakeProject, FakeWorkstream } from './seed';
@@ -312,7 +311,7 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 		if (!mediaType) return { status: 'not-an-image' };
 		return {
 			status: 'ready',
-			bytes: { mediaType, base64: FAKE_PIXEL_PNG_BASE64, size: FAKE_PIXEL_PNG_BYTES },
+			bytes: { mediaType, data: fakePixelPng() },
 		} satisfies WorkstreamImageRead;
 	});
 

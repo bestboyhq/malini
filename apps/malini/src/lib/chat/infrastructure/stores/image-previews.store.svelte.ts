@@ -75,13 +75,7 @@ class ImagePreviewsStore {
 }
 
 function objectUrl(bytes: ImageBytes): string {
-	const binary = atob(bytes.base64);
-	const buffer = new ArrayBuffer(binary.length);
-	const view = new Uint8Array(buffer);
-	for (let index = 0; index < binary.length; index += 1) {
-		view[index] = binary.charCodeAt(index);
-	}
-	return URL.createObjectURL(new Blob([buffer], { type: bytes.mediaType }));
+	return URL.createObjectURL(new Blob([bytes.data], { type: bytes.mediaType }));
 }
 
 function revoke(preview: ImagePreview): void {

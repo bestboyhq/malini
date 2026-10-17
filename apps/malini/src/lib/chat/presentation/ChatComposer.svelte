@@ -127,6 +127,13 @@
 		insertChip(chip: PromptChipDescriptor): void;
 		insertText(text: string): void;
 		paste(event: ClipboardEvent): void;
+		beginTrigger(char: string): void;
+		endTrigger(): void;
+		removeTrigger(): void;
+	} | null = $state(null);
+	let jobPicker: {
+		keydown(event: KeyboardEvent): void;
+		activeOptionId(): string | undefined;
 	} | null = $state(null);
 
 	export function focus(options?: { scrollIntoView?: boolean }): boolean {
@@ -165,7 +172,7 @@
 	let issueSubmitting = $state(false);
 	let issueError = $state<string | null>(null);
 	const pendingSubmissionCount = $derived(composerPendingSubmissionsQuery.data);
-	let outgoingBandEl: HTMLDivElement | null = null;
+	let outgoingBandEl: HTMLDivElement | null = $state(null);
 	let outgoingPrompts = $state(0);
 	let landOutgoingPrompt: (() => void) | null = null;
 	const claudeCodeStatus = $derived(claudeCodeStatusQuery.data);
@@ -179,7 +186,8 @@
 	let contextSelectionIndex = $state(0);
 	let contextOpenedByTyping = $state(false);
 	let jobPickerOpen = $state(false);
-	let jobPickerOpenedByTyping = $state(false);
+	let jobQuery = $state<string | null>(null);
+	const jobPickerShown = $derived(jobPickerOpen || jobQuery !== null);
 	let selectedContextFiles = $state<string[]>([]);
 	const todosResolution = $derived(workstreamTodosResolutionQuery.data);
 	const todoContextResolving = $derived(todosResolution?.status === 'resolving');
@@ -422,6 +430,7 @@
 		contextOpen = false;
 		contextQuery = '';
 		jobPickerOpen = false;
+		jobQuery = null;
 	});
 
 	$effect(() => {
@@ -478,6 +487,7 @@
 	async function openContextPicker(byTyping = false): Promise<void> {
 		if (disabled) return;
 		addMenuOpen = false;
+		closeJobPicker();
 		contextOpen = true;
 		contextOpenedByTyping = byTyping;
 		contextQuery = '';
@@ -487,24 +497,38 @@
 		loadWorkstreamFilesCommand(workstreamId);
 	}
 
-	function openJobPicker(byTyping: boolean): void {
+	function openJobPicker(): void {
 		if (disabled) return;
 		addMenuOpen = false;
 		contextOpen = false;
 		jobPickerOpen = true;
-		jobPickerOpenedByTyping = byTyping;
 	}
 
-	function closeJobPicker(restore: string): void {
+	function typeJobTrigger(): void {
+		if (disabled) return;
+		addMenuOpen = false;
+		contextOpen = false;
 		jobPickerOpen = false;
-		if (restore) {
-			promptEditor?.insertText(restore);
-			return;
-		}
+		promptEditor?.beginTrigger('/');
+	}
+
+	function closeJobPicker(): void {
+		promptEditor?.endTrigger();
+		jobQuery = null;
+		jobPickerOpen = false;
+	}
+
+	function onJobPickerClose(): void {
+		closeJobPicker();
 		void (async () => {
 			await tick();
 			promptEditor?.focusEditor();
 		})();
+	}
+
+	function onJobStarted(): void {
+		if (jobQuery !== null) promptEditor?.removeTrigger();
+		onJobPickerClose();
 	}
 
 	function openNativeFilePicker(): void {
@@ -666,6 +690,8 @@
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
+		if (jobQuery !== null) jobPicker?.keydown(event);
+		if (event.defaultPrevented) return;
 		if (opensPicker(event, '@')) {
 			event.preventDefault();
 			void openContextPicker(true);
@@ -673,7 +699,7 @@
 		}
 		if (opensPicker(event, '/')) {
 			event.preventDefault();
-			openJobPicker(true);
+			typeJobTrigger();
 			return;
 		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -1045,7 +1071,7 @@
 				focusOnHover={false}
 				class="gap-2.5"
 				data-testid="chat-run-job"
-				onclick={() => openJobPicker(false)}
+				onclick={openJobPicker}
 			>
 				<Icon name="checklist" class="shrink-0" size={15} />
 				Run a job
@@ -1053,14 +1079,16 @@
 		</div>
 	</DropdownLayer>
 
-	{#if jobPickerOpen}
+	{#if jobPickerShown}
 		<JobPicker
-			anchor={contextTriggerEl}
-			openedByTyping={jobPickerOpenedByTyping}
+			bind:this={jobPicker}
+			anchor={jobQuery === null ? contextTriggerEl : outgoingBandEl}
+			typedQuery={jobQuery}
 			{workstreamId}
 			chatSessionId={jobChatSessionId}
 			chatAfterRunId={jobChatAfterRunId}
-			onclose={closeJobPicker}
+			onclose={onJobPickerClose}
+			onstarted={onJobStarted}
 		/>
 	{/if}
 
@@ -1196,7 +1224,7 @@
 		footerTestId="chat-composer-toolbar"
 		mode={profile.mode}
 	>
-		<div bind:this={outgoingBandEl} class="relative overflow-hidden">
+		<div bind:this={outgoingBandEl} class="relative overflow-hidden" data-dropdown-anchor>
 			<InlinePromptEditor
 				bind:this={promptEditor}
 				value={prompt}
@@ -1208,7 +1236,9 @@
 				onvaluechange={onPromptValueChange}
 				onchipremove={onChipRemove}
 				onattachfiles={attachClipboardFiles}
+				ariaActiveDescendant={jobQuery === null ? undefined : jobPicker?.activeOptionId()}
 				onkeydown={onKeydown}
+				ontriggerquery={(query) => (jobQuery = query)}
 			/>
 		</div>
 
@@ -1238,7 +1268,7 @@
 				<Tooltip
 					content="Add files, context, an issue, or run a job"
 					placement="top"
-					suppressed={addMenuOpen || contextOpen || jobPickerOpen}
+					suppressed={addMenuOpen || contextOpen || jobPickerShown}
 				>
 					<IconButton
 						bind:element={contextTriggerEl}

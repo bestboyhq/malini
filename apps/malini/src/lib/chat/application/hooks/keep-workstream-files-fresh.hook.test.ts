@@ -93,10 +93,10 @@ describe('keeping the workstream file list current', () => {
 
 	it('shows an image the agent overwrote, and re-reads only the image that changed', async () => {
 		const platform = installPlatform({ 'ws-a': ['.context/shot.png'] });
-		let base64 = 'AAAA';
+		let data = new Uint8Array([0]);
 		platform.define('repositories.read-workstream-image', async () => ({
 			status: 'ready',
-			bytes: { mediaType: 'image/png', base64, size: 3 },
+			bytes: { mediaType: 'image/png', data },
 		}));
 		const owner = 'transcript';
 		const path = './.context/shot.png';
@@ -114,7 +114,7 @@ describe('keeping the workstream file list current', () => {
 		await vi.waitFor(() => expect(listingCalls(platform)).toBe(2));
 		expect(imageReads(platform)).toBe(1);
 
-		base64 = 'BBBB';
+		data = new Uint8Array([1]);
 		filesChanged(platform, 'ws-a', ['.context/shot.png']);
 
 		expect(source()).toBe(first);

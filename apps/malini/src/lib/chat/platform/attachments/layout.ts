@@ -14,8 +14,6 @@ import { isInsideDirectory } from '$main/fs/paths';
 
 export const ATTACHMENT_ROOT = BRIDGE_AGENT_ATTACHMENTS_PATH;
 
-export const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
-
 export const PASTEABLE_MEDIA_TYPES: readonly string[] = [
 	'text/plain',
 	'application/json',

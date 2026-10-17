@@ -103,8 +103,7 @@ export interface WorktreeStatus {
 
 export interface WorkstreamImageBytes {
 	mediaType: string;
-	base64: string;
-	size: number;
+	data: Uint8Array<ArrayBuffer>;
 }
 
 export type WorkstreamImageRead =

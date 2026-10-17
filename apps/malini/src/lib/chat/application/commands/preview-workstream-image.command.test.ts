@@ -26,7 +26,7 @@ describe('previewing an image the agent read', () => {
 		const platform = installPlatform();
 		platform.define('repositories.read-workstream-image', async () => ({
 			status: 'ready',
-			bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 },
+			bytes: { mediaType: 'image/png', data: new Uint8Array([0]) },
 		}));
 
 		previewWorkstreamImageCommand({ owner: OWNER, workstreamId: 'ws-a', path: PATH });
@@ -95,11 +95,11 @@ describe('previewing an image the agent read', () => {
 		refreshWorkstreamImagesCommand('ws-a', [PATH]);
 		await vi.waitFor(() => expect(reads).toHaveLength(2));
 
-		reads[0]?.({ status: 'ready', bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 } });
+		reads[0]?.({ status: 'ready', bytes: { mediaType: 'image/png', data: new Uint8Array([0]) } });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(imagePreviewQuery.data(OWNER, PATH)).toBeNull();
 
-		reads[1]?.({ status: 'ready', bytes: { mediaType: 'image/png', base64: 'BBBB', size: 3 } });
+		reads[1]?.({ status: 'ready', bytes: { mediaType: 'image/png', data: new Uint8Array([1]) } });
 		await vi.waitFor(() =>
 			expect(imagePreviewQuery.data(OWNER, PATH)).toMatchObject({ status: 'ready' }),
 		);

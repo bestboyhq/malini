@@ -44,8 +44,17 @@ function typeAtStartOf(prompt: HTMLElement, key: string): void {
 	flushSync();
 }
 
+function press(target: HTMLElement, key: string): void {
+	target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+	flushSync();
+}
+
+function selectedOption(): string | undefined {
+	return document.querySelector('[role="option"][aria-selected="true"]')?.textContent?.trim();
+}
+
 describe('running a job from the composer', () => {
-	it('opens the job picker on a typed slash and runs the highlighted job from this chat', async () => {
+	it('keeps a typed slash in the prompt, steers the job list from the prompt and runs the highlighted job from this chat', async () => {
 		const platform = await openChatRoute(
 			`/workstreams/${WORKSTREAM}`,
 			createFakePlatform({
@@ -69,16 +78,19 @@ describe('running a job from the composer', () => {
 
 		typeAtStartOf(prompt, '/');
 
-		await vi.waitFor(() => expect(byName('[role="dialog"]', 'Run a job')).not.toBeNull());
-		await vi.waitFor(() =>
-			expect(
-				document.querySelector('[role="option"][aria-selected="true"]')?.textContent?.trim(),
-			).toMatch(/^Fix checks/u),
-		);
-		byName('input', 'Find a job')?.dispatchEvent(
-			new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-		);
-		flushSync();
+		await vi.waitFor(() => expect(byName('[role="listbox"]', 'Jobs')).not.toBeNull());
+		expect(prompt.textContent).toBe('/');
+		expect(document.activeElement).toBe(prompt);
+		expect(byName('input', 'Find a job')).toBeNull();
+		await vi.waitFor(() => expect(selectedOption()).toMatch(/^Fix checks/u));
+		const firstOption = document.querySelector('[role="option"][aria-selected="true"]');
+		expect(prompt.getAttribute('aria-activedescendant')).toBe(firstOption?.id);
+
+		press(prompt, 'ArrowDown');
+		expect(selectedOption()).not.toMatch(/^Fix checks/u);
+		press(prompt, 'ArrowUp');
+		expect(selectedOption()).toMatch(/^Fix checks/u);
+		press(prompt, 'Enter');
 
 		await vi.waitFor(() =>
 			expect(platform.calls.find(({ command }) => command === 'jobs.run')?.args).toEqual({
@@ -90,5 +102,7 @@ describe('running a job from the composer', () => {
 			}),
 		);
 		await vi.waitFor(() => expect(byName('article', 'Job Fix checks')).not.toBeNull());
+		await vi.waitFor(() => expect(prompt.textContent).toBe(''));
+		expect(prompt.hasAttribute('aria-activedescendant')).toBe(false);
 	});
 });

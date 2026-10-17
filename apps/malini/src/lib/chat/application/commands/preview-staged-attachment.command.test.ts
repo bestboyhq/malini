@@ -66,11 +66,11 @@ function settled(): Promise<void> {
 
 function deferredPlatform(): {
 	reads: string[];
-	settle(bytes: ImageBytes | null): Promise<void>;
+	settle(bytes: ImageBytes): Promise<void>;
 	refuse(message: string): Promise<void>;
 } {
 	const reads: string[] = [];
-	let resolveRead: ((bytes: ImageBytes | null) => void) | null = null;
+	let resolveRead: ((bytes: ImageBytes) => void) | null = null;
 	let rejectRead: ((error: Error) => void) | null = null;
 	const platform = createFakePlatform();
 	platform.define('chat.read-staged-attachment', (input) => {
@@ -127,7 +127,7 @@ describe('previewing a staged attachment chip', () => {
 		preview(composer, IMAGE);
 		expect(reads).toEqual([IMAGE.id]);
 
-		await settle({ mediaType: 'image/png', base64: 'AAAA', size: 3 });
+		await settle({ mediaType: 'image/png', data: new Uint8Array([0]) });
 		expect(urlFor(composer, IMAGE)).not.toBeNull();
 		preview(composer, IMAGE);
 
@@ -152,20 +152,6 @@ describe('previewing a staged attachment chip', () => {
 
 		preview(composer, IMAGE);
 		await refuse('attachment is not staged for this workstream');
-		preview(composer, IMAGE);
-		await settled();
-
-		expect(reads).toEqual([IMAGE.id]);
-		expect(urlFor(composer, IMAGE)).toBeNull();
-		releaseImagePreviewsCommand(composer);
-	});
-
-	it('caches a decline so an attachment past the preview cap is asked for once', async () => {
-		const { reads, settle } = deferredPlatform();
-		const composer = owner();
-
-		preview(composer, IMAGE);
-		await settle(null);
 		preview(composer, IMAGE);
 		await settled();
 
@@ -220,7 +206,7 @@ describe('previewing a staged attachment chip', () => {
 
 		preview(composer, IMAGE);
 		releaseImagePreviewsCommand(composer);
-		await settle({ mediaType: 'image/png', base64: 'AAAA', size: 3 });
+		await settle({ mediaType: 'image/png', data: new Uint8Array([0]) });
 
 		expect(created).not.toHaveBeenCalled();
 		expect(urlFor(composer, IMAGE)).toBeNull();

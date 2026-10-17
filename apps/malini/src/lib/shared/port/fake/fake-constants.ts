@@ -1,9 +1,13 @@
 import type { DesktopRuntimeIdentity } from '$contract/system';
 
-export const FAKE_PIXEL_PNG_BASE64 =
-	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-
-export const FAKE_PIXEL_PNG_BYTES = 70;
+export function fakePixelPng(): Uint8Array<ArrayBuffer> {
+	return Uint8Array.from(
+		atob(
+			'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+		),
+		(character) => character.charCodeAt(0),
+	);
+}
 
 export const FAKE_IMAGE_MEDIA_TYPES: Readonly<Record<string, string>> = {
 	png: 'image/png',

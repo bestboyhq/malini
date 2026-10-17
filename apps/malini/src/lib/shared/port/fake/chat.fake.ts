@@ -8,7 +8,7 @@ import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import type { WorktreeChangeTotals } from '$contract/repositories';
 import type { FakeAgentEvent, FakeAgentScriptContext, FakeAgentScriptStep } from './seed';
 import type { FakeBridge } from './fake-bridge';
-import { FAKE_PIXEL_PNG_BASE64, FAKE_PIXEL_PNG_BYTES } from './fake-constants';
+import { fakePixelPng } from './fake-constants';
 import {
 	cloneAgentSessionChanges,
 	cloneEnvelope,
@@ -127,11 +127,9 @@ export function installChatFake(bridge: FakeBridge, state: FakeState): void {
 		);
 		if (!attachment) throw new Error(`staged attachment \`${input.attachmentId}\` not found`);
 
-		if (!attachment.mediaType.startsWith('image/')) return null;
 		return {
 			mediaType: attachment.mediaType,
-			base64: FAKE_PIXEL_PNG_BASE64,
-			size: FAKE_PIXEL_PNG_BYTES,
+			data: fakePixelPng(),
 		} satisfies StagedAgentAttachmentBytes;
 	});
 
