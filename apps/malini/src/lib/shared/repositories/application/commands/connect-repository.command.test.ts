@@ -96,6 +96,17 @@ describe('connecting a repository', () => {
 		expect(repositoryConnectErrorQuery.data).toBeNull();
 	});
 
+	it('installs the first workstream dependencies like every other new workstream', async () => {
+		connectRepositoryCommand(source);
+		await settled();
+
+		await vi.waitFor(() =>
+			expect(argsOf('repositories.provision-dependencies')).toEqual([
+				{ workstreamId: WORKSTREAM_ID },
+			]),
+		);
+	});
+
 	it('names the first workstream apart from a workstream that already has its generated name', async () => {
 		platform = createFakePlatform({
 			projects: [],

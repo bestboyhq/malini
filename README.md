@@ -1,42 +1,128 @@
-<img src="apps/malini/build/icon.png" alt="malini" width="128">
+<p align="center">
+  <img src="apps/malini/build/icon.png" width="128" height="128" alt="malini app icon">
+</p>
 
-A local-only desktop app for running coding agents in git worktrees and turning the prompts you repeat into routines.
+<h1 align="center">malini</h1>
 
-Electron main process in TypeScript, Svelte 5 renderer, `gh` CLI as the only GitHub surface.
+<p align="center">
+  <b>You had one job. Now have plenty.</b><br>
+  Many Claude Code agents, one window, one merged pull request each.<br>
+  Free and open source, for the Mac.
+</p>
+
+<p align="center">
+  <a href="https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg"><img src="https://img.shields.io/badge/Download_for_macOS-000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/bestboyhq/malini/releases/latest"><img src="https://img.shields.io/github/v/release/bestboyhq/malini?label=release&color=5e5ce6" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-1c1c1e?logo=apple" alt="macOS 13 or later, Apple silicon">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1c1c1e" alt="AGPL-3.0 license"></a>
+</p>
+
+<p align="center">
+  <img src=".github/readme/hero.webp" width="100%" alt="The malini window: six workstreams across malini, grip and tony in the sidebar, a finished malini chat that read the code, edited package.json and docs/packaging.md, and ended each turn with a Done report, 2 files changed with Draft and Merge in the top bar, and a Builder skills chip in the composer.">
+</p>
+
+---
+
+If Cursor, Codex, Conductor, and Claude Code had a baby, it would look a lot like malini.
+We use and admire all four.
+
+## Why it exists
+
+The best AI coding tools are closed source.
+They belong to companies with investors to answer to, and when the two of you disagree, the investors win.
+Prices change.
+Limits change.
+Features go away.
+You can't look inside, and you can't take your setup with you.
+
+malini is the other way.
+
+**Open source, so we can't rug pull you.**
+The code is public under AGPL.
+There is no account, no subscription and no malini server.
+We can't take it back, and if we ever go wrong, you can fork it.
+
+**Transparent, all the way down.**
+Your code goes to Anthropic through your own Claude Code, and to GitHub through the GitHub CLI.
+That's it.
+malini makes two calls of its own: update checks, and anonymous usage data you can turn off.
+Every big decision is written down in [`docs/adr`](docs/adr).
+
+**On your side of the token.**
+An AI lab earns more when you use more tokens.
+It has no reason to help you use fewer.
+Its interest and yours point in opposite directions.
+malini earns nothing from tokens.
+It shows your context window and your plan usage, and you pick the model and the effort for every prompt.
+Claude Code also loads every skill you own into every chat.
+With 47 skills that is about 7,400 tokens before you type a word.
+malini groups skills into presets, so a chat loads only the skills its work needs, and the composer shows which.
+
+**Outcomes, not skills.**
+You never wanted skills.
+A skill is a pile of markdown files, and that's an implementation detail.
+What you wanted was the outcome: checks green, branch up to date, review answered.
+So malini has jobs.
+A job is an outcome you ask for by name, and you can have as many as you like.
+Give a job a skill preset, and it loads only the skills it needs.
+That leaves your time for the work that matters, instead of fighting your setup.
+
+<p align="center">
+  <img src=".github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
+</p>
+
+<p align="center">
+  <img src=".github/readme/job-running.webp" width="50%" alt="The top of a chat's composer: 71 files changed in this chat, and the Update from main job running.">
+</p>
+
+<p align="center">
+  <sub>A job running inside a chat.</sub>
+</p>
+
+## How it works
+
+1. **Start a task.**
+   Each task is a workstream: its own git worktree, its own branch, its own chats.
+   Start one or start a hundred.
+2. **Keep it moving.**
+   Queue prompts, run jobs, plan first if you like.
+   Agents write code, and malini owns git.
+3. **Press Draft, then Merge.**
+   malini commits, opens the pull request, fixes red checks, answers bot reviews, and merges once GitHub allows.
+
+Everything malini can do is in [`docs/features.md`](docs/features.md).
+
+## Install
+
+1. [Download malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
+2. Open it.
+   Setup connects Claude Code and GitHub: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
+   It also suggests skill presets from the skills you already have.
+3. Add a repository.
+   Your first workstream is ready.
+
+You need macOS 13 or later on Apple silicon, and git.
+malini ships the GitHub CLI, and setup installs Claude Code if you don't have it.
+
+## Build from source
+
+You need macOS on Apple silicon and Node 24.
 
 ```sh
-corepack enable pnpm   # once; the repo pins pnpm 12 in package.json
+git clone https://github.com/bestboyhq/malini && cd malini
+corepack enable pnpm   # once; the repository pins pnpm 12
 pnpm install
-pnpm dev          # native window with HMR
-pnpm test         # unit and contract tests
-pnpm test:e2e     # Playwright drives the built app
-pnpm dist         # release/mac-arm64/malini.app
+pnpm dev               # the app, with hot reload
 ```
 
-## Where things live
+Read [AGENTS.md](AGENTS.md) for the layout and the conventions.
+Issues and pull requests are welcome.
+Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org), and every merged `feat`, `fix`, or `perf` ships to users as an in-app update.
 
-| Path                              | What                                                                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/malini`                     | the Electron app                                                                                                               |
-| `apps/malini/src/lib`             | one folder per domain: `app`, `chat`, `pull-requests`, `routines`, `extensions`, and the shared `repositories` and `providers` |
-| `apps/malini/src/main`            | main-process bootstrap: database, IPC registry, git, docker, processes                                                         |
-| `apps/malini/src/contract`        | the typed command and event contract between the two processes                                                                 |
-| `packages/agent-bridge`           | the agent process the app runs every chat through                                                                              |
-| `packages/extension-api`          | the extension contract and its test host                                                                                       |
-| `packages/hyper-ui`               | the design system: components, icons, tokens                                                                                   |
-| `packages/eslint-plugin-hyper-ui` | the lint rules, including the domain boundaries                                                                                |
-| `extensions/repository`           | the Repository extension: the Files panel                                                                                      |
-
-Each domain folder holds its renderer layers and its main-process code.
-Conventions for agents are in `AGENTS.md`, and the rules are in `.agents/rules/`.
-Why it is built this way is in `docs/adr/`.
-
-## Usage data
-
-malini sends anonymous usage data to PostHog: which features are used, and errors.
-It never sends your code, prompts, paths or keys.
-Turn it off under Settings, Privacy, Share usage data.
-A build without `MAIN_VITE_POSTHOG_KEY` in `apps/malini/.env` sends nothing.
+malini is a sibling of [Grip](https://github.com/bestboyhq/grip), the free and open source screen recorder, and [Tony](https://github.com/bestboyhq/tony), free and open source dictation for the Mac.
 
 ## License
 
