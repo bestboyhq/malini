@@ -1,6 +1,6 @@
 # 0012 - Skills reach an agent through presets
 
-Status: accepted
+Status: superseded by 0015
 
 ## Context
 

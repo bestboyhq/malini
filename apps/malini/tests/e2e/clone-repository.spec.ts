@@ -33,10 +33,8 @@ test('cloning picks a recent GitHub repository and opens a workstream in it', as
 		);
 
 		const setup = page.getByTestId('onboarding');
-		for (const step of ['Group your skills into presets', 'Meet your jobs']) {
-			await setup.getByRole('button', { name: 'Continue' }).click();
-			await expect(setup.getByRole('heading', { name: step })).toBeVisible();
-		}
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await page.getByRole('button', { name: 'Clone a GitHub repository' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });

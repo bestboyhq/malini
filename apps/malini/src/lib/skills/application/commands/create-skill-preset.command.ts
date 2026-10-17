@@ -9,13 +9,11 @@ type PresetDraft = Readonly<{ name: string; skills: readonly string[]; emoji?: s
 
 function createSkillPresetCommand(draft: PresetDraft, rename = false): void {
 	const { name } = draft;
-	const first = skillPresetsAggregate.presets.length === 0;
 	void (async () => {
 		try {
 			const created = await skillsService.savePreset(draft);
 			skillPresetsAggregate.upsert(created);
 			if (rename) skillBoardStore.renamingPresetId = created.id;
-			if (first) skillPresetsAggregate.replaceAll(await skillsService.setDefaultPreset(created.id));
 		} catch (error) {
 			toast.error(`Could not create ${name} · ${describe(error)}`);
 		}

@@ -6,7 +6,6 @@
 	import type { SkillPresetRecord } from '$contract/skills';
 	import { Button } from '$hyper-ui/components/button';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Skeleton } from '$hyper-ui/components/skeleton';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
@@ -20,48 +19,39 @@
 	} from '$lib/skills/domain/skill-groups';
 	import { addSkillToPresetCommand } from '$lib/skills/application/commands/add-skill-to-preset.command';
 	import { createSkillPresetCommand } from '$lib/skills/application/commands/create-skill-preset.command';
-	import { ensureSkillSuggestionsCommand } from '$lib/skills/application/commands/ensure-skill-suggestions.command';
 	import { deleteSkillPresetCommand } from '$lib/skills/application/commands/delete-skill-preset.command';
 	import { loadSkillCatalogCommand } from '$lib/skills/application/commands/load-skill-catalog.command';
+	import { loadSkillUsageCommand } from '$lib/skills/application/commands/load-skill-usage.command';
 	import { loadSkillPresetsCommand } from '$lib/skills/application/commands/load-skill-presets.command';
 	import { removeSkillFromPresetCommand } from '$lib/skills/application/commands/remove-skill-from-preset.command';
 	import { renameSkillPresetCommand } from '$lib/skills/application/commands/rename-skill-preset.command';
 	import { setSkillPresetEmojiCommand } from '$lib/skills/application/commands/set-skill-preset-emoji.command';
-	import { setDefaultSkillPresetCommand } from '$lib/skills/application/commands/set-default-skill-preset.command';
 	import { startRenamingSkillPresetCommand } from '$lib/skills/application/commands/start-renaming-skill-preset.command';
 	import { renamingSkillPresetQuery } from '$lib/skills/application/queries/renaming-skill-preset.query.svelte';
 	import { skillCatalogQuery } from '$lib/skills/application/queries/skill-catalog.query.svelte';
+	import { skillsOnQuery } from '$lib/skills/application/queries/skills-on.query.svelte';
 	import { skillPresetsQuery } from '$lib/skills/application/queries/skill-presets.query.svelte';
-	import { skillPresetsReadyQuery } from '$lib/skills/application/queries/skill-presets-ready.query.svelte';
-	import { skillSuggestionsQuery } from '$lib/skills/application/queries/skill-suggestions.query.svelte';
 	import SkillPresetCard from './SkillPresetCard.svelte';
 	import SkillRow from './SkillRow.svelte';
-	import SkillSuggestionCard from './SkillSuggestionCard.svelte';
 	import { SkillDrag } from './skill-drag.svelte';
 
 	const NEW_PRESET = 'new';
-	const SUGGESTED = 'suggested:';
 
 	interface Props {
 		workstreamId?: string | null;
-		suggest?: boolean;
 		class?: ClassValue;
 	}
 
-	let { workstreamId = null, suggest = false, class: className }: Props = $props();
+	let { workstreamId = null, class: className }: Props = $props();
 	let filter = $state('');
 
-	const catalog = $derived(skillCatalogQuery.data(workstreamId));
+	const known = $derived(skillCatalogQuery.data(workstreamId));
+	const catalog = $derived(skillsOnQuery.data(workstreamId));
 	const presets = $derived(skillPresetsQuery.data);
-	const presetsReady = $derived(skillPresetsReadyQuery.data);
 	const renaming = $derived(renamingSkillPresetQuery.data);
 	const groups = $derived(
 		groupSkills(catalog.skills.filter((skill) => matchesSkillFilter(skill, filter))),
 	);
-	const suggestions = $derived(skillSuggestionsQuery.data);
-	const suggesting = $derived(suggest && presetsReady && suggestions.suggesting);
-	const suggested = $derived(suggest && presetsReady ? suggestions.offered : []);
-	const claudeSuggested = $derived(suggested.some(({ skills }) => skills.length > 0));
 	const totalTokens = $derived(skillTokens(catalog.skills, 'all'));
 	const drag = new SkillDrag(onDrop);
 	const lifted = $derived(catalog.skills.find(({ name }) => name === drag.skill) ?? null);
@@ -69,24 +59,14 @@
 
 	onMount(() => {
 		loadSkillCatalogCommand(workstreamId);
+		loadSkillUsageCommand();
 		loadSkillPresetsCommand();
-		if (suggest) ensureSkillSuggestionsCommand();
 		return () => drag.dispose();
 	});
 
 	function onDrop(skill: string, target: string): void {
 		if (target === NEW_PRESET) {
 			createSkillPresetCommand({ name: nextPresetName(), skills: [skill] }, true);
-			return;
-		}
-		if (target.startsWith(SUGGESTED)) {
-			const name = target.slice(SUGGESTED.length);
-			const suggestion = suggested.find((candidate) => candidate.name === name);
-			createSkillPresetCommand({
-				name,
-				emoji: suggestion?.emoji ?? null,
-				skills: [...(suggestion?.skills ?? []), skill],
-			});
 			return;
 		}
 		addSkillToPresetCommand(target, skill);
@@ -99,8 +79,6 @@
 
 	function nextPresetName(): string {
 		const taken = new Set(presets.map(({ name }) => name));
-		const blank = suggested.find(({ name, skills }) => skills.length === 0 && !taken.has(name));
-		if (blank) return blank.name;
 		let index = presets.length + 1;
 		while (taken.has(`Preset ${index}`)) index += 1;
 		return `Preset ${index}`;
@@ -231,44 +209,17 @@
 				<div animate:flip={{ duration: 200, easing: cubicOut }}>
 					<SkillPresetCard
 						{preset}
-						skills={catalog.skills}
+						skills={known.skills}
 						dragging={drag.skill}
 						over={drag.target === preset.id}
 						renaming={renaming === preset.id}
 						onremove={(skill) => removeSkillFromPresetCommand(preset.id, skill)}
 						onrename={(name) => renameSkillPresetCommand(preset.id, name)}
 						onstartrename={() => startRenamingSkillPresetCommand(preset.id)}
-						onmakedefault={() => setDefaultSkillPresetCommand(preset.id)}
 						onemoji={(emoji) => setSkillPresetEmojiCommand(preset.id, emoji)}
 						ondelete={() => deleteSkillPresetCommand(preset.id)}
 					/>
 				</div>
-			{/each}
-			{#if suggesting}
-				<p class="text-fg-tertiary text-2xs flex items-center gap-1.5 px-1.5 pt-1 font-medium">
-					<Icon name="sparkles" size={12} class="shrink-0" />
-					<ShimmerText text="Claude is suggesting presets from your skills" />
-				</p>
-				{#each [0, 1, 2] as row (row)}
-					<div
-						class="border-border-default h-[88px] shrink-0 rounded-xl border-[0.5px] border-dashed"
-						aria-hidden="true"
-					></div>
-				{/each}
-			{:else if claudeSuggested}
-				<p class="text-fg-tertiary text-2xs flex items-center gap-1.5 px-1.5 pt-1 font-medium">
-					<Icon name="sparkles" size={12} class="shrink-0" />
-					Suggested by Claude from your skills
-				</p>
-			{/if}
-			{#each suggested as suggestion (suggestion.name)}
-				<SkillSuggestionCard
-					{suggestion}
-					skills={catalog.skills}
-					dropTarget={`${SUGGESTED}${suggestion.name}`}
-					over={drag.target === `${SUGGESTED}${suggestion.name}`}
-					onadd={() => createSkillPresetCommand(suggestion)}
-				/>
 			{/each}
 			<div
 				class={[
@@ -277,9 +228,7 @@
 					drag.target === NEW_PRESET
 						? 'border-primary bg-surface-root-selected text-fg-secondary scale-[1.01]'
 						: 'border-border-default text-fg-tertiary',
-					drag.skill === null &&
-						(suggesting || presets.length + suggested.length > 0) &&
-						'opacity-0',
+					drag.skill === null && presets.length > 0 && 'opacity-0',
 				]}
 				data-skill-drop={NEW_PRESET}
 				aria-hidden="true"

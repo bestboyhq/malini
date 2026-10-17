@@ -1,16 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import type { SkillRecord } from '$contract/skills';
-import { isSkillChoice, toggleSkill } from './skill-choice';
+import { isSkillChoice, resolveSkillChoice } from './skill-choice';
 import { formatTokens, groupSkills, skillShortName } from './skill-groups';
 
 describe('choosing skills', () => {
-	it('turns every skill into a list without the one switched off, and adds one back', () => {
-		expect(toggleSkill('all', ['adr', 'animate', 'dataviz'], 'animate')).toEqual([
-			'adr',
-			'dataviz',
-		]);
-		expect(toggleSkill(['adr'], ['adr', 'animate'], 'animate')).toEqual(['adr', 'animate']);
-		expect(toggleSkill(['adr', 'animate'], ['adr', 'animate'], 'adr')).toEqual(['animate']);
+	it('gives a run its preset, and every skill when the preset is gone', () => {
+		const builder = {
+			id: 'builder',
+			name: 'Builder',
+			emoji: null,
+			skills: ['adr'],
+			createdAt: '2026-10-15T00:00:00Z',
+			updatedAt: '2026-10-15T00:00:00Z',
+		};
+		expect(resolveSkillChoice({ kind: 'preset', presetId: 'builder' }, [builder])).toEqual({
+			skills: ['adr'],
+			preset: builder,
+		});
+		expect(resolveSkillChoice({ kind: 'preset', presetId: 'gone' }, [builder]).skills).toBe('all');
+		expect(resolveSkillChoice({ kind: 'default' }, [builder]).skills).toBe('all');
 	});
 
 	it('accepts only the choices malini knows', () => {

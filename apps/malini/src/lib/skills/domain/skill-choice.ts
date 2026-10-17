@@ -10,37 +10,14 @@ export type ResolvedSkills = Readonly<{
 	preset: SkillPresetRecord | null;
 }>;
 
-export const DEFAULT_SKILL_CHOICE: SkillChoice = { kind: 'default' };
-
-export function skillChoiceKey(workstreamId: string, sessionId: string | null): string {
-	return `${workstreamId}:${sessionId ?? ''}`;
-}
-
 export function resolveSkillChoice(
 	choice: SkillChoice,
 	presets: readonly SkillPresetRecord[],
 ): ResolvedSkills {
-	if (choice.kind === 'all') return { skills: 'all', preset: null };
 	if (choice.kind === 'custom') return { skills: choice.skills, preset: null };
-	const chosen =
-		choice.kind === 'preset' ? presets.find(({ id }) => id === choice.presetId) : undefined;
-	const preset = chosen ?? defaultSkillPreset(presets);
+	if (choice.kind !== 'preset') return { skills: 'all', preset: null };
+	const preset = presets.find(({ id }) => id === choice.presetId);
 	return preset ? { skills: preset.skills, preset } : { skills: 'all', preset: null };
-}
-
-export function defaultSkillPreset(
-	presets: readonly SkillPresetRecord[],
-): SkillPresetRecord | null {
-	return presets.find(({ isDefault }) => isDefault) ?? null;
-}
-
-export function toggleSkill(
-	skills: readonly string[] | 'all',
-	available: readonly string[],
-	name: string,
-): string[] {
-	const current = skills === 'all' ? available : skills;
-	return current.includes(name) ? current.filter((skill) => skill !== name) : [...current, name];
 }
 
 export function isSkillChoice(value: unknown): value is SkillChoice {

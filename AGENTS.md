@@ -59,7 +59,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `pull-requests`        | pull request state, open draft, merge queue, top-bar status           |
 | `jobs`                 | job definitions, job runs and their scheduler, Jobs page, Job center  |
 | `routines`             | triggers that run job steps in order, suggestions, gated runs         |
-| `skills`               | skill presets, the skills each chat and job loads, setup's skill step |
+| `skills`               | skill usage and on/off switches in Claude settings, job skill presets |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
 | `browser`              | browser tabs in the inspector and the agent's browser tools           |
 | `stats`                | sidebar resource readout and stats panel: memory, CPU, run activity   |

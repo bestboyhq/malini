@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentSkills } from './skills.js';
+import { agentSkills, turnedOn } from './skills.js';
 
 describe('agentSkills', () => {
 	it('names where each skill comes from and pairs it with its description', () => {
@@ -52,5 +52,13 @@ describe('agentSkills', () => {
 
 		expect([...(skill?.description ?? '')]).toHaveLength(280);
 		expect(skill?.description.endsWith('…')).toBe(true);
+	});
+
+	it('turns back on only what the user turned off, for the listing alone', () => {
+		expect(turnedOn({ skills: [], plugins: [] })).toEqual({});
+		expect(turnedOn({ skills: ['humanizer'], plugins: ['caveman@caveman'] })).toEqual({
+			skillOverrides: { humanizer: 'on' },
+			enabledPlugins: { 'caveman@caveman': true },
+		});
 	});
 });

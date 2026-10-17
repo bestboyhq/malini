@@ -158,7 +158,6 @@ describe('the Jobs browser', () => {
 	it('lists the built-in jobs first and opens the first one', () => {
 		expect(listed('Built in')).toEqual([
 			'Name chats',
-			'Suggest skill presets',
 			'Fix checks',
 			'Update from main',
 			'Address bot review',

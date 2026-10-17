@@ -26,7 +26,6 @@ export type AgentCommand =
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ListSkillsCommand
-	| SuggestPresetsCommand
 	| BrowserResultCommand;
 
 export interface StartSessionCommand {
@@ -68,7 +67,6 @@ export interface SendPromptCommand {
 
 const MAX_SKILLS = 1_000;
 const MAX_SKILL_NAME_CHARACTERS = 200;
-const MAX_SKILL_DESCRIPTION_CHARACTERS = 1_000;
 
 export interface CancelRunCommand {
 	readonly cmd: 'cancel_run';
@@ -134,14 +132,12 @@ export interface ListSkillsCommand {
 	readonly cmd: 'list_skills';
 	readonly id: string;
 	readonly cwd: string;
+	readonly turnedOff?: TurnedOffSkills;
 }
 
-export interface SuggestPresetsCommand {
-	readonly cmd: 'suggest_presets';
-	readonly id: string;
-	readonly skills: readonly AgentSkillSummary[];
-	readonly instructions: string;
-	readonly model: string;
+export interface TurnedOffSkills {
+	readonly skills: readonly string[];
+	readonly plugins: readonly string[];
 }
 
 export type BrowserRequest =
@@ -217,17 +213,6 @@ export interface AgentSkill {
 	readonly tokens: number;
 }
 
-export interface AgentSkillSummary {
-	readonly name: string;
-	readonly description: string;
-}
-
-export interface AgentPresetSuggestion {
-	readonly name: string;
-	readonly emoji?: string;
-	readonly skills: readonly string[];
-}
-
 export interface BridgeReadyFrame {
 	readonly type: 'bridge.ready';
 	readonly contractName: typeof BRIDGE_CONTRACT_NAME;
@@ -281,13 +266,6 @@ export interface BridgeSkillsFrame {
 	readonly skills: readonly AgentSkill[];
 }
 
-export interface BridgePresetsFrame {
-	readonly type: 'bridge.presets';
-	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
-	readonly id: string;
-	readonly presets: readonly AgentPresetSuggestion[];
-}
-
 export type BridgeBrowserRequestFrame = {
 	readonly type: 'bridge.browser_request';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -303,7 +281,6 @@ export type BridgeControlFrame =
 	| BridgeProtocolErrorFrame
 	| BridgeTitleFrame
 	| BridgeSkillsFrame
-	| BridgePresetsFrame
 	| BridgeBrowserRequestFrame;
 
 export function bridgeReadyFrame(capabilities: readonly ProviderCapability[]): BridgeReadyFrame {
@@ -337,13 +314,6 @@ export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 
 export function bridgeSkillsFrame(id: string, skills: readonly AgentSkill[]): BridgeSkillsFrame {
 	return { type: 'bridge.skills', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, skills };
-}
-
-export function bridgePresetsFrame(
-	id: string,
-	presets: readonly AgentPresetSuggestion[],
-): BridgePresetsFrame {
-	return { type: 'bridge.presets', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, presets };
 }
 
 export function bridgeBrowserRequestFrame(
@@ -454,8 +424,6 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateSuggestTitle(obj);
 		case 'list_skills':
 			return validateListSkills(obj);
-		case 'suggest_presets':
-			return validateSuggestPresets(obj);
 		case 'browser_result':
 			return validateBrowserResult(obj);
 	}
@@ -859,54 +827,29 @@ function validateListSkills(obj: Record<string, unknown>): ParseResult {
 	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
 		return err('INVALID_PAYLOAD', 'list_skills: cwd required (absolute path)', obj);
 	}
-	return { ok: true, command: { cmd: 'list_skills', id: id.value, cwd } };
-}
-
-function validateSuggestPresets(obj: Record<string, unknown>): ParseResult {
-	const id = commandId(obj, 'suggest_presets');
-	if (!id.ok) return id;
-	const skills = obj.skills;
-	if (
-		!Array.isArray(skills) ||
-		skills.length === 0 ||
-		skills.length > MAX_SKILLS ||
-		!skills.every(isSkillSummary)
-	) {
+	const turnedOff = obj.turnedOff;
+	if (turnedOff !== undefined && !isTurnedOffSkills(turnedOff)) {
 		return err(
 			'INVALID_PAYLOAD',
-			`suggest_presets: skills required (1 to ${MAX_SKILLS} skills with a name and a description)`,
+			`list_skills: turnedOff, when present, must hold at most ${MAX_SKILLS} skill names and ${MAX_SKILLS} plugin ids`,
 			obj,
 		);
-	}
-	const instructions = obj.instructions;
-	if (typeof instructions !== 'string' || instructions.trim().length === 0) {
-		return err('INVALID_PAYLOAD', 'suggest_presets: instructions required (non-empty string)', obj);
-	}
-	const model = obj.model;
-	if (typeof model !== 'string' || model.trim().length === 0) {
-		return err('INVALID_PAYLOAD', 'suggest_presets: model required (non-empty string)', obj);
 	}
 	return {
 		ok: true,
 		command: {
-			cmd: 'suggest_presets',
+			cmd: 'list_skills',
 			id: id.value,
-			skills: skills.map(({ name, description }) => ({ name, description })),
-			instructions,
-			model,
+			cwd,
+			...(turnedOff !== undefined
+				? { turnedOff: { skills: turnedOff.skills, plugins: turnedOff.plugins } }
+				: {}),
 		},
 	};
 }
 
-function isSkillSummary(value: unknown): value is AgentSkillSummary {
-	return (
-		isRecord(value) &&
-		typeof value.name === 'string' &&
-		value.name.trim().length > 0 &&
-		value.name.length <= MAX_SKILL_NAME_CHARACTERS &&
-		typeof value.description === 'string' &&
-		value.description.length <= MAX_SKILL_DESCRIPTION_CHARACTERS
-	);
+function isTurnedOffSkills(value: unknown): value is TurnedOffSkills {
+	return isRecord(value) && isSkillList(value.skills) && isSkillList(value.plugins);
 }
 
 function validateBrowserResult(obj: Record<string, unknown>): ParseResult {

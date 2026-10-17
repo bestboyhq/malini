@@ -674,7 +674,7 @@ async function sendAgentPromptLeased(
 		return runId;
 	}
 	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
-	const skills = skillsForRun(db, workstreamId, sessionId);
+	const skills = skillsForRun(db, sessionId);
 	lease.release();
 	try {
 		await supervisor.sendCommand({
