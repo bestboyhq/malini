@@ -11,6 +11,11 @@ export interface BrowserScreenshotFile {
 	readonly url: string;
 }
 
+export interface BrowserTabProcess {
+	readonly processId: number;
+	readonly title: string;
+}
+
 export interface BrowserPlatform {
 	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo>;
 	screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile>;
@@ -24,5 +29,5 @@ export interface BrowserPlatform {
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
-	processIds(): number[];
+	tabProcesses(): BrowserTabProcess[];
 }

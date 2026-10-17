@@ -1,11 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import { dayStreak, runsOn } from '$lib/stats/domain/activity';
+	import { watchResourceBreakdownHook } from '$lib/stats/application/hooks/watch-resource-breakdown.hook';
 	import { activityStatsQuery } from '$lib/stats/application/queries/activity-stats.query.svelte';
 	import { latestResourceSampleQuery } from '$lib/stats/application/queries/latest-resource-sample.query.svelte';
 	import { machineMemoryQuery } from '$lib/stats/application/queries/machine-memory.query.svelte';
+	import { resourceBreakdownQuery } from '$lib/stats/application/queries/resource-breakdown.query.svelte';
 	import { resourceHistoryQuery } from '$lib/stats/application/queries/resource-history.query.svelte';
 	import ActivityHeatmap from './ActivityHeatmap.svelte';
 	import MemoryChart from './MemoryChart.svelte';
@@ -19,6 +22,7 @@
 	const latest = $derived(latestResourceSampleQuery.data);
 	const history = $derived(resourceHistoryQuery.data);
 	const machineMemory = $derived(machineMemoryQuery.data);
+	const breakdown = $derived(resourceBreakdownQuery.data);
 
 	const usage = $derived(
 		[...(latest?.usage ?? [])].sort((left, right) => right.memoryBytes - left.memoryBytes),
@@ -35,6 +39,8 @@
 				]
 			: [],
 	);
+
+	onMount(() => watchResourceBreakdownHook());
 
 	function tile(
 		count: number,
@@ -86,6 +92,7 @@
 			<ul class="mt-3 space-y-2" aria-label="Memory by kind" data-testid="stats-resource-usage">
 				{#each usage as entry (entry.kind)}
 					{@const display = resourceKindDisplay(entry.kind)}
+					{@const parts = breakdown.get(entry.kind)}
 					<StatsBar
 						value={formatMemory(entry.memoryBytes)}
 						share={entry.memoryBytes / heaviest}
@@ -95,6 +102,43 @@
 							<Icon name={display.icon} size={14} class="text-fg-tertiary shrink-0" />
 						{/snippet}
 						{display.label}
+						{#snippet details()}
+							<div class="mt-1 mr-6 mb-1.5 ml-5.5 flex flex-col gap-1.5">
+								<p class="text-fg-tertiary text-xs">{display.description}</p>
+								{#if parts && parts.items.length > 0}
+									<ul class="flex flex-col gap-1" aria-label={`${display.label} breakdown`}>
+										{#each parts.items as item, index (index)}
+											<li class="flex items-baseline justify-between gap-3 text-xs">
+												<span class="flex min-w-0 flex-col">
+													<span
+														class={[
+															'text-fg-secondary truncate',
+															entry.kind === 'tools' && 'font-mono text-[11px]',
+														]}
+													>
+														<SensitiveText text={item.label} />
+													</span>
+													{#if item.workstream}
+														<span class="text-fg-tertiary truncate">
+															<SensitiveText text={item.workstream} />
+														</span>
+													{/if}
+												</span>
+												<span class="text-fg-tertiary shrink-0 tabular-nums">
+													{formatMemory(item.memoryBytes)}
+												</span>
+											</li>
+										{/each}
+										{#if parts.unlisted > 0}
+											<li class="text-fg-tertiary flex justify-between gap-3 text-xs">
+												<span>{formatCount(parts.unlisted)} more</span>
+												<span class="tabular-nums">{formatMemory(parts.unlistedMemoryBytes)}</span>
+											</li>
+										{/if}
+									</ul>
+								{/if}
+							</div>
+						{/snippet}
 					</StatsBar>
 				{/each}
 			</ul>

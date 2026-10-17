@@ -50,7 +50,7 @@ import type {
 	SwitchSkillArgs,
 } from './skills';
 import type { RuntimeInfo } from './runtime';
-import type { ActivityStats, ResourceHistory } from './stats';
+import type { ActivityStats, ResourceHistory, ResourceKindBreakdown } from './stats';
 import type {
 	AddressedReviewThreadsDto,
 	ArchivedWorkstreamDto,
@@ -610,6 +610,7 @@ export interface ContractCommands {
 	'app.streaming': { args: undefined; result: boolean };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
+	'stats.resource-breakdown': { args: undefined; result: readonly ResourceKindBreakdown[] };
 }
 
 export type CommandName = keyof ContractCommands;
@@ -783,4 +784,5 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.streaming',
 	'stats.activity',
 	'stats.resources',
+	'stats.resource-breakdown',
 ];

@@ -5,15 +5,17 @@ import type { MaliniDatabase } from '$main/db/driver';
 import type { ProcessRunner } from '$main/process/runner';
 import { listOpenRuns, listRunActivity } from '$lib/chat/chat.platform';
 import {
+	displayWorkstreamName,
 	listConnectedRepositories,
+	listWorkstreams,
 	managedProjectIdForRepository,
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
-import { ResourceSampler } from './resource-sampler';
+import { ResourceSampler, type BrowserTab } from './resource-sampler';
 
 export interface StatsDeps {
 	readonly runner: ProcessRunner;
-	browserTabProcessIds(): number[];
+	browserTabs(): readonly BrowserTab[];
 	agentHostProcessId(): number | null;
 	runningContainerIds(): Promise<string[]>;
 }
@@ -28,13 +30,19 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 	const sampler = new ResourceSampler({
 		runner: deps.runner,
 		appProcessId: process.pid,
-		browserTabProcessIds: () => deps.browserTabProcessIds(),
+		browserTabs: () => deps.browserTabs(),
 		agentHostProcessId: () => deps.agentHostProcessId(),
 		runningContainerIds: () => deps.runningContainerIds(),
+		workstreams: () =>
+			listWorkstreams(db).map((workstream) => ({
+				path: workstream.path,
+				name: displayWorkstreamName(workstream),
+			})),
 		sampled: (sample) => events.emit(STATS_RESOURCES_SAMPLED_CHANNEL, sample),
 	});
 
 	commands.define('stats.resources', () => sampler.history());
+	commands.define('stats.resource-breakdown', () => sampler.breakdown());
 	commands.define('stats.activity', () => readActivity(db, new Date()));
 
 	return {
