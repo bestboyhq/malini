@@ -69,7 +69,12 @@
 		{/if}
 
 		<div class="flex items-center justify-end gap-2">
-			<Button variant="secondary" disabled={confirmation.closing} onclick={cancelCloseCommand}>
+			<Button
+				variant="secondary"
+				bordered
+				disabled={confirmation.closing}
+				onclick={cancelCloseCommand}
+			>
 				Keep working
 			</Button>
 			<Button

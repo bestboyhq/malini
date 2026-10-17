@@ -99,7 +99,7 @@
 		'primary-soft': 'bg-primary/10 text-primary [&_svg]:text-primary',
 		secondary: 'bg-button-secondary text-fg-secondary',
 		ghost: 'bg-transparent text-fg-secondary',
-		danger: 'bg-error text-error-content',
+		danger: 'bg-button-danger text-button-danger-content',
 		'danger-ghost': 'bg-transparent text-error-content',
 		warning: 'bg-warning text-warning-content',
 		inherit: 'bg-transparent',
@@ -110,7 +110,7 @@
 		'primary-soft': 'bg-primary/10 text-primary',
 		secondary: 'bg-button-secondary-busy text-fg-default',
 		ghost: 'bg-surface-150-hover text-fg-default',
-		danger: 'bg-button-danger-busy text-error-content',
+		danger: 'bg-button-danger-hover text-button-danger-content',
 		'danger-ghost': 'bg-button-danger-busy text-error-content',
 		warning: 'bg-warning text-warning-content',
 		inherit: undefined,
@@ -134,7 +134,7 @@
 			'hover:bg-button-secondary-hover hover:text-fg-default data-[active=true]:bg-button-secondary-hover data-[active=true]:text-fg-default',
 		ghost:
 			'hover:bg-surface-150-hover hover:text-fg-default data-[active=true]:bg-surface-150-hover data-[active=true]:text-fg-default',
-		danger: 'hover:brightness-95 data-[active=true]:brightness-95',
+		danger: 'hover:bg-button-danger-hover data-[active=true]:bg-button-danger-hover',
 		'danger-ghost': 'hover:bg-error data-[active=true]:bg-error',
 		warning: 'hover:brightness-95 data-[active=true]:brightness-95',
 		inherit: 'hover:opacity-80 data-[active=true]:opacity-80',
@@ -145,7 +145,7 @@
 		'primary-soft': 'focus-visible:ring-button-primary/40',
 		secondary: 'focus-visible:ring-button-primary/40',
 		ghost: 'focus-visible:ring-button-primary/40',
-		danger: 'focus-visible:ring-error-content/30',
+		danger: 'focus-visible:ring-button-danger/40',
 		'danger-ghost': 'focus-visible:ring-error-content/30',
 		warning: 'focus-visible:ring-warning-content/30',
 		inherit: 'focus-visible:ring-border-default/50',
@@ -380,7 +380,12 @@
 	:global(
 		[data-hyper-button]:not([data-bare])[data-dropdown-open='true'][data-variant='danger']:not(
 				:disabled
-			),
+			)
+	) {
+		background-color: var(--color-button-danger-hover);
+	}
+
+	:global(
 		[data-hyper-button]:not([data-bare])[data-dropdown-open='true'][data-variant='warning']:not(
 				:disabled
 			)

@@ -672,10 +672,12 @@
 		<div class="flex flex-col gap-5" data-testid="stop-chat-confirmation">
 			<p class="text-fg-secondary text-sm">
 				Closing <span class="text-fg-default">{identityOf(sessionToStop).name}</span>
-				 stops its agent and every background task it started.
+				stops its agent and every background task it started.
 			</p>
 			<div class="flex items-center justify-end gap-2">
-				<Button variant="secondary" onclick={() => (sessionToStop = null)}>Keep working</Button>
+				<Button variant="secondary" bordered onclick={() => (sessionToStop = null)}>
+					Keep working
+				</Button>
 				<Button variant="danger" onclick={onStopAndClose}>Stop and close</Button>
 			</div>
 		</div>

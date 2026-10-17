@@ -151,6 +151,9 @@
 	--themed-color-button-secondary-border: var(--color-button-secondary-border-light);
 	--themed-color-button-secondary-hover: var(--color-button-secondary-hover-light);
 	--themed-color-button-secondary-busy: var(--color-button-secondary-busy-light);
+	--themed-color-button-danger: var(--color-button-danger-light);
+	--themed-color-button-danger-hover: var(--color-button-danger-hover-light);
+	--themed-color-button-danger-content: var(--color-button-danger-content-light);
 	--themed-color-button-danger-busy: var(--color-button-danger-busy-light);
 
 	--themed-color-button-disabled: var(--color-button-disabled-light);
