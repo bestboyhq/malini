@@ -32,7 +32,7 @@
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
 	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
 	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
-	import { pendingQuestionQuery } from '$lib/chat/application/queries/pending-question.query.svelte';
+	import { pendingQuestionsQuery } from '$lib/chat/application/queries/pending-questions.query.svelte';
 	import { presentedTranscriptQuery } from '$lib/chat/application/queries/presented-transcript.query.svelte';
 	import { queueErrorsQuery } from '$lib/chat/application/queries/queue-errors.query.svelte';
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
@@ -132,7 +132,7 @@
 	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
-	const pendingQuestion = $derived(pendingQuestionQuery.data(presentedSessionId));
+	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
@@ -175,21 +175,20 @@
 	const stage = $derived(
 		chatStage({ freshChat, presentedSessionId, bootError, presentationPending }),
 	);
-	const questionRequest = $derived(
-		stage === 'transcript' && !presentationPending && presentedSessionId === sessionId
-			? pendingQuestion
-			: null,
+	const asking = $derived(
+		stage === 'transcript' &&
+			!presentationPending &&
+			presentedSessionId === sessionId &&
+			pendingQuestions.length > 0,
 	);
-	const questionKey = $derived(questionRequest?.questionId ?? null);
 	let composerSlot: HTMLElement | null = $state(null);
-	let shownQuestionKey: string | null = null;
+	let wasAsking = false;
 
 	$effect(() => {
-		const key = questionKey;
-		if (key === shownQuestionKey) return;
-		const answered = shownQuestionKey !== null && key === null;
-		shownQuestionKey = key;
-		if (answered) void returnToComposer();
+		const now = asking;
+		if (now === wasAsking) return;
+		wasAsking = now;
+		if (!now) void returnToComposer();
 	});
 
 	async function returnToComposer(): Promise<void> {
@@ -286,7 +285,7 @@
 	}
 
 	function composerMayClaimInput(): boolean {
-		if (questionRequest || documentActive || !focusIsUnclaimed()) return false;
+		if (asking || documentActive || !focusIsUnclaimed()) return false;
 		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
 	}
 
@@ -460,12 +459,10 @@
 									</div>
 								{/if}
 
-								{#if questionRequest}
-									{#key questionRequest.questionId}
-										<AgentQuestionPanel request={questionRequest} />
-									{/key}
+								{#if asking}
+									<AgentQuestionPanel requests={pendingQuestions} />
 								{/if}
-								<div bind:this={composerSlot} class={[questionRequest && 'hidden']}>
+								<div bind:this={composerSlot} class={[asking && 'hidden']}>
 									<ChatComposer
 										bind:this={composer}
 										{sessionId}

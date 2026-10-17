@@ -27,8 +27,8 @@ describe('agent interaction card contract', () => {
 	it('answers questions from the composer slot, never from the transcript', () => {
 		expect(panel).toContain('answerQuestionCommand({');
 		expect(panel).toContain('onclick={cancelRunCommand}');
-		expect(surface).toContain('<AgentQuestionPanel request={questionRequest} />');
-		expect(surface).toContain("class={[questionRequest && 'hidden']}");
+		expect(surface).toContain('<AgentQuestionPanel requests={pendingQuestions} />');
+		expect(surface).toContain("class={[asking && 'hidden']}");
 		expect(messageList).toContain('<AgentQuestionRow {item} />');
 		expect(messageList).not.toContain('answerQuestionCommand');
 		expect(messageList).toContain('const currentLength = currentEnvelopes.length;');

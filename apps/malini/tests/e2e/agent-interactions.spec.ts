@@ -119,3 +119,37 @@ test('a question from the agent takes the composer slot and is answered from the
 		await app.close();
 	}
 });
+
+test('questions Claude asks in parallel share one panel and one send', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-agent-question-pair-ws',
+			'Agent question pair workstream',
+		);
+		await openWorkstream(page, workstreamId);
+
+		await sendPrompt(page, 'QUESTION_PAIR');
+		const steps = page.getByRole('navigation', { name: 'Questions' });
+		await expect(steps.getByRole('button')).toHaveCount(2, { timeout: 20_000 });
+		await expect(page.getByTestId('agent-question-row')).toHaveCount(2);
+
+		await page.keyboard.press('2');
+		await expect(page.getByRole('radiogroup', { name: 'Where?' })).toBeVisible();
+		await page.keyboard.press('1');
+		await page.getByRole('button', { name: 'Send answers' }).click();
+
+		await expect(page.getByTestId('agent-question-row').nth(0)).toContainText('B');
+		await expect(page.getByTestId('agent-question-row').nth(1)).toContainText('Here');
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
+		await expectAssistantReply(page);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

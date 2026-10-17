@@ -188,19 +188,22 @@ export class AgentInteractionCommands {
 		this.states = nextStates;
 	}
 
-	pendingQuestion(sessionId: string): AgentQuestionRequest | null {
+	pendingQuestions(sessionId: string): readonly AgentQuestionRequest[] {
+		const pending: AgentQuestionRequest[] = [];
 		for (const [key, request] of this.#requests) {
 			if (request.kind !== 'question' || request.sessionId !== sessionId) continue;
-			const status = (this.states[key] ?? IDLE_STATE).status;
-			if (status === 'resolved' || status === 'stale') continue;
-			return {
+			const state = this.states[key] ?? IDLE_STATE;
+			if (state.status === 'resolved' || state.status === 'stale') continue;
+			pending.push({
 				sessionId,
 				runId: request.runId,
 				questionId: request.requestId,
 				questions: request.questions,
-			};
+				submitting: state.status === 'submitting',
+				error: state.status === 'error' ? state.message : null,
+			});
 		}
-		return null;
+		return pending;
 	}
 
 	stateFor(reference: AgentInteractionReference): AgentInteractionState {

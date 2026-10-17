@@ -386,7 +386,7 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
-	it('offers the oldest unanswered question of a chat and reads a replayed answer as answered', () => {
+	it('offers every unanswered question of a chat and reads a replayed answer as answered', () => {
 		const commands = new AgentInteractionCommands(
 			() => ({ decideAgentApproval: vi.fn(), answerAgentQuestion: vi.fn() }),
 			() => undefined,
@@ -408,9 +408,11 @@ describe('AgentInteractionCommands', () => {
 					},
 				],
 			});
+		const pendingIds = (): string[] =>
+			commands.pendingQuestions('session-1').map(({ questionId }) => questionId);
 		commands.sync([asked(1, 'question-1'), asked(2, 'question-2')]);
-		expect(commands.pendingQuestion('session-1')?.questionId).toBe('question-1');
-		expect(commands.pendingQuestion('session-2')).toBeNull();
+		expect(pendingIds()).toEqual(['question-1', 'question-2']);
+		expect(commands.pendingQuestions('session-2')).toEqual([]);
 
 		commands.sync([
 			asked(1, 'question-1'),
@@ -423,14 +425,14 @@ describe('AgentInteractionCommands', () => {
 				output: 'Your questions have been answered: "Which runner?"="Vitest".',
 			}),
 		]);
-		expect(commands.pendingQuestion('session-1')?.questionId).toBe('question-2');
+		expect(pendingIds()).toEqual(['question-2']);
 
 		commands.sync([
 			asked(1, 'question-1'),
 			asked(2, 'question-2'),
 			envelope(3, { type: 'run.failed', runId: 'run-1', error: 'interrupted' }),
 		]);
-		expect(commands.pendingQuestion('session-1')).toBeNull();
+		expect(pendingIds()).toEqual([]);
 		expect(
 			commands.stateFor({
 				kind: 'question',

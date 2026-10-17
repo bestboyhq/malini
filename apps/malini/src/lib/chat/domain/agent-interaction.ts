@@ -43,6 +43,8 @@ export type AgentQuestionRequest = Readonly<{
 	runId: string;
 	questionId: string;
 	questions: readonly AgentQuestion[];
+	submitting: boolean;
+	error: string | null;
 }>;
 
 export type AgentQuestionAnswer = Readonly<{

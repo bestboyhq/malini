@@ -91,6 +91,38 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const askedQuestions = new Map();
+const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
+	const asked = askedQuestions.get(runId) ?? { questions: new Map(), answers: [] };
+	asked.questions.set(questionId, { toolCallId, prompt });
+	askedQuestions.set(runId, asked);
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'AskUserQuestion',
+		toolCallId,
+		input: { questions: [{ question: prompt }] },
+	});
+	event({
+		type: 'question.requested',
+		sessionId,
+		runId,
+		questionId,
+		toolName: 'AskUserQuestion',
+		toolCallId,
+		questions: [
+			{
+				id: 'q1',
+				prompt,
+				options: labels.map((label, index) =>
+					index === labels.length - 1 ? { label, description: 'second' } : { label },
+				),
+				multiSelect: false,
+				allowFreeText: false,
+			},
+		],
+	});
+};
 const worktrees = new Map();
 const event = (frame) => write(frame);
 const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [], appended = '') => {
@@ -452,32 +484,15 @@ const respond = (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('QUESTION_PAIR')) {
+		pendingRuns.set(runId, sessionId);
+		askQuestion(sessionId, runId, 'question-1', 'ask-1', 'Which?', ['A', 'B']);
+		askQuestion(sessionId, runId, 'question-2', 'ask-2', 'Where?', ['Here', 'There']);
+		return;
+	}
 	if (prompt.includes('QUESTION')) {
 		pendingRuns.set(runId, sessionId);
-		event({
-			type: 'tool.started',
-			runId,
-			name: 'AskUserQuestion',
-			toolCallId: 'ask-1',
-			input: { questions: [{ question: 'Which?' }] },
-		});
-		event({
-			type: 'question.requested',
-			sessionId,
-			runId,
-			questionId: 'question-1',
-			toolName: 'AskUserQuestion',
-			toolCallId: 'ask-1',
-			questions: [
-				{
-					id: 'q1',
-					prompt: 'Which?',
-					options: [{ label: 'A' }, { label: 'B', description: 'second' }],
-					multiSelect: false,
-					allowFreeText: false,
-				},
-			],
-		});
+		askQuestion(sessionId, runId, 'question-1', 'ask-1', 'Which?', ['A', 'B']);
 		return;
 	}
 	if (prompt.includes('BACKGROUND_COMMAND')) return backgroundCommandRun(sessionId, runId);
@@ -616,19 +631,26 @@ const handle = (command) => {
 		}
 		case 'answer_question': {
 			ack(command.id);
+			const asked = askedQuestions.get(command.runId);
+			const question = asked?.questions.get(command.questionId);
+			if (!asked || !question) return;
+			asked.questions.delete(command.questionId);
+			asked.answers.push(...command.answers);
 			event({
 				type: 'tool.completed',
 				runId: command.runId,
 				name: 'AskUserQuestion',
-				toolCallId: 'ask-1',
+				toolCallId: question.toolCallId,
 				output:
 					'Your questions have been answered: ' +
 					command.answers
-						.map((answer) => '"Which?"="' + answer.values.join(', ') + '"')
+						.map((answer) => '"' + question.prompt + '"="' + answer.values.join(', ') + '"')
 						.join(', ') +
 					'. You can now continue with these answers in mind.',
 			});
-			completeRun(command.sessionId, command.runId, 'answered:' + JSON.stringify(command.answers));
+			if (asked.questions.size > 0) return;
+			askedQuestions.delete(command.runId);
+			completeRun(command.sessionId, command.runId, 'answered:' + JSON.stringify(asked.answers));
 			pendingRuns.delete(command.runId);
 			return;
 		}
