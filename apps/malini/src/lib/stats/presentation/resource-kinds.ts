@@ -10,7 +10,7 @@ export type ResourceKindDisplay = Readonly<{
 const DISPLAY: Readonly<Record<ResourceKind, ResourceKindDisplay>> = {
 	malini: {
 		label: 'malini',
-		description: 'The app itself: its window, main process and helpers.',
+		description: 'The app: its window, main process and helpers.',
 		icon: 'sidebar',
 	},
 	browser: {
@@ -20,17 +20,17 @@ const DISPLAY: Readonly<Record<ResourceKind, ResourceKindDisplay>> = {
 	},
 	agents: {
 		label: 'Agents',
-		description: 'Claude Code, one process per open chat, and the bridge that runs them.',
+		description: 'One Claude Code per chat, plus the bridge.',
 		icon: 'sparkles',
 	},
 	tools: {
 		label: 'Started by agents',
-		description: 'Programs agents launched: MCP servers, dev servers, test runners and shells.',
+		description: 'Programs agents launched, like MCP servers.',
 		icon: 'terminal',
 	},
 	docker: {
 		label: 'Docker',
-		description: 'Containers malini runs for your workstreams.',
+		description: 'Containers malini runs for workstreams.',
 		icon: 'cube',
 	},
 };

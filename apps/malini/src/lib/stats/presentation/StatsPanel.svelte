@@ -103,24 +103,24 @@
 						{/snippet}
 						{display.label}
 						{#snippet details()}
-							<div class="mt-1 mr-6 mb-1.5 ml-5.5 flex flex-col gap-1.5">
-								<p class="text-fg-tertiary text-xs">{display.description}</p>
+							<div class="mt-1 mb-1.5 ml-5.5 flex flex-col gap-1.5">
+								<p class="text-fg-tertiary truncate text-xs">{display.description}</p>
 								{#if parts && parts.items.length > 0}
-									<ul class="flex flex-col gap-1" aria-label={`${display.label} breakdown`}>
+									<ul class="mr-6 flex flex-col gap-1" aria-label={`${display.label} breakdown`}>
 										{#each parts.items as item, index (index)}
-											<li class="flex items-baseline justify-between gap-3 text-xs">
-												<span class="flex min-w-0 flex-col">
+											<li class="flex items-baseline gap-3 text-xs">
+												<span class="flex min-w-0 flex-1 items-baseline gap-1.5">
 													<span
 														class={[
-															'text-fg-secondary truncate',
+															'text-fg-secondary max-w-3/5 shrink-0 truncate',
 															entry.kind === 'tools' && 'font-mono text-[11px]',
 														]}
 													>
 														<SensitiveText text={item.label} />
 													</span>
 													{#if item.workstream}
-														<span class="text-fg-tertiary truncate">
-															<SensitiveText text={item.workstream} />
+														<span class="text-fg-tertiary min-w-0 truncate">
+															· <SensitiveText text={item.workstream} />
 														</span>
 													{/if}
 												</span>
