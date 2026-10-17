@@ -152,6 +152,7 @@ export function createRowArrivals(input: {
 		let rows: Row[] = [];
 		let frame: number | null = null;
 		let previousFrameMs: number | null = null;
+		let width = container.clientWidth;
 
 		function paint(): void {
 			let nextOffset: number | null = null;
@@ -187,7 +188,9 @@ export function createRowArrivals(input: {
 		}
 
 		function measure(): void {
-			const animate = !rebaseRequested && !opening() && !prefersReducedMotion();
+			const rewrapped = container.clientWidth !== width;
+			width = container.clientWidth;
+			const animate = !rewrapped && !rebaseRequested && !opening() && !prefersReducedMotion();
 			rebaseRequested = false;
 			const known = new Map(rows.map((row) => [row.element, row]));
 			let moved = false;

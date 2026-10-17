@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRowArrivals } from './row-arrival';
 
 let release: (() => void) | null = null;
+const InertResizeObserver = globalThis.ResizeObserver;
 
 beforeEach(() => {
 	vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
@@ -12,6 +13,7 @@ afterEach(() => {
 	release = null;
 	document.body.replaceChildren();
 	vi.useRealTimers();
+	globalThis.ResizeObserver = InertResizeObserver;
 });
 
 function rowOf(height: number): HTMLElement {
@@ -32,9 +34,10 @@ function rowOf(height: number): HTMLElement {
 
 function glidingRun(
 	heights: readonly number[],
-	{ opening = false } = {},
+	{ opening = false, width = (): number => 0 } = {},
 ): { run: HTMLElement; rows: HTMLElement[] } {
 	const run = document.createElement('li');
+	Object.defineProperty(run, 'clientWidth', { get: width });
 	const rows = heights.map(rowOf);
 	run.append(...rows);
 	document.body.append(run);
@@ -53,6 +56,21 @@ function glidingRun(
 
 function mutationsDelivered(): Promise<void> {
 	return new Promise((resolve) => queueMicrotask(resolve));
+}
+
+function resizesObserved(): () => void {
+	const deliveries: (() => void)[] = [];
+	globalThis.ResizeObserver = class {
+		constructor(callback: ResizeObserverCallback) {
+			deliveries.push(() => callback([], this));
+		}
+		observe(): void {}
+		unobserve(): void {}
+		disconnect(): void {}
+	};
+	return () => {
+		for (const deliver of deliveries) deliver();
+	};
 }
 
 function framesPass(count: number): void {
@@ -92,6 +110,21 @@ describe('a live run whose rows change', () => {
 
 		expect(rows[2]?.style.translate).toBe('0 30px');
 		expect(rows[0]?.style.maskImage).toBe('');
+	});
+});
+
+describe('a live run that is resized', () => {
+	it('places the rows a narrower width rewraps where they land instead of gliding them', () => {
+		const resize = resizesObserved();
+		let width = 400;
+		const { rows } = glidingRun([40, 24], { width: () => width });
+		const [message, footer] = rows;
+
+		if (message) message.dataset['height'] = '70';
+		width = 300;
+		resize();
+
+		expect(footer?.style.translate).toBe('');
 	});
 });
 

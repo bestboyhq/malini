@@ -266,6 +266,7 @@
 <div
 	data-testid="chat-surface"
 	class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+	style:width={splitInset.extent > 0 ? `${splitInset.extent}px` : undefined}
 	style:padding-right="{splitInset.secondarySize}px"
 >
 	<AgentProcessDiedBanner />

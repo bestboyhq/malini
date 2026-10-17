@@ -17,6 +17,7 @@
 	import { sidebarCollapsedQuery } from '$lib/app/application/queries/sidebar-collapsed.query.svelte';
 	import { sidebarOverlayQuery } from '$lib/app/application/queries/sidebar-overlay.query.svelte';
 	import { sidebarPresenceQuery } from '$lib/app/application/queries/sidebar-presence.query.svelte';
+	import { sidebarWidthQuery } from '$lib/app/application/queries/sidebar-width.query.svelte';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import {
 		globalTopBarActionMatchesPathname,
@@ -270,6 +271,8 @@
 	data-native-drag-region
 	data-testid="global-topbar"
 	data-sidebar-collapsed={sidebarCollapsed ? '' : undefined}
+	data-sidebar-docked={leftClusterTucked ? undefined : ''}
+	style:--shell-sidebar-width="{sidebarWidthQuery.data}px"
 >
 	<div
 		class="topbar-left"
@@ -591,8 +594,8 @@
 		right: 0;
 		display: grid;
 		grid-template-columns:
-			var(--shell-sidebar-left, var(--topbar-side-reserve))
-			minmax(0, var(--shell-sidebar-width, min(48vw, 680px)))
+			var(--topbar-side-reserve)
+			minmax(0, min(48vw, 680px))
 			minmax(0, 1fr)
 			auto;
 		align-items: center;
@@ -607,6 +610,14 @@
 
 	:global(html[data-native-shell='true']) .global-topbar > * {
 		pointer-events: auto;
+	}
+
+	:global(html[data-native-shell='true']) .global-topbar[data-sidebar-docked] {
+		grid-template-columns:
+			0px
+			minmax(0, var(--shell-sidebar-width))
+			minmax(0, 1fr)
+			auto;
 	}
 
 	:global(html[data-native-shell='true']) .global-topbar[data-sidebar-collapsed] {
