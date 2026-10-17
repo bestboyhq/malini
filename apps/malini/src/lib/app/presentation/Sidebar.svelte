@@ -905,7 +905,7 @@
 													>
 														<span
 															class={[
-																'relative grid h-4 w-4 place-items-center',
+																'grid h-4 w-4 place-items-center',
 																busy || state.tone === 'broken' ? state.icon : pullRequest.color,
 															]}
 															role="status"
@@ -920,15 +920,6 @@
 																<BusyIcon size={14} background={state.tone === 'background'} />
 															{:else}
 																<Icon name={pullRequest.glyph} size={14} />
-															{/if}
-															{#if queueCount > 0}
-																<span
-																	class="bg-brand text-brand-content ring-border-default absolute -right-1.5 -bottom-1 grid min-h-3 min-w-3 place-items-center rounded-full px-0.5 text-[8px] leading-3 font-medium tabular-nums ring-1"
-																	aria-hidden="true"
-																	data-testid="sidebar-prompt-queue-count"
-																>
-																	{queueCount}
-																</span>
 															{/if}
 														</span>
 													</Tooltip>
@@ -966,7 +957,14 @@
 																<Icon name="pencil" class="shrink-0" size={14} />
 															</span>
 														{/if}
-														{#if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
+														{#if queueCount > 0}
+															<span
+																class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
+																data-testid="sidebar-prompt-queue-count"
+															>
+																{queueCount} queued
+															</span>
+														{:else if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
 															<span
 																class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
 																aria-label={`${changeTotals.additions} additions, ${changeTotals.deletions} deletions`}
