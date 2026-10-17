@@ -87,6 +87,7 @@
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { modelLabel } from '$shared/providers/providers.api';
 	import { closeChatCommand } from '$lib/chat/application/commands/close-chat.command';
+	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { chatAttentionQuery } from '$lib/chat/application/queries/chat-attention.query.svelte';
 	import { closingChatsQuery } from '$lib/chat/application/queries/closing-chats.query.svelte';
 	import { draftScopesQuery } from '$lib/chat/application/queries/draft-scopes.query.svelte';
@@ -313,7 +314,7 @@
 			};
 		}
 		const session = entry.session;
-		const identity = agentChatIdentity(session);
+		const identity = identityOf(session);
 		return {
 			key: entry.key,
 			name: identity.name,
@@ -326,6 +327,12 @@
 				void goto(sessionHref(session));
 			},
 		};
+	}
+
+	function identityOf(session: SessionRecord): AgentChatIdentity {
+		const waitingOnBackground =
+			session.status === 'running' && backgroundWorkQuery.data(session.id)?.waiting === true;
+		return agentChatIdentity({ ...session, waitingOnBackground });
 	}
 
 	function hasDraft(sessionId: SessionId | null): boolean {
@@ -354,7 +361,7 @@
 	}
 
 	function sessionTooltip(session: SessionRecord): string {
-		const identity = agentChatIdentity(session);
+		const identity = identityOf(session);
 		const agentAndModel = `Agent · ${sessionLabel(session)}`;
 		return identity.activity === 'idle'
 			? agentAndModel
@@ -362,7 +369,7 @@
 	}
 
 	function sessionTone(session: SessionRecord): string {
-		switch (agentChatIdentity(session).activity) {
+		switch (identityOf(session).activity) {
 			case 'needs-approval':
 				return 'text-warning-content';
 			case 'failed':
@@ -471,7 +478,7 @@
 		{#each stripItems as item (item.key)}
 			{#if item.kind === 'chat'}
 				{@const session = item.session}
-				{@const identity = agentChatIdentity(session)}
+				{@const identity = identityOf(session)}
 				{@const drafted = hasDraft(session.id)}
 				{@const unread = chatAttentionQuery.data(session.id) !== null}
 				{@const isSelected = selectedSessionId === session.id && !documentActive}
@@ -522,6 +529,7 @@
 					}}
 					icon={unread ? unreadIcon : isActivePlan ? planIcon : drafted ? draftIcon : undefined}
 					busy={identity.activity === 'in-progress'}
+					backgroundBusy={identity.activity === 'in-background'}
 					trailing={identity.activity === 'needs-approval' || identity.activity === 'failed'
 						? statusIcon
 						: undefined}

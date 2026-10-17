@@ -485,6 +485,7 @@
 			| 'idle'
 			| 'provisioning'
 			| 'running'
+			| 'background'
 			| 'waiting'
 			| 'completed'
 			| 'failed'
@@ -493,7 +494,8 @@
 			| 'broken';
 	};
 
-	type ChatTone = 'running' | 'waiting' | 'queued' | 'failed' | 'completed' | 'draft';
+	type ChatTone =
+		'running' | 'background' | 'waiting' | 'queued' | 'failed' | 'completed' | 'draft';
 
 	type ChatAttention = Readonly<{ kind: 'completed' | 'input' | 'failed' | 'approval' }>;
 
@@ -508,6 +510,7 @@
 
 	const CHAT_TONE_ICON: Readonly<Record<ChatTone, string>> = {
 		running: 'text-fg-secondary',
+		background: 'text-fg-secondary',
 		waiting: 'text-warning-content',
 		queued: 'text-fg-secondary',
 		failed: 'text-error-content',
@@ -824,7 +827,10 @@
 													? undefined
 													: changeTotalsByWorkstream[workstream.id]}
 											{@const pullRequest = pullRequestVisual(badge)}
-											{@const busy = state.tone === 'running' || state.tone === 'provisioning'}
+											{@const busy =
+												state.tone === 'running' ||
+												state.tone === 'background' ||
+												state.tone === 'provisioning'}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
 											{@const unread = attention !== null}
 											{@const workstreamItem = { kind: 'workstream' as const, id: workstream.id }}
@@ -904,14 +910,14 @@
 															]}
 															role="status"
 															aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
-															data-testid={state.tone === 'running'
+															data-testid={state.tone === 'running' || state.tone === 'background'
 																? 'sidebar-workstream-loader'
 																: 'sidebar-workstream-status'}
 															data-workstream-icon-state={state.tone}
 															data-workstream-pull-request-state={badge.phase}
 														>
 															{#if busy}
-																<BusyIcon size={14} />
+																<BusyIcon size={14} background={state.tone === 'background'} />
 															{:else}
 																<Icon name={pullRequest.glyph} size={14} />
 															{/if}

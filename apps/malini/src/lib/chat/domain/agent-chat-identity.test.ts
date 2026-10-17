@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { agentChatIdentity, deriveAgentChatActivity } from './agent-chat-identity';
 
 describe('agent chat identity', () => {
-	it('maps run lifecycle to the four icon states used by chat navigation', () => {
+	it('maps run lifecycle to the icon states used by chat navigation', () => {
 		expect(deriveAgentChatActivity('idle')).toBe('idle');
 		expect(deriveAgentChatActivity('completed')).toBe('idle');
 		expect(deriveAgentChatActivity('running')).toBe('in-progress');
+		expect(deriveAgentChatActivity('running', false, true)).toBe('in-background');
+		expect(deriveAgentChatActivity('idle', true, true)).toBe('in-progress');
 		expect(deriveAgentChatActivity('idle', true)).toBe('in-progress');
 		expect(deriveAgentChatActivity('waiting_for_approval')).toBe('needs-approval');
 		expect(deriveAgentChatActivity('failed')).toBe('failed');

@@ -5,6 +5,7 @@ import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activit
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
+import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { defaultAgentModel } from '$shared/providers/providers.api';
 import WorkstreamChatSummaryHarness from './fixtures/WorkstreamChatSummaryHarness.svelte';
 
@@ -16,6 +17,7 @@ afterEach(() => {
 	stop = null;
 	vi.restoreAllMocks();
 	sessionsAggregate.reset();
+	transcriptAggregate.reset();
 	globalThis.localStorage.clear();
 });
 
@@ -77,7 +79,7 @@ describe('the sidebar chat summary of a workstream', () => {
 		expect(summary(waiting).dataset['tone']).toBe('waiting');
 	});
 
-	it('shows a running job as work in progress while still linking to the user chat', () => {
+	it('shows a running job as background work while still linking to the user chat', () => {
 		const busy = workstream();
 		const finished = workstream();
 		chat(busy, 'chat', 'idle');
@@ -87,10 +89,31 @@ describe('the sidebar chat summary of a workstream', () => {
 
 		const summary = render([busy, finished]);
 
-		expect(summary(busy).textContent?.trim()).toBe('Running');
+		expect(summary(busy).textContent?.trim()).toBe('Job running');
+		expect(summary(busy).dataset['tone']).toBe('background');
 		expect(summary(busy).dataset['sessionId']).toBe('chat');
 		expect(summary(finished).textContent?.trim()).toBe('Idle');
 		expect(summary(finished).dataset['sessionId']).toBe('chat-done');
+	});
+
+	it('tells a chat that only waits on its background tasks apart from a working one', () => {
+		const waiting = workstream();
+		chat(waiting, 'waits', 'running');
+		const summary = render([waiting]);
+		expect(summary(waiting).dataset['tone']).toBe('running');
+
+		const task = { taskId: 't1', kind: 'command' as const, description: 'e2e', startedAt: 1 };
+		transcriptAggregate.append([
+			{
+				sessionId: 'waits',
+				runId: 'run-1',
+				seq: 1,
+				event: { type: 'background.updated', runId: 'run-1', waiting: true, tasks: [task] },
+			},
+		]);
+
+		expect(summary(waiting).dataset['tone']).toBe('background');
+		expect(summary(waiting).textContent?.trim()).toBe('Background tasks running');
 	});
 
 	it('counts queued prompts ahead of the last run outcome', () => {

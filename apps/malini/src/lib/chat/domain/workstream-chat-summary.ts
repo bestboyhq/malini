@@ -3,7 +3,7 @@ import type { SessionId } from '$lib/chat/domain/session';
 import type { SessionRecord } from '$lib/chat/domain/session-record';
 
 export type WorkstreamChatTone =
-	'running' | 'waiting' | 'queued' | 'failed' | 'completed' | 'draft';
+	'running' | 'background' | 'waiting' | 'queued' | 'failed' | 'completed' | 'draft';
 
 export type WorkstreamChatState = Readonly<{
 	label: string;
@@ -22,6 +22,7 @@ export type WorkstreamChatSummary = Readonly<{
 type WorkstreamChatSummaryInput = Readonly<{
 	session: SessionRecord | null;
 	openingSessionId: SessionId | null;
+	waitingOnBackground: boolean;
 	jobRunning: boolean;
 	queueCount: number;
 	attention: AgentAttention | null;
@@ -42,7 +43,11 @@ export function summarizeWorkstreamChat(input: WorkstreamChatSummaryInput): Work
 function workstreamChatState(input: WorkstreamChatSummaryInput): WorkstreamChatState | null {
 	const status = input.session?.status;
 	if (status === 'waiting_for_approval') return { label: 'Approval', tone: 'waiting' };
-	if (status === 'running' || input.jobRunning) return { label: 'Running', tone: 'running' };
+	if (status === 'running' && !input.waitingOnBackground) {
+		return { label: 'Running', tone: 'running' };
+	}
+	if (status === 'running') return { label: 'Background tasks running', tone: 'background' };
+	if (input.jobRunning) return { label: 'Job running', tone: 'background' };
 	if (input.queueCount > 0) return { label: `${input.queueCount} queued`, tone: 'queued' };
 	if (input.attention?.kind === 'failed') return { label: 'Failed', tone: 'failed' };
 	if (input.attention?.kind === 'approval') return { label: 'Approval', tone: 'waiting' };
