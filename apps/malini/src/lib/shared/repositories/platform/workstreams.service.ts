@@ -58,6 +58,7 @@ import {
 	upsertProject,
 } from './projects.repository';
 import { recordedBaseRepository } from './checkout-resolver';
+import { restoreKeptFolders } from './kept-folders';
 import {
 	teardownWorkstreamCheckout,
 	type TeardownGuard,
@@ -262,6 +263,11 @@ export async function restoreWorkstream(
 		);
 	}
 	await settleRestoredCheckout(workstreamId, repository, checkout, branch, archived.archivedRef);
+	await restoreKeptFolders(appDataRoot, workstreamId, checkout).catch((error: unknown) =>
+		console.error(
+			`malini: restored workstream \`${workstreamId}\` without the folders it kept when archived; the next restore retries: ${describeError(error)}`,
+		),
+	);
 	renameWorkstream(db, workstreamId, archived.name);
 	const workstream = getWorkstream(db, workstreamId);
 	if (workstream === null) throw new Error(`Unknown workstream: ${workstreamId}`);

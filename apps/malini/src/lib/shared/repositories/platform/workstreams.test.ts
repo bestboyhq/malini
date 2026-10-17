@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile, realpath, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,7 +21,9 @@ import {
 	removeDir,
 	tempDir,
 	workstreamFixture,
+	writeAttachmentFixture,
 } from '$main/git/fixtures.test-support';
+import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { CheckoutShell } from './checkout-shell.service';
 import { listConnectedRepositories } from './connected-repositories.repository';
@@ -330,6 +332,50 @@ describe('the workstream commands', () => {
 		await expect(
 			invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' }),
 		).rejects.toThrow('Not an archived workstream: ws-arch');
+	});
+
+	it('brings back the ignored .context and the chat attachments when a workstream is restored', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-kept');
+		const { invoke, db } = harness(dir);
+		seed(db, 'ws-kept', base, checkout);
+		await writeFile(join(base, '.git', 'info', 'exclude'), '*.png\n');
+		await mkdir(join(checkout, '.context', 'review'), { recursive: true });
+		await writeFile(join(checkout, '.context', 'review', 'shot.png'), 'shot\n');
+		await writeFile(join(checkout, '.context', 'notes.md'), 'notes\n');
+		await writeAttachmentFixture(checkout);
+
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-kept' });
+		await archivedLeftoversCleared();
+		expect(existsSync(checkout)).toBe(false);
+		await invoke('repositories.restore-workstream', { workstreamId: 'ws-kept' });
+
+		expect(await readFile(join(checkout, '.context', 'review', 'shot.png'), 'utf8')).toBe('shot\n');
+		expect(await readFile(join(checkout, '.context', 'notes.md'), 'utf8')).toBe('notes\n');
+		expect(
+			await readFile(join(checkout, AGENT_ATTACHMENTS_PATH, 'att-test', 'payload.txt'), 'utf8'),
+		).toBe('private transport bytes\n');
+		expect(existsSync(join(dir, 'workstreams', '.kept', 'ws-kept'))).toBe(false);
+	});
+
+	it('drops the folders an archived workstream kept once it is deleted', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-gone');
+		const { invoke, db } = harness(dir);
+		seed(db, 'ws-gone', base, checkout);
+		await mkdir(join(checkout, '.context'), { recursive: true });
+		await writeFile(join(base, '.git', 'info', 'exclude'), '.context/\n');
+		await writeFile(join(checkout, '.context', 'shot.png'), 'shot\n');
+		const kept = join(dir, 'workstreams', '.kept', 'ws-gone');
+
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-gone' });
+		expect(existsSync(join(kept, '.context', 'shot.png'))).toBe(true);
+		await invoke('repositories.delete-workstream', { workstreamId: 'ws-gone' });
+		await archivedLeftoversCleared();
+
+		expect(existsSync(kept)).toBe(false);
 	});
 
 	it('refuses a teardown the run lease rejects before touching the disk', async () => {
