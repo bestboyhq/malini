@@ -11,4 +11,5 @@ export function installStatsFake(bridge: FakeBridge): void {
 		repositories: [],
 	}));
 	bridge.define('stats.resources', async () => ({ machineMemoryBytes: 0, samples: [] }));
+	bridge.define('stats.resource-breakdown', async () => []);
 }

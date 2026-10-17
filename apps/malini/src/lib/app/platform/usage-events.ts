@@ -212,6 +212,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'skills.usage': false,
 	'stats.activity': plain,
 	'stats.resources': false,
+	'stats.resource-breakdown': false,
 };
 
 const USAGE_BY_NAME: Readonly<Record<string, CommandUsage>> = COMMAND_USAGE;

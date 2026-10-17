@@ -74,4 +74,5 @@ export {
 	type PullRequestAutomationEvent,
 } from './domain/pull-request-metadata';
 export { planWorkstreamProvisioning } from './domain/provisioning';
+export { displayWorkstreamName } from './domain/workstream-names';
 export { projectIdentityIdsForRepository, repositoryName } from './domain/repository-context';

@@ -16,10 +16,21 @@ export interface ProcessRoots {
 	readonly agentHost: number | null;
 }
 
+export interface ProcessUnit {
+	readonly kind: ResourceKind;
+	readonly root: ProcessRow;
+	readonly heaviest: ProcessRow;
+	readonly agent: number | null;
+	readonly memoryBytes: number;
+}
+
 export interface ProcessTreeUsage {
 	readonly processes: number;
 	readonly usage: readonly ResourceUsage[];
+	readonly units: readonly ProcessUnit[];
 }
+
+type OpenUnit = { -readonly [Key in keyof ProcessUnit]: ProcessUnit[Key] };
 
 const ROW = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)\s+(.+)$/u;
 const KIND_ORDER: readonly ResourceKind[] = ['malini', 'browser', 'agents', 'tools'];
@@ -46,11 +57,17 @@ export function measureProcessTree(
 	cores: number,
 ): ProcessTreeUsage {
 	const app = rows.find((row) => row.pid === roots.app);
-	if (!app) return { processes: 0, usage: [] };
+	if (!app) return { processes: 0, usage: [], units: [] };
 	const children = childrenByParent(rows);
 	const totals = new Map<ResourceKind, ResourceUsage>();
+	const units: OpenUnit[] = [];
 	const visited = new Set<number>();
-	const visit = (row: ProcessRow, kind: ResourceKind): void => {
+	const visit = (
+		row: ProcessRow,
+		kind: ResourceKind,
+		opened: OpenUnit | null,
+		agent: number | null,
+	): void => {
 		if (visited.has(row.pid)) return;
 		visited.add(row.pid);
 		const total = totals.get(kind) ?? { kind, memoryBytes: 0, cpuPercent: 0, processes: 0 };
@@ -60,16 +77,28 @@ export function measureProcessTree(
 			cpuPercent: total.cpuPercent + row.cpuPercent / Math.max(1, cores),
 			processes: total.processes + 1,
 		});
+		const unit =
+			opened ?? openUnit(units, { kind, root: row, heaviest: row, agent, memoryBytes: 0 });
+		unit.memoryBytes += row.memoryBytes;
+		if (row.memoryBytes > unit.heaviest.memoryBytes) unit.heaviest = row;
 		for (const child of children.get(row.pid) ?? []) {
 			if (isOwnSampler(child, roots)) continue;
-			visit(child, childKind(child, row, kind, roots));
+			const nextKind = childKind(child, row, kind, roots);
+			const splits = nextKind !== kind || row.pid === roots.app || row.pid === roots.agentHost;
+			visit(child, nextKind, splits ? null : unit, row.pid === roots.agentHost ? child.pid : agent);
 		}
 	};
-	visit(app, 'malini');
+	visit(app, 'malini', null, null);
 	return {
 		processes: visited.size,
 		usage: KIND_ORDER.flatMap((kind) => totals.get(kind) ?? []),
+		units,
 	};
+}
+
+function openUnit(units: OpenUnit[], unit: OpenUnit): OpenUnit {
+	units.push(unit);
+	return unit;
 }
 
 function childrenByParent(rows: readonly ProcessRow[]): Map<number, ProcessRow[]> {
