@@ -5,7 +5,7 @@ import { claudeEnvironment } from './session.js';
 
 const TITLE_TIMEOUT_MS = 15_000;
 const MAX_TASK_CHARACTERS = 4_000;
-const MAX_TITLE_WORDS = 4;
+const MAX_TITLE_WORDS = 5;
 const MAX_TITLE_CHARACTERS = 40;
 const TITLE_EDGE = /^["'`*_\s]+|["'`*_.!?,;:\s]+$/gu;
 
@@ -54,7 +54,11 @@ export async function suggestClaudeTitle(
 				throw new Error(`Claude Code could not name the task: ${message.subtype}`);
 			}
 			const title = cleanTitle(message.result);
-			if (title === null) throw new Error(`Claude Code replied with no usable title`);
+			if (title === null) {
+				throw new Error(
+					`Claude Code replied with no usable title: ${JSON.stringify(message.result)}`,
+				);
+			}
 			return title;
 		}
 		throw new Error('Claude Code stopped without naming the task');
