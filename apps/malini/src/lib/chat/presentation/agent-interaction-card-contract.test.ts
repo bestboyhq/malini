@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { readChatMessageListSource } from './chat-message-list-source.testkit';
 
 const card = readFileSync(new URL('./AgentInteractionCard.svelte', import.meta.url), 'utf8');
+const panel = readFileSync(new URL('./AgentQuestionPanel.svelte', import.meta.url), 'utf8');
+const surface = readFileSync(new URL('./ChatSurface.svelte', import.meta.url), 'utf8');
 const messageList = readChatMessageListSource(new URL('./', import.meta.url));
 const commands = readFileSync(
 	new URL('../infrastructure/aggregates/agent-interactions.aggregate.svelte.ts', import.meta.url),
@@ -22,12 +24,13 @@ describe('agent interaction card contract', () => {
 		expect(card).toContain('role="alert"');
 	});
 
-	it('renders structured question controls through the application command boundary', () => {
-		expect(card).toContain('<fieldset disabled={submitting}');
-		expect(card).toContain("type={question.multiSelect ? 'checkbox' : 'radio'}");
-		expect(card).toContain('Other answer');
-		expect(card).toContain('answerQuestionCommand({');
-		expect(messageList).toContain('<AgentInteractionCard {item} />');
+	it('answers questions from the composer slot, never from the transcript', () => {
+		expect(panel).toContain('answerQuestionCommand({');
+		expect(panel).toContain('onclick={cancelRunCommand}');
+		expect(surface).toContain('<AgentQuestionPanel requests={pendingQuestions} />');
+		expect(surface).toContain("class={[asking && 'hidden']}");
+		expect(messageList).toContain('<AgentQuestionRow {item} />');
+		expect(messageList).not.toContain('answerQuestionCommand');
 		expect(messageList).toContain('const currentLength = currentEnvelopes.length;');
 		expect(messageList).toContain('syncInteractionsCommand(currentSessionId, currentEnvelopes);');
 	});

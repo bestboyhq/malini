@@ -45,6 +45,17 @@ Other tools are allowed; `DECISION=deny` denies them the way malini does, which 
 `RESUME=<session id>` resumes an earlier probe session; `orphanedTask` resumes one whose run was killed while its background agent still ran.
 Recorded runs live in `src/claude/fixtures/transcripts.json`; tests replay them through `fakeClaude`, so a new behavior gets a recorded scenario, not a hand-written one.
 
+A failure Claude Code recovers from by itself is recorded through `scripts/fault-proxy.mjs`, which forwards to the API and cuts the first stream once it has carried `FAULT_AFTER_DELTAS` deltas of `FAULT_KIND`:
+
+```sh
+PORT=8787 FAULT_KIND=thinking_delta node "$W/.agents/skills/claude-runtime/scripts/fault-proxy.mjs" &
+ANTHROPIC_BASE_URL=http://127.0.0.1:8787 MODEL=opus node "$W/.agents/skills/claude-runtime/scripts/record.mjs" 'Reason step by step about 17 * 23, then run ls.' default > ../retried.json
+```
+
+`retriedStream` is a thought cut by an overload, which Claude Code retries after `system/api_retry`; `nonStreamingFallback` is a tool input cut with `FAULT_KIND=input_json_delta FAULT_AFTER_DELTAS=3`, which Claude Code finishes with a non-streaming request.
+`FAULT_MODE=drop` drops the connection instead of sending an overload error.
+Stop the proxy by its PID once the recording ends.
+
 ## Bumping the SDK
 
 1. `corepack pnpm --filter @malini/agent-bridge update @anthropic-ai/claude-agent-sdk`.

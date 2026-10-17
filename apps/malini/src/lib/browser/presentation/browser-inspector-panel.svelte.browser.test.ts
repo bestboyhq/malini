@@ -71,6 +71,21 @@ describe('browser tabs in the inspector', () => {
 		]);
 		const favicon = tab(host, 'Lobby music').querySelector('img');
 		expect(favicon?.getAttribute('src')).toBe(FAVICON);
+		expect(document.activeElement?.getAttribute('aria-label')).not.toBe('Page address');
+	});
+
+	it('puts the cursor in the address field of a tab opened from the plus menu', async () => {
+		const host = render([contextPanel(REPOSITORY_FILES_PANEL_ID, 'Files', 20)]);
+		await settle();
+
+		control(document.body, 'button', 'Open inspector panel').click();
+		await settle();
+		control(document.body, '[role="menuitem"]', 'New browser tab').click();
+
+		await vi.waitFor(() => expect(host.textContent).toContain('Open a page'));
+		await settle();
+		const address = control(host, 'input', 'Page address');
+		expect(document.activeElement).toBe(address);
 	});
 
 	it('opens a new tab from the plus menu each time and closes only the tab closed', async () => {

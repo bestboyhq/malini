@@ -65,7 +65,7 @@ describe('inline Bash tool calls', () => {
 	it('renders the same row elements whether or not a command is running', () => {
 		const row = bashCall.slice(
 			bashCall.indexOf('data-message-kind="bash"'),
-			bashCall.indexOf("{#if status === 'failed'}"),
+			bashCall.indexOf('{#if failed}'),
 		);
 		const statusBranches = row.match(/\{#if [^}]*status[^}]*\}/gu) ?? [];
 		expect(statusBranches).toEqual([]);
@@ -79,13 +79,17 @@ describe('inline Bash tool calls', () => {
 	it('states a shell failure on the row instead of hiding it behind the chevron', () => {
 		expect(bashCall).toContain('data-testid="bash-command-failure"');
 		expect(bashCall).toContain('<SensitiveText text={failureReason} />');
-		expect(bashCall).toContain("{#if status === 'failed'}");
+		expect(bashCall).toContain('{#if failed}');
 		expect(bashCall).toContain("toolFailureReason(error) ?? 'The command could not finish'");
-		expect(bashCall).toContain('exitCode !== null && exitCode !== 0 ? `exit ${exitCode}` : null');
 		expect(bashCall).toContain('>{exitLabel}');
 		expect(bashCall).not.toContain('>{failureLabel}');
 		expect(messages).toContain('status={commandStatus(item)}');
 		expect(messages).not.toContain("item.exitCode === 0 ? 'completed' : 'failed'");
+	});
+
+	it('shows a plain non-zero exit as a quiet exit code instead of a failure banner', () => {
+		expect(bashCall).toContain('exitCode ?? shellExitCode(error)');
+		expect(bashCall).toContain("status === 'failed' && shellExitCode(error) === null");
 	});
 
 	it('toggles the disclosure in place and scrolls its managed output', () => {

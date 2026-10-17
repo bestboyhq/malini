@@ -38,6 +38,15 @@ export type AgentQuestion = Readonly<{
 	allowFreeText: boolean;
 }>;
 
+export type AgentQuestionRequest = Readonly<{
+	sessionId: string;
+	runId: string;
+	questionId: string;
+	questions: readonly AgentQuestion[];
+	submitting: boolean;
+	error: string | null;
+}>;
+
 export type AgentQuestionAnswer = Readonly<{
 	questionId: string;
 	values: readonly string[];

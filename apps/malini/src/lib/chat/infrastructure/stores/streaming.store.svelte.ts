@@ -16,6 +16,11 @@ type SessionToolInputs = Record<
 	string,
 	{ runId: RunId; toolCallId: string; name: string; json: string }
 >;
+type StreamDiscard = {
+	readonly sessionId: SessionId;
+	readonly blockKeys: readonly string[];
+	readonly toolInputKeys: readonly string[];
+};
 
 export const LIVE_TOOL_INPUT_CAPTURE_CHARS = 2_001;
 
@@ -25,6 +30,16 @@ function blockKey(runId: RunId, contentId: string): string {
 
 function toolInputKey(runId: RunId, toolCallId: string): string {
 	return `${runId}:${toolCallId}`;
+}
+
+function withoutKeys<T>(
+	record: Record<string, T> | undefined,
+	keys: readonly string[],
+): Record<string, T> | undefined {
+	if (!record || !keys.some((key) => key in record)) return undefined;
+	const rest = { ...record };
+	for (const key of keys) delete rest[key];
+	return rest;
 }
 
 class StreamingStore {
@@ -65,6 +80,7 @@ class StreamingStore {
 		const tools = new Map<string, ToolBatch>();
 		const liveContext = new Map<SessionId, LiveContextUsage>();
 		const liveBackground = new Map<SessionId, BackgroundWork>();
+		const discards: StreamDiscard[] = [];
 		for (const envelope of envelopes) {
 			const sessionId = envelope.sessionId;
 			const event = envelope.event;
@@ -132,6 +148,16 @@ class StreamingStore {
 					});
 					break;
 				}
+				case 'stream.discarded':
+					this.#ingestionStats.trackedEnvelopes += 1;
+					discards.push({
+						sessionId,
+						blockKeys: event.contentIds.map((contentId) => blockKey(envelope.runId, contentId)),
+						toolInputKeys: event.toolCallIds.map((toolCallId) =>
+							toolInputKey(envelope.runId, toolCallId),
+						),
+					});
+					break;
 				case 'background.updated':
 					liveBackground.set(sessionId, {
 						runId: envelope.runId,
@@ -223,6 +249,15 @@ class StreamingStore {
 			};
 			this.#ingestionStats.reactiveCommits += 1;
 		}
+
+		for (const discard of discards) this.#discard(discard);
+	}
+
+	#discard({ sessionId, blockKeys, toolInputKeys }: StreamDiscard): void {
+		const blocks = withoutKeys(this.#blocksBySession[sessionId], blockKeys);
+		if (blocks) this.#blocksBySession = { ...this.#blocksBySession, [sessionId]: blocks };
+		const inputs = withoutKeys(this.#toolInputsBySession[sessionId], toolInputKeys);
+		if (inputs) this.#toolInputsBySession = { ...this.#toolInputsBySession, [sessionId]: inputs };
 	}
 
 	ingestionStats(): StreamingIngestionStats {

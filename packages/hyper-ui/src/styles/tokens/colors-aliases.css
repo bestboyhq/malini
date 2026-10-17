@@ -114,6 +114,9 @@
 	--color-button-secondary-border: var(--themed-color-button-secondary-border);
 	--color-button-secondary-hover: var(--themed-color-button-secondary-hover);
 	--color-button-secondary-busy: var(--themed-color-button-secondary-busy);
+	--color-button-danger: var(--themed-color-button-danger);
+	--color-button-danger-hover: var(--themed-color-button-danger-hover);
+	--color-button-danger-content: var(--themed-color-button-danger-content);
 	--color-button-danger-busy: var(--themed-color-button-danger-busy);
 
 	--color-button-disabled: var(--themed-color-button-disabled);

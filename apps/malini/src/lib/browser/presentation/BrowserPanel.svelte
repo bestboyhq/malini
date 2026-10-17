@@ -16,7 +16,9 @@
 	import { openBrowserPageExternallyCommand } from '../application/commands/open-browser-page-externally.command';
 	import { placeBrowserViewCommand } from '../application/commands/place-browser-view.command';
 	import { reloadBrowserCommand } from '../application/commands/reload-browser.command';
+	import { settleBrowserAddressFocusCommand } from '../application/commands/settle-browser-address-focus.command';
 	import { pickElementHook } from '../application/hooks/pick-element.hook';
+	import { browserAddressFocusQuery } from '../application/queries/browser-address-focus.query.svelte';
 	import { browserPickingQuery } from '../application/queries/browser-picking.query.svelte';
 	import { browserSnapshotQuery } from '../application/queries/browser-snapshot.query.svelte';
 	import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
@@ -37,6 +39,7 @@
 	const browser = $derived(browserStateQuery.data(tabKey));
 	const picking = $derived(browserPickingQuery.data(tabKey));
 	const snapshot = $derived(browserSnapshotQuery.data(tabKey));
+	const wantsAddressFocus = $derived(browserAddressFocusQuery.data(tabKey));
 	const url = $derived(browser?.url ?? '');
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
@@ -69,6 +72,12 @@
 			cancelAnimationFrame(frame);
 			placeBrowserViewCommand(tab, HIDDEN_BROWSER);
 		};
+	}
+
+	function focusNewTabAddress(field: HTMLInputElement): void {
+		if (!wantsAddressFocus) return;
+		field.focus();
+		settleBrowserAddressFocusCommand(tab);
 	}
 
 	function onAddressInput(event: Event): void {
@@ -105,7 +114,7 @@
 </script>
 
 <div class="flex h-full min-h-0 min-w-0 flex-col">
-	<div class="flex shrink-0 items-center gap-1 px-4 pb-2">
+	<div class="flex shrink-0 items-center gap-1 px-4 pt-0.5 pb-2">
 		<Tooltip content="Back" placement="top" class="shrink-0">
 			<IconButton
 				ariaLabel="Back"
@@ -152,6 +161,7 @@
 			onfocus={onAddressFocus}
 			onkeydown={onAddressKeydown}
 			onblur={() => (draft = null)}
+			{@attach focusNewTabAddress}
 		>
 			{#snippet icon()}
 				{#if browser?.loading}

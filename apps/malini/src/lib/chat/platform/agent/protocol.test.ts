@@ -204,6 +204,20 @@ describe('event frames', () => {
 		expect(decodeBridgeEvent({ runId: 'r' })).toMatchObject({ ok: false });
 	});
 
+	it('decodes a discarded stream and rejects ids that are not strings', () => {
+		const discarded = {
+			type: 'stream.discarded',
+			runId: 'r',
+			contentIds: ['msg_1:0'],
+			toolCallIds: ['toolu_1'],
+		};
+		expect(decode(discarded)).toEqual(discarded);
+		expect(decodeBridgeEvent({ ...discarded, toolCallIds: [7] })).toEqual({
+			ok: false,
+			error: 'stream.discarded: field `toolCallIds` must be an array of strings',
+		});
+	});
+
 	it('validates question.requested strictly, including nested options', () => {
 		const good = decode({
 			type: 'question.requested',
@@ -246,6 +260,7 @@ describe('event frames', () => {
 				{ type: 'tool.input.delta', runId: 'r', toolCallId: 'c', name: 'n', inputJsonDelta: '{' },
 				true,
 			],
+			[{ type: 'stream.discarded', runId: 'r', contentIds: [], toolCallIds: ['c'] }, true],
 			[{ type: 'usage.updated', runId: 'r', interim: true }, true],
 			[{ type: 'usage.updated', runId: 'r', interim: false }, false],
 			[{ type: 'usage.updated', runId: 'r' }, false],

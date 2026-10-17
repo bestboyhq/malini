@@ -438,7 +438,7 @@ describe('protocol: parseCommandLine', () => {
 				'list_skills',
 				'browser_result',
 			]);
-			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
+			expect(BRIDGE_EVENT_TYPES).toHaveLength(23);
 			expect(BRIDGE_CONTROL_TYPES).toEqual([
 				'bridge.ready',
 				'bridge.capabilities',

@@ -53,6 +53,11 @@
 					{/if}
 				{/each}
 			</span>
+			{#if group.exitCodes.length > 0}
+				<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">
+					exit {group.exitCodes.join(', ')}
+				</span>
+			{/if}
 		</summary>
 		<div class="border-surface-100-border mt-1 flex flex-col gap-2 border-l pl-3.5">
 			{#each group.items as child (child.key)}
@@ -67,7 +72,7 @@
 				data-testid="chat-activity-group-failed"
 				data-failure-key={failure.key}
 			>
-				<Icon name="warning" size={12} class="mt-px shrink-0" />
+				<Icon name="warning" size={12} class="mt-1 shrink-0" />
 				<span class="min-w-0 flex-1 break-words select-text">
 					<span class="text-error-content/75 font-mono">
 						<SensitiveText text={failure.label} />

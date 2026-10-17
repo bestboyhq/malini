@@ -40,7 +40,9 @@ export type RecordedScenario =
 	| 'orphanedTask'
 	| 'backgroundAgent'
 	| 'backgroundCommand'
-	| 'stoppedBackgroundCommand';
+	| 'stoppedBackgroundCommand'
+	| 'retriedStream'
+	| 'nonStreamingFallback';
 
 export interface FakeRun {
 	readonly options: Options;

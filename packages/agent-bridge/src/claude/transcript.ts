@@ -12,6 +12,7 @@ const FILE_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const BACKGROUND_OUTPUT_FILE = /Output is being written to: (\S+\.output)/u;
 
 type StreamBlock = { readonly kind: 'text' | 'thinking' | 'tool'; readonly id: string };
+type StreamContentKind = Exclude<StreamBlock['kind'], 'tool'>;
 
 export interface RunUsage {
 	readonly inputTokens: number;
@@ -24,6 +25,8 @@ export class ClaudeTranscript {
 	readonly #emit: (event: AgentEvent) => void;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
+	readonly #unsettledBlocks = new Map<string, StreamBlock>();
+	readonly #finalizedByKind = new Map<StreamContentKind, number>();
 	readonly #blockCounts = new Map<string, number>();
 	readonly #backgroundAgents = new Set<string>();
 	readonly #backgroundTasks = new Map<string, BackgroundTask>();
@@ -34,6 +37,7 @@ export class ClaudeTranscript {
 	#idle = false;
 	#lastBackground = '';
 	#streamMessageId = '';
+	#streamStopReasonSeen = false;
 	#cursor: string | null = null;
 	#usage: RunUsage | null = null;
 	#contextWindowTokens: number | undefined;
@@ -118,10 +122,14 @@ export class ClaudeTranscript {
 				if (message.subtype === 'task_notification') this.#acceptTaskNotification(message);
 				if (message.subtype === 'task_progress') this.#acceptTaskProgress(message);
 				if (message.subtype === 'background_tasks_changed') this.#acceptBackgroundTasks(message);
+				if (message.subtype === 'api_retry') this.#discardUnsettledStream();
 				if (message.subtype === 'session_state_changed') {
 					this.#idle = message.state === 'idle';
 					this.#emitBackground();
 				}
+				return;
+			case 'result':
+				this.#discardUnsettledStream();
 				return;
 			default:
 				return;
@@ -223,25 +231,34 @@ export class ClaudeTranscript {
 		if (!isRecord(event)) return;
 		switch (event['type']) {
 			case 'message_start': {
+				this.#discardUnsettledStream();
 				const message = event['message'];
 				if (isRecord(message) && typeof message['id'] === 'string') {
 					this.#streamMessageId = message['id'];
 					this.#streamBlocks.clear();
+					this.#finalizedByKind.clear();
+					this.#streamStopReasonSeen = false;
 				}
 				return;
 			}
+			case 'message_delta':
+				this.#streamStopReasonSeen = true;
+				return;
+			case 'message_stop':
+				if (!this.#streamStopReasonSeen) this.#discardUnsettledStream();
+				return;
 			case 'content_block_start': {
 				const index = event['index'];
 				const block = event['content_block'];
 				if (typeof index !== 'number' || !isRecord(block)) return;
 				if (block['type'] === 'text' || block['type'] === 'thinking') {
 					const id = contentId(this.#streamMessageId, index);
-					this.#streamBlocks.set(index, { kind: block['type'], id });
+					this.#openStreamBlock(index, { kind: block['type'], id });
 					if (block['type'] === 'thinking') {
 						this.#emit({ type: 'thinking.delta', runId: this.#runId, contentId: id, text: '' });
 					}
 				} else if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
-					this.#streamBlocks.set(index, { kind: 'tool', id: block['id'] });
+					this.#openStreamBlock(index, { kind: 'tool', id: block['id'] });
 					this.#toolNames.set(block['id'], { name: String(block['name'] ?? ''), input: {} });
 				}
 				return;
@@ -289,11 +306,15 @@ export class ClaudeTranscript {
 	#acceptAssistant(message: unknown, parentToolUseId: string | null): void {
 		if (!isRecord(message) || !Array.isArray(message['content'])) return;
 		const messageId = typeof message['id'] === 'string' ? message['id'] : '';
-		if (parentToolUseId === null) this.#recordUsage(message['usage']);
+		if (parentToolUseId === null) {
+			if (messageId !== this.#streamMessageId) this.#discardUnsettledStream();
+			this.#recordUsage(message['usage']);
+		}
 		for (const block of message['content']) {
 			if (!isRecord(block)) continue;
 			const index = this.#nextBlockIndex(messageId);
 			if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
+				this.#unsettledBlocks.delete(block['id']);
 				const name = String(block['name'] ?? '');
 				this.#toolNames.set(block['id'], { name, input: block['input'] });
 				this.#openTools.add(block['id']);
@@ -308,22 +329,52 @@ export class ClaudeTranscript {
 				continue;
 			}
 			if (parentToolUseId !== null) continue;
-			if (block['type'] === 'text' && typeof block['text'] === 'string' && block['text']) {
+			if (block['type'] === 'text') {
+				const id = this.#finalContentId(messageId, 'text', index);
+				if (typeof block['text'] !== 'string' || !block['text']) continue;
+				this.#unsettledBlocks.delete(id);
 				this.#emit({
 					type: 'assistant.message',
 					runId: this.#runId,
-					contentId: contentId(messageId, index),
+					contentId: id,
 					text: block['text'],
 				});
 			} else if (block['type'] === 'thinking') {
+				const id = this.#finalContentId(messageId, 'thinking', index);
+				this.#unsettledBlocks.delete(id);
 				this.#emit({
 					type: 'thinking.message',
 					runId: this.#runId,
-					contentId: contentId(messageId, index),
+					contentId: id,
 					text: typeof block['thinking'] === 'string' ? block['thinking'] : '',
 				});
 			}
 		}
+	}
+
+	#openStreamBlock(index: number, block: StreamBlock): void {
+		this.#streamBlocks.set(index, block);
+		this.#unsettledBlocks.set(block.id, block);
+	}
+
+	#finalContentId(messageId: string, kind: StreamContentKind, index: number): string {
+		if (messageId !== this.#streamMessageId) return contentId(messageId, index);
+		const nth = this.#finalizedByKind.get(kind) ?? 0;
+		this.#finalizedByKind.set(kind, nth + 1);
+		const streamed = [...this.#streamBlocks.values()].filter((block) => block.kind === kind)[nth];
+		return streamed?.id ?? contentId(messageId, index);
+	}
+
+	#discardUnsettledStream(): void {
+		if (this.#unsettledBlocks.size === 0) return;
+		const blocks = [...this.#unsettledBlocks.values()];
+		this.#unsettledBlocks.clear();
+		this.#emit({
+			type: 'stream.discarded',
+			runId: this.#runId,
+			contentIds: blocks.filter((block) => block.kind !== 'tool').map((block) => block.id),
+			toolCallIds: blocks.filter((block) => block.kind === 'tool').map((block) => block.id),
+		});
 	}
 
 	#nextBlockIndex(messageId: string): number {

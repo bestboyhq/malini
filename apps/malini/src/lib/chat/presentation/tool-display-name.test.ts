@@ -8,6 +8,8 @@ import {
 	toolDescriptionLabel,
 	toolDisplayName,
 	toolFailureReason,
+	shellExitCode,
+	withoutShellExit,
 } from './tool-display-name';
 
 describe('toolDisplayName', () => {
@@ -171,6 +173,29 @@ describe('tool failure reasons', () => {
 		const reason = toolFailureReason('x'.repeat(400));
 		expect(reason).toHaveLength(240);
 		expect(reason?.endsWith('…')).toBe(true);
+	});
+});
+
+describe('shell exit codes', () => {
+	it("reads the exit code Claude Code puts before a shell command's output", () => {
+		expect(shellExitCode('Exit code 1\nsrc/a.ts:3: match')).toBe(1);
+		expect(shellExitCode('Exit code 127')).toBe(127);
+	});
+
+	it.each([
+		[null],
+		[''],
+		['command timed out'],
+		['Exit code reported by the tool'],
+		['grep: Exit code 1 seen'],
+	])('reads no exit code from %p', (error) => {
+		expect(shellExitCode(error)).toBeNull();
+	});
+
+	it('drops the exit code line and keeps what the command printed', () => {
+		expect(withoutShellExit('Exit code 1\nsrc/a.ts:3: match')).toBe('src/a.ts:3: match');
+		expect(withoutShellExit('Exit code 1')).toBeNull();
+		expect(withoutShellExit('command timed out')).toBe('command timed out');
 	});
 });
 

@@ -7,6 +7,23 @@ import { ClaudeTranscript } from './transcript.js';
 const SUBAGENT_TOOL_CALL = 'toolu_01FeTa8kst16VYXGjiDS1bL9';
 const BACKGROUND_AGENT_TOOL_CALL = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
 const BACKGROUND_COMMAND_TOOL_CALL = 'toolu_01LDqMBnrAzfmPQHcjxrTv6v';
+const RECORDED_SCENARIOS: readonly RecordedScenario[] = [
+	'readAndBash',
+	'write',
+	'ask',
+	'plan',
+	'bashFailure',
+	'deny',
+	'orphanedTask',
+	'backgroundAgent',
+	'backgroundCommand',
+	'stoppedBackgroundCommand',
+	'retriedStream',
+	'nonStreamingFallback',
+];
+const RETRIED_MESSAGE = 'msg_011Cg8VYeFbmT1U91bsswPCg';
+const RETRY_MESSAGE = 'msg_011Cg8VYwWSAspzarueMPAGY';
+const FALLEN_BACK_TOOL_CALL = 'toolu_01A1Ryo4oMAjZz3yc21mPG7F';
 const BACKGROUND_COMMAND = {
 	taskId: 'biv864hkk',
 	kind: 'command',
@@ -26,6 +43,42 @@ function replay(messages: readonly SDKMessage[]): {
 
 function replayRecorded(scenario: RecordedScenario): ReturnType<typeof replay> {
 	return replay(recordedMessages(scenario));
+}
+
+function streamEndings(events: readonly AgentEvent[]): Map<string, string[]> {
+	const endings = new Map<string, string[]>();
+	const end = (id: string, how: string): void => {
+		endings.set(id, [...(endings.get(id) ?? []), how]);
+	};
+	for (const event of events) {
+		if (event.type === 'thinking.delta' || event.type === 'assistant.delta') {
+			if (!endings.has(event.contentId)) endings.set(event.contentId, []);
+		} else if (event.type === 'tool.input.delta') {
+			if (!endings.has(event.toolCallId)) endings.set(event.toolCallId, []);
+		} else if (event.type === 'thinking.message' || event.type === 'assistant.message') {
+			if (event.contentId && endings.has(event.contentId)) end(event.contentId, 'final');
+		} else if (event.type === 'tool.started') {
+			if (event.toolCallId && endings.has(event.toolCallId)) end(event.toolCallId, 'final');
+		} else if (event.type === 'stream.discarded') {
+			for (const id of [...event.contentIds, ...event.toolCallIds]) end(id, 'discarded');
+		}
+	}
+	return endings;
+}
+
+function isStreamStop(message: SDKMessage): boolean {
+	return message.type === 'stream_event' && message.event.type === 'message_stop';
+}
+
+function isRetryNotice(message: SDKMessage): boolean {
+	return message.type === 'system' && message.subtype === 'api_retry';
+}
+
+function without(
+	messages: readonly SDKMessage[],
+	...dropped: ((message: SDKMessage) => boolean)[]
+): SDKMessage[] {
+	return messages.filter((message) => !dropped.some((drop) => drop(message)));
 }
 
 function ofType<T extends AgentEvent['type']>(
@@ -85,6 +138,110 @@ describe('ClaudeTranscript', () => {
 		const closed = ofType(events, 'thinking.message');
 		expect(closed.map(({ text }) => text)).toEqual(['', '']);
 		expect(new Set(closed.map(({ contentId }) => contentId))).toEqual(announced);
+	});
+
+	it.each(RECORDED_SCENARIOS)('ends every block streamed in %s exactly once', (scenario) => {
+		const { events } = replayRecorded(scenario);
+		for (const [id, endings] of streamEndings(events)) {
+			expect({ id, endings: endings.length }).toEqual({ id, endings: 1 });
+		}
+	});
+
+	it.each([
+		['as recorded', (messages: readonly SDKMessage[]) => [...messages]],
+		[
+			'without the stream stop',
+			(messages: readonly SDKMessage[]) => without(messages, isStreamStop),
+		],
+		[
+			'without the stream stop and the retry notice',
+			(messages: readonly SDKMessage[]) => without(messages, isStreamStop, isRetryNotice),
+		],
+	])('discards a thought cut off by an API retry before the retry streams, %s', (_, edit) => {
+		const { events } = replay(edit(recordedMessages('retriedStream')));
+		const retriedThought = `${RETRIED_MESSAGE}:0`;
+
+		const discarded = events.findIndex((event) => event.type === 'stream.discarded');
+		const retryStarts = events.findIndex(
+			(event) => event.type === 'thinking.delta' && event.contentId === `${RETRY_MESSAGE}:0`,
+		);
+		expect(events[discarded]).toEqual({
+			type: 'stream.discarded',
+			runId: 'run-1',
+			contentIds: [retriedThought],
+			toolCallIds: [],
+		});
+		expect(discarded).toBeLessThan(retryStarts);
+		expect(ofType(events, 'thinking.message').map(({ contentId }) => contentId)).toEqual([
+			`${RETRY_MESSAGE}:0`,
+		]);
+	});
+
+	it.each([
+		['as recorded', (messages: readonly SDKMessage[]) => [...messages]],
+		[
+			'without the stream stop',
+			(messages: readonly SDKMessage[]) => without(messages, isStreamStop),
+		],
+	])('discards a tool call cut off by a non-streaming fallback before it runs, %s', (_, edit) => {
+		const { events } = replay(edit(recordedMessages('nonStreamingFallback')));
+
+		const discarded = events.findIndex((event) => event.type === 'stream.discarded');
+		const fallbackStarts = events.findIndex((event) => event.type === 'tool.started');
+		expect(events[discarded]).toEqual({
+			type: 'stream.discarded',
+			runId: 'run-1',
+			contentIds: [],
+			toolCallIds: [FALLEN_BACK_TOOL_CALL],
+		});
+		expect(discarded).toBeLessThan(fallbackStarts);
+		expect(ofType(events, 'tool.started').map(({ toolCallId }) => toolCallId)).not.toContain(
+			FALLEN_BACK_TOOL_CALL,
+		);
+	});
+
+	it('discards a block still streaming when the turn ends', () => {
+		const messages = without(recordedMessages('retriedStream'), isStreamStop, isRetryNotice);
+		const cutOff = messages.findIndex(
+			(message) =>
+				message.type === 'stream_event' &&
+				message.event.type === 'message_start' &&
+				message.event.message.id === RETRY_MESSAGE,
+		);
+		const result = messages.filter((message) => message.type === 'result');
+		const { events } = replay([...messages.slice(0, cutOff), ...result]);
+
+		expect(ofType(events, 'stream.discarded')).toEqual([
+			{
+				type: 'stream.discarded',
+				runId: 'run-1',
+				contentIds: [`${RETRIED_MESSAGE}:0`],
+				toolCallIds: [],
+			},
+		]);
+	});
+
+	it('finalizes each block under its own streamed id when a block before it never finalizes', () => {
+		const messages = recordedMessages('retriedStream');
+		const retryThought = messages.findIndex(
+			(message) =>
+				message.type === 'assistant' &&
+				message.message.id === RETRY_MESSAGE &&
+				message.message.content[0]?.type === 'thinking',
+		);
+		const { events } = replay(messages.filter((_, index) => index !== retryThought));
+
+		const [answer] = ofType(events, 'assistant.message');
+		const answerDeltas = ofType(events, 'assistant.delta');
+		expect(new Set(answerDeltas.map(({ contentId }) => contentId))).toEqual(
+			new Set([answer?.contentId]),
+		);
+		expect(ofType(events, 'stream.discarded').at(-1)).toEqual({
+			type: 'stream.discarded',
+			runId: 'run-1',
+			contentIds: [`${RETRY_MESSAGE}:0`],
+			toolCallIds: [],
+		});
 	});
 
 	it('reports parallel tool calls from their streamed input to their results', () => {
