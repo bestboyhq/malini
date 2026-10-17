@@ -92,6 +92,10 @@ export function gridTemplate(size: number, axis: ResizeAxis): string {
 	return `minmax(0, 1fr) auto ${px}`;
 }
 
+export function secondaryGridTemplate(secondarySize: number): string {
+	return `minmax(0, 1fr) auto ${Math.round(secondarySize)}px`;
+}
+
 export function closedSecondaryGridTemplate(): string {
 	return 'minmax(0, 1fr) auto';
 }
