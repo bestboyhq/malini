@@ -1,5 +1,5 @@
 import type { WorkstreamFilesChangedPayload } from '$contract/events';
-import type { ImageBytes } from '$lib/chat/domain/image-bytes';
+import type { WorkstreamImageRead } from '$contract/repositories';
 import type { WorkstreamFile } from '$lib/chat/domain/workstream-file';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -9,7 +9,7 @@ class WorkstreamFilesService {
 		return invoke('repositories.workstream-files', { workstreamId });
 	}
 
-	readImage(workstreamId: string, path: string): Promise<ImageBytes | null> {
+	readImage(workstreamId: string, path: string): Promise<WorkstreamImageRead> {
 		return invoke('repositories.read-workstream-image', { workstreamId, path });
 	}
 

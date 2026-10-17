@@ -70,7 +70,7 @@ import type {
 	WorkstreamRetirementReceipt,
 	WorkstreamDto,
 	WorkstreamFileEntry,
-	WorkstreamImageBytes,
+	WorkstreamImageRead,
 	WorkstreamSnapshot,
 	WorktreeChangeTotals,
 	WorktreeStatus,
@@ -509,7 +509,7 @@ export interface ContractCommands {
 	};
 	'repositories.read-workstream-image': {
 		args: ReadWorkstreamImageArgs;
-		result: WorkstreamImageBytes | null;
+		result: WorkstreamImageRead;
 	};
 	'repositories.record-owned-docker-containers': { args: RecordOwnedContainersArgs; result: void };
 	'chat.redo-checkpoint-restore': {

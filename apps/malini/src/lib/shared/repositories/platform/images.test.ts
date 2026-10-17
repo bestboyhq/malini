@@ -39,8 +39,8 @@ afterEach(async () => {
 describe('readWorkstreamImage', () => {
 	it('reads an image nested in the worktree', async () => {
 		await worktreeWith('.malini/agent-attachments/shot.png', PNG);
-		const image = await readWorkstreamImage(worktree, '.malini/agent-attachments/shot.png');
-		expect(image).not.toBeNull();
+		const read = await readWorkstreamImage(worktree, '.malini/agent-attachments/shot.png');
+		const image = read.status === 'ready' ? read.bytes : null;
 		expect(image?.mediaType).toBe('image/png');
 		expect(image?.size).toBe(PNG.length);
 		expect(Buffer.from(image?.base64 ?? '', 'base64')).toEqual(PNG);
@@ -48,23 +48,25 @@ describe('readWorkstreamImage', () => {
 
 	it('reads an image the model named by its absolute path in the worktree', async () => {
 		await worktreeWith('.context/shot.png', PNG);
-		expect(await readWorkstreamImage(worktree, join(worktree, '.context/shot.png'))).not.toBeNull();
+		expect(await readWorkstreamImage(worktree, join(worktree, '.context/shot.png'))).toMatchObject({
+			status: 'ready',
+		});
 	});
 
 	it('tolerates a dot-slash prefix the model typed', async () => {
 		await worktreeWith('shot.png', PNG);
-		expect(await readWorkstreamImage(worktree, './shot.png')).not.toBeNull();
+		expect(await readWorkstreamImage(worktree, './shot.png')).toMatchObject({ status: 'ready' });
 	});
 
 	it('declines a file whose bytes are not an image', async () => {
 		await worktreeWith('notes.png', 'plain text pretending');
-		expect(await readWorkstreamImage(worktree, 'notes.png')).toBeNull();
+		expect(await readWorkstreamImage(worktree, 'notes.png')).toEqual({ status: 'not-an-image' });
 	});
 
 	it('declines a file past the preview cap', async () => {
 		const oversized = Buffer.concat([PNG, Buffer.alloc(MAX_PREVIEW_BYTES + 1 - PNG.length)]);
 		await worktreeWith('huge.png', oversized);
-		expect(await readWorkstreamImage(worktree, 'huge.png')).toBeNull();
+		expect(await readWorkstreamImage(worktree, 'huge.png')).toEqual({ status: 'too-large' });
 	});
 
 	it('rejects paths that leave the worktree before any filesystem call', async () => {
@@ -86,11 +88,13 @@ describe('readWorkstreamImage', () => {
 		expect(safeRelativePath('./a//b/./c.png')).toBe('a/b/c.png');
 	});
 
-	it('rejects a missing file as a fault, not an answer', async () => {
+	it('answers missing for an image whose file or folder is gone', async () => {
 		await worktreeWith('shot.png', PNG);
-		await expect(readWorkstreamImage(worktree, 'gone.png')).rejects.toThrow(
-			'open workstream image without following links',
-		);
+		expect(await readWorkstreamImage(worktree, 'gone.png')).toEqual({ status: 'missing' });
+		expect(await readWorkstreamImage(worktree, '.context/review/gone.png')).toEqual({
+			status: 'missing',
+		});
+		expect(await readWorkstreamImage(worktree, 'shot.png/gone.png')).toEqual({ status: 'missing' });
 	});
 
 	it.skipIf(!UNIX)('rejects a symlink out of the worktree', async () => {

@@ -23,7 +23,7 @@ import type {
 	ProjectDto,
 	PullRequestStatusDto,
 	WorkstreamDto,
-	WorkstreamImageBytes,
+	WorkstreamImageRead,
 } from '$contract/repositories';
 import type { OwnedContainer } from '$contract/system';
 
@@ -309,12 +309,11 @@ export function installRepositoriesFake(bridge: FakeBridge, state: FakeState): v
 
 	bridge.define('repositories.read-workstream-image', async (input) => {
 		const mediaType = FAKE_IMAGE_MEDIA_TYPES[input.path.split('.').pop()?.toLowerCase() ?? ''];
-		if (!mediaType) return null;
+		if (!mediaType) return { status: 'not-an-image' };
 		return {
-			mediaType,
-			base64: FAKE_PIXEL_PNG_BASE64,
-			size: FAKE_PIXEL_PNG_BYTES,
-		} satisfies WorkstreamImageBytes;
+			status: 'ready',
+			bytes: { mediaType, base64: FAKE_PIXEL_PNG_BASE64, size: FAKE_PIXEL_PNG_BYTES },
+		} satisfies WorkstreamImageRead;
 	});
 
 	bridge.define('repositories.workstream-status', async (input) => {
