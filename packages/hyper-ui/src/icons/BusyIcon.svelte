@@ -49,6 +49,7 @@
 
 	.background .dot {
 		animation: workstream-busy-orbit 2s ease-out infinite;
+		opacity: 0.24;
 	}
 	.background .hub {
 		animation: none;
@@ -90,11 +91,11 @@
 
 	@keyframes workstream-busy-orbit {
 		0% {
-			opacity: 0.72;
+			opacity: 0.8;
 		}
-		30%,
+		35%,
 		100% {
-			opacity: 0.08;
+			opacity: 0.24;
 		}
 	}
 
