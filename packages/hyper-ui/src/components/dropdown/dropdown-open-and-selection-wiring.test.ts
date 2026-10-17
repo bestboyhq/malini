@@ -22,12 +22,9 @@ describe('dropdown open and selection wiring', () => {
 		expect(layer).toContain('use:mountPanel');
 		expect(layer).toContain('panelEl.style.top = `${position.top}px`');
 		expect(layer).toContain('panelEl.style.left = `${position.left}px`');
-		expect(layer).toContain(
-			'calculatePosition(trigger.getBoundingClientRect(), layoutRect(panelEl)',
-		);
-		expect(layer).not.toContain(
-			'calculatePosition(trigger.getBoundingClientRect(), panelEl.getBoundingClientRect()',
-		);
+		expect(layer).toContain('const triggerRect = anchorRect(trigger);');
+		expect(layer).toContain('calculatePosition(triggerRect, layoutRect(panelEl)');
+		expect(layer).not.toMatch(/calculatePosition\([^,]+, panelEl\.getBoundingClientRect\(\)/u);
 		expect(layer).not.toContain('setProvisionalPosition');
 		expect(layer).not.toContain("positioned ? 'visible' : 'invisible'");
 		expect(layer).not.toMatch(/tick\(\)\.then\(\(\) => \{[\s\S]*calculatePosition/u);
