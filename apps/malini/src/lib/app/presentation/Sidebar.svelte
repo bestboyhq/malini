@@ -572,6 +572,15 @@
 		return { ...PULL_REQUEST_PHASE_VISUALS[badge.phase], label: badge.label };
 	}
 
+	function statusIconColor(
+		state: WorkstreamVisualState,
+		busy: boolean,
+		pullRequest: PullRequestVisual,
+	): string {
+		if (state.tone === 'background') return pullRequest.color || state.icon;
+		return busy || state.tone === 'broken' ? state.icon : pullRequest.color;
+	}
+
 	function unknownPullRequestBadge(): PullRequestBadge {
 		return { phase: 'unknown', label: null };
 	}
@@ -906,7 +915,7 @@
 														<span
 															class={[
 																'grid h-4 w-4 place-items-center',
-																busy || state.tone === 'broken' ? state.icon : pullRequest.color,
+																statusIconColor(state, busy, pullRequest),
 															]}
 															role="status"
 															aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
