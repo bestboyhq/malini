@@ -1,8 +1,8 @@
 import { createContext } from 'svelte';
 
-export type ResizableSplitInset = Readonly<{ secondarySize: number }>;
+export type ResizableSplitInset = Readonly<{ extent: number; secondarySize: number }>;
 
-const NO_INSET: ResizableSplitInset = { secondarySize: 0 };
+const NO_INSET: ResizableSplitInset = { extent: 0, secondarySize: 0 };
 const [getInset, setInset, hasInset] = createContext<ResizableSplitInset>();
 
 export const setResizableSplitInset = setInset;

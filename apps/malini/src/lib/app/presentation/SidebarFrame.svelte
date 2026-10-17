@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
-	import { sidebarGeometry } from './sidebar-geometry';
 	import { hydrateSidebarCommand } from '$lib/app/application/commands/hydrate-sidebar.command';
 	import { resetSidebarWidthCommand } from '$lib/app/application/commands/reset-sidebar-width.command';
 	import { resizeSidebarCommand } from '$lib/app/application/commands/resize-sidebar.command';
@@ -44,12 +43,14 @@
 		if (!(target instanceof HTMLButtonElement)) return;
 		target.setPointerCapture(event.pointerId);
 		drag = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
-		document.body.style.userSelect = 'none';
-		document.body.style.cursor = 'col-resize';
 	}
 
 	function onPointerMove(event: PointerEvent): void {
 		if (!drag || drag.pointerId !== event.pointerId) return;
+		if (event.buttons === 0) {
+			onPointerUp(event);
+			return;
+		}
 		resizeSidebarCommand(drag.startWidth + (event.clientX - drag.startX), false);
 	}
 
@@ -59,8 +60,6 @@
 		if (target instanceof HTMLButtonElement && target.hasPointerCapture(event.pointerId)) {
 			target.releasePointerCapture(event.pointerId);
 		}
-		document.body.style.userSelect = '';
-		document.body.style.cursor = '';
 		resizeSidebarCommand(width, true);
 		drag = null;
 	}
@@ -105,7 +104,6 @@
 	</aside>
 {:else if !collapsed}
 	<aside
-		use:sidebarGeometry
 		class={['bg-surface-50 flex h-full min-w-0 shrink-0 flex-col overflow-hidden', className]}
 		style:width={`${width}px`}
 		data-testid={testId}
@@ -141,6 +139,7 @@
 		onpointermove={onPointerMove}
 		onpointerup={onPointerUp}
 		onpointercancel={onPointerUp}
+		onlostpointercapture={onPointerUp}
 		ondblclick={resetSidebarWidthCommand}
 		onkeydown={onKeyDown}
 	></button>

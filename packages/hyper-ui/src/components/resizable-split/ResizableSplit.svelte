@@ -12,6 +12,7 @@
 		readPanelRatio,
 		savePanelRatio,
 		savePanelSize,
+		secondaryGridTemplate,
 	} from './resizable-split';
 
 	type ResizeAxis = 'horizontal' | 'vertical';
@@ -68,9 +69,6 @@
 	let usingDefaultSize = false;
 
 	const secondaryClosed = $derived(!secondaryOpen);
-	const gridStyle = $derived(
-		secondaryClosed ? closedSecondaryGridTemplate() : gridTemplate(size, axis),
-	);
 	const showHandle = $derived(!secondaryClosed);
 	const orientation = $derived<ResizeAxis>(axis === 'horizontal' ? 'vertical' : 'horizontal');
 	const placement = $derived(
@@ -93,7 +91,15 @@
 		const track = Math.round(size);
 		return axis === 'horizontal' ? Math.max(0, containerExtent - track) : track;
 	});
+	const gridStyle = $derived.by(() => {
+		if (secondaryClosed) return closedSecondaryGridTemplate();
+		if (containerExtent <= 0) return gridTemplate(size, axis);
+		return secondaryGridTemplate(secondarySize);
+	});
 	setResizableSplitInset({
+		get extent() {
+			return containerExtent;
+		},
 		get secondarySize() {
 			return secondarySize;
 		},
