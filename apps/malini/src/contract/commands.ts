@@ -150,6 +150,7 @@ export type SendAgentPromptArgs = Readonly<{
 	elementReferences?: readonly AgentElementReference[];
 	profile?: AgentRunProfile;
 	automated?: boolean;
+	steer?: boolean;
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{

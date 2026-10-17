@@ -28,6 +28,7 @@ type SendPromptInput = {
 	transcriptReferences?: readonly AgentTranscriptReference[];
 	elementReferences?: readonly AgentElementReference[];
 	profile?: AgentRunProfile;
+	steer?: boolean;
 	automated?: boolean;
 };
 
@@ -109,6 +110,7 @@ export class AgentRunner {
 						: {}),
 					...(input.profile ? { profile: { ...input.profile } } : {}),
 					...(input.automated === true ? { automated: true } : {}),
+					...(input.steer === true ? { steer: true } : {}),
 				}),
 		);
 		return runId;

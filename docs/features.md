@@ -60,7 +60,7 @@ The [README](../README.md) has the short version.
   <sub>Plan mode, how much the agent may do on its own, and how much it reports back, one menu from the composer.</sub>
 </p>
 
-- **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts and steers.
+- **Queue or steer.** **↵** queues a prompt after the current run, **⌘↵** interrupts the turn and steers, while background commands keep running.
   Edit, reorder, or delete what's queued.
 - **Plan first.** Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
 - **Model and effort per prompt.** Fable, Opus, Sonnet, or Haiku, from Low to Max effort.

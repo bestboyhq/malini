@@ -3,6 +3,7 @@ import type { SessionId } from '$lib/chat/domain/session';
 interface QueueInterruptRecovery {
 	entryId: string;
 	sessionId: SessionId;
+	steer: boolean;
 	attempts: number;
 	timer: ReturnType<typeof setTimeout>;
 }

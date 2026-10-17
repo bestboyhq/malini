@@ -39,19 +39,19 @@
 			icon: 'circle-dot',
 			label: 'Waiting on you',
 			tone: 'text-brand-foreground',
-			rail: 'border-brand-foreground',
+			rail: 'border-brand-foreground/40',
 		},
 		deferred: {
 			icon: 'warning',
 			label: 'Done with something deferred',
 			tone: 'text-warning-content',
-			rail: 'border-warning-content',
+			rail: 'border-warning-content/40',
 		},
 		done: {
 			icon: 'check',
 			label: 'Done',
 			tone: 'text-success-content',
-			rail: 'border-success-content',
+			rail: 'border-success-content/40',
 		},
 	} as const satisfies Record<TurnStatus, Readonly<Record<string, string>>>;
 	const MAX_THUMBNAILS = 4;
@@ -111,7 +111,7 @@
 
 <article
 	class={[
-		'bg-surface-50 flex w-full flex-col gap-2.5 rounded-l-xs rounded-r-md border-l-2 px-3 py-2.5',
+		'bg-surface-50 flex w-full flex-col gap-2.5 rounded-l-xs rounded-r-md border-l-3 px-3 py-2.5',
 		status.rail,
 	]}
 	aria-label="Turn result"

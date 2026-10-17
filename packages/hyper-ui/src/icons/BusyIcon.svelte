@@ -21,7 +21,9 @@
 	<circle class="dot wave-1 orbit-1" cx="9" cy="4" r="1.4" fill="currentColor" />
 	<circle class="dot wave-2 orbit-2" cx="14" cy="4" r="1.4" fill="currentColor" />
 	<circle class="dot wave-1 orbit-7" cx="4" cy="9" r="1.4" fill="currentColor" />
-	<circle class="dot wave-2 hub" cx="9" cy="9" r="1.4" fill="currentColor" />
+	{#if !background}
+		<circle class="dot wave-2" cx="9" cy="9" r="1.4" fill="currentColor" />
+	{/if}
 	<circle class="dot wave-3 orbit-3" cx="14" cy="9" r="1.4" fill="currentColor" />
 	<circle class="dot wave-2 orbit-6" cx="4" cy="14" r="1.4" fill="currentColor" />
 	<circle class="dot wave-3 orbit-5" cx="9" cy="14" r="1.4" fill="currentColor" />
@@ -50,10 +52,6 @@
 	.background .dot {
 		animation: workstream-busy-orbit 2s ease-out infinite;
 		opacity: 0.24;
-	}
-	.background .hub {
-		animation: none;
-		opacity: 0.08;
 	}
 	.background .orbit-1 {
 		animation-delay: 250ms;
@@ -104,9 +102,6 @@
 		.background .dot {
 			animation: none;
 			opacity: 0.52;
-		}
-		.background .hub {
-			opacity: 0.08;
 		}
 	}
 </style>

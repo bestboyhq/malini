@@ -551,6 +551,7 @@ export interface SendPromptInput {
 	readonly elementReferences?: readonly AgentElementReference[];
 	readonly profile?: AgentRunProfile | null;
 	readonly automated?: boolean;
+	readonly steer?: boolean;
 	readonly worktree: string;
 }
 
@@ -566,7 +567,7 @@ export async function sendAgentPrompt(
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
 	await leases.checkoutSettled(input.workstreamId);
-	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId);
+	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {
 		return await sendAgentPromptLeased(db, supervisor, input, hooks, emit, ids, leases, lease, log);
 	} finally {
@@ -686,6 +687,7 @@ async function sendAgentPromptLeased(
 			...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
 			...resumePoint,
 			...(skills === null ? {} : { skills }),
+			...(input.steer === true ? { steer: true } : {}),
 		});
 	} catch (error) {
 		const errorMessage = `agent bridge send failed: ${describe(error)}`;
@@ -1356,6 +1358,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				elementReferences: optionalArray(args, 'elementReferences').map(parseElementReference),
 				profile: parseProfile(field(args, 'profile')),
 				automated: field(args, 'automated') === true,
+				steer: field(args, 'steer') === true,
 				worktree,
 			},
 			deps.hooks,

@@ -127,14 +127,18 @@ export class ClaudeSession implements ProviderHandle {
 		resumeAt?: string,
 		freshConversation?: boolean,
 		skills?: readonly string[],
+		steer?: boolean,
 	): Promise<void> {
 		const active = this.#active;
 		if (active) {
-			if (!canHandOff(active, { profile, skills }, resumeAt, freshConversation)) {
-				throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
+			const continues = canContinue(active, { profile, skills }, resumeAt, freshConversation);
+			const answered = active.transcript.waiting || active.results.length > 0;
+			if (continues && (steer || active.transcript.waiting)) {
+				await this.#handOff(active, prompt, runId, profile, !answered);
+				return;
 			}
-			await this.#handOff(active, prompt, runId, profile);
-			return;
+			if (!steer) throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
+			await this.cancel(active.runId);
 		}
 		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });
 		const executable = this.#executable;
@@ -249,9 +253,20 @@ export class ClaudeSession implements ProviderHandle {
 		prompt: string,
 		runId: string,
 		profile: AgentRunProfile | undefined,
+		interrupt: boolean,
 	): Promise<void> {
 		active.transcript.releaseBackgroundWork();
-		this.#finish(active, true);
+		if (interrupt) {
+			active.transcript.interruptTurn();
+			this.#emit({
+				type: 'run.failed',
+				runId: active.runId,
+				error: 'cancelled',
+				...cursor(active.transcript),
+			});
+		} else {
+			this.#finish(active, true);
+		}
 		this.#interactions.cancelRun(active.runId);
 		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });
 		active.costBefore = active.results.at(-1)?.total_cost_usd ?? active.costBefore;
@@ -261,6 +276,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.metrics = null;
 		active.transcript.handOff(runId);
 		await this.#applyEffort(active, profile);
+		if (interrupt) await active.query.interrupt().catch(() => undefined);
 		active.turns.push(userTurn(prompt, active.promptId));
 		await active.finished;
 	}
@@ -566,14 +582,13 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 	};
 }
 
-function canHandOff(
+function canContinue(
 	active: ActiveRun,
 	{ profile, skills }: RunSettings,
 	resumeAt: string | undefined,
 	freshConversation: boolean | undefined,
 ): boolean {
 	return (
-		active.transcript.waiting &&
 		!active.cancelled &&
 		!resumeAt &&
 		!freshConversation &&

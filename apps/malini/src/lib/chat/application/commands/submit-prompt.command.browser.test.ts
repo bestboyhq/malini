@@ -136,19 +136,24 @@ describe('submitting while a run is active', () => {
 		);
 	});
 
-	it('steers a prompt past the queue by interrupting the run, where a plain one waits', async () => {
+	it('steers a prompt past the queue into the running chat, where a plain one waits', async () => {
 		const { platform } = await openPromptPipeline([chat('s-a1', { status: 'running' })]);
 		rememberChatTurn('s-a1');
 		chatSessionStore.sessionId = 's-a1';
-		const cancelRun = { command: 'chat.cancel-run', args: { sessionId: 's-a1' } };
+		const sends = recordPromptDelivery();
 
 		await submit(submission({ sessionId: 's-a1', prompt: 'Queued first' }));
-		expect(platform.calls).not.toContainEqual(cancelRun);
+		expect(sends()).toEqual([]);
 
 		await submit(submission({ sessionId: 's-a1', prompt: 'Steer now', steer: true }));
 
-		await vi.waitFor(() => expect(platform.calls).toContainEqual(cancelRun));
-		expect(queuedPrompts()).toEqual(['Steer now', 'Queued first']);
+		await vi.waitFor(() =>
+			expect(sends().map(({ prompt, steer }) => [prompt, steer])).toEqual([
+				['Steer now', true],
+				['Queued first', undefined],
+			]),
+		);
+		expect(platform.calls.map(({ command }) => command)).not.toContain('chat.cancel-run');
 	});
 
 	it('moves a queued prompt from the queue into the transcript in one step', async () => {

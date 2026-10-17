@@ -572,6 +572,15 @@
 		return { ...PULL_REQUEST_PHASE_VISUALS[badge.phase], label: badge.label };
 	}
 
+	function statusIconColor(
+		state: WorkstreamVisualState,
+		busy: boolean,
+		pullRequest: PullRequestVisual,
+	): string {
+		if (state.tone === 'background') return pullRequest.color || state.icon;
+		return busy || state.tone === 'broken' ? state.icon : pullRequest.color;
+	}
+
 	function unknownPullRequestBadge(): PullRequestBadge {
 		return { phase: 'unknown', label: null };
 	}
@@ -831,6 +840,8 @@
 												state.tone === 'running' ||
 												state.tone === 'background' ||
 												state.tone === 'provisioning'}
+											{@const loading =
+												busy || (badge.phase === 'queued' && state.tone !== 'broken')}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
 											{@const unread = attention !== null}
 											{@const workstreamItem = { kind: 'workstream' as const, id: workstream.id }}
@@ -906,7 +917,7 @@
 														<span
 															class={[
 																'grid h-4 w-4 place-items-center',
-																busy || state.tone === 'broken' ? state.icon : pullRequest.color,
+																statusIconColor(state, busy, pullRequest),
 															]}
 															role="status"
 															aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
@@ -916,7 +927,7 @@
 															data-workstream-icon-state={state.tone}
 															data-workstream-pull-request-state={badge.phase}
 														>
-															{#if busy}
+															{#if loading}
 																<BusyIcon size={14} background={state.tone === 'background'} />
 															{:else}
 																<Icon name={pullRequest.glyph} size={14} />

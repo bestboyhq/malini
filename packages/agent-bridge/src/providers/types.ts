@@ -25,6 +25,7 @@ export interface ProviderHandle {
 		resumeAt?: string,
 		freshConversation?: boolean,
 		skills?: readonly string[],
+		steer?: boolean,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

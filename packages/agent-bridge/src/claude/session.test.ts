@@ -1,5 +1,5 @@
 import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
@@ -9,6 +9,8 @@ import { ClaudeSession } from './session.js';
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
 const READ_AND_BASH_CURSOR = '14372fe3-16a6-4ab1-8c70-ee97865c9a65';
 const BACKGROUND_AGENT = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
+const SLEEP_TOOL = 'toolu_steered_sleep';
+const STEER = [undefined, undefined, undefined, true] as const;
 
 const CONTEXT: ProviderContext = {
 	sessionId: 'session-1',
@@ -71,6 +73,40 @@ function initOf(script: readonly ScriptStep[]): SDKMessage {
 		throw new Error('the recorded script does not start with a message');
 	}
 	return init;
+}
+
+function foregroundSleep(script: readonly ScriptStep[]): SDKMessage {
+	const toolUse = script.find(
+		(step): step is SDKMessage =>
+			typeof step !== 'string' && 'type' in step && step.type === 'assistant',
+	);
+	const copy = structuredClone(toolUse);
+	if (copy?.type !== 'assistant') throw new Error('the recorded script has no tool call');
+	copy.uuid = '7d3c1e2a-9b8f-4a6e-8d5c-2f1e0a9b8c7d';
+	copy.message.id = 'msg_steered_sleep';
+	copy.message.content = [
+		{ type: 'tool_use', id: SLEEP_TOOL, name: 'Bash', input: { command: 'sleep 60' } },
+	];
+	return copy;
+}
+
+function rejected(toolUseId: string): SDKMessage {
+	return {
+		type: 'user',
+		message: {
+			role: 'user',
+			content: [
+				{
+					type: 'tool_result',
+					tool_use_id: toolUseId,
+					is_error: true,
+					content: "The user doesn't want to proceed with this tool use.",
+				},
+			],
+		},
+		parent_tool_use_id: null,
+		uuid: '4e2d1c0b-8a7f-4e6d-9c5b-3a2f1e0d9c8b',
+	};
 }
 
 describe('ClaudeSession', () => {
@@ -674,6 +710,84 @@ describe('ClaudeSession', () => {
 				.filter(({ runId }) => runId === 'run-1')
 				.at(-1),
 		).toMatchObject({ tasks: [] });
+	});
+
+	it('steers a busy run by interrupting only its turn, so its background command keeps running', async () => {
+		const script = recordedScript('backgroundCommand');
+		const launched = script.findIndex(
+			(step) => typeof step !== 'string' && 'type' in step && step.type === 'user',
+		);
+		const { session, claude, events } = harness(
+			[
+				[
+					...script.slice(0, launched + 1),
+					foregroundSleep(script),
+					'wait-for-interrupt',
+					rejected(SLEEP_TOOL),
+					{ ...recordedSuccess(script), is_error: true, result: '' },
+					'wait-for-prompt',
+					...script.slice(launched + 1),
+				],
+			],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'tool.started' && event.toolCallId === SLEEP_TOOL) {
+						void current.sendPrompt('Skip the sleep', 'run-2', profile(), ...STEER);
+					}
+				},
+			},
+		);
+
+		await session.sendPrompt('Run a command in the background, then sleep', 'run-1', profile());
+
+		expect(claude.runs).toHaveLength(1);
+		expect(claude.runs[0]?.interrupted).toBe(true);
+		expect(claude.runs[0]?.followUps).toEqual(['Skip the sleep']);
+		expect(claude.runs[0]?.stoppedTasks).toEqual([]);
+		expect(ofType(events, 'tool.failed')).toEqual([]);
+		expect(
+			events
+				.filter((event) => event.type === 'run.failed' || event.type === 'run.completed')
+				.map((event) => [event.type, event.runId]),
+		).toEqual([
+			['run.failed', 'run-1'],
+			['run.completed', 'run-2'],
+		]);
+		expect(ofType(events, 'run.failed')[0]?.error).toBe('cancelled');
+		expect(
+			ofType(events, 'background.updated')
+				.filter(({ runId, tasks }) => runId === 'run-2' && tasks.length > 0)[0]
+				?.tasks.map(({ taskId }) => taskId),
+		).toEqual(['biv864hkk']);
+	});
+
+	it('steers a run whose access level changes by restarting Claude Code, the only way to apply it', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude, events } = harness(
+			[
+				[initOf(script), 'wait-for-interrupt'],
+				[initOf(script), recordedSuccess(script)],
+			],
+			{
+				onEvent: (event, current) => {
+					if (event.type === 'run.started' && event.runId === 'run-1') {
+						setTimeout(
+							() => void current.sendPrompt('Go', 'run-2', profile('agent', 'full'), ...STEER),
+						);
+					}
+				},
+			},
+		);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await vi.waitFor(() => expect(ofType(events, 'run.completed')).toHaveLength(1));
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.closed).toBe(true);
+		await expect(claude.runs[1]?.prompt).resolves.toBe('Go');
+		expect(ofType(events, 'run.failed')).toEqual([
+			expect.objectContaining({ runId: 'run-1', error: 'cancelled' }),
+		]);
 	});
 
 	it('keeps a prompt that changes the access level out of a run waiting on background work', async () => {

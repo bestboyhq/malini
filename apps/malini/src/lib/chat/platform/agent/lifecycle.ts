@@ -196,7 +196,7 @@ export class AgentRunLeases {
 		return true;
 	}
 
-	acquireRun(db: MaliniDatabase, workstreamId: string, sessionId: string): RunLease {
+	acquireRun(db: MaliniDatabase, workstreamId: string, sessionId: string, steer = false): RunLease {
 		if (this.tearingDown.has(workstreamId)) {
 			throw new LifecycleError('workstream_teardown_pending', workstreamId);
 		}
@@ -205,7 +205,8 @@ export class AgentRunLeases {
 		}
 		const openRunIds = listActiveRunIdsForSession(db, sessionId);
 		const handsOff =
-			openRunIds.length > 0 && openRunIds.every((runId) => runIsWaitingOnBackgroundWork(db, runId));
+			openRunIds.length > 0 &&
+			(steer || openRunIds.every((runId) => runIsWaitingOnBackgroundWork(db, runId)));
 		if (this.dispatching.has(sessionId) || (openRunIds.length > 0 && !handsOff)) {
 			throw new LifecycleError('already_running', sessionId);
 		}

@@ -63,6 +63,7 @@ export interface SendPromptCommand {
 	readonly resumeAt?: string;
 	readonly freshConversation?: boolean;
 	readonly skills?: readonly string[];
+	readonly steer?: boolean;
 }
 
 const MAX_SKILLS = 1_000;
@@ -579,6 +580,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const resumeAt = obj.resumeAt;
 	const freshConversation = obj.freshConversation;
 	const skills = obj.skills;
+	const steer = obj.steer;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -601,6 +603,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (freshConversation !== undefined && typeof freshConversation !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: freshConversation must be a boolean', obj);
 	}
+	if (steer !== undefined && typeof steer !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'send_prompt: steer must be a boolean', obj);
+	}
 	if (skills !== undefined && !isSkillList(skills)) {
 		return err(
 			'INVALID_PAYLOAD',
@@ -620,6 +625,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(resumeAt !== undefined ? { resumeAt } : {}),
 			...(freshConversation === true ? { freshConversation } : {}),
 			...(skills !== undefined ? { skills } : {}),
+			...(steer === true ? { steer } : {}),
 		},
 	};
 }

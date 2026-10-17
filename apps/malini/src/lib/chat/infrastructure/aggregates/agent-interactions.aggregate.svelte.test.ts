@@ -120,6 +120,41 @@ describe('AgentInteractionCommands', () => {
 		expect(decideAgentApproval).not.toHaveBeenCalled();
 	});
 
+	it('shows the decision when the run ends before the decision call returns', async () => {
+		let release!: (result: { decision: 'allow'; scope: 'once'; remembered: false }) => void;
+		const decideAgentApproval = vi.fn(
+			() =>
+				new Promise<{ decision: 'allow'; scope: 'once'; remembered: false }>((resolve) => {
+					release = resolve;
+				}),
+		);
+		const commands = new AgentInteractionCommands(
+			() => ({ decideAgentApproval, answerAgentQuestion: vi.fn() }),
+			vi.fn(),
+		);
+		const requested = envelope(1, externalReadApproval());
+		commands.sync([requested]);
+
+		const decided = commands.decideApproval({
+			sessionId: 'session-1',
+			runId: 'run-1',
+			approvalId: 'approval-1',
+			decision: 'allow',
+			scope: 'once',
+		});
+		commands.sync([
+			requested,
+			envelope(2, { type: 'run.completed', runId: 'run-1', summary: 'done' }),
+		]);
+		release({ decision: 'allow', scope: 'once', remembered: false });
+
+		await expect(decided).resolves.toBe(true);
+		expect(commands.stateFor(approvalReference())).toMatchObject({
+			status: 'resolved',
+			message: 'Allowed once',
+		});
+	});
+
 	it('keeps a live request actionable while another retained transcript synchronizes', async () => {
 		const decideAgentApproval = vi.fn().mockResolvedValue({
 			decision: 'allow',

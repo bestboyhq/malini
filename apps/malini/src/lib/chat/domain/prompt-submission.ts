@@ -49,4 +49,5 @@ export type PromptDispatch = PromptPayload &
 		profile: AgentRunProfile;
 		queueId?: string;
 		requestId?: string;
+		steer?: boolean;
 	}>;
