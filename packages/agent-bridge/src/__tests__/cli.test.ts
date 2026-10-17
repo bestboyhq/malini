@@ -612,8 +612,8 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		let finishListing: () => void = () => undefined;
 		const ipc = createIpc({
 			stdout: fakeStdout,
-			listSkills: async (cwd) => {
-				asked.push(cwd);
+			listSkills: async (cwd, turnedOff) => {
+				asked.push(turnedOff ? `${cwd} ${turnedOff.skills.join()}` : cwd);
 				if (cwd === '/missing') throw new Error('Claude Code is not installed');
 				await new Promise<void>((resolve) => (finishListing = resolve));
 				return [
@@ -624,13 +624,16 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 
 		await ipc.run('{"cmd":"list_skills","id":"skills-1","cwd":"/repo"}');
 		await ipc.run('{"cmd":"list_skills","id":"skills-2","cwd":"/missing"}');
+		await ipc.run(
+			'{"cmd":"list_skills","id":"skills-4","cwd":"/missing","turnedOff":{"skills":["humanizer"],"plugins":[]}}',
+		);
 		await ipc.run('{"cmd":"list_skills","id":"skills-3","cwd":"relative"}');
 		finishListing();
 		await ipc.drain();
 
 		const frames = parseFrames(writes.join(''));
 		const framesFor = (id: string): WireFrame[] => frames.filter((frame) => frame.id === id);
-		expect(asked).toEqual(['/repo', '/missing']);
+		expect(asked).toEqual(['/repo', '/missing', '/missing humanizer']);
 		expect(framesFor('skills-1')).toEqual([
 			expect.objectContaining({
 				type: 'bridge.skills',
@@ -649,47 +652,6 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 		expect(framesFor('skills-3')).toEqual([
 			expect.objectContaining({ type: 'bridge.protocol_error' }),
-		]);
-	});
-
-	it('createIpc.run answers suggest_presets with a presets frame, or a failed ack', async () => {
-		const writes: string[] = [];
-		const fakeStdout = createOutputSink();
-		fakeStdout.write = (chunk: string): boolean => {
-			writes.push(chunk);
-			return true;
-		};
-		const ipc = createIpc({
-			stdout: fakeStdout,
-			suggestPresets: async (skills, job) => {
-				if (skills.some(({ name }) => name === 'broken')) throw new Error('timed out');
-				return [{ name: job.model, skills: skills.map(({ name }) => name) }];
-			},
-		});
-
-		await ipc.run(
-			'{"cmd":"suggest_presets","id":"presets-1","skills":[{"name":"adr","description":"d"},{"name":"run","description":"d"}],"instructions":"Sort","model":"haiku"}',
-		);
-		await ipc.run(
-			'{"cmd":"suggest_presets","id":"presets-2","skills":[{"name":"broken","description":"d"}],"instructions":"Sort","model":"haiku"}',
-		);
-		await ipc.drain();
-
-		const frames = parseFrames(writes.join(''));
-		const framesFor = (id: string): WireFrame[] => frames.filter((frame) => frame.id === id);
-		expect(framesFor('presets-1')).toEqual([
-			expect.objectContaining({
-				type: 'bridge.presets',
-				presets: [{ name: 'haiku', skills: ['adr', 'run'] }],
-			}),
-			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
-		]);
-		expect(framesFor('presets-2')).toEqual([
-			expect.objectContaining({
-				type: 'bridge.command_ack',
-				accepted: false,
-				error: 'PRESETS_FAILED: timed out',
-			}),
 		]);
 	});
 

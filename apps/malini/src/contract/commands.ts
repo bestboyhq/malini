@@ -41,16 +41,13 @@ import type {
 } from './jobs';
 import type { ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type {
-	ChooseSkillsArgs,
-	DefaultSkillPresetArgs,
 	ListSkillsArgs,
 	SaveSkillPresetArgs,
-	SkillChoice,
-	SkillChoiceScopeArgs,
 	SkillPresetIdArgs,
 	SkillPresetRecord,
-	SkillPresetSuggestion,
 	SkillRecord,
+	SkillUsageReport,
+	SwitchSkillArgs,
 } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { ActivityStats, ResourceHistory } from './stats';
@@ -463,12 +460,10 @@ export interface ContractCommands {
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
-	'skills.suggest-presets': { args: undefined; result: SkillPresetSuggestion[] };
 	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
 	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
-	'skills.set-default-preset': { args: DefaultSkillPresetArgs; result: SkillPresetRecord[] };
-	'skills.choice': { args: SkillChoiceScopeArgs; result: SkillChoice };
-	'skills.choose': { args: ChooseSkillsArgs; result: SkillChoice };
+	'skills.usage': { args: undefined; result: SkillUsageReport };
+	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
@@ -701,12 +696,10 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.cancel-run',
 	'skills.list',
 	'skills.list-presets',
-	'skills.suggest-presets',
 	'skills.save-preset',
 	'skills.delete-preset',
-	'skills.set-default-preset',
-	'skills.choice',
-	'skills.choose',
+	'skills.usage',
+	'skills.switch',
 	'repositories.disconnect',
 	'repositories.list-hidden',
 	'repositories.set-hidden',

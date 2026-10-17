@@ -1314,6 +1314,41 @@ ALTER TABLE job_definitions_v45 RENAME TO job_definitions;
 
 export const MIGRATION_0045_SKILL_PRESET_EMOJI = `ALTER TABLE skill_presets ADD COLUMN emoji TEXT;`;
 
+export const MIGRATION_0046_SKILLS_WITHOUT_PRESET_SUGGESTIONS = `
+DELETE FROM job_runs WHERE definition_id IN (
+  SELECT id FROM job_definitions WHERE builtin = 'suggest-presets'
+);
+DELETE FROM job_definitions WHERE builtin = 'suggest-presets';
+
+CREATE TABLE job_definitions_v46 (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  output TEXT NOT NULL CHECK (output IN ('none','draft','merge')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','fix-checks','update-from-main','address-review')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  skill_preset_id TEXT
+);
+
+INSERT INTO job_definitions_v46 (
+  rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at, skill_preset_id
+)
+SELECT rowid, id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at, skill_preset_id
+FROM job_definitions;
+
+DROP TABLE job_definitions;
+ALTER TABLE job_definitions_v46 RENAME TO job_definitions;
+
+DELETE FROM skill_choices WHERE scope = 'workstream';
+DROP INDEX IF EXISTS idx_skill_presets_default;
+`;
+
+export const MIGRATION_0046_DROP_DEFAULT_SKILL_PRESET = `ALTER TABLE skill_presets DROP COLUMN is_default;`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1323,7 +1358,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 45;
+export const TARGET_USER_VERSION = 46;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1500,7 +1535,7 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				db.exec(MIGRATION_0043_JOB_RUNS_CHAT_INDEX);
 			}
 			if (existing < 44) {
-				db.exec(MIGRATION_0044_SKILL_PRESETS);
+				if (!tableExists(db, 'skill_presets')) db.exec(MIGRATION_0044_SKILL_PRESETS);
 				addColumnIfMissing(
 					db,
 					'job_definitions',
@@ -1511,6 +1546,12 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 			if (existing < 45) {
 				db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
 				addColumnIfMissing(db, 'skill_presets', 'emoji', MIGRATION_0045_SKILL_PRESET_EMOJI);
+			}
+			if (existing < 46) {
+				db.exec(MIGRATION_0046_SKILLS_WITHOUT_PRESET_SUGGESTIONS);
+				if (columnExists(db, 'skill_presets', 'is_default')) {
+					db.exec(MIGRATION_0046_DROP_DEFAULT_SKILL_PRESET);
+				}
 			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(

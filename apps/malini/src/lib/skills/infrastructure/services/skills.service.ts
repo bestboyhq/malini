@@ -1,9 +1,9 @@
 import type {
 	SaveSkillPresetArgs,
-	SkillChoice,
 	SkillPresetRecord,
-	SkillPresetSuggestion,
 	SkillRecord,
+	SkillUsageReport,
+	SwitchSkillArgs,
 } from '$contract/skills';
 import { invoke } from '$shared/port/invoke';
 
@@ -16,10 +16,6 @@ class SkillsService {
 		return invoke('skills.list-presets', undefined);
 	}
 
-	suggestPresets(): Promise<SkillPresetSuggestion[]> {
-		return invoke('skills.suggest-presets', undefined);
-	}
-
 	savePreset(args: SaveSkillPresetArgs): Promise<SkillPresetRecord> {
 		return invoke('skills.save-preset', args);
 	}
@@ -28,24 +24,12 @@ class SkillsService {
 		await invoke('skills.delete-preset', { presetId });
 	}
 
-	setDefaultPreset(presetId: string | null): Promise<SkillPresetRecord[]> {
-		return invoke('skills.set-default-preset', { presetId });
+	usage(): Promise<SkillUsageReport> {
+		return invoke('skills.usage', undefined);
 	}
 
-	choice(workstreamId: string, sessionId: string | null): Promise<SkillChoice> {
-		return invoke('skills.choice', { workstreamId, ...(sessionId ? { sessionId } : {}) });
-	}
-
-	choose(
-		workstreamId: string,
-		sessionId: string | null,
-		choice: SkillChoice,
-	): Promise<SkillChoice> {
-		return invoke('skills.choose', {
-			workstreamId,
-			choice,
-			...(sessionId ? { sessionId } : {}),
-		});
+	switchSkill(args: SwitchSkillArgs): Promise<SkillUsageReport> {
+		return invoke('skills.switch', args);
 	}
 }
 

@@ -3,7 +3,6 @@
 	import { cubicOut } from 'svelte/easing';
 	import { fly } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
-	import { Icon } from '$hyper-ui/icons';
 	import {
 		ONBOARDING_STEPS,
 		onboardingAccountsSettled,
@@ -14,10 +13,7 @@
 	import { goToOnboardingStepCommand } from '$lib/app/application/commands/go-to-onboarding-step.command';
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
-	import { ensureSkillSuggestionsCommand } from '$lib/skills/application/commands/ensure-skill-suggestions.command';
-	import { skillCatalogTotalsQuery } from '$lib/skills/application/queries/skill-catalog-totals.query.svelte';
 	import { JobsIntro } from '$lib/jobs/jobs.api';
-	import { SkillPresetBoard } from '$lib/skills/skills.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import {
 		githubAuthErrorQuery,
@@ -27,7 +23,6 @@
 	import OnboardingAccountsStep from './OnboardingAccountsStep.svelte';
 	import OnboardingRepositoryStep from './OnboardingRepositoryStep.svelte';
 
-	const COMPACT = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 	const STEP_COPY: Readonly<
 		Record<OnboardingStep, Readonly<{ title: string; description: string }>>
 	> = {
@@ -35,11 +30,6 @@
 			title: 'Connect Claude Code and GitHub',
 			description:
 				'malini runs Claude Code with your Claude plan, and works in your GitHub repositories.',
-		},
-		skills: {
-			title: 'Group your skills into presets',
-			description:
-				'Drag your skills into presets, so each chat gets only the skills its work needs.',
 		},
 		jobs: {
 			title: 'Meet your jobs',
@@ -54,9 +44,7 @@
 	};
 
 	const onboarding = $derived(onboardingQuery.data);
-	const totals = $derived(skillCatalogTotalsQuery.data(null));
 	const last = $derived(onboarding.index === ONBOARDING_STEPS.length - 1);
-	const wide = $derived(onboarding.step === 'skills');
 	const copy = $derived(STEP_COPY[onboarding.step]);
 	const accounts: OnboardingAccountStatuses = $derived({
 		'claude-code': claudeCodeStatusQuery.data.kind,
@@ -65,17 +53,9 @@
 	const continueWaits = $derived(
 		onboarding.step === 'accounts' && !onboardingAccountsSettled(accounts),
 	);
-	const description = $derived(
-		onboarding.step === 'skills' && totals
-			? `Right now every chat loads all ${totals.skills} skills, ${COMPACT.format(totals.tokens).toLowerCase()} tokens before you type a word. Drag them into presets, so each chat gets only the skills its work needs.`
-			: copy.description,
-	);
 	let moved = false;
 
-	onMount(() => {
-		ensureSkillSuggestionsCommand();
-		return showOnboardingHook();
-	});
+	onMount(showOnboardingHook);
 
 	function go(step: number): void {
 		moved = true;
@@ -92,11 +72,7 @@
 		class={[
 			'bg-surface-50 border-surface-50-border flex max-w-full flex-col rounded-[28px] border-[0.5px] px-9 pt-8 pb-7 shadow-xl',
 			'transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
-			wide
-				? 'h-[min(860px,calc(100vh_-_3rem))] w-[920px]'
-				: onboarding.step === 'accounts'
-					? 'w-[600px]'
-					: 'w-[560px]',
+			onboarding.step === 'accounts' ? 'w-[600px]' : 'w-[560px]',
 		]}
 		aria-labelledby="onboarding-heading"
 		data-onboarding-step={onboarding.step}
@@ -135,18 +111,12 @@
 					{copy.title}
 				</h1>
 				<p class="text-fg-tertiary mt-2 max-w-[60ch] text-[15px] leading-6 text-pretty">
-					{description}
+					{copy.description}
 				</p>
 
 				<div class="mt-7 flex min-h-0 flex-1 flex-col">
 					{#if onboarding.step === 'accounts'}
 						<OnboardingAccountsStep statuses={accounts} />
-					{:else if onboarding.step === 'skills'}
-						<SkillPresetBoard suggest class="min-h-[280px] flex-1" />
-						<p class="text-fg-tertiary mt-3 flex items-center gap-1.5 text-xs">
-							<Icon name="info" size={13} class="shrink-0" />
-							Your first preset becomes the default for new chats. Switch a chat's preset from its composer.
-						</p>
 					{:else if onboarding.step === 'jobs'}
 						<JobsIntro />
 					{:else}
@@ -156,7 +126,7 @@
 			</div>
 		{/key}
 
-		<footer class={['flex shrink-0 items-center justify-between gap-3', wide ? 'mt-6' : 'mt-9']}>
+		<footer class="mt-9 flex shrink-0 items-center justify-between gap-3">
 			{#if onboarding.index > 0}
 				<Button
 					variant="ghost"

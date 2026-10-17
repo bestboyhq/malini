@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -9,136 +12,149 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('setup offers presets Claude suggests, groups skills by dragging, and walks on to the first repository', async () => {
+test('setup goes from accounts straight to jobs, with no skills to sort', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
 		await expect(setup.getByRole('heading', { name: 'Connect Claude Code' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(
-			setup.getByRole('heading', { name: 'Group your skills into presets' }),
-		).toBeVisible();
-		await expect(setup).toContainText('Right now every chat loads all 7 skills');
-		await expect(setup.getByText('Suggested by Claude from your skills')).toBeVisible();
-		await expect(page.getByTestId('global-topbar-sidebar-toggle')).toHaveCount(0);
-		await captureFlow(app, 'skills-setup-suggestions');
-
-		await setup.getByRole('button', { name: 'Add the Writer preset' }).click();
-		const writer = preset(page, 'Writer');
-		await expect(writer.getByTestId('skill-preset-skill')).toHaveText([
-			/humanizer/u,
-			/landing-arch/u,
-		]);
-		await expect(writer.getByTestId('skill-preset-default')).toBeVisible();
-		await expect(writer.getByRole('button', { name: 'Emoji for Writer' })).toHaveText('✍️');
-
-		await dragSkill(page, 'animate', page.getByTestId('skill-preset-suggestion'));
-		const builder = preset(page, 'Builder');
-		await expect(builder.getByTestId('skill-preset-skill')).toHaveText([
-			/adr/u,
-			/test-malini-app/u,
-			/ponytail/u,
-			/animate/u,
-		]);
-		await expect(page.getByTestId('skill-preset-suggestion')).toHaveCount(0);
-
-		await page.getByRole('button', { name: 'dataviz. Add to a preset' }).click();
-		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
-		await page.getByRole('textbox', { name: 'Preset name' }).fill('Analyst');
-		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
-		await expect(preset(page, 'Analyst')).toContainText('dataviz');
-		const analystEmoji = page.getByRole('button', { name: 'Emoji for Analyst' });
-		await expect(analystEmoji).toHaveText('A');
-		await analystEmoji.click();
-		await page
-			.getByRole('dialog', { name: 'Emoji for Analyst' })
-			.getByRole('button', { name: '📊' })
-			.click();
-		await expect(analystEmoji).toHaveText('📊');
-		await expect(page.getByRole('button', { name: 'dataviz. Add to a preset' })).toContainText(
-			'📊',
-		);
-
-		await builder.getByRole('button', { name: 'Emoji for Builder' }).click();
-		await page
-			.getByRole('dialog', { name: 'Emoji for Builder' })
-			.getByRole('textbox', { name: 'Type any emoji' })
-			.fill('unicorn 🦄');
-		await expect(builder.getByRole('button', { name: 'Emoji for Builder' })).toHaveText('🦄');
-		await captureFlow(app, 'skills-setup-presets');
-
+		await expect(setup.getByText('Step 1 of 3')).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
-		await expect(setup.getByRole('link', { name: /^Suggest skill presets/u })).toContainText(
-			'Built-in',
-		);
-		await setup.getByRole('button', { name: 'Continue' }).click();
-		await expect(setup.getByRole('heading', { name: 'Open your first repository' })).toBeVisible();
-		await setup.getByRole('button', { name: 'Skip for now' }).click();
-		await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
-		await expect(page.getByTestId('onboarding')).toHaveCount(0);
-		await expect(page.getByTestId('global-topbar-sidebar-toggle')).toBeVisible();
+		await expect(setup.getByRole('link', { name: /^Suggest skill presets/u })).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a chat hands its agent only the skills of its preset, and every skill otherwise', async () => {
+test('Settings ranks skills by use and turns a skill and a plugin off in Claude Code settings', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini();
+	const root = mkdtempSync(join(tmpdir(), 'malini-e2e-'));
+	const home = join(root, 'home');
+	const settingsFile = join(home, '.claude', 'settings.json');
+	mkdirSync(join(home, '.claude'), { recursive: true });
+	writeFileSync(
+		join(home, '.claude.json'),
+		JSON.stringify({
+			firstStartTime: '2026-06-30T10:35:42.832Z',
+			skillUsage: {
+				adr: { usageCount: 25, lastUsedAt: Date.now() - 86_400_000 },
+				'ponytail:ponytail': { usageCount: 3, lastUsedAt: Date.now() - 10 * 86_400_000 },
+				animate: { usageCount: 1, lastUsedAt: Date.now() - 90 * 86_400_000 },
+			},
+		}),
+	);
+	writeFileSync(
+		settingsFile,
+		JSON.stringify({ theme: 'dark', enabledPlugins: { 'ponytail@ponytail': true } }, null, 2),
+	);
+	const app = await launchMalini({ profile: root });
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-skills-ws', 'Skills');
 		await openWorkstream(page, workstreamId);
-
-		const skills = page.getByTestId('chat-skills');
-		await expect(skills).toHaveAccessibleName('Skills: All skills · 7 skills');
+		await expect(page.getByTestId('chat-skills')).toHaveCount(0);
 		await sendPrompt(page, 'WHICH_SKILLS');
 		await expect(page.getByText('Skills: all')).toBeVisible({ timeout: 30_000 });
 
-		await skills.click();
-		await page.getByRole('menuitemcheckbox', { name: /^dataviz/u }).click();
-		await expect(skills).toHaveAccessibleName('Skills: Custom · 6 skills');
-		await page.keyboard.press('Escape');
-		await sendPrompt(page, 'WHICH_SKILLS again');
-		await expect(
-			page.getByText(
-				'Skills: animate, humanizer, landing-arch, adr, test-malini-app, ponytail:ponytail',
-			),
-		).toBeVisible({
-			timeout: 30_000,
-		});
+		await page.getByTestId('sidebar-open-settings').click();
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Skills' })
+			.click();
+		const ranked = page.getByRole('list', { name: 'Skills by use' });
+		await expect(ranked.getByRole('heading', { level: 4 })).toHaveText([
+			'adr',
+			'ponytail',
+			'animate',
+			'dataviz',
+			'landing-arch',
+			'humanizer',
+			'test-malini-app',
+		]);
+		await expect(row(page, 'adr')).toContainText('25 uses');
+		await expect(row(page, 'ponytail')).toContainText('Plugin · ponytail');
+		await expect(page.getByTestId('skill-usage-unused')).toContainText(
+			'4 of the skills you keep on were never used',
+		);
+		await captureFlow(app, 'skills-usage');
 
-		await skills.click();
-		await page.getByRole('menuitem', { name: 'Edit presets…' }).click();
-		const settings = page.getByRole('dialog', { name: 'Settings' });
-		await expect(settings.getByRole('heading', { name: 'Skills', exact: true })).toBeVisible();
-		await settings.getByRole('button', { name: 'humanizer. Add to a preset' }).click();
-		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
-		await page.getByRole('textbox', { name: 'Preset name' }).fill('Writer');
-		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
-		await expect(preset(page, 'Writer')).toContainText('humanizer');
-		await captureFlow(app, 'skills-settings');
-		await page.keyboard.press('Escape');
+		await page.getByRole('switch', { name: 'Skill dataviz' }).click();
+		await expect(page.getByRole('switch', { name: 'Skill dataviz' })).toHaveAttribute(
+			'aria-checked',
+			'false',
+		);
+		await page.getByRole('switch', { name: 'Plugin ponytail' }).click();
+		await expect(page.getByRole('switch', { name: 'Plugin ponytail' })).toHaveAttribute(
+			'aria-checked',
+			'false',
+		);
+		await expect
+			.poll(() => JSON.parse(readFileSync(settingsFile, 'utf8')))
+			.toEqual({
+				theme: 'dark',
+				enabledPlugins: { 'ponytail@ponytail': false },
+				skillOverrides: { dataviz: 'off' },
+			});
+		await expect(page.getByTestId('skill-usage-totals')).toContainText('5 on');
+		await captureFlow(app, 'skills-usage-off');
 
-		await skills.click();
-		await page.getByRole('menuitemradio', { name: /Writer/u }).click();
-		await expect(skills).toHaveAccessibleName('Skills: Writer · 1 skill');
-		await captureFlow(app, 'skills-composer-menu');
-		await page.keyboard.press('Escape');
-		await sendPrompt(page, 'WHICH_SKILLS once more');
-		await expect(page.getByText('Skills: humanizer', { exact: true })).toBeVisible({
-			timeout: 30_000,
-		});
+		await page.getByRole('switch', { name: 'Skill dataviz' }).click();
+		await expect
+			.poll(() => JSON.parse(readFileSync(settingsFile, 'utf8')))
+			.toEqual({ theme: 'dark', enabledPlugins: { 'ponytail@ponytail': false } });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
+
+test('Settings → Jobs keeps skill presets for jobs, built by menu and by dragging', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-presets-ws', 'Presets');
+		await openWorkstream(page, workstreamId);
+
+		await page.getByTestId('sidebar-open-settings').click();
+		await page
+			.getByRole('navigation', { name: 'Settings' })
+			.getByRole('link', { name: 'Jobs' })
+			.click();
+		const presets = page.getByRole('region', { name: 'Skill presets' });
+		await presets.getByRole('button', { name: 'dataviz. Add to a preset' }).click();
+		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
+		await page.getByRole('textbox', { name: 'Preset name' }).fill('Analyst');
+		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
+		const analyst = preset(page, 'Analyst');
+		await expect(analyst).toContainText('dataviz');
+		await page.getByRole('button', { name: 'Emoji for Analyst' }).click();
+		await page
+			.getByRole('dialog', { name: 'Emoji for Analyst' })
+			.getByRole('button', { name: '📊' })
+			.click();
+		await expect(page.getByRole('button', { name: 'Emoji for Analyst' })).toHaveText('📊');
+
+		await dragSkill(page, 'adr', analyst);
+		await expect(analyst.getByTestId('skill-preset-skill')).toHaveText([/dataviz/u, /adr/u]);
+		await captureFlow(app, 'skills-job-presets');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+function row(page: Page, name: string) {
+	return page
+		.getByRole('list', { name: 'Skills by use' })
+		.getByRole('listitem')
+		.filter({ has: page.getByRole('heading', { name, exact: true }) });
+}
 
 function preset(page: Page, name: string) {
 	return page.locator(`[data-testid="skill-preset"][data-preset="${name}"]`);
@@ -149,9 +165,9 @@ async function dragSkill(
 	skill: string,
 	target: ReturnType<Page['locator']>,
 ): Promise<void> {
-	const row = page.locator(`[data-testid="skill-row"][data-skill="${skill}"]`);
-	await row.scrollIntoViewIfNeeded();
-	const from = await row.boundingBox();
+	const source = page.locator(`[data-testid="skill-row"][data-skill="${skill}"]`);
+	await source.scrollIntoViewIfNeeded();
+	const from = await source.boundingBox();
 	const to = await target.boundingBox();
 	if (!from || !to) throw new Error(`cannot drag ${skill}: nothing is laid out`);
 	await page.mouse.move(from.x + 24, from.y + from.height / 2);

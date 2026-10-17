@@ -201,11 +201,6 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'routines.record-gated-run': (args) => ({ trigger: text(args, 'event') }),
 	'routines.reject-run': plain,
 	'routines.update': (args) => ({ steps: count(args, 'steps') }),
-	'skills.choice': false,
-	'skills.choose': (args) => ({
-		kind: text(field(args, 'choice'), 'kind'),
-		skills: count(field(args, 'choice'), 'skills'),
-	}),
 	'skills.delete-preset': plain,
 	'skills.list': false,
 	'skills.list-presets': false,
@@ -213,8 +208,8 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 		new: text(args, 'id') === undefined,
 		skills: count(args, 'skills'),
 	}),
-	'skills.set-default-preset': (args) => ({ cleared: field(args, 'presetId') === null }),
-	'skills.suggest-presets': plain,
+	'skills.switch': (args) => ({ kind: text(args, 'kind'), on: field(args, 'on') === true }),
+	'skills.usage': false,
 	'stats.activity': plain,
 	'stats.resources': false,
 };

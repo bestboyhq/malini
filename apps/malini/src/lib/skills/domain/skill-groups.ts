@@ -30,9 +30,8 @@ export function groupSkills(skills: readonly SkillRecord[]): SkillGroup[] {
 	});
 }
 
-export function skillSourceLabel(skill: SkillRecord): string {
-	const plugin = skillPlugin(skill.name);
-	return plugin === null ? SOURCE_LABELS[skill.source] : `${plugin} plugin`;
+export function skillSourceLabel(source: SkillSource): string {
+	return SOURCE_LABELS[source];
 }
 
 export function skillPlugin(name: string): string | null {

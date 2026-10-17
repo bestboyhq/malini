@@ -1,6 +1,6 @@
 # 0013 - Setup suggests skill presets with a built-in job
 
-Status: accepted
+Status: superseded by 0015
 
 ## Context
 

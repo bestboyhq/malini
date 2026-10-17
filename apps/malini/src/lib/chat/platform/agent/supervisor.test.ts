@@ -118,7 +118,8 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 
 	it('lists the skills of a folder and refuses an ack without a skills frame', async () => {
 		const supervisor = await spawn();
-		expect(await supervisor.listSkills('/repo')).toEqual([
+		const nothingOff = { skills: [], plugins: [] };
+		expect(await supervisor.listSkills('/repo', nothingOff)).toEqual([
 			{
 				name: 'adr',
 				description: 'Record a decision in /repo',
@@ -128,27 +129,18 @@ describe('BridgeSupervisor against the scripted fake bridge', () => {
 			{ name: 'ponytail:ponytail', description: 'Do less', source: 'plugin', tokens: 282 },
 			{ name: 'house-style', description: 'Managed', source: 'other', tokens: 40 },
 		]);
+		expect(
+			await supervisor.listSkills('/repo', { skills: ['humanizer'], plugins: ['caveman@caveman'] }),
+		).toContainEqual({
+			name: 'humanizer',
+			description: 'Turned off, listed anyway',
+			source: 'personal',
+			tokens: 102,
+		});
 
 		const silent = await spawn({ FAKE_BRIDGE_SKIP_SKILLS_FRAME: '1' });
-		await expect(silent.listSkills('/repo')).rejects.toThrow(
+		await expect(silent.listSkills('/repo', nothingOff)).rejects.toThrow(
 			'skills were acknowledged without a bridge.skills frame',
-		);
-	});
-
-	it('suggests presets for skills and refuses an ack without a presets frame', async () => {
-		const PRESET_JOB = { instructions: 'Sort the skills.', model: 'haiku' };
-		const skills = [
-			{ name: 'adr', description: 'Record a decision', source: 'repository', tokens: 128 },
-			{ name: 'run', description: 'Run the app', source: 'claude-code', tokens: 123 },
-		] as const;
-		const supervisor = await spawn();
-		expect(await supervisor.suggestPresets(skills, PRESET_JOB)).toEqual([
-			{ name: 'Builder', emoji: '🛠️', skills: ['adr', 'run'] },
-		]);
-
-		const silent = await spawn({ FAKE_BRIDGE_SKIP_PRESETS_FRAME: '1' });
-		await expect(silent.suggestPresets(skills, PRESET_JOB)).rejects.toThrow(
-			'presets were acknowledged without a bridge.presets frame',
 		);
 	});
 

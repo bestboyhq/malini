@@ -3,27 +3,13 @@ import { skillsService } from '$lib/skills/infrastructure/services/skills.servic
 
 class SkillPresetsAggregate {
 	presets = $state.raw<readonly SkillPresetRecord[]>([]);
-	loadState = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
 	#generation = 0;
 
 	async load(): Promise<void> {
 		const generation = ++this.#generation;
-		if (this.loadState !== 'ready') this.loadState = 'loading';
-		try {
-			const presets = await skillsService.listPresets();
-			if (generation !== this.#generation) return;
-			this.presets = presets;
-			this.loadState = 'ready';
-		} catch (error) {
-			if (generation !== this.#generation) return;
-			this.loadState = 'error';
-			throw error;
-		}
-	}
-
-	replaceAll(presets: readonly SkillPresetRecord[]): void {
-		this.#generation += 1;
+		const presets = await skillsService.listPresets();
+		if (generation !== this.#generation) return;
 		this.presets = presets;
 	}
 

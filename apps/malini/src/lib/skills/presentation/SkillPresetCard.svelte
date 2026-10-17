@@ -12,7 +12,6 @@
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { formatTokens, skillShortName, skillTokens } from '$lib/skills/domain/skill-groups';
 	import SkillPresetEmojiPicker from './SkillPresetEmojiPicker.svelte';
@@ -26,7 +25,6 @@
 		onremove: (skill: string) => void;
 		onrename: (name: string) => void;
 		onstartrename: () => void;
-		onmakedefault: () => void;
 		onemoji: (emoji: string | null) => void;
 		ondelete: () => void;
 	}
@@ -40,7 +38,6 @@
 		onremove,
 		onrename,
 		onstartrename,
-		onmakedefault,
 		onemoji,
 		ondelete,
 	}: Props = $props();
@@ -134,16 +131,6 @@
 					{preset.name}
 				</Button>
 			</h4>
-			{#if preset.isDefault}
-				<Tooltip content="New chats start with this preset" placement="top">
-					<span
-						class="bg-chip border-chip-border text-fg-secondary text-3xs inline-flex h-4 shrink-0 items-center rounded-full border-[0.5px] px-1.5 font-medium"
-						data-testid="skill-preset-default"
-					>
-						Default
-					</span>
-				</Tooltip>
-			{/if}
 		{/if}
 		<span class="text-fg-tertiary text-2xs ml-auto shrink-0 tabular-nums">
 			{formatTokens(tokens)}
@@ -233,18 +220,6 @@
 		>
 			<Icon name="pencil" size={14} class="shrink-0" />
 			Rename
-		</DropdownItem>
-		<DropdownItem
-			role="menuitemcheckbox"
-			aria-checked={preset.isDefault}
-			checked={preset.isDefault}
-			disabled={preset.isDefault}
-			focusOnHover={false}
-			class="gap-2"
-			onclick={() => closeMenuThen(onmakedefault)}
-		>
-			<Icon name="check" size={14} class="shrink-0" />
-			{preset.isDefault ? 'Default for new chats' : 'Make default'}
 		</DropdownItem>
 		<DropdownItem
 			role="menuitem"
