@@ -682,20 +682,22 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		expect(capturedCwd).toBe('/tmp/malini-ws');
 	});
 
-	it('passes the rewind point and the skills of a prompt to the provider', async () => {
+	it('passes the rewind point, the skills and a steer of a prompt to the provider', async () => {
 		const received: Array<{
 			runId: string;
 			profile?: AgentRunProfile;
 			resumeAt?: string;
 			skills?: readonly string[];
+			steer?: boolean;
 		}> = [];
 		defaultProviderRegistry.setProvider(async () => ({
-			async sendPrompt(_prompt, runId, profile, resumeAt, _fresh, skills) {
+			async sendPrompt(_prompt, runId, profile, resumeAt, _fresh, skills, steer) {
 				received.push({
 					runId,
 					...(profile ? { profile } : {}),
 					...(resumeAt ? { resumeAt } : {}),
 					...(skills ? { skills } : {}),
+					...(steer ? { steer } : {}),
 				});
 			},
 			async cancel() {},
@@ -715,6 +717,9 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		await ipc.run(
 			'{"cmd":"send_prompt","id":"send-skills","sessionId":"s-rewind","runId":"run-skills","prompt":"focus","skills":["adr","ponytail:ponytail"]}',
 		);
+		await ipc.run(
+			'{"cmd":"send_prompt","id":"send-steer","sessionId":"s-rewind","runId":"run-steer","prompt":"instead","steer":true}',
+		);
 		await ipc.drain();
 
 		expect(received).toEqual([
@@ -725,6 +730,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 			},
 			{ runId: 'run-plain' },
 			{ runId: 'run-skills', skills: ['adr', 'ponytail:ponytail'] },
+			{ runId: 'run-steer', steer: true },
 		]);
 	});
 

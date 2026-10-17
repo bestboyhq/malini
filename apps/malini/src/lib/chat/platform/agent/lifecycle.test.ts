@@ -125,6 +125,18 @@ describe('leases', () => {
 		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow('already has an active run');
 	});
 
+	it('lets a steering prompt into a busy run, one dispatch at a time', () => {
+		seedRunning();
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1')).toThrow('already has an active run');
+
+		const steer = leases.acquireRun(test.db, 'ws-1', 'sess-1', true);
+		expect(steer.handsOff).toBe(true);
+		expect(() => leases.acquireRun(test.db, 'ws-1', 'sess-1', true)).toThrow(
+			'already has an active run',
+		);
+		steer.release();
+	});
+
 	it('refuses teardown of a workstream with a persisted open run without leaking its fence', () => {
 		seedRunning();
 		expect(() => leases.acquireWorkstreamTeardown(test.db, 'ws-1')).toThrow(

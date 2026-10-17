@@ -29,6 +29,8 @@ export class ClaudeTranscript {
 	readonly #backgroundTasks = new Map<string, BackgroundTask>();
 	readonly #taskToolCalls = new Map<string, string>();
 	readonly #outputFiles = new Map<string, string>();
+	readonly #openTools = new Set<string>();
+	readonly #interruptedTools = new Set<string>();
 	#idle = false;
 	#lastBackground = '';
 	#streamMessageId = '';
@@ -84,6 +86,10 @@ export class ClaudeTranscript {
 
 	markStoppedByUser(): void {
 		this.#stoppedByUser = true;
+	}
+
+	interruptTurn(): void {
+		for (const toolCallId of this.#openTools) this.#interruptedTools.add(toolCallId);
 	}
 
 	recordBackgroundOutput(taskId: string, line: string): void {
@@ -290,6 +296,7 @@ export class ClaudeTranscript {
 			if (block['type'] === 'tool_use' && typeof block['id'] === 'string') {
 				const name = String(block['name'] ?? '');
 				this.#toolNames.set(block['id'], { name, input: block['input'] });
+				this.#openTools.add(block['id']);
 				this.#emit({
 					type: 'tool.started',
 					runId: this.#runId,
@@ -331,7 +338,9 @@ export class ClaudeTranscript {
 			if (!isRecord(block) || block['type'] !== 'tool_result') continue;
 			const toolCallId = block['tool_use_id'];
 			if (typeof toolCallId !== 'string') continue;
-			if (this.#stoppedByUser && block['is_error'] === true) continue;
+			this.#openTools.delete(toolCallId);
+			const interrupted = this.#interruptedTools.delete(toolCallId) || this.#stoppedByUser;
+			if (interrupted && block['is_error'] === true) continue;
 			if (this.#backgroundAgents.has(toolCallId)) {
 				if (block['is_error'] !== true) continue;
 				this.#backgroundAgents.delete(toolCallId);

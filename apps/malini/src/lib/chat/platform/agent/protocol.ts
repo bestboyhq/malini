@@ -91,6 +91,7 @@ export type BridgeCommand =
 			resumeAt?: string;
 			freshConversation?: true;
 			skills?: readonly string[];
+			steer?: true;
 	  }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }

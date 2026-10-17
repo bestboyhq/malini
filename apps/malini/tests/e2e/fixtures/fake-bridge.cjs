@@ -260,7 +260,7 @@ const waitOnBackgroundCommand = (sessionId, runId, text) => {
 		tasks: [backgroundCommandTask(startedAt)],
 	});
 };
-const backgroundCommandRun = (sessionId, runId) => {
+const startBackgroundCommand = (sessionId, runId) => {
 	const startedAt = Date.now() - 95_000;
 	backgroundCommands.set(sessionId, { runId, startedAt });
 	const toolCallId = 'bash-e2e-call';
@@ -288,17 +288,35 @@ const backgroundCommandRun = (sessionId, runId) => {
 		waiting: false,
 		tasks: [backgroundCommandTask(startedAt)],
 	});
+};
+const backgroundCommandRun = (sessionId, runId) => {
+	startBackgroundCommand(sessionId, runId);
 	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
 };
-const handOffBackgroundCommand = (sessionId, runId) => {
+const busyBackgroundCommandRun = (sessionId, runId) => {
+	startBackgroundCommand(sessionId, runId);
+	pendingRuns.set(runId, sessionId);
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'Bash',
+		toolCallId: 'sleep-e2e-call',
+		input: { command: 'sleep 600', description: 'Wait for the deploy' },
+	});
+};
+const handOffBackgroundCommand = (sessionId, runId, steer) => {
 	const waiting = backgroundCommands.get(sessionId);
 	event({ type: 'background.updated', runId: waiting.runId, waiting: false, tasks: [] });
-	event({
-		type: 'run.completed',
-		runId: waiting.runId,
-		summary: 'Started the e2e suite in the background.',
-		handedOff: true,
-	});
+	event(
+		steer
+			? { type: 'run.failed', runId: waiting.runId, error: 'cancelled' }
+			: {
+					type: 'run.completed',
+					runId: waiting.runId,
+					summary: 'Started the e2e suite in the background.',
+					handedOff: true,
+				},
+	);
 	pendingRuns.delete(waiting.runId);
 	event({ type: 'run.started', runId, sessionId });
 	event({
@@ -454,6 +472,7 @@ const respond = (sessionId, runId, prompt) => {
 		return;
 	}
 	if (prompt.includes('BACKGROUND_COMMAND')) return backgroundCommandRun(sessionId, runId);
+	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
@@ -538,7 +557,14 @@ const handle = (command) => {
 			const { sessionId, runId, prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
-			if (backgroundCommands.has(sessionId)) return handOffBackgroundCommand(sessionId, runId);
+			if (backgroundCommands.has(sessionId)) {
+				return handOffBackgroundCommand(sessionId, runId, command.steer);
+			}
+			for (const [steered, owner] of pendingRuns) {
+				if (!command.steer || owner !== sessionId) continue;
+				pendingRuns.delete(steered);
+				event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+			}
 			event({ type: 'run.started', runId, sessionId });
 			if (!fs.existsSync(HELD_RUNS)) return respond(sessionId, runId, prompt);
 			pendingRuns.set(runId, sessionId);

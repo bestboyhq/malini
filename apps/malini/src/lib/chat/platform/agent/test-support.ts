@@ -85,6 +85,11 @@ const handle = (command) => {
       ack(command.id);
       const { sessionId, runId, prompt } = command;
       if (prompt.includes('CRASH')) process.exit(3);
+      for (const [steered, owner] of pendingRuns) {
+        if (!command.steer || owner !== sessionId) continue;
+        event({ type: 'run.failed', runId: steered, error: 'cancelled', providerCursor: 'cursor-' + steered });
+        pendingRuns.delete(steered);
+      }
       event({ type: 'run.started', runId, sessionId });
       const edit = /EDIT:([^\\s]+)/.exec(prompt);
       if (edit) {

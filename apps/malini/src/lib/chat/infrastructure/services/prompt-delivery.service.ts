@@ -152,6 +152,7 @@ class PromptDeliveryService {
 				clientRequestId: requestId,
 				profile: input.profile,
 				...(input.automated === true ? { automated: true } : {}),
+				...(input.steer === true ? { steer: true } : {}),
 			});
 		} catch (error) {
 			chatSessionStore.setDispatchPending(input.sessionId, false);
@@ -193,13 +194,32 @@ class PromptDeliveryService {
 		}
 		const deliverable = nextDeliverable(workstreamId);
 		if (!deliverable) return 'skipped';
-		const { next, target } = deliverable;
+		return this.#deliver(workstreamId, deliverable.next, deliverable.target.targetSessionId, false);
+	}
 
+	async steer(
+		workstreamId: string,
+		sessionId: SessionId,
+		entry: QueuedPrompt,
+	): Promise<QueueDrainOutcome> {
+		if (!queueDrainStore.isLocked(workstreamId)) {
+			return this.#deliver(workstreamId, entry, sessionId, true);
+		}
+		this.armInterruptRecovery(workstreamId, sessionId, entry.id, true);
+		return 'busy-retry';
+	}
+
+	async #deliver(
+		workstreamId: string,
+		next: QueuedPrompt,
+		sessionId: SessionId | null,
+		steer: boolean,
+	): Promise<QueueDrainOutcome> {
 		const lock = queueDrainStore.lock(workstreamId);
-		let dispatchSessionId = target.targetSessionId;
+		let dispatchSessionId = sessionId;
 		try {
 			const requestedSelection = { model: next.model };
-			let targetSessionId = target.targetSessionId;
+			let targetSessionId = sessionId;
 			if (!targetSessionId) {
 				try {
 					targetSessionId = await sessionActivation.mint({
@@ -231,6 +251,7 @@ class PromptDeliveryService {
 				transcriptReferences: next.transcriptReferences,
 				elementReferences: next.elementReferences,
 				queueId: next.id,
+				...(steer ? { steer } : {}),
 			});
 			this.scheduleDrain(workstreamId);
 			return 'dispatched';
@@ -242,7 +263,7 @@ class PromptDeliveryService {
 			});
 			if (failure === 'already-running' || failure === 'cancel-race') {
 				if (dispatchSessionId) {
-					this.armInterruptRecovery(workstreamId, dispatchSessionId, next.id);
+					this.armInterruptRecovery(workstreamId, dispatchSessionId, next.id, steer);
 				}
 				return 'busy-retry';
 			}
@@ -257,13 +278,19 @@ class PromptDeliveryService {
 		}
 	}
 
-	armInterruptRecovery(workstreamId: string, sessionId: SessionId, entryId: string): void {
+	armInterruptRecovery(
+		workstreamId: string,
+		sessionId: SessionId,
+		entryId: string,
+		steer = false,
+	): void {
 		queueSendingStore.set(workstreamId, entryId);
 		if (queueInterruptRecoveryStore.get(workstreamId)?.entryId === entryId) return;
 		this.disarmInterruptRecovery(workstreamId);
 		queueInterruptRecoveryStore.set(workstreamId, {
 			entryId,
 			sessionId,
+			steer,
 			attempts: 0,
 			timer: this.#scheduleInterruptAttempt(workstreamId),
 		});
@@ -277,18 +304,6 @@ class PromptDeliveryService {
 		queueSendingStore.release(workstreamId, recovery.entryId);
 		if (!queuedPromptById(workstreamId, recovery.entryId)) return;
 		this.withdrawFromTranscript(recovery.sessionId, recovery.entryId);
-	}
-
-	showInTranscript(sessionId: SessionId, entry: QueuedPrompt): void {
-		agentPromptQueue.handOff(entry.id);
-		pendingPromptStore.set({
-			sessionId,
-			origin: 'composer',
-			runId: runIdForPromptRequest(entry.id),
-			text: entry.prompt,
-			attachments: entry.attachments.map((attachment) => ({ ...attachment })),
-			issueReferences: entry.issueReferences.map((reference) => ({ ...reference })),
-		});
 	}
 
 	withdrawFromTranscript(sessionId: SessionId, entryId: string): void {
@@ -318,7 +333,8 @@ class PromptDeliveryService {
 	async #attemptInterruptRecovery(workstreamId: string): Promise<void> {
 		const recovery = queueInterruptRecoveryStore.get(workstreamId);
 		if (!recovery) return;
-		if (!queuedPromptById(workstreamId, recovery.entryId)) {
+		const entry = queuedPromptById(workstreamId, recovery.entryId);
+		if (!entry) {
 			this.disarmInterruptRecovery(workstreamId);
 			return;
 		}
@@ -335,7 +351,9 @@ class PromptDeliveryService {
 			await agentEventStream.hydrate(recovery.sessionId);
 		} catch {}
 		if (queueInterruptRecoveryStore.get(workstreamId) !== recovery) return;
-		const outcome = await this.drain(workstreamId);
+		const outcome = recovery.steer
+			? await this.steer(workstreamId, recovery.sessionId, entry)
+			: await this.drain(workstreamId);
 		if (queueInterruptRecoveryStore.get(workstreamId) !== recovery) return;
 		if (outcome === 'failed' || !queuedPromptById(workstreamId, recovery.entryId)) {
 			this.disarmInterruptRecovery(workstreamId);

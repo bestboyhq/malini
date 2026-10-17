@@ -406,6 +406,16 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses a prompt that steers the running turn and rejects a steer that is not a boolean', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			expect(parseCommandLine(`{${prompt},"steer":true}`)).toMatchObject({
+				ok: true,
+				command: { steer: true },
+			});
+			expect(parseCommandLine(`{${prompt},"steer":false}`)).toMatchObject({ ok: true });
+			expect(parseCommandLine(`{${prompt},"steer":"yes"}`).ok).toBe(false);
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',

@@ -435,6 +435,28 @@ describe('prompt round trips', () => {
 		await invoke('chat.cancel-run', { sessionId: first });
 	});
 
+	it('steers a running chat: the new prompt joins the live run instead of waiting for it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const busyRun = await invokeString('chat.send-prompt', { sessionId, prompt: 'HANG' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+		expect(await invokeError('chat.send-prompt', { sessionId, prompt: 'Queued' })).toContain(
+			'already has an active run',
+		);
+
+		const steerRun = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'Instead',
+			steer: true,
+		});
+		await waitFor(() => getRun(test.db, steerRun)?.completedAt !== null);
+
+		expect(getRun(test.db, busyRun)).toMatchObject({ error: 'cancelled' });
+		expect(getRun(test.db, steerRun)).toMatchObject({ summary: 'done', error: null });
+		expect(getSession(test.db, sessionId)?.status).toBe('completed');
+	});
+
 	it('hands a prompt only the skills chosen for its chat, and every skill otherwise', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
