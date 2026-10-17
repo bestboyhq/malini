@@ -4,7 +4,7 @@ import { systemPromptAppend } from './instructions.js';
 
 const BODY_RULES: Record<AgentReport, string> = {
 	low: 'show, do not tell',
-	medium: 'at most three short bullets',
+	medium: 'each starting with `Changed:` or `Verified:`',
 	high: 'the full write-up',
 };
 
@@ -18,7 +18,7 @@ describe('systemPromptAppend', () => {
 		}
 		expect(prompt).toContain(
 			[
-				'Outcome: <one sentence of at most 100 characters: what is true now>',
+				'Outcome: <one sentence of at most 60 characters: what is true now>',
 				'Needs: <what blocks this work that only the user can do, several separated by "; ", or "nothing">',
 				'Commit: <subject>',
 				'Pull request: <title>',
@@ -33,5 +33,6 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
+		expect(prompt).toContain('its own bullet that starts with `Deferred:`');
 	});
 });

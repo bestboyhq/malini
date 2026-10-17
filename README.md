@@ -121,7 +121,7 @@ malini is a sibling of [Grip](https://github.com/bestboyhq/grip), the free and o
 
 ## License
 
-Copyright (C) 2026 Best Boy
+Copyright (C) 2026 Szymon Grącki and malini contributors
 
 malini is licensed under [AGPL-3.0-only](LICENSE).
 `packages/extension-api` is licensed under [MIT](packages/extension-api/LICENSE), so an extension can use any license.
