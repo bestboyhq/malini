@@ -6,27 +6,23 @@ import {
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
-	bridgePresetsFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
 	bridgeSkillsFrame,
 	bridgeTitleFrame,
 	parseCommandLine,
 	type AgentCommand,
-	type AgentPresetSuggestion,
 	type AgentSkill,
-	type AgentSkillSummary,
 	type BridgeControlFrame,
 	type ListSkillsCommand,
-	type SuggestPresetsCommand,
 	type SuggestTitleCommand,
+	type TurnedOffSkills,
 	type BrowserRequest,
 	type BrowserResult,
 	type ProviderCapability,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { registerClaudeProvider } from './claude/index.js';
-import { suggestClaudePresets, type PresetJob } from './claude/presets.js';
 import { listClaudeSkills } from './claude/skills.js';
 import { suggestClaudeTitle, type TitleJob } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
@@ -50,11 +46,7 @@ export interface RunOptions {
 	exit?: (code: number) => void;
 	capabilityProbe?: () => Promise<ProviderCapability>;
 	suggestTitle?: (task: string, job: TitleJob) => Promise<string>;
-	listSkills?: (cwd: string) => Promise<readonly AgentSkill[]>;
-	suggestPresets?: (
-		skills: readonly AgentSkillSummary[],
-		job: PresetJob,
-	) => Promise<readonly AgentPresetSuggestion[]>;
+	listSkills?: (cwd: string, turnedOff?: TurnedOffSkills) => Promise<readonly AgentSkill[]>;
 	closeSessionTimeoutMs?: number;
 	browserRequestTimeoutMs?: number;
 }
@@ -248,10 +240,6 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'list_skills') {
 			trackInFlight(answerSkills(cmd));
-			return;
-		}
-		if (cmd.cmd === 'suggest_presets') {
-			trackInFlight(answerPresets(cmd));
 			return;
 		}
 		switch (cmd.cmd) {
@@ -529,24 +517,11 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 	async function answerSkills(cmd: ListSkillsCommand): Promise<void> {
 		try {
-			const skills = await (options.listSkills ?? listClaudeSkills)(cmd.cwd);
+			const skills = await (options.listSkills ?? listClaudeSkills)(cmd.cwd, cmd.turnedOff);
 			emitControl(bridgeSkillsFrame(cmd.id, skills));
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `SKILLS_FAILED: ${errorMessage(err)}`));
-		}
-	}
-
-	async function answerPresets(cmd: SuggestPresetsCommand): Promise<void> {
-		try {
-			const presets = await (options.suggestPresets ?? suggestClaudePresets)(cmd.skills, {
-				instructions: cmd.instructions,
-				model: cmd.model,
-			});
-			emitControl(bridgePresetsFrame(cmd.id, presets));
-			emitControl(bridgeCommandAckFrame(cmd.id));
-		} catch (err) {
-			emitControl(bridgeCommandAckFrame(cmd.id, `PRESETS_FAILED: ${errorMessage(err)}`));
 		}
 	}
 

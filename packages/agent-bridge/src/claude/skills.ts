@@ -1,5 +1,5 @@
 import { query as sdkQuery, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentSkill, AgentSkillSource } from '../protocol.js';
+import type { AgentSkill, AgentSkillSource, TurnedOffSkills } from '../protocol.js';
 import { idle } from './capabilities.js';
 import { findClaudeExecutable } from './installation.js';
 import { claudeEnvironment, type ClaudeContextUsage, type QueryFunction } from './session.js';
@@ -15,8 +15,11 @@ export interface SkillListOptions {
 	readonly query?: QueryFunction;
 }
 
+const NOTHING_TURNED_OFF: TurnedOffSkills = { skills: [], plugins: [] };
+
 export async function listClaudeSkills(
 	cwd: string,
+	turnedOff: TurnedOffSkills = NOTHING_TURNED_OFF,
 	options: SkillListOptions = {},
 ): Promise<AgentSkill[]> {
 	const executable = (options.findExecutable ?? findClaudeExecutable)();
@@ -33,7 +36,7 @@ export async function listClaudeSkills(
 			pathToClaudeCodeExecutable: executable,
 			env: claudeEnvironment(),
 			settingSources: ['user', 'project', 'local'],
-			settings: { disableAllHooks: true },
+			settings: { disableAllHooks: true, ...turnedOn(turnedOff) },
 			mcpServers: {},
 			strictMcpConfig: true,
 			persistSession: false,
@@ -49,6 +52,20 @@ export async function listClaudeSkills(
 		release();
 		probe.close();
 	}
+}
+
+export function turnedOn({ skills, plugins }: TurnedOffSkills): {
+	skillOverrides?: Record<string, 'on'>;
+	enabledPlugins?: Record<string, true>;
+} {
+	return {
+		...(skills.length > 0
+			? { skillOverrides: Object.fromEntries(skills.map((name) => [name, 'on' as const])) }
+			: {}),
+		...(plugins.length > 0
+			? { enabledPlugins: Object.fromEntries(plugins.map((id) => [id, true as const])) }
+			: {}),
+	};
 }
 
 export function agentSkills(

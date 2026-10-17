@@ -354,34 +354,27 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine('{"cmd":"list_skills","id":"k3"}').ok).toBe(false);
 		});
 
-		it('parses suggest_presets with named skills and its job, and rejects a list or job missing', () => {
+		it('parses the turned-off skills and plugins list_skills should still list', () => {
 			expect(
 				parseCommandLine(
-					'{"cmd":"suggest_presets","id":"p1","skills":[{"name":"adr","description":"Record a decision","tokens":9}],"instructions":"Sort them","model":"haiku"}',
+					'{"cmd":"list_skills","id":"k1","cwd":"/repo","turnedOff":{"skills":["humanizer"],"plugins":["caveman@caveman"]}}',
 				),
 			).toEqual({
 				ok: true,
 				command: {
-					cmd: 'suggest_presets',
-					id: 'p1',
-					skills: [{ name: 'adr', description: 'Record a decision' }],
-					instructions: 'Sort them',
-					model: 'haiku',
+					cmd: 'list_skills',
+					id: 'k1',
+					cwd: '/repo',
+					turnedOff: { skills: ['humanizer'], plugins: ['caveman@caveman'] },
 				},
 			});
-			expect(
-				parseCommandLine(
-					'{"cmd":"suggest_presets","id":"p2","skills":[],"instructions":"Sort them","model":"haiku"}',
-				).ok,
-			).toBe(false);
-			expect(
-				parseCommandLine(
-					'{"cmd":"suggest_presets","id":"p4","skills":[{"name":"adr","description":"d"}],"model":"haiku"}',
-				).ok,
-			).toBe(false);
-			expect(
-				parseCommandLine('{"cmd":"suggest_presets","id":"p3","skills":[{"description":"x"}]}').ok,
-			).toBe(false);
+			for (const turnedOff of ['[]', '{"skills":["a"]}', '{"skills":[1],"plugins":[]}']) {
+				expect(
+					parseCommandLine(
+						`{"cmd":"list_skills","id":"k2","cwd":"/repo","turnedOff":${turnedOff}}`,
+					).ok,
+				).toBe(false);
+			}
 		});
 
 		it('parses the skills a prompt may use and rejects a list that is not skill names', () => {
@@ -434,7 +427,6 @@ describe('protocol: parseCommandLine', () => {
 				'stop_task',
 				'suggest_title',
 				'list_skills',
-				'suggest_presets',
 				'browser_result',
 			]);
 			expect(BRIDGE_EVENT_TYPES).toHaveLength(22);
@@ -446,7 +438,6 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.protocol_error',
 				'bridge.title',
 				'bridge.skills',
-				'bridge.presets',
 				'bridge.browser_request',
 			]);
 		});
