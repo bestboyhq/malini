@@ -18,7 +18,7 @@ import {
 	type ProviderCapability,
 	type ProviderCapabilityState,
 } from '$contract/agent';
-import type { SkillPresetSuggestion, SkillRecord, SkillSource } from '$contract/skills';
+import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills';
 
 export type {
 	AgentQuestionAnswer,
@@ -43,7 +43,6 @@ export {
 export const BRIDGE_START_SESSION_ACK_TIMEOUT_MS = 30_000;
 export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS = 20_000;
-export const BRIDGE_SUGGEST_PRESETS_ACK_TIMEOUT_MS = 50_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -116,20 +115,8 @@ export type BridgeCommand =
 	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
-	| { cmd: 'list_skills'; id: string; cwd: string }
-	| {
-			cmd: 'suggest_presets';
-			id: string;
-			skills: SkillSummary[];
-			instructions: string;
-			model: string;
-	  }
+	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer);
-
-export interface SkillSummary {
-	name: string;
-	description: string;
-}
 
 export interface BrowserAnswer {
 	ok: boolean;
@@ -156,7 +143,6 @@ export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number 
 	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
 	if (command.cmd === 'suggest_title') return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
 	if (command.cmd === 'list_skills') return BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS;
-	if (command.cmd === 'suggest_presets') return BRIDGE_SUGGEST_PRESETS_ACK_TIMEOUT_MS;
 	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
@@ -295,12 +281,6 @@ export type BridgeControlFrame =
 	  }
 	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
 	| { type: 'bridge.skills'; protocolVersion: number; id: string; skills: SkillRecord[] }
-	| {
-			type: 'bridge.presets';
-			protocolVersion: number;
-			id: string;
-			presets: SkillPresetSuggestion[];
-	  }
 	| BridgeBrowserRequest;
 
 export type BrowserRequestAction =
@@ -466,21 +446,6 @@ function decodeSkill(value: unknown, index: number): SkillRecord {
 		description: fields.string('description'),
 		source: isSkillSource(source) ? source : 'other',
 		tokens: fields.number('tokens'),
-	};
-}
-
-function decodePresetSuggestion(value: unknown, index: number): SkillPresetSuggestion {
-	if (!isRecord(value)) throw new Error(`bridge.presets: presets[${index}] is not an object`);
-	const fields = new Fields(value, `bridge.presets: presets[${index}]`);
-	return {
-		name: fields.string('name'),
-		emoji: fields.optionalString('emoji') ?? null,
-		skills: fields.array('skills').map((skill, skillIndex) => {
-			if (typeof skill !== 'string') {
-				throw new Error(`bridge.presets: presets[${index}].skills[${skillIndex}] is not a string`);
-			}
-			return skill;
-		}),
 	};
 }
 
@@ -815,16 +780,6 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						skills: f.array('skills').map(decodeSkill),
-					},
-				};
-			case 'bridge.presets':
-				return {
-					ok: true,
-					value: {
-						type,
-						protocolVersion: f.number('protocolVersion'),
-						id: f.string('id'),
-						presets: f.array('presets').map(decodePresetSuggestion),
 					},
 				};
 			case 'bridge.browser_request':

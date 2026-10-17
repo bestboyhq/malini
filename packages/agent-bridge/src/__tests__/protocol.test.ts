@@ -370,9 +370,8 @@ describe('protocol: parseCommandLine', () => {
 			});
 			for (const turnedOff of ['[]', '{"skills":["a"]}', '{"skills":[1],"plugins":[]}']) {
 				expect(
-					parseCommandLine(
-						`{"cmd":"list_skills","id":"k2","cwd":"/repo","turnedOff":${turnedOff}}`,
-					).ok,
+					parseCommandLine(`{"cmd":"list_skills","id":"k2","cwd":"/repo","turnedOff":${turnedOff}}`)
+						.ok,
 				).toBe(false);
 			}
 		});

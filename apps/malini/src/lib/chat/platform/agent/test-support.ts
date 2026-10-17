@@ -147,13 +147,7 @@ const handle = (command) => {
         { name: 'adr', description: 'Record a decision in ' + command.cwd, source: 'repository', tokens: 128 },
         { name: 'ponytail:ponytail', description: 'Do less', source: 'plugin', tokens: 282 },
         { name: 'house-style', description: 'Managed', source: 'policy', tokens: 40 },
-      ] });
-      return ack(command.id);
-    }
-    case 'suggest_presets': {
-      if (env.FAKE_BRIDGE_SKIP_PRESETS_FRAME) return ack(command.id);
-      write({ type: 'bridge.presets', protocolVersion: version, id: command.id, presets: [
-        { name: 'Builder', emoji: '🛠️', skills: command.skills.map((skill) => skill.name) },
+        ...command.turnedOff.skills.map((name) => ({ name, description: 'Turned off, listed anyway', source: 'personal', tokens: 102 })),
       ] });
       return ack(command.id);
     }

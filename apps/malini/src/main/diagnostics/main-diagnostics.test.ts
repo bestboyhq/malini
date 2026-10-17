@@ -211,7 +211,7 @@ describe('the main-process diagnostics log', () => {
 		registry.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
 		const bridgeFailure = (kind: string, message: string): Error =>
 			Object.assign(new Error(message), { name: 'SupervisorError', kind });
-		registry.define('skills.suggest-presets', () => {
+		registry.define('skills.list', () => {
 			throw bridgeFailure('stopped', 'bridge stopped before command acknowledgement');
 		});
 		registry.define('chat.send-prompt', () => {
@@ -221,7 +221,7 @@ describe('the main-process diagnostics log', () => {
 			);
 		});
 
-		await registry.invoke({ command: 'skills.suggest-presets', args: undefined });
+		await registry.invoke({ command: 'skills.list', args: undefined });
 		await registry.invoke({ command: 'chat.send-prompt', args: undefined });
 
 		expect(records().map((record) => [record.message, record.level])).toEqual([

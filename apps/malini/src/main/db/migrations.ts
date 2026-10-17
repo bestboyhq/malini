@@ -1343,10 +1343,11 @@ FROM job_definitions;
 DROP TABLE job_definitions;
 ALTER TABLE job_definitions_v46 RENAME TO job_definitions;
 
-DROP INDEX IF EXISTS idx_skill_presets_default;
-ALTER TABLE skill_presets DROP COLUMN is_default;
 DELETE FROM skill_choices WHERE scope = 'workstream';
+DROP INDEX IF EXISTS idx_skill_presets_default;
 `;
+
+export const MIGRATION_0046_DROP_DEFAULT_SKILL_PRESET = `ALTER TABLE skill_presets DROP COLUMN is_default;`;
 
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
@@ -1534,7 +1535,7 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				db.exec(MIGRATION_0043_JOB_RUNS_CHAT_INDEX);
 			}
 			if (existing < 44) {
-				db.exec(MIGRATION_0044_SKILL_PRESETS);
+				if (!tableExists(db, 'skill_presets')) db.exec(MIGRATION_0044_SKILL_PRESETS);
 				addColumnIfMissing(
 					db,
 					'job_definitions',
@@ -1546,7 +1547,12 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 				db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
 				addColumnIfMissing(db, 'skill_presets', 'emoji', MIGRATION_0045_SKILL_PRESET_EMOJI);
 			}
-			if (existing < 46) db.exec(MIGRATION_0046_SKILLS_WITHOUT_PRESET_SUGGESTIONS);
+			if (existing < 46) {
+				db.exec(MIGRATION_0046_SKILLS_WITHOUT_PRESET_SUGGESTIONS);
+				if (columnExists(db, 'skill_presets', 'is_default')) {
+					db.exec(MIGRATION_0046_DROP_DEFAULT_SKILL_PRESET);
+				}
+			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(
 				db,

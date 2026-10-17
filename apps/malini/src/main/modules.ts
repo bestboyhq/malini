@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import type { BrowserWindow } from 'electron';
 import { consolePlatformLog, platformLineSink } from '$main/diagnostics/platform-log';
 import { describeError } from '$main/errors';
@@ -23,6 +24,7 @@ import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
 import { registerRoutines } from '$lib/routines/platform/register';
+import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
 import { registerSkills } from '$lib/skills/platform/register';
 import { registerStats } from '$lib/stats/platform/register';
 
@@ -102,9 +104,9 @@ export async function registerModules(
 	});
 
 	registerSkills(context, {
-		listSkills: (cwd) => chat.listSkills(cwd),
-		suggestPresets: (skills) => chat.suggestPresets(skills),
+		listSkills: (cwd, turnedOff) => chat.listSkills(cwd, turnedOff),
 		resolveCheckout: (workstreamId) => repositories.checkouts.resolveCheckout(workstreamId),
+		claudeConfig: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()),
 	});
 
 	const app = registerApp(context, {
