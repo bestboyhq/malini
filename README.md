@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/readme/hero.webp" width="100%" alt="The malini window: six workstreams across malini, grip and tony in the sidebar, a finished malini chat that read the code, edited package.json and docs/packaging.md, ran the new script, and ended with a commit subject and a pull request title, and 2 files changed with Draft and Merge in the top bar.">
+  <img src=".github/readme/hero.webp" width="100%" alt="The malini window: six workstreams across malini, grip and tony in the sidebar, a finished malini chat that read the code, edited package.json and docs/packaging.md, and ended each turn with a Done report, 2 files changed with Draft and Merge in the top bar, and a Builder skills chip in the composer.">
 </p>
 
 ---
@@ -46,7 +46,7 @@ There is no account, no subscription and no malini server.
 We can't take it back, and if we ever go wrong, you can fork it.
 
 **Transparent, all the way down.**
-Your code goes to Anthropic through your own Claude Code, and to GitHub through your own `gh`.
+Your code goes to Anthropic through your own Claude Code, and to GitHub through the GitHub CLI.
 That's it.
 malini makes two calls of its own: update checks, and anonymous usage data you can turn off.
 Every big decision is written down in [`docs/adr`](docs/adr).
@@ -57,6 +57,9 @@ It has no reason to help you use fewer.
 Its interest and yours point in opposite directions.
 malini earns nothing from tokens.
 It shows your context window and your plan usage, and you pick the model and the effort for every prompt.
+Claude Code also loads every skill you own into every chat.
+With 47 skills that is about 7,400 tokens before you type a word.
+malini groups skills into presets, so a chat loads only the skills its work needs, and the composer shows which.
 
 **Outcomes, not skills.**
 You never wanted skills.
@@ -64,10 +67,11 @@ A skill is a pile of markdown files, and that's an implementation detail.
 What you wanted was the outcome: checks green, branch up to date, review answered.
 So malini has jobs.
 A job is an outcome you ask for by name, and you can have as many as you like.
+Give a job a skill preset, and it loads only the skills it needs.
 That leaves your time for the work that matters, instead of fighting your setup.
 
 <p align="center">
-  <img src=".github/readme/jobs.webp" width="100%" alt="The Jobs page: an empty Your jobs section and the three built-in jobs, Fix checks, Update from main, and Address bot review, each with its model, effort, and an Edit and a Reset button.">
+  <img src=".github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
 </p>
 
 <p align="center">
@@ -95,12 +99,13 @@ Everything malini can do is in [`docs/features.md`](docs/features.md).
 
 1. [Download malini](https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg) and drag it to Applications.
 2. Open it.
-   Setup checks Claude Code, and **Sign in** uses your Claude account.
+   Setup connects Claude Code and GitHub: **Install** and **Sign in** for Claude Code, and a one-time code in your browser for GitHub.
+   It also suggests skill presets from the skills you already have.
 3. Add a repository.
    Your first workstream is ready.
 
-You need macOS 13 or later on Apple silicon, git, and Claude Code.
-Cloning from GitHub and pull requests need the [GitHub CLI](https://cli.github.com), signed in with `gh auth login`.
+You need macOS 13 or later on Apple silicon, and git.
+malini ships the GitHub CLI, and setup installs Claude Code if you don't have it.
 
 ## Build from source
 
