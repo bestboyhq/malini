@@ -10,6 +10,7 @@
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
+	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
 	import { finalTurnReport } from '../turn-result';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
@@ -154,9 +155,13 @@
 			exitCode={item.exitCode}
 		/>
 	</div>
-{:else if item.kind === 'approval' || item.kind === 'question'}
+{:else if item.kind === 'approval'}
 	<div class="relative w-full" use:stageEnter={timelineKey(run, item.key)}>
 		<AgentInteractionCard {item} />
+	</div>
+{:else if item.kind === 'question'}
+	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>
+		<AgentQuestionRow {item} />
 	</div>
 {:else if item.kind === 'unknown'}
 	<div

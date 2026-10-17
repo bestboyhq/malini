@@ -7,6 +7,7 @@ import {
 class BrowserViewStore {
 	snapshots: Readonly<Record<string, string>> = $state.raw({});
 	picking: ReadonlySet<string> = $state.raw(new Set());
+	addressFocus: ReadonlySet<string> = $state.raw(new Set());
 	readonly #placements = new Map<string, Readonly<{ placement: BrowserPlacement; turn: number }>>();
 	#turns = 0;
 
@@ -36,6 +37,14 @@ class BrowserViewStore {
 		if (picking) next.add(tabKey);
 		else next.delete(tabKey);
 		this.picking = next;
+	}
+
+	setAddressFocus(tabKey: string, pending: boolean): void {
+		if (this.addressFocus.has(tabKey) === pending) return;
+		const next = new Set(this.addressFocus);
+		if (pending) next.add(tabKey);
+		else next.delete(tabKey);
+		this.addressFocus = next;
 	}
 }
 

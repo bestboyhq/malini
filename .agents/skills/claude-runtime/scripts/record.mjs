@@ -43,6 +43,7 @@ const run = query({
 		permissionMode,
 		settingSources: [],
 		includePartialMessages: true,
+		thinking: { type: 'adaptive', display: 'summarized' },
 		env: { ...process.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
 		...(process.env.RESUME ? { resume: process.env.RESUME } : {}),
 		canUseTool: async (toolName, input, opts) => {

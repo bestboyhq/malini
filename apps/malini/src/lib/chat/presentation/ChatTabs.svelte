@@ -83,7 +83,11 @@
 	import { afterNavigate, goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
 	import { onDestroy, onMount, tick, untrack } from 'svelte';
-	import { agentChatIdentity, type AgentChatIdentity } from '$lib/chat/domain/agent-chat-identity';
+	import {
+		agentChatIdentity,
+		closingStopsAgent,
+		type AgentChatIdentity,
+	} from '$lib/chat/domain/agent-chat-identity';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { modelLabel } from '$shared/providers/providers.api';
 	import { closeChatCommand } from '$lib/chat/application/commands/close-chat.command';
@@ -102,7 +106,9 @@
 	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { BrowserTab, roveTabFocus } from '$hyper-ui/components/browser-tab';
+	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { Modal } from '$hyper-ui/components/modal';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import OverflowTabsMenu from './chat-tabs/OverflowTabsMenu.svelte';
@@ -142,6 +148,7 @@
 	const draftScopes = $derived(draftScopesQuery.data(workstreamId));
 	const freshHasDraft = $derived(hasDraft(null));
 	let overflowOpen = $state(false);
+	let sessionToStop = $state.raw<SessionRecord | null>(null);
 	const tabSelection = new AgentChatTabSelection();
 	let tabRow: HTMLElement | undefined = $state();
 	const bandHost = $derived(globalTopBarBandSlot.host);
@@ -419,7 +426,7 @@
 		}
 		const session = sessions.find(({ id }) => id === selectedSessionId);
 		if (session) {
-			closeSession(session);
+			if (!askBeforeStopping(session)) closeSession(session);
 			return;
 		}
 		if (sessions.length > 0) {
@@ -437,8 +444,21 @@
 	function closeSessionTab(event: MouseEvent, session: SessionRecord): void {
 		event.preventDefault();
 		event.stopPropagation();
+		if (askBeforeStopping(session)) return;
 		const adjacentSession = closeSession(session);
 		void focusSessionTab(adjacentSession?.id ?? selectedSessionId);
+	}
+
+	function askBeforeStopping(session: SessionRecord): boolean {
+		if (session.origin !== 'user' || !closingStopsAgent(identityOf(session).activity)) return false;
+		sessionToStop = session;
+		return true;
+	}
+
+	function onStopAndClose(): void {
+		const session = sessionToStop;
+		sessionToStop = null;
+		if (session) closeSession(session);
 	}
 
 	function closeSession(session: SessionRecord): SessionRecord | null {
@@ -641,6 +661,26 @@
 		</div>
 	</div>
 </div>
+
+<Modal
+	open={sessionToStop !== null}
+	size="sm"
+	title="Close running chat"
+	onclose={() => (sessionToStop = null)}
+>
+	{#if sessionToStop}
+		<div class="flex flex-col gap-5" data-testid="stop-chat-confirmation">
+			<p class="text-fg-secondary text-sm">
+				Closing <span class="text-fg-default">{identityOf(sessionToStop).name}</span>
+				 stops its agent and every background task it started.
+			</p>
+			<div class="flex items-center justify-end gap-2">
+				<Button variant="secondary" onclick={() => (sessionToStop = null)}>Keep working</Button>
+				<Button variant="danger" onclick={onStopAndClose}>Stop and close</Button>
+			</div>
+		</div>
+	{/if}
+</Modal>
 
 {#snippet planIcon()}
 	<span class="grid place-items-center" aria-hidden="true">

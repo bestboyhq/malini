@@ -386,6 +386,61 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
+	it('offers the oldest unanswered question of a chat and reads a replayed answer as answered', () => {
+		const commands = new AgentInteractionCommands(
+			() => ({ decideAgentApproval: vi.fn(), answerAgentQuestion: vi.fn() }),
+			() => undefined,
+		);
+		const asked = (seq: number, questionId: string): EventEnvelope =>
+			envelope(seq, {
+				type: 'question.requested',
+				runId: 'run-1',
+				questionId,
+				toolName: 'AskUserQuestion',
+				toolCallId: `tool-${questionId}`,
+				questions: [
+					{
+						id: `${questionId}:0`,
+						prompt: 'Which runner?',
+						options: [{ label: 'Vitest' }],
+						multiSelect: false,
+						allowFreeText: true,
+					},
+				],
+			});
+		commands.sync([asked(1, 'question-1'), asked(2, 'question-2')]);
+		expect(commands.pendingQuestion('session-1')?.questionId).toBe('question-1');
+		expect(commands.pendingQuestion('session-2')).toBeNull();
+
+		commands.sync([
+			asked(1, 'question-1'),
+			asked(2, 'question-2'),
+			envelope(3, {
+				type: 'tool.completed',
+				runId: 'run-1',
+				name: 'AskUserQuestion',
+				toolCallId: 'tool-question-1',
+				output: 'Your questions have been answered: "Which runner?"="Vitest".',
+			}),
+		]);
+		expect(commands.pendingQuestion('session-1')?.questionId).toBe('question-2');
+
+		commands.sync([
+			asked(1, 'question-1'),
+			asked(2, 'question-2'),
+			envelope(3, { type: 'run.failed', runId: 'run-1', error: 'interrupted' }),
+		]);
+		expect(commands.pendingQuestion('session-1')).toBeNull();
+		expect(
+			commands.stateFor({
+				kind: 'question',
+				sessionId: 'session-1',
+				runId: 'run-1',
+				requestId: 'question-1',
+			}),
+		).toMatchObject({ status: 'resolved', message: 'Answered' });
+	});
+
 	it('uses collision-safe keys across interaction kinds', () => {
 		expect(agentInteractionKey(approvalReference())).not.toBe(
 			agentInteractionKey({ ...approvalReference(), kind: 'question' }),

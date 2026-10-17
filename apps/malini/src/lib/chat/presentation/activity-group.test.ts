@@ -268,6 +268,22 @@ describe('groupRunTimeline status', () => {
 		expect(onlyGroup([tool('Read'), command(127)]).status).toBe('completed');
 	});
 
+	it('reads a shell tool that only exited non-zero as finished, not failed', () => {
+		const exited = tool('Bash', { command: 'grep -rn missing src' }, { status: 'failed' });
+		if (exited.kind !== 'tool') throw new Error('expected a tool item');
+		exited.tool.error = 'Exit code 1\n';
+
+		const group = onlyGroup([tool('Read'), exited]);
+		expect(group.status).toBe('completed');
+		expect(group.failures).toEqual([]);
+		expect(group.exitCodes).toEqual([1]);
+	});
+
+	it('keeps every non-zero exit visible on the collapsed group, and no zero exit', () => {
+		expect(onlyGroup([tool('Read'), command(0), command(127)]).exitCodes).toEqual([127]);
+		expect(onlyGroup([tool('Read'), command(124, 'command timed out')]).exitCodes).toEqual([]);
+	});
+
 	it('treats a command the tool itself marked as an error as a failure', () => {
 		expect(onlyGroup([tool('Read'), command(124, 'command timed out')]).status).toBe('failed');
 	});
@@ -393,7 +409,8 @@ describe('groupRunTimeline detail', () => {
 	});
 
 	it('pluralises the command clause', () => {
-		expect(onlyGroup([command(0), command(0), command(0)]).detail).toBe('ran 3 commands');
+		expect(onlyGroup([command(0), command(0), command(0)]).detail).toBe('3 commands');
+		expect(onlyGroup([command(0), tool('mcp__malini__browser_open')]).detail).toBe('1 command');
 		expect(onlyGroup([command(0), file('src/a.ts')]).detail).toBe('a.ts, ran 1 command');
 	});
 

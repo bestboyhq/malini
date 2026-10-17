@@ -245,7 +245,8 @@ export type BridgeEvent =
 			toolCallId: string;
 			name: string;
 			inputJsonDelta: string;
-	  };
+	  }
+	| { type: 'stream.discarded'; runId: string; contentIds: string[]; toolCallIds: string[] };
 
 export type BridgeEventType = BridgeEvent['type'];
 
@@ -636,6 +637,13 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					name: f.string('name'),
 					inputJsonDelta: f.string('inputJsonDelta'),
 				});
+			case 'stream.discarded':
+				return ok({
+					type: kind,
+					runId: f.string('runId'),
+					contentIds: f.stringArray('contentIds'),
+					toolCallIds: f.stringArray('toolCallIds'),
+				});
 		}
 	} catch (error) {
 		return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -851,6 +859,7 @@ export function isEphemeralEvent(event: BridgeEvent): boolean {
 		case 'assistant.delta':
 		case 'thinking.delta':
 		case 'tool.input.delta':
+		case 'stream.discarded':
 			return true;
 		case 'usage.updated':
 		case 'background.updated':

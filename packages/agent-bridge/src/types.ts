@@ -15,6 +15,12 @@ export type AgentEvent =
 			name: string;
 			inputJsonDelta: string;
 	  }
+	| {
+			type: 'stream.discarded';
+			runId: string;
+			contentIds: readonly string[];
+			toolCallIds: readonly string[];
+	  }
 	| { type: 'plan.updated'; runId: string; text: string }
 	| {
 			type: 'tool.started';

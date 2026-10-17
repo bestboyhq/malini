@@ -5,6 +5,7 @@ import {
 	toolActivityLabel,
 	toolDescriptionLabel,
 	toolDisplayName,
+	shellExitCode,
 	toolFailureReason,
 	type ToolActionKind,
 } from './tool-display-name';
@@ -24,6 +25,7 @@ export type ActivityGroup = {
 	status: 'running' | 'completed' | 'failed';
 	actionKinds: readonly ToolActionKind[];
 	failures: readonly ActivityFailure[];
+	exitCodes: readonly number[];
 };
 
 export type GroupedRunTimelineItem = RunTimelineItem | ActivityGroup;
@@ -103,6 +105,7 @@ function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGrou
 		failures: items
 			.map(itemFailure)
 			.filter((failure): failure is ActivityFailure => failure !== null),
+		exitCodes: items.map(itemExitCode).filter((code): code is number => code !== null),
 	};
 }
 
@@ -118,7 +121,9 @@ function itemActionKind(item: MachineActivityItem): ToolActionKind {
 }
 
 function itemStatus(item: MachineActivityItem): ItemStatus {
-	if (item.kind === 'tool') return item.tool.status;
+	if (item.kind === 'tool') {
+		return shellExitCode(item.tool.error) === null ? item.tool.status : 'completed';
+	}
 	if (item.kind === 'command') {
 		if (item.exitCode === null) return 'running';
 		return item.error === undefined ? 'completed' : 'failed';
@@ -127,7 +132,7 @@ function itemStatus(item: MachineActivityItem): ItemStatus {
 }
 
 function itemFailure(item: MachineActivityItem): ActivityFailure | null {
-	if (item.kind === 'tool' && item.tool.status === 'failed') {
+	if (item.kind === 'tool' && itemStatus(item) === 'failed') {
 		return {
 			key: item.key,
 			label:
@@ -145,6 +150,12 @@ function itemFailure(item: MachineActivityItem): ActivityFailure | null {
 			message: toolFailureReason(item.error) ?? 'The command could not finish',
 		};
 	}
+	return null;
+}
+
+function itemExitCode(item: MachineActivityItem): number | null {
+	if (item.kind === 'tool') return shellExitCode(item.tool.error);
+	if (item.kind === 'command' && item.error === undefined && item.exitCode) return item.exitCode;
 	return null;
 }
 
@@ -184,7 +195,8 @@ function groupDetail(
 	if (files.length === 1 && onlyFile !== undefined) clauses.push(basename(onlyFile));
 	else if (files.length > 1) clauses.push(pluralize(files.length, 'file'));
 	if (searches > 0) clauses.push(pluralize(searches, 'search', 'searches'));
-	if (commands > 0) clauses.push(`ran ${pluralize(commands, 'command')}`);
+	const commandCount = pluralize(commands, 'command');
+	if (commands > 0) clauses.push(clauses.length > 0 ? `ran ${commandCount}` : commandCount);
 
 	if (clauses.length === 0) clauses.push(pluralize(items.length, 'step'));
 

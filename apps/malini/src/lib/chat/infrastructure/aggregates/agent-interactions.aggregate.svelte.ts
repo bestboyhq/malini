@@ -2,6 +2,7 @@ import type {
 	AgentPermissionDescriptor,
 	AgentQuestion,
 	AgentQuestionAnswer,
+	AgentQuestionRequest,
 	AnswerAgentQuestionInput,
 	DecideAgentApprovalInput,
 	DecideAgentApprovalResult,
@@ -40,6 +41,10 @@ type RegisteredInteraction =
 
 const IDLE_STATE = Object.freeze({ status: 'idle' }) satisfies AgentInteractionState;
 const STALE_MESSAGE = 'No longer active';
+const ANSWERED_STATE = Object.freeze({
+	status: 'resolved',
+	message: 'Answered',
+}) satisfies AgentInteractionState;
 
 function runKey(sessionId: string, runId: string): string {
 	return `${sessionId}:${runId}`;
@@ -53,7 +58,7 @@ function errorMessage(error: unknown): string {
 
 export class AgentInteractionCommands {
 	states = $state<Record<string, AgentInteractionState>>({});
-	#requests = new Map<string, RegisteredInteraction>();
+	#requests = $state.raw(new Map<string, RegisteredInteraction>());
 	#resolveAgentPort: () => InteractionAgentPort;
 	#onResolved: (sessionId: string, runId: string) => void;
 
@@ -78,12 +83,18 @@ export class AgentInteractionCommands {
 		const requests = new Map<string, RegisteredInteraction>();
 		const terminalRuns = new Set<string>();
 		const invalid = new Map<string, string>();
+		const answeredToolCalls = new Set<string>();
+		const questionToolCalls = new Map<string, string>();
 
 		for (const envelope of envelopes) {
 			if (sessionId !== undefined && envelope.sessionId !== sessionId) continue;
 			const event = envelope.event;
 			if (event.type === 'run.completed' || event.type === 'run.failed') {
 				terminalRuns.add(runKey(envelope.sessionId, envelope.runId));
+				continue;
+			}
+			if (event.type === 'tool.completed' && event.toolCallId && !event.isError) {
+				answeredToolCalls.add(runKey(envelope.runId, event.toolCallId));
 				continue;
 			}
 			if (event.type !== 'approval.requested' && event.type !== 'question.requested') continue;
@@ -143,6 +154,7 @@ export class AgentInteractionCommands {
 					requestId,
 					questions: event.questions,
 				});
+				if (event.toolCallId) questionToolCalls.set(key, runKey(envelope.runId, event.toolCallId));
 			}
 		}
 
@@ -153,7 +165,10 @@ export class AgentInteractionCommands {
 		}
 		for (const [key, request] of requests) {
 			const current = nextStates[key];
-			if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
+			const toolCall = questionToolCalls.get(key);
+			if (toolCall && answeredToolCalls.has(toolCall)) {
+				if (current?.status !== 'resolved') nextStates[key] = ANSWERED_STATE;
+			} else if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
 				if (current?.status !== 'resolved' && current?.status !== 'submitting') {
 					nextStates[key] = { status: 'stale', message: STALE_MESSAGE };
 				}
@@ -171,6 +186,21 @@ export class AgentInteractionCommands {
 			this.#requests = nextRequests;
 		}
 		this.states = nextStates;
+	}
+
+	pendingQuestion(sessionId: string): AgentQuestionRequest | null {
+		for (const [key, request] of this.#requests) {
+			if (request.kind !== 'question' || request.sessionId !== sessionId) continue;
+			const status = (this.states[key] ?? IDLE_STATE).status;
+			if (status === 'resolved' || status === 'stale') continue;
+			return {
+				sessionId,
+				runId: request.runId,
+				questionId: request.requestId,
+				questions: request.questions,
+			};
+		}
+		return null;
 	}
 
 	stateFor(reference: AgentInteractionReference): AgentInteractionState {
@@ -282,13 +312,7 @@ export class AgentInteractionCommands {
 			});
 			if (this.states[key]?.status === 'stale') return false;
 			this.#onResolved(input.sessionId, input.runId);
-			this.states = {
-				...this.states,
-				[key]: {
-					status: 'resolved',
-					message: 'Answered',
-				},
-			};
+			this.states = { ...this.states, [key]: ANSWERED_STATE };
 			return true;
 		} catch (error) {
 			if (this.states[key]?.status === 'stale') return false;
@@ -298,7 +322,7 @@ export class AgentInteractionCommands {
 	}
 
 	reset(): void {
-		this.#requests.clear();
+		this.#requests = new Map();
 		this.states = {};
 	}
 

@@ -3,6 +3,7 @@ import { sanitizeAgentElementReferences } from '$lib/chat/domain/element-referen
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import { parseAgentPrompt } from '$lib/chat/domain/issue-reference';
 import {
+	answerOutput,
 	firstPromptKey,
 	isContextHandoffContentId,
 	renderInteractionItem,
@@ -118,6 +119,10 @@ export class IncrementalRenderProjector {
 	#obsoletedRunIds = new Set<string>();
 	#terminal: 'completed' | 'failed' | null = null;
 	#seenInteractions = new Set<string>();
+	#questionTools = new Map<
+		string,
+		{ runId: string; item: Extract<RenderItem, { kind: 'question' }> }
+	>();
 	#sourceLength = 0;
 	#lastEnvelopeKey: string | null = null;
 	#sourceReference: readonly EventEnvelope[] | null = null;
@@ -201,6 +206,7 @@ export class IncrementalRenderProjector {
 		this.#obsoletedRunIds.clear();
 		this.#terminal = null;
 		this.#seenInteractions.clear();
+		this.#questionTools.clear();
 	}
 
 	#promptKey(runId: string, envelopeKey: string): string {
@@ -266,6 +272,28 @@ export class IncrementalRenderProjector {
 			group.items.splice(index, 1, next);
 			recordRunChange(group, { kind: 'replace', previous, item: next });
 		}
+	}
+
+	#adoptQuestionTool(runId: string, item: Extract<RenderItem, { kind: 'question' }>): void {
+		if (!item.toolCallId) return;
+		const lookupKey = toolLookupKey(runId, '', item.toolCallId);
+		const running = this.#openTools.get(lookupKey);
+		if (running) {
+			this.#removeItem(running.ownerRunId, running.item);
+			this.#openTools.delete(lookupKey);
+		}
+		if (this.#activeToolKey === lookupKey) this.#activeToolKey = null;
+		this.#questionTools.set(lookupKey, { runId, item });
+	}
+
+	#settleQuestionTool(lookupKey: string, output: string | undefined): boolean {
+		const question = this.#questionTools.get(lookupKey);
+		if (!question) return false;
+		this.#questionTools.delete(lookupKey);
+		if (output !== undefined) {
+			this.#replaceItem(question.runId, question.item, { ...question.item, answerOutput: output });
+		}
+		return true;
 	}
 
 	#discardOpenToolsForRun(runId: string): void {
@@ -381,6 +409,9 @@ export class IncrementalRenderProjector {
 			case 'tool.completed':
 			case 'tool.failed': {
 				const lookupKey = toolLookupKey(runId, event.name, event.toolCallId);
+				const output =
+					event.type === 'tool.completed' ? answerOutput(event.output, event.isError) : undefined;
+				if (this.#settleQuestionTool(lookupKey, output)) return;
 				if (this.#activeToolKey === lookupKey) this.#activeToolKey = null;
 				if (event.type === 'tool.failed') this.#failOwnedCommands(lookupKey, event.error);
 				this.#commandsByTool.delete(lookupKey);
@@ -516,6 +547,7 @@ export class IncrementalRenderProjector {
 				const item = renderInteractionItem(envelope);
 				if (item && !this.#seenInteractions.has(item.key)) {
 					this.#seenInteractions.add(item.key);
+					if (item.kind === 'question') this.#adoptQuestionTool(runId, item);
 					this.#push(runId, item);
 				}
 				return;

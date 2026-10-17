@@ -32,6 +32,7 @@
 	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
 	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
 	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
+	import { pendingQuestionQuery } from '$lib/chat/application/queries/pending-question.query.svelte';
 	import { presentedTranscriptQuery } from '$lib/chat/application/queries/presented-transcript.query.svelte';
 	import { queueErrorsQuery } from '$lib/chat/application/queries/queue-errors.query.svelte';
 	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
@@ -57,6 +58,7 @@
 		type AgentSessionChangedFile,
 	} from '$shared/repositories/repositories.api';
 	import AgentProcessDiedBanner from './AgentProcessDiedBanner.svelte';
+	import AgentQuestionPanel from './AgentQuestionPanel.svelte';
 	import BackgroundTaskList from './BackgroundTaskList.svelte';
 	import ChatChangedFiles from './ChatChangedFiles.svelte';
 	import ChatColdShell from './ChatColdShell.svelte';
@@ -130,6 +132,7 @@
 	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
+	const pendingQuestion = $derived(pendingQuestionQuery.data(presentedSessionId));
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
@@ -172,6 +175,37 @@
 	const stage = $derived(
 		chatStage({ freshChat, presentedSessionId, bootError, presentationPending }),
 	);
+	const questionRequest = $derived(
+		stage === 'transcript' && !presentationPending && presentedSessionId === sessionId
+			? pendingQuestion
+			: null,
+	);
+	const questionKey = $derived(questionRequest?.questionId ?? null);
+	let composerSlot: HTMLElement | null = $state(null);
+	let shownQuestionKey: string | null = null;
+
+	$effect(() => {
+		const key = questionKey;
+		if (key === shownQuestionKey) return;
+		const answered = shownQuestionKey !== null && key === null;
+		shownQuestionKey = key;
+		if (answered) void returnToComposer();
+	});
+
+	async function returnToComposer(): Promise<void> {
+		await tick();
+		if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			composerSlot?.animate(
+				[
+					{ opacity: 0, transform: 'translateY(6px)' },
+					{ opacity: 1, transform: 'none' },
+				],
+				{ duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+			);
+		}
+		if (focusIsUnclaimed()) composer?.focus({ scrollIntoView: false });
+	}
+
 	const showsSessionChanges = $derived(
 		!freshChat &&
 			!presentationPending &&
@@ -252,7 +286,7 @@
 	}
 
 	function composerMayClaimInput(): boolean {
-		if (documentActive || !focusIsUnclaimed()) return false;
+		if (questionRequest || documentActive || !focusIsUnclaimed()) return false;
 		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
 	}
 
@@ -426,25 +460,32 @@
 									</div>
 								{/if}
 
-								<ChatComposer
-									bind:this={composer}
-									{sessionId}
-									bind:transcriptReferences
-									bind:elementReferences
-									{forceFreshSession}
-									{model}
-									{profile}
-									{modelDefaults}
-									{rememberedModels}
-									{envelopes}
-									{isRunning}
-									disabled={bootError !== null || presentationPending}
-									backendSelectionDisabled={bootError !== null || presentationPending}
-									oncancel={cancelRunCommand}
-									onbackendchange={selectModelCommand}
-									onprofilechange={selectRunProfileCommand}
-									onmodelsettingschange={applyModelDefaultsCommand}
-								/>
+								{#if questionRequest}
+									{#key questionRequest.questionId}
+										<AgentQuestionPanel request={questionRequest} />
+									{/key}
+								{/if}
+								<div bind:this={composerSlot} class={[questionRequest && 'hidden']}>
+									<ChatComposer
+										bind:this={composer}
+										{sessionId}
+										bind:transcriptReferences
+										bind:elementReferences
+										{forceFreshSession}
+										{model}
+										{profile}
+										{modelDefaults}
+										{rememberedModels}
+										{envelopes}
+										{isRunning}
+										disabled={bootError !== null || presentationPending}
+										backendSelectionDisabled={bootError !== null || presentationPending}
+										oncancel={cancelRunCommand}
+										onbackendchange={selectModelCommand}
+										onprofilechange={selectRunProfileCommand}
+										onmodelsettingschange={applyModelDefaultsCommand}
+									/>
+								</div>
 							</div>
 						</div>
 

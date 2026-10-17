@@ -129,6 +129,7 @@ export type RenderItem =
 			questions: readonly AgentQuestion[];
 			toolName?: string;
 			toolCallId?: string;
+			answerOutput?: string;
 	  }
 	| { kind: 'unknown'; key: string; seq: number; raw: unknown };
 
@@ -347,6 +348,10 @@ function interactionLookupKey(
 	return `${kind}:${sessionId}:${runId}:${requestId}`;
 }
 
+export function answerOutput(output: unknown, isError: boolean | undefined): string | undefined {
+	return typeof output === 'string' && !isError ? output : undefined;
+}
+
 export function renderInteractionItem(
 	envelope: EventEnvelope,
 ): Extract<RenderItem, { kind: 'approval' | 'question' }> | null {
@@ -405,6 +410,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 	const runById = new Map<string, RunGroup>();
 	const openTools = new Map<string, OpenToolAggregate>();
 	const seenInteractions = new Set<string>();
+	const questionTools = new Map<string, Extract<RenderItem, { kind: 'question' }>>();
 	let terminal: 'completed' | 'failed' | null = null;
 	let commandLive: {
 		ownerRunId: string;
@@ -477,6 +483,21 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 
 	function push(runId: string, item: RenderItem): void {
 		runFor(runId).items.push(item);
+	}
+
+	function settleQuestionTool(
+		runId: string,
+		lookupKey: string,
+		output: string | undefined,
+	): boolean {
+		const question = questionTools.get(lookupKey);
+		if (!question) return false;
+		questionTools.delete(lookupKey);
+		if (output === undefined) return true;
+		const items = runFor(runId).items;
+		const index = items.indexOf(question);
+		if (index >= 0) items[index] = { ...question, answerOutput: output };
+		return true;
 	}
 
 	function discardOpenToolsForRun(runId: string): void {
@@ -566,6 +587,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 			}
 			case 'tool.completed': {
 				const lookupKey = openToolLookupKey(runId, event.name, event.toolCallId);
+				if (settleQuestionTool(runId, lookupKey, answerOutput(event.output, event.isError))) break;
 				if (activeToolKey === lookupKey) activeToolKey = null;
 				commandsByTool.delete(lookupKey);
 				const existing = openTools.get(lookupKey);
@@ -601,6 +623,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 			}
 			case 'tool.failed': {
 				const lookupKey = openToolLookupKey(runId, event.name, event.toolCallId);
+				if (settleQuestionTool(runId, lookupKey, undefined)) break;
 				if (activeToolKey === lookupKey) activeToolKey = null;
 				for (const owned of commandsByTool.get(lookupKey) ?? []) owned.error = event.error;
 				commandsByTool.delete(lookupKey);
@@ -740,6 +763,12 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				if (item && !seenInteractions.has(item.key)) {
 					seenInteractions.add(item.key);
 					push(runId, item);
+					if (item.kind === 'question' && item.toolCallId) {
+						const lookupKey = openToolLookupKey(runId, '', item.toolCallId);
+						openTools.delete(lookupKey);
+						if (activeToolKey === lookupKey) activeToolKey = null;
+						questionTools.set(lookupKey, item);
+					}
 				}
 				break;
 			}

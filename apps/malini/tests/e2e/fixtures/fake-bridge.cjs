@@ -455,10 +455,19 @@ const respond = (sessionId, runId, prompt) => {
 	if (prompt.includes('QUESTION')) {
 		pendingRuns.set(runId, sessionId);
 		event({
+			type: 'tool.started',
+			runId,
+			name: 'AskUserQuestion',
+			toolCallId: 'ask-1',
+			input: { questions: [{ question: 'Which?' }] },
+		});
+		event({
 			type: 'question.requested',
 			sessionId,
 			runId,
 			questionId: 'question-1',
+			toolName: 'AskUserQuestion',
+			toolCallId: 'ask-1',
 			questions: [
 				{
 					id: 'q1',
@@ -607,6 +616,18 @@ const handle = (command) => {
 		}
 		case 'answer_question': {
 			ack(command.id);
+			event({
+				type: 'tool.completed',
+				runId: command.runId,
+				name: 'AskUserQuestion',
+				toolCallId: 'ask-1',
+				output:
+					'Your questions have been answered: ' +
+					command.answers
+						.map((answer) => '"Which?"="' + answer.values.join(', ') + '"')
+						.join(', ') +
+					'. You can now continue with these answers in mind.',
+			});
 			completeRun(command.sessionId, command.runId, 'answered:' + JSON.stringify(command.answers));
 			pendingRuns.delete(command.runId);
 			return;

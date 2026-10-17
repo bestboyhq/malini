@@ -74,7 +74,7 @@ test('a permission request waits for the user, hands the agent their decision, a
 	}
 });
 
-test('a question from the agent is answered from its card', async () => {
+test('a question from the agent takes the composer slot and is answered from there', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -89,13 +89,24 @@ test('a question from the agent is answered from its card', async () => {
 		await openWorkstream(page, workstreamId);
 
 		await sendPrompt(page, 'QUESTION');
-		const question = page.getByRole('region', { name: 'Claude has a question' });
-		await expect(question.getByRole('group', { name: 'Which?' })).toBeVisible({
-			timeout: 20_000,
-		});
-		await question.getByRole('radio', { name: /^B/u }).check();
-		await question.getByRole('button', { name: 'Send answer' }).click();
-		await expect(page.getByRole('status').filter({ hasText: 'Answered' })).toBeVisible();
+		const choices = page.getByRole('radiogroup', { name: 'Which?' });
+		await expect(choices).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		const asked = page.getByTestId('agent-question-row');
+		await expect(asked).toContainText('Asked');
+		await expect(page.getByText('Ask User Question')).toHaveCount(0);
+
+		await page.keyboard.press('2');
+		await expect(choices.getByRole('radio', { name: /^B/u })).toHaveAttribute(
+			'aria-checked',
+			'true',
+		);
+		await page.getByRole('button', { name: 'Send answer' }).click();
+
+		await expect(asked).toContainText('Answered');
+		await expect(asked).toContainText('B');
+		await expect(page.getByTestId('agent-question-panel')).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
 		await expectAssistantReply(page);
 
 		const events = await listEvents(page, currentSessionId(page) ?? '');
