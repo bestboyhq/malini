@@ -505,7 +505,7 @@ export interface ContractCommands {
 	'extensions.read-workstream-file': { args: ExtensionFileArgs; result: string };
 	'chat.read-staged-attachment': {
 		args: StagedAttachmentArgs;
-		result: StagedAgentAttachmentBytes | null;
+		result: StagedAgentAttachmentBytes;
 	};
 	'repositories.read-workstream-image': {
 		args: ReadWorkstreamImageArgs;

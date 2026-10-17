@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Editor } from '@tiptap/core';
 	import { closeHistory } from '@tiptap/pm/history';
+	import type { EditorState, Transaction } from '@tiptap/pm/state';
 	import { onDestroy, onMount } from 'svelte';
 	import { isPromptChipKind, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
@@ -30,12 +31,14 @@
 		disabled?: boolean;
 		compact?: boolean;
 		ariaLabel?: string;
+		ariaActiveDescendant?: string | undefined;
 		testId?: string;
 		resolvePreview: (ref: PromptChipRef) => PromptChipPreview;
 		onvaluechange: (value: string) => void;
 		onchipremove: (ref: PromptChipRef) => void | Promise<void>;
 		onattachfiles: (candidates: readonly ClipboardAttachmentCandidate[]) => void | Promise<void>;
 		onkeydown: (event: KeyboardEvent) => void;
+		ontriggerquery?: (query: string | null) => void;
 	}
 
 	let {
@@ -46,12 +49,14 @@
 		disabled = false,
 		compact = false,
 		ariaLabel = 'Chat prompt',
+		ariaActiveDescendant,
 		testId = 'chat-composer-input',
 		resolvePreview,
 		onvaluechange,
 		onchipremove,
 		onattachfiles,
 		onkeydown,
+		ontriggerquery,
 	}: Props = $props();
 
 	let host: HTMLDivElement | null = $state(null);
@@ -63,6 +68,8 @@
 	let pendingRemovalKeys = $state<Set<string>>(new Set());
 
 	let pendingInsertPos: number | null = null;
+
+	let trigger: Readonly<{ at: number; char: string }> | null = null;
 
 	function refKey(ref: PromptChipRef): string {
 		return `${ref.kind}\u0000${ref.id}`;
@@ -237,7 +244,54 @@
 		if (pasted) event.preventDefault();
 	}
 
-	export { focusEditor, focusNow, insertChip, insertText, paste };
+	function beginTrigger(char: string): void {
+		if (!editor) return;
+		trigger = { at: editor.state.selection.from, char };
+		insertText(char);
+	}
+
+	function endTrigger(): void {
+		trigger = null;
+	}
+
+	function removeTrigger(): void {
+		if (!editor || !trigger) return;
+		const from = trigger.at;
+		trigger = null;
+		editor.chain().deleteRange({ from, to: editor.state.selection.from }).focus().run();
+	}
+
+	function triggerQuery(state: EditorState, at: number, char: string): string | null {
+		const { empty, from } = state.selection;
+		if (!empty || from <= at || state.doc.resolve(at).parent !== state.doc.resolve(from).parent) {
+			return null;
+		}
+		const typed = state.doc.textBetween(at, from, '\n', '\ufffc');
+		if (!typed.startsWith(char) || /[\n\ufffc]/u.test(typed)) return null;
+		return typed.slice(char.length);
+	}
+
+	function trackTrigger(transactions: readonly Transaction[]): void {
+		if (!editor || !trigger) return;
+		const at = transactions.reduce(
+			(pos, transaction) => transaction.mapping.map(pos, -1),
+			trigger.at,
+		);
+		const query = triggerQuery(editor.state, at, trigger.char);
+		trigger = query === null ? null : { at, char: trigger.char };
+		ontriggerquery?.(query);
+	}
+
+	export {
+		beginTrigger,
+		endTrigger,
+		focusEditor,
+		focusNow,
+		insertChip,
+		insertText,
+		paste,
+		removeTrigger,
+	};
 
 	onMount(() => {
 		if (!host) return;
@@ -300,6 +354,9 @@
 					return true;
 				},
 			},
+			onTransaction: ({ transaction, appendedTransactions }) => {
+				trackTrigger([transaction, ...appendedTransactions]);
+			},
 			onUpdate: () => {
 				onvaluechange(currentMarkdown());
 				reportRemovals();
@@ -345,6 +402,13 @@
 		editor.setEditable(editable, false);
 		editor.view.dom.setAttribute('aria-disabled', String(!editable));
 		editor.view.dom.setAttribute('tabindex', editable ? '0' : '-1');
+	});
+
+	$effect(() => {
+		const dom = editor?.view.dom;
+		if (!dom) return;
+		if (ariaActiveDescendant) dom.setAttribute('aria-activedescendant', ariaActiveDescendant);
+		else dom.removeAttribute('aria-activedescendant');
 	});
 </script>
 

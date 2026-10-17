@@ -133,6 +133,20 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 
 		await page.mouse.click(shown.x - 24, shown.y + shown.height / 2);
 		await expect(gallery).toBeHidden();
+
+		await page.getByRole('button', { name: /^Edit message: / }).click({ position: { x: 4, y: 4 } });
+		const editor = page.getByRole('textbox', { name: 'Edit message' });
+		await expect(editor).toBeVisible();
+		const after = await page
+			.getByRole('button', { name: 'Open image shots/after.png in gallery' })
+			.boundingBox();
+		if (!after) throw new Error('the shown image is not on screen');
+		await page.mouse.move(after.x + after.width / 2, after.y + after.height / 2);
+		await page.mouse.down();
+		await expect(editor, 'the editor holds still until the press ends').toBeVisible();
+		await page.mouse.up();
+		await expect(editor).toBeHidden();
+		await expect(gallery.getByRole('status')).toHaveText('3 of 3');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

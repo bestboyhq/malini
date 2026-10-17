@@ -12,7 +12,7 @@ import {
 const PATH = '.context/report.png';
 const READ = {
 	status: 'ready',
-	bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 },
+	bytes: { mediaType: 'image/png', data: new Uint8Array([0]) },
 } as const;
 
 afterEach(() => {

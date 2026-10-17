@@ -128,8 +128,7 @@ export type AdoptedAgentAttachment =
 
 export interface StagedAgentAttachmentBytes {
 	mediaType: string;
-	base64: string;
-	size: number;
+	data: Uint8Array<ArrayBuffer>;
 }
 
 export interface AgentRunChangedFile {

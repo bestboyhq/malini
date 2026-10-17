@@ -42,8 +42,17 @@ describe('readWorkstreamImage', () => {
 		const read = await readWorkstreamImage(worktree, '.malini/agent-attachments/shot.png');
 		const image = read.status === 'ready' ? read.bytes : null;
 		expect(image?.mediaType).toBe('image/png');
-		expect(image?.size).toBe(PNG.length);
-		expect(Buffer.from(image?.base64 ?? '', 'base64')).toEqual(PNG);
+		expect(Buffer.from(image?.data ?? [])).toEqual(PNG);
+	});
+
+	it('reads an image as large as the biggest attachment', async () => {
+		const pasted = Buffer.concat([PNG, Buffer.alloc(10 * 1024 * 1024 - PNG.length)]);
+		await worktreeWith('.malini/agent-attachments/pasted-image-0.png', pasted);
+		const read = await readWorkstreamImage(
+			worktree,
+			'.malini/agent-attachments/pasted-image-0.png',
+		);
+		expect(read.status === 'ready' && Buffer.from(read.bytes.data)).toEqual(pasted);
 	});
 
 	it('reads an image the model named by its absolute path in the worktree', async () => {

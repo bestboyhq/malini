@@ -46,7 +46,7 @@ class ComposerAttachmentsService {
 		}
 	}
 
-	readImage(workstreamId: string, attachmentId: string): Promise<ImageBytes | null> {
+	readImage(workstreamId: string, attachmentId: string): Promise<ImageBytes> {
 		return invoke('chat.read-staged-attachment', { workstreamId, attachmentId });
 	}
 }

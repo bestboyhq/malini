@@ -49,7 +49,10 @@
 			const target = event.target;
 			if (!(target instanceof Node) || form.contains(target)) return;
 			if (isWithinOverlaySurface(target)) return;
-			checkpointEdit.cancelCheckpointEdit();
+			document.addEventListener('pointerup', () => checkpointEdit.cancelCheckpointEdit(), {
+				capture: true,
+				once: true,
+			});
 		};
 		document.addEventListener('pointerdown', onPointerDown, true);
 		return () => document.removeEventListener('pointerdown', onPointerDown, true);
