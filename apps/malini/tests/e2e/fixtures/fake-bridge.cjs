@@ -8,7 +8,9 @@ const heartbeatMs =
 	env.FAKE_BRIDGE_HEARTBEAT_MS === undefined ? 50 : Number(env.FAKE_BRIDGE_HEARTBEAT_MS);
 const ackDelay = Number(env.FAKE_BRIDGE_ACK_DELAY_MS || 0);
 const reverse = Number(env.FAKE_BRIDGE_REVERSE_ACKS || 0);
-const approvalPath = env.FAKE_BRIDGE_APPROVAL_PATH || '/tmp/outside.txt';
+const approvalPath =
+	env.FAKE_BRIDGE_APPROVAL_PATH ||
+	nodePath.join(fs.realpathSync(require('node:os').tmpdir()), 'outside.txt');
 const write = (frame) => process.stdout.write(JSON.stringify(frame) + '\n');
 const signedInEmail = () => {
 	if (!env.FAKE_BRIDGE_CLAUDE_ACCOUNT_FILE) return null;
@@ -30,9 +32,9 @@ const makeCapability = (capabilityVersion, message) => {
 			claudeState === 'ready' ? { email: email ?? 'e2e@example.com', plan: 'Claude Max' } : null,
 		models: [
 			{
-				id: 'default',
-				label: 'Default',
-				description: 'Fixture default',
+				id: 'opus',
+				label: 'Opus',
+				description: 'Fixture opus',
 				efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 			},
 			{
@@ -42,7 +44,7 @@ const makeCapability = (capabilityVersion, message) => {
 				efforts: ['low', 'medium', 'high', 'max'],
 			},
 		],
-		defaultModel: 'default',
+		defaultModel: 'opus',
 		message,
 	};
 };
@@ -91,7 +93,7 @@ const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {
 const pendingRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
-const completeRun = (sessionId, runId, summary, mentions = [], shownImages = []) => {
+const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [], appended = '') => {
 	const mentioned = mentions.map((path) => '`' + path + '`').join(' and ');
 	const shown = shownImages.map((path) => '\n\n![' + path + '](' + path + ')').join('');
 	event({ type: 'assistant.delta', runId, contentId: 'c1', text: 'partial ' });
@@ -102,7 +104,9 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [])
 		text:
 			(mentioned
 				? 'Hello from the fake bridge. See ' + mentioned + '.'
-				: 'Hello from the fake bridge') + shown,
+				: 'Hello from the fake bridge') +
+			shown +
+			appended,
 	});
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, interim: true });
 	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, ...finalUsage });
@@ -454,6 +458,31 @@ const respond = (sessionId, runId, prompt) => {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
 	if (prompt.includes('THINK')) return thinkRun(sessionId, runId);
+	if (prompt.includes('EDIT_TOOL')) {
+		const input = {
+			file_path: 'notes.md',
+			old_string: 'keep\nold line',
+			new_string: 'keep\nnew one\nnew two',
+		};
+		event({ type: 'tool.started', runId, name: 'Edit', toolCallId: 'edit-notes', input });
+		event({ type: 'tool.completed', runId, name: 'Edit', toolCallId: 'edit-notes', output: 'ok' });
+	}
+	if (prompt.includes('BASH_FAIL')) {
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'bash-fail',
+			input: { command: 'pnpm lint', description: 'Lint the workspace' },
+		});
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId: 'bash-fail',
+			error: 'ESLint found 3 problems\n  src/a.ts  1:1  error',
+		});
+	}
 	const stream = /STREAM:(\d+)/.exec(prompt);
 	if (stream) return streamRun(sessionId, runId, Number(stream[1]));
 	const commitLine = /COMMIT=([^"\n]+?)(?: PR=([^"\n]+?))?(?:"|$)/.exec(prompt);
@@ -488,6 +517,7 @@ const respond = (sessionId, runId, prompt) => {
 				: ''),
 		mention ? mention[1].split(',') : [],
 		[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
+		prompt.includes('CODE') ? '\n\n```sh\npnpm --filter malini test\n```' : '',
 	);
 };
 const handle = (command) => {

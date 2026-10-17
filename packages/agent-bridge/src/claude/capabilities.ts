@@ -19,11 +19,6 @@ import type { QueryFunction } from './session.js';
 const MODEL_PROBE_TIMEOUT_MS = 15_000;
 
 const FALLBACK_MODEL_DETAILS: Readonly<Record<string, Omit<AgentModelInfo, 'id'>>> = {
-	default: {
-		label: 'Default',
-		description: 'The model Claude Code recommends for your plan',
-		efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-	},
 	opus: {
 		label: 'Opus',
 		description: 'Best for complex, multi-step work',
@@ -130,7 +125,7 @@ async function supportedModels(
 	);
 	try {
 		const init = await Promise.race([probe.initializationResult(), timeout]);
-		const models = init?.models.map(modelInfo) ?? [];
+		const models = init?.models.filter(isNamedModel).map(modelInfo) ?? [];
 		return models.length > 0 ? withDefaultModel(models) : FALLBACK_MODELS;
 	} catch {
 		return FALLBACK_MODELS;
@@ -146,13 +141,17 @@ function withDefaultModel(models: AgentModelInfo[]): AgentModelInfo[] {
 	return fallback ? [fallback, ...models] : models;
 }
 
+function isNamedModel(model: ModelInfo): boolean {
+	return model.value !== 'default';
+}
+
 function modelInfo(model: ModelInfo): AgentModelInfo {
 	const efforts: AgentReasoningEffort[] = (model.supportedEffortLevels ?? []).filter(
 		(effort): effort is AgentReasoningEffort => isOneOf(AGENT_REASONING_EFFORTS, effort),
 	);
 	return {
 		id: model.value,
-		label: model.value === 'default' ? 'Default' : model.displayName,
+		label: model.displayName,
 		description: model.description,
 		efforts: model.supportsEffort === false ? [] : efforts,
 	};

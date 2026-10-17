@@ -9,13 +9,12 @@ import {
 
 const catalog = [
 	{ id: 'haiku', label: 'Haiku', description: 'Fastest', efforts: [] },
-	{ id: 'default', label: 'Default', description: 'Recommended', efforts: ['low', 'high'] },
+	{ id: 'sonnet', label: 'Sonnet', description: 'Routine', efforts: ['low', 'high'] },
 	{ id: 'opus[1m]', label: 'Opus', description: 'Opus with 1M context', efforts: ['low', 'max'] },
 ] as const satisfies Parameters<typeof pickerModels>[0];
 
 describe('Claude Code model catalog', () => {
 	it('names aliases and full model ids the way people say them', () => {
-		expect(modelLabel('default')).toBe('Default');
 		expect(modelLabel('opus[1m]')).toBe('Opus 1M');
 		expect(modelLabel('claude-opus-5-5')).toBe('Opus 5.5');
 		expect(modelLabel('claude-haiku-4-5-20251001')).toBe('Haiku 4.5');
@@ -28,15 +27,15 @@ describe('Claude Code model catalog', () => {
 		).toBe('Opus 5');
 	});
 
-	it('lists the default first and keeps a chat model the catalog no longer reports', () => {
-		expect(pickerModels(catalog, 'default').map((model) => model.id)).toEqual([
-			'default',
+	it('lists models by family and keeps a chat model the catalog no longer reports', () => {
+		expect(pickerModels(catalog, 'sonnet').map((model) => model.id)).toEqual([
 			'opus[1m]',
+			'sonnet',
 			'haiku',
 		]);
 		expect(pickerModels(catalog, 'claude-sonnet-4-6').map((model) => model.label)).toEqual([
-			'Default',
 			'Opus',
+			'Sonnet',
 			'Sonnet 4.6',
 			'Haiku',
 		]);

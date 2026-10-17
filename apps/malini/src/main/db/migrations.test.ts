@@ -1464,6 +1464,38 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('v47 names the model that chats and jobs stored as default', () => {
+		const db = openMigratedDatabase(':memory:');
+		db.exec(`
+			PRAGMA user_version = 46;
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at)
+			  VALUES ('p-1', 'p', '/tmp/p', 'main', '2026-10-17T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at)
+			  VALUES ('w-1', 'p-1', 'w', '/tmp/w', 'malini/w-1', 'main', 'active', '2026-10-17T00:00:00Z');
+			INSERT INTO agent_sessions (id, workstream_id, model, status, started_at, display_name) VALUES
+			  ('s-default', 'w-1', 'default', 'completed', '2026-10-17T00:00:00Z', 'Chat 1'),
+			  ('s-sonnet', 'w-1', 'sonnet', 'completed', '2026-10-17T00:00:01Z', 'Chat 2');
+		`);
+		insertJobDefinition(db, 'jd-default', 'Ship it', 'Ship.', null);
+		insertJobDefinition(db, 'jd-haiku', 'Tidy', 'Tidy.', null);
+		db.exec("UPDATE job_definitions SET model = 'haiku' WHERE id = 'jd-haiku'");
+
+		migrate(db);
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(all(db, 'SELECT id, model FROM agent_sessions ORDER BY id')).toEqual([
+			{ id: 's-default', model: 'opus' },
+			{ id: 's-sonnet', model: 'sonnet' },
+		]);
+		expect(
+			all(db, "SELECT id, model FROM job_definitions WHERE id LIKE 'jd-%' ORDER BY id"),
+		).toEqual([
+			{ id: 'jd-default', model: 'opus' },
+			{ id: 'jd-haiku', model: 'haiku' },
+		]);
+		db.close();
+	});
+
 	it('v41 lets a workstream ship stay local and renames the conflict step', () => {
 		const db = v38JobsDatabase(40);
 		db.exec(`

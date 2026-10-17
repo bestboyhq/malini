@@ -4,7 +4,7 @@ import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort } from './run-profil
 
 export type { AgentModelInfo };
 
-const FAMILY_ORDER = ['default', 'fable', 'opus', 'sonnet', 'haiku'];
+const FAMILY_ORDER = ['fable', 'opus', 'sonnet', 'haiku'];
 
 export function modelLabel(model: string): string {
 	const contextSuffix = model.endsWith('[1m]') ? ' 1M' : '';

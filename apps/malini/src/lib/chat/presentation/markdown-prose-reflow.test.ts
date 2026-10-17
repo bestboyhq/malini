@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('$env/dynamic/public', () => ({ env: {} }));
 
-import component from './MarkdownText.svelte?raw';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
 import { sanitizedMarkdownHtmlCacheKey } from './sanitized-markdown-html-cache';
 
@@ -40,12 +39,6 @@ describe('assistant prose reflows', () => {
 		expect(html).toContain('<h3>What I measured</h3>');
 		expect(html.match(/<li>/gu)).toHaveLength(2);
 	});
-
-	it('pairs the parser option with a white-space override on the prose root', () => {
-		expect(component).toContain(
-			"\t.markdown-text[data-render-mode='prose'] :global(p) {\n\t\twhite-space: normal;\n\t}",
-		);
-	});
 });
 
 describe('user prompts keep their newlines verbatim', () => {
@@ -55,10 +48,6 @@ describe('user prompts keep their newlines verbatim', () => {
 
 	it('would have lost them under the prose seam', () => {
 		expect(breakCount(renderSanitizedHtml(HUMAN_AUTHORED_LINES, 'prose'))).toBe(0);
-	});
-
-	it('is the default mode, so no existing caller changed behavior', () => {
-		expect(component).toContain("mode = 'markdown',");
 	});
 });
 

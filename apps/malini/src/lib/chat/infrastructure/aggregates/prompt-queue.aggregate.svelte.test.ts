@@ -239,6 +239,18 @@ describe('AgentPromptQueue', () => {
 		});
 	});
 
+	it('keeps a prompt queued with the retired default model under its named model', () => {
+		const workstreamId = 'blog-default';
+		const storage = memoryStorage({
+			[promptQueueStorageKey(workstreamId)]: JSON.stringify([
+				{ id: 'queued', prompt: 'ship it', model: 'default', createdAt: 1 },
+			]),
+		});
+		const queue = new AgentPromptQueue({ storage });
+		queue.hydrate(workstreamId);
+		expect(queue.entriesFor(workstreamId).map((entry) => entry.model)).toEqual(['opus']);
+	});
+
 	it('persists exact chat affinity and explicit fresh intent', () => {
 		const storage = memoryStorage();
 		const first = new AgentPromptQueue({ storage, createId: () => 'targeted' });

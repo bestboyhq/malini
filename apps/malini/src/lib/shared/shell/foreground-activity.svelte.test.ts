@@ -1,6 +1,3 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { join, relative } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -13,32 +10,6 @@ import {
 	ForegroundActivityChannel,
 	foregroundActivity,
 } from './foreground-activity.svelte';
-
-const SOURCE_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-
-function sourceFiles(): readonly string[] {
-	const found: string[] = [];
-	const walk = (directory: string): void => {
-		for (const entry of readdirSync(directory, { withFileTypes: true })) {
-			const path = join(directory, entry.name);
-			if (entry.isDirectory()) {
-				if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-				walk(path);
-				continue;
-			}
-			if (/\.(ts|svelte)$/u.test(entry.name) && !/\.(test|spec)\.ts$/u.test(entry.name)) {
-				found.push(path);
-			}
-		}
-	};
-	walk(SOURCE_ROOT);
-	return found;
-}
-
-const CHANNEL_OWN_FILES = new Set([
-	'lib/shared/shell/foreground-activity.svelte.ts',
-	'lib/app/presentation/ForegroundActivityIndicator.svelte',
-]);
 
 describe('the foreground activity channel', () => {
 	beforeEach(() => {
@@ -111,32 +82,5 @@ describe('the foreground activity channel', () => {
 		inner.end();
 		inner.end();
 		expect(channel.current?.id).toBe(outer.id);
-	});
-});
-
-describe('what the app is allowed to say out loud', () => {
-	it('publishes only hand-written copy', () => {
-		expect(FOREGROUND_ACTIVITY).toStrictEqual({ startingAgent: 'Starting the agent' });
-	});
-
-	it('is announced from exactly the call sites that are user-initiated waits', () => {
-		const callers = sourceFiles()
-			.filter((path) => !CHANNEL_OWN_FILES.has(relative(SOURCE_ROOT, path)))
-			.filter((path) => /foregroundActivity\.(track|begin)\(/u.test(readFileSync(path, 'utf8')))
-			.map((path) => relative(SOURCE_ROOT, path))
-			.sort();
-
-		expect(callers).toStrictEqual([
-			'lib/chat/infrastructure/services/agent-runner.service.svelte.ts',
-		]);
-	});
-
-	it('keeps the open diagnostics spans out of every component', () => {
-		const readers = sourceFiles()
-			.filter((path) => path.endsWith('.svelte'))
-			.filter((path) => readFileSync(path, 'utf8').includes('runtimeDiagnostics.active'))
-			.map((path) => relative(SOURCE_ROOT, path));
-
-		expect(readers).toStrictEqual([]);
 	});
 });

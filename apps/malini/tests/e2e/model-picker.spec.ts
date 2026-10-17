@@ -26,14 +26,14 @@ test('the model picker is one button that opens and closes its list from the key
 		await app.electronApp.evaluate(({ BrowserWindow }) =>
 			BrowserWindow.getAllWindows()[0]?.setSize(900, 700),
 		);
-		await expect(picker).toHaveAccessibleName('Model: Default');
+		await expect(picker).toHaveAccessibleName('Model: Opus');
 		const models = page.getByRole('listbox', { name: 'Claude models' });
 
 		await picker.focus();
 		await page.keyboard.press('Enter');
 		await expect(models).toBeVisible();
 		await expect(picker).toHaveAttribute('aria-expanded', 'true');
-		await expect(models.getByRole('option', { name: /^Default/u })).toHaveAttribute(
+		await expect(models.getByRole('option', { name: /^Opus/u })).toHaveAttribute(
 			'aria-selected',
 			'true',
 		);

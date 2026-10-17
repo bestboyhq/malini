@@ -20,6 +20,7 @@ export {
 	claudeModelFor,
 	defaultAgentModel,
 	isValidAgentModel,
+	persistedAgentModel,
 	type AgentModel,
 } from './domain/model-id';
 

@@ -10,11 +10,17 @@ const CLAUDE_MODEL_ID = /^[a-z0-9][a-z0-9.-]{0,127}(?:\[1m\])?$/u;
 const LEGACY_FAMILIES = ['opus', 'sonnet', 'haiku'] as const;
 
 export function isValidAgentModel(value: unknown): value is AgentModel {
-	return typeof value === 'string' && CLAUDE_MODEL_ID.test(value);
+	return typeof value === 'string' && value !== 'default' && CLAUDE_MODEL_ID.test(value);
+}
+
+export function persistedAgentModel(value: unknown): AgentModel | null {
+	if (value === 'default') return DEFAULT_AGENT_MODEL;
+	return isValidAgentModel(value) ? value : null;
 }
 
 export function claudeModelFor(persisted: string | null | undefined): AgentModel {
-	if (typeof persisted === 'string' && CLAUDE_MODEL_ID.test(persisted)) return persisted;
+	const named = persistedAgentModel(persisted);
+	if (named !== null) return named;
 	const legacy = persisted?.startsWith('anthropic/') ? persisted.slice('anthropic/'.length) : '';
 	return LEGACY_FAMILIES.find((family) => legacy.includes(family)) ?? DEFAULT_AGENT_MODEL;
 }

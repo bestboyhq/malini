@@ -50,7 +50,7 @@ test('a signed-out Claude Code asks to sign in and the composer will not send', 
 		await captureFlow(app, 'first-run-sign-in-claude');
 
 		await openWorkstream(page, workstreamId);
-		const picker = page.getByRole('button', { name: 'Model: Default, Claude Code needs setup' });
+		const picker = page.getByRole('button', { name: 'Model: Opus, Claude Code needs setup' });
 		await expect(picker).toBeVisible({ timeout: 20_000 });
 		await picker.click();
 		const setup = page.getByTestId('chat-model-setup');

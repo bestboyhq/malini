@@ -202,7 +202,7 @@ describe('the routine steps editor', () => {
 		expect(argsOf('jobs.save-definition')[0]).toEqual({
 			name: 'Update the dependencies and run the tests',
 			instructions: 'Update the dependencies and run the tests',
-			model: 'default',
+			model: 'opus',
 			effort: 'medium',
 			runsIn: 'workstream',
 			output: 'none',

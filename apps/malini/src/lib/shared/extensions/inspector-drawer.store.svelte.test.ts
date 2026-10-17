@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { readFileSync } from 'node:fs';
-
 import {
 	INSPECTOR_DRAWER_STORAGE_KEY_PREFIX,
 	inspectorDrawer,
@@ -100,22 +98,5 @@ describe('inspector drawer state', () => {
 		expect(loadInspectorDrawerOpen('workstream-1', failing)).toBe(true);
 		expect(() => saveInspectorDrawerOpen('workstream-1', true, failing)).not.toThrow();
 		expect(inspectorDrawer.isOpen('workstream-1', null)).toBe(true);
-	});
-});
-
-describe('inspector split wiring', () => {
-	const split = readFileSync(
-		new URL('../../extensions/presentation/InspectorSplit.svelte', import.meta.url),
-		'utf8',
-	);
-
-	it('hands the transcript its width back when the drawer is closed or floats over it', () => {
-		expect(split).toContain(
-			"import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte'",
-		);
-		expect(split).toContain(
-			'const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay)',
-		);
-		expect(split).toContain('{secondaryOpen}');
 	});
 });

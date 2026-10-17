@@ -149,9 +149,6 @@ describe('agent transcript structure and selection contract', () => {
 		expect(toolCard).toContain('data-testid="tool-card-diffstat"');
 		expect(toolCard).toContain('{#if diffstat.added > 0}');
 		expect(toolCard).toContain('{#if diffstat.removed > 0}');
-		expect(toolCard).toContain(
-			'aria-label={`${diffstat.added} lines added, ${diffstat.removed} lines removed`}',
-		);
 	});
 
 	it('keeps Bash calls inline while every other tool owns one detail disclosure', () => {

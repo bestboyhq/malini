@@ -34,5 +34,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
 		expect(prompt).toContain('its own bullet that starts with `Deferred:`');
+		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
+		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});
 });

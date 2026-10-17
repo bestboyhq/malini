@@ -62,7 +62,7 @@ export function installJobsFake(bridge: FakeBridge): void {
 				id,
 				name,
 				instructions: `${name} in this workstream.`,
-				model: 'default',
+				model: 'opus',
 				effort: 'medium',
 				runsIn: 'workstream',
 				output: 'none',
@@ -122,7 +122,7 @@ export function installJobsFake(bridge: FakeBridge): void {
 			...definition,
 			name: builtin[1],
 			instructions: `${builtin[1]} in this workstream.`,
-			model: 'default',
+			model: 'opus',
 			effort: 'medium',
 			updatedAt: FAKE_JOB_TIME,
 		};

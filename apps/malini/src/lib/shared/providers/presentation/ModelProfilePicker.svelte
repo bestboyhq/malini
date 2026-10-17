@@ -72,13 +72,13 @@
 		{#snippet trigger()}
 			<Button
 				variant="ghost"
-				size="md"
+				size="auto"
 				active={open}
 				ariaLabel={`Model: ${selectedLabel}${setupNeeded ? ', Claude Code needs setup' : ''}`}
 				ariaHasPopup="listbox"
 				ariaExpanded={open}
 				{disabled}
-				class="text-fg-secondary hover:bg-surface-50 max-w-40 min-w-0 gap-1.5 rounded-md text-xs font-normal"
+				class="text-fg-secondary hover:bg-surface-50 h-7 max-w-40 min-w-0 gap-1.5 rounded-md px-2 text-xs font-normal"
 				data-testid="chat-composer-model"
 			>
 				<ClaudeIcon class="text-fg-secondary shrink-0" size={13} />

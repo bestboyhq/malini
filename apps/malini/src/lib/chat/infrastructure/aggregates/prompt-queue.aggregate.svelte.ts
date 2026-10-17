@@ -1,4 +1,4 @@
-import { isValidAgentModel, type AgentModel } from '$shared/providers/providers.api';
+import { persistedAgentModel, type AgentModel } from '$shared/providers/providers.api';
 import { roleForAgentMode, type ModelRole } from '$shared/providers/providers.api';
 import {
 	DEFAULT_AGENT_RUN_PROFILE,
@@ -122,12 +122,13 @@ function sanitizeAttachments(value: unknown): StagedAgentAttachment[] {
 function parseEntry(value: unknown): QueuedPrompt | null {
 	if (!isRecord(value)) return null;
 	const candidate = value;
+	const model = persistedAgentModel(candidate.model);
 	if (
 		typeof candidate.id !== 'string' ||
 		!candidate.id ||
 		typeof candidate.prompt !== 'string' ||
 		!candidate.prompt.trim() ||
-		!isValidAgentModel(candidate.model) ||
+		model === null ||
 		typeof candidate.createdAt !== 'number' ||
 		!Number.isFinite(candidate.createdAt)
 	) {
@@ -150,7 +151,7 @@ function parseEntry(value: unknown): QueuedPrompt | null {
 		forceFreshSession: candidate.forceFreshSession === true,
 		prompt: candidate.prompt.trim(),
 		role,
-		model: candidate.model,
+		model,
 		contextFiles: sanitizeContextFiles(candidate.contextFiles),
 		attachments: sanitizeAttachments(candidate.attachments),
 		issueReferences: sanitizeAgentIssueReferences(candidate.issueReferences),

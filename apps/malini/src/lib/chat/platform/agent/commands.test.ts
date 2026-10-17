@@ -1112,13 +1112,13 @@ describe('bridge commands', () => {
 				account: { email: 'fixture@example.com', plan: 'Claude Max' },
 				models: [
 					{
-						id: 'default',
-						label: 'Default',
-						description: 'Fixture default',
+						id: 'opus',
+						label: 'Opus',
+						description: 'Fixture opus',
 						efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 					},
 				],
-				defaultModel: 'default',
+				defaultModel: 'opus',
 				message: 'Ready',
 			},
 		]);

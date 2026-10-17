@@ -384,7 +384,7 @@ export class ClaudeSession implements ProviderHandle {
 			hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [refuseMaliniOwnedCommands] }] },
 			...maliniTools(this.#context.requestBrowser),
 			canUseTool: this.#canUseTool(),
-			...(model && model !== 'default' ? { model } : {}),
+			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
 			...(skills ? { skills: [...skills] } : {}),
 			...(this.#claudeSessionId ? { resume: this.#claudeSessionId } : {}),

@@ -211,7 +211,7 @@ describe('the Jobs browser', () => {
 			{
 				name: 'Nightly docs',
 				instructions: 'Do nightly docs carefully.',
-				model: 'default',
+				model: 'opus',
 				effort: 'medium',
 				runsIn: 'new-workstream',
 				output: 'none',

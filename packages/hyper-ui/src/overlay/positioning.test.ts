@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { calculatePosition, layoutRect } from './positioning';
+import { calculatePosition, layoutRect, unscaledRect } from './positioning';
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
 	return {
@@ -53,6 +53,18 @@ describe('Dropdown positioning', () => {
 	it('measures a surface by its layout box, not by the scale of its opening transition', () => {
 		const surface = { offsetWidth: 736, offsetHeight: 448 };
 		expect(layoutRect(surface)).toMatchObject({ width: 736, height: 448, right: 736, bottom: 448 });
+	});
+
+	it('anchors to the trigger as laid out, not as its press scale shrinks it', () => {
+		const pressed = rect(101.5, 500.35, 117, 27.3);
+
+		expect(unscaledRect(pressed, '0.975 0.975')).toMatchObject({
+			left: 100,
+			top: 500,
+			width: 120,
+			height: 28,
+		});
+		expect(unscaledRect(pressed, 'none')).toBe(pressed);
 	});
 
 	it('keeps a right-side surface inside the viewport when it is wider than the room beside its trigger', () => {

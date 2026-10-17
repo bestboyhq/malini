@@ -5,6 +5,7 @@ import {
 } from '$lib/routines/domain/routine-job';
 import { RoutineJobMapper } from '$lib/routines/infrastructure/mappers/routine-job.mapper';
 import { invoke } from '$shared/port/invoke';
+import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.api';
 
 class RoutineJobsService {
 	async list(): Promise<readonly RoutineJob[]> {
@@ -17,7 +18,7 @@ class RoutineJobsService {
 			await invoke('jobs.save-definition', {
 				name: draft.name,
 				instructions: draft.instructions,
-				model: 'default',
+				model: DEFAULT_AGENT_MODEL,
 				effort: 'medium',
 				runsIn: 'workstream',
 				output: 'none',

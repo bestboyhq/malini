@@ -7,7 +7,7 @@ import {
 	seedWorkstream,
 } from './harness';
 
-test('composer menus hand focus back to the prompt, and an outside click lands on its target', async () => {
+test('composer menus open on screen, move focus with the arrow keys, hand focus back to the prompt, and let an outside click land on its target', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -47,7 +47,13 @@ test('composer menus hand focus back to the prompt, and an outside click lands o
 		await expect(input).toBeFocused();
 
 		await options.click();
-		await expect(optionsMenu).toBeVisible();
+		await expect(optionsMenu).toBeInViewport();
+		const focusedItem = optionsMenu.locator('[role^="menuitem"]:focus');
+		await page.keyboard.press('ArrowDown');
+		await expect(focusedItem).toHaveCount(1);
+		const firstFocused = await focusedItem.innerText();
+		await page.keyboard.press('ArrowDown');
+		await expect(focusedItem).not.toHaveText(firstFocused);
 		await page.keyboard.press('Escape');
 		await expect(optionsMenu).toBeHidden();
 		await expect(input).toBeFocused();
@@ -55,7 +61,7 @@ test('composer menus hand focus back to the prompt, and an outside click lands o
 		const model = page.getByRole('button', { name: /^Model: / });
 		const models = page.getByRole('listbox', { name: 'Claude models' });
 		await model.click();
-		await models.getByRole('option', { name: /^Default/u }).click();
+		await models.getByRole('option', { name: /^Opus/u }).click();
 		await expect(models).toBeHidden();
 		await expect(input).toBeFocused();
 

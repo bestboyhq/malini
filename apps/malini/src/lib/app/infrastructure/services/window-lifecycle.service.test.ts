@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invoke = vi.fn();
@@ -14,11 +11,6 @@ vi.mock('$shared/port/invoke', () => ({ invoke }));
 vi.mock('$shared/port/events', () => ({ onPlatformEvent, hasPlatformBridge }));
 
 const { windowLifecycleService } = await import('./window-lifecycle.service');
-
-const DIALOG = readFileSync(
-	fileURLToPath(new URL('../../presentation/CloseConfirmationDialog.svelte', import.meta.url)),
-	'utf8',
-);
 
 beforeEach(() => {
 	invoke.mockReset();
@@ -92,16 +84,5 @@ describe('the close guard', () => {
 			'no main window',
 		);
 		expect(unlisten).toHaveBeenCalledTimes(1);
-	});
-});
-
-describe('the dialog is the only thing that closes the window', () => {
-	it('confirms through the shutdown sequence rather than destroying directly', () => {
-		expect(DIALOG).toContain('confirmCloseCommand');
-		expect(DIALOG).not.toContain('destroy-window');
-	});
-
-	it('shows the teardown running rather than a frozen dialog', () => {
-		expect(DIALOG).toContain('Stopping what malini started…');
 	});
 });

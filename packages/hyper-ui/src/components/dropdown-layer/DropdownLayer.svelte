@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import type { AriaRole, ClassValue } from 'svelte/elements';
 	import {
+		anchorRect,
 		announceExclusiveOverlayOpen,
 		bodyPortal,
 		calculatePosition,
@@ -81,10 +82,11 @@
 	function positionCard(): void {
 		const trigger = triggerElement();
 		if (!open || !trigger || !panelEl) return;
+		const triggerRect = anchorRect(trigger);
 		if (matchAnchorWidth) {
-			panelEl.style.width = `${trigger.getBoundingClientRect().width}px`;
+			panelEl.style.width = `${triggerRect.width}px`;
 		}
-		const position = calculatePosition(trigger.getBoundingClientRect(), layoutRect(panelEl), {
+		const position = calculatePosition(triggerRect, layoutRect(panelEl), {
 			side,
 			align,
 			sideOffset: offset,
@@ -160,7 +162,7 @@
 				triggerFollowRaf = null;
 				return;
 			}
-			const rect = trigger.getBoundingClientRect();
+			const rect = anchorRect(trigger);
 			if (
 				!lastAnchorRect ||
 				rect.x !== lastAnchorRect.x ||

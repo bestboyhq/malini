@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
 	import {
+		anchorRect,
 		announceExclusiveOverlayOpen,
 		bodyPortal,
 		calculatePosition,
@@ -170,7 +171,7 @@
 
 	function positionCard(): void {
 		if (!cardEl || !triggerEl) return;
-		const triggerRect = triggerEl.getBoundingClientRect();
+		const triggerRect = anchorRect(triggerEl);
 		const position = calculatePosition(triggerRect, layoutRect(cardEl), {
 			side,
 			align,

@@ -326,7 +326,7 @@
 			pre.replaceWith(target);
 			pending.push({
 				target,
-				code: codeElement.textContent ?? '',
+				code: (codeElement.textContent ?? '').replace(/\n$/u, ''),
 				language: /(?:^|\s)language-(\S+)/u.exec(codeElement.className)?.[1] ?? null,
 			});
 		}

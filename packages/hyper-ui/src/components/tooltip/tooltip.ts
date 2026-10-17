@@ -1,4 +1,5 @@
 import {
+	anchorRect,
 	isExclusiveOverlayActive,
 	isReturningFocus,
 	onExclusiveOverlayOpen,
@@ -221,7 +222,7 @@ function place(x: number, y: number, snap: boolean): void {
 function reposition(snap: boolean): void {
 	if (!root || !bubble || !anchor?.isConnected) return;
 
-	const rect = anchor.getBoundingClientRect();
+	const rect = anchorRect(anchor);
 	const w = morphW || bubble.offsetWidth;
 	const h = morphH || bubble.offsetHeight;
 

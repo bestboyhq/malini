@@ -8,8 +8,8 @@ const readyCapability: ProviderCapability = {
 	authenticated: true,
 	version: '2.1.196',
 	account: { email: 'dev@example.com', plan: 'Claude Max' },
-	models: [{ id: 'default', label: 'Default', description: 'Recommended', efforts: ['high'] }],
-	defaultModel: 'default',
+	models: [{ id: 'opus', label: 'Opus', description: 'Recommended', efforts: ['high'] }],
+	defaultModel: 'opus',
 	message: 'Signed in as dev@example.com',
 };
 
