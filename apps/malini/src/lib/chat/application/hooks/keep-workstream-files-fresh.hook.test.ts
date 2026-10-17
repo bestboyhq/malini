@@ -95,9 +95,8 @@ describe('keeping the workstream file list current', () => {
 		const platform = installPlatform({ 'ws-a': ['.context/shot.png'] });
 		let base64 = 'AAAA';
 		platform.define('repositories.read-workstream-image', async () => ({
-			mediaType: 'image/png',
-			base64,
-			size: 3,
+			status: 'ready',
+			bytes: { mediaType: 'image/png', base64, size: 3 },
 		}));
 		const owner = 'transcript';
 		const path = './.context/shot.png';

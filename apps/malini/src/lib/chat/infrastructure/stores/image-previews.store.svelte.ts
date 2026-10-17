@@ -31,19 +31,9 @@ class ImagePreviewsStore {
 		return stale;
 	}
 
-	settleBytes(
-		key: string,
-		read: number,
-		bytes: ImageBytes | null,
-		unavailableReason: string,
-	): void {
+	settleBytes(key: string, read: number, bytes: ImageBytes): void {
 		if (!this.#finish(key, read)) return;
-		this.#commit(
-			key,
-			bytes
-				? { status: 'ready', src: objectUrl(bytes) }
-				: { status: 'unavailable', reason: unavailableReason },
-		);
+		this.#commit(key, { status: 'ready', src: objectUrl(bytes) });
 	}
 
 	settleUnavailable(key: string, read: number, reason: string): void {

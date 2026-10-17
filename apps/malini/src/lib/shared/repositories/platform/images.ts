@@ -1,16 +1,15 @@
 import { constants as fsConstants } from 'node:fs';
 import { open, realpath, type FileHandle } from 'node:fs/promises';
 import { dirname, basename, isAbsolute, join, relative } from 'node:path';
-import { describeError } from '$main/errors';
+import { describeError, isErrnoException } from '$main/errors';
 import { isAtOrInsideDirectory } from '$main/fs/paths';
-import type { WorkstreamImageBytes } from '$contract/repositories';
-
-export type { WorkstreamImageBytes };
+import type { WorkstreamImageRead } from '$contract/repositories';
 
 export const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
 
 const IMAGE_HEADER_BYTES = 16;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const MISSING: WorkstreamImageRead = { status: 'missing' };
 
 export function imageMediaType(header: Uint8Array): string | null {
 	if (header.length >= 8 && PNG_SIGNATURE.every((byte, index) => header[index] === byte)) {
@@ -41,12 +40,17 @@ export function safeRelativePath(path: string): string {
 	return segments.join('/');
 }
 
-async function openNoFollow(path: string): Promise<FileHandle> {
+function isMissingPath(error: unknown): boolean {
+	return isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+}
+
+async function openNoFollow(path: string): Promise<FileHandle | null> {
 	let flags = fsConstants.O_RDONLY;
 	if (process.platform !== 'win32') flags |= fsConstants.O_NOFOLLOW;
 	try {
 		return await open(path, flags);
 	} catch (error) {
+		if (isMissingPath(error)) return null;
 		throw new Error(`open workstream image without following links: ${describeError(error)}`);
 	}
 }
@@ -54,7 +58,7 @@ async function openNoFollow(path: string): Promise<FileHandle> {
 export async function readWorkstreamImage(
 	worktree: string,
 	path: string,
-): Promise<WorkstreamImageBytes | null> {
+): Promise<WorkstreamImageRead> {
 	const inside = safeRelativePath(isAbsolute(path) ? relative(worktree, path) : path);
 	let root: string;
 	try {
@@ -68,6 +72,7 @@ export async function readWorkstreamImage(
 	try {
 		parent = await realpath(dirname(target));
 	} catch (error) {
+		if (isMissingPath(error)) return MISSING;
 		throw new Error(`canonicalize image directory: ${describeError(error)}`);
 	}
 	if (!isAtOrInsideDirectory(root, parent)) throw new Error('image path escapes the workstream');
@@ -75,6 +80,7 @@ export async function readWorkstreamImage(
 	if (name.length === 0) throw new Error('image path must name a file');
 
 	const file = await openNoFollow(join(parent, name));
+	if (file === null) return MISSING;
 	try {
 		let metadata;
 		try {
@@ -83,7 +89,7 @@ export async function readWorkstreamImage(
 			throw new Error(`inspect workstream image: ${describeError(error)}`);
 		}
 		if (!metadata.isFile()) throw new Error('image path is not a file');
-		if (metadata.size > MAX_PREVIEW_BYTES) return null;
+		if (metadata.size > MAX_PREVIEW_BYTES) return { status: 'too-large' };
 
 		const buffer = Buffer.alloc(MAX_PREVIEW_BYTES + 1);
 		let filled = 0;
@@ -98,12 +104,15 @@ export async function readWorkstreamImage(
 			filled += read;
 			if (filled >= buffer.length) break;
 		}
-		if (filled > MAX_PREVIEW_BYTES) return null;
+		if (filled > MAX_PREVIEW_BYTES) return { status: 'too-large' };
 
 		const bytes = buffer.subarray(0, filled);
 		const mediaType = imageMediaType(bytes.subarray(0, Math.min(filled, IMAGE_HEADER_BYTES)));
-		if (mediaType === null) return null;
-		return { mediaType, size: filled, base64: bytes.toString('base64') };
+		if (mediaType === null) return { status: 'not-an-image' };
+		return {
+			status: 'ready',
+			bytes: { mediaType, size: filled, base64: bytes.toString('base64') },
+		};
 	} finally {
 		await file.close();
 	}

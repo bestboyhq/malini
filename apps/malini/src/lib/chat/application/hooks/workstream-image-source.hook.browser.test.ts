@@ -10,7 +10,10 @@ import {
 } from './workstream-image-source.hook.svelte';
 
 const PATH = '.context/report.png';
-const BYTES = { mediaType: 'image/png', base64: 'AAAA', size: 3 };
+const READ = {
+	status: 'ready',
+	bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 },
+} as const;
 
 afterEach(() => {
 	setPlatformForTest(null);
@@ -24,7 +27,7 @@ describe('images in a transcript', () => {
 		const reads: Array<() => void> = [];
 		platform.define(
 			'repositories.read-workstream-image',
-			() => new Promise((resolve) => reads.push(() => resolve(BYTES))),
+			() => new Promise((resolve) => reads.push(() => resolve(READ))),
 		);
 		vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:report');
 		const route = new SvelteMap([['workstream', 'ws-plain']]);
