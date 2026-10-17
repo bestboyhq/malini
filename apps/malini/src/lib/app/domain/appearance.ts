@@ -71,11 +71,15 @@ export function resolveTheme(mode: ThemeMode, systemPrefersDark: boolean): Theme
 }
 
 export function isDefaultAppearance(appearance: Appearance): boolean {
+	return sameAppearance(appearance, DEFAULT_APPEARANCE);
+}
+
+export function sameAppearance(first: Appearance, second: Appearance): boolean {
 	return (
-		appearance.hue === DEFAULT_APPEARANCE.hue &&
-		appearance.chroma === DEFAULT_APPEARANCE.chroma &&
-		appearance.brightness === DEFAULT_APPEARANCE.brightness &&
-		appearance.contrast === DEFAULT_APPEARANCE.contrast
+		first.hue === second.hue &&
+		first.chroma === second.chroma &&
+		first.brightness === second.brightness &&
+		first.contrast === second.contrast
 	);
 }
 

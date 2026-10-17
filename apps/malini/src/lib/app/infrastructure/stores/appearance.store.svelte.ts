@@ -6,13 +6,16 @@ import {
 	type Theme,
 	type ThemeMode,
 } from '$lib/app/domain/appearance';
+import { parseLooks, type Look } from '$lib/app/domain/look';
 
 const APPEARANCE_KEY = 'malini.settings.appearance';
 const THEME_MODE_KEY = 'malini.settings.theme';
+const LOOKS_KEY = 'malini.settings.looks';
 
 class AppearanceStore {
 	#appearance: Appearance = $state(parseAppearance(readJson(APPEARANCE_KEY)));
 	#themeMode: ThemeMode = $state(parseThemeMode(read(THEME_MODE_KEY)));
+	#looks: readonly Look[] = $state.raw(parseLooks(readJson(LOOKS_KEY)));
 	#systemPrefersDark: boolean = $state(
 		globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
 	);
@@ -29,9 +32,19 @@ class AppearanceStore {
 		return resolveTheme(this.#themeMode, this.#systemPrefersDark);
 	}
 
+	get looks(): readonly Look[] {
+		return this.#looks;
+	}
+
 	tune(appearance: Appearance): void {
 		this.#appearance = appearance;
 		write(APPEARANCE_KEY, JSON.stringify(appearance));
+	}
+
+	keepLooks(looks: readonly Look[]): void {
+		if (looks === this.#looks) return;
+		this.#looks = looks;
+		write(LOOKS_KEY, JSON.stringify(looks));
 	}
 
 	chooseThemeMode(mode: ThemeMode): void {

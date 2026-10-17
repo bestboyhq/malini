@@ -79,6 +79,18 @@ describe('background work in a chat', () => {
 		).toBe(false);
 	});
 
+	it('marks the chat tab as waiting on background work, not as working', async () => {
+		const host = await openChatWaitingOnE2e();
+
+		const tab = host.querySelector<HTMLElement>(
+			'[data-testid="chat-agent-tab"][data-session-id="s-bg"]',
+		);
+		expect(tab?.dataset['sessionStatus']).toBe('in-background');
+		expect(document.getElementById(tab?.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+			'Background tasks running',
+		);
+	});
+
 	it('stops one background task from its row', async () => {
 		const host = await openChatWaitingOnE2e();
 		const stopTask = vi.spyOn(agentSessions, 'stopBackgroundTask');

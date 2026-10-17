@@ -45,7 +45,11 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 			streamingStore.clearLiveBackground(envelope.sessionId);
 		}
 		pendingPromptStore.clearOnEnvelope(envelope);
-		if (envelope.event.type === 'run.completed' || envelope.event.type === 'run.failed') {
+		if (
+			envelope.event.type === 'run.completed' ||
+			envelope.event.type === 'run.failed' ||
+			(envelope.event.type === 'background.updated' && envelope.event.waiting)
+		) {
 			const workstreamId = ownerOf(envelope.sessionId);
 			if (workstreamId) drainPromptQueueCommand(workstreamId);
 		}

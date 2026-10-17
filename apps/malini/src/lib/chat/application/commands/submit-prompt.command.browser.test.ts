@@ -4,6 +4,7 @@ import {
 	WORKSTREAM,
 	chat,
 	completeRun,
+	deliverRunEvent,
 	holdPromptDelivery,
 	openPromptPipeline,
 	recordPromptDelivery,
@@ -107,6 +108,32 @@ describe('submitting while a run is active', () => {
 			]),
 		);
 		await vi.waitFor(() => expect(queuedPrompts()).toEqual([]));
+	});
+
+	it('sends a queued prompt once the run only waits on its background tasks', async () => {
+		await openPromptPipeline([chat('s-a1')]);
+		rememberChatTurn('s-a1');
+		chatSessionStore.sessionId = 's-a1';
+		startRun('s-a1');
+		const sends = recordPromptDelivery();
+
+		await submit(submission({ sessionId: 's-a1', prompt: 'Meanwhile' }));
+		await Promise.resolve();
+		expect(sends()).toEqual([]);
+
+		const task = { taskId: 't1', kind: 'command' as const, description: 'e2e', startedAt: 1 };
+		deliverRunEvent('s-a1', 's-a1-held', {
+			type: 'background.updated',
+			runId: 's-a1-held',
+			waiting: true,
+			tasks: [task],
+		});
+
+		await vi.waitFor(() =>
+			expect(sends()).toEqual([
+				expect.objectContaining({ sessionId: 's-a1', prompt: 'Meanwhile' }),
+			]),
+		);
 	});
 
 	it('steers a prompt past the queue by interrupting the run, where a plain one waits', async () => {

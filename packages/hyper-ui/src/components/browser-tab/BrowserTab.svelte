@@ -33,6 +33,7 @@
 		closeAttributes?: DataAttributes;
 		preview?: boolean;
 		busy?: boolean;
+		backgroundBusy?: boolean;
 		description?: string | undefined;
 		tooltip?: string | undefined;
 		onpin?: () => void;
@@ -61,6 +62,7 @@
 		closeAttributes = {},
 		preview = false,
 		busy = false,
+		backgroundBusy = false,
 		description,
 		tooltip,
 		onpin,
@@ -125,7 +127,7 @@
 	const hiddenUnderCloseClass =
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
-	const tabPaddingClass = $derived(icon ? 'pr-2 pl-1.5' : 'px-2');
+	const tabPaddingClass = $derived(icon || busy || backgroundBusy ? 'pr-2 pl-1.5' : 'px-2');
 
 	const surfaceClass = $derived(
 		tone === 'brand' ? brandClass[surface] : selected ? selectedClass[surface] : idleClass[surface],
@@ -195,7 +197,17 @@
 		{...tabLink}
 		{...tabAttributes}
 	>
-		{#if icon}
+		{#if busy || backgroundBusy}
+			<span
+				class={[
+					'grid h-4 w-4 shrink-0 place-items-center',
+					busy && !selected && 'text-fg-secondary',
+				]}
+				aria-hidden="true"
+			>
+				<BusyIcon size={12} background={!busy} />
+			</span>
+		{:else if icon}
 			<span class="grid h-4 w-4 shrink-0 place-items-center">{@render icon()}</span>
 		{/if}
 		<span
@@ -212,27 +224,7 @@
 			<span class="tab-label-text" {@attach observeLabelOverflow}>
 				<SensitiveText text={label} />
 			</span>
-			{#if busy}
-				<span class="tab-shimmer" aria-hidden="true">
-					<span class="tab-shimmer-band">
-						<span class="tab-shimmer-text">
-							<span class="tab-label-text"><SensitiveText text={label} /></span>
-						</span>
-					</span>
-				</span>
-			{/if}
 		</span>
-		{#if busy}
-			<span
-				class={[
-					'hidden h-4 w-4 shrink-0 place-items-center motion-reduce:grid',
-					onclose && hiddenUnderCloseClass,
-				]}
-				aria-hidden="true"
-			>
-				<BusyIcon size={12} />
-			</span>
-		{/if}
 		{#if trailing && onclose}
 			<span
 				class={[
@@ -279,53 +271,7 @@
 		transition: transform calc(var(--tab-label-shift) * 20ms) linear 300ms;
 	}
 
-	.tab-shimmer {
-		position: absolute;
-		inset: 0;
-		overflow: hidden;
-		pointer-events: none;
-	}
-
-	.tab-shimmer-band {
-		position: absolute;
-		inset: 0;
-		mask-image: linear-gradient(90deg, transparent 30%, black 50%, transparent 70%);
-		animation: tab-shimmer-sweep 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-	}
-
-	.tab-shimmer-text {
-		display: block;
-		color: var(--color-fg-default);
-		animation: tab-shimmer-hold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-	}
-
-	.browser-tab[data-selected='true'] .tab-shimmer-text {
-		color: var(--color-fg-secondary);
-	}
-
-	@keyframes tab-shimmer-sweep {
-		from {
-			transform: translateX(-100%);
-		}
-		to {
-			transform: translateX(100%);
-		}
-	}
-
-	@keyframes tab-shimmer-hold {
-		from {
-			transform: translateX(100%);
-		}
-		to {
-			transform: translateX(-100%);
-		}
-	}
-
 	@media (prefers-reduced-motion: reduce) {
-		.tab-shimmer {
-			display: none;
-		}
-
 		.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
 			transition-duration: 0s;
 		}

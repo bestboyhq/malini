@@ -7,6 +7,7 @@ function summary(kind: AgentAttentionKind): ReturnType<typeof summarizeWorkstrea
 	return summarizeWorkstreamChat({
 		session: null,
 		openingSessionId: null,
+		waitingOnBackground: false,
 		jobRunning: false,
 		queueCount: 0,
 		attention: { kind, runId: 'run-1', sessionId: 'chat-1', updatedAt: 1 },
@@ -45,6 +46,7 @@ describe('the chat a workstream opens on', () => {
 		summarizeWorkstreamChat({
 			session: runningChat,
 			openingSessionId,
+			waitingOnBackground: false,
 			jobRunning: false,
 			queueCount: 0,
 			attention: null,
@@ -58,5 +60,37 @@ describe('the chat a workstream opens on', () => {
 
 	it('falls back to the busiest chat before the user has visited one', () => {
 		expect(chat(null).sessionId).toBe('running-chat');
+	});
+});
+
+describe('the loader of a workstream with only background work', () => {
+	const state = (
+		session: SessionRecord | null,
+		waitingOnBackground: boolean,
+		jobRunning: boolean,
+	) =>
+		summarizeWorkstreamChat({
+			session,
+			openingSessionId: null,
+			waitingOnBackground,
+			jobRunning,
+			queueCount: 0,
+			attention: null,
+			hasDraft: false,
+		}).state;
+
+	it('tells a chat waiting on its background tasks apart from a working one', () => {
+		expect(state(runningChat, true, false)).toEqual({
+			label: 'Background tasks running',
+			tone: 'background',
+		});
+	});
+
+	it('shows a job running behind an idle chat as background work', () => {
+		expect(state(null, false, true)).toEqual({ label: 'Job running', tone: 'background' });
+	});
+
+	it('keeps the working loader while the chat itself works beside a job', () => {
+		expect(state(runningChat, false, true)).toEqual({ label: 'Running', tone: 'running' });
 	});
 });
