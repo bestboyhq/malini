@@ -840,6 +840,8 @@
 												state.tone === 'running' ||
 												state.tone === 'background' ||
 												state.tone === 'provisioning'}
+											{@const loading =
+												busy || (badge.phase === 'queued' && state.tone !== 'broken')}
 											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
 											{@const unread = attention !== null}
 											{@const workstreamItem = { kind: 'workstream' as const, id: workstream.id }}
@@ -925,7 +927,7 @@
 															data-workstream-icon-state={state.tone}
 															data-workstream-pull-request-state={badge.phase}
 														>
-															{#if busy}
+															{#if loading}
 																<BusyIcon size={14} background={state.tone === 'background'} />
 															{:else}
 																<Icon name={pullRequest.glyph} size={14} />
