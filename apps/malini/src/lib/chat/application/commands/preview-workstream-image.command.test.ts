@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { WorkstreamImageRead } from '$contract/repositories';
 import { previewWorkstreamImageCommand } from '$lib/chat/application/commands/preview-workstream-image.command';
 import { refreshWorkstreamImagesCommand } from '$lib/chat/application/commands/refresh-workstream-images.command';
 import { releaseImagePreviewsCommand } from '$lib/chat/application/commands/release-image-previews.command';
@@ -24,9 +25,8 @@ describe('previewing an image the agent read', () => {
 	it('reads the image from the workstream and shows it', async () => {
 		const platform = installPlatform();
 		platform.define('repositories.read-workstream-image', async () => ({
-			mediaType: 'image/png',
-			base64: 'AAAA',
-			size: 3,
+			status: 'ready',
+			bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 },
 		}));
 
 		previewWorkstreamImageCommand({ owner: OWNER, workstreamId: 'ws-a', path: PATH });
@@ -41,7 +41,7 @@ describe('previewing an image the agent read', () => {
 
 	it('says an image is too large when the host declines to send its bytes', async () => {
 		const platform = installPlatform();
-		platform.define('repositories.read-workstream-image', async () => null);
+		platform.define('repositories.read-workstream-image', async () => ({ status: 'too-large' }));
 
 		previewWorkstreamImageCommand({ owner: OWNER, workstreamId: 'ws-a', path: PATH });
 
@@ -49,6 +49,20 @@ describe('previewing an image the agent read', () => {
 			expect(imagePreviewQuery.data(OWNER, PATH)).toEqual({
 				status: 'unavailable',
 				reason: 'Too large to preview here',
+			}),
+		);
+	});
+
+	it('says an image is gone once its file no longer exists', async () => {
+		const platform = installPlatform();
+		platform.define('repositories.read-workstream-image', async () => ({ status: 'missing' }));
+
+		previewWorkstreamImageCommand({ owner: OWNER, workstreamId: 'ws-a', path: PATH });
+
+		await vi.waitFor(() =>
+			expect(imagePreviewQuery.data(OWNER, PATH)).toEqual({
+				status: 'unavailable',
+				reason: 'This file no longer exists',
 			}),
 		);
 	});
@@ -71,7 +85,7 @@ describe('previewing an image the agent read', () => {
 
 	it('waits for the newest read of an image that changed while it was being read', async () => {
 		const platform = installPlatform();
-		const reads: Array<(bytes: { mediaType: string; base64: string; size: number }) => void> = [];
+		const reads: Array<(read: WorkstreamImageRead) => void> = [];
 		platform.define(
 			'repositories.read-workstream-image',
 			() => new Promise((resolve) => reads.push(resolve)),
@@ -81,11 +95,11 @@ describe('previewing an image the agent read', () => {
 		refreshWorkstreamImagesCommand('ws-a', [PATH]);
 		await vi.waitFor(() => expect(reads).toHaveLength(2));
 
-		reads[0]?.({ mediaType: 'image/png', base64: 'AAAA', size: 3 });
+		reads[0]?.({ status: 'ready', bytes: { mediaType: 'image/png', base64: 'AAAA', size: 3 } });
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(imagePreviewQuery.data(OWNER, PATH)).toBeNull();
 
-		reads[1]?.({ mediaType: 'image/png', base64: 'BBBB', size: 3 });
+		reads[1]?.({ status: 'ready', bytes: { mediaType: 'image/png', base64: 'BBBB', size: 3 } });
 		await vi.waitFor(() =>
 			expect(imagePreviewQuery.data(OWNER, PATH)).toMatchObject({ status: 'ready' }),
 		);

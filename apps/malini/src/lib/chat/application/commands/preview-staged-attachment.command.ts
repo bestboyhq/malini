@@ -6,6 +6,8 @@ import { imagePreviewsStore } from '$lib/chat/infrastructure/stores/image-previe
 
 export { previewStagedAttachmentCommand };
 
+const NO_PREVIEW = 'This attachment has no preview';
+
 function previewStagedAttachmentCommand(
 	input: Readonly<{ owner: string; workstreamId: string; attachment: StagedAgentAttachment }>,
 ): void {
@@ -16,13 +18,10 @@ function previewStagedAttachmentCommand(
 	void (async () => {
 		try {
 			const bytes = await composerAttachments.readImage(input.workstreamId, input.attachment.id);
-			imagePreviewsStore.settleBytes(key, read, bytes, 'This attachment has no preview');
+			if (bytes) imagePreviewsStore.settleBytes(key, read, bytes);
+			else imagePreviewsStore.settleUnavailable(key, read, NO_PREVIEW);
 		} catch (error) {
-			imagePreviewsStore.settleUnavailable(
-				key,
-				read,
-				errorMessage(error, 'This attachment has no preview'),
-			);
+			imagePreviewsStore.settleUnavailable(key, read, errorMessage(error, NO_PREVIEW));
 		}
 	})();
 }

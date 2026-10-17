@@ -131,7 +131,7 @@
 						/>
 					{:else if preview.kind === 'unavailable'}
 						<div
-							class="text-2xs text-fg-tertiary max-w-72"
+							class="text-2xs text-fg-tertiary max-w-72 wrap-anywhere"
 							data-testid="tool-image-preview-refusal"
 						>
 							{preview.reason}

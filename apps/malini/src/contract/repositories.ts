@@ -107,6 +107,10 @@ export interface WorkstreamImageBytes {
 	size: number;
 }
 
+export type WorkstreamImageRead =
+	| { readonly status: 'ready'; readonly bytes: WorkstreamImageBytes }
+	| { readonly status: 'missing' | 'too-large' | 'not-an-image' };
+
 export interface ImportSource {
 	kind: 'local-folder' | 'clone-url';
 	path?: string;
