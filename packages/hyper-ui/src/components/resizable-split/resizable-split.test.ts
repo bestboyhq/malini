@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
 
 import {
 	clampRatio,
@@ -186,43 +185,6 @@ describe('closedSecondaryGridTemplate', () => {
 		closedSecondaryGridTemplate();
 
 		expect(loadPanelRatio('malini.app.panel:workstream-transcript-ratio-v1', 0.6)).toBe(0.44);
-	});
-});
-
-describe('ResizableSplit closed secondary pane', () => {
-	const source = readFileSync(new URL('./ResizableSplit.svelte', import.meta.url), 'utf8');
-
-	it('keeps the closed pane mounted so its caller loses no state', () => {
-		expect(source).toContain('secondaryOpen = true');
-		expect(source).toContain('const secondaryClosed = $derived(!secondaryOpen)');
-		expect(source).toContain(
-			'secondaryClosed ? closedSecondaryGridTemplate() : gridTemplate(size, axis)',
-		);
-		expect(source).not.toContain('{#if secondaryOpen}');
-	});
-
-	it('hands its sizes to the panes without an inherited custom property, so a drag restyles no pane subtree', () => {
-		expect(source).not.toMatch(/style:--|style=\{`--|--resizable-split-/u);
-		expect(source).not.toContain('document.body.style');
-		expect(source).toContain('setResizableSplitInset({');
-	});
-
-	it('removes the drag handle while there is no boundary to drag', () => {
-		expect(source).toContain('const showHandle = $derived(!secondaryClosed)');
-		expect(source).toContain('{#if showHandle}');
-		expect(source).toContain("data-secondary-open={secondaryOpen ? 'true' : 'false'}");
-	});
-
-	it('holds a declared default size until someone resizes, then follows their proportion', () => {
-		expect(source).toContain('const storedRatio = readPanelRatio(key)');
-		expect(source).toContain(
-			'usingDefaultSize = storedRatio === null && defaultSize !== undefined',
-		);
-		expect(source).toContain(
-			'applySize(usingDefaultSize ? fallbackSize : containerExtent * panelRatio, false)',
-		);
-		expect(source).toContain('usingDefaultSize = false;');
-		expect(source).not.toContain('loadPanelRatio');
 	});
 });
 

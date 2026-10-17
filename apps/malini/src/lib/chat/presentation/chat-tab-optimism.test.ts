@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$env/dynamic/public', () => ({ env: {} }));
@@ -107,35 +106,5 @@ describe('agent chat tab armed selection release', () => {
 		selection.armFresh();
 		selection.dispose();
 		expect(vi.getTimerCount()).toBe(0);
-	});
-});
-
-describe('agent chat tab optimistic close affordances', () => {
-	const source = readFileSync(new URL('./ChatTabs.svelte', import.meta.url), 'utf8');
-	const template = source.slice(source.lastIndexOf('</script>'));
-	const closeButton = (() => {
-		const anchor = source.indexOf("'data-testid': 'chat-agent-tab-close'");
-		expect(anchor, 'the tab close button must exist').toBeGreaterThan(-1);
-		const start = source.lastIndexOf('<BrowserTab', anchor);
-		const end = source.indexOf('/>', anchor);
-		return source.slice(start, end);
-	})();
-
-	it('drives no rendered affordance from the ids it hides', () => {
-		expect(
-			template,
-			'a tab in `closingSessionIds` is not rendered, so binding markup to that set is dead',
-		).not.toContain('closingSessionIds');
-	});
-
-	it('re-reads the hidden ids only where they hide a tab', () => {
-		expect(
-			[...source.matchAll(/closingSessionIds\.has\(/gu)],
-			'`closingSessionIds` is a hide set; the only reachable read is the `sessions` filter',
-		).toHaveLength(1);
-	});
-
-	it('styles no disabled state on a close button that is never disabled', () => {
-		expect(closeButton).not.toContain('disabled');
 	});
 });

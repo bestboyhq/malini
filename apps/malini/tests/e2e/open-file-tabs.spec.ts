@@ -114,7 +114,7 @@ async function chatAbout(page: Page, prompt: string): Promise<void> {
 	await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(previous);
 }
 
-test('clicking a file mention opens it in a center tab and leaves the inspector without a file tab', async () => {
+test('clicking or pressing Enter on a file mention opens it in a center tab and leaves the inspector without a file tab', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -150,6 +150,12 @@ test('clicking a file mention opens it in a center tab and leaves the inspector 
 			'true',
 		);
 		await expectStrip(page, ['tab /MENTION/', 'tab "alpha.ts"', 'tab "New chat"']);
+
+		await chatTab(page, /MENTION/u).click();
+		await page.getByRole('link', { name: 'Open beta.ts' }).focus();
+		await page.keyboard.press('Enter');
+		await expect(fileTab(page, 'beta.ts')).toHaveAttribute('aria-selected', 'true');
+		await expectShowing(page, 'beta.ts');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

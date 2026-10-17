@@ -36,3 +36,27 @@ test('boot, seed a workstream, send a prompt, and see the reply', async () => {
 		await app.close();
 	}
 });
+
+test('every page names the window, so the previous page title never lingers', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await expect(page).toHaveTitle('malini · Repositories');
+		for (const [hash, title] of [
+			['#/jobs', 'malini · Jobs'],
+			['#/jobs/routines', 'malini · Routines'],
+			['#/dev/runtime', 'malini · Runtime'],
+			['#/nowhere', 'malini · Not found'],
+			['#/', 'malini · Repositories'],
+		] as const) {
+			await page.evaluate((next) => {
+				location.hash = next;
+			}, hash);
+			await expect(page).toHaveTitle(title);
+		}
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

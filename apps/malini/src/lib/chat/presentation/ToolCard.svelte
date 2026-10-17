@@ -162,7 +162,7 @@
 				<span
 					class="text-3xs shrink-0 font-mono tabular-nums"
 					data-testid="tool-card-diffstat"
-					aria-label={`${diffstat.added} lines added, ${diffstat.removed} lines removed`}
+					aria-label={`${diffstat.added} ${diffstat.added === 1 ? 'line' : 'lines'} added, ${diffstat.removed} ${diffstat.removed === 1 ? 'line' : 'lines'} removed`}
 				>
 					{#if diffstat.added > 0}<span class="text-success-content">+{diffstat.added}</span>{/if}
 					{#if diffstat.removed > 0}<span
