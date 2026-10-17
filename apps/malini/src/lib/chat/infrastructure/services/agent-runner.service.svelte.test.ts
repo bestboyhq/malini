@@ -44,10 +44,10 @@ describe('agentRunner startSession/sendPrompt/cancelRun', () => {
 		expect(agentCalls(platform)).toEqual([
 			{
 				command: 'chat.start-session',
-				args: { workstreamId: 'ws-1', model: 'default' },
+				args: { workstreamId: 'ws-1', model: 'opus' },
 			},
 		]);
-		expect(agentRunner.modelForSession(sessionId)).toBe('default');
+		expect(agentRunner.modelForSession(sessionId)).toBe('opus');
 	});
 
 	it('startSession passes through explicit model and remembers it', async () => {

@@ -167,14 +167,17 @@ class SessionActivationService {
 		const storedProfile = readStoredRunProfile(workstreamId);
 		const snapshot = readChatModelSnapshot(sessionId);
 		const remembered = snapshot !== null && sameModelSelection(snapshot.selection, nextSelection);
-		const inferredRole: ModelRole = sameModelSelection(
+		const planning = sameModelSelection(nextSelection, chatModelStore.rememberedModels.planning);
+		const implementation = sameModelSelection(
 			nextSelection,
-			chatModelStore.rememberedModels.planning,
-		)
-			? 'planning'
-			: sameModelSelection(nextSelection, chatModelStore.rememberedModels.implementation)
-				? 'implementation'
-				: roleForAgentMode(storedProfile.mode);
+			chatModelStore.rememberedModels.implementation,
+		);
+		const inferredRole: ModelRole =
+			planning === implementation
+				? roleForAgentMode(storedProfile.mode)
+				: planning
+					? 'planning'
+					: 'implementation';
 		const role = snapshot && remembered ? snapshot.role : inferredRole;
 		return {
 			selection: nextSelection,

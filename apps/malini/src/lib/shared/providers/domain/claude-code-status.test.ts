@@ -9,7 +9,7 @@ const capability = (patch: Partial<ProviderCapability>): ProviderCapability => (
 	version: '2.1.196',
 	account: { email: 'dev@example.com', plan: 'Claude Max' },
 	models: [],
-	defaultModel: 'default',
+	defaultModel: 'opus',
 	message: '',
 	...patch,
 });

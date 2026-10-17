@@ -59,7 +59,7 @@ export async function suggestClaudePresets(
 				abortController,
 				pathToClaudeCodeExecutable: executable,
 				env: claudeEnvironment(),
-				...(job.model === 'default' ? {} : { model: job.model }),
+				model: job.model,
 				systemPrompt: job.instructions,
 				tools: [],
 				maxTurns: 3,

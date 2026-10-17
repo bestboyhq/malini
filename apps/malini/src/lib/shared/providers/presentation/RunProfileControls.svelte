@@ -158,9 +158,9 @@
 			<Button
 				bind:element={effortTrigger}
 				variant="ghost"
-				size="md"
+				size="auto"
 				active={effortOpen}
-				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				class="text-fg-tertiary hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
 				disabled={disabled || !effortSupported}
 				ariaLabel="Reasoning effort"
 				ariaHasPopup="listbox"
@@ -170,7 +170,7 @@
 				onclick={toggleEffort}
 			>
 				<Icon name="signal" size={15} />
-				<span>{effortSupported ? effortLabel(profile.effort) : 'Default'}</span>
+				<span>{effortSupported ? effortLabel(profile.effort) : 'None'}</span>
 			</Button>
 		</Tooltip>
 
@@ -208,8 +208,8 @@
 		<Tooltip content="Exit plan mode" placement="top">
 			<Button
 				variant="primary-soft"
-				size="md"
-				class="gap-1.5 rounded-md text-xs font-normal"
+				size="auto"
+				class="h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
 				{disabled}
 				ariaLabel="Plan mode"
 				ariaPressed={true}
@@ -230,10 +230,10 @@
 			<Button
 				bind:element={accessChip}
 				variant="ghost"
-				size="md"
+				size="auto"
 				active={optionsOpenFrom(accessChip)}
 				class={[
-					'hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal',
+					'hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal',
 					profile.access === 'full' ? 'text-warning-content' : 'text-fg-tertiary',
 				]}
 				{disabled}
@@ -257,9 +257,9 @@
 			<Button
 				bind:element={reportChip}
 				variant="ghost"
-				size="md"
+				size="auto"
 				active={optionsOpenFrom(reportChip)}
-				class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+				class="text-fg-tertiary hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
 				{disabled}
 				ariaLabel={`Report: ${AGENT_REPORT_DETAILS[profile.report].label}`}
 				ariaHasPopup="menu"

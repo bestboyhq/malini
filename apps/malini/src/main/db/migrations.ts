@@ -1314,6 +1314,10 @@ ALTER TABLE job_definitions_v45 RENAME TO job_definitions;
 
 export const MIGRATION_0045_SKILL_PRESET_EMOJI = `ALTER TABLE skill_presets ADD COLUMN emoji TEXT;`;
 
+export const MIGRATION_0046_NAMED_SESSION_MODELS = `UPDATE agent_sessions SET model = 'opus' WHERE model = 'default';`;
+
+export const MIGRATION_0046_NAMED_JOB_MODELS = `UPDATE job_definitions SET model = 'opus' WHERE model = 'default';`;
+
 export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] = [
 	MIGRATION_0014_AGENT_RUN_CHANGES,
 	MIGRATION_0015_AGENT_INTERACTIONS,
@@ -1323,7 +1327,7 @@ export const MIGRATION_0016_REPAIR_AGENTIC_AUXILIARY_SCHEMA: readonly string[] =
 	MIGRATION_0024_WORKSPACE_ROUTINES,
 ];
 
-export const TARGET_USER_VERSION = 45;
+export const TARGET_USER_VERSION = 46;
 
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
@@ -1511,6 +1515,10 @@ export function migrate(db: MaliniDatabase, targetVersion = TARGET_USER_VERSION)
 			if (existing < 45) {
 				db.exec(MIGRATION_0045_SUGGEST_PRESETS_JOB);
 				addColumnIfMissing(db, 'skill_presets', 'emoji', MIGRATION_0045_SKILL_PRESET_EMOJI);
+			}
+			if (existing < 46) {
+				if (tableExists(db, 'agent_sessions')) db.exec(MIGRATION_0046_NAMED_SESSION_MODELS);
+				if (tableExists(db, 'job_definitions')) db.exec(MIGRATION_0046_NAMED_JOB_MODELS);
 			}
 
 			const violation = all<{ table: string; rowid: number | null; parent: string }>(

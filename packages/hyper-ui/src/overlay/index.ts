@@ -11,6 +11,7 @@ export {
 } from './focus';
 export { bodyPortal } from './portal';
 export {
+	anchorRect,
 	calculatePosition,
 	layoutRect,
 	type MenuAlign,

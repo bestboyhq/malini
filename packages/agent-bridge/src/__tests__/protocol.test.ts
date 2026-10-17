@@ -460,13 +460,13 @@ describe('protocol: parseCommandLine', () => {
 				account: { email: 'ada@example.com', plan: 'Claude Max' },
 				models: [
 					{
-						id: 'default',
-						label: 'Default',
+						id: 'opus',
+						label: 'Opus',
 						description: 'Opus 4.8 with 1M context · Best for everyday, complex tasks',
 						efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 					},
 				],
-				defaultModel: 'default',
+				defaultModel: 'opus',
 				message: 'Signed in as ada@example.com',
 			};
 			expect(bridgeReadyFrame([capability])).toMatchObject({

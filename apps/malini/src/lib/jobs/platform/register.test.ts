@@ -206,7 +206,7 @@ function saveDefinition(
 	return context.commands.call('jobs.save-definition', {
 		name: 'Write changelog',
 		instructions: 'Write the changelog entry.',
-		model: 'default',
+		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',
 		output: 'none',
@@ -291,7 +291,7 @@ describe('job definitions', () => {
 				key: 'fix-checks',
 				name: 'Fix checks',
 				effort: 'high',
-				model: 'default',
+				model: 'opus',
 				runsIn: 'workstream',
 				output: 'none',
 			},
@@ -299,7 +299,7 @@ describe('job definitions', () => {
 				key: 'update-from-main',
 				name: 'Update from main',
 				effort: 'high',
-				model: 'default',
+				model: 'opus',
 				runsIn: 'workstream',
 				output: 'none',
 			},
@@ -307,7 +307,7 @@ describe('job definitions', () => {
 				key: 'address-review',
 				name: 'Address bot review',
 				effort: 'medium',
-				model: 'default',
+				model: 'opus',
 				runsIn: 'workstream',
 				output: 'none',
 			},
@@ -388,7 +388,7 @@ describe('job definitions', () => {
 		const valid = {
 			name: 'Job',
 			instructions: 'Do it.',
-			model: 'default',
+			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',
 			output: 'none',
@@ -481,7 +481,7 @@ describe('scheduling', () => {
 		const { instructions } = await builtin('fix-checks');
 		expect(fakes.startSession).toHaveBeenCalledWith({
 			workstreamId: 'ws-a',
-			model: 'default',
+			model: 'opus',
 			origin: 'job',
 			displayName: 'Fix checks',
 		});

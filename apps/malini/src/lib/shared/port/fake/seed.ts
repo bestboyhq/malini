@@ -158,8 +158,8 @@ export const defaultProviderCapabilities: readonly ProviderCapability[] = [
 		account: { email: 'dev@example.com', plan: 'Claude Max' },
 		models: [
 			{
-				id: 'default',
-				label: 'Default',
+				id: 'opus',
+				label: 'Opus',
 				description: 'Opus with 1M context · Best for everyday, complex tasks',
 				efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 			},
@@ -171,7 +171,7 @@ export const defaultProviderCapabilities: readonly ProviderCapability[] = [
 			},
 			{ id: 'haiku', label: 'Haiku', description: 'Fastest for quick answers', efforts: [] },
 		],
-		defaultModel: 'default',
+		defaultModel: 'opus',
 		message: 'Signed in as dev@example.com',
 	},
 ];

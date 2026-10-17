@@ -19,7 +19,13 @@ describe('model preferences', () => {
 			DEFAULT_MODEL_PREFERENCES,
 		);
 		expect(repaired.planning).toEqual({ model: 'opus' });
-		expect(repaired.implementation).toEqual({ model: 'default' });
+		expect(repaired.implementation).toEqual({ model: 'opus' });
+		expect(
+			normalizeModelPreferences(
+				{ planning: { model: 'default' }, implementation: { model: 'default' } },
+				{ planning: { model: 'fable' }, implementation: { model: 'sonnet' } },
+			),
+		).toEqual({ planning: { model: 'fable' }, implementation: { model: 'sonnet' } });
 		expect(normalizeModelPreferences('{broken', DEFAULT_MODEL_PREFERENCES)).toEqual(
 			DEFAULT_MODEL_PREFERENCES,
 		);

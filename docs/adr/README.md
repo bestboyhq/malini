@@ -19,3 +19,4 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0012](0012-skills-reach-an-agent-through-presets.md)                 | Each chat and job loads only the skills of its preset, resolved by main and passed to the SDK's `skills` option            |
 | [0013](0013-setup-suggests-skill-presets-with-a-built-in-job.md)      | Setup asks Haiku, through the built-in Suggest skill presets job, for presets shaped by the user's own skills              |
 | [0014](0014-malini-ships-gh-and-signs-it-in-from-setup.md)            | Packaged builds ship a pinned `gh`, last on `PATH`; setup signs it in to GitHub with a one-time code, no terminal          |
+| [0015](0015-every-model-has-a-name.md)                                | Models are always named; Claude Code's `default` alias is dropped at the bridge and migrated to `opus`                     |

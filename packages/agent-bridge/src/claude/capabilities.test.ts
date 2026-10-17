@@ -10,26 +10,34 @@ const EXECUTABLE = '/opt/claude/bin/claude';
 const RECORDED_MODELS: ModelInfo[] = [
 	{
 		value: 'default',
+		resolvedModel: 'claude-opus-5-5',
 		displayName: 'Default (recommended)',
-		description: 'Opus 4.8 with 1M context · Best for everyday, complex tasks',
+		description: 'Opus 5.5 · Best for everyday, complex tasks',
 		supportsEffort: true,
 		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
 	},
 	{
-		value: 'opus[1m]',
+		value: 'opus',
+		resolvedModel: 'claude-opus-5-5',
 		displayName: 'Opus',
-		description: 'Opus 4.8 with 1M context · Best for everyday, complex tasks',
+		description: 'Opus 5.5 · Best for everyday, complex tasks',
 		supportsEffort: true,
 		supportedEffortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
 	},
 	{
 		value: 'sonnet',
+		resolvedModel: 'claude-sonnet-5-5',
 		displayName: 'Sonnet',
-		description: 'Sonnet 4.6 · Efficient for routine tasks',
+		description: 'Sonnet 5.5 · Efficient for routine tasks',
 		supportsEffort: true,
 		supportedEffortLevels: ['low', 'medium', 'high', 'max'],
 	},
-	{ value: 'haiku', displayName: 'Haiku', description: 'Haiku 4.5 · Fastest for quick answers' },
+	{
+		value: 'haiku',
+		resolvedModel: 'claude-haiku-5-5',
+		displayName: 'Haiku',
+		description: 'Haiku 5.5 · Fastest for quick answers',
+	},
 ];
 
 const SIGNED_IN: ClaudeAuthStatus = {
@@ -70,7 +78,7 @@ describe('probeClaudeCode', () => {
 			version: null,
 			account: null,
 			models: FALLBACK_MODELS,
-			defaultModel: 'default',
+			defaultModel: 'opus',
 			message: 'Claude Code is not installed',
 		});
 		expect(query).not.toHaveBeenCalled();
@@ -85,7 +93,7 @@ describe('probeClaudeCode', () => {
 			authenticated: false,
 			version: '2.1.196',
 			account: null,
-			models: expect.arrayContaining([expect.objectContaining({ id: 'opus[1m]' })]),
+			models: expect.arrayContaining([expect.objectContaining({ id: 'opus' })]),
 			message: 'Sign in to Claude Code to start',
 		});
 	});
@@ -101,31 +109,25 @@ describe('probeClaudeCode', () => {
 			account: { email: 'ada@example.com', plan: 'Claude Max' },
 			models: [
 				{
-					id: 'default',
-					label: 'Default',
-					description: 'Opus 4.8 with 1M context · Best for everyday, complex tasks',
-					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-				},
-				{
-					id: 'opus[1m]',
+					id: 'opus',
 					label: 'Opus',
-					description: 'Opus 4.8 with 1M context · Best for everyday, complex tasks',
+					description: 'Opus 5.5 · Best for everyday, complex tasks',
 					efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 				},
 				{
 					id: 'sonnet',
 					label: 'Sonnet',
-					description: 'Sonnet 4.6 · Efficient for routine tasks',
+					description: 'Sonnet 5.5 · Efficient for routine tasks',
 					efforts: ['low', 'medium', 'high', 'max'],
 				},
 				{
 					id: 'haiku',
 					label: 'Haiku',
-					description: 'Haiku 4.5 · Fastest for quick answers',
+					description: 'Haiku 5.5 · Fastest for quick answers',
 					efforts: [],
 				},
 			],
-			defaultModel: 'default',
+			defaultModel: 'opus',
 			message: 'Signed in as ada@example.com',
 		});
 	});
@@ -146,13 +148,13 @@ describe('probeClaudeCode', () => {
 		expect(probe?.closed).toBe(true);
 	});
 
-	it('keeps the default model first when Claude Code does not list it', async () => {
+	it('lists models by name and keeps Opus first when Claude Code does not list it', async () => {
 		const { options } = installed(SIGNED_IN, async () =>
-			initializeResponse(RECORDED_MODELS.filter(({ value }) => value !== 'default')),
+			initializeResponse(RECORDED_MODELS.filter(({ value }) => value !== 'opus')),
 		);
 
 		const { models } = await probeClaudeCode(options);
-		expect(models.map(({ id }) => id)).toEqual(['default', 'opus[1m]', 'sonnet', 'haiku']);
+		expect(models.map(({ id }) => id)).toEqual(['opus', 'sonnet', 'haiku']);
 	});
 
 	it.each([
@@ -197,7 +199,7 @@ describe('unknownCapability', () => {
 			version: null,
 			account: null,
 			models: FALLBACK_MODELS,
-			defaultModel: 'default',
+			defaultModel: 'opus',
 			message: 'Could not check Claude Code',
 		});
 	});

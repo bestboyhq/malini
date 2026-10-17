@@ -1,4 +1,9 @@
-import { claudeModelFor, isValidAgentModel, type AgentModel } from './model-id';
+import {
+	DEFAULT_AGENT_MODEL,
+	claudeModelFor,
+	isValidAgentModel,
+	type AgentModel,
+} from './model-id';
 
 export type ModelRole = 'planning' | 'implementation';
 
@@ -18,7 +23,7 @@ export type ChatModelSnapshot = {
 
 export const DEFAULT_MODEL_PREFERENCES: ModelPreferences = {
 	planning: { model: 'opus' },
-	implementation: { model: 'default' },
+	implementation: { model: DEFAULT_AGENT_MODEL },
 };
 
 export function roleForAgentMode(mode: 'agent' | 'plan'): ModelRole {

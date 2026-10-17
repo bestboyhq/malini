@@ -382,7 +382,7 @@ export class ClaudeSession implements ProviderHandle {
 			disallowedTools: disallowedTools(),
 			...maliniTools(this.#context.requestBrowser),
 			canUseTool: this.#canUseTool(),
-			...(model && model !== 'default' ? { model } : {}),
+			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),
 			...(skills ? { skills: [...skills] } : {}),
 			...(this.#claudeSessionId ? { resume: this.#claudeSessionId } : {}),

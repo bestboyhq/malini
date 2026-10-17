@@ -107,10 +107,10 @@
 	<Button
 		bind:element={trigger}
 		variant="ghost"
-		size="md"
+		size="auto"
 		active={open}
 		{disabled}
-		class="text-fg-tertiary hover:bg-surface-50 gap-1.5 rounded-md text-xs font-normal"
+		class="text-fg-tertiary hover:bg-surface-50 h-7 gap-1.5 rounded-md px-2 text-xs font-normal"
 		ariaLabel={`Skills: ${summary}`}
 		ariaHasPopup="menu"
 		ariaExpanded={open}

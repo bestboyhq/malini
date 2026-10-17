@@ -16,20 +16,39 @@ export interface PositionResult {
 	actualSide: MenuSide;
 }
 
-export function layoutRect(element: Pick<HTMLElement, 'offsetWidth' | 'offsetHeight'>): DOMRect {
-	const width = element.offsetWidth;
-	const height = element.offsetHeight;
+function rectAt(left: number, top: number, width: number, height: number): DOMRect {
 	return {
-		x: 0,
-		y: 0,
-		left: 0,
-		top: 0,
+		x: left,
+		y: top,
+		left,
+		top,
 		width,
 		height,
-		right: width,
-		bottom: height,
+		right: left + width,
+		bottom: top + height,
 		toJSON: () => ({}),
 	};
+}
+
+export function layoutRect(element: Pick<HTMLElement, 'offsetWidth' | 'offsetHeight'>): DOMRect {
+	return rectAt(0, 0, element.offsetWidth, element.offsetHeight);
+}
+
+export function unscaledRect(visual: DOMRect, scale: string): DOMRect {
+	if (scale === 'none') return visual;
+	const [x = 1, y = x] = scale.split(' ').map((factor) => Number(factor) || 1);
+	const width = visual.width / x;
+	const height = visual.height / y;
+	return rectAt(
+		visual.left - (width - visual.width) / 2,
+		visual.top - (height - visual.height) / 2,
+		width,
+		height,
+	);
+}
+
+export function anchorRect(element: Element): DOMRect {
+	return unscaledRect(element.getBoundingClientRect(), getComputedStyle(element).scale);
 }
 
 function oppositeSide(side: MenuSide): MenuSide {

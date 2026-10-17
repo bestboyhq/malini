@@ -30,9 +30,9 @@ const makeCapability = (capabilityVersion, message) => {
 			claudeState === 'ready' ? { email: email ?? 'e2e@example.com', plan: 'Claude Max' } : null,
 		models: [
 			{
-				id: 'default',
-				label: 'Default',
-				description: 'Fixture default',
+				id: 'opus',
+				label: 'Opus',
+				description: 'Fixture opus',
 				efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 			},
 			{
@@ -42,7 +42,7 @@ const makeCapability = (capabilityVersion, message) => {
 				efforts: ['low', 'medium', 'high', 'max'],
 			},
 		],
-		defaultModel: 'default',
+		defaultModel: 'opus',
 		message,
 	};
 };

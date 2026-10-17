@@ -37,8 +37,8 @@ const makeCapability = (capabilityVersion, message) => ({
   authenticated: env.FAKE_BRIDGE_BAD_CAPABILITY ? false : true,
   version: capabilityVersion,
   account: { email: 'fixture@example.com', plan: 'Claude Max' },
-  models: [{ id: 'default', label: 'Default', description: 'Fixture default', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }],
-  defaultModel: 'default',
+  models: [{ id: 'opus', label: 'Opus', description: 'Fixture opus', efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }],
+  defaultModel: 'opus',
   message
 });
 if (env.FAKE_BRIDGE_STDERR_EXIT) {
