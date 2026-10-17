@@ -326,7 +326,7 @@ describe('chat.read-staged-attachment', () => {
 			workstreamId: WORKSTREAM_ID,
 			attachmentId: staged.id,
 		});
-		expect(Buffer.from(read.data)).toEqual(screenshot);
+		expect(Buffer.from(read.data).equals(screenshot)).toBe(true);
 
 		writeFileSync(join(worktree, staged.relativePath), 'tampered');
 		expect(

@@ -468,7 +468,7 @@ describe('readStaged', () => {
 		persistStagedAttachments(test.db, WORKSTREAM_ID, [attachment!], STAGED_AT, EXPIRES_TOMORROW);
 		const read = readStaged(test.db, worktree, WORKSTREAM_ID, attachment!.id);
 		expect(read.mediaType).toBe('application/octet-stream');
-		expect(Buffer.from(read.data)).toEqual(big);
+		expect(Buffer.from(read.data).equals(big)).toBe(true);
 	});
 });
 
