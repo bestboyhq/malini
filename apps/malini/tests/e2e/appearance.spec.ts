@@ -61,6 +61,14 @@ test('appearance settings tune the greys and the theme, close back to the workst
 		await sections.getByRole('link', { name: 'Appearance' }).click();
 		await expect(slate).toHaveAttribute('aria-pressed', 'true');
 
+		const looks = page.getByRole('region', { name: 'History' }).getByRole('button');
+		await expect(looks).toHaveCount(2);
+		await expect(looks.first()).toHaveAttribute('aria-pressed', 'true');
+		await looks.last().click();
+		await expect(looks.last()).toHaveAttribute('aria-pressed', 'true');
+		await expect(stone).toHaveAttribute('aria-pressed', 'true');
+
+		await slate.click();
 		await page.getByRole('button', { name: 'Reset to default' }).click();
 		await expect(stone).toHaveAttribute('aria-pressed', 'true');
 

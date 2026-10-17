@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import {
 		DEFAULT_APPEARANCE,
@@ -8,20 +9,23 @@
 		type ThemeMode,
 	} from '$lib/app/domain/appearance';
 	import { chooseThemeModeCommand } from '$lib/app/application/commands/choose-theme-mode.command';
+	import { saveLookCommand } from '$lib/app/application/commands/save-look.command';
 	import { tuneAppearanceCommand } from '$lib/app/application/commands/tune-appearance.command';
 	import { appearanceQuery } from '$lib/app/application/queries/appearance.query.svelte';
+	import { looksQuery } from '$lib/app/application/queries/looks.query.svelte';
 	import { themeModeQuery } from '$lib/app/application/queries/theme-mode.query.svelte';
 	import { themeQuery } from '$lib/app/application/queries/theme.query.svelte';
 	import AppearanceReadings from '../appearance/AppearanceReadings.svelte';
 	import FineTune from '../appearance/FineTune.svelte';
 	import GreyPresets from '../appearance/GreyPresets.svelte';
 	import Levers from '../appearance/Levers.svelte';
+	import LookHistory from '../appearance/LookHistory.svelte';
 	import TintWheel from '../appearance/TintWheel.svelte';
 	import ChoiceSwitch from './ChoiceSwitch.svelte';
 	import SettingsSection from './SettingsSection.svelte';
 	import Well from './Well.svelte';
 
-	type Driver = 'wheel' | 'levers' | 'fine-tune' | 'presets' | 'reset';
+	type Driver = 'wheel' | 'levers' | 'fine-tune' | 'presets' | 'history' | 'reset';
 
 	const THEME_MODE_LABELS: Readonly<Record<ThemeMode, string>> = {
 		system: 'System',
@@ -33,8 +37,14 @@
 	const themeMode = $derived(themeModeQuery.data);
 	const theme = $derived(themeQuery.data);
 	const preset = $derived(matchingPreset(appearance));
+	const looks = $derived(looksQuery.data);
 
 	let driver: Driver | null = $state(null);
+
+	onMount(() => {
+		saveLookCommand();
+		return saveLookCommand;
+	});
 
 	function tune(source: Driver, patch: Partial<Appearance>): void {
 		driver = source;
@@ -96,6 +106,14 @@
 			<GreyPresets
 				selected={preset}
 				onchoose={(choice) => tune('presets', { hue: choice.hue, chroma: choice.chroma })}
+			/>
+		</Well>
+
+		<Well title="History" note="saved on close">
+			<LookHistory
+				{looks}
+				current={appearance}
+				onchoose={(look) => tune('history', look.appearance)}
 			/>
 		</Well>
 
