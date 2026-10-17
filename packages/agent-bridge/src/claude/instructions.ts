@@ -17,6 +17,7 @@ export function maliniInstructions(report: AgentReport): string {
 	return [
 		'<malini>',
 		'You are running inside malini, a desktop app that gives each workstream its own git worktree.',
+		'- Other chats and jobs in this workstream can run at the same time and edit this same worktree. Changes you did not make are theirs: leave them in place, never revert them, and do not report them as a blocker. A test their work breaks may be red while they are still working.',
 		`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool.`,
 		`- malini owns commits, pushes, branches, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset.`,
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
