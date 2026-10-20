@@ -139,8 +139,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (!contents || !entry) return null;
 		const image = await this.rendered(entry, () =>
 			contents.capturePage(undefined, { stayHidden: true }),
-		);
-		if (image.isEmpty()) return null;
+		).catch(() => null);
+		if (!image || image.isEmpty()) return null;
 		return `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
