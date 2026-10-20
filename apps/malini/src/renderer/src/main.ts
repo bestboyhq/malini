@@ -1,0 +1,17 @@
+import { mount } from 'svelte';
+import { installLoopingAnimationSync } from '$hyper-ui/motion/looping-animations';
+import App from '$lib/app/presentation/App.svelte';
+import { installRendererErrorCapture } from '$shared/errors/renderer-error-sink';
+import { installToastRecording } from '$shared/errors/toast-recorder';
+import { migrateStorageKeys } from '$shared/storage/migrate-storage-keys';
+import './app.css';
+
+installRendererErrorCapture();
+installToastRecording();
+installLoopingAnimationSync();
+migrateStorageKeys();
+
+const target = document.getElementById('app');
+if (!target) throw new Error('renderer root #app is missing from index.html');
+
+mount(App, { target });

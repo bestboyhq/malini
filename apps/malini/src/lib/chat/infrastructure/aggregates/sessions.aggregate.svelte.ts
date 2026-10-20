@@ -1,0 +1,423 @@
+import { SvelteSet } from 'svelte/reactivity';
+import type { AgentSessionOrigin } from '$contract/agent';
+import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
+import type { RunId } from '$lib/chat/domain/run';
+import type { SessionId } from '$lib/chat/domain/session';
+import {
+	foldSessionStatus,
+	foldSessionStatusIncremental,
+	isLifecycleKind,
+} from '$contract/agent-state-machine';
+import type { SessionRecord, SessionState } from '$lib/chat/domain/session-record';
+import {
+	EMPTY_TRANSCRIPT_SUMMARY,
+	extendTranscriptSummary,
+	summarizeTranscript,
+	type TranscriptSummary,
+} from '$lib/chat/domain/transcript-summary';
+import {
+	CanonicalEnvelopeIndex,
+	mergeCanonicalEnvelopes,
+	type CanonicalEnvelopeIndexStats,
+} from '$lib/chat/domain/canonical-envelope-index';
+import { agentActivity } from '$lib/chat/infrastructure/aggregates/agent-activity.aggregate.svelte';
+import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
+
+class SessionsAggregate {
+	sessionsById: Record<SessionId, SessionRecord> = $state.raw({});
+	summaryBySession: Record<SessionId, TranscriptSummary> = $state.raw({});
+	currentRunBySession: Record<SessionId, RunId | null> = $state.raw({});
+	private envelopesBySession: Record<SessionId, readonly EventEnvelope[]> = {};
+	private envelopeIndex = new CanonicalEnvelopeIndex();
+	private terminatedRunsBySession = new Map<SessionId, Set<RunId>>();
+	private hydratedTranscriptSessions = new SvelteSet<SessionId>();
+
+	ensureSession(input: {
+		sessionId: SessionId;
+		workstreamId: string;
+		displayName?: string;
+		model: string | null;
+		startedAt?: string;
+		origin?: AgentSessionOrigin;
+	}): SessionRecord {
+		const existing = this.sessionsById[input.sessionId];
+		if (existing) {
+			if (existing.workstreamId === '_unknown' && input.workstreamId !== '_unknown') {
+				const upgraded = {
+					...existing,
+					workstreamId: input.workstreamId,
+					displayName: input.displayName?.trim() || existing.displayName,
+					model: input.model ?? existing.model,
+					origin: input.origin ?? existing.origin,
+				};
+				this.sessionsById = { ...this.sessionsById, [input.sessionId]: upgraded };
+				return upgraded;
+			}
+			if (existing.workstreamId !== input.workstreamId && input.workstreamId !== '_unknown') {
+				if (import.meta.env.DEV) {
+					console.warn('Ignoring agent session workstream mismatch', {
+						sessionId: input.sessionId,
+						existingWorkstreamId: existing.workstreamId,
+						nextWorkstreamId: input.workstreamId,
+					});
+				}
+			}
+			return existing;
+		}
+		const next: SessionRecord = {
+			id: input.sessionId,
+			workstreamId: input.workstreamId,
+			displayName: input.displayName?.trim() || 'Chat',
+			model: input.model,
+			status: 'idle',
+			currentRunId: null,
+			lastError: null,
+			startedAt: input.startedAt ?? new Date().toISOString(),
+			origin: input.origin ?? 'user',
+		};
+		this.sessionsById = {
+			...this.sessionsById,
+			[input.sessionId]: next,
+		};
+		this.currentRunBySession = {
+			...this.currentRunBySession,
+			[input.sessionId]: null,
+		};
+		this.envelopeIndex.reset(input.sessionId, []);
+		this.terminatedRunsBySession.set(input.sessionId, new Set());
+		return next;
+	}
+
+	hydrateSession(input: {
+		sessionId: SessionId;
+		workstreamId: string;
+		displayName?: string;
+		model: string | null;
+		status: SessionState;
+		startedAt: string;
+		origin?: AgentSessionOrigin;
+	}): SessionRecord {
+		const existing = this.ensureSession(input);
+		const hasLiveLifecycleEvidence = (this.envelopesBySession[input.sessionId] ?? []).some(
+			({ event }) => isLifecycleKind(event.type),
+		);
+		const next: SessionRecord = {
+			...existing,
+			workstreamId: input.workstreamId,
+			displayName: input.displayName?.trim() || existing.displayName,
+			model: input.model,
+			status: hasLiveLifecycleEvidence ? existing.status : input.status,
+			startedAt: input.startedAt,
+			origin: input.origin ?? existing.origin,
+		};
+		this.sessionsById = { ...this.sessionsById, [input.sessionId]: next };
+		return next;
+	}
+
+	setSessionModel(sessionId: SessionId, model: string | null): void {
+		const current = this.sessionsById[sessionId];
+		if (!current) {
+			return;
+		}
+		this.sessionsById = {
+			...this.sessionsById,
+			[sessionId]: { ...current, model },
+		};
+	}
+
+	setSessionDisplayName(sessionId: SessionId, displayName: string): void {
+		const current = this.sessionsById[sessionId];
+		const normalized = displayName.trim();
+		if (!current || !normalized || current.displayName === normalized) return;
+		this.sessionsById = {
+			...this.sessionsById,
+			[sessionId]: { ...current, displayName: normalized },
+		};
+	}
+
+	resumeRunAfterInteraction(sessionId: SessionId, runId: RunId): void {
+		const current = this.sessionsById[sessionId];
+		if (!current || current.status !== 'waiting_for_approval' || current.currentRunId !== runId) {
+			return;
+		}
+		this.sessionsById = {
+			...this.sessionsById,
+			[sessionId]: { ...current, status: 'running' },
+		};
+	}
+
+	getSession(sessionId: SessionId): SessionRecord | null {
+		return this.sessionsById[sessionId] ?? null;
+	}
+
+	listSessions(): readonly SessionRecord[] {
+		return Object.values(this.sessionsById);
+	}
+
+	removeSession(sessionId: SessionId): void {
+		if (!this.sessionsById[sessionId]) return;
+		const { [sessionId]: _session, ...sessionsById } = this.sessionsById;
+		const { [sessionId]: _summary, ...summaryBySession } = this.summaryBySession;
+		const { [sessionId]: _currentRun, ...currentRunBySession } = this.currentRunBySession;
+		this.sessionsById = sessionsById;
+		this.summaryBySession = summaryBySession;
+		this.currentRunBySession = currentRunBySession;
+		const { [sessionId]: _envelopes, ...envelopesBySession } = this.envelopesBySession;
+		this.envelopesBySession = envelopesBySession;
+		this.envelopeIndex.remove(sessionId);
+		this.terminatedRunsBySession.delete(sessionId);
+		this.hydratedTranscriptSessions.delete(sessionId);
+	}
+
+	reconcileWorkstreamSessions(
+		workstreamId: string,
+		visibleSessionIds: ReadonlySet<SessionId>,
+	): void {
+		for (const session of Object.values(this.sessionsById)) {
+			if (session.workstreamId === workstreamId && !visibleSessionIds.has(session.id)) {
+				this.removeSession(session.id);
+			}
+		}
+	}
+
+	cachedSessionFor(workstreamId: string, requestedSessionId: string | null): SessionId | null {
+		if (requestedSessionId) {
+			const requested = this.getSession(requestedSessionId);
+			if (requested?.workstreamId === workstreamId) return requested.id;
+		}
+		return this.openingSessionFor(workstreamId) ?? this.latestSessionFor(workstreamId);
+	}
+
+	openingSessionFor(workstreamId: string): SessionId | null {
+		const unread = agentActivity.attentionFor(workstreamId)?.sessionId;
+		const visited = workstreamTabs.for(workstreamId).routedChatId;
+		return (
+			[unread, visited].find(
+				(sessionId): sessionId is SessionId =>
+					!!sessionId && this.getSession(sessionId)?.workstreamId === workstreamId,
+			) ?? null
+		);
+	}
+
+	latestSessionFor(workstreamId: string): SessionId | null {
+		return (
+			this.listSessions()
+				.filter((session) => session.workstreamId === workstreamId && session.origin === 'user')
+				.sort((left, right) => right.startedAt.localeCompare(left.startedAt))[0]?.id ?? null
+		);
+	}
+
+	listEventsFor(sessionId: SessionId): readonly AgentEvent[] {
+		return this.listEnvelopesFor(sessionId).map((envelope) => envelope.event);
+	}
+
+	summaryFor(sessionId: SessionId): TranscriptSummary {
+		return this.summaryBySession[sessionId] ?? EMPTY_TRANSCRIPT_SUMMARY;
+	}
+
+	listEnvelopesFor(sessionId: SessionId): readonly EventEnvelope[] {
+		return this.envelopesBySession[sessionId] ?? [];
+	}
+
+	markTranscriptHydrated(sessionId: SessionId): void {
+		this.hydratedTranscriptSessions.add(sessionId);
+	}
+
+	isTranscriptHydrated(sessionId: SessionId): boolean {
+		return this.hydratedTranscriptSessions.has(sessionId);
+	}
+
+	isKnownEmpty(sessionId: SessionId): boolean {
+		// ponytail: an unloaded empty chat reads as non-empty; a chat.list-sessions flag closes it
+		return this.isTranscriptHydrated(sessionId) && !this.summaryFor(sessionId).hasConversation;
+	}
+
+	hydratedTranscriptSessionIds(): readonly SessionId[] {
+		return [...this.hydratedTranscriptSessions];
+	}
+
+	forgetTranscript(sessionId: SessionId): void {
+		if (!this.hydratedTranscriptSessions.has(sessionId) && !this.envelopesBySession[sessionId]) {
+			return;
+		}
+		const { [sessionId]: _envelopes, ...envelopesBySession } = this.envelopesBySession;
+		this.envelopesBySession = envelopesBySession;
+		if (this.summaryBySession[sessionId]) {
+			const { [sessionId]: _summary, ...summaryBySession } = this.summaryBySession;
+			this.summaryBySession = summaryBySession;
+		}
+		this.envelopeIndex.remove(sessionId);
+		this.hydratedTranscriptSessions.delete(sessionId);
+	}
+
+	restorableTranscriptFor(
+		sessionId: SessionId,
+		workstreamId: string,
+	): readonly EventEnvelope[] | null {
+		const session = this.getSession(sessionId);
+		if (session?.workstreamId !== workstreamId || !this.isTranscriptHydrated(sessionId)) {
+			return null;
+		}
+		return this.listEnvelopesFor(sessionId);
+	}
+
+	getCurrentRun(sessionId: SessionId): RunId | null {
+		const value = this.currentRunBySession[sessionId];
+		return value ?? null;
+	}
+
+	applyEvent(env: EventEnvelope): void {
+		this.applyEventBatch([env]);
+	}
+
+	applyEventBatch(envelopes: readonly EventEnvelope[]): number {
+		if (envelopes.length === 0) return 0;
+
+		const additions = new Map<SessionId, EventEnvelope[]>();
+		for (const envelope of envelopes) {
+			const sessionId = envelope.sessionId;
+			if (!this.sessionsById[sessionId]) {
+				this.ensureSession({
+					sessionId,
+					workstreamId: '_unknown',
+					model: null,
+				});
+			}
+			const pending = additions.get(sessionId) ?? [];
+			pending.push(envelope);
+			additions.set(sessionId, pending);
+		}
+
+		const nextEnvelopesBySession = { ...this.envelopesBySession };
+		const nextSummaryBySession = { ...this.summaryBySession };
+		const nextSessionsById = { ...this.sessionsById };
+		const nextCurrentRunBySession = { ...this.currentRunBySession };
+		let lifecycleChanged = false;
+		let summaryChanged = false;
+		let applied = 0;
+		for (const [sessionId, pending] of additions) {
+			const existing = nextEnvelopesBySession[sessionId] ?? [];
+			const acceptance = this.envelopeIndex.accept(sessionId, existing, pending);
+			if (acceptance.accepted.length === 0) continue;
+			applied += acceptance.accepted.length;
+
+			const current = nextSessionsById[sessionId];
+			if (acceptance.monotonic) {
+				nextEnvelopesBySession[sessionId] = existing.concat(acceptance.accepted);
+				const summary = nextSummaryBySession[sessionId];
+				const extended = extendTranscriptSummary(
+					summary ?? EMPTY_TRANSCRIPT_SUMMARY,
+					acceptance.accepted,
+				);
+				if (extended !== summary) {
+					nextSummaryBySession[sessionId] = extended;
+					summaryChanged = true;
+				}
+
+				if (current) {
+					const terminated = this.terminatedRunsBySession.get(sessionId) ?? new Set<RunId>();
+					this.terminatedRunsBySession.set(sessionId, terminated);
+					const folded = foldLifecycleIncremental(current, acceptance.accepted, terminated);
+					if (folded) {
+						nextSessionsById[sessionId] = folded.session;
+						nextCurrentRunBySession[sessionId] = folded.currentRunId;
+						lifecycleChanged = true;
+					}
+				}
+				continue;
+			}
+
+			const canonical = mergeCanonicalEnvelopes(existing, acceptance.accepted);
+			nextEnvelopesBySession[sessionId] = canonical;
+			nextSummaryBySession[sessionId] = summarizeTranscript(canonical);
+			summaryChanged = true;
+			if (current) {
+				const folded = foldLifecycle(current, canonical);
+				if (folded) {
+					nextSessionsById[sessionId] = folded.session;
+					nextCurrentRunBySession[sessionId] = folded.currentRunId;
+					this.terminatedRunsBySession.set(sessionId, folded.terminatedRunIds);
+					lifecycleChanged = true;
+				}
+			}
+		}
+		if (applied === 0) return 0;
+
+		this.envelopesBySession = nextEnvelopesBySession;
+		if (summaryChanged) this.summaryBySession = nextSummaryBySession;
+		if (lifecycleChanged) {
+			this.sessionsById = nextSessionsById;
+			this.currentRunBySession = nextCurrentRunBySession;
+		}
+		return applied;
+	}
+
+	eventIngestionStats(sessionId: SessionId): CanonicalEnvelopeIndexStats {
+		return this.envelopeIndex.stats(sessionId);
+	}
+
+	reset(): void {
+		this.sessionsById = {};
+		this.summaryBySession = {};
+		this.currentRunBySession = {};
+		this.envelopesBySession = {};
+		this.envelopeIndex.clear();
+		this.terminatedRunsBySession.clear();
+		this.hydratedTranscriptSessions.clear();
+	}
+}
+
+type FoldedLifecycle = {
+	session: SessionRecord;
+	currentRunId: RunId | null;
+	terminatedRunIds: Set<RunId>;
+};
+
+function foldLifecycle(
+	base: SessionRecord,
+	envelopes: readonly EventEnvelope[],
+): FoldedLifecycle | null {
+	const lifecycle = envelopes.filter(({ event }) => isLifecycleKind(event.type));
+	if (lifecycle.length === 0) return null;
+
+	const folded = foldSessionStatus('idle', lifecycle);
+	return {
+		session: {
+			...base,
+			status: folded.status,
+			currentRunId: folded.currentRunId,
+			lastError: folded.lastError,
+		},
+		currentRunId: folded.currentRunId,
+		terminatedRunIds: folded.terminatedRunIds,
+	};
+}
+
+function foldLifecycleIncremental(
+	base: SessionRecord,
+	envelopes: readonly EventEnvelope[],
+	terminatedRunIds: Set<RunId>,
+): FoldedLifecycle | null {
+	const folded = foldSessionStatusIncremental(
+		{
+			status: base.status,
+			currentRunId: base.currentRunId,
+			lastError: base.lastError,
+			terminatedRunIds,
+		},
+		envelopes,
+	);
+	if (!folded) return null;
+	return {
+		session: {
+			...base,
+			status: folded.status,
+			currentRunId: folded.currentRunId,
+			lastError: folded.lastError,
+		},
+		currentRunId: folded.currentRunId,
+		terminatedRunIds: folded.terminatedRunIds,
+	};
+}
+
+export const sessionsAggregate = new SessionsAggregate();

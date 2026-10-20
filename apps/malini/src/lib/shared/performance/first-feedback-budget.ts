@@ -1,0 +1,1 @@
+export const FIRST_FEEDBACK_BUDGET_MS = 16;

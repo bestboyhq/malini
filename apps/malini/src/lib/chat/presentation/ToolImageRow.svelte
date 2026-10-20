@@ -1,0 +1,161 @@
+<script lang="ts">
+	import {
+		explainUnavailableImageCommand,
+		previewWorkstreamImageCommand,
+	} from '$lib/chat/application/commands/preview-workstream-image.command';
+	import { releaseImagePreviewsCommand } from '$lib/chat/application/commands/release-image-previews.command';
+	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
+	import { newChatRequestId } from '$lib/chat/domain/chat-request';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
+	import { Button } from '$hyper-ui/components/button';
+	import { HoverCard } from '$hyper-ui/components/hover-card';
+	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
+	import type { ToolImageRead } from './tool-image-read';
+	import { galleryImageLabel } from './workstream-images';
+
+	interface Props {
+		workstreamId: string | null;
+		image: ToolImageRead;
+		status: 'running' | 'completed';
+		durationLabel: string | null;
+		onopenimage?: ((id: string) => void) | undefined;
+	}
+
+	let { workstreamId, image, status, durationLabel, onopenimage }: Props = $props();
+
+	type PreviewState =
+		| { kind: 'idle' }
+		| { kind: 'loading' }
+		| { kind: 'ready'; src: string }
+		| { kind: 'unavailable'; reason: string };
+
+	const previewOwner = newChatRequestId();
+	let requested = $state(false);
+	const loadedPreview = $derived(imagePreviewQuery.data(previewOwner, image.path));
+	const preview = $derived<PreviewState>(
+		loadedPreview?.status === 'ready'
+			? { kind: 'ready', src: loadedPreview.src }
+			: loadedPreview?.status === 'unavailable'
+				? { kind: 'unavailable', reason: loadedPreview.reason }
+				: requested
+					? { kind: 'loading' }
+					: { kind: 'idle' },
+	);
+
+	const previewable = $derived(workstreamId !== null);
+
+	$effect(() => () => releaseImagePreviewsCommand(previewOwner));
+
+	function explainUnavailable(): void {
+		if (workstreamId) {
+			explainUnavailableImageCommand({ owner: previewOwner, workstreamId, path: image.path });
+		}
+	}
+
+	function loadPreview(): void {
+		if (!workstreamId || requested) return;
+		requested = true;
+		previewWorkstreamImageCommand({ owner: previewOwner, workstreamId, path: image.path });
+	}
+</script>
+
+<div
+	class="text-fg-tertiary flex min-h-6 items-center gap-2"
+	data-testid="tool-card-image-read"
+	data-tool-status={status}
+	data-image-path={image.path}
+>
+	{#if status === 'running'}
+		<BusyIcon class="text-fg-secondary shrink-0" size={13} />
+	{:else}
+		<Icon name="note" size={14} class="shrink-0" />
+	{/if}
+	<span class="shrink-0">Read image</span>
+
+	{#snippet chip()}
+		{#if previewable && onopenimage}
+			<Button
+				bare
+				class={[CHIP_CLASS, OPENABLE_CHIP_CLASS]}
+				ariaLabel={galleryImageLabel(image.fileName)}
+				data-testid="tool-image-chip"
+				onpointerdown={(event: PointerEvent) => event.stopPropagation()}
+				onclick={() => onopenimage?.(image.path)}
+			>
+				{@render chipContent()}
+			</Button>
+		{:else}
+			<span class={[CHIP_CLASS, 'cursor-default']} data-testid="tool-image-chip">
+				{@render chipContent()}
+			</span>
+		{/if}
+	{/snippet}
+
+	{#snippet chipContent()}
+		<FileTypeIcon path={image.path} size={12} />
+		<span class="truncate">{image.fileName}</span>
+	{/snippet}
+
+	{#if !previewable}
+		{@render chip()}
+	{:else}
+		<HoverCard
+			side="right"
+			align="start"
+			sideOffset={8}
+			openDelay={180}
+			closeDelay={150}
+			triggerClass="min-w-0"
+			onopenchange={(open) => {
+				if (open) loadPreview();
+			}}
+			testId="tool-image-hovercard"
+			owner="agent-chat-image-preview"
+		>
+			{#snippet trigger()}
+				{@render chip()}
+			{/snippet}
+
+			{#snippet content()}
+				<div
+					class="border-surface-elevated-border bg-surface-elevated shadow-popup max-w-96 overflow-hidden rounded-lg border-[0.5px] p-2"
+					data-testid="tool-image-preview"
+					data-preview-state={preview.kind}
+				>
+					{#if preview.kind === 'ready'}
+						<img
+							src={preview.src}
+							alt={image.fileName}
+							class="bg-surface-50 block max-h-64 w-full max-w-80 rounded-md object-contain"
+							data-testid="tool-image-preview-image"
+							decoding="async"
+							onerror={explainUnavailable}
+							data-workstream-image={image.path}
+						/>
+					{:else if preview.kind === 'unavailable'}
+						<div
+							class="text-2xs text-fg-tertiary max-w-72 wrap-anywhere"
+							data-testid="tool-image-preview-refusal"
+						>
+							{preview.reason}
+						</div>
+					{:else}
+						<div class="text-2xs text-fg-tertiary flex h-20 items-center justify-center gap-2">
+							<BusyIcon class="text-fg-tertiary" size={14} />
+							Loading preview…
+						</div>
+					{/if}
+					<div class="text-2xs text-fg-default mt-1.5 font-mono break-all">{image.path}</div>
+					<div class="text-2xs text-fg-tertiary truncate">{image.mediaType}</div>
+				</div>
+			{/snippet}
+		</HoverCard>
+	{/if}
+
+	{#if durationLabel}
+		<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
+			{durationLabel}
+		</span>
+	{/if}
+</div>

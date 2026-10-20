@@ -1,0 +1,43 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@malini/extension-api",
+	"version": "1.0.0",
+	"private": true,
+	"license": "MIT",
+	"engines": {
+		"node": ">=20"
+	},
+	"type": "module",
+	"main": "./dist/src/index.js",
+	"types": "./dist/src/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"development": "./src/index.ts",
+			"default": "./dist/src/index.js"
+		},
+		"./test": {
+			"types": "./src/test-host.ts",
+			"development": "./src/test-host.ts",
+			"default": "./dist/src/test-host.js"
+		},
+		"./manifest.schema.json": "./schema/manifest.schema.json"
+	},
+	"files": [
+		"dist/src",
+		"schema",
+		"src"
+	],
+	"scripts": {
+		"build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+		"lint": "eslint .",
+		"check": "tsc -p tsconfig.json --noEmit",
+		"test": "pnpm run build && node --test dist/tests/*.test.js"
+	},
+	"devDependencies": {
+		"@malini/eslint-plugin-hyper-ui": "workspace:*",
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"typescript": "catalog:"
+	}
+}

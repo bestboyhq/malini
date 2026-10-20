@@ -1,0 +1,128 @@
+import type { Project, Repository, Workstream } from '$shared/repositories/repositories.api';
+
+export const projectsFixture: Project[] = [
+	{
+		id: '01JMALINIPROJECT000000000000A',
+		name: 'malini',
+		repoPath: '/Users/dev/work/malini',
+		defaultBranch: 'main',
+	},
+	{
+		id: '01JMALINIPROJECT000000000000B',
+		name: 'design-system',
+		repoPath: '/Users/dev/work/design-system',
+		defaultBranch: 'main',
+	},
+	{
+		id: '01JMALINIPROJECT000000000000C',
+		name: 'mobile-app',
+		repoPath: '/Users/dev/work/mobile-app',
+		defaultBranch: 'develop',
+	},
+	{
+		id: '01JMALINIPROJECT000000000000D',
+		name: 'archive-bot',
+		repoPath: '/Users/dev/work/archive-bot',
+		defaultBranch: 'main',
+	},
+];
+
+function projectId(index: number): string {
+	const project = projectsFixture[index];
+	if (!project) throw new Error(`projectsFixture has no entry ${index}`);
+	return project.id;
+}
+
+export const workstreamsFixture: Workstream[] = [
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000A',
+		projectId: projectId(0),
+		name: 'Refactor auth',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000A',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000A',
+		baseBranch: 'main',
+		status: 'active',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000B',
+		projectId: projectId(0),
+		name: 'Split monorepo',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000B',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000B',
+		baseBranch: 'main',
+		status: 'active',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000C',
+		projectId: projectId(1),
+		name: 'Popover pass',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000C',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000C',
+		baseBranch: 'main',
+		status: 'active',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000D',
+		projectId: projectId(2),
+		name: 'Biometric prompt',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000D',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000D',
+		baseBranch: 'develop',
+		status: 'paused',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000E',
+		projectId: projectId(0),
+		name: 'Rate limiter',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000E',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000E',
+		baseBranch: 'main',
+		status: 'merged',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+	{
+		id: '01JMALINIWORKSTREAMMALINI000000000F',
+		projectId: projectId(3),
+		name: '2024 purge',
+		path: '/var/folders/malini/worktrees/01JMALINIWORKSTREAMMALINI000000000F',
+		branch: 'malini/01JMALINIWORKSTREAMMALINI000000000F',
+		baseBranch: 'main',
+		status: 'archived',
+		checkoutState: 'healthy',
+		checkoutIssue: null,
+		resolvedPath: null,
+	},
+];
+
+export const repositoriesFixture: Repository[] = [
+	{
+		id: '01JMALINIREPOSITORYMALINI00000000A',
+		fullName: 'bestboyhq/malini',
+		defaultBranch: 'main',
+		localPath: '/Users/dev/code/malini',
+		remoteUrl: 'https://github.com/bestboyhq/malini.git',
+		createdAt: '2026-06-14T09:00:00.000Z',
+	},
+	{
+		id: '01JMALINIREPOSITORYMALINI00000000B',
+		fullName: 'bestboyhq/design-system',
+		defaultBranch: 'main',
+		localPath: null,
+		remoteUrl: 'https://github.com/bestboyhq/design-system.git',
+		createdAt: '2026-06-15T11:20:00.000Z',
+	},
+];

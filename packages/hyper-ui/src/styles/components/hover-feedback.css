@@ -1,0 +1,40 @@
+@layer utilities {
+	:is(
+		a,
+		button,
+		summary,
+		label,
+		select,
+		[role='button'],
+		[role='tab'],
+		[role='option'],
+		[role='menuitem'],
+		[role='menuitemcheckbox'],
+		[role='menuitemradio'],
+		[role='treeitem'],
+		[tabindex]
+	):hover,
+	:is(
+			a,
+			button,
+			summary,
+			label,
+			select,
+			[role='button'],
+			[role='tab'],
+			[role='option'],
+			[role='menuitem'],
+			[role='menuitemcheckbox'],
+			[role='menuitemradio'],
+			[role='treeitem'],
+			[tabindex]
+		):hover
+		* {
+		transition-duration: 0ms;
+	}
+
+	.group:hover *,
+	[class*='group/']:hover * {
+		transition-duration: 0ms;
+	}
+}

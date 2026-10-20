@@ -1,0 +1,61 @@
+---
+description: Platform layer rules
+globs: apps/malini/src/lib/**/platform/**,apps/malini/src/lib/**/*.platform.ts
+alwaysApply: false
+---
+
+# Platform layer (`/platform/`)
+
+The main-process half of a domain.
+Node and electron live here and nowhere else in `$lib`.
+
+What lives here:
+
+- `register.ts`: the composition root for the slice.
+  It exports `register<Domain>(context, deps?)`, defines the domain's commands on `context.commands`, and subscribes its event handlers.
+  `src/main/modules.ts` calls it and nothing else does.
+- Services: plain functions or small classes that do the work a command asks for.
+  No module-level mutable singletons; `register.ts` constructs what a service needs and hands it over.
+- `*.repository.ts`: every SQL statement for the domain.
+  One file per table family.
+  Nothing above a repository writes SQL.
+- `<domain>.platform.ts` (beside the domain folders, not inside `platform/`): the only file another domain's `platform/` may import.
+  Typed service functions and types, no side effects at import time.
+
+Imports:
+
+- May import: its own domain, another domain's `<domain>.platform.ts`, `$main/**`, `$contract`, `node:*`, `electron`, and packages.
+- Never a renderer file: no `application/`, `infrastructure/`, `presentation/`, api file, flat `$shared/<util>` (including `$shared/port`), `$hyper-ui`, or `.svelte`.
+  The check is `platformImportsRenderer`.
+- Never another domain's `domain/` or `platform/` internals.
+  The check is `crossDomainDeepImport`.
+
+Commands and events:
+
+- A command name is a key of `ContractCommands` in `$contract/commands`, as `<domain>.<verb-kebab>` (`chat.send-prompt`).
+  `CommandRegistry.define` is typed by it, so a stale name fails `pnpm check`.
+  `src/main/modules.test.ts` fails when a contract command has no handler.
+- A command validates its arguments at the boundary.
+  The renderer is untrusted.
+- An event channel is a key of `ContractEvents` in `$contract/events`, as `<domain>:<event-kebab>` (`chat:agent-event`).
+  A domain subscribes to another domain's event by channel name, never by importing that domain.
+- Errors: throw the typed errors in `$main/errors.ts` (`GitError`, `GhError`, `DbInvariantError`).
+  The registry turns them into the wire shape.
+
+Database:
+
+- Everything goes through `context.db` (`MaliniDatabase` from `$main/db/driver`).
+- Schema and migrations live in `$main/db/migrations.ts`.
+  Migration constants are history: never edit one, add the next.
+- Tests that need tables call `openMigratedDatabase(':memory:')` from `$main/db/open`.
+
+Processes:
+
+- `node:child_process` with an argv array, never a shell string with interpolated user input.
+- git, gh and docker are spawned by PATH-resolved binary name through `$main/git`, `$main/process` and `$main/docker`.
+- The agent bridge runs as a child process on Electron's own binary with `ELECTRON_RUN_AS_NODE=1`, never `which node`.
+- No native addons.
+
+No comments.
+
+File names: `register.ts`, `something.service.ts`, `sessions.repository.ts`.

@@ -1,0 +1,39 @@
+---
+description: What automated tests may assert, and where each kind lives
+globs: apps/malini/src/**/*.test.ts,apps/malini/tests/**,packages/*/src/**/*.test.ts
+alwaysApply: false
+---
+
+# Test authoring
+
+Behavior is tested end to end: the built app, driven by Playwright, against the fake agent bridge and the `gh`/`docker` stubs in `tests/e2e/harness.ts`.
+Unit tests exist only where e2e cannot enumerate the cases.
+
+## Two tiers
+
+- `tests/e2e/*.spec.ts`: every behavior a user or agent can observe, including wiring (which command a control runs, what a confirmation guards) and anything with effects, timers, layout or IPC.
+  Extend `tests/e2e/fixtures/fake-bridge.cjs` with a directive when a scenario needs agent output; never change what an existing directive does.
+- `*.test.ts`, vitest, for two kinds only:
+  - Pure functions: input in, output out, no mounted component, no `$effect`, no platform.
+    Projectors, tokenizers, parsers, reducers, formatting, version math.
+    A function that turns a string into DOM or DOM into a string (markdown, clipboard, link decoration) may run under `// @vitest-environment jsdom` for the parser alone.
+  - Main-process code under `src/main`, `src/contract`, `src/lib/**/platform/` and `*.platform.test.ts`, against the real `node:sqlite` and the real filesystem.
+    Stub only what is outside malini: Electron, the OS, the network.
+
+## Never
+
+- Mock or fake malini's own modules: no `vi.mock` of a malini path, no `vi.spyOn` on a malini service, no fake platform.
+- Mount a component outside the app: there is no jsdom tier.
+- Read a source file's text to assert on it.
+- Assert markup internals: class names, inline `style`, `innerHTML`, SVG paths, spacing, colors, motion timing.
+
+## Asserting in e2e
+
+- Locate by role and accessible name (`getByRole`, `getByLabel`), by text, or by a stable `data-testid`; never by class, tag nesting or DOM position.
+- Assert observable state: visible text, accessible name, `aria-current`, `aria-pressed`, `aria-expanded`, `aria-disabled`, data the app persists (through `invoke` in the harness).
+- To confirm something looks right, take a screenshot with `captureFlow` and look at it.
+- Every spec ends with `expectCleanConsole`; `app.close()` fails on unexpected error diagnostics.
+- Builds share `apps/malini/out`: run one build and one Playwright process at a time.
+- Specs run in parallel, beside other apps: a timeout covers the product's slowest refresh under load, not the typical case.
+- A spec that measures timing is named `*-performance.spec.ts`, so it runs alone in the `performance` project (0036).
+- The harness runs the merge queue's delays ten times faster with `MALINI_SHIP_DELAY_SCALE=0.1`; a spec that needs the real delays passes its own through `launchMalini({ env })`.

@@ -1,0 +1,39 @@
+appId: app.malini.desktop
+copyright: Copyright (C) 2026 Szymon Grącki and Malini contributors
+forceCodeSigning: true
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: ../../packages/agent-bridge/dist
+    to: agent-bridge
+  - from: ../../packages/agent-bridge/dist/node_modules
+    to: agent-bridge/node_modules
+  - from: ../../packages/agent-bridge/package.json
+    to: agent-bridge/package.json
+  - from: ../../LICENSE
+    to: LICENSE
+  - from: vendor/gh
+    to: vendor/gh
+asar: true
+npmRebuild: false
+nodeGypRebuild: false
+mac:
+  category: public.app-category.developer-tools
+  icon: build/Malini.icon
+  artifactName: malini-${version}-${arch}-mac.${ext}
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
+dmg:
+  sign: true
+  artifactName: malini-${arch}.${ext}
+publish:
+  provider: github
+  owner: bestboyhq
+  repo: malini

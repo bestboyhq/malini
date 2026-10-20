@@ -1,0 +1,84 @@
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
+
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+
+@source '../';
+
+@plugin 'daisyui' {
+	themes: false;
+	include: properties;
+}
+
+@import '@malini/hyper-ui/styles';
+
+@layer base {
+	:where(.app-ui, .app-ui *, .app-ui ::before, .app-ui ::after) {
+		box-sizing: border-box;
+		margin: 0;
+		padding: 0;
+		border: 0 solid;
+	}
+
+	.app-ui {
+		background: var(--root-bg);
+		color: var(--color-base-content);
+		font-family: var(--font-sans);
+		font-size: 1rem;
+		font-feature-settings: normal;
+		line-height: 1.5;
+		tab-size: 4;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+
+	:where(.app-ui) :where(h1, h2, h3, h4, h5, h6) {
+		font-size: inherit;
+		font-weight: inherit;
+	}
+
+	:where(.app-ui) :where(a) {
+		color: inherit;
+		text-decoration: inherit;
+	}
+
+	:where(.app-ui) :where(b, strong) {
+		font-weight: bolder;
+	}
+
+	:where(.app-ui) :where(code, kbd, samp, pre) {
+		font-family: var(--font-mono);
+		font-size: 1em;
+	}
+
+	:where(.app-ui) :where(ol, ul, menu) {
+		list-style: none;
+	}
+
+	:where(.app-ui) :where(img, svg, video, canvas) {
+		display: block;
+		vertical-align: middle;
+	}
+
+	:where(.app-ui) :where(img, video) {
+		max-width: 100%;
+		height: auto;
+	}
+
+	:where(.app-ui) :where(button, input, select, textarea) {
+		border-radius: 0;
+		background-color: transparent;
+		color: inherit;
+		font: inherit;
+		font-feature-settings: inherit;
+		letter-spacing: inherit;
+		opacity: 1;
+	}
+
+	:where(.app-ui) ::placeholder {
+		color: color-mix(in oklab, currentcolor 50%, transparent);
+		opacity: 1;
+	}
+}

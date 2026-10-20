@@ -1,0 +1,61 @@
+---
+description: Cross-domain imports go through the domain api
+globs: apps/malini/src/lib/**,apps/malini/src/main/**,apps/malini/src/renderer/**
+alwaysApply: false
+---
+
+# Cross-domain imports
+
+A domain is a folder under `$lib/` (or `$shared/repositories`, `$shared/providers`) with its own layers.
+When one domain needs another, it imports the other domain's api file, never a path inside it.
+
+## Renderer side
+
+A renderer file (`domain/`, `application/`, `infrastructure/`, `presentation/`, an api file, a flat `$shared/<util>`) may import:
+
+- its own domain, following the layer rules;
+- `$lib/<domain>/<domain>.api.ts`;
+- `$shared/repositories/repositories.api.ts` and `$shared/providers/providers.api.ts`;
+- flat `$shared/<util>/**` modules (`router`, `extensions`, `errors`, `storage`, ...);
+- `$contract`, `$hyper-ui`, and packages.
+
+A `domain/` file is narrower and wider at once: it may import another domain's `domain/` folder, and nothing but `domain/` folders, `$contract` and `ts-pattern` (see `layers/domain-layer.mdc`).
+
+Anything else inside another domain is `crossDomainDeepImport`.
+A relative path that leaves the domain folder is `escapesDomain`.
+
+## What an api file may export
+
+- A domain api exports from its own presentation layer only.
+- A shared domain api (`repositories.api.ts`, `providers.api.ts`) may also export its domain types, pure functions, queries, commands and hooks.
+- Infrastructure and platform never cross an api file, anywhere.
+  The check is `apiExportsInternals`.
+- If a symbol is missing from an api, move it to a shared domain.
+  Do not widen the api.
+
+## The `app` consumer domain
+
+`$lib/app` owns the shell, the sidebar, the layouts, the pages and the routes.
+It may additionally import `$lib/<domain>/application/**` of any domain, so a page can call a command and read a query without a render prop.
+It still may not reach another domain's `infrastructure/`, `presentation/` internals, `domain/` internals or `platform/`.
+No domain imports `app`.
+
+## Main-process side
+
+A `platform/` folder or a `<domain>.platform.ts` file may import:
+
+- its own domain;
+- another domain's `<domain>.platform.ts` (for example `$shared/repositories/repositories.platform.ts`);
+- `$main/**`, `$contract`, `node:*`, `electron`, and packages.
+
+It never imports a renderer layer, an api file, a flat `$shared/<util>`, or `$hyper-ui` (`platformImportsRenderer`).
+It never imports another domain's `domain/` or `platform/` internals (`crossDomainDeepImport`).
+A renderer file never imports platform code or `$main` (`rendererImportsPlatform`).
+
+`src/main/modules.ts` and `src/main/index.ts` are composition roots: they may import any `platform/` file, in practice each domain's `platform/register.ts`.
+Other `src/main` files may import any domain's `domain/` folder and `<domain>.platform.ts`.
+
+## Everywhere
+
+No `index.ts` and no `export *` (`barrelFile`, `starExport`).
+No relative path that leaves the domain folder (`escapesDomain`).

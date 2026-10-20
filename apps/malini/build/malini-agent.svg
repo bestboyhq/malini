@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+	<filter id="stack-fill"><feFlood flood-color="#808080"/><feComposite in2="SourceAlpha" operator="in"/></filter>
+	<rect width="1024" height="1024" fill="#1c1c1f"/>
+	<g transform="translate(512 512) scale(0.7) translate(-512 -512)">
+		<image href="Malini.icon/Assets/stack.svg" width="1024" height="1024" filter="url(#stack-fill)"/>
+		<image href="Malini.icon/Assets/plane.svg" width="1024" height="1024"/>
+	</g>
+</svg>

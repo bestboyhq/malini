@@ -1,0 +1,20 @@
+---
+description: hyper-ui component and token rules
+globs: apps/malini/src/lib/**,apps/malini/src/renderer/**
+alwaysApply: false
+---
+
+# hyper-ui
+
+`@malini/hyper-ui` is the design system. Import the folder module `$hyper-ui/components/<kebab-name>`, never a `.svelte` path inside it. Icons are `<Icon name="…" />` from `$hyper-ui/icons`.
+
+Rules:
+
+- Use a hyper-ui component before writing a control. Buttons, form controls, overlays, and modals exist.
+- Design tokens only. No literal colors. No legacy tokens. No opacity on semantic tokens.
+- Use the surface/border token pair that matches. `border` tokens are not backgrounds.
+- Foreground tokens are for text and icons. A non-text use is a rule violation.
+- No native `title` attribute. Use the hyper-ui tooltip.
+- No bespoke overlay or modal implementations. Use the hyper-ui primitives.
+- Every rule runs at `error`, enforced by `@malini/desktop/*` in `packages/eslint-plugin-hyper-ui`.
+- Do not edit a `*.generated.ts` file. Edit its source and rerun the generator.

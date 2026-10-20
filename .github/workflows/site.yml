@@ -1,0 +1,29 @@
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/site/**
+      - .github/readme/**
+      - .github/workflows/site.yml
+      - pnpm-lock.yaml
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy to bestboy.dev/malini
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm --filter @malini/site test
+      - name: Deploy the Worker
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: apps/site
+        run: npx --yes wrangler@4 deploy

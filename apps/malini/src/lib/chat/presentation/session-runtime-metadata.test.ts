@@ -1,0 +1,301 @@
+import { describe, expect, it } from 'vitest';
+import type { EventEnvelope } from '$lib/chat/domain/events';
+import {
+	contextPressure,
+	contextPressureAdvice,
+	contextRemainingTokens,
+	contextUnavailableMessage,
+	contextBreakdown,
+	contextUsagePercent,
+	deriveSessionRuntimeMetadata,
+	formatRunUsage,
+	lastRunUsage,
+	mcpUnavailableMessage,
+	mcpServerDisplayName,
+} from './session-runtime-metadata';
+import { CONTEXT_HANDOFF_CONTENT_ID_PREFIX } from './render-state';
+
+function envelope(seq: number, event: EventEnvelope['event']): EventEnvelope {
+	return { sessionId: 'session-1', runId: 'run-1', seq, event };
+}
+
+describe('session runtime metadata', () => {
+	it('keeps the latest exact context, its breakdown, and MCP snapshots without making chat items', () => {
+		const metadata = deriveSessionRuntimeMetadata([
+			envelope(1, {
+				type: 'usage.updated',
+				runId: 'run-1',
+				inputTokens: 99_000,
+				contextTokens: 97_600,
+				contextWindowTokens: 258_400,
+				providerMetrics: {
+					anthropic: {
+						contextCategories: [
+							{ name: 'System prompt', tokens: 2_100, kind: 'used' },
+							{ name: 'MCP tools (deferred)', tokens: 6_000, kind: 'deferred' },
+							{ name: 'Messages', tokens: 95_500, kind: 'used' },
+							{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+							{ name: 'Free space', tokens: 127_800, kind: 'free' },
+							{ name: 'Broken', tokens: 'many', kind: 'used' },
+						],
+					},
+				},
+			}),
+			envelope(2, {
+				type: 'mcp.status',
+				runId: 'run-1',
+				servers: [
+					{ name: 'linear', status: 'connected' },
+					{ name: 'computer-use', status: 'failed', error: 'handshake failed' },
+				],
+			}),
+		]);
+
+		expect(metadata.context).toEqual({
+			usedTokens: 97_600,
+			maxTokens: 258_400,
+			categories: [
+				{ name: 'System prompt', tokens: 2_100, kind: 'used' },
+				{ name: 'Messages', tokens: 95_500, kind: 'used' },
+				{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+			],
+		});
+		expect(contextUsagePercent(metadata.context!)).toBeCloseTo(37.77, 2);
+		expect(metadata.mcpServers).toEqual([
+			{ name: 'linear', displayName: 'Linear', status: 'connected', usable: true, error: null },
+			{
+				name: 'computer-use',
+				displayName: 'Computer Use',
+				status: 'failed',
+				usable: false,
+				error: 'handshake failed',
+			},
+		]);
+	});
+
+	it('never marks pending, auth-gated, disabled, failed, or unknown MCP states as usable', () => {
+		const metadata = deriveSessionRuntimeMetadata([
+			envelope(1, {
+				type: 'mcp.status',
+				runId: 'run-1',
+				servers: [
+					{ name: 'Linear', status: 'pending' },
+					{ name: 'GitHub', status: 'needs-auth' },
+					{ name: 'Disabled', status: 'disabled' },
+					{ name: 'Broken', status: 'failed' },
+					{ name: 'Future status', status: 'warming-up' },
+				],
+			}),
+		]);
+
+		expect(metadata.mcpServers).toEqual([
+			{ name: 'Linear', displayName: 'Linear', status: 'pending', usable: false, error: null },
+			{ name: 'GitHub', displayName: 'GitHub', status: 'needs-auth', usable: false, error: null },
+			{ name: 'Disabled', displayName: 'Disabled', status: 'disabled', usable: false, error: null },
+			{ name: 'Broken', displayName: 'Broken', status: 'failed', usable: false, error: null },
+			{
+				name: 'Future status',
+				displayName: 'Future Status',
+				status: 'failed',
+				usable: false,
+				error: null,
+			},
+		]);
+	});
+
+	it('turns raw plugin IDs into friendly labels without losing the original ID', () => {
+		expect(mcpServerDisplayName('codebase-memory-mcp')).toBe('Codebase Memory');
+		expect(mcpServerDisplayName('design_tokens')).toBe('Design Tokens');
+		expect(mcpServerDisplayName('node_repl')).toBe('Node REPL');
+		expect(mcpServerDisplayName('custom-weather-mcp')).toBe('Custom Weather');
+		expect(mcpServerDisplayName('plugin:svelte:svelte')).toBe('Svelte');
+	});
+
+	it('never reads run input totals as context occupancy', () => {
+		const metadata = deriveSessionRuntimeMetadata([
+			envelope(1, { type: 'usage.updated', runId: 'run-1', inputTokens: 1_200_000 }),
+		]);
+
+		expect(metadata.context).toBeNull();
+		expect(metadata.mcpServers).toBeNull();
+	});
+
+	it('never invents a context maximum when the model has no published window', () => {
+		const metadata = deriveSessionRuntimeMetadata([
+			envelope(1, { type: 'usage.updated', runId: 'run-1', contextTokens: 1200 }),
+		]);
+
+		expect(metadata.context).toEqual({ usedTokens: 1200, maxTokens: null, categories: [] });
+		expect(contextUsagePercent(metadata.context!)).toBeNull();
+	});
+
+	it('drops a context reading taken before the newest handoff and takes the one after it', () => {
+		const stale = envelope(1, {
+			type: 'usage.updated',
+			runId: 'run-1',
+			contextTokens: 190_000,
+			contextWindowTokens: 200_000,
+		});
+		const handoff = envelope(2, {
+			type: 'assistant.message',
+			runId: 'run-1',
+			contentId: `${CONTEXT_HANDOFF_CONTENT_ID_PREFIX}1`,
+			text: 'Context handoff 1 of 10: this context is full.',
+		});
+		const fresh = envelope(3, {
+			type: 'usage.updated',
+			runId: 'run-1',
+			contextTokens: 4_200,
+			contextWindowTokens: 200_000,
+		});
+
+		expect(deriveSessionRuntimeMetadata([stale, handoff]).context).toBeNull();
+		expect(deriveSessionRuntimeMetadata([stale, handoff, fresh]).context).toEqual({
+			usedTokens: 4_200,
+			maxTokens: 200_000,
+			categories: [],
+		});
+	});
+
+	it('leaves the context reading alone for an ordinary assistant message', () => {
+		const metadata = deriveSessionRuntimeMetadata([
+			envelope(1, {
+				type: 'usage.updated',
+				runId: 'run-1',
+				contextTokens: 12_000,
+				contextWindowTokens: 200_000,
+			}),
+			envelope(2, {
+				type: 'assistant.message',
+				runId: 'run-1',
+				contentId: 'answer-1',
+				text: 'done',
+			}),
+		]);
+
+		expect(metadata.context?.usedTokens).toBe(12_000);
+	});
+
+	it('prefers the live mid-run reading over the last persisted one', () => {
+		const metadata = deriveSessionRuntimeMetadata(
+			[
+				envelope(1, {
+					type: 'usage.updated',
+					runId: 'run-1',
+					contextTokens: 20_000,
+					contextWindowTokens: 200_000,
+				}),
+			],
+			{ contextTokens: 140_000, contextWindowTokens: 200_000 },
+		);
+
+		expect(metadata.context?.usedTokens).toBe(140_000);
+		expect(contextUsagePercent(metadata.context!)).toBe(70);
+	});
+
+	it('grows the conversation row with a live reading so the breakdown always sums to the window', () => {
+		const metadata = deriveSessionRuntimeMetadata(
+			[
+				envelope(1, {
+					type: 'usage.updated',
+					runId: 'run-1',
+					contextTokens: 10_000,
+					contextWindowTokens: 200_000,
+					providerMetrics: {
+						anthropic: {
+							contextCategories: [
+								{ name: 'Skills', tokens: 4_000, kind: 'used' },
+								{ name: 'Messages', tokens: 6_000, kind: 'used' },
+								{ name: 'Autocompact buffer', tokens: 33_000, kind: 'buffer' },
+								{ name: 'Custom agents', tokens: 0, kind: 'used' },
+							],
+						},
+					},
+				}),
+			],
+			{ contextTokens: 50_000, contextWindowTokens: 200_000 },
+		);
+
+		const rows = contextBreakdown(metadata.context!);
+		expect(rows.map(({ name, tokens }) => [name, tokens])).toEqual([
+			['Messages', 46_000],
+			['Skills', 4_000],
+			['Autocompact buffer', 33_000],
+			['Free space', 117_000],
+		]);
+		expect(rows.reduce((total, row) => total + row.percent, 0)).toBeCloseTo(100);
+	});
+
+	it('has no breakdown without a window size or reported categories', () => {
+		expect(contextBreakdown({ usedTokens: 10, maxTokens: null, categories: [] })).toEqual([]);
+		expect(contextBreakdown({ usedTokens: 10, maxTokens: 100, categories: [] })).toEqual([]);
+	});
+
+	it('reports what is left and names the action once the window fills', () => {
+		const roomy = { usedTokens: 20_000, maxTokens: 200_000, categories: [] };
+		expect(contextRemainingTokens(roomy)).toBe(180_000);
+		expect(contextPressure(roomy)).toBe('ok');
+		expect(contextPressureAdvice(roomy)).toBeNull();
+
+		const filling = { usedTokens: 150_000, maxTokens: 200_000, categories: [] };
+		expect(contextPressure(filling)).toBe('high');
+		expect(contextPressureAdvice(filling)).toContain('dropping the earliest turns');
+
+		const nearlyFull = { usedTokens: 190_000, maxTokens: 200_000, categories: [] };
+		expect(contextPressure(nearlyFull)).toBe('critical');
+		expect(contextPressureAdvice(nearlyFull)).toContain('new workstream');
+	});
+
+	it('stays calm rather than alarming when the window size is unknown', () => {
+		const unknown = { usedTokens: 900_000, maxTokens: null, categories: [] };
+		expect(contextPressure(unknown)).toBe('ok');
+		expect(contextPressureAdvice(unknown)).toBeNull();
+		expect(contextRemainingTokens(unknown)).toBeNull();
+	});
+
+	it('describes unavailable runtime metadata in the words of the agent', () => {
+		expect(contextUnavailableMessage()).toBe(
+			'Context usage appears after the agent reports the first response.',
+		);
+		expect(mcpUnavailableMessage()).toBe(
+			'MCP status appears after the agent starts the first response.',
+		);
+	});
+});
+
+describe('last run token usage', () => {
+	it('reads the totals of the newest finished run, skipping interim per-message usage', () => {
+		const usage = lastRunUsage([
+			envelope(1, { type: 'usage.updated', runId: 'run-1', inputTokens: 50, outputTokens: 5 }),
+			envelope(2, { type: 'run.completed', runId: 'run-1', summary: '' }),
+			envelope(3, {
+				type: 'usage.updated',
+				runId: 'run-2',
+				inputTokens: 12345,
+				outputTokens: 678,
+				costUsd: 0.5,
+			}),
+			envelope(4, { type: 'usage.updated', runId: 'run-3', inputTokens: 9, interim: true }),
+		]);
+		expect(usage).toEqual({ inputTokens: 12345, outputTokens: 678, costUsd: 0.5 });
+	});
+
+	it('has nothing to show before any run reported usage', () => {
+		expect(
+			lastRunUsage([envelope(1, { type: 'run.started', runId: 'run-1', sessionId: 'session-1' })]),
+		).toBeNull();
+	});
+
+	it('reads out both directions with thousands separators', () => {
+		expect(formatRunUsage({ inputTokens: 12345, outputTokens: 678, costUsd: null }, false)).toBe(
+			'12,345 input · 678 output',
+		);
+	});
+
+	it('adds the cost only where the reader is actually billed per run', () => {
+		const usage = { inputTokens: 1, outputTokens: 2, costUsd: 0.5 };
+		expect(formatRunUsage(usage, true)).toContain('$0.50');
+		expect(formatRunUsage(usage, false)).not.toContain('$');
+		expect(formatRunUsage({ ...usage, costUsd: null }, true)).not.toContain('$');
+	});
+});

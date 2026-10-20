@@ -1,0 +1,48 @@
+---
+description: Presentation layer rules
+globs: apps/malini/src/lib/**/presentation/**
+alwaysApply: false
+---
+
+# Presentation layer
+
+Smart components connect to state.
+Presentational components take props.
+Side effects via `$effect` live here.
+
+Runes:
+
+- `$props()` for props, with `interface Props`.
+- `$state()` for local state, explicitly typed.
+- `$derived()` for computed values, declared `const`.
+- `$effect()` for side effects.
+- `$bindable()` for two-way binding.
+
+Rules:
+
+- Use the `autofocus` action, not `onMount` + `bind:this` + `.focus()`.
+- Name handlers `onSomething`, not `handleSomething`.
+- One component per `.svelte` file.
+- Explicit return types in the script block.
+- Early returns over nested `if`.
+- Render dynamic components directly.
+  No `<svelte:component>`.
+- Use `{@render snippet()}` with the `Snippet` type for render props.
+- Use components from `$hyper-ui/components/<name>` before writing your own control.
+- Conditional classes use array syntax.
+
+Data:
+
+- Load initial data in `onMount` by calling a command.
+  Never in `$effect`.
+- Read a query at the top level of the script: `const x = someQuery.data`, or `const x = $derived(someQueryById.data(id))`.
+- Never read `query.data` inside `$effect`, inside another `$derived`, or inside a function body.
+- The component dispatches commands and reads queries.
+  Branching, fetching, and orchestration belong in the application layer.
+
+Never import from infrastructure (`presentationImportsInfrastructure`) and never `$shared/port` (`platformAccessOutsideInfrastructure`).
+Read through a query.
+Change through a command.
+Another domain's components come from its api file.
+
+Naming: `MyComponent.svelte`.

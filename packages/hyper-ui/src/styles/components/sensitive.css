@@ -1,0 +1,13 @@
+@layer components {
+	.hyper-sensitive {
+		@apply focus-visible:ring-button-primary/40 inline-block cursor-pointer rounded-xs outline-0 focus-visible:ring-2;
+	}
+
+	.hyper-sensitive > .hyper-sensitive-mask {
+		@apply inline-block;
+	}
+
+	.hyper-sensitive-mask {
+		@apply opacity-60 blur-xs;
+	}
+}

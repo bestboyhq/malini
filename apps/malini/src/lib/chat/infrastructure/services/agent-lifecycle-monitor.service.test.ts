@@ -1,0 +1,450 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { EventEnvelope } from '$lib/chat/domain/events';
+import type { AgentSessionOrigin, LiveEventEnvelope } from '$contract/agent';
+import type { AgentAttention, AgentWorkstreamContext } from '$lib/chat/domain/agent-attention';
+import { AgentLifecycleMonitor } from './agent-lifecycle-monitor.service';
+
+function monitorHarness() {
+	let listener: ((payload: LiveEventEnvelope) => void) | null = null;
+	const sessions = new Map<
+		string,
+		{ workstreamId: string; status: string; origin?: AgentSessionOrigin }
+	>();
+	const contexts = new Map<string, AgentWorkstreamContext>();
+	const attentions = new Map<string, AgentAttention>();
+	const notifications: Array<{
+		title: string;
+		body: string;
+		workstreamId: string;
+		sessionId: string;
+	}> = [];
+	const unlisten = vi.fn();
+	const chime = vi.fn();
+	let subscribeCount = 0;
+
+	const monitor = new AgentLifecycleMonitor({
+		subscribe: (next) => {
+			subscribeCount += 1;
+			listener = next;
+			return unlisten;
+		},
+		applyLifecycle: (envelope: EventEnvelope) => {
+			const session = sessions.get(envelope.sessionId) ?? {
+				workstreamId: '_unknown',
+				status: 'idle',
+			};
+			if (envelope.event.type === 'run.started') session.status = 'running';
+			if (envelope.event.type === 'approval.requested') session.status = 'waiting_for_approval';
+			if (envelope.event.type === 'run.completed') session.status = 'completed';
+			if (envelope.event.type === 'run.failed') session.status = 'failed';
+			sessions.set(envelope.sessionId, session);
+		},
+		sessionFor: (sessionId) => sessions.get(sessionId) ?? null,
+		appFocused: () => true,
+		queueCountFor: () => 0,
+		contextFor: (workstreamId) => contexts.get(workstreamId) ?? null,
+		clearAttention: (sessionId) => attentions.delete(sessionId),
+		clearAttentionForRun: (sessionId, runId) => {
+			if (attentions.get(sessionId)?.runId !== runId) return false;
+			return attentions.delete(sessionId);
+		},
+		markAttention: (_workstreamId, attention) => {
+			const existing = attentions.get(attention.sessionId);
+			if (existing?.runId === attention.runId && existing.kind === attention.kind) return false;
+			attentions.set(attention.sessionId, attention);
+			return true;
+		},
+		chime,
+		notify: (title, body, workstreamId, sessionId) => {
+			notifications.push({ title, body, workstreamId, sessionId });
+		},
+	});
+
+	return {
+		monitor,
+		sessions,
+		contexts,
+		attentions,
+		notifications,
+		chime,
+		unlisten,
+		subscribeCount: () => subscribeCount,
+		emit(payload: LiveEventEnvelope) {
+			if (!listener) throw new Error('monitor is not subscribed');
+			listener(payload);
+		},
+	};
+}
+
+function context(owner: string, workstreamId: string): AgentWorkstreamContext {
+	return {
+		workstreamId,
+		label: `${workstreamId} label`,
+		repositoryFullName: `${owner}/repo`,
+		branch: `malini/${workstreamId}`,
+	};
+}
+
+function envelope(
+	sessionId: string,
+	runId: string,
+	seq: number,
+	event: LiveEventEnvelope['event'],
+): LiveEventEnvelope {
+	return { sessionId, runId, seq, event };
+}
+
+const DEV_SERVER = {
+	taskId: 'b1',
+	kind: 'command',
+	description: 'pnpm dev',
+	startedAt: 1,
+} as const;
+const REVIEWER = { taskId: 'a1', kind: 'agent', description: 'review', startedAt: 1 } as const;
+
+function waitingOn(
+	tasks: readonly (typeof DEV_SERVER | typeof REVIEWER)[],
+	seq: number,
+	summary?: string,
+): LiveEventEnvelope {
+	return envelope('session-a', 'run-a', seq, {
+		type: 'background.updated',
+		runId: 'run-a',
+		waiting: true,
+		tasks: [...tasks],
+		...(summary === undefined ? {} : { summary }),
+	});
+}
+
+function watchingStreamA(): ReturnType<typeof monitorHarness> {
+	const harness = monitorHarness();
+	harness.sessions.set('session-a', { workstreamId: 'stream-a', status: 'running' });
+	harness.contexts.set('stream-a', context('acme', 'stream-a'));
+	harness.monitor.setShown('stream-b', null);
+	harness.monitor.start();
+	return harness;
+}
+
+describe('AgentLifecycleMonitor', () => {
+	it('announces a turn that ended over background commands once, as a finished turn', () => {
+		const harness = watchingStreamA();
+
+		harness.emit(waitingOn([DEV_SERVER], 4, 'Dev server is up.'));
+		harness.emit(waitingOn([DEV_SERVER], 5));
+		harness.emit(
+			envelope('session-a', 'run-a', 6, {
+				type: 'run.completed',
+				runId: 'run-a',
+				summary: 'Dev server is up.',
+			}),
+		);
+
+		expect(harness.sessions.get('session-a')?.status).toBe('completed');
+		expect(harness.attentions.get('session-a')).toMatchObject({
+			kind: 'completed',
+			runId: 'run-a',
+		});
+		expect(harness.notifications).toEqual([
+			{
+				title: 'stream-a label finished',
+				body: 'Dev server is up.',
+				workstreamId: 'stream-a',
+				sessionId: 'session-a',
+			},
+		]);
+		expect(harness.chime).toHaveBeenCalledOnce();
+	});
+
+	it('names a turn that ended over background commands and needs the user as needing them', () => {
+		const harness = watchingStreamA();
+
+		harness.emit(
+			waitingOn([DEV_SERVER], 4, 'Started the server.\n\nOutcome: Up\nNeeds: Log in at /admin'),
+		);
+
+		expect(harness.attentions.get('session-a')?.kind).toBe('input');
+		expect(harness.notifications[0]?.title).toBe('stream-a label needs you');
+	});
+
+	it('announces the turn Claude Code runs once its background command ends', () => {
+		const harness = watchingStreamA();
+
+		harness.emit(waitingOn([DEV_SERVER], 4, 'Suite started.'));
+		harness.emit(
+			envelope('session-a', 'run-a', 6, {
+				type: 'run.completed',
+				runId: 'run-a',
+				summary: '214 passed.',
+			}),
+		);
+
+		expect(harness.notifications.map(({ body }) => body)).toEqual([
+			'Suite started.',
+			'214 passed.',
+		]);
+		expect(harness.chime).toHaveBeenCalledTimes(2);
+	});
+
+	it('stays quiet while a background agent works or the wait carries no turn summary', () => {
+		const harness = watchingStreamA();
+
+		harness.emit(waitingOn([DEV_SERVER, REVIEWER], 4, 'Launched both.'));
+		harness.emit(waitingOn([REVIEWER], 5, 'Launched the reviewer.'));
+		harness.emit(waitingOn([DEV_SERVER], 6));
+
+		expect(harness.sessions.get('session-a')?.status).toBe('running');
+		expect(harness.attentions.has('session-a')).toBe(false);
+		expect(harness.notifications).toEqual([]);
+		expect(harness.chime).not.toHaveBeenCalled();
+	});
+
+	it('keeps inactive workstreams truthful while active work remains notification-free', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-a', { workstreamId: 'stream-a', status: 'running' });
+		harness.sessions.set('session-b', { workstreamId: 'stream-b', status: 'running' });
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.contexts.set('stream-b', context('globex', 'stream-b'));
+		harness.monitor.setShown('stream-a', 'session-a');
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-b', 'run-b', 2, {
+				type: 'run.completed',
+				runId: 'run-b',
+				summary: 'Beta is ready.',
+			}),
+		);
+		expect(harness.sessions.get('session-b')?.status).toBe('completed');
+		expect(harness.attentions.get('session-b')?.kind).toBe('completed');
+		expect(harness.notifications).toEqual([
+			{
+				title: 'stream-b label finished',
+				body: 'Beta is ready.',
+				workstreamId: 'stream-b',
+				sessionId: 'session-b',
+			},
+		]);
+
+		harness.emit(
+			envelope('session-a', 'run-a', 2, {
+				type: 'run.completed',
+				runId: 'run-a',
+				summary: 'Alpha is ready.',
+			}),
+		);
+		expect(harness.sessions.get('session-a')?.status).toBe('completed');
+		expect(harness.attentions.has('session-a')).toBe(false);
+		expect(harness.notifications).toHaveLength(1);
+		expect(harness.chime).toHaveBeenCalledTimes(2);
+	});
+
+	it('marks a background chat of the workstream on screen unread without notifying', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-shown', { workstreamId: 'stream-a', status: 'idle' });
+		harness.sessions.set('session-behind', { workstreamId: 'stream-a', status: 'running' });
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.monitor.setShown('stream-a', 'session-shown');
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-behind', 'run-behind', 2, {
+				type: 'run.completed',
+				runId: 'run-behind',
+				summary: 'Behind is ready.',
+			}),
+		);
+
+		expect(harness.attentions.get('session-behind')?.kind).toBe('completed');
+		expect(harness.notifications).toEqual([]);
+	});
+
+	it('leaves job runs to the Job center: no attention, no notification, no cleared dot', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('job-session', {
+			workstreamId: 'stream-b',
+			status: 'idle',
+			origin: 'job',
+		});
+		harness.contexts.set('stream-b', context('globex', 'stream-b'));
+		harness.attentions.set('user-session', {
+			kind: 'completed',
+			runId: 'user-run',
+			sessionId: 'user-session',
+			updatedAt: 1,
+		});
+		harness.monitor.setShown('stream-a', null);
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('job-session', 'job-run', 1, {
+				type: 'run.started',
+				runId: 'job-run',
+				sessionId: 'job-session',
+			}),
+		);
+		harness.emit(
+			envelope('job-session', 'job-run', 2, {
+				type: 'run.completed',
+				runId: 'job-run',
+				summary: 'Checks pass.',
+			}),
+		);
+
+		harness.emit(
+			envelope('late-job', 'late-run', 1, {
+				type: 'run.failed',
+				runId: 'late-run',
+				error: 'boom',
+			}),
+		);
+		harness.sessions.set('late-job', { workstreamId: 'stream-b', status: 'failed', origin: 'job' });
+		harness.monitor.flushKnownSessions();
+
+		expect(harness.sessions.get('job-session')?.status).toBe('completed');
+		expect(harness.attentions.get('user-session')?.runId).toBe('user-run');
+		expect(harness.notifications).toEqual([]);
+		expect(harness.chime).not.toHaveBeenCalled();
+	});
+
+	it('clears old terminal attention when a new background run starts', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-a', { workstreamId: 'stream-a', status: 'completed' });
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.attentions.set('session-a', {
+			kind: 'completed',
+			runId: 'old-run',
+			sessionId: 'session-a',
+			updatedAt: 1,
+		});
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-a', 'new-run', 3, {
+				type: 'run.started',
+				runId: 'new-run',
+				sessionId: 'session-a',
+			}),
+		);
+		expect(harness.sessions.get('session-a')?.status).toBe('running');
+		expect(harness.attentions.has('session-a')).toBe(false);
+	});
+
+	it('does not notify twice when the same terminal envelope is delivered again', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-a', { workstreamId: 'stream-a', status: 'running' });
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.monitor.start();
+		const completed = envelope('session-a', 'run-a', 3, {
+			type: 'run.completed',
+			runId: 'run-a',
+			summary: 'Ready once.',
+		});
+
+		harness.emit(completed);
+		harness.emit(completed);
+
+		expect(harness.notifications).toEqual([
+			{
+				title: 'stream-a label finished',
+				body: 'Ready once.',
+				workstreamId: 'stream-a',
+				sessionId: 'session-a',
+			},
+		]);
+		expect(harness.attentions.get('session-a')?.kind).toBe('completed');
+		expect(harness.chime).toHaveBeenCalledOnce();
+	});
+
+	it('retires approval attention when that run is explicitly cancelled', () => {
+		const harness = monitorHarness();
+		harness.sessions.set('session-a', {
+			workstreamId: 'stream-a',
+			status: 'waiting_for_approval',
+		});
+		harness.contexts.set('stream-a', context('acme', 'stream-a'));
+		harness.attentions.set('session-a', {
+			kind: 'approval',
+			runId: 'run-a',
+			sessionId: 'session-a',
+			updatedAt: 1,
+		});
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-a', 'run-a', 3, {
+				type: 'run.failed',
+				runId: 'run-a',
+				error: 'cancelled',
+			}),
+		);
+
+		expect(harness.sessions.get('session-a')?.status).toBe('failed');
+		expect(harness.attentions.has('session-a')).toBe(false);
+		expect(harness.notifications).toEqual([]);
+	});
+
+	it('buffers an ownership race and routes attention after session hydration', () => {
+		const harness = monitorHarness();
+		harness.contexts.set('stream-b', context('globex', 'stream-b'));
+		harness.monitor.start();
+
+		harness.emit(
+			envelope('session-late', 'run-late', 9, {
+				type: 'run.failed',
+				runId: 'run-late',
+				error: 'Build failed',
+			}),
+		);
+		expect(harness.sessions.get('session-late')?.workstreamId).toBe('_unknown');
+		expect(harness.notifications).toEqual([]);
+
+		harness.sessions.set('session-late', { workstreamId: 'stream-b', status: 'failed' });
+		harness.monitor.flushKnownSessions();
+		expect(harness.attentions.get('session-late')?.kind).toBe('failed');
+		expect(harness.notifications).toEqual([
+			{
+				title: 'stream-b label needs attention',
+				body: 'Build failed',
+				workstreamId: 'stream-b',
+				sessionId: 'session-late',
+			},
+		]);
+	});
+
+	it('subscribes once and releases the subscription on shell teardown', () => {
+		const harness = monitorHarness();
+
+		harness.monitor.start();
+		harness.monitor.start();
+		expect(harness.subscribeCount()).toBe(1);
+		expect(harness.unlisten).not.toHaveBeenCalled();
+
+		harness.monitor.stop();
+		expect(harness.unlisten).toHaveBeenCalledOnce();
+
+		harness.monitor.start();
+		expect(harness.subscribeCount()).toBe(2);
+	});
+
+	it('ignores ephemeral and non-lifecycle traffic', () => {
+		const harness = monitorHarness();
+		harness.monitor.start();
+		harness.emit(
+			envelope('session-a', 'run-a', 1, {
+				type: 'assistant.delta',
+				runId: 'run-a',
+				contentId: 'block-a',
+				text: 'streaming',
+			}),
+		);
+		harness.emit({
+			...envelope('session-a', 'run-a', 2, {
+				type: 'run.completed',
+				runId: 'run-a',
+				summary: 'ignored',
+			}),
+			ephemeral: true,
+		});
+		expect(harness.sessions.size).toBe(0);
+	});
+});

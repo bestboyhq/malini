@@ -1,0 +1,13 @@
+---
+description: Use parallel subagents for independent work
+alwaysApply: true
+---
+
+# Parallel subagents
+
+When a task has independent steps (creating several files, updating several consumers, refactoring across layers):
+
+- Use several subagents in parallel.
+- Group independent work into one subagent each.
+- Serialize only when there is a real data dependency.
+- Prefer 3-4 in parallel over one sequential agent.

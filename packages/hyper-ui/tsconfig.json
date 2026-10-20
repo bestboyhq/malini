@@ -1,0 +1,16 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["svelte", "vite/client", "node"],
+		"noEmit": true,
+		"allowJs": true,
+		"checkJs": true,
+		"paths": {
+			"$hyper-ui/*": ["./src/*"]
+		}
+	},
+	"include": ["src/**/*.ts", "src/**/*.svelte", "scripts/**/*.mjs", "vitest.config.ts"]
+}

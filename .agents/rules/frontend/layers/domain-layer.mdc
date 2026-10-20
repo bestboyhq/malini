@@ -1,0 +1,35 @@
+---
+description: Domain layer rules
+globs: apps/malini/src/lib/**/domain/**
+alwaysApply: false
+---
+
+# Domain layer (`/domain/`)
+
+Types, interfaces, domain models, enums, DTOs, and pure functions over them.
+Nothing else.
+
+Both processes compile this folder, so it carries no svelte, no node, no electron, no DOM.
+
+Rules:
+
+- Imports only `domain/` folders (its own or another domain's), `$contract`, and `ts-pattern`.
+  Nothing from application, infrastructure, presentation, platform, an api file, a flat `$shared/<util>`, `$hyper-ui`, svelte, node, or electron.
+  The check is `domainImportsOutward`.
+- A pure, side-effect-free function over domain types belongs here.
+  Both processes need the same derivations and neither should own them.
+- No side effects, no I/O, no module-level mutable state.
+- No re-export of imported types.
+  No barrel files.
+  Consumers import from the source file.
+- Types a store, aggregate, or service exposes externally are defined here: filter types, sort options, status enums.
+- Raw API shapes belong in infrastructure mappers, not here.
+  A domain type is a clean business model.
+- Enums: name `ThisCase`, keys `THIS_CASE`, values `this-case`.
+- Suffix DTOs with `Dto`.
+- Explicit return types on every function.
+
+Naming:
+
+- `my-something.ts` holds `MySomething`.
+- `my-something.enum.ts` holds `MySomethingEnum`.

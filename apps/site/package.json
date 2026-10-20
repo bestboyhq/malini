@@ -1,0 +1,37 @@
+{
+	"$schema": "https://json.schemastore.org/package.json",
+	"name": "@malini/site",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"lint": "eslint .",
+		"test": "pnpm run build && node --test tests/*.test.ts"
+	},
+	"devDependencies": {
+		"@fontsource-variable/geist": "^5.3.0",
+		"@fontsource-variable/geist-mono": "^5.3.0",
+		"@fontsource-variable/inter": "^5.3.0",
+		"@malini/eslint-plugin-hyper-ui": "workspace:*",
+		"@malini/hyper-ui": "workspace:*",
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"@tailwindcss/vite": "catalog:",
+		"@types/node": "catalog:",
+		"daisyui": "catalog:",
+		"eslint": "catalog:",
+		"marked": "^15.0.12",
+		"shiki": "^4.5.0",
+		"svelte": "catalog:",
+		"svelte-check": "^4.7.6",
+		"tailwindcss": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	}
+}

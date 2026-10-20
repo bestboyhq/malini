@@ -1,0 +1,20 @@
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
+
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source '../../lib';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@plugin 'daisyui' {
+	themes: false;
+	exclude: rootscrollgutter, dropdown, button, input;
+}
+
+@import '@malini/hyper-ui/styles';
+
+@import './styles/base.css';

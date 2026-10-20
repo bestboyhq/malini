@@ -1,0 +1,72 @@
+@theme {
+	--font-sans: 'Geist Variable', system-ui, -apple-system, sans-serif;
+	--font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+	--font-display: 'STIX Two Text Variable', ui-serif, Georgia, serif;
+
+	--text-3xs: 0.6875rem;
+	--text-3xs--line-height: calc(14 / 11);
+
+	--text-2xs: 0.75rem;
+	--text-2xs--line-height: calc(16 / 12);
+
+	--text-xs: 0.8125rem;
+	--text-xs--line-height: calc(20 / 13);
+
+	--text-sm: 0.875rem;
+	--text-sm--line-height: calc(20 / 14);
+
+	--text-base: 0.9375rem;
+	--text-base--line-height: calc(24 / 15);
+
+	--text-lg: 1.0625rem;
+	--text-lg--line-height: calc(28 / 17);
+
+	--text-xl: 1.25rem;
+	--text-xl--line-height: calc(32 / 20);
+
+	--text-2xl: 1.625rem;
+	--text-2xl--line-height: calc(36 / 26);
+
+	--text-3xl: 1.875rem;
+	--text-3xl--line-height: calc(2.25 / 1.875);
+	--text-4xl: 2.25rem;
+	--text-4xl--line-height: calc(2.5 / 2.25);
+	--text-5xl: 3rem;
+	--text-5xl--line-height: 1;
+	--text-6xl: 3.75rem;
+	--text-6xl--line-height: 1;
+	--text-7xl: 4.5rem;
+	--text-7xl--line-height: 1;
+	--text-8xl: 6rem;
+	--text-8xl--line-height: 1;
+	--text-9xl: 8rem;
+	--text-9xl--line-height: 1;
+
+	--font-weight-thin: 100;
+	--font-weight-extralight: 200;
+	--font-weight-light: 300;
+	--font-weight-normal: 400;
+
+	--font-weight-450: 450;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+	--font-weight-bold: 700;
+	--font-weight-extrabold: 800;
+	--font-weight-black: 900;
+
+	--tracking-tighter: -0.05em;
+	--tracking-tight: -0.025em;
+	--tracking-normal: 0em;
+	--tracking-wide: 0.025em;
+	--tracking-wider: 0.05em;
+	--tracking-widest: 0.1em;
+
+	--leading-code: 1.55;
+
+	--leading-tight: 1.25;
+	--leading-snug: 1.375;
+	--leading-normal: 1.5;
+	--leading-relaxed: 1.625;
+	--leading-loose: 2;
+}

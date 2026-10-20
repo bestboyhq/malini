@@ -1,0 +1,49 @@
+---
+description: Infrastructure layer rules
+globs: apps/malini/src/lib/**/infrastructure/**
+alwaysApply: false
+---
+
+# Infrastructure layer
+
+What lives here:
+
+- Stores: singleton classes under `stores/`, `$state`, for UI state a user drives: filters, sort, pagination, flags.
+- Aggregates: singleton classes under `aggregates/`, `$state.raw`, for entity collections and their load status.
+  Nothing else.
+- Services: stateless singleton classes under `services/` that call the platform through `invoke` (`$shared/port/invoke`) and `onPlatformEvent` (`$shared/port/events`), both typed by `$contract`.
+  Infrastructure is the only domain layer that imports `$shared/port`.
+- Mappers: static-only classes under `mappers/` that turn a raw shape into a domain type.
+
+Rules:
+
+- No type assertions.
+  `@malini/desktop/no-as-casts`.
+  Fix the boundary.
+- May import its own `domain/`, `$shared/port`, `$contract`, flat `$shared/<util>` modules, and other domains' api files.
+  Never its own `application/` or `presentation/` (`layerImportsOutward`).
+- Never export a type or an interface (`infrastructureExportsType`).
+  If a type crosses outward, define it in `domain/`.
+  Internal-only types stay local and unexported.
+- An aggregate holds entities and load status only.
+  Filters, sort, and other UI state belong in a store.
+  A query combines them.
+- A service contains no inline mapping.
+  It calls the platform, calls a mapper, and returns a domain type.
+  Services (and other mappers) are the only callers of a mapper; commands, queries, hooks, stores and aggregates are not (`mapperOutsideService`).
+- `$state` and `$state.raw` carry an explicit type.
+- No `.then()`.
+  Use async/await.
+- Explicit return types.
+- Early returns over nesting.
+- One store, aggregate, mapper, or service per file.
+- No comments.
+
+Mapper rules:
+
+- Static only.
+  Never instantiate.
+- `fromRawList(raws)` maps `raws.map((raw) => this.fromRaw(raw))`.
+- Raw types use a `Raw` prefix and are defined inside the mapper file.
+
+File names: `my-something.store.svelte.ts`, `my-something.aggregate.svelte.ts`, `my-something.service.ts`, `my-something.mapper.ts`.

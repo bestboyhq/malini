@@ -1,0 +1,533 @@
+<script lang="ts">
+	import { onDestroy, onMount, tick } from 'svelte';
+	import { quartOut } from 'svelte/easing';
+	import { fly, slide, type SlideParams } from 'svelte/transition';
+	import { Button } from '$hyper-ui/components/button';
+	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
+	import { Icon } from '$hyper-ui/icons';
+	import type { JobRunRecord } from '$contract/jobs';
+	import { cancelRunCommand } from '$lib/chat/application/commands/cancel-run.command';
+	import { closeFreshChatCommand } from '$lib/chat/application/commands/close-fresh-chat.command';
+	import { openChangedFileCommand } from '$lib/chat/application/commands/open-changed-file.command';
+	import { pausePromptQueueCommand } from '$lib/chat/application/commands/pause-prompt-queue.command';
+	import { removeQueuedPromptCommand } from '$lib/chat/application/commands/remove-queued-prompt.command';
+	import { selectModelCommand } from '$lib/chat/application/commands/select-model.command';
+	import { selectRunProfileCommand } from '$lib/chat/application/commands/select-run-profile.command';
+	import { sendQueuedPromptCommand } from '$lib/chat/application/commands/send-queued-prompt.command';
+	import { startFreshChatCommand } from '$lib/chat/application/commands/start-fresh-chat.command';
+	import { stopBackgroundTaskCommand } from '$lib/chat/application/commands/stop-background-task.command';
+	import { updateQueuedPromptCommand } from '$lib/chat/application/commands/update-queued-prompt.command';
+	import { followChatRouteHook } from '$lib/chat/application/hooks/follow-chat-route.hook.svelte';
+	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
+	import { watchAgentLifecycleHook } from '$lib/chat/application/hooks/watch-agent-lifecycle.hook.svelte';
+	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
+	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
+	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
+	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
+	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
+	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
+	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
+	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
+	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
+	import { freshSessionRequestedQuery } from '$lib/chat/application/queries/fresh-session-requested.query.svelte';
+	import { openingChangedFileQuery } from '$lib/chat/application/queries/opening-changed-file.query.svelte';
+	import { pendingPromptQuery } from '$lib/chat/application/queries/pending-prompt.query.svelte';
+	import { pendingQuestionsQuery } from '$lib/chat/application/queries/pending-questions.query.svelte';
+	import { presentedTranscriptQuery } from '$lib/chat/application/queries/presented-transcript.query.svelte';
+	import { queueErrorsQuery } from '$lib/chat/application/queries/queue-errors.query.svelte';
+	import { queuePausedQuery } from '$lib/chat/application/queries/queue-paused.query.svelte';
+	import { queueSendingQuery } from '$lib/chat/application/queries/queue-sending.query.svelte';
+	import { queuedPromptsQuery } from '$lib/chat/application/queries/queued-prompts.query.svelte';
+	import { requestedSessionQuery } from '$lib/chat/application/queries/requested-session.query.svelte';
+	import { restoringSessionQuery } from '$lib/chat/application/queries/restoring-session.query.svelte';
+	import { runProfileQuery } from '$lib/chat/application/queries/run-profile.query.svelte';
+	import { sessionBootErrorQuery } from '$lib/chat/application/queries/session-boot-error.query.svelte';
+	import { sessionChangesTargetQuery } from '$lib/chat/application/queries/session-changes-target.query.svelte';
+	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
+	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
+	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
+	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
+	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
+	import { WorkstreamDocument } from '$lib/extensions/extensions.api';
+	import { WorkstreamJobRuns } from '$lib/jobs/jobs.api';
+	import { workstreamTabs } from '$shared/shell/workstream-tabs.store.svelte';
+	import { loadModelDefaultsCommand } from '$shared/providers/providers.api';
+	import {
+		DependencyInstallBanner,
+		WorkstreamProvisioningBanner,
+		type AgentSessionChangedFile,
+	} from '$shared/repositories/repositories.api';
+	import AgentProcessDiedBanner from './AgentProcessDiedBanner.svelte';
+	import AgentQuestionPanel from './AgentQuestionPanel.svelte';
+	import BackgroundTaskList from './BackgroundTaskList.svelte';
+	import ChatChangedFiles from './ChatChangedFiles.svelte';
+	import ChatColdShell from './ChatColdShell.svelte';
+	import ChatComposer from './ChatComposer.svelte';
+	import ChatEmptySession from './ChatEmptySession.svelte';
+	import ChatMessageList from './ChatMessageList.svelte';
+	import ChatSessionError from './ChatSessionError.svelte';
+	import ChatTabs from './ChatTabs.svelte';
+	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
+	import QueuedPromptList from './QueuedPromptList.svelte';
+	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
+	import { chatStage } from './chat-stage';
+
+	interface Props {
+		workstreamId: string;
+		pullRequestShipped?: boolean;
+		jobRuns?: readonly JobRunRecord[];
+		oncloseworkstream: () => void;
+	}
+
+	let {
+		workstreamId,
+		pullRequestShipped = false,
+		jobRuns = [],
+		oncloseworkstream,
+	}: Props = $props();
+
+	const splitInset = resizableSplitInset();
+
+	const releaseChatRoute = followChatRouteHook();
+	const stopPreloadingOpenChats = preloadOpenChatsHook();
+	const releaseSessionChanges = watchSessionChangesHook();
+	const releaseAgentLifecycle = watchAgentLifecycleHook();
+
+	onMount(() => {
+		loadModelDefaultsCommand();
+	});
+
+	onDestroy(() => {
+		releaseSessionChanges();
+		releaseAgentLifecycle();
+		releaseChatRoute();
+		stopPreloadingOpenChats();
+	});
+
+	const sessionId = $derived(activeSessionQuery.data);
+	const requestedSessionId = $derived(requestedSessionQuery.data);
+	const restoringSessionId = $derived(restoringSessionQuery.data);
+	const bootError = $derived(sessionBootErrorQuery.data);
+	const emptySessionMode = $derived(emptySessionModeQuery.data);
+	const forceFreshSession = $derived(freshSessionRequestedQuery.data);
+	const model = $derived(activeModelQuery.data);
+	const profile = $derived(runProfileQuery.data);
+	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
+	const handsOffBackgroundWork = $derived(
+		backgroundWork?.waiting === true && !(sessionId && pendingPromptQuery.data(sessionId)),
+	);
+	const isRunning = $derived(chatRunningQuery.data && !handsOffBackgroundWork);
+	const preparing = $derived(chatPreparingQuery.data);
+	const presentedTranscript = $derived(presentedTranscriptQuery.data);
+	const presentedWorkstreamId = $derived(presentedTranscript.workstreamId);
+	const presentedSessionId = $derived(presentedTranscript.sessionId);
+	const envelopes = $derived(sessionEnvelopesQuery.data(sessionId));
+	const closeFreshNavigationTarget = $derived(freshChatReturnQuery.data);
+	const queuedPrompts = $derived(queuedPromptsQuery.data);
+	const queuePaused = $derived(queuePausedQuery.data);
+	const queueSendingId = $derived(queueSendingQuery.data);
+	const queueErrorById = $derived(queueErrorsQuery.data);
+	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
+	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
+	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
+	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
+	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
+	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
+
+	let footerHeight = $state(0);
+	let trayHeight = $state(0);
+	let transcript: ChatMessageList | null = $state(null);
+	let contentBelow = $state(false);
+	let newContentBelow = $state(false);
+	const nudgeMotion = (): { y: number; duration: number } => ({
+		y: 4,
+		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
+	});
+	const foldMotion = (): SlideParams => ({
+		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 240,
+		easing: quartOut,
+	});
+
+	const documentActive = $derived(workstreamTabs.for(workstreamId).activeDocumentId !== null);
+
+	const freshChat = $derived(
+		sessionId === null &&
+			bootError === null &&
+			restoringSessionId === null &&
+			(emptySessionMode === 'fresh' || requestedSessionId === null),
+	);
+	const pendingSessionId = $derived(
+		requestedSessionId && requestedSessionId !== sessionId
+			? requestedSessionId
+			: restoringSessionId,
+	);
+	const sessionSwitching = $derived(pendingSessionId !== null && bootError === null);
+	const presentsRoutedChat = $derived(
+		freshChat ||
+			(sessionId !== null &&
+				presentedWorkstreamId === workstreamId &&
+				presentedSessionId === sessionId),
+	);
+	const presentationPending = $derived(
+		sessionSwitching ||
+			(!presentsRoutedChat && (preparing || (sessionId !== null && bootError === null))),
+	);
+	const retainingSourcePresentation = $derived(
+		presentedSessionId !== null && (presentedWorkstreamId !== workstreamId || presentationPending),
+	);
+	const stage = $derived(
+		chatStage({ freshChat, presentedSessionId, bootError, presentationPending }),
+	);
+	const asking = $derived(
+		stage === 'transcript' &&
+			!presentationPending &&
+			presentedSessionId === sessionId &&
+			pendingQuestions.length > 0,
+	);
+	let composerSlot: HTMLElement | null = $state(null);
+	let wasAsking = false;
+
+	$effect(() => {
+		const now = asking;
+		if (now === wasAsking) return;
+		wasAsking = now;
+		if (!now) void returnToComposer();
+	});
+
+	async function returnToComposer(): Promise<void> {
+		await tick();
+		if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			composerSlot?.animate(
+				[
+					{ opacity: 0, transform: 'translateY(6px)' },
+					{ opacity: 1, transform: 'none' },
+				],
+				{ duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+			);
+		}
+		if (focusIsUnclaimed()) composer?.focus({ scrollIntoView: false });
+	}
+
+	const showsSessionChanges = $derived(
+		!freshChat &&
+			!presentationPending &&
+			sessionChanges !== null &&
+			sessionChanges.files.length > 0,
+	);
+
+	const editorComposerControls = $derived<TranscriptComposerControls>({
+		model,
+		profile,
+		envelopes,
+		backendSelectionDisabled: bootError !== null || presentationPending,
+		onbackendchange: selectModelCommand,
+		onprofilechange: selectRunProfileCommand,
+	});
+
+	let transcriptReferences = $state<AgentTranscriptReference[]>([]);
+	let elementReferences = $state<AgentElementReference[]>([]);
+	let referencesLoadedFor: string | null = null;
+
+	$effect(() => {
+		const scope = draftScope;
+		if (referencesLoadedFor === scope) return;
+		referencesLoadedFor = scope;
+		transcriptReferences = scopedDraft.transcriptReferences.map((reference) => ({ ...reference }));
+		elementReferences = scopedDraft.elementReferences.map((reference) => ({
+			...reference,
+			rect: { ...reference.rect },
+		}));
+	});
+
+	let composer: {
+		focus(options?: { scrollIntoView?: boolean }): boolean;
+		typeKey(event: KeyboardEvent): void;
+		paste(event: ClipboardEvent): void;
+	} | null = $state(null);
+	const presentationKey = $derived(`${workstreamId}::${presentedSessionId ?? 'fresh'}`);
+	let focusedPresentationKey: string | null = null;
+
+	$effect(() => {
+		const key = presentationKey;
+		const presentable = !presentationPending && !retainingSourcePresentation && bootError === null;
+		if (!presentable || key === focusedPresentationKey) return;
+		focusedPresentationKey = key;
+		void focusComposerForPresentation(key);
+	});
+
+	async function focusComposerForPresentation(key: string): Promise<void> {
+		await tick();
+		if (presentationKey !== key || !composerMayTakeFocus()) return;
+		composer?.focus({ scrollIntoView: false });
+	}
+
+	function composerMayTakeFocus(): boolean {
+		return document.hasFocus() && focusIsUnclaimed();
+	}
+
+	function focusIsUnclaimed(): boolean {
+		const active = document.activeElement;
+		if (!(active instanceof HTMLElement)) return true;
+		if (active.closest('[role="dialog"]')) return false;
+		return !active.matches('input, textarea, select, [contenteditable], [role="textbox"]');
+	}
+
+	function onWindowKeydown(event: KeyboardEvent): void {
+		if (event.defaultPrevented || event.metaKey || event.ctrlKey || !/^\S$/u.test(event.key)) {
+			return;
+		}
+		if (composerMayClaimInput()) composer?.typeKey(event);
+	}
+
+	function onWindowPaste(event: ClipboardEvent): void {
+		if (!event.defaultPrevented && composerMayClaimInput()) composer?.paste(event);
+	}
+
+	function composerMayClaimInput(): boolean {
+		if (asking || documentActive || !focusIsUnclaimed()) return false;
+		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
+	}
+
+	function onOpenChangedFile(file: AgentSessionChangedFile): void {
+		openChangedFileCommand({ workstreamId, targetSessionId: sessionChangesTargetId, file });
+	}
+</script>
+
+<svelte:window onkeydown={onWindowKeydown} onpaste={onWindowPaste} />
+
+<div
+	data-testid="chat-surface"
+	class="flex h-full min-h-0 w-full flex-col overflow-hidden"
+	style:width={splitInset.extent > 0 ? `${splitInset.extent}px` : undefined}
+	style:padding-right="{splitInset.secondarySize}px"
+>
+	<AgentProcessDiedBanner />
+	<WorkstreamProvisioningBanner {workstreamId} />
+	<DependencyInstallBanner {workstreamId} />
+	<div class="min-h-0 flex-1">
+		<div
+			class="relative h-full min-h-0"
+			data-testid="workstream-runtime-surface"
+			data-navigation-workstream-id={workstreamId}
+			data-navigation-presented-workstream-id={presentedWorkstreamId}
+			data-navigation-agent-session-id={presentedSessionId ?? undefined}
+			aria-busy={presentationPending}
+		>
+			<div class="h-full min-h-0">
+				<section
+					class="text-fg-default flex h-full min-h-0 flex-col select-none"
+					data-testid="transcript-pane"
+					data-workstream-id={workstreamId}
+					data-presented-workstream-id={presentedWorkstreamId}
+					data-navigation-retained={retainingSourcePresentation ? 'true' : undefined}
+				>
+					<ChatTabs
+						{workstreamId}
+						activeSessionId={freshChat ? null : (pendingSessionId ?? sessionId)}
+						fresh={freshChat}
+						planMode={profile.mode === 'plan'}
+						onnewchat={startFreshChatCommand}
+						onclosefresh={closeFreshChatCommand}
+						{oncloseworkstream}
+						freshCloseNavigationTarget={closeFreshNavigationTarget}
+					/>
+
+					<div
+						class="transcript-stage relative min-h-0 flex-1"
+						aria-busy={presentationPending}
+						data-session-switching={presentationPending ? 'true' : undefined}
+					>
+						<div
+							class="absolute inset-0 z-0 flex min-h-0 flex-col"
+							inert={documentActive || undefined}
+						>
+							{#if stage === 'fresh'}
+								<FreshChatSuggestions
+									{workstreamId}
+									{draftScope}
+									footerInset={footerHeight}
+									bind:transcriptReferences
+								/>
+							{:else if stage === 'transcript' && presentedSessionId}
+								<div
+									class="contents"
+									inert={retainingSourcePresentation ? true : undefined}
+									data-navigation-retained={retainingSourcePresentation ? 'true' : undefined}
+									data-presented-workstream-id={presentedWorkstreamId}
+								>
+									<ChatMessageList
+										bind:this={transcript}
+										bind:contentBelow
+										bind:newContentBelow
+										workstreamId={presentedWorkstreamId}
+										sessionId={presentedSessionId}
+										envelopes={presentedTranscript.envelopes}
+										composerControls={editorComposerControls}
+										{pullRequestShipped}
+										spaceBelow={footerHeight}
+										overlayBelow={trayHeight}
+									>
+										{#snippet empty()}
+											<FreshChatSuggestions
+												{workstreamId}
+												{draftScope}
+												footerInset={footerHeight}
+												bind:transcriptReferences
+											/>
+										{/snippet}
+									</ChatMessageList>
+								</div>
+							{:else if stage === 'error' && bootError}
+								<ChatSessionError
+									{workstreamId}
+									{sessionId}
+									error={bootError}
+									footerInset={footerHeight}
+								/>
+							{:else if stage === 'cold'}
+								<ChatColdShell {workstreamId} pendingSessionId={pendingSessionId ?? sessionId} />
+							{:else}
+								<ChatEmptySession footerInset={footerHeight} />
+							{/if}
+						</div>
+
+						<div
+							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-[var(--scrollbar-gutter)]"
+							bind:clientHeight={footerHeight}
+							inert={documentActive || undefined}
+							data-testid="chat-footer-stack"
+						>
+							{#if stage === 'transcript' && contentBelow && !presentationPending}
+								<div
+									class="chat-stage-inset pointer-events-none absolute inset-x-0 bottom-full flex justify-center pr-[var(--scrollbar-gutter)] pb-3"
+									transition:fly={nudgeMotion()}
+								>
+									<Button
+										variant="secondary"
+										size="sm"
+										radius="full"
+										bordered
+										class="shadow-popup pointer-events-auto gap-1.5 pr-3.5 pl-3"
+										data-testid="chat-jump-to-latest"
+										onclick={() => transcript?.jumpToLatest()}
+									>
+										<Icon name="arrow-down" size={14} />
+										{newContentBelow ? 'New messages below' : 'Jump to latest'}
+									</Button>
+								</div>
+							{/if}
+							<div class="chat-stage-inset flex flex-col">
+								<div bind:clientHeight={trayHeight}>
+									{#if (showsSessionChanges && sessionChanges) || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+										<div class="chat-column px-7" transition:slide={foldMotion()}>
+											<div
+												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
+												data-testid="chat-composer-tray"
+											>
+												{#if showsSessionChanges && sessionChanges}
+													<div transition:slide={foldMotion()}>
+														<ChatChangedFiles
+															changes={sessionChanges}
+															openingPath={openingChangedFilePath}
+															onopen={onOpenChangedFile}
+														/>
+													</div>
+												{/if}
+
+												{#if jobRuns.length > 0}
+													<div transition:slide={foldMotion()}>
+														<WorkstreamJobRuns runs={jobRuns} />
+													</div>
+												{/if}
+
+												{#if backgroundWork && sessionId}
+													<div transition:slide={foldMotion()}>
+														<BackgroundTaskList
+															work={backgroundWork}
+															onstop={(taskId) => stopBackgroundTaskCommand(sessionId, taskId)}
+														/>
+													</div>
+												{/if}
+
+												{#if queuedPrompts.length > 0}
+													<div transition:slide={foldMotion()}>
+														<QueuedPromptList
+															{workstreamId}
+															items={queuedPrompts}
+															{isRunning}
+															paused={queuePaused}
+															sendingId={queueSendingId}
+															errorById={queueErrorById}
+															onupdate={updateQueuedPromptCommand}
+															onremove={removeQueuedPromptCommand}
+															onsendnext={sendQueuedPromptCommand}
+															onpausechange={pausePromptQueueCommand}
+														/>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+
+								{#if asking}
+									<AgentQuestionPanel requests={pendingQuestions} />
+								{/if}
+								<div bind:this={composerSlot} class={[asking && 'hidden']}>
+									<ChatComposer
+										bind:this={composer}
+										{sessionId}
+										bind:transcriptReferences
+										bind:elementReferences
+										{forceFreshSession}
+										{model}
+										{profile}
+										{envelopes}
+										{isRunning}
+										disabled={bootError !== null || presentationPending}
+										backendSelectionDisabled={bootError !== null || presentationPending}
+										oncancel={cancelRunCommand}
+										onbackendchange={selectModelCommand}
+										onprofilechange={selectRunProfileCommand}
+									/>
+								</div>
+							</div>
+						</div>
+
+						{#if documentActive}
+							<div class="bg-surface-root absolute inset-0 z-30 flex min-h-0">
+								<WorkstreamDocument {workstreamId} />
+							</div>
+						{/if}
+					</div>
+				</section>
+			</div>
+		</div>
+	</div>
+</div>
+
+<style>
+	.transcript-stage {
+		container-type: inline-size;
+	}
+
+	.chat-footer-scrim::before {
+		position: absolute;
+		bottom: 100%;
+		right: var(--scrollbar-gutter);
+		left: 0;
+		height: 1.5rem;
+		content: '';
+		pointer-events: none;
+		background: linear-gradient(to bottom, transparent, var(--color-surface-root));
+	}
+
+	.chat-footer-scrim::after {
+		position: absolute;
+		z-index: -1;
+		inset: 0 var(--scrollbar-gutter) 0 0;
+		content: '';
+		pointer-events: none;
+		background-color: var(--color-surface-root);
+	}
+</style>

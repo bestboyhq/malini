@@ -1,0 +1,143 @@
+import assert from 'node:assert/strict';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { test } from 'node:test';
+import worker, { type Env } from '../worker/index.ts';
+
+const SITE = 'https://bestboy.dev/malini';
+const root = join(import.meta.dirname, '..');
+const build = join(root, 'build', 'malini');
+const content = join(root, 'content');
+
+function markdownFiles(dir: string): string[] {
+	return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+		.filter((file) => file.endsWith('.md'))
+		.map((file) => relative(content, join(dir, file)));
+}
+
+const docPaths = markdownFiles(content).map(
+	(file) => `/docs/${file.replace(/\.md$/u, '')}`.replace(/\/index$/u, '') || '/docs',
+);
+const htmlPaths = ['', ...docPaths];
+
+function read(path: string): string {
+	return readFileSync(join(build, path), 'utf8');
+}
+
+function htmlFile(path: string): string {
+	return path === '' ? 'index.html' : `${path.slice(1)}.html`;
+}
+
+test('llms.txt links the markdown of every content page', () => {
+	const llms = read('llms.txt');
+	for (const path of docPaths) assert.ok(llms.includes(`(${SITE}${path}.md)`), path);
+});
+
+test('every content page is served as markdown next to its page', () => {
+	for (const path of docPaths) assert.ok(read(`${path.slice(1)}.md`).length > 0, path);
+});
+
+test('llms-full.txt holds every content page', () => {
+	const full = read('llms-full.txt');
+	for (const path of docPaths) assert.ok(full.includes(`Source: ${SITE}${path}\n`), path);
+});
+
+test('every page has one canonical URL under bestboy.dev/malini and a description', () => {
+	for (const path of htmlPaths) {
+		const html = read(htmlFile(path));
+		const canonicals = [...html.matchAll(/<link rel="canonical" href="([^"]+)"/gu)];
+		assert.deepEqual(
+			canonicals.map((match) => match[1]),
+			[`${SITE}${path}`],
+			path,
+		);
+		assert.match(html, /<meta name="description" content="[^"]+"/u, path);
+	}
+});
+
+test('the sitemap lists every page by its canonical URL', () => {
+	const sitemap = read('sitemap.xml');
+	const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/gu)].map((match) => match[1]);
+	assert.deepEqual(locs.toSorted(), htmlPaths.map((path) => `${SITE}${path}`).toSorted());
+});
+
+const assets: Env = {
+	ASSETS: {
+		fetch: (request) =>
+			Promise.resolve(
+				new Response(new URL(request.url).pathname, {
+					headers: { 'Set-Cookie': 'a=b', 'Content-Type': 'text/html' },
+				}),
+			),
+	},
+};
+
+function get(url: string): Promise<Response> {
+	return worker.fetch(new Request(url), assets);
+}
+
+test('the worker marks every host but bestboy.dev noindex and never sets cookies', async () => {
+	const canonical = await get('https://bestboy.dev/malini/docs');
+	assert.equal(canonical.headers.get('X-Robots-Tag'), null);
+	assert.equal(canonical.headers.get('Set-Cookie'), null);
+	const preview = await get('https://malini-site.bestboy.workers.dev/malini/docs');
+	assert.equal(preview.headers.get('X-Robots-Tag'), 'noindex');
+});
+
+test('the worker drops trailing slashes with a permanent redirect', async () => {
+	const response = await get('https://bestboy.dev/malini/docs/jobs/?x=1');
+	assert.equal(response.status, 301);
+	assert.equal(response.headers.get('Location'), 'https://bestboy.dev/malini/docs/jobs?x=1');
+	assert.equal((await get('https://bestboy.dev/malini/')).headers.get('Location'), SITE);
+});
+
+test('the worker caches immutable assets for a year and lets pages revalidate in the background', async () => {
+	const asset = await get('https://bestboy.dev/malini/_app/immutable/assets/0.abc.css');
+	assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+	const swr = 'public, max-age=0, stale-while-revalidate=86400';
+	for (const path of ['', '/docs/jobs', '/docs/jobs/__data.json', '/__data.json']) {
+		assert.equal((await get(`${SITE}${path}`)).headers.get('Cache-Control'), swr, path);
+	}
+	assert.equal((await get(`${SITE}/docs/jobs.md`)).headers.get('Cache-Control'), null);
+	assert.equal((await get(`${SITE}/llms.txt`)).headers.get('Cache-Control'), null);
+});
+
+test('every content page is prerendered as a page and as client navigation data', () => {
+	for (const path of docPaths) {
+		assert.ok(existsSync(join(build, htmlFile(path))), path);
+		assert.ok(existsSync(join(build, path.slice(1), '__data.json')), path);
+	}
+});
+
+test('pages ship the client router and preload links on hover', () => {
+	for (const path of htmlPaths) {
+		const html = read(htmlFile(path));
+		assert.match(html, /data-sveltekit-preload-data="hover"/u, path);
+		assert.match(html, /<script type="module"|import\(/u, path);
+	}
+});
+
+test('every page shares the generated Open Graph image', () => {
+	assert.ok(existsSync(join(build, 'og.png')));
+	for (const path of htmlPaths) {
+		assert.match(
+			read(htmlFile(path)),
+			/<meta property="og:image" content="https:\/\/bestboy\.dev\/malini\/og\.png"/u,
+			path,
+		);
+	}
+});
+
+test('the hero is the only README image the site uses', () => {
+	const sources = readdirSync(root, { recursive: true, encoding: 'utf8' }).filter(
+		(file) =>
+			!/^(node_modules|build|\.svelte-kit)\//u.test(file) &&
+			/\.(ts|js|mjs|svelte|css|html|jsonc?)$/u.test(file),
+	);
+	assert.ok(sources.length > 10);
+	for (const file of sources) {
+		const images =
+			readFileSync(join(root, file), 'utf8').match(/\.github\/readme\/[\w.-]+/gu) ?? [];
+		for (const image of images) assert.equal(image, '.github/readme/hero.webp', file);
+	}
+});

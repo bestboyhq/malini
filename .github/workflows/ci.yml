@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: check and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm -r --filter '!malini' --reporter-hide-prefix --if-present test
+
+  unit:
+    name: unit tests ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm --filter malini exec vitest run --shard=${{ matrix.shard }}
+
+  app:
+    name: e2e on macOS ${{ matrix.tests }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { tests: 1/3, args: --project=app --shard=1/3 }
+          - { tests: 2/3, args: --project=app --shard=2/3 }
+          - { tests: 3/3, args: --project=app --shard=3/3 }
+          - { tests: performance, args: --project=performance --no-deps }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - name: Download Electron
+        run: for _ in 1 2 3; do pnpm --filter malini exec install-electron && exit 0; sleep 10; done; exit 1
+      - run: pnpm --filter malini exec playwright test ${{ matrix.args }}
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report-${{ strategy.job-index }}
+          path: apps/malini/test-results
+
+  version:
+    name: next version from the merged commits
+    needs: [checks, unit, app]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      next: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - id: next
+        run: echo "version=$(node apps/malini/scripts/version.mjs)" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: build, sign and notarize
+    needs: version
+    if: needs.version.outputs.next != ''
+    runs-on: macos-latest
+    env:
+      V: ${{ needs.version.outputs.next }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - &import-certificate
+        name: Import the Developer ID certificate
+        run: |
+          kc="$RUNNER_TEMP/signing.keychain-db" pw=$(openssl rand -base64 24)
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          printf '%s' "$CSC_LINK" | base64 -d > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$kc"
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$pw" "$kc" > /dev/null
+          security list-keychains -d user | tr -d '"' | xargs security list-keychains -d user -s "$kc"
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      - run: npm pkg set version="$V"
+        working-directory: apps/malini
+      - run: xcrun notarytool store-credentials malini --apple-id "$APPLE_ID" --team-id 59F3NS99CS --password "$APPLE_APP_SPECIFIC_PASSWORD"
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      - run: pnpm --filter malini release
+        env:
+          APPLE_KEYCHAIN_PROFILE: malini
+      - run: dmg="apps/malini/release/malini-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release
+          if-no-files-found: error
+          path: |
+            apps/malini/release/malini-${{ env.V }}-arm64*
+            apps/malini/release/malini-arm64.dmg*
+            apps/malini/release/latest-mac.yml
+
+  update:
+    name: signed builds update themselves
+    needs: version
+    if: needs.version.outputs.next != ''
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - *import-certificate
+      - run: pnpm --filter malini test:update
+
+  publish:
+    name: publish the release
+    needs: [version, release, update]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release
+      - run: gh release create "v$V" --generate-notes --target "$GITHUB_SHA" malini-"$V"-arm64* malini-arm64.dmg* latest-mac.yml
+        env:
+          V: ${{ needs.version.outputs.next }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}

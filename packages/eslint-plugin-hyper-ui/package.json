@@ -1,0 +1,27 @@
+{
+	"name": "@malini/eslint-plugin-hyper-ui",
+	"version": "0.1.0",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"exports": {
+		".": "./src/index.mjs",
+		"./base-config": "./src/base-config.mjs"
+	},
+	"scripts": {
+		"lint": "eslint . && prettier --check package.json eslint.config.mjs src tests",
+		"test": "node --test tests/*.test.mjs",
+		"check": "tsc -p tsconfig.json"
+	},
+	"peerDependencies": {
+		"eslint": ">=9"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"eslint": "catalog:",
+		"eslint-config-prettier": "catalog:",
+		"prettier": "catalog:",
+		"typescript-eslint": "catalog:",
+		"typescript": "catalog:"
+	}
+}
