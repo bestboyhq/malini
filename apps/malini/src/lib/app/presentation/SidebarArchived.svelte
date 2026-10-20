@@ -27,6 +27,7 @@
 	const LIST_ID = 'sidebar-recently-archived';
 	const TITLE_ID = 'sidebar-recently-archived-title';
 	const CLOCK_MS = 30_000;
+	const PAST_PULL_REQUEST_LINK = 26;
 	const DAY_AND_TIME = new Intl.DateTimeFormat(undefined, {
 		month: 'short',
 		day: 'numeric',
@@ -159,7 +160,13 @@
 							data-testid="sidebar-archived-workstream"
 							data-workstream-id={workstream.id}
 						>
-							<Tooltip content={detail(workstream)} placement="right" class="min-w-0 flex-1">
+							<Tooltip
+								content={detail(workstream)}
+								placement="right"
+								offset={merged?.url ? PAST_PULL_REQUEST_LINK : undefined}
+								nowrap
+								class="min-w-0 flex-1"
+							>
 								<Button
 									bare
 									class="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-2 pr-2 pl-2 text-left outline-none disabled:cursor-default"
