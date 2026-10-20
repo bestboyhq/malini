@@ -106,12 +106,12 @@
 
 {#if archived.length > 0}
 	<section
-		class="border-merged-border from-merged-surface to-surface-50 relative flex shrink-0 flex-col border-t-[0.5px] bg-linear-to-b"
+		class="border-surface-50-border relative flex shrink-0 flex-col border-t"
 		aria-labelledby={TITLE_ID}
 		data-testid="sidebar-archived"
 	>
 		<div
-			class="focus-visible:bg-merged-border absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize outline-none"
+			class="focus-visible:bg-surface-50-selected absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize outline-none"
 			role="slider"
 			tabindex="0"
 			aria-orientation="vertical"
@@ -125,13 +125,13 @@
 			onkeydown={onResizeKey}
 		></div>
 		<div class="flex h-7 items-center gap-2 px-4">
-			<h2 id={TITLE_ID} class="text-merged-content min-w-0 flex-1 truncate text-xs font-medium">
+			<h2 id={TITLE_ID} class="text-fg-tertiary min-w-0 flex-1 truncate text-xs font-medium">
 				Recently archived
 			</h2>
 			{#if overflows || showAll}
 				<Button
 					bare
-					class="text-2xs text-fg-tertiary hover:text-merged-content focus-visible:ring-border-default/50 shrink-0 cursor-pointer rounded outline-none focus-visible:ring-2"
+					class="text-2xs text-fg-quaternary hover:text-fg-secondary focus-visible:ring-border-default/50 shrink-0 cursor-pointer rounded outline-none focus-visible:ring-2"
 					ariaExpanded={showAll}
 					ariaControls={LIST_ID}
 					data-testid="sidebar-archived-show-all"
@@ -154,7 +154,7 @@
 						{@const restoring = busyActionFor(workstream.id) === 'restore'}
 						{@const merged = workstream.mergedPullRequest}
 						<li
-							class="group/archived hover:bg-merged-surface-hover flex items-center rounded-lg"
+							class="group/archived hover:bg-surface-50-hover flex items-center rounded-lg"
 							data-testid="sidebar-archived-workstream"
 							data-workstream-id={workstream.id}
 						>
@@ -171,16 +171,18 @@
 									{#if workstream.repositoryFullName}
 										<RepositoryAvatar fullName={workstream.repositoryFullName} size={16} />
 									{:else}
-										<span class="text-fg-tertiary grid size-4 shrink-0 place-items-center">
+										<span class="text-fg-quaternary grid size-4 shrink-0 place-items-center">
 											<Icon name="archive" size={13} />
 										</span>
 									{/if}
-									<span class="text-fg-default min-w-0 flex-1 truncate text-xs">
+									<span
+										class="text-fg-tertiary group-focus-within/archived:text-fg-secondary group-hover/archived:text-fg-secondary min-w-0 flex-1 truncate text-xs"
+									>
 										<SensitiveText text={name} />
 									</span>
 									{#if restoring}
 										<span
-											class="text-2xs text-merged-content flex shrink-0 items-center gap-1"
+											class="text-2xs text-fg-tertiary flex shrink-0 items-center gap-1"
 											aria-hidden="true"
 										>
 											<BusyIcon size={11} />
@@ -188,13 +190,13 @@
 										</span>
 									{:else}
 										<span
-											class="text-2xs text-fg-tertiary shrink-0 tabular-nums group-focus-within/archived:hidden group-hover/archived:hidden"
+											class="text-2xs text-fg-quaternary shrink-0 tabular-nums group-focus-within/archived:hidden group-hover/archived:hidden"
 											aria-hidden="true"
 										>
 											{ago(workstream.archivedAt)}
 										</span>
 										<span
-											class="text-2xs text-merged-content hidden shrink-0 items-center gap-1 group-focus-within/archived:flex group-hover/archived:flex"
+											class="text-2xs text-fg-tertiary hidden shrink-0 items-center gap-1 group-focus-within/archived:flex group-hover/archived:flex"
 											aria-hidden="true"
 										>
 											<Icon name="undo" size={11} />
@@ -213,7 +215,7 @@
 											variant="ghost"
 											size="2xs"
 											ariaLabel={`Open pull request #${merged.number} on GitHub`}
-											class="text-merged-content"
+											class="text-fg-tertiary"
 											data-testid="sidebar-archived-pull-request"
 											onclick={() => openExternalUrlCommand(url)}
 										>
