@@ -106,7 +106,7 @@
 
 {#if archived.length > 0}
 	<section
-		class="border-surface-50-border relative flex shrink-0 flex-col border-t"
+		class="border-surface-50-border relative flex shrink-0 flex-col border-t pb-2"
 		aria-labelledby={TITLE_ID}
 		data-testid="sidebar-archived"
 	>
@@ -143,12 +143,13 @@
 		</div>
 
 		<div
-			class={['archived-fade', showAll && 'max-h-[50vh]']}
+			class={[showAll && 'max-h-[50vh]']}
+			style:--scrollable-fade-color="var(--color-surface-50)"
 			style:max-height={showAll ? undefined : `${height}px`}
 			bind:clientHeight={renderedHeight}
 		>
-			<ScrollableDiv class="max-h-[inherit]">
-				<ul id={LIST_ID} class="flex flex-col px-2 pb-5" aria-labelledby={TITLE_ID}>
+			<ScrollableDiv class="max-h-[inherit]" fadeEdges>
+				<ul id={LIST_ID} class="flex flex-col px-2" aria-labelledby={TITLE_ID}>
 					{#each archived as workstream (workstream.id)}
 						{@const name = displayWorkstreamName(workstream, workstream.repositoryFullName)}
 						{@const restoring = busyActionFor(workstream.id) === 'restore'}
@@ -231,9 +232,3 @@
 		</div>
 	</section>
 {/if}
-
-<style>
-	.archived-fade {
-		mask-image: linear-gradient(to bottom, black calc(100% - 1.25rem), transparent);
-	}
-</style>
