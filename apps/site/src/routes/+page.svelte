@@ -162,8 +162,8 @@
 			<span class="quiet">Now you have plenty.</span>
 		</h1>
 		<p class="lede">
-			Malini runs many Claude Code agents side by side in one window. Each task gets its own branch,
-			and Malini takes it to a merged pull request.
+			Twenty agents you have to watch isn’t leverage. Malini helps you build systems that run the
+			work you repeat, so you pull ahead of everyone still babysitting theirs.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
