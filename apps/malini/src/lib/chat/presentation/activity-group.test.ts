@@ -103,6 +103,19 @@ describe('groupRunTimeline folding', () => {
 		expect(grouped[1]).toBe(narration);
 	});
 
+	it('never folds a compaction, so the turn shows where the agent lost its detail', () => {
+		const compaction = tool('Compact');
+		const grouped = groupRunTimeline([
+			tool('Read', { file_path: 'src/a.ts' }),
+			tool('Read', { file_path: 'src/b.ts' }),
+			compaction,
+			tool('Read', { file_path: 'src/c.ts' }),
+			tool('Read', { file_path: 'src/d.ts' }),
+		]);
+		expect(kinds(grouped)).toEqual(['activity-group', 'tool', 'activity-group']);
+		expect(grouped[1]).toBe(compaction);
+	});
+
 	it('folds two consecutive tool calls into one group', () => {
 		const group = onlyGroup([
 			tool('Read', { file_path: 'src/a.ts' }),

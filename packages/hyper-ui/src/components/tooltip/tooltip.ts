@@ -268,7 +268,13 @@ function reposition(snap: boolean): void {
 		root.classList.toggle('left', !right);
 		place(
 			right ? rect.right + gap : rect.left - gap,
-			within(rect.top + rect.height / 2, EDGE_GAP + h / 2, window.innerHeight - EDGE_GAP - h / 2),
+			interactive
+				? within(rect.top, EDGE_GAP, window.innerHeight - EDGE_GAP - h)
+				: within(
+						rect.top + rect.height / 2,
+						EDGE_GAP + h / 2,
+						window.innerHeight - EDGE_GAP - h / 2,
+					),
 			snap,
 		);
 		return;

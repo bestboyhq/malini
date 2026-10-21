@@ -290,6 +290,18 @@ describe('ClaudeSession', () => {
 		expect(live.map((event) => event.contextWindowTokens)).toEqual(live.map(() => 200_000));
 	});
 
+	it('completes a compaction with the context Claude Code measures after it', async () => {
+		const { session, events } = harness([recordedScript('compact')]);
+
+		await session.sendPrompt('/compact', 'run-1', profile());
+
+		expect(ofType(events, 'usage.updated').at(-1)).toMatchObject({
+			contextTokens: 25_472,
+			interim: false,
+		});
+		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+	});
+
 	it('resumes the persisted Claude session, rewound to the requested message', async () => {
 		const { session, claude } = harness([recordedScript('readAndBash')], {
 			context: { providerSessionId: 'persisted-session', model: 'sonnet' },

@@ -15,6 +15,7 @@ const sharedSrc = fileURLToPath(new URL('./src/lib/shared', import.meta.url));
 const contractSrc = fileURLToPath(new URL('./src/contract', import.meta.url));
 const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
 const rendererPort = Number(process.env['MALINI_RENDERER_PORT']) || undefined;
+const reloadOnEveryChange = process.env['MALINI_DOGFOOD'] === '1';
 const agentBridgeSourceRoots = ['src', 'protocol'].map((dir) =>
 	fileURLToPath(new URL(`../../packages/agent-bridge/${dir}/`, import.meta.url)),
 );
@@ -104,7 +105,12 @@ export default defineConfig({
 		},
 	},
 	renderer: {
-		plugins: [tailwindcss(), svelte(), thirdPartyNotices(), preloadTranscriptFonts()],
+		plugins: [
+			tailwindcss(),
+			svelte(reloadOnEveryChange ? { compilerOptions: { hmr: false } } : {}),
+			thirdPartyNotices(),
+			preloadTranscriptFonts(),
+		],
 		resolve: {
 			alias: {
 				'$hyper-ui': hyperUi,
