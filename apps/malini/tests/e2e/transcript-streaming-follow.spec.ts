@@ -121,6 +121,20 @@ function climb(samples: readonly number[][], column: number): number {
 	return Math.round(climbed * 10) / 10;
 }
 
+function jumpOnScreen(samples: readonly number[][], column: number): number {
+	let jumped = 0;
+	let carried = 0;
+	for (let index = 1; index < samples.length; index += 1) {
+		const previous = samples[index - 1] ?? [];
+		const current = samples[index] ?? [];
+		const moved = (current[column] ?? Number.NaN) - (previous[column] ?? Number.NaN);
+		const scrolled = (current[SCROLL_TOP] ?? Number.NaN) - (previous[SCROLL_TOP] ?? Number.NaN);
+		jumped = Math.max(jumped, Math.min(Math.abs(moved + scrolled), Math.abs(moved - carried)));
+		carried = moved;
+	}
+	return Math.round(jumped * 10) / 10;
+}
+
 async function visibleBox(
 	page: Page,
 	selector: string,
@@ -159,7 +173,7 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
-async function untilLatestRunShows(page: Page, line: string): Promise<void> {
+async function untilLatestRunShows(page: Page, line: string, timeout = 10_000): Promise<void> {
 	const latestRunText = (): Promise<string> =>
 		page
 			.getByTestId('chat-message-scroller')
@@ -167,7 +181,7 @@ async function untilLatestRunShows(page: Page, line: string): Promise<void> {
 				(scroller, selector) => scroller.ownerDocument.querySelector(selector)?.textContent ?? '',
 				LATEST_RUN,
 			);
-	await expect.poll(latestRunText, { intervals: [50], timeout: 10_000 }).toContain(line);
+	await expect.poll(latestRunText, { intervals: [50], timeout }).toContain(line);
 }
 
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
@@ -398,6 +412,106 @@ test('a reader who scrolled up stays where they are while the reply streams', as
 			'bottom',
 		);
 		await expect(newMessagesBelow(page)).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a prompt sent after a result card leaves its earlier turns there until its own card, and nothing above the reply jumps', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-report-follow-ws', 'Report follow');
+		await openWorkstream(page, seeded.workstreamId);
+		const cards = page.getByTestId('turn-report-card');
+		for (let turn = 1; turn <= 5; turn += 1) {
+			await sendPrompt(page, `CHAT_TURN_REPORT turn ${turn}`);
+			await expect(cards).toHaveCount(turn, { timeout: 20_000 });
+		}
+		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
+		const earlierTurns = page.getByRole('list', { name: 'Earlier turns' });
+		const reported = await latestRun(page).getAttribute('data-run-id');
+		const reportedRun = page.locator(`li[data-run-id="${reported}"]`);
+		await expect(reportedRun.getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
+
+		await startSampling(page, [`li[data-run-id="${reported}"] [data-testid="chat-run-actions"]`]);
+		await sendPrompt(page, 'STREAM:30 CHAT_TURN_REPORT turn 6');
+		await untilLatestRunShows(page, 'Streamed line 5 of 30.');
+		await expect(earlierTurns).toHaveCount(1);
+		await expect(reportedRun.getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
+		await expect(latestRun(page).getByTestId('turn-report-card')).toHaveCount(1, {
+			timeout: 20_000,
+		});
+		await page.waitForTimeout(800);
+		const samples = await stopSampling(page);
+		await expect(earlierTurns).toHaveCount(1);
+		await expect(latestRun(page).getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
+		expect(
+			jumpOnScreen(samples, 1),
+			'px the result card above the reply jumped on screen',
+		).toBeLessThanOrEqual(STILL_PX);
+		await captureFlow(app, 'transcript-report-follow');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a tool row in a run past two hundred steps stays in place while later steps stream in below it', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await longChat(app, 'e2e-long-run-follow-ws');
+		await sendPrompt(page, 'TOOL_STREAM:240 Read every note');
+		await untilLatestRunShows(page, 'row-226.txt', 60_000);
+
+		await page.getByTestId('chat-message-scroller').evaluate((scroller) => {
+			const doc = scroller.ownerDocument;
+			const state = { samples: [] as number[][], sampling: true };
+			globalThis.transcriptFrames = state;
+			const sample = (): void => {
+				if (!state.sampling) return;
+				const row = [...doc.querySelectorAll('[data-transcript-row]')].find((candidate) =>
+					candidate.textContent?.includes('row-225.txt'),
+				);
+				const view = scroller.getBoundingClientRect();
+				const blank = [...doc.querySelectorAll('[data-transcript-placeholder]')].filter(
+					(placeholder) => {
+						const box = placeholder.getBoundingClientRect();
+						return box.bottom > view.top && box.top < view.bottom;
+					},
+				);
+				state.samples.push([
+					scroller.scrollTop,
+					row?.getBoundingClientRect().top ?? Number.NaN,
+					row?.getAttribute('style')?.includes('clip-path') ? 1 : 0,
+					blank.length,
+				]);
+				doc.defaultView?.requestAnimationFrame(sample);
+			};
+			sample();
+		});
+		await untilLatestRunShows(page, 'row-236.txt');
+		const samples = await stopSampling(page);
+		expect(
+			samples.filter((sample) => sample[2] === 1).length,
+			'frames the row was clipped away under the step below it',
+		).toBe(0);
+		expect(
+			jumpOnScreen(samples, 1),
+			'px the tool row jumped while later steps arrived',
+		).toBeLessThanOrEqual(STILL_PX);
+		expect(
+			samples.filter((sample) => (sample[3] ?? 0) > 0).length,
+			'frames a row in view was blank',
+		).toBe(0);
 
 		expectCleanConsole(app);
 	} finally {

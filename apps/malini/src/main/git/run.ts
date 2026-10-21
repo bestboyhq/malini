@@ -140,7 +140,7 @@ export async function runGitWithInput(
 }
 
 const FOUND_NO_REPOSITORY =
-	/not a git repository|git diff --no-index|unable to read current working directory|must be run in a work tree/iu;
+	/not a git repository|git diff --no-index|unable to (?:read|get) current working directory|must be run in a work tree/iu;
 
 function commandFailure(args: readonly string[], result: SpawnedGit): GitError {
 	const stderr = result.stderr.toString('utf8');

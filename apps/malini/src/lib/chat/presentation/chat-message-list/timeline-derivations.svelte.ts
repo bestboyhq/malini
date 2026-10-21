@@ -41,6 +41,7 @@ export function createTimelineDerivations(input: {
 	const { runs, projectRun, retainRuns, thoughtsForRun } = input;
 	let visibleTimelineLimitByRun = $state<Record<string, number>>({});
 	const timelineDerivations = new Map<string, TimelineDerivation>();
+	const lengthWhenWindowed = new Map<string, number>();
 
 	const timelineByRun = $derived.by(() => {
 		const timelines = new Map<string, RunTimelineItem[]>();
@@ -52,12 +53,20 @@ export function createTimelineDerivations(input: {
 		return timelines;
 	});
 
+	function windowLimit(runId: string, length: number): number {
+		const windowedAt = lengthWhenWindowed.get(runId) ?? length;
+		lengthWhenWindowed.set(runId, windowedAt);
+		const revealed = visibleTimelineLimitByRun[runId] ?? INITIAL_RUN_TIMELINE_WINDOW_SIZE;
+		// ponytail: a live run keeps every step it gains; slide while off-screen if row count bites
+		return revealed + Math.max(0, length - windowedAt);
+	}
+
 	function derivationFor(run: RunGroup): TimelineDerivation | null {
 		const version = runProjectionVersion(run);
 		if (version === null) return null;
 		const items = timelineByRun.get(run.runId) ?? EMPTY_TIMELINE;
 		const thoughts = thoughtsForRun(run.runId);
-		const limit = visibleTimelineLimitByRun[run.runId] ?? INITIAL_RUN_TIMELINE_WINDOW_SIZE;
+		const limit = windowLimit(run.runId, items.length);
 		const cached = timelineDerivations.get(run.runId);
 		if (
 			cached &&
@@ -85,17 +94,17 @@ export function createTimelineDerivations(input: {
 		const windows = new Map<string, RunTimelineWindow>();
 		for (const run of runs()) {
 			const derivation = derivationFor(run);
+			const items = timelineByRun.get(run.runId) ?? EMPTY_TIMELINE;
 			windows.set(
 				run.runId,
-				derivation?.window ??
-					windowRunTimeline(
-						timelineByRun.get(run.runId) ?? EMPTY_TIMELINE,
-						visibleTimelineLimitByRun[run.runId] ?? INITIAL_RUN_TIMELINE_WINDOW_SIZE,
-					),
+				derivation?.window ?? windowRunTimeline(items, windowLimit(run.runId, items.length)),
 			);
 		}
 		for (const runId of timelineDerivations.keys()) {
 			if (!windows.has(runId)) timelineDerivations.delete(runId);
+		}
+		for (const runId of lengthWhenWindowed.keys()) {
+			if (!windows.has(runId)) lengthWhenWindowed.delete(runId);
 		}
 		return windows;
 	});

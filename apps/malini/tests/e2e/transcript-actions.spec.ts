@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -13,6 +13,27 @@ import {
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
+
+const REST_FRAMES = 10;
+
+async function untilScrollRests(scroller: Locator): Promise<void> {
+	await scroller.evaluate(
+		(element, frames) =>
+			new Promise<void>((resolve) => {
+				const view = element.ownerDocument.defaultView;
+				let last = element.scrollTop;
+				let still = 0;
+				const check = (): void => {
+					still = element.scrollTop === last ? still + 1 : 0;
+					last = element.scrollTop;
+					if (still >= frames || !view) resolve();
+					else view.requestAnimationFrame(check);
+				};
+				view?.requestAnimationFrame(check);
+			}),
+		REST_FRAMES,
+	);
+}
 
 test('a failed command says why on its row, an edit shows its size on its row, and a shell code block copies its code and runs it in the chat', async () => {
 	test.setTimeout(120_000);
@@ -152,18 +173,26 @@ test('a file card opens on the first hover after the chat scrolls past its row',
 		if (!box) throw new Error('the transcript is not laid out');
 		await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2);
 		await expect
-			.poll(async () => {
-				await page.mouse.wheel(0, -400);
-				return edit.evaluate((chip) => {
-					const rect = chip.getBoundingClientRect();
-					const { documentElement } = chip.ownerDocument;
-					const hit = chip.ownerDocument.elementFromPoint(
-						rect.x + rect.width / 2,
-						rect.y + rect.height / 2,
-					);
-					return chip.contains(hit) && rect.bottom < documentElement.clientHeight / 2;
-				});
-			})
+			.poll(
+				async () => {
+					await page.mouse.wheel(0, -400);
+					await untilScrollRests(scroller);
+					return edit.evaluate((chip) => {
+						const rect = chip.getBoundingClientRect();
+						const doc = chip.ownerDocument;
+						const hit = doc.elementFromPoint(
+							rect.left + rect.width / 2,
+							rect.top + rect.height / 2,
+						);
+						return (
+							hit !== null &&
+							chip.contains(hit) &&
+							rect.bottom < doc.documentElement.clientHeight / 2
+						);
+					});
+				},
+				{ timeout: 20_000 },
+			)
 			.toBe(true);
 
 		const chip = await edit.boundingBox();
