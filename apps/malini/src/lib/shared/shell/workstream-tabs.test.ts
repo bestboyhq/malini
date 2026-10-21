@@ -52,6 +52,15 @@ describe('the center tab strip', () => {
 		expect(listed.fresh).toBe(false);
 	});
 
+	it('puts a new chat at the end even when the chat list changes before the route leaves the current chat', () => {
+		const fresh = startWorkstreamFreshChat(chatsAB);
+		const resynced = syncWorkstreamChats(fresh, ['a', 'b'], 'a');
+		const listed = syncWorkstreamChats(resynced, ['n', 'a', 'b'], 'a');
+		const routed = syncWorkstreamChats(listed, ['n', 'a', 'b'], 'n');
+		expect(strip(routed)).toEqual(['chat a', 'chat b', 'chat n']);
+		expect(routed.fresh).toBe(false);
+	});
+
 	it('puts a branch right after its parent when it shows up before or after the route moves', () => {
 		const onB = syncWorkstreamChats(chatsAB, ['a', 'b'], 'b');
 		expect(strip(syncWorkstreamChats(onB, ['a', 'b', 'x'], 'b'))).toEqual([
