@@ -17,6 +17,7 @@ import { agentRunner } from '$lib/chat/infrastructure/services/agent-runner.serv
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
 import { chatBootstrapTelemetry } from '$lib/chat/infrastructure/services/chat-bootstrap-telemetry.service';
 import { chatRouteSync } from '$lib/chat/infrastructure/services/chat-route-sync.service';
+import { chatSessionChanges } from '$lib/chat/infrastructure/services/chat-session-changes.service';
 import {
 	readChatModelSnapshot,
 	readStoredRunProfile,
@@ -246,6 +247,16 @@ class SessionActivationService {
 				throw new Error('This agent session does not belong to the active workstream');
 			}
 
+			const changesLoading = chatSessionChanges.warm({ workstreamId, sessionId });
+			if (changesLoading) {
+				transcriptAggregate.deferReadiness(sessionId);
+				try {
+					const known = await this.awaitCurrentSelection(request, changesLoading);
+					if (known === SESSION_SELECTION_SUPERSEDED) return false;
+				} finally {
+					transcriptAggregate.releaseReadiness(sessionId);
+				}
+			}
 			transcriptAggregate.rememberOwner(sessionId, workstreamId);
 			this.ensureRecord(sessionId, workstreamId);
 			transcriptAggregate.restoreCached(workstreamId, sessionId);

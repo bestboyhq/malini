@@ -4,6 +4,7 @@ import {
 	LatestAgentSessionChangesQuery,
 	OpenAgentSessionChangedFileCommand,
 } from '$lib/chat/infrastructure/services/agent-session-changes.service';
+import { sessionChangesStore } from '$lib/chat/infrastructure/stores/session-changes.store.svelte';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 import type {
@@ -43,8 +44,16 @@ class ChatSessionChangesService {
 		});
 	}
 
-	prefetch(input: { workstreamId: string; sessionId: string }): Promise<AgentSessionChanges> {
-		return sessionChangesPort.getSessionChanges(input);
+	warm(input: { workstreamId: string; sessionId: string }): Promise<void> | null {
+		if (sessionChangesStore.changesFor(input.sessionId)) return null;
+		return this.#remember(input);
+	}
+
+	async #remember(input: { workstreamId: string; sessionId: string }): Promise<void> {
+		const changes = await sessionChangesPort.getSessionChanges(input).catch(() => null);
+		if (changes && !sessionChangesStore.changesFor(changes.sessionId)) {
+			sessionChangesStore.remember(changes);
+		}
 	}
 
 	async openChangedFile(input: {

@@ -60,6 +60,7 @@ export type TranscriptContext = {
 	readonly window: TranscriptWindow;
 	readonly timelines: TimelineDerivations;
 	readonly openingAnchor: TranscriptAnchor | null;
+	openingBudget(runId: string): number;
 	listRendered(): boolean;
 	readonly backgroundWork: BackgroundWork | null;
 	glideRowLayout(container: HTMLElement): () => void;

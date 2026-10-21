@@ -127,7 +127,9 @@
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
 	const queueErrorById = $derived(queueErrorsQuery.data);
-	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
+	const sessionChanges = $derived(
+		sessionChangesQuery.data(presentedWorkstreamId === workstreamId ? presentedSessionId : null),
+	);
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
@@ -217,10 +219,7 @@
 	}
 
 	const showsSessionChanges = $derived(
-		!freshChat &&
-			!presentationPending &&
-			sessionChanges !== null &&
-			sessionChanges.files.length > 0,
+		!freshChat && sessionChanges !== null && sessionChanges.files.length > 0,
 	);
 
 	const editorComposerControls = $derived<TranscriptComposerControls>({

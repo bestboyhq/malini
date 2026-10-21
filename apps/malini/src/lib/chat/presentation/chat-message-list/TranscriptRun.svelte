@@ -29,6 +29,7 @@
 	import { transcriptContext } from './transcript-context';
 	import { estimateRowHeight, estimateRunHeight } from './transcript-estimates';
 	import TranscriptRow from './TranscriptRow.svelte';
+	import { runWindowKey } from './transcript-window.svelte';
 
 	interface Props {
 		run: RunGroup;
@@ -39,7 +40,6 @@
 
 	let { run, isLastRun, live, copied }: Props = $props();
 
-	const TAIL_VIEWPORTS = 2.5;
 	const ANCHOR_ROWS_BEFORE = 3;
 	const ANCHOR_ROWS_AFTER = 8;
 
@@ -47,7 +47,7 @@
 	const { timelines, stageEnter } = transcript;
 	const transcriptWindow = transcript.window;
 
-	const runKey = $derived(`run:${run.runId}`);
+	const runKey = $derived(runWindowKey(run.runId));
 	const opening = $derived(run.items.find((item) => item.kind === 'user'));
 	const editing = $derived(
 		opening?.kind === 'user' &&
@@ -55,7 +55,10 @@
 			transcript.checkpointEdit.editingCheckpointId === opening.checkpointId,
 	);
 	const initiallyMounted = untrack(
-		() => isLastRun || transcript.openingAnchor?.runId === run.runId,
+		() =>
+			isLastRun ||
+			transcript.openingAnchor?.runId === run.runId ||
+			transcript.openingBudget(run.runId) > 0,
 	);
 	const mounted = $derived(
 		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted),
@@ -107,8 +110,7 @@
 			const to = anchor.row + ANCHOR_ROWS_AFTER;
 			return new Set(rows.filter((_, index) => index >= from && index <= to).map((row) => row.key));
 		}
-		if (!isLastRun) return new Set();
-		const budget = globalThis.innerHeight * TAIL_VIEWPORTS;
+		const budget = transcript.openingBudget(run.runId);
 		const seeded = new Set<string>();
 		let height = 0;
 		for (let index = rows.length - 1; index >= 0 && height < budget; index -= 1) {

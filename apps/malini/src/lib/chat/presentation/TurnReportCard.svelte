@@ -169,14 +169,9 @@
 
 	{#if hero}
 		<div class="flex flex-col gap-1.5">
-			<div class="bg-surface-root grid w-fit max-w-full rounded-md">
+			<div class="grid">
 				{#each heroChoices as image (image.src)}
-					<div
-						class={[
-							'turn-report-image col-start-1 row-start-1 place-self-center',
-							{ invisible: image !== hero },
-						]}
-					>
+					<div class={['turn-report-image col-start-1 row-start-1', { invisible: image !== hero }]}>
 						<MarkdownText
 							text={`![${image.alt}](${image.src})`}
 							mode="prose"
@@ -284,8 +279,12 @@
 <style>
 	.turn-report-image :global(img) {
 		display: block;
+		width: 100%;
+		height: auto;
 		max-height: 28rem;
 		margin: 0;
+		border: none;
+		background: var(--color-surface-root);
 		border-radius: 0.375rem;
 		outline: 0.5px solid var(--color-border-subtle);
 		outline-offset: -0.5px;

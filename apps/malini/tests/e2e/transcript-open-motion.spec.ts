@@ -10,8 +10,24 @@ import {
 	type LaunchedApp,
 } from './harness';
 
+type SampledAnimation = Readonly<{
+	playState: string;
+	transitionProperty?: string;
+	constructor: Function;
+}>;
+
+type SampledElement = Readonly<{
+	tagName: string;
+	getAttribute(name: string): string | null;
+	getBoundingClientRect(): { bottom: number; height: number };
+	getAnimations(options: { subtree: boolean }): SampledAnimation[];
+	querySelectorAll(selector: string): Iterable<SampledElement>;
+}>;
+
 declare global {
 	var openMotion: { frames: Frame[]; sampling: boolean };
+	var document: { querySelector(selector: string): SampledElement | null };
+	var requestAnimationFrame: (callback: () => void) => number;
 }
 
 type Frame = Readonly<{
@@ -54,45 +70,64 @@ function workstreamLink(page: Page, workstreamId: string) {
 	return page.locator(`a[data-navigation-workstream-id="${workstreamId}"]`).first();
 }
 
-async function switchAndSample(page: Page, workstreamId: string): Promise<Frame[]> {
-	await page.locator('body').evaluate(
-		(body, { workstreamId, latestRun }) => {
-			const doc = body.ownerDocument;
-			const frames: Frame[] = [];
-			const state = { frames, sampling: true };
-			globalThis.openMotion = state;
-			const sample = (): void => {
-				if (!state.sampling) return;
-				const viewport = doc.querySelector('[data-testid="chat-message-viewport"]');
-				const footer = doc.querySelector('[data-testid="chat-footer-stack"]');
-				const motion = [viewport, footer]
-					.flatMap((element) => element?.getAnimations({ subtree: true }) ?? [])
-					.filter((animation: { playState: string }) => animation.playState === 'running')
-					.map((animation: { constructor: { name: string } }) => animation.constructor.name);
-				for (const row of viewport?.querySelectorAll('[style*="translate"]') ?? []) {
-					motion.push(`glide:${row.tagName.toLowerCase()}`);
-				}
-				state.frames.push({
-					shown:
-						doc
-							.querySelector('[data-testid="transcript-pane"]')
-							?.getAttribute('data-presented-workstream-id') === workstreamId,
-					latestRunBottom: doc.querySelector(latestRun)?.getBoundingClientRect().bottom ?? 0,
-					footerHeight: footer?.getBoundingClientRect().height ?? 0,
-					motion,
-				});
-				doc.defaultView?.requestAnimationFrame(() => doc.defaultView?.setTimeout(sample));
-			};
-			sample();
-		},
-		{ workstreamId, latestRun: LATEST_RUN },
-	);
-	await workstreamLink(page, workstreamId).click();
+type SampleTarget = Readonly<{ workstreamId: string; latestRun: string }>;
+
+function sampleOpening({ workstreamId, latestRun }: SampleTarget): void {
+	const doc = globalThis.document;
+	const nextFrame = (): void => {
+		globalThis.requestAnimationFrame(() => setTimeout(sample));
+	};
+	const frames: Frame[] = [];
+	const state = { frames, sampling: true };
+	globalThis.openMotion = state;
+	const sample = (): void => {
+		if (!state.sampling) return;
+		const viewport = doc.querySelector('[data-testid="chat-message-viewport"]');
+		const footer = doc.querySelector('[data-testid="chat-footer-stack"]');
+		const motion = [viewport, footer]
+			.flatMap((element) => element?.getAnimations({ subtree: true }) ?? [])
+			.filter((animation) => animation.playState === 'running')
+			.filter((animation) => !animation.transitionProperty?.endsWith('color'))
+			.map((animation) => animation.constructor.name);
+		for (const row of viewport?.querySelectorAll('[style*="translate"]') ?? []) {
+			motion.push(`glide:${row.tagName.toLowerCase()}`);
+		}
+		state.frames.push({
+			shown:
+				doc
+					.querySelector('[data-testid="transcript-pane"]')
+					?.getAttribute('data-presented-workstream-id') === workstreamId,
+			latestRunBottom: doc.querySelector(latestRun)?.getBoundingClientRect().bottom ?? 0,
+			footerHeight: footer?.getBoundingClientRect().height ?? 0,
+			motion,
+		});
+		nextFrame();
+	};
+	sample();
+}
+
+async function sampledFrames(page: Page): Promise<Frame[]> {
 	await page.waitForTimeout(SETTLE_MS);
 	return page.evaluate(() => {
 		globalThis.openMotion.sampling = false;
 		return globalThis.openMotion.frames;
 	});
+}
+
+async function switchAndSample(page: Page, workstreamId: string): Promise<Frame[]> {
+	await page.evaluate(sampleOpening, { workstreamId, latestRun: LATEST_RUN });
+	await workstreamLink(page, workstreamId).click();
+	return sampledFrames(page);
+}
+
+async function relaunchAndSample(page: Page, workstreamId: string): Promise<Frame[]> {
+	await page.addInitScript(sampleOpening, { workstreamId, latestRun: LATEST_RUN });
+	await page.reload();
+	return sampledFrames(page);
+}
+
+function afterFirstDrawnFrame(frames: readonly Frame[]): readonly Frame[] {
+	return frames.slice(frames.findIndex((frame) => frame.shown && frame.latestRunBottom > 0) + 1);
 }
 
 function expectStillAfterOpening(frames: readonly Frame[], label: string): void {
@@ -160,6 +195,45 @@ test('switching to a workstream with a different composer tray shows that tray a
 		await expect(changedFiles).toContainText('1 file changed in this chat');
 		await captureFlow(app, 'transcript-open-tray-still');
 
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a chat opened right after launch shows its changed files and every turn in place from its first frame', async () => {
+	test.setTimeout(300_000);
+	const first = await launchMalini();
+	const chats: string[] = [];
+	try {
+		for (const name of ['Launch A', 'Launch B', 'Launch C']) {
+			chats.push(await overflowingChat(first, name, true));
+		}
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		const [opened] = chats;
+		if (!opened) throw new Error('no chat to open');
+		const changedFiles = page.getByTestId('chat-changed-files-toggle');
+		await expect(workstreamLink(page, opened)).toBeVisible({ timeout: 20_000 });
+		expectStillAfterOpening(
+			afterFirstDrawnFrame(await switchAndSample(page, opened)),
+			'opened after launch',
+		);
+		await expect(changedFiles).toContainText('1 file changed in this chat');
+
+		expectStillAfterOpening(
+			afterFirstDrawnFrame(await relaunchAndSample(page, opened)),
+			'restored at launch',
+		);
+		await expect(changedFiles).toContainText('1 file changed in this chat');
+		await captureFlow(app, 'transcript-open-after-launch');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

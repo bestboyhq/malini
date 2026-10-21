@@ -68,7 +68,11 @@
 	} from './chat-message-list/transcript-context';
 	import { createTranscriptScroll } from './chat-message-list/transcript-scroll.svelte';
 	import { createTranscriptSettleGate } from './chat-message-list/transcript-settle';
-	import { createTranscriptWindow } from './chat-message-list/transcript-window.svelte';
+	import { openingBudgets } from './chat-message-list/transcript-estimates';
+	import {
+		createTranscriptWindow,
+		runWindowKey,
+	} from './chat-message-list/transcript-window.svelte';
 	import TranscriptRun, { type LiveRunBlocks } from './chat-message-list/TranscriptRun.svelte';
 
 	interface Props {
@@ -254,6 +258,19 @@
 	const transcriptWindow = createTranscriptWindow();
 	let listRendered = false;
 	let openingAnchor: TranscriptAnchor | null = null;
+	const OPENING_TAIL_VIEWPORTS = 2.5;
+	let openingBudgetByRun: ReadonlyMap<string, number> | null = null;
+
+	function openingBudget(runId: string): number {
+		openingBudgetByRun ??= openingAnchor
+			? new Map()
+			: openingBudgets(
+					untrack(() => runs),
+					(id) => transcriptWindow.heightOf(runWindowKey(id)),
+					globalThis.innerHeight * OPENING_TAIL_VIEWPORTS,
+				);
+		return openingBudgetByRun.get(runId) ?? 0;
+	}
 
 	let viewportEl: HTMLDivElement | null = $state(null);
 	let messageListEl: HTMLOListElement | null = $state(null);
@@ -549,6 +566,7 @@
 		get openingAnchor() {
 			return openingAnchor;
 		},
+		openingBudget,
 		listRendered: () => listRendered,
 		get backgroundWork() {
 			return backgroundWork;
@@ -653,6 +671,7 @@
 			settlingSessionId = currentSessionId;
 			listRendered = false;
 			openingAnchor = rememberedAnchor;
+			openingBudgetByRun = null;
 			transcriptWindow.open(rememberedHeights);
 			settle.resettleTranscript();
 		});
