@@ -7,9 +7,11 @@ class FakeBrowserWindow extends EventEmitter {
 	destroyed = false;
 	shown: string[] = [];
 	contentsDestroyed = false;
+	url = 'file:///renderer/index.html#/workstreams/ws-1';
 	webContents = Object.assign(new EventEmitter(), {
 		setWindowOpenHandler: () => undefined,
 		isDestroyed: () => this.contentsDestroyed,
+		getURL: () => this.url,
 	});
 	visibilityChecks = 0;
 	constructor() {
@@ -46,6 +48,14 @@ const openExternal = vi.fn();
 vi.mock('electron', () => ({ BrowserWindow: FakeBrowserWindow, shell: { openExternal } }));
 
 const { createMainWindow } = await import('./window');
+
+function navigator(window: FakeBrowserWindow): (url: string) => boolean {
+	return (url) => {
+		let prevented = false;
+		window.webContents.emit('will-navigate', { preventDefault: () => (prevented = true) }, url);
+		return prevented;
+	};
+}
 
 describe('createMainWindow', () => {
 	it('does not show a window that was destroyed before its first paint', () => {
@@ -86,15 +96,28 @@ describe('createMainWindow', () => {
 		createMainWindow();
 		const window = created.at(-1);
 		if (!window) throw new Error('no window was created');
-		const navigate = (url: string): boolean => {
-			let prevented = false;
-			window.webContents.emit('will-navigate', { preventDefault: () => (prevented = true) }, url);
-			return prevented;
-		};
+		const navigate = navigator(window);
 
+		expect(navigate(window.url)).toBe(true);
 		expect(navigate('file:///workstreams/ws-1?agent=s-1')).toBe(true);
 		expect(openExternal).not.toHaveBeenCalled();
 		expect(navigate('https://github.com/szymeo/malini')).toBe(true);
 		expect(openExternal).toHaveBeenCalledWith('https://github.com/szymeo/malini');
+	});
+
+	it('lets the dev server reload the page it serves, and nothing else', async () => {
+		vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173/');
+		vi.resetModules();
+		const { createMainWindow: createDevWindow } = await import('./window');
+		vi.unstubAllEnvs();
+		createDevWindow();
+		const window = created.at(-1);
+		if (!window) throw new Error('no window was created');
+		window.url = 'http://localhost:5173/#/workstreams/ws-1';
+		const navigate = navigator(window);
+
+		expect(navigate('http://localhost:5173/#/workstreams/ws-1')).toBe(false);
+		expect(navigate('http://localhost:5173/elsewhere')).toBe(true);
+		expect(navigate('file:///workstreams/ws-1')).toBe(true);
 	});
 });

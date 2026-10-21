@@ -86,7 +86,7 @@ function start() {
 	}
 	const child = spawn('pnpm', ['dev'], {
 		cwd: appRoot,
-		env: { ...process.env, MALINI_RENDERER_PORT: RENDERER_PORT },
+		env: { ...process.env, MALINI_RENDERER_PORT: RENDERER_PORT, MALINI_DOGFOOD: '1' },
 		stdio: 'inherit',
 		detached: true,
 	});
