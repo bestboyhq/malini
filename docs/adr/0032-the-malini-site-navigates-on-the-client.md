@@ -4,11 +4,11 @@ Status: accepted
 
 ## Context
 
-0027 set `csr = false` on every page of `apps/site`, so the site shipped no JavaScript.
+0031 set `csr = false` on every page of `apps/site`, so the site shipped no JavaScript.
 Server time was fine (110 to 350 ms to first byte), yet every docs click was a full page load that repainted the page and flashed the font.
 The landing page showed the product as two README screenshots, which hold the user's real workstreams.
 The goal is a site that feels as fast and as finished as logdash.io, while staying prerendered, LLMs-first and cheap to host.
-Everything else in 0027 still holds: the base path, the Worker, the route split, the markdown twins, `llms.txt`, the sitemap and the SEO rules.
+Everything else in 0031 still holds: the base path, the Worker, the route split, the markdown twins, `llms.txt`, the sitemap and the SEO rules.
 
 ## Decision
 

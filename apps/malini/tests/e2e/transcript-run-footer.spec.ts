@@ -7,6 +7,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	untilStill,
 } from './harness';
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
@@ -77,11 +78,11 @@ test('a finished reply keeps its last line visible and its footer clear of the t
 		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
 			timeout: 30_000,
 		});
-		await page.waitForTimeout(1_500);
 		await expect(
 			page.locator(LATEST_RUN).getByTestId('buffered-streaming-markdown'),
 		).toHaveAttribute('data-buffered-characters', '0');
 		await expect(page.locator(`${LATEST_RUN} [data-streaming]`)).toHaveCount(0);
+		await untilStill(page);
 		const sampled = await page.evaluate(() => {
 			globalThis.footerFrames.sampling = false;
 			return globalThis.footerFrames;
