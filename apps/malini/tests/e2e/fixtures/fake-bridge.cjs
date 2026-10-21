@@ -737,7 +737,14 @@ const respond = (sessionId, runId, prompt) => {
 		return;
 	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
-		return completeRun(sessionId, runId, 'done', [], [], CHAT_TURN_REPORT);
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
+			CHAT_TURN_REPORT,
+		);
 	}
 	const mention = /MENTION:([^\s]+)/.exec(prompt);
 	return completeRun(
