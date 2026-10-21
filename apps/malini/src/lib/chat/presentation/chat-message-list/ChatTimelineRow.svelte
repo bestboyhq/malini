@@ -112,6 +112,7 @@
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}
 				onopenimage={transcript.openImageGallery}
+				onruncommand={transcript.runShellCommand}
 			/>
 		{/if}
 	</div>

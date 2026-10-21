@@ -14,9 +14,11 @@ const REPAINT_MS = 300;
 export async function launch(topic, { foreground = false } = {}) {
 	const userDataDir = join(realpathSync(tmpdir()), `malini-profile-${topic}`);
 	mkdirSync(userDataDir, { recursive: true });
+	const theme = process.env.MALINI_THEME;
 	const app = await electron.launch({
 		args: ['.', `--user-data-dir=${userDataDir}`],
 		cwd: appRoot,
+		colorScheme: theme === 'light' || theme === 'dark' ? theme : null,
 		env: {
 			...process.env,
 			MALINI_USAGE_DATA: 'off',

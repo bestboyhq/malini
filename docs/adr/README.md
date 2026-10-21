@@ -43,3 +43,4 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0036](0036-e2e-runs-in-parallel-on-few-macos-runners.md)             | E2E runs two apps per CI runner on three shards, `*-performance.spec.ts` alone on a fourth; merge queue delays run 10× faster                  |
 | [0037](0037-a-finished-turn-reads-finished-while-its-commands-run.md) | A turn that ends with only background commands left reads as finished; the sidebar names what keeps running in each workstream                 |
 | [0038](0038-a-chat-keeps-its-claude-code-running-between-turns.md)    | A chat's Claude Code stays open between turns, restarts on changed instructions or settings, and refreshes the MCP and context popovers live   |
+| [0039](0039-screenshots-follow-the-users-theme.md)                    | Malini's theme drives `nativeTheme` and reaches the agent on every prompt as instructions and `MALINI_THEME`, so screenshots match it          |

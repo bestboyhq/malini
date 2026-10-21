@@ -358,6 +358,10 @@ export type AppendRendererErrorArgs = Readonly<{ payload: RendererErrorPayload }
 
 export type SetInterfaceScaleArgs = Readonly<{ scale: number }>;
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
+export type SetThemeModeArgs = Readonly<{ mode: ThemeMode }>;
+
 export type CloseGuardArgs = Readonly<{ armed: boolean }>;
 
 export type NotifyArgs = Readonly<{
@@ -632,6 +636,7 @@ export interface ContractCommands {
 	'app.destroy-window': { args: undefined; result: void };
 	'app.logical-viewport': { args: undefined; result: LogicalViewport };
 	'app.interface-scale': { args: SetInterfaceScaleArgs; result: void };
+	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
 	'app.staged-update': { args: undefined; result: string | null };
@@ -816,6 +821,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.destroy-window',
 	'app.logical-viewport',
 	'app.interface-scale',
+	'app.theme-mode',
 	'app.runtime-info',
 	'app.streaming',
 	'app.staged-update',

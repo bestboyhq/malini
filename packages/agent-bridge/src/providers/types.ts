@@ -1,5 +1,5 @@
 import type { AgentEvent } from '../types.js';
-import type { AgentRunProfile } from '../agent-profile.js';
+import type { AgentRunProfile, AgentTheme } from '../agent-profile.js';
 import type {
 	BrowserRequest,
 	BrowserResult,
@@ -35,6 +35,7 @@ export interface ProviderHandle {
 		freshConversation?: boolean,
 		skills?: readonly string[],
 		steer?: boolean,
+		theme?: AgentTheme,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

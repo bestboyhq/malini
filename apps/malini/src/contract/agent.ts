@@ -8,6 +8,8 @@ export type AgentAccess = 'sandboxed' | 'auto' | 'full';
 
 export type AgentReport = 'low' | 'medium' | 'high';
 
+export type AgentTheme = 'light' | 'dark';
+
 export interface AgentRunProfile {
 	effort: AgentReasoningEffort;
 	mode: AgentRunMode;

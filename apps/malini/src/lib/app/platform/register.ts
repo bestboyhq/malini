@@ -10,6 +10,8 @@ import type {
 	SetClipboardTextArgs,
 	SetInterfaceScaleArgs,
 	SetSecretArgs,
+	SetThemeModeArgs,
+	ThemeMode,
 } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import type { MainContext } from '$main/context';
@@ -93,6 +95,9 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		}
 		await host.openExternal(url);
 	});
+	commands.define('app.theme-mode', (args: SetThemeModeArgs) =>
+		host.followThemeMode(themeMode(args?.mode)),
+	);
 	commands.define('app.copy-text', async (args: SetClipboardTextArgs) => {
 		if (typeof args?.text !== 'string') throw new Error('text must be a string');
 		if (args.html !== undefined && typeof args.html !== 'string') {
@@ -231,4 +236,12 @@ function requireString(args: unknown, key: string): string {
 	const value = typeof args === 'object' && args !== null ? Reflect.get(args, key) : undefined;
 	if (typeof value !== 'string') throw new Error(`invalid args: \`${key}\` must be a string`);
 	return value;
+}
+
+const THEME_MODES: readonly ThemeMode[] = ['system', 'light', 'dark'];
+
+function themeMode(mode: unknown): ThemeMode {
+	const known = THEME_MODES.find((candidate) => candidate === mode);
+	if (!known) throw new Error('theme mode must be system, light or dark');
+	return known;
 }

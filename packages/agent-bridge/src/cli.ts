@@ -508,6 +508,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				cmd.freshConversation,
 				cmd.skills,
 				cmd.steer,
+				cmd.theme,
 			);
 		} catch (err) {
 			emitRunFailure(cmd.runId, cmd.sessionId, 'SEND_PROMPT_FAILED', errorMessage(err));

@@ -10,6 +10,6 @@ export interface AppPlatform {
 	readonly streaming: { start(): void; stop(): void };
 }
 
-export type { ShellHost } from './platform/shell-host';
+export { createElectronShellHost, type ShellHost } from './platform/shell-host';
 export type { ResolvedEnvironment } from './platform/boot-environment';
 export { SHUTDOWN_BUDGET_MS } from './platform/graceful-shutdown';

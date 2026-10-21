@@ -171,6 +171,11 @@ function stringEnv(base: NodeJS.ProcessEnv): Record<string, string> {
 	return out;
 }
 
+function userColorScheme(): 'light' | 'dark' | null {
+	const theme = process.env['MALINI_THEME'];
+	return theme === 'light' || theme === 'dark' ? theme : null;
+}
+
 export async function launchMalini(options: LaunchOptions = {}): Promise<LaunchedApp> {
 	const root = options.profile ?? mkdtempSync(join(tmpdir(), 'malini-e2e-'));
 	const home = join(root, 'home');
@@ -218,6 +223,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		],
 		cwd: APP_ROOT,
 		env,
+		colorScheme: userColorScheme(),
 	});
 	const output: string[] = [];
 	const keepOutput = (chunk: Buffer): void => {

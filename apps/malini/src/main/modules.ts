@@ -15,7 +15,7 @@ import {
 	type RepositoriesPlatform,
 } from '$shared/repositories/repositories.platform';
 import { registerProviders } from '$shared/providers/platform/register';
-import type { AppPlatform, ShellHost } from '$lib/app/app.platform';
+import { createElectronShellHost, type AppPlatform, type ShellHost } from '$lib/app/app.platform';
 import { resolveBootEnvironment } from '$lib/app/platform/boot-environment';
 import { registerApp } from '$lib/app/platform/register';
 import type { MainContext } from './context';
@@ -68,6 +68,7 @@ export async function registerModules(
 	const log = overrides.log ?? platformLineSink(consolePlatformLog());
 	const processRunner = createNodeProcessRunner();
 	const agentRunLeases = new AgentRunLeases();
+	const shellHost = overrides.shellHost ?? createElectronShellHost();
 
 	await restoreStrandedCheckouts(context.db, context.appDataRoot);
 	const repositories = registerRepositories(context, {
@@ -106,6 +107,7 @@ export async function registerModules(
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,
 		browser,
+		theme: () => shellHost.theme(),
 		log,
 		...(overrides.filePicker ? { picker: overrides.filePicker } : {}),
 		...(overrides.bridgeProcessFactory ? { processFactory: overrides.bridgeProcessFactory } : {}),
@@ -120,7 +122,7 @@ export async function registerModules(
 
 	const app = registerApp(context, {
 		getMainWindow: options.getMainWindow,
-		...(overrides.shellHost ? { host: overrides.shellHost } : {}),
+		host: shellHost,
 		ownership: repositories.ownership,
 		runner: processRunner,
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
