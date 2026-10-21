@@ -21,28 +21,26 @@
 	});
 </script>
 
-<div class="frame">
-	<div class="rail docs">
-		<aside class="side">
-			<nav class="nav" aria-label="Docs" data-sveltekit-preload-code="viewport">
-				{@render groups()}
-			</nav>
-		</aside>
+<div class="docs">
+	<aside class="side">
+		<nav class="nav" aria-label="Docs" data-sveltekit-preload-code="viewport">
+			{@render groups()}
+		</nav>
+	</aside>
 
-		<details class="menu" bind:this={menu}>
-			<summary>
-				<span class="crumb">Docs</span>
-				<span class="slash" aria-hidden="true">/</span>
-				<span>{current?.title ?? 'Overview'}</span>
-				<Icon name="chevron-down" size={14} class="chevron" />
-			</summary>
-			<nav aria-label="Docs pages">
-				{@render groups()}
-			</nav>
-		</details>
+	<details class="menu" bind:this={menu}>
+		<summary>
+			<span class="crumb">Docs</span>
+			<span class="slash" aria-hidden="true">/</span>
+			<span>{current?.title ?? 'Overview'}</span>
+			<Icon name="chevron-down" size={14} class="chevron" />
+		</summary>
+		<nav aria-label="Docs pages">
+			{@render groups()}
+		</nav>
+	</details>
 
-		{@render children()}
-	</div>
+	{@render children()}
 </div>
 
 {#snippet groups()}
@@ -69,17 +67,20 @@
 	.docs {
 		display: grid;
 		grid-template-columns: 256px minmax(0, 1fr);
-		min-height: calc(100vh - var(--header));
+		width: 100%;
+		max-width: var(--col);
+		min-height: calc(100dvh - var(--bar-h));
+		margin: 0 auto;
 	}
 
 	.side {
-		border-right: 1px solid var(--line);
+		border-right: 1px solid var(--frame);
 	}
 
 	.nav {
 		position: sticky;
-		top: var(--header);
-		max-height: calc(100vh - var(--header));
+		top: var(--bar-h);
+		max-height: calc(100dvh - var(--bar-h));
 		overflow-y: auto;
 		padding: 40px 20px;
 		scrollbar-width: thin;
@@ -92,9 +93,10 @@
 	.group h2 {
 		margin-bottom: 6px;
 		padding: 0 10px;
-		color: var(--fg);
+		color: var(--fg-default);
 		font-size: 13px;
 		font-weight: 600;
+		line-height: 20px;
 	}
 
 	.group ul {
@@ -108,31 +110,32 @@
 		display: flex;
 		align-items: center;
 		min-height: 32px;
-		padding: 5px 10px;
+		padding: 6px 10px;
 		border-radius: 8px;
 		color: var(--fg-muted);
 		font-size: 14px;
 		line-height: 20px;
 		text-decoration: none;
-		transition: color 150ms ease;
 	}
 
-	.group a:hover {
-		color: var(--fg);
-		background: var(--well);
-	}
-
+	.group a:active,
 	.group a[aria-current='page'] {
-		color: var(--fg);
-		background: var(--well);
-		font-weight: 500;
+		background: var(--surface-hover);
+		color: var(--fg-default);
+	}
+
+	@media (hover: hover) and (pointer: fine) {
+		.group a:hover {
+			background: var(--surface-hover);
+			color: var(--fg-default);
+		}
 	}
 
 	.menu {
 		display: none;
 	}
 
-	@media (max-width: 860px) {
+	@media (max-width: 859px) {
 		.docs {
 			grid-template-columns: minmax(0, 1fr);
 		}
@@ -142,12 +145,12 @@
 		}
 
 		.menu {
-			display: block;
 			position: sticky;
-			top: var(--header);
+			top: var(--bar-h);
 			z-index: 10;
-			border-bottom: 1px solid var(--line);
-			background: var(--bg);
+			display: block;
+			border-bottom: 1px solid var(--frame);
+			background: var(--surface-root);
 		}
 
 		.menu summary {
@@ -174,7 +177,7 @@
 		.menu :global(.chevron) {
 			margin-left: auto;
 			color: var(--fg-muted);
-			transition: rotate 200ms var(--ease-out-quart);
+			transition: rotate 200ms var(--ease);
 		}
 
 		.menu[open] :global(.chevron) {
@@ -182,10 +185,10 @@
 		}
 
 		.menu nav {
-			max-height: calc(100vh - var(--header) - 48px);
+			max-height: calc(100dvh - var(--bar-h) - 48px);
 			overflow-y: auto;
 			padding: 8px calc(var(--pad) - 10px) 24px;
-			border-top: 1px solid var(--line);
+			border-top: 1px solid var(--frame);
 		}
 	}
 </style>
