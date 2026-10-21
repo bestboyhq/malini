@@ -48,7 +48,6 @@ import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service'
 import { createCheckoutResolver } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
-import { deleteConnectedRepository } from './connected-repositories.repository';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
@@ -396,10 +395,6 @@ export function registerRepositories(
 	commands.define('repositories.owner-avatar', (args: unknown) =>
 		avatars.get(validateOwner(field(args, 'owner'))),
 	);
-
-	commands.define('repositories.disconnect', (args: unknown) => {
-		deleteConnectedRepository(db, requireNonEmptyString(args, 'repoId'));
-	});
 
 	commands.define('repositories.list-hidden', () => listHiddenRepositoryIds(db));
 

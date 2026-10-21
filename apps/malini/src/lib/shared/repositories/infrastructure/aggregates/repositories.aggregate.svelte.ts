@@ -1,5 +1,4 @@
-import type { ImportedRepository, Repository } from '$shared/repositories/domain/repository';
-import type { RepositoryImportSource } from '$shared/repositories/domain/github-auth';
+import type { Repository } from '$shared/repositories/domain/repository';
 import { captureRendererError } from '$shared/errors/renderer-error-sink';
 import { githubService } from '$shared/repositories/infrastructure/services/github.service';
 
@@ -15,7 +14,6 @@ export class RepositoriesAggregate {
 	lastRefreshedAt = $state<string | null>(null);
 
 	private refreshGeneration = 0;
-	private readonly connecting = new Set<string>();
 
 	async refresh(): Promise<void> {
 		const generation = ++this.refreshGeneration;
@@ -26,7 +24,7 @@ export class RepositoriesAggregate {
 				githubService.listHiddenRepositoryIds(),
 			]);
 			if (generation !== this.refreshGeneration) return;
-			this.items = sortByCreatedAtDesc(list.filter((repo) => !this.connecting.has(repo.id)));
+			this.items = sortByCreatedAtDesc(list);
 			this.hiddenIds = new Set(hiddenIds);
 			this.lastError = null;
 			this.lastRefreshedAt = new Date().toISOString();
@@ -39,34 +37,6 @@ export class RepositoriesAggregate {
 				this.loading = false;
 				this.loaded = true;
 			}
-		}
-	}
-
-	async connect(source: RepositoryImportSource): Promise<ImportedRepository> {
-		const imported = await githubService.connectRepository(source);
-		if (imported.created) this.connecting.add(imported.repo.id);
-		return imported;
-	}
-
-	reveal(id: string): void {
-		this.connecting.delete(id);
-	}
-
-	async disconnect(id: string): Promise<'confirmed' | 'rolled-back'> {
-		this.connecting.delete(id);
-		const previousItems = this.items;
-		const previousError = this.lastError;
-		this.items = this.items.filter((existing) => existing.id !== id);
-		this.lastError = null;
-
-		try {
-			await githubService.disconnectRepository(id);
-			return 'confirmed';
-		} catch (err) {
-			captureRendererError('caught', err);
-			this.items = previousItems;
-			this.lastError = previousError ?? messageFromError(err);
-			return 'rolled-back';
 		}
 	}
 
@@ -93,7 +63,6 @@ export class RepositoriesAggregate {
 
 	reset(): void {
 		this.refreshGeneration += 1;
-		this.connecting.clear();
 		this.items = [];
 		this.hiddenIds = new Set();
 		this.loading = false;

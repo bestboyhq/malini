@@ -161,7 +161,6 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'repositories.create-repository': plain,
 	'repositories.create-workstream': plain,
 	'repositories.delete-workstream': plain,
-	'repositories.disconnect': plain,
 	'repositories.github-auth-status': false,
 	'repositories.start-github-sign-in': plain,
 	'repositories.finish-github-sign-in': false,
