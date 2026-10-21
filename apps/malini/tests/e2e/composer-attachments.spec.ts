@@ -22,6 +22,11 @@ async function openSeededWorkstream(app: LaunchedApp, workstreamId: string): Pro
 	const source = await createSourceRepo(app.root);
 	const seeded = await seedWorkstream(app.page, source, workstreamId, 'Attachments workstream');
 	await openWorkstream(app.page, seeded.workstreamId);
+	await expect(app.page.getByTestId('extension-inspector-shell')).toHaveAttribute(
+		'data-workstream-ready',
+		'true',
+		{ timeout: 20_000 },
+	);
 	return seeded.worktree;
 }
 

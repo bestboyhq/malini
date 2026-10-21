@@ -23,6 +23,7 @@ export type ContextBreakdownRow = ContextCategory & { percent: number };
 export type LiveContextOverride = {
 	readonly contextTokens: number;
 	readonly contextWindowTokens: number | null;
+	readonly providerMetrics?: Record<string, unknown> | null;
 };
 
 export type ContextPressure = 'ok' | 'high' | 'critical';
@@ -125,7 +126,10 @@ export function withLiveContext(
 		context: {
 			usedTokens: liveContext.contextTokens,
 			maxTokens: positiveTokenCount(liveContext.contextWindowTokens ?? undefined),
-			categories: metadata.context?.categories ?? [],
+			categories:
+				anthropicContextCategories(liveContext.providerMetrics ?? undefined) ??
+				metadata.context?.categories ??
+				[],
 		},
 	};
 }
@@ -144,7 +148,6 @@ function positiveTokenCount(value: number | undefined): number | null {
 }
 
 const MCP_SERVER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-	'claude.ai linear': 'Linear',
 	'codebase-memory-mcp': 'Codebase Memory',
 	'computer-use': 'Computer Use',
 	github: 'GitHub',
@@ -154,7 +157,10 @@ const MCP_SERVER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 };
 
 export function mcpServerDisplayName(serverId: string): string {
-	const trimmed = serverId.trim().replace(/^plugin:[^:]+:/iu, '');
+	const trimmed = serverId
+		.trim()
+		.replace(/^plugin:[^:]+:/iu, '')
+		.replace(/^claude\.ai\s+/iu, '');
 	const known = MCP_SERVER_DISPLAY_NAMES[trimmed.toLowerCase()];
 	if (known) return known;
 	const normalized = trimmed

@@ -93,6 +93,7 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
 	const asked = askedQuestions.get(runId) ?? { questions: new Map(), answers: [] };
@@ -523,7 +524,7 @@ const FIXTURE_SKILLS = [
 	},
 ];
 const skillsOfRun = new Map();
-const respond = (sessionId, runId, prompt) => {
+const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_SKILLS')) {
 		const skills = skillsOfRun.get(runId);
@@ -562,7 +563,10 @@ const respond = (sessionId, runId, prompt) => {
 	if (bulk && worktree) {
 		for (let index = 0; index < Number(bulk[1]); index += 1) {
 			const directory = nodePath.join(worktree, 'bulk', String(Math.floor(index / 500)));
-			if (index % 500 === 0) fs.mkdirSync(directory, { recursive: true });
+			if (index % 500 === 0) {
+				await new Promise(setImmediate);
+				fs.mkdirSync(directory, { recursive: true });
+			}
 			fs.writeFileSync(nodePath.join(directory, 'file-' + index + '.txt'), 'a\nb\nc\n');
 		}
 	}
@@ -785,6 +789,7 @@ const handle = (command) => {
 			ack(command.id);
 			const { sessionId, runId, prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
+			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
@@ -872,12 +877,14 @@ const handle = (command) => {
 			}
 			return ack(command.id);
 		}
-		case 'refresh_mcp_status': {
-			event({
-				type: 'mcp.status',
-				runId: command.runId,
-				servers: [{ name: 'fs', status: 'connected' }],
-			});
+		case 'refresh_session_status': {
+			const runId = lastRuns.get(command.sessionId);
+			if (!runId) return ack(command.id);
+			event({ type: 'mcp.status', runId, servers: [{ name: 'fs', status: 'connected' }] });
+			if (env.FAKE_BRIDGE_REFRESHED_CONTEXT) {
+				const context = JSON.parse(env.FAKE_BRIDGE_REFRESHED_CONTEXT);
+				event({ type: 'usage.updated', runId, ...context, interim: true });
+			}
 			return ack(command.id);
 		}
 		case 'list_skills': {

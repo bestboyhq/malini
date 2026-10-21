@@ -178,6 +178,7 @@ class StreamingStore {
 							event.contextWindowTokens > 0
 								? event.contextWindowTokens
 								: null,
+						providerMetrics: event.providerMetrics ?? null,
 					});
 					break;
 				}

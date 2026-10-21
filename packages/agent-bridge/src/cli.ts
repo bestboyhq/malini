@@ -267,8 +267,8 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
 				return;
 			}
-			case 'refresh_mcp_status': {
-				const error = await handleRefreshMcpStatus(cmd);
+			case 'refresh_session_status': {
+				const error = await handleRefreshSessionStatus(cmd);
 				emitControl(bridgeCommandAckFrame(cmd.id, error ?? undefined));
 				return;
 			}
@@ -616,20 +616,20 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		return null;
 	}
 
-	async function handleRefreshMcpStatus(cmd: AgentCommand): Promise<string | null> {
-		if (cmd.cmd !== 'refresh_mcp_status') return 'invalid refresh_mcp_status command';
+	async function handleRefreshSessionStatus(cmd: AgentCommand): Promise<string | null> {
+		if (cmd.cmd !== 'refresh_session_status') return 'invalid refresh_session_status command';
 		const starting = startingSessions.get(cmd.sessionId);
 		if (starting) await starting;
 		const handle = handles.get(cmd.sessionId);
 		if (!handle) return `NO_SESSION: no active session for ${cmd.sessionId}`;
-		if (!handle.refreshMcpStatus) {
-			return `MCP_STATUS_UNSUPPORTED: provider for ${cmd.sessionId} does not expose MCP status`;
+		if (!handle.refreshSessionStatus) {
+			return `SESSION_STATUS_UNSUPPORTED: provider for ${cmd.sessionId} does not expose its session status`;
 		}
 		try {
-			await handle.refreshMcpStatus(cmd.runId);
+			await handle.refreshSessionStatus();
 			return null;
 		} catch (error) {
-			return `MCP_STATUS_REFRESH_FAILED: ${errorMessage(error)}`;
+			return `SESSION_STATUS_REFRESH_FAILED: ${errorMessage(error)}`;
 		}
 	}
 

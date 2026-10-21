@@ -19,6 +19,7 @@ export interface TooltipRequest {
 	offset?: number | undefined;
 	onlyWhenTruncated?: boolean | undefined;
 	interactive?: boolean | undefined;
+	nowrap?: boolean | undefined;
 }
 
 const OPEN_DELAY = 420;
@@ -136,6 +137,7 @@ function fill(element: HTMLSpanElement, request: TooltipRequest): void {
 	giveBack(element);
 	interactive = request.interactive === true;
 	root?.classList.toggle('interactive', interactive);
+	root?.classList.toggle('nowrap', request.nowrap === true);
 	if (request.source) {
 		element.replaceChildren(...request.source.childNodes);
 		homes.set(element, request.source);

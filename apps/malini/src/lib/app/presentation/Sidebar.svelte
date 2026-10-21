@@ -3,6 +3,9 @@
 	import { afterNavigate, goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { quartOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide, type SlideParams } from 'svelte/transition';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import {
 		connectedRepositoryContexts,
@@ -401,6 +404,11 @@
 		to: number;
 		offset: number;
 	}>;
+
+	const foldMotion = (): SlideParams => ({
+		duration: prefersReducedMotion.current ? 0 : 240,
+		easing: quartOut,
+	});
 
 	const REORDER_THRESHOLD_PX = 4;
 	const SETTLE_MS = 150;
@@ -904,71 +912,75 @@
 							</HoverCard>
 							<ul
 								id={`repository-workstreams-${row.repo.id}`}
-								class={['mt-0.5 flex w-full flex-col gap-0.5', collapsed && 'hidden']}
+								class={['flex w-full flex-col', collapsed && 'hidden']}
 							>
 								{#each row.workstreams as workstream (workstream.id)}
-									<WorkstreamChatSummary workstreamId={workstream.id}>
-										{#snippet children(chat)}
-											{@const label = workstreamLabel(workstream, row.repo.fullName)}
-											{@const queueCount = chat.queueCount}
-											{@const attention = chat.attention}
-											{@const hasDraft = chat.hasDraft}
-											{@const state = visualState(
-												workstream,
-												provisioningRecord(workstream.id),
-												chat,
-											)}
-											{@const lifecycle = lifecycleAction(workstream.id, label)}
-											{@const targetSessionId = chat.sessionId}
-											{@const badge = pullRequestBadge(workstream.id)}
-											{@const changeTotals =
-												badge.phase === 'merged'
-													? undefined
-													: changeTotalsByWorkstream[workstream.id]}
-											{@const pullRequest = pullRequestVisual(badge)}
-											{@const busy =
-												state.tone === 'running' ||
-												state.tone === 'background' ||
-												state.tone === 'provisioning'}
-											{@const loading =
-												busy || (badge.phase === 'queued' && state.tone !== 'broken')}
-											{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
-											{@const unread = attention !== null}
-											{@const workstreamItem = { kind: 'workstream' as const, id: workstream.id }}
-											{@const running = workstreamRunning(workstream.id)}
-											{#snippet runningCard()}
-												{#if running}
-													<WorkstreamRunningCard
-														iconClass={statusIconColor(state, busy, pullRequest)}
-														{label}
-														branch={workstream.branch}
-														baseBranch={workstream.baseBranch}
-														pullRequestLabel={badge.phase === 'none' || badge.phase === 'unknown'
-															? null
-															: badge.label}
-														working={busy}
-														stateLabel={state.label}
-														{changeTotals}
-														{running}
-														onopenport={(port) =>
-															openRunningPort(workstream.id, targetSessionId, port)}
-													>
-														{#snippet icon()}
-															{@render statusGlyph(
-																loading,
-																state.tone === 'background',
-																pullRequest.glyph,
-															)}
-														{/snippet}
-													</WorkstreamRunningCard>
-												{/if}
-											{/snippet}
-											<li
-												class={['group/row relative w-full min-w-0', reorderClass(workstream.id)]}
-												style:transform={reorderTransform(workstream.id)}
-												data-sidebar-item={workstream.id}
-												onpointerdown={(event) => armReorder(event, workstreamItem)}
-											>
+									<li
+										class={[
+											'group/row relative mt-0.5 w-full min-w-0',
+											reorderClass(workstream.id),
+										]}
+										style:transform={reorderTransform(workstream.id)}
+										data-sidebar-item={workstream.id}
+										onpointerdown={(event) =>
+											armReorder(event, { kind: 'workstream', id: workstream.id })}
+										transition:slide={foldMotion()}
+									>
+										<WorkstreamChatSummary workstreamId={workstream.id}>
+											{#snippet children(chat)}
+												{@const label = workstreamLabel(workstream, row.repo.fullName)}
+												{@const queueCount = chat.queueCount}
+												{@const attention = chat.attention}
+												{@const hasDraft = chat.hasDraft}
+												{@const state = visualState(
+													workstream,
+													provisioningRecord(workstream.id),
+													chat,
+												)}
+												{@const lifecycle = lifecycleAction(workstream.id, label)}
+												{@const targetSessionId = chat.sessionId}
+												{@const badge = pullRequestBadge(workstream.id)}
+												{@const changeTotals =
+													badge.phase === 'merged'
+														? undefined
+														: changeTotalsByWorkstream[workstream.id]}
+												{@const pullRequest = pullRequestVisual(badge)}
+												{@const busy =
+													state.tone === 'running' ||
+													state.tone === 'background' ||
+													state.tone === 'provisioning'}
+												{@const loading =
+													busy || (badge.phase === 'queued' && state.tone !== 'broken')}
+												{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
+												{@const unread = attention !== null}
+												{@const running = workstreamRunning(workstream.id)}
+												{#snippet runningCard()}
+													{#if running}
+														<WorkstreamRunningCard
+															iconClass={statusIconColor(state, busy, pullRequest)}
+															{label}
+															branch={workstream.branch}
+															baseBranch={workstream.baseBranch}
+															pullRequestLabel={badge.phase === 'none' || badge.phase === 'unknown'
+																? null
+																: badge.label}
+															working={busy}
+															stateLabel={state.label}
+															{changeTotals}
+															{running}
+															onopenport={(port) =>
+																openRunningPort(workstream.id, targetSessionId, port)}
+														>
+															{#snippet icon()}
+																{@render statusGlyph(
+																	loading,
+																	state.tone === 'background',
+																	pullRequest.glyph,
+																)}
+															{/snippet}
+														</WorkstreamRunningCard>
+													{/if}
+												{/snippet}
 												<Tooltip
 													content={runningCard}
 													interactive
@@ -983,8 +995,7 @@
 														aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
 														aria-busy={workstream.id === pendingWorkstreamId || undefined}
 														class={[
-															'sidebar-row relative w-full gap-2 pr-3 pl-6 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
-															running && 'items-start',
+															'sidebar-row relative w-full flex-col items-stretch pr-3 pl-6 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
 															unread
 																? 'text-500'
 																: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
@@ -1046,47 +1057,47 @@
 															)}
 														oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
 													>
-														<Tooltip
-															content={visualStateTooltip(state, chat, pullRequest)}
-															placement="right"
-															suppressed={running !== null}
-															class={['shrink-0', running && 'mt-1']}
-														>
-															<span
-																class={[
-																	'grid h-4 w-4 place-items-center',
-																	statusIconColor(state, busy, pullRequest),
-																]}
-																role="status"
-																aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
-																data-testid={state.tone === 'running' || state.tone === 'background'
-																	? 'sidebar-workstream-loader'
-																	: 'sidebar-workstream-status'}
-																data-workstream-icon-state={state.tone}
-																data-workstream-pull-request-state={badge.phase}
+														<span class="relative flex items-center gap-2">
+															<Tooltip
+																content={visualStateTooltip(state, chat, pullRequest)}
+																placement="right"
+																suppressed={running !== null}
+																class="shrink-0"
 															>
-																{@render statusGlyph(
-																	loading,
-																	state.tone === 'background',
-																	pullRequest.glyph,
-																)}
-															</span>
-														</Tooltip>
-														{#if attention && chat.needsYou}
-															<span
-																class={[
-																	'absolute left-2.5 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
-																	running ? 'top-4.5' : 'top-1/2',
-																	attention.kind === 'failed'
-																		? 'bg-error-content'
-																		: 'bg-warning-content',
-																]}
-																aria-hidden="true"
-																data-testid="sidebar-agent-attention"
-																data-attention-kind={attention.kind}
-															></span>
-														{/if}
-														<span class={running ? 'flex min-w-0 flex-1 flex-col' : 'contents'}>
+																<span
+																	class={[
+																		'grid h-4 w-4 place-items-center',
+																		statusIconColor(state, busy, pullRequest),
+																	]}
+																	role="status"
+																	aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
+																	data-testid={state.tone === 'running' ||
+																	state.tone === 'background'
+																		? 'sidebar-workstream-loader'
+																		: 'sidebar-workstream-status'}
+																	data-workstream-icon-state={state.tone}
+																	data-workstream-pull-request-state={badge.phase}
+																>
+																	{@render statusGlyph(
+																		loading,
+																		state.tone === 'background',
+																		pullRequest.glyph,
+																	)}
+																</span>
+															</Tooltip>
+															{#if attention && chat.needsYou}
+																<span
+																	class={[
+																		'absolute top-1/2 -left-3.5 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
+																		attention.kind === 'failed'
+																			? 'bg-error-content'
+																			: 'bg-warning-content',
+																	]}
+																	aria-hidden="true"
+																	data-testid="sidebar-agent-attention"
+																	data-attention-kind={attention.kind}
+																></span>
+															{/if}
 															<span class="sidebar-row-text gap-1.5">
 																<Tooltip
 																	content={label}
@@ -1146,19 +1157,18 @@
 																	</span>
 																{/if}
 															</span>
-															{#if running}
-																<WorkstreamRunningLine {running} selected={isSelected} />
-															{/if}
 														</span>
+														{#if running}
+															<span class="pl-6" transition:slide={foldMotion()}>
+																<WorkstreamRunningLine {running} selected={isSelected} />
+															</span>
+														{/if}
 													</a>
 													<Tooltip
 														content={lifecycle.tooltip}
 														placement="right"
 														suppressed={running !== null}
-														class={[
-															'absolute right-1 -translate-y-1/2',
-															running ? 'top-4.5' : 'top-1/2',
-														]}
+														class="absolute top-1.5 right-1 h-lh items-center text-sm leading-relaxed"
 													>
 														<IconButton
 															variant="ghost"
@@ -1189,9 +1199,9 @@
 														</IconButton>
 													</Tooltip>
 												</Tooltip>
-											</li>
-										{/snippet}
-									</WorkstreamChatSummary>
+											{/snippet}
+										</WorkstreamChatSummary>
+									</li>
 								{/each}
 							</ul>
 						</li>
@@ -1239,7 +1249,9 @@
 
 	<SidebarArchived />
 
-	<div class="border-surface-50-border flex shrink-0 items-center gap-1 border-t px-2 py-1.5">
+	<div
+		class="border-surface-50-border flex shrink-0 items-center gap-1 border-t py-1.5 pr-1.5 pl-2.5"
+	>
 		<Tooltip content="Connect repository" placement="right">
 			<IconButton
 				variant="ghost"

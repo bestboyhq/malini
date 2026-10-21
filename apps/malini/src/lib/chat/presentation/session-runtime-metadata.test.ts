@@ -109,6 +109,8 @@ describe('session runtime metadata', () => {
 		expect(mcpServerDisplayName('node_repl')).toBe('Node REPL');
 		expect(mcpServerDisplayName('custom-weather-mcp')).toBe('Custom Weather');
 		expect(mcpServerDisplayName('plugin:svelte:svelte')).toBe('Svelte');
+		expect(mcpServerDisplayName('claude.ai Claude Docs')).toBe('Claude Docs');
+		expect(mcpServerDisplayName('claude.ai Linear')).toBe('Linear');
 	});
 
 	it('never reads run input totals as context occupancy', () => {

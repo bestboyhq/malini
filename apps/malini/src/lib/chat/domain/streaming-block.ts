@@ -26,6 +26,7 @@ export type LiveContextUsage = {
 	readonly runId: RunId;
 	readonly contextTokens: number;
 	readonly contextWindowTokens: number | null;
+	readonly providerMetrics: Record<string, unknown> | null;
 };
 
 export type StreamingIngestionStats = {

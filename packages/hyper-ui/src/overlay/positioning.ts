@@ -146,6 +146,16 @@ function clampToViewport(
 	};
 }
 
+export function anchoredEdges(
+	position: PositionResult,
+	height: number,
+	viewportHeight: number,
+): { readonly top: string; readonly bottom: string } {
+	return position.actualSide === 'top'
+		? { top: 'auto', bottom: `${viewportHeight - position.top - height}px` }
+		: { top: `${position.top}px`, bottom: 'auto' };
+}
+
 export function calculatePosition(
 	triggerRect: DOMRect,
 	contentRect: DOMRect,
