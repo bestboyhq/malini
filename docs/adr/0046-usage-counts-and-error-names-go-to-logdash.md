@@ -26,7 +26,7 @@ Everything else in 0001 still holds and is restated below.
   - Each line reads `<what> failed: <name> <code> (<kind>) · malini <version> · macOS <version> <arch>`, and each distinct line is sent once per launch.
 - Neither call carries an error message, a stack, a path, a prompt or code.
 - Each call is silent without its variable, and both stop with `MALINI_USAGE_DATA=off`, `DO_NOT_TRACK=1` or the Share usage data setting, which is on until the user turns it off.
-- The release job in `.github/workflows/ci.yml` passes `vars.MALINI_LOGDASH_SITE` and `secrets.MALINI_LOGDASH_API_KEY` into the build.
+- The release job in `.github/workflows/ci.yml` passes `secrets.MALINI_LOGDASH_SITE` and `secrets.MALINI_LOGDASH_API_KEY` into the build.
 
 ## Consequences
 
