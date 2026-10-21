@@ -96,6 +96,7 @@
 	import { chatAttentionQuery } from '$lib/chat/application/queries/chat-attention.query.svelte';
 	import { closingChatsQuery } from '$lib/chat/application/queries/closing-chats.query.svelte';
 	import { draftScopesQuery } from '$lib/chat/application/queries/draft-scopes.query.svelte';
+	import { namedChatsQuery } from '$lib/chat/application/queries/named-chats.query.svelte';
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
 	import type { SessionRecord } from '$lib/chat/domain/session-record';
 	import { WorkstreamDocumentTab } from '$lib/extensions/extensions.api';
@@ -150,6 +151,7 @@
 	const freshHasDraft = $derived(hasDraft(null));
 	let overflowOpen = $state(false);
 	let sessionToStop = $state.raw<SessionRecord | null>(null);
+	let closingTab: string | null = null;
 	const tabSelection = new AgentChatTabSelection();
 	let tabRow: HTMLElement | undefined = $state();
 	const bandHost = $derived(globalTopBarBandSlot.host);
@@ -422,6 +424,7 @@
 
 	function closeCurrentTab(): void {
 		if (strip.activeDocumentId !== null) {
+			void collapseOnRemoval(`document:${strip.activeDocumentId}`);
 			workstreamTabs.close(workstreamId, strip.activeDocumentId);
 			return;
 		}
@@ -462,12 +465,23 @@
 		if (session) closeSession(session);
 	}
 
+	function tabIsClosing(tab: string): boolean {
+		return tab === closingTab;
+	}
+
+	async function collapseOnRemoval(tab: string): Promise<void> {
+		closingTab = tab;
+		await tick();
+		if (closingTab === tab) closingTab = null;
+	}
+
 	function closeSession(session: SessionRecord): SessionRecord | null {
 		const closingIndex = sessions.findIndex((candidate) => candidate.id === session.id);
 		const adjacentSession =
 			closingIndex >= 0 ? (sessions[closingIndex + 1] ?? sessions[closingIndex - 1] ?? null) : null;
 		const wasRouted = page.url.searchParams.get('agent') === session.id;
 
+		void collapseOnRemoval(`chat:${session.id}`);
 		if (session.origin === 'user') closeChatCommand(workstreamId, session.id);
 		workstreamTabs.closeChat(workstreamId, session.id);
 		if (wasRouted) {
@@ -556,6 +570,8 @@
 						: undefined}
 					onselect={selectSessionTab}
 					onclose={(event) => closeSessionTab(event, session)}
+					shimmerRename={namedChatsQuery.data(session.id)}
+					isClosing={() => tabIsClosing(item.key)}
 				/>
 			{:else if item.kind === 'document'}
 				<WorkstreamDocumentTab
@@ -563,6 +579,7 @@
 					document={item.document}
 					tabId={stripTabId(item.key)}
 					tabindex={item.key === tabStopKey ? 0 : -1}
+					isClosing={() => tabIsClosing(item.key)}
 				/>
 			{:else}
 				<BrowserTab

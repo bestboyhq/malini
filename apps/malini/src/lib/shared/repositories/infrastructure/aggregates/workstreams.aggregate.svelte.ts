@@ -1,3 +1,4 @@
+import { SvelteSet } from 'svelte/reactivity';
 import type { Project } from '$shared/repositories/domain/repository';
 import type { ArchivedWorkstream, Workstream } from '$shared/repositories/domain/workstream';
 import { captureRendererError } from '$shared/errors/renderer-error-sink';
@@ -14,6 +15,7 @@ export class WorkstreamsAggregate {
 	private refreshGeneration = 0;
 	private pending: Workstream[] = [];
 	private retiring = new Set<string>();
+	private named = new SvelteSet<string>();
 
 	async refresh(): Promise<void> {
 		const generation = ++this.refreshGeneration;
@@ -49,13 +51,19 @@ export class WorkstreamsAggregate {
 	}
 
 	remove(workstreamId: string): void {
+		this.named.delete(workstreamId);
 		this.mutate((workstreams) => workstreams.filter((entry) => entry.id !== workstreamId));
 	}
 
 	rename(workstreamId: string, name: string): void {
+		this.named.add(workstreamId);
 		this.mutate((workstreams) =>
 			workstreams.map((entry) => (entry.id === workstreamId ? { ...entry, name } : entry)),
 		);
+	}
+
+	wasNamed(workstreamId: string): boolean {
+		return this.named.has(workstreamId);
 	}
 
 	stagePendingWorkstream(workstream: Workstream): void {

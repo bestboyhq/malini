@@ -44,11 +44,22 @@
 		data-testid="sidebar-open-stats"
 	>
 		<Icon name="signal" size={14} />
-		{#if readout}
-			<span class="truncate" data-testid="sidebar-stats-readout">{readout}</span>
+		{#if latest}
+			<span class="flex min-w-0 items-baseline gap-1" data-testid="sidebar-stats-readout">
+				{@render fixedWidth(formatMemory(latest.memoryBytes), '000 MB')}
+				<span aria-hidden="true">·</span>
+				{@render fixedWidth(formatCpu(latest.cpuPercent), '100%')}
+			</span>
 		{/if}
 	</Button>
 </Tooltip>
+
+{#snippet fixedWidth(value: string, widest: string)}
+	<span class="grid justify-items-end">
+		<span class="invisible [grid-area:1/1]" aria-hidden="true">{widest}</span>
+		<span class="[grid-area:1/1]">{value}</span>
+	</span>
+{/snippet}
 
 <DropdownLayer
 	{open}

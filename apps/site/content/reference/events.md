@@ -540,7 +540,7 @@ type UpdateStagedPayload = Readonly<{ version: string }>;
 
 ## `browser:state-changed`
 
-Fires whenever a workstream's browser tab changes its page, title, icon, loading state or history.
+Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.
 
 Payload: `BrowserState`
 
@@ -554,6 +554,7 @@ type BrowserState = Readonly<{
 	loading: boolean;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	failure: string | null;
 }>;
 ```
 
