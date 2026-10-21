@@ -199,10 +199,15 @@ export function fakeClaude(
 				return {};
 			},
 			async mcpServerStatus() {
-				return [];
+				return initServers(script).map(({ name }) => ({ name, status: 'connected' as const }));
 			},
 			getContextUsage() {
-				return whileIterating({ rawMaxTokens: 200_000, categories: FAKE_CONTEXT_CATEGORIES });
+				return whileIterating({
+					rawMaxTokens: 200_000,
+					totalTokens: 25_472,
+					categories: FAKE_CONTEXT_CATEGORIES,
+					memoryFiles: [],
+				});
 			},
 			usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET() {
 				return whileIterating(FAKE_PLAN_USAGE);
@@ -242,6 +247,15 @@ async function promptText(sent: Promise<SDKUserMessage | undefined>): Promise<st
 function echoPrompt(result: SDKResultMessage, promptId: string | undefined): SDKResultMessage {
 	if (!promptId || !result.user_message_uuids) return result;
 	return { ...result, user_message_uuid: promptId, user_message_uuids: [promptId] };
+}
+
+function initServers(script: readonly ScriptStep[]): readonly { readonly name: string }[] {
+	for (const step of script) {
+		if (isMessage(step) && step.type === 'system' && step.subtype === 'init') {
+			return step.mcp_servers;
+		}
+	}
+	return [];
 }
 
 function isMessage(step: ScriptStep): step is SDKMessage {

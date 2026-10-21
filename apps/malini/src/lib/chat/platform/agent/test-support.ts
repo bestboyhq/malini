@@ -63,6 +63,7 @@ const ack = (id, error) => {
   if (ackDelay > 0) setTimeout(() => write(frame), ackDelay); else write(frame);
 };
 const pendingRuns = new Map();
+const lastRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
 const completeRun = (sessionId, runId, summary) => {
@@ -85,6 +86,7 @@ const handle = (command) => {
       ack(command.id);
       const { sessionId, runId, prompt } = command;
       if (prompt.includes('CRASH')) process.exit(3);
+      lastRuns.set(sessionId, runId);
       for (const [steered, owner] of pendingRuns) {
         if (!command.steer || owner !== sessionId) continue;
         event({ type: 'run.failed', runId: steered, error: 'cancelled', providerCursor: 'cursor-' + steered });
@@ -142,8 +144,9 @@ const handle = (command) => {
       }
       return ack(command.id);
     }
-    case 'refresh_mcp_status': {
-      event({ type: 'mcp.status', runId: command.runId, servers: [{ name: 'fs', status: 'connected' }] });
+    case 'refresh_session_status': {
+      const runId = lastRuns.get(command.sessionId);
+      if (runId) event({ type: 'mcp.status', runId, servers: [{ name: 'fs', status: 'connected' }] });
       return ack(command.id);
     }
     case 'list_skills': {

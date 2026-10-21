@@ -93,6 +93,7 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
 	const asked = askedQuestions.get(runId) ?? { questions: new Map(), answers: [] };
@@ -778,6 +779,7 @@ const handle = (command) => {
 			ack(command.id);
 			const { sessionId, runId, prompt } = command;
 			if (prompt.includes('CRASH')) process.exit(3);
+			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
@@ -865,12 +867,14 @@ const handle = (command) => {
 			}
 			return ack(command.id);
 		}
-		case 'refresh_mcp_status': {
-			event({
-				type: 'mcp.status',
-				runId: command.runId,
-				servers: [{ name: 'fs', status: 'connected' }],
-			});
+		case 'refresh_session_status': {
+			const runId = lastRuns.get(command.sessionId);
+			if (!runId) return ack(command.id);
+			event({ type: 'mcp.status', runId, servers: [{ name: 'fs', status: 'connected' }] });
+			if (env.FAKE_BRIDGE_REFRESHED_CONTEXT) {
+				const context = JSON.parse(env.FAKE_BRIDGE_REFRESHED_CONTEXT);
+				event({ type: 'usage.updated', runId, ...context, interim: true });
+			}
 			return ack(command.id);
 		}
 		case 'list_skills': {

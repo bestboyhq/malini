@@ -1148,8 +1148,8 @@ describe('bridge commands', () => {
 		expect(refreshed[0]).toMatchObject({ version: 'fixture-2.0.0' });
 
 		await invoke('chat.activate-session', { sessionId });
-		await invoke('chat.refresh-mcp-status', { sessionId });
-		expect(await invokeError('chat.refresh-mcp-status', {})).toBe(
+		await invoke('chat.refresh-session-status', { sessionId });
+		expect(await invokeError('chat.refresh-session-status', {})).toBe(
 			'invalid args: `sessionId` must be a string',
 		);
 

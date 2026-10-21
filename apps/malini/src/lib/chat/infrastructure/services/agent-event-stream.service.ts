@@ -5,6 +5,7 @@ import type { SessionId } from '$lib/chat/domain/session';
 import { transcriptHistoryAggregate } from '$lib/chat/infrastructure/aggregates/transcript-history.aggregate.svelte';
 import { agentSessions } from '$lib/chat/infrastructure/services/agent-sessions.service';
 import { createEventStream } from '$lib/chat/infrastructure/services/event-stream.service';
+import { planUsageStore } from '$lib/chat/infrastructure/stores/plan-usage.store.svelte';
 import { streamingStore } from '$lib/chat/infrastructure/stores/streaming.store.svelte';
 
 type EventStreamHandle = ReturnType<typeof createEventStream>;
@@ -73,6 +74,7 @@ class AgentEventStreamService {
 			onEphemeralBatch: (envelopes) => {
 				if (envelopes.length === 0) return;
 				streamingStore.applyEphemeralBatch(envelopes);
+				planUsageStore.observe(envelopes);
 			},
 		});
 		this.#stream = stream;

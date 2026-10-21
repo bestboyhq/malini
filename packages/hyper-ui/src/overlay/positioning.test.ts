@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { calculatePosition, layoutRect, unscaledRect } from './positioning';
+import { anchoredEdges, calculatePosition, layoutRect, unscaledRect } from './positioning';
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
 	return {
@@ -95,5 +95,19 @@ describe('Dropdown positioning', () => {
 
 		expect(position.actualSide).toBe('bottom');
 		expect(position.top).toBe(trigger.bottom + 8);
+	});
+});
+
+describe('Anchored edges', () => {
+	it('pins a surface above its trigger by its bottom edge, so content it gains grows it upward', () => {
+		const edges = anchoredEdges({ top: 400, left: 100, actualSide: 'top' }, 300, 900);
+
+		expect(edges).toEqual({ top: 'auto', bottom: '200px' });
+	});
+
+	it('pins a surface below its trigger by its top edge', () => {
+		const edges = anchoredEdges({ top: 536, left: 100, actualSide: 'bottom' }, 300, 900);
+
+		expect(edges).toEqual({ top: '536px', bottom: 'auto' });
 	});
 });
