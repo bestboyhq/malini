@@ -25,9 +25,11 @@ test('the first prompt names the chat and the workstream with the title Claude s
 		const namedTab = page.getByTestId('chat-agent-tabs').getByRole('tab', { name: /Login flow/u });
 		await expect(namedTab).toBeVisible({ timeout: 20_000 });
 		await expect(namedTab).toHaveAccessibleName('Login flow');
-		await expect(
-			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
-		).toContainText('Login flow');
+		const row = page.locator(
+			`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`,
+		);
+		await expect(row).toContainText('Login flow');
+		await expect(row).not.toHaveAccessibleName(/Bright Arc/u);
 
 		await captureFlow(app, 'chat-names');
 		expectCleanConsole(app);
