@@ -44,3 +44,4 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0037](0037-a-finished-turn-reads-finished-while-its-commands-run.md) | A turn that ends with only background commands left reads as finished; the sidebar names what keeps running in each workstream                 |
 | [0038](0038-a-chat-keeps-its-claude-code-running-between-turns.md)    | A chat's Claude Code stays open between turns, restarts on changed instructions or settings, and refreshes the MCP and context popovers live   |
 | [0039](0039-screenshots-follow-the-users-theme.md)                    | Malini's theme drives `nativeTheme` and reaches the agent on every prompt as instructions and `MALINI_THEME`, so screenshots match it          |
+| [0040](0040-mcp-servers-sign-in-through-a-claude-code-probe.md)       | MCP sign-in runs `mcpAuthenticate` on a probe Claude Code in the chat's worktree; the chat's own process reconnects once the server connects   |

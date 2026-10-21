@@ -22,6 +22,7 @@ import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
 import { configChanged, configSnapshot, type ConfigSnapshot } from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
+import { probeMcpServer, startMcpAuthorization, type McpProbeOptions } from './mcp-servers.js';
 import {
 	claudeAnswers,
 	claudeQuestions,
@@ -58,6 +59,7 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 		| 'setPermissionMode'
 		| 'setMcpPermissionModeOverride'
 		| 'mcpServerStatus'
+		| 'reconnectMcpServer'
 		| 'initializationResult'
 		| 'close'
 		| 'stopTask'
@@ -65,7 +67,13 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 		| 'usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET'
 	> & {
 		getContextUsage(opts: { detail: 'summary' }): Promise<ClaudeContextUsage>;
+		mcpAuthenticate?(serverName: string): Promise<unknown>;
 	};
+
+interface McpReport {
+	readonly runId: string;
+	readonly servers: readonly { name: string; status: string; error?: string }[];
+}
 
 export type QueryFunction = (params: {
 	prompt: AsyncIterable<SDKUserMessage>;
@@ -122,6 +130,7 @@ export class ClaudeSession implements ProviderHandle {
 	#requestedMode: PermissionMode = 'default';
 	#initialized = false;
 	#knownMcpServers: readonly string[] = [];
+	#mcpReport: McpReport | null = null;
 
 	constructor(options: ClaudeSessionOptions) {
 		this.#context = options.context;
@@ -445,15 +454,16 @@ export class ClaudeSession implements ProviderHandle {
 		servers: readonly { name: string; status: string; error?: string }[],
 	): void {
 		this.#knownMcpServers = servers.map(({ name }) => name);
-		this.#emit({
-			type: 'mcp.status',
+		const report: McpReport = {
 			runId,
 			servers: servers.map(({ name, status, error }) => ({
 				name,
 				status,
 				...(error ? { error } : {}),
 			})),
-		});
+		};
+		this.#mcpReport = report;
+		this.#emit({ type: 'mcp.status', ...report, servers: [...report.servers] });
 	}
 
 	async #learnContextWindow(active: ActiveRun): Promise<void> {
@@ -689,6 +699,54 @@ export class ClaudeSession implements ProviderHandle {
 			...(metrics ? { providerMetrics: metrics } : {}),
 			interim: true,
 		});
+	}
+
+	async authorizeMcpServer(serverName: string): Promise<string | null> {
+		const { authUrl, settled } = await startMcpAuthorization(serverName, this.#mcpProbe());
+		void this.#adoptOnceConnected(settled);
+		return authUrl;
+	}
+
+	async #adoptOnceConnected(settled: Promise<McpServerStatus | null>): Promise<void> {
+		const server = await settled;
+		if (server) await this.#adoptMcpServer(server);
+	}
+
+	async reconnectMcpServer(serverName: string): Promise<void> {
+		const active = this.#active;
+		if (!active) {
+			const server = await probeMcpServer(serverName, this.#mcpProbe());
+			if (server) await this.#adoptMcpServer(server);
+			return;
+		}
+		try {
+			await active.query.reconnectMcpServer(serverName);
+		} finally {
+			await this.refreshSessionStatus();
+		}
+	}
+
+	#mcpProbe(): McpProbeOptions {
+		const executable = this.#executable;
+		if (!executable) throw new Error('Claude Code is not installed');
+		return { cwd: this.#context.cwd, executable, env: claudeEnvironment(), query: this.#query };
+	}
+
+	async #adoptMcpServer({ name, status, error }: McpServerStatus): Promise<void> {
+		const active = this.#active;
+		if (active) {
+			await active.query.reconnectMcpServer(name).catch(() => undefined);
+			await this.refreshSessionStatus().catch(() => undefined);
+			return;
+		}
+		const report = this.#mcpReport;
+		if (!report) return;
+		this.#reportMcp(
+			report.runId,
+			report.servers.map((server) =>
+				server.name === name ? { name, status, ...(error ? { error } : {}) } : server,
+			),
+		);
 	}
 
 	async close(): Promise<void> {

@@ -189,6 +189,7 @@ export class BridgeSupervisor {
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
+	private readonly mcpAuthorizations = new Map<string, string | null>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly agentRequestListeners = new Set<(request: BridgeAgentRequest) => void>();
 	private readonly startedAtMs: number;
@@ -452,6 +453,18 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.listedSkills.set(control.id, control.skills);
 				return;
 			}
+			case 'bridge.mcp_authorization': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: mcp authorization v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) {
+					this.mcpAuthorizations.set(control.id, control.authUrl ?? null);
+				}
+				return;
+			}
 			case 'bridge.browser_request':
 			case 'bridge.platform_request': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
@@ -625,6 +638,32 @@ export class BridgeSupervisor {
 
 	refreshSessionStatus(sessionId: string): Promise<void> {
 		return this.sendCommand({ cmd: 'refresh_session_status', id: this.nextCommandId(), sessionId });
+	}
+
+	async authorizeMcpServer(sessionId: string, serverName: string): Promise<string | null> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'authorize_mcp_server', id, sessionId, serverName });
+			const authUrl = this.mcpAuthorizations.get(id);
+			if (authUrl === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'the authorization was acknowledged without a bridge.mcp_authorization frame',
+				);
+			}
+			return authUrl;
+		} finally {
+			this.mcpAuthorizations.delete(id);
+		}
+	}
+
+	reconnectMcpServer(sessionId: string, serverName: string): Promise<void> {
+		return this.sendCommand({
+			cmd: 'reconnect_mcp_server',
+			id: this.nextCommandId(),
+			sessionId,
+			serverName,
+		});
 	}
 
 	async kill(): Promise<void> {
