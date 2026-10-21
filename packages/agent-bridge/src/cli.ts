@@ -6,6 +6,7 @@ import {
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
+	bridgeMcpAuthorizationFrame,
 	bridgePlatformRequestFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
@@ -16,6 +17,7 @@ import {
 	type AgentSkill,
 	type BridgeControlFrame,
 	type ListSkillsCommand,
+	type McpServerCommand,
 	type SuggestTitleCommand,
 	type TurnedOffSkills,
 	type BrowserRequest,
@@ -243,6 +245,10 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'list_skills') {
 			trackInFlight(answerSkills(cmd));
+			return;
+		}
+		if (cmd.cmd === 'authorize_mcp_server' || cmd.cmd === 'reconnect_mcp_server') {
+			trackInFlight(answerMcpServer(cmd));
 			return;
 		}
 		switch (cmd.cmd) {
@@ -541,6 +547,33 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `SKILLS_FAILED: ${errorMessage(err)}`));
+		}
+	}
+
+	async function answerMcpServer(cmd: McpServerCommand): Promise<void> {
+		const starting = startingSessions.get(cmd.sessionId);
+		if (starting) await starting;
+		const handle = handles.get(cmd.sessionId);
+		if (!handle) {
+			emitControl(
+				bridgeCommandAckFrame(cmd.id, `NO_SESSION: no active session for ${cmd.sessionId}`),
+			);
+			return;
+		}
+		try {
+			if (cmd.cmd === 'authorize_mcp_server') {
+				if (!handle.authorizeMcpServer)
+					throw new Error('the provider cannot authorize MCP servers');
+				const authUrl = await handle.authorizeMcpServer(cmd.serverName);
+				emitControl(bridgeMcpAuthorizationFrame(cmd.id, authUrl));
+			} else {
+				if (!handle.reconnectMcpServer)
+					throw new Error('the provider cannot reconnect MCP servers');
+				await handle.reconnectMcpServer(cmd.serverName);
+			}
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVER_FAILED: ${errorMessage(err)}`));
 		}
 	}
 

@@ -15,11 +15,12 @@
 		overlaySurface,
 		resolveOverlayZIndex,
 		returnFocus,
-		type MenuTransitionParams,
+		transformOriginFor,
 	} from '../../overlay';
 
 	type Side = 'top' | 'bottom' | 'left' | 'right';
 	type Align = 'start' | 'center' | 'end';
+	type TriggerPress = 'pin' | 'dismiss' | 'ignore';
 
 	interface Props {
 		trigger: Snippet<[{ open: boolean }]>;
@@ -34,8 +35,7 @@
 		testId?: string;
 		backdropTestId?: string;
 		owner?: string;
-		pinnable?: boolean;
-		enter?: Pick<MenuTransitionParams, 'duration' | 'easing'>;
+		triggerPress?: TriggerPress;
 		open?: boolean;
 		onopenchange?: (open: boolean) => void;
 	}
@@ -53,8 +53,7 @@
 		testId,
 		backdropTestId,
 		owner,
-		pinnable = true,
-		enter,
+		triggerPress = 'pin',
 		open = $bindable(false),
 		onopenchange,
 	}: Props = $props();
@@ -65,14 +64,16 @@
 	let closeTimer: ReturnType<typeof setTimeout> | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let pinned = $state(false);
+	let instant = $state(false);
 	let hoverSuppressed = false;
 	let overlayZIndex = $state(1_000);
 	// svelte-ignore state_referenced_locally
 	let activeSide = $state<Side>(side);
 
-	function setOpen(next: boolean): void {
+	function setOpen(next: boolean, instantly = false): void {
 		if (open === next) return;
 		if (next) overlayZIndex = resolveOverlayZIndex(triggerEl);
+		instant = instantly;
 		open = next;
 		onopenchange?.(next);
 	}
@@ -88,9 +89,10 @@
 		if (closeTimer) clearTimeout(closeTimer);
 		closeTimer = null;
 		if (open || openTimer) return;
-		if (immediate || openDelay === 0) {
+		const handoff = document.querySelector('[data-hovercard-portal]') !== null;
+		if (handoff || immediate || openDelay === 0) {
 			announceExclusiveOverlayOpen();
-			setOpen(true);
+			setOpen(true, handoff);
 			return;
 		}
 		openTimer = setTimeout(() => {
@@ -126,21 +128,17 @@
 
 	function onTriggerPointerDown(event: PointerEvent): void {
 		if (event.button !== 0) return;
-		if (!pinnable) {
-			dismissFromTrigger();
-			return;
-		}
 		hoverSuppressed = false;
-		togglePinned();
+		press();
 	}
 
 	function onTriggerClick(event: MouseEvent): void {
-		if (event.detail !== 0) return;
-		if (!pinnable) {
-			dismissFromTrigger();
-			return;
-		}
-		togglePinned();
+		if (event.detail === 0) press();
+	}
+
+	function press(): void {
+		if (triggerPress === 'pin') togglePinned();
+		if (triggerPress === 'dismiss') dismissFromTrigger();
 	}
 
 	function dismissFromTrigger(): void {
@@ -185,14 +183,14 @@
 			return;
 		}
 		clearTimers();
-		hoverSuppressed = true;
+		hoverSuppressed = triggerEl.matches(':hover');
 		setOpen(false);
 	}
 
 	function dismissForExclusiveOverlay(): void {
 		clearTimers();
 		pinned = false;
-		setOpen(false);
+		setOpen(false, true);
 	}
 
 	function resetPortalState(): void {
@@ -219,6 +217,7 @@
 		cardEl.style.top = edges.top;
 		cardEl.style.bottom = edges.bottom;
 		cardEl.style.pointerEvents = 'auto';
+		cardEl.style.transformOrigin = transformOriginFor(position.actualSide, align);
 		activeSide = position.actualSide;
 	}
 
@@ -317,8 +316,8 @@
 			data-testid={testId}
 			class={['shadow-popup z-[1]', panelClass]}
 			style="position: fixed; top: 0; left: 0; pointer-events: auto;"
-			in:menuOpen|global={{ side: activeSide, align, ...enter }}
-			out:menuClose|global={{ side: activeSide, align }}
+			in:menuOpen|global={{ side: activeSide, align, skip: instant }}
+			out:menuClose|global={{ side: activeSide, align, skip: instant }}
 			onmouseenter={() => requestOpen(true)}
 			onmouseleave={() => requestClose()}
 		>

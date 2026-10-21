@@ -35,6 +35,100 @@ test('the MCP panel shows the live status of the chat servers when it opens', as
 	}
 });
 
+test('the MCP panel signs in to a server that needs it and retries one that failed', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({
+		env: {
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify([
+				{ name: 'fs', status: 'connected' },
+				{ name: 'linear', status: 'needs-auth' },
+				{ name: 'sentry', status: 'failed', error: 'connection refused' },
+			]),
+		},
+	});
+	try {
+		const { page } = app;
+		await app.electronApp.evaluate(({ shell }) => {
+			const opened: string[] = [];
+			Reflect.set(globalThis, '__openedUrls', opened);
+			shell.openExternal = async (url) => {
+				opened.push(url);
+			};
+		});
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-mcp-actions-ws',
+			'MCP actions workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+
+		await page.getByRole('button', { name: 'View MCP server status' }).hover();
+		const panel = page.getByRole('dialog', { name: 'MCP server status' });
+		const signIn = panel.getByRole('button', { name: 'Sign in to Linear' });
+		const retry = panel.getByRole('button', { name: 'Retry Sentry' });
+
+		await signIn.click();
+		await expect
+			.poll(() =>
+				app.electronApp.evaluate(() => {
+					const opened: unknown = Reflect.get(globalThis, '__openedUrls');
+					return Array.isArray(opened) ? opened.map(String) : [];
+				}),
+			)
+			.toEqual(['https://auth.example.test/linear']);
+		await expect(signIn).toBeHidden();
+
+		await retry.click();
+		await expect(retry).toBeHidden();
+		await expect(panel.getByRole('button')).toHaveCount(0);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the composer status cards follow the pointer and ignore clicks', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-status-click-ws',
+			'Status click workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+
+		const mcpTrigger = page.getByRole('button', { name: 'View MCP server status' });
+		const mcpPanel = page.getByRole('dialog', { name: 'MCP server status' });
+		await mcpTrigger.click();
+		await expect(mcpPanel).toBeVisible();
+		await mcpTrigger.click();
+		await expect(mcpPanel).toBeVisible();
+
+		const contextPanel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		await page.getByRole('button', { name: /^View context and plan usage/u }).hover();
+		await expect(contextPanel).toBeVisible();
+		await expect(mcpPanel).toBeHidden();
+
+		await page.getByTestId('chat-composer-submit').hover();
+		await expect(contextPanel).toBeHidden();
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('the context panel shows what the chat holds now, not what it held when the last turn ended', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({

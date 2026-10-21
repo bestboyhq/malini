@@ -68,6 +68,7 @@ export interface FakeRun {
 	readonly stoppedTasks: string[];
 	readonly followUps: string[];
 	readonly efforts: unknown[];
+	readonly reconnectedMcpServers: string[];
 	interrupted: boolean;
 	closed: boolean;
 }
@@ -160,6 +161,7 @@ export function fakeClaude(
 			stoppedTasks: [],
 			followUps: [],
 			efforts: [],
+			reconnectedMcpServers: [],
 			interrupted: false,
 			closed: false,
 		};
@@ -222,6 +224,9 @@ export function fakeClaude(
 			},
 			async mcpServerStatus() {
 				return initServers(script).map(({ name }) => ({ name, status: 'connected' as const }));
+			},
+			async reconnectMcpServer(name) {
+				run.reconnectedMcpServers.push(name);
 			},
 			getContextUsage() {
 				return whileIterating({

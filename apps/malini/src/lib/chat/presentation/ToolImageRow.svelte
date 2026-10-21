@@ -8,7 +8,6 @@
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { newChatRequestId } from '$lib/chat/domain/chat-request';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
-	import { PREVIEW_ENTER } from '$hyper-ui/overlay';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
@@ -103,7 +102,6 @@
 			align="start"
 			sideOffset={8}
 			openDelay={100}
-			enter={PREVIEW_ENTER}
 			triggerClass="min-w-0"
 			onopenchange={(open) => {
 				if (open) loadPreview();

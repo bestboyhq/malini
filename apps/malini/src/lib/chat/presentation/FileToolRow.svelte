@@ -6,7 +6,6 @@
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import { PREVIEW_ENTER } from '$hyper-ui/overlay';
 	import type { EditDiffstat } from './edit-diffstat';
 	import ExpandMark from './ExpandMark.svelte';
 	import { CHIP_CLASS } from './inline-prompt-chips';
@@ -47,7 +46,6 @@
 			align="start"
 			sideOffset={6}
 			openDelay={100}
-			enter={PREVIEW_ENTER}
 			triggerClass="min-w-0"
 			panelClass="border-surface-elevated-border bg-surface-elevated w-[44rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border-[0.5px]"
 			testId="tool-file-preview"

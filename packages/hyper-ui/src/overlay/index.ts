@@ -43,6 +43,6 @@ export {
 export {
 	menuClose,
 	menuOpen,
-	PREVIEW_ENTER,
+	transformOriginFor,
 	type MenuTransitionParams,
 } from './overlay-transition';

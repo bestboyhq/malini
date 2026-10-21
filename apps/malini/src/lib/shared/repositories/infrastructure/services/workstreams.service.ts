@@ -32,8 +32,8 @@ class WorkstreamsService {
 		return ProjectMapper.fromRawList(await invoke('repositories.list-repositories', undefined));
 	}
 
-	createProject(input: { repoUrl: string }): Promise<string> {
-		return invoke('repositories.create-repository', { repoUrl: input.repoUrl });
+	createProject(input: { repoUrl: string; defaultBranch?: string }): Promise<string> {
+		return invoke('repositories.create-repository', input);
 	}
 
 	async createWorkstream(input: CreateWorkstreamInput): Promise<CreatedWorkstream> {

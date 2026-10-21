@@ -26,6 +26,7 @@ export type AgentCommand =
 	| AnswerQuestionCommand
 	| RefreshCapabilitiesCommand
 	| RefreshSessionStatusCommand
+	| McpServerCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ListSkillsCommand
@@ -110,6 +111,13 @@ export interface RefreshSessionStatusCommand {
 	readonly cmd: 'refresh_session_status';
 	readonly id: string;
 	readonly sessionId: string;
+}
+
+export interface McpServerCommand {
+	readonly cmd: 'authorize_mcp_server' | 'reconnect_mcp_server';
+	readonly id: string;
+	readonly sessionId: string;
+	readonly serverName: string;
 }
 
 export interface StopTaskCommand {
@@ -290,6 +298,13 @@ export interface BridgeSkillsFrame {
 	readonly skills: readonly AgentSkill[];
 }
 
+export interface BridgeMcpAuthorizationFrame {
+	readonly type: 'bridge.mcp_authorization';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly authUrl?: string;
+}
+
 export type BridgeBrowserRequestFrame = {
 	readonly type: 'bridge.browser_request';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -312,6 +327,7 @@ export type BridgeControlFrame =
 	| BridgeProtocolErrorFrame
 	| BridgeTitleFrame
 	| BridgeSkillsFrame
+	| BridgeMcpAuthorizationFrame
 	| BridgeBrowserRequestFrame
 	| BridgePlatformRequestFrame;
 
@@ -346,6 +362,18 @@ export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 
 export function bridgeSkillsFrame(id: string, skills: readonly AgentSkill[]): BridgeSkillsFrame {
 	return { type: 'bridge.skills', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, skills };
+}
+
+export function bridgeMcpAuthorizationFrame(
+	id: string,
+	authUrl: string | null,
+): BridgeMcpAuthorizationFrame {
+	return {
+		type: 'bridge.mcp_authorization',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		id,
+		...(authUrl === null ? {} : { authUrl }),
+	};
 }
 
 export function bridgeBrowserRequestFrame(
@@ -464,6 +492,9 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateRefreshCapabilities(obj);
 		case 'refresh_session_status':
 			return validateRefreshSessionStatus(obj);
+		case 'authorize_mcp_server':
+		case 'reconnect_mcp_server':
+			return validateMcpServerCommand(cmd, obj);
 		case 'stop_task':
 			return validateStopTask(obj);
 		case 'suggest_title':
@@ -814,6 +845,22 @@ function validateRefreshSessionStatus(obj: Record<string, unknown>): ParseResult
 		);
 	}
 	return { ok: true, command: { cmd: 'refresh_session_status', id: id.value, sessionId } };
+}
+
+function validateMcpServerCommand(
+	cmd: McpServerCommand['cmd'],
+	obj: Record<string, unknown>,
+): ParseResult {
+	const id = commandId(obj, cmd);
+	if (!id.ok) return id;
+	const { sessionId, serverName } = obj;
+	if (typeof sessionId !== 'string' || sessionId.length === 0) {
+		return err('INVALID_PAYLOAD', `${cmd}: sessionId required (non-empty string)`, obj);
+	}
+	if (typeof serverName !== 'string' || serverName.length === 0) {
+		return err('INVALID_PAYLOAD', `${cmd}: serverName required (non-empty string)`, obj);
+	}
+	return { ok: true, command: { cmd, id: id.value, sessionId, serverName } };
 }
 
 function validateStopTask(obj: Record<string, unknown>): ParseResult {

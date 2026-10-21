@@ -37,6 +37,7 @@
 <ResizableSplit
 	{panelId}
 	{storageKey}
+	scope={workstreamId}
 	{defaultRatio}
 	{minSize}
 	{maxSize}

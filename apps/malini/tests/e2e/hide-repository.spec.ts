@@ -118,5 +118,5 @@ async function cloneHutch(page: Page): Promise<void> {
 	await dialog.getByRole('button', { name: /e2e\/hutch/u }).click();
 	await dialog.getByRole('button', { name: 'Clone repo' }).click();
 	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
-	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByTestId('repository-page')).toBeVisible({ timeout: 30_000 });
 }

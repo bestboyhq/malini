@@ -1,4 +1,4 @@
-# 0040 - A call auto mode blocks becomes an approval
+# 0042 - A call auto mode blocks becomes an approval
 
 Status: accepted
 

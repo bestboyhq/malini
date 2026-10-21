@@ -21,6 +21,8 @@ export const BRIDGE_COMMAND_NAMES = [
 	'answer_question',
 	'refresh_capabilities',
 	'refresh_session_status',
+	'authorize_mcp_server',
+	'reconnect_mcp_server',
 	'stop_task',
 	'suggest_title',
 	'list_skills',
@@ -59,6 +61,7 @@ export const BRIDGE_CONTROL_TYPES = [
 	'bridge.protocol_error',
 	'bridge.title',
 	'bridge.skills',
+	'bridge.mcp_authorization',
 	'bridge.browser_request',
 	'bridge.platform_request',
 ] as const;

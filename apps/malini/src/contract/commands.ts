@@ -119,6 +119,10 @@ export type RepositoryBaseFilesArgs = Readonly<{ repoPath: string; baseBranch: s
 
 export type SessionIdArgs = Readonly<{ sessionId: string }>;
 
+export type McpServerArgs = Readonly<{ sessionId: string; serverName: string }>;
+
+export type McpAuthorization = Readonly<{ authUrl: string | null }>;
+
 export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string | null }>;
 
 export type StopBackgroundTaskArgs = Readonly<{ sessionId: string; taskId: string }>;
@@ -213,6 +217,7 @@ export type RedoCheckpointRestoreArgs = Readonly<{
 export type CreateProjectArgs = Readonly<{
 	repoUrl: string;
 	githubToken?: string | null;
+	defaultBranch?: string;
 }>;
 
 export type CreateWorkstreamArgs = Readonly<{
@@ -547,6 +552,8 @@ export interface ContractCommands {
 		result: CheckpointRestoreRedoResult;
 	};
 	'chat.refresh-session-status': { args: SessionIdArgs; result: void };
+	'chat.authorize-mcp-server': { args: McpServerArgs; result: McpAuthorization };
+	'chat.reconnect-mcp-server': { args: McpServerArgs; result: void };
 	'repositories.release-owned-docker-container': { args: ReleaseOwnedContainerArgs; result: void };
 	'repositories.remove': { args: RepositoryIdArgs; result: void };
 	'chat.remove-staged-attachment': { args: StagedAttachmentArgs; result: void };
@@ -774,6 +781,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.record-owned-docker-containers',
 	'chat.redo-checkpoint-restore',
 	'chat.refresh-session-status',
+	'chat.authorize-mcp-server',
+	'chat.reconnect-mcp-server',
 	'repositories.release-owned-docker-container',
 	'repositories.remove',
 	'chat.remove-staged-attachment',

@@ -789,7 +789,7 @@
 								align="start"
 								sideOffset={12}
 								openDelay={500}
-								pinnable={false}
+								triggerPress="dismiss"
 								triggerClass="w-full"
 								panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
 								testId="sidebar-repository-card"

@@ -43,7 +43,7 @@ export const INLINE_PROMPT_CHIP_TEST_IDS: Readonly<Record<PromptChipKind, string
 };
 
 export const CHIP_CLASS =
-	'border-chip-border bg-chip text-2xs text-fg-secondary inline-flex h-6 max-w-56 min-w-0 items-center gap-1 rounded-md border px-1.5';
+	'border-chip-border bg-chip/50 text-2xs text-fg-secondary inline-flex h-6 max-w-56 min-w-0 items-center gap-1 rounded-md border px-1.5';
 
 export const OPENABLE_CHIP_CLASS =
 	'hover:bg-chip-hover focus-visible:ring-button-primary/40 cursor-zoom-in focus-visible:ring-2 focus-visible:outline-none';
