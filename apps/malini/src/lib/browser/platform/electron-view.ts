@@ -1,10 +1,12 @@
 import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
-import type { PageEvents, PageView } from './page';
+import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
 
 export const BROWSER_PARTITION = 'persist:malini-browser';
 const MAX_FAVICON_BYTES = 64 * 1024;
 const ERR_ABORTED = -3;
+const ERROR_PAGE_FOLLOWS_THEME =
+	"if (location.protocol === 'chrome-error:') document.documentElement.style.colorScheme = 'light dark';";
 
 export function createElectronView(events: PageEvents): PageView<BrowserWindow> {
 	denyPermissions();
@@ -46,6 +48,11 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	});
 	contents.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
 		if (isMainFrame && code !== ERR_ABORTED) events.failed(description);
+	});
+	contents.on('dom-ready', () => {
+		void contents
+			.executeJavaScriptInIsolatedWorld(MALINI_WORLD_ID, [{ code: ERROR_PAGE_FOLLOWS_THEME }])
+			.catch(() => undefined);
 	});
 	let pageVisit = 0;
 	contents.on('did-navigate', () => {
