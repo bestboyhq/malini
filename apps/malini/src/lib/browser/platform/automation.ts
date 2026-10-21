@@ -88,9 +88,11 @@ export async function saveScreenshot(
 	worktree: string,
 	now: Date,
 ): Promise<BrowserScreenshotFile> {
-	const image = await contents.capturePage(undefined, { stayHidden: true });
-	if (image.isEmpty()) {
-		throw new Error('The browser returned an empty frame. Open the page again with browser_open.');
+	const image = await contents.capturePage(undefined, { stayHidden: false }).catch(() => null);
+	if (!image || image.isEmpty()) {
+		throw new Error(
+			'The browser could not render the page, which happens while Malini is hidden. Ask the user to show Malini, then call browser_screenshot again.',
+		);
 	}
 	const directory = join(worktree, SCREENSHOTS_PATH);
 	await mkdir(directory, { recursive: true });
