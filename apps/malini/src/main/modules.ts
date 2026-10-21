@@ -128,7 +128,6 @@ export async function registerModules(
 		runner: processRunner,
 		cancelAgentRuns: () => chat.closeOpenRunsForExit(),
 		containerCount: () => repositories.containerCount(),
-		sessionModel: (sessionId) => chat.sessionModel(sessionId),
 	});
 
 	const extensions = registerExtensions(context, { resolver: repositories.checkouts });

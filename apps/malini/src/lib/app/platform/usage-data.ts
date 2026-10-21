@@ -1,21 +1,19 @@
-import { app, net, type BrowserWindow } from 'electron';
-import { PostHog, uuidv7 } from 'posthog-node';
+import { app, net } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
+import { nodeProcessHooks, type MainProcessHooks } from '$main/diagnostics/capture';
+import { commandFailureLevel } from '$main/diagnostics/main-diagnostics';
+import { thrownDetail } from '$main/diagnostics/thrown';
 import { USAGE_DATA_SETTING, usageDataShared } from '../domain/usage-data';
-import { getSetting, setSetting } from './settings.repository';
-import type { ShellHost } from './shell-host';
-import { commandUsage, RunUsage, screenOf, type UsageProperties } from './usage-events';
+import { getSetting } from './settings.repository';
 
-export interface UsageMessage {
-	readonly distinctId: string;
-	readonly event: string;
-	readonly properties: Readonly<Record<string, unknown>>;
-}
+export type UsageActivity = 'app_active' | 'run_finished';
 
 export interface UsageSink {
-	capture(message: UsageMessage): void;
-	shutdown(timeoutMs?: number): Promise<void>;
+	activity(name: UsageActivity): void;
+	error(message: string): void;
+	shutdown(timeoutMs: number): Promise<void>;
 }
 
 export interface UsageData {
@@ -23,130 +21,134 @@ export interface UsageData {
 }
 
 export interface UsageDataDeps {
-	readonly host: Pick<ShellHost, 'onWindowCreated'>;
 	readonly sink?: UsageSink | null;
-	readonly system?: UsageProperties;
-	readonly now?: () => number;
-	sessionModel(sessionId: string): string | null;
+	readonly hooks?: Pick<MainProcessHooks, 'onUncaughtException' | 'onUnhandledRejection'>;
+	readonly processGone?: (
+		listener: (process: string, reason: string, exitCode: number) => void,
+	) => void;
+	readonly system?: string;
 }
 
-export const INSTALL_ID_SETTING = 'usage-data.install-id';
+type ErrorShape = Readonly<{ name: string; code: string | null; kind: string | null }>;
 
-const SESSION_IDLE_MS = 30 * 60 * 1000;
+const LOGDASH_API = 'https://api.logdash.io';
+const LOGDASH_ORIGIN = 'https://app.malini';
 const SHUTDOWN_FLUSH_MS = 2000;
 
-const OS_NAMES: Readonly<Partial<Record<NodeJS.Platform, string>>> = {
-	darwin: 'Mac OS X',
-	win32: 'Windows',
-	linux: 'Linux',
-};
-
-export function startUsageData(context: MainContext, deps: UsageDataDeps): UsageData {
-	const sink = deps.sink === undefined ? postHogSink() : deps.sink;
+export function startUsageData(context: MainContext, deps: UsageDataDeps = {}): UsageData {
+	const sink = deps.sink === undefined ? logdashSink(context.appVersion) : deps.sink;
 	if (!sink) return { shutdown: () => Promise.resolve() };
-	const now = deps.now ?? Date.now;
-	const system = deps.system ?? systemProperties();
-	const storedId = getSetting(context.db, INSTALL_ID_SETTING);
-	const distinctId = storedId ?? uuidv7();
-	if (!storedId) setSetting(context.db, INSTALL_ID_SETTING, distinctId);
-
-	let sessionId = uuidv7();
-	let lastActivityAt = now();
-	const currentSession = (): string => {
-		const at = now();
-		if (at - lastActivityAt > SESSION_IDLE_MS) sessionId = uuidv7();
-		lastActivityAt = at;
-		return sessionId;
+	const shared = (): boolean => usageDataShared(getSetting(context.db, USAGE_DATA_SETTING));
+	const system =
+		deps.system ??
+		`malini ${context.appVersion} · macOS ${process.getSystemVersion()} ${process.arch}`;
+	// ponytail: each distinct error is logged once per launch; add a count when frequency matters.
+	const reported = new Set<string>();
+	const report = (what: string): void => {
+		if (!shared() || reported.has(what)) return;
+		reported.add(what);
+		sink.error(`${what} · ${system}`);
 	};
 
-	const capture = (event: string, properties: Readonly<Record<string, unknown>>): void => {
-		if (!usageDataShared(getSetting(context.db, USAGE_DATA_SETTING))) return;
-		sink.capture({
-			distinctId,
-			event,
-			properties: {
-				...system,
-				$app_version: context.appVersion,
-				packaged: !context.isDev,
-				...properties,
-				$session_id: currentSession(),
-			},
-		});
-	};
-
-	const stopCommands = context.commands.observe((outcome) => {
-		const usage = commandUsage(
-			outcome.command,
-			outcome.args,
-			outcome.ok
-				? { durationMs: outcome.durationMs }
-				: { durationMs: outcome.durationMs, failure: outcome.failure },
-		);
-		for (const { event, properties } of usage) capture(event, properties);
+	const stopFailures = context.commands.observeFailures((failed) => {
+		if (commandFailureLevel(failed.failure) === 'error')
+			report(`${failed.command} failed: ${described(failed.failure)}`);
 	});
+	const hooks = deps.hooks ?? nodeProcessHooks();
+	const stopExceptions = hooks.onUncaughtException((error) =>
+		report(`uncaught exception: ${described(thrownDetail(error))}`),
+	);
+	const stopRejections = hooks.onUnhandledRejection((reason) =>
+		report(`unhandled rejection: ${described(thrownDetail(reason))}`),
+	);
+	(deps.processGone ?? electronProcessGone)((kind, reason, exitCode) =>
+		report(`${kind} process gone: ${reason}, exit ${exitCode}`),
+	);
 
-	const runs = new RunUsage({ now, sessionModel: (id) => deps.sessionModel(id) });
 	const stopRuns = context.events.subscribe(CHAT_AGENT_EVENT_CHANNEL, (envelope) => {
-		if (envelope.ephemeral) return;
-		const usage = runs.observe(envelope);
-		if (usage) capture(usage.event, usage.properties);
+		const type = envelope.event.type;
+		if (!envelope.ephemeral && (type === 'run.completed' || type === 'run.failed') && shared())
+			sink.activity('run_finished');
 	});
 
-	deps.host.onWindowCreated((window) => watchScreens(window, capture));
-
-	capture('app.launched', {
-		first_launch: !storedId,
-		$set: { ...system, app_version: context.appVersion },
-		$set_once: { first_app_version: context.appVersion },
-	});
+	if (shared()) sink.activity('app_active');
 
 	return {
 		shutdown: async () => {
-			stopCommands();
+			stopFailures();
+			stopExceptions();
+			stopRejections();
 			stopRuns();
 			await sink.shutdown(SHUTDOWN_FLUSH_MS);
 		},
 	};
 }
 
-function watchScreens(
-	window: BrowserWindow,
-	capture: (event: string, properties: UsageProperties) => void,
+function described(error: ErrorShape): string {
+	return [error.name, error.code, error.kind && `(${error.kind})`].filter(Boolean).join(' ');
+}
+
+function electronProcessGone(
+	listener: (process: string, reason: string, exitCode: number) => void,
 ): void {
-	let current: string | undefined;
-	const visit = (url: string): void => {
-		const screen = screenOf(URL.parse(url)?.hash ?? '');
-		if (!screen || screen === current) return;
-		current = screen;
-		capture('$screen', { $screen_name: screen });
-	};
-	window.webContents.on('did-navigate', (_event, url) => visit(url));
-	window.webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
-		if (isMainFrame) visit(url);
+	app.on('render-process-gone', (_event, _contents, details) => {
+		if (details.reason !== 'clean-exit') listener('renderer', details.reason, details.exitCode);
+	});
+	app.on('child-process-gone', (_event, details) => {
+		if (details.reason !== 'clean-exit') listener(details.type, details.reason, details.exitCode);
 	});
 }
 
-function postHogSink(): UsageSink | null {
-	const key = import.meta.env.MAIN_VITE_POSTHOG_KEY;
-	if (!key) return null;
+function logdashSink(appVersion: string): UsageSink | null {
 	if (process.env['MALINI_USAGE_DATA'] === 'off') return null;
 	if (['1', 'true'].includes(process.env['DO_NOT_TRACK'] ?? '')) return null;
-	const host = import.meta.env.MAIN_VITE_POSTHOG_HOST;
-	return new PostHog(key, {
-		...(host ? { host } : {}),
-		disableGeoip: false,
-		flushAt: 20,
-		flushInterval: 10_000,
-		fetch: (url, options) => net.fetch(url, options),
-	});
-}
-
-function systemProperties(): UsageProperties {
+	const site = import.meta.env.MAIN_VITE_LOGDASH_SITE;
+	const key = import.meta.env.MAIN_VITE_LOGDASH_API_KEY;
+	if (!site && !key) return null;
+	const pending = new Set<Promise<unknown>>();
+	const post = (path: string, headers: Readonly<Record<string, string>>, body: unknown): void => {
+		const sent = net
+			.fetch(`${LOGDASH_API}${path}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', ...headers },
+				body: JSON.stringify(body),
+			})
+			.catch(() => undefined)
+			.finally(() => pending.delete(sent));
+		pending.add(sent);
+	};
 	return {
-		$os: OS_NAMES[process.platform] ?? process.platform,
-		$os_version: process.getSystemVersion(),
-		$locale: app.getLocale(),
-		arch: process.arch,
-		electron_version: process.versions.electron,
+		activity: (name) => {
+			if (!site) return;
+			const at = new Date().toISOString();
+			post(
+				'/web_events',
+				{ Origin: LOGDASH_ORIGIN },
+				{
+					siteId: site,
+					sentAt: at,
+					events: [{ id: randomUUID(), timestamp: at, name, path: '/' }],
+				},
+			);
+		},
+		error: (message) => {
+			if (!key) return;
+			post(
+				'/logs',
+				{ 'project-api-key': key },
+				{
+					createdAt: new Date().toISOString(),
+					level: 'error',
+					message,
+					namespace: `malini@${appVersion}`,
+				},
+			);
+		},
+		shutdown: async (timeoutMs) => {
+			await Promise.race([
+				Promise.allSettled(pending),
+				new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+			]);
+		},
 	};
 }

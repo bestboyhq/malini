@@ -18,7 +18,6 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
-import { getSession } from './sessions.repository';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
@@ -36,7 +35,6 @@ export interface ChatDeps {
 export interface ChatPlatform {
 	closeOpenRunsForExit(): Promise<number>;
 	stop(): Promise<void>;
-	sessionModel(sessionId: string): string | null;
 	listSkills(cwd: string, turnedOff: TurnedOffSkills): Promise<SkillRecord[]>;
 	bridgeProcessId(): number | null;
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
@@ -94,7 +92,6 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: () => agent.stop(),
-		sessionModel: (sessionId) => getSession(context.db, sessionId)?.model ?? null,
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
 			const health = agent.health();

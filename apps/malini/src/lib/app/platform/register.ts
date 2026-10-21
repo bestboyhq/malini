@@ -46,17 +46,13 @@ export interface AppDeps {
 	readonly reaper?: ContainerReaper;
 	readonly cancelAgentRuns?: () => Promise<number> | number;
 	readonly containerCount?: () => number;
-	readonly sessionModel?: (sessionId: string) => string | null;
 }
 
 export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 	const host = deps.host ?? createElectronShellHost();
 	const window = defineShellCommands(context, deps, host);
 	defineSettingsCommands(context);
-	const usageData = startUsageData(context, {
-		host,
-		sessionModel: deps.sessionModel ?? (() => null),
-	});
+	const usageData = startUsageData(context);
 	const updates = startUpdates(context);
 	return {
 		...defineShutdownCommands(context, deps),

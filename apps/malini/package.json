@@ -64,7 +64,6 @@
 		"jsdom": "^30.0.0",
 		"marked": "^15.0.12",
 		"material-icon-theme": "5.37.0",
-		"posthog-node": "^5.53.0",
 		"prosemirror-markdown": "^1.13.8",
 		"svelte": "catalog:",
 		"svelte-check": "^4.7.6",

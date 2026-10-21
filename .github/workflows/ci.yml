@@ -110,6 +110,8 @@ jobs:
       - run: pnpm --filter malini release
         env:
           APPLE_KEYCHAIN_PROFILE: malini
+          MAIN_VITE_LOGDASH_SITE: ${{ vars.MALINI_LOGDASH_SITE }}
+          MAIN_VITE_LOGDASH_API_KEY: ${{ secrets.MALINI_LOGDASH_API_KEY }}
       - run: dmg="apps/malini/release/malini-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
       - uses: actions/upload-artifact@v7
         with:
