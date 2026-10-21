@@ -156,7 +156,12 @@ test('a file card opens on the first hover after the chat scrolls past its row',
 				await page.mouse.wheel(0, -400);
 				return edit.evaluate((chip) => {
 					const rect = chip.getBoundingClientRect();
-					return rect.top > 0 && rect.bottom < chip.ownerDocument.documentElement.clientHeight / 2;
+					const { documentElement } = chip.ownerDocument;
+					const hit = chip.ownerDocument.elementFromPoint(
+						rect.x + rect.width / 2,
+						rect.y + rect.height / 2,
+					);
+					return chip.contains(hit) && rect.bottom < documentElement.clientHeight / 2;
 				});
 			})
 			.toBe(true);

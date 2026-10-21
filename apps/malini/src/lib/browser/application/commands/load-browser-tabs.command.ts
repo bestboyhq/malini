@@ -23,6 +23,7 @@ function loadBrowserTabsCommand(workstreamId: string): void {
 			loading: false,
 			canGoBack: false,
 			canGoForward: false,
+			failure: null,
 		});
 	}
 }

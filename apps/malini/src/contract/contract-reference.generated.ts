@@ -181,10 +181,10 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'browser:state-changed',
 			description:
-				"Fires whenever a workstream's browser tab changes its page, title, icon, loading state or history.",
+				"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.",
 			payloadType: 'BrowserState',
 			payload:
-				'type BrowserState = Readonly<{\n\tworkstreamId: string;\n\ttabId: string;\n\turl: string;\n\ttitle: string;\n\tfavicon: string | null;\n\tloading: boolean;\n\tcanGoBack: boolean;\n\tcanGoForward: boolean;\n}>;',
+				'type BrowserState = Readonly<{\n\tworkstreamId: string;\n\ttabId: string;\n\turl: string;\n\ttitle: string;\n\tfavicon: string | null;\n\tloading: boolean;\n\tcanGoBack: boolean;\n\tcanGoForward: boolean;\n\tfailure: string | null;\n}>;',
 		},
 		{
 			channel: 'browser:tab-opened',

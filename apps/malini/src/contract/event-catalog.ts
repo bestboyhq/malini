@@ -92,7 +92,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'browser:state-changed': {
 		description:
-			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state or history.",
+			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.",
 	},
 	'browser:tab-opened': {
 		description:
