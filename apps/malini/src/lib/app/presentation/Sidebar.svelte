@@ -43,6 +43,8 @@
 	import type { Workstream } from '$shared/repositories/repositories.api';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/repositories.api';
 	import {
+		ConnectRepositoryContextMenu,
+		type ConnectRepositoryContextMenuTarget,
 		RepositoryAvatar,
 		RepositoryContextMenu,
 		type RepositoryContextMenuTarget,
@@ -111,6 +113,7 @@
 	let previewCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 	let contextMenu = $state.raw<WorkstreamContextMenuTarget | null>(null);
 	let repositoryMenu = $state.raw<RepositoryContextMenuTarget | null>(null);
+	let connectMenu = $state.raw<ConnectRepositoryContextMenuTarget | null>(null);
 	let contextMenuKeyboardRow: HTMLElement | null = null;
 
 	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
@@ -323,6 +326,13 @@
 		if (at) repositoryMenu = { repository, workstreams, ...at };
 	}
 
+	function openConnectMenu(event: MouseEvent): void {
+		if (event.defaultPrevented) return;
+		event.preventDefault();
+		contextMenuKeyboardRow = null;
+		connectMenu = { x: event.clientX, y: event.clientY };
+	}
+
 	function pointerInside(event: MouseEvent, box: DOMRect): { x: number; y: number } | null {
 		const inside =
 			event.clientX >= box.left &&
@@ -335,6 +345,7 @@
 	function closeContextMenu(): void {
 		contextMenu = null;
 		repositoryMenu = null;
+		connectMenu = null;
 		contextMenuKeyboardRow?.focus({ preventScroll: true });
 		contextMenuKeyboardRow = null;
 	}
@@ -710,6 +721,7 @@
 		class={['min-h-0 flex-1 select-none', reorder && 'cursor-grabbing']}
 		aria-label="Connected repositories"
 		onclickcapture={swallowDragClick}
+		oncontextmenu={openConnectMenu}
 	>
 		<ScrollableDiv
 			class="h-full"
@@ -1248,6 +1260,8 @@
 		onclose={closeContextMenu}
 		onremove={onRemoveRepository}
 	/>
+
+	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
 
 	<StagedUpdateButton />
 

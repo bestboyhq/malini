@@ -3,8 +3,10 @@ import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
+	APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
+	type ConnectRepositoryRequest,
 	type NotificationTarget,
 } from '$contract/events';
 import type { NotificationPermissionResult } from '$contract/system';
@@ -113,6 +115,7 @@ export interface WindowDeps {
 		ShellHost,
 		| 'notificationsSupported'
 		| 'showNotification'
+		| 'openMainWindow'
 		| 'onWindowCreated'
 		| 'onBeforeQuit'
 		| 'onDisplayMetricsChanged'
@@ -130,6 +133,8 @@ export interface WindowCommands {
 	destroy(): void;
 	notify(args: { options: { title: string; body: string; opens?: NotificationTarget } }): void;
 	takeNotificationTarget(): NotificationTarget | null;
+	requestConnectRepository(via: ConnectRepositoryRequest['via']): void;
+	takeConnectRepositoryRequest(): ConnectRepositoryRequest | null;
 	isNotificationPermissionGranted(): boolean | null;
 	requestNotificationPermission(): NotificationPermissionResult;
 	windowStateSaved(): Promise<void>;
@@ -223,10 +228,14 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 	host.onDisplayMetricsChanged(() => events.emit(APP_SCALE_CHANGED_CHANNEL, {}));
 
 	let notificationTarget: NotificationTarget | null = null;
+	let connectRepositoryRequest: ConnectRepositoryRequest | null = null;
 
 	const focusMainWindow = (): void => {
 		const window = deps.getMainWindow();
-		if (!window || window.isDestroyed()) return;
+		if (!window || window.isDestroyed()) {
+			host.openMainWindow();
+			return;
+		}
 		window.show();
 		if (window.isMinimized()) window.restore();
 		window.focus();
@@ -296,6 +305,16 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 			const target = notificationTarget;
 			notificationTarget = null;
 			return target;
+		},
+		requestConnectRepository(via) {
+			connectRepositoryRequest = { via };
+			focusMainWindow();
+			events.emit(APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL, connectRepositoryRequest);
+		},
+		takeConnectRepositoryRequest() {
+			const request = connectRepositoryRequest;
+			connectRepositoryRequest = null;
+			return request;
 		},
 		isNotificationPermissionGranted: () => host.notificationsSupported(),
 		requestNotificationPermission: () => (host.notificationsSupported() ? 'granted' : 'denied'),
