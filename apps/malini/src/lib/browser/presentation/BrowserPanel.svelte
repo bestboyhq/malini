@@ -43,6 +43,7 @@
 	const url = $derived(browser?.url ?? '');
 	const shownUrl = $derived(browserAddressLabel(url));
 	const hasPage = $derived(url !== '');
+	const failure = $derived(browser?.failure ?? null);
 
 	let draft: string | null = $state(null);
 
@@ -65,7 +66,7 @@
 				width: rect.width,
 				height: rect.height,
 			});
-			placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage, covered));
+			placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage && failure === null, covered));
 			frame = requestAnimationFrame(place);
 		}
 		return () => {
@@ -207,6 +208,15 @@
 				<p class="text-fg-tertiary text-2xs max-w-64">
 					Type a URL above, or ask the agent to open your dev server.
 				</p>
+			</div>
+		{:else if failure}
+			<div
+				role="status"
+				class="flex h-full flex-col items-center justify-center gap-3 px-6 py-8 text-center"
+			>
+				<Icon name="warning" size={40} class="text-fg-tertiary" />
+				<p class="text-fg-secondary text-sm">Could not open {shownUrl}</p>
+				<p class="text-fg-tertiary text-2xs max-w-64">{failure}</p>
 			</div>
 		{:else if snapshot}
 			<img src={snapshot} alt="" class="absolute inset-0 size-full object-cover object-left-top" />

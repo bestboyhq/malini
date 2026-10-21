@@ -34,6 +34,7 @@ async function currentState(tab: BrowserTabArgs): Promise<BrowserState> {
 			loading: false,
 			canGoBack: false,
 			canGoForward: false,
+			failure: null,
 		};
 	}
 }
