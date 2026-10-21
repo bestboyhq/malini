@@ -40,15 +40,7 @@ import type {
 	SaveJobDefinitionArgs,
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
-import type {
-	ListSkillsArgs,
-	SaveSkillPresetArgs,
-	SkillPresetIdArgs,
-	SkillPresetRecord,
-	SkillRecord,
-	SkillUsageReport,
-	SwitchSkillArgs,
-} from './skills';
+import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
@@ -491,9 +483,6 @@ export interface ContractCommands {
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
-	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
-	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
-	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
@@ -741,9 +730,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.run',
 	'jobs.cancel-run',
 	'skills.list',
-	'skills.list-presets',
-	'skills.save-preset',
-	'skills.delete-preset',
 	'skills.usage',
 	'skills.switch',
 	'scratchpad.load',

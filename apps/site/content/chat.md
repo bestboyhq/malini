@@ -72,7 +72,7 @@ Runs that a restart cut short pick up where they left off the next time Malini o
 
 A chat loads every Claude Code skill that is on.
 Settings, Skills ranks your skills and plugins by how often Claude Code used them, and turns them off in Claude Code's own settings.
-A [job](/malini/docs/jobs.md) can narrow its skills to a preset.
+A [job](/malini/docs/jobs.md) can name the skills it loads.
 
 ## Tools
 

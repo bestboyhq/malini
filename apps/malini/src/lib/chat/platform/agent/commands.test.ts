@@ -462,7 +462,7 @@ describe('prompt round trips', () => {
 		await boot();
 		const focused = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
 		const open = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		chooseSessionSkills(test.db, focused, { kind: 'custom', skills: ['adr', 'humanizer'] });
+		chooseSessionSkills(test.db, focused, ['adr', 'humanizer']);
 
 		const focusedRun = await invokeString('chat.send-prompt', { sessionId: focused, prompt: 'Hi' });
 		const openRun = await invokeString('chat.send-prompt', { sessionId: open, prompt: 'Hi' });

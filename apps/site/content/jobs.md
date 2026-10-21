@@ -1,6 +1,6 @@
 ---
 title: Jobs
-description: A Malini job is agent work you reuse by name - instructions, a model, an effort, and a skill preset - run in a workstream or a new one, with a draft or a merge at the end if you like.
+description: A Malini job is agent work you reuse by name - instructions, a model, an effort, and the skills it loads - run in a workstream or a new one, with a draft or a merge at the end if you like.
 ---
 
 You never wanted skills.
@@ -14,7 +14,7 @@ A job has:
 - a **name**,
 - **instructions**, the prompt the agent runs,
 - a **model** and an **effort**,
-- a **skill preset**, so the job loads only the skills it needs,
+- its **skills**, so the job loads only the ones it needs, or every skill that is on when it names none,
 - where it **runs**: in this workstream, or in a new one,
 - what happens when it **finishes**: nothing, a draft pull request, or a queued merge.
 

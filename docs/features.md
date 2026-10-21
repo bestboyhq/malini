@@ -93,7 +93,7 @@ The [README](../README.md) has the short version.
 
 - **Every skill that is on loads in every chat.** No per-chat picking.
 - **Settings, Skills ranks them by use:** last use, token cost, origin, and an on/off switch, plus how many skills that are on were never used.
-- **A job can narrow its skills** to a preset, edited under Settings, Jobs.
+- **A job can name its skills** in its editor on the Jobs page, and then loads only those.
 
 ## Jobs and routines
 
@@ -101,7 +101,7 @@ The [README](../README.md) has the short version.
   <img src="../.github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
 </p>
 
-- **A job is agent work you reuse.** A name, instructions, a model, an effort, and optionally a skill preset.
+- **A job is agent work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
   Run it in this workstream or a new one, and pick what happens when it finishes: nothing, a draft pull request, or a queued merge.
 - **Six jobs come built in.** **Fix checks**, **Update from main**, and **Address review** get a pull request merged.
   **Name chats** names a chat from its first message, **Update docs** brings a repository's docs up to date in a draft pull request, and **Check compatibility** runs after an update that changed Malini's events.

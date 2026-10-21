@@ -23,7 +23,7 @@
 		isJobOutput,
 		isJobRunsIn,
 	} from '$lib/jobs/domain/job-definition';
-	import { SkillPresetSelect } from '$lib/skills/skills.api';
+	import { SkillsField } from '$lib/skills/skills.api';
 	import { JOB_OUTPUT_OPTIONS, JOB_RUNS_IN_OPTIONS, effortLabel } from './job-definition-copy';
 
 	interface Props {
@@ -39,7 +39,7 @@
 		effort: string;
 		runsIn: string;
 		output: string;
-		skillPresetId: string | null;
+		skills: string[];
 	};
 
 	let draft = $state<JobDraft>(startingDraft());
@@ -70,7 +70,7 @@
 			effort: definition?.effort ?? DEFAULT_AGENT_RUN_PROFILE.effort,
 			runsIn: definition?.runsIn ?? 'workstream',
 			output: definition?.output ?? 'none',
-			skillPresetId: definition?.skillPresetId ?? null,
+			skills: [...(definition?.skills ?? [])],
 		};
 	}
 
@@ -82,7 +82,7 @@
 			left.effort !== right.effort ||
 			left.runsIn !== right.runsIn ||
 			left.output !== right.output ||
-			left.skillPresetId !== right.skillPresetId
+			left.skills.join('\n') !== right.skills.join('\n')
 		);
 	}
 
@@ -120,7 +120,7 @@
 			effort: thinks ? normalizeReasoningEffort(efforts, draftEffort()) : draftEffort(),
 			runsIn: isJobRunsIn(draft.runsIn) ? draft.runsIn : 'workstream',
 			output: isJobOutput(draft.output) ? draft.output : 'none',
-			skillPresetId: thinks ? draft.skillPresetId : null,
+			skills: thinks ? [...draft.skills] : [],
 		};
 		if (definition) saveJobDefinitionCommand({ id: definition.id, ...fields });
 		else createJobDefinitionCommand(fields);
@@ -172,10 +172,7 @@
 	</div>
 
 	{#if thinks}
-		<SkillPresetSelect
-			value={draft.skillPresetId}
-			onchange={(presetId) => (draft.skillPresetId = presetId)}
-		/>
+		<SkillsField value={draft.skills} onchange={(skills) => (draft.skills = skills)} />
 	{/if}
 
 	{#if builtin === null}

@@ -34,7 +34,6 @@ import { BUSY_RETRY_MS } from './job-runner.service';
 import { insertJobRun } from './job-runs.repository';
 import { registerJobs } from './register';
 import { skillsForRun } from '$lib/skills/skills.platform';
-import { insertSkillPreset } from '$lib/skills/platform/skill-presets.repository';
 
 const NOW = '2026-10-11T00:00:00.000Z';
 
@@ -607,33 +606,31 @@ describe('scheduling', () => {
 		});
 	});
 
-	it('runs a job with its skill preset, and with every skill when it has none', async () => {
-		const presetDefinition = await saveDefinition({ name: 'Copy pass', skillPresetId: 'marketer' });
-		const plainDefinition = await saveDefinition({ name: 'Plain pass' });
-		insertSkillPreset(db, {
-			id: 'marketer',
-			name: 'Marketer',
-			emoji: null,
-			skills: ['humanizer'],
-			createdAt: NOW,
-			updatedAt: NOW,
+	it('runs a job with its skills, and with every skill when it has none', async () => {
+		const copyPass = await saveDefinition({
+			name: 'Copy pass',
+			skills: [' humanizer ', 'humanizer', 'adr'],
 		});
-		expect(presetDefinition.skillPresetId).toBe('marketer');
-		expect(plainDefinition.skillPresetId).toBeNull();
+		const plainDefinition = await saveDefinition({ name: 'Plain pass' });
+		expect(copyPass.skills).toEqual(['humanizer', 'adr']);
+		expect(plainDefinition.skills).toEqual([]);
+		const renamed = await saveDefinition({ id: copyPass.id, name: 'Copy edit' });
+		expect(renamed.skills).toEqual(['humanizer', 'adr']);
+		await expect(saveDefinition({ name: 'Bad', skills: [''] })).rejects.toThrow(/skills/u);
 
-		const withPreset = await context.commands.call('jobs.run', {
-			definitionId: presetDefinition.id,
+		const withSkills = await context.commands.call('jobs.run', {
+			definitionId: copyPass.id,
 			workstreamId: 'ws-a',
 		});
-		const withPresetSession = await session(withPreset.id);
-		await until(withPreset.id, 'running');
+		const withSkillsSession = await session(withSkills.id);
+		await until(withSkills.id, 'running');
 		const plain = await context.commands.call('jobs.run', {
 			definitionId: plainDefinition.id,
 			workstreamId: 'ws-b',
 		});
 		const plainSession = await session(plain.id);
 
-		expect(skillsForRun(db, withPresetSession)).toEqual(['humanizer']);
+		expect(skillsForRun(db, withSkillsSession)).toEqual(['humanizer', 'adr']);
 		expect(skillsForRun(db, plainSession)).toBeNull();
 	});
 

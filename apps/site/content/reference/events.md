@@ -319,7 +319,7 @@ type JobDefinitionRecord = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
-	skillPresetId: string | null;
+	skills: readonly string[];
 	builtin: JobBuiltin | null;
 	createdAt: string;
 	updatedAt: string;
