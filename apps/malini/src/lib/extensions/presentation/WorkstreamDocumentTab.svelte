@@ -12,9 +12,10 @@
 		document: WorkstreamDocument;
 		tabId: string;
 		tabindex: number;
+		isClosing?: () => boolean;
 	}
 
-	let { workstreamId, document: file, tabId, tabindex }: Props = $props();
+	let { workstreamId, document: file, tabId, tabindex, isClosing }: Props = $props();
 
 	const selected = $derived(workstreamTabs.for(workstreamId).activeDocumentId === file.id);
 	const filePath = $derived(file.icon.startsWith('path:') ? file.icon.slice('path:'.length) : null);
@@ -58,6 +59,7 @@
 	onselect={() => workstreamTabs.select(workstreamId, file.id)}
 	onpin={() => workstreamTabs.pin(workstreamId, file.id)}
 	onclose={closeDocument}
+	{isClosing}
 >
 	{#snippet icon()}
 		<span class="grid place-items-center" aria-hidden="true">
