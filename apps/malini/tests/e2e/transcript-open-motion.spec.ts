@@ -107,6 +107,11 @@ function sampleOpening({ workstreamId, latestRun }: SampleTarget): void {
 }
 
 async function sampledFrames(page: Page): Promise<Frame[]> {
+	await page.waitForFunction(
+		() => globalThis.openMotion.frames.some((frame) => frame.shown && frame.latestRunBottom > 0),
+		undefined,
+		{ timeout: 20_000 },
+	);
 	await page.waitForTimeout(SETTLE_MS);
 	return page.evaluate(() => {
 		globalThis.openMotion.sampling = false;
