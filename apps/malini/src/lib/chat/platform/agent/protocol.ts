@@ -113,7 +113,7 @@ export type BridgeCommand =
 			answers: AgentQuestionAnswer[];
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
-	| { cmd: 'refresh_mcp_status'; id: string; sessionId: string; runId: string }
+	| { cmd: 'refresh_session_status'; id: string; sessionId: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }

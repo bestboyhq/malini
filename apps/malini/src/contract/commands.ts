@@ -541,7 +541,7 @@ export interface ContractCommands {
 		args: RedoCheckpointRestoreArgs;
 		result: CheckpointRestoreRedoResult;
 	};
-	'chat.refresh-mcp-status': { args: SessionIdArgs; result: void };
+	'chat.refresh-session-status': { args: SessionIdArgs; result: void };
 	'repositories.release-owned-docker-container': { args: ReleaseOwnedContainerArgs; result: void };
 	'repositories.remove': { args: RepositoryIdArgs; result: void };
 	'chat.remove-staged-attachment': { args: StagedAttachmentArgs; result: void };
@@ -767,7 +767,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.read-workstream-image',
 	'repositories.record-owned-docker-containers',
 	'chat.redo-checkpoint-restore',
-	'chat.refresh-mcp-status',
+	'chat.refresh-session-status',
 	'repositories.release-owned-docker-container',
 	'repositories.remove',
 	'chat.remove-staged-attachment',

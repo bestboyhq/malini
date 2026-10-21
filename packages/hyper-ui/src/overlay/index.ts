@@ -12,6 +12,7 @@ export {
 export { bodyPortal } from './portal';
 export {
 	anchorRect,
+	anchoredEdges,
 	calculatePosition,
 	layoutRect,
 	type MenuAlign,

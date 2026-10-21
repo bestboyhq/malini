@@ -4,6 +4,7 @@
 	import { currentPlanLimits, planLimitAlert } from '$lib/chat/domain/plan-usage';
 	import { liveContextUsageQuery } from '$lib/chat/application/queries/live-context-usage.query.svelte';
 	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
+	import { refreshSessionStatusCommand } from '$lib/chat/application/commands/refresh-session-status.command';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -80,15 +81,17 @@
 
 	function onContextOpenChange(next: boolean): void {
 		contextOpen = next;
-		if (next) {
-			mcpOpen = false;
-			nowMs = Date.now();
-		}
+		if (!next) return;
+		mcpOpen = false;
+		nowMs = Date.now();
+		if (sessionId) refreshSessionStatusCommand(sessionId);
 	}
 
 	function onMcpOpenChange(next: boolean): void {
 		mcpOpen = next;
-		if (next) contextOpen = false;
+		if (!next) return;
+		contextOpen = false;
+		if (sessionId) refreshSessionStatusCommand(sessionId);
 	}
 
 	function toneClass(level: ContextPressure): string {

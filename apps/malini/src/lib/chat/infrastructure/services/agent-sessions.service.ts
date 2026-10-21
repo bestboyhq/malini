@@ -47,6 +47,10 @@ class AgentSessionsService {
 		return invoke('chat.stop-background-task', { sessionId, taskId });
 	}
 
+	refreshSessionStatus(sessionId: SessionId): Promise<void> {
+		return invoke('chat.refresh-session-status', { sessionId });
+	}
+
 	resetWorkstreamRuns(workstreamId: string): Promise<number> {
 		return invoke('chat.reset-workstream-runs', { workstreamId });
 	}

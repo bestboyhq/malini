@@ -23,7 +23,7 @@ export type AgentCommand =
 	| ApproveCommand
 	| AnswerQuestionCommand
 	| RefreshCapabilitiesCommand
-	| RefreshMcpStatusCommand
+	| RefreshSessionStatusCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ListSkillsCommand
@@ -102,11 +102,10 @@ export interface RefreshCapabilitiesCommand {
 	readonly id: string;
 }
 
-export interface RefreshMcpStatusCommand {
-	readonly cmd: 'refresh_mcp_status';
+export interface RefreshSessionStatusCommand {
+	readonly cmd: 'refresh_session_status';
 	readonly id: string;
 	readonly sessionId: string;
-	readonly runId: string;
 }
 
 export interface StopTaskCommand {
@@ -459,8 +458,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateAnswerQuestion(obj);
 		case 'refresh_capabilities':
 			return validateRefreshCapabilities(obj);
-		case 'refresh_mcp_status':
-			return validateRefreshMcpStatus(obj);
+		case 'refresh_session_status':
+			return validateRefreshSessionStatus(obj);
 		case 'stop_task':
 			return validateStopTask(obj);
 		case 'suggest_title':
@@ -789,21 +788,18 @@ function validateRefreshCapabilities(obj: Record<string, unknown>): ParseResult 
 	return { ok: true, command: { cmd: 'refresh_capabilities', id: id.value } };
 }
 
-function validateRefreshMcpStatus(obj: Record<string, unknown>): ParseResult {
-	const id = commandId(obj, 'refresh_mcp_status');
+function validateRefreshSessionStatus(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'refresh_session_status');
 	if (!id.ok) return id;
 	const sessionId = obj.sessionId;
-	const runId = obj.runId;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
-		return err('INVALID_PAYLOAD', 'refresh_mcp_status: sessionId required (non-empty string)', obj);
+		return err(
+			'INVALID_PAYLOAD',
+			'refresh_session_status: sessionId required (non-empty string)',
+			obj,
+		);
 	}
-	if (typeof runId !== 'string' || runId.length === 0) {
-		return err('INVALID_PAYLOAD', 'refresh_mcp_status: runId required (non-empty string)', obj);
-	}
-	return {
-		ok: true,
-		command: { cmd: 'refresh_mcp_status', id: id.value, sessionId, runId },
-	};
+	return { ok: true, command: { cmd: 'refresh_session_status', id: id.value, sessionId } };
 }
 
 function validateStopTask(obj: Record<string, unknown>): ParseResult {
