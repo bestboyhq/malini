@@ -19,6 +19,7 @@ import {
 import {
 	loadInspectorPanelPreferences,
 	saveInspectorPanelPreferences,
+	saveSharedInspectorPanelVisibility,
 } from './inspector-panel-preferences.store';
 
 const context: ExtensionPanelContext = {
@@ -180,14 +181,57 @@ describe('extension inspector panel preferences', () => {
 		expect(placeInspectorPanel(preferences, 'zzz', 0)).toBe(preferences);
 	});
 
-	it('does not allow the final visible panel to be hidden', () => {
+	it('hides the final visible panel and leaves no panel active', () => {
 		const onlyOneVisible = {
 			version: 3 as const,
 			order: ['one', 'two'],
 			hidden: ['two'],
 			activeId: 'one',
 		};
-		expect(setInspectorPanelVisible(onlyOneVisible, 'one', false)).toBe(onlyOneVisible);
+		expect(setInspectorPanelVisible(onlyOneVisible, 'one', false)).toEqual({
+			...onlyOneVisible,
+			hidden: ['one', 'two'],
+			activeId: null,
+		});
+	});
+
+	it('hides a closed extension panel in every workstream, and keeps a workstream panel local', () => {
+		const storage = memoryStorage({
+			[`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-arranged`]: JSON.stringify({
+				version: 3,
+				order: ['browser-tab', REPOSITORY_FILES_PANEL_ID],
+				hidden: [],
+				activeId: REPOSITORY_FILES_PANEL_ID,
+			}),
+		});
+		const panels = [panel(REPOSITORY_FILES_PANEL_ID), panel('browser-tab')];
+		const shared = new Set([REPOSITORY_FILES_PANEL_ID]);
+		const before = loadInspectorPanelPreferences('workstream-1', panels, storage);
+		const closed = setInspectorPanelVisible(
+			setInspectorPanelVisible(before, REPOSITORY_FILES_PANEL_ID, false),
+			'browser-tab',
+			false,
+		);
+		saveSharedInspectorPanelVisibility(before, closed, shared, storage);
+
+		expect(closed.activeId).toBe(null);
+		expect(loadInspectorPanelPreferences('workstream-new', panels, storage)).toMatchObject({
+			hidden: [REPOSITORY_FILES_PANEL_ID],
+			activeId: 'browser-tab',
+		});
+		expect(loadInspectorPanelPreferences('workstream-arranged', panels, storage)).toMatchObject({
+			hidden: [REPOSITORY_FILES_PANEL_ID],
+			activeId: 'browser-tab',
+		});
+
+		const reopened = loadInspectorPanelPreferences('workstream-new', panels, storage);
+		saveSharedInspectorPanelVisibility(
+			reopened,
+			setInspectorPanelVisible(reopened, REPOSITORY_FILES_PANEL_ID, true),
+			shared,
+			storage,
+		);
+		expect(loadInspectorPanelPreferences('workstream-1', panels, storage).hidden).toEqual([]);
 	});
 
 	it('repairs corrupt persisted state instead of making the inspector unreachable', () => {

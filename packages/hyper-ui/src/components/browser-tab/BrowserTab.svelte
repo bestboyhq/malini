@@ -232,7 +232,8 @@
 		ariaSelected={selected}
 		{disabled}
 		class={[
-			'flex h-full min-w-0 cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
+			'flex h-full min-w-0 cursor-pointer items-center py-0 pl-2 text-xs font-medium outline-none disabled:cursor-not-allowed',
+			surface === 'panel' && onclose ? 'pr-6' : 'pr-2',
 		]}
 		{...tabLink}
 		{...tabAttributes}
@@ -261,7 +262,7 @@
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
-				onclose && !trailing && 'tab-label-faded',
+				surface === 'band' && onclose && !trailing && 'tab-label-faded',
 			]}
 			textClass="tab-label-text"
 			textAttach={observeLabelOverflow}

@@ -36,6 +36,7 @@
 	import {
 		loadInspectorPanelPreferences,
 		saveInspectorPanelPreferences,
+		saveSharedInspectorPanelVisibility,
 	} from '$shared/extensions/inspector-panel-preferences.store';
 	import {
 		INSPECTOR_PANEL_PREFERENCES_VERSION,
@@ -67,7 +68,7 @@
 		addExtensionsContent?: Snippet;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
-		closablePanelIds?: ReadonlySet<string>;
+		workstreamPanelIds?: ReadonlySet<string>;
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
 		onpanelselect?: (panelId: string) => void;
@@ -93,7 +94,7 @@
 		addExtensionsContent,
 		renderIcon,
 		panelActions = [],
-		closablePanelIds = new Set(),
+		workstreamPanelIds = new Set(),
 		storage,
 		onactivechange,
 		onpanelselect,
@@ -132,6 +133,9 @@
 	const orderedPanels = $derived(panelPresentation.orderedPanels);
 	const arrangeable = $derived(orderedPanels.length > 1);
 	const activePanel = $derived(panelPresentation.activePanel);
+	const sharedPanelIds = $derived(
+		new Set(panels.map(({ id }) => id).filter((id) => !workstreamPanelIds.has(id))),
+	);
 	const inspectorInteractive = $derived(loadedWorkstreamId === workstreamId);
 	const inspectorRuntimeReady = $derived(ready && inspectorInteractive);
 	const presentedEntry = $derived(inspectorPanelKeepAliveEntry(keepAlive, workstreamId));
@@ -223,6 +227,12 @@
 	$effect(() => {
 		if (!addExtensionsActive) return;
 		openDrawer();
+	});
+
+	$effect(() => {
+		if (finalizedWorkstreamId !== workstreamId || !inspectorRuntimeReady) return;
+		if (addExtensionsActive || visiblePanels.length > 0 || !drawerOpen) return;
+		closeDrawer();
 	});
 
 	$effect(() => {
@@ -354,6 +364,7 @@
 			pendingPreferenceMutations.push(mutation);
 		}
 
+		if (mutationChanged) saveSharedInspectorPanelVisibility(current, next, sharedPanelIds, storage);
 		replacePreferences(next);
 		if (finalizedWorkstreamId === workstreamId) {
 			saveInspectorPanelPreferences(workstreamId, next, storage);
@@ -395,12 +406,15 @@
 		);
 	}
 
-	async function focusPanelTab(panelId: string | null): Promise<void> {
+	async function focusPanelTab(
+		panelId: string | null,
+		testId = 'extension-inspector-tab',
+	): Promise<void> {
 		if (!panelId) return;
 		await tick();
 		document
 			.querySelector<HTMLElement>(
-				`[data-testid="extension-inspector-tab"][data-panel-id="${CSS.escape(panelId)}"]`,
+				`[data-testid="${testId}"][data-panel-id="${CSS.escape(panelId)}"]`,
 			)
 			?.focus({ preventScroll: true });
 	}
@@ -426,7 +440,10 @@
 		});
 		clearPanelFailure(panelId);
 		notifyPanelClosed(closingPanel);
-		if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
+		if (next.activeId === null && !addExtensionsActive) {
+			closeDrawer();
+			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
+		} else if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
 	}
 
 	function closeExtensionDirectory(event: MouseEvent): void {
@@ -703,9 +720,7 @@
 							'data-panel-id': panel.id,
 						}}
 						onselect={() => selectPanel(panel.id)}
-						onclose={closablePanelIds.has(panel.id) && visiblePanels.length > 1
-							? (event) => closePanel(event, panel.id)
-							: undefined}
+						onclose={(event) => closePanel(event, panel.id)}
 						trailing={badge ? badgeCount : undefined}
 					>
 						{#snippet icon()}
@@ -1081,7 +1096,7 @@
 			disabled={!inspectorInteractive}
 			{renderIcon}
 			onopen={openPanel}
-			onshow={openDrawer}
+			onshow={visiblePanels.length > 0 ? openDrawer : undefined}
 		/>
 	{/if}
 

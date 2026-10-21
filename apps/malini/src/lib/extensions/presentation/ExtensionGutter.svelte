@@ -17,7 +17,7 @@
 		disabled?: boolean;
 		renderIcon?: Snippet<[icon: string, size: number]> | undefined;
 		onopen: (panelId: string) => void;
-		onshow: () => void;
+		onshow?: (() => void) | undefined;
 	}
 
 	let {
@@ -40,20 +40,22 @@
 		<span class="text-fg-tertiary min-w-0 flex-1 truncate text-xs font-medium">
 			{#if workstreamName}On {workstreamName}{/if}
 		</span>
-		<span class="extension-gutter__show shrink-0">
-			<Tooltip content="Show inspector" placement="left">
-				<IconButton
-					ariaLabel="Show inspector"
-					variant="ghost"
-					size="sm"
-					ariaExpanded={false}
-					data-testid="extension-inspector-show"
-					onclick={onshow}
-				>
-					<Icon name="chevron-left" size={12} />
-				</IconButton>
-			</Tooltip>
-		</span>
+		{#if onshow}
+			<span class="extension-gutter__show shrink-0">
+				<Tooltip content="Show inspector" placement="left">
+					<IconButton
+						ariaLabel="Show inspector"
+						variant="ghost"
+						size="sm"
+						ariaExpanded={false}
+						data-testid="extension-inspector-show"
+						onclick={onshow}
+					>
+						<Icon name="chevron-left" size={12} />
+					</IconButton>
+				</Tooltip>
+			</span>
+		{/if}
 	</div>
 
 	{#each rows as row (row.panelId)}
@@ -95,7 +97,7 @@
 								−{formatCount(deletions)}
 							</span>{/if}
 					</span>
-				{:else}
+				{:else if !row.closed}
 					<span
 						class="text-2xs text-fg-tertiary shrink-0 font-mono tabular-nums"
 						aria-label="No changes"
