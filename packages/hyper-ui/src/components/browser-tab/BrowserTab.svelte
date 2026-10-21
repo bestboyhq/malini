@@ -1,9 +1,12 @@
 <script lang="ts">
-	import SensitiveText from '../sensitive/SensitiveText.svelte';
 	import type { Snippet } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide, type SlideParams, type TransitionConfig } from 'svelte/transition';
 	import Button from '../button/Button.svelte';
 	import IconButton from '../icon-button/IconButton.svelte';
+	import RenameText from '../rename-text/RenameText.svelte';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { BusyIcon, Icon } from '../../icons';
 
@@ -37,6 +40,8 @@
 		description?: string | undefined;
 		tooltip?: string | undefined;
 		onpin?: () => void;
+		shimmerRename?: boolean;
+		isClosing?: (() => boolean) | undefined;
 		[attr: `data-${string}`]: string | undefined;
 	}
 
@@ -66,6 +71,8 @@
 		description,
 		tooltip,
 		onpin,
+		shimmerRename = false,
+		isClosing,
 		...rest
 	}: Props = $props();
 
@@ -127,7 +134,40 @@
 	const hiddenUnderCloseClass =
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
-	const tabPaddingClass = $derived(icon || busy || backgroundBusy ? 'pr-2 pl-1.5' : 'px-2');
+	const motion = (): TransitionConfig => ({
+		duration: prefersReducedMotion.current ? 0 : 180,
+		easing: cubicOut,
+	});
+
+	const slotMotion = (): SlideParams => ({ axis: 'x', ...motion() });
+
+	// ponytail: a click on close counts for a second, so a close slower than that skips the collapse
+	const CLOSE_CLICK_MS = 1000;
+	let closeClickedAt = -Infinity;
+
+	function close(event: MouseEvent): void {
+		closeClickedAt = performance.now();
+		onclose?.(event);
+	}
+
+	function stripGap(node: HTMLElement): number {
+		const strip = node.parentElement;
+		if (!strip) return 0;
+		const style = getComputedStyle(strip);
+		return style.display === 'contents' ? stripGap(strip) : parseFloat(style.columnGap) || 0;
+	}
+
+	function collapse(node: HTMLElement): TransitionConfig {
+		const closeClicked = performance.now() - closeClickedAt < CLOSE_CLICK_MS;
+		if (!(closeClicked || isClosing?.())) return { duration: 0 };
+		const width = node.getBoundingClientRect().width;
+		const gap = stripGap(node);
+		return {
+			...motion(),
+			css: (t) =>
+				`flex: none; overflow: hidden; min-width: 0; width: ${t * width}px; margin-inline-end: ${(t - 1) * gap}px; opacity: ${t};`,
+		};
+	}
 
 	const surfaceClass = $derived(
 		tone === 'brand' ? brandClass[surface] : selected ? selectedClass[surface] : idleClass[surface],
@@ -144,6 +184,7 @@
 	]}
 	data-selected={selected}
 	{...rest}
+	out:collapse|global
 >
 	{#if tooltip}
 		<Tooltip
@@ -175,7 +216,7 @@
 					tone === 'brand' ? 'text-brand/70' : 'text-fg-tertiary hover:text-fg-default',
 					closeHoverClass[surface],
 				]}
-				onclick={onclose}
+				onclick={close}
 				{...closeAttributes}
 			>
 				<Icon name="close" size={14} />
@@ -191,52 +232,57 @@
 		ariaSelected={selected}
 		{disabled}
 		class={[
-			'flex h-full min-w-0 cursor-pointer items-center gap-1 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
-			tabPaddingClass,
+			'flex h-full min-w-0 cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
 		]}
 		{...tabLink}
 		{...tabAttributes}
 	>
-		{#if busy || backgroundBusy}
+		{#if busy || backgroundBusy || icon}
 			<span
 				class={[
-					'grid h-4 w-4 shrink-0 place-items-center',
+					'mr-1 -ml-0.5 grid h-4 w-4 shrink-0 place-items-center',
 					busy && !selected && 'text-fg-secondary',
 				]}
-				aria-hidden="true"
+				aria-hidden={busy || backgroundBusy ? 'true' : undefined}
+				transition:slide={slotMotion()}
 			>
-				<BusyIcon size={12} background={!busy} />
+				{#if busy || backgroundBusy}
+					<BusyIcon size={12} background={!busy} />
+				{:else if icon}
+					{@render icon()}
+				{/if}
 			</span>
-		{:else if icon}
-			<span class="grid h-4 w-4 shrink-0 place-items-center">{@render icon()}</span>
 		{/if}
-		<span
+		<RenameText
+			text={label}
+			shimmer={shimmerRename}
 			class={[
-				'tab-label relative min-w-0 overflow-hidden whitespace-nowrap',
+				'tab-label min-w-0',
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
 				onclose && !trailing && 'tab-label-faded',
 			]}
+			textClass="tab-label-text"
+			textAttach={observeLabelOverflow}
+			style={`--tab-label-overflow: ${labelOverflow}`}
 			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
-			style:--tab-label-overflow={labelOverflow}
-		>
-			<span class="tab-label-text" {@attach observeLabelOverflow}>
-				<SensitiveText text={label} />
-			</span>
-		</span>
+		/>
 		{#if trailing && onclose}
 			<span
 				class={[
 					surface === 'band' ? 'grid h-4 w-4 place-items-center' : 'flex',
-					'shrink-0',
+					'ml-1 shrink-0',
 					hiddenUnderCloseClass,
 				]}
+				transition:slide={slotMotion()}
 			>
 				{@render trailing()}
 			</span>
-		{:else}
-			{@render trailing?.()}
+		{:else if trailing}
+			<span class="ml-1 flex shrink-0" transition:slide={slotMotion()}>
+				{@render trailing()}
+			</span>
 		{/if}
 	</Button>
 {/snippet}
@@ -248,31 +294,41 @@
 		inset-block: 8px;
 		left: -1px;
 		border-left: 1px solid var(--color-border-subtle);
+		transition: opacity 180ms cubic-bezier(0.33, 1, 0.68, 1);
 	}
 
-	.tab-label-text {
+	:global(.band-tab[inert]:not(.band-tab + .band-tab)) + .band-tab::before {
+		opacity: 0;
+	}
+
+	.browser-tab :global(.tab-label-text) {
 		display: inline-block;
 		vertical-align: top;
 	}
 
-	.tab-label[data-overflowing] {
+	.browser-tab :global(.tab-label:is([data-overflowing], [data-renaming])) {
 		--tab-label-fade: 20;
-		mask-image: linear-gradient(to left, transparent, black calc(var(--tab-label-fade) * 1px));
+		mask-image: linear-gradient(
+			to left,
+			transparent,
+			black calc(var(--tab-label-fade) * var(--rename-overflow, 1) * 1px)
+		);
 	}
 
-	.browser-tab:is(:hover, :has(:global(:focus-visible))) .tab-label-faded {
+	.browser-tab:is(:hover, :has(:global(:focus-visible)), [inert]) :global(.tab-label-faded) {
 		--tab-label-fade: 26;
 		mask-image: linear-gradient(to left, transparent 16px, black calc(var(--tab-label-fade) * 1px));
 	}
 
-	.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
+	.browser-tab:is(:hover, [inert])
+		:global(.tab-label[data-overflowing]:not([data-renaming]) > .tab-label-text) {
 		--tab-label-shift: calc(var(--tab-label-overflow) + var(--tab-label-fade));
 		transform: translateX(calc(var(--tab-label-shift) * -1px));
 		transition: transform calc(var(--tab-label-shift) * 20ms) linear 300ms;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
+		.browser-tab:is(:hover, [inert]) :global(.tab-label[data-overflowing] > .tab-label-text) {
 			transition-duration: 0s;
 		}
 	}
