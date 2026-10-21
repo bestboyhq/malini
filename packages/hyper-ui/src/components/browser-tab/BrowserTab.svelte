@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import { slide, type SlideParams } from 'svelte/transition';
 	import Button from '../button/Button.svelte';
 	import IconButton from '../icon-button/IconButton.svelte';
 	import RenameText from '../rename-text/RenameText.svelte';
@@ -129,7 +132,11 @@
 	const hiddenUnderCloseClass =
 		'transition-opacity group-hover/browser-tab:opacity-0 group-has-[:focus-visible]/browser-tab:opacity-0 motion-reduce:transition-none';
 
-	const tabPaddingClass = $derived(icon || busy || backgroundBusy ? 'pr-2 pl-1.5' : 'px-2');
+	const slotMotion = (): SlideParams => ({
+		axis: 'x',
+		duration: prefersReducedMotion.current ? 0 : 180,
+		easing: cubicOut,
+	});
 
 	const surfaceClass = $derived(
 		tone === 'brand' ? brandClass[surface] : selected ? selectedClass[surface] : idleClass[surface],
@@ -193,24 +200,26 @@
 		ariaSelected={selected}
 		{disabled}
 		class={[
-			'flex h-full min-w-0 cursor-pointer items-center gap-1 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
-			tabPaddingClass,
+			'flex h-full min-w-0 cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
 		]}
 		{...tabLink}
 		{...tabAttributes}
 	>
-		{#if busy || backgroundBusy}
+		{#if busy || backgroundBusy || icon}
 			<span
 				class={[
-					'grid h-4 w-4 shrink-0 place-items-center',
+					'mr-1 -ml-0.5 grid h-4 w-4 shrink-0 place-items-center',
 					busy && !selected && 'text-fg-secondary',
 				]}
-				aria-hidden="true"
+				aria-hidden={busy || backgroundBusy ? 'true' : undefined}
+				transition:slide={slotMotion()}
 			>
-				<BusyIcon size={12} background={!busy} />
+				{#if busy || backgroundBusy}
+					<BusyIcon size={12} background={!busy} />
+				{:else if icon}
+					{@render icon()}
+				{/if}
 			</span>
-		{:else if icon}
-			<span class="grid h-4 w-4 shrink-0 place-items-center">{@render icon()}</span>
 		{/if}
 		<RenameText
 			text={label}
@@ -231,14 +240,17 @@
 			<span
 				class={[
 					surface === 'band' ? 'grid h-4 w-4 place-items-center' : 'flex',
-					'shrink-0',
+					'ml-1 shrink-0',
 					hiddenUnderCloseClass,
 				]}
+				transition:slide={slotMotion()}
 			>
 				{@render trailing()}
 			</span>
-		{:else}
-			{@render trailing?.()}
+		{:else if trailing}
+			<span class="ml-1 flex shrink-0" transition:slide={slotMotion()}>
+				{@render trailing()}
+			</span>
 		{/if}
 	</Button>
 {/snippet}
