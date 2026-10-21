@@ -53,11 +53,7 @@ export function toolDurationMs(
 	return Math.max(0, tool.completedAt - tool.startedAt);
 }
 
-export function formatToolDuration(
-	durationMs: number | null,
-	status: 'running' | 'completed',
-): string {
-	if (durationMs === null) return status === 'running' ? 'running…' : '—';
+export function formatToolDuration(durationMs: number): string {
 	if (durationMs < 1_000) return `${durationMs}ms`;
 	const seconds = durationMs / 1_000;
 	return `${seconds.toFixed(seconds < 10 ? 2 : 1)}s`;

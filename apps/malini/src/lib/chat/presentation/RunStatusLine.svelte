@@ -4,7 +4,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { backgroundWorkSummary, type BackgroundWork } from '$lib/chat/domain/background-work';
 	import type { RunGroup } from './render-state';
-	import { formatRunSeconds } from './run-status';
+	import { formatRunSeconds, tenthsPhaseDelayMs } from './run-status';
 	import { transcriptContext } from './chat-message-list/transcript-context';
 
 	interface Props {
@@ -36,7 +36,7 @@
 			timer = setTimeout(tick, SECOND_MS - (elapsedMs % SECOND_MS));
 		};
 		tick();
-		tenthsDelayMs = -(elapsedMs % SECOND_MS);
+		tenthsDelayMs = tenthsPhaseDelayMs(startedAtMs, performance.timeOrigin);
 		return () => {
 			if (timer !== null) clearTimeout(timer);
 		};

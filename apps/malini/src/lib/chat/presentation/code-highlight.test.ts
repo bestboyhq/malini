@@ -163,6 +163,21 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, '1')).toBe('number');
 	});
 
+	it('tells operators from punctuation, and constants from plain names', () => {
+		const tokens = highlightCode(
+			'const LIMIT = items?.length ?? 0;\nif (!done && count >= LIMIT) return { ok: true };',
+			'ts',
+		);
+		expect(kindOf(tokens, '=')).toBe('operator');
+		expect(kindOf(tokens, '?.')).toBe('operator');
+		expect(kindOf(tokens, '??')).toBe('operator');
+		expect(kindOf(tokens, '&&')).toBe('operator');
+		expect(kindOf(tokens, '>=')).toBe('operator');
+		expect(kindOf(tokens, ';')).toBe('punctuation');
+		expect(kindOf(tokens, 'LIMIT')).toBe('constant');
+		expect(kindOf(tokens, 'true')).toBe('constant');
+	});
+
 	it('keeps a keyword inside a typescript string uncolored', () => {
 		const tokens = highlightCode('const note = "return if else";', 'ts');
 		expect(kindOf(tokens, '"return if else"')).toBe('string');
@@ -233,7 +248,7 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, '"name"')).toBe('attr');
 		expect(kindOf(tokens, '"malini"')).toBe('string');
 		expect(kindOf(tokens, '3')).toBe('number');
-		expect(kindOf(tokens, 'true')).toBe('keyword');
+		expect(kindOf(tokens, 'true')).toBe('constant');
 	});
 
 	it('colors go declarations and raw strings', () => {
@@ -244,7 +259,7 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, 'package')).toBe('keyword');
 		expect(kindOf(tokens, 'Probe')).toBe('function');
 		expect(kindOf(tokens, 'int')).toBe('type');
-		expect(kindOf(tokens, 'nil')).toBe('type');
+		expect(kindOf(tokens, 'nil')).toBe('constant');
 	});
 
 	it('colors sql keywords whatever case they are written in', () => {
@@ -264,7 +279,7 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, '# ci')).toBe('comment');
 		expect(kindOf(tokens, 'name')).toBe('attr');
 		expect(kindOf(tokens, 'run')).toBe('attr');
-		expect(kindOf(tokens, 'true')).toBe('keyword');
+		expect(kindOf(tokens, 'true')).toBe('constant');
 	});
 
 	it('colors toml tables and keys', () => {
@@ -293,7 +308,7 @@ describe('per-language tokenizing', () => {
 
 	it('colors markup tags and attributes without touching the text between them', () => {
 		const tokens = highlightCode('<a href="https://malini.dev">read the docs</a>', 'html');
-		expect(kindOf(tokens, 'a')).toBe('keyword');
+		expect(kindOf(tokens, 'a')).toBe('tag');
 		expect(kindOf(tokens, 'href')).toBe('attr');
 		expect(kindOf(tokens, '"https://malini.dev"')).toBe('string');
 		expect(kindOf(tokens, 'read the docs')).toBe('plain');
@@ -320,7 +335,7 @@ describe('per-language tokenizing', () => {
 		expect(kindOf(tokens, 'close')).toBe('function');
 		expect(kindOf(tokens, 'onclick')).toBe('attr');
 		expect(kindOf(tokens, 'color')).toBe('attr');
-		expect(kindOf(tokens, 'button')).toBe('keyword');
+		expect(kindOf(tokens, 'button')).toBe('tag');
 		expect(reassemble(tokens)).toBe(source);
 	});
 
@@ -335,7 +350,7 @@ describe('per-language tokenizing', () => {
 		const scriptEnd = "\tconst label = 'Close';\n</script>\n\n<button>{label}</button>";
 		const endTokens = highlightCode(scriptEnd, 'svelte');
 		expect(kindOf(endTokens, "'Close'")).toBe('string');
-		expect(kindOf(endTokens, 'button')).toBe('keyword');
+		expect(kindOf(endTokens, 'button')).toBe('tag');
 		expect(reassemble(endTokens)).toBe(scriptEnd);
 
 		const style = '\t.tab {\n\t\tcolor: red;\n\t}';
@@ -355,7 +370,7 @@ describe('per-language tokenizing', () => {
 		const template = '\t<div\n\t\tclass="flex"\n\t>\n\t\t{label}\n\t</div>';
 		const tokens = highlightCode(template, 'svelte');
 		expect(kindOf(tokens, 'class')).toBe('attr');
-		expect(kindOf(tokens, 'div')).toBe('keyword');
+		expect(kindOf(tokens, 'div')).toBe('tag');
 	});
 
 	it('keeps a tag whole when an expression inside it holds a closing angle bracket', () => {

@@ -3,7 +3,6 @@ import { mcpServerDisplayName } from './session-runtime-metadata';
 import { relativizeWorkstreamCommand, relativizeWorkstreamPath } from './workstream-path';
 
 export type ToolActionKind = 'command' | 'read' | 'edit' | 'search' | 'other';
-export type ToolActivityStatus = 'running' | 'completed';
 
 const TOOL_PATH_KEYS = [
 	'file_path',
@@ -135,11 +134,7 @@ export function toolDescriptionLabel(rawName: string, input: unknown): string | 
 	return description ? short(description) : null;
 }
 
-export function toolActivityLabel(
-	rawName: string,
-	input: unknown,
-	status: ToolActivityStatus,
-): string {
+export function toolActivityLabel(rawName: string, input: unknown): string {
 	const displayName = toolDisplayName(rawName, input);
 	const kind = toolActionKind(rawName, input);
 	const path = stringAt(input, TOOL_PATH_KEYS);
@@ -155,8 +150,7 @@ export function toolActivityLabel(
 	}
 	if (kind === 'search' && query) return `${displayName} · ${short(query)}`;
 	if (target) return `${displayName} · ${short(relativizeWorkstreamPath(target))}`;
-	if (isBackgroundAgent(rawName, input)) return displayName;
-	return status === 'running' ? `Running ${displayName}` : displayName;
+	return displayName;
 }
 
 export function backgroundAgentSummary(

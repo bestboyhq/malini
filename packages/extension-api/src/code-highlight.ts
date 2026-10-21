@@ -10,6 +10,9 @@ export type TokenKind =
 	| 'type'
 	| 'function'
 	| 'punctuation'
+	| 'operator'
+	| 'constant'
+	| 'tag'
 	| 'attr'
 	| 'added'
 	| 'removed';
@@ -345,6 +348,13 @@ const GROUP_KINDS: readonly (readonly [string, TokenKind])[] = [
 ];
 
 const CAPITALISED = /^[A-Z]/u;
+const SCREAMING_CASE = /^[A-Z][A-Z\d]*(?:_[A-Z\d]+)*$/u;
+const CONSTANT_WORDS: ReadonlySet<string> = new Set(
+	'true false null undefined nil None True False NaN Infinity this self super globalThis window document console Math JSON'.split(
+		' ',
+	),
+);
+const OPERATOR = /\?\.|\?\?=?|=>|[=!]==?|[<>]=|&&=?|\|\|=?|\+\+|--|[+\-*\/%&|^~]=?|=|!|\?/gu;
 
 function push(tokens: CodeToken[], kind: TokenKind, text: string): void {
 	if (text.length === 0) return;
@@ -367,13 +377,25 @@ function classify(match: RegExpExecArray, family: Family, source: string): Token
 	}
 	const word = groups.command ?? groups.ident;
 	if (word === undefined) return 'plain';
+	if (CONSTANT_WORDS.has(word)) return 'constant';
 	const lookup = family.foldCase ? word.toLowerCase() : word;
 	if (family.keywords.has(lookup)) return 'keyword';
 	if (family.types.has(lookup)) return 'type';
 	if (source[match.index + match[0].length] === '(') return 'function';
 	if (groups.command !== undefined) return 'function';
+	if (family.foldCase !== true && word.length > 1 && SCREAMING_CASE.test(word)) return 'constant';
 	if (family.capitalisedIsType === true && CAPITALISED.test(word)) return 'type';
 	return 'plain';
+}
+
+function pushPunctuation(tokens: CodeToken[], text: string): void {
+	let cursor = 0;
+	for (const operator of text.matchAll(OPERATOR)) {
+		push(tokens, 'punctuation', text.slice(cursor, operator.index));
+		push(tokens, 'operator', operator[0]);
+		cursor = operator.index + operator[0].length;
+	}
+	push(tokens, 'punctuation', text.slice(cursor));
 }
 
 function tokenizeFamily(
@@ -391,7 +413,9 @@ function tokenizeFamily(
 			pattern.lastIndex += 1;
 		} else {
 			push(tokens, 'plain', source.slice(cursor, match.index));
-			push(tokens, classify(match, family, source), match[0]);
+			const kind = classify(match, family, source);
+			if (kind === 'punctuation') pushPunctuation(tokens, match[0]);
+			else push(tokens, kind, match[0]);
 			cursor = match.index + match[0].length;
 		}
 		match = pattern.exec(source);
@@ -538,7 +562,7 @@ function pushTag(tokens: CodeToken[], source: string, start: number): [number, T
 	const opener = closing ? '</' : '<';
 	const name = TAG_NAME.exec(source.slice(start + opener.length, start + 256))?.[0] ?? '';
 	push(tokens, 'punctuation', opener);
-	push(tokens, 'keyword', name);
+	push(tokens, 'tag', name);
 	let cursor = start + opener.length + name.length;
 	while (cursor < source.length) {
 		const character = source[cursor] ?? '';

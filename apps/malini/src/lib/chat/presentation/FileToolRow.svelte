@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
+	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
 	import type { EditDiffstat } from './edit-diffstat';
 	import ExpandMark from './ExpandMark.svelte';
@@ -41,11 +43,11 @@
 
 <div class="w-full text-sm">
 	<div class="text-fg-tertiary flex min-h-6 items-center gap-2">
-		<ExpandMark {live}>
+		<ExpandMark>
 			<Icon name={icon} size={icon === 'pencil' ? 13 : 14} class="shrink-0" />
 		</ExpandMark>
-		<span class="shrink-0">{verb}</span>
-		<span class="flex min-w-0" bind:this={badge}>
+		<ShimmerText text={verb} active={live} class="shrink-0" />
+		<span class="flex min-w-0" bind:this={badge} in:fade={{ duration: 190 }}>
 			<Button
 				bare
 				class={[
@@ -62,6 +64,7 @@
 				{#if diffstat}
 					<span
 						class="text-3xs shrink-0 font-mono tabular-nums"
+						in:fade={{ duration: 190 }}
 						data-testid="tool-card-diffstat"
 						aria-label={`${diffstat.added} ${diffstat.added === 1 ? 'line' : 'lines'} added, ${diffstat.removed} ${diffstat.removed === 1 ? 'line' : 'lines'} removed`}
 					>
@@ -74,7 +77,10 @@
 			</Button>
 		</span>
 		{#if durationLabel}
-			<span class="text-3xs text-fg-tertiary/70 ml-auto shrink-0 font-mono tabular-nums">
+			<span
+				class="text-3xs text-fg-tertiary/70 ml-auto shrink-0 font-mono tabular-nums"
+				in:fade={{ duration: 190 }}
+			>
 				{durationLabel}
 			</span>
 		{/if}

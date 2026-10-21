@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SensitiveText } from '$hyper-ui/components/sensitive';
+	import { fade } from 'svelte/transition';
 	import { Icon } from '$hyper-ui/icons';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import DiffViewer from './DiffViewer.svelte';
@@ -9,6 +9,7 @@
 	import FileToolRow from './FileToolRow.svelte';
 	import ReadFilePreview from './ReadFilePreview.svelte';
 	import ToolImageRow from './ToolImageRow.svelte';
+	import ToolLabel from './ToolLabel.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
 	import { toolImageRead } from './tool-image-read';
@@ -62,16 +63,16 @@
 	);
 	const labelInput = $derived(input === undefined ? summarizeLiveToolInput(liveInputJson) : input);
 	const displayName = $derived(toolDisplayName(name, labelInput));
+	const live = $derived(status === 'running' && !waiting);
 	const durationLabel = $derived(
 		waiting
 			? 'waiting'
-			: durationMs === null && status !== 'running'
+			: status === 'running' || durationMs === null
 				? null
-				: formatToolDuration(durationMs, status),
+				: formatToolDuration(durationMs),
 	);
 	const label = $derived(
-		backgroundAgentSummary(name, labelInput, output) ??
-			toolActivityLabel(name, labelInput, waiting ? 'completed' : status),
+		backgroundAgentSummary(name, labelInput, output) ?? toolActivityLabel(name, labelInput),
 	);
 	const actionKind = $derived(toolActionKind(name, labelInput));
 	const description = $derived(toolDescriptionLabel(name, labelInput));
@@ -164,7 +165,7 @@
 		icon={actionKind === 'edit' ? 'pencil' : 'note'}
 		path={editPath}
 		{previewName}
-		live={status === 'running' && !waiting}
+		{live}
 		{diffstat}
 		{durationLabel}
 	>
@@ -197,7 +198,7 @@
 			data-testid="tool-card-summary"
 			onclick={() => (contentMounted = true)}
 		>
-			<ExpandMark live={status === 'running' && !waiting}>
+			<ExpandMark>
 				{#if actionKind === 'edit'}
 					<Icon name="pencil" class="shrink-0" size={13} />
 				{:else if actionKind === 'command'}
@@ -210,20 +211,17 @@
 					<Icon name="wrench" size={14} class="shrink-0" />
 				{/if}
 			</ExpandMark>
-			{#if description}
-				<span class="flex min-w-0 flex-1 items-baseline gap-2">
-					<span class="text-fg-secondary min-w-0 truncate" data-tool-description>
-						<SensitiveText text={description} />
-					</span>
-					<span class="text-2xs min-w-0 flex-1 truncate font-mono">
-						<SensitiveText text={label} />
-					</span>
-				</span>
-			{:else}
-				<span class="min-w-0 flex-1 truncate"><SensitiveText text={label} /></span>
-			{/if}
+			<ToolLabel
+				title={description ?? label}
+				detail={description ? label : null}
+				emphasized={description !== null}
+				{live}
+			/>
 			{#if durationLabel}
-				<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
+				<span
+					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
+					in:fade={{ duration: 190 }}
+				>
 					{durationLabel}
 				</span>
 			{/if}
