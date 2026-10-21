@@ -4,7 +4,13 @@ import { chmod, mkdir, realpath, stat, symlink, writeFile } from 'node:fs/promis
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { initRealRepo, realGit, removeDir, tempDir } from './fixtures.test-support';
+import {
+	initRealRepo,
+	realGit,
+	removeDir,
+	tempDir,
+	workstreamFixture,
+} from './fixtures.test-support';
 import { workstreamBranchName } from './paths';
 import { GitError } from '$main/errors';
 import { installGitRunnerForTests } from './run';
@@ -13,6 +19,7 @@ import {
 	addWorktreeWithRollback,
 	branchList,
 	cleanupFailedWorkstream,
+	deleteWorkstreamBranch,
 	listWorktrees,
 	parseWorktreeListPorcelain,
 	removeCheckoutDirResilient,
@@ -218,6 +225,26 @@ describe('removeWorktree and cleanup', () => {
 		expect(await cleanupFailedWorkstream(base, wt, 'malini/ws-clean')).toBeNull();
 		expect(existsSync(wt)).toBe(false);
 		expect(await branchList(base)).not.toContain('malini/ws-clean');
+	});
+
+	it('t9l deletes archived branches while new checkouts track origin without a git lock clash', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base } = await workstreamFixture(dir, 'ws-seed');
+		const ids = Array.from({ length: 40 }, (_, index) => `ws-${index}`);
+		for (const id of ids) {
+			await realGit(base, ['branch', '--track', `malini/archived-${id}`, 'origin/main']);
+		}
+		await Promise.all(
+			ids.flatMap((id) => [
+				deleteWorkstreamBranch(base, `malini/archived-${id}`),
+				addWorktree(base, join(dir, 'workstreams', id), workstreamBranchName(id), 'origin/main'),
+			]),
+		);
+		expect(await branchList(base)).toEqual(
+			expect.arrayContaining(ids.map((id) => workstreamBranchName(id))),
+		);
+		expect(await branchList(base)).not.toContain('malini/archived-ws-0');
 	});
 });
 

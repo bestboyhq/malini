@@ -29,10 +29,7 @@
 
 	function fit(): void {
 		if (!frame || !ruler || !probe) return;
-		const items = ruler.children;
-		const widths = running.items.map(
-			(_, index) => items.item(index)?.getBoundingClientRect().width ?? 0,
-		);
+		const widths = Array.from(ruler.children, (item) => item.getBoundingClientRect().width);
 		fitting = fittingCount(widths, frame.clientWidth, probe.getBoundingClientRect().width);
 	}
 </script>

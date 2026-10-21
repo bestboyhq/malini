@@ -524,7 +524,7 @@ const FIXTURE_SKILLS = [
 	},
 ];
 const skillsOfRun = new Map();
-const respond = (sessionId, runId, prompt) => {
+const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_SKILLS')) {
 		const skills = skillsOfRun.get(runId);
@@ -563,7 +563,10 @@ const respond = (sessionId, runId, prompt) => {
 	if (bulk && worktree) {
 		for (let index = 0; index < Number(bulk[1]); index += 1) {
 			const directory = nodePath.join(worktree, 'bulk', String(Math.floor(index / 500)));
-			if (index % 500 === 0) fs.mkdirSync(directory, { recursive: true });
+			if (index % 500 === 0) {
+				await new Promise(setImmediate);
+				fs.mkdirSync(directory, { recursive: true });
+			}
 			fs.writeFileSync(nodePath.join(directory, 'file-' + index + '.txt'), 'a\nb\nc\n');
 		}
 	}
