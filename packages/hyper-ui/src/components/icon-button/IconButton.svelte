@@ -29,6 +29,7 @@
 		active?: boolean;
 		bordered?: boolean;
 		bare?: boolean;
+		pressable?: boolean;
 		ariaBusy?: boolean;
 		ariaControls?: string;
 		ariaCurrent?: 'page' | 'step' | 'location' | 'date' | 'time' | 'true' | 'false';

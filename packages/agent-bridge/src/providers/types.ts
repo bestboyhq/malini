@@ -41,6 +41,8 @@ export interface ProviderHandle {
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
 	respondToQuestion?(reply: ProviderQuestionReply): Promise<void>;
 	refreshSessionStatus?(): Promise<void>;
+	authorizeMcpServer?(serverName: string): Promise<string | null>;
+	reconnectMcpServer?(serverName: string): Promise<void>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
 	close(): Promise<void>;
 }

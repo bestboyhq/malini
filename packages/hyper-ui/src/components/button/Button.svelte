@@ -32,6 +32,7 @@
 		bordered?: boolean;
 		iconOnly?: boolean;
 		bare?: boolean;
+		pressable?: boolean;
 		title?: string;
 		id?: string;
 		ariaLabel?: string;
@@ -72,6 +73,7 @@
 		bordered = false,
 		iconOnly = false,
 		bare = false,
+		pressable = true,
 		title,
 		ariaLabel,
 		ariaBusy,
@@ -257,10 +259,11 @@
 					surfaceClass,
 					focusClass[variant],
 					sizeMetricClass[size],
-					inert ? undefined : [interactionClass[variant], pressClass],
+					inert ? undefined : [interactionClass[variant], pressable && pressClass],
 					iconOnly ? 'aspect-square gap-0 p-0' : ['gap-1.5', contentPaddingClass],
 					{
-						'cursor-pointer': !inert,
+						'cursor-pointer': !inert && pressable,
+						'cursor-default': !inert && !pressable,
 						'cursor-progress': loading && !disabled,
 						'cursor-not-allowed': disabled,
 					},
