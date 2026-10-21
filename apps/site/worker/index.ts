@@ -1,9 +1,89 @@
+import { LOGDASH_SITE } from '../src/lib/logdash.ts';
+
 export type Env = Readonly<{ ASSETS: Readonly<{ fetch(request: Request): Promise<Response> }> }>;
 
 const CANONICAL_HOST = 'bestboy.dev';
 const IMMUTABLE_PREFIX = '/malini/_app/immutable/';
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const PAGE = 'public, max-age=0, stale-while-revalidate=86400';
+const LOGDASH_SCRIPT = '/malini/_ld/script.js';
+const LOGDASH_EVENTS = '/malini/_ld/events';
+const MAX_EVENTS_BYTES = 32768;
+const EDGE_HOUR: RequestInit & { cf: object } = {
+	cf: { cacheEverything: true, cacheTtlByStatus: { '200-299': 3600 } },
+};
+
+async function logdashScript(): Promise<Response> {
+	const upstream = await fetch('https://logdash.io/sdk/web.js', EDGE_HOUR);
+	if (!upstream.ok) return new Response(null, { status: 502 });
+	return new Response(upstream.body, {
+		headers: {
+			'Content-Type': 'application/javascript; charset=utf-8',
+			'Cache-Control': 'public, max-age=3600',
+		},
+	});
+}
+
+function refuse(status: number, error: string): Response {
+	return Response.json({ error }, { status, headers: { 'Cache-Control': 'no-store' } });
+}
+
+function onMalini(event: unknown): boolean {
+	return (
+		typeof event === 'object' &&
+		event !== null &&
+		'path' in event &&
+		typeof event.path === 'string' &&
+		event.path.startsWith('/malini')
+	);
+}
+
+function maliniBatch(text: string): boolean {
+	try {
+		const body: unknown = JSON.parse(text);
+		return (
+			typeof body === 'object' &&
+			body !== null &&
+			'siteId' in body &&
+			body.siteId === LOGDASH_SITE &&
+			'events' in body &&
+			Array.isArray(body.events) &&
+			body.events.length > 0 &&
+			body.events.length <= 20 &&
+			body.events.every(onMalini)
+		);
+	} catch {
+		return false;
+	}
+}
+
+async function logdashEvents(request: Request): Promise<Response> {
+	if (!request.headers.get('Content-Type')?.startsWith('application/json'))
+		return refuse(415, 'Send JSON.');
+	const bytes = await request.arrayBuffer();
+	if (bytes.byteLength > MAX_EVENTS_BYTES) return refuse(413, 'The request is too large.');
+	const text = new TextDecoder().decode(bytes);
+	if (!maliniBatch(text)) return refuse(400, 'Send 1 to 20 events from a Malini page.');
+	const headers = new Headers({ 'Content-Type': 'application/json' });
+	for (const [name, value] of [
+		['Origin', request.headers.get('Origin')],
+		['User-Agent', request.headers.get('User-Agent')],
+		['X-Logdash-Client-IP', request.headers.get('CF-Connecting-IP')],
+	] as const)
+		if (value) headers.set(name, value);
+	const upstream = await fetch('https://api.logdash.io/web_events', {
+		method: 'POST',
+		headers,
+		body: text,
+	});
+	return new Response(upstream.body, {
+		status: upstream.status,
+		headers: {
+			'Content-Type': upstream.headers.get('Content-Type') ?? 'text/plain',
+			'Cache-Control': 'no-store',
+		},
+	});
+}
 
 function cacheControl(pathname: string): string | null {
 	if (pathname.startsWith(IMMUTABLE_PREFIX)) return IMMUTABLE;
@@ -27,6 +107,8 @@ function withPolicy(response: Response, url: URL): Response {
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
+		if (url.pathname === LOGDASH_SCRIPT) return logdashScript();
+		if (url.pathname === LOGDASH_EVENTS) return logdashEvents(request);
 		if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
 			const target = new URL(url);
 			target.pathname = url.pathname.replace(/\/+$/u, '') || '/';

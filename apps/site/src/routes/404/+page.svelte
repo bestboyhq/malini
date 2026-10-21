@@ -1,33 +1,56 @@
 <script lang="ts">
-	import { docHref } from '$lib/links';
+	import { docHref, HOME } from '$lib/links';
 	import Head from '$lib/Head.svelte';
 </script>
 
 <Head title="Not found - Malini" description="This page does not exist." path="/404" noindex />
 
-<section class="missing">
+<section class="wrap missing">
+	<p class="code">404</p>
 	<h1>Not found</h1>
-	<p>This page does not exist.</p>
-	<p>
-		<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
-	</p>
+	<p class="sub">This page does not exist.</p>
+	<div class="actions">
+		<a class="button primary" href={docHref('/docs')}>Read the docs</a>
+		<a class="button secondary" href={HOME}>Go home</a>
+	</div>
 </section>
 
 <style>
 	.missing {
-		max-width: var(--width);
-		margin: 0 auto;
-		padding: 96px 24px 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding-block: 112px;
 		text-align: center;
 	}
 
+	.code {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 12px;
+		line-height: 16px;
+	}
+
 	h1 {
-		margin: 0 0 8px;
-		font-size: 40px;
+		margin-top: 20px;
+		font-size: clamp(30px, 3.4vw, 40px);
+		font-weight: 550;
+		line-height: 1.1;
 		letter-spacing: -0.03em;
 	}
 
-	p {
-		color: var(--fg-secondary);
+	.sub {
+		margin-top: 20px;
+		color: var(--fg-muted);
+		font-size: 18px;
+		line-height: 1.55;
+	}
+
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 12px;
+		margin-top: 32px;
 	}
 </style>
