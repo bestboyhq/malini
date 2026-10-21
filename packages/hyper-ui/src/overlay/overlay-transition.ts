@@ -28,7 +28,7 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 	};
 }
 
-function transformOriginFor(side: MenuSide, align: MenuAlign): string {
+export function transformOriginFor(side: MenuSide, align: MenuAlign): string {
 	if (side === 'top' || side === 'bottom') {
 		const vertical = side === 'top' ? 'bottom' : 'top';
 		const horizontal = align === 'end' ? 'right' : align === 'center' ? 'center' : 'left';

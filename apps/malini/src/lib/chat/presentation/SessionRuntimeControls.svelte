@@ -8,10 +8,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 	import {
 		contextBreakdown,
 		contextPressure,
@@ -24,8 +21,8 @@
 		usagePressure,
 		withLiveContext,
 		type ContextPressure,
-		type McpServerSnapshot,
 	} from './session-runtime-metadata';
+	import McpServerRow from './McpServerRow.svelte';
 	import { TranscriptFactsProjector } from './transcript-facts';
 
 	interface Props {
@@ -128,15 +125,6 @@
 				? [`${days}d`, hours && `${hours}h`]
 				: [hours && `${hours}h`, minutes % 60 && `${minutes % 60}m`];
 		return `Resets in ${parts.filter(Boolean).join(' ')}`;
-	}
-
-	function mcpStatusLabel(server: McpServerSnapshot): string {
-		if (server.status === 'connected') return `${server.displayName} connected`;
-		if (server.status === 'needs-auth') return `${server.displayName} needs authentication`;
-		if (server.status === 'pending') return `${server.displayName} is connecting`;
-		if (server.status === 'disabled') return `${server.displayName} is disabled`;
-		const reason = sanitizeFailureDetail(server.error);
-		return reason ? `${server.displayName} failed: ${reason}` : `${server.displayName} failed`;
 	}
 </script>
 
@@ -401,52 +389,7 @@
 				{:else}
 					<ul class="mt-2 space-y-0.5">
 						{#each metadata.mcpServers as server (server.name)}
-							<li
-								class="flex min-w-0 items-start gap-2 rounded-md px-1.5 py-1.5 text-xs"
-								data-testid="session-mcp-status-row"
-								data-mcp-server-id={server.name}
-								data-mcp-usable={server.usable ? 'true' : 'false'}
-							>
-								<span
-									class={[
-										'mt-0.5 shrink-0',
-										server.status === 'connected'
-											? 'text-success-content'
-											: server.status === 'failed' || server.status === 'needs-auth'
-												? 'text-error-content'
-												: 'text-fg-tertiary',
-									]}
-								>
-									{#if server.status === 'connected'}
-										<Icon name="check" size={14} />
-									{:else if server.status === 'pending'}
-										<LoadingCircle size={14} />
-									{:else if server.status === 'failed' || server.status === 'needs-auth'}
-										<Icon name="alert" size={14} />
-									{:else}
-										<Icon name="circle" size={14} />
-									{/if}
-								</span>
-								<div class="min-w-0 flex-1">
-									<Tooltip
-										content={`MCP server ID: ${server.name}`}
-										placement="top"
-										class="min-w-0"
-									>
-										<p
-											class="text-fg-default truncate font-medium"
-											data-testid="session-mcp-display-name"
-										>
-											{server.displayName}
-										</p>
-									</Tooltip>
-									{#if server.status !== 'connected'}
-										<p class="text-2xs text-fg-tertiary mt-0.5 leading-4 break-words">
-											{mcpStatusLabel(server)}
-										</p>
-									{/if}
-								</div>
-							</li>
+							<McpServerRow {server} {sessionId} />
 						{/each}
 					</ul>
 				{/if}

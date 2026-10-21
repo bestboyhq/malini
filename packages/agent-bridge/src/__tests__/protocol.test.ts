@@ -302,6 +302,25 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
+		it('parses MCP server commands and rejects one without a server', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"authorize_mcp_server","id":"mcp-1","sessionId":"session-1","serverName":"linear"}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'authorize_mcp_server',
+					id: 'mcp-1',
+					sessionId: 'session-1',
+					serverName: 'linear',
+				},
+			});
+			expect(
+				parseCommandLine('{"cmd":"reconnect_mcp_server","id":"mcp-2","sessionId":"session-1"}').ok,
+			).toBe(false);
+		});
+
 		it('parses a stop_task command and rejects one without a task', () => {
 			expect(
 				parseCommandLine(
@@ -452,6 +471,8 @@ describe('protocol: parseCommandLine', () => {
 				'answer_question',
 				'refresh_capabilities',
 				'refresh_session_status',
+				'authorize_mcp_server',
+				'reconnect_mcp_server',
 				'stop_task',
 				'suggest_title',
 				'list_skills',
@@ -467,6 +488,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.protocol_error',
 				'bridge.title',
 				'bridge.skills',
+				'bridge.mcp_authorization',
 				'bridge.browser_request',
 				'bridge.platform_request',
 			]);

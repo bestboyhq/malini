@@ -15,6 +15,7 @@
 		overlaySurface,
 		resolveOverlayZIndex,
 		returnFocus,
+		transformOriginFor,
 	} from '../../overlay';
 
 	type Side = 'top' | 'bottom' | 'left' | 'right';
@@ -182,7 +183,7 @@
 			return;
 		}
 		clearTimers();
-		hoverSuppressed = true;
+		hoverSuppressed = triggerEl.matches(':hover');
 		setOpen(false);
 	}
 
@@ -216,6 +217,7 @@
 		cardEl.style.top = edges.top;
 		cardEl.style.bottom = edges.bottom;
 		cardEl.style.pointerEvents = 'auto';
+		cardEl.style.transformOrigin = transformOriginFor(position.actualSide, align);
 		activeSide = position.actualSide;
 	}
 

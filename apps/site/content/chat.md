@@ -50,7 +50,8 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- The context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers are one click from the composer, read live from the chat's Claude Code when you open them.
+- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers, read live from the chat's Claude Code.
+- An MCP server that needs you shows its fix in that list: **Sign in** opens the server's sign-in page in your browser, **Retry** reconnects one that failed, and its row shows a check once it connects.
 
 ## Undo, edit, fork
 
