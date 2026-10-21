@@ -316,6 +316,7 @@ let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
 let jobRuns: Map<string, JobRunRecord>;
 let jobContexts: Map<string, string>;
+let jobStarting: (() => Promise<void>) | null;
 let settings: Record<string, string>;
 let shipEvents: ShipChangedEvent[];
 let commits: { workstreamId: string; message: string; runId: string | null; sha: string }[];
@@ -528,7 +529,8 @@ function defineFakes(): void {
 	commands.define('app.list-settings', () => ({ ...settings }));
 	commands.define('jobs.list-definitions', () => DEFINITIONS);
 	commands.define('jobs.list-runs', () => [...jobRuns.values()]);
-	commands.define('jobs.run', (args: RunJobArgs) => {
+	commands.define('jobs.run', async (args: RunJobArgs) => {
+		await jobStarting?.();
 		const index = jobRuns.size + 1;
 		const workstreamId = args.workstreamId ?? null;
 		const definition = DEFINITIONS.find((candidate) => candidate.id === args.definitionId);
@@ -633,6 +635,7 @@ beforeEach(() => {
 	openRuns = new Set();
 	jobRuns = new Map();
 	jobContexts = new Map();
+	jobStarting = null;
 	settings = {};
 	shipEvents = [];
 	commits = [];
@@ -838,6 +841,27 @@ describe('keeping a workstream current with main', () => {
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(jobRuns.size).toBe(1);
+	});
+
+	it('keeps the Update from main it is starting when a merge is queued in the meantime', async () => {
+		await openDraft();
+		behind.set('ws-1', 3);
+		jobStarting = async () => {
+			jobStarting = null;
+			await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		};
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ phase: 'queued', step: 'updating-from-main' }),
+		);
+		const job = activeJob();
+		mergeMain('ws-1');
+		finishJob(job.id, 'succeeded', { summary: 'Merged 3 commits from main' });
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect([...jobRuns.values()].map((run) => run.status)).toEqual(['succeeded']);
 	});
 
 	it('opens a draft asked for while Update from main runs, once the update lands', async () => {
