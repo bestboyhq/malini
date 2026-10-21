@@ -2,7 +2,7 @@ import type { AgentTheme } from '$contract/agent';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
-import { serviceNamingJob } from '$lib/jobs/jobs.platform';
+import { chatNamingJob, serviceNamingJob } from '$lib/jobs/jobs.platform';
 import { stopBackgroundTask, stopWorkstreamBackgroundCommands } from './agent/commands';
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
@@ -42,6 +42,7 @@ export interface ChatPlatform {
 	stopBackgroundTask(sessionId: string, taskId: string): Promise<void>;
 	stopWorkstreamBackgroundCommands(workstreamId: string): Promise<void>;
 	nameService(task: string): Promise<string>;
+	nameWorkstream(task: string): Promise<string>;
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -105,5 +106,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
 		nameService: async (task) =>
 			(await agent.ensureReady()).suggestTitle(task, serviceNamingJob(context.db)),
+		nameWorkstream: async (task) =>
+			(await agent.ensureReady()).suggestTitle(task, chatNamingJob(context.db)),
 	};
 }

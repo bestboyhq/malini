@@ -793,6 +793,31 @@ const respond = async (sessionId, runId, prompt) => {
 					: '',
 	);
 };
+const mcpServers = new Map();
+const mcpOf = (sessionId) => {
+	if (!mcpServers.has(sessionId)) {
+		mcpServers.set(
+			sessionId,
+			env.FAKE_BRIDGE_MCP_SERVERS
+				? JSON.parse(env.FAKE_BRIDGE_MCP_SERVERS)
+				: [{ name: 'fs', status: 'connected' }],
+		);
+	}
+	return mcpServers.get(sessionId);
+};
+const reportMcp = (sessionId) => {
+	const runId = lastRuns.get(sessionId);
+	if (runId) event({ type: 'mcp.status', runId, servers: mcpOf(sessionId) });
+};
+const connectMcp = (sessionId, serverName) => {
+	mcpServers.set(
+		sessionId,
+		mcpOf(sessionId).map((server) =>
+			server.name === serverName ? { name: serverName, status: 'connected' } : server,
+		),
+	);
+	reportMcp(sessionId);
+};
 const handle = (command) => {
 	switch (command.cmd) {
 		case 'start_session':
@@ -904,11 +929,26 @@ const handle = (command) => {
 		case 'refresh_session_status': {
 			const runId = lastRuns.get(command.sessionId);
 			if (!runId) return ack(command.id);
-			event({ type: 'mcp.status', runId, servers: [{ name: 'fs', status: 'connected' }] });
+			reportMcp(command.sessionId);
 			if (env.FAKE_BRIDGE_REFRESHED_CONTEXT) {
 				const context = JSON.parse(env.FAKE_BRIDGE_REFRESHED_CONTEXT);
 				event({ type: 'usage.updated', runId, ...context, interim: true });
 			}
+			return ack(command.id);
+		}
+		case 'authorize_mcp_server': {
+			write({
+				type: 'bridge.mcp_authorization',
+				protocolVersion: version,
+				id: command.id,
+				authUrl: 'https://auth.example.test/' + command.serverName,
+			});
+			ack(command.id);
+			setTimeout(() => connectMcp(command.sessionId, command.serverName), 300);
+			return;
+		}
+		case 'reconnect_mcp_server': {
+			connectMcp(command.sessionId, command.serverName);
 			return ack(command.id);
 		}
 		case 'list_skills': {

@@ -101,9 +101,9 @@ describe('branchList', () => {
 });
 
 describe('addWorktree', () => {
-	it('t6 rejects a branch without the workstream prefix', async () => {
-		await expect(addWorktree('/base', '/wt', 'feature/x', 'main')).rejects.toThrow(
-			'unsafe path: branch `feature/x` does not start with `malini/`',
+	it('t6 rejects a branch name git would read as an option', async () => {
+		await expect(addWorktree('/base', '/wt', '-x', 'main')).rejects.toThrow(
+			'unsafe path: invalid branch `-x`',
 		);
 	});
 

@@ -126,8 +126,7 @@ async function retireCheckout(
 	if (wasArchived && retirement === 'archived') {
 		throw new WorkstreamRemovalError('failed', 'It is already archived', null);
 	}
-	const branch =
-		row && !wasArchived && row.branch === workstreamBranchName(workstreamId) ? row.branch : null;
+	const branch = row && !wasArchived ? row.branch : null;
 	const repository =
 		(checkout === null ? null : await owningRepositoryOfCheckout(checkout)) ??
 		recordedBaseRepository(db, appDataRoot, workstreamId);

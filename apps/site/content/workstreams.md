@@ -7,6 +7,7 @@ description: A workstream is one task in Malini - its own git worktree, branch, 
 
 The **+** next to a repository starts a workstream.
 Every workstream is its own **git worktree** on a branch named `malini/<id>`, branched from a private clone of the repository.
+A workstream opened from one of your pull requests keeps that pull request's branch.
 Malini installs dependencies for you from the lockfile: pnpm, npm, yarn, or bun.
 
 Two agents never edit one checkout, so they never clobber each other.
@@ -35,6 +36,14 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 
 A repository opens on its **scratchpad**, where you keep ideas.
 Any paragraph moves into a new workstream.
+
+## Your open pull requests
+
+Add a repository, and every pull request you have open in it opens as a workstream on its own branch, so you pick up where you left off.
+Claude names each one from its title.
+Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
+A workstream you delete stays deleted.
+Like every workstream, each one is kept current: a pull request that falls behind its base or conflicts gets **Update from main**.
 
 ## From prompt to merged
 

@@ -43,7 +43,7 @@ test('Cmd+W closes the current tab, then archives the workstream once no tab is 
 			page,
 			source,
 			'e2e-close-tab-ws',
-			'Close tab workstream',
+			'Signal Harbor',
 		);
 		await openWorkstream(page, workstreamId);
 		const first = await chatAbout(page, 'first chat');

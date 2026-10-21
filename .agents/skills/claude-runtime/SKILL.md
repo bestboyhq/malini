@@ -22,6 +22,7 @@ Malini owns the rest, and the adapter enforces it:
   A user's deny returns `interrupt: true`, so the run stops the way it does in the `claude` CLI and ends as cancelled.
 - Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, routine and event tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
   The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `routines_save` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
+- MCP sign-in: `authorize_mcp_server` opens a probe Claude Code in the chat's worktree and calls the SDK's untyped `mcpAuthenticate`, which answers with the link Malini opens; the probe stays open until the server connects, then the chat's own process reconnects it (`mcp-servers.ts`, `docs/adr/0040-mcp-servers-sign-in-through-a-claude-code-probe.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
 - Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.
@@ -67,6 +68,7 @@ Stop the proxy by its PID once the recording ends.
    `minimumReleaseAge` holds back releases younger than two days.
 2. Re-record every scenario in `transcripts.json` and diff the shapes against the old recording.
    Map each new or changed message before you trust the tests.
+   Call `mcpAuthenticate` on a server that needs authentication from a scratch probe and check it still answers with `authUrl` and `callbackExpected`, since the SDK's types do not cover it.
 3. `corepack pnpm --filter @malini/agent-bridge test`, then `pnpm check`.
 4. The packaged app copies the SDK's dependency closure into `dist/node_modules` (`scripts/copy-runtime-dependencies.mjs`); run `pnpm dist` once and send a prompt from the built `.app`.
 
