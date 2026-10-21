@@ -311,6 +311,7 @@ describe('BrowserViews', () => {
 				loading: false,
 				canGoBack: false,
 				canGoForward: false,
+				failure: null,
 			},
 		]);
 		expect(browser.state(OTHER_TAB)).toMatchObject({ ...OTHER_TAB, url: '' });
@@ -393,6 +394,17 @@ describe('BrowserViews', () => {
 		expect(opened).toEqual([TAB]);
 	});
 
+	it('shows the agent its new tab even when the first page fails to load', async () => {
+		const { browser, viewAt, opened } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		viewAt(0).contents.loadFailures.push('ERR_NAME_NOT_RESOLVED');
+
+		await expect(browser.open(TAB, 'https://nowhere.example')).rejects.toThrow(
+			'ERR_NAME_NOT_RESOLVED',
+		);
+		expect(opened).toEqual([TAB]);
+	});
+
 	it('opens a file from the worktree as a page of its own workstream', async () => {
 		const { browser, viewAt } = setup();
 		await browser.open(TAB, '/work/ws-1/docs/a b.html');
@@ -439,18 +451,22 @@ describe('BrowserViews', () => {
 		}
 	});
 
-	it('refuses to capture or act on a page that did not load, until it loads again', async () => {
+	it('reports a page that did not load, through every retry, until one loads', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-failed-'));
 		roots.push(worktree);
-		const { browser, viewAt } = setup();
+		const { browser, states, viewAt } = setup();
 		await browser.open(TAB, 'localhost:5173');
 		viewAt(0).events.navigating();
 		viewAt(0).events.failed('ERR_CONNECTION_REFUSED');
 
 		const failed = 'http://localhost:5173/ did not load (ERR_CONNECTION_REFUSED).';
+		expect(states.at(-1)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
 		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(failed);
 		await expect(browser.click(TAB, 'a')).rejects.toThrow(failed);
 		viewAt(0).events.navigating();
+		expect(browser.state(TAB)).toMatchObject({ failure: 'ERR_CONNECTION_REFUSED' });
+		viewAt(0).events.committed();
+		expect(browser.state(TAB)).toMatchObject({ failure: null });
 		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({
 			url: 'http://localhost:5173/',
 		});

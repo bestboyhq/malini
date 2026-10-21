@@ -38,7 +38,10 @@ export function createElectronView(events: PageEvents): PageView<BrowserWindow> 
 	});
 	contents.on('did-start-loading', () => events.changed());
 	contents.on('did-stop-loading', () => events.changed());
-	contents.on('did-navigate', () => events.changed());
+	contents.on('did-navigate', () => {
+		events.committed();
+		events.changed();
+	});
 	contents.on('did-navigate-in-page', (_event, _url, isMainFrame) => {
 		if (isMainFrame) events.changed();
 	});

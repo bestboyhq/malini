@@ -138,6 +138,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			loading: false,
 			canGoBack: false,
 			canGoForward: false,
+			failure: null,
 		};
 	}
 
@@ -195,8 +196,9 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			const address = this.address(tab, url);
 			const fresh = this.openContents(tab) === null;
 			const { contents } = this.ensure(tab).view;
-			await openUrl(contents, address);
+			const opening = openUrl(contents, address);
 			if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
+			await opening;
 			return pageInfo(contents);
 		});
 	}
@@ -315,12 +317,13 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 					entry.favicon = favicon;
 					this.changed(entry);
 				},
-				navigating: () => {
+				navigating: () => entry.pick?.controller.abort(),
+				committed: () => {
 					entry.failure = null;
-					entry.pick?.controller.abort();
 				},
 				failed: (reason) => {
 					entry.failure = reason;
+					this.changed(entry);
 				},
 				gone: () => {
 					entry.alive = false;
@@ -398,7 +401,7 @@ function tabKey(tab: BrowserTabArgs): string {
 	return `${tab.workstreamId}/${tab.tabId}`;
 }
 
-function stateOf<W extends HostWindow>({ tab, view, favicon }: Entry<W>): BrowserState {
+function stateOf<W extends HostWindow>({ tab, view, favicon, failure }: Entry<W>): BrowserState {
 	const { contents } = view;
 	return {
 		...tab,
@@ -408,6 +411,7 @@ function stateOf<W extends HostWindow>({ tab, view, favicon }: Entry<W>): Browse
 		loading: contents.isLoading(),
 		canGoBack: contents.navigationHistory.canGoBack(),
 		canGoForward: contents.navigationHistory.canGoForward(),
+		failure,
 	};
 }
 
