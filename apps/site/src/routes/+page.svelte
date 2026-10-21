@@ -353,7 +353,10 @@
 			<div class="end">
 				<div class="rise">
 					<h2 id="start-title">Start with the task you’ve put off.</h2>
-					<p class="sub">Download Malini, connect Claude Code and GitHub, and add a repository.</p>
+					<p class="sub">
+						Download Malini, connect Claude Code and GitHub, and ship the thing you wish already
+						existed.
+					</p>
 				</div>
 				<div class="close-actions rise">
 					<div class="actions">
