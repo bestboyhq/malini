@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { afterNavigate, goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -34,6 +33,7 @@
 		type WorkstreamProvisioningRecord,
 	} from '$shared/repositories/repositories.api';
 	import { displayWorkstreamName } from '$shared/repositories/repositories.api';
+	import { namedWorkstreamsQuery } from '$shared/repositories/repositories.api';
 	import type {
 		PullRequestBadge,
 		PullRequestPhase,
@@ -52,6 +52,7 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { RenameText } from '$hyper-ui/components/rename-text';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { runtimeDiagnostics } from '$shared/performance/runtime-diagnostics.svelte';
@@ -789,7 +790,7 @@
 								align="start"
 								sideOffset={12}
 								openDelay={500}
-								pinnable={false}
+								triggerPress="dismiss"
 								triggerClass="w-full"
 								panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
 								testId="sidebar-repository-card"
@@ -1107,9 +1108,12 @@
 																	suppressed={running !== null}
 																	class="min-w-0 flex-1 truncate"
 																>
-																	<span class="min-w-0 flex-1 truncate">
-																		<SensitiveText text={label} />
-																	</span>
+																	<RenameText
+																		text={label}
+																		shimmer={namedWorkstreamsQuery.data(workstream.id)}
+																		class="block"
+																		textClass="block truncate"
+																	/>
 																</Tooltip>
 																{#if hasDraft}
 																	<span

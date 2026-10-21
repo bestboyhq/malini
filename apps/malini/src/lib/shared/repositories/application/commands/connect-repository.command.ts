@@ -1,27 +1,18 @@
 import type { RepositoryImportSource } from '$shared/repositories/domain/github-auth';
-import {
-	projectIdentityCandidatesForRepoUrl,
-	projectIdentityForRepoUrl,
-	nextWorkstreamId,
-} from '$shared/repositories/domain/project-identity';
-import type { Project } from '$shared/repositories/domain/repository';
+import { projectIdentityCandidatesForRepoUrl } from '$shared/repositories/domain/project-identity';
+import type { Repository } from '$shared/repositories/domain/repository';
 import {
 	repositoryConnectFailure,
 	repositoryConnectionFor,
 } from '$shared/repositories/domain/repository-connection';
 import { repositoryCloneSource } from '$shared/repositories/domain/repository-context';
-import { workstreamFromCreated, type Workstream } from '$shared/repositories/domain/workstream';
-import {
-	takenWorkstreamNames,
-	uniqueWorkstreamName,
-} from '$shared/repositories/domain/workstream-names';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
 import { repositoryConnectionStore } from '$shared/repositories/infrastructure/stores/repository-connection.store.svelte';
 import { goto } from '$shared/router/navigation';
-import { workstreamHref } from '$shared/router/routes-hrefs';
-import { seedWorkstreamDependenciesCommand } from './seed-workstream-dependencies.command';
+import { repositoryHref } from '$shared/router/routes-hrefs';
+import { syncOwnPullRequestsCommand } from './sync-own-pull-requests.command';
 
 export { connectRepositoryCommand };
 
@@ -31,11 +22,10 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 	repositoryConnectionStore.error = null;
 	void (async () => {
 		try {
-			const workstream = await connectAndOpenWorkstream(source);
-			seedWorkstreamDependenciesCommand(workstream.id);
-			void repositoriesAggregate.refresh();
-			await goto(workstreamHref(workstream.id));
+			const repo = await connectAndRecordProject(source);
+			await goto(repositoryHref(repo.id));
 			onConnected?.();
+			syncOwnPullRequestsCommand();
 		} catch (caught) {
 			const failure = repositoryConnectFailure(caught, 'Failed to connect repository', source);
 			repositoryConnectionStore.error = failure;
@@ -45,48 +35,28 @@ function connectRepositoryCommand(source: RepositoryImportSource, onConnected?: 
 	})();
 }
 
-async function connectAndOpenWorkstream(source: RepositoryImportSource): Promise<Workstream> {
+async function connectAndRecordProject(source: RepositoryImportSource): Promise<Repository> {
 	const { repo, created } = await repositoriesAggregate.connect(source);
-	const repoUrl = repositoryCloneSource(repo);
-	const workstreamId = nextWorkstreamId();
-	const baseBranch = repo.defaultBranch || 'main';
-	let workstream: Workstream;
 	try {
-		const project = await existingOrClonedProject(repoUrl, baseBranch);
-		workstream = workstreamFromCreated(
-			await workstreamsService.createWorkstream({
-				projectId: project.id,
-				projectRepoPath: project.repoPath,
-				workstreamId,
-				name: uniqueWorkstreamName(
-					workstreamId,
-					takenWorkstreamNames(workstreamsAggregate.workstreams),
-				),
-				baseBranch,
-			}),
-		);
+		await recordProject(repositoryCloneSource(repo), repo.defaultBranch || 'main');
 	} catch (connectionError) {
 		if (created) await rollbackConnectedRepository(repo.id);
 		throw connectionError;
 	}
-	workstreamsAggregate.upsert(workstream);
 	repositoriesAggregate.reveal(repo.id);
 	await Promise.all([repositoriesAggregate.refresh(), workstreamsAggregate.refresh()]);
-	return workstream;
+	return repo;
 }
 
-async function existingOrClonedProject(repoUrl: string, baseBranch: string): Promise<Project> {
+async function recordProject(repoUrl: string, defaultBranch: string): Promise<void> {
 	const projects = await workstreamsService.listProjects();
 	const candidateIds = new Set(
 		projectIdentityCandidatesForRepoUrl(repoUrl).map((identity) => identity.id),
 	);
-	const existing = projects.find(
+	const recorded = projects.some(
 		(project) => candidateIds.has(project.id) && project.repoPath.trim().length > 0,
 	);
-	if (existing) return existing;
-	const identity = projectIdentityForRepoUrl(repoUrl);
-	const repoPath = await workstreamsService.createProject({ repoUrl });
-	return { id: identity.id, name: identity.name, repoPath, defaultBranch: baseBranch };
+	if (!recorded) await workstreamsService.createProject({ repoUrl, defaultBranch });
 }
 
 async function rollbackConnectedRepository(repoId: string): Promise<void> {

@@ -768,6 +768,23 @@ describe('prompt round trips', () => {
 		).toHaveLength(1);
 	});
 
+	it('names the chat but keeps a workstream name that was not generated, like a pull request name', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		run(test.db, "UPDATE workstreams SET name = 'Feature flags' WHERE id = 'ws-1'");
+		await boot({ FAKE_BRIDGE_TITLE: 'Login bug' });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'hey so every time i log in the page goes blank',
+			clientRequestId: 'req-kept-name',
+		});
+		await waitFor(() => getSession(test.db, sessionId)?.displayName === 'Login bug');
+		expect(getWorkstream(test.db, 'ws-1')?.name).toBe('Feature flags');
+		expect(
+			test.events.frames.filter((f) => f.channel === REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL),
+		).toEqual([]);
+	});
+
 	it('names nothing after a prompt malini wrote, then names the workstream and the chat from the first prompt the user writes', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

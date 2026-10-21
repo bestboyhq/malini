@@ -198,6 +198,7 @@ export { repositoryContextQuery } from './application/queries/repository-context
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
 export { workstreamByIdQuery } from './application/queries/workstream-by-id.query.svelte';
 export { workstreamNameQuery } from './application/queries/workstream-name.query.svelte';
+export { namedWorkstreamsQuery } from './application/queries/named-workstreams.query.svelte';
 export { workstreamCreationContextQuery } from './application/queries/workstream-creation-context.query.svelte';
 export { workstreamCreationPendingQuery } from './application/queries/workstream-creation-pending.query.svelte';
 export { workstreamDiffQuery } from './application/queries/workstream-diff.query.svelte';

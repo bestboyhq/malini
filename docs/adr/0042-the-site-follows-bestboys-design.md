@@ -1,4 +1,4 @@
-# 0040 - The site follows Bestboy's design
+# 0042 - The site follows Bestboy's design
 
 Status: accepted
 

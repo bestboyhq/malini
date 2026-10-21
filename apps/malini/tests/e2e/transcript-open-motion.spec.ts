@@ -40,6 +40,7 @@ type Frame = Readonly<{
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const STILL_PX = 1;
 const SETTLE_MS = 1_200;
+const MIN_FRAMES_AFTER_OPENING = 10;
 
 async function overflowingChat(app: LaunchedApp, name: string, changes: boolean): Promise<string> {
 	const { page } = app;
@@ -107,7 +108,21 @@ function sampleOpening({ workstreamId, latestRun }: SampleTarget): void {
 }
 
 async function sampledFrames(page: Page): Promise<Frame[]> {
+	await page.waitForFunction(
+		() => globalThis.openMotion.frames.some((frame) => frame.shown && frame.latestRunBottom > 0),
+		undefined,
+		{ timeout: 20_000 },
+	);
 	await page.waitForTimeout(SETTLE_MS);
+	await page.waitForFunction(
+		(minimum) => {
+			const { frames } = globalThis.openMotion;
+			const drawn = frames.findIndex((frame) => frame.shown && frame.latestRunBottom > 0);
+			return frames.length - drawn - 1 > minimum;
+		},
+		MIN_FRAMES_AFTER_OPENING,
+		{ timeout: 20_000 },
+	);
 	return page.evaluate(() => {
 		globalThis.openMotion.sampling = false;
 		return globalThis.openMotion.frames;
@@ -134,7 +149,9 @@ function expectStillAfterOpening(frames: readonly Frame[], label: string): void 
 	const opened = frames.findIndex((frame) => frame.shown);
 	expect(opened, `${label}: the chat opened`).toBeGreaterThanOrEqual(0);
 	const after = frames.slice(opened);
-	expect(after.length, `${label}: frames sampled after opening`).toBeGreaterThan(10);
+	expect(after.length, `${label}: frames sampled after opening`).toBeGreaterThan(
+		MIN_FRAMES_AFTER_OPENING,
+	);
 	const bottoms = after.map((frame) => frame.latestRunBottom);
 	expect(
 		Math.round(Math.max(...bottoms) - Math.min(...bottoms)),

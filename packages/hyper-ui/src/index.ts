@@ -20,6 +20,7 @@ export * from './components/modal';
 export * from './components/popover';
 export * from './components/presence-dot';
 export * from './components/pro-badge';
+export * from './components/rename-text';
 export * from './components/resizable-split';
 export * from './components/scrollable-div';
 export * from './components/select';

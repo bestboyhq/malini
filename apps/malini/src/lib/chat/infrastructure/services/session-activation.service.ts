@@ -345,12 +345,6 @@ class SessionActivationService {
 			workstreamId,
 			model: selection.model,
 		});
-		transcriptAggregate.rememberOwner(sessionId, workstreamId);
-		sessionsAggregate.ensureSession({
-			sessionId,
-			workstreamId,
-			model: selection.model,
-		});
 		writeChatModelSnapshot(sessionId, { role, selection });
 		if (previousSessionWasEmpty && previousSessionId && previousSessionId !== sessionId) {
 			try {

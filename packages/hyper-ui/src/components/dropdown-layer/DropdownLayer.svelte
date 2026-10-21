@@ -14,6 +14,7 @@
 		overlaySurface,
 		registerEscapeScope,
 		resolveOverlayZIndex,
+		transformOriginFor,
 		type MenuAlign,
 		type MenuSide,
 	} from '../../overlay';
@@ -96,6 +97,7 @@
 		});
 		panelEl.style.top = `${position.top}px`;
 		panelEl.style.left = `${position.left}px`;
+		panelEl.style.transformOrigin = transformOriginFor(position.actualSide, align);
 		actualSide = position.actualSide;
 	}
 

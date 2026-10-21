@@ -128,3 +128,50 @@ test('a command that exits non-zero shows its exit code quietly, an edit and a r
 		await app.close();
 	}
 });
+
+test('a file card opens on the first hover after the chat scrolls past its row', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-hover-after-scroll-ws',
+			'Hover after scroll workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'EDIT_TOOL STREAM:30 Fill the chat');
+		await expect(page.locator('[data-run-terminal="completed"]')).toHaveCount(1, {
+			timeout: 30_000,
+		});
+
+		const scroller = page.getByTestId('chat-message-scroller');
+		const edit = page.getByRole('button', { name: 'Show changes to notes.md' });
+		const box = await scroller.boundingBox();
+		if (!box) throw new Error('the transcript is not laid out');
+		await page.mouse.move(box.x + box.width - 16, box.y + box.height / 2);
+		await expect
+			.poll(async () => {
+				await page.mouse.wheel(0, -400);
+				return edit.evaluate((chip) => {
+					const rect = chip.getBoundingClientRect();
+					const { documentElement } = chip.ownerDocument;
+					const hit = chip.ownerDocument.elementFromPoint(
+						rect.x + rect.width / 2,
+						rect.y + rect.height / 2,
+					);
+					return chip.contains(hit) && rect.bottom < documentElement.clientHeight / 2;
+				});
+			})
+			.toBe(true);
+
+		const chip = await edit.boundingBox();
+		if (!chip) throw new Error('the edit chip is not laid out');
+		await page.mouse.move(chip.x + chip.width / 2, chip.y + chip.height / 2);
+		await expect(page.getByRole('region', { name: 'Changes to notes.md' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

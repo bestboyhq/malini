@@ -3,6 +3,7 @@
 	import type { WorkstreamRunning } from '$contract/stats';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { RenameText } from '$hyper-ui/components/rename-text';
 	import { Icon } from '$hyper-ui/icons';
 	import { stopRunningCommand } from '$lib/stats/application/commands/stop-running.command';
 	import { stoppingRunningItemsQuery } from '$lib/stats/application/queries/stopping-running-items.query.svelte';
@@ -53,7 +54,12 @@
 						size={12}
 						class="text-fg-tertiary shrink-0"
 					/>
-					<span class="text-fg-default max-w-36 shrink-0 truncate font-medium">{item.name}</span>
+					<RenameText
+						text={item.name}
+						shimmer
+						class="text-fg-default max-w-36 shrink-0 font-medium"
+						textClass="block truncate"
+					/>
 					<span class="text-2xs text-fg-tertiary min-w-0 flex-1 truncate font-mono">
 						{item.detail}
 					</span>
