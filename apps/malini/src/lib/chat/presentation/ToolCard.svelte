@@ -2,7 +2,9 @@
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
+	import DiffViewer from './DiffViewer.svelte';
 	import EditDiffPreview from './EditDiffPreview.svelte';
+	import FilePreviewHeader from './FilePreviewHeader.svelte';
 	import ExpandMark from './ExpandMark.svelte';
 	import FileToolRow from './FileToolRow.svelte';
 	import ReadFilePreview from './ReadFilePreview.svelte';
@@ -11,7 +13,7 @@
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
 	import { toolImageRead } from './tool-image-read';
 	import { toolInputBlocks, toolOutputBlock } from './tool-payload';
-	import { editDiffstat } from './edit-diffstat';
+	import { editDiffstat, editHunks } from './edit-diffstat';
 	import { formatToolDuration } from './render-state';
 	import { relativizeWorkstreamPath } from './workstream-path';
 	import {
@@ -75,6 +77,19 @@
 	const description = $derived(toolDescriptionLabel(name, labelInput));
 
 	const diffstat = $derived(actionKind === 'edit' ? editDiffstat(labelInput) : null);
+	const editChange = $derived(actionKind === 'edit' ? editHunks(labelInput) : []);
+	const writtenFile = $derived(
+		actionKind === 'edit' && isRecord(labelInput) && typeof labelInput['content'] === 'string'
+			? numberedLines(labelInput['content'])
+			: null,
+	);
+	const previewName = $derived(
+		actionKind === 'read' || (editChange.length === 0 && writtenFile !== null)
+			? 'contents of'
+			: editChange.length > 0
+				? 'changes to'
+				: 'current changes to',
+	);
 	const editPath = $derived(
 		stringAt(labelInput, [
 			'file_path',
@@ -111,6 +126,14 @@
 		return typeof value === 'object' && value !== null;
 	}
 
+	function numberedLines(text: string): string {
+		return text
+			.replace(/\n$/u, '')
+			.split('\n')
+			.map((line, index) => `${index + 1}\t${line}`)
+			.join('\n');
+	}
+
 	const LIVE_JSON_TRUNCATE_LENGTH = 2_000;
 
 	function truncateLiveJson(json: string): string {
@@ -140,15 +163,13 @@
 		verb={displayName}
 		icon={actionKind === 'edit' ? 'pencil' : 'note'}
 		path={editPath}
-		previewName={actionKind === 'edit' ? 'current changes to' : 'contents of'}
+		{previewName}
 		live={status === 'running' && !waiting}
 		{diffstat}
 		{durationLabel}
 	>
 		{#snippet preview(relativePath)}
-			{#if actionKind === 'edit'}
-				<EditDiffPreview {workstreamId} path={relativePath} />
-			{:else}
+			{#if actionKind === 'read'}
 				<ReadFilePreview
 					path={relativePath}
 					{output}
@@ -156,6 +177,15 @@
 					{fullOutput}
 					onloadfull={onloadfulloutput}
 				/>
+			{:else if editChange.length > 0}
+				<section aria-label={`Changes to ${relativePath}`} data-testid="edit-change-preview">
+					<FilePreviewHeader path={relativePath} />
+					<DiffViewer hunks={editChange} path={relativePath} />
+				</section>
+			{:else if writtenFile !== null}
+				<ReadFilePreview path={relativePath} output={writtenFile} />
+			{:else}
+				<EditDiffPreview {workstreamId} path={relativePath} />
 			{/if}
 		{/snippet}
 	</FileToolRow>

@@ -65,8 +65,14 @@
 			<BusyIcon class="text-fg-tertiary" size={12} />
 			Loading current changes…
 		</div>
+	{:else if preview && preview.hunks.length > 0}
+		<DiffViewer hunks={preview.hunks} {path} />
 	{:else if preview}
-		<DiffViewer diffText={preview.rawText} />
+		<p class="text-2xs text-fg-tertiary px-2.5 py-3">
+			{preview.noLineChange === 'binary'
+				? 'Binary file - its contents are not shown.'
+				: 'No textual diff available.'}
+		</p>
 	{:else}
 		<p class="text-2xs text-fg-tertiary px-2.5 py-3" data-testid="edit-diff-preview-empty">
 			Nothing to show for this file: the workstream has no uncommitted changes to it right now.

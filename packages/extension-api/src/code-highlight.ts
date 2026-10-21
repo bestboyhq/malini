@@ -693,6 +693,28 @@ function tokenizeMarkup(source: string): CodeToken[] {
 	return tokens;
 }
 
+const EMBEDDED_OPEN = /<(?:script|style)\b/iu;
+const EMBEDDED_CLOSE = /<\/(script|style)\s*>/iu;
+const MARKUP_LINE = /^[ \t]*(?:<[!/?A-Za-z]|\{[#:/@])/mu;
+
+function tokenizeMarkupFragment(source: string): CodeToken[] {
+	const opening = EMBEDDED_OPEN.exec(source);
+	const closing = EMBEDDED_CLOSE.exec(source);
+	if (closing && (!opening || closing.index < opening.index)) {
+		const tokens = tokenize(
+			source.slice(0, closing.index),
+			closing[1]?.toLowerCase() === 'style' ? 'css' : 'typescript',
+		);
+		pushAll(tokens, tokenizeMarkup(source.slice(closing.index)));
+		return tokens;
+	}
+	if (opening || MARKUP_LINE.test(source)) return tokenizeMarkup(source);
+	const detected = detectLanguage(source);
+	return detected === 'typescript' || detected === 'css'
+		? tokenize(source, detected)
+		: tokenizeMarkup(source);
+}
+
 function tokenize(source: string, language: SupportedLanguage): CodeToken[] {
 	if (source.length === 0) return [];
 	switch (language) {
@@ -701,7 +723,7 @@ function tokenize(source: string, language: SupportedLanguage): CodeToken[] {
 		case 'diff':
 			return tokenizeDiff(source);
 		case 'markup':
-			return tokenizeMarkup(source);
+			return tokenizeMarkupFragment(source);
 		case 'markdown':
 			return tokenizeMarkdown(source);
 		case 'php':
