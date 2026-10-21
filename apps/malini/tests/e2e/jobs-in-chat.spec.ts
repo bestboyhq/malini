@@ -34,7 +34,14 @@ test('a job run from the slash list lands in the chat after the turn it followed
 		const input = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 		await input.click();
 		await page.keyboard.type('/', { delay: 10 });
+		const commands = page.getByRole('listbox', { name: 'Claude Code commands' });
 		const jobs = page.getByRole('listbox', { name: 'Jobs' });
+		await expect(
+			commands.getByRole('option', { name: /^\/compact/u, selected: true }),
+		).toBeVisible();
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('ArrowDown');
+		await expect(commands.getByRole('option', { selected: true })).toHaveCount(0);
 		await expect(jobs.getByRole('option', { name: /^Fix checks/u, selected: true })).toBeVisible();
 		await page.keyboard.press('ArrowDown');
 		await expect(jobs.getByRole('option', { name: /^Fix checks/u, selected: true })).toHaveCount(0);

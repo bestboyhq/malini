@@ -19,6 +19,8 @@
 	import { relativizeWorkstreamPath } from './workstream-path';
 	import {
 		backgroundAgentSummary,
+		compactionLabel,
+		isCompaction,
 		summarizeLiveToolInput,
 		toolActionKind,
 		toolActivityLabel,
@@ -154,6 +156,17 @@
 	}
 </script>
 
+{#snippet duration()}
+	{#if durationLabel}
+		<span
+			class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
+			in:fade={{ duration: 190 }}
+		>
+			{durationLabel}
+		</span>
+	{/if}
+{/snippet}
+
 {#if imageRead}
 	<div class="text-sm">
 		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} {onopenimage} />
@@ -188,6 +201,12 @@
 			{/if}
 		{/snippet}
 	</FileToolRow>
+{:else if isCompaction(name)}
+	<div class="text-fg-tertiary flex min-h-6 items-center gap-2 text-sm" data-tool-status={status}>
+		<Icon name="archive" size={14} class="shrink-0" />
+		<ToolLabel title={compactionLabel(status, output)} />
+		{@render duration()}
+	</div>
 {:else}
 	<details class="group/expand text-sm" data-tool-status={status} bind:open={expanded}>
 		<summary
@@ -214,14 +233,7 @@
 				detail={description ? label : null}
 				emphasized={description !== null}
 			/>
-			{#if durationLabel}
-				<span
-					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
-					in:fade={{ duration: 190 }}
-				>
-					{durationLabel}
-				</span>
-			{/if}
+			{@render duration()}
 		</summary>
 
 		{#if contentMounted}

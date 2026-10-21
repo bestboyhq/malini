@@ -4847,5 +4847,110 @@
 			"user_message_uuid": "bff37cd4-f5f4-4f41-adce-8950fbc925bd",
 			"user_message_uuids": ["bff37cd4-f5f4-4f41-adce-8950fbc925bd"]
 		}
+	],
+	"compact": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "b443c17a-7132-4aa9-ae8b-1ba709501c1a",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "compacting",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"uuid": "572a55aa-8cff-4541-a4bf-f1e18a18e75c"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": null,
+			"compact_result": "success",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"uuid": "b97fbf5c-ae91-4ece-9407-7eca65281f5f"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"model": "claude-haiku-4-5-20251001",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "7349d73b-660a-42cb-a871-1e451c2d04f2"
+		},
+		{
+			"type": "system",
+			"subtype": "compact_boundary",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"uuid": "0f1d1400-8657-43dc-956e-130d8c034ce1",
+			"compact_metadata": {
+				"trigger": "manual",
+				"pre_tokens": 15308,
+				"post_tokens": 1290,
+				"duration_ms": 4979
+			},
+			"logical_parent_uuid": "b100f641-a382-49b7-9630-0641bf579a3e"
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:"
+			},
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"parent_tool_use_id": null,
+			"uuid": "8838c045-d56e-46de-915d-4008e8602498",
+			"timestamp": "2026-10-21T14:15:57.888Z",
+			"isReplay": false,
+			"isSynthetic": true
+		},
+		{
+			"type": "user",
+			"message": {
+				"role": "user",
+				"content": "<local-command-stdout>Compacted </local-command-stdout>"
+			},
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"parent_tool_use_id": null,
+			"uuid": "0aedad28-9b88-4781-8d8a-03679bdc83c5",
+			"isReplay": true
+		},
+		{
+			"type": "result",
+			"subtype": "success",
+			"is_error": false,
+			"num_turns": 0,
+			"result": "",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed",
+			"total_cost_usd": 0.004304555,
+			"usage": {
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0
+			},
+			"modelUsage": {
+				"claude-haiku-4-5-20251001": {
+					"inputTokens": 0,
+					"outputTokens": 0,
+					"cacheReadInputTokens": 0,
+					"cacheCreationInputTokens": 0,
+					"contextWindow": 200000
+				}
+			},
+			"permission_denials": [],
+			"uuid": "0be6f22d-ab42-4f02-b1c5-e584c089321a",
+			"user_message_uuids": ["393474de-29f5-4996-9a3e-603f49539517"]
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "5cec97fa-c9a2-44f6-8998-0b9d702eaa81",
+			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed"
+		}
 	]
 }

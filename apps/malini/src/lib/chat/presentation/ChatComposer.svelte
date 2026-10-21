@@ -20,6 +20,7 @@
 	import { releaseDetachedAttachmentsCommand } from '$lib/chat/application/commands/release-detached-attachments.command';
 	import { stageClipboardAttachmentsCommand } from '$lib/chat/application/commands/stage-clipboard-attachments.command';
 	import { adoptPastedAttachmentsCommand } from '$lib/chat/application/commands/adopt-pasted-attachments.command';
+	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
 	import { submitComposerPromptCommand } from '$lib/chat/application/commands/submit-composer-prompt.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
@@ -30,6 +31,7 @@
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { workstreamFileListingQuery } from '$lib/chat/application/queries/workstream-file-listing.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
+	import { CLAUDE_CODE_COMMANDS } from '$lib/chat/domain/claude-code-commands';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { clearWorkstreamTodosResolutionCommand } from '$lib/chat/application/commands/clear-workstream-todos-resolution.command';
 	import { resolveWorkstreamTodosCommand } from '$lib/chat/application/commands/resolve-workstream-todos.command';
@@ -325,6 +327,7 @@
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const jobChatSessionId = $derived(forceFreshSession ? null : sessionId);
+	const slashCommands = $derived(jobQuery !== null && jobChatSessionId ? CLAUDE_CODE_COMMANDS : []);
 	const pendingPrompt = $derived(sessionId ? pendingPromptQuery.data(sessionId) : null);
 	const jobChatAfterRunId = $derived(pendingPrompt?.runId || transcriptFacts.lastRunId);
 
@@ -509,6 +512,13 @@
 	function onJobStarted(): void {
 		if (jobQuery !== null) promptEditor?.removeTrigger();
 		onJobPickerClose();
+	}
+
+	function runSlashCommand(name: string): void {
+		const chatSessionId = jobChatSessionId;
+		onJobStarted();
+		if (!chatSessionId) return;
+		sendCommandPromptCommand({ workstreamId, sessionId: chatSessionId, prompt: `/${name}` });
 	}
 
 	function openNativeFilePicker(): void {
@@ -1016,8 +1026,10 @@
 			{workstreamId}
 			chatSessionId={jobChatSessionId}
 			chatAfterRunId={jobChatAfterRunId}
+			commands={slashCommands}
 			onclose={onJobPickerClose}
 			onstarted={onJobStarted}
+			oncommand={runSlashCommand}
 		/>
 	{/if}
 

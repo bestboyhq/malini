@@ -35,7 +35,7 @@ import {
 } from './permissions.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
-import { anthropicSnapshot } from './usage.js';
+import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
 const BACKGROUND_OUTPUT_POLL_MS = 2_000;
@@ -110,7 +110,7 @@ interface ActiveRun {
 	transcript: ClaudeTranscript;
 	turnEnded: Promise<void>;
 	cancelled: boolean;
-	metrics: Record<string, unknown> | null;
+	snapshot: AnthropicSnapshot | null;
 	pending: Promise<IteratorResult<SDKMessage>> | null;
 	idleTimeout: NodeJS.Timeout | null;
 	config: ConfigSnapshot | null;
@@ -251,7 +251,7 @@ export class ClaudeSession implements ProviderHandle {
 			transcript: new ClaudeTranscript(runId, this.#emit),
 			turnEnded: finished,
 			cancelled: false,
-			metrics: null,
+			snapshot: null,
 			pending: null,
 			idleTimeout: null,
 			config: null,
@@ -287,7 +287,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.runId = runId;
 		active.promptId = randomUUID();
 		active.results = [];
-		active.metrics = null;
+		active.snapshot = null;
 		active.transcript = new ClaudeTranscript(runId, this.#emit);
 		const outcome = await this.#turn(active, prompt, profile, 'warm');
 		return outcome === 'process-ended' ? outcome : 'done';
@@ -360,7 +360,7 @@ export class ClaudeSession implements ProviderHandle {
 			active.results.push(message);
 			active.transcript.recordTurnResult(message);
 			if (!active.cancelled) {
-				active.metrics = (await anthropicSnapshot(active.query, new Date())).metrics;
+				active.snapshot = await anthropicSnapshot(active.query, new Date());
 			}
 			if (!reportsSessionState || active.cancelled) return false;
 		}
@@ -415,7 +415,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.runId = runId;
 		active.promptId = randomUUID();
 		active.results = [];
-		active.metrics = null;
+		active.snapshot = null;
 		active.transcript.handOff(runId);
 		await this.#applyEffort(active, profile);
 		if (interrupt) await active.query.interrupt().catch(() => undefined);
@@ -478,13 +478,14 @@ export class ClaudeSession implements ProviderHandle {
 	}
 
 	#finish(active: ActiveRun, handedOff = false): void {
-		const { runId, transcript, results } = active;
+		const { runId, transcript, results, snapshot } = active;
 		const result = results.at(-1);
 		if (result) {
 			if (!transcript.contextWindowTokens) {
 				transcript.recordContextWindow(Object.values(result.modelUsage)[0]?.contextWindow);
 			}
 			const usages = results.map(({ usage }) => usage);
+			const contextTokens = transcript.usage?.contextTokens ?? snapshot?.context?.totalTokens;
 			this.#emit({
 				type: 'usage.updated',
 				runId,
@@ -498,11 +499,11 @@ export class ClaudeSession implements ProviderHandle {
 				),
 				outputTokens: sum(usages.map((usage) => usage.output_tokens)),
 				costUsd: result.total_cost_usd - active.costBefore,
-				...(transcript.usage ? { contextTokens: transcript.usage.contextTokens } : {}),
+				...(contextTokens === undefined ? {} : { contextTokens }),
 				...(transcript.contextWindowTokens
 					? { contextWindowTokens: transcript.contextWindowTokens }
 					: {}),
-				...(active.metrics ? { providerMetrics: active.metrics } : {}),
+				...(snapshot?.metrics ? { providerMetrics: snapshot.metrics } : {}),
 				interim: false,
 			});
 		}

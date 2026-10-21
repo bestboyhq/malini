@@ -33,6 +33,9 @@ Malini owns the rest, and the adapter enforces it:
   Claude Code also runs turns of its own: a resume that finds a background agent the last process left unfinished first reports it in an empty zero-turn result.
 - Background work: the run stays open while `background_tasks_changed` lists a task that is not `ambient`, and Claude Code's own follow-up turn after a task ends belongs to that run.
   The bridge reports the live tasks as `background.updated`; a prompt that arrives while the run only waits is pushed into the same query and takes the run over (`docs/adr/0009-a-run-stays-open-while-its-background-work-runs.md`).
+- Slash commands: a prompt that starts with `/` reaches Claude Code as typed, and its result names the prompt's uuid like any turn.
+  A compaction, typed or automatic, is a `Compact` tool call: `system/status` `compacting` starts it, `compact_boundary` completes it with its `trigger`, and a `failed` `compact_result` fails it.
+  `compact_metadata.post_tokens` counts only the summary, so the run's context comes from `getContextUsage()` once a compaction clears the measured usage.
 
 `src/claude/` holds one file per concern: `session.ts` (options and run lifecycle), `transcript.ts` (messages to events), `permissions.ts` (access profiles to permission mode and sandbox), `instructions.ts`, `installation.ts`, `capabilities.ts`, `skills.ts` (an idle query with every skill on, read through `initializationResult()` and `getContextUsage()`, that answers `list_skills` with each skill's name, description, source and tokens, and turns the skills and plugins in `turnedOff` back on through flag settings for that query alone), `titles.ts` (a one-turn, tool-less query that names a chat and its workstream from the first prompt, with the instructions and model of the built-in Name chats job that `suggest_title` carries).
 

@@ -380,6 +380,28 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
 };
+const COMPACTION_RELEASE = 'release-compaction';
+const compactionRun = (sessionId, runId, releasePath) => {
+	pendingRuns.set(runId, sessionId);
+	const toolCallId = 'compaction-' + runId;
+	event({ type: 'tool.started', runId, name: 'Compact', toolCallId });
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!fs.existsSync(releasePath)) return;
+		clearInterval(timer);
+		fs.rmSync(releasePath);
+		pendingRuns.delete(runId);
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Compact',
+			toolCallId,
+			output: { trigger: 'manual' },
+		});
+		event({ type: 'run.completed', runId, summary: '' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, 50);
+};
 const backgroundCommands = new Map();
 const backgroundCommandTask = (startedAt) => ({
 	taskId: 'bash-e2e',
@@ -624,6 +646,19 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
+	}
+	if (prompt === '/compact') {
+		return compactionRun(sessionId, runId, nodePath.join(env.HOME, COMPACTION_RELEASE));
+	}
+	if (prompt.includes('AUTO_COMPACT')) {
+		event({ type: 'tool.started', runId, name: 'Compact', toolCallId: 'auto-compact' });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Compact',
+			toolCallId: 'auto-compact',
+			output: { trigger: 'auto' },
+		});
 	}
 	const bigOutput = /BIG_OUTPUT:(\d+)/.exec(prompt);
 	if (bigOutput) {

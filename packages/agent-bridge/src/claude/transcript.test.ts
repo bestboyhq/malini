@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent } from '../types.js';
 import { recordedMessages, type RecordedScenario } from './fixtures/fake-claude.js';
-import { ClaudeTranscript } from './transcript.js';
+import { ClaudeTranscript, COMPACTION_TOOL } from './transcript.js';
 
 const SUBAGENT_TOOL_CALL = 'toolu_01FeTa8kst16VYXGjiDS1bL9';
 const BACKGROUND_AGENT_TOOL_CALL = 'toolu_012Qe9FFbcvw55RGnwjEQhkH';
@@ -20,6 +20,7 @@ const RECORDED_SCENARIOS: readonly RecordedScenario[] = [
 	'stoppedBackgroundCommand',
 	'retriedStream',
 	'nonStreamingFallback',
+	'compact',
 ];
 const RETRIED_MESSAGE = 'msg_011Cg8VYeFbmT1U91bsswPCg';
 const RETRY_MESSAGE = 'msg_011Cg8VYwWSAspzarueMPAGY';
@@ -389,6 +390,50 @@ describe('ClaudeTranscript', () => {
 			}),
 		);
 		expect(transcript.cursor).toBe('e99ab5c0-5c5a-4abd-b934-de33c86c14fb');
+	});
+
+	it('shows a compaction as a Compact step from its status to its boundary', () => {
+		const { events, transcript } = replayRecorded('compact');
+
+		expect(events).toEqual([
+			{
+				type: 'tool.started',
+				runId: 'run-1',
+				name: COMPACTION_TOOL,
+				toolCallId: 'compaction-572a55aa-8cff-4541-a4bf-f1e18a18e75c',
+			},
+			{
+				type: 'tool.completed',
+				runId: 'run-1',
+				name: COMPACTION_TOOL,
+				toolCallId: 'compaction-572a55aa-8cff-4541-a4bf-f1e18a18e75c',
+				output: { trigger: 'manual' },
+			},
+		]);
+		expect(transcript.cursor).toBe('0aedad28-9b88-4781-8d8a-03679bdc83c5');
+	});
+
+	it('forgets the context it measured before a compaction', () => {
+		const { transcript } = replay([
+			...recordedMessages('readAndBash'),
+			...recordedMessages('compact'),
+		]);
+
+		expect(transcript.usage).toBeNull();
+	});
+
+	it('fails the Compact step when Claude Code cannot compact', () => {
+		const messages = recordedMessages('compact').flatMap((message) =>
+			message.type === 'system' && message.subtype === 'status' && message.status === null
+				? [{ ...message, compact_result: 'failed' as const, compact_error: 'Not enough messages' }]
+				: message.type === 'system' && message.subtype === 'compact_boundary'
+					? []
+					: [message],
+		);
+		const { events } = replay(messages);
+
+		expect(events.map(({ type }) => type)).toEqual(['tool.started', 'tool.failed']);
+		expect(ofType(events, 'tool.failed')[0]?.error).toBe('Not enough messages');
 	});
 
 	it('reports a failing shell command as a failed tool and a non-zero exit', () => {
