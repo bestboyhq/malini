@@ -40,6 +40,7 @@
 		--stage-strength: 0.5;
 		--stage-shadow: rgb(24 20 19 / 0.28);
 		position: absolute;
+		isolation: isolate;
 		inset: 0;
 		overflow: hidden;
 		background:
