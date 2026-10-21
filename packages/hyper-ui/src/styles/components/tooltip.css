@@ -42,6 +42,11 @@
 		max-width: min(24rem, calc(100vw - 16px));
 	}
 
+	.hyper-tooltip.nowrap .hyper-tooltip-bubble {
+		max-width: calc(100vw - 16px);
+		white-space: nowrap;
+	}
+
 	.hyper-tooltip.interactive.open .hyper-tooltip-bubble {
 		pointer-events: auto;
 	}
