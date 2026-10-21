@@ -69,6 +69,7 @@
 	align="end"
 	role={null}
 	keyboardNavigation={false}
+	backdrop
 	panelClass="w-[380px] max-h-[calc(100vh-72px)] overflow-y-auto rounded-2xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3 shadow-popup"
 	testId="stats-panel-layer"
 >

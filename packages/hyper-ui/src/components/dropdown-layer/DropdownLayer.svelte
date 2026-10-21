@@ -38,6 +38,7 @@
 		owner?: string | undefined;
 		restoreFocusToAnchor?: boolean;
 		keyboardNavigation?: boolean;
+		backdrop?: boolean;
 	}
 
 	let {
@@ -58,6 +59,7 @@
 		owner,
 		restoreFocusToAnchor = true,
 		keyboardNavigation = true,
+		backdrop = false,
 	}: Props = $props();
 
 	let panelEl: HTMLDivElement | null = $state(null);
@@ -238,6 +240,9 @@
 		data-overlay-owner={owner}
 		use:bodyPortal
 	>
+		{#if backdrop}
+			<div class="pointer-events-auto fixed inset-0 z-0" data-overlay-backdrop></div>
+		{/if}
 		<div
 			use:mountPanel
 			class={['shadow-popup pointer-events-auto fixed z-[1]', panelClass]}
