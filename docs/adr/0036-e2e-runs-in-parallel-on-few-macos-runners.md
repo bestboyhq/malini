@@ -1,6 +1,6 @@
 # 0036 - E2E runs in parallel on few macOS runners
 
-Status: accepted
+Status: superseded by 0046
 
 ## Context
 

@@ -64,7 +64,12 @@ import { readWorkstreamImage, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
 import { syncOwnPullRequests } from './own-pull-requests.service';
 import { InstallRegistry, installDependencies } from './provisioning.service';
-import { sweepArchivedLeftovers, type TeardownGuard } from './teardown.service';
+import {
+	WorkstreamRetiredError,
+	WorkstreamTeardowns,
+	sweepArchivedLeftovers,
+	type TeardownGuard,
+} from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
@@ -134,7 +139,9 @@ export function registerRepositories(
 	void watchers.start();
 
 	const guardRunLease = deps.guardRunLease;
+	const teardowns = new WorkstreamTeardowns();
 	const guardTeardown: TeardownGuard = async (workstreamId, teardown) => {
+		const finished = teardowns.start(workstreamId);
 		watchers.unwatch(workstreamId);
 		try {
 			await installs.abortAndWait(workstreamId);
@@ -144,6 +151,8 @@ export function registerRepositories(
 		} catch (error) {
 			void watchers.watch(workstreamId);
 			throw error;
+		} finally {
+			finished();
 		}
 	};
 	const workstreams = {
@@ -229,15 +238,16 @@ export function registerRepositories(
 		restoreWorkstream(workstreams, checkedWorkstreamId(args)),
 	);
 
-	commands.define('repositories.workstream-diff', async (args: unknown) => {
-		const worktree = await checkout(args);
+	commands.define('repositories.workstream-diff', (args: unknown) => {
 		optionalString(args, 'path');
 		const baseBranch = optionalString(args, 'baseBranch');
-		return baseBranch === null ? diffAll(worktree) : workstreamDiff(worktree, baseBranch);
+		return readCheckout(args, (worktree) =>
+			baseBranch === null ? diffAll(worktree) : workstreamDiff(worktree, baseBranch),
+		);
 	});
 
-	commands.define('repositories.workstream-files', async (args: unknown) =>
-		listWorkstreamFiles(await checkout(args)),
+	commands.define('repositories.workstream-files', (args: unknown) =>
+		readCheckout(args, listWorkstreamFiles),
 	);
 
 	commands.define('repositories.base-files', async (args: unknown) => {
@@ -250,20 +260,20 @@ export function registerRepositories(
 		return listBaseFiles(repoPath, baseBranch);
 	});
 
-	commands.define('repositories.workstream-status', async (args: unknown) =>
-		statusCollector(await checkout(args)),
+	commands.define('repositories.workstream-status', (args: unknown) =>
+		readCheckout(args, statusCollector),
 	);
 
-	commands.define('repositories.workstream-change-totals', async (args: unknown) => {
+	commands.define('repositories.workstream-change-totals', (args: unknown) => {
 		const baseBranch = requireString(args, 'baseBranch');
 		validateBaseBranch(baseBranch);
-		return workstreamChangeTotals(await checkout(args), baseBranch);
+		return readCheckout(args, (worktree) => workstreamChangeTotals(worktree, baseBranch));
 	});
 
-	commands.define('repositories.workstream-snapshot', async (args: unknown) => {
+	commands.define('repositories.workstream-snapshot', (args: unknown) => {
 		const baseBranch = requireString(args, 'baseBranch');
 		validateBaseBranch(baseBranch);
-		return workstreamSnapshot(await checkout(args), baseBranch);
+		return readCheckout(args, (worktree) => workstreamSnapshot(worktree, baseBranch));
 	});
 
 	commands.define('repositories.reveal-workstream', async (args: unknown) => {
@@ -429,6 +439,20 @@ export function registerRepositories(
 
 	async function checkout(args: unknown): Promise<string> {
 		return checkouts.resolveCheckout(checkedWorkstreamId(args));
+	}
+
+	async function readCheckout<T>(
+		args: unknown,
+		read: (worktree: string) => Promise<T>,
+	): Promise<T> {
+		const workstreamId = checkedWorkstreamId(args);
+		const torndown = teardowns.watch(workstreamId);
+		try {
+			return await read(await checkouts.resolveCheckout(workstreamId));
+		} catch (error) {
+			if (torndown()) throw new WorkstreamRetiredError(workstreamId, error);
+			throw error;
+		}
 	}
 
 	function checkedWorkstreamId(args: unknown): string {

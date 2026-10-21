@@ -205,6 +205,7 @@ const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
 	LifecycleError: new Set(['already_running', 'cancel_race']),
 	ShipError: new Set(['nothing-to-ship', 'not-github', 'not-queued']),
 	SupervisorError: new Set(['stopped']),
+	WorkstreamRetiredError: new Set(['retired']),
 };
 
 export function commandFailureLevel(failure: CommandFailure): MainDiagnosticLevel {

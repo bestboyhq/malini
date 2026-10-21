@@ -11,6 +11,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
+	untilStill,
 } from './harness';
 
 declare global {
@@ -26,7 +27,6 @@ type Frame = Readonly<{
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const STILL_PX = 1;
-const SETTLE_MS = 1_500;
 
 async function chatWithImages(app: LaunchedApp, name: string, images: boolean): Promise<string> {
 	const { page } = app;
@@ -99,6 +99,20 @@ async function stopSampling(page: Page): Promise<Frame[]> {
 	});
 }
 
+async function untilImagesInViewLoad(page: Page): Promise<void> {
+	const loaded = () =>
+		page.getByTestId('chat-message-scroller').evaluate((scroller) => {
+			const view = scroller.getBoundingClientRect();
+			return [...scroller.querySelectorAll('img')]
+				.filter((image) => {
+					const box = image.getBoundingClientRect();
+					return box.bottom > view.top && box.top < view.bottom;
+				})
+				.every((image) => image.complete);
+		});
+	await expect.poll(loaded, { message: 'every image in view loaded' }).toBe(true);
+}
+
 function workstreamLink(page: Page, workstreamId: string) {
 	return page.locator(`a[data-navigation-workstream-id="${workstreamId}"]`).first();
 }
@@ -138,7 +152,7 @@ test('a chat with images opens still, its images framed at their final size befo
 		const { page } = app;
 		const withImages = await chatWithImages(app, 'Images A', true);
 		const without = await chatWithImages(app, 'Images B', false);
-		await page.waitForTimeout(1_000);
+		await untilStill(page);
 
 		for (const [target, label] of [
 			[withImages, 'first visit since the restart'],
@@ -147,7 +161,12 @@ test('a chat with images opens still, its images framed at their final size befo
 		] as const) {
 			await startSampling(page, target);
 			await workstreamLink(page, target).click();
-			await page.waitForTimeout(SETTLE_MS);
+			await expect(page.getByTestId('transcript-pane')).toHaveAttribute(
+				'data-presented-workstream-id',
+				target,
+			);
+			await untilImagesInViewLoad(page);
+			await untilStill(page);
 			const frames = await stopSampling(page);
 			if (target === withImages) expectStillAfterOpening(frames, label);
 		}

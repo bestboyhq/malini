@@ -1,6 +1,6 @@
 # 0031 - The Malini site lives at bestboy.dev/malini
 
-Status: superseded by 0028
+Status: superseded by 0032
 
 ## Context
 

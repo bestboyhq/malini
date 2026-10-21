@@ -12,6 +12,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	type LaunchedApp,
+	untilStill,
 } from './harness';
 
 declare global {
@@ -129,7 +130,9 @@ function jumpOnScreen(samples: readonly number[][], column: number): number {
 		const current = samples[index] ?? [];
 		const moved = (current[column] ?? Number.NaN) - (previous[column] ?? Number.NaN);
 		const scrolled = (current[SCROLL_TOP] ?? Number.NaN) - (previous[SCROLL_TOP] ?? Number.NaN);
-		jumped = Math.max(jumped, Math.min(Math.abs(moved + scrolled), Math.abs(moved - carried)));
+		// ponytail: one frame may last twice the one before; time each step if longer stalls flake
+		const pastCarrying = Math.max(0, Math.abs(moved - carried) - Math.abs(carried));
+		jumped = Math.max(jumped, Math.min(Math.abs(moved + scrolled), pastCarrying));
 		carried = moved;
 	}
 	return Math.round(jumped * 10) / 10;
@@ -211,9 +214,9 @@ test('a prompt sent into a long chat lands right above the composer, then the tr
 		).toBeGreaterThan(200);
 
 		await expectRunFinished(page, 'Streamed line 40 of 40.');
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		await startSampling(page, []);
-		await page.waitForTimeout(400);
+		await untilStill(page);
 		const finished = await stopSampling(page);
 		softly(
 			blankAboveComposer(finished),
@@ -285,7 +288,7 @@ test('pointing into an expanded tool call holds the transcript still, and a coll
 		await page.mouse.move(expanded.x + 40, expanded.y + expanded.height / 2);
 		await startSampling(page, []);
 		await expect(newMessagesBelow(page)).toBeVisible({ timeout: 10_000 });
-		await page.waitForTimeout(600);
+		await untilLatestRunShows(page, 'Streamed line 12 of 40.');
 		const held = await stopSampling(page);
 		expect(
 			drift(held, SCROLL_TOP),
@@ -316,12 +319,12 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 
 		await page.getByRole('button', { name: 'Expand output for List files' }).click();
 		await expect(page.getByTestId('command-output-scroll')).toBeVisible();
-		await page.waitForTimeout(800);
+		await untilStill(page);
 
 		await startSampling(page, [LATEST_PROMPT, LATEST_COMMAND]);
 		await page.getByRole('button', { name: 'Collapse output for List files' }).click();
 		await expect(page.getByTestId('command-output-scroll')).toHaveCount(0);
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(drift(samples, 1), 'the prompt row moved when the output collapsed').toBeLessThanOrEqual(
@@ -352,7 +355,7 @@ test('reopening a chat lands on its latest run right above the composer', async 
 		await selectChat(page, chat);
 		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);
 		await startSampling(page, []);
-		await page.waitForTimeout(400);
+		await untilStill(page);
 		const samples = await stopSampling(page);
 		expect(
 			blankAboveComposer(samples),
@@ -386,14 +389,14 @@ test('a reader who scrolled up stays where they are while the reply streams', as
 		const before = await scroller.evaluate((element) => element.scrollTop);
 		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 		await page.mouse.wheel(0, -400);
-		await page.waitForTimeout(400);
+		await untilStill(page);
 		const after = await scroller.evaluate((element) => element.scrollTop);
 		expect(before - after, 'px the wheel scrolled the transcript up').toBeGreaterThan(100);
 		await expect(latestRun(page)).toHaveAttribute('data-run-terminal', 'open');
 
 		await startSampling(page, []);
 		await expectRunFinished(page, 'Streamed line 40 of 40.');
-		await page.waitForTimeout(600);
+		await untilStill(page);
 		const samples = await stopSampling(page);
 
 		expect(
@@ -447,7 +450,7 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 		await expect(latestRun(page).getByTestId('turn-report-card')).toHaveCount(1, {
 			timeout: 20_000,
 		});
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		const samples = await stopSampling(page);
 		await expect(earlierTurns).toHaveCount(1);
 		await expect(latestRun(page).getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);

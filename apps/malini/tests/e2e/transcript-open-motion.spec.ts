@@ -8,6 +8,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
+	untilStill,
 } from './harness';
 
 type SampledAnimation = Readonly<{
@@ -39,7 +40,6 @@ type Frame = Readonly<{
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const STILL_PX = 1;
-const SETTLE_MS = 1_200;
 const MIN_FRAMES_AFTER_OPENING = 10;
 
 async function overflowingChat(app: LaunchedApp, name: string, changes: boolean): Promise<string> {
@@ -113,7 +113,7 @@ async function sampledFrames(page: Page): Promise<Frame[]> {
 		undefined,
 		{ timeout: 20_000 },
 	);
-	await page.waitForTimeout(SETTLE_MS);
+	await untilStill(page);
 	await page.waitForFunction(
 		(minimum) => {
 			const { frames } = globalThis.openMotion;
@@ -175,7 +175,7 @@ test('switching between workstreams opens each chat still, with its changed file
 		const { page } = app;
 		const first = await overflowingChat(app, 'Still A', true);
 		const second = await overflowingChat(app, 'Still B', true);
-		await page.waitForTimeout(1_000);
+		await untilStill(page);
 
 		expectStillAfterOpening(await switchAndSample(page, first), 'first visit since the restart');
 		expectStillAfterOpening(await switchAndSample(page, second), 'returning to B');
@@ -198,7 +198,7 @@ test('switching to a workstream with a different composer tray shows that tray a
 		const { page } = app;
 		const withChanges = await overflowingChat(app, 'Tray A', true);
 		const withoutChanges = await overflowingChat(app, 'Tray B', false);
-		await page.waitForTimeout(1_000);
+		await untilStill(page);
 
 		const changedFiles = page.getByTestId('chat-changed-files-toggle');
 		expectStillAfterOpening(await switchAndSample(page, withChanges), 'to the chat with changes');
