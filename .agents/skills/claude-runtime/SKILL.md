@@ -23,6 +23,7 @@ Malini owns the rest, and the adapter enforces it:
 - Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, routine and event tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
   The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `routines_save` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
+- Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with Malini's own history.
 - Process lifetime: a chat's query stays open between turns, and the next prompt is pushed into it while the settings `canContinue` compares and the files `config-snapshot.ts` watches are unchanged.

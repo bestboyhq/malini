@@ -426,6 +426,15 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine(`{${prompt},"steer":"yes"}`).ok).toBe(false);
 		});
 
+		it('parses the theme a prompt runs in and rejects one that is not light or dark', () => {
+			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			expect(parseCommandLine(`{${prompt},"theme":"dark"}`)).toMatchObject({
+				ok: true,
+				command: { theme: 'dark' },
+			});
+			expect(parseCommandLine(`{${prompt},"theme":"sepia"}`).ok).toBe(false);
+		});
+
 		it("rejects approve with decision other than 'allow'/'deny'", () => {
 			const r = parseCommandLine(
 				'{"cmd":"approve","id":"cmd-approve","sessionId":"s1","runId":"r1","approvalId":"a1","decision":"maybe"}',

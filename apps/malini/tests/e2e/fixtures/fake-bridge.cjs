@@ -524,8 +524,20 @@ const FIXTURE_SKILLS = [
 	},
 ];
 const skillsOfRun = new Map();
+const themeOfRun = new Map();
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
+	if (prompt.includes('WHICH_THEME')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: 'Theme: ' + (themeOfRun.get(runId) ?? 'none'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
 	if (prompt.includes('WHICH_SKILLS')) {
 		const skills = skillsOfRun.get(runId);
 		event({
@@ -784,6 +796,7 @@ const handle = (command) => {
 			if (prompt.includes('CRASH')) process.exit(3);
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
+			if (command.theme) themeOfRun.set(runId, command.theme);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
 			}

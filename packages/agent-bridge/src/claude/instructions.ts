@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentReport } from '../agent-profile.js';
+import type { AgentReport, AgentTheme } from '../agent-profile.js';
 import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '../generated/protocol-contract.js';
 import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
 
@@ -13,7 +13,7 @@ const REPORT_BODIES: Record<AgentReport, string> = {
 	high: 'the screenshot or diagram, then the full write-up: what changed, how it works, what you tested, what you found.',
 };
 
-export function maliniInstructions(report: AgentReport): string {
+export function maliniInstructions(report: AgentReport, theme?: AgentTheme): string {
 	return [
 		'<malini>',
 		'You are running inside Malini, a desktop app that gives each workstream its own git worktree.',
@@ -24,6 +24,7 @@ export function maliniInstructions(report: AgentReport): string {
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
 		'- Anything you left undone gets its own bullet that starts with `Deferred:` and says why.',
 		'- Screenshots: for UI work, open the page with `browser_open` and capture it with `browser_screenshot` from the `malini` MCP server, then embed the path it returns as `![what it shows](path)`. Embed any other image by its path relative to the worktree; Malini shows no image from outside the worktree, so copy one that lives elsewhere into the worktree first. Work with no UI gets a small diagram in a fenced code block instead.',
+		...(theme ? [themeInstruction(theme)] : []),
 		'- Automation: when the user asks Malini to do something on a schedule, after something happens, or every time, set it up yourself with the `malini` MCP server: find or create a job with `jobs_list` and `jobs_save`, then a routine that runs it with `routines_save`, its trigger written from `events_list`. A routine starts as a draft the user promotes on the Jobs page, so say so. Use `jobs_run` to run a job now.',
 		'- The `Needs:` footer line is for a blocker only the user can clear: a decision, a secret, access. Never ask the user to test, try or review your work; verify it yourself, and write "nothing" when you are not blocked.',
 		'- Footer: these lines, each on its own line, in this order:',
@@ -36,8 +37,12 @@ export function maliniInstructions(report: AgentReport): string {
 	].join('\n');
 }
 
-export function systemPromptAppend(cwd: string, report: AgentReport): string {
-	const instructions = maliniInstructions(report);
+function themeInstruction(theme: AgentTheme): string {
+	return `- Theme: the user is in ${theme} mode, so capture every screenshot in ${theme} mode. Pages opened with \`browser_open\` already follow it. Switch anything else you capture, such as an app window, a simulator or a browser you drive yourself, to ${theme} first, through its own theme setting or \`prefers-color-scheme\`. \`MALINI_THEME\` in your environment holds the same value.`;
+}
+
+export function systemPromptAppend(cwd: string, report: AgentReport, theme?: AgentTheme): string {
+	const instructions = maliniInstructions(report, theme);
 	const agentsMd = projectAgentsMd(cwd);
 	return agentsMd
 		? `${instructions}\n\n<agents_md path="AGENTS.md">\n${agentsMd}\n</agents_md>`

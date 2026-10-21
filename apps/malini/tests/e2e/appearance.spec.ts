@@ -5,6 +5,7 @@ import {
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
+	sendPrompt,
 } from './harness';
 
 test('appearance settings tune the greys and the theme, close back to the workstream, and survive a relaunch', async () => {
@@ -71,6 +72,41 @@ test('appearance settings tune the greys and the theme, close back to the workst
 		await slate.click();
 		await page.getByRole('button', { name: 'Reset to default' }).click();
 		await expect(stone).toHaveAttribute('aria-pressed', 'true');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the theme the user picks reaches native pages and the agent, whatever the system uses', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-theme-ws', 'Theme');
+		await openWorkstream(page, workstreamId);
+
+		for (const [name, theme] of [
+			['Dark', 'dark'],
+			['Light', 'light'],
+		] as const) {
+			await page.getByTestId('sidebar-open-settings').click();
+			await page
+				.getByRole('navigation', { name: 'Settings' })
+				.getByRole('link', { name: 'Appearance' })
+				.click();
+			await page.getByRole('group', { name: 'Theme' }).getByRole('button', { name }).click();
+			await expect
+				.poll(() => app.electronApp.evaluate(({ nativeTheme }) => nativeTheme.themeSource))
+				.toBe(theme);
+			await page.keyboard.press('Escape');
+			await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+
+			await sendPrompt(page, 'WHICH_THEME');
+			await expect(page.getByText(`Theme: ${theme}`)).toBeVisible({ timeout: 30_000 });
+		}
 
 		expectCleanConsole(app);
 	} finally {

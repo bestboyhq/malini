@@ -22,6 +22,13 @@ The agent drives the same browser tabs you see in the inspector, and the tabs it
 
 You can also pick an element on a page, and it lands in your prompt.
 
+### Screenshots in your theme
+
+Screenshots come out in the theme you see Malini in: **Settings > Appearance > Theme**, or your system's when that is set to System.
+Pages in the browser follow it through `prefers-color-scheme`.
+The agent is told the theme too, so it switches anything else it captures, such as your app's window or a simulator, before it takes the shot.
+Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
+
 ## Jobs, routines, and events
 
 | Tool            | What it does                                                                                          |

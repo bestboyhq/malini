@@ -3,12 +3,15 @@ import {
 	BrowserWindow,
 	clipboard,
 	ClipboardItem,
+	nativeTheme,
 	Notification,
 	safeStorage,
 	screen,
 	shell,
 	type Rectangle,
 } from 'electron';
+import type { AgentTheme } from '$contract/agent';
+import type { ThemeMode } from '$contract/commands';
 
 const LIVE_NOTIFICATION_LIMIT = 32;
 
@@ -43,6 +46,8 @@ export interface ShellHost {
 	onBeforeQuit(listener: () => void): void;
 	onDisplayMetricsChanged(listener: () => void): void;
 	displayWorkAreas(): readonly Rectangle[];
+	followThemeMode(mode: ThemeMode): void;
+	theme(): AgentTheme;
 }
 
 export function createElectronShellHost(): ShellHost {
@@ -81,5 +86,9 @@ export function createElectronShellHost(): ShellHost {
 			screen.on('display-metrics-changed', () => listener());
 		},
 		displayWorkAreas: () => screen.getAllDisplays().map(({ workArea }) => workArea),
+		followThemeMode: (mode) => {
+			nativeTheme.themeSource = mode;
+		},
+		theme: () => (nativeTheme.shouldUseDarkColors ? 'dark' : 'light'),
 	};
 }

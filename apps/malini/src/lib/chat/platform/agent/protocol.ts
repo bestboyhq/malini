@@ -16,6 +16,7 @@ import {
 	type AgentReasoningEffort,
 	type AgentRunMode,
 	type AgentRunProfile,
+	type AgentTheme,
 	type ProviderCapability,
 	type ProviderCapabilityState,
 } from '$contract/agent';
@@ -26,6 +27,7 @@ export type {
 	AgentReasoningEffort,
 	AgentRunMode,
 	AgentRunProfile,
+	AgentTheme,
 	ProviderCapability,
 	ProviderCapabilityState,
 };
@@ -92,6 +94,7 @@ export type BridgeCommand =
 			freshConversation?: true;
 			skills?: readonly string[];
 			steer?: true;
+			theme?: AgentTheme;
 	  }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }

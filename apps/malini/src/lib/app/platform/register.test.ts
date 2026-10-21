@@ -34,6 +34,7 @@ const KEPT_COMMANDS = [
 	'app.set-secret',
 	'app.delete-secret',
 	'app.open-external-url',
+	'app.theme-mode',
 	'app.copy-text',
 	'app.copy-image',
 	'app.focus-window',
@@ -178,6 +179,17 @@ describe('registerApp', () => {
 			error: 'not a URL: nope',
 		});
 		expect(await invoke('app.open-external-url', {})).toMatchObject({ ok: false });
+	});
+
+	it('hands the theme mode the user picks to the host and refuses an unknown one', async () => {
+		boot(context);
+		expect(await invoke('app.theme-mode', { mode: 'dark' })).toEqual({ ok: true, value: null });
+		expect(host.theme()).toBe('dark');
+		expect(await invoke('app.theme-mode', { mode: 'sepia' })).toEqual({
+			ok: false,
+			error: 'theme mode must be system, light or dark',
+		});
+		expect(host.themeMode).toBe('dark');
 	});
 
 	it('writes clipboard text through the host', async () => {
