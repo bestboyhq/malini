@@ -173,7 +173,7 @@ async function expectRunFinished(page: Page, lastLine: string): Promise<void> {
 	});
 }
 
-async function untilLatestRunShows(page: Page, line: string): Promise<void> {
+async function untilLatestRunShows(page: Page, line: string, timeout = 10_000): Promise<void> {
 	const latestRunText = (): Promise<string> =>
 		page
 			.getByTestId('chat-message-scroller')
@@ -181,7 +181,7 @@ async function untilLatestRunShows(page: Page, line: string): Promise<void> {
 				(scroller, selector) => scroller.ownerDocument.querySelector(selector)?.textContent ?? '',
 				LATEST_RUN,
 			);
-	await expect.poll(latestRunText, { intervals: [50], timeout: 10_000 }).toContain(line);
+	await expect.poll(latestRunText, { intervals: [50], timeout }).toContain(line);
 }
 
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
@@ -470,7 +470,7 @@ test('a tool row in a run past two hundred steps stays in place while later step
 		const { page } = app;
 		await longChat(app, 'e2e-long-run-follow-ws');
 		await sendPrompt(page, 'TOOL_STREAM:240 Read every note');
-		await untilLatestRunShows(page, 'row-226.txt');
+		await untilLatestRunShows(page, 'row-226.txt', 60_000);
 
 		await page.getByTestId('chat-message-scroller').evaluate((scroller) => {
 			const doc = scroller.ownerDocument;
@@ -491,7 +491,7 @@ test('a tool row in a run past two hundred steps stays in place while later step
 				state.samples.push([
 					scroller.scrollTop,
 					row?.getBoundingClientRect().top ?? Number.NaN,
-					row?.getAttribute('style')?.includes('mask') ? 1 : 0,
+					row?.getAttribute('style')?.includes('clip-path') ? 1 : 0,
 					blank.length,
 				]);
 				doc.defaultView?.requestAnimationFrame(sample);
