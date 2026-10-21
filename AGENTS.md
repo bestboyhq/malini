@@ -5,6 +5,8 @@ The shipping surface is the Electron app in `apps/malini`: `src/main` is the Nod
 Aliases: `$main` (node only), `$lib` (`src/lib`), `$shared` (`src/lib/shared`), `$contract` (`src/contract`), `$hyper-ui`.
 There is no backend service and no cloud.
 `apps/site` is the public site and its LLMs-first docs, markdown in `apps/site/content/`, served at bestboy.dev/malini (ADR 0031); a feature changes its docs page in the same pull request.
+Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
+Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0043).
 The app makes two outbound calls of its own.
 Anonymous usage data goes to PostHog, from `src/lib/app/platform/usage-data.ts`.
 It stays silent without `MAIN_VITE_POSTHOG_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.

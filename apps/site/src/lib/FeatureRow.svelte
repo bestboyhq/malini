@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { Icon } from '@malini/hyper-ui/icons';
 	import type { Snippet } from 'svelte';
-	import Section from './Section.svelte';
+	import Arrow from './Arrow.svelte';
+	import BeatLabel, { type Beat } from './BeatLabel.svelte';
 	import { StageLight } from './stage/stage.api';
 
 	type Props = {
 		id: string;
+		beat: Beat;
 		title: string;
 		body: string;
 		href: string;
@@ -18,6 +19,7 @@
 
 	let {
 		id,
+		beat,
 		title,
 		body,
 		href,
@@ -32,20 +34,23 @@
 	let lit = $state(false);
 </script>
 
-<Section label={id}>
+<section {id} class="beat feature" aria-labelledby="{id}-title">
 	<div class="row" class:mirrored>
-		<div class="copy">
-			<h3 {id}>{title}</h3>
-			<p>{body}</p>
-			<a class="arrow-link" {href}>
+		<div class="words">
+			<BeatLabel {...beat} />
+			<h3 id="{id}-title" class="rise">{title}</h3>
+			<p class="rise">{body}</p>
+			<a class="arrow-link rise" {href}>
 				{linkLabel}
-				<Icon name="arrow-right" size={14} />
+				<Arrow class="ahead" />
 			</a>
-			<ul>
+			<ul class="checks rise">
 				{#each checks as check (check)}
 					<li>
-						<Icon name="check" size={14} />
-						<span>{check}</span>
+						<svg class="tick" viewBox="0 0 16 16" aria-hidden="true">
+							<path d="M3.5 8.4 6.6 11.4 12.5 4.8" />
+						</svg>
+						{check}
 					</li>
 				{/each}
 			</ul>
@@ -56,7 +61,7 @@
 				caster={panelElement}
 				bind:lit
 			/>
-			<div class={['panel', { lit }]} bind:this={panelElement}>
+			<div class={['panel', 'rise', { lit }]} bind:this={panelElement}>
 				{#if header}
 					<div class="panel-header">{@render header()}</div>
 				{/if}
@@ -64,71 +69,78 @@
 			</div>
 		</div>
 	</div>
-</Section>
+</section>
 
 <style>
+	.feature {
+		padding: 0;
+	}
+
 	.row {
 		display: grid;
-		grid-template-columns: 5fr 7fr;
+		grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+		max-width: var(--col);
+		margin: 0 auto;
 	}
 
 	.row.mirrored {
-		grid-template-columns: 7fr 5fr;
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
 	}
 
-	.copy {
+	.words {
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		padding: 56px var(--pad);
-		border-right: 1px solid var(--line);
+		padding: 80px var(--pad);
 	}
 
-	.mirrored .copy {
+	.mirrored .words {
 		order: 2;
-		border-right: 0;
-		border-left: 1px solid var(--line);
 	}
 
 	h3 {
 		font-size: 24px;
 		font-weight: 550;
-		line-height: 1.25;
+		line-height: 30px;
 		letter-spacing: -0.02em;
+		text-wrap: balance;
 	}
 
 	p {
 		max-width: 440px;
-		margin: 12px 0 20px;
+		margin: 12px 0 24px;
 		color: var(--fg-muted);
 		font-size: 16px;
 		line-height: 1.65;
 		text-wrap: pretty;
 	}
 
-	ul {
-		display: flex;
-		flex-direction: column;
+	.checks {
+		display: grid;
 		gap: 12px;
-		max-width: 440px;
 		margin-top: 32px;
-		padding-top: 24px;
-		border-top: 1px solid var(--line);
 		list-style: none;
 	}
 
-	li {
+	.checks li {
 		display: flex;
-		align-items: flex-start;
 		gap: 12px;
-		color: var(--fg-secondary);
-		font-size: 14px;
+		color: var(--fg-default);
+		font-family: var(--mono);
+		font-size: 13px;
+		line-height: 20px;
 	}
 
-	li :global(svg) {
+	.tick {
 		flex: none;
-		margin-top: 3px;
-		color: var(--fg-muted);
+		width: 16px;
+		height: 16px;
+		margin-top: 2px;
+		fill: none;
+		stroke: var(--success);
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 
 	.stage {
@@ -136,11 +148,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 56px 48px;
+		padding: 64px 48px;
+		border-left: 1px solid var(--frame);
+	}
+
+	.mirrored .stage {
+		border-right: 1px solid var(--frame);
+		border-left: 0;
 	}
 
 	.panel {
 		position: relative;
+		isolation: isolate;
 		display: flex;
 		flex-direction: column;
 		width: 100%;
@@ -183,21 +202,23 @@
 			grid-template-columns: minmax(0, 1fr);
 		}
 
-		.copy,
-		.mirrored .copy {
+		.words,
+		.mirrored .words {
 			order: 0;
-			padding: 48px var(--pad);
-			border: 0;
+			padding: 80px var(--pad) 56px;
 		}
 
-		.stage {
+		.stage,
+		.mirrored .stage {
 			padding: 40px var(--pad);
-			border-top: 1px solid var(--line);
+			border-top: 1px solid var(--frame);
+			border-inline: 0;
 		}
 	}
 
-	@media (max-width: 560px) {
-		.stage {
+	@media (max-width: 559px) {
+		.stage,
+		.mirrored .stage {
 			padding: 32px 12px;
 		}
 

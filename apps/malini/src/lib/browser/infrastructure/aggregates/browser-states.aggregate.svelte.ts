@@ -12,7 +12,7 @@ class BrowserStatesAggregate {
 		const stillLeaving =
 			current !== undefined && state.loading && this.#leaving.get(key) === state.url;
 		if (!stillLeaving) this.#leaving.delete(key);
-		this.#write(stillLeaving ? { ...state, url: current.url } : state);
+		this.#write(stillLeaving ? { ...state, url: current.url, failure: current.failure } : state);
 	}
 
 	expect(tab: BrowserTabArgs, url: string): void {
@@ -27,6 +27,7 @@ class BrowserStatesAggregate {
 			loading: true,
 			canGoBack: current?.canGoBack ?? false,
 			canGoForward: current?.canGoForward ?? false,
+			failure: null,
 		});
 	}
 

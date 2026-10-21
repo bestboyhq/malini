@@ -78,6 +78,54 @@ test('browser tabs show only once opened, each with its own page and close butto
 	}
 });
 
+test('a browser tab says why its page did not load, hides the page meanwhile, and shows it once a reload reaches the server', async () => {
+	test.setTimeout(120_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end('<!doctype html><title>Late server</title><h1>Up</h1>');
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	await new Promise<void>((resolve) => server.close(() => resolve()));
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const pageShown = () =>
+			electronApp.evaluate(({ BrowserWindow }) =>
+				(BrowserWindow.getAllWindows()[0]?.contentView.children ?? []).some((view) =>
+					view.getVisible(),
+				),
+			);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-failed-ws',
+			'Browser failed',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		await openTab(page, origin, '/');
+		const status = inspector.getByRole('status');
+		await expect(status).toContainText(`Could not open ${new URL(origin).host}`);
+		await expect(status).toContainText('ERR_CONNECTION_REFUSED');
+		await expect.poll(pageShown).toBe(false);
+
+		await new Promise<void>((resolve) =>
+			server.listen(Number(new URL(origin).port), 'localhost', resolve),
+		);
+		await page.getByRole('button', { name: 'Reload' }).click();
+		await expect(inspector.getByRole('tab', { name: 'Late server' })).toBeVisible();
+		await expect(status).toHaveCount(0);
+		await expect.poll(pageShown).toBe(true);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
 test('a browser tab opens files of its worktree and follows their links without a server', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
