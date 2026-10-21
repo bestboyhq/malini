@@ -96,6 +96,7 @@
 	import { chatAttentionQuery } from '$lib/chat/application/queries/chat-attention.query.svelte';
 	import { closingChatsQuery } from '$lib/chat/application/queries/closing-chats.query.svelte';
 	import { draftScopesQuery } from '$lib/chat/application/queries/draft-scopes.query.svelte';
+	import { namedChatsQuery } from '$lib/chat/application/queries/named-chats.query.svelte';
 	import { workstreamChatsQuery } from '$lib/chat/application/queries/workstream-chats.query.svelte';
 	import type { SessionRecord } from '$lib/chat/domain/session-record';
 	import { WorkstreamDocumentTab } from '$lib/extensions/extensions.api';
@@ -556,6 +557,7 @@
 						: undefined}
 					onselect={selectSessionTab}
 					onclose={(event) => closeSessionTab(event, session)}
+					shimmerRename={namedChatsQuery.data(session.id)}
 				/>
 			{:else if item.kind === 'document'}
 				<WorkstreamDocumentTab

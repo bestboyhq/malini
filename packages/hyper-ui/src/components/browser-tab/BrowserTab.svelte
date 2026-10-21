@@ -1,11 +1,18 @@
 <script lang="ts">
 	import SensitiveText from '../sensitive/SensitiveText.svelte';
-	import type { Snippet } from 'svelte';
+	import { tick, untrack, type Snippet } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
+	import { prefersReducedMotion, Tween } from 'svelte/motion';
 	import Button from '../button/Button.svelte';
 	import IconButton from '../icon-button/IconButton.svelte';
 	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { BusyIcon, Icon } from '../../icons';
+	import {
+		RENAME_BAND_PX,
+		RENAME_SEAM_PX,
+		RENAME_SWEEP_MS,
+		renameSweepFrame,
+	} from './rename-sweep';
 
 	type BrowserTabSurface = 'panel' | 'band';
 	type BrowserTabTone = 'neutral' | 'brand';
@@ -37,8 +44,17 @@
 		description?: string | undefined;
 		tooltip?: string | undefined;
 		onpin?: () => void;
+		shimmerRename?: boolean;
 		[attr: `data-${string}`]: string | undefined;
 	}
+
+	type Rename = {
+		readonly from: string;
+		readonly fromWidth: number;
+		readonly toWidth: number;
+		readonly fromOverflows: boolean;
+		readonly toOverflows: boolean;
+	};
 
 	let {
 		label,
@@ -66,11 +82,57 @@
 		description,
 		tooltip,
 		onpin,
+		shimmerRename = false,
 		...rest
 	}: Props = $props();
 
 	const descriptionId = $props.id();
 	let labelOverflow = $state(0);
+	let labelBox: HTMLElement | undefined = $state();
+	let labelText: HTMLElement | undefined = $state();
+	let shownLabel = untrack(() => label);
+	let rename = $state.raw<Rename | null>(null);
+	const renameProgress = new Tween(1, { duration: RENAME_SWEEP_MS });
+	const renameFrame = $derived(
+		rename && renameProgress.current < 1
+			? renameSweepFrame(renameProgress.current, rename.fromWidth, rename.toWidth)
+			: null,
+	);
+	const labelOverflowing = $derived(
+		renameFrame && rename ? rename.fromOverflows || rename.toOverflows : labelOverflow > 0,
+	);
+	const labelFadeIn = $derived(
+		renameFrame && rename ? overflowFadeAt(rename, renameFrame.width) : undefined,
+	);
+
+	$effect.pre(() => {
+		const next = label;
+		untrack(() => {
+			const from = shownLabel;
+			shownLabel = next;
+			if (from === next || !shimmerRename || prefersReducedMotion.current || !labelBox) return;
+			void startRename(labelBox, from);
+		});
+	});
+
+	async function startRename(box: HTMLElement, from: string): Promise<void> {
+		const fromWidth = box.getBoundingClientRect().width;
+		const fromOverflows = labelOverflowing;
+		await tick();
+		if (!labelText || !box.isConnected) return;
+		const textWidth = labelText.getBoundingClientRect().width;
+		const toWidth = Math.min(textWidth, parseFloat(getComputedStyle(box).maxWidth) || Infinity);
+		rename = { from, fromWidth, toWidth, fromOverflows, toOverflows: textWidth - toWidth > 0.5 };
+		void renameProgress.set(0, { duration: 0 });
+		void renameProgress.set(1);
+	}
+
+	function overflowFadeAt(sweep: Rename, width: number): number {
+		const span = sweep.toWidth - sweep.fromWidth;
+		const settled = span === 0 ? 1 : Math.min(Math.max((width - sweep.fromWidth) / span, 0), 1);
+		const from = Number(sweep.fromOverflows);
+		return from + (Number(sweep.toOverflows) - from) * settled;
+	}
 
 	const observeLabelOverflow: Attachment<HTMLElement> = (text) => {
 		const box = text.parentElement;
@@ -211,19 +273,38 @@
 			<span class="grid h-4 w-4 shrink-0 place-items-center">{@render icon()}</span>
 		{/if}
 		<span
+			bind:this={labelBox}
 			class={[
 				'tab-label relative min-w-0 overflow-hidden whitespace-nowrap',
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
 				onclose && !trailing && 'tab-label-faded',
+				renameFrame && 'tab-label-renaming',
 			]}
-			data-overflowing={labelOverflow > 0 ? 'true' : undefined}
+			data-overflowing={labelOverflowing ? 'true' : undefined}
 			style:--tab-label-overflow={labelOverflow}
+			style:--tab-label-fade-in={labelFadeIn}
+			style:width={renameFrame ? `${renameFrame.width}px` : undefined}
+			style:--rename-center={renameFrame ? `${renameFrame.center}px` : undefined}
+			style:--rename-dim={renameFrame?.dim}
+			style:--rename-band={renameFrame ? `${RENAME_BAND_PX}px` : undefined}
+			style:--rename-seam={renameFrame ? `${RENAME_SEAM_PX}px` : undefined}
 		>
-			<span class="tab-label-text" {@attach observeLabelOverflow}>
+			<span class="tab-label-text" bind:this={labelText} {@attach observeLabelOverflow}>
 				<SensitiveText text={label} />
 			</span>
+			{#if renameFrame && rename}
+				<span class="tab-label-previous" aria-hidden="true">
+					<SensitiveText text={rename.from} interactive={false} />
+				</span>
+				<span class="tab-label-glint" aria-hidden="true">
+					<span class="tab-label-next"><SensitiveText text={label} interactive={false} /></span>
+					<span class="tab-label-previous">
+						<SensitiveText text={rename.from} interactive={false} />
+					</span>
+				</span>
+			{/if}
 		</span>
 		{#if trailing && onclose}
 			<span
@@ -257,7 +338,11 @@
 
 	.tab-label[data-overflowing] {
 		--tab-label-fade: 20;
-		mask-image: linear-gradient(to left, transparent, black calc(var(--tab-label-fade) * 1px));
+		mask-image: linear-gradient(
+			to left,
+			transparent,
+			black calc(var(--tab-label-fade) * var(--tab-label-fade-in, 1) * 1px)
+		);
 	}
 
 	.browser-tab:is(:hover, :has(:global(:focus-visible))) .tab-label-faded {
@@ -265,7 +350,52 @@
 		mask-image: linear-gradient(to left, transparent 16px, black calc(var(--tab-label-fade) * 1px));
 	}
 
-	.browser-tab:hover .tab-label[data-overflowing] .tab-label-text {
+	.tab-label-renaming > .tab-label-text,
+	.tab-label-renaming > .tab-label-previous {
+		color: color-mix(
+			in srgb,
+			var(--color-fg-tertiary) calc(var(--rename-dim) * 100%),
+			currentColor
+		);
+	}
+
+	.tab-label-renaming .tab-label-text,
+	.tab-label-next {
+		mask-image: linear-gradient(
+			90deg,
+			black calc(var(--rename-center) - var(--rename-seam)),
+			transparent calc(var(--rename-center) + var(--rename-seam))
+		);
+	}
+
+	.tab-label-previous,
+	.tab-label-next {
+		position: absolute;
+		top: 0;
+		left: 0;
+	}
+
+	.tab-label-previous {
+		mask-image: linear-gradient(
+			90deg,
+			transparent calc(var(--rename-center) - var(--rename-seam)),
+			black calc(var(--rename-center) + var(--rename-seam))
+		);
+	}
+
+	.tab-label-glint {
+		position: absolute;
+		inset: 0;
+		color: var(--color-fg-default);
+		mask-image: linear-gradient(
+			90deg,
+			transparent calc(var(--rename-center) - var(--rename-band) / 2),
+			black var(--rename-center),
+			transparent calc(var(--rename-center) + var(--rename-band) / 2)
+		);
+	}
+
+	.browser-tab:hover .tab-label[data-overflowing]:not(.tab-label-renaming) .tab-label-text {
 		--tab-label-shift: calc(var(--tab-label-overflow) + var(--tab-label-fade));
 		transform: translateX(calc(var(--tab-label-shift) * -1px));
 		transition: transform calc(var(--tab-label-shift) * 20ms) linear 300ms;

@@ -22,9 +22,9 @@ test('the first prompt names the chat and the workstream with the title Claude s
 		await sendPrompt(page, 'hey so every time i log in the page goes blank');
 		await expectAssistantReply(page);
 
-		await expect(
-			page.getByTestId('chat-agent-tabs').getByRole('tab', { name: /Login flow/u }),
-		).toBeVisible({ timeout: 20_000 });
+		const namedTab = page.getByTestId('chat-agent-tabs').getByRole('tab', { name: /Login flow/u });
+		await expect(namedTab).toBeVisible({ timeout: 20_000 });
+		await expect(namedTab).toHaveAccessibleName('Login flow');
 		await expect(
 			page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
 		).toContainText('Login flow');
