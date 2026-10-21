@@ -162,8 +162,8 @@
 			<span class="quiet">Now you have plenty.</span>
 		</h1>
 		<p class="lede">
-			Twenty agents you have to watch isn’t leverage. Malini builds the systems that run the work
-			you repeat. You approve them and pull ahead of everyone still babysitting theirs.
+			Twenty agents you have to watch isn’t leverage. Malini makes you an architect instead of a
+			babysitter, with systems that run the work you repeat and put you ahead of the competition.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
