@@ -9,9 +9,12 @@ import {
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	UPDATE_FROM_MAIN_TRIGGER_SETTING,
+	updateFromMainTrigger,
 	type ShipPhase,
 	type ShipStateRecord,
 	type ShipStep,
+	type UpdateFromMainTrigger,
 } from '$contract/pull-requests';
 import type {
 	PullRequestStatusDto,
@@ -264,6 +267,7 @@ export class MergeQueue {
 	}
 
 	async workstreamOpened(workstreamId: string): Promise<void> {
+		if ((await this.#updateTrigger()) === 'merging') return;
 		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
 	}
 
@@ -271,11 +275,23 @@ export class MergeQueue {
 		if (pullRequest.state === 'not_open') this.#forgetPullRequestBranchLeft(workstreamId);
 		if (pullRequest.state !== 'open') return;
 		if ((pullRequest.behindBase ?? 0) > 0 || pullRequest.mergeable === false) {
-			void this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
+			void this.#requestUpdateAsMainMoves(workstreamId);
 		}
 		if (pullRequest.reviewDecision === 'changes_requested') {
 			void this.#requestWork(workstreamId, this.#reviewRequests, this.#reviewRequestedAt);
 		}
+	}
+
+	async #requestUpdateAsMainMoves(workstreamId: string): Promise<void> {
+		if ((await this.#updateTrigger()) !== 'main-moves') return;
+		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
+	}
+
+	async #updateTrigger(): Promise<UpdateFromMainTrigger> {
+		const settings = await this.#context.commands
+			.call('app.list-settings', undefined)
+			.catch((): Record<string, string> => ({}));
+		return updateFromMainTrigger(settings[UPDATE_FROM_MAIN_TRIGGER_SETTING]);
 	}
 
 	async #requestWork(

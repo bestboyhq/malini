@@ -30,6 +30,8 @@ Jobs live on the **Jobs** page.
 
 The **Job center** shows what is running and what just finished.
 Settings decides how many jobs run at once.
+It also picks when **Update from main** runs: as main moves, when you open the workstream, or only when you merge.
+With many workstreams open, the last two keep Malini from starting an update in every one of them at once.
 
 ## Built-in jobs
 

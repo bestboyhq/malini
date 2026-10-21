@@ -12,6 +12,7 @@ import {
 } from '$contract/jobs';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	UPDATE_FROM_MAIN_TRIGGER_SETTING,
 	type ShipChangedEvent,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
@@ -938,6 +939,38 @@ describe('keeping a workstream current with main', () => {
 		finishJob(activeJob().id, 'succeeded', { summary: 'Merged 3 commits from main' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 		expect(jobRuns.size).toBe(1);
+	});
+
+	it('waits for you to open the workstream when Settings update from main only then', async () => {
+		settings[UPDATE_FROM_MAIN_TRIGGER_SETTING] = 'workstream-opened';
+		await openDraft();
+		behind.set('ws-1', 3);
+		github.only().mergeStateStatus = 'BEHIND';
+
+		await readPullRequest();
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(0);
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		expect(activeJob().definitionId).toBe('def-update-from-main');
+	});
+
+	it('updates from main only once you merge when Settings say so', async () => {
+		settings[UPDATE_FROM_MAIN_TRIGGER_SETTING] = 'merging';
+		await openDraft();
+		behind.set('ws-1', 3);
+		github.only().mergeStateStatus = 'BEHIND';
+
+		await readPullRequest();
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(0);
+		expect(pulls).toEqual([]);
+
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(pulls).toEqual(['ws-1']);
 	});
 
 	it('addresses changes a reviewer requested while you work, and records the review', async () => {
