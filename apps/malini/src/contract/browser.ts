@@ -15,6 +15,7 @@ export type BrowserState = Readonly<{
 	loading: boolean;
 	canGoBack: boolean;
 	canGoForward: boolean;
+	failure: string | null;
 }>;
 
 export type BrowserScreenshot = Readonly<{ mediaType: 'image/png'; base64: string }>;

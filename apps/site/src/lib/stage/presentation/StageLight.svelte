@@ -22,7 +22,7 @@
 </script>
 
 <div
-	class={['stage', { lit, fades: lighting.fadeTop }]}
+	class={['stage', { lit }]}
 	style:--stage-spot={fallback.spot}
 	style:--stage-spread={fallback.spread}
 	style:--stage-floor={fallback.floor}
@@ -40,6 +40,7 @@
 		--stage-strength: 0.5;
 		--stage-shadow: rgb(24 20 19 / 0.28);
 		position: absolute;
+		isolation: isolate;
 		inset: 0;
 		overflow: hidden;
 		background:
@@ -50,22 +51,26 @@
 			),
 			linear-gradient(
 				var(--stage-floor),
-				var(--bg) var(--stage-floor-from),
-				color-mix(in srgb, var(--stage-ink) calc(11.25% * var(--stage-strength)), var(--bg))
+				var(--surface-root) var(--stage-floor-from),
+				color-mix(
+						in srgb,
+						var(--stage-ink) calc(11.25% * var(--stage-strength)),
+						var(--surface-root)
+					)
 					var(--stage-floor-to)
 			);
 	}
 
+	:global(:root[data-theme='dark']) .stage {
+		--stage-strength: 1;
+		--stage-shadow: rgb(0 0 0 / 0.7);
+	}
+
 	@media (prefers-color-scheme: dark) {
-		.stage {
+		:global(:root:not([data-theme])) .stage {
 			--stage-strength: 1;
 			--stage-shadow: rgb(0 0 0 / 0.7);
 		}
-	}
-
-	.stage.fades {
-		-webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 40%);
-		mask-image: linear-gradient(180deg, transparent 0%, #000 40%);
 	}
 
 	.stage::after {
@@ -80,8 +85,6 @@
 
 	.stage.lit {
 		background: none;
-		-webkit-mask-image: none;
-		mask-image: none;
 	}
 
 	.stage.lit::after {
@@ -89,6 +92,8 @@
 	}
 
 	canvas {
+		border-top-color: var(--surface-root);
+		color: var(--stage-ink);
 		position: absolute;
 		inset: 0;
 		width: 100%;
