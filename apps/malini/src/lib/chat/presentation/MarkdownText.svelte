@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import DOMPurify from 'dompurify';
 	import { marked } from 'marked';
-	import { mount, unmount } from 'svelte';
+	import { mount, unmount, type Component } from 'svelte';
 	import {
 		escapeCodeText,
 		hasHighlightedCodeHtml,
@@ -22,6 +22,7 @@
 		sanitizedMarkdownHtmlCacheKey,
 	} from './sanitized-markdown-html-cache';
 	import MarkdownCodeCopyButton from './MarkdownCodeCopyButton.svelte';
+	import MarkdownCodeRunButton from './MarkdownCodeRunButton.svelte';
 
 	export type MarkdownRenderMode = 'markdown' | 'prose' | 'plain';
 
@@ -183,11 +184,13 @@
 		return DOMPurify.sanitize(unsanitizedHtml(source, renderMode));
 	}
 
+	type CodeBlockButtons = Readonly<{ copy: string; run: string }>;
+
 	function decoratedFragment(
 		source: string,
 		mode: MarkdownRenderMode,
 		masked: boolean,
-		copyButton: string,
+		buttons: CodeBlockButtons,
 	): DocumentFragment {
 		const fragment = DOMPurify.sanitize(unsanitizedHtml(source, mode), {
 			RETURN_DOM_FRAGMENT: true,
@@ -195,11 +198,11 @@
 		holdWorkstreamImagesIn(fragment);
 		linkifyFileMentionsIn(fragment);
 		if (masked) maskSensitiveText(fragment);
-		wrapCodeBlocks(fragment, copyButton);
+		wrapCodeBlocks(fragment, buttons);
 		return fragment;
 	}
 
-	function wrapCodeBlocks(root: DocumentFragment, copyButton: string): void {
+	function wrapCodeBlocks(root: DocumentFragment, buttons: CodeBlockButtons): void {
 		for (const code of root.querySelectorAll('pre > code')) {
 			const pre = code.parentElement;
 			if (!pre) continue;
@@ -207,14 +210,18 @@
 			template.innerHTML = codeBlockHtml(
 				(code.textContent ?? '').replace(/\n$/u, ''),
 				/(?:^|\s)language-(\S+)/u.exec(code.className)?.[1] ?? null,
-				copyButton,
+				buttons,
 			);
 			pre.replaceWith(template.content);
 		}
 	}
 
-	function codeBlockHtml(source: string, hint: string | null, copyButton: string): string {
+	function codeBlockHtml(source: string, hint: string | null, buttons: CodeBlockButtons): string {
 		const language = resolveLanguage(hint, source);
+		const runButton =
+			buttons.run && language === 'shell'
+				? `<span class="flex" data-code-run>${buttons.run}</span>`
+				: '';
 		const label = languageHintLabel(hint) ?? languageLabel(language);
 		const header = label
 			? `<div class="flex h-9 items-center px-3 pt-2"><span class="text-3xs text-fg-tertiary leading-none" data-testid="markdown-code-language">${escapeCodeText(label)}</span></div>`
@@ -222,7 +229,7 @@
 		return [
 			`<div class="border-surface-50-border relative my-[0.5em] max-w-full overflow-hidden rounded-xl border-[0.5px]" data-testid="markdown-code-block" data-language="${language}">`,
 			header,
-			`<span class="absolute top-2 right-2 z-30 flex" data-code-copy>${copyButton}</span>`,
+			`<div class="absolute top-2 right-2 z-30 flex gap-1">${runButton}<span class="flex" data-code-copy>${buttons.copy}</span></div>`,
 			`<div class="relative overflow-hidden ${label ? 'w-full' : 'mr-11'}">`,
 			`<div class="code-tokens-scroll max-w-full" aria-label="Code block" data-testid="markdown-code-scroll">`,
 			`<pre data-managed-code-block class="m-0 min-w-max bg-transparent px-3 pb-3 ${label ? 'pt-0' : 'pt-3'}">`,
@@ -238,17 +245,17 @@
 		mode: MarkdownRenderMode,
 		masked: boolean,
 		tailCharacters: number,
-		copyButton: string,
+		buttons: CodeBlockButtons,
 	): SegmentContent {
 		if (tailCharacters > 0) {
-			const fragment = decoratedFragment(source, mode, masked, copyButton);
+			const fragment = decoratedFragment(source, mode, masked, buttons);
 			fadeStreamingTail(fragment, tailCharacters);
 			return { fragment, html: null };
 		}
-		const key = sanitizedMarkdownHtmlCacheKey(mode, masked, source);
+		const key = sanitizedMarkdownHtmlCacheKey(mode, masked, buttons.run !== '', source);
 		const cached = sanitizedMarkdownHtmlCache.get(key);
 		if (cached !== undefined) return { fragment: parsedHtml(cached), html: cached };
-		const fragment = decoratedFragment(source, mode, masked, copyButton);
+		const fragment = decoratedFragment(source, mode, masked, buttons);
 		const holder = document.createElement('div');
 		holder.append(fragment);
 		const html = holder.innerHTML;
@@ -475,9 +482,13 @@
 	export function createStreamingMarkdownRenderer(options: {
 		container: HTMLElement;
 		copyButton?: string;
+		runButton?: string;
 	}): StreamingMarkdownRenderer {
 		const { container } = options;
-		const copyButton = options.copyButton ?? '';
+		const buttons: CodeBlockButtons = {
+			copy: options.copyButton ?? '',
+			run: options.runButton ?? '',
+		};
 		const segments: RenderedSegment[] = [];
 		let decorations: MarkdownDecorations = {
 			canOpenFile: undefined,
@@ -525,7 +536,7 @@
 			tailCharacters: number,
 			before: ChildNode | null,
 		): RenderedSegment {
-			const content = segmentContent(source, mode, masked, tailCharacters, copyButton);
+			const content = segmentContent(source, mode, masked, tailCharacters, buttons);
 			const segment: RenderedSegment = {
 				source,
 				html: null,
@@ -546,7 +557,7 @@
 			masked: boolean,
 			tailCharacters: number,
 		): void {
-			const content = segmentContent(source, mode, masked, tailCharacters, copyButton);
+			const content = segmentContent(source, mode, masked, tailCharacters, buttons);
 			if (segment.nodes.length === 0) {
 				segment.nodes = [...content.fragment.childNodes];
 				container.insertBefore(content.fragment, nextNodeAfter(segment));
@@ -572,7 +583,7 @@
 		function remask(masked: boolean, mode: MarkdownRenderMode, tail: number): void {
 			segments.forEach((segment, index) => {
 				const segmentTail = index === segments.length - 1 ? tail : 0;
-				const key = sanitizedMarkdownHtmlCacheKey(mode, masked, segment.source);
+				const key = sanitizedMarkdownHtmlCacheKey(mode, masked, buttons.run !== '', segment.source);
 				if (segmentTail === 0 && sanitizedMarkdownHtmlCache.get(key) === segment.html) return;
 				const before = nextNodeAfter(segment);
 				for (const node of segment.nodes) node.remove();
@@ -671,10 +682,12 @@
 
 	let copyButtonMarkup: CopyButtonMarkup | null = null;
 
+	let runButtonMarkup: string | null = null;
+
 	function codeCopyButtonMarkup(): CopyButtonMarkup {
 		if (copyButtonMarkup) return copyButtonMarkup;
-		const idle = renderedCopyButton(false);
-		const copied = renderedCopyButton(true);
+		const idle = renderedButton(MarkdownCodeCopyButton, { copied: false });
+		const copied = renderedButton(MarkdownCodeCopyButton, { copied: true });
 		copyButtonMarkup = {
 			button: idle?.outerHTML ?? '',
 			idleIcon: idle?.innerHTML ?? '',
@@ -683,9 +696,17 @@
 		return copyButtonMarkup;
 	}
 
-	function renderedCopyButton(copied: boolean): HTMLButtonElement | null {
+	function codeRunButtonMarkup(): string {
+		runButtonMarkup ??= renderedButton(MarkdownCodeRunButton, {})?.outerHTML ?? '';
+		return runButtonMarkup;
+	}
+
+	function renderedButton<Props extends Record<string, unknown>>(
+		component: Component<Props>,
+		props: Props,
+	): HTMLButtonElement | null {
 		const host = document.createElement('div');
-		const instance = mount(MarkdownCodeCopyButton, { target: host, props: { copied } });
+		const instance = mount(component, { target: host, props });
 		const button = host.querySelector('button');
 		const snapshot = button?.cloneNode(true);
 		void unmount(instance);
@@ -723,6 +744,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
+		onruncommand?: ((command: string, language: string | null) => void) | undefined;
 	}
 
 	let {
@@ -734,10 +756,16 @@
 		canopenfile,
 		imagesrc,
 		onopenimage,
+		onruncommand,
 	}: Props = $props();
 
 	const COPY_SELECTOR = '[data-testid="markdown-code-copy"]';
+	const RUN_SELECTOR = '[data-testid="markdown-code-run"]';
+	const CODE_BLOCK_ROOT_SELECTOR = '[data-testid="markdown-code-block"]';
 	const COPY_ANCHOR_SELECTOR = '[data-code-copy]';
+	const RUN_ANCHOR_ATTRIBUTE = 'data-code-run';
+	const ACTION_ANCHOR_SELECTOR = `${COPY_ANCHOR_SELECTOR}, [${RUN_ANCHOR_ATTRIBUTE}]`;
+	const RUN_TOOLTIP = { text: 'Run in this chat', placement: 'top' } as const;
 	const COPIED_MS = 1_500;
 
 	type MarkdownTextUpdate = StreamingMarkdownUpdate & MarkdownDecorations;
@@ -746,7 +774,7 @@
 
 	let copyRequest = $state<CopyRequest | null>(null);
 	const copyOutcome = $derived(chatRequestQuery.data(copyRequest?.id ?? null));
-	const copyTooltips = new Map<Element, TooltipHandle>();
+	const actionTooltips = new Map<Element, TooltipHandle>();
 
 	$effect(() => {
 		const request = copyRequest;
@@ -766,7 +794,7 @@
 		button.innerHTML = copied ? markup.copiedIcon : markup.idleIcon;
 		button.setAttribute('aria-label', copied ? 'Code copied' : 'Copy code');
 		const anchor = button.closest(COPY_ANCHOR_SELECTOR);
-		if (anchor) copyTooltips.get(anchor)?.update(copyTooltip(copied));
+		if (anchor) actionTooltips.get(anchor)?.update(copyTooltip(copied));
 	}
 
 	function copyTooltip(copied: boolean): { text: string; placement: 'top' } {
@@ -776,11 +804,21 @@
 	function copyCode(target: Element): boolean {
 		const button = target.closest(COPY_SELECTOR);
 		if (!button) return false;
-		const code = button.closest('[data-testid="markdown-code-block"]')?.querySelector('code');
+		const code = button.closest(CODE_BLOCK_ROOT_SELECTOR)?.querySelector('code');
 		if (!code) return false;
 		const id = newChatRequestId();
 		copyRequest = { id, button };
 		copyTextCommand({ requestId: id, text: code.textContent ?? '' });
+		return true;
+	}
+
+	function runCode(target: Element): boolean {
+		const code = target
+			.closest(RUN_SELECTOR)
+			?.closest(CODE_BLOCK_ROOT_SELECTOR)
+			?.querySelector(CODE_BLOCK_SELECTOR);
+		if (!code) return false;
+		onruncommand?.(code.textContent ?? '', codeLanguage(code));
 		return true;
 	}
 
@@ -791,6 +829,7 @@
 		const renderer = createStreamingMarkdownRenderer({
 			container: node,
 			copyButton: codeCopyButtonMarkup().button,
+			runButton: onruncommand ? codeRunButtonMarkup() : '',
 		});
 		const render = ({
 			canOpenFile,
@@ -811,7 +850,7 @@
 	function onLinkClick(event: MouseEvent): void {
 		if (revealSensitiveCode(event) || revealSensitiveTarget(event)) return;
 		if (!(event.target instanceof Element)) return;
-		if (copyCode(event.target)) return;
+		if (copyCode(event.target) || runCode(event.target)) return;
 		if (openGalleryImage(event.target)) return;
 		const anchor = event.target.closest('a');
 		if (!(anchor instanceof HTMLAnchorElement)) return;
@@ -849,22 +888,23 @@
 		return true;
 	}
 
-	function onCopyHover(event: PointerEvent): void {
-		const anchor = copyAnchorFor(event.target);
+	function onActionHover(event: PointerEvent): void {
+		const anchor = actionAnchorFor(event.target);
 		if (!anchor) return;
 		anchor.dispatchEvent(new PointerEvent('pointerenter', { pointerType: event.pointerType }));
 	}
 
-	function onCopyFocus(event: FocusEvent): void {
-		if (!(event.target instanceof Element) || !copyAnchorFor(event.target)) return;
+	function onActionFocus(event: FocusEvent): void {
+		if (!(event.target instanceof Element) || !actionAnchorFor(event.target)) return;
 		event.target.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 	}
 
-	function copyAnchorFor(target: EventTarget | null): HTMLElement | null {
+	function actionAnchorFor(target: EventTarget | null): HTMLElement | null {
 		if (!(target instanceof Element)) return null;
-		const anchor = target.closest(COPY_ANCHOR_SELECTOR);
-		if (!(anchor instanceof HTMLElement) || copyTooltips.has(anchor)) return null;
-		copyTooltips.set(anchor, tooltip(anchor, copyTooltip(false)));
+		const anchor = target.closest(ACTION_ANCHOR_SELECTOR);
+		if (!(anchor instanceof HTMLElement) || actionTooltips.has(anchor)) return null;
+		const options = anchor.hasAttribute(RUN_ANCHOR_ATTRIBUTE) ? RUN_TOOLTIP : copyTooltip(false);
+		actionTooltips.set(anchor, tooltip(anchor, options));
 		return anchor;
 	}
 
@@ -877,18 +917,18 @@
 	function markdownLinks(node: HTMLElement): { destroy: () => void } {
 		node.addEventListener('click', onLinkClick);
 		node.addEventListener('keydown', onLinkKeydown);
-		node.addEventListener('pointerover', onCopyHover);
-		node.addEventListener('focusin', onCopyFocus);
+		node.addEventListener('pointerover', onActionHover);
+		node.addEventListener('focusin', onActionFocus);
 		node.addEventListener('error', onImageError, true);
 		return {
 			destroy: () => {
 				node.removeEventListener('click', onLinkClick);
 				node.removeEventListener('keydown', onLinkKeydown);
-				node.removeEventListener('pointerover', onCopyHover);
-				node.removeEventListener('focusin', onCopyFocus);
+				node.removeEventListener('pointerover', onActionHover);
+				node.removeEventListener('focusin', onActionFocus);
 				node.removeEventListener('error', onImageError, true);
-				for (const handle of copyTooltips.values()) handle.destroy();
-				copyTooltips.clear();
+				for (const handle of actionTooltips.values()) handle.destroy();
+				actionTooltips.clear();
 			},
 		};
 	}
@@ -926,6 +966,10 @@
 	.markdown-text[data-render-mode='plain'] {
 		white-space: inherit;
 		overflow-wrap: inherit;
+	}
+
+	.markdown-text[data-streaming] :global([data-code-run]) {
+		display: none;
 	}
 
 	.markdown-text :global(> *:first-child) {

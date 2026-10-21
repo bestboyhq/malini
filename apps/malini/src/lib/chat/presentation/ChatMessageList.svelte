@@ -5,6 +5,7 @@
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
+	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
@@ -418,6 +419,10 @@
 		});
 	}
 
+	function runShellCommand(command: string, language: string | null): void {
+		runShellCommandCommand({ workstreamId, sessionId, command, language });
+	}
+
 	const checkpointEdit = createCheckpointEditor({
 		outcomeOf: (requestId) => requestOutcome(requestId),
 		runs: () => runs,
@@ -532,6 +537,7 @@
 			return implementingPlanKey;
 		},
 		implementPlan,
+		runShellCommand,
 		liveInputJsonForRunningTool,
 		openFileMention,
 		get canOpenFileMention() {

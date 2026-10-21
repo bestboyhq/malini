@@ -13,6 +13,12 @@ Every chat runs your own Claude Code, through the Claude Agent SDK, inside the c
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 
+## Run a command from the chat
+
+Every shell code block the agent writes has a **Run** button next to **Copy**.
+It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
+If the agent is busy, the command waits in the queue.
+
 ## Plan first
 
 Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
