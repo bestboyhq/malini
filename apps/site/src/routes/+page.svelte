@@ -154,7 +154,7 @@
 
 <div class="progress" aria-hidden="true"></div>
 
-<section class="hero" aria-labelledby="hero-title">
+<section class="hero" aria-labelledby="hero-title" data-place="hero">
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
@@ -349,7 +349,7 @@
 	</div>
 </section>
 
-<section id="start" class="beat closing" aria-labelledby="start-title">
+<section id="start" class="beat closing" aria-labelledby="start-title" data-place="closing">
 	<div class="wrap">
 		<div class="close">
 			<div class="glow" aria-hidden="true"></div>

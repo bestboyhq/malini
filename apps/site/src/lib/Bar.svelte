@@ -191,7 +191,7 @@
 	</a>
 {/snippet}
 
-<header class="topbar">
+<header class="topbar" data-place="bar">
 	<div
 		class={['row', { moving }]}
 		style:--menu-w={size ? `${size.w}px` : undefined}

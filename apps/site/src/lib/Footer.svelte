@@ -8,7 +8,7 @@
 	let { sitemap = false }: { sitemap?: boolean } = $props();
 </script>
 
-<footer class={['footer', { sitemap }]}>
+<footer class={['footer', { sitemap }]} data-place="footer">
 	{#if sitemap}
 		<div class="map">
 			<div class="about">
@@ -16,7 +16,7 @@
 					<img class="app-icon" src={asset('/icons/malini.webp')} width="28" height="28" alt="" />
 					Malini
 				</a>
-				<p>Architect. Don’t babysit.</p>
+				<p>You had one job. Now you have plenty.</p>
 			</div>
 			{#each SITEMAP as column (column.label)}
 				<nav aria-label={column.label}>

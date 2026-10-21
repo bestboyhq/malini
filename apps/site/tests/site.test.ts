@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
+import { LOGDASH_SITE } from '../src/lib/logdash.ts';
 import worker, { type Env } from '../worker/index.ts';
 
 const SITE = 'https://bestboy.dev/malini';
@@ -100,6 +101,37 @@ test('the worker caches immutable assets for a year and lets pages revalidate in
 	}
 	assert.equal((await get(`${SITE}/docs/jobs.md`)).headers.get('Cache-Control'), null);
 	assert.equal((await get(`${SITE}/llms.txt`)).headers.get('Cache-Control'), null);
+});
+
+test('every page loads Logdash from the Malini site and reports to it', () => {
+	for (const path of htmlPaths) {
+		const html = read(htmlFile(path));
+		assert.match(html, /<script defer="" src="\/malini\/_ld\/script\.js"/u, path);
+		assert.match(html, new RegExp(`data-site="${LOGDASH_SITE}"`, 'u'), path);
+		assert.match(html, /data-endpoint="\/malini\/_ld\/events"/u, path);
+	}
+});
+
+test('the worker refuses Logdash events that are not from a Malini page', async () => {
+	const send = (body: object, type = 'application/json') =>
+		worker.fetch(
+			new Request(`${SITE}/_ld/events`, {
+				method: 'POST',
+				headers: { 'Content-Type': type },
+				body: JSON.stringify(body),
+			}),
+			assets,
+		);
+	const event = { name: 'pageview', path: '/malini' };
+	const batch = (events: object[]) => ({ siteId: LOGDASH_SITE, events });
+	assert.equal((await send(batch([event]), 'text/plain')).status, 415);
+	assert.equal((await send({ siteId: '0'.repeat(24), events: [event] })).status, 400);
+	assert.equal((await send(batch([event, { ...event, path: '/' }]))).status, 400);
+	assert.equal((await send(batch([]))).status, 400);
+	assert.equal((await send(batch(Array(21).fill(event)))).status, 400);
+	const big = await send(batch([{ ...event, pad: '€'.repeat(11000) }]));
+	assert.equal(big.status, 413);
+	assert.equal(big.headers.get('Cache-Control'), 'no-store');
 });
 
 test('every content page is prerendered as a page and as client navigation data', () => {

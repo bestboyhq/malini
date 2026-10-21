@@ -45,3 +45,4 @@ A change that makes or reverses a decision writes a new record with the `adr` sk
 | [0038](0038-a-chat-keeps-its-claude-code-running-between-turns.md)    | A chat's Claude Code stays open between turns, restarts on changed instructions or settings, and refreshes the MCP and context popovers live   |
 | [0039](0039-screenshots-follow-the-users-theme.md)                    | Malini's theme drives `nativeTheme` and reaches the agent on every prompt as instructions and `MALINI_THEME`, so screenshots match it          |
 | [0040](0040-the-site-follows-bestboys-design.md)                      | The site copies bestboy.dev's design: `light-dark()` tokens, `data-theme` from a footer switcher, the shared bar, footer and frame             |
+| [0041](0041-the-site-counts-visits-and-downloads-with-logdash.md)     | The site reports visits and `malini-*` downloads to bestboy.dev's Logdash through its own Worker at `/malini/_ld/`, refusing other paths       |

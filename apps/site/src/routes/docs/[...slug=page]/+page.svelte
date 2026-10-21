@@ -50,7 +50,7 @@
 </svelte:head>
 
 <div class="page">
-	<article class="article" bind:this={article}>
+	<article class="article" data-place="docs" bind:this={article}>
 		<header class="intro">
 			<p class="section">{page.section}</p>
 			<h1 tabindex="-1" bind:this={heading}>{page.title}</h1>
