@@ -117,8 +117,8 @@
 	<Button
 		variant="secondary"
 		{size}
-		disabled={connecting !== null}
-		ariaBusy={connecting === 'clone'}
+		disabled={connecting === 'folder'}
+		loading={connecting === 'clone'}
 		ariaHasPopup="dialog"
 		ariaLabel="Clone a GitHub repository"
 		data-testid="repository-clone-open"
@@ -127,7 +127,24 @@
 		{#snippet leading()}
 			<Icon name="link" size={size === 'md' ? 16 : 14} />
 		{/snippet}
-		Clone repo
+		{connecting === 'clone' ? 'Cloning…' : 'Clone repo'}
+	</Button>
+{/snippet}
+
+{#snippet openFolderButton(testId: string)}
+	<Button
+		variant="primary"
+		size="md"
+		disabled={connecting === 'clone'}
+		loading={connecting === 'folder'}
+		ariaLabel="Open a local repository folder"
+		data-testid={testId}
+		onclick={openRepositoryFolderCommand}
+	>
+		{#snippet leading()}
+			<Icon name="folder-plus" size={16} />
+		{/snippet}
+		{connecting === 'folder' ? 'Opening…' : 'Open folder'}
 	</Button>
 {/snippet}
 
@@ -208,20 +225,7 @@
 					{/if}
 					<div class="ml-auto flex shrink-0 items-center gap-2">
 						{@render cloneButton('md')}
-						<Button
-							variant="primary"
-							size="md"
-							disabled={connecting !== null}
-							ariaBusy={connecting === 'folder'}
-							ariaLabel="Open a local repository folder"
-							data-testid="repository-open-folder"
-							onclick={openRepositoryFolderCommand}
-						>
-							{#snippet leading()}
-								<Icon name="folder-plus" size={16} />
-							{/snippet}
-							Open folder
-						</Button>
+						{@render openFolderButton('repository-open-folder')}
 					</div>
 				</div>
 			{/if}
@@ -319,20 +323,7 @@
 										{#if firstRun}
 											{@render cloneButton('md')}
 										{/if}
-										<Button
-											variant="primary"
-											size="md"
-											disabled={connecting !== null}
-											ariaBusy={connecting === 'folder'}
-											ariaLabel="Open a local repository folder"
-											data-testid="repository-open-folder-empty"
-											onclick={openRepositoryFolderCommand}
-										>
-											{#snippet leading()}
-												<Icon name="folder-plus" size={16} />
-											{/snippet}
-											Open folder
-										</Button>
+										{@render openFolderButton('repository-open-folder-empty')}
 									{/if}
 								{/snippet}
 							</StateBlock>
