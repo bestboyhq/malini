@@ -46,11 +46,11 @@
 	const steps = [
 		{
 			title: 'Start a task',
-			body: 'Each task is a workstream: its own git worktree, its own branch, its own chats. Start one or start a hundred.',
+			body: 'Each task is a workstream with its own git worktree, branch, and chats. Start one or a hundred.',
 		},
 		{
 			title: 'Keep it moving',
-			body: 'Queue prompts, run jobs, plan first if you like. Agents write code, and Malini owns git.',
+			body: 'Queue prompts, plan first if you like, and start the next task. Agents write the code. Malini owns git.',
 		},
 		{
 			title: 'Press Draft, then Merge',
@@ -62,7 +62,7 @@
 		{
 			icon: 'unlock',
 			title: 'Open source',
-			body: 'The code is public under AGPL-3.0. We can’t take it back, and if we ever go wrong, you can fork it.',
+			body: 'Every line is on GitHub under AGPL-3.0. We can’t take it back.',
 		},
 		{
 			icon: 'lock',
@@ -80,7 +80,7 @@
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. The agents run on your own Claude Code, so their usage counts against your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. The agents run on your own Claude Code, so they use your own Claude plan.',
 		},
 		{
 			question: 'What do I need?',
@@ -88,39 +88,39 @@
 				'macOS 13 or later on Apple silicon, and git. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
 		},
 		{
-			question: 'Does my code go through a Malini server?',
+			question: 'Where does my code go?',
 			answer:
-				'No. There is no Malini account and no Malini server. Your code goes to Anthropic through your own Claude Code, and to GitHub through the GitHub CLI. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that you can turn off under Settings, Privacy.',
+				'To Anthropic through your own Claude Code, and to GitHub through the GitHub CLI. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
 			answer:
-				'No. The agent bridge refuses commit, push, rebase, reset, and gh pr create. Malini owns the history: it commits, pushes, and opens the pull request when you press Draft or Merge.',
+				'No. Agents can’t commit, push, rebase, reset, or run gh pr create. Malini owns the history: it commits, pushes, and opens the pull request when you press Draft or Merge.',
 		},
 		{
-			question: 'Won’t parallel agents clobber each other?',
+			question: 'Will my agents step on each other’s work?',
 			answer:
-				'Every workstream is its own git worktree on its own branch, branched from a private clone of the repository, with dependencies installed from the lockfile.',
+				'Not in Malini. Each workstream is its own git worktree on its own branch, branched from a private clone of your repository. Dependencies are installed for you from the lockfile.',
 		},
 		{
 			question: 'Which models can I use?',
 			answer:
-				'Fable, Opus, Sonnet, or Haiku, from Low to Max effort, picked per prompt. The composer shows your context window and your plan usage.',
+				'Fable, Opus, Sonnet, or Haiku, at any effort from Low to Max, picked per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
 			answer:
-				'Yes. The inspector, its panels, commands, settings, and workflows come from extensions. The extension API is MIT licensed, so an extension can use any license.',
+				'Yes. The panel next to the chat is built from extensions, which add panels, commands, settings, and workflows. The extension API is MIT licensed, so an extension can use any license.',
 		},
 		{
 			question: 'How do updates work?',
 			answer:
-				'Updates download in the background and install when you quit, or right away with Restart to Update.',
+				'Malini updates itself. Updates download in the background and install when you quit, or right away with Restart to Update.',
 		},
 	];
 </script>
 
-<Head title="Malini - many Claude Code agents, one window" description={SITE_DESCRIPTION} path="" />
+<Head title="Malini: many Claude Code agents, one window" description={SITE_DESCRIPTION} path="" />
 
 <div class="progress" aria-hidden="true"></div>
 
@@ -136,8 +136,8 @@
 			<span class="quiet">Now you have plenty.</span>
 		</h1>
 		<p class="lede">
-			Many Claude Code agents, one window, one merged pull request each. Every task gets its own git
-			worktree and its own agent, and Malini takes it from prompt to merged.
+			Malini runs many Claude Code agents side by side in one window. Each task gets its own branch,
+			and Malini takes it to a merged pull request.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
@@ -159,7 +159,7 @@
 				src={hero}
 				width="2560"
 				height="1600"
-				alt="Malini with three repositories in the sidebar, an agent's finished run in the chat, and the changed files beside it"
+				alt="The Malini window: six workstreams across malini, grip, and tony in the sidebar, a finished chat, and Draft and Merge above 2 changed files"
 				fetchpriority="high"
 			/>
 		</div>
@@ -172,7 +172,7 @@
 	split
 	title="One task. One worktree."
 	quiet="One merged pull request."
-	description="Malini gives every task its own agent and its own branch, so ten things can move at once without stepping on each other."
+	description="Every task gets its own agent and its own branch. Ten can run at once, and none step on another."
 >
 	{#snippet after()}
 		<ol class="cells">
@@ -190,11 +190,11 @@
 <FeatureRow
 	id="chat"
 	beat={beat('chat', 'Chat')}
-	title="A chat that keeps up"
-	body="Enter queues a prompt after the current run, Cmd+Enter steers it now, and background commands keep running. Edit, reorder, or delete what is waiting."
+	title="Keep typing while it works."
+	body="Enter queues a prompt after the current run. Cmd+Enter steers it now, and background commands keep running. Edit, reorder, or delete what is waiting."
 	href={doc('chat')}
-	linkLabel="About the chat"
-	checks={['Plan mode, model and effort per prompt', 'Undo any run, or fork it to a new chat']}
+	linkLabel="How the chat works"
+	checks={['A model and an effort for every prompt', 'Undo any run, or fork it to a new chat']}
 	panel={chatPanel}
 />
 
@@ -202,10 +202,10 @@
 	id="browser"
 	beat={beat('browser', 'Browser')}
 	mirrored
-	title="A browser the agent can drive"
-	body="Browser tabs sit next to your files. The agent opens, types, clicks, and screenshots, and the tabs it opens show up beside yours."
+	title="Give the agent a browser."
+	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
-	linkLabel="The agent's tools"
+	linkLabel="What the agent can do"
 	checks={['Pick an element and it lands in your prompt', 'The same tabs for you and the agent']}
 	panel={browserPanel}
 />
@@ -215,16 +215,16 @@
 	beat={beat('ship')}
 	title="From prompt to merged."
 	quiet="Without babysitting a branch."
-	description="Agents write the code. Malini owns git: it commits, opens the pull request, and keeps it moving until GitHub merges it."
+	description="A check goes red. Main moves. A reviewer asks for changes. Malini handles each one and tells you when it needs you."
 />
 
 <FeatureRow
 	id="merge"
 	beat={beat('merge', 'Merge queue')}
-	title="A merge queue that does the chores"
-	body="Press Merge and Malini pushes, marks the pull request ready, updates from main, and waits for checks and review. While it waits, it runs Fix checks, Update from main, and Address review."
+	title="Press Merge. Do something else."
+	body="Malini pushes, marks the pull request ready, and waits for checks and review. While it waits, it fixes red checks, catches up with main, and answers reviewers."
 	href={doc('workstreams')}
-	linkLabel="How workstreams ship"
+	linkLabel="How a merge works"
 	checks={['Says Needs you only when it must', 'Merges exactly the commit that passed']}
 	panel={mergePanel}
 />
@@ -232,17 +232,17 @@
 <SectionHeading
 	id="outcomes"
 	beat={beat('outcomes')}
-	title="Outcomes, not skills."
-	quiet="Ask for them by name."
-	description="A job is agent work you reuse: instructions, a model, an effort, and only the skills it needs. Routines run jobs when something happens."
+	title="You never wanted skills."
+	quiet="You wanted green checks."
+	description="A job is agent work you ask for by name, like Fix checks or Update from main. Routines run jobs when something happens."
 />
 
 <FeatureRow
 	id="routines"
 	beat={beat('routines', 'Routines')}
 	mirrored
-	title="Routines that earn your trust"
-	body="Ask the agent for a routine and it writes the trigger from Malini's own events. Every save waits for your approval, and a new routine starts as a draft."
+	title="Automate it once you trust it."
+	body="Tell the agent what to run when a pull request merges, and it writes the routine. You approve every save. A new routine starts as a draft."
 	href={doc('routines')}
 	linkLabel="How routines work"
 	checks={['Draft, then candidate, then unattended', 'Triggers on any event Malini emits']}
@@ -253,7 +253,7 @@
 	id="open"
 	beat={beat('open')}
 	title="Open source, so we can’t rug pull you."
-	quiet="Transparent, all the way down."
+	quiet="Fork it if we ever go wrong."
 >
 	<div class="buttons">
 		<a class="button secondary small" href={GITHUB_URL}>
@@ -281,8 +281,8 @@
 <FeatureRow
 	id="docs"
 	beat={beat('docs', 'Docs')}
-	title="Docs for people and agents"
-	body="Every docs page is plain markdown at its URL plus .md. llms.txt lists them all, and every event Malini emits is documented with its payload."
+	title="Docs your agent can read too."
+	body="Add .md to any docs URL for plain markdown. Your agent reads the same pages you do, and every event Malini emits is documented."
 	href={docHref('/docs')}
 	linkLabel="Read the docs"
 	checks={[
@@ -298,9 +298,9 @@
 		<BeatLabel {...beat('faq')} />
 		<div class="faq">
 			<div class="faq-intro">
-				<h2 id="faq-title">Frequently asked questions</h2>
+				<h2 id="faq-title">Questions</h2>
 				<p>
-					Have a different question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
+					Another question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
 				</p>
 			</div>
 			<div class="answers">
@@ -326,7 +326,7 @@
 			<BeatLabel {...beat('start')} />
 			<div class="end">
 				<div>
-					<h2 id="start-title">Give every task its own agent.</h2>
+					<h2 id="start-title">Start with the task you’ve put off.</h2>
 					<p class="sub">Download Malini, connect Claude Code and GitHub, and add a repository.</p>
 				</div>
 				<div class="close-actions">
