@@ -52,8 +52,10 @@ test('a finished reply keeps its last line visible and its footer clear of the t
 					let row: Node | null = line;
 					while (row && row.parentElement !== run) row = row.parentElement;
 					if (!row) return Number.POSITIVE_INFINITY;
-					const clip = /inset\(\S+ \S+ ([\d.]+)px/u.exec(view.getComputedStyle(row).clipPath);
-					return row.getBoundingClientRect().bottom - Number(clip?.[1] ?? 0);
+					const hidden = /rgba\(0, 0, 0, 0\) ([\d.]+)px/u.exec(
+						view.getComputedStyle(row).maskImage,
+					);
+					return row.getBoundingClientRect().bottom - Number(hidden?.[1] ?? 0);
 				};
 				for (const line of run.querySelectorAll('p')) {
 					const text = line.getBoundingClientRect();

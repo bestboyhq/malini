@@ -491,7 +491,7 @@ test('a tool row in a run past two hundred steps stays in place while later step
 				state.samples.push([
 					scroller.scrollTop,
 					row?.getBoundingClientRect().top ?? Number.NaN,
-					row?.getAttribute('style')?.includes('clip-path') ? 1 : 0,
+					row?.getAttribute('style')?.includes('mask') ? 1 : 0,
 					blank.length,
 				]);
 				doc.defaultView?.requestAnimationFrame(sample);

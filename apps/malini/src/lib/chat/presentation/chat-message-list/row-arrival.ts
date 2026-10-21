@@ -12,6 +12,8 @@ const DISCLOSURE_SETTLE_MS = 400;
 
 const SETTLED_ROW = '[data-row-settled]';
 
+const COVERED_FADE_PX = 12;
+
 export type RowArrivalAction = (node: HTMLElement, key: string) => { destroy: () => void };
 
 export type PromptArrivalAction = (
@@ -142,7 +144,7 @@ export function createRowArrivals(input: {
 			inFlow: boolean;
 			glide: GlideState;
 			translate: string;
-			clip: string;
+			mask: string;
 		};
 		const rows = new Map<HTMLElement, Row>();
 		let frame: number | null = null;
@@ -163,9 +165,9 @@ export function createRowArrivals(input: {
 				const offset = row.glide.position;
 				const covered = !row.inFlow || below === null ? 0 : Math.ceil(offset - below);
 				const translate = Math.abs(offset) < 0.5 ? '' : `0 ${snapToDevicePixel(offset)}px`;
-				const clip = covered < 1 ? '' : `inset(-100vh -100vw ${covered}px -100vw)`;
+				const mask = covered < 1 ? '' : coveredMask(covered);
 				if (translate !== row.translate) element.style.translate = row.translate = translate;
-				if (clip !== row.clip) element.style.clipPath = row.clip = clip;
+				if (mask !== row.mask) element.style.mask = row.mask = mask;
 				if (row.inFlow) below = offset;
 			}
 		}
@@ -203,7 +205,7 @@ export function createRowArrivals(input: {
 				if (!row) {
 					resizeObserver.observe(element);
 					const glide = { position: 0, velocity: 0 };
-					rows.set(element, { top, inFlow, glide, translate: '', clip: '' });
+					rows.set(element, { top, inFlow, glide, translate: '', mask: '' });
 					continue;
 				}
 				const shift = row.top - top;
@@ -257,6 +259,12 @@ export function createRowArrivals(input: {
 			arrivalFlights.clear();
 		},
 	};
+}
+
+function coveredMask(covered: number): string {
+	const opaque = covered + Math.min(COVERED_FADE_PX, covered);
+	const gradient = `linear-gradient(to top, transparent ${covered}px, black ${opaque}px)`;
+	return `${gradient} 0 -100vh / 100% calc(100% + 100vh) repeat-x border-box no-clip`;
 }
 
 function disclosureOf(target: EventTarget | null): HTMLElement | null {
