@@ -35,6 +35,43 @@ test('the MCP panel shows the live status of the chat servers when it opens', as
 	}
 });
 
+test('the composer status cards follow the pointer and ignore clicks', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-status-click-ws',
+			'Status click workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+
+		const mcpTrigger = page.getByRole('button', { name: 'View MCP server status' });
+		const mcpPanel = page.getByRole('dialog', { name: 'MCP server status' });
+		await mcpTrigger.click();
+		await expect(mcpPanel).toBeVisible();
+		await mcpTrigger.click();
+		await expect(mcpPanel).toBeVisible();
+
+		const contextPanel = page.getByRole('dialog', { name: 'Context and plan usage' });
+		await page.getByRole('button', { name: /^View context and plan usage/u }).hover();
+		await expect(contextPanel).toBeVisible();
+		await expect(mcpPanel).toBeHidden();
+
+		await page.getByTestId('chat-composer-submit').hover();
+		await expect(contextPanel).toBeHidden();
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('the context panel shows what the chat holds now, not what it held when the last turn ended', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({

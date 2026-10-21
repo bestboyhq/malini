@@ -196,9 +196,9 @@
 		align="end"
 		openDelay={160}
 		closeDelay={140}
+		triggerPress="ignore"
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
-		backdropTestId="session-context-backdrop"
 		owner="chat-composer"
 		panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
 	>
@@ -207,6 +207,7 @@
 				<Button
 					variant="danger-ghost"
 					size="md"
+					pressable={false}
 					class="gap-1.5 rounded-md text-xs font-normal"
 					ariaLabel={triggerLabel}
 					ariaExpanded={open}
@@ -223,6 +224,7 @@
 				<IconButton
 					variant="ghost"
 					size="md"
+					pressable={false}
 					ariaLabel={triggerLabel}
 					ariaExpanded={open}
 					ariaControls="session-context-usage-panel"
@@ -352,9 +354,9 @@
 		align="start"
 		openDelay={160}
 		closeDelay={140}
+		triggerPress="ignore"
 		onopenchange={onMcpOpenChange}
 		testId="session-mcp-hovercard"
-		backdropTestId="session-mcp-backdrop"
 		owner="chat-composer"
 		panelClass="w-72 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
 	>
@@ -362,6 +364,7 @@
 			<IconButton
 				variant="ghost"
 				size="md"
+				pressable={false}
 				ariaLabel="View MCP server status"
 				ariaExpanded={open}
 				ariaControls="session-mcp-status-panel"

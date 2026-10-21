@@ -4,14 +4,14 @@ import type { MenuAlign, MenuSide } from './positioning';
 export interface MenuTransitionParams {
 	side: MenuSide;
 	align: MenuAlign;
-	duration?: number;
-	easing?: (t: number) => number;
 	skip?: boolean;
 }
 
-const MENU_DURATION_MS = 200;
-const REDUCED_MOTION_DURATION_MS = 70;
-const MENU_EASING = cubicBezier(0.4, 0, 0.2, 1);
+const ENTER_MS = 200;
+const EXIT_MS = 140;
+const REDUCED_MOTION_MS = 70;
+const START_SCALE = 0.935;
+const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1);
 
 export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
 	const along = (a: number, b: number, s: number): number =>
@@ -27,8 +27,6 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 		return along(y1, y2, (low + high) / 2);
 	};
 }
-
-export const PREVIEW_ENTER = { duration: 300, easing: cubicBezier(0, 0, 0.58, 1) } as const;
 
 function transformOriginFor(side: MenuSide, align: MenuAlign): string {
 	if (side === 'top' || side === 'bottom') {
@@ -49,25 +47,31 @@ function prefersReducedMotion(): boolean {
 	);
 }
 
-function menuMotion(node: HTMLElement, params: MenuTransitionParams): TransitionConfig {
+function menuMotion(
+	node: HTMLElement,
+	params: MenuTransitionParams,
+	duration: number,
+): TransitionConfig {
+	if (params.skip) return { duration: 0, css: () => '' };
 	const reduced = prefersReducedMotion();
 	node.style.transformOrigin = transformOriginFor(params.side, params.align);
 	node.style.willChange = 'transform, opacity';
 	return {
-		duration: reduced ? REDUCED_MOTION_DURATION_MS : (params.duration ?? MENU_DURATION_MS),
-		easing: params.easing ?? MENU_EASING,
+		duration: reduced ? REDUCED_MOTION_MS : duration,
+		easing: EASE_OUT,
 		css: (t) =>
-			reduced ? `opacity: ${t};` : `opacity: ${t}; transform: scale(${0.95 + 0.05 * t});`,
+			reduced
+				? `opacity: ${t};`
+				: `opacity: ${t}; transform: scale(${START_SCALE + (1 - START_SCALE) * t});`,
 	};
 }
 
 export function menuOpen(node: HTMLElement, params: MenuTransitionParams): TransitionConfig {
 	node.style.removeProperty('pointer-events');
-	return menuMotion(node, params);
+	return menuMotion(node, params, ENTER_MS);
 }
 
 export function menuClose(node: HTMLElement, params: MenuTransitionParams): TransitionConfig {
-	if (params.skip) return { duration: 0, css: () => '' };
 	node.style.pointerEvents = 'none';
-	return menuMotion(node, params);
+	return menuMotion(node, params, EXIT_MS);
 }
