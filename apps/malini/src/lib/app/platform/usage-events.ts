@@ -65,6 +65,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'chat.decide-approval': (args) => ({
 		decision: text(args, 'decision'),
 		scope: text(args, 'scope'),
+		alwaysAllow: field(args, 'alwaysAllow') === true,
 	}),
 	'chat.get-or-create-session': false,
 	'chat.list-events': false,

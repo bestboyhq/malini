@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type {
+	HookInput,
+	HookJSONOutput,
 	ModelInfo,
 	Options,
 	PermissionMode,
@@ -27,8 +29,17 @@ export interface CanUseToolStep {
 	};
 }
 
+export interface HookStep {
+	readonly hook: HookInput;
+}
+
 export type ScriptStep =
-	SDKMessage | CanUseToolStep | 'wait-for-interrupt' | 'wait-for-stop-task' | 'wait-for-prompt';
+	| SDKMessage
+	| CanUseToolStep
+	| HookStep
+	| 'wait-for-interrupt'
+	| 'wait-for-stop-task'
+	| 'wait-for-prompt';
 
 export type RecordedScenario =
 	| 'readAndBash'
@@ -42,12 +53,16 @@ export type RecordedScenario =
 	| 'backgroundCommand'
 	| 'stoppedBackgroundCommand'
 	| 'retriedStream'
-	| 'nonStreamingFallback';
+	| 'nonStreamingFallback'
+	| 'autoModeBlock'
+	| 'blockedRetry';
 
 export interface FakeRun {
 	readonly options: Options;
 	readonly prompt: Promise<string>;
 	readonly permissionResults: (PermissionResult | null)[];
+	readonly hookOutputs: HookJSONOutput[];
+	readonly flagPermissions: unknown[];
 	readonly permissionModes: PermissionMode[];
 	readonly mcpPermissionModes: Record<string, string | null>;
 	readonly stoppedTasks: string[];
@@ -138,6 +153,8 @@ export function fakeClaude(
 			options,
 			prompt: promptText(sent),
 			permissionResults: [],
+			hookOutputs: [],
+			flagPermissions: [],
 			permissionModes: [],
 			mcpPermissionModes: {},
 			stoppedTasks: [],
@@ -173,6 +190,10 @@ export function fakeClaude(
 							run.permissionResults.push(await askPermission(options, step));
 							continue;
 						}
+						if ('hook' in step) {
+							run.hookOutputs.push(...(await runHooks(options, step.hook)));
+							continue;
+						}
 						yield step.type === 'result' ? echoPrompt(step, (await latest)?.uuid) : step;
 					}
 				} finally {
@@ -185,7 +206,8 @@ export function fakeClaude(
 				return undefined;
 			},
 			async applyFlagSettings(settings) {
-				run.efforts.push(settings.effortLevel);
+				if ('effortLevel' in settings) run.efforts.push(settings.effortLevel);
+				if (settings.permissions) run.flagPermissions.push(settings.permissions);
 			},
 			async stopTask(taskId) {
 				run.stoppedTasks.push(taskId);
@@ -232,6 +254,21 @@ async function askPermission(
 	return canUseTool(toolName, input, { ...opts, signal });
 }
 
+async function runHooks(options: Options, input: HookInput): Promise<HookJSONOutput[]> {
+	const toolName = 'tool_name' in input ? input.tool_name : undefined;
+	const toolUseId = 'tool_use_id' in input ? input.tool_use_id : undefined;
+	const signal = options.abortController?.signal ?? new AbortController().signal;
+	const outputs: HookJSONOutput[] = [];
+	for (const { matcher, hooks } of options.hooks?.[input.hook_event_name] ?? []) {
+		if (matcher !== undefined && matcher !== toolName) continue;
+		for (const hook of hooks) {
+			const output = await hook(input, toolUseId, { signal });
+			if (Object.keys(output).length > 0) outputs.push(output);
+		}
+	}
+	return outputs;
+}
+
 async function nextPrompt(
 	prompts: AsyncIterator<SDKUserMessage>,
 ): Promise<SDKUserMessage | undefined> {
@@ -259,11 +296,13 @@ function initServers(script: readonly ScriptStep[]): readonly { readonly name: s
 }
 
 function isMessage(step: ScriptStep): step is SDKMessage {
-	return typeof step !== 'string' && !('canUseTool' in step);
+	return typeof step !== 'string' && !('canUseTool' in step) && !('hook' in step);
 }
 
 function isRecordedStep(value: unknown): value is ScriptStep {
 	if (!isRecord(value)) return false;
+	const hook = value['hook'];
+	if (hook !== undefined) return isRecord(hook) && typeof hook['hook_event_name'] === 'string';
 	const call = value['canUseTool'];
 	if (call === undefined) return typeof value['type'] === 'string';
 	return (

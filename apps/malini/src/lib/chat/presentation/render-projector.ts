@@ -7,6 +7,7 @@ import {
 	isContextHandoffContentId,
 	renderInteractionItem,
 	stableToolKey,
+	toolFailure,
 	truncation,
 	type RenderItem,
 	type RenderState,
@@ -490,7 +491,7 @@ export class IncrementalRenderProjector {
 							completedAt: event.ts ?? null,
 							status: failed ? 'failed' : 'completed',
 							...(event.type === 'tool.failed'
-								? { error: event.error }
+								? toolFailure(event)
 								: { output: event.output, ...truncation(event) }),
 						},
 					};
@@ -510,7 +511,7 @@ export class IncrementalRenderProjector {
 							input: undefined,
 							output: failed ? undefined : event.output,
 							status: failed ? 'failed' : 'completed',
-							...(event.type === 'tool.failed' ? { error: event.error } : truncation(event)),
+							...(event.type === 'tool.failed' ? toolFailure(event) : truncation(event)),
 						},
 					});
 				}

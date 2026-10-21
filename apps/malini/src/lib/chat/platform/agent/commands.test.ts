@@ -1055,6 +1055,65 @@ describe('interactions', () => {
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
 	});
 
+	it('hands Claude an always-allow only for a call auto mode blocked', async () => {
+		const { sessionId, runId } = await pendingApproval();
+		expect(
+			await invokeError('chat.decide-approval', {
+				sessionId,
+				runId,
+				approvalId: 'approval-1',
+				decision: 'allow',
+				scope: 'once',
+				permission: permissionFor(approvalPath),
+				alwaysAllow: true,
+			}),
+		).toBe('only an allow-once decision on a call auto mode blocked can always allow it');
+
+		await invoke('chat.decide-approval', {
+			sessionId,
+			runId,
+			approvalId: 'approval-1',
+			decision: 'deny',
+			scope: 'once',
+			permission: permissionFor(approvalPath),
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+
+		const blockedSession = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const blockedRun = await invokeString('chat.send-prompt', {
+			sessionId: blockedSession,
+			prompt: 'AUTO_MODE_BLOCK',
+		});
+		await waitFor(
+			() =>
+				getInteraction(test.db, 'approval', blockedSession, blockedRun, 'approval-blocked-1') !==
+				null,
+		);
+		await service.runtime.settlePump();
+		const permission = {
+			capability: 'external-service',
+			resources: [{ kind: 'service', value: 'ops', boundary: 'external' }],
+		};
+		const blocked = {
+			sessionId: blockedSession,
+			runId: blockedRun,
+			approvalId: 'approval-blocked-1',
+			decision: 'allow',
+			permission,
+			alwaysAllow: true,
+		};
+		expect(await invokeError('chat.decide-approval', { ...blocked, scope: 'session' })).toBe(
+			'only an allow-once decision on a call auto mode blocked can always allow it',
+		);
+		expect(await invoke('chat.decide-approval', { ...blocked, scope: 'once' })).toEqual({
+			decision: 'allow',
+			scope: 'once',
+			remembered: false,
+		});
+		await waitFor(() => getRun(test.db, blockedRun)?.completedAt !== null);
+		expect(getRun(test.db, blockedRun)?.summary).toBe('approved:allow:always');
+	});
+
 	it('answers a question after validating it against the stored request', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

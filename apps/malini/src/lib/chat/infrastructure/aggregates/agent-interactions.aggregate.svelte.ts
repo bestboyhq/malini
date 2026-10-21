@@ -30,6 +30,7 @@ type RegisteredInteraction =
 			runId: string;
 			requestId: string;
 			permission?: AgentPermissionDescriptor;
+			autoModeRule?: string;
 	  }>
 	| Readonly<{
 			kind: 'question';
@@ -153,6 +154,7 @@ export class AgentInteractionCommands {
 					runId: envelope.runId,
 					requestId,
 					...(event.permission ? { permission: event.permission } : {}),
+					...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
 				});
 			} else {
 				const questionIds = new Set(event.questions.map(({ id }) => id));
@@ -265,6 +267,12 @@ export class AgentInteractionCommands {
 			this.#fail(key, 'This permission can only be allowed once.');
 			return false;
 		}
+		const autoModeRule = request?.kind === 'approval' ? request.autoModeRule : undefined;
+		const alwaysAllow = input.alwaysAllow === true;
+		if (alwaysAllow && (input.decision !== 'allow' || input.scope !== 'once' || !autoModeRule)) {
+			this.#fail(key, 'Only a call auto mode blocked can be always allowed.');
+			return false;
+		}
 
 		try {
 			const result = await this.#resolveAgentPort().decideAgentApproval({
@@ -276,6 +284,7 @@ export class AgentInteractionCommands {
 				...(request?.kind === 'approval' && request.permission
 					? { permission: $state.snapshot(request.permission) }
 					: {}),
+				...(alwaysAllow ? { alwaysAllow } : {}),
 			});
 			if (this.states[key]?.status === 'stale') return false;
 			if (result.decision !== input.decision || result.scope !== input.scope) {
@@ -292,17 +301,11 @@ export class AgentInteractionCommands {
 				...this.states,
 				[key]: {
 					status: 'resolved',
-					message:
-						input.decision === 'deny'
-							? 'Denied'
-							: input.scope === 'once' || !remembered
-								? 'Allowed once'
-								: input.scope === 'session'
-									? 'Allowed for this chat'
-									: 'Allowed for this workstream',
+					message: resolvedMessage(input, remembered, autoModeRule !== undefined),
 					decision: input.decision,
 					requestedScope: input.scope,
 					scopeStored: remembered,
+					...(alwaysAllow ? { alwaysAllowed: true } : {}),
 					...(result.ruleId ? { ruleId: result.ruleId } : {}),
 				},
 			};
@@ -381,6 +384,17 @@ export class AgentInteractionCommands {
 	#stale(key: string): void {
 		this.states = { ...this.states, [key]: { status: 'stale', message: STALE_MESSAGE } };
 	}
+}
+
+function resolvedMessage(
+	input: DecideAgentApprovalInput,
+	remembered: boolean,
+	blockedByAutoMode: boolean,
+): string {
+	if (input.decision === 'deny') return blockedByAutoMode ? 'Kept blocked' : 'Denied';
+	if (input.alwaysAllow) return 'Always allowed';
+	if (input.scope === 'once' || !remembered) return 'Allowed once';
+	return input.scope === 'session' ? 'Allowed for this chat' : 'Allowed for this workstream';
 }
 
 type QuestionAnswerValidation =

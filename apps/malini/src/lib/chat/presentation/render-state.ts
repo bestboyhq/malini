@@ -29,6 +29,7 @@ export type ToolAggregate = {
 	outputLength?: number;
 	status: 'running' | 'completed' | 'failed';
 	error?: string;
+	autoModeReason?: string;
 };
 
 export function stableToolKey(
@@ -116,6 +117,7 @@ export type RenderItem =
 			toolName?: string;
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
+			autoModeRule?: string;
 	  }
 	| {
 			kind: 'question';
@@ -303,6 +305,15 @@ export function truncation(
 	};
 }
 
+export function toolFailure(
+	event: Readonly<{ error: string; autoModeReason?: string }>,
+): Pick<ToolAggregate, 'error' | 'autoModeReason'> {
+	return {
+		error: event.error,
+		...(event.autoModeReason ? { autoModeReason: event.autoModeReason } : {}),
+	};
+}
+
 export function answerOutput(output: unknown): string | undefined {
 	return typeof output === 'string' ? output : undefined;
 }
@@ -330,6 +341,7 @@ export function renderInteractionItem(
 						},
 					}
 				: {}),
+			...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
 		};
 	}
 	if (event.type === 'question.requested') {
@@ -571,7 +583,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				if (existing) {
 					existing.completedAt = event.ts ?? null;
 					existing.status = 'failed';
-					existing.error = event.error;
+					Object.assign(existing, toolFailure(event));
 					openTools.delete(lookupKey);
 					const { ownerRunId: _ownerRunId, startedSeq: _startedSeq, ...tool } = existing;
 					push(runId, {
@@ -593,7 +605,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 							input: undefined,
 							output: undefined,
 							status: 'failed',
-							error: event.error,
+							...toolFailure(event),
 						},
 					});
 				}

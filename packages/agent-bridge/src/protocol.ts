@@ -86,6 +86,7 @@ export interface ApproveCommand {
 	readonly approvalId: string;
 	readonly decision: ApprovalDecision;
 	readonly scope: ApprovalScope;
+	readonly alwaysAllow?: boolean;
 }
 
 export interface AnswerQuestionCommand {
@@ -691,6 +692,7 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 	const approvalId = obj.approvalId;
 	const decision = obj.decision;
 	const scope = obj.scope ?? 'once';
+	const alwaysAllow = obj.alwaysAllow;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'approve: sessionId required (non-empty string)', obj);
 	}
@@ -706,6 +708,9 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 	if (!isApprovalScope(scope)) {
 		return err('INVALID_PAYLOAD', 'approve: scope must be "once", "session", or "workstream"', obj);
 	}
+	if (alwaysAllow !== undefined && typeof alwaysAllow !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'approve: alwaysAllow must be a boolean', obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -716,6 +721,7 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 			approvalId,
 			decision: decision === 'approve' ? 'allow' : decision,
 			scope,
+			...(alwaysAllow === true ? { alwaysAllow } : {}),
 		},
 	};
 }

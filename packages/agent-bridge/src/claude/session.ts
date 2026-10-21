@@ -3,6 +3,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import {
 	query as sdkQuery,
 	type CanUseTool,
+	type HookCallback,
 	type McpServerStatus,
 	type Options,
 	type PermissionMode,
@@ -19,10 +20,17 @@ import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } fro
 import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
 import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
-import { configChanged, configSnapshot, type ConfigSnapshot } from './config-snapshot.js';
+import {
+	configChanged,
+	configSnapshot,
+	restamped,
+	type ConfigSnapshot,
+} from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
 import {
+	autoModeCategory,
+	autoModeRule,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -30,17 +38,21 @@ import {
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
+	retryKey,
 	sandboxFor,
 } from './permissions.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot } from './usage.js';
+import { allowInUserSettings, userSettingsFile } from './user-settings.js';
+import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
 const BACKGROUND_OUTPUT_POLL_MS = 2_000;
 const IDLE_PROCESS_MS = 10 * 60_000;
 const MCP_SETTLE_MS = 5_000;
 const MCP_SETTLE_POLL_MS = 250;
+const BLOCKED_CALL_DECISION_TIMEOUT_S = 24 * 60 * 60;
 const PLAN_HANDOFF_MESSAGE =
 	'Malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
@@ -104,6 +116,9 @@ interface ActiveRun {
 	pending: Promise<IteratorResult<SDKMessage>> | null;
 	idleTimeout: NodeJS.Timeout | null;
 	config: ConfigSnapshot | null;
+	readonly approvedRetries: Set<string>;
+	readonly retriedCalls: Set<string>;
+	readonly allowRules: Set<string>;
 }
 
 type TurnKind = 'fresh' | 'resumed' | 'warm';
@@ -114,6 +129,7 @@ export class ClaudeSession implements ProviderHandle {
 	readonly #executable: string | null;
 	readonly #query: QueryFunction;
 	readonly #interactions: ProviderInteractionBroker;
+	readonly #blockedCallRules = new Map<string, string>();
 	#claudeSessionId: string | undefined;
 	#seedHistory: readonly ConversationHistoryMessage[] | undefined;
 	#active: ActiveRun | null = null;
@@ -242,6 +258,9 @@ export class ClaudeSession implements ProviderHandle {
 			pending: null,
 			idleTimeout: null,
 			config: null,
+			approvedRetries: new Set(),
+			retriedCalls: new Set(),
+			allowRules: new Set(),
 		};
 		this.#active = active;
 		void this.#openOnceMcpSettles(active, open);
@@ -322,6 +341,7 @@ export class ClaudeSession implements ProviderHandle {
 		} finally {
 			clearInterval(outputPoll);
 			this.#interactions.cancelRun(active.runId);
+			active.approvedRetries.clear();
 			if (keepWarm) void this.#rest(active);
 			else this.#retire(active);
 			endTurn();
@@ -544,7 +564,15 @@ export class ClaudeSession implements ProviderHandle {
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
 			sandbox: sandboxFor(profile),
 			disallowedTools: disallowedTools(),
-			hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [refuseMaliniOwnedCommands] }] },
+			hooks: {
+				PreToolUse: [
+					{ matcher: 'Bash', hooks: [refuseMaliniOwnedCommands] },
+					{ hooks: [this.#allowApprovedRetry()] },
+				],
+				PermissionDenied: [
+					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
+				],
+			},
 			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),
@@ -614,6 +642,62 @@ export class ClaudeSession implements ProviderHandle {
 		};
 	}
 
+	#askAboutBlockedCall(): HookCallback {
+		return async (input, _toolUseId, { signal }) => {
+			const active = this.#active;
+			if (input.hook_event_name !== 'PermissionDenied' || !active) return {};
+			if (active.retriedCalls.has(input.tool_use_id)) return {};
+			const { cwd } = this.#context;
+			const toolInput = isRecord(input.tool_input) ? input.tool_input : {};
+			const approvalId = `approval-${input.tool_use_id}`;
+			const rule = autoModeRule(input.tool_name, toolInput, cwd);
+			this.#blockedCallRules.set(approvalId, rule);
+			const resolution = await this.#interactions
+				.requestApproval({
+					runId: active.runId,
+					approvalId,
+					reason: `Blocked by auto mode: ${autoModeCategory(input.reason)}`,
+					toolName: input.tool_name,
+					input: toolInput,
+					permission: permissionDescriptor(input.tool_name, toolInput, cwd, undefined),
+					autoModeRule: rule,
+					signal,
+				})
+				.finally(() => this.#blockedCallRules.delete(approvalId));
+			if (resolution.decision === 'deny') return {};
+			if (resolution.alwaysAllow) await this.#allowWhileRunning(active, rule);
+			active.approvedRetries.add(retryKey(input.tool_name, input.tool_input));
+			return { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
+		};
+	}
+
+	#allowApprovedRetry(): HookCallback {
+		return async (input) => {
+			const active = this.#active;
+			if (input.hook_event_name !== 'PreToolUse' || !active) return {};
+			if (!active.approvedRetries.delete(retryKey(input.tool_name, input.tool_input))) return {};
+			active.retriedCalls.add(input.tool_use_id);
+			return {
+				hookSpecificOutput: {
+					hookEventName: 'PreToolUse',
+					permissionDecision: 'allow',
+					permissionDecisionReason:
+						'The user allowed this call in Malini after auto mode blocked it.',
+				},
+			};
+		};
+	}
+
+	async #allowWhileRunning(active: ActiveRun, rule: string): Promise<void> {
+		active.allowRules.add(rule);
+		if (active.config) active.config = restamped(active.config, userSettingsFile());
+		await active.query
+			.applyFlagSettings({ permissions: { allow: [...active.allowRules] } })
+			.catch((error: unknown) =>
+				process.stderr.write(`[claude] could not allow ${rule} live: ${describe(error)}\n`),
+			);
+	}
+
 	#requestPlatform(call: PlatformToolCall): Promise<PlatformResult> {
 		const runId = this.#active?.runId;
 		if (!runId) return Promise.resolve({ ok: false, error: 'No Malini run is active.' });
@@ -656,6 +740,11 @@ export class ClaudeSession implements ProviderHandle {
 	}
 
 	async respondToApproval(reply: ProviderApprovalReply): Promise<void> {
+		if (reply.alwaysAllow && reply.decision === 'allow') {
+			const rule = this.#blockedCallRules.get(reply.approvalId);
+			if (!rule) throw new Error(`${reply.approvalId} is not a call auto mode blocked`);
+			await allowInUserSettings(rule);
+		}
 		this.#interactions.resolveApproval(reply);
 	}
 

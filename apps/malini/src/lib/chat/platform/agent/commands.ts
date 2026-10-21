@@ -996,6 +996,7 @@ export interface DecideApprovalInput {
 	readonly decision: string;
 	readonly scope: string;
 	readonly permission?: unknown;
+	readonly alwaysAllow?: boolean;
 }
 
 export async function decideAgentApproval(
@@ -1007,12 +1008,16 @@ export async function decideAgentApproval(
 	const { sessionId, runId, approvalId } = input;
 	const { decision, scope } = checkedDecision(input.decision, input.scope);
 	const permission = input.permission === undefined ? null : input.permission;
-	const response = { decision, scope, permission };
+	const alwaysAllow = input.alwaysAllow === true;
+	const response = { decision, scope, permission, ...(alwaysAllow ? { alwaysAllow } : {}) };
 	const record = getInteraction(db, 'approval', sessionId, runId, approvalId);
 	if (!record) {
 		throw new Error(
 			`pending approval \`${approvalId}\` was not found for session \`${sessionId}\` run \`${runId}\``,
 		);
+	}
+	if (alwaysAllow && (decision !== 'allow' || scope !== 'once' || !blockedByAutoMode(record))) {
+		throw new Error('only an allow-once decision on a call auto mode blocked can always allow it');
 	}
 	if (interactionResponseMatches(record, response)) {
 		return approvalDecisionResult(
@@ -1073,6 +1078,7 @@ export async function decideAgentApproval(
 			approvalId,
 			decision,
 			scope,
+			...(alwaysAllow ? { alwaysAllow } : {}),
 		});
 	} catch (error) {
 		abortInteractionDispatch(db, 'approval', sessionId, runId, approvalId, response);
@@ -1099,6 +1105,12 @@ export async function decideAgentApproval(
 					},
 	});
 	return approvalDecisionResult(decision, scope, ruleId);
+}
+
+function blockedByAutoMode(record: { readonly requestPayload: unknown }): boolean {
+	return (
+		isRecord(record.requestPayload) && typeof record.requestPayload['autoModeRule'] === 'string'
+	);
 }
 
 export async function answerAgentQuestion(
@@ -1461,6 +1473,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				decision: requireString(args, 'decision'),
 				scope: requireString(args, 'scope'),
 				...(permission === undefined || permission === null ? {} : { permission }),
+				...(field(args, 'alwaysAllow') === true ? { alwaysAllow: true } : {}),
 			},
 			() => runtime.ensureSessionReady(sessionId),
 			ids,

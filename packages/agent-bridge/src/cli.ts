@@ -662,6 +662,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				approvalId: cmd.approvalId,
 				decision: cmd.decision,
 				scope: cmd.scope,
+				...(cmd.alwaysAllow ? { alwaysAllow: true } : {}),
 			});
 			return null;
 		} catch (error) {

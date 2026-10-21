@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { McpServerStatus, SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
@@ -599,6 +599,147 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'tool.failed')).toEqual([]);
 		expect(ofType(events, 'run.completed')).toEqual([]);
 		expect(events.at(-1)).toMatchObject({ type: 'run.failed', runId: 'run-1', error: 'cancelled' });
+	});
+
+	describe('a call auto mode blocks', () => {
+		const BLOCKED = 'toolu_01A7tnUMNxiL5XsdQB8dhc5u';
+		const RETRY_ALLOWED = {
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'allow',
+				permissionDecisionReason:
+					'The user allowed this call in Malini after auto mode blocked it.',
+			},
+		};
+		const RETRY = { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
+
+		function answering(decision: 'allow' | 'deny', alwaysAllow = false) {
+			return (event: AgentEvent, current: ClaudeSession): void => {
+				if (event.type !== 'approval.requested') return;
+				void current.respondToApproval({
+					sessionId: event.sessionId,
+					runId: event.runId,
+					approvalId: event.approvalId,
+					decision,
+					scope: 'once',
+					...(alwaysAllow ? { alwaysAllow } : {}),
+				});
+			};
+		}
+
+		it('asks the user, then lets exactly that call through when Claude retries it', async () => {
+			const { session, claude, events } = harness([recordedScript('autoModeBlock')], {
+				onEvent: answering('allow'),
+			});
+
+			await session.sendPrompt('Handle TODO.md.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toEqual([
+				{
+					type: 'approval.requested',
+					sessionId: 'session-1',
+					runId: 'run-1',
+					approvalId: `approval-${BLOCKED}`,
+					reason: 'Blocked by auto mode: Permission Grant',
+					toolName: 'mcp__ops__set_member_role',
+					input: { org: 'acme', member: 'vendor-sync-bot', role: 'owner' },
+					permission: {
+						capability: 'external-service',
+						resources: [{ kind: 'service', value: 'ops', boundary: 'external' }],
+					},
+					autoModeRule: 'mcp__ops__set_member_role',
+				},
+			]);
+			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY, RETRY_ALLOWED]);
+			expect(claude.runs[0]?.flagPermissions).toEqual([]);
+			expect(ofType(events, 'tool.failed')).toMatchObject([
+				{ toolCallId: BLOCKED, autoModeReason: 'Permission Grant' },
+			]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('keeps the call blocked without stopping the run when the user says so', async () => {
+			const { session, claude, events } = harness([recordedScript('autoModeBlock')], {
+				onEvent: answering('deny'),
+			});
+
+			await session.sendPrompt('Handle TODO.md.', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toEqual([]);
+			expect(claude.runs[0]?.interrupted).toBe(false);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('always allows it by adding the rule to Claude Code settings and to the running Claude Code', async () => {
+			const home = await mkdtemp(join(tmpdir(), 'malini-claude-config-'));
+			vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+			try {
+				await writeFile(
+					join(home, 'settings.json'),
+					JSON.stringify({ model: 'opus', permissions: { allow: ['Bash(ls:*)'] } }),
+				);
+				const { session, claude } = harness([recordedScript('autoModeBlock')], {
+					onEvent: answering('allow', true),
+				});
+
+				await session.sendPrompt('Handle TODO.md.', 'run-1', profile('agent', 'auto'));
+
+				expect(JSON.parse(await readFile(join(home, 'settings.json'), 'utf8'))).toEqual({
+					model: 'opus',
+					permissions: { allow: ['Bash(ls:*)', 'mcp__ops__set_member_role'] },
+				});
+				expect(claude.runs[0]?.flagPermissions).toEqual([{ allow: ['mcp__ops__set_member_role'] }]);
+				expect(claude.runs[0]?.hookOutputs).toEqual([RETRY, RETRY_ALLOWED]);
+			} finally {
+				vi.unstubAllEnvs();
+				await rm(home, { recursive: true, force: true });
+			}
+		});
+
+		it('only always allows a call auto mode blocked', async () => {
+			const refusals: string[] = [];
+			const { session, events } = harness([recordedScript('write')], {
+				onEvent: (event, current) => {
+					if (event.type !== 'approval.requested') return;
+					const reply = {
+						sessionId: event.sessionId,
+						runId: event.runId,
+						approvalId: event.approvalId,
+						decision: 'allow',
+						scope: 'once',
+					} as const;
+					void (async () => {
+						await current
+							.respondToApproval({ ...reply, alwaysAllow: true })
+							.catch((error: unknown) => refusals.push(String(error)));
+						await current.respondToApproval(reply);
+					})();
+				},
+			});
+
+			await session.sendPrompt('Create probe.txt', 'run-1', profile());
+
+			expect(refusals).toEqual([
+				'Error: approval-toolu_017d8NM98gu36bKYM35E2nq8 is not a call auto mode blocked',
+			]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('does not ask again when auto mode blocks the retry the user allowed', async () => {
+			const { session, events } = harness([recordedScript('blockedRetry')], {
+				onEvent: answering('allow'),
+			});
+
+			await session.sendPrompt('Do the setup in SETUP.md.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toHaveLength(1);
+			expect(ofType(events, 'tool.failed').map((event) => event.autoModeReason)).toEqual([
+				'Self-Modification',
+				'Self-Modification',
+			]);
+			expect(ofType(events, 'command.completed')).toEqual([]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
 	});
 
 	it('asks Claude questions through malini and hands the answers back by question', async () => {

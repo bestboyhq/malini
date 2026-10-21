@@ -175,6 +175,7 @@ export type DecideAgentApprovalArgs = Readonly<{
 	decision: AgentApprovalDecision;
 	scope: AgentApprovalScope;
 	permission?: unknown;
+	alwaysAllow?: boolean;
 }>;
 
 export type ListAgentEventsArgs = Readonly<{ sessionId: string; afterSeq: number }>;

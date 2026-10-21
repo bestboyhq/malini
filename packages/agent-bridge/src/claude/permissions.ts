@@ -251,6 +251,36 @@ function stringField(input: Record<string, unknown>, key: string): string | unde
 	return typeof value === 'string' && value ? value : undefined;
 }
 
+export function autoModeRule(
+	toolName: string,
+	input: Record<string, unknown>,
+	cwd: string,
+): string {
+	const command = toolName === 'Bash' ? stringField(input, 'command') : undefined;
+	if (command) return `Bash(${escapeRuleContent(command)})`;
+	const url = toolName === 'WebFetch' ? stringField(input, 'url') : undefined;
+	if (url && URL.canParse(url)) return `WebFetch(domain:${new URL(url).hostname})`;
+	const path =
+		READ_TOOLS.has(toolName) || WRITE_TOOLS.has(toolName)
+			? (stringField(input, 'file_path') ?? stringField(input, 'notebook_path'))
+			: undefined;
+	if (path) return `${toolName}(/${escapeRuleContent(resolve(cwd, path))})`;
+	return toolName;
+}
+
+function escapeRuleContent(content: string): string {
+	return content.replace(/[()]/gu, '\\$&');
+}
+
+export function autoModeCategory(reason: string | undefined): string {
+	return reason?.trim().replace(/^\[(.+)\]$/su, '$1') || 'no reason given';
+}
+
+export function retryKey(toolName: string, input: unknown): string {
+	const command = toolName === 'Bash' && isRecord(input) ? input['command'] : undefined;
+	return `${toolName}\u0000${typeof command === 'string' ? command : JSON.stringify(input)}`;
+}
+
 export function rememberedPermissions(
 	suggestions: readonly PermissionUpdate[] | undefined,
 	scope: ApprovalScope,

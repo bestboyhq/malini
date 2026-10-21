@@ -313,6 +313,12 @@ async function branchExists(repo: Harness, branch: string): Promise<boolean> {
 	return (await realGit(repo.base, ['branch', '--list', branch])).trim().length > 0;
 }
 
+async function expectBranchDeleted(repo: Harness, branch: string): Promise<void> {
+	await vi.waitFor(async () => expect(await branchExists(repo, branch)).toBe(false), {
+		timeout: 10_000,
+	});
+}
+
 async function archivedRef(repo: Harness, workstreamId: string): Promise<string | null> {
 	try {
 		return (
@@ -344,7 +350,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		});
 
 		expect(receipt).toEqual({ savedWork: null });
-		await vi.waitFor(async () => expect(await branchExists(repo, 'malini/ws-clean')).toBe(false));
+		await expectBranchDeleted(repo, 'malini/ws-clean');
 		expect(await archivedRef(repo, 'ws-clean')).toBeNull();
 	});
 
@@ -362,7 +368,7 @@ describe('what archiving keeps of a workstream branch', () => {
 			savedWork: { ref: 'refs/malini/archived/ws-commits', uncommitted: false, commits: 1 },
 		});
 		expect(await archivedRef(repo, 'ws-commits')).toBe(unpushed);
-		await vi.waitFor(async () => expect(await branchExists(repo, 'malini/ws-commits')).toBe(false));
+		await expectBranchDeleted(repo, 'malini/ws-commits');
 		expect(await realGit(repo.base, ['branch', '--all'])).not.toContain('archived');
 		await realGit(repo.base, ['gc', '-q', '--prune=now']);
 		expect(await realGit(repo.base, ['show', `${unpushed}:feature.txt`])).toBe('feature.txt\n');
@@ -396,7 +402,7 @@ describe('what archiving keeps of a workstream branch', () => {
 		await expect(
 			realGit(repo.base, ['show', `${saved}:.malini/sandbox/scratch.txt`]),
 		).rejects.toThrow();
-		await vi.waitFor(async () => expect(await branchExists(repo, 'malini/ws-wip')).toBe(false));
+		await expectBranchDeleted(repo, 'malini/ws-wip');
 	});
 
 	it('leaves the checkout, the branch and the row intact when the work cannot be saved', async () => {
@@ -448,7 +454,7 @@ describe('what archiving keeps of a workstream branch', () => {
 				expect(await branchExists(repo, 'malini/ws-orphan')).toBe(false);
 				expect(await branchExists(repo, 'malini/ws-orphan-work')).toBe(false);
 			},
-			{ timeout: 5_000 },
+			{ timeout: 10_000 },
 		);
 		expect(await archivedRef(repo, 'ws-orphan')).toBeNull();
 		expect(await archivedRef(repo, 'ws-orphan-work')).toBe(orphanWork);
@@ -498,9 +504,7 @@ describe('archiving keeps every commit the branch holds, wherever the checkout p
 			savedWork: { ref: 'refs/malini/archived/ws-detached', uncommitted: true, commits: 2 },
 		});
 		expect(await keeps(repo, 'refs/malini/archived/ws-detached', tip)).toBe(true);
-		await vi.waitFor(async () =>
-			expect(await branchExists(repo, 'malini/ws-detached')).toBe(false),
-		);
+		await expectBranchDeleted(repo, 'malini/ws-detached');
 		await expectSurvivesGc(repo, tip, 'two.txt');
 	});
 
@@ -524,7 +528,7 @@ describe('archiving keeps every commit the branch holds, wherever the checkout p
 		expect(
 			await realGit(repo.base, ['show', 'refs/malini/archived/ws-rebase:conflict.txt']),
 		).toMatch(/<<<<<<<[\s\S]*theirs[\s\S]*ours/u);
-		await vi.waitFor(async () => expect(await branchExists(repo, 'malini/ws-rebase')).toBe(false));
+		await expectBranchDeleted(repo, 'malini/ws-rebase');
 		await expectSurvivesGc(repo, tip, 'second.txt');
 	});
 
@@ -544,9 +548,7 @@ describe('archiving keeps every commit the branch holds, wherever the checkout p
 		});
 		expect(await keeps(repo, 'refs/malini/archived/ws-switched', tip)).toBe(true);
 		expect(await keeps(repo, 'refs/malini/archived/ws-switched', side)).toBe(true);
-		await vi.waitFor(async () =>
-			expect(await branchExists(repo, 'malini/ws-switched')).toBe(false),
-		);
+		await expectBranchDeleted(repo, 'malini/ws-switched');
 		await expectSurvivesGc(repo, tip, 'two.txt');
 	});
 

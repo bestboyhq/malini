@@ -34,6 +34,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('A routine starts as a draft the user promotes');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('git commit');
+		expect(prompt).toContain('the user approved that exact call in Malini');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
 		expect(prompt).toContain('its own bullet that starts with `Deferred:`');
 		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');

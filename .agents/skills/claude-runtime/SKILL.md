@@ -20,6 +20,8 @@ Malini owns the rest, and the adapter enforces it:
   Claude Code matches each part of a compound command, so one refused part denies the whole command.
 - Approvals and questions: every `canUseTool` call becomes a Malini interaction; `AskUserQuestion` answers return as `updatedInput.answers`, keyed by question text.
   A user's deny returns `interrupt: true`, so the run stops the way it does in the `claude` CLI and ends as cancelled.
+- Calls auto mode blocks: the `PermissionDenied` hook turns each classifier denial into a Malini approval carrying `autoModeRule`, and an allow answers `retry: true` while a `PreToolUse` hook lets that exact call through once.
+  **Always allow** writes the rule into the user's settings (`user-settings.ts`) and applies it live with `applyFlagSettings`; keeping it blocked lets the run carry on (`docs/adr/0039-a-call-auto-mode-blocks-becomes-an-approval.md`).
 - Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, routine and event tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
   The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `routines_save` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
@@ -44,8 +46,10 @@ W=$PWD; S=$(mktemp -d); mkdir "$S/cwd" && cd "$S/cwd"
 node "$W/.agents/skills/claude-runtime/scripts/record.mjs" 'Create probe.txt containing x, then run ls.' default > ../write.json
 ```
 
-It records every message and `canUseTool` call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.
+It records every message, `canUseTool` call and `PreToolUse` and `PermissionDenied` hook call in the `ScriptStep` format, on the user's subscription with `haiku` unless `MODEL` says otherwise.
 Other tools are allowed; `DECISION=deny` denies them the way Malini does, which records the `deny` scenario.
+A call auto mode blocks is retried and let through the way Malini does after the user allows it.
+`OPS_TOOL=1` adds an in-process `ops` MCP server whose `set_member_role` auto mode blocks when a file asks for an owner grant; with `MODEL=sonnet`, `auto` mode and a `TODO.md` asking for one, it records `autoModeBlock`.
 `RESUME=<session id>` resumes an earlier probe session; `orphanedTask` resumes one whose run was killed while its background agent still ran.
 Recorded runs live in `src/claude/fixtures/transcripts.json`; tests replay them through `fakeClaude`, so a new behavior gets a recorded scenario, not a hand-written one.
 

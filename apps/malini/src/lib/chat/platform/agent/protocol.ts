@@ -103,6 +103,7 @@ export type BridgeCommand =
 			approvalId: string;
 			decision: string;
 			scope: string;
+			alwaysAllow?: boolean;
 	  }
 	| {
 			cmd: 'answer_question';
@@ -195,6 +196,7 @@ export type BridgeEvent =
 			toolCallId?: string;
 			parentToolCallId?: string;
 			error: string;
+			autoModeReason?: string;
 			ts?: number;
 	  }
 	| {
@@ -214,6 +216,7 @@ export type BridgeEvent =
 			toolName?: string;
 			input?: unknown;
 			permission?: unknown;
+			autoModeRule?: string;
 	  }
 	| {
 			type: 'question.requested';
@@ -578,6 +581,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('toolCallId', f.optionalString('toolCallId')),
 					...optional('parentToolCallId', f.optionalString('parentToolCallId')),
 					error: f.string('error'),
+					...optional('autoModeReason', f.optionalString('autoModeReason')),
 					...optional('ts', f.optionalNumber('ts')),
 				});
 			case 'command.completed':
@@ -600,6 +604,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('toolName', f.optionalString('toolName')),
 					...optional('input', f.optionalValue('input')),
 					...optional('permission', f.optionalValue('permission')),
+					...optional('autoModeRule', f.optionalString('autoModeRule')),
 				});
 			case 'question.requested':
 				return ok({

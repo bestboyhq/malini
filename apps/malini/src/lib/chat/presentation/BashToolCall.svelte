@@ -29,6 +29,7 @@
 		outputLength?: number | null;
 		fullOutput?: FullToolOutput | null;
 		onloadfulloutput?: (() => void) | undefined;
+		blockedReason?: string | null;
 	}
 
 	let {
@@ -43,6 +44,7 @@
 		outputLength = null,
 		fullOutput = null,
 		onloadfulloutput,
+		blockedReason = null,
 	}: Props = $props();
 	let expanded = $state(false);
 
@@ -54,7 +56,9 @@
 
 	const shownExitCode = $derived(exitCode ?? shellExitCode(error));
 	const exitLabel = $derived(shownExitCode ? `exit ${shownExitCode}` : null);
-	const failed = $derived(status === 'failed' && shellExitCode(error) === null);
+	const failed = $derived(
+		status === 'failed' && shellExitCode(error) === null && blockedReason === null,
+	);
 	const failureReason = $derived(toolFailureReason(error) ?? 'The command could not finish');
 
 	function formatOutput(value: unknown, failure: string | null): string | null {
@@ -106,6 +110,10 @@
 		{/if}
 		{#if waiting}
 			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono">waiting</span>
+		{:else if blockedReason}
+			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" data-testid="tool-blocked">
+				blocked · {blockedReason}
+			</span>
 		{:else if exitLabel}
 			<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">{exitLabel}</span>
 		{/if}

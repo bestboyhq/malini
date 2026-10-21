@@ -49,6 +49,7 @@ export type AgentEvent =
 			name: string;
 			toolCallId?: string;
 			error: string;
+			autoModeReason?: string;
 			ts?: number;
 	  }
 	| {
@@ -68,6 +69,7 @@ export type AgentEvent =
 			toolName?: string;
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
+			autoModeRule?: string;
 	  }
 	| {
 			type: 'question.requested';

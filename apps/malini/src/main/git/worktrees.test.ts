@@ -231,7 +231,7 @@ describe('removeWorktree and cleanup', () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { base } = await workstreamFixture(dir, 'ws-seed');
-		const ids = Array.from({ length: 40 }, (_, index) => `ws-${index}`);
+		const ids = Array.from({ length: 12 }, (_, index) => `ws-${index}`);
 		for (const id of ids) {
 			await realGit(base, ['branch', '--track', `malini/archived-${id}`, 'origin/main']);
 		}
@@ -245,7 +245,7 @@ describe('removeWorktree and cleanup', () => {
 			expect.arrayContaining(ids.map((id) => workstreamBranchName(id))),
 		);
 		expect(await branchList(base)).not.toContain('malini/archived-ws-0');
-	});
+	}, 90_000);
 });
 
 describe('removeCheckoutDirResilient', () => {

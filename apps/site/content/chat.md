@@ -31,6 +31,11 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 When the agent asks, approve once, or always for the chat or the workstream.
 
+When auto mode blocks a call, the chat asks you instead of failing it, with the reason auto mode gave.
+**Allow once** lets Claude retry that exact call.
+**Always allow** also adds a permission rule for it to your Claude Code settings, so auto mode lets it through from then on.
+**Keep blocked** leaves the block in place, and the agent carries on without it.
+
 ## Reports
 
 Every turn ends with a report: **Done**, **Done with something deferred**, or **Waiting on you**, with what changed, what was verified, and the commit and pull request titles.

@@ -34,6 +34,7 @@
 		outputLength?: number | null;
 		fullOutput?: FullToolOutput | null;
 		onloadfulloutput?: (() => void) | undefined;
+		blockedReason?: string | null;
 	}
 
 	let {
@@ -49,6 +50,7 @@
 		outputLength = null,
 		fullOutput = null,
 		onloadfulloutput,
+		blockedReason = null,
 	}: Props = $props();
 	let expanded = $state(false);
 	let contentMounted = $state(false);
@@ -182,7 +184,11 @@
 						</span>{/if}
 				</span>
 			{/if}
-			{#if durationLabel}
+			{#if blockedReason}
+				<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" data-testid="tool-blocked">
+					blocked · {blockedReason}
+				</span>
+			{:else if durationLabel}
 				<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
 					{durationLabel}
 				</span>

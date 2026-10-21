@@ -27,6 +27,7 @@ export interface ProviderApprovalReply {
 	readonly approvalId: string;
 	readonly decision: ApprovalDecision;
 	readonly scope: ApprovalScope;
+	readonly alwaysAllow?: boolean;
 }
 
 export interface AgentQuestionOption {
@@ -70,6 +71,7 @@ export interface ProviderApprovalRequest {
 	readonly toolName?: string;
 	readonly input?: unknown;
 	readonly permission?: ProviderPermissionDescriptor;
+	readonly autoModeRule?: string;
 	readonly signal?: AbortSignal;
 }
 

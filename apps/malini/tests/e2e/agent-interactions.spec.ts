@@ -74,6 +74,52 @@ test('a permission request waits for the user, hands the agent their decision, a
 	}
 });
 
+test('a call auto mode blocks asks the user, and Always allow hands Claude the rule to keep', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-auto-mode-block-ws',
+			'Auto mode block workstream',
+		);
+		await openWorkstream(page, workstreamId);
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+		const runSummary = async (): Promise<unknown> => {
+			const events = await listEvents(page, currentSessionId(page) ?? '');
+			const completed = events.find((entry) => entry.event.type === 'run.completed');
+			return completed?.event.type === 'run.completed' ? completed.event.summary : null;
+		};
+
+		await sendPrompt(page, 'AUTO_MODE_BLOCK');
+		await expect(decision).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText('Blocked by auto mode: Permission Grant')).toBeVisible();
+		await expect(decision.getByRole('button', { name: 'Deny' })).toHaveCount(0);
+		await decision.getByRole('button', { name: 'Always allow' }).click();
+		await expect(page.getByRole('status').filter({ hasText: 'Always allowed' })).toContainText(
+			'mcp__ops__set_member_role',
+		);
+		await expectAssistantReply(page);
+		expect(await runSummary()).toBe('blocked:allow:always');
+		await expect(page.getByText('blocked · Permission Grant')).toBeVisible();
+		await expect(page.getByTestId('tool-card-failed')).toHaveCount(0);
+
+		await startFreshChat(page);
+		await sendPrompt(page, 'AUTO_MODE_BLOCK');
+		await decision.getByRole('button', { name: 'Keep blocked' }).click();
+		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
+		await expectAssistantReply(page);
+		expect(await runSummary()).toBe('blocked:deny:once');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a question from the agent takes the composer slot and is answered from there', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
