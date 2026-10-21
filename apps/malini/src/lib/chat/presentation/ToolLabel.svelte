@@ -3,17 +3,15 @@
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fade, fly } from 'svelte/transition';
-	import { hasSensitiveText, SensitiveText } from '$hyper-ui/components/sensitive';
-	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
+	import { SensitiveText } from '$hyper-ui/components/sensitive';
 
 	interface Props {
 		title: string;
 		detail?: string | null;
 		emphasized?: boolean;
-		live: boolean;
 	}
 
-	let { title, detail = null, emphasized = false, live }: Props = $props();
+	let { title, detail = null, emphasized = false }: Props = $props();
 
 	const SWAP_MS = 260;
 
@@ -50,11 +48,7 @@
 			in:fly={{ y: flip, duration: 260, easing: cubicOut }}
 			out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
 		>
-			{#if hasSensitiveText(shown.title)}
-				<span class={titleClass}><SensitiveText text={shown.title} /></span>
-			{:else}
-				<ShimmerText text={shown.title} active={live} class={titleClass} />
-			{/if}
+			<span class={titleClass}><SensitiveText text={shown.title} /></span>
 			{#if shown.detail}
 				<span class="text-2xs min-w-0 flex-1 truncate font-mono" in:fade={{ duration: 190 }}>
 					<SensitiveText text={shown.detail} />

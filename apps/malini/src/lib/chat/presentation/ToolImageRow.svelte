@@ -8,10 +8,10 @@
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { newChatRequestId } from '$lib/chat/domain/chat-request';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { PREVIEW_ENTER } from '$hyper-ui/overlay';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
-	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
 	import type { ToolImageRead } from './tool-image-read';
 	import { galleryImageLabel } from './workstream-images';
@@ -69,7 +69,7 @@
 	data-image-path={image.path}
 >
 	<Icon name="note" size={14} class="shrink-0" />
-	<ShimmerText text="Read image" active={status === 'running'} class="shrink-0" />
+	<span class="shrink-0">Read image</span>
 
 	{#snippet chip()}
 		{#if previewable && onopenimage}
@@ -102,8 +102,8 @@
 			side="right"
 			align="start"
 			sideOffset={8}
-			openDelay={180}
-			closeDelay={150}
+			openDelay={100}
+			enter={PREVIEW_ENTER}
 			triggerClass="min-w-0"
 			onopenchange={(open) => {
 				if (open) loadPreview();

@@ -73,8 +73,6 @@ test('a command that exits non-zero shows its exit code quietly, an edit and a r
 		const edit = page.getByRole('button', { name: 'Show changes to notes.md' });
 		const change = page.getByRole('region', { name: 'Changes to notes.md' });
 		await edit.hover();
-		await expect(change).toHaveCount(0);
-		await edit.click();
 		await expect(change.getByTestId('diff-line-deleted')).toContainText(['old line']);
 		await expect(change.getByTestId('diff-line-added')).toContainText(['new one', 'new two']);
 		await expect(page.getByRole('button', { name: 'Hide changes to notes.md' })).toHaveAttribute(
@@ -82,7 +80,7 @@ test('a command that exits non-zero shows its exit code quietly, an edit and a r
 			'true',
 		);
 		await captureFlow(app, 'transcript-edit-preview');
-		await page.getByRole('button', { name: 'Hide changes to notes.md' }).click();
+		await page.mouse.move(0, 0);
 		await expect(change).toHaveCount(0);
 
 		const edited = page.getByRole('button', { name: 'Show current changes to notes.md' });

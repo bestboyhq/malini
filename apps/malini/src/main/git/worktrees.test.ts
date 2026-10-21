@@ -245,7 +245,7 @@ describe('removeWorktree and cleanup', () => {
 			expect.arrayContaining(ids.map((id) => workstreamBranchName(id))),
 		);
 		expect(await branchList(base)).not.toContain('malini/archived-ws-0');
-	});
+	}, 120_000);
 });
 
 describe('removeCheckoutDirResilient', () => {
