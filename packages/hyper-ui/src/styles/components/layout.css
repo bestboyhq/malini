@@ -189,7 +189,7 @@
 	}
 
 	.animate-scaleOut {
-		animation: scaleOut 150ms ease-in both;
+		animation: scaleOut 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
 	}
 
 	.animate-fadeInBottom {
@@ -225,7 +225,7 @@
 	}
 
 	.animate-fadeOut {
-		animation: fadeOut 150ms ease-in both;
+		animation: fadeOut 150ms cubic-bezier(0.16, 1, 0.3, 1) both;
 	}
 }
 

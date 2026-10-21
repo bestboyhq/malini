@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentReport, AgentTheme } from '../agent-profile.js';
-import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '../generated/protocol-contract.js';
+import {
+	BRIDGE_AGENT_ATTACHMENTS_PATH,
+	BRIDGE_AGENT_CONTEXT_PATH,
+} from '../generated/protocol-contract.js';
 import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
 
 const MAX_AGENTS_MD_BYTES = 64 * 1024;
@@ -23,7 +26,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
 		'- Anything you left undone gets its own bullet that starts with `Deferred:` and says why.',
-		'- Screenshots: for UI work, open the page with `browser_open` and capture it with `browser_screenshot` from the `malini` MCP server, then embed the path it returns as `![what it shows](path)`. Embed any other image by its path relative to the worktree; Malini shows no image from outside the worktree, so copy one that lives elsewhere into the worktree first. Work with no UI gets a small diagram in a fenced code block instead.',
+		`- Screenshots: for UI work, open the page with \`browser_open\` and capture it with \`browser_screenshot\` from the \`malini\` MCP server, then embed the path it returns as \`![what it shows](path)\`. Save every other screenshot, recording or image you make under \`${BRIDGE_AGENT_CONTEXT_PATH}/\` in the worktree, never under /tmp, and embed it by that relative path; Malini shows no image from outside the worktree. Work with no UI gets a small diagram in a fenced code block instead.`,
 		...(theme ? [themeInstruction(theme)] : []),
 		'- Automation: when the user asks Malini to do something on a schedule, after something happens, or every time, set it up yourself with the `malini` MCP server: find or create a job with `jobs_list` and `jobs_save`, then a routine that runs it with `routines_save`, its trigger written from `events_list`. A routine starts as a draft the user promotes on the Jobs page, so say so. Use `jobs_run` to run a job now.',
 		'- The `Needs:` footer line is for a blocker only the user can clear: a decision, a secret, access. Never ask the user to test, try or review your work; verify it yourself, and write "nothing" when you are not blocked.',

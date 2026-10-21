@@ -11,6 +11,9 @@ import {
 	readWorkstreamImage,
 	safeRelativePath,
 	parseWorkstreamId,
+	requestedRange,
+	videoMediaType,
+	workstreamMediaResponse,
 } from './images';
 
 const PNG = Buffer.from([
@@ -152,6 +155,59 @@ describe('imageMediaType', () => {
 		expect(imageMediaType(Buffer.from('RIFF\0\0\0\0WAVE'))).toBeNull();
 		expect(imageMediaType(Buffer.from('<svg'))).toBeNull();
 		expect(imageMediaType(Buffer.alloc(0))).toBeNull();
+	});
+});
+
+describe('videoMediaType', () => {
+	it('recognizes mp4, quicktime and webm containers by signature only', () => {
+		expect(videoMediaType(Buffer.from('\0\0\0\x20ftypisom'))).toBe('video/mp4');
+		expect(videoMediaType(Buffer.from('\0\0\0\x14ftypqt  '))).toBe('video/quicktime');
+		expect(videoMediaType(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01]))).toBe('video/webm');
+		expect(videoMediaType(PNG)).toBeNull();
+		expect(videoMediaType(Buffer.alloc(0))).toBeNull();
+	});
+});
+
+describe('requestedRange', () => {
+	it('reads one byte range the way a video element asks for it', () => {
+		expect(requestedRange(null, 100)).toBe('whole');
+		expect(requestedRange('bytes=0-', 100)).toEqual({ start: 0, end: 99 });
+		expect(requestedRange('bytes=10-19', 100)).toEqual({ start: 10, end: 19 });
+		expect(requestedRange('bytes=90-500', 100)).toEqual({ start: 90, end: 99 });
+		expect(requestedRange('bytes=-10', 100)).toEqual({ start: 90, end: 99 });
+		expect(requestedRange('bytes=100-', 100)).toBeNull();
+		expect(requestedRange('bytes=0-1,5-6', 100)).toBe('whole');
+	});
+});
+
+describe('workstreamMediaResponse', () => {
+	const MP4 = Buffer.concat([Buffer.from('\0\0\0\x20ftypisom'), Buffer.alloc(1000, 7)]);
+
+	it('streams the byte range a video element asks for', async () => {
+		await worktreeWith('clip.mp4', MP4);
+		const partial = await workstreamMediaResponse(join(worktree, 'clip.mp4'), 'bytes=4-11');
+		expect(partial.status).toBe(206);
+		expect(partial.headers.get('content-type')).toBe('video/mp4');
+		expect(partial.headers.get('content-range')).toBe(`bytes 4-11/${MP4.length}`);
+		expect(Buffer.from(await partial.arrayBuffer()).toString('latin1')).toBe('ftypisom');
+
+		const whole = await workstreamMediaResponse(join(worktree, 'clip.mp4'), null);
+		expect(whole.status).toBe(200);
+		expect(whole.headers.get('accept-ranges')).toBe('bytes');
+		expect(Buffer.from(await whole.arrayBuffer()).equals(MP4)).toBe(true);
+
+		const beyond = await workstreamMediaResponse(join(worktree, 'clip.mp4'), 'bytes=5000-');
+		expect(beyond.status).toBe(416);
+	});
+
+	it('serves an image whole and refuses what is neither', async () => {
+		await worktreeWith('shot.png', PNG);
+		await worktreeWith('notes.txt', 'hello');
+		const image = await workstreamMediaResponse(join(worktree, 'shot.png'), 'bytes=0-3');
+		expect(image.status).toBe(200);
+		expect(image.headers.get('content-type')).toBe('image/png');
+		expect((await workstreamMediaResponse(join(worktree, 'notes.txt'), null)).status).toBe(404);
+		expect((await workstreamMediaResponse(join(worktree, 'gone.mp4'), null)).status).toBe(404);
 	});
 });
 

@@ -1,6 +1,6 @@
 # 0025 - Workstream images load over a protocol
 
-Status: accepted
+Status: superseded by 0042
 
 ## Context
 

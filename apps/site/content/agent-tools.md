@@ -29,6 +29,7 @@ Screenshots come out in the theme you see Malini in: **Settings > Appearance > T
 Pages in the browser follow it through `prefers-color-scheme`.
 The agent is told the theme too, so it switches anything else it captures, such as your app's window or a simulator, before it takes the shot.
 Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
+Any other screenshot, recording, or image the agent makes goes under `.context/` in the worktree, which Malini keeps out of git, so it shows in the chat and stays with the workstream.
 
 ## Jobs, routines, and events
 

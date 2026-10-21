@@ -60,8 +60,10 @@ export function workstreamImagePath(src: string): string | null {
 
 export const GALLERY_IMAGE_ATTRIBUTE = 'data-gallery-image';
 
-export function galleryImageLabel(name: string): string {
-	return `Open image ${name} in gallery`;
+export type GalleryMedia = 'image' | 'video';
+
+export function galleryImageLabel(name: string, media: GalleryMedia = 'image'): string {
+	return `Open ${media} ${name} in gallery`;
 }
 
 export function offerGalleryImages(root: ParentNode): void {

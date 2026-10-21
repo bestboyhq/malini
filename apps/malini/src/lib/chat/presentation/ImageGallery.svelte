@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import { cubicOut, quintOut } from 'svelte/easing';
+	import { quintOut } from 'svelte/easing';
 	import { on } from 'svelte/events';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { fade, fly, scale } from 'svelte/transition';
+	import { fade, fly, type TransitionConfig } from 'svelte/transition';
 	import {
 		explainUnavailableImageCommand,
 		previewWorkstreamImageCommand,
@@ -42,8 +42,6 @@
 	const ZOOM_STEP = 1.5;
 	const CLICK_ZOOM = 2.5;
 	const DRAG_SLOP_PX = 3;
-	const WAVE_STEP_MS = 30;
-	const WAVE_REACH = 8;
 	const CENTER: Point = { x: 0, y: 0 };
 
 	let { workstreamId, images, startId, onclose }: Props = $props();
@@ -66,15 +64,20 @@
 	let stage: HTMLDivElement | undefined = $state();
 	let picture: HTMLImageElement | undefined = $state();
 	let stripPlaced = false;
+	let stripShown = $state(false);
 	const previews = $derived(imagePreviewQuery.owned(owner));
 	const image = $derived(images[index] ?? null);
 	const preview = $derived(image === null ? null : previewOf(image));
 	const browsable = $derived(images.length > 1);
-	const zoomable = $derived(preview?.status === 'ready');
+	const zoomable = $derived(preview?.status === 'ready' && image?.media === 'image');
 	const zoomed = $derived(zoom > 1);
 	const zoomLabel = $derived(zoomed ? `${Number(zoom.toFixed(1))}×` : 'Fit');
 	const travel = $derived(prefersReducedMotion.current ? 0 : 1);
-	const slideDistance = $derived(96 * travel);
+	const slideDistance = $derived(40 * travel);
+	const opener =
+		document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+			? document.activeElement.getBoundingClientRect()
+			: null;
 
 	onMount(() => {
 		announceExclusiveOverlayOpen();
@@ -85,7 +88,11 @@
 			previewWorkstreamImageCommand({ owner, workstreamId, path: target.id });
 		}
 		const stopWheel = on(window, 'wheel', onWheel, { passive: false });
+		let frame = requestAnimationFrame(() => {
+			frame = requestAnimationFrame(() => (stripShown = true));
+		});
 		return () => {
+			cancelAnimationFrame(frame);
 			stopWheel();
 			releaseImagePreviewsCommand(owner);
 		};
@@ -100,6 +107,29 @@
 		});
 		stripPlaced = true;
 	});
+
+	function grow(node: Element): TransitionConfig {
+		const box = node.getBoundingClientRect();
+		const origin = opener
+			? `${opener.left + opener.width / 2 - box.left}px ${opener.top + opener.height / 2 - box.top}px`
+			: 'center';
+		const start = 1 - 0.06 * travel;
+		return {
+			duration: 220,
+			easing: quintOut,
+			css: (t) =>
+				`transform-origin: ${origin}; transform: scale(${start + (1 - start) * t}); opacity: ${t};`,
+		};
+	}
+
+	function swap(_node: Element, { x }: { x: number }): TransitionConfig {
+		return {
+			duration: 200,
+			easing: quintOut,
+			css: (t, u) =>
+				`transform: translateX(${x * u}px); opacity: ${t}; filter: blur(${2 * travel * u}px);`,
+		};
+	}
 
 	function explainUnavailable(target: GalleryImage): void {
 		if (target.kind !== 'workstream') return;
@@ -198,6 +228,7 @@
 
 	function onKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+		if (event.target instanceof HTMLMediaElement) return;
 		if (event.key === 'ArrowRight' && browsable) show(index + 1, 1);
 		else if (event.key === 'ArrowLeft' && browsable) show(index - 1, -1);
 		else if ((event.key === '+' || event.key === '=') && zoomable) glideTo(zoom * ZOOM_STEP);
@@ -214,7 +245,7 @@
 	<div class="flex h-full w-full flex-col items-center gap-3 pt-14" data-testid="image-gallery">
 		<div class="flex min-h-0 w-full flex-1 items-center gap-4">
 			{#if browsable}
-				<div in:fly|global={{ x: -32 * travel, delay: 90, duration: 420, easing: quintOut }}>
+				<div in:fly|global={{ x: -8 * travel, duration: 200, easing: quintOut }}>
 					<Tooltip content="Previous image" placement="right">
 						<IconButton
 							variant="secondary"
@@ -233,21 +264,35 @@
 			<div
 				bind:this={stage}
 				class="relative h-full min-w-0 flex-1 overflow-hidden rounded-md"
-				in:scale|global={{ start: 1 - 0.06 * travel, duration: 360, easing: quintOut }}
+				in:grow|global
 			>
 				{#key image?.id}
 					<div
 						class="absolute inset-0"
-						in:fly={{ x: direction * slideDistance, duration: 260, easing: cubicOut }}
-						out:fly={{ x: -direction * slideDistance, duration: 260, easing: cubicOut }}
+						in:swap={{ x: direction * slideDistance }}
+						out:swap={{ x: -direction * slideDistance }}
 					>
-						{#if image && preview?.status === 'ready'}
+						{#if image?.media === 'video' && preview?.status === 'ready'}
+							<video
+								src={preview.src}
+								aria-label={image.name}
+								class="pointer-events-auto absolute inset-0 m-auto max-h-full max-w-full rounded-md object-contain"
+								controls
+								autoplay
+								loop
+								muted
+								playsinline
+								onerror={() => explainUnavailable(image)}
+								in:fade={{ duration: 150 }}
+							></video>
+						{:else if image && preview?.status === 'ready'}
 							<img
 								bind:this={picture}
 								src={preview.src}
 								alt={image.name}
 								draggable="false"
 								decoding="async"
+								fetchpriority="high"
 								onerror={() => explainUnavailable(image)}
 								data-workstream-image={image.kind === 'workstream' ? image.id : undefined}
 								class={[
@@ -255,10 +300,10 @@
 									zoomed ? 'cursor-grab' : 'cursor-zoom-in',
 									drag?.moved && zoomed && 'cursor-grabbing',
 									gliding &&
-										'transition-transform duration-300 ease-out motion-reduce:transition-none',
+										'transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
 								]}
 								style:transform="translate({pan.x}px, {pan.y}px) scale({zoom})"
-								in:fade={{ duration: 200 }}
+								in:fade={{ duration: 150 }}
 								onpointerdown={onPointerDown}
 								onpointermove={onPointerMove}
 								onpointerup={onPointerUp}
@@ -275,7 +320,7 @@
 								class="border-surface-elevated-border bg-surface-elevated text-fg-secondary absolute inset-0 m-auto flex h-fit w-fit items-center gap-2 rounded-lg border-[0.5px] px-3 py-2 text-xs"
 							>
 								<BusyIcon size={14} />
-								Loading image…
+								Loading {image?.media ?? 'image'}…
 							</div>
 						{/if}
 					</div>
@@ -283,7 +328,7 @@
 			</div>
 
 			{#if browsable}
-				<div in:fly|global={{ x: 32 * travel, delay: 90, duration: 420, easing: quintOut }}>
+				<div in:fly|global={{ x: 8 * travel, duration: 200, easing: quintOut }}>
 					<Tooltip content="Next image" placement="left">
 						<IconButton
 							variant="secondary"
@@ -303,7 +348,7 @@
 		{#if image}
 			<div
 				class="border-surface-elevated-border bg-surface-elevated text-2xs pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border-[0.5px] py-0.5 pr-0.5 pl-3"
-				in:fly|global={{ y: 10 * travel, delay: 140, duration: 360, easing: quintOut }}
+				in:fly|global={{ y: 6 * travel, duration: 200, easing: quintOut }}
 			>
 				<span class="text-fg-default truncate">{image.name}</span>
 				<span class="text-fg-tertiary shrink-0 tabular-nums" role="status">
@@ -355,38 +400,49 @@
 			</div>
 		{/if}
 
-		{#if browsable}
+		{#if browsable && stripShown}
 			<div
 				bind:this={strip}
-				class="pointer-events-auto relative flex max-w-full shrink-0 gap-2 overflow-x-auto overflow-y-hidden p-1"
+				class="pointer-events-auto relative flex max-w-full shrink-0 gap-1 overflow-x-auto overflow-y-hidden p-0.5"
 				aria-label="All images"
 				role="group"
+				in:fly|global={{ y: 8 * travel, duration: 200, easing: quintOut }}
 			>
 				{#each images as thumbnail, at (thumbnail.id)}
 					{@const thumbnailPreview = previewOf(thumbnail)}
 					<div
-						class="shrink-0"
-						in:fly|global={{
-							y: 24 * travel,
-							delay: 160 + Math.min(Math.abs(at - index), WAVE_REACH) * WAVE_STEP_MS,
-							duration: 380,
-							easing: quintOut,
-						}}
+						class="shrink-0 p-0.5 [contain-intrinsic-size:auto_3.75rem] [content-visibility:auto]"
 					>
 						<Button
 							bare
-							ariaLabel={`Show image ${thumbnail.name}`}
+							ariaLabel={`Show ${thumbnail.media} ${thumbnail.name}`}
 							ariaCurrent={at === index ? 'true' : 'false'}
-							class="border-surface-elevated-border bg-surface-elevated fcc size-14 overflow-hidden rounded-md border-[0.5px] opacity-50 ring-white hover:opacity-100 focus-visible:ring-2 aria-[current=true]:opacity-100 aria-[current=true]:ring-2"
+							class="border-surface-elevated-border bg-surface-elevated fcc relative size-14 overflow-hidden rounded-md border-[0.5px] opacity-50 ring-white hover:opacity-100 focus-visible:ring-2 aria-[current=true]:opacity-100 aria-[current=true]:ring-2"
 							onclick={() => show(at, Math.sign(at - index))}
 						>
-							{#if thumbnailPreview?.status === 'ready'}
+							{#if thumbnail.media === 'video' && thumbnailPreview?.status === 'ready'}
+								<video
+									src={thumbnailPreview.src}
+									class="size-full object-cover"
+									preload="metadata"
+									muted
+									playsinline
+									aria-hidden="true"
+									onerror={() => explainUnavailable(thumbnail)}
+								></video>
+								<span
+									class="border-surface-elevated-border bg-surface-elevated/80 text-fg-default fcc absolute size-6 rounded-full border-[0.5px]"
+								>
+									<Icon name="play" size={12} />
+								</span>
+							{:else if thumbnailPreview?.status === 'ready'}
 								<img
 									src={thumbnailPreview.src}
 									alt=""
 									class="size-full object-cover"
 									loading="lazy"
 									decoding="async"
+									fetchpriority="low"
 									onerror={() => explainUnavailable(thumbnail)}
 									data-workstream-image={thumbnail.kind === 'workstream' ? thumbnail.id : undefined}
 								/>

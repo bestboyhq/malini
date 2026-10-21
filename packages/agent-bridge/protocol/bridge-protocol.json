@@ -9,6 +9,7 @@
 	"maxDiagnosticBytes": 16384,
 	"agentAttachmentsPath": ".malini/agent-attachments",
 	"sandboxScratchPath": ".malini/sandbox",
+	"agentContextPath": ".context",
 	"defaultModel": "opus",
 	"models": ["opus", "sonnet", "haiku"],
 	"commands": [

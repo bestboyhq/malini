@@ -47,6 +47,7 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
+- Click an image, GIF, or video in a chat to open the gallery: videos play there with their controls, and every image and video of the chat sits in its strip.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.

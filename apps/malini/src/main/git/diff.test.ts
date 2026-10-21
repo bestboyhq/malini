@@ -82,11 +82,11 @@ describe('repositoryExcludeWithManagedRule', () => {
 		].join('\r\n');
 		const once = repositoryExcludeWithManagedRule(existing);
 		expect(once).toBe(
-			'# comment\r\n/build/\r\nnode_modules\r\n/.malini/agent-attachments/\n/.malini/sandbox/\n',
+			'# comment\r\n/build/\r\nnode_modules\r\n/.malini/agent-attachments/\n/.malini/sandbox/\n/.context/\n',
 		);
 		expect(repositoryExcludeWithManagedRule(once)).toBe(once);
 		expect(repositoryExcludeWithManagedRule('')).toBe(
-			'/.malini/agent-attachments/\n/.malini/sandbox/\n',
+			'/.malini/agent-attachments/\n/.malini/sandbox/\n/.context/\n',
 		);
 	});
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$shared/router/state';
 	import { tick, untrack } from 'svelte';
+	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
 		claudeCodeStatusQuery,
 		defaultAgentModel,
@@ -42,7 +43,7 @@
 	import type { AgentRunProfile } from '$shared/providers/providers.api';
 	import {
 		attachmentViewer,
-		isImageAttachment,
+		isVideoAttachment,
 		type AgentComposerFileAttachment,
 	} from '$lib/chat/domain/composer-actions';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
@@ -69,7 +70,7 @@
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import ImageGallery from './ImageGallery.svelte';
-	import { attachmentGalleryImage } from './transcript-gallery';
+	import { attachmentGalleryImage, isGalleryAttachment } from './transcript-gallery';
 	import { arrivalMotion } from './arrival-motion';
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
@@ -231,6 +232,9 @@
 					(attachment) => attachment.relativePath === relativePath,
 				);
 				if (!staged || !owner) return null;
+				if (isVideoAttachment(staged)) {
+					return workstreamImageUrl(workstreamId, staged.relativePath, 0);
+				}
 				const preview = imagePreview(owner, staged.id);
 				return preview?.status === 'ready' ? preview.src : null;
 			},
@@ -1276,7 +1280,7 @@
 {#if galleryStartId}
 	<ImageGallery
 		{workstreamId}
-		images={localAttachments.filter(isImageAttachment).map(attachmentGalleryImage)}
+		images={localAttachments.filter(isGalleryAttachment).map(attachmentGalleryImage)}
 		startId={galleryStartId}
 		onclose={() => (galleryStartId = null)}
 	/>

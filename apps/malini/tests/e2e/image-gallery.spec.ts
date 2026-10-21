@@ -220,3 +220,52 @@ test('an image the agent read outside the worktree previews on hover and opens i
 		await app.close();
 	}
 });
+
+test('a screen recording sent in a chat plays in the gallery beside its images', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-gallery-video', 'Gallery video');
+		await openWorkstream(page, seeded.workstreamId);
+
+		const input = page.getByTestId('chat-composer-input');
+		await pasteImage(page, AVATAR, 'mockup.png');
+		const clip = readFileSync(join(APP_ROOT, 'tests/e2e/fixtures/clip.mp4')).toString('base64');
+		await page.evaluate(`(() => {
+			const bytes = Uint8Array.from(atob(${JSON.stringify(clip)}), (char) => char.charCodeAt(0));
+			const data = new DataTransfer();
+			data.items.add(new File([bytes], 'clip.mp4', { type: 'video/mp4' }));
+			document
+				.querySelector('[data-testid="chat-composer-input"]')
+				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+		})()`);
+		await expect(input.getByLabel('Attached file: clip.mp4')).toBeVisible({ timeout: 20_000 });
+		await sendPrompt(page, ' What broke here?');
+		await expectAssistantReply(page);
+
+		await page.getByRole('button', { name: 'Open video clip.mp4 in gallery' }).click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await expect(gallery.getByRole('status')).toHaveText('2 of 2');
+		await expect
+			.poll(
+				() =>
+					page.evaluate(
+						`document.querySelector('[data-testid="image-gallery"] video[aria-label="clip.mp4"]')?.readyState ?? 0`,
+					),
+				{ timeout: 20_000 },
+			)
+			.toBeGreaterThanOrEqual(2);
+		await expect(gallery.getByRole('button', { name: 'Show video clip.mp4' })).toHaveAttribute(
+			'aria-current',
+			'true',
+		);
+
+		await page.keyboard.press('ArrowRight');
+		await expect(gallery.getByRole('img', { name: 'mockup.png' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
