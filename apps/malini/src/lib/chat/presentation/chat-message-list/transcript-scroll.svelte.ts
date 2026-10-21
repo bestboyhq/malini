@@ -46,6 +46,8 @@ export type TranscriptScroll = {
 	releaseScrollPin(): void;
 	followSpaceBelowChange(spaceBelowPx: number, overlayBelowPx: number): void;
 	holdBottomAnchor(): void;
+	holdRunEnd(): void;
+	releaseRunEnd(): void;
 	open(key: string, remembered: TranscriptAnchor | null): void;
 	leave(): void;
 	followNewContent(): void;
@@ -79,6 +81,7 @@ export function createTranscriptScroll(
 	let overlayBelowPx = 0;
 	let coveredPx = 0;
 	let bottomAnchor: Readonly<{ distance: number; until: number }> | null = null;
+	let heldRunEnd: Readonly<{ row: HTMLElement; top: number }> | null = null;
 	let userIntentUntil = 0;
 	let pointerScrolling = false;
 	let hovering = false;
@@ -523,6 +526,25 @@ export function createTranscriptScroll(
 			scheduleReconcile();
 		},
 
+		holdRunEnd(): void {
+			const runs = messageListEl?.querySelectorAll(':scope > [data-run-id]');
+			const row = runs?.[runs.length - 1]?.lastElementChild;
+			const holds = follow === 'bottom' && !opening && row instanceof HTMLElement;
+			heldRunEnd = holds ? { row, top: layoutTop(row) } : null;
+		},
+
+		releaseRunEnd(): void {
+			const held = heldRunEnd;
+			heldRunEnd = null;
+			const viewport = viewportEl;
+			if (!held || !viewport || opening || !held.row.isConnected) return;
+			const moved = layoutTop(held.row) - held.top;
+			if (Math.abs(moved) < 0.5) return;
+			heldTop += moved;
+			scrollTo(snapToDevicePixel(viewport.scrollTop + moved));
+			reconcile('content');
+		},
+
 		open(key: string, remembered: TranscriptAnchor | null): void {
 			openKey = key;
 			newContentBelow = false;
@@ -603,6 +625,14 @@ function firstEndingBelow(elements: ArrayLike<Element>, y: number): number {
 		else low = middle + 1;
 	}
 	return low;
+}
+
+function layoutTop(element: HTMLElement): number {
+	let top = 0;
+	for (let node: Element | null = element; node instanceof HTMLElement; node = node.offsetParent) {
+		top += node.offsetTop;
+	}
+	return top;
 }
 
 function isEditable(target: EventTarget | null): boolean {

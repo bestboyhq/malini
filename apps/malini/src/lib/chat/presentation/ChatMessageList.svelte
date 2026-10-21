@@ -717,6 +717,16 @@
 		});
 	});
 
+	const lastRunId = $derived(runs.at(-1)?.runId ?? null);
+
+	$effect.pre(() => {
+		if (lastRunId !== null) untrack(() => transcriptScroll.holdRunEnd());
+	});
+
+	$effect(() => {
+		if (lastRunId !== null) untrack(() => transcriptScroll.releaseRunEnd());
+	});
+
 	$effect(() => {
 		const viewport = viewportEl;
 		const messageList = messageListEl;
