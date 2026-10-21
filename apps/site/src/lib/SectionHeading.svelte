@@ -20,12 +20,12 @@
 	<div class="wrap">
 		<BeatLabel {...beat} centered={!split} />
 		<header class={split ? 'split' : 'center'}>
-			<h2 id="{id}-title">
+			<h2 id="{id}-title" class="rise">
 				<span>{title}</span>
 				{#if quiet}<span class="quiet">{quiet}</span>{/if}
 			</h2>
 			{#if description || children}
-				<div class="aside">
+				<div class="aside rise">
 					{#if description}<p>{description}</p>{/if}
 					{@render children?.()}
 				</div>

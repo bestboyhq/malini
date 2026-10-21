@@ -8,7 +8,7 @@
 	const pad = (value: number): string => String(value).padStart(2, '0');
 </script>
 
-<div class={['label', { centered }]}>
+<div class={['label', 'rise', { centered }]}>
 	<span class="num" aria-hidden="true">
 		<span>{pad(n)}</span>
 		<span class="of">/</span>

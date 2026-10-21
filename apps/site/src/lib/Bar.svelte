@@ -362,7 +362,15 @@
 		margin: 0 auto;
 		padding: env(safe-area-inset-top) max(var(--pad), env(safe-area-inset-right)) 0
 			max(var(--pad), env(safe-area-inset-left));
+		border-inline: 1px solid transparent;
+	}
+
+	.row::before {
+		content: '';
+		position: absolute;
+		inset: 0 -1px;
 		border-inline: 1px solid var(--frame);
+		pointer-events: none;
 	}
 
 	.brand {
@@ -784,6 +792,10 @@
 	@media (max-width: 1023px) {
 		.row {
 			border-inline: 0;
+		}
+
+		.row::before {
+			content: none;
 		}
 	}
 

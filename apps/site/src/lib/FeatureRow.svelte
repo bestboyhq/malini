@@ -36,15 +36,15 @@
 
 <section {id} class="beat feature" aria-labelledby="{id}-title">
 	<div class="row" class:mirrored>
-		<div class="words rise">
+		<div class="words">
 			<BeatLabel {...beat} />
-			<h3 id="{id}-title">{title}</h3>
-			<p>{body}</p>
-			<a class="arrow-link" {href}>
+			<h3 id="{id}-title" class="rise">{title}</h3>
+			<p class="rise">{body}</p>
+			<a class="arrow-link rise" {href}>
 				{linkLabel}
 				<Arrow class="ahead" />
 			</a>
-			<ul class="checks">
+			<ul class="checks rise">
 				{#each checks as check (check)}
 					<li>
 						<svg class="tick" viewBox="0 0 16 16" aria-hidden="true">
@@ -61,7 +61,7 @@
 				caster={panelElement}
 				bind:lit
 			/>
-			<div class={['panel', { lit }]} bind:this={panelElement}>
+			<div class={['panel', 'rise', { lit }]} bind:this={panelElement}>
 				{#if header}
 					<div class="panel-header">{@render header()}</div>
 				{/if}

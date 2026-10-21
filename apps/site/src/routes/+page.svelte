@@ -43,6 +43,32 @@
 
 	const pad = (value: number): string => String(value).padStart(2, '0');
 
+	$effect(() => {
+		const io = new IntersectionObserver(
+			(entries) => {
+				let wave = 0;
+				for (const { isIntersecting, target } of entries) {
+					if (!isIntersecting || !(target instanceof HTMLElement)) continue;
+					target.style.setProperty('--i', String(Math.min(wave++, 3)));
+					target.dataset.reveal = 'go';
+					io.unobserve(target);
+				}
+			},
+			{ rootMargin: `${document.documentElement.scrollHeight}px 0px -10% 0px` },
+		);
+		const waiting = [...document.querySelectorAll<HTMLElement>('.beat, .rise, .sitemap')].filter(
+			(element) => element.getBoundingClientRect().top > innerHeight,
+		);
+		for (const element of waiting) {
+			element.dataset.reveal = 'wait';
+			io.observe(element);
+		}
+		return () => {
+			io.disconnect();
+			for (const element of waiting) delete element.dataset.reveal;
+		};
+	});
+
 	const steps = [
 		{
 			title: 'Start a task',
@@ -124,7 +150,7 @@
 
 <div class="progress" aria-hidden="true"></div>
 
-<section aria-labelledby="hero-title">
+<section class="hero" aria-labelledby="hero-title">
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
@@ -146,7 +172,7 @@
 			</a>
 			<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
 		</div>
-		<p class="fine">macOS 13 or later on Apple silicon · No account · No subscription</p>
+		<p class="fine">macOS 13 or later on Apple silicon · No&nbsp;account · No&nbsp;subscription</p>
 	</div>
 	<div class="plate beat">
 		<div class="horizon" aria-hidden="true"></div>
@@ -297,13 +323,13 @@
 	<div class="wrap">
 		<BeatLabel {...beat('faq')} />
 		<div class="faq">
-			<div class="faq-intro">
+			<div class="faq-intro rise">
 				<h2 id="faq-title">Questions</h2>
 				<p>
 					Another question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
 				</p>
 			</div>
-			<div class="answers">
+			<div class="answers rise">
 				{#each faqs as faq, index (faq.question)}
 					<details>
 						<summary>
@@ -325,11 +351,11 @@
 			<div class="glow" aria-hidden="true"></div>
 			<BeatLabel {...beat('start')} />
 			<div class="end">
-				<div>
+				<div class="rise">
 					<h2 id="start-title">Start with the task you’ve put off.</h2>
 					<p class="sub">Download Malini, connect Claude Code and GitHub, and add a repository.</p>
 				</div>
-				<div class="close-actions">
+				<div class="close-actions rise">
 					<div class="actions">
 						<a class="button primary" href={DOWNLOAD_URL}>
 							{@render apple()}
@@ -416,15 +442,15 @@
 
 	.intro > *,
 	.window {
-		animation: enter calc(var(--duration) * var(--pace) * 1ms) var(--enter-ease)
-			calc(var(--delay) * var(--pace) * 1ms) backwards;
+		animation: blur-in calc(var(--duration) * var(--pace)) var(--enter-ease)
+			calc(var(--delay) * var(--pace)) backwards;
 	}
 
 	.eyebrow {
 		--rise: 3px;
 		--blur: 8px;
-		--duration: 1200;
-		--delay: 250;
+		--duration: 1200ms;
+		--delay: 250ms;
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
@@ -447,8 +473,8 @@
 	h1 {
 		--rise: 4px;
 		--blur: 12px;
-		--duration: 1400;
-		--delay: 0;
+		--duration: 1400ms;
+		--delay: 0ms;
 		margin-top: 24px;
 		font-size: clamp(38px, 6vw, 68px);
 		font-weight: 550;
@@ -468,8 +494,8 @@
 	.lede {
 		--rise: 3px;
 		--blur: 10px;
-		--duration: 1300;
-		--delay: 150;
+		--duration: 1300ms;
+		--delay: 150ms;
 		max-width: 640px;
 		margin-top: 24px;
 		color: var(--fg-muted);
@@ -481,8 +507,8 @@
 	.actions {
 		--rise: 3px;
 		--blur: 8px;
-		--duration: 1300;
-		--delay: 300;
+		--duration: 1300ms;
+		--delay: 300ms;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 12px;
@@ -492,8 +518,8 @@
 	.fine {
 		--rise: 3px;
 		--blur: 8px;
-		--duration: 1300;
-		--delay: 300;
+		--duration: 1300ms;
+		--delay: 300ms;
 		margin-top: 16px;
 		color: var(--fg-muted);
 		font-size: 13px;
@@ -556,8 +582,8 @@
 	.window {
 		--rise: 6px;
 		--blur: 8px;
-		--duration: 1400;
-		--delay: 350;
+		--duration: 1400ms;
+		--delay: 350ms;
 		position: relative;
 		container-type: inline-size;
 	}
@@ -589,24 +615,6 @@
 	@keyframes seam {
 		from {
 			--seam-w: 0;
-		}
-	}
-
-	@keyframes enter {
-		from {
-			opacity: 0;
-			translate: 0 var(--rise);
-			filter: blur(var(--blur));
-		}
-
-		50% {
-			translate: 0 0;
-		}
-	}
-
-	@keyframes fade {
-		from {
-			opacity: 0;
 		}
 	}
 
@@ -955,7 +963,7 @@
 	@media (prefers-reduced-motion: reduce) {
 		.intro > *,
 		.window {
-			animation: fade 400ms ease backwards;
+			animation: fade-in 400ms ease backwards;
 		}
 
 		.horizon,

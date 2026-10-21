@@ -253,20 +253,109 @@
 	pointer-events: none;
 }
 
-@supports (animation-timeline: view()) {
-	@media (prefers-reduced-motion: no-preference) {
-		.rise {
-			animation: rise var(--ease) both;
-			animation-timeline: view();
-			animation-range: entry 0% entry 70%;
-		}
+@property --rail-l {
+	syntax: '<number>';
+	inherits: false;
+	initial-value: 1;
+}
+
+@property --rail-r {
+	syntax: '<number>';
+	inherits: false;
+	initial-value: 1;
+}
+
+.site:has(.hero)::before {
+	position: fixed;
+}
+
+.rise {
+	--rise: 4px;
+	--blur: 10px;
+	--delay: 450ms;
+	animation: blur-in calc(1300ms * var(--pace)) var(--enter-ease) calc(var(--delay) * var(--pace))
+		backwards;
+}
+
+.rise[data-reveal='wait'] {
+	opacity: 0;
+	animation: none;
+}
+
+[data-reveal='go'] {
+	--delay: calc(var(--i) * 120ms);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.site:has(.hero)::before,
+	.site:has(.hero) .topbar .row::before {
+		mask:
+			linear-gradient(#000 0 0) 0 0 / 50% calc(var(--rail-l) * 100vh) no-repeat,
+			linear-gradient(#000 0 0) 100% 0 / 50% calc(var(--rail-r) * 100vh) no-repeat;
+		animation:
+			rail-l calc(1200ms * var(--pace)) var(--enter-ease) backwards,
+			rail-r calc(1200ms * var(--pace)) var(--enter-ease) calc(600ms * var(--pace)) backwards;
+	}
+
+	.site:has(.hero) .topbar::after {
+		animation: draw-in calc(900ms * var(--pace)) var(--enter-ease) backwards;
+	}
+
+	.beat::before,
+	.site:has(.hero) .sitemap::before {
+		animation: draw-in calc(900ms * var(--pace)) var(--enter-ease)
+			calc(var(--delay, 600ms) * var(--pace)) backwards;
+	}
+
+	:is(.beat, .sitemap)[data-reveal='wait']::before {
+		clip-path: inset(0 100% 0 0);
+		animation: none;
 	}
 }
 
-@keyframes rise {
+@media (prefers-reduced-motion: reduce) {
+	.rise {
+		animation: fade-in 400ms ease backwards;
+	}
+}
+
+@keyframes blur-in {
 	from {
 		opacity: 0;
-		translate: 0 32px;
+		translate: 0 var(--rise);
+		filter: blur(var(--blur));
+	}
+
+	50% {
+		translate: 0 0;
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes draw-in {
+	from {
+		clip-path: inset(0 100% 0 0);
+	}
+
+	to {
+		clip-path: inset(0);
+	}
+}
+
+@keyframes rail-l {
+	from {
+		--rail-l: 0;
+	}
+}
+
+@keyframes rail-r {
+	from {
+		--rail-r: 0;
 	}
 }
 

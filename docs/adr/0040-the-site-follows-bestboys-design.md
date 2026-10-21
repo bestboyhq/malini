@@ -20,6 +20,9 @@ The site followed the system's color scheme only, through `prefers-color-scheme`
   `Footer.svelte` (the sitemap on product pages, the last line alone on the 404) and `BeatLabel.svelte` (`01 / 11  Kicker`) take their links from `src/lib/links.ts`.
 - The hero's light is bestboy.dev's `Glow.svelte` (WebGL with grain, over a CSS fallback): the painting rises behind the top of the window on a `--panel` plate and grows in last, at bestboy.dev's `--pace` of 1.4, as the plate's beat line draws its seam; the stage light stays on the feature rows only.
 - `.site` draws the rails, `.beat` the beat line with its crosses, and `.wrap` the 1200px column.
+- The landing page moves as bestboy.dev's does: on load the rails and the bar's line draw in from the window's top-left corner, so the rails ride the window there.
+  Below the hero, each beat's line draws across and its `.rise` pieces blur in once as they scroll into view; the page's script marks what waits.
+  The keyframes are `blur-in`, `fade-in` and `draw-in`, since hyper-ui owns a global `fade`.
 - JetBrains Mono is self-hosted from `src/lib/fonts` as `--mono`; Inter keeps fontsource with a metric-matched `Inter Fallback`; the marks are the macOS icons in `static/icons`, drawn with `.app-icon`.
 - The site's easing token is `--ease`, `cubic-bezier(0.22, 1, 0.36, 1)`, since hyper-ui owns `--ease-out`; this replaces 0034's `--ease-out-quart`.
 - Colors the stage light's canvas needs are read from computed `color` and `border-top-color`, since `getPropertyValue` returns an unresolved `light-dark()`.
