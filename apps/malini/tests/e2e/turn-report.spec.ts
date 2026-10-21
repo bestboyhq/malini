@@ -139,9 +139,13 @@ test('switching between report images of different heights moves nothing in the 
 			const thumbnail = thumbnails.getByRole('button', { name: `Show image shots/${name}` });
 			const box = await thumbnail.boundingBox();
 			if (!box) throw new Error(`the ${name} thumbnail is not on screen`);
-			const tops = await reportTopsWhile(page, () =>
-				page.mouse.click(box.x + box.width / 2, box.y + box.height / 2),
+			const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+			const underPointer = await thumbnail.evaluate(
+				(button, { x, y }) => button.contains(button.ownerDocument.elementFromPoint(x, y)),
+				point,
 			);
+			expect(underPointer, `the ${name} thumbnail is under the pointer`).toBe(true);
+			const tops = await reportTopsWhile(page, () => page.mouse.click(point.x, point.y));
 			await expect(thumbnail).toHaveAttribute('aria-pressed', 'true');
 			await expect(shown(name)).toBeVisible();
 			return tops;
@@ -156,8 +160,10 @@ test('switching between report images of different heights moves nothing in the 
 		await page.mouse.move(area.x + area.width / 2, area.y + 120);
 		await page.mouse.wheel(0, -400);
 		await expect(viewport).toHaveAttribute('data-scroll-follow', 'reader');
-		await page.mouse.wheel(0, 200);
+		await page.mouse.wheel(0, 300);
 		await page.waitForTimeout(SETTLE_MS);
+		await expect(viewport).toHaveAttribute('data-scroll-follow', 'reader');
+		await expect(page.getByTestId('chat-jump-to-latest')).toBeVisible();
 		expectStill(await pick('short.png'), 'scrolled up and back down, to the short image');
 		expectStill(await pick('tall.png'), 'scrolled up and back down, to the tall image');
 		await pick('short.png');
