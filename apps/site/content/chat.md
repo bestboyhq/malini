@@ -15,6 +15,12 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 
+## Run a command from the chat
+
+Every shell code block the agent writes has a **Run** button next to **Copy**.
+It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
+If the agent is busy, the command waits in the queue.
+
 ## Plan first
 
 Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
@@ -46,6 +52,9 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 
 - **@** mentions a file, and you can attach or paste images and files.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
+- A tool call's command, file, and duration fade in as they arrive.
+- Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
+- The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - The context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers are one click from the composer, read live from the chat's Claude Code when you open them.
 
 ## Undo, edit, fork

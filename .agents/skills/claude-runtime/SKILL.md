@@ -21,10 +21,11 @@ Malini owns the rest, and the adapter enforces it:
 - Approvals and questions: every `canUseTool` call becomes a Malini interaction; `AskUserQuestion` answers return as `updatedInput.answers`, keyed by question text.
   A user's deny returns `interrupt: true`, so the run stops the way it does in the `claude` CLI and ends as cancelled.
 - Calls auto mode blocks: the `PermissionDenied` hook turns each classifier denial into a Malini approval carrying `autoModeRule`, and an allow answers `retry: true` while a `PreToolUse` hook lets that exact call through once.
-  **Always allow** writes the rule into the user's settings (`user-settings.ts`) and applies it live with `applyFlagSettings`; keeping it blocked lets the run carry on (`docs/adr/0039-a-call-auto-mode-blocks-becomes-an-approval.md`).
+  **Always allow** writes the rule into the user's settings (`user-settings.ts`) and applies it live with `applyFlagSettings`; keeping it blocked lets the run carry on (`docs/adr/0040-a-call-auto-mode-blocks-becomes-an-approval.md`).
 - Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, routine and event tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
   The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `routines_save` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
+- Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with Malini's own history.
 - Process lifetime: a chat's query stays open between turns, and the next prompt is pushed into it while the settings `canContinue` compares and the files `config-snapshot.ts` watches are unchanged.

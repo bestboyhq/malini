@@ -85,7 +85,12 @@ import {
 	type EmitEnvelope,
 	type RunLease,
 } from './lifecycle';
-import type { AgentQuestionAnswer, AgentRunProfile, ProviderCapability } from './protocol';
+import type {
+	AgentQuestionAnswer,
+	AgentRunProfile,
+	AgentTheme,
+	ProviderCapability,
+} from './protocol';
 import type { BridgeRuntime } from './runtime';
 import {
 	repairPersistedModel,
@@ -166,6 +171,7 @@ export interface SendPromptHooks {
 	) => Promise<{ prompt: string; attachmentIds: string[] }>;
 	readonly notifySessionRenamed?: (workstreamId: string, sessionId: string, name: string) => void;
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
+	readonly theme?: () => AgentTheme;
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -692,6 +698,7 @@ async function sendAgentPromptLeased(
 			...resumePoint,
 			...(skills === null ? {} : { skills }),
 			...(input.steer === true ? { steer: true } : {}),
+			...(hooks.theme ? { theme: hooks.theme() } : {}),
 		});
 	} catch (error) {
 		const errorMessage = `agent bridge send failed: ${describe(error)}`;

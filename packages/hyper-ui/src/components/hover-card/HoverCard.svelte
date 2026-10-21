@@ -15,6 +15,7 @@
 		overlaySurface,
 		resolveOverlayZIndex,
 		returnFocus,
+		type MenuTransitionParams,
 	} from '../../overlay';
 
 	type Side = 'top' | 'bottom' | 'left' | 'right';
@@ -34,6 +35,7 @@
 		backdropTestId?: string;
 		owner?: string;
 		pinnable?: boolean;
+		enter?: Pick<MenuTransitionParams, 'duration' | 'easing'>;
 		open?: boolean;
 		onopenchange?: (open: boolean) => void;
 	}
@@ -52,6 +54,7 @@
 		backdropTestId,
 		owner,
 		pinnable = true,
+		enter,
 		open = $bindable(false),
 		onopenchange,
 	}: Props = $props();
@@ -314,7 +317,7 @@
 			data-testid={testId}
 			class={['shadow-popup z-[1]', panelClass]}
 			style="position: fixed; top: 0; left: 0; pointer-events: auto;"
-			in:menuOpen|global={{ side: activeSide, align }}
+			in:menuOpen|global={{ side: activeSide, align, ...enter }}
 			out:menuClose|global={{ side: activeSide, align }}
 			onmouseenter={() => requestOpen(true)}
 			onmouseleave={() => requestClose()}

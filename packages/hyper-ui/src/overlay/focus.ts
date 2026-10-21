@@ -53,6 +53,13 @@ export interface RovingFocus {
 	restoreAnchorFocus(): Promise<void>;
 }
 
+const ARROW_DIRECTIONS: Readonly<Record<string, RovingFocusDirection>> = {
+	ArrowDown: 'next',
+	ArrowUp: 'previous',
+	Home: 'first',
+	End: 'last',
+};
+
 export function createRovingFocus(options: RovingFocusOptions): RovingFocus {
 	function items(): HTMLElement[] {
 		const container = options.container();
@@ -79,27 +86,11 @@ export function createRovingFocus(options: RovingFocusOptions): RovingFocus {
 	}
 
 	function handleArrowKeys(event: KeyboardEvent): boolean {
-		if (event.key === 'ArrowDown') {
-			event.preventDefault();
-			focus('next');
-			return true;
-		}
-		if (event.key === 'ArrowUp') {
-			event.preventDefault();
-			focus('previous');
-			return true;
-		}
-		if (event.key === 'Home') {
-			event.preventDefault();
-			focus('first');
-			return true;
-		}
-		if (event.key === 'End') {
-			event.preventDefault();
-			focus('last');
-			return true;
-		}
-		return false;
+		const direction = ARROW_DIRECTIONS[event.key];
+		if (!direction || items().length === 0) return false;
+		event.preventDefault();
+		focus(direction);
+		return true;
 	}
 
 	function focusIsOurs(anchor: HTMLElement | null): boolean {

@@ -17,6 +17,8 @@ const OVERLAYS = '[data-overlay-layer]';
 const DISCLOSURE_OPENERS =
 	'details:not([open]) > summary, [aria-expanded="false"]:not([aria-haspopup])';
 
+const OPEN_DISCLOSURES = 'details[open], [aria-expanded="true"]:not([aria-haspopup])';
+
 const SCROLL_UP_KEYS: ReadonlySet<string> = new Set(['PageUp', 'ArrowUp', 'Home']);
 const SCROLL_KEYS: ReadonlySet<string> = new Set([
 	...SCROLL_UP_KEYS,
@@ -341,7 +343,15 @@ export function createTranscriptScroll(
 	function holdsFollow(target: EventTarget | null): boolean {
 		if (!(target instanceof Element)) return false;
 		if (target.closest(OVERLAYS)) return true;
-		return messageListEl?.contains(target) === true && target.closest(TOOL_ROWS) !== null;
+		return messageListEl?.contains(target) === true && insideExpandedToolRow(target);
+	}
+
+	function insideExpandedToolRow(target: Element): boolean {
+		const row = target.closest(TOOL_ROWS);
+		if (!row) return false;
+		const outer = row.parentElement?.closest(TOOL_ROWS);
+		if (outer) return insideExpandedToolRow(outer);
+		return [...row.querySelectorAll(OPEN_DISCLOSURES)].some((open) => open.checkVisibility());
 	}
 
 	function onDocumentPointerMove(event: PointerEvent): void {

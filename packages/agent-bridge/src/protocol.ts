@@ -9,8 +9,10 @@ import {
 } from './generated/protocol-contract.js';
 import {
 	isAgentRunProfile,
+	isAgentTheme,
 	type AgentReasoningEffort,
 	type AgentRunProfile,
+	type AgentTheme,
 } from './agent-profile.js';
 import type { AgentQuestionAnswer, ApprovalDecision, ApprovalScope } from './interaction-types.js';
 import { isOneOf, isRecord } from './type-guards.js';
@@ -60,6 +62,7 @@ export interface SendPromptCommand {
 	readonly freshConversation?: boolean;
 	readonly skills?: readonly string[];
 	readonly steer?: boolean;
+	readonly theme?: AgentTheme;
 }
 
 const MAX_SKILLS = 1_000;
@@ -598,6 +601,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const freshConversation = obj.freshConversation;
 	const skills = obj.skills;
 	const steer = obj.steer;
+	const theme = obj.theme;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -623,6 +627,9 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (steer !== undefined && typeof steer !== 'boolean') {
 		return err('INVALID_PAYLOAD', 'send_prompt: steer must be a boolean', obj);
 	}
+	if (theme !== undefined && !isAgentTheme(theme)) {
+		return err('INVALID_PAYLOAD', 'send_prompt: theme, when present, must be light or dark', obj);
+	}
 	if (skills !== undefined && !isSkillList(skills)) {
 		return err(
 			'INVALID_PAYLOAD',
@@ -643,6 +650,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(freshConversation === true ? { freshConversation } : {}),
 			...(skills !== undefined ? { skills } : {}),
 			...(steer === true ? { steer } : {}),
+			...(theme !== undefined ? { theme } : {}),
 		},
 	};
 }

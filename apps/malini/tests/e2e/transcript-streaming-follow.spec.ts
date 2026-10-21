@@ -121,6 +121,19 @@ function climb(samples: readonly number[][], column: number): number {
 	return Math.round(climbed * 10) / 10;
 }
 
+async function visibleBox(
+	page: Page,
+	selector: string,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+	const box = await page.locator(selector).boundingBox();
+	const scroller = await page.getByTestId('chat-message-scroller').boundingBox();
+	if (!box || !scroller) throw new Error(`${selector} is not laid out`);
+	const top = Math.max(box.y, scroller.y);
+	const bottom = Math.min(box.y + box.height, scroller.y + scroller.height);
+	expect(bottom - top, `px of ${selector} in view`).toBeGreaterThan(8);
+	return { x: box.x, y: top, width: box.width, height: bottom - top };
+}
+
 async function distanceFromBottom(page: Page): Promise<number> {
 	return page
 		.getByTestId('chat-message-scroller')
@@ -237,21 +250,25 @@ test('the working status holds still above the composer while the reply streams 
 	}
 });
 
-test('pointing at a tool call holds the transcript still, and leaving it catches up to the reply', async () => {
+test('pointing into an expanded tool call holds the transcript still, and a collapsed one lets it follow the reply', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await longChat(app, 'e2e-streaming-follow-hover-ws');
+		await sendPrompt(page, 'STREAM:2 List the files');
+		await expectRunFinished(page, 'Streamed line 2 of 2.');
+		await page.getByRole('button', { name: 'Expand output for List files' }).click();
+		await expect(page.getByTestId('command-output-scroll')).toBeVisible();
+
 		await sendPrompt(page, 'STREAM:40 Keep talking');
 		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
 			'Streamed line 3 of 40.',
 			{ timeout: 10_000 },
 		);
 
-		const command = await page.locator(LATEST_COMMAND).boundingBox();
-		if (!command) throw new Error('the latest run has no command row');
-		await page.mouse.move(command.x + 40, command.y + command.height / 2);
+		const expanded = await visibleBox(page, '[data-testid="command-output-scroll"]');
+		await page.mouse.move(expanded.x + 40, expanded.y + expanded.height / 2);
 		await startSampling(page, []);
 		await expect(newMessagesBelow(page)).toBeVisible({ timeout: 10_000 });
 		await page.waitForTimeout(600);
@@ -262,9 +279,8 @@ test('pointing at a tool call holds the transcript still, and leaving it catches
 		).toBeLessThanOrEqual(STILL_PX);
 		await captureFlow(app, 'transcript-streaming-follow-hover-held');
 
-		const composer = await page.getByTestId('chat-composer').boundingBox();
-		if (!composer) throw new Error('the composer is not laid out');
-		await page.mouse.move(composer.x + composer.width / 2, composer.y + composer.height / 2);
+		const collapsed = await visibleBox(page, LATEST_COMMAND);
+		await page.mouse.move(collapsed.x + 40, collapsed.y + collapsed.height / 2);
 		await expect(newMessagesBelow(page)).toHaveCount(0);
 		await expectRunFinished(page, 'Streamed line 40 of 40.');
 		await expect.poll(() => distanceFromBottom(page)).toBeLessThanOrEqual(STILL_PX);

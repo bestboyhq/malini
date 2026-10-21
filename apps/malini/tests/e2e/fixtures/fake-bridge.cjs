@@ -527,8 +527,20 @@ const FIXTURE_SKILLS = [
 	},
 ];
 const skillsOfRun = new Map();
+const themeOfRun = new Map();
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
+	if (prompt.includes('WHICH_THEME')) {
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: 'Theme: ' + (themeOfRun.get(runId) ?? 'none'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
 	if (prompt.includes('WHICH_SKILLS')) {
 		const skills = skillsOfRun.get(runId);
 		event({
@@ -678,6 +690,17 @@ const respond = async (sessionId, runId, prompt) => {
 		event({ type: 'tool.started', runId, name: 'Edit', toolCallId: 'edit-notes', input });
 		event({ type: 'tool.completed', runId, name: 'Edit', toolCallId: 'edit-notes', output: 'ok' });
 	}
+	if (prompt.includes('READ_TOOL')) {
+		const input = { file_path: 'src/app.ts', offset: 10, limit: 3 };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId: 'read-app', input });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Read',
+			toolCallId: 'read-app',
+			output: '10\texport function ready(): boolean {\n11\t\treturn true;\n12\t}',
+		});
+	}
 	if (prompt.includes('BASH_FAIL')) {
 		event({
 			type: 'tool.started',
@@ -770,7 +793,14 @@ const respond = async (sessionId, runId, prompt) => {
 		return;
 	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
-		return completeRun(sessionId, runId, 'done', [], [], CHAT_TURN_REPORT);
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[...prompt.matchAll(/SHOW_IMAGE:([^\s]+)/g)].map((match) => match[1]),
+			CHAT_TURN_REPORT,
+		);
 	}
 	const mention = /MENTION:([^\s]+)/.exec(prompt);
 	return completeRun(
@@ -813,6 +843,7 @@ const handle = (command) => {
 			if (prompt.includes('CRASH')) process.exit(3);
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
+			if (command.theme) themeOfRun.set(runId, command.theme);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
 			}

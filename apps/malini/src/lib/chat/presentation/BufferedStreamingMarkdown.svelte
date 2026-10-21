@@ -37,6 +37,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
+		onruncommand?: ((command: string, language: string | null) => void) | undefined;
 	}
 
 	let {
@@ -50,6 +51,7 @@
 		canopenfile,
 		imagesrc,
 		onopenimage,
+		onruncommand,
 	}: Props = $props();
 
 	const FALLBACK_CHARACTER_WIDTH_PX = 7;
@@ -245,6 +247,7 @@
 			{canopenfile}
 			{imagesrc}
 			{onopenimage}
+			{onruncommand}
 		/>
 	{/if}
 </div>

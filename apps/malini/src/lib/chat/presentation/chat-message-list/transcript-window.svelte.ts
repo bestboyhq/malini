@@ -5,6 +5,10 @@ const MOUNT_MARGIN = '150% 0px';
 
 export const PLACEHOLDER_ATTRIBUTE = 'data-transcript-placeholder';
 
+export function runWindowKey(runId: string): string {
+	return `run:${runId}`;
+}
+
 export type TranscriptWindow = {
 	mounted(key: string, initially: boolean): boolean;
 	heightOf(key: string): number | undefined;

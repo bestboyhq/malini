@@ -102,16 +102,10 @@ test('a long chat opens on its newest turn and still reaches its first prompt', 
 
 		const scroller = page.getByTestId('chat-message-scroller');
 		const firstPrompt = page.getByText(prompt(1), { exact: true });
-		await expect
-			.poll(
-				async () => {
-					await scroller.evaluate((element) => element.scrollTo({ top: 0 }));
-					return firstPrompt.isVisible();
-				},
-				{ timeout: 30_000 },
-			)
-			.toBe(true);
-		await expect(firstPrompt).toBeInViewport();
+		await expect(async () => {
+			await scroller.evaluate((element) => element.scrollTo({ top: 0 }));
+			await expect(firstPrompt).toBeInViewport({ timeout: 1_000 });
+		}).toPass({ timeout: 30_000 });
 		await captureFlow(app, 'transcript-paging-first-prompt');
 		expectCleanConsole(app);
 	} finally {

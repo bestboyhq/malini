@@ -87,8 +87,7 @@ try {
 }
 ```
 
-Playwright launches the window in the light theme whatever the system uses.
-Match the user's theme before capturing: set `localStorage['malini.settings.theme']` to `'dark'` or `'light'` and reload.
+The window shows the theme the user is in: `launch` reads `MALINI_THEME`, which Malini sets for its agents, and follows the system without it.
 
 Locate by role and accessible name, and wait on the state the user would see, never on a timeout.
 Playwright's `click()` may scroll the transcript to reach its target, which unpins it the way a user scrolling up would; when the flow depends on scroll position, click at the target's box with `page.mouse.click`.

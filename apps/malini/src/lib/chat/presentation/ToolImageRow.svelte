@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fade } from 'svelte/transition';
 	import {
 		explainUnavailableImageCommand,
 		previewWorkstreamImageCommand,
@@ -7,6 +8,7 @@
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { newChatRequestId } from '$lib/chat/domain/chat-request';
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { PREVIEW_ENTER } from '$hyper-ui/overlay';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
@@ -66,11 +68,7 @@
 	data-tool-status={status}
 	data-image-path={image.path}
 >
-	{#if status === 'running'}
-		<BusyIcon class="text-fg-secondary shrink-0" size={13} />
-	{:else}
-		<Icon name="note" size={14} class="shrink-0" />
-	{/if}
+	<Icon name="note" size={14} class="shrink-0" />
 	<span class="shrink-0">Read image</span>
 
 	{#snippet chip()}
@@ -104,8 +102,8 @@
 			side="right"
 			align="start"
 			sideOffset={8}
-			openDelay={180}
-			closeDelay={150}
+			openDelay={100}
+			enter={PREVIEW_ENTER}
 			triggerClass="min-w-0"
 			onopenchange={(open) => {
 				if (open) loadPreview();
@@ -154,7 +152,10 @@
 	{/if}
 
 	{#if durationLabel}
-		<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
+		<span
+			class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
+			in:fade={{ duration: 190 }}
+		>
 			{durationLabel}
 		</span>
 	{/if}

@@ -68,6 +68,12 @@
 		report.images.length > 1 ? report.images.slice(0, MAX_THUMBNAILS) : [],
 	);
 	const imagesPastThumbnails = $derived(report.images.length - thumbnails.length);
+	const heroChoices = $derived(
+		report.images.slice(
+			0,
+			report.images.length > MAX_THUMBNAILS ? MAX_THUMBNAILS - 1 : MAX_THUMBNAILS,
+		),
+	);
 
 	function noteTone(note: TurnNote): string {
 		return note.kind === 'deferred' ? 'text-warning-content' : 'text-fg-secondary';
@@ -163,8 +169,17 @@
 
 	{#if hero}
 		<div class="flex flex-col gap-1.5">
-			<div class="turn-report-image">
-				<MarkdownText text={`![${hero.alt}](${hero.src})`} mode="prose" {imagesrc} {onopenimage} />
+			<div class="grid">
+				{#each heroChoices as image (image.src)}
+					<div class={['turn-report-image col-start-1 row-start-1', { invisible: image !== hero }]}>
+						<MarkdownText
+							text={`![${image.alt}](${image.src})`}
+							mode="prose"
+							{imagesrc}
+							{onopenimage}
+						/>
+					</div>
+				{/each}
 			</div>
 			{#if thumbnails.length > 0}
 				<div class="grid grid-cols-4 gap-1.5" role="group" aria-label="Report images">
@@ -264,7 +279,12 @@
 <style>
 	.turn-report-image :global(img) {
 		display: block;
+		width: 100%;
+		height: auto;
 		max-height: 28rem;
+		margin: 0;
+		border: none;
+		background: var(--color-surface-root);
 		border-radius: 0.375rem;
 		outline: 0.5px solid var(--color-border-subtle);
 		outline-offset: -0.5px;

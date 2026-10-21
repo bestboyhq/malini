@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { BrowserWindow } from 'electron';
+import type { ThemeMode } from '$contract/commands';
 import type { MainContext } from '$main/context';
 import { openDatabase } from '$main/db/driver';
 import { createEventBus } from '$main/events';
@@ -20,6 +21,7 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	beforeQuit: (() => void)[];
 	displayMetricsChanged: (() => void)[];
 	workAreas: { x: number; y: number; width: number; height: number }[];
+	themeMode: ThemeMode;
 }
 
 export function createFakeCipher(): SecretCipher & { available: boolean } {
@@ -51,6 +53,7 @@ export function createFakeHost(): FakeHost {
 		beforeQuit: [],
 		displayMetricsChanged: [],
 		workAreas: [{ x: 0, y: 0, width: 1920, height: 1080 }],
+		themeMode: 'system',
 		openExternal: async (url) => {
 			host.opened.push(url);
 		},
@@ -77,6 +80,10 @@ export function createFakeHost(): FakeHost {
 			host.displayMetricsChanged.push(listener);
 		},
 		displayWorkAreas: () => host.workAreas,
+		followThemeMode: (mode) => {
+			host.themeMode = mode;
+		},
+		theme: () => (host.themeMode === 'dark' ? 'dark' : 'light'),
 	};
 	return host;
 }

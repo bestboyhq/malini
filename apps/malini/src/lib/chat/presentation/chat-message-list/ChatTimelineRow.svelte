@@ -1,12 +1,11 @@
 <script lang="ts">
-	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { RunGroup } from '../render-state';
 	import type { RunTimelineItem } from '../run-timeline';
-	import { relativizeWorkstreamPath } from '../workstream-path';
 	import BashToolCall from '../BashToolCall.svelte';
+	import EditDiffPreview from '../EditDiffPreview.svelte';
+	import FileToolRow from '../FileToolRow.svelte';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import AgentInteractionCard from '../AgentInteractionCard.svelte';
@@ -113,6 +112,7 @@
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}
 				onopenimage={transcript.openImageGallery}
+				onruncommand={transcript.runShellCommand}
 			/>
 		{/if}
 	</div>
@@ -124,23 +124,17 @@
 	<ChatToolRow {item} {run} />
 {:else if item.kind === 'file'}
 	<div
-		class="text-fg-tertiary flex min-h-6 w-full items-center gap-2 text-sm"
+		class="w-full"
 		use:stageEnter={timelineKey(run, item.key)}
 		data-message-kind="file"
 		data-testid="run-activity-file"
 		data-file-path={item.path}
 	>
-		<span class="grid h-3.5 w-3.5 shrink-0 place-items-center" aria-hidden="true">
-			<Icon name="pencil" size={13} />
-		</span>
-		<Tooltip
-			content={relativizeWorkstreamPath(item.path)}
-			placement="right"
-			onlyWhenTruncated
-			class="min-w-0"
-		>
-			<span class="block truncate select-text">Edited {relativizeWorkstreamPath(item.path)}</span>
-		</Tooltip>
+		<FileToolRow verb="Edited" icon="pencil" path={item.path} previewName="current changes to">
+			{#snippet preview(relativePath)}
+				<EditDiffPreview workstreamId={transcript.workstreamId} path={relativePath} />
+			{/snippet}
+		</FileToolRow>
 	</div>
 {:else if item.kind === 'command'}
 	<div class="w-full" use:stageEnter={timelineKey(run, item.key)}>

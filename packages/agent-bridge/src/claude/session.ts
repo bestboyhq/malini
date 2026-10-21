@@ -14,7 +14,7 @@ import {
 	type SDKResultMessage,
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentRunProfile } from '../agent-profile.js';
+import type { AgentRunProfile, AgentTheme } from '../agent-profile.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
 import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } from '../protocol.js';
 import { ProviderInteractionBroker } from '../provider-interactions.js';
@@ -94,6 +94,7 @@ export interface ClaudeSessionOptions {
 interface RunSettings {
 	readonly profile: AgentRunProfile | undefined;
 	readonly skills: readonly string[] | undefined;
+	readonly theme: AgentTheme | undefined;
 }
 
 interface ActiveRun {
@@ -101,6 +102,7 @@ interface ActiveRun {
 	promptId: UUID;
 	profile: AgentRunProfile | undefined;
 	readonly skills: readonly string[] | undefined;
+	readonly theme: AgentTheme | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -160,8 +162,9 @@ export class ClaudeSession implements ProviderHandle {
 		freshConversation?: boolean,
 		skills?: readonly string[],
 		steer?: boolean,
+		theme?: AgentTheme,
 	): Promise<void> {
-		const run: RunSettings = { profile, skills };
+		const run: RunSettings = { profile, skills, theme };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -243,6 +246,7 @@ export class ClaudeSession implements ProviderHandle {
 			promptId: randomUUID(),
 			profile: run.profile,
 			skills: run.skills,
+			theme: run.theme,
 			results: [],
 			costBefore: 0,
 			query,
@@ -540,7 +544,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills }: RunSettings,
+		{ profile, skills, theme }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
@@ -551,12 +555,16 @@ export class ClaudeSession implements ProviderHandle {
 			cwd: this.#context.cwd,
 			abortController: abort,
 			pathToClaudeCodeExecutable: executable,
-			env: { ...claudeEnvironment(), CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' },
+			env: {
+				...claudeEnvironment(),
+				CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1',
+				...(theme ? { MALINI_THEME: theme } : {}),
+			},
 			settingSources: ['user', 'project', 'local'],
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium'),
+				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium', theme),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
@@ -833,7 +841,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills }: RunSettings,
+	{ profile, skills, theme }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -844,6 +852,7 @@ function canContinue(
 		(profile?.access ?? 'auto') === (active.profile?.access ?? 'auto') &&
 		profile?.mode === active.profile?.mode &&
 		profile?.report === active.profile?.report &&
+		theme === active.theme &&
 		skills?.join('\n') === active.skills?.join('\n')
 	);
 }

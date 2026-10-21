@@ -40,4 +40,11 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
 		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});
+
+	it('asks for screenshots in the theme the user is in, and names none when Malini sent none', () => {
+		expect(systemPromptAppend('/nonexistent/worktree', 'medium', 'dark')).toContain(
+			'the user is in dark mode, so capture every screenshot in dark mode',
+		);
+		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('- Theme:');
+	});
 });

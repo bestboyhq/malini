@@ -238,6 +238,25 @@ describe('ClaudeSession', () => {
 		]);
 	});
 
+	it('relaunches Claude Code when the theme changes and hands the agent the theme of each prompt', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+		const inTheme = (theme: 'light' | 'dark') =>
+			[undefined, undefined, undefined, undefined, theme] as const;
+
+		await session.sendPrompt('Show me', 'run-1', profile(), ...inTheme('dark'));
+		await session.sendPrompt('And again', 'run-2', profile(), ...inTheme('light'));
+
+		expect(claude.runs.map(({ options }) => options.env?.['MALINI_THEME'])).toEqual([
+			'dark',
+			'light',
+		]);
+		expect(claude.runs.map(({ options }) => options.systemPrompt)).toEqual([
+			expect.objectContaining({ append: expect.stringContaining('the user is in dark mode') }),
+			expect.objectContaining({ append: expect.stringContaining('the user is in light mode') }),
+		]);
+	});
+
 	it('completes a run without plan limits when Claude cannot report them', async () => {
 		const claude = fakeClaude([recordedScript('readAndBash')]);
 		const events: AgentEvent[] = [];

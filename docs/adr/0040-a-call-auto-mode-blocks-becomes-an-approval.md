@@ -1,4 +1,4 @@
-# 0039 - A call auto mode blocks becomes an approval
+# 0040 - A call auto mode blocks becomes an approval
 
 Status: accepted
 

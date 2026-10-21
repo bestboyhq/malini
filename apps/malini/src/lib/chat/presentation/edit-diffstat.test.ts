@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editDiffstat } from './edit-diffstat';
+import { editDiffstat, editHunks } from './edit-diffstat';
 
 describe('editDiffstat', () => {
 	it('counts a pure insertion as added lines only', () => {
@@ -74,4 +74,28 @@ describe('editDiffstat', () => {
 			expect(editDiffstat(input)).toBeNull();
 		},
 	);
+});
+
+describe('editHunks', () => {
+	it('lays an edit out as the context it quoted around the lines it removed and added', () => {
+		const [hunk] = editHunks({ old_string: 'a\nWRONG\nz', new_string: 'a\nRIGHT\nz' });
+		expect(hunk?.lines.map((line) => `${line.kind} ${line.text}`)).toEqual([
+			'context a',
+			'deleted WRONG',
+			'added RIGHT',
+			'context z',
+		]);
+	});
+
+	it('gives a multi-edit call one hunk per replacement, and a write none', () => {
+		expect(
+			editHunks({
+				edits: [
+					{ old_string: 'one', new_string: 'one\ntwo' },
+					{ old_string: 'x', new_string: 'y' },
+				],
+			}),
+		).toHaveLength(2);
+		expect(editHunks({ file_path: 'src/a.ts', content: 'one' })).toEqual([]);
+	});
 });

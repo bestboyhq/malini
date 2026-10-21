@@ -5,14 +5,16 @@ import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
+	currentSessionId,
 	expectCleanConsole,
 	launchMalini,
+	listEvents,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
 
-test('a failed command says why on its row, an edit shows its size on its row, and a code block copies its code', async () => {
+test('a failed command says why on its row, an edit shows its size on its row, and a shell code block copies its code and runs it in the chat', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -38,13 +40,30 @@ test('a failed command says why on its row, an edit shows its size on its row, a
 			.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
 			.toBe('pnpm --filter malini test');
 
+		const codeBlock = page.getByTestId('markdown-code-block');
+		await codeBlock.getByRole('button', { name: 'Run command' }).hover();
+		await expect(page.getByRole('tooltip', { name: 'Run in this chat' })).toBeVisible();
+		await captureFlow(app, 'transcript-code-run');
+		await codeBlock.getByRole('button', { name: 'Run command' }).click();
+		const sessionId = currentSessionId(page);
+		if (!sessionId) throw new Error('the chat has no session');
+		await expect
+			.poll(async () =>
+				(await listEvents(page, sessionId)).flatMap(({ event }) =>
+					event.type === 'user.message' ? [String(event['text'])] : [],
+				),
+			)
+			.toEqual(['BASH_FAIL EDIT_TOOL CODE', 'Run this:\n```sh\npnpm --filter malini test\n```']);
+		await expect(page.locator('[data-message-kind="user"]').last()).toContainText('Run this:');
+		await captureFlow(app, 'transcript-code-run-sent');
+
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a command that exits non-zero shows its exit code quietly, an edit previews the current changes to its file, and a context handoff draws a divider', async () => {
+test('a command that exits non-zero shows its exit code quietly, an edit and a read open their file in a card on click, and a context handoff draws a divider', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -57,7 +76,7 @@ test('a command that exits non-zero shows its exit code quietly, an edit preview
 			'Transcript rows workstream',
 		);
 		await openWorkstream(page, workstreamId);
-		await sendPrompt(page, 'EDIT:notes.md EDIT_TOOL CHAT_BASH_EXIT CHAT_HANDOFF');
+		await sendPrompt(page, 'EDIT:notes.md EDIT_TOOL READ_TOOL CHAT_BASH_EXIT CHAT_HANDOFF');
 		await expectAssistantReply(page);
 
 		const command = page.getByRole('button', { name: 'Expand output for Run the unit tests' });
@@ -70,18 +89,40 @@ test('a command that exits non-zero shows its exit code quietly, an edit preview
 		await expect(page.getByText('Context full, handed off to a fresh run')).toBeVisible();
 		await expect(page.getByText('Context handed off')).toHaveCount(0);
 
-		const preview = page.getByRole('button', { name: 'Preview current changes to notes.md' });
-		const changes = page.getByRole('dialog', { name: 'Current changes to notes.md' });
-		await preview.click();
-		await expect(changes.getByTestId('edit-diff-preview-summary')).toHaveText(/\+1\s*−0/u);
+		const edit = page.getByRole('button', { name: 'Show changes to notes.md' });
+		const change = page.getByRole('region', { name: 'Changes to notes.md' });
+		await edit.hover();
+		await expect(change.getByTestId('diff-line-deleted')).toContainText(['old line']);
+		await expect(change.getByTestId('diff-line-added')).toContainText(['new one', 'new two']);
+		await expect(page.getByRole('button', { name: 'Hide changes to notes.md' })).toHaveAttribute(
+			'aria-expanded',
+			'true',
+		);
 		await captureFlow(app, 'transcript-edit-preview');
+		await page.mouse.move(0, 0);
+		await expect(change).toHaveCount(0);
+
+		const edited = page.getByRole('button', { name: 'Show current changes to notes.md' });
+		const current = page.getByRole('region', { name: 'Current changes to notes.md' });
+		await edited.click();
+		await expect(current.getByTestId('edit-diff-preview-summary')).toHaveText(/\+1\s*−0/u);
 		await page.keyboard.press('Escape');
-		await expect(changes).toHaveCount(0);
+		await expect(current).toHaveCount(0);
 
 		rmSync(join(worktree, 'notes.md'));
-		await preview.click();
-		await expect(changes).toContainText('Nothing to show for this file');
+		await edited.click();
+		await expect(current).toContainText('Nothing to show for this file');
 		await page.keyboard.press('Escape');
+		await edit.click();
+		await expect(change.getByTestId('diff-line-added')).toContainText(['new one', 'new two']);
+		await page.keyboard.press('Escape');
+
+		const read = page.getByRole('region', { name: 'Contents of src/app.ts' });
+		await page.getByRole('button', { name: 'Show contents of src/app.ts' }).click();
+		await expect(read).toContainText('Lines 10–12');
+		await expect(read).toContainText('export function ready(): boolean {');
+		await expect(read).not.toContainText('10\texport');
+		await captureFlow(app, 'transcript-read-preview');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

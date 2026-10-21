@@ -1,5 +1,6 @@
 import { followSystemThemeCommand } from '$lib/app/application/commands/follow-system-theme.command';
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
+import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-native-theme.command';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
@@ -12,6 +13,7 @@ export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
 	const stopFollowingSystemTheme =
 		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
+	syncNativeThemeCommand();
 	const stopWatchingStreaming = watchStreaming();
 	const stopWatchingUpdates = watchStagedUpdate();
 	if (!windowLifecycleService.isNativeWindow()) {

@@ -31,6 +31,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'app.focus-window': false,
 	'app.get-secret': false,
 	'app.interface-scale': (args) => ({ scale: number(args, 'scale') }),
+	'app.theme-mode': (args) => ({ mode: text(args, 'mode') }),
 	'app.list-settings': false,
 	'app.logical-viewport': false,
 	'app.notification-permission-granted': false,
