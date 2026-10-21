@@ -25,9 +25,9 @@ describe('layout constants', () => {
 		expect(ATTACHMENT_ROOT).toBe(AGENT_ATTACHMENTS_PATH);
 	});
 
-	it('bounds a paste at what 10 MiB encodes to', () => {
-		expect(MAX_ATTACHMENT_BASE64_CHARS).toBe(Math.ceil((10 * 1024 * 1024) / 3) * 4);
-		expect(Buffer.alloc(10 * 1024 * 1024).toString('base64').length).toBeLessThanOrEqual(
+	it('bounds a paste at what 100 MiB encodes to', () => {
+		expect(MAX_ATTACHMENT_BASE64_CHARS).toBe(Math.ceil((100 * 1024 * 1024) / 3) * 4);
+		expect(Buffer.alloc(100 * 1024 * 1024).toString('base64').length).toBeLessThanOrEqual(
 			MAX_ATTACHMENT_BASE64_CHARS,
 		);
 	});
@@ -50,6 +50,11 @@ describe('mediaType', () => {
 		expect(mediaType('photo.jpg')).toBe('image/jpeg');
 		expect(mediaType('photo.JPEG')).toBe('image/jpeg');
 		expect(mediaType('pic.webp')).toBe('image/webp');
+		expect(mediaType('loop.GIF')).toBe('image/gif');
+		expect(mediaType('bug.mp4')).toBe('video/mp4');
+		expect(mediaType('bug.m4v')).toBe('video/mp4');
+		expect(mediaType('Screen Recording.mov')).toBe('video/quicktime');
+		expect(mediaType('clip.webm')).toBe('video/webm');
 		expect(mediaType('payload.exe')).toBe('application/octet-stream');
 		expect(mediaType('noextension')).toBe('application/octet-stream');
 		expect(mediaType('shot.PNG.bin')).toBe('application/octet-stream');

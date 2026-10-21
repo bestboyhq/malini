@@ -19,10 +19,14 @@ export function isImageAttachment(attachment: StagedAgentAttachment): boolean {
 	return attachment.mediaType.startsWith('image/');
 }
 
+export function isVideoAttachment(attachment: StagedAgentAttachment): boolean {
+	return attachment.mediaType.startsWith('video/');
+}
+
 export type AttachmentViewer = 'gallery' | 'file-tab';
 
 export function attachmentViewer(attachment: StagedAgentAttachment): AttachmentViewer | null {
-	if (isImageAttachment(attachment)) return 'gallery';
+	if (isImageAttachment(attachment) || isVideoAttachment(attachment)) return 'gallery';
 	return attachment.mediaType === 'application/pdf' ? null : 'file-tab';
 }
 

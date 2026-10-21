@@ -24,6 +24,7 @@ const appTsOutputPath = resolve(
  * @property {number} maxDiagnosticBytes
  * @property {string} agentAttachmentsPath
  * @property {string} sandboxScratchPath
+ * @property {string} agentContextPath
  * @property {string} defaultModel
  * @property {string[]} models
  * @property {string[]} commands
@@ -46,6 +47,7 @@ for (const key of [
 	'maxDiagnosticBytes',
 	'agentAttachmentsPath',
 	'sandboxScratchPath',
+	'agentContextPath',
 	'defaultModel',
 	'models',
 	'commands',
@@ -122,6 +124,7 @@ const unformattedTs =
 	`export const BRIDGE_MAX_DIAGNOSTIC_BYTES = ${contract.maxDiagnosticBytes} as const;\n` +
 	`export const BRIDGE_AGENT_ATTACHMENTS_PATH = ${JSON.stringify(contract.agentAttachmentsPath)} as const;\n` +
 	`export const BRIDGE_SANDBOX_SCRATCH_PATH = ${JSON.stringify(contract.sandboxScratchPath)} as const;\n` +
+	`export const BRIDGE_AGENT_CONTEXT_PATH = ${JSON.stringify(contract.agentContextPath)} as const;\n` +
 	`export const BRIDGE_MODELS = ${tsArray(contract.models)} as const;\n` +
 	`export const BRIDGE_DEFAULT_MODEL = ${JSON.stringify(contract.defaultModel)} as const;\n` +
 	`export const BRIDGE_COMMAND_NAMES = ${tsArray(contract.commands)} as const;\n` +

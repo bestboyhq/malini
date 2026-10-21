@@ -5,6 +5,7 @@ import { isInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
 import {
 	BRIDGE_AGENT_ATTACHMENTS_PATH,
+	BRIDGE_AGENT_CONTEXT_PATH,
 	BRIDGE_SANDBOX_SCRATCH_PATH,
 } from '../../contract/protocol-contract.generated';
 import type { WorkstreamCheckoutState } from '../../contract/repositories';
@@ -39,6 +40,7 @@ export const REPORTING_PATHSPECS = [
 export const APP_MANAGED_REPOSITORY_EXCLUDES = [
 	`/${AGENT_ATTACHMENTS_PATH}/`,
 	`/${SANDBOX_SCRATCH_PATH}/`,
+	`/${BRIDGE_AGENT_CONTEXT_PATH}/`,
 ] as const;
 
 export function isAppManagedGitPath(path: string): boolean {

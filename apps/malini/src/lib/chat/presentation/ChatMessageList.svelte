@@ -29,7 +29,7 @@
 	import { transcriptHeightsQuery } from '$lib/chat/application/queries/transcript-heights.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
-	import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
@@ -48,7 +48,11 @@
 	import { runProjectionVersion } from './render-projector';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
-	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
+	import {
+		isGalleryAttachment,
+		transcriptGalleryImages,
+		type GalleryImage,
+	} from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
 	import { summarizeLiveToolInput } from './tool-display-name';
@@ -229,7 +233,7 @@
 	}
 
 	function openAttachment(attachment: StagedAgentAttachment): void {
-		if (isImageAttachment(attachment)) openImageGallery(attachment.relativePath);
+		if (isGalleryAttachment(attachment)) openImageGallery(attachment.relativePath);
 		else openAttachmentFileCommand(workstreamId, attachment);
 	}
 

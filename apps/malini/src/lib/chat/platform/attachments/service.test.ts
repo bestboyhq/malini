@@ -15,8 +15,10 @@ import {
 	loadStoredAttachment,
 	renewStagedAttachments,
 	MAX_ATTACHMENT_FILE_BYTES,
+	MAX_ATTACHMENT_FILE_MB,
 	MAX_ATTACHMENT_FILES,
 	MAX_ATTACHMENT_TOTAL_BYTES,
+	MAX_ATTACHMENT_TOTAL_MB,
 } from '../attachments.repository';
 import type { AgentRun } from '../runs.repository';
 import { insertSession } from '../sessions.repository';
@@ -135,7 +137,7 @@ describe('stageSelectedPaths', () => {
 		const oversized = scratchFile(test, 'oversized.bin', 'x');
 		truncateSync(oversized, MAX_ATTACHMENT_FILE_BYTES + 1);
 		expect(() => stageSelectedPaths(worktree, [oversized])).toThrow(
-			`attachment exceeds the ${MAX_ATTACHMENT_FILE_BYTES}-byte file limit`,
+			`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`,
 		);
 	});
 
@@ -147,7 +149,7 @@ describe('stageSelectedPaths', () => {
 		const c = scratchFile(test, 'c.bin', 'x');
 		truncateSync(c, MAX_ATTACHMENT_TOTAL_BYTES - 2 * MAX_ATTACHMENT_FILE_BYTES + 1);
 		expect(() => stageSelectedPaths(worktree, [a, b, c])).toThrow(
-			`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`,
+			`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
 		);
 		expect(readdirSync(join(worktree, ATTACHMENT_ROOT))).toEqual([]);
 	});
@@ -528,6 +530,8 @@ describe('stageBytes', () => {
 			);
 		}
 		expect(paste('SHOT.PNG', PIXEL_PNG).mediaType).toBe('image/png');
+		expect(paste('loop.gif', PIXEL_PNG).mediaType).toBe('image/gif');
+		expect(paste('Screen Recording.mov', PIXEL_PNG).mediaType).toBe('video/quicktime');
 	});
 
 	it('refuses oversized and malformed payloads without writing', () => {
@@ -600,7 +604,7 @@ describe('stageBytes', () => {
 			staged[1]!.id,
 		);
 		expect(() => paste('over-budget.png', PIXEL_PNG)).toThrow(
-			`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`,
+			`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`,
 		);
 	});
 

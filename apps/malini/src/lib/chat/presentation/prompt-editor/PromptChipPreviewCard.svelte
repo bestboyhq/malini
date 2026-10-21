@@ -18,12 +18,24 @@
 		data-preview-kind={preview.kind}
 		class="border-surface-elevated-border bg-surface-elevated shadow-popup max-w-80 overflow-hidden rounded-lg border-[0.5px] p-2"
 	>
-		{#if preview.kind === 'image'}
-			<img
-				src={preview.src}
-				alt={preview.title}
-				class="bg-surface-50 block max-h-[200px] w-full max-w-[320px] rounded-md object-contain"
-			/>
+		{#if preview.kind === 'image' || preview.kind === 'video'}
+			{#if preview.kind === 'video'}
+				<video
+					src={preview.src}
+					aria-label={preview.title}
+					class="bg-surface-50 block max-h-[200px] w-full max-w-[320px] rounded-md object-contain"
+					autoplay
+					loop
+					muted
+					playsinline
+				></video>
+			{:else}
+				<img
+					src={preview.src}
+					alt={preview.title}
+					class="bg-surface-50 block max-h-[200px] w-full max-w-[320px] rounded-md object-contain"
+				/>
+			{/if}
 			<div class="text-fg-default mt-1.5 truncate text-xs">{preview.title}</div>
 			<div class={META_CLASS}>{preview.meta}</div>
 		{:else if preview.kind === 'file'}

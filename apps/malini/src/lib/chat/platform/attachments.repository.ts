@@ -1,13 +1,18 @@
 import type { MaliniDatabase } from '$main/db/driver';
 import { insertRun, insertRunForWorkstream, type AgentRun } from './runs.repository';
 import { column, get, run } from '$main/db/rows';
-import type { StagedAgentAttachment } from '$contract/agent';
+import {
+	MAX_ATTACHMENT_FILE_BYTES,
+	MAX_ATTACHMENT_FILE_MB,
+	type StagedAgentAttachment,
+} from '$contract/agent';
 
 export type { StagedAgentAttachment };
+export { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MB };
 
 export const MAX_ATTACHMENT_FILES = 10;
-export const MAX_ATTACHMENT_FILE_BYTES = 10 * 1024 * 1024;
-export const MAX_ATTACHMENT_TOTAL_BYTES = 25 * 1024 * 1024;
+export const MAX_ATTACHMENT_TOTAL_MB = 2 * MAX_ATTACHMENT_FILE_MB;
+export const MAX_ATTACHMENT_TOTAL_BYTES = 2 * MAX_ATTACHMENT_FILE_BYTES;
 export const STAGED_ATTACHMENT_TTL_HOURS = 24;
 
 export type AttachmentState = 'staged' | 'bound' | 'removed' | 'expired';
@@ -146,7 +151,7 @@ export function insertRunAndBindAttachments(
 			totalSize += stored.descriptor.size;
 			if (!Number.isSafeInteger(totalSize)) throw new Error('attachment size overflow');
 			if (totalSize > MAX_ATTACHMENT_TOTAL_BYTES) {
-				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`);
+				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
 			}
 			verified.push(stored.descriptor);
 		}

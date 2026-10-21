@@ -1,8 +1,13 @@
-import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+import {
+	attachmentViewer,
+	isVideoAttachment,
+	type StagedAgentAttachment,
+} from '$lib/chat/domain/composer-actions';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
 import type { RenderItem, RunGroup } from './render-state';
 import { toolImageRead } from './tool-image-read';
 import {
+	type GalleryMedia,
 	holdWorkstreamImages,
 	linklessImages,
 	markdownImageId,
@@ -14,10 +19,20 @@ export type GalleryImage = Readonly<{
 	id: string;
 	name: string;
 	kind: 'workstream' | 'url';
+	media: GalleryMedia;
 }>;
 
+export function isGalleryAttachment(attachment: StagedAgentAttachment): boolean {
+	return attachmentViewer(attachment) === 'gallery';
+}
+
 export function attachmentGalleryImage(attachment: StagedAgentAttachment): GalleryImage {
-	return { id: attachment.relativePath, name: attachment.displayName, kind: 'workstream' };
+	return {
+		id: attachment.relativePath,
+		name: attachment.displayName,
+		kind: 'workstream',
+		media: isVideoAttachment(attachment) ? 'video' : 'image',
+	};
 }
 
 export function transcriptGalleryImages(
@@ -37,11 +52,11 @@ export function transcriptGalleryImages(
 
 function itemImages(item: RenderItem, workstreamId: string): readonly GalleryImage[] {
 	if (item.kind === 'user') {
-		return (item.attachments ?? []).filter(isImageAttachment).map(attachmentGalleryImage);
+		return (item.attachments ?? []).filter(isGalleryAttachment).map(attachmentGalleryImage);
 	}
 	if (item.kind === 'tool') {
 		const read = toolImageRead(item.tool.name, item.tool.input, item.tool.output, workstreamId);
-		return read ? [{ id: read.path, name: read.fileName, kind: 'workstream' }] : [];
+		return read ? [{ id: read.path, name: read.fileName, kind: 'workstream', media: 'image' }] : [];
 	}
 	if (item.kind === 'assistant') return markdownImages(item.text);
 	return [];
@@ -56,6 +71,6 @@ function markdownImages(text: string): GalleryImage[] {
 		const id = markdownImageId(image);
 		if (id === null) return [];
 		const kind = image.hasAttribute(WORKSTREAM_IMAGE_ATTRIBUTE) ? 'workstream' : 'url';
-		return [{ id, name: markdownImageName(image, id), kind }];
+		return [{ id, name: markdownImageName(image, id), kind, media: 'image' }];
 	});
 }

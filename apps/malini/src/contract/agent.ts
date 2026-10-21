@@ -116,6 +116,9 @@ export interface AgentApprovalDecisionResult {
 	readonly ruleId?: string;
 }
 
+export const MAX_ATTACHMENT_FILE_MB = 100;
+export const MAX_ATTACHMENT_FILE_BYTES = MAX_ATTACHMENT_FILE_MB * 1024 * 1024;
+
 export interface StagedAgentAttachment {
 	id: string;
 	displayName: string;
