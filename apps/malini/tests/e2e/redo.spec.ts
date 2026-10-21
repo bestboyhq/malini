@@ -27,6 +27,7 @@ test('redo restores the worktree, A talk, and B run without an event gap', async
 		);
 
 		await openWorkstream(page, workstreamId, chatA);
+		await expect(page.locator('li[data-run-id]').first()).toBeAttached({ timeout: 20_000 });
 		const [runA] = await visibleRunIds(page);
 		if (!runA) throw new Error('chat A has no run to undo');
 		await undoRun(page, runA);

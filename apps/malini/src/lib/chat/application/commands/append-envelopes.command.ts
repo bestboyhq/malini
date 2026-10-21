@@ -22,7 +22,10 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 	if (accepted.length === 0) return;
 
 	for (const sessionId of sessionIds) {
-		if (!transcriptAggregate.isReadinessDeferred(sessionId)) {
+		if (
+			sessionsAggregate.isTranscriptHydrated(sessionId) &&
+			!transcriptAggregate.isReadinessDeferred(sessionId)
+		) {
 			transcriptAggregate.markReady(sessionId);
 		}
 	}

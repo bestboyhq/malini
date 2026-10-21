@@ -31,6 +31,7 @@ test('undo rewinds the worktree, supersedes A, and obsoletes B without deleting'
 			(await listEvents(page, chatA)).length + (await listEvents(page, chatB)).length;
 
 		await openWorkstream(page, workstreamId, chatA);
+		await expect(page.locator('li[data-run-id]').first()).toBeAttached({ timeout: 20_000 });
 		const [runA] = await visibleRunIds(page);
 		if (!runA) throw new Error('chat A has no run to undo');
 		await undoRun(page, runA);

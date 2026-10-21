@@ -127,15 +127,21 @@
 	const queuePaused = $derived(queuePausedQuery.data);
 	const queueSendingId = $derived(queueSendingQuery.data);
 	const queueErrorById = $derived(queueErrorsQuery.data);
-	const sessionChanges = $derived(sessionChangesQuery.data(sessionId));
+	const sessionChanges = $derived(
+		sessionChangesQuery.data(presentedWorkstreamId === workstreamId ? presentedSessionId : null),
+	);
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
-	let footerHeight = $state(0);
-	let trayHeight = $state(0);
+	let footerSize: ResizeObserverSize[] | undefined = $state();
+	let traySize: ResizeObserverSize[] | undefined = $state();
+	const exactFooterHeight = $derived(footerSize?.[0]?.blockSize ?? 0);
+	const footerHeight = $derived(Math.round(exactFooterHeight));
+	const composerHeight = $derived(Math.round(exactFooterHeight - (traySize?.[0]?.blockSize ?? 0)));
+	const trayHeight = $derived(footerHeight - composerHeight);
 	let transcript: ChatMessageList | null = $state(null);
 	let contentBelow = $state(false);
 	let newContentBelow = $state(false);
@@ -143,8 +149,12 @@
 		y: 4,
 		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 140,
 	});
+	let presentationChanging = false;
 	const foldMotion = (): SlideParams => ({
-		duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 240,
+		duration:
+			presentationChanging || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+				? 0
+				: 240,
 		easing: quartOut,
 	});
 
@@ -209,10 +219,7 @@
 	}
 
 	const showsSessionChanges = $derived(
-		!freshChat &&
-			!presentationPending &&
-			sessionChanges !== null &&
-			sessionChanges.files.length > 0,
+		!freshChat && sessionChanges !== null && sessionChanges.files.length > 0,
 	);
 
 	const editorComposerControls = $derived<TranscriptComposerControls>({
@@ -246,6 +253,20 @@
 	} | null = $state(null);
 	const presentationKey = $derived(`${workstreamId}::${presentedSessionId ?? 'fresh'}`);
 	let focusedPresentationKey: string | null = null;
+	const sessionChangesLoaded = $derived(sessionChanges !== null);
+
+	$effect.pre(() => {
+		void presentationKey;
+		void presentationPending;
+		void sessionChangesLoaded;
+		void skipFoldUntilPresented();
+	});
+
+	async function skipFoldUntilPresented(): Promise<void> {
+		presentationChanging = true;
+		await tick();
+		presentationChanging = false;
+	}
 
 	$effect(() => {
 		const key = presentationKey;
@@ -393,7 +414,7 @@
 
 						<div
 							class="chat-footer-scrim absolute inset-x-0 bottom-0 z-20 pr-[var(--scrollbar-gutter)]"
-							bind:clientHeight={footerHeight}
+							bind:borderBoxSize={footerSize}
 							inert={documentActive || undefined}
 							data-testid="chat-footer-stack"
 						>
@@ -417,7 +438,7 @@
 								</div>
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
-								<div bind:clientHeight={trayHeight}>
+								<div bind:borderBoxSize={traySize}>
 									{#if (showsSessionChanges && sessionChanges) || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div

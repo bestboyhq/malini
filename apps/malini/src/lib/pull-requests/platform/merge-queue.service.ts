@@ -753,18 +753,17 @@ export class MergeQueue {
 		});
 		if (!this.#jobs.has(run.id)) this.#jobs.set(run.id, run);
 		this.#settled.delete(workstreamId);
-		const saved = this.#save(
-			workstreamId,
-			{
-				activeJobRunId: run.id,
-				attempts: attempt,
-				failureSignature: signature,
-				step: jobStep(builtin),
-				lastError: null,
-				nextAttemptAt: null,
-			},
-			context.row.phase,
-		);
+		const started: ShipPatch = {
+			activeJobRunId: run.id,
+			attempts: attempt,
+			failureSignature: signature,
+			step: jobStep(builtin),
+			lastError: null,
+			nextAttemptAt: null,
+		};
+		const saved =
+			this.#save(workstreamId, started, context.row.phase) ??
+			(context.row.phase === 'queued' ? null : this.#save(workstreamId, started, 'queued'));
 		this.#failures.delete(workstreamId);
 		if (!saved) {
 			await commands.call('jobs.cancel-run', { jobRunId: run.id }).catch(() => undefined);

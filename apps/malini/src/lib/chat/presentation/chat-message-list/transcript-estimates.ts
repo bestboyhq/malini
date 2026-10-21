@@ -38,6 +38,22 @@ export function estimateRunHeight(run: RunGroup): number {
 	return height + ROW_PX;
 }
 
+export function openingBudgets(
+	runs: readonly RunGroup[],
+	heightOf: (runId: string) => number | undefined,
+	budgetPx: number,
+): ReadonlyMap<string, number> {
+	const budgets = new Map<string, number>();
+	let budget = budgetPx;
+	for (let index = runs.length - 1; index >= 0 && budget > 0; index -= 1) {
+		const run = runs[index];
+		if (!run) continue;
+		budgets.set(run.runId, budget);
+		budget -= heightOf(run.runId) ?? estimateRunHeight(run);
+	}
+	return budgets;
+}
+
 function estimateTextHeight(text: string): number {
 	let height = 0;
 	for (const line of text.split('\n')) {

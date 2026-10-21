@@ -1130,12 +1130,14 @@
 	.markdown-text :global(img) {
 		width: auto;
 		max-width: 100%;
-		max-height: 16rem;
+		height: 16rem;
+		aspect-ratio: 16 / 10;
 		margin: 0.25rem 0.25rem 0.25rem 0;
 		vertical-align: top;
-		object-fit: contain;
+		object-fit: scale-down;
 		border: 0.5px solid var(--color-border-default);
 		border-radius: 0.375em;
+		background: var(--color-surface-50);
 	}
 
 	.markdown-text :global(img[data-gallery-image]) {
