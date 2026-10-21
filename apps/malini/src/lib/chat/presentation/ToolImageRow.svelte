@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fade } from 'svelte/transition';
 	import {
 		explainUnavailableImageCommand,
 		previewWorkstreamImageCommand,
@@ -10,6 +11,7 @@
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
+	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { CHIP_CLASS, OPENABLE_CHIP_CLASS } from './inline-prompt-chips';
 	import type { ToolImageRead } from './tool-image-read';
 	import { galleryImageLabel } from './workstream-images';
@@ -66,12 +68,8 @@
 	data-tool-status={status}
 	data-image-path={image.path}
 >
-	{#if status === 'running'}
-		<BusyIcon class="text-fg-secondary shrink-0" size={13} />
-	{:else}
-		<Icon name="note" size={14} class="shrink-0" />
-	{/if}
-	<span class="shrink-0">Read image</span>
+	<Icon name="note" size={14} class="shrink-0" />
+	<ShimmerText text="Read image" active={status === 'running'} class="shrink-0" />
 
 	{#snippet chip()}
 		{#if previewable && onopenimage}
@@ -154,7 +152,10 @@
 	{/if}
 
 	{#if durationLabel}
-		<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
+		<span
+			class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums"
+			in:fade={{ duration: 190 }}
+		>
 			{durationLabel}
 		</span>
 	{/if}

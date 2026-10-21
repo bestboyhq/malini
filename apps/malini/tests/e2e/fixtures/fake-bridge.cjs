@@ -649,6 +649,17 @@ const respond = async (sessionId, runId, prompt) => {
 		event({ type: 'tool.started', runId, name: 'Edit', toolCallId: 'edit-notes', input });
 		event({ type: 'tool.completed', runId, name: 'Edit', toolCallId: 'edit-notes', output: 'ok' });
 	}
+	if (prompt.includes('READ_TOOL')) {
+		const input = { file_path: 'src/app.ts', offset: 10, limit: 3 };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId: 'read-app', input });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Read',
+			toolCallId: 'read-app',
+			output: '10\texport function ready(): boolean {\n11\t\treturn true;\n12\t}',
+		});
+	}
 	if (prompt.includes('BASH_FAIL')) {
 		event({
 			type: 'tool.started',

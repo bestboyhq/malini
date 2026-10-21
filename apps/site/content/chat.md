@@ -41,6 +41,9 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 
 - **@** mentions a file, and you can attach or paste images and files.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
+- A running tool call shimmers its name until it finishes, and its command, file, and duration fade in as they arrive.
+- Every edit, write, and read is a file badge: click it for a card with what the edit changed, the file it wrote, or the lines it read.
+- The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - The context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers are one click from the composer, read live from the chat's Claude Code when you open them.
 
 ## Undo, edit, fork

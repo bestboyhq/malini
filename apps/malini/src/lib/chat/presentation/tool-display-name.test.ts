@@ -40,38 +40,26 @@ describe('toolDisplayName', () => {
 
 describe('tool transcript labels', () => {
 	it('always keeps the precise tool identity beside file and command context', () => {
-		expect(toolActivityLabel('Read', { path: 'src/main.ts' }, 'running')).toBe(
-			'Read · src/main.ts',
-		);
-		expect(toolActivityLabel('Bash', { command: 'pnpm test' }, 'running')).toBe('Bash · pnpm test');
-		expect(toolActivityLabel('Write', { file: 'src/output.ts' }, 'completed')).toBe(
-			'Write · src/output.ts',
-		);
+		expect(toolActivityLabel('Read', { path: 'src/main.ts' })).toBe('Read · src/main.ts');
+		expect(toolActivityLabel('Bash', { command: 'pnpm test' })).toBe('Bash · pnpm test');
+		expect(toolActivityLabel('Write', { file: 'src/output.ts' })).toBe('Write · src/output.ts');
 	});
 
 	it('names the page or element a browser call acts on', () => {
 		expect(
-			toolActivityLabel(
-				'mcp__malini__browser_open',
-				{ url: 'http://localhost:4100/docs' },
-				'running',
-			),
+			toolActivityLabel('mcp__malini__browser_open', { url: 'http://localhost:4100/docs' }),
 		).toBe('Malini · Browser Open · localhost:4100/docs');
 		expect(
-			toolActivityLabel(
-				'mcp__malini__browser_click',
-				{ selector: 'a[href="#retry-after"]' },
-				'completed',
-			),
+			toolActivityLabel('mcp__malini__browser_click', { selector: 'a[href="#retry-after"]' }),
 		).toBe('Malini · Browser Click · a[href="#retry-after"]');
 		expect(
-			toolActivityLabel(
-				'mcp__malini__browser_type',
-				{ selector: 'input[name=search]', text: 'rate limits', submit: true },
-				'completed',
-			),
+			toolActivityLabel('mcp__malini__browser_type', {
+				selector: 'input[name=search]',
+				text: 'rate limits',
+				submit: true,
+			}),
 		).toBe('Malini · Browser Type · input[name=search]');
-		expect(toolActivityLabel('mcp__malini__browser_screenshot', {}, 'completed')).toBe(
+		expect(toolActivityLabel('mcp__malini__browser_screenshot', {})).toBe(
 			'Malini · Browser Screenshot',
 		);
 	});
@@ -139,7 +127,7 @@ describe('shell command labels', () => {
 	});
 
 	it('names the command in the activity summary the same way', () => {
-		expect(toolActivityLabel('Bash', { command: `cd "${root}" && git status` }, 'completed')).toBe(
+		expect(toolActivityLabel('Bash', { command: `cd "${root}" && git status` })).toBe(
 			'Bash · git status',
 		);
 	});
@@ -212,7 +200,7 @@ describe('background agents', () => {
 	it('names the agent by its task while it runs and by its result once it reports', () => {
 		expect(toolDisplayName('Agent', input)).toBe('Background agent');
 		expect(toolDescriptionLabel('Agent', input)).toBe('Sleep probe');
-		expect(toolActivityLabel('Agent', input, 'running')).toBe('Background agent');
+		expect(toolActivityLabel('Agent', input)).toBe('Background agent');
 		expect(backgroundAgentSummary('Agent', input, undefined)).toBeNull();
 		expect(backgroundAgentSummary('Agent', input, '\nCommand completed.\n\nprobe-done')).toBe(
 			'Command completed.',
@@ -222,7 +210,7 @@ describe('background agents', () => {
 	it('leaves a foreground agent as it was', () => {
 		const foreground = { description: 'Explore', prompt: 'look around' };
 		expect(toolDisplayName('Agent', foreground)).toBe('Agent');
-		expect(toolActivityLabel('Agent', foreground, 'running')).toBe('Running Agent');
+		expect(toolActivityLabel('Agent', foreground)).toBe('Agent');
 		expect(backgroundAgentSummary('Agent', foreground, 'done')).toBeNull();
 	});
 });

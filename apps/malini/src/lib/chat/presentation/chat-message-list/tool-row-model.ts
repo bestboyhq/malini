@@ -31,7 +31,7 @@ export function displayNameFromTool(item: ToolItem): string {
 }
 
 export function activityLabelFromTool(item: ToolItem): string {
-	return toolActivityLabel(item.tool.name, item.tool.input, 'completed');
+	return toolActivityLabel(item.tool.name, item.tool.input);
 }
 
 export function descriptionFromTool(item: ToolItem): string | null {

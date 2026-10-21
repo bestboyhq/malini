@@ -1,3 +1,5 @@
+import type { DiffHunk, DiffLine, DiffLineKind } from '$shared/repositories/repositories.api';
+
 export type EditDiffstat = { added: number; removed: number };
 
 const REPLACEMENT_FIELD_PAIRS = [
@@ -8,18 +10,14 @@ const REPLACEMENT_FIELD_PAIRS = [
 const EDIT_LIST_KEYS = ['edits'] as const;
 
 export function editDiffstat(input: unknown): EditDiffstat | null {
-	const total = { added: 0, removed: 0 };
-	let counted = false;
+	const lines = editHunks(input).flatMap((hunk) => hunk.lines);
+	const added = lines.filter((line) => line.kind === 'added').length;
+	const removed = lines.filter((line) => line.kind === 'deleted').length;
+	return added === 0 && removed === 0 ? null : { added, removed };
+}
 
-	for (const entry of replacementEntries(input)) {
-		const stat = replacementDiffstat(entry.oldText, entry.newText);
-		total.added += stat.added;
-		total.removed += stat.removed;
-		counted = true;
-	}
-
-	if (!counted) return null;
-	return total.added === 0 && total.removed === 0 ? null : total;
+export function editHunks(input: unknown): DiffHunk[] {
+	return replacementEntries(input).map(({ oldText, newText }) => replacementHunk(oldText, newText));
 }
 
 function replacementEntries(input: unknown): { oldText: string; newText: string }[] {
@@ -50,7 +48,7 @@ function replacementPair(value: unknown): { oldText: string; newText: string } |
 	return null;
 }
 
-function replacementDiffstat(oldText: string, newText: string): EditDiffstat {
+function replacementHunk(oldText: string, newText: string): DiffHunk {
 	const oldLines = splitLines(oldText);
 	const newLines = splitLines(newText);
 
@@ -70,7 +68,23 @@ function replacementDiffstat(oldText: string, newText: string): EditDiffstat {
 		newEnd -= 1;
 	}
 
-	return { added: newEnd - start, removed: oldEnd - start };
+	return {
+		header: '',
+		oldStart: 0,
+		oldLines: oldLines.length,
+		newStart: 0,
+		newLines: newLines.length,
+		lines: [
+			...oldLines.slice(0, start).map((text) => unnumbered('context', text)),
+			...oldLines.slice(start, oldEnd).map((text) => unnumbered('deleted', text)),
+			...newLines.slice(start, newEnd).map((text) => unnumbered('added', text)),
+			...oldLines.slice(oldEnd).map((text) => unnumbered('context', text)),
+		],
+	};
+}
+
+function unnumbered(kind: DiffLineKind, text: string): DiffLine {
+	return { kind, oldLine: null, newLine: null, text };
 }
 
 function splitLines(text: string): string[] {

@@ -8,6 +8,10 @@ export function formatRunSeconds(ms: number): string {
 	return `${Math.floor(total / 60_000)}m, ${Math.floor((total % 60_000) / 1_000)}`;
 }
 
+export function tenthsPhaseDelayMs(startedAtMs: number, timelineOriginMs: number): number {
+	return -((((timelineOriginMs - startedAtMs) % 1_000) + 1_000) % 1_000);
+}
+
 export function deriveTokenTicker(usage: UsageSnapshot | null): string | null {
 	if (!usage) return null;
 	const total = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);

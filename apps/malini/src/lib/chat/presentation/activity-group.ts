@@ -133,7 +133,7 @@ function itemFailure(item: MachineActivityItem): ActivityFailure | null {
 			key: item.key,
 			label:
 				toolDescriptionLabel(item.tool.name, item.tool.input) ??
-				toolActivityLabel(item.tool.name, item.tool.input, 'completed'),
+				toolActivityLabel(item.tool.name, item.tool.input),
 			message:
 				toolFailureReason(item.tool.error) ??
 				`${toolDisplayName(item.tool.name, item.tool.input)} failed`,
