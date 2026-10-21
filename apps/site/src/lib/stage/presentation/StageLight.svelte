@@ -22,7 +22,7 @@
 </script>
 
 <div
-	class={['stage', { lit, fades: lighting.fadeTop }]}
+	class={['stage', { lit }]}
 	style:--stage-spot={fallback.spot}
 	style:--stage-spread={fallback.spread}
 	style:--stage-floor={fallback.floor}
@@ -73,11 +73,6 @@
 		}
 	}
 
-	.stage.fades {
-		-webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 40%);
-		mask-image: linear-gradient(180deg, transparent 0%, #000 40%);
-	}
-
 	.stage::after {
 		content: '';
 		position: absolute;
@@ -90,8 +85,6 @@
 
 	.stage.lit {
 		background: none;
-		-webkit-mask-image: none;
-		mask-image: none;
 	}
 
 	.stage.lit::after {

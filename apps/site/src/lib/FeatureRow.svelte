@@ -36,7 +36,7 @@
 
 <section {id} class="beat feature" aria-labelledby="{id}-title">
 	<div class="row" class:mirrored>
-		<div class="words">
+		<div class="words rise">
 			<BeatLabel {...beat} />
 			<h3 id="{id}-title">{title}</h3>
 			<p>{body}</p>

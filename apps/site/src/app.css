@@ -83,6 +83,7 @@
 		'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, SFMono-Regular, Menlo, monospace;
 	--ease: cubic-bezier(0.22, 1, 0.36, 1);
 	--enter-ease: cubic-bezier(0.33, 1, 0.68, 1);
+	--pace: 1.4;
 
 	--gutter: 40px;
 	--pad: 40px;
@@ -229,6 +230,12 @@
 	padding-block: 112px;
 }
 
+@property --seam-w {
+	syntax: '<number>';
+	inherits: true;
+	initial-value: 1;
+}
+
 .beat::before {
 	content: '';
 	position: absolute;
@@ -238,9 +245,29 @@
 	width: 100vw;
 	height: 9px;
 	margin-left: -50vw;
-	background: var(--crosses);
+	background:
+		var(--seam, linear-gradient(transparent 0 0)) calc(50vw - var(--col) * var(--seam-w) / 2) 4px /
+			calc(var(--col) * var(--seam-w)) 1px,
+		var(--crosses);
 	background-repeat: no-repeat;
 	pointer-events: none;
+}
+
+@supports (animation-timeline: view()) {
+	@media (prefers-reduced-motion: no-preference) {
+		.rise {
+			animation: rise var(--ease) both;
+			animation-timeline: view();
+			animation-range: entry 0% entry 70%;
+		}
+	}
+}
+
+@keyframes rise {
+	from {
+		opacity: 0;
+		translate: 0 32px;
+	}
 }
 
 .skip {

@@ -10,15 +10,14 @@
 	import QueueMock from '$lib/QueueMock.svelte';
 	import RoutineMock from '$lib/RoutineMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
-	import { StageLight, StagePanel } from '$lib/stage/stage.api';
+	import Glow, { type Layer } from '$lib/Glow.svelte';
 	import TerminalMock from '$lib/TerminalMock.svelte';
 	import { docHref, DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '$lib/links';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	let heroPanel = $state<HTMLElement>();
-	let heroLit = $state(false);
+	const HORIZON: readonly Layer[] = [{ box: [0, -0.46, 1, 0.9], peak: [0.42, 0.86], start: 0.18 }];
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
@@ -125,7 +124,7 @@
 
 <div class="progress" aria-hidden="true"></div>
 
-<section class="hero" aria-labelledby="hero-title">
+<section aria-labelledby="hero-title">
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
@@ -149,21 +148,20 @@
 		</div>
 		<p class="fine">macOS 13 or later on Apple silicon · No account · No subscription</p>
 	</div>
-	<div class="plate">
-		<div class="spot">
-			<StageLight preset="hero" caster={heroPanel} bind:lit={heroLit} />
+	<div class="plate beat">
+		<div class="horizon" aria-hidden="true"></div>
+		<div class="gl" aria-hidden="true">
+			<Glow layers={HORIZON} opacity={0.85} />
 		</div>
 		<div class="wrap window">
-			<StagePanel lit={heroLit} bind:element={heroPanel}>
-				<img
-					class="shot"
-					src={hero}
-					width="2560"
-					height="1600"
-					alt="Malini with three repositories in the sidebar, an agent's finished run in the chat, and the changed files beside it"
-					fetchpriority="high"
-				/>
-			</StagePanel>
+			<img
+				class="shot"
+				src={hero}
+				width="2560"
+				height="1600"
+				alt="Malini with three repositories in the sidebar, an agent's finished run in the chat, and the changed files beside it"
+				fetchpriority="high"
+			/>
 		</div>
 	</div>
 </section>
@@ -179,7 +177,7 @@
 	{#snippet after()}
 		<ol class="cells">
 			{#each steps as step, index (step.title)}
-				<li>
+				<li class="rise">
 					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
 					<h3>{step.title}</h3>
 					<p>{step.body}</p>
@@ -270,7 +268,7 @@
 	{#snippet after()}
 		<ul class="cells">
 			{#each trust as item (item.title)}
-				<li>
+				<li class="rise">
 					<Icon name={item.icon} size={16} />
 					<h3>{item.title}</h3>
 					<p>{item.body}</p>
@@ -417,9 +415,9 @@
 	}
 
 	.intro > *,
-	.plate {
-		animation: enter calc(var(--duration) * 1ms) var(--enter-ease) calc(var(--delay) * 1ms)
-			backwards;
+	.window {
+		animation: enter calc(var(--duration) * var(--pace) * 1ms) var(--enter-ease)
+			calc(var(--delay) * var(--pace) * 1ms) backwards;
 	}
 
 	.eyebrow {
@@ -503,36 +501,63 @@
 	}
 
 	.plate {
-		--rise: 6px;
-		--blur: 8px;
-		--duration: 1600;
-		--delay: 450;
-		position: relative;
-		padding: 56px 0 64px;
+		--seam: linear-gradient(
+			90deg,
+			transparent 4%,
+			#1957fa 18%,
+			#6365cd 32%,
+			#9e6594 44%,
+			#d35351 58%,
+			#ed3e11 70%,
+			#fb8400 82%,
+			transparent 96%
+		);
+		isolation: isolate;
+		padding: 64px 0;
+		background: linear-gradient(var(--panel) 0 0) 50% 0 / var(--col) 100% no-repeat;
+		animation: seam calc(1600ms * var(--pace)) var(--enter-ease) calc(450ms * var(--pace)) backwards;
 	}
 
-	.plate::before {
-		content: '';
+	@property --grow {
+		syntax: '<number>';
+		inherits: true;
+		initial-value: 1;
+	}
+
+	.horizon,
+	.gl {
 		position: absolute;
-		z-index: 1;
-		top: -4px;
-		left: 50%;
-		width: 100vw;
-		height: 9px;
-		margin-left: -50vw;
-		background: var(--crosses);
-		background-repeat: no-repeat;
+		z-index: -1;
 		pointer-events: none;
 	}
 
-	.spot {
-		position: absolute;
+	.horizon {
+		inset: -46% calc(50% - var(--col) / 2) auto;
+		height: 90%;
+		background: var(--painting);
+		mask-image: radial-gradient(
+			closest-side,
+			light-dark(rgb(0 0 0 / 0.42), rgb(0 0 0 / 0.86)) 18%,
+			transparent
+		);
+		filter: blur(48px);
+		opacity: 0.85;
+		clip-path: inset(calc(100% * 46 / 90) 0 0 0);
+		animation: swell calc(1600ms * var(--pace)) var(--enter-ease) calc(450ms * var(--pace))
+			backwards;
+	}
+
+	.gl {
 		inset: 0 calc(50% - var(--col) / 2);
-		overflow: hidden;
+		color: var(--panel);
+		animation: grow calc(1600ms * var(--pace)) var(--enter-ease) calc(450ms * var(--pace)) backwards;
 	}
 
 	.window {
-		--window-radius: calc(100cqi * 46 / 2560);
+		--rise: 6px;
+		--blur: 8px;
+		--duration: 1400;
+		--delay: 350;
 		position: relative;
 		container-type: inline-size;
 	}
@@ -541,6 +566,30 @@
 		display: block;
 		width: 100%;
 		height: auto;
+		border-radius: calc(100cqi * 46 / 2560);
+		box-shadow:
+			0 0 0 1px var(--ring-faint),
+			0 2px 4px rgb(0 0 0 / 0.08),
+			0 32px 64px -24px rgb(0 0 0 / 0.45);
+	}
+
+	@keyframes grow {
+		from {
+			--grow: 0;
+		}
+	}
+
+	@keyframes swell {
+		from {
+			opacity: 0;
+			scale: 0.6;
+		}
+	}
+
+	@keyframes seam {
+		from {
+			--seam-w: 0;
+		}
 	}
 
 	@keyframes enter {
@@ -876,7 +925,7 @@
 		}
 
 		.plate {
-			padding: 32px 0 40px;
+			padding: 40px 0;
 		}
 
 		.window {
@@ -905,8 +954,14 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.intro > *,
-		.plate {
+		.window {
 			animation: fade 400ms ease backwards;
+		}
+
+		.horizon,
+		.gl,
+		.plate {
+			animation: none;
 		}
 	}
 </style>

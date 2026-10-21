@@ -1,4 +1,4 @@
-import { resolve } from '$app/paths';
+import { asset, resolve } from '$app/paths';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
@@ -14,12 +14,20 @@ export function docHref(path: string): string {
 	return `${HOME}${path}`;
 }
 
-export type Link = Readonly<{ title: string; href: string; line?: string; reload?: boolean }>;
+export type Link = Readonly<{
+	title: string;
+	href: string;
+	line?: string;
+	icon?: string;
+	tag?: string;
+	reload?: boolean;
+}>;
 
 export type Menu = Readonly<{
 	id: string;
 	title: string;
 	columns: readonly Readonly<{ label: string; plain?: boolean; links: readonly Link[] }>[];
+	strip?: Readonly<{ lead: string; text: string; link: Link }>;
 }>;
 
 export const isExternal = (link: Link): boolean => link.href.startsWith('http');
@@ -28,45 +36,53 @@ const LLMS: Link = { title: 'llms.txt', href: resolve('/llms.txt'), reload: true
 const LLMS_FULL: Link = { title: 'llms-full.txt', href: resolve('/llms-full.txt'), reload: true };
 const MARKDOWN: Link = { title: 'Docs as markdown', href: `${docHref('/docs')}.md`, reload: true };
 
+const BESTBOY_GITHUB = 'https://github.com/bestboyhq';
+
 export const MENUS: readonly Menu[] = [
 	{
 		id: 'product',
 		title: 'Product',
 		columns: [
 			{
-				label: 'Features',
+				label: 'Apps',
 				links: [
 					{
-						title: 'Workstreams',
-						href: docHref('/docs/workstreams'),
-						line: 'A worktree, a branch, and chats per task',
+						title: 'Tony',
+						tag: 'Say it',
+						href: `${BESTBOY_GITHUB}/tony/releases/latest`,
+						icon: asset('/icons/tony.webp'),
+						line: 'Hold a key. Speak. Let go.',
 					},
 					{
-						title: 'Chat',
-						href: docHref('/docs/chat'),
-						line: 'Queue or steer prompts, plan, undo, fork',
+						title: 'Malini',
+						tag: 'Build it',
+						href: HOME,
+						icon: asset('/icons/malini.webp'),
+						line: 'You had one job. Now you have plenty.',
 					},
 					{
-						title: 'Jobs',
-						href: docHref('/docs/jobs'),
-						line: 'Agent work you reuse by name',
-					},
-					{
-						title: 'Routines',
-						href: docHref('/docs/routines'),
-						line: 'Jobs that run when something happens',
+						title: 'Grip',
+						tag: 'Share it',
+						href: `${BESTBOY_GITHUB}/grip/releases/latest`,
+						icon: asset('/icons/grip.webp'),
+						line: 'Record your screen. Get a video worth watching.',
 					},
 				],
 			},
 			{
-				label: 'More from Bestboy',
+				label: 'More',
 				plain: true,
 				links: [
-					{ title: 'Tony', href: 'https://github.com/bestboyhq/tony/releases/latest' },
-					{ title: 'Grip', href: 'https://github.com/bestboyhq/grip/releases/latest' },
+					{ title: 'How they fit together', href: `${BESTBOY_URL}/#turn` },
+					{ title: 'Questions', href: `${BESTBOY_URL}/#faq` },
 				],
 			},
 		],
+		strip: {
+			lead: 'The suite',
+			text: 'Use one, or all three together',
+			link: { title: 'Download', href: `${BESTBOY_URL}/#top` },
+		},
 	},
 	{
 		id: 'resources',
@@ -76,52 +92,35 @@ export const MENUS: readonly Menu[] = [
 				label: 'Docs',
 				links: [
 					{
-						title: 'Install',
-						href: docHref('/docs/install'),
-						line: 'Download, connect, add a repository',
+						title: 'Malini docs',
+						href: docHref('/docs'),
+						line: 'Install, workstreams, jobs, and extensions',
 					},
 					{
-						title: 'Agent tools',
-						href: docHref('/docs/agent-tools'),
-						line: 'A shared browser, jobs, routines, events',
+						title: 'Tony on GitHub',
+						href: `${BESTBOY_GITHUB}/tony#readme`,
+						line: 'Install it and use it, in its README',
 					},
 					{
-						title: 'Extensions',
-						href: docHref('/docs/extensions'),
-						line: 'Panels, commands, settings, workflows',
-					},
-					{
-						title: 'Events',
-						href: docHref('/docs/reference/events'),
-						line: 'Every event and its payload',
+						title: 'Grip on GitHub',
+						href: `${BESTBOY_GITHUB}/grip#readme`,
+						line: 'Capture, edit, and share, in its README',
 					},
 				],
 			},
 			{
 				label: 'For agents',
 				links: [
-					{ ...LLMS, line: 'Every docs page, listed for agents' },
-					{ ...LLMS_FULL, line: 'All the docs in one file' },
-					{ ...MARKDOWN, line: 'Any page as plain markdown' },
-				],
-			},
-			{
-				label: 'Project',
-				links: [
 					{
-						title: 'Releases',
-						href: `${GITHUB_URL}/releases`,
-						line: 'Every version and its notes',
+						title: 'llms.txt',
+						href: `${BESTBOY_URL}/llms.txt`,
+						line: "Every app's docs, as markdown for agents",
 					},
 					{
-						title: 'Decisions',
-						href: `${GITHUB_URL}/tree/main/docs/adr`,
-						line: 'Why Malini is built this way',
-					},
-					{
-						title: 'Issues',
-						href: `${GITHUB_URL}/issues`,
-						line: 'Report a bug or ask for a feature',
+						title: 'Malini in one file',
+						href: LLMS_FULL.href,
+						reload: true,
+						line: "All its docs at once, for an agent's context",
 					},
 				],
 			},

@@ -16,7 +16,9 @@ The site followed the system's color scheme only, through `prefers-color-scheme`
 - Tokens live once in `src/app.css` as `light-dark()` pairs; `:root` declares `color-scheme: light dark`, and `data-theme="light"` or `"dark"` on `<html>` pins one.
   hyper-ui's daisyUI themes key off the same attribute, so the mock-ups follow the choice too.
 - The footer's `ThemeSwitcher.svelte` offers light, system and dark, stores the choice in `localStorage.theme`, and an inline script in `src/app.html` applies it, and the matching `theme-color`, before the first paint.
-- `Bar.svelte` (Bestboy / Malini, Product and Resources menus sharing one panel, Docs, GitHub, Download), `Footer.svelte` (the sitemap on product pages, the last line alone on the 404) and `BeatLabel.svelte` (`01 / 11  Kicker`) take their links from `src/lib/links.ts`.
+- `Bar.svelte` carries bestboy.dev's own Product and Resources menus, the same on every Bestboy site at the user's request, so a visitor finds one menu wherever they land; only the brand path (Bestboy / Malini), a Docs link, GitHub and Download are Malini's.
+  `Footer.svelte` (the sitemap on product pages, the last line alone on the 404) and `BeatLabel.svelte` (`01 / 11  Kicker`) take their links from `src/lib/links.ts`.
+- The hero's light is bestboy.dev's `Glow.svelte` (WebGL with grain, over a CSS fallback): the painting rises behind the top of the window on a `--panel` plate and grows in last, at bestboy.dev's `--pace` of 1.4, as the plate's beat line draws its seam; the stage light stays on the feature rows only.
 - `.site` draws the rails, `.beat` the beat line with its crosses, and `.wrap` the 1200px column.
 - JetBrains Mono is self-hosted from `src/lib/fonts` as `--mono`; Inter keeps fontsource with a metric-matched `Inter Fallback`; the marks are the macOS icons in `static/icons`, drawn with `.app-icon`.
 - The site's easing token is `--ease`, `cubic-bezier(0.22, 1, 0.36, 1)`, since hyper-ui owns `--ease-out`; this replaces 0034's `--ease-out-quart`.

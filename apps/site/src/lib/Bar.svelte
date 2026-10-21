@@ -178,8 +178,16 @@
 		onclick={close}
 		onkeydown={(event) => linkKey(id, event)}
 	>
-		<span class="item-title">{link.title}</span>
-		{#if link.line && !plain}<span class="item-line">{link.line}</span>{/if}
+		{#if link.icon}
+			<img class="app-icon" src={link.icon} width="32" height="32" alt="" />
+		{/if}
+		<span class="item-text">
+			<span class="item-title">
+				{link.title}
+				{#if link.tag}<span class="tag">{link.tag}</span>{/if}
+			</span>
+			{#if link.line && !plain}<span class="item-line">{link.line}</span>{/if}
+		</span>
 	</a>
 {/snippet}
 
@@ -242,6 +250,23 @@
 												</div>
 											{/each}
 										</div>
+										{#if menu.strip}
+											<p class="strip">
+												<span>
+													<b>{menu.strip.lead}</b>
+													{menu.strip.text}
+												</span>
+												<a
+													href={menu.strip.link.href}
+													data-sveltekit-reload
+													onclick={close}
+													onkeydown={(event) => linkKey(menu.id, event)}
+												>
+													{menu.strip.link.title}
+													<Arrow class="ahead" />
+												</a>
+											</p>
+										{/if}
 									</div>
 								</div>
 							{/if}
@@ -280,8 +305,13 @@
 											data-sveltekit-reload={reloads(link)}
 											onclick={fold}
 										>
-											{link.title}
-											{#if isExternal(link)}<Arrow class="out" />{/if}
+											{#if link.icon}
+												<img class="app-icon" src={link.icon} width="24" height="24" alt="" />
+											{/if}
+											<span class="item-title">
+												{link.title}
+												{#if link.tag}<span class="tag">{link.tag}</span>{/if}
+											</span>
 										</a>
 									</li>
 								{/each}
@@ -515,9 +545,14 @@
 		line-height: 16px;
 	}
 
+	.column:has(.app-icon) {
+		width: 392px;
+	}
+
 	.item {
 		display: flex;
-		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
 		padding: 10px;
 		border-radius: 8px;
 		color: var(--fg-default);
@@ -538,10 +573,31 @@
 		background: var(--surface-hover);
 	}
 
+	.item .app-icon {
+		--s: 32px;
+		flex: none;
+	}
+
+	.item-text {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
 	.item-title {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
 		font-size: 14px;
 		font-weight: 500;
 		line-height: 18px;
+	}
+
+	.tag {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 11px;
+		font-weight: 400;
 	}
 
 	.item-line {
@@ -549,6 +605,38 @@
 		font-size: 13px;
 		line-height: 19px;
 		text-wrap: pretty;
+	}
+
+	.strip {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 24px;
+		padding: 12px 12px 6px 14px;
+		color: var(--fg-muted);
+		font-size: 13px;
+		line-height: 20px;
+	}
+
+	.strip b {
+		margin-right: 4px;
+		color: var(--fg-default);
+		font-weight: 500;
+	}
+
+	.strip a {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--fg-secondary);
+		font-weight: 500;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.strip :global(.ahead) {
+		width: 11px;
+		height: 11px;
 	}
 
 	.burger {
@@ -666,10 +754,9 @@
 		background: var(--surface-hover);
 	}
 
-	.row-link :global(.out) {
-		width: 9px;
-		height: 9px;
-		color: var(--fg-faint);
+	.row-link .app-icon {
+		--s: 24px;
+		flex: none;
 	}
 
 	@media (hover: hover) and (pointer: fine) {
@@ -683,6 +770,14 @@
 
 		.item.plain:hover .item-title {
 			color: var(--fg-default);
+		}
+
+		.strip a:hover {
+			color: var(--fg-default);
+		}
+
+		.strip a:hover :global(.ahead) {
+			translate: 2px 0;
 		}
 	}
 

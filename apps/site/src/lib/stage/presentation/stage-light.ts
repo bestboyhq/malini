@@ -173,7 +173,6 @@ uniform vec2 spot;
 uniform vec2 spread;
 uniform vec2 floorFrom;
 uniform vec2 floorTo;
-uniform float fadeTop;
 uniform float strength;
 uniform vec4 caster;
 uniform float casterRadius;
@@ -245,8 +244,6 @@ void main() {
   color = mix(color, ink, 0.1875 * strength * softClamp(1.0 - spotDistance, 0.3));
   color += (ink - page) * 0.0186 * strength;
 
-  color = mix(color, mix(page, color, softClamp(uv.y / 0.4, 0.3)), fadeTop);
-
   if (shadow.a > 0.0) {
     vec2 point = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
     vec2 lower = caster.xy - shadowSpread + vec2(0.0, shadowOffset);
@@ -288,7 +285,6 @@ function createRenderer(source: HTMLCanvasElement): Renderer | null {
 	const spread = uniform('spread');
 	const floorFrom = uniform('floorFrom');
 	const floorTo = uniform('floorTo');
-	const fadeTop = uniform('fadeTop');
 	const strengthLevel = uniform('strength');
 	const caster = uniform('caster');
 	const casterRadius = uniform('casterRadius');
@@ -310,7 +306,6 @@ function createRenderer(source: HTMLCanvasElement): Renderer | null {
 			gl.uniform2f(spread, ...scene.lighting.spread);
 			gl.uniform2f(floorFrom, ...scene.lighting.floorFrom);
 			gl.uniform2f(floorTo, ...scene.lighting.floorTo);
-			gl.uniform1f(fadeTop, scene.lighting.fadeTop ? 1 : 0);
 			gl.uniform1f(strengthLevel, scene.strength);
 			const cast = scene.caster ?? NO_SHADOW;
 			const [red, green, blue, opacity] = scene.shadow;
