@@ -39,6 +39,8 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 
 - **@** mentions a file, and you can attach or paste images and files.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
+- Every edit and read is a file badge: click it to open the file's current changes, or the lines the agent read, right below it.
+- The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - The context window breakdown, your plan usage (five-hour and weekly), and MCP server status are one click from the composer.
 
 ## Undo, edit, fork

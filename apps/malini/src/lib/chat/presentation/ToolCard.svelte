@@ -4,6 +4,8 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import EditDiffPreview from './EditDiffPreview.svelte';
 	import ExpandMark from './ExpandMark.svelte';
+	import FileToolRow from './FileToolRow.svelte';
+	import ReadFilePreview from './ReadFilePreview.svelte';
 	import ToolImageRow from './ToolImageRow.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
@@ -22,7 +24,7 @@
 	} from './tool-display-name';
 
 	interface Props {
-		workstreamId?: string | null;
+		workstreamId: string;
 		name: string;
 		status: 'running' | 'completed';
 		waiting?: boolean;
@@ -37,7 +39,7 @@
 	}
 
 	let {
-		workstreamId = null,
+		workstreamId,
 		name,
 		status,
 		waiting = false,
@@ -133,6 +135,30 @@
 	<div class="text-sm">
 		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} {onopenimage} />
 	</div>
+{:else if editPath && (actionKind === 'edit' || actionKind === 'read')}
+	<FileToolRow
+		verb={displayName}
+		icon={actionKind === 'edit' ? 'pencil' : 'note'}
+		path={editPath}
+		previewName={actionKind === 'edit' ? 'current changes to' : 'contents of'}
+		live={status === 'running' && !waiting}
+		{diffstat}
+		{durationLabel}
+	>
+		{#snippet preview(relativePath)}
+			{#if actionKind === 'edit'}
+				<EditDiffPreview {workstreamId} path={relativePath} />
+			{:else}
+				<ReadFilePreview
+					path={relativePath}
+					{output}
+					fullLength={outputLength}
+					{fullOutput}
+					onloadfull={onloadfulloutput}
+				/>
+			{/if}
+		{/snippet}
+	</FileToolRow>
 {:else}
 	<details class="group/expand text-sm" data-tool-status={status} bind:open={expanded}>
 		<summary
@@ -154,9 +180,7 @@
 					<Icon name="wrench" size={14} class="shrink-0" />
 				{/if}
 			</ExpandMark>
-			{#if actionKind === 'edit' && workstreamId && editPath}
-				<EditDiffPreview {workstreamId} path={editPath} {label} />
-			{:else if description}
+			{#if description}
 				<span class="flex min-w-0 flex-1 items-baseline gap-2">
 					<span class="text-fg-secondary min-w-0 truncate" data-tool-description>
 						<SensitiveText text={description} />
@@ -167,20 +191,6 @@
 				</span>
 			{:else}
 				<span class="min-w-0 flex-1 truncate"><SensitiveText text={label} /></span>
-			{/if}
-			{#if diffstat}
-				<span
-					class="text-3xs shrink-0 font-mono tabular-nums"
-					data-testid="tool-card-diffstat"
-					aria-label={`${diffstat.added} ${diffstat.added === 1 ? 'line' : 'lines'} added, ${diffstat.removed} ${diffstat.removed === 1 ? 'line' : 'lines'} removed`}
-				>
-					{#if diffstat.added > 0}<span class="text-success-content">+{diffstat.added}</span>{/if}
-					{#if diffstat.removed > 0}<span
-							class={['text-error-content', diffstat.added > 0 && 'ml-1']}
-						>
-							−{diffstat.removed}
-						</span>{/if}
-				</span>
 			{/if}
 			{#if durationLabel}
 				<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono tabular-nums">
