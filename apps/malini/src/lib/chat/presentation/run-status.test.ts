@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveTokenTicker, formatRunSeconds } from './run-status';
+import { deriveTokenTicker, formatRunSeconds, tenthsPhaseDelayMs } from './run-status';
 
 describe('the run clock', () => {
 	it.each([
@@ -15,6 +15,23 @@ describe('the run clock', () => {
 	it('never runs backwards when the start mark is (implausibly) after now', () => {
 		expect(formatRunSeconds(-5_000)).toBe('0m, 0');
 	});
+
+	it.each([
+		[1_000_350, 1_000_000],
+		[1_002_350, 1_000_000],
+		[999_650, 1_000_000],
+	])(
+		'phases the tenths so they roll over with the seconds of a run started at %d',
+		(startedAt, origin) => {
+			const delay = tenthsPhaseDelayMs(startedAt, origin);
+			expect(delay).toBeLessThanOrEqual(0);
+			expect(delay).toBeGreaterThan(-1_000);
+			for (const now of [startedAt + 1_000, startedAt + 4_000, startedAt + 61_000]) {
+				const tenthsActiveTimeMs = now - origin - delay;
+				expect(((tenthsActiveTimeMs % 1_000) + 1_000) % 1_000).toBe(0);
+			}
+		},
+	);
 });
 
 describe('deriveTokenTicker', () => {

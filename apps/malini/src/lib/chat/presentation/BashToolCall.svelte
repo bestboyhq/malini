@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { quartOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { slide } from 'svelte/transition';
+	import { fade, slide } from 'svelte/transition';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
 	import { Button } from '$hyper-ui/components/button';
@@ -9,6 +9,7 @@
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import type { FullToolOutput } from '$lib/chat/domain/full-tool-output';
 	import ExpandMark from './ExpandMark.svelte';
+	import ToolLabel from './ToolLabel.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
 	import {
 		shellCommandLabel,
@@ -87,27 +88,26 @@
 		data-testid="bash-command-toggle"
 		onclick={() => (expanded = !expanded)}
 	>
-		<ExpandMark live={status === 'running' && !waiting}>
+		<ExpandMark>
 			<Icon name="command" size={14} />
 		</ExpandMark>
-		{#if description}
-			<span class="flex min-w-0 flex-1 items-baseline gap-2">
-				<span class="text-fg-secondary min-w-0 truncate" data-bash-description>
-					<SensitiveText text={description} />
-				</span>
-				<span class="text-2xs min-w-0 flex-1 truncate font-mono">
-					<SensitiveText text={commandLabel} />
-				</span>
-			</span>
-		{:else}
-			<span class="text-2xs min-w-0 flex-1 truncate font-mono">
-				<SensitiveText text={activityLabel} />
-			</span>
-		{/if}
+		<ToolLabel
+			title={description ?? operationName}
+			detail={command === operationName ? null : commandLabel}
+			emphasized={description !== null}
+			live={status === 'running' && !waiting}
+		/>
 		{#if waiting}
-			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono">waiting</span>
+			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" in:fade={{ duration: 190 }}>
+				waiting
+			</span>
 		{:else if exitLabel}
-			<span class="text-3xs text-error-content shrink-0 font-mono tabular-nums">{exitLabel}</span>
+			<span
+				class="text-3xs text-error-content shrink-0 font-mono tabular-nums"
+				in:fade={{ duration: 190 }}
+			>
+				{exitLabel}
+			</span>
 		{/if}
 	</Button>
 
@@ -115,6 +115,7 @@
 		<div
 			class="bg-error text-2xs text-error-content mt-1 ml-5.5 flex items-start gap-2 rounded-md px-2.5 py-1.5 leading-relaxed"
 			data-testid="bash-command-failure"
+			in:fade={{ duration: 190 }}
 		>
 			<Icon name="warning" size={12} class="mt-1 shrink-0" />
 			<span class="min-w-0 flex-1 break-words select-text">

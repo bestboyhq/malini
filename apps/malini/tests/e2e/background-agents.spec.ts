@@ -37,7 +37,7 @@ test('a background agent shows as running past the turn, then shows its result',
 		await expect(backgroundStatus).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText('launched', { exact: true })).toBeVisible();
 		await expect(agentRow).toContainText('Background agent');
-		await expect(agentRow).toContainText('running…');
+		await expect(agentRow).toHaveAttribute('data-tool-status', 'running');
 		await expect(submit).toHaveAccessibleName('Stop current run');
 		await expect(sidebarLoader(page, 'e2e-background-agent-ws')).toBeVisible();
 		await captureFlow(app, 'background-agent-running');
@@ -47,7 +47,7 @@ test('a background agent shows as running past the turn, then shows its result',
 		await expect(agentRow).toContainText('Command completed. Output: probe-done', {
 			timeout: 20_000,
 		});
-		await expect(agentRow).not.toContainText('running…');
+		await expect(agentRow).toHaveAttribute('data-tool-status', 'completed');
 		await expect(page.getByRole('status').filter({ hasText: 'background agent' })).toHaveCount(0);
 		await expect(
 			page

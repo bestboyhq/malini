@@ -535,7 +535,7 @@ describe('foldEnvelopes', () => {
 		expect(item.tool.startedAt).toBe(10_000);
 		expect(item.tool.completedAt).toBe(40_000);
 		expect(toolDurationMs(item.tool)).toBe(30_000);
-		expect(formatToolDuration(toolDurationMs(item.tool), 'completed')).toBe('30.0s');
+		expect(formatToolDuration(30_000)).toBe('30.0s');
 	});
 
 	it('does not fabricate duration from sequence numbers for legacy events without timestamps', () => {

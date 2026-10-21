@@ -36,6 +36,18 @@
 		color: var(--code-punctuation);
 	}
 
+	.tok-operator {
+		color: var(--code-operator);
+	}
+
+	.tok-constant {
+		color: var(--code-constant);
+	}
+
+	.tok-tag {
+		color: var(--code-tag);
+	}
+
 	.tok-attr {
 		color: var(--code-attr);
 	}

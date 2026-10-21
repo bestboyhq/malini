@@ -1,21 +1,25 @@
 <script lang="ts">
 	import type { ClassValue } from 'svelte/elements';
+	import { fade } from 'svelte/transition';
 
 	interface Props {
 		text: string;
+		active?: boolean;
 		class?: ClassValue;
 	}
 
-	let { text, class: className }: Props = $props();
+	let { text, active = true, class: className }: Props = $props();
 </script>
 
 <span class={['relative inline-block whitespace-nowrap', className]}>
 	{text}
-	<span class="shimmer" aria-hidden="true">
-		<span class="shimmer-band">
-			<span class="shimmer-copy">{text}</span>
+	{#if active}
+		<span class="shimmer" aria-hidden="true" out:fade={{ duration: 320 }}>
+			<span class="shimmer-band">
+				<span class="shimmer-copy">{text}</span>
+			</span>
 		</span>
-	</span>
+	{/if}
 </span>
 
 <style>
@@ -35,6 +39,8 @@
 
 	.shimmer-copy {
 		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		color: var(--color-fg-default);
 		animation: shimmer-hold 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 	}

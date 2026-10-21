@@ -1,27 +1,37 @@
 :root,
 [data-theme='light'] {
-	--code-plain: var(--fg-400);
-	--code-punctuation: var(--fg-200);
-	--code-comment: var(--fg-100);
+	--code-plain: #1f2328;
+	--code-punctuation: #1f2328;
+	--code-comment: #6e7781;
 
-	--code-keyword: var(--color-purple-700);
-	--code-string: var(--color-green-700);
-	--code-number: var(--color-orange-700);
-	--code-type: var(--color-blue-800);
-	--code-function: var(--color-blue-800);
-	--code-attr: var(--color-pink-700);
+	--code-keyword: #cf222e;
+	--code-operator: #cf222e;
+	--code-string: #0a3069;
+	--code-number: #0550ae;
+	--code-constant: #0550ae;
+	--code-type: #953800;
+	--code-function: #8250df;
+	--code-tag: #116329;
+	--code-attr: #0550ae;
 
 	--code-added: var(--color-green-700);
 	--code-removed: var(--color-red-700);
 }
 
 [data-theme='dark'] {
-	--code-keyword: var(--color-purple-300);
-	--code-string: var(--color-green-300);
-	--code-number: var(--color-orange-300);
-	--code-type: var(--color-blue-300);
-	--code-function: var(--color-blue-300);
-	--code-attr: var(--color-pink-300);
+	--code-plain: #e6edf3;
+	--code-punctuation: #e6edf3;
+	--code-comment: #8b949e;
+
+	--code-keyword: #ff7b72;
+	--code-operator: #ff7b72;
+	--code-string: #a5d6ff;
+	--code-number: #79c0ff;
+	--code-constant: #79c0ff;
+	--code-type: #ffa657;
+	--code-function: #d2a8ff;
+	--code-tag: #7ee787;
+	--code-attr: #79c0ff;
 
 	--code-added: var(--color-green-300);
 	--code-removed: var(--color-red-300);
