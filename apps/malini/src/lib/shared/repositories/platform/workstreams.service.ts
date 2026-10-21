@@ -22,9 +22,9 @@ import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-wor
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import {
-	WORKSTREAM_BRANCH_PREFIX,
 	deriveProjectId,
 	localProjectId,
+	validateBranch,
 	workstreamBranchName,
 	workstreamPath,
 	workstreamsRoot,
@@ -88,6 +88,7 @@ export interface WorkstreamsDeps {
 export interface CreateRepositoryInput {
 	readonly repoUrl: string;
 	readonly githubToken: string | null;
+	readonly defaultBranch: string | null;
 }
 
 export interface CreateWorkstreamInput {
@@ -98,6 +99,7 @@ export interface CreateWorkstreamInput {
 	readonly name: string;
 	readonly githubToken: string | null;
 	readonly startRef?: string;
+	readonly branch?: string;
 }
 
 export async function createRepository(
@@ -130,7 +132,7 @@ export async function createRepository(
 			id: localProjectId(repoId),
 			name: repoId,
 			repoPath: outcome.path,
-			defaultBranch: 'main',
+			defaultBranch: input.defaultBranch ?? 'main',
 			createdAt: nowIso8601(),
 		});
 	} catch (error) {
@@ -149,7 +151,7 @@ export async function createWorkstream(
 
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
 	const worktreePath = workstreamPath(appDataRoot, workstreamId);
-	const branch = workstreamBranchName(workstreamId);
+	const branch = input.branch ?? workstreamBranchName(workstreamId);
 	const start =
 		input.startRef === undefined
 			? await baseSync.startRef(projectRepoPath, baseBranch, input.githubToken)
@@ -238,9 +240,8 @@ export async function restoreWorkstream(
 		throw new Error('Its repository is no longer on this Mac');
 	}
 	const checkout = workstreamPath(appDataRoot, workstreamId);
-	const branch = archived.branch.startsWith(WORKSTREAM_BRANCH_PREFIX)
-		? archived.branch
-		: workstreamBranchName(workstreamId);
+	const branch = archived.branch;
+	validateBranch(branch);
 	const checkoutExisted = existsSync(checkout);
 	const branchExisted = (await branchList(repository)).includes(branch);
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });

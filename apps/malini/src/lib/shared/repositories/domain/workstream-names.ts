@@ -30,8 +30,17 @@ const COMMON_BASE_BRANCH_NAMES = new Set(['main', 'master', 'develop', 'developm
 
 const NAME_COMBINATIONS = ADJECTIVES.length * NOUNS.length;
 
+const GENERATED_NAME = new RegExp(
+	`^(?:${ADJECTIVES.join('|')}) (?:${NOUNS.join('|')})(?: \\d+)?$`,
+	'u',
+);
+
 export function generatedWorkstreamName(seed: string): string {
 	return nameAt(seedIndex(seed));
+}
+
+export function isGeneratedWorkstreamName(name: string): boolean {
+	return GENERATED_NAME.test(name.trim());
 }
 
 export function uniqueWorkstreamName(seed: string, takenNames: readonly string[]): string {

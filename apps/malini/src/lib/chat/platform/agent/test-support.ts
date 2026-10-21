@@ -296,7 +296,7 @@ export function seedWorkstream(
 		'INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
 		workstreamId,
 		projectId,
-		workstreamId,
+		'Bright Arc',
 		checkout,
 		`malini/${workstreamId}`,
 		'main',

@@ -46,7 +46,7 @@ export {
 	listWorkstreams,
 	recordMergedPullRequest,
 	renameWorkstream,
-	workstreamHasUserRun,
+	workstreamAwaitsName,
 	upsertWorkstream,
 	upsertWorkstreamBundle,
 } from './platform/workstreams.repository';

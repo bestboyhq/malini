@@ -9,7 +9,6 @@ import {
 	remoteUrlMatchesCanonicalGithubUrl,
 	REPORTING_PATHSPECS,
 	validateBaseBranch,
-	workstreamBranchName,
 	WORKTREE_CONTENT_PATHSPEC,
 } from './paths';
 import { attributeCredentials, failureOutput, GitError } from '$main/errors';
@@ -103,8 +102,7 @@ async function currentBranch(worktreePath: string): Promise<string> {
 	return (await runGit(['-C', worktreePath, 'rev-parse', '--abbrev-ref', 'HEAD'])).trim();
 }
 
-function requireWorkstreamBranch(workstreamId: string, branch: string): string {
-	const expected = workstreamBranchName(workstreamId);
+function requireWorkstreamBranch(expected: string, branch: string): string {
 	if (branch !== expected) {
 		throw GitError.git(`workstream branch mismatch: expected \`${expected}\`, got \`${branch}\``);
 	}
@@ -113,10 +111,10 @@ function requireWorkstreamBranch(workstreamId: string, branch: string): string {
 
 export async function commitWorkstreamBranch(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 	message: string,
 ): Promise<string> {
-	requireWorkstreamBranch(workstreamId, await currentBranch(worktreePath));
+	requireWorkstreamBranch(expectedBranch, await currentBranch(worktreePath));
 	return commitWorktreeChanges(worktreePath, message);
 }
 
@@ -142,13 +140,13 @@ const REMOTE_HAS_NEW_COMMITS = /\[rejected\][^\n]*\((?:fetch first|non-fast-forw
 
 export async function pushWorkstreamBranch(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 	expectedRepositoryFullName: string,
 	githubToken: string | null | undefined,
 	credentials: GitCredentialEnv,
 ): Promise<string> {
 	const canonicalUrl = canonicalGithubHttpsUrl(expectedRepositoryFullName);
-	const branch = requireWorkstreamBranch(workstreamId, await currentBranch(worktreePath));
+	const branch = requireWorkstreamBranch(expectedBranch, await currentBranch(worktreePath));
 	await verifyOriginMatchesExpectedGithubRepository(worktreePath, canonicalUrl);
 
 	const env = await credentials.prepare(normalizeGithubToken(githubToken));
@@ -235,7 +233,7 @@ const unguardedMove: CheckoutMove = (move) => move();
 
 export async function restartWorkstreamOnBase(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 	baseBranch: string,
 	mergedHeadSha: string,
 	expectedRepositoryFullName: string,
@@ -248,7 +246,7 @@ export async function restartWorkstreamOnBase(
 		throw GitError.git('the merged pull request head must be a full commit id');
 	}
 	const status = await statusCollector(worktreePath);
-	const branch = requireWorkstreamBranch(workstreamId, status.branch);
+	const branch = requireWorkstreamBranch(expectedBranch, status.branch);
 	if (status.operationInProgress !== null) {
 		throw GitError.git(
 			`a ${status.operationInProgress} is already in progress in this workstream; finish or abort it before continuing`,
@@ -310,7 +308,7 @@ async function hasCommit(worktreePath: string, sha: string): Promise<boolean> {
 
 export async function pullWorkstreamBaseBranch(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 	baseBranch: string,
 	githubToken: string | null | undefined,
 	credentials: GitCredentialEnv,
@@ -318,7 +316,7 @@ export async function pullWorkstreamBaseBranch(
 ): Promise<string> {
 	validateBaseBranch(baseBranch);
 	const status = await statusCollector(worktreePath);
-	const branch = requireWorkstreamBranch(workstreamId, status.branch);
+	const branch = requireWorkstreamBranch(expectedBranch, status.branch);
 	if (status.operationInProgress !== null) {
 		throw GitError.git(
 			`a ${status.operationInProgress} is already in progress in this workstream; finish or abort it before pulling the target branch`,
@@ -334,13 +332,13 @@ export async function pullWorkstreamBaseBranch(
 
 export async function countCommitsBehindBase(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 	baseBranch: string,
 	githubToken: string | null | undefined,
 	credentials: GitCredentialEnv,
 ): Promise<number> {
 	validateBaseBranch(baseBranch);
-	requireWorkstreamBranch(workstreamId, (await statusCollector(worktreePath)).branch);
+	requireWorkstreamBranch(expectedBranch, (await statusCollector(worktreePath)).branch);
 	const remoteRef = await syncRemoteBase(worktreePath, baseBranch, githubToken, credentials);
 	return Number(
 		(await runGit(['-C', worktreePath, 'rev-list', '--count', `HEAD..${remoteRef}`])).trim(),
@@ -349,10 +347,10 @@ export async function countCommitsBehindBase(
 
 export async function abortWorkstreamOperation(
 	worktreePath: string,
-	workstreamId: string,
+	expectedBranch: string,
 ): Promise<void> {
 	const status = await statusCollector(worktreePath);
-	requireWorkstreamBranch(workstreamId, status.branch);
+	requireWorkstreamBranch(expectedBranch, status.branch);
 	if (status.operationInProgress === null) {
 		throw GitError.git('no merge, rebase, cherry-pick or revert is in progress in this workstream');
 	}

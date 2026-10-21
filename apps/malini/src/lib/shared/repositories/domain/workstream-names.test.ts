@@ -3,6 +3,7 @@ import type { Workstream } from '$shared/repositories/domain/workstream';
 import {
 	displayWorkstreamName,
 	generatedWorkstreamName,
+	isGeneratedWorkstreamName,
 	takenWorkstreamNames,
 	uniqueWorkstreamName,
 } from '$shared/repositories/domain/workstream-names';
@@ -120,5 +121,19 @@ describe('workstream names', () => {
 				workstreamNamed('Swift Harbor', 'archived'),
 			]),
 		).toEqual(['Lunar Relay', 'Lunar Relay']);
+	});
+});
+
+describe('isGeneratedWorkstreamName', () => {
+	it('recognizes every generated name, with or without a suffix, and nothing a person or Claude chose', () => {
+		expect(EVERY_GENERATED_NAME.every(isGeneratedWorkstreamName)).toBe(true);
+		expect(isGeneratedWorkstreamName(uniqueWorkstreamName('seed', EVERY_GENERATED_NAME))).toBe(
+			true,
+		);
+		expect(
+			['Feature flags', 'Bright', 'Bright Arc launch', 'bright arc'].some(
+				isGeneratedWorkstreamName,
+			),
+		).toBe(false);
 	});
 });
