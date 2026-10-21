@@ -1,3 +1,7 @@
+<script module lang="ts">
+	export type PickerCommand = Readonly<{ name: string; description: string }>;
+</script>
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { JobDefinitionRecord } from '$contract/jobs';
@@ -24,8 +28,10 @@
 		workstreamId: string;
 		chatSessionId: string | null;
 		chatAfterRunId: string | null;
+		commands?: readonly PickerCommand[];
 		onclose: () => void;
 		onstarted: () => void;
+		oncommand?: (name: string) => void;
 	}
 
 	let {
@@ -34,8 +40,10 @@
 		workstreamId,
 		chatSessionId,
 		chatAfterRunId,
+		commands = [],
 		onclose,
 		onstarted,
+		oncommand,
 	}: Props = $props();
 
 	const uid = $props.id();
@@ -49,15 +57,20 @@
 	const actionState = $derived(jobActionStateQuery.data);
 	const jobs = $derived([...builtins, ...customs].filter(isRunnableJob));
 	const query = $derived(typedQuery ?? search);
-	const matches = $derived.by(() => {
-		const terms = query.trim().toLowerCase().split(/\s+/u).filter(Boolean);
-		return jobs.filter((job) => terms.every((term) => job.name.toLowerCase().includes(term)));
-	});
+	const terms = $derived(query.trim().toLowerCase().split(/\s+/u).filter(Boolean));
+	const commandMatches = $derived(
+		commands.filter((command) => terms.every((term) => command.name.includes(term))),
+	);
+	const matches = $derived(
+		jobs.filter((job) => terms.every((term) => job.name.toLowerCase().includes(term))),
+	);
+	const entryCount = $derived(commandMatches.length + matches.length);
 	let selectedIndex = $derived.by(() => {
 		void query;
 		return 0;
 	});
-	const selectedJob = $derived(matches[selectedIndex]);
+	const selectedCommand = $derived(commandMatches[selectedIndex]);
+	const selectedJob = $derived(matches[selectedIndex - commandMatches.length]);
 	const started = $derived(startedId === null ? null : actionState(startedId));
 
 	onMount(() => {
@@ -78,7 +91,12 @@
 		return `${uid}-${job.id}`;
 	}
 
+	function commandOptionId(command: PickerCommand): string {
+		return `${uid}-command-${command.name}`;
+	}
+
 	export function activeOptionId(): string | undefined {
+		if (selectedCommand) return commandOptionId(selectedCommand);
 		return selectedJob ? optionId(selectedJob) : undefined;
 	}
 
@@ -107,10 +125,15 @@
 			onclose();
 			return;
 		}
-		if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length > 0) {
+		if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && entryCount > 0) {
 			event.preventDefault();
 			const step = event.key === 'ArrowDown' ? 1 : -1;
-			selectedIndex = Math.min(Math.max(selectedIndex + step, 0), matches.length - 1);
+			selectedIndex = Math.min(Math.max(selectedIndex + step, 0), entryCount - 1);
+			return;
+		}
+		if (accepts(event) && selectedCommand) {
+			event.preventDefault();
+			oncommand?.(selectedCommand.name);
 			return;
 		}
 		if (accepts(event) && selectedJob) {
@@ -118,7 +141,7 @@
 			run(selectedJob);
 			return;
 		}
-		if (typedQuery !== null && event.key === ' ' && (query.trim() === '' || matches.length === 0)) {
+		if (typedQuery !== null && event.key === ' ' && (query.trim() === '' || entryCount === 0)) {
 			onclose();
 		}
 	}
@@ -166,6 +189,34 @@
 </DropdownLayer>
 
 {#snippet results()}
+	{#if commandMatches.length > 0}
+		<div class="p-1.5 pb-0" role="listbox" aria-label="Claude Code commands">
+			{#each commandMatches as command, index (command.name)}
+				<DropdownItem
+					id={commandOptionId(command)}
+					role="option"
+					aria-selected={index === selectedIndex}
+					selected={index === selectedIndex}
+					focusOnHover={false}
+					class="w-full gap-2.5 px-2.5 py-2 text-left"
+					onmouseenter={() => (selectedIndex = index)}
+					onclick={() => oncommand?.(command.name)}
+				>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate font-mono text-xs font-medium">/{command.name}</span>
+						<span class="text-2xs text-fg-tertiary mt-0.5 block truncate">
+							{command.description}
+						</span>
+					</span>
+					<span class="text-fg-tertiary grid size-4 shrink-0 place-items-center">
+						{#if index === selectedIndex}
+							<Icon name="enter" size={14} />
+						{/if}
+					</span>
+				</DropdownItem>
+			{/each}
+		</div>
+	{/if}
 	{#if matches.length > 0}
 		<div
 			id="{uid}-jobs"
@@ -173,7 +224,8 @@
 			role="listbox"
 			aria-label="Jobs"
 		>
-			{#each matches as job, index (job.id)}
+			{#each matches as job, jobIndex (job.id)}
+				{@const index = commandMatches.length + jobIndex}
 				<DropdownItem
 					id={optionId(job)}
 					role="option"
@@ -200,7 +252,7 @@
 				</DropdownItem>
 			{/each}
 		</div>
-	{:else}
+	{:else if commandMatches.length === 0}
 		<p class="text-fg-tertiary flex items-center gap-2 px-4 py-3 text-xs" role="status">
 			{#if load.state === 'loading'}
 				<LoadingCircle size={12} />
