@@ -16,7 +16,7 @@
 					<img class="app-icon" src={asset('/icons/malini.webp')} width="28" height="28" alt="" />
 					Malini
 				</a>
-				<p>Many Claude Code agents, one window, one merged pull request each.</p>
+				<p>Architect. Don’t babysit.</p>
 			</div>
 			{#each SITEMAP as column (column.label)}
 				<nav aria-label={column.label}>

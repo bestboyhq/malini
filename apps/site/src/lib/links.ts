@@ -2,9 +2,10 @@ import { asset, resolve } from '$app/paths';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
-	'Malini is a free, open source Mac app that runs many Claude Code agents side by side, each in its own git worktree, and takes every one to a merged pull request.';
+	'Malini is a free, open source Mac app for Claude Code. It takes every task to a merged pull request and builds the systems that run the work you repeat, so you approve instead of babysit.';
 
-export const DOWNLOAD_URL = 'https://github.com/bestboyhq/malini/releases/latest';
+export const DOWNLOAD_URL =
+	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
 export const GITHUB_URL = 'https://github.com/bestboyhq/malini';
 export const BESTBOY_URL = 'https://bestboy.dev';
 

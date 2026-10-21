@@ -1,6 +1,6 @@
 ---
 title: What Malini is
-description: Malini is a free, open source Mac app that runs many Claude Code agents side by side, each in its own git worktree, and takes each one to a merged pull request.
+description: Malini is a free, open source Mac app for Claude Code. It takes every task to a merged pull request and builds the systems that run the work you repeat, so you approve instead of babysit.
 ---
 
 Malini is a desktop app for the Mac.

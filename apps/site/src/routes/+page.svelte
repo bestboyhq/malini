@@ -72,15 +72,15 @@
 	const steps = [
 		{
 			title: 'Start a task',
-			body: 'Each task is a workstream with its own git worktree, branch, and chats. Start one or a hundred.',
-		},
-		{
-			title: 'Keep it moving',
-			body: 'Queue prompts, plan first if you like, and start the next task. Agents write the code. Malini owns git.',
+			body: 'Each task is a workstream with its own git worktree, branch, and chats. Describe what you want and let the agent run.',
 		},
 		{
 			title: 'Press Draft, then Merge',
 			body: 'Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.',
+		},
+		{
+			title: 'Approve the routine',
+			body: 'Malini notices the prompts you keep repeating and offers a job and a routine. You approve it, and once you trust it, it runs without you.',
 		},
 	];
 
@@ -146,7 +146,11 @@
 	];
 </script>
 
-<Head title="Malini: many Claude Code agents, one window" description={SITE_DESCRIPTION} path="" />
+<Head
+	title="Malini: architect your agents, don’t babysit them"
+	description={SITE_DESCRIPTION}
+	path=""
+/>
 
 <div class="progress" aria-hidden="true"></div>
 
@@ -196,9 +200,9 @@
 	id="how"
 	beat={beat('how', 'How it works')}
 	split
-	title="One task. One worktree."
-	quiet="One merged pull request."
-	description="Every task gets its own agent and its own branch. Ten can run at once, and none step on another."
+	title="You describe the task."
+	quiet="Malini runs the loop."
+	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request, then turns the work you repeat into routines."
 >
 	{#snippet after()}
 		<ol class="cells">
@@ -260,15 +264,15 @@
 	beat={beat('outcomes')}
 	title="You never wanted skills."
 	quiet="You wanted green checks."
-	description="A job is agent work you ask for by name, like Fix checks or Update from main. Routines run jobs when something happens."
+	description="A job is agent work you ask for by name, like Fix checks or Update from main. Malini notices the prompts you keep repeating and offers to save them as jobs."
 />
 
 <FeatureRow
 	id="routines"
 	beat={beat('routines', 'Routines')}
 	mirrored
-	title="Automate it once you trust it."
-	body="Tell the agent what to run when a pull request merges, and it writes the routine. You approve every save. A new routine starts as a draft."
+	title="You approve it. Malini runs it."
+	body="Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft. Promote it when you trust it."
 	href={doc('routines')}
 	linkLabel="How routines work"
 	checks={['Draft, then candidate, then unattended', 'Triggers on any event Malini emits']}
@@ -279,7 +283,7 @@
 	id="open"
 	beat={beat('open')}
 	title="Open source, so we can’t rug pull you."
-	quiet="Fork it if we ever go wrong."
+	quiet="Build your systems on something you can fork."
 >
 	<div class="buttons">
 		<a class="button secondary small" href={GITHUB_URL}>
@@ -352,10 +356,10 @@
 			<BeatLabel {...beat('start')} />
 			<div class="end">
 				<div class="rise">
-					<h2 id="start-title">Start with the task you’ve put off.</h2>
+					<h2 id="start-title">Start with the chore you’re tired of.</h2>
 					<p class="sub">
-						Download Malini, connect Claude Code and GitHub, and ship the thing you wish already
-						existed.
+						Download Malini, connect Claude Code and GitHub, and let it build the system you wish
+						already existed.
 					</p>
 				</div>
 				<div class="close-actions rise">
