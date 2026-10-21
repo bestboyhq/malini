@@ -25,7 +25,6 @@ import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
 export const OFFSCREEN_RENDER_MS = 150;
-const OFFSCREEN_GAP = 64;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
 
 export interface BrowserViewsDeps<W extends HostWindow> {
@@ -59,6 +58,7 @@ interface Entry<W extends HostWindow> {
 export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	private readonly entries = new Map<string, Entry<W>>();
 	private readonly watchedWindows = new WeakSet<W>();
+	private readonly turns = new Map<string, Promise<unknown>>();
 
 	constructor(private readonly deps: BrowserViewsDeps<W>) {}
 
@@ -88,26 +88,34 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			.catch(() => undefined);
 	}
 
-	async goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		const contents = this.page(tab);
-		if (!contents.navigationHistory.canGoBack()) throw new Error('There is no page to go back to.');
-		contents.navigationHistory.goBack();
-		return settledPage(contents);
+	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const contents = this.page(tab);
+			if (!contents.navigationHistory.canGoBack()) {
+				throw new Error('There is no page to go back to.');
+			}
+			contents.navigationHistory.goBack();
+			return settledPage(contents);
+		});
 	}
 
-	async goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		const contents = this.page(tab);
-		if (!contents.navigationHistory.canGoForward()) {
-			throw new Error('There is no page to go forward to.');
-		}
-		contents.navigationHistory.goForward();
-		return settledPage(contents);
+	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const contents = this.page(tab);
+			if (!contents.navigationHistory.canGoForward()) {
+				throw new Error('There is no page to go forward to.');
+			}
+			contents.navigationHistory.goForward();
+			return settledPage(contents);
+		});
 	}
 
-	async reload(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
-		const contents = this.page(tab);
-		contents.reload();
-		return settledPage(contents);
+	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const contents = this.page(tab);
+			contents.reload();
+			return settledPage(contents);
+		});
 	}
 
 	tabProcesses(): BrowserTabProcess[] {
@@ -138,7 +146,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) return null;
 		const image = await this.rendered(entry, () =>
-			contents.capturePage(undefined, { stayHidden: true }),
+			contents.capturePage(undefined, { stayHidden: false }),
 		).catch(() => null);
 		if (!image || image.isEmpty()) return null;
 		return `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
@@ -182,41 +190,64 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 	}
 
-	async open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
-		const address = this.address(tab, url);
-		const fresh = this.openContents(tab) === null;
-		const { contents } = this.ensure(tab).view;
-		await openUrl(contents, address);
-		if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
-		return pageInfo(contents);
+	open(tab: BrowserTabArgs, url: string): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const address = this.address(tab, url);
+			const fresh = this.openContents(tab) === null;
+			const { contents } = this.ensure(tab).view;
+			await openUrl(contents, address);
+			if (fresh) this.deps.tabOpened({ workstreamId: tab.workstreamId, tabId: tab.tabId });
+			return pageInfo(contents);
+		});
 	}
 
-	async screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile> {
-		const { contents, entry } = this.loaded(tab);
-		return this.rendered(entry, () => saveScreenshot(contents, worktree, new Date()));
+	screenshot(tab: BrowserTabArgs, worktree: string): Promise<BrowserScreenshotFile> {
+		return this.inTurn(tab, async () => {
+			const { contents, entry } = this.loaded(tab);
+			return this.rendered(entry, () => saveScreenshot(contents, worktree, new Date()));
+		});
 	}
 
-	async click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
-		const { contents } = this.loaded(tab);
-		await clickSelector(contents, selector);
-		return pageInfo(contents);
+	click(tab: BrowserTabArgs, selector: string): Promise<BrowserPageInfo> {
+		return this.inTurn(tab, async () => {
+			const { contents } = this.loaded(tab);
+			await clickSelector(contents, selector);
+			return pageInfo(contents);
+		});
 	}
 
-	async type(
+	type(
 		tab: BrowserTabArgs,
 		selector: string,
 		text: string,
 		submit: boolean,
 	): Promise<BrowserPageInfo> {
-		const { contents } = this.loaded(tab);
-		await typeIntoSelector(contents, selector, text, submit);
-		return pageInfo(contents);
+		return this.inTurn(tab, async () => {
+			const { contents } = this.loaded(tab);
+			await typeIntoSelector(contents, selector, text, submit);
+			return pageInfo(contents);
+		});
+	}
+
+	private inTurn<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {
+		const key = tabKey(tab);
+		const previous = this.turns.get(key);
+		const turn = (async (): Promise<T> => {
+			await previous;
+			return work();
+		})();
+		this.turns.set(
+			key,
+			turn.catch(() => undefined),
+		);
+		return turn;
 	}
 
 	private async rendered<T>(entry: Entry<W>, capture: () => Promise<T>): Promise<T> {
 		if (entry.shown) return capture();
 		const { width, height } = entry.bounds;
-		entry.view.setBounds({ x: -(width + OFFSCREEN_GAP), y: 0, width, height });
+		// ponytail: Chromium stops painting a view wholly outside its window, so one corner pixel stays inside, under the rounded corner; a hidden app (Cmd+H) still cannot paint, offscreen rendering would fix that
+		entry.view.setBounds({ x: 1 - width, y: 1 - height, width, height });
 		entry.view.setVisible(true);
 		await delay(OFFSCREEN_RENDER_MS);
 		try {
@@ -305,6 +336,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			pick: null,
 		};
 		entry.view.setBounds(entry.bounds);
+		entry.view.setBorderRadius(CORNER_RADIUS);
 		this.entries.set(tabKey(tab), entry);
 		if (entry.lastUrl) void entry.view.contents.loadURL(entry.lastUrl).catch(() => undefined);
 		return entry;

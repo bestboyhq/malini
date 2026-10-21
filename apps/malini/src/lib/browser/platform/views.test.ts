@@ -66,6 +66,8 @@ class FakeContents implements PageContents {
 	readonly processId = FakeContents.#nextProcessId++;
 	frame = new FakeImage(2_560, 1_600);
 	captureFailure: Error | null = null;
+	nextLoad: Promise<void> | null = null;
+	readonly captured: string[] = [];
 	readonly steps: string[] = [];
 	readonly navigationHistory = {
 		canGoBack: (): boolean => this.loads.length > 1,
@@ -74,7 +76,13 @@ class FakeContents implements PageContents {
 		goForward: (): void => void this.steps.push('forward'),
 	};
 
-	loadURL(url: string): Promise<void> {
+	async loadURL(url: string): Promise<void> {
+		const landing = this.nextLoad;
+		this.nextLoad = null;
+		if (landing) {
+			await landing;
+			return this.loadURL(url);
+		}
 		this.loads.push(url);
 		this.url = url;
 		this.title = `Title of ${url}`;
@@ -121,6 +129,7 @@ class FakeContents implements PageContents {
 	}
 
 	capturePage(): Promise<PageImage> {
+		this.captured.push(this.url);
 		if (this.captureFailure) return Promise.reject(this.captureFailure);
 		return Promise.resolve(this.frame);
 	}
@@ -307,14 +316,14 @@ describe('BrowserViews', () => {
 		expect(browser.state(OTHER_TAB)).toMatchObject({ ...OTHER_TAB, url: '' });
 	});
 
-	it('recreates a view whose page died and reloads the address it showed', () => {
+	it('recreates a view whose page died and reloads the address it showed', async () => {
 		const { browser, views, viewAt } = setup();
 		browser.navigate(TAB, 'http://localhost:5173/');
 		viewAt(0).events.changed();
 		viewAt(0).events.gone();
 		expect(browser.state(TAB)).toMatchObject({ url: 'http://localhost:5173/', loading: false });
 
-		browser.reload(TAB);
+		await browser.reload(TAB);
 		expect(views).toHaveLength(2);
 		expect(viewAt(0).closed).toBe(true);
 		expect(viewAt(1).contents.loads).toEqual(['http://localhost:5173/']);
@@ -502,7 +511,7 @@ describe('BrowserViews', () => {
 		expect(readFileSync(first.previewPath, 'utf8')).toBe(`jpeg ${PREVIEW_LONG_EDGE}x980 q80`);
 	});
 
-	it('renders a hidden view beside the window only while it captures it, then hides it in place', async () => {
+	it('renders a hidden view with one corner pixel in the window only while it captures it, then hides it in place', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-hidden-'));
 		roots.push(worktree);
 		const { browser, viewAt } = setup();
@@ -513,10 +522,41 @@ describe('BrowserViews', () => {
 		await browser.screenshot(TAB, worktree);
 
 		expect(viewAt(0).bounds.slice(-2)).toEqual([
-			{ x: -364, y: 0, width: 300, height: 200 },
+			{ x: -299, y: -199, width: 300, height: 200 },
 			{ x: 40, y: 50, width: 300, height: 200 },
 		]);
 		expect(viewAt(0).visibility).toEqual([true, false]);
+	});
+
+	it('tells the agent to have malini shown when the page cannot render', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-unrendered-'));
+		roots.push(worktree);
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		viewAt(0).contents.captureFailure = new Error('UnknownVizError');
+
+		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(
+			'which happens while Malini is hidden',
+		);
+	});
+
+	it('waits for the open the agent sent alongside a screenshot before capturing', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-turns-'));
+		roots.push(worktree);
+		const { browser, viewAt } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 10, height: 10 });
+		await browser.open(TAB, 'https://example.com');
+		let land = (): void => undefined;
+		viewAt(0).contents.nextLoad = new Promise((resolve) => {
+			land = resolve;
+		});
+
+		const opening = browser.open(TAB, 'https://example.org');
+		const shot = browser.screenshot(TAB, worktree);
+		land();
+
+		await Promise.all([opening, shot]);
+		expect(viewAt(0).contents.captured).toEqual(['https://example.org/']);
 	});
 
 	it('has no snapshot when the compositor fails to copy a frame', async () => {
