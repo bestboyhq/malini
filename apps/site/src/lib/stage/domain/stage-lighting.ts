@@ -5,10 +5,9 @@ export type StageLighting = {
 	spread: Point;
 	floorFrom: Point;
 	floorTo: Point;
-	fadeTop: boolean;
 };
 
-export type StagePreset = 'hero' | 'bottom' | 'bottom-left' | 'bottom-right' | 'top-left';
+export type StagePreset = 'bottom-left' | 'bottom-right';
 
 export type StageFallback = {
 	spot: string;
@@ -19,40 +18,17 @@ export type StageFallback = {
 };
 
 export const STAGE_LIGHTING: Record<StagePreset, StageLighting> = {
-	hero: {
-		spot: [0.5, 1],
-		spread: [0.56, 0.7],
-		floorFrom: [0.5, 0.08],
-		floorTo: [0.5, 1],
-		fadeTop: true,
-	},
-	bottom: {
-		spot: [0.5, 1],
-		spread: [0.6, 0.9],
-		floorFrom: [0.5, 0],
-		floorTo: [0.5, 1],
-		fadeTop: false,
-	},
 	'bottom-left': {
 		spot: [0, 1],
 		spread: [1.1, 1.3],
 		floorFrom: [1, 0],
 		floorTo: [0, 1],
-		fadeTop: false,
 	},
 	'bottom-right': {
 		spot: [1, 1],
 		spread: [1.1, 1.3],
 		floorFrom: [0, 0],
 		floorTo: [1, 1],
-		fadeTop: false,
-	},
-	'top-left': {
-		spot: [0, 0],
-		spread: [1.1, 1.3],
-		floorFrom: [1, 1],
-		floorTo: [0, 0],
-		fadeTop: false,
 	},
 };
 

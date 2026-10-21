@@ -39,6 +39,7 @@ export function stageLight(
 	return (canvas) => {
 		let visible = false;
 		const scheme = matchMedia('(prefers-color-scheme: dark)');
+		const theme = new MutationObserver(paint);
 		const resizer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
 				if (entry.target === canvas) {
@@ -66,8 +67,8 @@ export function stageLight(
 			const style = getComputedStyle(canvas);
 			shared.draw(canvas.width, canvas.height, {
 				lighting,
-				page: toRgba(style.getPropertyValue('--bg')),
-				ink: toRgba(style.getPropertyValue('--stage-ink')),
+				page: toRgba(style.borderTopColor),
+				ink: toRgba(style.color),
 				strength: Number.parseFloat(style.getPropertyValue('--stage-strength')) || 1,
 				shadow: toRgba(style.getPropertyValue('--stage-shadow')),
 				caster: caster ? castShadow(canvas, caster) : null,
@@ -84,12 +85,14 @@ export function stageLight(
 		if (caster) resizer.observe(caster);
 		viewport.observe(canvas);
 		scheme.addEventListener('change', paint);
+		theme.observe(document.documentElement, { attributeFilter: ['data-theme'] });
 		repaints.add(paint);
 
 		return () => {
 			resizer.disconnect();
 			viewport.disconnect();
 			scheme.removeEventListener('change', paint);
+			theme.disconnect();
 			repaints.delete(paint);
 		};
 	};
@@ -170,7 +173,6 @@ uniform vec2 spot;
 uniform vec2 spread;
 uniform vec2 floorFrom;
 uniform vec2 floorTo;
-uniform float fadeTop;
 uniform float strength;
 uniform vec4 caster;
 uniform float casterRadius;
@@ -242,8 +244,6 @@ void main() {
   color = mix(color, ink, 0.1875 * strength * softClamp(1.0 - spotDistance, 0.3));
   color += (ink - page) * 0.0186 * strength;
 
-  color = mix(color, mix(page, color, softClamp(uv.y / 0.4, 0.3)), fadeTop);
-
   if (shadow.a > 0.0) {
     vec2 point = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y);
     vec2 lower = caster.xy - shadowSpread + vec2(0.0, shadowOffset);
@@ -285,7 +285,6 @@ function createRenderer(source: HTMLCanvasElement): Renderer | null {
 	const spread = uniform('spread');
 	const floorFrom = uniform('floorFrom');
 	const floorTo = uniform('floorTo');
-	const fadeTop = uniform('fadeTop');
 	const strengthLevel = uniform('strength');
 	const caster = uniform('caster');
 	const casterRadius = uniform('casterRadius');
@@ -307,7 +306,6 @@ function createRenderer(source: HTMLCanvasElement): Renderer | null {
 			gl.uniform2f(spread, ...scene.lighting.spread);
 			gl.uniform2f(floorFrom, ...scene.lighting.floorFrom);
 			gl.uniform2f(floorTo, ...scene.lighting.floorTo);
-			gl.uniform1f(fadeTop, scene.lighting.fadeTop ? 1 : 0);
 			gl.uniform1f(strengthLevel, scene.strength);
 			const cast = scene.caster ?? NO_SHADOW;
 			const [red, green, blue, opacity] = scene.shadow;

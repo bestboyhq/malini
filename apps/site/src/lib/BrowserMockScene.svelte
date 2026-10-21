@@ -858,7 +858,7 @@
 		border-bottom: 0;
 		border-radius: 24px 24px 0 0;
 		background: var(--color-surface-50);
-		--dock-stripe: var(--color-surface-root-selected);
+		--dock-stripe: light-dark(var(--color-surface-root-selected), var(--color-surface-50-border));
 	}
 
 	.dock::before {
@@ -918,12 +918,6 @@
 		overflow: hidden;
 		font-weight: 500;
 		text-overflow: ellipsis;
-	}
-
-	@media (prefers-color-scheme: dark) {
-		.dock {
-			--dock-stripe: var(--color-surface-50-border);
-		}
 	}
 
 	.live {

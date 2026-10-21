@@ -1,4 +1,4 @@
-# 0043 - Agent captures live in `.context`
+# 0045 - Agent captures live in `.context`
 
 Status: accepted
 
