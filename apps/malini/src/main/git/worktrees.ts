@@ -219,7 +219,9 @@ export async function removeWorktreeFromBase(
 }
 
 export async function deleteWorkstreamBranch(basePath: string, branchName: string): Promise<void> {
-	await runGit(['-C', basePath, 'branch', '-D', branchName]);
+	await withProjectLock(deriveProjectId(basePath), () =>
+		runGit(['-C', basePath, 'branch', '-D', branchName]),
+	);
 }
 
 export async function cleanupFailedWorktreeAdd(
@@ -344,6 +346,8 @@ export async function owningRepositoryOfCheckout(checkout: string): Promise<stri
 
 export async function pruneWorktreeAdministration(repository: string): Promise<void> {
 	try {
-		await runGit(['-C', repository, 'worktree', 'prune']);
+		await withProjectLock(deriveProjectId(repository), () =>
+			runGit(['-C', repository, 'worktree', 'prune']),
+		);
 	} catch {}
 }
