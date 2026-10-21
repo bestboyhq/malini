@@ -1,7 +1,9 @@
 import { randomUUID, type UUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import {
 	query as sdkQuery,
 	type CanUseTool,
+	type McpServerStatus,
 	type Options,
 	type PermissionMode,
 	type PermissionResult,
@@ -17,6 +19,7 @@ import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } fro
 import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
 import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
+import { configChanged, configSnapshot, type ConfigSnapshot } from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
 import {
@@ -31,16 +34,19 @@ import {
 } from './permissions.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
-import { anthropicMetrics } from './usage.js';
+import { anthropicSnapshot } from './usage.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
 const BACKGROUND_OUTPUT_POLL_MS = 2_000;
+const IDLE_PROCESS_MS = 10 * 60_000;
+const MCP_SETTLE_MS = 5_000;
+const MCP_SETTLE_POLL_MS = 250;
 const PLAN_HANDOFF_MESSAGE =
 	'Malini now shows this plan to the user, who starts the implementation from there. End your turn without restating the plan.';
 
 export type ClaudeContextUsage = Pick<
 	SDKControlGetContextUsageResponse,
-	'categories' | 'skills'
+	'categories' | 'skills' | 'memoryFiles' | 'totalTokens'
 > & {
 	readonly rawMaxTokens: number;
 };
@@ -86,13 +92,21 @@ interface ActiveRun {
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
+	readonly messages: AsyncIterator<SDKMessage>;
 	readonly turns: UserTurns;
 	readonly abort: AbortController;
 	readonly finished: Promise<void>;
-	readonly transcript: ClaudeTranscript;
+	readonly end: () => void;
+	transcript: ClaudeTranscript;
+	turnEnded: Promise<void>;
 	cancelled: boolean;
 	metrics: Record<string, unknown> | null;
+	pending: Promise<IteratorResult<SDKMessage>> | null;
+	idleTimeout: NodeJS.Timeout | null;
+	config: ConfigSnapshot | null;
 }
+
+type TurnKind = 'fresh' | 'resumed' | 'warm';
 
 export class ClaudeSession implements ProviderHandle {
 	readonly #context: ProviderContext;
@@ -105,6 +119,7 @@ export class ClaudeSession implements ProviderHandle {
 	#active: ActiveRun | null = null;
 	#requestedMode: PermissionMode = 'default';
 	#initialized = false;
+	#knownMcpServers: readonly string[] = [];
 
 	constructor(options: ClaudeSessionOptions) {
 		this.#context = options.context;
@@ -130,9 +145,10 @@ export class ClaudeSession implements ProviderHandle {
 		skills?: readonly string[],
 		steer?: boolean,
 	): Promise<void> {
+		const run: RunSettings = { profile, skills };
 		const active = this.#active;
-		if (active) {
-			const continues = canContinue(active, { profile, skills }, resumeAt, freshConversation);
+		if (active && !active.idleTimeout) {
+			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
 			const answered = active.transcript.waiting || active.results.length > 0;
 			if (continues && (steer || active.transcript.waiting)) {
 				await this.#handOff(active, prompt, runId, profile, !answered);
@@ -155,8 +171,16 @@ export class ClaudeSession implements ProviderHandle {
 			this.#claudeSessionId = undefined;
 			this.#seedHistory = undefined;
 		}
+		const idle = this.#active;
+		if (idle?.idleTimeout) {
+			const fresh =
+				canContinue(idle, run, rewinds(idle, resumeAt), freshConversation) &&
+				idle.config !== null &&
+				!configChanged(idle.config);
+			if (fresh && (await this.#continue(idle, prompt, runId, profile)) === 'done') return;
+			if (!fresh) this.#retire(idle);
+		}
 		const resumed = this.#claudeSessionId !== undefined;
-		const run: RunSettings = { profile, skills };
 		const outcome = await this.#attempt(executable, prompt, runId, run, resumeAt, resumed);
 		if (outcome === 'transcript-missing') {
 			this.#claudeSessionId = undefined;
@@ -173,14 +197,22 @@ export class ClaudeSession implements ProviderHandle {
 		resumeAt: string | undefined,
 		resumed: boolean,
 	): Promise<'done' | 'transcript-missing'> {
-		const transcript = new ClaudeTranscript(runId, this.#emit);
-		this.#initialized = false;
+		const active = this.#launch(executable, runId, run, resumeAt);
+		const outcome = await this.#turn(active, prompt, run.profile, resumed ? 'resumed' : 'fresh');
+		return outcome === 'transcript-missing' ? outcome : 'done';
+	}
+
+	#launch(
+		executable: string,
+		runId: string,
+		run: RunSettings,
+		resumeAt: string | undefined,
+	): ActiveRun {
 		const abort = new AbortController();
-		let settle!: () => void;
-		const finished = new Promise<void>((resolve) => (settle = resolve));
-		const promptId = randomUUID();
-		const turns = userTurns(finished);
-		turns.push(userTurn(this.#promptWithSeed(prompt), promptId));
+		let end!: () => void;
+		const finished = new Promise<void>((resolve) => (end = resolve));
+		let open!: (proceed: boolean) => void;
+		const turns = userTurns(finished, new Promise<boolean>((resolve) => (open = resolve)));
 		const query = this.#query({
 			prompt: turns.messages,
 			options: this.#options(executable, run, resumeAt, abort),
@@ -192,33 +224,94 @@ export class ClaudeSession implements ProviderHandle {
 			);
 		const active: ActiveRun = {
 			runId,
-			promptId,
+			promptId: randomUUID(),
 			profile: run.profile,
 			skills: run.skills,
 			results: [],
 			costBefore: 0,
 			query,
+			messages: query[Symbol.asyncIterator](),
 			turns,
 			abort,
 			finished,
-			transcript,
+			end,
+			transcript: new ClaudeTranscript(runId, this.#emit),
+			turnEnded: finished,
 			cancelled: false,
 			metrics: null,
+			pending: null,
+			idleTimeout: null,
+			config: null,
 		};
 		this.#active = active;
+		void this.#openOnceMcpSettles(active, open);
+		return active;
+	}
+
+	// ponytail: a cold start waits only for the MCP servers this chat already saw or that are still pending, so a server Claude Code lists late can miss the first turn of a new chat; persist the names per worktree if that matters
+	async #openOnceMcpSettles(active: ActiveRun, open: (proceed: boolean) => void): Promise<void> {
+		const deadline = Date.now() + MCP_SETTLE_MS;
+		while (!active.cancelled && Date.now() < deadline) {
+			const servers = await Promise.race([
+				active.query.mcpServerStatus().catch(() => null),
+				delay(deadline - Date.now(), null, { ref: false }),
+			]);
+			if (!servers || mcpSettled(servers, this.#knownMcpServers)) break;
+			await delay(MCP_SETTLE_POLL_MS, undefined, { ref: false });
+		}
+		open(!active.cancelled);
+	}
+
+	async #continue(
+		active: ActiveRun,
+		prompt: string,
+		runId: string,
+		profile: AgentRunProfile | undefined,
+	): Promise<'done' | 'process-ended'> {
+		if (active.idleTimeout) clearTimeout(active.idleTimeout);
+		active.idleTimeout = null;
+		active.costBefore = active.results.at(-1)?.total_cost_usd ?? active.costBefore;
+		active.runId = runId;
+		active.promptId = randomUUID();
+		active.results = [];
+		active.metrics = null;
+		active.transcript = new ClaudeTranscript(runId, this.#emit);
+		const outcome = await this.#turn(active, prompt, profile, 'warm');
+		return outcome === 'process-ended' ? outcome : 'done';
+	}
+
+	async #turn(
+		active: ActiveRun,
+		prompt: string,
+		profile: AgentRunProfile | undefined,
+		kind: TurnKind,
+	): Promise<'done' | 'transcript-missing' | 'process-ended'> {
+		let endTurn!: () => void;
+		active.turnEnded = new Promise<void>((resolve) => (endTurn = resolve));
+		this.#initialized = false;
+		const { runId, promptId, transcript } = active;
 		const outputPoll = setInterval(
 			() => void this.#readBackgroundOutput(transcript),
 			BACKGROUND_OUTPUT_POLL_MS,
 		).unref();
+		let keepWarm = false;
 		try {
-			await this.#consume(active);
-			if (resumed && !this.#initialized && !active.cancelled && active.results[0]?.is_error) {
+			await this.#applyEffort(active, profile);
+			if (active.runId === runId) {
+				active.turns.push(userTurn(this.#promptWithSeed(prompt), promptId));
+			}
+			const ended = await this.#consume(active);
+			const started = this.#initialized || active.cancelled;
+			if (!started && kind === 'warm') return 'process-ended';
+			if (!started && kind === 'resumed' && active.results[0]?.is_error) {
 				return 'transcript-missing';
 			}
 			this.#seedHistory = undefined;
 			transcript.endBackgroundWork();
 			this.#finish(active);
+			keepWarm = !ended && !active.cancelled;
 		} catch (error) {
+			if (kind === 'warm' && !this.#initialized && !active.cancelled) return 'process-ended';
 			transcript.endBackgroundWork();
 			this.#emit({
 				type: 'run.failed',
@@ -229,30 +322,58 @@ export class ClaudeSession implements ProviderHandle {
 		} finally {
 			clearInterval(outputPoll);
 			this.#interactions.cancelRun(active.runId);
-			query.close();
-			this.#active = null;
-			settle();
+			if (keepWarm) void this.#rest(active);
+			else this.#retire(active);
+			endTurn();
 		}
 		return 'done';
 	}
 
-	async #consume(active: ActiveRun): Promise<void> {
+	async #consume(active: ActiveRun): Promise<boolean> {
 		let reportsSessionState = false;
-		for await (const message of active.query) {
+		for (;;) {
+			const next = await this.#read(active);
+			if (next.done) return true;
+			const message = next.value;
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
 			active.transcript.accept(message);
 			if (message.type === 'system' && message.subtype === 'session_state_changed') {
 				reportsSessionState = true;
 				const settled = message.state === 'idle' && !active.transcript.hasBackgroundTasks;
-				if (active.results.length > 0 && settled) return;
+				if (active.results.length > 0 && settled) return false;
 			}
 			if (message.type !== 'result') continue;
 			if (active.results.length === 0 && !answersPrompt(message, active.promptId)) continue;
 			active.results.push(message);
 			active.transcript.recordTurnResult(message);
-			if (!active.cancelled) active.metrics = await anthropicMetrics(active.query, new Date());
-			if (!reportsSessionState || active.cancelled) return;
+			if (!active.cancelled) {
+				active.metrics = (await anthropicSnapshot(active.query, new Date())).metrics;
+			}
+			if (!reportsSessionState || active.cancelled) return false;
 		}
+	}
+
+	#read(active: ActiveRun): Promise<IteratorResult<SDKMessage>> {
+		const next = active.pending ?? active.messages.next();
+		active.pending = null;
+		return next;
+	}
+
+	async #rest(active: ActiveRun): Promise<void> {
+		const next = active.messages.next();
+		active.pending = next;
+		active.idleTimeout = setTimeout(() => this.#retire(active), IDLE_PROCESS_MS).unref();
+		await next.catch(() => undefined);
+		if (active.idleTimeout) this.#retire(active);
+	}
+
+	#retire(active: ActiveRun): void {
+		if (active.idleTimeout) clearTimeout(active.idleTimeout);
+		active.idleTimeout = null;
+		active.pending = null;
+		active.query.close();
+		if (this.#active === active) this.#active = null;
+		active.end();
 	}
 
 	async #handOff(
@@ -286,7 +407,7 @@ export class ClaudeSession implements ProviderHandle {
 		await this.#applyEffort(active, profile);
 		if (interrupt) await active.query.interrupt().catch(() => undefined);
 		active.turns.push(userTurn(prompt, active.promptId));
-		await active.finished;
+		await active.turnEnded;
 	}
 
 	async #applyEffort(active: ActiveRun, profile: AgentRunProfile | undefined): Promise<void> {
@@ -310,18 +431,36 @@ export class ClaudeSession implements ProviderHandle {
 		});
 		const active = this.#active;
 		if (active) {
-			this.#emit({
-				type: 'mcp.status',
-				runId: active.runId,
-				servers: message.mcp_servers.map(({ name, status }) => ({ name, status })),
-			});
+			this.#reportMcp(active.runId, message.mcp_servers);
 			void this.#learnContextWindow(active);
 		}
 	}
 
+	#reportMcp(
+		runId: string,
+		servers: readonly { name: string; status: string; error?: string }[],
+	): void {
+		this.#knownMcpServers = servers.map(({ name }) => name);
+		this.#emit({
+			type: 'mcp.status',
+			runId,
+			servers: servers.map(({ name, status, error }) => ({
+				name,
+				status,
+				...(error ? { error } : {}),
+			})),
+		});
+	}
+
 	async #learnContextWindow(active: ActiveRun): Promise<void> {
+		const { transcript } = active;
 		const usage = await active.query.getContextUsage({ detail: 'summary' }).catch(() => null);
-		if (usage) active.transcript.recordContextWindow(usage.rawMaxTokens);
+		if (!usage) return;
+		transcript.recordContextWindow(usage.rawMaxTokens);
+		active.config ??= configSnapshot(
+			this.#context.cwd,
+			usage.memoryFiles.map(({ path }) => path),
+		);
 	}
 
 	#finish(active: ActiveRun, handedOff = false): void {
@@ -492,7 +631,7 @@ export class ClaudeSession implements ProviderHandle {
 
 	async cancel(runId: string): Promise<void> {
 		const active = this.#active;
-		if (!active || active.runId !== runId) return;
+		if (!active || active.runId !== runId || active.idleTimeout) return;
 		active.cancelled = true;
 		active.transcript.markStoppedByUser();
 		this.#interactions.cancelRun(runId, 'run-cancelled');
@@ -524,25 +663,31 @@ export class ClaudeSession implements ProviderHandle {
 		this.#interactions.resolveQuestion(reply);
 	}
 
-	async refreshMcpStatus(runId: string): Promise<void> {
+	async refreshSessionStatus(): Promise<void> {
 		const active = this.#active;
-		if (!active || active.runId !== runId) return;
-		const servers = await active.query.mcpServerStatus();
+		if (!active) return;
+		const { runId, query } = active;
+		const [servers, { context, metrics }] = await Promise.all([
+			query.mcpServerStatus(),
+			anthropicSnapshot(query, new Date()),
+		]);
+		this.#reportMcp(runId, servers);
+		if (!context) return;
 		this.#emit({
-			type: 'mcp.status',
+			type: 'usage.updated',
 			runId,
-			servers: servers.map((server) => ({
-				name: server.name,
-				status: server.status,
-				...(server.error ? { error: server.error } : {}),
-			})),
+			contextTokens: context.totalTokens,
+			contextWindowTokens: context.rawMaxTokens,
+			...(metrics ? { providerMetrics: metrics } : {}),
+			interim: true,
 		});
 	}
 
 	async close(): Promise<void> {
 		this.#interactions.close();
 		const active = this.#active;
-		if (active) await this.cancel(active.runId);
+		if (active?.idleTimeout) this.#retire(active);
+		else if (active) await this.cancel(active.runId);
 	}
 }
 
@@ -551,7 +696,7 @@ interface UserTurns {
 	push(message: SDKUserMessage): void;
 }
 
-function userTurns(finished: Promise<void>): UserTurns {
+function userTurns(finished: Promise<void>, ready: Promise<boolean>): UserTurns {
 	const pending: SDKUserMessage[] = [];
 	let arrived = signal();
 	let open = true;
@@ -561,6 +706,7 @@ function userTurns(finished: Promise<void>): UserTurns {
 		arrived.resolve();
 	})();
 	async function* messages(): AsyncIterable<SDKUserMessage> {
+		if (!(await ready)) return;
 		for (;;) {
 			const next = pending.shift();
 			if (next) {
@@ -599,17 +745,28 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 function canContinue(
 	active: ActiveRun,
 	{ profile, skills }: RunSettings,
-	resumeAt: string | undefined,
+	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
 	return (
 		!active.cancelled &&
-		!resumeAt &&
+		!rewound &&
 		!freshConversation &&
 		(profile?.access ?? 'auto') === (active.profile?.access ?? 'auto') &&
 		profile?.mode === active.profile?.mode &&
 		profile?.report === active.profile?.report &&
 		skills?.join('\n') === active.skills?.join('\n')
+	);
+}
+
+function rewinds(idle: ActiveRun, resumeAt: string | undefined): boolean {
+	return resumeAt !== undefined && resumeAt !== idle.transcript.cursor;
+}
+
+function mcpSettled(servers: readonly McpServerStatus[], known: readonly string[]): boolean {
+	const listed = new Set(servers.map(({ name }) => name));
+	return (
+		servers.every(({ status }) => status !== 'pending') && known.every((name) => listed.has(name))
 	);
 }
 

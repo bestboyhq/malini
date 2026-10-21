@@ -1237,7 +1237,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.list-events',
 	'chat.list-event-page',
 	'chat.list-sessions',
-	'chat.refresh-mcp-status',
+	'chat.refresh-session-status',
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.send-prompt',
@@ -1532,10 +1532,10 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		),
 	);
 
-	commands.define('chat.refresh-mcp-status', async (args: unknown) => {
+	commands.define('chat.refresh-session-status', async (args: unknown) => {
 		const sessionId = requireString(args, 'sessionId');
 		const supervisor = await runtime.ensureReady();
-		await supervisor.refreshMcpStatus(sessionId);
+		await supervisor.refreshSessionStatus(sessionId);
 	});
 
 	commands.define(

@@ -292,18 +292,13 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
-		it('parses a session-scoped MCP status refresh command', () => {
+		it('parses a session status refresh command', () => {
 			const result = parseCommandLine(
-				'{"cmd":"refresh_mcp_status","id":"refresh-mcp-1","sessionId":"session-1","runId":"mcp-refresh-1"}',
+				'{"cmd":"refresh_session_status","id":"refresh-status-1","sessionId":"session-1"}',
 			);
 			expect(result).toEqual({
 				ok: true,
-				command: {
-					cmd: 'refresh_mcp_status',
-					id: 'refresh-mcp-1',
-					sessionId: 'session-1',
-					runId: 'mcp-refresh-1',
-				},
+				command: { cmd: 'refresh_session_status', id: 'refresh-status-1', sessionId: 'session-1' },
 			});
 		});
 
@@ -447,7 +442,7 @@ describe('protocol: parseCommandLine', () => {
 				'approve',
 				'answer_question',
 				'refresh_capabilities',
-				'refresh_mcp_status',
+				'refresh_session_status',
 				'stop_task',
 				'suggest_title',
 				'list_skills',

@@ -519,6 +519,7 @@ describe('streamingStore', () => {
 				runId: 'r1',
 				contextTokens: 20_000,
 				contextWindowTokens: 200_000,
+				providerMetrics: null,
 			});
 
 			streamingStore.applyEphemeral(usage('s1', 'r1', 55_000, 200_000));
