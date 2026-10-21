@@ -65,6 +65,7 @@ class FakeContents implements PageContents {
 	static #nextProcessId = 4_000;
 	readonly processId = FakeContents.#nextProcessId++;
 	frame = new FakeImage(2_560, 1_600);
+	captureFailure: Error | null = null;
 	readonly steps: string[] = [];
 	readonly navigationHistory = {
 		canGoBack: (): boolean => this.loads.length > 1,
@@ -120,6 +121,7 @@ class FakeContents implements PageContents {
 	}
 
 	capturePage(): Promise<PageImage> {
+		if (this.captureFailure) return Promise.reject(this.captureFailure);
 		return Promise.resolve(this.frame);
 	}
 
@@ -515,6 +517,14 @@ describe('BrowserViews', () => {
 			{ x: 40, y: 50, width: 300, height: 200 },
 		]);
 		expect(viewAt(0).visibility).toEqual([true, false]);
+	});
+
+	it('has no snapshot when the compositor fails to copy a frame', async () => {
+		const { browser, viewAt } = setup();
+		await browser.open(TAB, 'https://example.com');
+		viewAt(0).contents.captureFailure = new Error('UnknownVizError');
+
+		expect(await browser.snapshot(TAB)).toBeNull();
 	});
 
 	it('clicks for the agent and says so when nothing matches', async () => {

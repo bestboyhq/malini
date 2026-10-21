@@ -574,18 +574,29 @@ export async function git(repo: string, args: readonly string[]): Promise<void> 
 }
 
 interface RunningAnimation {
+	readonly playState: string;
 	readonly effect: { getComputedTiming(): { endTime?: number | string } } | null;
 	readonly finished: Promise<unknown>;
 }
 
 export async function settleAnimations(page: Page): Promise<void> {
-	await page.locator('body').evaluate((body) => {
-		const running: RunningAnimation[] = body.getAnimations({ subtree: true });
-		const finite = running.filter(
-			(animation) => animation.effect?.getComputedTiming().endTime !== Infinity,
-		);
-		const settled = Promise.all(finite.map((animation) => animation.finished.catch(() => null)));
-		return Promise.race([settled, new Promise((resolve) => setTimeout(resolve, 2_000))]);
+	await page.locator('body').evaluate(async (body) => {
+		const deadline = Date.now() + 2_000;
+		const until = (work: Promise<unknown>): Promise<unknown> =>
+			Promise.race([work, new Promise((resolve) => setTimeout(resolve, deadline - Date.now()))]);
+		while (Date.now() < deadline) {
+			await until(
+				new Promise((resolve) => body.ownerDocument.defaultView?.requestAnimationFrame(resolve)),
+			);
+			const running: RunningAnimation[] = body.getAnimations({ subtree: true });
+			const finite = running.filter(
+				(animation) =>
+					animation.playState !== 'finished' &&
+					animation.effect?.getComputedTiming().endTime !== Infinity,
+			);
+			if (finite.length === 0) return;
+			await until(Promise.all(finite.map((animation) => animation.finished.catch(() => null))));
+		}
 	});
 }
 

@@ -6,10 +6,11 @@
 	interface Props {
 		content: string | Snippet;
 		placement?: TooltipPlacement;
-		offset?: number;
+		offset?: number | undefined;
 		suppressed?: boolean;
 		onlyWhenTruncated?: boolean;
 		interactive?: boolean;
+		nowrap?: boolean;
 		class?: ClassValue;
 		children: Snippet;
 	}
@@ -21,6 +22,7 @@
 		suppressed = false,
 		onlyWhenTruncated = false,
 		interactive = false,
+		nowrap = false,
 		class: className,
 		children,
 	}: Props = $props();
@@ -36,7 +38,7 @@
 	class={['flex', className]}
 	use:tooltip={suppressed
 		? null
-		: { text, source, placement, offset, onlyWhenTruncated, interactive }}
+		: { text, source, placement, offset, onlyWhenTruncated, interactive, nowrap }}
 >
 	{@render children()}
 </span>
