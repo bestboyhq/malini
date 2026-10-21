@@ -163,7 +163,7 @@
 		</h1>
 		<p class="lede">
 			Twenty agents you have to watch isn’t leverage. Malini makes you an architect instead of a
-			babysitter, with systems that run the work you repeat and put you ahead of the competition.
+			babysitter, with systems that run the work you repeat to put you ahead of the competition.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
