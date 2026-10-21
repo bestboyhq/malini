@@ -21,6 +21,13 @@ Every shell code block the agent writes has a **Run** button next to **Copy**.
 It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
 If the agent is busy, the command waits in the queue.
 
+## Compact the conversation
+
+Type **/** and pick **/compact** to have the chat's Claude Code summarize the conversation so far and free up context.
+**/autocompact** shows when Claude Code compacts on its own; add `auto` or a token count to change it.
+Type instructions after **/compact** to say what the summary should keep.
+A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
+
 ## Plan first
 
 Plan mode writes the plan, then **Implement plan** starts the work, with a model of its own if you like.
@@ -79,7 +86,7 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **↵**           | Send, or queue after the current run                   |
 | **⌘↵**          | Steer now, interrupting the run                        |
 | **@**           | Mention a file                                         |
-| **/**           | Run a job                                              |
+| **/**           | Compact the conversation, or run a job                 |
 | **⌘W**          | Close the chat tab                                     |
 | **⌘K**          | Find a chat tab that doesn't fit                       |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |

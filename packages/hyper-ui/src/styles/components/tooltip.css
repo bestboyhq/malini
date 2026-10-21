@@ -38,7 +38,7 @@
 	}
 
 	.hyper-tooltip.interactive .hyper-tooltip-bubble {
-		@apply p-3 text-left;
+		@apply border-surface-elevated-border bg-surface-elevated rounded-xl p-3 text-left;
 		max-width: min(24rem, calc(100vw - 16px));
 	}
 
@@ -81,6 +81,21 @@
 	.hyper-tooltip.right.open .hyper-tooltip-bubble,
 	.hyper-tooltip.left.open .hyper-tooltip-bubble {
 		transform: translateY(-50%);
+	}
+
+	.hyper-tooltip.interactive.right .hyper-tooltip-bubble {
+		transform-origin: top left;
+		transform: translateX(-4px) scale(0.96);
+	}
+
+	.hyper-tooltip.interactive.left .hyper-tooltip-bubble {
+		transform-origin: top right;
+		transform: translateX(4px) scale(0.96);
+	}
+
+	.hyper-tooltip.interactive.right.open .hyper-tooltip-bubble,
+	.hyper-tooltip.interactive.left.open .hyper-tooltip-bubble {
+		transform: none;
 	}
 
 	.hyper-tooltip-bubble.morph {

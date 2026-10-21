@@ -42,7 +42,8 @@ export type RecordedScenario =
 	| 'backgroundCommand'
 	| 'stoppedBackgroundCommand'
 	| 'retriedStream'
-	| 'nonStreamingFallback';
+	| 'nonStreamingFallback'
+	| 'compact';
 
 export interface FakeRun {
 	readonly options: Options;

@@ -5,7 +5,7 @@
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
-	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
+	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
@@ -30,6 +30,7 @@
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
@@ -441,7 +442,11 @@
 	}
 
 	function runShellCommand(command: string, language: string | null): void {
-		runShellCommandCommand({ workstreamId, sessionId, command, language });
+		sendCommandPromptCommand({
+			workstreamId,
+			sessionId,
+			prompt: shellCommandPrompt(command, language),
+		});
 	}
 
 	const checkpointEdit = createCheckpointEditor({
