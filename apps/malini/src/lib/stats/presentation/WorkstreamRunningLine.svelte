@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { RunningItem, WorkstreamRunning } from '$contract/stats';
+	import { RenameText } from '$hyper-ui/components/rename-text';
 	import { fittingCount } from './running-groups';
 
 	interface Props {
@@ -34,7 +35,7 @@
 	}
 </script>
 
-{#snippet entry(item: RunningItem, index: number)}
+{#snippet entry(item: RunningItem, index: number, shimmer: boolean)}
 	<span class={['flex shrink-0 items-center gap-1.25', index > 0 && 'pl-2.5']}>
 		<span
 			class={[
@@ -43,7 +44,7 @@
 				item.kind === 'task' ? 'size-1.5 border border-current' : 'size-1.25 bg-current',
 			]}
 		></span>
-		<span class="font-medium">{item.name}</span>
+		<RenameText text={item.name} {shimmer} class="font-medium" />
 	</span>
 {/snippet}
 
@@ -58,7 +59,7 @@
 		data-testid="workstream-running-line"
 	>
 		{#each shown as item, index (item.id)}
-			{@render entry(item, index)}
+			{@render entry(item, index, true)}
 		{/each}
 		{#if hidden > 0}
 			<span class="shrink-0 pl-2.5 font-medium">+{hidden}</span>
@@ -70,7 +71,7 @@
 		bind:this={ruler}
 	>
 		{#each running.items as item, index (item.id)}
-			{@render entry(item, index)}
+			{@render entry(item, index, false)}
 		{/each}
 	</span>
 	<span

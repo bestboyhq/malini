@@ -31,6 +31,7 @@ class SessionsAggregate {
 	private envelopeIndex = new CanonicalEnvelopeIndex();
 	private terminatedRunsBySession = new Map<SessionId, Set<RunId>>();
 	private hydratedTranscriptSessions = new SvelteSet<SessionId>();
+	private namedSessions = new SvelteSet<SessionId>();
 
 	ensureSession(input: {
 		sessionId: SessionId;
@@ -129,10 +130,15 @@ class SessionsAggregate {
 		const current = this.sessionsById[sessionId];
 		const normalized = displayName.trim();
 		if (!current || !normalized || current.displayName === normalized) return;
+		this.namedSessions.add(sessionId);
 		this.sessionsById = {
 			...this.sessionsById,
 			[sessionId]: { ...current, displayName: normalized },
 		};
+	}
+
+	wasNamed(sessionId: SessionId): boolean {
+		return this.namedSessions.has(sessionId);
 	}
 
 	resumeRunAfterInteraction(sessionId: SessionId, runId: RunId): void {
@@ -167,6 +173,7 @@ class SessionsAggregate {
 		this.envelopeIndex.remove(sessionId);
 		this.terminatedRunsBySession.delete(sessionId);
 		this.hydratedTranscriptSessions.delete(sessionId);
+		this.namedSessions.delete(sessionId);
 	}
 
 	reconcileWorkstreamSessions(
