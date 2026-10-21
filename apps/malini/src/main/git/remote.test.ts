@@ -78,7 +78,7 @@ describe('commitWorkstreamBranch', () => {
 			throw new Error('must not stage');
 		});
 		cleanups.push(async () => restore());
-		await expect(commitWorkstreamBranch('/wt', 'ws-1', 'msg')).rejects.toThrow(
+		await expect(commitWorkstreamBranch('/wt', 'malini/ws-1', 'msg')).rejects.toThrow(
 			'git error: workstream branch mismatch: expected `malini/ws-1`, got `main`',
 		);
 		expect(calls).toHaveLength(1);
@@ -89,7 +89,7 @@ describe('commitWorkstreamBranch', () => {
 		cleanups.push(() => removeDir(dir));
 		const { checkout } = await workstreamFixture(dir, 'ws-1');
 		await writeFile(join(checkout, 'work.txt'), 'work\n');
-		const sha = await commitWorkstreamBranch(checkout, 'ws-1', 'did work');
+		const sha = await commitWorkstreamBranch(checkout, 'malini/ws-1', 'did work');
 		expect((await realGit(checkout, ['rev-parse', '--short', 'HEAD'])).trim()).toBe(sha);
 		expect((await realGit(checkout, ['log', '-1', '--format=%s|%an|%ae'])).trim()).toBe(
 			'did work|malini-agent[bot]|338999285+malini-agent[bot]@users.noreply.github.com',
@@ -111,7 +111,13 @@ describe('pushWorkstreamBranch', () => {
 			prepare: async (token) => ({ GIT_TERMINAL_PROMPT: '0', MALINI_TEST_TOKEN: token ?? 'none' }),
 		};
 
-		const branch = await pushWorkstreamBranch('/wt', 'ws-1', 'acme/repo', 'ghs_live', credentials);
+		const branch = await pushWorkstreamBranch(
+			'/wt',
+			'malini/ws-1',
+			'acme/repo',
+			'ghs_live',
+			credentials,
+		);
 
 		expect(branch).toBe('malini/ws-1');
 		const push = calls.find((call) => call.args.includes('push'));
@@ -155,7 +161,7 @@ describe('pushWorkstreamBranch', () => {
 		});
 		cleanups.push(async () => restore());
 		await expect(
-			pushWorkstreamBranch('/wt', 'ws-1', 'acme/repo', null, noPromptCredentialEnv),
+			pushWorkstreamBranch('/wt', 'malini/ws-1', 'acme/repo', null, noPromptCredentialEnv),
 		).rejects.toThrow('workstream branch mismatch: expected `malini/ws-1`, got `main`');
 	});
 
@@ -171,7 +177,13 @@ describe('pushWorkstreamBranch', () => {
 			return real(local, env);
 		});
 		try {
-			return await pushWorkstreamBranch(checkout, 'ws-1', 'acme/repo', null, noPromptCredentialEnv);
+			return await pushWorkstreamBranch(
+				checkout,
+				'malini/ws-1',
+				'acme/repo',
+				null,
+				noPromptCredentialEnv,
+			);
 		} finally {
 			restore();
 		}
@@ -195,7 +207,7 @@ describe('pushWorkstreamBranch', () => {
 		await realGit(checkout, ['push', '-q', 'origin', 'malini/ws-1']);
 		await commitOnRemoteBranch(dir, remote, 'remote.txt', 'remote\n');
 		await writeFile(join(checkout, 'local.txt'), 'local\n');
-		await commitWorkstreamBranch(checkout, 'ws-1', 'local work');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'local work');
 
 		await pushThroughLocalRemote(checkout, remote);
 
@@ -216,7 +228,7 @@ describe('pushWorkstreamBranch', () => {
 		await realGit(checkout, ['push', '-q', 'origin', 'malini/ws-1']);
 		await commitOnRemoteBranch(dir, remote, 'shared.txt', 'theirs\n');
 		await writeFile(join(checkout, 'shared.txt'), 'ours\n');
-		await commitWorkstreamBranch(checkout, 'ws-1', 'local work');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'local work');
 		const head = (await realGit(checkout, ['rev-parse', 'HEAD'])).trim();
 
 		await expect(pushThroughLocalRemote(checkout, remote)).rejects.toThrow(
@@ -236,7 +248,7 @@ describe('pushWorkstreamBranch', () => {
 		});
 		cleanups.push(async () => restore());
 		await expect(
-			pushWorkstreamBranch('/wt', 'ws-1', 'acme/repo', 'ghs_live', noPromptCredentialEnv),
+			pushWorkstreamBranch('/wt', 'malini/ws-1', 'acme/repo', 'ghs_live', noPromptCredentialEnv),
 		).rejects.toThrow('workstream origin no longer matches the selected GitHub repository');
 		expect(calls.some((argv) => argv.includes('push'))).toBe(false);
 	});
@@ -247,7 +259,7 @@ describe('pushWorkstreamBranch', () => {
 		});
 		cleanups.push(async () => restore());
 		await expect(
-			pushWorkstreamBranch('/wt', 'ws-1', 'not-a-full-name', null, noPromptCredentialEnv),
+			pushWorkstreamBranch('/wt', 'malini/ws-1', 'not-a-full-name', null, noPromptCredentialEnv),
 		).rejects.toThrow('unsafe path: invalid GitHub repository full name');
 	});
 });
@@ -267,7 +279,7 @@ describe('restartWorkstreamOnBase', () => {
 	async function mergedWorkstream(dir: string) {
 		const fixture = await workstreamFixture(dir, 'ws-1');
 		await writeFile(join(fixture.checkout, 'work.txt'), 'work\n');
-		await commitWorkstreamBranch(fixture.checkout, 'ws-1', 'work');
+		await commitWorkstreamBranch(fixture.checkout, 'malini/ws-1', 'work');
 		await realGit(fixture.checkout, ['push', '-q', '-u', 'origin', 'malini/ws-1']);
 		const mergedHead = (await realGit(fixture.checkout, ['rev-parse', 'HEAD'])).trim();
 		const squash = await squashMerge(dir, fixture.remote);
@@ -288,7 +300,7 @@ describe('restartWorkstreamOnBase', () => {
 		try {
 			return await restartWorkstreamOnBase(
 				checkout,
-				'ws-1',
+				'malini/ws-1',
 				'main',
 				mergedHead,
 				'acme/repo',
@@ -322,7 +334,7 @@ describe('restartWorkstreamOnBase', () => {
 		cleanups.push(() => removeDir(dir));
 		const { remote, checkout, mergedHead, squash } = await mergedWorkstream(dir);
 		await writeFile(join(checkout, 'follow-up.txt'), 'follow-up\n');
-		await commitWorkstreamBranch(checkout, 'ws-1', 'follow-up');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'follow-up');
 
 		await restartThroughLocalRemote(checkout, remote, mergedHead);
 
@@ -351,7 +363,7 @@ describe('restartWorkstreamOnBase', () => {
 		await expect(
 			restartWorkstreamOnBase(
 				'/wt',
-				'ws-1',
+				'malini/ws-1',
 				'main',
 				'--upload-pack=x',
 				'acme/repo',
@@ -376,7 +388,7 @@ describe('pullWorkstreamBaseBranch', () => {
 		});
 		cleanups.push(async () => restore());
 		await expect(
-			pullWorkstreamBaseBranch('/wt', 'ws-1', 'main', null, noPromptCredentialEnv),
+			pullWorkstreamBaseBranch('/wt', 'malini/ws-1', 'main', null, noPromptCredentialEnv),
 		).rejects.toThrow(
 			'git error: commit or discard local changes before pulling the target branch',
 		);
@@ -398,7 +410,7 @@ describe('pullWorkstreamBaseBranch', () => {
 
 		const sha = await pullWorkstreamBaseBranch(
 			checkout,
-			'ws-1',
+			'malini/ws-1',
 			'main',
 			null,
 			noPromptCredentialEnv,
@@ -418,7 +430,7 @@ describe('pullWorkstreamBaseBranch', () => {
 		const shortHead = (await realGit(checkout, ['rev-parse', '--short', 'HEAD'])).trim();
 
 		expect(
-			await pullWorkstreamBaseBranch(checkout, 'ws-1', 'main', null, noPromptCredentialEnv),
+			await pullWorkstreamBaseBranch(checkout, 'malini/ws-1', 'main', null, noPromptCredentialEnv),
 		).toBe(shortHead);
 
 		const status = await statusCollector(checkout);
@@ -427,7 +439,7 @@ describe('pullWorkstreamBaseBranch', () => {
 		expect(status.conflictMarkerPaths).toEqual(['seed.txt']);
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(head);
 		await expect(
-			pullWorkstreamBaseBranch(checkout, 'ws-1', 'main', null, noPromptCredentialEnv),
+			pullWorkstreamBaseBranch(checkout, 'malini/ws-1', 'main', null, noPromptCredentialEnv),
 		).rejects.toThrow('a merge is already in progress in this workstream');
 	});
 });
@@ -438,7 +450,7 @@ describe('countCommitsBehindBase', () => {
 		cleanups.push(() => removeDir(dir));
 		const { remote, checkout } = await workstreamFixture(dir, 'ws-1');
 		const count = () =>
-			countCommitsBehindBase(checkout, 'ws-1', 'main', null, noPromptCredentialEnv);
+			countCommitsBehindBase(checkout, 'malini/ws-1', 'main', null, noPromptCredentialEnv);
 		expect(await count()).toBe(0);
 
 		const other = join(dir, 'other');
@@ -457,7 +469,7 @@ describe('countCommitsBehindBase', () => {
 			countCommitsBehindBase(checkout, 'ws-2', 'main', null, noPromptCredentialEnv),
 		).rejects.toThrow('workstream branch mismatch');
 		await expect(
-			countCommitsBehindBase(checkout, 'ws-1', '-main', null, noPromptCredentialEnv),
+			countCommitsBehindBase(checkout, 'malini/ws-1', '-main', null, noPromptCredentialEnv),
 		).rejects.toThrow('invalid base branch');
 	});
 });
@@ -477,7 +489,7 @@ describe('a rebase, cherry-pick or revert stopped in the checkout', () => {
 				`A ${operation} is in progress in this workstream. Finish or abort it before committing.`,
 			);
 
-			await abortWorkstreamOperation(checkout, 'ws-1');
+			await abortWorkstreamOperation(checkout, 'malini/ws-1');
 
 			const settled = await statusCollector(checkout);
 			expect([settled.operationInProgress, settled.dirtyPaths]).toEqual([null, []]);
@@ -513,7 +525,7 @@ describe('a merge held in the checkout', () => {
 		const { checkout } = await heldConflict(dir);
 		const head = (await realGit(checkout, ['rev-parse', 'HEAD'])).trim();
 
-		await expect(commitWorkstreamBranch(checkout, 'ws-1', 'merge')).rejects.toThrow(
+		await expect(commitWorkstreamBranch(checkout, 'malini/ws-1', 'merge')).rejects.toThrow(
 			'Conflict markers remain in seed.txt. Resolve them, then commit again.',
 		);
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(head);
@@ -529,7 +541,7 @@ describe('a merge held in the checkout', () => {
 		await writeFile(join(checkout, 'seed.txt'), 'ours\ntheirs\n');
 		await writeFile(join(checkout, 'fix.txt'), 'made the merge build\n');
 
-		await commitWorkstreamBranch(checkout, 'ws-1', 'ignored for a merge');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'ignored for a merge');
 
 		expect((await realGit(checkout, ['rev-list', '--parents', '-n', '1', 'HEAD'])).trim()).toBe(
 			`${(await realGit(checkout, ['rev-parse', 'HEAD'])).trim()} ${head} ${base}`,
@@ -558,7 +570,7 @@ describe('a merge held in the checkout', () => {
 		expect(status.conflictedPaths).toEqual(['logo.bin']);
 		expect(status.conflictMarkerPaths).toEqual([]);
 
-		await commitWorkstreamBranch(checkout, 'ws-1', 'merge');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'merge');
 		expect(
 			(await realGit(checkout, ['rev-list', '--parents', '-n', '1', 'HEAD'])).trim().split(' '),
 		).toHaveLength(3);
@@ -582,10 +594,10 @@ describe('a merge held in the checkout', () => {
 		await realGit(other, ['push', '-q', 'origin', 'main']);
 		await writeFile(join(checkout, 'seed.txt'), 'ours\n');
 		await realGit(checkout, ['commit', '-q', '-am', 'ours']);
-		await pullWorkstreamBaseBranch(checkout, 'ws-1', 'main', null, noPromptCredentialEnv);
+		await pullWorkstreamBaseBranch(checkout, 'malini/ws-1', 'main', null, noPromptCredentialEnv);
 		await writeFile(join(checkout, 'seed.txt'), 'ours\ntheirs\n');
 
-		await commitWorkstreamBranch(checkout, 'ws-1', 'merge');
+		await commitWorkstreamBranch(checkout, 'malini/ws-1', 'merge');
 
 		expect((await statusCollector(checkout)).mergeInProgress).toBe(false);
 	}, 60_000);
@@ -597,12 +609,12 @@ describe('a merge held in the checkout', () => {
 		const head = (await realGit(checkout, ['rev-parse', 'HEAD'])).trim();
 		await writeFile(join(checkout, 'seed.txt'), 'half resolved\n');
 
-		await abortWorkstreamOperation(checkout, 'ws-1');
+		await abortWorkstreamOperation(checkout, 'malini/ws-1');
 
 		expect((await realGit(checkout, ['rev-parse', 'HEAD'])).trim()).toBe(head);
 		const status = await statusCollector(checkout);
 		expect([status.mergeInProgress, status.dirtyPaths]).toEqual([false, []]);
-		await expect(abortWorkstreamOperation(checkout, 'ws-1')).rejects.toThrow(
+		await expect(abortWorkstreamOperation(checkout, 'malini/ws-1')).rejects.toThrow(
 			'no merge, rebase, cherry-pick or revert is in progress in this workstream',
 		);
 	});
@@ -650,6 +662,12 @@ async function heldConflict(
 	ours?: string | Buffer,
 ): Promise<{ checkout: string }> {
 	const fixture = await conflictingBaseFixture(dir, file, theirs, ours);
-	await pullWorkstreamBaseBranch(fixture.checkout, 'ws-1', 'main', null, noPromptCredentialEnv);
+	await pullWorkstreamBaseBranch(
+		fixture.checkout,
+		'malini/ws-1',
+		'main',
+		null,
+		noPromptCredentialEnv,
+	);
 	return fixture;
 }

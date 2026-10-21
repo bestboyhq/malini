@@ -85,6 +85,7 @@ export async function registerModules(
 		},
 		guardCheckoutMove: (workstreamId, move) =>
 			leased(() => agentRunLeases.acquireCheckoutMove(context.db, workstreamId), move),
+		nameWorkstream: (task) => chat.nameWorkstream(task),
 		...(overrides.startupReclaim === undefined ? {} : { startupReclaim: overrides.startupReclaim }),
 	});
 

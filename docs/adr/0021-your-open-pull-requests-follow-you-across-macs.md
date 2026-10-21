@@ -1,6 +1,6 @@
 # 0021 - Your open pull requests follow you across Macs
 
-Status: accepted
+Status: superseded by 0041
 
 ## Context
 

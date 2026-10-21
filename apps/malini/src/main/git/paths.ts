@@ -149,20 +149,30 @@ export function remoteUrlMatchesCanonicalGithubUrl(
 	return remote !== undefined && remote === GITHUB_REMOTE_URL.exec(canonicalUrl.toLowerCase())?.[1];
 }
 
+export function isValidBranchName(branch: string): boolean {
+	return !(
+		branch.length === 0 ||
+		branch.startsWith('-') ||
+		branch.startsWith('/') ||
+		branch.endsWith('/') ||
+		branch.endsWith('.') ||
+		branch.endsWith('.lock') ||
+		branch.includes('..') ||
+		branch.includes('//') ||
+		branch.includes('@{') ||
+		/[\s~^:?*[\\]/.test(branch)
+	);
+}
+
 export function validateBaseBranch(baseBranch: string): void {
-	const invalid =
-		baseBranch.length === 0 ||
-		baseBranch.startsWith('-') ||
-		baseBranch.startsWith('/') ||
-		baseBranch.endsWith('/') ||
-		baseBranch.endsWith('.') ||
-		baseBranch.endsWith('.lock') ||
-		baseBranch.includes('..') ||
-		baseBranch.includes('//') ||
-		baseBranch.includes('@{') ||
-		/[\s~^:?*[\\]/.test(baseBranch);
-	if (invalid) {
+	if (!isValidBranchName(baseBranch)) {
 		throw GitError.unsafePath(`invalid base branch \`${baseBranch}\``);
+	}
+}
+
+export function validateBranch(branch: string): void {
+	if (!isValidBranchName(branch)) {
+		throw GitError.unsafePath(`invalid branch \`${branch}\``);
 	}
 }
 

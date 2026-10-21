@@ -29,6 +29,7 @@
 		secondaryOpen?: boolean;
 		axis?: ResizeAxis;
 		storageKey?: string;
+		scope?: string;
 		a: Snippet;
 		b: Snippet;
 		class?: ClassValue;
@@ -45,6 +46,7 @@
 		secondaryOpen = true,
 		axis = 'horizontal',
 		storageKey,
+		scope,
 		a,
 		b,
 		class: className,
@@ -247,6 +249,7 @@
 
 	let mounted = false;
 	let presetLoaded = false;
+	let loadedScope = untrack(() => scope);
 	onMount(() => {
 		mounted = true;
 		loadStored();
@@ -260,12 +263,15 @@
 	$effect(() => {
 		void key;
 		void fallbackSize;
+		const nextScope = scope;
 		if (!mounted) return;
 		untrack(() => {
 			const from = shownSize;
 			loadStored();
-			if (presetLoaded) void easeFrom(from);
+			if (presetLoaded && nextScope === loadedScope) void easeFrom(from);
+			else easing = false;
 			presetLoaded = true;
+			loadedScope = nextScope;
 		});
 	});
 

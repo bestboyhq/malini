@@ -16,7 +16,7 @@ import {
 } from '$main/docker/reclaim';
 import { describeError, failureOutput } from '$main/errors';
 import { noPromptCredentialEnv, type GitCredentialEnv } from '$main/git/credentials';
-import { validateBaseBranch, validateWorkstreamId } from '$main/git/paths';
+import { validateBaseBranch, validateWorkstreamId, workstreamBranchName } from '$main/git/paths';
 import {
 	diffAll,
 	listWorkstreamFiles,
@@ -66,7 +66,7 @@ import { syncOwnPullRequests } from './own-pull-requests.service';
 import { InstallRegistry, installDependencies } from './provisioning.service';
 import { sweepArchivedLeftovers, type TeardownGuard } from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
-import { listWorkstreams } from './workstreams.repository';
+import { getWorkstream, listWorkstreams } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	createRepository,
@@ -95,6 +95,7 @@ export interface RepositoriesDeps {
 	readonly startupReclaim?: boolean;
 	readonly guardRunLease?: TeardownGuard;
 	readonly guardCheckoutMove?: CheckoutMoveGuard;
+	readonly nameWorkstream?: (task: string) => Promise<string>;
 	readonly log?: (line: string) => void;
 }
 
@@ -118,6 +119,8 @@ export function registerRepositories(
 	const ownership = new DockerOwnership({ db, runner, appDataRoot, bundleIdentifier });
 	const installs = new InstallRegistry(runner);
 	const checkouts = createCheckoutResolver({ db, appDataRoot });
+	const recordedBranch = (workstreamId: string): string =>
+		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
 	const guardCheckoutMove: CheckoutMoveGuard =
 		deps.guardCheckoutMove ?? ((_workstreamId, move) => move());
 	const baseSync = new WorkstreamBaseSync({ db, credentials, checkouts, guardCheckoutMove });
@@ -162,12 +165,15 @@ export function registerRepositories(
 		Promise.all(listProjects(db).map(projectDto)),
 	);
 
-	commands.define('repositories.create-repository', (args: unknown) =>
-		createRepository(workstreams, {
+	commands.define('repositories.create-repository', (args: unknown) => {
+		const defaultBranch = optionalString(args, 'defaultBranch');
+		if (defaultBranch !== null) validateBaseBranch(defaultBranch);
+		return createRepository(workstreams, {
 			repoUrl: requireString(args, 'repoUrl'),
 			githubToken: optionalString(args, 'githubToken'),
-		}),
-	);
+			defaultBranch,
+		});
+	});
 
 	commands.define('repositories.create-workstream', (args: unknown) =>
 		createWorkstream(workstreams, {
@@ -185,16 +191,30 @@ export function registerRepositories(
 	);
 
 	let ownPullRequestsSync: Promise<string[]> | null = null;
-	commands.define('repositories.sync-own-pull-requests', () => {
-		ownPullRequestsSync ??= syncOwnPullRequests({
+	let nextOwnPullRequestsSync: Promise<string[]> | null = null;
+	const syncOwnPullRequestsNow = (): Promise<string[]> => {
+		ownPullRequestsSync = syncOwnPullRequests({
 			workstreams,
 			gh,
 			checkouts,
 			guardCheckoutMove,
+			...(deps.nameWorkstream ? { nameWorkstream: deps.nameWorkstream } : {}),
 		}).finally(() => {
 			ownPullRequestsSync = null;
 		});
 		return ownPullRequestsSync;
+	};
+	const syncOwnPullRequestsAfter = async (running: Promise<string[]>): Promise<string[]> => {
+		try {
+			await running;
+		} catch {}
+		nextOwnPullRequestsSync = null;
+		return syncOwnPullRequestsNow();
+	};
+	commands.define('repositories.sync-own-pull-requests', () => {
+		if (ownPullRequestsSync === null) return syncOwnPullRequestsNow();
+		nextOwnPullRequestsSync ??= syncOwnPullRequestsAfter(ownPullRequestsSync);
+		return nextOwnPullRequestsSync;
 	});
 
 	commands.define('repositories.delete-workstream', (args: unknown) =>
@@ -263,7 +283,11 @@ export function registerRepositories(
 		const worktree = await checkout(args);
 		const commitMessage = message.trim().length === 0 ? 'Agent changes' : message;
 		try {
-			const sha = await commitWorkstreamBranch(worktree, workstreamId, commitMessage);
+			const sha = await commitWorkstreamBranch(
+				worktree,
+				recordedBranch(workstreamId),
+				commitMessage,
+			);
 			if (freshRun) recordCommitRun(db, workstreamId, freshRun.id, sha);
 			return sha;
 		} catch (error) {
@@ -281,7 +305,7 @@ export function registerRepositories(
 		const githubToken = optionalString(args, 'githubToken');
 		return pushWorkstreamBranch(
 			await checkout(args),
-			workstreamId,
+			recordedBranch(workstreamId),
 			expectedRepositoryFullName,
 			githubToken,
 			credentials,
@@ -294,7 +318,7 @@ export function registerRepositories(
 		const githubToken = optionalString(args, 'githubToken');
 		return pullWorkstreamBaseBranch(
 			await checkout(args),
-			workstreamId,
+			recordedBranch(workstreamId),
 			baseBranch,
 			githubToken,
 			credentials,
@@ -308,7 +332,7 @@ export function registerRepositories(
 		const githubToken = optionalString(args, 'githubToken');
 		return countCommitsBehindBase(
 			await checkout(args),
-			workstreamId,
+			recordedBranch(workstreamId),
 			baseBranch,
 			githubToken,
 			credentials,
@@ -319,7 +343,7 @@ export function registerRepositories(
 		const workstreamId = requireString(args, 'workstreamId');
 		return restartWorkstreamOnBase(
 			await checkout(args),
-			workstreamId,
+			recordedBranch(workstreamId),
 			requireString(args, 'baseBranch'),
 			requireString(args, 'mergedHeadSha'),
 			requireString(args, 'expectedRepositoryFullName'),
@@ -330,7 +354,7 @@ export function registerRepositories(
 	});
 
 	commands.define('repositories.abort-workstream-operation', async (args: unknown) =>
-		abortWorkstreamOperation(await checkout(args), checkedWorkstreamId(args)),
+		abortWorkstreamOperation(await checkout(args), recordedBranch(checkedWorkstreamId(args))),
 	);
 
 	commands.define('repositories.read-workstream-image', async (args: ReadWorkstreamImageArgs) => {
