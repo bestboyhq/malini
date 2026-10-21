@@ -34,6 +34,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   The first chat's name names the workstream too.
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
   **⌘W** closes one and **⌘K** finds the ones that don't fit.
+  A closed tab folds away, and the tabs after it slide into its place.
 
 A repository opens on its **scratchpad**, where you keep ideas.
 Any paragraph moves into a new workstream.
