@@ -59,7 +59,7 @@ import {
 import {
 	getWorkstream,
 	renameWorkstream,
-	workstreamHasUserRun,
+	workstreamAwaitsName,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import { chatNamingJob } from '$lib/jobs/jobs.platform';
@@ -731,7 +731,7 @@ function nameFromFirstUserPrompt(
 	log: (line: string) => void,
 ): void {
 	if (!sessionAwaitsTitle(db, input.sessionId)) return;
-	const namesWorkstream = !workstreamHasUserRun(db, input.workstreamId);
+	const namesWorkstream = workstreamAwaitsName(db, input.workstreamId);
 	void nameChat(db, supervisor, input, namesWorkstream, hooks, log);
 }
 

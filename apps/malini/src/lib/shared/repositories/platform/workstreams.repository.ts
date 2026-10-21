@@ -3,6 +3,7 @@ import { upsertProject, type Project } from './projects.repository';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
 import type { MergedPullRequest, Workstream, WorkstreamStatus } from '$contract/repositories';
+import { isGeneratedWorkstreamName } from '$shared/repositories/domain/workstream-names';
 
 export type { Workstream, WorkstreamStatus };
 
@@ -129,7 +130,9 @@ export function getWorkstream(db: MaliniDatabase, workstreamId: string): Workstr
 	return row ? workstreamFromRow(row) : null;
 }
 
-export function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): boolean {
+export function workstreamAwaitsName(db: MaliniDatabase, workstreamId: string): boolean {
+	const workstream = getWorkstream(db, workstreamId);
+	if (workstream === null || !isGeneratedWorkstreamName(workstream.name)) return false;
 	return (
 		scalar(
 			db,
@@ -137,7 +140,7 @@ export function workstreamHasUserRun(db: MaliniDatabase, workstreamId: string): 
 			 JOIN agent_sessions s ON s.id = r.session_id
 			 WHERE s.workstream_id = ? AND s.origin = 'user' AND r.automated = 0`,
 			workstreamId,
-		) > 0
+		) === 0
 	);
 }
 
@@ -148,22 +151,33 @@ export function renameWorkstream(
 ): string | null {
 	const workstream = getWorkstream(db, workstreamId);
 	if (workstream === null) return null;
-	const taken = all<{ name: string }>(
-		db,
-		`SELECT name FROM workstreams
-		 WHERE project_id = ? AND id != ? AND status != 'archived'`,
-		workstream.projectId,
-		workstreamId,
-	).map((row) => row.name);
+	const candidate = freeWorkstreamName(db, workstream.projectId, workstreamId, name);
+	run(db, 'UPDATE workstreams SET name = ? WHERE id = ?', candidate, workstreamId);
+	return candidate;
+}
+
+export function freeWorkstreamName(
+	db: MaliniDatabase,
+	projectId: string,
+	workstreamId: string,
+	name: string,
+): string {
+	const lower = (s: string) => s.trim().toLowerCase();
+	const taken = new Set(
+		all<{ name: string }>(
+			db,
+			`SELECT name FROM workstreams
+			 WHERE project_id = ? AND id != ? AND status != 'archived'`,
+			projectId,
+			workstreamId,
+		).map((row) => lower(row.name)),
+	);
 	let candidate = name;
 	let suffix = 2;
-	const lower = (s: string) => s.trim().toLowerCase();
-	const takenSet = new Set(taken.map(lower));
-	while (takenSet.has(lower(candidate))) {
+	while (taken.has(lower(candidate))) {
 		candidate = `${name} ${suffix}`;
 		suffix += 1;
 	}
-	run(db, 'UPDATE workstreams SET name = ? WHERE id = ?', candidate, workstreamId);
 	return candidate;
 }
 

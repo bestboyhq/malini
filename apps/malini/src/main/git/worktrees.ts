@@ -3,7 +3,12 @@ import { existsSync, readdirSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { basename, dirname } from 'node:path';
 import { promisify } from 'node:util';
-import { deriveBranchFromPath, deriveProjectId, WORKSTREAM_BRANCH_PREFIX } from './paths';
+import {
+	deriveBranchFromPath,
+	deriveProjectId,
+	validateBranch,
+	WORKSTREAM_BRANCH_PREFIX,
+} from './paths';
 import { GitError } from '$main/errors';
 import { runGit } from './run';
 
@@ -124,11 +129,7 @@ export async function addWorktree(
 	branchName: string,
 	baseBranch: string,
 ): Promise<void> {
-	if (!branchName.startsWith(WORKSTREAM_BRANCH_PREFIX)) {
-		throw GitError.unsafePath(
-			`branch \`${branchName}\` does not start with \`${WORKSTREAM_BRANCH_PREFIX}\``,
-		);
-	}
+	validateBranch(branchName);
 	await withProjectLock(deriveProjectId(basePath), async () => {
 		try {
 			await runGit(['-C', basePath, 'worktree', 'add', worktreePath, '-b', branchName, baseBranch]);

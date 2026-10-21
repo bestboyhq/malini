@@ -212,6 +212,7 @@ export type RedoCheckpointRestoreArgs = Readonly<{
 export type CreateProjectArgs = Readonly<{
 	repoUrl: string;
 	githubToken?: string | null;
+	defaultBranch?: string;
 }>;
 
 export type CreateWorkstreamArgs = Readonly<{

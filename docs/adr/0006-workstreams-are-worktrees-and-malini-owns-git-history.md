@@ -1,6 +1,6 @@
 # 0006 - Workstreams are worktrees of a private clone, and Malini owns their git history
 
-Status: accepted
+Status: superseded by 0040
 
 ## Context
 
