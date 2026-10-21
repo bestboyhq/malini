@@ -21,6 +21,10 @@ export const PASTEABLE_MEDIA_TYPES: readonly string[] = [
 	'image/png',
 	'image/jpeg',
 	'image/webp',
+	'image/gif',
+	'video/mp4',
+	'video/quicktime',
+	'video/webm',
 ];
 
 export const MAX_ATTACHMENT_BASE64_CHARS = Math.ceil(MAX_ATTACHMENT_FILE_BYTES / 3) * 4;
@@ -48,6 +52,15 @@ export function mediaType(name: string): string {
 			return 'image/jpeg';
 		case 'webp':
 			return 'image/webp';
+		case 'gif':
+			return 'image/gif';
+		case 'mp4':
+		case 'm4v':
+			return 'video/mp4';
+		case 'mov':
+			return 'video/quicktime';
+		case 'webm':
+			return 'video/webm';
 		default:
 			return 'application/octet-stream';
 	}

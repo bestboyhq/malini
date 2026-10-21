@@ -24,8 +24,10 @@ import {
 	insertStagedAttachments,
 	loadStoredAttachment,
 	MAX_ATTACHMENT_FILE_BYTES,
+	MAX_ATTACHMENT_FILE_MB,
 	MAX_ATTACHMENT_FILES,
 	MAX_ATTACHMENT_TOTAL_BYTES,
+	MAX_ATTACHMENT_TOTAL_MB,
 	removeStagedAttachment,
 	type InsertRunAndBindAttachmentsInput,
 	type StagedAgentAttachment,
@@ -351,12 +353,12 @@ export function stageSelectedPaths(
 			throw new Error('attachments must be regular files, not links or directories');
 		}
 		if (metadata.size > MAX_ATTACHMENT_FILE_BYTES) {
-			throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_BYTES}-byte file limit`);
+			throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
 		}
 		total += metadata.size;
 		if (!Number.isSafeInteger(total)) throw new Error('attachment size overflow');
 		if (total > MAX_ATTACHMENT_TOTAL_BYTES) {
-			throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`);
+			throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
 		}
 		validated.push({ source, displayName: validateName(source), expectedSize: metadata.size });
 	}
@@ -478,11 +480,11 @@ export function decodePastedAttachment(
 		throw new Error(`\`${displayName}\` is not a type that can be pasted as an attachment`);
 	}
 	if (base64.length > MAX_ATTACHMENT_BASE64_CHARS) {
-		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_BYTES}-byte file limit`);
+		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
 	}
 	const bytes = decodeStrictBase64(base64);
 	if (bytes.length > MAX_ATTACHMENT_FILE_BYTES) {
-		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_BYTES}-byte file limit`);
+		throw new Error(`attachment exceeds the ${MAX_ATTACHMENT_FILE_MB} MB file limit`);
 	}
 	return { displayName, bytes };
 }
@@ -564,7 +566,7 @@ export function stageBytes(
 	const projected = budget.bytes + bytes.length;
 	if (!Number.isSafeInteger(projected)) throw new Error('attachment size overflow');
 	if (projected > MAX_ATTACHMENT_TOTAL_BYTES) {
-		throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`);
+		throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
 	}
 
 	const staged = writeStagedBytes(worktree, displayName, bytes);
@@ -653,7 +655,7 @@ export async function adoptAttachments(
 				throw new Error(`at most ${MAX_ATTACHMENT_FILES} files can be attached`);
 			}
 			if (budget.bytes + stored.descriptor.size > MAX_ATTACHMENT_TOTAL_BYTES) {
-				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_BYTES}-byte total limit`);
+				throw new Error(`attachments exceed the ${MAX_ATTACHMENT_TOTAL_MB} MB total limit`);
 			}
 			const attachment = await cloneAttachment(
 				db,

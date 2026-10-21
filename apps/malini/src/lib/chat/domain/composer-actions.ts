@@ -23,7 +23,9 @@ export type AttachmentViewer = 'gallery' | 'file-tab';
 
 export function attachmentViewer(attachment: StagedAgentAttachment): AttachmentViewer | null {
 	if (isImageAttachment(attachment)) return 'gallery';
-	return attachment.mediaType === 'application/pdf' ? null : 'file-tab';
+	const unreadable =
+		attachment.mediaType === 'application/pdf' || attachment.mediaType.startsWith('video/');
+	return unreadable ? null : 'file-tab';
 }
 
 export function mergeComposerAttachments(
