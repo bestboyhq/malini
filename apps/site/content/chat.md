@@ -4,6 +4,8 @@ description: How a Malini chat runs Claude Code - queue or steer prompts, plan m
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
+It keeps running between prompts, so your MCP servers stay connected.
+It restarts after 10 idle minutes, when you change the access, mode, report or skills, and when `CLAUDE.md`, your Claude Code settings or `.mcp.json` change.
 
 ## Queue or steer
 
@@ -45,7 +47,7 @@ A **Your turn** list, unread marks, a chime, and a notification tell you which w
 
 - **@** mentions a file, and you can attach or paste images and files.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
-- The context window breakdown, your plan usage (five-hour and weekly), and MCP server status are one click from the composer.
+- The context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers are one click from the composer, read live from the chat's Claude Code when you open them.
 
 ## Undo, edit, fork
 

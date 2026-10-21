@@ -338,7 +338,7 @@ describe.skipIf(!existsSync(REAL_CLI))('BridgeSupervisor against the built agent
 		expect(supervisor.isHealthy()).toBe(true);
 		expect(supervisor.providerCapabilities()).toHaveLength(1);
 		await supervisor
-			.sendCommand({ cmd: 'refresh_mcp_status', id: 'real-1', sessionId: 'missing', runId: 'r' })
+			.sendCommand({ cmd: 'refresh_session_status', id: 'real-1', sessionId: 'missing' })
 			.catch((error: unknown) => {
 				expect(messageOf(error)).toContain('NO_SESSION');
 			});

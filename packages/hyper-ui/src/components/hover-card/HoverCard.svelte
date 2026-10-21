@@ -3,6 +3,7 @@
 	import type { ClassValue } from 'svelte/elements';
 	import {
 		anchorRect,
+		anchoredEdges,
 		announceExclusiveOverlayOpen,
 		bodyPortal,
 		calculatePosition,
@@ -200,17 +201,20 @@
 	function positionCard(): void {
 		if (!cardEl || !triggerEl) return;
 		const triggerRect = anchorRect(triggerEl);
-		const position = calculatePosition(triggerRect, layoutRect(cardEl), {
+		const cardRect = layoutRect(cardEl);
+		const position = calculatePosition(triggerRect, cardRect, {
 			side,
 			align,
 			sideOffset,
 			alignOffset: 0,
 			viewportPadding: 8,
 		});
+		const edges = anchoredEdges(position, cardRect.height, window.innerHeight);
 
 		cardEl.style.position = 'fixed';
 		cardEl.style.left = `${position.left}px`;
-		cardEl.style.top = `${position.top}px`;
+		cardEl.style.top = edges.top;
+		cardEl.style.bottom = edges.bottom;
 		cardEl.style.pointerEvents = 'auto';
 		activeSide = position.actualSide;
 	}

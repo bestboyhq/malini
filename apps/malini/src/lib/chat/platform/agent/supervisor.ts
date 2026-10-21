@@ -623,14 +623,8 @@ export class BridgeSupervisor {
 		}
 	}
 
-	refreshMcpStatus(sessionId: string): Promise<void> {
-		const id = this.nextCommandId();
-		return this.sendCommand({
-			cmd: 'refresh_mcp_status',
-			id,
-			sessionId,
-			runId: `mcp-refresh-${id}`,
-		});
+	refreshSessionStatus(sessionId: string): Promise<void> {
+		return this.sendCommand({ cmd: 'refresh_session_status', id: this.nextCommandId(), sessionId });
 	}
 
 	async kill(): Promise<void> {

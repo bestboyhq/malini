@@ -39,7 +39,7 @@ export interface ProviderHandle {
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
 	respondToQuestion?(reply: ProviderQuestionReply): Promise<void>;
-	refreshMcpStatus?(runId: string): Promise<void>;
+	refreshSessionStatus?(): Promise<void>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
 	close(): Promise<void>;
 }

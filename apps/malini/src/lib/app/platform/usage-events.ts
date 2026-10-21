@@ -74,7 +74,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'chat.pick-and-stage-attachments': plain,
 	'chat.read-staged-attachment': false,
 	'chat.redo-checkpoint-restore': plain,
-	'chat.refresh-mcp-status': false,
+	'chat.refresh-session-status': false,
 	'chat.remove-staged-attachment': false,
 	'chat.renew-staged-attachments': false,
 	'chat.reset-workstream-runs': plain,

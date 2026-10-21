@@ -13,10 +13,15 @@ const PLAN_WINDOWS: readonly (readonly [keyof PlanRateLimits, string])[] = [
 	['seven_day_sonnet', 'Weekly Sonnet limit'],
 ];
 
-export async function anthropicMetrics(
+export interface AnthropicSnapshot {
+	readonly context: ClaudeContextUsage | null;
+	readonly metrics: { readonly anthropic: Record<string, unknown> } | null;
+}
+
+export async function anthropicSnapshot(
 	query: ClaudeQuery,
 	observedAt: Date,
-): Promise<{ readonly anthropic: Record<string, unknown> } | null> {
+): Promise<AnthropicSnapshot> {
 	const [context, usage, init] = await Promise.all([
 		settleWithin(query.getContextUsage({ detail: 'summary' })),
 		settleWithin(
@@ -34,7 +39,7 @@ export async function anthropicMetrics(
 				}
 			: {}),
 	};
-	return Object.keys(anthropic).length > 0 ? { anthropic } : null;
+	return { context, metrics: Object.keys(anthropic).length > 0 ? { anthropic } : null };
 }
 
 function contextCategories(usage: ClaudeContextUsage) {

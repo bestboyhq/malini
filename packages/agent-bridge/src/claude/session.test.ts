@@ -1,4 +1,7 @@
-import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { McpServerStatus, SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import type { ProviderContext } from '../providers/types.js';
@@ -33,10 +36,12 @@ function harness(
 		readonly context?: Partial<ProviderContext>;
 		readonly executable?: string | null;
 		readonly onEvent?: (event: AgentEvent, session: ClaudeSession) => void;
+		readonly mcpServerStatus?: () => readonly Pick<McpServerStatus, 'name' | 'status'>[];
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
 	const events: AgentEvent[] = [];
+	const { mcpServerStatus } = options;
 	const session: ClaudeSession = new ClaudeSession({
 		context: { ...CONTEXT, ...options.context },
 		emit: (event) => {
@@ -44,7 +49,12 @@ function harness(
 			options.onEvent?.(event, session);
 		},
 		executable: options.executable === undefined ? '/opt/claude/bin/claude' : options.executable,
-		query: claude.query,
+		query: mcpServerStatus
+			? (params) => ({
+					...claude.query(params),
+					mcpServerStatus: async () => [...mcpServerStatus()],
+				})
+			: claude.query,
 	});
 	return { session, claude, events };
 }
@@ -182,10 +192,10 @@ describe('ClaudeSession', () => {
 			includePartialMessages: true,
 		});
 		expect(claude.runs[0]?.options).not.toHaveProperty('resume');
-		expect(claude.runs[0]?.closed).toBe(true);
 
 		await session.sendPrompt('And again', 'run-2', profile(), READ_AND_BASH_CURSOR);
 
+		expect(claude.runs[0]?.closed).toBe(true);
 		expect(claude.runs[1]?.options).toMatchObject({
 			resume: READ_AND_BASH_SESSION,
 			resumeSessionAt: READ_AND_BASH_CURSOR,
@@ -364,6 +374,157 @@ describe('ClaudeSession', () => {
 			'<previous_conversation>\n[user] Remember cedar.\n\n[assistant] I will remember cedar.\n</previous_conversation>\n\nWhat did I ask you to remember?',
 		);
 		expect(await claude.runs[1]?.prompt).toBe('Thanks');
+	});
+
+	it('sends the next prompt into the Claude Code the last turn left running', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude, events } = harness([[...script, 'wait-for-prompt', ...script]]);
+
+		await session.sendPrompt('Run echo hi and read package.json', 'run-1', profile());
+
+		expect(claude.runs[0]?.closed).toBe(false);
+
+		await session.sendPrompt(
+			'And again',
+			'run-2',
+			{ ...profile(), effort: 'low' },
+			READ_AND_BASH_CURSOR,
+		);
+
+		expect(claude.runs).toHaveLength(1);
+		expect(claude.runs[0]?.followUps).toEqual(['And again']);
+		expect(claude.runs[0]?.efforts).toEqual(['low']);
+		expect(ofType(events, 'mcp.status').map(({ runId }) => runId)).toEqual(['run-1', 'run-2']);
+		expect(ofType(events, 'run.completed').map(({ runId }) => runId)).toEqual(['run-1', 'run-2']);
+	});
+
+	it('restarts Claude Code for a prompt that rewinds to an earlier message', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([[...script, 'wait-for-prompt'], script]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.sendPrompt('Edited', 'run-2', profile(), 'message-to-keep');
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.followUps).not.toContain('Edited');
+		expect(claude.runs[1]?.options).toMatchObject({
+			resume: READ_AND_BASH_SESSION,
+			resumeSessionAt: 'message-to-keep',
+		});
+	});
+
+	it('restarts Claude Code for a prompt sent after its instructions changed', async () => {
+		const cwd = await mkdtemp(join(tmpdir(), 'malini-session-'));
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([[...script, 'wait-for-prompt'], script], {
+			context: { cwd },
+		});
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await writeFile(join(cwd, 'CLAUDE.md'), 'Answer in French.\n');
+		await session.sendPrompt('And again', 'run-2', profile());
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.closed).toBe(true);
+		expect(claude.runs[0]?.followUps).not.toContain('And again');
+		expect(claude.runs[1]?.options).toMatchObject({ resume: READ_AND_BASH_SESSION });
+		await expect(claude.runs[1]?.prompt).resolves.toBe('And again');
+		await rm(cwd, { recursive: true, force: true });
+	});
+
+	it('closes an idle Claude Code that starts a turn of its own', async () => {
+		const script = recordedScript('readAndBash');
+		const running: SDKMessage = {
+			type: 'system',
+			subtype: 'session_state_changed',
+			state: 'running',
+			uuid: '0b8f6c2e-5d4a-4e3b-9a1c-7f6e5d4c3b2a',
+			session_id: READ_AND_BASH_SESSION,
+		};
+		const { session, claude } = harness([[...script, running, 'wait-for-prompt'], script]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await vi.waitFor(() => expect(claude.runs[0]?.closed).toBe(true));
+		await session.sendPrompt('And again', 'run-2', profile());
+
+		expect(claude.runs).toHaveLength(2);
+		expect(claude.runs[0]?.followUps).not.toContain('And again');
+	});
+
+	it('closes Claude Code once it has been idle for ten minutes', async () => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const { session, claude } = harness([[...recordedScript('readAndBash'), 'wait-for-prompt']]);
+
+			await session.sendPrompt('Hello', 'run-1', profile());
+			vi.advanceTimersByTime(10 * 60_000 - 1);
+			expect(claude.runs[0]?.closed).toBe(false);
+			vi.advanceTimersByTime(1);
+			expect(claude.runs[0]?.closed).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('holds the first prompt until the MCP servers Claude Code connects are ready', async () => {
+		let polls = 0;
+		const { session, claude } = harness([recordedScript('readAndBash')], {
+			mcpServerStatus: () => [
+				{ name: 'plugin:svelte:svelte', status: ++polls < 3 ? 'pending' : 'connected' },
+				{ name: 'codebase-memory-mcp', status: 'connected' },
+			],
+		});
+
+		const sending = session.sendPrompt('Hello', 'run-1', profile());
+		await claude.runs[0]?.prompt;
+		const pollsBeforePrompt = polls;
+		await sending;
+
+		expect(pollsBeforePrompt).toBe(3);
+	});
+
+	it('never sends a prompt cancelled while Claude Code connects its MCP servers', async () => {
+		const { session, claude, events } = harness([recordedScript('readAndBash')], {
+			mcpServerStatus: () => [{ name: 'plugin:svelte:svelte', status: 'pending' }],
+		});
+
+		const sending = session.sendPrompt('Hello', 'run-1', profile());
+		await session.cancel('run-1');
+		await sending;
+
+		await expect(claude.runs[0]?.prompt).resolves.toBe('');
+		expect(ofType(events, 'run.completed')).toEqual([]);
+		expect(events.at(-1)).toMatchObject({ type: 'run.failed', runId: 'run-1', error: 'cancelled' });
+	});
+
+	it('reports the live MCP servers and context of the Claude Code a chat keeps running', async () => {
+		const { session, events } = harness([[...recordedScript('readAndBash'), 'wait-for-prompt']]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.refreshSessionStatus();
+
+		expect(ofType(events, 'mcp.status').at(-1)).toEqual({
+			type: 'mcp.status',
+			runId: 'run-1',
+			servers: [
+				{ name: 'plugin:svelte:svelte', status: 'connected' },
+				{ name: 'codebase-memory-mcp', status: 'connected' },
+			],
+		});
+		expect(ofType(events, 'usage.updated').at(-1)).toEqual({
+			type: 'usage.updated',
+			runId: 'run-1',
+			contextTokens: 25_472,
+			contextWindowTokens: 200_000,
+			providerMetrics: {
+				anthropic: expect.objectContaining({
+					contextCategories: expect.arrayContaining([
+						{ name: 'Messages', tokens: 23_368, kind: 'used' },
+					]),
+				}),
+			},
+			interim: true,
+		});
 	});
 
 	it('switches to accept-edits when Claude Code cannot run in auto mode', async () => {
@@ -601,11 +762,10 @@ describe('ClaudeSession', () => {
 				interim: false,
 			}),
 		);
-		expect(claude.runs[0]?.closed).toBe(true);
 	});
 
 	it('keeps the run open while a background command runs, through the turn Claude Code starts when it ends', async () => {
-		const { session, claude, events } = harness([recordedScript('backgroundCommand')]);
+		const { session, events } = harness([recordedScript('backgroundCommand')]);
 
 		await session.sendPrompt('Run a command in the background', 'run-1', profile());
 
@@ -629,7 +789,6 @@ describe('ClaudeSession', () => {
 		expect(ofType(events, 'run.completed')).toEqual([
 			expect.objectContaining({ runId: 'run-1', summary: 'bg-done' }),
 		]);
-		expect(claude.runs[0]?.closed).toBe(true);
 	});
 
 	it('stops one background task on request and ends the run once nothing is left', async () => {

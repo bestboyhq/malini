@@ -25,6 +25,8 @@ Malini owns the rest, and the adapter enforces it:
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
 - Conversation: Claude's session id is Malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with Malini's own history.
+- Process lifetime: a chat's query stays open between turns, and the next prompt is pushed into it while the settings `canContinue` compares and the files `config-snapshot.ts` watches are unchanged.
+  An idle query closes after 10 minutes or on any message it sends; a new one holds the first prompt until its MCP servers settle, for up to 5 s (`docs/adr/0038-a-chat-keeps-its-claude-code-running-between-turns.md`).
 - Turn binding: each prompt carries a uuid, and the run ends on the result whose `user_message_uuids` names it.
   Claude Code also runs turns of its own: a resume that finds a background agent the last process left unfinished first reports it in an empty zero-turn result.
 - Background work: the run stays open while `background_tasks_changed` lists a task that is not `ambient`, and Claude Code's own follow-up turn after a task ends belongs to that run.
