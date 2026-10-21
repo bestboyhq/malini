@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderItem, RunGroup } from './render-state';
-import { earlierTurns, finalTurnReport } from './turn-result';
+import { earlierTurnsByRun, finalTurnReport } from './turn-result';
 
 const REPORT = [
 	'![Sticky header](.malini/sandbox/screenshots/header.png)',
@@ -47,7 +47,7 @@ describe('which message becomes the result card', () => {
 		).toBeNull();
 	});
 
-	it('lists the last three reported turns before a run as its earlier turns', () => {
+	it('gives the last three reported turns to the latest result card only, even while a newer run is open', () => {
 		const reported = (runId: string, superseded = false): RunGroup =>
 			run('completed', [assistant(`${runId}-a`, `Outcome: ${runId} done.`)], runId, superseded);
 		const runs = [
@@ -58,11 +58,13 @@ describe('which message becomes the result card', () => {
 			reported('r5'),
 			reported('r6'),
 			reported('r7'),
-			reported('r8'),
+			run(null, [], 'r8'),
 		];
+		const trail = (byRun: ReadonlyMap<string, readonly { runId: string }[]>) =>
+			[...byRun].map(([runId, turns]) => [runId, turns.map((turn) => turn.runId)]);
 
-		expect(earlierTurns(runs, 'r7').map((turn) => turn.runId)).toEqual(['r2', 'r5', 'r6']);
-		expect(earlierTurns(runs, 'r1')).toEqual([]);
-		expect(earlierTurns(runs, 'missing')).toEqual([]);
+		expect(trail(earlierTurnsByRun(runs))).toEqual([['r7', ['r2', 'r5', 'r6']]]);
+		expect(trail(earlierTurnsByRun(runs.slice(0, 1)))).toEqual([['r1', []]]);
+		expect(trail(earlierTurnsByRun(runs.slice(2, 4)))).toEqual([]);
 	});
 });

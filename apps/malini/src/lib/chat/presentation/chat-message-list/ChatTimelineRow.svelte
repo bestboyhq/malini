@@ -33,7 +33,7 @@
 	const turnReport = $derived(
 		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
 	);
-	const earlierTurns = $derived(turnReport && isLastRun ? transcript.earlierTurns(run.runId) : []);
+	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
 </script>
 
 {#if item.kind === 'user'}

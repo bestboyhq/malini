@@ -8,6 +8,8 @@ type LayoutCause = 'content' | 'frame';
 
 const ANCHOR_ROWS = ':scope > :not([data-prompt-row])';
 
+const RUNS = ':scope > [data-run-id]';
+
 const TOOL_ROWS = ['tool', 'bash', 'file', 'activity-group']
 	.map((kind) => `[data-message-kind="${kind}"]`)
 	.join(', ');
@@ -79,6 +81,7 @@ export function createTranscriptScroll(
 	let overlayBelowPx = 0;
 	let coveredPx = 0;
 	let bottomAnchor: Readonly<{ distance: number; until: number }> | null = null;
+	let latestRun: Readonly<{ element: HTMLElement; top: number }> | null = null;
 	let userIntentUntil = 0;
 	let pointerScrolling = false;
 	let hovering = false;
@@ -126,7 +129,7 @@ export function createTranscriptScroll(
 
 	function readAnchor(viewport: HTMLElement, list: HTMLElement): TranscriptAnchor | null {
 		const top = viewport.getBoundingClientRect().top;
-		const runs = list.querySelectorAll<HTMLElement>(':scope > [data-run-id]');
+		const runs = list.querySelectorAll<HTMLElement>(RUNS);
 		const run = runs[Math.min(firstEndingBelow(runs, top), runs.length - 1)];
 		const runId = run?.dataset['runId'];
 		if (!run || runId === undefined) return null;
@@ -140,7 +143,7 @@ export function createTranscriptScroll(
 	function anchoredTop(viewport: HTMLElement, list: HTMLElement): number | null {
 		if (!anchor) return null;
 		const { runId, row, offset } = anchor;
-		const runs = list.querySelectorAll<HTMLElement>(':scope > [data-run-id]');
+		const runs = list.querySelectorAll<HTMLElement>(RUNS);
 		const run = [...runs].find((candidate) => candidate.dataset['runId'] === runId);
 		const rowTop = run?.querySelectorAll(ANCHOR_ROWS)[row]?.getBoundingClientRect().top;
 		if (rowTop === undefined) return null;
@@ -224,22 +227,43 @@ export function createTranscriptScroll(
 		}
 		requestedTop = null;
 		if (!userIsScrolling() && !shrunkUnderView) shownTop = viewport.scrollTop;
+		const shift = follow === 'bottom' && !userIsScrolling() ? shiftAboveLatestRun(viewport) : 0;
+		shownTop = Math.max(0, shownTop + shift);
+		if (hovering) heldTop += shift;
 		const target = targetTop(viewport, list);
 		const animate = glides() && cause === 'content';
-		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView);
+		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView || shift !== 0);
 		const reach = holdShown ? Math.max(target, shownTop) : target;
 		setHoldSpace(reach - naturalMaxTop(viewport));
 		heldTop = target;
 		if (animate) {
-			if (shrunkUnderView) scrollTo(shownTop);
+			if (shrunkUnderView || shift !== 0) scrollTo(shownTop);
 			scrollGlide.glide(glideTarget, target);
 		} else {
 			scrollGlide.cancel();
 			scrollTo(target);
 			rememberAnchor();
 		}
+		trackLatestRun(viewport, list);
 		updateContentBelow();
 		rememberSoon();
+	}
+
+	function contentTop(viewport: HTMLElement, element: HTMLElement): number {
+		const viewportTop = viewport.getBoundingClientRect().top;
+		return element.getBoundingClientRect().top - viewportTop + viewport.scrollTop;
+	}
+
+	function shiftAboveLatestRun(viewport: HTMLElement): number {
+		if (!latestRun?.element.isConnected) return 0;
+		const shift = contentTop(viewport, latestRun.element) - latestRun.top;
+		return Math.abs(shift) < SUBPIXEL_SLACK_PX ? 0 : shift;
+	}
+
+	function trackLatestRun(viewport: HTMLElement, list: HTMLElement): void {
+		const runs = list.querySelectorAll<HTMLElement>(RUNS);
+		const run = follow === 'bottom' ? runs[runs.length - 1] : undefined;
+		latestRun = run ? { element: run, top: contentTop(viewport, run) } : null;
 	}
 
 	function scheduleReconcile(): void {
@@ -431,6 +455,7 @@ export function createTranscriptScroll(
 			viewportEl = viewport;
 			messageListEl = messageList;
 			holdSpacePx = 0;
+			latestRun = null;
 			messageList.style.setProperty('--chat-hold-space', '0px');
 			const sizeObserver = new ResizeObserver((entries) => {
 				if (entries.some((entry) => entry.target === viewport)) reconcile('frame');
@@ -530,6 +555,7 @@ export function createTranscriptScroll(
 			opening = true;
 			openedAt = performance.now();
 			coveredPx = 0;
+			latestRun = null;
 			anchor = remembered;
 			restoring = remembered !== null;
 			follow = restoring ? 'reader' : 'bottom';
