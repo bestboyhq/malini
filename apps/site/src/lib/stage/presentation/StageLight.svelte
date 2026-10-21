@@ -50,14 +50,23 @@
 			),
 			linear-gradient(
 				var(--stage-floor),
-				var(--bg) var(--stage-floor-from),
-				color-mix(in srgb, var(--stage-ink) calc(11.25% * var(--stage-strength)), var(--bg))
+				var(--surface-root) var(--stage-floor-from),
+				color-mix(
+						in srgb,
+						var(--stage-ink) calc(11.25% * var(--stage-strength)),
+						var(--surface-root)
+					)
 					var(--stage-floor-to)
 			);
 	}
 
+	:global(:root[data-theme='dark']) .stage {
+		--stage-strength: 1;
+		--stage-shadow: rgb(0 0 0 / 0.7);
+	}
+
 	@media (prefers-color-scheme: dark) {
-		.stage {
+		:global(:root:not([data-theme])) .stage {
 			--stage-strength: 1;
 			--stage-shadow: rgb(0 0 0 / 0.7);
 		}
@@ -89,6 +98,8 @@
 	}
 
 	canvas {
+		border-top-color: var(--surface-root);
+		color: var(--stage-ink);
 		position: absolute;
 		inset: 0;
 		width: 100%;

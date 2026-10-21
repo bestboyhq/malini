@@ -39,6 +39,7 @@ export function stageLight(
 	return (canvas) => {
 		let visible = false;
 		const scheme = matchMedia('(prefers-color-scheme: dark)');
+		const theme = new MutationObserver(paint);
 		const resizer = new ResizeObserver((entries) => {
 			for (const entry of entries) {
 				if (entry.target === canvas) {
@@ -66,8 +67,8 @@ export function stageLight(
 			const style = getComputedStyle(canvas);
 			shared.draw(canvas.width, canvas.height, {
 				lighting,
-				page: toRgba(style.getPropertyValue('--bg')),
-				ink: toRgba(style.getPropertyValue('--stage-ink')),
+				page: toRgba(style.borderTopColor),
+				ink: toRgba(style.color),
 				strength: Number.parseFloat(style.getPropertyValue('--stage-strength')) || 1,
 				shadow: toRgba(style.getPropertyValue('--stage-shadow')),
 				caster: caster ? castShadow(canvas, caster) : null,
@@ -84,12 +85,14 @@ export function stageLight(
 		if (caster) resizer.observe(caster);
 		viewport.observe(canvas);
 		scheme.addEventListener('change', paint);
+		theme.observe(document.documentElement, { attributeFilter: ['data-theme'] });
 		repaints.add(paint);
 
 		return () => {
 			resizer.disconnect();
 			viewport.disconnect();
 			scheme.removeEventListener('change', paint);
+			theme.disconnect();
 			repaints.delete(paint);
 		};
 	};

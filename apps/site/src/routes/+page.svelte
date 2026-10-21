@@ -1,14 +1,14 @@
 <script lang="ts">
-	import { asset } from '$app/paths';
 	import hero from '../../../../.github/readme/hero.webp';
 	import { GitHubIcon, Icon } from '@malini/hyper-ui/icons';
-	import Head from '$lib/Head.svelte';
+	import Arrow from '$lib/Arrow.svelte';
+	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
+	import Head from '$lib/Head.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
 	import QueueMock from '$lib/QueueMock.svelte';
 	import RoutineMock from '$lib/RoutineMock.svelte';
-	import Section from '$lib/Section.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
 	import { StageLight, StagePanel } from '$lib/stage/stage.api';
 	import TerminalMock from '$lib/TerminalMock.svelte';
@@ -19,10 +19,30 @@
 
 	let heroPanel = $state<HTMLElement>();
 	let heroLit = $state(false);
-	let ctaPanel = $state<HTMLElement>();
-	let ctaLit = $state(false);
 
-	const doc = (slug: string) => docHref(`/docs/${slug}`);
+	const doc = (slug: string): string => docHref(`/docs/${slug}`);
+
+	const BEATS = [
+		'how',
+		'chat',
+		'browser',
+		'ship',
+		'merge',
+		'outcomes',
+		'routines',
+		'open',
+		'docs',
+		'faq',
+		'start',
+	] as const;
+
+	const beat = (id: (typeof BEATS)[number], kicker?: string): Beat => ({
+		n: BEATS.indexOf(id) + 1,
+		total: BEATS.length,
+		...(kicker ? { kicker } : {}),
+	});
+
+	const pad = (value: number): string => String(value).padStart(2, '0');
 
 	const steps = [
 		{
@@ -99,92 +119,79 @@
 				'Updates download in the background and install when you quit, or right away with Restart to Update.',
 		},
 	];
-
-	const firstRun = [
-		{ title: 'Download Malini', body: 'Drag it to Applications and open it.' },
-		{
-			title: 'Connect Claude Code and GitHub',
-			body: 'Install and Sign in for Claude Code, and a one-time code in your browser for GitHub.',
-		},
-		{
-			title: 'Add a repository',
-			body: 'Clone one or open a folder. Your first workstream is ready.',
-		},
-	];
 </script>
 
 <Head title="Malini - many Claude Code agents, one window" description={SITE_DESCRIPTION} path="" />
 
+<div class="progress" aria-hidden="true"></div>
+
 <section class="hero" aria-labelledby="hero-title">
-	<div class="frame">
-		<header class="intro">
-			<a class="eyebrow" href={GITHUB_URL}>
-				<GitHubIcon size={14} />
-				<span>Free and open source, for the Mac</span>
-				<Icon name="arrow-right" size={12} />
+	<div class="wrap intro">
+		<a class="eyebrow" href={GITHUB_URL}>
+			<GitHubIcon size={14} />
+			<span>Free and open source, for the Mac</span>
+			<Arrow class="ahead" />
+		</a>
+		<h1 id="hero-title">
+			<span>You had one job.</span>
+			<span class="quiet">Now you have plenty.</span>
+		</h1>
+		<p class="lede">
+			Many Claude Code agents, one window, one merged pull request each. Every task gets its own git
+			worktree and its own agent, and Malini takes it from prompt to merged.
+		</p>
+		<div class="actions">
+			<a class="button primary" href={DOWNLOAD_URL}>
+				{@render apple()}
+				Download for macOS
 			</a>
-			<h1 id="hero-title">
-				<span>You had one job.</span>
-				<span class="quiet">Now you have plenty.</span>
-			</h1>
-			<p class="lede">
-				Many Claude Code agents, one window, one merged pull request each. Every task gets its own
-				git worktree and its own agent, and Malini takes it from prompt to merged.
-			</p>
-			<div class="actions">
-				<a class="button primary" href={DOWNLOAD_URL}>
-					{@render apple()}
-					Download for macOS
-				</a>
-				<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
-			</div>
-			<p class="fine">macOS 13 or later on Apple silicon · No account · No subscription</p>
-		</header>
+			<a class="button secondary" href={docHref('/docs')}>Read the docs</a>
+		</div>
+		<p class="fine">macOS 13 or later on Apple silicon · No account · No subscription</p>
 	</div>
-	<div class="showcase">
+	<div class="plate">
 		<div class="spot">
 			<StageLight preset="hero" caster={heroPanel} bind:lit={heroLit} />
 		</div>
-		<div class="frame">
-			<div class="window">
-				<StagePanel lit={heroLit} bind:element={heroPanel}>
-					<img
-						class="shot"
-						src={hero}
-						width="2560"
-						height="1600"
-						alt="Malini with three repositories in the sidebar, an agent's finished run in the chat, and the changed files beside it"
-						fetchpriority="high"
-					/>
-				</StagePanel>
-			</div>
+		<div class="wrap window">
+			<StagePanel lit={heroLit} bind:element={heroPanel}>
+				<img
+					class="shot"
+					src={hero}
+					width="2560"
+					height="1600"
+					alt="Malini with three repositories in the sidebar, an agent's finished run in the chat, and the changed files beside it"
+					fetchpriority="high"
+				/>
+			</StagePanel>
 		</div>
 	</div>
 </section>
 
 <SectionHeading
 	id="how"
+	beat={beat('how', 'How it works')}
+	split
 	title="One task. One worktree."
 	quiet="One merged pull request."
 	description="Malini gives every task its own agent and its own branch, so ten things can move at once without stepping on each other."
-/>
-
-<Section class="cells">
-	<ol class="steps">
-		{#each steps as step, index (step.title)}
-			<li>
-				<span class="number">{index + 1}</span>
-				<h3>{step.title}</h3>
-				<p>{step.body}</p>
-			</li>
-		{/each}
-	</ol>
-</Section>
-
-<div class="gap band"><div class="frame"><div class="rail"></div></div></div>
+>
+	{#snippet after()}
+		<ol class="cells">
+			{#each steps as step, index (step.title)}
+				<li>
+					<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
+					<h3>{step.title}</h3>
+					<p>{step.body}</p>
+				</li>
+			{/each}
+		</ol>
+	{/snippet}
+</SectionHeading>
 
 <FeatureRow
 	id="chat"
+	beat={beat('chat', 'Chat')}
 	title="A chat that keeps up"
 	body="Enter queues a prompt after the current run, Cmd+Enter steers it now, and background commands keep running. Edit, reorder, or delete what is waiting."
 	href={doc('chat')}
@@ -193,10 +200,9 @@
 	panel={chatPanel}
 />
 
-<div class="gap band"><div class="frame"><div class="rail"></div></div></div>
-
 <FeatureRow
 	id="browser"
+	beat={beat('browser', 'Browser')}
 	mirrored
 	title="A browser the agent can drive"
 	body="Browser tabs sit next to your files. The agent opens, types, clicks, and screenshots, and the tabs it opens show up beside yours."
@@ -208,6 +214,7 @@
 
 <SectionHeading
 	id="ship"
+	beat={beat('ship')}
 	title="From prompt to merged."
 	quiet="Without babysitting a branch."
 	description="Agents write the code. Malini owns git: it commits, opens the pull request, and keeps it moving until GitHub merges it."
@@ -215,6 +222,7 @@
 
 <FeatureRow
 	id="merge"
+	beat={beat('merge', 'Merge queue')}
 	title="A merge queue that does the chores"
 	body="Press Merge and Malini pushes, marks the pull request ready, updates from main, and waits for checks and review. While it waits, it runs Fix checks, Update from main, and Address review."
 	href={doc('workstreams')}
@@ -225,6 +233,7 @@
 
 <SectionHeading
 	id="outcomes"
+	beat={beat('outcomes')}
 	title="Outcomes, not skills."
 	quiet="Ask for them by name."
 	description="A job is agent work you reuse: instructions, a model, an effort, and only the skills it needs. Routines run jobs when something happens."
@@ -232,6 +241,7 @@
 
 <FeatureRow
 	id="routines"
+	beat={beat('routines', 'Routines')}
 	mirrored
 	title="Routines that earn your trust"
 	body="Ask the agent for a routine and it writes the trigger from Malini's own events. Every save waits for your approval, and a new routine starts as a draft."
@@ -243,6 +253,7 @@
 
 <SectionHeading
 	id="open"
+	beat={beat('open')}
 	title="Open source, so we can’t rug pull you."
 	quiet="Transparent, all the way down."
 >
@@ -256,24 +267,22 @@
 			Read the decisions
 		</a>
 	</div>
+	{#snippet after()}
+		<ul class="cells">
+			{#each trust as item (item.title)}
+				<li>
+					<Icon name={item.icon} size={16} />
+					<h3>{item.title}</h3>
+					<p>{item.body}</p>
+				</li>
+			{/each}
+		</ul>
+	{/snippet}
 </SectionHeading>
-
-<Section class="cells">
-	<ul class="trust">
-		{#each trust as item (item.title)}
-			<li>
-				<Icon name={item.icon} size={16} />
-				<h3>{item.title}</h3>
-				<p>{item.body}</p>
-			</li>
-		{/each}
-	</ul>
-</Section>
-
-<div class="gap band"><div class="frame"><div class="rail"></div></div></div>
 
 <FeatureRow
 	id="docs"
+	beat={beat('docs', 'Docs')}
 	title="Docs for people and agents"
 	body="Every docs page is plain markdown at its URL plus .md. llms.txt lists them all, and every event Malini emits is documented with its payload."
 	href={docHref('/docs')}
@@ -286,81 +295,56 @@
 	panel={terminalPanel}
 />
 
-<Section id="faq" label="faq-title">
-	<div class="faq">
-		<div class="faq-intro">
-			<h2 id="faq-title">Frequently asked questions</h2>
-			<p>
-				Have a different question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
-			</p>
-		</div>
-		<div class="answers">
-			{#each faqs as faq (faq.question)}
-				<details>
-					<summary>
-						{faq.question}
-						<svg
-							viewBox="0 0 16 16"
-							width="16"
-							height="16"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.5"
-							stroke-linecap="round"
-							aria-hidden="true"
-						>
-							<path d="M3.25 8h9.5" />
-							<path class="stem" d="M8 3.25v9.5" />
-						</svg>
-					</summary>
-					<p>{faq.answer}</p>
-				</details>
-			{/each}
+<section id="faq" class="beat" aria-labelledby="faq-title">
+	<div class="wrap">
+		<BeatLabel {...beat('faq')} />
+		<div class="faq">
+			<div class="faq-intro">
+				<h2 id="faq-title">Frequently asked questions</h2>
+				<p>
+					Have a different question? <a href="{GITHUB_URL}/issues">Ask on GitHub</a>
+				</p>
+			</div>
+			<div class="answers">
+				{#each faqs as faq, index (faq.question)}
+					<details>
+						<summary>
+							<span class="idx" aria-hidden="true">{pad(index + 1)}</span>
+							<span class="q">{faq.question}</span>
+							<span class="plus" aria-hidden="true"></span>
+						</summary>
+						<p>{faq.answer}</p>
+					</details>
+				{/each}
+			</div>
 		</div>
 	</div>
-</Section>
+</section>
 
-<Section label="cta-title">
-	<div class="cta">
-		<div class="cta-copy">
-			<h2 id="cta-title">Give every task its own agent.</h2>
-			<p>Download Malini, connect Claude Code and GitHub, and add a repository.</p>
-			<div class="actions">
-				<a class="button primary" href={DOWNLOAD_URL}>
-					{@render apple()}
-					Download for macOS
-				</a>
-				<a class="button secondary" href={docHref('/docs/install')}>Install guide</a>
-			</div>
-			<p class="fine">Free and open source · AGPL-3.0</p>
-		</div>
-		<div class="cta-stage">
-			<StageLight preset="top-left" caster={ctaPanel} bind:lit={ctaLit} />
-			<div class={['cta-panel', { lit: ctaLit }]} bind:this={ctaPanel}>
-				<div class="cta-head">
-					<img src={asset('/malini.png')} width="28" height="28" alt="" />
-					Your first workstream
+<section id="start" class="beat closing" aria-labelledby="start-title">
+	<div class="wrap">
+		<div class="close">
+			<div class="glow" aria-hidden="true"></div>
+			<BeatLabel {...beat('start')} />
+			<div class="end">
+				<div>
+					<h2 id="start-title">Give every task its own agent.</h2>
+					<p class="sub">Download Malini, connect Claude Code and GitHub, and add a repository.</p>
 				</div>
-				<ol>
-					{#each firstRun as item, index (item.title)}
-						<li>
-							<span class="day">
-								<span>Step</span>
-								<span>{index + 1}</span>
-							</span>
-							<span>
-								<strong>{item.title}</strong>
-								<span>{item.body}</span>
-							</span>
-						</li>
-					{/each}
-				</ol>
+				<div class="close-actions">
+					<div class="actions">
+						<a class="button primary" href={DOWNLOAD_URL}>
+							{@render apple()}
+							Download for macOS
+						</a>
+						<a class="button secondary" href={docHref('/docs/install')}>Install guide</a>
+					</div>
+					<p class="fine">Free and open source · AGPL-3.0</p>
+				</div>
 			</div>
 		</div>
 	</div>
-</Section>
-
-<div class="gap"><div class="frame"><div class="rail"></div></div></div>
+</section>
 
 {#snippet apple()}
 	<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
@@ -400,66 +384,79 @@
 {/snippet}
 
 <style>
-	.hero {
-		padding-bottom: 64px;
-		border-bottom: 1px solid var(--line);
+	.progress {
+		display: none;
+	}
+
+	@supports (animation-timeline: scroll()) {
+		.progress {
+			position: fixed;
+			z-index: 50;
+			inset: 0 0 auto;
+			display: block;
+			height: 3px;
+			background: var(--painting);
+			transform-origin: 0 50%;
+			animation: fill linear both;
+			animation-timeline: scroll(root);
+		}
+	}
+
+	@keyframes fill {
+		from {
+			scale: 0 1;
+		}
 	}
 
 	.intro {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
-		padding: 72px var(--pad) 8px;
+		padding-top: 72px;
+		padding-bottom: 64px;
 	}
 
-	.intro > :global(*) {
-		animation: enter 1.3s var(--ease-out-quart) backwards;
-	}
-
-	.intro > :global(:nth-child(1)) {
-		animation-delay: 200ms;
-	}
-
-	.intro > :global(:nth-child(3)) {
-		animation-delay: 120ms;
-	}
-
-	.intro > :global(:nth-child(4)) {
-		animation-delay: 240ms;
-	}
-
-	.intro > :global(:nth-child(5)) {
-		animation-delay: 320ms;
+	.intro > *,
+	.plate {
+		animation: enter calc(var(--duration) * 1ms) var(--enter-ease) calc(var(--delay) * 1ms)
+			backwards;
 	}
 
 	.eyebrow {
+		--rise: 3px;
+		--blur: 8px;
+		--duration: 1200;
+		--delay: 250;
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
 		height: 30px;
 		padding: 0 12px;
 		border-radius: 999px;
-		box-shadow: inset 0 0 0 1px var(--line);
+		box-shadow: inset 0 0 0 1px var(--border-subtle);
 		color: var(--fg-secondary);
 		font-size: 13px;
 		font-weight: 500;
 		text-decoration: none;
-		transition:
-			box-shadow 150ms ease,
-			color 150ms ease;
 	}
 
-	.eyebrow:hover {
-		box-shadow: inset 0 0 0 1px var(--line-strong);
-		color: var(--fg);
+	.eyebrow :global(.ahead) {
+		width: 11px;
+		height: 11px;
+		color: var(--fg-faint);
 	}
 
 	h1 {
+		--rise: 4px;
+		--blur: 12px;
+		--duration: 1400;
+		--delay: 0;
 		margin-top: 24px;
 		font-size: clamp(38px, 6vw, 68px);
 		font-weight: 550;
 		line-height: 1.02;
 		letter-spacing: -0.04em;
+		text-wrap: balance;
 	}
 
 	h1 span {
@@ -471,6 +468,10 @@
 	}
 
 	.lede {
+		--rise: 3px;
+		--blur: 10px;
+		--duration: 1300;
+		--delay: 150;
 		max-width: 640px;
 		margin-top: 24px;
 		color: var(--fg-muted);
@@ -480,6 +481,10 @@
 	}
 
 	.actions {
+		--rise: 3px;
+		--blur: 8px;
+		--duration: 1300;
+		--delay: 300;
 		display: flex;
 		flex-wrap: wrap;
 		gap: 12px;
@@ -487,29 +492,49 @@
 	}
 
 	.fine {
+		--rise: 3px;
+		--blur: 8px;
+		--duration: 1300;
+		--delay: 300;
 		margin-top: 16px;
 		color: var(--fg-muted);
 		font-size: 13px;
+		line-height: 1.55;
 	}
 
-	.showcase {
+	.plate {
+		--rise: 6px;
+		--blur: 8px;
+		--duration: 1600;
+		--delay: 450;
 		position: relative;
-		padding: 48px 0 56px;
-		animation: enter 1.6s var(--ease-out-quart) 380ms backwards;
+		padding: 56px 0 64px;
+	}
+
+	.plate::before {
+		content: '';
+		position: absolute;
+		z-index: 1;
+		top: -4px;
+		left: 50%;
+		width: 100vw;
+		height: 9px;
+		margin-left: -50vw;
+		background: var(--crosses);
+		background-repeat: no-repeat;
+		pointer-events: none;
 	}
 
 	.spot {
 		position: absolute;
-		inset: 0 12px;
-		max-width: 1920px;
-		margin: 0 auto;
+		inset: 0 calc(50% - var(--col) / 2);
 		overflow: hidden;
-		border-radius: 18px;
 	}
 
 	.window {
+		--window-radius: calc(100cqi * 46 / 2560);
 		position: relative;
-		padding: 0 var(--pad);
+		container-type: inline-size;
 	}
 
 	.shot {
@@ -518,62 +543,69 @@
 		height: auto;
 	}
 
-	.gap .rail {
-		height: 64px;
+	@keyframes enter {
+		from {
+			opacity: 0;
+			translate: 0 var(--rise);
+			filter: blur(var(--blur));
+		}
+
+		50% {
+			translate: 0 0;
+		}
 	}
 
-	:global(.cells) {
-		overflow: hidden;
+	@keyframes fade {
+		from {
+			opacity: 0;
+		}
 	}
 
-	.steps,
-	.trust {
+	.cells {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
+		margin: 72px calc(-1 * max(var(--pad), env(safe-area-inset-left))) 0;
 		list-style: none;
 	}
 
-	.steps li,
-	.trust li {
+	.cells li {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
+		gap: 8px;
 		padding: 40px var(--pad);
+		border-top: 1px solid var(--frame);
 	}
 
-	.steps li + li,
-	.trust li + li {
-		border-left: 1px solid var(--line);
+	.cells li + li {
+		border-left: 1px solid var(--frame);
 	}
 
-	.number {
-		display: grid;
-		place-items: center;
-		width: 26px;
-		height: 26px;
-		margin-bottom: 8px;
-		border-radius: 8px;
-		box-shadow: inset 0 0 0 1px var(--line-strong);
-		color: var(--fg-secondary);
-		font-size: 13px;
-		font-weight: 600;
+	.idx {
+		color: var(--fg-faint);
+		font-family: var(--mono);
+		font-size: 12px;
+		line-height: 24px;
 		font-variant-numeric: tabular-nums;
 	}
 
-	.trust li :global(svg) {
-		margin-bottom: 8px;
+	.cells .idx {
+		margin-bottom: 4px;
+	}
+
+	.cells li > :global(svg) {
+		margin: 4px 0 8px;
 		color: var(--fg-muted);
 	}
 
-	.steps h3,
-	.trust h3 {
+	.cells h3 {
 		font-size: 17px;
 		font-weight: 550;
+		line-height: 1.4;
 		letter-spacing: -0.01em;
+		text-wrap: balance;
 	}
 
-	.steps p,
-	.trust p {
+	.cells p {
 		color: var(--fg-muted);
 		font-size: 15px;
 		line-height: 1.6;
@@ -584,8 +616,8 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: 10px;
-		margin-top: 32px;
+		gap: 12px;
+		margin-top: 12px;
 	}
 
 	.terminal-title {
@@ -606,93 +638,110 @@
 
 	.faq {
 		display: grid;
-		grid-template-columns: repeat(5, minmax(0, 1fr));
-		gap: 48px;
-		padding: 112px var(--pad);
+		grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+		gap: 24px 64px;
+		align-items: start;
 	}
 
 	.faq-intro {
+		position: sticky;
+		top: calc(var(--bar-h) + 32px);
 		display: flex;
-		grid-column: span 2;
 		flex-direction: column;
-		gap: 12px;
+		gap: 20px;
 	}
 
-	.answers {
-		grid-column: span 3;
-	}
-
-	.faq h2 {
-		font-size: 36px;
+	h2 {
+		font-size: clamp(30px, 3.4vw, 40px);
 		font-weight: 550;
-		line-height: 40px;
+		line-height: 1.1;
 		letter-spacing: -0.03em;
 		text-wrap: balance;
 	}
 
-	.faq-intro p {
+	.faq-intro p,
+	.sub {
+		max-width: 560px;
 		color: var(--fg-muted);
 		font-size: 18px;
-		line-height: 28px;
+		line-height: 1.55;
 		text-wrap: pretty;
 	}
 
 	.faq-intro a {
-		color: var(--fg);
+		color: var(--fg-default);
 		font-weight: 500;
-		text-decoration: none;
+		text-decoration: underline;
+		text-decoration-color: var(--border-strong);
+		text-decoration-thickness: 1.5px;
+		text-underline-offset: 3px;
 		white-space: nowrap;
 	}
 
-	.faq-intro a:hover {
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
-
 	details + details {
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--border-default);
 	}
 
 	summary {
-		display: flex;
+		display: grid;
+		grid-template-columns: 24px minmax(0, 1fr) 16px;
+		gap: 16px;
 		align-items: center;
-		justify-content: space-between;
-		gap: 24px;
-		padding: 20px 0;
-		font-size: 16px;
-		font-weight: 500;
-		line-height: 24px;
+		min-height: 64px;
+		padding: 16px 0;
 		list-style: none;
 		cursor: pointer;
+		-webkit-user-select: none;
+		user-select: none;
 	}
 
 	summary::-webkit-details-marker {
 		display: none;
 	}
 
-	summary svg {
-		flex: none;
-		margin-right: 4px;
-		color: var(--fg-muted);
-		transition: color 150ms ease;
+	.q {
+		font-size: 16px;
+		font-weight: 500;
+		line-height: 24px;
+		text-wrap: pretty;
 	}
 
-	summary:hover svg,
-	details[open] summary svg {
-		color: var(--fg);
+	.plus {
+		position: relative;
+		justify-self: end;
+		width: 12px;
+		height: 12px;
 	}
 
-	.stem {
-		transform-box: fill-box;
-		transform-origin: center;
+	.plus::before,
+	.plus::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 0;
+		width: 12px;
+		height: 1.5px;
+		margin-top: -0.75px;
+		border-radius: 1px;
+		background: var(--fg-muted);
+		transition: rotate 200ms var(--ease);
 	}
 
-	details[open] .stem {
+	.plus::after {
 		rotate: 90deg;
 	}
 
+	details[open] .plus::after {
+		rotate: 0deg;
+	}
+
+	summary:active .q {
+		color: var(--fg-secondary);
+	}
+
 	details p {
-		padding: 0 40px 16px 0;
+		max-width: 600px;
+		padding: 0 32px 22px 40px;
 		color: var(--fg-muted);
 		font-size: 16px;
 		line-height: 24px;
@@ -709,164 +758,70 @@
 	}
 
 	@media (prefers-reduced-motion: no-preference) {
-		.stem {
-			transition: rotate 200ms var(--ease-out-quart);
-		}
-
 		details::details-content {
 			interpolate-size: allow-keywords;
 			transition:
-				height 200ms ease,
+				height 200ms var(--ease),
 				content-visibility 200ms allow-discrete;
 		}
 	}
 
-	.cta h2 {
-		text-wrap: balance;
-		font-size: clamp(30px, 3.4vw, 40px);
-		font-weight: 550;
-		line-height: 1.1;
-		letter-spacing: -0.03em;
-	}
-
-	.cta {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.cta-copy {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		justify-content: center;
-		padding: 80px var(--pad);
-		border-right: 1px solid var(--line);
-	}
-
-	.cta-copy > p:first-of-type {
-		max-width: 440px;
-		margin-top: 16px;
-		color: var(--fg-muted);
-		font-size: 18px;
-		line-height: 1.55;
-	}
-
-	.cta-stage {
+	.close {
 		position: relative;
+		padding: 56px 64px 64px;
+	}
+
+	.glow {
+		position: absolute;
+		z-index: -1;
+		inset: 10% 20% 0 10%;
+		background:
+			radial-gradient(closest-side, #1957fa, transparent) 0 30% / 55% 80% no-repeat,
+			radial-gradient(closest-side, #d94f46, transparent) 50% 60% / 50% 70% no-repeat,
+			radial-gradient(closest-side, #fb8600, transparent) 100% 40% / 45% 70% no-repeat;
+		filter: blur(48px);
+		opacity: 0.14;
+		pointer-events: none;
+	}
+
+	.end {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 56px 48px;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 32px 48px;
 	}
 
-	.cta-panel {
-		position: relative;
-		width: 100%;
-		max-width: 480px;
-		overflow: hidden;
-		border-radius: 14px;
-		background: var(--app-panel);
-		box-shadow:
-			var(--app-shadow),
-			0 0 0 1px var(--app-line);
-		color: var(--app-fg);
+	.end > div:first-child {
+		flex: 1 1 520px;
+		max-width: 780px;
 	}
 
-	.cta-panel.lit {
-		box-shadow: 0 0 0 1px var(--app-line);
+	.end .sub {
+		margin-top: 20px;
 	}
 
-	.cta-head {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 20px 24px;
-		border-bottom: 1px solid var(--app-line);
-		font-size: 17px;
-		font-weight: 500;
-		letter-spacing: -0.01em;
+	.close-actions .actions {
+		margin-top: 0;
 	}
 
-	.cta-head img {
-		border-radius: 7px;
-	}
-
-	.cta-panel ol {
-		display: flex;
-		flex-direction: column;
-		gap: 24px;
-		padding: 24px;
-		list-style: none;
-	}
-
-	.cta-panel li {
-		display: flex;
-		gap: 16px;
-		font-size: 14px;
-	}
-
-	.cta-panel li > span:last-child {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.cta-panel strong {
-		font-weight: 500;
-	}
-
-	.cta-panel li > span:last-child > span {
-		color: var(--app-fg-3);
-		line-height: 1.55;
-	}
-
-	.day {
-		align-self: flex-start;
-		display: flex;
-		flex: none;
-		flex-direction: column;
-		width: 44px;
-		overflow: hidden;
-		border-radius: 7px;
-		background: var(--app-root);
-		box-shadow: inset 0 0 0 1px var(--app-line-strong);
-		text-align: center;
-	}
-
-	.day span:first-child {
-		padding: 2px 0;
-		background: var(--app-raised);
-		color: var(--app-fg-2);
-		font-size: 9px;
-		font-weight: 600;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-	}
-
-	.day span:last-child {
-		padding: 3px 0 4px;
-		font-family: var(--mono);
-		font-size: 15px;
-	}
-
-	@keyframes enter {
-		from {
-			opacity: 0;
-			translate: 0 6px;
-			filter: blur(8px);
+	@media (hover: hover) and (pointer: fine) {
+		.eyebrow:hover {
+			box-shadow: inset 0 0 0 1px var(--border-default);
+			color: var(--fg-default);
 		}
-	}
 
-	@media (prefers-reduced-motion: reduce) {
-		.intro > :global(*),
-		.showcase {
-			animation: fade 400ms ease backwards;
+		.eyebrow:hover :global(.ahead) {
+			translate: 2px 0;
 		}
-	}
 
-	@keyframes fade {
-		from {
-			opacity: 0;
+		summary:hover .plus::before,
+		summary:hover .plus::after {
+			background: var(--fg-default);
+		}
+
+		.faq-intro a:hover {
+			text-decoration-color: var(--fg-default);
 		}
 	}
 
@@ -875,61 +830,83 @@
 			padding-top: 56px;
 		}
 
-		.steps,
-		.trust {
+		.cells {
 			grid-template-columns: minmax(0, 1fr);
+			margin-top: 48px;
 		}
 
-		.steps li + li,
-		.trust li + li {
-			border-top: 1px solid var(--line);
+		.cells li {
+			padding-block: 32px;
+		}
+
+		.cells li + li {
 			border-left: 0;
-		}
-
-		.faq,
-		.cta {
-			grid-template-columns: minmax(0, 1fr);
-		}
-
-		.faq {
-			gap: 40px;
-			padding: 80px var(--pad);
-		}
-
-		.faq-intro,
-		.answers {
-			grid-column: auto;
-		}
-
-		.cta-copy {
-			padding: 64px var(--pad);
-			border-right: 0;
-			border-bottom: 1px solid var(--line);
-		}
-
-		.spot {
-			inset: 0;
-			border-radius: 0;
 		}
 	}
 
-	@media (max-width: 640px) {
-		.faq h2 {
-			font-size: 30px;
-			line-height: 36px;
+	@media (max-width: 859px) {
+		.lede,
+		.faq-intro p,
+		.sub {
+			font-size: 17px;
 		}
 
+		.faq {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 32px;
+		}
+
+		.faq-intro {
+			position: static;
+		}
+
+		.close {
+			padding: 44px 28px 48px;
+		}
+
+		.end > div:first-child {
+			flex-basis: auto;
+		}
+	}
+
+	@media (max-width: 639px) {
 		h1 span {
 			display: block;
 			white-space: normal;
 		}
 
-		.lede {
-			font-size: 17px;
+		.plate {
+			padding: 32px 0 40px;
 		}
 
-		.cta-stage {
-			padding: 32px 12px;
+		.window {
+			padding-inline: 12px;
+		}
+	}
+
+	@media (max-width: 559px) {
+		summary {
+			grid-template-columns: minmax(0, 1fr) 16px;
+		}
+
+		summary .idx {
+			display: none;
+		}
+
+		details p {
+			padding: 0 24px 20px 0;
+		}
+
+		.close {
+			margin-inline: -12px;
+			padding: 40px 12px 44px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.intro > *,
+		.plate {
+			animation: fade 400ms ease backwards;
 		}
 	}
 </style>
