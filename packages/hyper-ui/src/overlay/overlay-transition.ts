@@ -5,6 +5,7 @@ export interface MenuTransitionParams {
 	side: MenuSide;
 	align: MenuAlign;
 	duration?: number;
+	easing?: (t: number) => number;
 	skip?: boolean;
 }
 
@@ -26,6 +27,8 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t:
 		return along(y1, y2, (low + high) / 2);
 	};
 }
+
+export const PREVIEW_ENTER = { duration: 300, easing: cubicBezier(0, 0, 0.58, 1) } as const;
 
 function transformOriginFor(side: MenuSide, align: MenuAlign): string {
 	if (side === 'top' || side === 'bottom') {
@@ -52,7 +55,7 @@ function menuMotion(node: HTMLElement, params: MenuTransitionParams): Transition
 	node.style.willChange = 'transform, opacity';
 	return {
 		duration: reduced ? REDUCED_MOTION_DURATION_MS : (params.duration ?? MENU_DURATION_MS),
-		easing: MENU_EASING,
+		easing: params.easing ?? MENU_EASING,
 		css: (t) =>
 			reduced ? `opacity: ${t};` : `opacity: ${t}; transform: scale(${0.95 + 0.05 * t});`,
 	};

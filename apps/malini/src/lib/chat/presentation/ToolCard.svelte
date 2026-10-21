@@ -63,7 +63,6 @@
 	);
 	const labelInput = $derived(input === undefined ? summarizeLiveToolInput(liveInputJson) : input);
 	const displayName = $derived(toolDisplayName(name, labelInput));
-	const live = $derived(status === 'running' && !waiting);
 	const durationLabel = $derived(
 		waiting
 			? 'waiting'
@@ -165,7 +164,6 @@
 		icon={actionKind === 'edit' ? 'pencil' : 'note'}
 		path={editPath}
 		{previewName}
-		{live}
 		{diffstat}
 		{durationLabel}
 	>
@@ -215,7 +213,6 @@
 				title={description ?? label}
 				detail={description ? label : null}
 				emphasized={description !== null}
-				{live}
 			/>
 			{#if durationLabel}
 				<span

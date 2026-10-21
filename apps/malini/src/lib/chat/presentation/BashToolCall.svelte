@@ -95,7 +95,6 @@
 			title={description ?? operationName}
 			detail={command === operationName ? null : commandLabel}
 			emphasized={description !== null}
-			live={status === 'running' && !waiting}
 		/>
 		{#if waiting}
 			<span class="text-3xs text-fg-tertiary/70 shrink-0 font-mono" in:fade={{ duration: 190 }}>

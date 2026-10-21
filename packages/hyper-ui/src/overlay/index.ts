@@ -40,4 +40,9 @@ export {
 	type OverlaySurfaceOptions,
 	type SuppressionRect,
 } from './suppression';
-export { menuClose, menuOpen, type MenuTransitionParams } from './overlay-transition';
+export {
+	menuClose,
+	menuOpen,
+	PREVIEW_ENTER,
+	type MenuTransitionParams,
+} from './overlay-transition';
