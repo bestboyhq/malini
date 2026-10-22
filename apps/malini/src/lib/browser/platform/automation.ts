@@ -15,6 +15,8 @@ const REFUSED = 'ERR_CONNECTION_REFUSED';
 const ACTION_SETTLE_MS = 10_000;
 const NAVIGATION_GRACE_MS = 250;
 const LOAD_POLL_MS = 50;
+const FIRST_FRAME_MS = 3_000;
+const FRAME_POLL_MS = 50;
 const MAX_NAME_ATTEMPTS = 1_000;
 
 export async function openUrl(contents: PageContents, url: string): Promise<void> {
@@ -88,10 +90,10 @@ export async function saveScreenshot(
 	worktree: string,
 	now: Date,
 ): Promise<BrowserScreenshotFile> {
-	const image = await contents.capturePage(undefined, { stayHidden: false }).catch(() => null);
-	if (!image || image.isEmpty()) {
+	const image = await captureFrame(contents);
+	if (!image) {
 		throw new Error(
-			'The browser could not render the page, which happens while Malini is hidden. Ask the user to show Malini, then call browser_screenshot again.',
+			`The browser painted nothing for ${FIRST_FRAME_MS / 1_000}s. Call browser_reload, then browser_screenshot again.`,
 		);
 	}
 	const directory = join(worktree, SCREENSHOTS_PATH);
@@ -100,6 +102,19 @@ export async function saveScreenshot(
 	const previewPath = join(directory, `${name}.jpg`);
 	await writeFile(previewPath, fitLongEdge(image, PREVIEW_LONG_EDGE).toJPEG(80));
 	return { path: `${SCREENSHOTS_PATH}/${name}.png`, previewPath, url: contents.getURL() };
+}
+
+export async function captureFrame(contents: PageContents): Promise<PageImage | null> {
+	const deadline = Date.now() + FIRST_FRAME_MS;
+	while (Date.now() < deadline) {
+		const image = await within(
+			contents.capturePage(undefined, { stayHidden: false }),
+			deadline - Date.now(),
+		).catch(() => undefined);
+		if (image && !image.isEmpty()) return image;
+		await delay(FRAME_POLL_MS);
+	}
+	return null;
 }
 
 async function writeUnique(directory: string, base: string, png: Buffer): Promise<string> {
@@ -133,14 +148,14 @@ async function settled(contents: PageContents, deadline: number): Promise<void> 
 	while (contents.isLoading() && Date.now() < deadline) await delay(LOAD_POLL_MS);
 }
 
-async function within(work: Promise<unknown>, ms: number): Promise<void> {
+async function within<T>(work: Promise<T>, ms: number): Promise<T | undefined> {
 	void work.catch(() => undefined);
 	let timer: NodeJS.Timeout | undefined;
 	try {
-		await Promise.race([
+		return await Promise.race([
 			work,
-			new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, ms);
+			new Promise<undefined>((resolve) => {
+				timer = setTimeout(() => resolve(undefined), ms);
 			}),
 		]);
 	} finally {
@@ -148,7 +163,7 @@ async function within(work: Promise<unknown>, ms: number): Promise<void> {
 	}
 }
 
-export function delay(ms: number): Promise<void> {
+function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
