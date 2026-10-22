@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -43,12 +43,17 @@ async function fakeGh(
 	return { signIn, state };
 }
 
+async function answer(state: string, verdict: 'approve' | 'deny'): Promise<void> {
+	await writeFile(join(state, 'answer.partial'), verdict);
+	await rename(join(state, 'answer.partial'), join(state, 'answer'));
+}
+
 describe('GitHubSignIn', () => {
 	it('hands over the device code, then reports the sign-in once GitHub approves it', async () => {
 		const { signIn, state } = await fakeGh();
 
 		const code = await signIn.start();
-		await writeFile(join(state, 'answer'), 'approve');
+		await answer(state, 'approve');
 
 		expect(code).toEqual({
 			userCode: '45D6-E7E4',
@@ -73,7 +78,7 @@ describe('GitHubSignIn', () => {
 		const { signIn, state } = await fakeGh();
 
 		await signIn.start();
-		await writeFile(join(state, 'answer'), 'deny');
+		await answer(state, 'deny');
 
 		await expect(signIn.finish()).rejects.toThrow('authorization was denied');
 	});

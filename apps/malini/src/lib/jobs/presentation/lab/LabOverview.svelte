@@ -14,7 +14,6 @@
 	import LabDraftCard from './LabDraftCard.svelte';
 	import LabJobCard from './LabJobCard.svelte';
 	import LabRecipeCard from './LabRecipeCard.svelte';
-	import LabLabelVariants from './LabLabelVariants.svelte';
 	import LabSection from './LabSection.svelte';
 
 	interface Props {
@@ -71,12 +70,6 @@
 	description="Jobs Malini runs when something happens. Say what and when, and Malini drafts the job."
 	testId="lab-overview"
 >
-	<Well title="Title label options">
-		<div class="bg-surface-50 border-surface-50-border rounded-xl border-[0.5px] py-3">
-			<LabLabelVariants placement="title" />
-		</div>
-	</Well>
-
 	<Well title={PROMPT}>
 		<ComposerShell testId="lab-overview-composer">
 			<Textarea

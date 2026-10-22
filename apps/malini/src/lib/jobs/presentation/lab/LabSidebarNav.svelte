@@ -11,7 +11,6 @@
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
 	import { labWaitingJobs } from './lab-activity';
-	import LabLabelVariants from './LabLabelVariants.svelte';
 	import { labState, type LabSection } from './lab-state.svelte';
 	import { labIsManual, labTrigger } from './lab-triggers';
 
@@ -59,7 +58,7 @@
 	</div>
 
 	<nav class="flex flex-col gap-px px-2.5 pt-4" aria-label="Automations">
-		<LabLabelVariants placement="sidebar" />
+		<h2 class="text-fg-tertiary px-2 pt-1 pb-2.5 text-xs font-medium">Automations</h2>
 		{#each SECTIONS as section (section.value)}
 			{@const current = labState.section === section.value}
 			<Button
