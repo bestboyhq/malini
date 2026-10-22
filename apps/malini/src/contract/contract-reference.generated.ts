@@ -157,11 +157,12 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;',
 		},
 		{
-			channel: 'app:connect-repository-requested',
+			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick Open Folder… or Clone Repository… from Malini's menu bar icon, with which one you picked.",
-			payloadType: 'ConnectRepositoryRequest',
-			payload: "type ConnectRepositoryRequest = Readonly<{ via: 'folder' | 'clone' }>;",
+				"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+			payloadType: 'MenuCommandChosen',
+			payload:
+				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',

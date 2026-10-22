@@ -3,10 +3,11 @@ import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
-	APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
+	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
-	type ConnectRepositoryRequest,
+	type MenuCommand,
+	type MenuCommandChosen,
 	type NotificationTarget,
 } from '$contract/events';
 import type { NotificationPermissionResult } from '$contract/system';
@@ -133,8 +134,8 @@ export interface WindowCommands {
 	destroy(): void;
 	notify(args: { options: { title: string; body: string; opens?: NotificationTarget } }): void;
 	takeNotificationTarget(): NotificationTarget | null;
-	requestConnectRepository(via: ConnectRepositoryRequest['via']): void;
-	takeConnectRepositoryRequest(): ConnectRepositoryRequest | null;
+	chooseMenuCommand(command: MenuCommand): void;
+	takeMenuCommand(): MenuCommandChosen | null;
 	isNotificationPermissionGranted(): boolean | null;
 	requestNotificationPermission(): NotificationPermissionResult;
 	windowStateSaved(): Promise<void>;
@@ -228,7 +229,7 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 	host.onDisplayMetricsChanged(() => events.emit(APP_SCALE_CHANGED_CHANNEL, {}));
 
 	let notificationTarget: NotificationTarget | null = null;
-	let connectRepositoryRequest: ConnectRepositoryRequest | null = null;
+	let menuCommand: MenuCommandChosen | null = null;
 
 	const focusMainWindow = (): void => {
 		const window = deps.getMainWindow();
@@ -306,15 +307,15 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 			notificationTarget = null;
 			return target;
 		},
-		requestConnectRepository(via) {
-			connectRepositoryRequest = { via };
+		chooseMenuCommand(command) {
+			menuCommand = { command };
 			focusMainWindow();
-			events.emit(APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL, connectRepositoryRequest);
+			events.emit(APP_MENU_COMMAND_CHOSEN_CHANNEL, menuCommand);
 		},
-		takeConnectRepositoryRequest() {
-			const request = connectRepositoryRequest;
-			connectRepositoryRequest = null;
-			return request;
+		takeMenuCommand() {
+			const chosen = menuCommand;
+			menuCommand = null;
+			return chosen;
 		},
 		isNotificationPermissionGranted: () => host.notificationsSupported(),
 		requestNotificationPermission: () => (host.notificationsSupported() ? 'granted' : 'denied'),

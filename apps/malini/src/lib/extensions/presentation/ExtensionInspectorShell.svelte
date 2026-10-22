@@ -16,6 +16,9 @@
 	import ExtensionGutter from './ExtensionGutter.svelte';
 	import ExtensionPanelHost from './ExtensionPanelHost.svelte';
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
+	import InspectorPanelContextMenu, {
+		type InspectorPanelMenuTarget,
+	} from './InspectorPanelContextMenu.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
 	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
@@ -35,6 +38,8 @@
 	import { inspectorPanelCommands } from '$shared/extensions/panel-requests.store.svelte';
 	import {
 		loadInspectorPanelPreferences,
+		inspectorPanelHiddenEverywhere,
+		saveInspectorPanelHiddenEverywhere,
 		saveInspectorPanelPreferences,
 	} from '$shared/extensions/inspector-panel-preferences.store';
 	import {
@@ -67,7 +72,7 @@
 		addExtensionsContent?: Snippet;
 		renderIcon?: Snippet<[icon: string, size: number]>;
 		panelActions?: readonly InspectorPanelAction[];
-		closablePanelIds?: ReadonlySet<string>;
+		workstreamPanelIds?: ReadonlySet<string>;
 		storage?: InspectorPreferenceStorage | null | undefined;
 		onactivechange?: (panelId: string | null) => void;
 		onpanelselect?: (panelId: string) => void;
@@ -93,7 +98,7 @@
 		addExtensionsContent,
 		renderIcon,
 		panelActions = [],
-		closablePanelIds = new Set(),
+		workstreamPanelIds = new Set(),
 		storage,
 		onactivechange,
 		onpanelselect,
@@ -117,6 +122,7 @@
 	let directoryTabStateRevision = $state(0);
 	let settingsOpen = $state(false);
 	let settingsAnchor: HTMLSpanElement | null = $state(null);
+	let panelMenu: InspectorPanelMenuTarget | null = $state.raw(null);
 	let panelFailures: Readonly<Record<string, string>> = $state.raw({});
 	let handledRequestedPanelId: string | null = $state(null);
 	let openedPanelKey: string | null = null;
@@ -132,6 +138,9 @@
 	const orderedPanels = $derived(panelPresentation.orderedPanels);
 	const arrangeable = $derived(orderedPanels.length > 1);
 	const activePanel = $derived(panelPresentation.activePanel);
+	const sharedPanelIds = $derived(
+		new Set(panels.map(({ id }) => id).filter((id) => !workstreamPanelIds.has(id))),
+	);
 	const inspectorInteractive = $derived(loadedWorkstreamId === workstreamId);
 	const inspectorRuntimeReady = $derived(ready && inspectorInteractive);
 	const presentedEntry = $derived(inspectorPanelKeepAliveEntry(keepAlive, workstreamId));
@@ -196,6 +205,7 @@
 		if (!inspectorInteractive) {
 			panelPickerOpen = false;
 			settingsOpen = false;
+			panelMenu = null;
 		}
 	});
 
@@ -223,6 +233,13 @@
 	$effect(() => {
 		if (!addExtensionsActive) return;
 		openDrawer();
+	});
+
+	$effect(() => {
+		if (finalizedWorkstreamId !== workstreamId || !inspectorRuntimeReady) return;
+		if (addExtensionsActive) return;
+		if (visiblePanels.length > 0) inspectorDrawer.unfold(workstreamId, storage);
+		else if (drawerOpen) foldDrawer();
 	});
 
 	$effect(() => {
@@ -377,6 +394,12 @@
 		settingsOpen = false;
 	}
 
+	function foldDrawer(): void {
+		inspectorDrawer.fold(workstreamId, storage);
+		panelPickerOpen = false;
+		settingsOpen = false;
+	}
+
 	function openPanel(panelId: string): void {
 		if (!inspectorInteractive) return;
 		openDrawer();
@@ -395,19 +418,20 @@
 		);
 	}
 
-	async function focusPanelTab(panelId: string | null): Promise<void> {
+	async function focusPanelTab(
+		panelId: string | null,
+		testId = 'extension-inspector-tab',
+	): Promise<void> {
 		if (!panelId) return;
 		await tick();
 		document
 			.querySelector<HTMLElement>(
-				`[data-testid="extension-inspector-tab"][data-panel-id="${CSS.escape(panelId)}"]`,
+				`[data-testid="${testId}"][data-panel-id="${CSS.escape(panelId)}"]`,
 			)
 			?.focus({ preventScroll: true });
 	}
 
-	function closePanel(event: MouseEvent, panelId: string): void {
-		event.preventDefault();
-		event.stopPropagation();
+	function closePanel(panelId: string): void {
 		if (!inspectorInteractive) return;
 
 		const closingIndex = visiblePanels.findIndex((panel) => panel.id === panelId);
@@ -426,7 +450,31 @@
 		});
 		clearPanelFailure(panelId);
 		notifyPanelClosed(closingPanel);
-		if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
+		if (next.activeId === null && !addExtensionsActive) {
+			foldDrawer();
+			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
+		} else if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
+	}
+
+	function openPanelMenu(event: MouseEvent, panelId: string): void {
+		event.preventDefault();
+		const panel = orderedPanels.find(({ id }) => id === panelId);
+		if (!panel || !sharedPanelIds.has(panelId) || !inspectorInteractive) return;
+		panelPickerOpen = false;
+		settingsOpen = false;
+		panelMenu = {
+			panelId,
+			label: panel.label,
+			hiddenEverywhere: inspectorPanelHiddenEverywhere(panelId, storage),
+			x: event.clientX,
+			y: event.clientY,
+		};
+	}
+
+	function toggleHiddenEverywhere({ panelId, hiddenEverywhere }: InspectorPanelMenuTarget): void {
+		saveInspectorPanelHiddenEverywhere(panelId, !hiddenEverywhere, storage);
+		if (hiddenEverywhere) openPanel(panelId);
+		else closePanel(panelId);
 	}
 
 	function closeExtensionDirectory(event: MouseEvent): void {
@@ -703,9 +751,13 @@
 							'data-panel-id': panel.id,
 						}}
 						onselect={() => selectPanel(panel.id)}
-						onclose={closablePanelIds.has(panel.id) && visiblePanels.length > 1
-							? (event) => closePanel(event, panel.id)
-							: undefined}
+						oncontextmenu={(event) => openPanelMenu(event, panel.id)}
+						animatesClose={() => drawerOpen}
+						onclose={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							closePanel(panel.id);
+						}}
 						trailing={badge ? badgeCount : undefined}
 					>
 						{#snippet icon()}
@@ -1081,7 +1133,8 @@
 			disabled={!inspectorInteractive}
 			{renderIcon}
 			onopen={openPanel}
-			onshow={openDrawer}
+			oncontextmenu={openPanelMenu}
+			onshow={visiblePanels.length > 0 ? openDrawer : undefined}
 		/>
 	{/if}
 
@@ -1137,6 +1190,12 @@
 		{/each}
 	{/each}
 </section>
+
+<InspectorPanelContextMenu
+	target={panelMenu}
+	onclose={() => (panelMenu = null)}
+	ontoggle={toggleHiddenEverywhere}
+/>
 
 <style>
 	.arrange-row[data-drop-before='true']::before,
