@@ -227,7 +227,7 @@
 	id="browser"
 	beat={beat('browser', 'Browser')}
 	mirrored
-	title="Give the agent a browser."
+	title="The browser agents enjoy using."
 	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
 	linkLabel="What the agent can do"
@@ -246,7 +246,7 @@
 <FeatureRow
 	id="merge"
 	beat={beat('merge', 'Merge queue')}
-	title="Press Merge. Do something else."
+	title="Press Merge. Ship the next thing."
 	body="Malini pushes, marks the pull request ready, and waits for checks and review. While it waits, it fixes red checks, catches up with main, and answers reviewers."
 	href={doc('workstreams')}
 	linkLabel="How a merge works"
