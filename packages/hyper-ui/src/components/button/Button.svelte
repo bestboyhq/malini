@@ -54,6 +54,7 @@
 		onkeydown?: (event: KeyboardEvent) => void;
 		onpointerdown?: (event: PointerEvent) => void;
 		ondblclick?: (event: MouseEvent) => void;
+		oncontextmenu?: (event: MouseEvent) => void;
 		[attr: `data-${string}`]: string | undefined;
 	}
 

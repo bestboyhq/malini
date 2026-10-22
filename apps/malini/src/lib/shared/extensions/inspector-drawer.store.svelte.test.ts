@@ -44,6 +44,20 @@ describe('inspector drawer state', () => {
 		expect(loadInspectorDrawerOpen('workstream-1', storage)).toBe(false);
 	});
 
+	it('reopens by itself after folding for lack of panels, but stays closed once the user closed it', () => {
+		const storage = memoryStorage();
+
+		inspectorDrawer.fold('workstream-1', storage);
+		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(false);
+		inspectorDrawer.unfold('workstream-1', storage);
+		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(true);
+
+		inspectorDrawer.close('workstream-1', storage);
+		inspectorDrawer.fold('workstream-1', storage);
+		inspectorDrawer.unfold('workstream-1', storage);
+		expect(inspectorDrawer.isOpen('workstream-1', storage)).toBe(false);
+	});
+
 	it('keeps the decision per workstream instead of leaking it to the next one', () => {
 		const storage = memoryStorage();
 

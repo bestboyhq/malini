@@ -96,7 +96,76 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 		await expect(closeExtensions).toBeFocused();
 		await page.keyboard.press('Enter');
 		await expectPanels(page, ['tab "Files" [selected]']);
-		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the X closes Files in its workstream, and the right-click menu hides or shows it in every workstream', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const first = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root, 'first'),
+			'e2e-close-files-first',
+			'First',
+		);
+		await seedWorkstream(
+			page,
+			await createSourceRepo(app.root, 'second'),
+			'e2e-close-files-second',
+			'Second',
+		);
+		const files = inspectorTab(page, 'Files');
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		const filesRow = inspector.getByRole('button', { name: /^Files/ });
+		const switchTo = (name: string) =>
+			page.getByRole('link', { name: new RegExp(`${name}$`) }).click();
+
+		await openWorkstream(page, first.workstreamId);
+		await expect(files).toBeVisible({ timeout: 20_000 });
+		await files.click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Hide Files in every workstream' }).click();
+		await expect(filesRow).toBeFocused();
+		await expect(panels(page)).toHaveCount(0);
+		await expect(inspector.getByRole('button', { name: 'Show inspector' })).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'inspector-files-hidden-everywhere');
+
+		await switchTo('Second');
+		await expect(filesRow).toBeVisible({ timeout: 20_000 });
+		await expect(panels(page)).toHaveCount(0);
+		await filesRow.click();
+		await expectPanels(page, ['tab "Files" [selected]']);
+
+		await switchTo('First');
+		await expect(filesRow).toBeVisible({ timeout: 20_000 });
+		await expect(panels(page)).toHaveCount(0);
+
+		await switchTo('Second');
+		await expect(files).toBeVisible({ timeout: 20_000 });
+		await files.click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Show Files in every workstream' }).click();
+
+		await switchTo('First');
+		await expect(files).toBeVisible({ timeout: 20_000 });
+		await expect(
+			page
+				.getByRole('tabpanel', { name: 'Files' })
+				.getByRole('treeitem', { name: 'Open seed.txt' }),
+		).toBeVisible();
+
+		await files.hover();
+		await page.getByRole('button', { name: 'Close Files', exact: true }).click();
+		await expect(filesRow).toBeFocused();
+		await expect(panels(page)).toHaveCount(0);
+
+		await switchTo('Second');
+		await expect(files).toBeVisible({ timeout: 20_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

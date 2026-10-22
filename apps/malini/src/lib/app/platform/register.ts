@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import type { RecentDiagnosticsArgs, ReportToastArgs } from '$contract/diagnostics';
 import type {
 	AppendRendererErrorArgs,
@@ -32,6 +32,7 @@ import { announceUpdate } from './contract-updates';
 import { RendererErrorLog } from './renderer-errors';
 import { bundleIdentifierFor, createRuntimeIdentityProvider } from './runtime-identity';
 import { RendererSecretStore } from './secrets';
+import { applicationMenu } from './menu';
 import { listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
@@ -58,7 +59,12 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		host,
 		sessionModel: deps.sessionModel ?? (() => null),
 	});
-	const updates = startUpdates(context);
+	const showMenu = (update: MenuItemConstructorOptions | null): void =>
+		host.showApplicationMenu(
+			applicationMenu(host.productName, update, (command) => window.chooseMenuCommand(command)),
+		);
+	showMenu(null);
+	const updates = startUpdates(context, showMenu);
 	return {
 		...defineShutdownCommands(context, deps),
 		shutdownUsageData: () => usageData.shutdown(),
@@ -170,12 +176,10 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));
 	commands.define('app.take-notification-target', () => window.takeNotificationTarget());
-	commands.define('app.take-connect-repository-request', () =>
-		window.takeConnectRepositoryRequest(),
-	);
+	commands.define('app.take-menu-command', () => window.takeMenuCommand());
 	host.showTray(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'), [
-		{ label: 'Open Folder…', click: () => window.requestConnectRepository('folder') },
-		{ label: 'Clone Repository…', click: () => window.requestConnectRepository('clone') },
+		{ label: 'Open Folder…', click: () => window.chooseMenuCommand('open-folder') },
+		{ label: 'Clone Repository…', click: () => window.chooseMenuCommand('clone-repository') },
 	]);
 	commands.define('app.notification-permission-granted', () =>
 		window.isNotificationPermissionGranted(),

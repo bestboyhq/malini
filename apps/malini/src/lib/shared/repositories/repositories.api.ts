@@ -135,6 +135,7 @@ export { answerRepositoryConnectionRequestCommand } from './application/commands
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
 export { consumeWorkstreamCreationCommand } from './application/commands/consume-workstream-creation.command';
 export { createWorkstreamForRepositoryCommand } from './application/commands/create-workstream-for-repository.command';
+export { createWorkstreamHereCommand } from './application/commands/create-workstream-here.command';
 export { deleteWorkstreamCommand } from './application/commands/delete-workstream.command';
 export { dismissDependencyInstallCommand } from './application/commands/dismiss-dependency-install.command';
 export { ensureWorkstreamChangeTotalsCommand } from './application/commands/ensure-workstream-change-totals.command';

@@ -10,6 +10,7 @@ import {
 	screen,
 	shell,
 	Tray,
+	type MenuItemConstructorOptions,
 	type Rectangle,
 } from 'electron';
 import type { AgentTheme } from '$contract/agent';
@@ -51,6 +52,7 @@ export interface ShellHost {
 	showNotification(options: { title: string; body: string; onClick?: () => void }): void;
 	openMainWindow(): void;
 	showTray(icon: string, items: readonly TrayItem[]): void;
+	showApplicationMenu(template: readonly MenuItemConstructorOptions[]): void;
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
 	onDisplayMetricsChanged(listener: () => void): void;
@@ -93,6 +95,9 @@ export function createElectronShellHost(): ShellHost {
 			tray = new Tray(icon);
 			tray.setToolTip(app.getName());
 			tray.setContextMenu(Menu.buildFromTemplate([...items]));
+		},
+		showApplicationMenu: (template) => {
+			Menu.setApplicationMenu(Menu.buildFromTemplate([...template]));
 		},
 		onWindowCreated: (listener) => {
 			app.on('browser-window-created', (_event, window) => listener(window));
