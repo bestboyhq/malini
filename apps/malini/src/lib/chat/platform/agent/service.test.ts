@@ -295,7 +295,7 @@ function jobDefinition(id: string, name: string): JobDefinitionRecord {
 		effort: 'high',
 		runsIn: 'workstream',
 		output: 'none',
-		skillPresetId: 'preset-1',
+		skills: ['adr'],
 		builtin: null,
 		createdAt: '2026-10-19T00:00:00.000Z',
 		updatedAt: '2026-10-19T00:00:00.000Z',
@@ -367,7 +367,11 @@ describe('platform requests from the agent', () => {
 
 		bridge.send(platformRequest('p-1', 'jobs_list', {}));
 		bridge.send(
-			platformRequest('p-2', 'jobs_save', { name: 'Ship notes', instructions: 'Write.' }),
+			platformRequest('p-2', 'jobs_save', {
+				name: 'Ship notes',
+				instructions: 'Write.',
+				skills: ['humanizer'],
+			}),
 		);
 		bridge.send(platformRequest('p-3', 'jobs_save', { id: 'job-2', effort: 'low' }));
 		bridge.send(platformRequest('p-4', 'jobs_run', { job: 'update docs', context: 'PR #12' }));
@@ -405,6 +409,7 @@ describe('platform requests from the agent', () => {
 				output: 'none',
 				model: 'opus',
 				effort: 'high',
+				skills: ['adr'],
 				builtin: null,
 				instructions: 'Do Update docs.',
 			},
@@ -422,6 +427,7 @@ describe('platform requests from the agent', () => {
 						effort: 'high',
 						runsIn: 'workstream',
 						output: 'none',
+						skills: ['humanizer'],
 					},
 				],
 				[
@@ -434,7 +440,6 @@ describe('platform requests from the agent', () => {
 						effort: 'low',
 						runsIn: 'workstream',
 						output: 'none',
-						skillPresetId: 'preset-1',
 					},
 				],
 				[

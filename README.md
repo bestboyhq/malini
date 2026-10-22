@@ -56,7 +56,7 @@ Malini earns nothing from tokens.
 It shows your context window and your plan usage, and you pick the model and the effort for every prompt.
 Claude Code also loads every skill you own into every chat.
 With 47 skills that is about 7,400 tokens before you type a word.
-Malini groups skills into presets, so a chat loads only the skills its work needs, and the composer shows which.
+Malini ranks them by how often your agents use them, so you can turn off the ones no chat needs.
 
 **Outcomes, not skills.**
 You never wanted skills.
@@ -64,7 +64,7 @@ A skill is a pile of markdown files, and that's an implementation detail.
 What you wanted was the outcome: checks green, branch up to date, review answered.
 So Malini has jobs.
 A job is an outcome you ask for by name, and you can have as many as you like.
-Give a job a skill preset, and it loads only the skills it needs.
+Name the skills a job needs, and it loads only those.
 That leaves your time for the work that matters, instead of fighting your setup.
 
 <p align="center">

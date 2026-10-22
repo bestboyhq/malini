@@ -2,7 +2,7 @@ import type { MaliniDatabase } from './driver';
 import { invariant } from '$main/errors';
 import { all, scalar } from './rows';
 
-export const TARGET_USER_VERSION = 54;
+export const BASELINE_USER_VERSION = 54;
 
 export const SCHEMA = `
 CREATE TABLE projects (
@@ -393,6 +393,27 @@ CREATE TABLE scratchpads (
 );
 `;
 
+const MIGRATIONS: readonly string[] = [
+	`
+ALTER TABLE job_definitions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
+UPDATE job_definitions
+  SET skills = (SELECT skills FROM skill_presets WHERE skill_presets.id = job_definitions.skill_preset_id)
+  WHERE skill_preset_id IN (SELECT id FROM skill_presets WHERE json_valid(skills));
+ALTER TABLE job_definitions DROP COLUMN skill_preset_id;
+DELETE FROM skill_choices WHERE scope != 'session' OR NOT json_valid(choice);
+UPDATE skill_choices SET choice = CASE json_extract(choice, '$.kind')
+  WHEN 'custom' THEN COALESCE(json_extract(choice, '$.skills'), 'null')
+  WHEN 'preset' THEN COALESCE(
+    (SELECT skills FROM skill_presets WHERE id = json_extract(skill_choices.choice, '$.presetId') AND json_valid(skills)),
+    'null')
+  ELSE 'null' END;
+DELETE FROM skill_choices WHERE json_type(choice) != 'array' OR json_array_length(choice) = 0;
+DROP TABLE skill_presets;
+`,
+];
+
+export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
+
 export function userVersion(db: MaliniDatabase): number {
 	return scalar(db, 'PRAGMA user_version');
 }
@@ -407,13 +428,15 @@ export function tableNames(db: MaliniDatabase): string[] {
 export function migrate(db: MaliniDatabase): void {
 	const existing = userVersion(db);
 	if (existing >= TARGET_USER_VERSION) return;
-	if (existing !== 0) {
+	if (existing !== 0 && existing < BASELINE_USER_VERSION) {
 		throw invariant(
 			`schema version ${existing} predates the first release; open this database once with Malini 0.33.0 to upgrade it`,
 		);
 	}
 	db.transaction(() => {
-		db.exec(SCHEMA);
+		if (existing === 0) db.exec(SCHEMA);
+		const applied = Math.max(existing, BASELINE_USER_VERSION) - BASELINE_USER_VERSION;
+		for (const migration of MIGRATIONS.slice(applied)) db.exec(migration);
 		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION};`);
 	});
 }

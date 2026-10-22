@@ -16,8 +16,7 @@
 	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
 	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
 	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
-	import { JobsNavBadge } from '$lib/jobs/jobs.api';
-	import { StatsReadout, WorkstreamRunningLine } from '$lib/stats/stats.api';
+	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
@@ -58,6 +57,7 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { runtimeDiagnostics } from '$shared/performance/runtime-diagnostics.svelte';
+	import SidebarFooter from './SidebarFooter.svelte';
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
@@ -1267,33 +1267,5 @@
 
 	<SidebarArchived />
 
-	<div
-		class="border-surface-50-border flex shrink-0 items-center gap-1 border-t py-1.5 pr-1.5 pl-2.5"
-	>
-		<Tooltip content="Connect repository" placement="right">
-			<IconButton
-				variant="ghost"
-				size="sm"
-				href={REPOSITORIES_HREF}
-				ariaLabel="Connect repository"
-				data-testid="sidebar-connect-repository"
-				data-navigation-path-id="expected-path:workstream-sidebar.connect-repository"
-			>
-				<Icon name="folder-plus" size={15} />
-			</IconButton>
-		</Tooltip>
-		<JobsNavBadge />
-		<Tooltip content="Settings" placement="right">
-			<IconButton
-				variant="ghost"
-				size="sm"
-				href="/settings"
-				ariaLabel="Open settings"
-				data-testid="sidebar-open-settings"
-			>
-				<Icon name="settings" size={15} />
-			</IconButton>
-		</Tooltip>
-		<StatsReadout />
-	</div>
+	<SidebarFooter />
 </SidebarFrame>
