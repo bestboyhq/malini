@@ -500,6 +500,16 @@ Payload: `NotificationTarget`
 type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 ```
 
+## `app:connect-repository-requested`
+
+Fires when you pick Open Folder… or Clone Repository… from Malini's menu bar icon, with which one you picked.
+
+Payload: `ConnectRepositoryRequest`
+
+```ts
+type ConnectRepositoryRequest = Readonly<{ via: 'folder' | 'clone' }>;
+```
+
 ## `app:streaming-changed`
 
 Fires when streamer mode turns on or off, because a screen recording or streaming app started or stopped.

@@ -50,6 +50,7 @@ const KEPT_COMMANDS = [
 	'app.destroy-window',
 	'app.notify',
 	'app.take-notification-target',
+	'app.take-connect-repository-request',
 	'app.notification-permission-granted',
 	'app.request-notification-permission',
 	'app.list-settings',
@@ -395,6 +396,27 @@ describe('registerApp', () => {
 		expect(await invoke('app.request-notification-permission')).toEqual({
 			ok: true,
 			value: 'granted',
+		});
+	});
+
+	it('puts Open Folder and Clone Repository in the menu bar, each handed to the window once', async () => {
+		boot(context);
+		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
+		expect(host.tray?.items.map((item) => item.label)).toEqual([
+			'Open Folder…',
+			'Clone Repository…',
+		]);
+
+		host.tray?.items[1]?.click();
+
+		expect(host.openedWindows).toBe(1);
+		expect(await invoke('app.take-connect-repository-request')).toEqual({
+			ok: true,
+			value: { via: 'clone' },
+		});
+		expect(await invoke('app.take-connect-repository-request')).toEqual({
+			ok: true,
+			value: null,
 		});
 	});
 });

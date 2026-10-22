@@ -29,7 +29,7 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
-import type { NotificationTarget } from './events';
+import type { ConnectRepositoryRequest, NotificationTarget } from './events';
 import type {
 	ChatJobRunsArgs,
 	JobDefinitionIdArgs,
@@ -624,6 +624,10 @@ export interface ContractCommands {
 	'app.notification-permission-granted': { args: undefined; result: boolean | null };
 	'app.notify': { args: NotifyArgs; result: void };
 	'app.take-notification-target': { args: undefined; result: NotificationTarget | null };
+	'app.take-connect-repository-request': {
+		args: undefined;
+		result: ConnectRepositoryRequest | null;
+	};
 	'app.request-notification-permission': {
 		args: undefined;
 		result: NotificationPermissionResult;
@@ -811,6 +815,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.notification-permission-granted',
 	'app.notify',
 	'app.take-notification-target',
+	'app.take-connect-repository-request',
 	'app.request-notification-permission',
 	'app.close-guard',
 	'app.destroy-window',

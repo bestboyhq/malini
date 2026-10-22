@@ -18,6 +18,8 @@ extraResources:
     to: LICENSE
   - from: vendor/gh
     to: vendor/gh
+  - from: build/tray
+    to: build/tray
 asar: true
 npmRebuild: false
 nodeGypRebuild: false
