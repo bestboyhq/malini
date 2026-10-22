@@ -48,6 +48,7 @@ Claude names each one from its title.
 Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
 A workstream you delete stays deleted.
 Like every workstream, each one is kept current: a pull request that falls behind its base or conflicts gets **Update from main**.
+Settings → Jobs picks when that happens: as main moves, when you open the workstream, or only when you merge.
 
 ## From prompt to merged
 

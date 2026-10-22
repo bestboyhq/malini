@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { Well } from '$hyper-ui/components/well';
 	import StreamerModeSettings from '../StreamerModeSettings.svelte';
 	import UsageDataSettings from '../UsageDataSettings.svelte';
 	import SettingsSection from './SettingsSection.svelte';
-	import Well from './Well.svelte';
 </script>
 
 <SettingsSection title="Privacy" description="What Malini sends off this Mac and shows on screen.">

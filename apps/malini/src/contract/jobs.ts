@@ -33,7 +33,7 @@ export type JobDefinitionRecord = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
-	skillPresetId: string | null;
+	skills: readonly string[];
 	builtin: JobBuiltin | null;
 	createdAt: string;
 	updatedAt: string;
@@ -70,7 +70,7 @@ export type SaveJobDefinitionArgs = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
-	skillPresetId?: string | null;
+	skills?: readonly string[];
 }>;
 
 export type JobDefinitionIdArgs = Readonly<{ definitionId: string }>;

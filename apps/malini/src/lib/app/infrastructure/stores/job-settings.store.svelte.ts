@@ -1,4 +1,4 @@
-import type { JobSettingKey, JobSettings } from '$lib/app/domain/job-settings';
+import type { JobSettings } from '$lib/app/domain/job-settings';
 
 class JobSettingsStore {
 	settings = $state.raw<JobSettings | null>(null);
@@ -7,7 +7,7 @@ class JobSettingsStore {
 		this.settings = settings;
 	}
 
-	set(key: JobSettingKey, value: number): void {
+	set<Key extends keyof JobSettings>(key: Key, value: JobSettings[Key]): void {
 		if (this.settings === null) return;
 		this.settings = { ...this.settings, [key]: value };
 	}

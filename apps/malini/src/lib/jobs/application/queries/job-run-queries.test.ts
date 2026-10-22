@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { JobRunRecord } from '$contract/jobs';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
 import { activeJobRunsQuery } from './active-job-runs.query.svelte';
+import { jobRunsForDefinitionQuery } from './job-runs-for-definition.query.svelte';
 import { needsYouJobCountQuery } from './needs-you-job-count.query.svelte';
 import { recentFinishedJobRunsQuery } from './recent-finished-job-runs.query.svelte';
 import { runningJobCountQuery } from './running-job-count.query.svelte';
@@ -82,6 +83,30 @@ describe('the recently finished jobs', () => {
 		expect(recent).toHaveLength(10);
 		expect(recent[0]?.id).toBe('done-0');
 		expect(recent.at(-1)?.id).toBe('done-9');
+	});
+});
+
+describe("a job's runs", () => {
+	it('are newest first by when they last changed, matching the time each one shows', () => {
+		jobRunsAggregate.runs = [
+			run('long', {
+				status: 'succeeded',
+				createdAt: hoursBefore(3),
+				finishedAt: hoursBefore(1),
+			}),
+			run('quick', {
+				status: 'succeeded',
+				createdAt: hoursBefore(2),
+				finishedAt: hoursBefore(1.5),
+			}),
+			run('started', {
+				status: 'running',
+				createdAt: hoursBefore(4),
+				startedAt: hoursBefore(0.5),
+			}),
+		];
+
+		expect(ids(jobRunsForDefinitionQuery.data('job-1'))).toEqual(['started', 'long', 'quick']);
 	});
 });
 

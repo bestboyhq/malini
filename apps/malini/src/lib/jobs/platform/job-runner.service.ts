@@ -199,12 +199,7 @@ export class JobRunner {
 					origin: 'job',
 					displayName: jobRun.title,
 				}));
-			if (definition.skillPresetId) {
-				chooseSessionSkills(db, sessionId, {
-					kind: 'preset',
-					presetId: definition.skillPresetId,
-				});
-			}
+			if (definition.skills.length > 0) chooseSessionSkills(db, sessionId, definition.skills);
 			const withSession = this.#update(jobRun.id, (current) =>
 				current.status === 'running' && !this.#stopped ? { ...current, sessionId } : null,
 			);
