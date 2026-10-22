@@ -10,7 +10,11 @@ export type RunTimelineThought = {
 
 export type RunTimelineItem =
 	| Exclude<RenderItem, { kind: 'terminal' | 'usage' }>
-	| (RunTimelineThought & { kind: 'thought'; key: string });
+	| (RunTimelineThought & { kind: 'thought'; key: string; live?: true });
+
+export function thoughtRowKey(runId: string, contentId: string): string {
+	return `thought-${runId}-${contentId}`;
+}
 
 function stringAt(input: unknown, keys: readonly string[]): string | null {
 	if (!isRecord(input)) return null;
@@ -134,7 +138,7 @@ export function linearizeRunTimeline(
 	const reasoning: RunTimelineItem[] = thoughts.map((thought) => ({
 		...thought,
 		kind: 'thought',
-		key: `thought-${run.runId}-${thought.contentId}`,
+		key: thoughtRowKey(run.runId, thought.contentId),
 	}));
 	return [...durable, ...reasoning].sort(
 		(left, right) => left.seq - right.seq || left.key.localeCompare(right.key),

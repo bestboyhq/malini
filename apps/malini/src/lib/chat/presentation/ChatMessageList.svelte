@@ -46,6 +46,7 @@
 		type ToolAggregate,
 	} from './render-state';
 	import { runProjectionVersion } from './render-projector';
+	import { thoughtRowKey, type RunTimelineItem } from './run-timeline';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import {
@@ -372,9 +373,20 @@
 			: [],
 	);
 
+	const liveThoughtItems = $derived(
+		liveThinkingBlocks.map((block): RunTimelineItem => ({
+			kind: 'thought',
+			key: thoughtRowKey(block.runId, block.contentId),
+			contentId: block.contentId,
+			seq: Number.MAX_SAFE_INTEGER,
+			text: block.text,
+			durationSeconds: null,
+			live: true,
+		})),
+	);
+
 	const liveRun = $derived<LiveRunBlocks>({
-		pendingToolItems: livePendingToolItems,
-		thinking: liveThinkingBlocks,
+		pendingItems: [...liveThoughtItems, ...livePendingToolItems],
 		assistant: liveAssistantBlocks,
 	});
 

@@ -13,7 +13,7 @@ declare global {
 	var tickerLines: string[];
 }
 
-test('a thinking agent narrates each step live and leaves its reasoning between its tool calls', async () => {
+test('a thinking agent narrates each step live, keeps an opened thought open as it ends, and leaves its reasoning between its tool calls', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -58,6 +58,11 @@ test('a thinking agent narrates each step live and leaves its reasoning between 
 			prefixes.filter((prefix) => narrated.includes(prefix)),
 		);
 		expect(narrated.slice(0, 1), 'the first frame shows the first word alone').toEqual(['The']);
+
+		const thoughts = page.getByTestId('thinking-summary');
+		await expect(thoughts).toHaveCount(1);
+		await live.locator('summary').click();
+		await expect(live.getByRole('list', { name: 'Thinking steps' })).toBeVisible();
 		await captureFlow(app, 'thinking-live');
 
 		await expect(page.getByTestId('chat-message-bubble')).toContainText(
@@ -66,8 +71,10 @@ test('a thinking agent narrates each step live and leaves its reasoning between 
 		);
 		await expect(live).toHaveCount(0);
 
-		const thoughts = page.getByTestId('thinking-summary');
 		await expect(thoughts).toHaveCount(2);
+		await expect(
+			thoughts.nth(1).getByRole('list', { name: 'Thinking steps' }).getByRole('listitem'),
+		).toHaveText(['The hover card opens on any focus. I will gate it on keyboard focus.']);
 		await expect(thoughts.first().getByTestId('thinking-outcome')).toHaveText(
 			'Focus returns to the chip that opened it. I should read the hover card first.',
 		);

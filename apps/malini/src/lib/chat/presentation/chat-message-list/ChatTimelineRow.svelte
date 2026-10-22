@@ -41,7 +41,7 @@
 {:else if item.kind === 'thought'}
 	<ThinkingRow
 		text={item.text}
-		live={false}
+		live={item.live === true}
 		durationSeconds={item.durationSeconds}
 		enterKey={timelineKey(run, item.contentId)}
 	/>
