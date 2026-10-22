@@ -34,8 +34,8 @@
 	<Button
 		bind:element={trigger}
 		variant="ghost"
-		size="sm"
-		class="text-fg-tertiary gap-1.5 text-xs tabular-nums"
+		size="auto"
+		class="text-fg-tertiary h-6 gap-1.5 px-1.5 text-xs tabular-nums"
 		ariaLabel={readout ? `Stats: ${readout} CPU` : 'Stats'}
 		ariaHasPopup="dialog"
 		ariaExpanded={open}
