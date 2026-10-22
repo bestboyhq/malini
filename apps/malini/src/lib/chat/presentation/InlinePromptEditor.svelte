@@ -439,6 +439,7 @@
 	align="center"
 	offset={8}
 	keyboardNavigation={false}
+	closeOnEscape={false}
 	restoreFocusToAnchor={false}
 	panelClass="pointer-events-none"
 	testId={`${testId}-chip-preview-layer`}

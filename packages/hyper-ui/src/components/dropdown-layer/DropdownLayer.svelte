@@ -38,6 +38,7 @@
 		owner?: string | undefined;
 		restoreFocusToAnchor?: boolean;
 		keyboardNavigation?: boolean;
+		closeOnEscape?: boolean;
 		backdrop?: boolean;
 	}
 
@@ -59,6 +60,7 @@
 		owner,
 		restoreFocusToAnchor = true,
 		keyboardNavigation = true,
+		closeOnEscape = true,
 		backdrop = false,
 	}: Props = $props();
 
@@ -214,7 +216,7 @@
 		if (trigger) resizeObserver.observe(trigger);
 		startAnchorFollow();
 		document.addEventListener('pointerdown', onDocumentPointerDown, true);
-		const releaseEscape = keyboardNavigation ? registerEscapeScope(requestClose) : null;
+		const releaseEscape = closeOnEscape ? registerEscapeScope(requestClose) : null;
 		if (keyboardNavigation) document.addEventListener('keydown', onKeydown);
 		document.addEventListener('scroll', positionCard, true);
 		window.addEventListener('resize', positionCard);
