@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
+	import { prefersReducedMotion, Tween } from 'svelte/motion';
 	import { Button } from '$hyper-ui/components/button';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
@@ -16,6 +18,11 @@
 		latest ? `${formatMemory(latest.memoryBytes)} · ${formatCpu(latest.cpuPercent)}` : null,
 	);
 
+	let readoutRect: DOMRectReadOnly | undefined = $state();
+	const readoutWidth = Tween.of(() => readoutRect?.width ?? 0, {
+		duration: (from) => (from === 0 || prefersReducedMotion.current ? 0 : 200),
+		easing: cubicOut,
+	});
 	let open = $state(false);
 	let trigger: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 
@@ -30,12 +37,12 @@
 	}
 </script>
 
-<Tooltip content="Stats" placement="top" suppressed={open} class="ml-auto min-w-0">
+<Tooltip content="Stats for nerds" placement="top" suppressed={open} class="ml-auto min-w-0">
 	<Button
 		bind:element={trigger}
 		variant="ghost"
-		size="sm"
-		class="text-fg-tertiary gap-1.5 text-xs tabular-nums"
+		size="auto"
+		class="text-fg-tertiary h-6 px-1.5 text-xs tabular-nums"
 		ariaLabel={readout ? `Stats: ${readout} CPU` : 'Stats'}
 		ariaHasPopup="dialog"
 		ariaExpanded={open}
@@ -43,23 +50,25 @@
 		onclick={onToggle}
 		data-testid="sidebar-open-stats"
 	>
-		<Icon name="signal" size={14} />
-		{#if latest}
-			<span class="flex min-w-0 items-baseline gap-1" data-testid="sidebar-stats-readout">
-				{@render fixedWidth(formatMemory(latest.memoryBytes), '000 MB')}
-				<span aria-hidden="true">·</span>
-				{@render fixedWidth(formatCpu(latest.cpuPercent), '100%')}
-			</span>
-		{/if}
+		<span class="flex items-center gap-1">
+			<Icon name="signal" size={14} />
+			{#if readout}
+				<span
+					class="flex justify-end overflow-hidden"
+					style:width={readoutWidth.current ? `${readoutWidth.current}px` : undefined}
+				>
+					<span
+						class="w-max shrink-0"
+						bind:contentRect={readoutRect}
+						data-testid="sidebar-stats-readout"
+					>
+						{readout}
+					</span>
+				</span>
+			{/if}
+		</span>
 	</Button>
 </Tooltip>
-
-{#snippet fixedWidth(value: string, widest: string)}
-	<span class="grid justify-items-end">
-		<span class="invisible [grid-area:1/1]" aria-hidden="true">{widest}</span>
-		<span class="[grid-area:1/1]">{value}</span>
-	</span>
-{/snippet}
 
 <DropdownLayer
 	{open}
@@ -69,6 +78,7 @@
 	align="end"
 	role={null}
 	keyboardNavigation={false}
+	backdrop
 	panelClass="w-[380px] max-h-[calc(100vh-72px)] overflow-y-auto rounded-2xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3 shadow-popup"
 	testId="stats-panel-layer"
 >

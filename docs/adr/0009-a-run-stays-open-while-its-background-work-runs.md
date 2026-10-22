@@ -1,6 +1,6 @@
 # 0009 - A run stays open while its background work runs
 
-Status: accepted
+Status: superseded by 0047
 
 ## Context
 

@@ -96,3 +96,12 @@ export function markdownImageName(image: HTMLImageElement, id: string): string {
 	if (!image.hasAttribute(WORKSTREAM_IMAGE_ATTRIBUTE)) return 'image';
 	return id.split('/').filter(Boolean).pop() ?? id;
 }
+
+export function reportMediaSource(
+	src: string,
+	imageSource: ((path: string) => string | null) | undefined,
+): string | null {
+	const path = workstreamImagePath(src);
+	if (path === null) return src;
+	return imageSource?.(path) ?? null;
+}

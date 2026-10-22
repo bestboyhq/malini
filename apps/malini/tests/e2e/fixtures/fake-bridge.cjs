@@ -838,6 +838,32 @@ const respond = async (sessionId, runId, prompt) => {
 		pendingRuns.set(runId, sessionId);
 		return;
 	}
+	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
+	if (replyFile && worktree) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n' + fs.readFileSync(nodePath.join(worktree, replyFile[1]), 'utf8'),
+		);
+	}
+	const pick = /Go with variant ([A-Z\d]+)/.exec(prompt);
+	if (pick) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n- Changed: built variant ' +
+				pick[1] +
+				'.\n\nOutcome: Variant ' +
+				pick[1] +
+				' is built.\nNeeds: nothing',
+		);
+	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
 		return completeRun(
 			sessionId,
