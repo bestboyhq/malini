@@ -158,11 +158,11 @@
 		</a>
 		<h1 id="hero-title">
 			<span>An agentic development environment</span>
-			<span class="quiet">for builders running many agents.</span>
+			<span class="quiet">for builders who ship with many agents.</span>
 		</h1>
 		<p class="lede">
-			Every agent works in its own git worktree, and Malini does the git: commits, pull request, red
-			checks, review comments, merge. It runs on Claude Code today.
+			Run as many agents as you want and ship more. Malini handles the git, the checks, and the
+			merge, so you only review pull requests. It runs on Claude Code today.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>

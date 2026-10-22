@@ -5,8 +5,8 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>An agentic development environment for builders running many agents.</b><br>
-  Every agent works in its own git worktree, and Malini takes each task to a merged pull request. Runs on Claude Code today.<br>
+  <b>An agentic development environment for builders who ship with many agents.</b><br>
+  Run as many agents as you want and ship more. Malini handles the git, the checks, and the merge. Runs on Claude Code today.<br>
   Free and open source, for the Mac.
 </p>
 
