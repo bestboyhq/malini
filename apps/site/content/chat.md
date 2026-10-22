@@ -12,6 +12,7 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued.
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
+- Steering or stopping keeps what the agent already wrote, marked **Run cancelled**.
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 

@@ -400,6 +400,45 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 	}
 });
 
+test('steering a streaming reply keeps what it streamed above the new prompt, and the transcript never jumps back', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await longChat(app, 'e2e-streaming-follow-steer-ws');
+		await sendPrompt(page, 'STREAM:400 Keep talking');
+		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
+			'Streamed line 6 of 400.',
+			{ timeout: 10_000 },
+		);
+		const steeredRun = page.locator(
+			`li[data-run-id="${await latestRun(page).getAttribute('data-run-id')}"]`,
+		);
+
+		await startSampling(page, []);
+		await page.keyboard.type('Steer now', { delay: 10 });
+		await page.keyboard.press('Meta+Enter');
+		await expect(steeredRun).toHaveAttribute('data-run-terminal', 'cancelled', {
+			timeout: 20_000,
+		});
+		await expectRunFinished(page, 'Hello from the fake bridge');
+		await untilStill(page);
+		const samples = await stopSampling(page);
+
+		await expect(steeredRun).toContainText('Streamed line 6 of 400.');
+		await expect(steeredRun.getByText('Run cancelled')).toBeVisible();
+		expect(
+			climb(samples, SCROLL_TOP),
+			'px the transcript jumped back up when the steer landed',
+		).toBeLessThanOrEqual(STILL_PX);
+		await captureFlow(app, 'transcript-streaming-follow-steered');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('reopening a chat lands on its latest run right above the composer', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();

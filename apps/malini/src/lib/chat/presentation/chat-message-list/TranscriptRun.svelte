@@ -10,11 +10,14 @@
 
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { quartOut } from 'svelte/easing';
+	import type { TransitionConfig } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import type { GroupedRunTimelineItem } from '../activity-group';
+	import { arrivalMotion } from '../arrival-motion';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import type { RunGroup } from '../render-state';
 	import RunStatusLine from '../RunStatusLine.svelte';
@@ -143,6 +146,20 @@
 		void transcript.showOlderTimeline(run.runId, row ?? null);
 	}
 
+	function unfoldAboveLatest(node: HTMLElement): TransitionConfig {
+		if (isLastRun || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			return { duration: 0 };
+		}
+		const height = node.offsetHeight;
+		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).rowGap) || 0;
+		return {
+			duration: arrivalMotion().durationMs,
+			easing: quartOut,
+			css: (t, u) =>
+				`overflow: hidden; height: ${t * height}px; margin-top: ${u * -gap}px; opacity: ${t};`,
+		};
+	}
+
 	function promptLabel(): string | undefined {
 		return opening?.kind === 'user' ? opening.text : undefined;
 	}
@@ -230,7 +247,9 @@
 		{/if}
 
 		{#if run.terminal !== null && run.terminal !== 'completed'}
-			<RunTerminalBanner {run} />
+			<div class="flex flex-col" in:unfoldAboveLatest>
+				<RunTerminalBanner {run} />
+			</div>
 		{/if}
 
 		{#if run.obsoleted}
@@ -240,7 +259,11 @@
 		{/if}
 
 		{#if hasAssistantAnswer || undoTarget || forkAvailable}
-			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
+			<div
+				class="flex h-5 items-center justify-end gap-1.5"
+				data-testid="chat-run-actions"
+				in:unfoldAboveLatest
+			>
 				<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
 				<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
 					<IconButton

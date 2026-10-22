@@ -149,6 +149,12 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [],
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const STREAM_LINE_MS = 100;
+const streamedText = new Map();
+const settleStreamedText = (runId) => {
+	const text = streamedText.get(runId);
+	streamedText.delete(runId);
+	if (text) event({ type: 'assistant.message', runId, contentId: 'stream', text: text.trimEnd() });
+};
 const streamRun = (sessionId, runId, lines, appended = '') => {
 	pendingRuns.set(runId, sessionId);
 	const toolCallId = 'bash-' + runId;
@@ -173,10 +179,12 @@ const streamRun = (sessionId, runId, lines, appended = '') => {
 		streamed += 1;
 		const chunk = 'Streamed line ' + streamed + ' of ' + lines + '.\n\n';
 		text += chunk;
+		streamedText.set(runId, text);
 		event({ type: 'assistant.delta', runId, contentId: 'stream', text: chunk });
 		if (streamed < lines) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
+		streamedText.delete(runId);
 		event({
 			type: 'assistant.message',
 			runId,
@@ -913,6 +921,7 @@ const handle = (command) => {
 			for (const [steered, owner] of pendingRuns) {
 				if (!command.steer || owner !== sessionId) continue;
 				pendingRuns.delete(steered);
+				settleStreamedText(steered);
 				event({ type: 'run.failed', runId: steered, error: 'cancelled' });
 			}
 			const start = () => {
@@ -936,6 +945,7 @@ const handle = (command) => {
 		}
 		case 'cancel_run': {
 			backgroundCommands.delete(command.sessionId);
+			settleStreamedText(command.runId);
 			event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
 			pendingRuns.delete(command.runId);
 			return ack(command.id);
