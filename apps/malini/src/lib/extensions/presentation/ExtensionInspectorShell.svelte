@@ -38,8 +38,9 @@
 	import { inspectorPanelCommands } from '$shared/extensions/panel-requests.store.svelte';
 	import {
 		loadInspectorPanelPreferences,
+		inspectorPanelHiddenEverywhere,
+		saveInspectorPanelHiddenEverywhere,
 		saveInspectorPanelPreferences,
-		saveSharedInspectorPanelVisibility,
 	} from '$shared/extensions/inspector-panel-preferences.store';
 	import {
 		INSPECTOR_PANEL_PREFERENCES_VERSION,
@@ -236,8 +237,9 @@
 
 	$effect(() => {
 		if (finalizedWorkstreamId !== workstreamId || !inspectorRuntimeReady) return;
-		if (addExtensionsActive || visiblePanels.length > 0 || !drawerOpen) return;
-		closeDrawer();
+		if (addExtensionsActive) return;
+		if (visiblePanels.length > 0) inspectorDrawer.unfold(workstreamId, storage);
+		else if (drawerOpen) foldDrawer();
 	});
 
 	$effect(() => {
@@ -369,7 +371,6 @@
 			pendingPreferenceMutations.push(mutation);
 		}
 
-		if (mutationChanged) saveSharedInspectorPanelVisibility(current, next, sharedPanelIds, storage);
 		replacePreferences(next);
 		if (finalizedWorkstreamId === workstreamId) {
 			saveInspectorPanelPreferences(workstreamId, next, storage);
@@ -389,6 +390,12 @@
 
 	function closeDrawer(): void {
 		inspectorDrawer.close(workstreamId, storage);
+		panelPickerOpen = false;
+		settingsOpen = false;
+	}
+
+	function foldDrawer(): void {
+		inspectorDrawer.fold(workstreamId, storage);
 		panelPickerOpen = false;
 		settingsOpen = false;
 	}
@@ -444,7 +451,7 @@
 		clearPanelFailure(panelId);
 		notifyPanelClosed(closingPanel);
 		if (next.activeId === null && !addExtensionsActive) {
-			closeDrawer();
+			foldDrawer();
 			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
 		} else if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
 	}
@@ -452,21 +459,22 @@
 	function openPanelMenu(event: MouseEvent, panelId: string): void {
 		event.preventDefault();
 		const panel = orderedPanels.find(({ id }) => id === panelId);
-		if (!panel || !inspectorInteractive) return;
+		if (!panel || !sharedPanelIds.has(panelId) || !inspectorInteractive) return;
 		panelPickerOpen = false;
 		settingsOpen = false;
 		panelMenu = {
 			panelId,
 			label: panel.label,
-			open: !presentedPreferences.hidden.includes(panelId),
+			hiddenEverywhere: inspectorPanelHiddenEverywhere(panelId, storage),
 			x: event.clientX,
 			y: event.clientY,
 		};
 	}
 
-	function togglePanelFromMenu({ panelId, open }: InspectorPanelMenuTarget): void {
-		if (open) closePanel(panelId);
-		else openPanel(panelId);
+	function toggleHiddenEverywhere({ panelId, hiddenEverywhere }: InspectorPanelMenuTarget): void {
+		saveInspectorPanelHiddenEverywhere(panelId, !hiddenEverywhere, storage);
+		if (hiddenEverywhere) openPanel(panelId);
+		else closePanel(panelId);
 	}
 
 	function closeExtensionDirectory(event: MouseEvent): void {
@@ -744,6 +752,7 @@
 						}}
 						onselect={() => selectPanel(panel.id)}
 						oncontextmenu={(event) => openPanelMenu(event, panel.id)}
+						animatesClose={() => drawerOpen}
 						onclose={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
@@ -1185,7 +1194,7 @@
 <InspectorPanelContextMenu
 	target={panelMenu}
 	onclose={() => (panelMenu = null)}
-	ontoggle={togglePanelFromMenu}
+	ontoggle={toggleHiddenEverywhere}
 />
 
 <style>

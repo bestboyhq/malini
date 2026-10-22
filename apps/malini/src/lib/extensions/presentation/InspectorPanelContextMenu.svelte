@@ -2,7 +2,7 @@
 	export type InspectorPanelMenuTarget = Readonly<{
 		panelId: string;
 		label: string;
-		open: boolean;
+		hiddenEverywhere: boolean;
 		x: number;
 		y: number;
 	}>;
@@ -67,8 +67,14 @@
 			class="gap-2.5"
 			onclick={() => toggle(chosen)}
 		>
-			<Icon name={chosen.open ? 'close' : 'plus'} size={14} class="text-fg-tertiary shrink-0" />
-			{chosen.open ? `Close ${chosen.label}` : `Open ${chosen.label}`}
+			<Icon
+				name={chosen.hiddenEverywhere ? 'eye' : 'eye-off'}
+				size={14}
+				class="text-fg-tertiary shrink-0"
+			/>
+			{chosen.hiddenEverywhere
+				? `Show ${chosen.label} in every workstream`
+				: `Hide ${chosen.label} in every workstream`}
 		</DropdownItem>
 	{/if}
 </DropdownLayer>

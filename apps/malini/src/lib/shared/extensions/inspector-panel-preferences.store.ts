@@ -3,13 +3,13 @@ import {
 	INSPECTOR_PANEL_PREFERENCES_VERSION,
 	LEGACY_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
 	PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
-	SHARED_INSPECTOR_PANEL_VISIBILITY_KEY,
-	applySharedInspectorPanelVisibility,
+	INSPECTOR_PANELS_EVERYWHERE_KEY,
+	applyInspectorPanelEverywhereChoices,
 	defaultInspectorPanelPreferences,
 	hideDefaultHiddenInspectorPanels,
 	isUnchosenLegacyInspectorPanelPreferences,
 	reconcileInspectorPanelPreferences,
-	sharedInspectorPanelVisibilityChanges,
+	type InspectorPanelEverywhereChoice,
 	type InspectorPanelPreferences,
 } from './inspector-panel-preferences';
 import type { InspectorPanel } from './inspector-panel';
@@ -17,6 +17,8 @@ import type { InspectorPreferenceStorage } from './inspector-preference-storage'
 
 const LEGACY_INSPECTOR_PANEL_PREFERENCES_VERSION = 1;
 const PREVIOUS_INSPECTOR_PANEL_PREFERENCES_VERSION = 2;
+
+type StoredPreferences = Readonly<{ preferences: InspectorPanelPreferences; savedAt: number }>;
 
 export function browserInspectorPreferenceStorage(): InspectorPreferenceStorage | null {
 	try {
@@ -31,43 +33,45 @@ export function loadInspectorPanelPreferences(
 	panels: readonly InspectorPanel[],
 	storage: InspectorPreferenceStorage | null = browserInspectorPreferenceStorage(),
 ): InspectorPanelPreferences {
+	const stored = loadWorkstreamPreferences(workstreamId, panels, storage);
 	return reconcileInspectorPanelPreferences(
 		panels,
-		applySharedInspectorPanelVisibility(
-			loadWorkstreamPreferences(workstreamId, panels, storage),
-			loadSharedVisibility(storage),
+		applyInspectorPanelEverywhereChoices(
+			stored.preferences,
+			stored.savedAt,
+			loadEverywhereChoices(storage),
 		),
 	);
 }
 
-export function saveSharedInspectorPanelVisibility(
-	before: InspectorPanelPreferences,
-	after: InspectorPanelPreferences,
-	sharedPanelIds: ReadonlySet<string>,
+export function inspectorPanelHiddenEverywhere(
+	panelId: string,
+	storage: InspectorPreferenceStorage | null = browserInspectorPreferenceStorage(),
+): boolean {
+	return loadEverywhereChoices(storage).get(panelId)?.hidden === true;
+}
+
+export function saveInspectorPanelHiddenEverywhere(
+	panelId: string,
+	hidden: boolean,
 	storage: InspectorPreferenceStorage | null = browserInspectorPreferenceStorage(),
 ): void {
-	const changes = sharedInspectorPanelVisibilityChanges(before, after, sharedPanelIds);
-	if (changes.size === 0 || !storage) return;
-	const visibility = new Map([...loadSharedVisibility(storage), ...changes]);
+	if (!storage) return;
+	const choices = new Map(loadEverywhereChoices(storage)).set(panelId, { hidden, at: Date.now() });
 	try {
-		storage.setItem(
-			SHARED_INSPECTOR_PANEL_VISIBILITY_KEY,
-			JSON.stringify(Object.fromEntries(visibility)),
-		);
+		storage.setItem(INSPECTOR_PANELS_EVERYWHERE_KEY, JSON.stringify(Object.fromEntries(choices)));
 	} catch {}
 }
 
-function loadSharedVisibility(
+function loadEverywhereChoices(
 	storage: InspectorPreferenceStorage | null,
-): ReadonlyMap<string, boolean> {
+): ReadonlyMap<string, InspectorPanelEverywhereChoice> {
 	try {
-		const value: unknown = JSON.parse(
-			storage?.getItem(SHARED_INSPECTOR_PANEL_VISIBILITY_KEY) ?? '{}',
-		);
+		const value: unknown = JSON.parse(storage?.getItem(INSPECTOR_PANELS_EVERYWHERE_KEY) ?? '{}');
 		if (!isRecord(value)) return new Map();
 		return new Map(
-			Object.entries(value).filter(
-				(entry): entry is [string, boolean] => typeof entry[1] === 'boolean',
+			Object.entries(value).filter((entry): entry is [string, InspectorPanelEverywhereChoice] =>
+				isEverywhereChoice(entry[1]),
 			),
 		);
 	} catch {
@@ -75,12 +79,16 @@ function loadSharedVisibility(
 	}
 }
 
+function isEverywhereChoice(value: unknown): value is InspectorPanelEverywhereChoice {
+	return isRecord(value) && typeof value.hidden === 'boolean' && typeof value.at === 'number';
+}
+
 function loadWorkstreamPreferences(
 	workstreamId: string,
 	panels: readonly InspectorPanel[],
 	storage: InspectorPreferenceStorage | null,
-): InspectorPanelPreferences {
-	const defaults = defaultInspectorPanelPreferences(panels);
+): StoredPreferences {
+	const defaults = { preferences: defaultInspectorPanelPreferences(panels), savedAt: 0 };
 	if (!workstreamId || !storage) return defaults;
 
 	const saved = readStoredPreferences(
@@ -88,7 +96,9 @@ function loadWorkstreamPreferences(
 		storageKey(workstreamId),
 		INSPECTOR_PANEL_PREFERENCES_VERSION,
 	);
-	if (saved) return reconcileInspectorPanelPreferences(panels, saved);
+	if (saved) {
+		return { ...saved, preferences: reconcileInspectorPanelPreferences(panels, saved.preferences) };
+	}
 
 	const previous = readStoredPreferences(
 		storage,
@@ -96,10 +106,13 @@ function loadWorkstreamPreferences(
 		PREVIOUS_INSPECTOR_PANEL_PREFERENCES_VERSION,
 	);
 	if (previous) {
-		return reconcileInspectorPanelPreferences(
-			panels,
-			hideDefaultHiddenInspectorPanels(panels, previous),
-		);
+		return {
+			...previous,
+			preferences: reconcileInspectorPanelPreferences(
+				panels,
+				hideDefaultHiddenInspectorPanels(panels, previous.preferences),
+			),
+		};
 	}
 
 	const legacy = readStoredPreferences(
@@ -107,8 +120,10 @@ function loadWorkstreamPreferences(
 		legacyStorageKey(workstreamId),
 		LEGACY_INSPECTOR_PANEL_PREFERENCES_VERSION,
 	);
-	if (!legacy || isUnchosenLegacyInspectorPanelPreferences(panels, legacy)) return defaults;
-	return reconcileInspectorPanelPreferences(panels, legacy);
+	if (!legacy || isUnchosenLegacyInspectorPanelPreferences(panels, legacy.preferences)) {
+		return defaults;
+	}
+	return { ...legacy, preferences: reconcileInspectorPanelPreferences(panels, legacy.preferences) };
 }
 
 export function saveInspectorPanelPreferences(
@@ -118,7 +133,10 @@ export function saveInspectorPanelPreferences(
 ): void {
 	if (!workstreamId || !storage) return;
 	try {
-		storage.setItem(storageKey(workstreamId), JSON.stringify(preferences));
+		storage.setItem(
+			storageKey(workstreamId),
+			JSON.stringify({ ...preferences, savedAt: Date.now() }),
+		);
 	} catch {}
 }
 
@@ -134,21 +152,24 @@ function readStoredPreferences(
 	storage: InspectorPreferenceStorage,
 	key: string,
 	expectedVersion: number,
-): InspectorPanelPreferences | null {
+): StoredPreferences | null {
 	try {
 		const stored = storage.getItem(key);
 		if (stored === null) return null;
 		const value: unknown = JSON.parse(stored);
 		if (!isRecord(value) || value.version !== expectedVersion) return null;
 		return {
-			version: INSPECTOR_PANEL_PREFERENCES_VERSION,
-			order: Array.isArray(value.order)
-				? value.order.filter((id: unknown): id is string => typeof id === 'string')
-				: [],
-			hidden: Array.isArray(value.hidden)
-				? value.hidden.filter((id: unknown): id is string => typeof id === 'string')
-				: [],
-			activeId: typeof value.activeId === 'string' ? value.activeId : null,
+			preferences: {
+				version: INSPECTOR_PANEL_PREFERENCES_VERSION,
+				order: Array.isArray(value.order)
+					? value.order.filter((id: unknown): id is string => typeof id === 'string')
+					: [],
+				hidden: Array.isArray(value.hidden)
+					? value.hidden.filter((id: unknown): id is string => typeof id === 'string')
+					: [],
+				activeId: typeof value.activeId === 'string' ? value.activeId : null,
+			},
+			savedAt: typeof value.savedAt === 'number' ? value.savedAt : 0,
 		};
 	} catch {
 		return null;

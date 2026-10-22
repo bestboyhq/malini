@@ -1,5 +1,5 @@
 import type { ExtensionPanelContext, ExtensionPanelRegistration } from '@malini/extension-api';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
 	INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
@@ -17,9 +17,10 @@ import {
 	type InspectorPanelPreferences,
 } from './inspector-panel-preferences';
 import {
+	inspectorPanelHiddenEverywhere,
 	loadInspectorPanelPreferences,
+	saveInspectorPanelHiddenEverywhere,
 	saveInspectorPanelPreferences,
-	saveSharedInspectorPanelVisibility,
 } from './inspector-panel-preferences.store';
 
 const context: ExtensionPanelContext = {
@@ -195,43 +196,49 @@ describe('extension inspector panel preferences', () => {
 		});
 	});
 
-	it('hides a closed extension panel in every workstream, and keeps a workstream panel local', () => {
-		const storage = memoryStorage({
-			[`${INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX}workstream-arranged`]: JSON.stringify({
-				version: 3,
-				order: ['browser-tab', REPOSITORY_FILES_PANEL_ID],
-				hidden: [],
-				activeId: REPOSITORY_FILES_PANEL_ID,
-			}),
-		});
-		const panels = [panel(REPOSITORY_FILES_PANEL_ID), panel('browser-tab')];
-		const shared = new Set([REPOSITORY_FILES_PANEL_ID]);
-		const before = loadInspectorPanelPreferences('workstream-1', panels, storage);
-		const closed = setInspectorPanelVisible(
-			setInspectorPanelVisible(before, REPOSITORY_FILES_PANEL_ID, false),
-			'browser-tab',
-			false,
-		);
-		saveSharedInspectorPanelVisibility(before, closed, shared, storage);
+	it('keeps a closed panel in its workstream, and lets the newest choice win over every workstream', () => {
+		vi.useFakeTimers();
+		try {
+			const storage = memoryStorage();
+			const files = REPOSITORY_FILES_PANEL_ID;
+			const panels = [panel(files), panel('browser-tab')];
+			const hiddenIn = (workstreamId: string) =>
+				loadInspectorPanelPreferences(workstreamId, panels, storage).hidden.includes(files);
+			const chooseIn = (workstreamId: string, visible: boolean) =>
+				saveInspectorPanelPreferences(
+					workstreamId,
+					setInspectorPanelVisible(
+						loadInspectorPanelPreferences(workstreamId, panels, storage),
+						files,
+						visible,
+					),
+					storage,
+				);
 
-		expect(closed.activeId).toBe(null);
-		expect(loadInspectorPanelPreferences('workstream-new', panels, storage)).toMatchObject({
-			hidden: [REPOSITORY_FILES_PANEL_ID],
-			activeId: 'browser-tab',
-		});
-		expect(loadInspectorPanelPreferences('workstream-arranged', panels, storage)).toMatchObject({
-			hidden: [REPOSITORY_FILES_PANEL_ID],
-			activeId: 'browser-tab',
-		});
+			vi.setSystemTime(1_000);
+			chooseIn('closed-here', false);
+			expect([hiddenIn('closed-here'), hiddenIn('elsewhere')]).toEqual([true, false]);
 
-		const reopened = loadInspectorPanelPreferences('workstream-new', panels, storage);
-		saveSharedInspectorPanelVisibility(
-			reopened,
-			setInspectorPanelVisible(reopened, REPOSITORY_FILES_PANEL_ID, true),
-			shared,
-			storage,
-		);
-		expect(loadInspectorPanelPreferences('workstream-1', panels, storage).hidden).toEqual([]);
+			vi.setSystemTime(2_000);
+			saveInspectorPanelHiddenEverywhere(files, true, storage);
+			expect(inspectorPanelHiddenEverywhere(files, storage)).toBe(true);
+			expect([hiddenIn('closed-here'), hiddenIn('elsewhere')]).toEqual([true, true]);
+
+			vi.setSystemTime(3_000);
+			chooseIn('opened-here', true);
+			expect([hiddenIn('opened-here'), hiddenIn('elsewhere')]).toEqual([false, true]);
+
+			vi.setSystemTime(4_000);
+			saveInspectorPanelHiddenEverywhere(files, false, storage);
+			expect(inspectorPanelHiddenEverywhere(files, storage)).toBe(false);
+			expect([hiddenIn('closed-here'), hiddenIn('opened-here'), hiddenIn('elsewhere')]).toEqual([
+				false,
+				false,
+				false,
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('repairs corrupt persisted state instead of making the inspector unreachable', () => {

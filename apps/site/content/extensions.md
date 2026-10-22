@@ -9,8 +9,9 @@ The inspector sits next to the chat.
 The built-in **Repository** extension gives you **Files**: changed files with their diffs, the full tree, file tabs, and todos.
 Browser tabs sit there too.
 Don't need the files?
-Right-click the **Files** tab and choose **Close Files**, or click its **×**, and it stays closed in every workstream, new ones included.
-With no tab left, the inspector folds to a slim list, and its **Files** row, clicked or right-clicked, opens it again.
+Right-click the **Files** tab and choose **Hide Files in every workstream**: it stays hidden everywhere, new workstreams included, until you choose **Show Files in every workstream** the same way.
+The **×** on a tab closes it in that workstream only.
+With no tab left, the inspector folds to a slim list, and its **Files** row opens Files again in that workstream.
 
 ## What an extension contributes
 

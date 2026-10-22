@@ -43,6 +43,7 @@
 		onpin?: () => void;
 		shimmerRename?: boolean;
 		isClosing?: (() => boolean) | undefined;
+		animatesClose?: (() => boolean) | undefined;
 		[attr: `data-${string}`]: string | undefined;
 	}
 
@@ -75,6 +76,7 @@
 		onpin,
 		shimmerRename = false,
 		isClosing,
+		animatesClose,
 		...rest
 	}: Props = $props();
 
@@ -161,7 +163,7 @@
 
 	function collapse(node: HTMLElement): TransitionConfig {
 		const closeClicked = performance.now() - closeClickedAt < CLOSE_CLICK_MS;
-		if (!(closeClicked || isClosing?.())) return { duration: 0 };
+		if (!(closeClicked || isClosing?.()) || animatesClose?.() === false) return { duration: 0 };
 		const width = node.getBoundingClientRect().width;
 		const gap = stripGap(node);
 		return {
