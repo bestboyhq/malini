@@ -411,6 +411,10 @@
 	padding-left: 12px;
 }
 
+.button.primary:has(> svg:first-child) {
+	gap: 10px;
+}
+
 .button.primary {
 	background: var(--surface-inverse);
 	color: var(--surface-root);
