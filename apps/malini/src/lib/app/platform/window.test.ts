@@ -7,7 +7,7 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
 
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
-	APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL,
+	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
 } from '$contract/events';
@@ -397,28 +397,26 @@ describe('main window state', () => {
 	});
 });
 
-describe('a request to connect a repository', () => {
-	it('brings the window forward, announces the request and hands it over once', () => {
+describe('a menu command', () => {
+	it('brings the window forward, announces the command and hands it over once', () => {
 		const { commands, events, main } = setup();
-		const requested: unknown[] = [];
-		events.subscribe(APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL, (payload) =>
-			requested.push(payload),
-		);
+		const chosen: unknown[] = [];
+		events.subscribe(APP_MENU_COMMAND_CHOSEN_CHANNEL, (payload) => chosen.push(payload));
 
-		commands.requestConnectRepository('clone');
+		commands.chooseMenuCommand('new-chat');
 
-		expect(requested).toEqual([{ via: 'clone' }]);
+		expect(chosen).toEqual([{ command: 'new-chat' }]);
 		expect(main?.calls).toEqual(expect.arrayContaining(['show', 'focus']));
-		expect(commands.takeConnectRepositoryRequest()).toEqual({ via: 'clone' });
-		expect(commands.takeConnectRepositoryRequest()).toBeNull();
+		expect(commands.takeMenuCommand()).toEqual({ command: 'new-chat' });
+		expect(commands.takeMenuCommand()).toBeNull();
 	});
 
-	it('opens a window and keeps the request for it when none was open', () => {
+	it('opens a window and keeps the command for it when none was open', () => {
 		const { host, commands } = setup(null);
 
-		commands.requestConnectRepository('folder');
+		commands.chooseMenuCommand('open-folder');
 
 		expect(host.openedWindows).toBe(1);
-		expect(commands.takeConnectRepositoryRequest()).toEqual({ via: 'folder' });
+		expect(commands.takeMenuCommand()).toEqual({ command: 'open-folder' });
 	});
 });
