@@ -1,7 +1,9 @@
 import { followSystemThemeCommand } from '$lib/app/application/commands/follow-system-theme.command';
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
+import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
 import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-native-theme.command';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
+import { menuCommandsService } from '$lib/app/infrastructure/services/menu-commands.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { updatesService } from '$lib/app/infrastructure/services/updates.service';
@@ -16,8 +18,10 @@ export function bootAppHook(): () => void {
 	syncNativeThemeCommand();
 	const stopWatchingStreaming = watchStreaming();
 	const stopWatchingUpdates = watchStagedUpdate();
+	const stopAnsweringMenu = menuCommandsService.onCommand(runMenuChoiceCommand);
 	if (!windowLifecycleService.isNativeWindow()) {
 		return () => {
+			stopAnsweringMenu();
 			stopWatchingUpdates();
 			stopWatchingStreaming();
 			stopFollowingSystemTheme();
@@ -45,6 +49,7 @@ export function bootAppHook(): () => void {
 		disposed = true;
 		disarmCloseGuard?.();
 		disarmCloseGuard = null;
+		stopAnsweringMenu();
 		stopWatchingUpdates();
 		stopWatchingStreaming();
 		stopFollowingSystemTheme();

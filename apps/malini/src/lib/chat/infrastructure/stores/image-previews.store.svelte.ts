@@ -89,7 +89,7 @@ class ImagePreviewsStore {
 
 	#commit(key: string, preview: ImagePreview): void {
 		const replaced = this.previews[key];
-		this.previews = { ...this.previews, [key]: preview };
+		this.previews[key] = preview;
 		if (replaced) revoke(replaced);
 	}
 }

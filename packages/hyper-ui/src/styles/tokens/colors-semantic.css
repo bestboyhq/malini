@@ -46,11 +46,6 @@
 	--color-surface-elevated-border-light: var(--color-grey-250);
 	--color-surface-elevated-border-dark: var(--color-grey-700);
 
-	--color-surface-modal-light: var(--color-grey-50);
-	--color-surface-modal-dark: var(--color-grey-800);
-	--color-surface-modal-border-light: var(--color-grey-250);
-	--color-surface-modal-border-dark: var(--color-grey-750);
-
 	--color-surface-tooltip-light: var(--color-grey-150);
 	--color-surface-tooltip-dark: var(--color-grey-800);
 	--color-surface-tooltip-border-light: var(--color-grey-200);

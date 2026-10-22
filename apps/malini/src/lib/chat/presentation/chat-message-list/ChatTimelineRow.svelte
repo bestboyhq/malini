@@ -12,6 +12,7 @@
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
 	import { finalTurnReport } from '../turn-result';
+	import { noVariantFitsPrompt, variantPickPrompt } from '$lib/chat/domain/variant-pick';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
 	import ThinkingRow from './ThinkingRow.svelte';
@@ -33,7 +34,10 @@
 	const turnReport = $derived(
 		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
 	);
-	const earlierTurns = $derived(turnReport && isLastRun ? transcript.earlierTurns(run.runId) : []);
+	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
+	const variantPick = $derived(
+		turnReport ? (transcript.variantPick(run.runId)?.pick ?? null) : null,
+	);
 </script>
 
 {#if item.kind === 'user'}
@@ -41,7 +45,7 @@
 {:else if item.kind === 'thought'}
 	<ThinkingRow
 		text={item.text}
-		live={false}
+		live={item.live === true}
 		durationSeconds={item.durationSeconds}
 		enterKey={timelineKey(run, item.contentId)}
 	/>
@@ -91,12 +95,20 @@
 		{#if turnReport}
 			<TurnReportCard
 				report={turnReport}
+				workstreamId={transcript.workstreamId}
 				history={earlierTurns}
 				needsOpen={isLastRun && !transcript.pullRequestShipped}
+				pick={variantPick}
+				pickOf={(runId) => transcript.variantPick(runId)?.pick ?? null}
 				onopenfile={transcript.openFileMention}
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}
 				onopenimage={transcript.openImageGallery}
+				onpick={(variant, reason) =>
+					transcript.sendFollowUp(variantPickPrompt(variant, reason), 'Pick')}
+				onnonefit={(reason) => transcript.sendFollowUp(noVariantFitsPrompt(reason), 'Request')}
+				onsendnext={(step) => transcript.sendFollowUp(step, 'Next step')}
+				onscratchpad={transcript.saveToScratchpad}
 			/>
 		{:else}
 			<BufferedStreamingMarkdown

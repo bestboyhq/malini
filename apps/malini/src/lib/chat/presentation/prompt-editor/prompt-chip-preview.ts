@@ -10,6 +10,7 @@ import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-refer
 
 export type PromptChipPreview =
 	| { kind: 'image'; title: string; src: string; meta: string }
+	| { kind: 'video'; title: string; src: string; meta: string }
 	| { kind: 'file'; title: string; meta: string }
 	| { kind: 'lines'; title: string; lines: readonly string[] }
 	| { kind: 'code'; title: string; code: string; meta?: string }
@@ -47,9 +48,12 @@ function attachmentPreview(id: string, sources: PromptChipPreviewSources): Promp
 		.filter(Boolean)
 		.join(' · ');
 
-	if (attachment.mediaType.startsWith('image/')) {
-		const src = sources.assetUrl?.(attachment.relativePath) ?? null;
-		if (src) return { kind: 'image', title: attachment.displayName, src, meta };
+	const src = sources.assetUrl?.(attachment.relativePath) ?? null;
+	if (src && attachment.mediaType.startsWith('image/')) {
+		return { kind: 'image', title: attachment.displayName, src, meta };
+	}
+	if (src && attachment.mediaType.startsWith('video/')) {
+		return { kind: 'video', title: attachment.displayName, src, meta };
 	}
 	return { kind: 'file', title: attachment.displayName, meta };
 }

@@ -27,7 +27,9 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Drag its top edge to make it taller, or click **Show all**.
   Click one to restore it, or open the pull request it merged.
   Archiving stops the commands its agents left running in the background.
-- Connect another repository from the button at the bottom of the sidebar.
+- Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
+  **Open folder…** connects a folder on your Mac, and **Clone repository…** clones one from GitHub.
+- **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
 - Open a workstream in your editor or reveal it in Finder.
 - Open a repository on GitHub from its right-click menu, the repository list, or its page.
 - Each workstream holds many chats, as tabs, named for you.

@@ -9,6 +9,7 @@ import {
 	selectChat,
 	sendPrompt,
 	startFreshChat,
+	untilStill,
 } from './harness';
 
 type TranscriptBottom = Readonly<{ distanceFromBottom: number; lastRowAboveComposer: boolean }>;
@@ -53,10 +54,10 @@ test('a pinned chat keeps its last reply above a composer that grows, and reopen
 		}
 		const longChat = currentSessionId(page);
 		if (!longChat) throw new Error('the long chat did not commit a session id');
-		await page.waitForTimeout(600);
+		await untilStill(page);
 
 		await typeDraft(page, ['one', 'two', 'three', 'four', 'five', 'six']);
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		const whileTyping = await transcriptBottom(page);
 		expect(whileTyping.lastRowAboveComposer).toBe(true);
 		expect(whileTyping.distanceFromBottom).toBeLessThanOrEqual(1);
@@ -65,7 +66,7 @@ test('a pinned chat keeps its last reply above a composer that grows, and reopen
 		await sendPrompt(page, 'Short chat');
 		await expectAssistantReply(page);
 		await selectChat(page, longChat);
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		const reopened = await transcriptBottom(page);
 		expect(reopened.lastRowAboveComposer).toBe(true);
 		expect(reopened.distanceFromBottom).toBeLessThanOrEqual(1);

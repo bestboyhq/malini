@@ -1,6 +1,7 @@
 import { canonicalChangedPath, type RunTimelineItem } from './run-timeline';
 import {
 	isBackgroundAgent,
+	isCompaction,
 	toolActionKind,
 	toolActivityLabel,
 	toolDescriptionLabel,
@@ -82,7 +83,9 @@ export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunT
 
 function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 	return (
-		(item.kind === 'tool' && !isBackgroundAgent(item.tool.name, item.tool.input)) ||
+		(item.kind === 'tool' &&
+			!isBackgroundAgent(item.tool.name, item.tool.input) &&
+			!isCompaction(item.tool.name)) ||
 		item.kind === 'command' ||
 		item.kind === 'file'
 	);

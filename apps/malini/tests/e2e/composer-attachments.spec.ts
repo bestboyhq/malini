@@ -188,3 +188,52 @@ test('closing a chat releases the files its draft still held', async () => {
 		await app.close();
 	}
 });
+
+test('a pasted gif and screen recording send with their media types, an oversized one is refused', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await openSeededWorkstream(app, 'e2e-chip-video-ws');
+		const input = composer(page);
+		await input.click();
+		await page.evaluate(`(() => {
+			const gif = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), (c) => c.charCodeAt(0));
+			const data = new DataTransfer();
+			data.items.add(new File([gif], 'loop.gif', { type: 'image/gif' }));
+			data.items.add(new File([new Uint8Array(2048)], 'Screen Recording.mov', { type: 'video/quicktime' }));
+			document
+				.querySelector('[data-testid="chat-composer-input"]')
+				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+		})()`);
+		await expect(input.getByLabel('Attached file: loop.gif')).toBeVisible({ timeout: 20_000 });
+		await expect(input.getByLabel('Attached file: Screen Recording.mov')).toBeVisible();
+
+		await page.keyboard.type(' What broke here?');
+		await page.getByTestId('chat-composer-submit').click();
+		await expectAssistantReply(page);
+		expect((await sentPrompt(page))?.['attachments']).toEqual([
+			expect.objectContaining({ displayName: 'loop.gif', mediaType: 'image/gif' }),
+			expect.objectContaining({
+				displayName: 'Screen Recording.mov',
+				mediaType: 'video/quicktime',
+			}),
+		]);
+
+		await input.click();
+		await page.evaluate(`(() => {
+			const data = new DataTransfer();
+			data.items.add(new File([new Uint8Array(100 * 1024 * 1024 + 1)], 'huge.mp4', { type: 'video/mp4' }));
+			document
+				.querySelector('[data-testid="chat-composer-input"]')
+				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+		})()`);
+		await expect(page.getByTestId('chat-attachment-error')).toHaveText(
+			'`huge.mp4` is over the 100 MB attachment limit',
+		);
+		await expect(input.getByLabel('Attached file: huge.mp4')).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

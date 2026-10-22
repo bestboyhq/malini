@@ -500,6 +500,18 @@ Payload: `NotificationTarget`
 type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 ```
 
+## `app:menu-command-chosen`
+
+Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
+
+Payload: `MenuCommandChosen`
+
+```ts
+type MenuCommand = 'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+
+type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
+```
+
 ## `app:streaming-changed`
 
 Fires when streamer mode turns on or off, because a screen recording or streaming app started or stopped.

@@ -4,7 +4,7 @@ import { systemPromptAppend } from './instructions.js';
 
 const BODY_RULES: Record<AgentReport, string> = {
 	low: 'show, do not tell',
-	medium: 'each starting with `Changed:` or `Verified:`',
+	medium: 'each one line of at most 80 characters starting with `Changed:` or `Verified:`',
 	high: 'the full write-up',
 };
 
@@ -36,7 +36,13 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('the user approved that exact call in Malini');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
-		expect(prompt).toContain('its own bullet that starts with `Deferred:`');
+		expect(prompt).toContain('one-line bullet that starts with `Next:`');
+		expect(prompt).toContain(
+			'`![Before: what it shows](path)` and `![After: what it shows](path)`',
+		);
+		expect(prompt).toContain('`#t=<seconds>` to the After path');
+		expect(prompt).toContain('`![Variant A: Name - one-line note](path)`');
+		expect(prompt).toContain('`Go with variant B (Name).`');
 		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
 		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});

@@ -17,7 +17,7 @@ function run(runId: string, items: RenderItem[]): RunGroup {
 }
 
 describe('transcriptGalleryImages', () => {
-	it('collects every image of the chat once, in transcript order', () => {
+	it('collects every image and video of the chat once, in transcript order', () => {
 		const images = transcriptGalleryImages(
 			[
 				run('r1', [
@@ -42,6 +42,14 @@ describe('transcriptGalleryImages', () => {
 								mediaType: 'text/plain',
 								size: 1,
 								sha256: 'b',
+							},
+							{
+								id: 'att-3',
+								displayName: 'bug.mov',
+								relativePath: 'bug.mov',
+								mediaType: 'video/quicktime',
+								size: 1,
+								sha256: 'c',
 							},
 						],
 					},
@@ -85,10 +93,11 @@ describe('transcriptGalleryImages', () => {
 		);
 
 		expect(images).toEqual([
-			{ id: SHOT, name: 'shot.png', kind: 'workstream' },
-			{ id: '/tmp/frames/hero.png', name: 'hero.png', kind: 'workstream' },
-			{ id: 'shots/after.png', name: 'after', kind: 'workstream' },
-			{ id: 'https://x.dev/c.png', name: 'image', kind: 'url' },
+			{ id: SHOT, name: 'shot.png', kind: 'workstream', media: 'image' },
+			{ id: 'bug.mov', name: 'bug.mov', kind: 'workstream', media: 'video' },
+			{ id: '/tmp/frames/hero.png', name: 'hero.png', kind: 'workstream', media: 'image' },
+			{ id: 'shots/after.png', name: 'after', kind: 'workstream', media: 'image' },
+			{ id: 'https://x.dev/c.png', name: 'image', kind: 'url', media: 'image' },
 		]);
 	});
 });

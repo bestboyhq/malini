@@ -473,6 +473,18 @@ export async function clickRevealedOnHover(row: Locator, button: Locator): Promi
 	await button.click({ force: true });
 }
 
+export async function showToastsTogether(
+	toasts: Locator,
+	count: number,
+	show: () => Promise<void>,
+): Promise<void> {
+	await expect(async () => {
+		await expect(toasts).toHaveCount(0, { timeout: 20_000 });
+		await show();
+		await expect(toasts).toHaveCount(count, { timeout: 20_000 });
+	}).toPass({ timeout: 90_000 });
+}
+
 export async function expectAssistantReply(page: Page, timeout = 30_000): Promise<void> {
 	await expect(page.getByTestId('chat-message-bubble').first()).toContainText(
 		'Hello from the fake bridge',
@@ -579,9 +591,16 @@ export async function git(repo: string, args: readonly string[]): Promise<void> 
 	});
 }
 
+interface Boxed {
+	getBoundingClientRect(): { top: number; bottom: number };
+}
+
 interface RunningAnimation {
 	readonly playState: string;
-	readonly effect: { getComputedTiming(): { endTime?: number | string } } | null;
+	readonly effect: {
+		getComputedTiming(): { endTime?: number | string };
+		readonly target?: Boxed | null;
+	} | null;
 	readonly finished: Promise<unknown>;
 }
 
@@ -604,6 +623,48 @@ export async function settleAnimations(page: Page): Promise<void> {
 			await until(Promise.all(finite.map((animation) => animation.finished.catch(() => null))));
 		}
 	});
+}
+
+const STILL_FRAMES = 24;
+
+export async function untilStill(page: Page): Promise<void> {
+	const settled = await page.locator('body').evaluate(async (body, frames) => {
+		const doc = body.ownerDocument;
+		const view = doc.defaultView;
+		if (!view) return false;
+		const deadline = performance.now() + 20_000;
+		const nextFrame = () => new Promise((resolve) => view.requestAnimationFrame(resolve));
+		const scroller = () => doc.querySelector('[data-testid="chat-message-scroller"]');
+		const pose = (): string => `${scroller()?.scrollTop}:${scroller()?.clientHeight}`;
+		const shows = (element: Boxed, area: Readonly<{ top: number; bottom: number }>): boolean => {
+			const box = element.getBoundingClientRect();
+			return box.bottom > area.top && box.top < area.bottom;
+		};
+		const moving = (): boolean => {
+			const screen = { top: 0, bottom: view.innerHeight };
+			const animations: RunningAnimation[] = body.getAnimations({ subtree: true });
+			const animating = animations.some(({ playState, effect }) => {
+				if (playState !== 'running' || !effect) return false;
+				if (effect.getComputedTiming().endTime === Infinity) return false;
+				return !effect.target || shows(effect.target, screen);
+			});
+			const list = scroller();
+			const area = list?.getBoundingClientRect() ?? screen;
+			const gliding = [...(list?.querySelectorAll('[style*="translate"]') ?? [])];
+			return animating || gliding.some((row) => shows(row, area));
+		};
+		let previous = pose();
+		let still = 0;
+		while (still < frames) {
+			if (performance.now() > deadline) return false;
+			await nextFrame();
+			const current = pose();
+			still = current === previous && !moving() ? still + 1 : 0;
+			previous = current;
+		}
+		return true;
+	}, STILL_FRAMES);
+	expect(settled, `the transcript held still for ${STILL_FRAMES} frames`).toBe(true);
 }
 
 export async function captureFlow(

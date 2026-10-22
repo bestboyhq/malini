@@ -1,4 +1,8 @@
-import { attachmentViewer, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+import {
+	attachmentViewer,
+	isVideoAttachment,
+	type StagedAgentAttachment,
+} from '$lib/chat/domain/composer-actions';
 import type { AgentDraft } from '$lib/chat/domain/draft';
 import {
 	elementReferenceKey,
@@ -58,7 +62,7 @@ export function attachmentOpener(
 	if (!onopen || viewer === null) return undefined;
 	const label =
 		viewer === 'gallery'
-			? galleryImageLabel(attachment.displayName)
+			? galleryImageLabel(attachment.displayName, isVideoAttachment(attachment) ? 'video' : 'image')
 			: `Open file ${attachment.displayName}`;
 	return { label, open: () => onopen(attachment) };
 }

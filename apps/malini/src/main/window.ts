@@ -39,6 +39,7 @@ export function createMainWindow(): BrowserWindow {
 		return { action: 'deny' };
 	});
 	window.webContents.on('will-navigate', (event, url) => {
+		if (DEV_SERVER_URL && url === window.webContents.getURL()) return;
 		event.preventDefault();
 		if (isWebLink(url)) void shell.openExternal(url);
 	});

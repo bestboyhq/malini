@@ -1,37 +1,61 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
-	import { Icon } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
 	import {
-		leadNote,
+		isVideoPath,
 		turnStatus,
-		type TurnNote,
+		type TurnNoteKind,
 		type TurnReport,
 		type TurnReportImage,
 		type TurnStatus,
+		type TurnVariant,
 	} from '$lib/chat/domain/turn-report';
+	import type { VariantPick } from '$lib/chat/domain/variant-pick';
 	import type { FileMentionTarget } from './file-mention-links';
+	import ImageCompare from './ImageCompare.svelte';
 	import MarkdownText from './MarkdownText.svelte';
+	import NextSteps from './NextSteps.svelte';
+	import PickStep from './PickStep.svelte';
+	import ReportNotes from './ReportNotes.svelte';
 	import type { EarlierTurn } from './turn-result';
-	import { workstreamImagePath } from './workstream-images';
+	import VariantPicker from './VariantPicker.svelte';
+	import VariantPickForm from './VariantPickForm.svelte';
+	import VideoCompare from './VideoCompare.svelte';
+	import { reportMediaSource } from './workstream-images';
 
 	interface Props {
 		report: TurnReport;
+		workstreamId: string;
 		needsOpen?: boolean;
 		history?: readonly EarlierTurn[];
+		pick?: VariantPick | null;
+		pickOf?: ((runId: string) => VariantPick | null) | undefined;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
+		onpick?: ((variant: TurnVariant, reason: string) => void) | undefined;
+		onnonefit?: ((reason: string) => void) | undefined;
+		onsendnext?: ((step: string) => void) | undefined;
+		onscratchpad?: ((step: string) => void) | undefined;
 	}
 
 	let {
 		report,
+		workstreamId,
 		needsOpen = true,
 		history = [],
+		pick = null,
+		pickOf,
 		onopenfile,
 		canopenfile,
 		imagesrc,
 		onopenimage,
+		onpick,
+		onnonefit,
+		onsendnext,
+		onscratchpad,
 	}: Props = $props();
 
 	const STATUS = {
@@ -41,12 +65,6 @@
 			tone: 'text-brand-foreground',
 			rail: 'border-brand-foreground/40',
 		},
-		deferred: {
-			icon: 'warning',
-			label: 'Done with something deferred',
-			tone: 'text-warning-content',
-			rail: 'border-warning-content/40',
-		},
 		done: {
 			icon: 'check',
 			label: 'Done',
@@ -54,12 +72,24 @@
 			rail: 'border-success-content/40',
 		},
 	} as const satisfies Record<TurnStatus, Readonly<Record<string, string>>>;
+	const NOTE_ICONS: Readonly<Record<TurnNoteKind, IconName | null>> = {
+		changed: 'delta',
+		verified: 'shield-check',
+		next: 'chevrons-right',
+		note: null,
+	};
 	const MAX_THUMBNAILS = 4;
 
 	const needsHeadingId = $props.id();
 	const status = $derived(STATUS[turnStatus(report, needsOpen)]);
-	const lead = $derived(leadNote(report.notes));
-	const otherNotes = $derived(report.notes.filter((note) => note !== lead));
+	const nextSteps = $derived(
+		report.notes.filter((note) => note.kind === 'next').map((note) => note.text),
+	);
+	const picking = $derived(report.variants.length > 0 && needsOpen && pick === null);
+	let chosenId = $state(untrack(() => pick?.picked.id ?? report.variants[0]?.id ?? ''));
+	const chosen = $derived(
+		report.variants.find((variant) => variant.id === chosenId) ?? report.variants[0] ?? null,
+	);
 	let selectedSrc = $state<string | null>(null);
 	const hero = $derived(
 		report.images.find((image) => image.src === selectedSrc) ?? report.images[0] ?? null,
@@ -74,16 +104,6 @@
 			report.images.length > MAX_THUMBNAILS ? MAX_THUMBNAILS - 1 : MAX_THUMBNAILS,
 		),
 	);
-
-	function noteTone(note: TurnNote): string {
-		return note.kind === 'deferred' ? 'text-warning-content' : 'text-fg-secondary';
-	}
-
-	function thumbnailSource(src: string): string | undefined {
-		const path = workstreamImagePath(src);
-		if (path === null) return src;
-		return imagesrc?.(path) ?? undefined;
-	}
 
 	function imageName(image: TurnReportImage): string {
 		return image.alt || image.src.split('/').filter(Boolean).pop() || image.src;
@@ -101,20 +121,6 @@
 	</span>
 {/snippet}
 
-{#snippet noteText(note: TurnNote, clamp: boolean)}
-	<MarkdownText
-		text={note.text}
-		mode="prose"
-		class={clamp
-			? 'line-clamp-1 min-w-0 select-text group-open/notes:line-clamp-none'
-			: 'min-w-0 select-text'}
-		{onopenfile}
-		{canopenfile}
-		{imagesrc}
-		{onopenimage}
-	/>
-{/snippet}
-
 <article
 	class={[
 		'bg-surface-50 flex w-full flex-col gap-2.5 rounded-l-xs rounded-r-md border-l-3 px-3 py-2.5',
@@ -127,6 +133,7 @@
 		{#if history.length > 0}
 			<ol class="flex flex-col pb-[5px]" aria-label="Earlier turns">
 				{#each history as turn (turn.runId)}
+					{@const earlierPick = pickOf?.(turn.runId) ?? null}
 					<li class="turn-step relative">
 						<details class="group/turn">
 							<summary
@@ -144,11 +151,22 @@
 							</summary>
 							<ul class="flex flex-col gap-1 pb-1.5 pl-[22px] text-xs leading-5">
 								{#each turn.report.notes as note, index (index)}
-									<li class={noteTone(note)}>{@render noteText(note, false)}</li>
+									{@const icon = NOTE_ICONS[note.kind]}
+									<li class="text-fg-secondary flex items-start gap-1.5">
+										{#if icon}
+											<span class="text-fg-tertiary grid h-5 shrink-0 place-items-center">
+												<Icon name={icon} size={12} />
+											</span>
+										{/if}
+										<MarkdownText text={note.text} mode="prose" class="min-w-0 select-text" />
+									</li>
 								{/each}
 							</ul>
 						</details>
 					</li>
+					{#if earlierPick}
+						<PickStep pick={earlierPick} {imagesrc} />
+					{/if}
 				{/each}
 			</ol>
 		{/if}
@@ -165,6 +183,18 @@
 
 	{#if report.diagrams.length > 0}
 		<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
+	{/if}
+
+	{#if report.comparison}
+		{#if isVideoPath(report.comparison.after.src)}
+			<VideoCompare comparison={report.comparison} {imagesrc} />
+		{:else}
+			<ImageCompare {workstreamId} comparison={report.comparison} {imagesrc} />
+		{/if}
+	{/if}
+
+	{#if report.variants.length > 0}
+		<VariantPicker variants={report.variants} asking={picking} {pick} bind:chosenId {imagesrc} />
 	{/if}
 
 	{#if hero}
@@ -195,7 +225,7 @@
 							onclick={() => pickThumbnail(image, more)}
 						>
 							<img
-								src={thumbnailSource(image.src)}
+								src={reportMediaSource(image.src, imagesrc) ?? undefined}
 								alt=""
 								class="outline-border-subtle size-full rounded-[5px] object-cover object-top-left outline-[0.5px] -outline-offset-[0.5px]"
 							/>
@@ -213,35 +243,22 @@
 		</div>
 	{/if}
 
-	{#if lead}
-		<details class="group/notes">
-			<summary
-				class={[
-					'hover:bg-surface-50-hover -mx-1.5 flex cursor-pointer list-none items-start gap-2 rounded-[5px] px-1.5 py-0.5 text-xs leading-5',
-					noteTone(lead),
-				]}
-				data-testid="turn-report-lead"
-			>
-				{@render noteText(lead, true)}
-				{#if otherNotes.length > 0}
-					<span class="note-count group-open/notes:hidden">+{otherNotes.length}</span>
-				{/if}
-			</summary>
-			{#if otherNotes.length > 0}
-				<ul class="mt-1 flex flex-col gap-1 text-xs leading-5" data-testid="turn-report-notes">
-					{#each otherNotes as note, index (index)}
-						<li class={noteTone(note)}>{@render noteText(note, false)}</li>
-					{/each}
-				</ul>
-			{/if}
-		</details>
-	{/if}
+	<ReportNotes notes={report.notes} {onopenfile} {canopenfile} {imagesrc} {onopenimage} />
 
-	{#if report.needs.length > 0}
+	{#if picking && chosen}
+		<VariantPickForm
+			{chosen}
+			needs={report.needs}
+			{onpick}
+			{onnonefit}
+			{onopenfile}
+			{canopenfile}
+		/>
+	{:else if report.needs.length > 0}
 		<section
 			class={[
-				'rounded-md px-2.5 py-2',
-				needsOpen ? 'bg-brand/10' : 'border-surface-150-border border-[0.5px]',
+				'rounded-md border-[0.5px] px-2.5 py-2',
+				needsOpen ? 'bg-brand/10 border-transparent' : 'border-surface-150-border',
 			]}
 			aria-labelledby={needsHeadingId}
 		>
@@ -273,6 +290,10 @@
 				{/each}
 			</ul>
 		</section>
+	{/if}
+
+	{#if nextSteps.length > 0}
+		<NextSteps steps={nextSteps} onsend={onsendnext} {onscratchpad} {onopenfile} {canopenfile} />
 	{/if}
 </article>
 

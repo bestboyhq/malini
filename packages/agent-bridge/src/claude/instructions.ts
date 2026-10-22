@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentReport, AgentTheme } from '../agent-profile.js';
-import { BRIDGE_AGENT_ATTACHMENTS_PATH } from '../generated/protocol-contract.js';
+import {
+	BRIDGE_AGENT_ATTACHMENTS_PATH,
+	BRIDGE_AGENT_CONTEXT_PATH,
+} from '../generated/protocol-contract.js';
 import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
 
 const MAX_AGENTS_MD_BYTES = 64 * 1024;
@@ -9,8 +12,8 @@ const MAX_AGENTS_MD_BYTES = 64 * 1024;
 const REPORT_BODIES: Record<AgentReport, string> = {
 	low: 'show, do not tell. The screenshot or diagram alone, no other prose.',
 	medium:
-		'the screenshot or diagram, then at most three short bullets on what changed and how you verified it, each starting with `Changed:` or `Verified:`.',
-	high: 'the screenshot or diagram, then the full write-up: what changed, how it works, what you tested, what you found.',
+		'the screenshot or diagram, then at most three bullets on what changed and how you verified it, each one line of at most 80 characters starting with `Changed:` or `Verified:`.',
+	high: 'the screenshot or diagram, then one-line bullets starting with `Changed:` or `Verified:`, then the full write-up: how it works, what you tested, what you found. Malini folds the write-up under Details.',
 };
 
 export function maliniInstructions(report: AgentReport, theme?: AgentTheme): string {
@@ -18,13 +21,15 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		'<malini>',
 		'You are running inside Malini, a desktop app that gives each workstream its own git worktree.',
 		'- Other chats and jobs in this workstream can run at the same time and edit this same worktree. Changes you did not make are theirs: leave them in place, never revert them, and do not report them as a blocker. A test their work breaks may be red while they are still working.',
-		`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool.`,
+		`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool, and a video through frames you extract with ffmpeg.`,
 		`- Malini owns commits, pushes, branches, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')} and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset.`,
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user. "The PermissionDenied hook indicated you may retry this tool call" means the user approved that exact call in Malini: make the same call again, unchanged. Without that line the block stands.',
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
-		'- Anything you left undone gets its own bullet that starts with `Deferred:` and says why.',
-		'- Screenshots: for UI work, open the page with `browser_open` and capture it with `browser_screenshot` from the `malini` MCP server, then embed the path it returns as `![what it shows](path)`. Embed any other image by its path relative to the worktree; Malini shows no image from outside the worktree, so copy one that lives elsewhere into the worktree first. Work with no UI gets a small diagram in a fenced code block instead.',
+		'- Anything you left undone, and the follow-up most worth doing, gets its own one-line bullet that starts with `Next:`, written as the instruction you would want to receive: Malini sends it back to you as the next prompt when the user clicks Do it now.',
+		'- Before and after: when you change something the user can see, capture it before you edit and again after, at the same size and scroll position, and embed the pair as `![Before: what it shows](path)` and `![After: what it shows](path)`. Malini shows them over each other and marks every changed pixel, including the ones you did not mean to change. For motion, record both as video (.mp4 or .webm) and add `#t=<seconds>` to the After path to mark the moment they differ most.',
+		'- Variants: when the user asks for options, or the direction is open, make two to four variants instead of one, capture each, embed each as `![Variant A: Name - one-line note](path)` lettered from A, and ask the user to pick one in `Needs:`. The pick comes back as `Go with variant B (Name).`, sometimes with `Why:`; build on that variant and its reason.',
+		`- Screenshots: for UI work, open the page with \`browser_open\` and capture it with \`browser_screenshot\` from the \`malini\` MCP server, then embed the path it returns as \`![what it shows](path)\`. Save every other screenshot, recording or image you make under \`${BRIDGE_AGENT_CONTEXT_PATH}/\` in the worktree, never under /tmp, and embed it by that relative path; Malini shows no image from outside the worktree. Work with no UI gets a small diagram in a fenced code block instead.`,
 		...(theme ? [themeInstruction(theme)] : []),
 		'- Automation: when the user asks Malini to do something on a schedule, after something happens, or every time, set it up yourself with the `malini` MCP server: find or create a job with `jobs_list` and `jobs_save`, then a routine that runs it with `routines_save`, its trigger written from `events_list`. A routine starts as a draft the user promotes on the Jobs page, so say so. Use `jobs_run` to run a job now.',
 		'- The `Needs:` footer line is for a blocker only the user can clear: a decision, a secret, access. Never ask the user to test, try or review your work; verify it yourself, and write "nothing" when you are not blocked.',

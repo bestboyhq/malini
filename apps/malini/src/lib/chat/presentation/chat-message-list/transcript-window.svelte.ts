@@ -29,13 +29,20 @@ export function createTranscriptWindow(): TranscriptWindow {
 		for (const entry of entries) {
 			const key = keys.get(entry.target);
 			if (key === undefined) continue;
-			if (!entry.isIntersecting && !entry.target.hasAttribute(PLACEHOLDER_ATTRIBUTE)) {
+			const isNear = entry.isIntersecting || withinRootBounds(entry);
+			if (!isNear && !entry.target.hasAttribute(PLACEHOLDER_ATTRIBUTE)) {
 				heights.set(key, entry.boundingClientRect.height);
 			}
-			if (entry.isIntersecting) near.add(key);
+			if (isNear) near.add(key);
 			else near.delete(key);
 			seen.add(key);
 		}
+	}
+
+	function withinRootBounds(entry: IntersectionObserverEntry): boolean {
+		const root = entry.rootBounds;
+		const rect = entry.boundingClientRect;
+		return root !== null && rect.bottom >= root.top && rect.top <= root.bottom;
 	}
 
 	return {

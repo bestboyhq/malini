@@ -11,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	untilStill,
 } from './harness';
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
@@ -62,14 +63,14 @@ test('a chat renders code, long command output, images and masked paths', async 
 		await run
 			.getByRole('heading', { name: 'Rendering check' })
 			.evaluate((element) => element.scrollIntoView({ block: 'start' }));
-		await page.waitForTimeout(300);
+		await untilStill(page);
 		await captureFlow(app, 'transcript-rendering-markdown');
 		await codeBlock.evaluate((element) => element.scrollIntoView({ block: 'start' }));
-		await page.waitForTimeout(300);
+		await untilStill(page);
 		await captureFlow(app, 'transcript-rendering-code');
 		await codeBlock.hover();
 		await codeBlock.getByRole('button', { name: 'Copy code' }).hover();
-		await page.waitForTimeout(700);
+		await expect(page.getByRole('tooltip')).toHaveText('Copy code');
 		await captureFlow(app, 'transcript-rendering-copy-tooltip');
 		await electronApp.evaluate(({ clipboard }) => clipboard.writeText(''));
 		await codeBlock.getByRole('button', { name: 'Copy code' }).click();

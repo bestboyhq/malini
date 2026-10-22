@@ -152,7 +152,7 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [],
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const STREAM_LINE_MS = 100;
-const streamRun = (sessionId, runId, lines) => {
+const streamRun = (sessionId, runId, lines, appended = '') => {
 	pendingRuns.set(runId, sessionId);
 	const toolCallId = 'bash-' + runId;
 	event({
@@ -180,11 +180,36 @@ const streamRun = (sessionId, runId, lines) => {
 		if (streamed < lines) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
-		event({ type: 'assistant.message', runId, contentId: 'stream', text: text.trimEnd() });
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'stream',
+			text: text.trimEnd() + appended,
+		});
 		event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5 });
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, STREAM_LINE_MS);
+};
+const TOOL_STEP_MS = 40;
+const SLOW_TOOL_STEP_MS = 700;
+const toolStreamRun = (sessionId, runId, count, slowTail) => {
+	pendingRuns.set(runId, sessionId);
+	let read = 0;
+	const step = () => {
+		if (!pendingRuns.has(runId)) return;
+		read += 1;
+		const toolCallId = 'read-' + runId + '-' + read;
+		const input = { file_path: 'notes/row-' + read + '.txt' };
+		event({ type: 'tool.started', runId, name: 'Read', toolCallId, input });
+		event({ type: 'tool.completed', runId, name: 'Read', toolCallId, output: 'ok' });
+		if (read < count) {
+			return setTimeout(step, read >= count - slowTail ? SLOW_TOOL_STEP_MS : TOOL_STEP_MS);
+		}
+		pendingRuns.delete(runId);
+		completeRun(sessionId, runId, 'done');
+	};
+	setTimeout(step, TOOL_STEP_MS);
 };
 const THINK_STEP_MS = 700;
 const THOUGHTS = [
@@ -380,6 +405,28 @@ const backgroundAgentRun = (sessionId, runId, releasePath) => {
 			text: 'The Sleep probe agent finished with probe-done.',
 		});
 		event({ type: 'run.completed', runId, summary: 'The Sleep probe agent finished.' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, 50);
+};
+const COMPACTION_RELEASE = 'release-compaction';
+const compactionRun = (sessionId, runId, releasePath) => {
+	pendingRuns.set(runId, sessionId);
+	const toolCallId = 'compaction-' + runId;
+	event({ type: 'tool.started', runId, name: 'Compact', toolCallId });
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!fs.existsSync(releasePath)) return;
+		clearInterval(timer);
+		fs.rmSync(releasePath);
+		pendingRuns.delete(runId);
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Compact',
+			toolCallId,
+			output: { trigger: 'manual' },
+		});
+		event({ type: 'run.completed', runId, summary: '' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 	}, 50);
 };
@@ -654,6 +701,19 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));
 	}
+	if (prompt === '/compact') {
+		return compactionRun(sessionId, runId, nodePath.join(env.HOME, COMPACTION_RELEASE));
+	}
+	if (prompt.includes('AUTO_COMPACT')) {
+		event({ type: 'tool.started', runId, name: 'Compact', toolCallId: 'auto-compact' });
+		event({
+			type: 'tool.completed',
+			runId,
+			name: 'Compact',
+			toolCallId: 'auto-compact',
+			output: { trigger: 'auto' },
+		});
+	}
 	const bigOutput = /BIG_OUTPUT:(\d+)/.exec(prompt);
 	if (bigOutput) {
 		const toolCallId = 'big-' + runId;
@@ -718,7 +778,14 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 	}
 	const stream = /STREAM:(\d+)/.exec(prompt);
-	if (stream) return streamRun(sessionId, runId, Number(stream[1]));
+	const toolStream = /TOOL_STREAM:(\d+)(?::(\d+))?/.exec(prompt);
+	if (toolStream) {
+		return toolStreamRun(sessionId, runId, Number(toolStream[1]), Number(toolStream[2] ?? 0));
+	}
+	if (stream) {
+		const report = prompt.includes('CHAT_TURN_REPORT') ? CHAT_TURN_REPORT : '';
+		return streamRun(sessionId, runId, Number(stream[1]), report);
+	}
 	const commitLine = /COMMIT=([^"\n]+?)(?: PR=([^"\n]+?))?(?:"|$)/.exec(prompt);
 	const resolvedLines = [...prompt.matchAll(/RESOLVE:([\w-]+)/g)].map(
 		(match) => '\nResolved: ' + match[1],
@@ -791,6 +858,32 @@ const respond = async (sessionId, runId, prompt) => {
 		if (heartbeat) clearInterval(heartbeat);
 		pendingRuns.set(runId, sessionId);
 		return;
+	}
+	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
+	if (replyFile && worktree) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n' + fs.readFileSync(nodePath.join(worktree, replyFile[1]), 'utf8'),
+		);
+	}
+	const pick = /Go with variant ([A-Z\d]+)/.exec(prompt);
+	if (pick) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n- Changed: built variant ' +
+				pick[1] +
+				'.\n\nOutcome: Variant ' +
+				pick[1] +
+				' is built.\nNeeds: nothing',
+		);
 	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
 		return completeRun(

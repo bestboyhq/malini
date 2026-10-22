@@ -1,3 +1,4 @@
+import { MAX_ATTACHMENT_FILE_BYTES, MAX_ATTACHMENT_FILE_MB } from '$contract/agent';
 import type { ChatRequestId } from '$lib/chat/domain/chat-request';
 import {
 	MAX_COMPOSER_ATTACHMENTS,
@@ -22,6 +23,12 @@ function stageClipboardAttachmentsCommand(
 	chatRequestsStore.begin(input.requestId);
 	void (async () => {
 		try {
+			const oversized = input.files.find(({ file }) => file.size > MAX_ATTACHMENT_FILE_BYTES);
+			if (oversized) {
+				throw new Error(
+					`\`${oversized.fileName}\` is over the ${MAX_ATTACHMENT_FILE_MB} MB attachment limit`,
+				);
+			}
 			const current = agentDrafts.draftFor(input.draftScope).attachments;
 			const known = new Set(current.map((attachment) => attachment.id));
 			const staged: StagedAgentAttachment[] = [];

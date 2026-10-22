@@ -997,6 +997,11 @@
 		grid-area: 1 / 1;
 	}
 
+	.topbar-git__status > :not(:first-child),
+	.topbar-git__detail > :not(:first-child) {
+		display: none;
+	}
+
 	.topbar-git__line {
 		display: flex;
 		min-width: 0;

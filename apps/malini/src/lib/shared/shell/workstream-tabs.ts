@@ -124,7 +124,10 @@ export function syncWorkstreamChats(
 		.map((id): WorkstreamChatTab => ({ kind: 'chat', id }));
 	const fresh =
 		routedChatId === null ||
-		(state.fresh && !known.has(routedChatId) && !chatIds.includes(routedChatId));
+		(state.fresh &&
+			(known.has(routedChatId)
+				? routedChatId === state.routedChatId
+				: !chatIds.includes(routedChatId)));
 	if (added.length === 0 && routedChatId === state.routedChatId && fresh === state.fresh) {
 		return state;
 	}

@@ -1,7 +1,10 @@
 import { hasTurnReport, parseTurnReport, type TurnReport } from '$lib/chat/domain/turn-report';
+import { readVariantPick, type VariantPick } from '$lib/chat/domain/variant-pick';
 import type { RenderItem, RunGroup } from './render-state';
 
 export type EarlierTurn = Readonly<{ runId: string; report: TurnReport }>;
+
+export type RunPick = Readonly<{ reportRunId: string; promptRunId: string; pick: VariantPick }>;
 
 const EARLIER_TURN_LIMIT = 3;
 
@@ -21,27 +24,56 @@ export function earlierTurnsByRun(
 	runs: readonly RunGroup[],
 	turnFor: (run: RunGroup) => EarlierTurn | null = runTurn,
 ): Map<string, readonly EarlierTurn[]> {
-	const byRun = new Map<string, readonly EarlierTurn[]>();
-	let window: readonly EarlierTurn[] = [];
+	let latest: EarlierTurn | null = null;
+	let earlier: readonly EarlierTurn[] = [];
 	for (const run of runs) {
-		if (!byRun.has(run.runId)) byRun.set(run.runId, window);
 		if (run.superseded || run.obsoleted) continue;
 		const turn = turnFor(run);
-		if (turn) window = [...window, turn].slice(-EARLIER_TURN_LIMIT);
+		if (!turn) continue;
+		if (latest) earlier = [...earlier, latest].slice(-EARLIER_TURN_LIMIT);
+		latest = turn;
 	}
-	return byRun;
+	return latest ? new Map([[latest.runId, earlier]]) : new Map();
 }
 
-export function earlierTurns(runs: readonly RunGroup[], runId: string): EarlierTurn[] {
-	const end = runs.findIndex((run) => run.runId === runId);
-	const turns: EarlierTurn[] = [];
-	for (const run of runs.slice(0, Math.max(end, 0))) {
+export function variantPicksByRun(
+	runs: readonly RunGroup[],
+	turnFor: (run: RunGroup) => EarlierTurn | null = runTurn,
+	previous: ReadonlyMap<string, RunPick> = new Map(),
+): ReadonlyMap<string, RunPick> {
+	const picks = new Map<string, RunPick>();
+	let offered: EarlierTurn | null = null;
+	for (const run of runs) {
 		if (run.superseded || run.obsoleted) continue;
-		const answer = lastAssistant(run);
-		const report = answer ? finalTurnReport(run, answer.key, answer.text) : null;
-		if (report) turns.push({ runId: run.runId, report });
+		const prompt = openingPrompt(run);
+		const pick =
+			offered && prompt !== null ? readVariantPick(prompt, offered.report.variants) : null;
+		if (offered && pick) {
+			const prior = previous.get(offered.runId);
+			picks.set(
+				offered.runId,
+				prior && samePick(prior, run.runId, pick)
+					? prior
+					: { reportRunId: offered.runId, promptRunId: run.runId, pick },
+			);
+		}
+		offered = turnFor(run) ?? offered;
 	}
-	return turns.slice(-EARLIER_TURN_LIMIT);
+	return picks;
+}
+
+function samePick(prior: RunPick, promptRunId: string, pick: VariantPick): boolean {
+	return (
+		prior.promptRunId === promptRunId &&
+		prior.pick.picked.id === pick.picked.id &&
+		prior.pick.reason === pick.reason &&
+		prior.pick.options === pick.options
+	);
+}
+
+function openingPrompt(run: RunGroup): string | null {
+	const opening = run.items.find((item) => item.kind === 'user');
+	return opening?.kind === 'user' ? opening.text : null;
 }
 
 function lastAssistant(run: RunGroup): Extract<RenderItem, { kind: 'assistant' }> | null {

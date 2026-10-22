@@ -14,12 +14,20 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
 
 A run stays open while its background commands and subagents run, and you can stop each one.
+A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 
 ## Run a command from the chat
 
 Every shell code block the agent writes has a **Run** button next to **Copy**.
 It sends the command back to the same chat, so the agent runs it in the workstream, under the chat's access level, and the run can be undone like any other.
 If the agent is busy, the command waits in the queue.
+
+## Compact the conversation
+
+Type **/** and pick **/compact** to have the chat's Claude Code summarize the conversation so far and free up context.
+**/autocompact** shows when Claude Code compacts on its own; add `auto` or a token count to change it.
+Type instructions after **/compact** to say what the summary should keep.
+A compaction shows in the chat as a step, whether you asked for it or Claude Code ran out of room, and the context gauge drops once it ends.
 
 ## Plan first
 
@@ -44,13 +52,34 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 
 ## Reports
 
-Every turn ends with a report: **Done**, **Done with something deferred**, or **Waiting on you**, with what changed, what was verified, and the commit and pull request titles.
+Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
+What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under **Details**.
 Reports run from a screenshot and one line to the full write-up.
 A **Your turn** list, unread marks, a chime, and a notification tell you which workstream needs you.
 
+### Next steps
+
+What the agent left for later, or would do next, sits at the bottom of the report.
+**Do it now** sends it back to the chat as the next prompt, and **Scratchpad** saves it as an idea in the repository's scratchpad.
+
+### Before and after
+
+When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture.
+**Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
+Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, and press Escape to zoom back out.
+Recordings play side by side on one timeline: step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
+
+### Variants
+
+When you ask for options, or the direction is open, the agent makes two to four variants.
+Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
+Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions.
+
 ## Context
 
-- **@** mentions a file, and you can attach or paste images and files.
+- **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
+  Claude reads a video through frames it extracts with ffmpeg.
+- Click an image, GIF, or video in a chat to open the gallery: videos play there with their controls, and every image and video of the chat sits in its strip.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
@@ -82,7 +111,11 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **↵**           | Send, or queue after the current run                   |
 | **⌘↵**          | Steer now, interrupting the run                        |
 | **@**           | Mention a file                                         |
-| **/**           | Run a job                                              |
+| **/**           | Compact the conversation, or run a job                 |
+| **⌘T**          | Start a new chat in this workstream                    |
+| **⌘N**          | Start a new workstream in this repository              |
+| **⌘O**          | Open a folder as a repository                          |
+| **⌘,**          | Open Settings                                          |
 | **⌘W**          | Close the chat tab                                     |
 | **⌘K**          | Find a chat tab that doesn't fit                       |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |

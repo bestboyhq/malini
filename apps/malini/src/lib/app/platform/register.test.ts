@@ -16,11 +16,12 @@ vi.mock('electron', () => ({
 }));
 
 import type { MainContext } from '$main/context';
+import { openMigratedDatabase } from '$main/db/open';
 import { MainDiagnosticsLog } from '$main/diagnostics/main-diagnostics';
 import { DockerOwnership } from '$main/docker/ownership';
 import { ScriptedRunner } from '$main/process/test-support';
 import type { AppPlatform } from '../app.platform';
-import { registerApp, type AppDeps } from './register';
+import { followSavedThemeMode, registerApp, type AppDeps } from './register';
 import {
 	asBrowserWindow,
 	createFakeHost,
@@ -50,6 +51,7 @@ const KEPT_COMMANDS = [
 	'app.destroy-window',
 	'app.notify',
 	'app.take-notification-target',
+	'app.take-menu-command',
 	'app.notification-permission-granted',
 	'app.request-notification-permission',
 	'app.list-settings',
@@ -76,7 +78,7 @@ const booted: AppPlatform[] = [];
 
 beforeEach(async () => {
 	root = await mkdtemp(join(tmpdir(), 'malini-shell-'));
-	context = createTestContext(root);
+	context = createTestContext(root, { db: openMigratedDatabase(':memory:') });
 	host = createFakeHost();
 });
 
@@ -190,6 +192,16 @@ describe('registerApp', () => {
 			error: 'theme mode must be system, light or dark',
 		});
 		expect(host.themeMode).toBe('dark');
+	});
+
+	it('follows the theme mode the user picked from the next boot on, before any window asks', async () => {
+		boot(context);
+		await invoke('app.theme-mode', { mode: 'light' });
+		const restarted = createFakeHost();
+
+		followSavedThemeMode(context.db, restarted);
+
+		expect(restarted.themeMode).toBe('light');
 	});
 
 	it('writes clipboard text through the host', async () => {
@@ -396,5 +408,39 @@ describe('registerApp', () => {
 			ok: true,
 			value: 'granted',
 		});
+	});
+
+	it('puts Open Folder and Clone Repository in the menu bar icon, each handed to the window once', async () => {
+		boot(context);
+		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
+		expect(host.tray?.items.map((item) => item.label)).toEqual([
+			'Open Folder…',
+			'Clone Repository…',
+		]);
+
+		host.tray?.items[1]?.click();
+
+		expect(host.openedWindows).toBe(1);
+		expect(await invoke('app.take-menu-command')).toEqual({
+			ok: true,
+			value: { command: 'clone-repository' },
+		});
+		expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
+	});
+
+	it('shows a File menu that starts workstreams and chats and adds repositories, outside a packaged build too', () => {
+		boot(context);
+		const file = host.applicationMenu.find((menu) => menu.label === 'File');
+		const items = Array.isArray(file?.submenu) ? file.submenu : [];
+
+		expect(
+			items.filter((item) => item.label).map(({ label, accelerator }) => [label, accelerator]),
+		).toEqual([
+			['New Workstream', 'CommandOrControl+N'],
+			['New Chat', 'CommandOrControl+T'],
+			['Open Folder…', 'CommandOrControl+O'],
+			['Clone Repository…', undefined],
+		]);
+		expect(items.at(-1)?.role).toBe('close');
 	});
 });

@@ -94,6 +94,6 @@
 			</p>
 		{/if}
 	</div>
-	<div class="border-surface-tooltip-border -mx-2 my-2 border-t-[0.5px]"></div>
+	<div class="border-surface-elevated-border -mx-2 my-2 border-t"></div>
 	<WorkstreamRunningList {running} {onopenport} />
 </div>

@@ -55,7 +55,8 @@ export type RecordedScenario =
 	| 'retriedStream'
 	| 'nonStreamingFallback'
 	| 'autoModeBlock'
-	| 'blockedRetry';
+	| 'blockedRetry'
+	| 'compact';
 
 export interface FakeRun {
 	readonly options: Options;

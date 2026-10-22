@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$shared/router/state';
 	import { tick, untrack } from 'svelte';
+	import { workstreamImageUrl } from '$contract/workstream-images';
 	import {
 		claudeCodeStatusQuery,
 		defaultAgentModel,
@@ -20,6 +21,7 @@
 	import { releaseDetachedAttachmentsCommand } from '$lib/chat/application/commands/release-detached-attachments.command';
 	import { stageClipboardAttachmentsCommand } from '$lib/chat/application/commands/stage-clipboard-attachments.command';
 	import { adoptPastedAttachmentsCommand } from '$lib/chat/application/commands/adopt-pasted-attachments.command';
+	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
 	import { submitComposerPromptCommand } from '$lib/chat/application/commands/submit-composer-prompt.command';
 	import { updateDraftCommand } from '$lib/chat/application/commands/update-draft.command';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
@@ -30,6 +32,7 @@
 	import { imagePreviewQuery } from '$lib/chat/application/queries/image-preview.query.svelte';
 	import { workstreamFileListingQuery } from '$lib/chat/application/queries/workstream-file-listing.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
+	import { CLAUDE_CODE_COMMANDS } from '$lib/chat/domain/claude-code-commands';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import { clearWorkstreamTodosResolutionCommand } from '$lib/chat/application/commands/clear-workstream-todos-resolution.command';
 	import { resolveWorkstreamTodosCommand } from '$lib/chat/application/commands/resolve-workstream-todos.command';
@@ -42,7 +45,7 @@
 	import type { AgentRunProfile } from '$shared/providers/providers.api';
 	import {
 		attachmentViewer,
-		isImageAttachment,
+		isVideoAttachment,
 		type AgentComposerFileAttachment,
 	} from '$lib/chat/domain/composer-actions';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
@@ -69,7 +72,7 @@
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
 	import ImageGallery from './ImageGallery.svelte';
-	import { attachmentGalleryImage } from './transcript-gallery';
+	import { attachmentGalleryImage, isGalleryAttachment } from './transcript-gallery';
 	import { arrivalMotion } from './arrival-motion';
 	import { stepGlideSpring, type GlideState } from './scroll-glide';
 	import { draftChipDescriptors } from './inline-prompt-chips';
@@ -231,6 +234,9 @@
 					(attachment) => attachment.relativePath === relativePath,
 				);
 				if (!staged || !owner) return null;
+				if (isVideoAttachment(staged)) {
+					return workstreamImageUrl(workstreamId, staged.relativePath, 0);
+				}
 				const preview = imagePreview(owner, staged.id);
 				return preview?.status === 'ready' ? preview.src : null;
 			},
@@ -325,6 +331,7 @@
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const jobChatSessionId = $derived(forceFreshSession ? null : sessionId);
+	const slashCommands = $derived(jobQuery !== null && jobChatSessionId ? CLAUDE_CODE_COMMANDS : []);
 	const pendingPrompt = $derived(sessionId ? pendingPromptQuery.data(sessionId) : null);
 	const jobChatAfterRunId = $derived(pendingPrompt?.runId || transcriptFacts.lastRunId);
 
@@ -509,6 +516,18 @@
 	function onJobStarted(): void {
 		if (jobQuery !== null) promptEditor?.removeTrigger();
 		onJobPickerClose();
+	}
+
+	function runSlashCommand(name: string): void {
+		const chatSessionId = jobChatSessionId;
+		onJobStarted();
+		if (!chatSessionId) return;
+		sendCommandPromptCommand({
+			workstreamId,
+			sessionId: chatSessionId,
+			prompt: `/${name}`,
+			subject: 'Command',
+		});
 	}
 
 	function openNativeFilePicker(): void {
@@ -1016,8 +1035,10 @@
 			{workstreamId}
 			chatSessionId={jobChatSessionId}
 			chatAfterRunId={jobChatAfterRunId}
+			commands={slashCommands}
 			onclose={onJobPickerClose}
 			onstarted={onJobStarted}
+			oncommand={runSlashCommand}
 		/>
 	{/if}
 
@@ -1276,7 +1297,7 @@
 {#if galleryStartId}
 	<ImageGallery
 		{workstreamId}
-		images={localAttachments.filter(isImageAttachment).map(attachmentGalleryImage)}
+		images={localAttachments.filter(isGalleryAttachment).map(attachmentGalleryImage)}
 		startId={galleryStartId}
 		onclose={() => (galleryStartId = null)}
 	/>

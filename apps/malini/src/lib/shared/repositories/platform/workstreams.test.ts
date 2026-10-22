@@ -24,6 +24,7 @@ import {
 	writeAttachmentFixture,
 } from '$main/git/fixtures.test-support';
 import { AGENT_ATTACHMENTS_PATH } from '$main/git/paths';
+import type { InvokeResponse } from '$contract/ipc';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { CheckoutShell } from './checkout-shell.service';
 import { listConnectedRepositories } from './connected-repositories.repository';
@@ -651,6 +652,47 @@ describe('reading a workstream while its files change', () => {
 		expect(snapshot.patch).not.toContain('undone.txt');
 		expect(existsSync(currentLogPath(diagnosticsDirectory(dir), 'main'))).toBe(false);
 		expect(errors).not.toHaveBeenCalled();
+	});
+
+	it('records a read that loses its checkout to an archive as a warning, and a later read as an error', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-gone');
+		const snapshot = {
+			command: 'repositories.workstream-snapshot',
+			args: { workstreamId: 'ws-gone', baseBranch: 'main' },
+		};
+		const reads: InvokeResponse[] = [];
+		let readMidTeardown = async (): Promise<void> => {};
+		const { commands, db, invoke } = harness(dir, {
+			guardRunLease: async (_workstreamId, teardown) => {
+				const retired = await teardown();
+				await readMidTeardown();
+				return retired;
+			},
+		});
+		readMidTeardown = async () => {
+			reads.push(await commands.invoke(snapshot));
+		};
+		const diagnostics = new MainDiagnosticsLog({
+			appDataRoot: dir,
+			runtime: { productName: 'Malini', bundleIdentifier: 'test', version: '0.0.0', pid: 1 },
+		});
+		commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+		seed(db, 'ws-gone', base, checkout);
+
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-gone' });
+		reads.push(await commands.invoke(snapshot));
+
+		expect(reads.map((read) => read.ok)).toEqual([false, false]);
+		const recorded = (await readFile(currentLogPath(diagnosticsDirectory(dir), 'main'), 'utf8'))
+			.trim()
+			.split('\n')
+			.map((line) => JSON.parse(line) as { level: string; command: string });
+		expect(recorded.map(({ level, command }) => [level, command])).toEqual([
+			['warn', 'repositories.workstream-snapshot'],
+			['error', 'repositories.workstream-snapshot'],
+		]);
 	});
 });
 

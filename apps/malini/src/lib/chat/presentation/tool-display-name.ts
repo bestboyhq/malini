@@ -52,15 +52,29 @@ const ACRONYM_LABELS: Readonly<Record<string, string>> = {
 	ux: 'UX',
 };
 
+const COMPACTION_TOOL_NAME = 'Compact';
+
 export function isBackgroundAgent(rawName: string, input: unknown): boolean {
 	return (
 		AGENT_TOOL_NAMES.has(rawName.trim()) && isRecord(input) && input['run_in_background'] === true
 	);
 }
 
+export function isCompaction(rawName: string): boolean {
+	return rawName === COMPACTION_TOOL_NAME;
+}
+
+export function compactionLabel(status: 'running' | 'completed', output: unknown): string {
+	if (status === 'running') return 'Compacting conversation';
+	return isRecord(output) && output['trigger'] === 'auto'
+		? 'Auto-compacted conversation'
+		: 'Compacted conversation';
+}
+
 export function toolDisplayName(rawName: string, input?: unknown): string {
 	const trimmed = rawName.trim();
 	if (isBackgroundAgent(trimmed, input)) return 'Background agent';
+	if (isCompaction(trimmed)) return 'Compact conversation';
 	const mcpMatch = /^mcp__([^_].*?)__(.+)$/iu.exec(trimmed);
 	if (mcpMatch) return joinedProtocolLabel(mcpMatch[1] ?? '', mcpMatch[2] ?? '');
 	return identifierLabel(trimmed);

@@ -10,11 +10,11 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	untilStill,
 } from './harness';
 
 const OUTCOME = 'The header stays pinned while the page scrolls.';
 const STILL_PX = 1;
-const SETTLE_MS = 900;
 
 declare global {
 	var reportMotion: { tops: number[][]; sampling: boolean };
@@ -38,7 +38,7 @@ async function reportTopsWhile(page: Page, act: () => Promise<void>): Promise<nu
 		sample();
 	});
 	await act();
-	await page.waitForTimeout(SETTLE_MS);
+	await untilStill(page);
 	return page.evaluate(() => {
 		globalThis.reportMotion.sampling = false;
 		return globalThis.reportMotion.tops;
@@ -80,13 +80,11 @@ test('a turn that ends with a report shows it as a result card that asks the use
 			'Approve the new shadow',
 			'Merge the pull request',
 		]);
-		const lead = card.getByTestId('turn-report-lead');
-		await expect(lead).toContainText('checked at 320 px and 1440 px.');
-		await expect(card.getByTestId('turn-report-notes')).toBeHidden();
-		await lead.click();
-		await expect(card.getByTestId('turn-report-notes')).toContainText(
-			'the header is position: sticky.',
-		);
+		const notes = card.getByTestId('turn-report-notes');
+		await expect(notes).toContainText('the header is position: sticky.');
+		await expect(notes).toContainText('checked at 320 px and 1440 px.');
+		await expect(card.getByRole('img', { name: 'Changed' })).toBeVisible();
+		await expect(card.getByRole('img', { name: 'Verified' })).toBeVisible();
 		await captureFlow(app, 'turn-report-card');
 
 		await sendPrompt(page, 'CHAT_TURN_REPORT again');
@@ -129,7 +127,7 @@ test('switching between report images of different heights moves nothing in the 
 			'data-run-terminal',
 			'completed',
 		);
-		await page.waitForTimeout(SETTLE_MS);
+		await untilStill(page);
 		const shown = (name: string) =>
 			card.getByRole('button', { name: `Open image shots/${name} in gallery` });
 		await expect(shown('tall.png')).toBeVisible();
@@ -145,10 +143,11 @@ test('switching between report images of different heights moves nothing in the 
 				point,
 			);
 			expect(underPointer, `the ${name} thumbnail is under the pointer`).toBe(true);
-			const tops = await reportTopsWhile(page, () => page.mouse.click(point.x, point.y));
-			await expect(thumbnail).toHaveAttribute('aria-pressed', 'true');
-			await expect(shown(name)).toBeVisible();
-			return tops;
+			return reportTopsWhile(page, async () => {
+				await page.mouse.click(point.x, point.y);
+				await expect(thumbnail).toHaveAttribute('aria-pressed', 'true');
+				await expect(shown(name)).toBeVisible();
+			});
 		};
 		expectStill(await pick('short.png'), 'pinned to the end, to the short image');
 		await expect(shown('tall.png')).toBeHidden();
@@ -161,7 +160,7 @@ test('switching between report images of different heights moves nothing in the 
 		await page.mouse.wheel(0, -400);
 		await expect(viewport).toHaveAttribute('data-scroll-follow', 'reader');
 		await page.mouse.wheel(0, 300);
-		await page.waitForTimeout(SETTLE_MS);
+		await untilStill(page);
 		await expect(viewport).toHaveAttribute('data-scroll-follow', 'reader');
 		await expect(page.getByTestId('chat-jump-to-latest')).toBeVisible();
 		expectStill(await pick('short.png'), 'scrolled up and back down, to the short image');

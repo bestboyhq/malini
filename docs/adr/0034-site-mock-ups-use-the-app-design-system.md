@@ -4,12 +4,12 @@ Status: accepted
 
 ## Context
 
-0028 drew the landing page's product shots as hand-built Svelte mock-ups with invented markup, the site's Inter font and colors copied by hand into `--app-*` tokens.
+0032 drew the landing page's product shots as hand-built Svelte mock-ups with invented markup, the site's Inter font and colors copied by hand into `--app-*` tokens.
 The user found them not faithful to the app: wrong font, wrong surfaces, invented layouts such as a stage checklist the merge queue never shows, and motion the app does not have.
 The app renders with Tailwind 4, daisyUI themes, `@malini/hyper-ui` components and tokens, and Geist; none of that reached the site.
 Static screenshots stay out: they do not move, they drift silently, and a screenshot of real data once leaked private workstreams onto the live site.
 Importing the app's own presentation components is out too: they depend on `$lib` aliases, application-layer commands and queries, and the platform port, none of which exist in the site.
-The hero is the exception the user chose: the README's `hero.webp`, already public, replaces 0028's hero mock-up.
+The hero is the exception the user chose: the README's `hero.webp`, already public, replaces 0032's hero mock-up.
 
 ## Decision
 

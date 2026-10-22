@@ -1,7 +1,9 @@
 import type {
 	SDKBackgroundTasksChangedMessage,
+	SDKCompactBoundaryMessage,
 	SDKMessage,
 	SDKResultMessage,
+	SDKStatusMessage,
 	SDKTaskNotificationMessage,
 	SDKTaskProgressMessage,
 	SDKTaskStartedMessage,
@@ -9,6 +11,8 @@ import type {
 import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
 import { autoModeCategory } from './permissions.js';
+
+export const COMPACTION_TOOL = 'Compact';
 
 const FILE_EDIT_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const BACKGROUND_OUTPUT_FILE = /Output is being written to: (\S+\.output)/u;
@@ -47,6 +51,7 @@ export class ClaudeTranscript {
 	#usage: RunUsage | null = null;
 	#contextWindowTokens: number | undefined;
 	#stoppedByUser = false;
+	#compaction: string | null = null;
 
 	constructor(runId: string, emit: (event: AgentEvent) => void) {
 		this.#runId = runId;
@@ -134,7 +139,8 @@ export class ClaudeTranscript {
 				this.#acceptToolResults(message.message, message.parent_tool_use_id);
 				return;
 			case 'system':
-				if (message.subtype === 'compact_boundary' && message.uuid) this.#cursor = message.uuid;
+				if (message.subtype === 'status') this.#acceptStatus(message);
+				if (message.subtype === 'compact_boundary') this.#acceptCompactBoundary(message);
 				if (message.subtype === 'task_started') this.#acceptTaskStarted(message);
 				if (message.subtype === 'task_notification') this.#acceptTaskNotification(message);
 				if (message.subtype === 'task_progress') this.#acceptTaskProgress(message);
@@ -173,6 +179,41 @@ export class ClaudeTranscript {
 			});
 		}
 		this.#backgroundAgents.clear();
+	}
+
+	#acceptStatus(message: SDKStatusMessage): void {
+		if (message.status === 'compacting' && this.#compaction === null) {
+			this.#compaction = `compaction-${message.uuid}`;
+			this.#emit({
+				type: 'tool.started',
+				runId: this.#runId,
+				name: COMPACTION_TOOL,
+				toolCallId: this.#compaction,
+			});
+			return;
+		}
+		if (message.compact_result !== 'failed' || this.#compaction === null) return;
+		this.#emit({
+			type: 'tool.failed',
+			runId: this.#runId,
+			name: COMPACTION_TOOL,
+			toolCallId: this.#compaction,
+			error: message.compact_error || 'Claude Code could not compact the conversation.',
+		});
+		this.#compaction = null;
+	}
+
+	#acceptCompactBoundary(message: SDKCompactBoundaryMessage): void {
+		this.#cursor = message.uuid;
+		this.#usage = null;
+		this.#emit({
+			type: 'tool.completed',
+			runId: this.#runId,
+			name: COMPACTION_TOOL,
+			toolCallId: this.#compaction ?? `compaction-${message.uuid}`,
+			output: { trigger: message.compact_metadata.trigger },
+		});
+		this.#compaction = null;
 	}
 
 	#acceptBackgroundTasks(message: SDKBackgroundTasksChangedMessage): void {

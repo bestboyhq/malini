@@ -50,6 +50,37 @@ const leftoversClearing = new Set<Promise<unknown>>();
 
 export type TeardownGuard = <T>(workstreamId: string, teardown: () => Promise<T>) => Promise<T>;
 
+export class WorkstreamTeardowns {
+	// ponytail: one counter per workstream torn down this session, prune on restore if that ever matters
+	readonly #started = new Map<string, number>();
+	readonly #running = new Map<string, number>();
+
+	start(workstreamId: string): () => void {
+		this.#started.set(workstreamId, (this.#started.get(workstreamId) ?? 0) + 1);
+		this.#running.set(workstreamId, (this.#running.get(workstreamId) ?? 0) + 1);
+		return () => {
+			const running = (this.#running.get(workstreamId) ?? 1) - 1;
+			if (running > 0) this.#running.set(workstreamId, running);
+			else this.#running.delete(workstreamId);
+		};
+	}
+
+	watch(workstreamId: string): () => boolean {
+		const startedBefore = this.#started.get(workstreamId) ?? 0;
+		return () =>
+			this.#running.has(workstreamId) || (this.#started.get(workstreamId) ?? 0) !== startedBefore;
+	}
+}
+
+export class WorkstreamRetiredError extends Error {
+	override readonly name = 'WorkstreamRetiredError';
+	readonly kind = 'retired';
+
+	constructor(workstreamId: string, cause: unknown) {
+		super(`Workstream \`${workstreamId}\` was archived or deleted while it was read`, { cause });
+	}
+}
+
 export interface TeardownDeps {
 	readonly db: MaliniDatabase;
 	readonly appDataRoot: string;

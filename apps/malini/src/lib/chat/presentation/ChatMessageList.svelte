@@ -5,7 +5,7 @@
 	import { implementPlanCommand } from '$lib/chat/application/commands/implement-plan.command';
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
-	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
+	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
@@ -29,7 +29,8 @@
 	import { transcriptHeightsQuery } from '$lib/chat/application/queries/transcript-heights.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
-	import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
+	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
@@ -45,9 +46,15 @@
 		type ToolAggregate,
 	} from './render-state';
 	import { runProjectionVersion } from './render-projector';
+	import type { RunPick } from './turn-result';
+	import { thoughtRowKey, type RunTimelineItem } from './run-timeline';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
-	import { transcriptGalleryImages, type GalleryImage } from './transcript-gallery';
+	import {
+		isGalleryAttachment,
+		transcriptGalleryImages,
+		type GalleryImage,
+	} from './transcript-gallery';
 	import { exposeArrivalMotionForTuning } from './arrival-motion';
 	import type { FinalizedStreamingThought } from '$lib/chat/domain/streaming-block';
 	import { summarizeLiveToolInput } from './tool-display-name';
@@ -82,6 +89,7 @@
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
 		pullRequestShipped?: boolean;
+		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		spaceBelow?: number;
 		overlayBelow?: number;
 		contentBelow?: boolean;
@@ -95,6 +103,7 @@
 		envelopes,
 		composerControls = null,
 		pullRequestShipped = false,
+		onsavetoscratchpad,
 		spaceBelow = 0,
 		overlayBelow = 0,
 		contentBelow = $bindable(false),
@@ -228,7 +237,7 @@
 	}
 
 	function openAttachment(attachment: StagedAgentAttachment): void {
-		if (isImageAttachment(attachment)) openImageGallery(attachment.relativePath);
+		if (isGalleryAttachment(attachment)) openImageGallery(attachment.relativePath);
 		else openAttachmentFileCommand(workstreamId, attachment);
 	}
 
@@ -367,9 +376,20 @@
 			: [],
 	);
 
+	const liveThoughtItems = $derived(
+		liveThinkingBlocks.map((block): RunTimelineItem => ({
+			kind: 'thought',
+			key: thoughtRowKey(block.runId, block.contentId),
+			contentId: block.contentId,
+			seq: Number.MAX_SAFE_INTEGER,
+			text: block.text,
+			durationSeconds: null,
+			live: true,
+		})),
+	);
+
 	const liveRun = $derived<LiveRunBlocks>({
-		pendingToolItems: livePendingToolItems,
-		thinking: liveThinkingBlocks,
+		pendingItems: [...liveThoughtItems, ...livePendingToolItems],
 		assistant: liveAssistantBlocks,
 	});
 
@@ -437,7 +457,23 @@
 	}
 
 	function runShellCommand(command: string, language: string | null): void {
-		runShellCommandCommand({ workstreamId, sessionId, command, language });
+		sendCommandPromptCommand({
+			workstreamId,
+			sessionId,
+			prompt: shellCommandPrompt(command, language),
+			subject: 'Command',
+		});
+	}
+
+	function sendFollowUp(prompt: string, subject: string): void {
+		sendCommandPromptCommand({ workstreamId, sessionId, prompt, subject });
+	}
+
+	function promptPick(runId: string): RunPick | null {
+		for (const pick of renderState.variantPicks.values()) {
+			if (pick.promptRunId === runId) return pick;
+		}
+		return null;
 	}
 
 	const checkpointEdit = createCheckpointEditor({
@@ -566,6 +602,12 @@
 		openImageGallery,
 		openAttachment,
 		earlierTurns: (runId) => renderState.earlierTurns.get(runId) ?? [],
+		variantPick: (runId) => renderState.variantPicks.get(runId) ?? null,
+		promptPick,
+		sendFollowUp,
+		get saveToScratchpad() {
+			return onsavetoscratchpad;
+		},
 		undoTarget: (runId) => renderState.undoTargets.get(runId) ?? null,
 		window: transcriptWindow,
 		timelines,
