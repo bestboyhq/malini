@@ -5,6 +5,7 @@
 	import { fade, fly } from 'svelte/transition';
 	import { ShimmerText } from '$hyper-ui/components/shimmer-text';
 	import { Icon } from '$hyper-ui/icons';
+	import { arrivalMotion } from '../arrival-motion';
 	import ExpandMark from '../ExpandMark.svelte';
 	import MarkdownText from '../MarkdownText.svelte';
 	import { transcriptContext } from './transcript-context';
@@ -29,6 +30,7 @@
 
 	const transcript = transcriptContext();
 	const { stageEnter } = transcript;
+	const startedLive = untrack(() => live);
 	let stepsMounted = $state(false);
 	const line = $derived(live ? thinkingTicker(text) : { key: 0, line: thinkingOutcome(text) });
 	const lineKey = $derived(line.key);
@@ -57,6 +59,25 @@
 		});
 		return () => cancelAnimationFrame(frame);
 	});
+
+	function glideWidth(box: HTMLElement): () => void {
+		const content = box.firstElementChild;
+		if (!(content instanceof HTMLElement)) return () => undefined;
+		let width = content.offsetWidth;
+		const observer = new ResizeObserver(() => {
+			const gliding = box.getAnimations().length > 0;
+			const from = gliding ? box.getBoundingClientRect().width : width;
+			width = content.offsetWidth;
+			if (from === width || prefersReducedMotion.current) return;
+			const { durationMs, easing } = arrivalMotion();
+			box.animate([{ width: `${from}px` }, { width: `${width}px` }], {
+				duration: durationMs,
+				easing,
+			});
+		});
+		observer.observe(content);
+		return () => observer.disconnect();
+	}
 </script>
 
 <details
@@ -72,11 +93,23 @@
 		<ExpandMark>
 			<Icon name="brain" size={14} />
 		</ExpandMark>
-		{#if live}
-			<ShimmerText text="Thinking" class="shrink-0" />
-		{:else}
-			<span class="shrink-0">{thoughtLabel(durationSeconds)}</span>
-		{/if}
+		<span class="shrink-0 overflow-hidden" {@attach startedLive ? glideWidth : undefined}>
+			<span class="grid w-max">
+				{#key live}
+					<span
+						class="whitespace-nowrap [grid-area:1/1]"
+						in:fly={{ y: flip, duration: 260, easing: cubicOut }}
+						out:fly={{ y: -flip, duration: 200, easing: cubicOut }}
+					>
+						{#if live}
+							<ShimmerText text="Thinking" />
+						{:else}
+							{thoughtLabel(durationSeconds)}
+						{/if}
+					</span>
+				{/key}
+			</span>
+		</span>
 		<span
 			class="grid min-w-0 flex-1 overflow-hidden transition-[opacity,visibility] duration-200 group-open/expand:invisible group-open/expand:opacity-0"
 			data-testid={live ? 'thinking-live-preview' : 'thinking-outcome'}
