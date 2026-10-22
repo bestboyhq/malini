@@ -80,7 +80,7 @@
 	const panels = $derived(
 		extensionPanels.length > 0 || ready ? [...extensionPanels, ...builtInPanels] : extensionPanels,
 	);
-	const closablePanelIds = $derived(new Set(builtInPanels.map(({ id }) => id)));
+	const workstreamPanelIds = $derived(new Set(builtInPanels.map(({ id }) => id)));
 	const runtimeError = $derived(extensionRuntimeErrorQuery.data);
 	const activationRetry = $derived(extensionActivationRetryQuery.data);
 	const panelContext = $derived(extensionPanelContextQuery.data(workstream));
@@ -147,7 +147,7 @@
 	addExtensionsActive={directoryOpen}
 	addExtensionsContent={directoryContent}
 	{panelActions}
-	{closablePanelIds}
+	{workstreamPanelIds}
 	onpanelselect={closeDirectory}
 	requestedPanelId={routePanelId}
 />

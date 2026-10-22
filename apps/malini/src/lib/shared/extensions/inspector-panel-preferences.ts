@@ -9,6 +9,8 @@ export const PREVIOUS_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX =
 export const LEGACY_INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX =
 	'malini.extensions.inspector-panels-v1:';
 
+export const INSPECTOR_PANELS_EVERYWHERE_KEY = 'malini.extensions.inspector-panels-everywhere-v1';
+
 export const REPOSITORY_FILES_PANEL_ID = 'malini.repository.files-panel';
 export const REPOSITORY_CHANGES_PANEL_ID = 'malini.repository.changes-panel';
 
@@ -103,6 +105,23 @@ export function reconcileInspectorPanelPreferences(
 	};
 }
 
+export type InspectorPanelEverywhereChoice = Readonly<{ hidden: boolean; at: number }>;
+
+export function applyInspectorPanelEverywhereChoices(
+	preferences: InspectorPanelPreferences,
+	savedAt: number,
+	choices: ReadonlyMap<string, InspectorPanelEverywhereChoice>,
+): InspectorPanelPreferences {
+	const hidden = new Set(preferences.hidden);
+	return {
+		...preferences,
+		hidden: preferences.order.filter((id) => {
+			const choice = choices.get(id);
+			return choice && choice.at > savedAt ? choice.hidden : hidden.has(id);
+		}),
+	};
+}
+
 export function hideDefaultHiddenInspectorPanels(
 	panels: readonly InspectorPanel[],
 	preferences: InspectorPanelPreferences,
@@ -182,7 +201,6 @@ export function setInspectorPanelVisible(
 	else hidden.add(panelId);
 	const visibleIds = preferences.order.filter((id) => !hidden.has(id));
 
-	if (visibleIds.length === 0) return preferences;
 	return {
 		...preferences,
 		hidden: preferences.order.filter((id) => hidden.has(id)),
