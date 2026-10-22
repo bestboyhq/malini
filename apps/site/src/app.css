@@ -403,6 +403,14 @@
 	font-size: 13px;
 }
 
+.button:has(> svg:first-child) {
+	padding-left: 18px;
+}
+
+.button.small:has(> svg:first-child) {
+	padding-left: 12px;
+}
+
 .button.primary {
 	background: var(--surface-inverse);
 	color: var(--surface-root);

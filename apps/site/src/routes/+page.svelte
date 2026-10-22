@@ -153,16 +153,16 @@
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
-			<span>Free and open source, for the Mac</span>
+			<span>Free and open source macOS app</span>
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
 			<span>An agentic development environment</span>
-			<span class="quiet">for fast product engineers.</span>
+			<span class="quiet">for builders moving fast.</span>
 		</h1>
 		<p class="lede">
-			Run as many agents as you want and ship more. Malini handles the git, the checks, and the
-			merge, so you only review pull requests. It runs on Claude Code today.
+			Run as many agents as you want. Malini handles the chores, so you only review pull requests
+			and the gains compound.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
@@ -365,7 +365,7 @@
 </section>
 
 {#snippet apple()}
-	<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+	<svg viewBox="4 3.1 14.8 18.2" width="13" height="16" aria-hidden="true" fill="currentColor">
 		<path
 			d="M16.37 12.73c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.97.9-3.76 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74s1.78.74 3 .72c1.24-.02 2.02-1.12 2.78-2.23.88-1.28 1.24-2.52 1.26-2.58-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.89-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.28Z"
 		/>
@@ -449,7 +449,7 @@
 		align-items: center;
 		gap: 8px;
 		height: 30px;
-		padding: 0 12px;
+		padding: 0 11px 0 10px;
 		border-radius: 999px;
 		box-shadow: inset 0 0 0 1px var(--border-subtle);
 		color: var(--fg-secondary);

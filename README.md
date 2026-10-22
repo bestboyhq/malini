@@ -5,9 +5,9 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>An agentic development environment for fast product engineers.</b><br>
-  Run as many agents as you want and ship more. Malini handles the git, the checks, and the merge. Runs on Claude Code today.<br>
-  Free and open source, for the Mac.
+  <b>An agentic development environment for builders moving fast.</b><br>
+  Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.<br>
+  Free and open source macOS app.
 </p>
 
 <p align="center">
