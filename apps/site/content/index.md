@@ -1,9 +1,9 @@
 ---
 title: What Malini is
-description: Malini is a free, open source agentic development environment for builders who ship with many agents. Run as many as you want. Malini handles the git, the checks, and the merge, so you only review pull requests.
+description: Malini is a free, open source agentic development environment for fast product engineers. Run as many agents as you want. Malini handles the git, the checks, and the merge, so you only review pull requests.
 ---
 
-Malini is an agentic development environment for builders who ship with many agents, as a Mac app.
+Malini is an agentic development environment for fast product engineers, as a Mac app.
 Each task you start is a **workstream**: its own git worktree, its own branch, and its own agent chats.
 Agents write the code, and Malini owns git: it commits, opens the pull request, fixes red checks, answers reviews, and merges.
 It runs on Claude Code today.

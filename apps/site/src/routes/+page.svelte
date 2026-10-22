@@ -158,7 +158,7 @@
 		</a>
 		<h1 id="hero-title">
 			<span>An agentic development environment</span>
-			<span class="quiet">for builders who ship with many agents.</span>
+			<span class="quiet">for fast product engineers.</span>
 		</h1>
 		<p class="lede">
 			Run as many agents as you want and ship more. Malini handles the git, the checks, and the
