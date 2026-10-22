@@ -16,7 +16,12 @@ import {
 	isContextHandoffContentId,
 } from './session-runtime-metadata';
 import { TranscriptFactsProjector, type TranscriptFacts } from './transcript-facts';
-import { earlierTurnsByRun, type EarlierTurn } from './turn-result';
+import {
+	earlierTurnsByRun,
+	variantPicksByRun,
+	type EarlierTurn,
+	type RunPick,
+} from './turn-result';
 
 export type ToolAggregate = {
 	name: string;
@@ -142,6 +147,7 @@ export type RenderState = {
 	facts: TranscriptFacts;
 	undoTargets: ReadonlyMap<string, RunUndoTarget>;
 	earlierTurns: ReadonlyMap<string, readonly EarlierTurn[]>;
+	variantPicks: ReadonlyMap<string, RunPick>;
 };
 
 const ERROR_DIAGNOSTICS_SEPARATOR = '\n\nDiagnostics:\n';
@@ -738,5 +744,6 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		facts: new TranscriptFactsProjector().project(envelopes),
 		undoTargets: undoTargetsByRun(visibleRuns),
 		earlierTurns: earlierTurnsByRun(visibleRuns),
+		variantPicks: variantPicksByRun(visibleRuns),
 	};
 }

@@ -180,4 +180,31 @@ describe('workstreamShipContext', () => {
 		});
 		db.close();
 	});
+
+	it('records each variant the user picked against the variants the run before offered', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, WORKSTREAM);
+		session(db, 'chat', 'user', 'Hero');
+		completedRun(
+			db,
+			'run-offer',
+			'chat',
+			'Give me hero directions',
+			'![Variant A: Calm](a.png)\n![Variant B: Bold](b.png)\n\nOutcome: Two directions.',
+		);
+		completedRun(db, 'run-undone', 'chat', 'Go with variant A (Calm).', 'Outcome: Built A.');
+		run(db, "UPDATE agent_runs SET obsoleted_at = '2026-07-10T00:02:00Z' WHERE id = 'run-undone'");
+		completedRun(
+			db,
+			'run-pick',
+			'chat',
+			'Go with variant B (Bold).\nWhy: darker reads better',
+			'Outcome: Built B.',
+		);
+
+		expect(workstreamShipContext(db, WORKSTREAM).decisions).toEqual([
+			'B · Bold over A · Calm - "darker reads better"',
+		]);
+		db.close();
+	});
 });

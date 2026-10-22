@@ -4,6 +4,7 @@ import {
 	takeLastUnique,
 	validationLabel,
 } from '$lib/chat/domain/run-evidence';
+import { variantDecisions } from '$lib/chat/domain/variant-pick';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, isRecord } from '$main/db/rows';
 import type {
@@ -64,6 +65,14 @@ export function workstreamShipContext(
 		.map(({ summary }) => pullRequestTitleLine(summary))
 		.filter(Boolean)
 		.at(-1);
+	const decisions = variantDecisions(
+		all<{ prompt: string; summary: string | null }>(
+			db,
+			`SELECT r.prompt, CASE WHEN ${COMPLETED} THEN r.summary END AS summary
+			 FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' ORDER BY r.rowid ASC`,
+			workstreamId,
+		).map(({ prompt, summary }) => ({ prompt: promptPlainText(prompt), summary })),
+	);
 	const events = validationEvents(
 		db,
 		completed.slice(-RUN_SUMMARY_LIMIT).map(({ id }) => id),
@@ -75,6 +84,7 @@ export function workstreamShipContext(
 		...(latestRunId ? { latestRunId } : {}),
 		...(pullRequestTitle ? { pullRequestTitle } : {}),
 		...(events.length > 0 ? { events } : {}),
+		...(decisions.length > 0 ? { decisions } : {}),
 	};
 }
 

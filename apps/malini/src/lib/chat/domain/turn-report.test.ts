@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hasTurnReport, leadNote, parseTurnReport, turnStatus } from './turn-report';
+import {
+	hasTurnReport,
+	isVideoPath,
+	mediaMarker,
+	mediaPath,
+	parseTurnReport,
+	turnStatus,
+} from './turn-report';
 
 describe('turn report', () => {
 	it('splits the footer the agent closes every turn with from the body above it', () => {
@@ -23,6 +30,8 @@ describe('turn report', () => {
 			commit: 'Guard admin with Cloudflare Access',
 			pullRequest: 'Secure admin and add video encoding',
 			images: [{ alt: 'Admin media tab', src: '.malini/sandbox/screenshots/admin.png' }],
+			comparison: null,
+			variants: [],
 			diagrams: [],
 			notes: [
 				{ kind: 'note', text: 'Uploads go to R2 in 50 MB chunks.' },
@@ -90,13 +99,14 @@ describe('turn report', () => {
 		]);
 	});
 
-	it('reads the labels on the bullets and leads with a deferral, then with the proof', () => {
+	it('reads the labels on the bullets, and a deferral as a next step', () => {
 		const report = parseTurnReport(
 			[
 				'- Changed: `merge-queue.ts` reruns a failed check once.',
 				'- **Verified:** new cases pass,',
 				'  including fail-twice.',
 				'- Deferred: external CI statuses still park at once.',
+				'- Next step: Rerun external statuses too',
 				'',
 				'Outcome: The merge queue reruns a failed check once.',
 				'Needs: nothing',
@@ -104,14 +114,71 @@ describe('turn report', () => {
 		);
 
 		expect(report.notes).toEqual([
-			{ kind: 'note', text: '`merge-queue.ts` reruns a failed check once.' },
+			{ kind: 'changed', text: '`merge-queue.ts` reruns a failed check once.' },
 			{ kind: 'verified', text: 'new cases pass,\n  including fail-twice.' },
-			{ kind: 'deferred', text: 'external CI statuses still park at once.' },
+			{ kind: 'next', text: 'external CI statuses still park at once.' },
+			{ kind: 'next', text: 'Rerun external statuses too' },
 		]);
-		expect(leadNote(report.notes)?.kind).toBe('deferred');
-		expect(leadNote(report.notes.slice(0, 2))?.kind).toBe('verified');
-		expect(leadNote(report.notes.slice(0, 1))?.kind).toBe('note');
-		expect(leadNote([])).toBeNull();
+	});
+
+	it('pairs a before and an after into one comparison and keeps the rest as images', () => {
+		const report = parseTurnReport(
+			[
+				'![Before: pricing page](.context/before.png)',
+				'![After: pricing page](.context/after.png)',
+				'![Mobile](.context/mobile.png)',
+				'',
+				'Outcome: The Pro button leads.',
+			].join('\n'),
+		);
+
+		expect(report.comparison).toEqual({
+			before: { alt: 'pricing page', src: '.context/before.png' },
+			after: { alt: 'pricing page', src: '.context/after.png' },
+		});
+		expect(report.images).toEqual([{ alt: 'Mobile', src: '.context/mobile.png' }]);
+	});
+
+	it('leaves a lone before, or a picture beside a recording, as plain images', () => {
+		const lone = parseTurnReport('![Before: page](a.png)\n\nOutcome: Shown.');
+		const mixed = parseTurnReport(
+			'![Before: page](a.png)\n![After - page](b.mp4)\n\nOutcome: Shown.',
+		);
+
+		expect(lone.comparison).toBeNull();
+		expect(lone.images).toHaveLength(1);
+		expect(mixed.comparison).toBeNull();
+		expect(mixed.images).toHaveLength(2);
+	});
+
+	it('reads variants with their names and notes once there are at least two', () => {
+		const report = parseTurnReport(
+			[
+				'![Variant A: Calm - serif headline, lots of air](.context/a.png)',
+				'![variant b: Bold](.context/b.png)',
+				'![Variant B: Bold again](.context/b2.png)',
+				'',
+				'Outcome: Two hero directions.',
+				'Needs: Pick a direction',
+			].join('\n'),
+		);
+		const single = parseTurnReport('![Variant A: Calm](a.png)\n\nOutcome: One.');
+
+		expect(report.variants).toEqual([
+			{ id: 'A', name: 'Calm', note: 'serif headline, lots of air', src: '.context/a.png' },
+			{ id: 'B', name: 'Bold', note: '', src: '.context/b.png' },
+		]);
+		expect(report.images).toEqual([]);
+		expect(single.variants).toEqual([]);
+		expect(single.images).toHaveLength(1);
+	});
+
+	it('tells a recording from a picture and reads the frame a recording marks', () => {
+		expect(isVideoPath('.context/after.mp4#t=0.45')).toBe(true);
+		expect(isVideoPath('.context/after.png')).toBe(false);
+		expect(mediaPath('.context/after.mp4#t=0.45')).toBe('.context/after.mp4');
+		expect(mediaMarker('.context/after.mp4#t=0.45')).toBe(0.45);
+		expect(mediaMarker('.context/after.mp4')).toBeNull();
 	});
 
 	it('lifts the diagram that opens the body out of the notes', () => {
@@ -125,16 +192,13 @@ describe('turn report', () => {
 			'reruns once.',
 			'```ts\nconst later = true;\n```',
 		]);
-		expect(leadNote(report.notes)?.text).toBe('reruns once.');
 	});
 
-	it('waits on the user only while the needs are open, and flags a deferral otherwise', () => {
-		const blocked = parseTurnReport(
-			'- Deferred: no notarization.\n\nOutcome: Built.\nNeeds: Add the key',
-		);
+	it('waits on the user only while the needs are open, and reads done otherwise', () => {
+		const blocked = parseTurnReport('- Next: Notarize.\n\nOutcome: Built.\nNeeds: Add the key');
 
 		expect(turnStatus(blocked, true)).toBe('waiting');
-		expect(turnStatus(blocked, false)).toBe('deferred');
+		expect(turnStatus(blocked, false)).toBe('done');
 		expect(turnStatus(parseTurnReport('Outcome: Built.\nNeeds: nothing'), true)).toBe('done');
 	});
 });
