@@ -3,8 +3,7 @@
 	import type { RunTimelineItem } from '../run-timeline';
 
 	export type LiveRunBlocks = Readonly<{
-		pendingToolItems: readonly RunTimelineItem[];
-		thinking: readonly StreamingBlock[];
+		pendingItems: readonly RunTimelineItem[];
 		assistant: readonly StreamingBlock[];
 	}>;
 </script>
@@ -24,7 +23,6 @@
 	import RunTerminalBanner from './RunTerminalBanner.svelte';
 	import RunUndoFooter from './RunUndoFooter.svelte';
 	import { blockKey } from './streaming-finalization';
-	import ThinkingRow from './ThinkingRow.svelte';
 	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
 	import { transcriptContext } from './transcript-context';
 	import { estimateRowHeight, estimateRunHeight } from './transcript-estimates';
@@ -70,9 +68,7 @@
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
 	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun));
 	const runTimelineItems = $derived(
-		live && live.pendingToolItems.length > 0
-			? mergePendingToolRows(runRows, live.pendingToolItems)
-			: runRows,
+		live && live.pendingItems.length > 0 ? mergePendingRows(runRows, live.pendingItems) : runRows,
 	);
 	const undoTarget = $derived(
 		!run.superseded && !run.obsoleted ? transcript.undoTarget(run.runId) : null,
@@ -122,7 +118,7 @@
 		return seeded;
 	}
 
-	function mergePendingToolRows(
+	function mergePendingRows(
 		rows: readonly GroupedRunTimelineItem[],
 		pending: readonly RunTimelineItem[],
 	): readonly GroupedRunTimelineItem[] {
@@ -204,15 +200,6 @@
 		{/each}
 
 		{#if live}
-			{#each live.thinking as block (block.contentId)}
-				<ThinkingRow
-					text={block.text}
-					live
-					durationSeconds={null}
-					enterKey={blockKey(transcript.sessionId, block.runId, block.contentId)}
-				/>
-			{/each}
-
 			{#each live.assistant as block (block.contentId)}
 				<div
 					class="text-fg-default w-full text-sm leading-relaxed"
