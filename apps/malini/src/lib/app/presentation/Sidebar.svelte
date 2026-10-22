@@ -804,7 +804,7 @@
 								openDelay={500}
 								triggerPress="dismiss"
 								triggerClass="w-full"
-								panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+								panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 								testId="sidebar-repository-card"
 							>
 								{#snippet trigger()}
