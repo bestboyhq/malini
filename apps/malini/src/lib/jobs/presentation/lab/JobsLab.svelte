@@ -12,7 +12,7 @@
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { LAB_LOCAL_JOB_PREFIX, labState } from './lab-state.svelte';
 	import LabActivityPage from './LabActivityPage.svelte';
-	import LabJobSheet from './LabJobSheet.svelte';
+	import LabJobDetail from './LabJobDetail.svelte';
 	import LabOverview from './LabOverview.svelte';
 	import LabRecipesPage from './LabRecipesPage.svelte';
 
@@ -38,18 +38,22 @@
 	});
 </script>
 
-<main class="flex h-full min-h-0 flex-col" data-testid="jobs-lab">
-	{#if labState.section === 'activity'}
-		<LabActivityPage {jobs} />
-	{:else if labState.section === 'recipes'}
-		<LabRecipesPage />
-	{:else}
-		<LabOverview {jobs} />
-	{/if}
+<main class="flex h-full min-h-0 p-2" data-testid="jobs-lab">
+	<div
+		class="bg-surface-50 border-surface-50-border flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border-[0.5px]"
+	>
+		{#if labState.section === 'activity'}
+			<LabActivityPage {jobs} />
+		{:else if labState.section === 'recipes'}
+			<LabRecipesPage />
+		{:else}
+			<LabOverview {jobs} />
+		{/if}
+	</div>
 </main>
 
 {#if selected}
-	<LabJobSheet
+	<LabJobDetail
 		job={selected}
 		setup={labState.setupOf(selected)}
 		editable={!selected.id.startsWith(LAB_LOCAL_JOB_PREFIX)}

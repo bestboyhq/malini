@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Well } from '$hyper-ui/components/well';
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import {
@@ -23,7 +24,6 @@
 	import TintWheel from '../appearance/TintWheel.svelte';
 	import ChoiceSwitch from './ChoiceSwitch.svelte';
 	import SettingsSection from './SettingsSection.svelte';
-	import Well from './Well.svelte';
 
 	type Driver = 'wheel' | 'levers' | 'fine-tune' | 'presets' | 'history' | 'reset';
 

@@ -51,19 +51,18 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col" in:slideIn data-testid="jobs-lab-nav">
-	<div class="px-2 pt-1">
+	<div class="px-2.5 pt-1">
 		<Button bare href={backHref} class="sidebar-row text-fg-secondary w-full gap-1.5 px-2">
 			<Icon name="chevron-left" size={14} />
 			<span class="min-w-0 truncate">{backLabel}</span>
 		</Button>
 	</div>
 
-	<div class="flex items-center gap-2 px-4 pt-4 pb-3">
-		<h2 class="text-fg-default text-base font-semibold tracking-tight">Automations</h2>
-		<Badge variant="warning">Lab</Badge>
-	</div>
-
-	<nav class="flex flex-col gap-px px-2" aria-label="Automations">
+	<nav class="flex flex-col gap-px px-2.5 pt-4" aria-label="Automations">
+		<h2 class="text-fg-tertiary flex items-center gap-1.5 px-2 pt-1 pb-2.5 text-xs font-medium">
+			Automations
+			<Badge variant="warning">Lab</Badge>
+		</h2>
 		{#each SECTIONS as section (section.value)}
 			{@const current = labState.section === section.value}
 			<Button
@@ -75,8 +74,8 @@
 				]}
 				onclick={() => (labState.section = section.value)}
 			>
-				<Icon name={section.icon} size={14} class="text-fg-tertiary shrink-0" />
-				<span class="text-fg-default min-w-0 flex-1 truncate text-left">{section.label}</span>
+				<Icon name={section.icon} size={16} class="shrink-0" />
+				<span class="min-w-0 flex-1 truncate text-left">{section.label}</span>
 				{#if section.value === 'activity' && waiting > 0}
 					<span
 						class="bg-warning text-warning-content text-2xs grid min-w-4 place-items-center rounded-full px-1 tabular-nums"
@@ -88,9 +87,9 @@
 		{/each}
 	</nav>
 
-	<h3 class="text-fg-tertiary px-4 pt-6 pb-1.5 text-xs font-medium">Your jobs</h3>
+	<h3 class="text-fg-tertiary px-4.5 pt-6 pb-2.5 text-xs font-medium">Your jobs</h3>
 	<ScrollableDiv class="min-h-0 flex-1" ariaLabel="Your jobs">
-		<ul class="flex flex-col gap-px px-2 pb-4">
+		<ul class="flex flex-col gap-px px-2.5 pb-4">
 			{#each jobs as job (job.id)}
 				{@const setup = labState.setupOf(job)}
 				{@const runs = runsFor(job.id)}

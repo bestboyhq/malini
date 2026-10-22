@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack, type Snippet } from 'svelte';
+	import { untrack } from 'svelte';
 	import type { JobOutput, JobRunsIn } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -12,6 +12,7 @@
 	import { labDraft, labGuessTriggerId, type LabSavedDraft } from './lab-recipes';
 	import { LAB_MANUAL_TRIGGER_ID, LAB_RUN_MODES, type LabJobSetup } from './lab-triggers';
 	import LabChoiceMenu from './LabChoiceMenu.svelte';
+	import LabRow from './LabRow.svelte';
 	import LabRunsMode from './LabRunsMode.svelte';
 	import LabTriggerButton from './LabTriggerButton.svelte';
 
@@ -75,22 +76,13 @@
 	}
 </script>
 
-{#snippet row(label: string, body: Snippet)}
-	<div
-		class="border-surface-50-border grid grid-cols-[64px_1fr] items-start gap-3 border-t-[0.5px] px-5 py-3"
-	>
-		<span class="text-fg-tertiary pt-1.5 text-xs font-medium">{label}</span>
-		<div class="flex min-w-0 flex-wrap items-center gap-2">{@render body()}</div>
-	</div>
-{/snippet}
-
 <article
-	class="border-surface-50-border bg-surface-50 overflow-hidden rounded-2xl border-[0.5px]"
+	class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-xl border-[0.5px]"
 	aria-label="New job draft"
 	aria-busy={drafting}
 	data-testid="lab-draft"
 >
-	<header class="flex items-start gap-3 px-5 pt-4 pb-3">
+	<header class="flex items-start gap-3 px-4 py-3">
 		<div class="min-w-0 flex-1">
 			<p class="text-fg-tertiary flex items-center gap-1.5 text-xs">
 				<Icon name="sparkles" size={12} />
@@ -121,18 +113,17 @@
 	</header>
 
 	{#if drafting}
-		<div class="flex flex-col gap-2 px-5 pt-1 pb-5" aria-hidden="true">
+		<div class="flex flex-col gap-2 px-4 py-3" aria-hidden="true">
 			{#each ['72%', '56%', '64%'] as width (width)}
 				<Skeleton {width} height="36px" />
 			{/each}
 		</div>
 	{:else}
-		{#snippet whenBody()}
+		<LabRow title="When" description="What starts it. Malini read it from your words.">
 			<LabTriggerButton {setup} jobName={name} onchange={(next) => (setup = next)} />
-		{/snippet}
-		{@render row('When', whenBody)}
+		</LabRow>
 
-		{#snippet doBody()}
+		<LabRow title="Steps" description="Malini writes these into the job's instructions." stacked>
 			<ol class="flex w-full flex-col gap-1">
 				{#each steps as step, index (index)}
 					<li
@@ -175,11 +166,13 @@
 				{/snippet}
 				Add a step
 			</Button>
-		{/snippet}
-		{@render row('Do', doBody)}
+		</LabRow>
 
 		{#if parsed.tools.length > 0}
-			{#snippet usesBody()}
+			<LabRow
+				title="Uses"
+				description="Through your Claude tools. Malini checks them on the first try."
+			>
 				{#each parsed.tools as tool (tool)}
 					<span
 						class="border-chip-border bg-chip text-fg-secondary inline-flex h-7 items-center gap-1.5 rounded-md border-[0.5px] px-2 text-xs"
@@ -188,14 +181,10 @@
 						{tool}
 					</span>
 				{/each}
-				<span class="text-fg-tertiary text-xs">
-					Through your Claude tools. Malini checks them on the first try.
-				</span>
-			{/snippet}
-			{@render row('Uses', usesBody)}
+			</LabRow>
 		{/if}
 
-		{#snippet whereBody()}
+		<LabRow title="Runs in" description="Where the agent works on it.">
 			<LabChoiceMenu
 				value={setup.runsIn ?? 'workstream'}
 				options={setup.triggerId === LAB_MANUAL_TRIGGER_ID ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN}
@@ -203,7 +192,9 @@
 				icon="branch"
 				onchange={(runsIn: JobRunsIn) => (setup = { ...setup, runsIn })}
 			/>
-			<span class="text-fg-tertiary text-xs">then</span>
+		</LabRow>
+
+		<LabRow title="When it finishes" description="What Malini does with the changes.">
 			<LabChoiceMenu
 				value={setup.output ?? 'none'}
 				options={JOB_OUTPUT_OPTIONS}
@@ -211,23 +202,17 @@
 				icon="pr-draft"
 				onchange={(output: JobOutput) => (setup = { ...setup, output })}
 			/>
-		{/snippet}
-		{@render row('Where', whereBody)}
+		</LabRow>
 
-		{#snippet runsBody()}
+		<LabRow title="Runs" description={modeHint}>
 			<LabRunsMode
 				value={setup.mode}
 				label="How the new job runs"
 				onchange={(mode) => (setup = { ...setup, mode })}
 			/>
-			<span class="text-fg-tertiary min-w-0 text-xs">{modeHint}</span>
-		{/snippet}
-		{@render row('Runs', runsBody)}
+		</LabRow>
 
-		<footer class="border-surface-50-border flex items-center gap-2 border-t-[0.5px] px-5 py-3">
-			<p class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
-				Malini writes these steps into the job's instructions.
-			</p>
+		<footer class="flex items-center justify-end gap-2 px-4 py-3">
 			<Button variant="ghost" size="sm" onclick={ondiscard}>Discard</Button>
 			<Button variant="secondary" size="sm">
 				{#snippet leading()}

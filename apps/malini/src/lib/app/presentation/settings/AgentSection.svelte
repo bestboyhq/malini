@@ -1,8 +1,8 @@
 <script lang="ts">
+	import { Well } from '$hyper-ui/components/well';
 	import { ClaudeCodeSetup } from '$shared/providers/providers.api';
 	import { GitHubSetup } from '$shared/repositories/repositories.api';
 	import SettingsSection from './SettingsSection.svelte';
-	import Well from './Well.svelte';
 </script>
 
 <SettingsSection

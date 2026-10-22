@@ -35,4 +35,5 @@ export * from './components/text-input';
 export * from './components/textarea';
 export * from './components/toast';
 export * from './components/tooltip';
+export * from './components/well';
 export * from './icons';
