@@ -1000,39 +1000,69 @@ describe('ClaudeSession', () => {
 		]);
 	});
 
-	it('keeps a prompt that changes the access level out of a run waiting on background work', async () => {
-		const script = recordedScript('backgroundCommand');
-		let refused: Promise<void> | null = null;
-		const { session } = harness([script], {
-			onEvent: (event, current) => {
-				if (event.type === 'background.updated' && event.waiting && !refused) {
-					refused = current.sendPrompt('Go', 'run-2', profile('agent', 'full'));
-					refused.catch(() => undefined);
-				}
-			},
-		});
+	it.each<[string, (current: ClaudeSession) => Promise<void>]>([
+		['access level', (current) => current.sendPrompt('Go', 'run-2', profile('agent', 'full'))],
+		[
+			'skills',
+			(current) => current.sendPrompt('Go', 'run-2', profile(), undefined, undefined, ['adr']),
+		],
+		[
+			'theme',
+			(current) =>
+				current.sendPrompt(
+					'Go',
+					'run-2',
+					profile(),
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					'light',
+				),
+		],
+	])(
+		'restarts Claude Code for a prompt that changes the %s of a run waiting on background work',
+		async (_, sendGo) => {
+			const script = recordedScript('backgroundCommand');
+			const firstIdle = script.findIndex(
+				(step) =>
+					typeof step !== 'string' &&
+					'type' in step &&
+					step.type === 'system' &&
+					step.subtype === 'session_state_changed' &&
+					step.state === 'idle',
+			);
+			let next: Promise<void> | null = null;
+			const { session, claude, events } = harness(
+				[
+					[...script.slice(0, firstIdle + 1), 'wait-for-interrupt'],
+					[initOf(script), recordedSuccess(script)],
+				],
+				{
+					onEvent: (event, current) => {
+						if (event.type === 'background.updated' && event.waiting && !next) {
+							next = sendGo(current);
+						}
+					},
+				},
+			);
 
-		await session.sendPrompt('Run a command in the background', 'run-1', profile());
+			await session.sendPrompt('Run a command in the background', 'run-1', profile());
+			await next;
 
-		await expect(refused).rejects.toThrow('RUN_ACTIVE: run-1 is still running');
-	});
-
-	it('keeps a prompt with other skills out of a run waiting on background work', async () => {
-		const script = recordedScript('backgroundCommand');
-		let refused: Promise<void> | null = null;
-		const { session } = harness([script], {
-			onEvent: (event, current) => {
-				if (event.type === 'background.updated' && event.waiting && !refused) {
-					refused = current.sendPrompt('Go', 'run-2', profile(), undefined, undefined, ['adr']);
-					refused.catch(() => undefined);
-				}
-			},
-		});
-
-		await session.sendPrompt('Run a command in the background', 'run-1', profile());
-
-		await expect(refused).rejects.toThrow('RUN_ACTIVE: run-1 is still running');
-	});
+			expect(claude.runs).toHaveLength(2);
+			expect(claude.runs[0]?.closed).toBe(true);
+			await expect(claude.runs[1]?.prompt).resolves.toBe('Go');
+			expect(
+				events
+					.filter((event) => event.type === 'run.failed' || event.type === 'run.completed')
+					.map((event) => [event.type, event.runId]),
+			).toEqual([
+				['run.failed', 'run-1'],
+				['run.completed', 'run-2'],
+			]);
+		},
+	);
 
 	it('stops a background agent with the run when the user cancels while it runs', async () => {
 		const script = recordedScript('backgroundAgent');

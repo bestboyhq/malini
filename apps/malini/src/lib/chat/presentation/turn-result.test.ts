@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderItem, RunGroup } from './render-state';
-import { earlierTurnsByRun, finalTurnReport } from './turn-result';
+import { earlierTurnsByRun, finalTurnReport, runTurn, variantPicksByRun } from './turn-result';
 
 const REPORT = [
 	'![Sticky header](.malini/sandbox/screenshots/header.png)',
@@ -66,5 +66,36 @@ describe('which message becomes the result card', () => {
 		expect(trail(earlierTurnsByRun(runs))).toEqual([['r7', ['r2', 'r5', 'r6']]]);
 		expect(trail(earlierTurnsByRun(runs.slice(0, 1)))).toEqual([['r1', []]]);
 		expect(trail(earlierTurnsByRun(runs.slice(2, 4)))).toEqual([]);
+	});
+
+	it('pairs each pick with the variants offered right before it, and keeps an unchanged pick as it was', () => {
+		const user = (key: string, text: string): RenderItem => ({ kind: 'user', key, seq: 0, text });
+		const offer = [
+			'![Variant A: Calm](a.png)',
+			'![Variant B: Bold](b.png)',
+			'',
+			'Outcome: Two directions.',
+		].join('\n');
+		const runs = [
+			run('completed', [user('u1', 'Directions please'), assistant('a1', offer)], 'r1'),
+			run('completed', [user('u2', 'Fix the footer'), assistant('a2', 'Done.')], 'r2'),
+			run(
+				'completed',
+				[user('u3', 'Go with variant B (Bold).\nWhy: darker'), assistant('a3', 'Ok.')],
+				'r3',
+			),
+			run(null, [user('u4', 'Go with variant A (Calm).')], 'r4', true),
+		];
+
+		const turns = new Map(runs.map((each) => [each.runId, runTurn(each)]));
+		const cached = (each: RunGroup) => turns.get(each.runId) ?? null;
+		const picks = variantPicksByRun(runs, cached);
+		const pick = picks.get('r1');
+
+		expect([...picks.keys()]).toEqual(['r1']);
+		expect(pick?.promptRunId).toBe('r3');
+		expect(pick?.pick.picked.name).toBe('Bold');
+		expect(pick?.pick.reason).toBe('darker');
+		expect(variantPicksByRun(runs, cached, picks).get('r1')).toBe(pick);
 	});
 });
