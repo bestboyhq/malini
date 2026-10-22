@@ -5,8 +5,8 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>An agentic development environment.</b><br>
-  Run many agents at once. Come back to merged pull requests. Runs on Claude Code today.<br>
+  <b>Agents write the code. Malini does the git.</b><br>
+  An agentic development environment. Run many agents at once and come back to merged pull requests. Runs on Claude Code today.<br>
   Free and open source, for the Mac.
 </p>
 
