@@ -12,7 +12,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
-The one exception is skills: `send_prompt` carries the skills a job names (ADR 0047), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
+The one exception is skills: `send_prompt` carries the skills a job names (ADR 0049), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 
 Malini owns the rest, and the adapter enforces it:
 

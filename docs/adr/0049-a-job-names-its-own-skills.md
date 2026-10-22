@@ -1,4 +1,4 @@
-# 0047 - A job names its own skills
+# 0049 - A job names its own skills
 
 Status: accepted
 

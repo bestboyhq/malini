@@ -31,6 +31,7 @@ export type PullRequestAutomationContext = Readonly<{
 	latestRunId?: string;
 	pullRequestTitle?: string;
 	events?: readonly PullRequestAutomationEvent[];
+	decisions?: readonly string[];
 }>;
 
 export type AutomatedPullRequestMetadataInput = Readonly<{
@@ -212,6 +213,7 @@ function normalizedContext(
 			latestRunId: '',
 			pullRequestTitle: '',
 			events: [],
+			decisions: [],
 		};
 	}
 	return {
@@ -239,6 +241,11 @@ function normalizedContext(
 			.map(normalizedEvent)
 			.filter((event): event is PullRequestAutomationEvent => event !== null)
 			.slice(0, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.eventItems),
+		decisions: uniqueInOrder(
+			(context.decisions ?? [])
+				.map((decision) => proseLine(decision, AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem))
+				.filter(Boolean),
+		).slice(-AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItems),
 	};
 }
 
@@ -253,6 +260,7 @@ function localContext(
 		...(context.lastUserIntent ? { lastUserIntent: local(context.lastUserIntent) } : {}),
 		...(context.pullRequestTitle ? { pullRequestTitle: local(context.pullRequestTitle) } : {}),
 		...(context.runSummaries ? { runSummaries: context.runSummaries.map(local) } : {}),
+		...(context.decisions ? { decisions: context.decisions.map(local) } : {}),
 		...(context.events
 			? {
 					events: context.events.map((event) => ({
@@ -307,6 +315,15 @@ function buildBody(
 		if (hiddenPathCount > 0) sections.push(`- ${hiddenPathCount} more changed path(s)`);
 	} else {
 		sections.push('', '- No uncommitted paths; publish existing local commits.');
+	}
+
+	if (input.context.decisions.length > 0) {
+		sections.push(
+			'',
+			'## Decisions',
+			'',
+			...input.context.decisions.map((decision) => `- ${markdownProse(decision)}`),
+		);
 	}
 
 	sections.push('', '## Validation', '');

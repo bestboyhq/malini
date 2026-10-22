@@ -1,6 +1,6 @@
 # 0015 - Skills are kept tidy by use, not picked per chat
 
-Status: superseded by 0047
+Status: superseded by 0049
 
 ## Context
 
