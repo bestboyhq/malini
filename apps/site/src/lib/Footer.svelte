@@ -16,7 +16,7 @@
 					<img class="app-icon" src={asset('/icons/malini.webp')} width="28" height="28" alt="" />
 					Malini
 				</a>
-				<p>You had one job. Now you have plenty.</p>
+				<p>Run many agents. Come back to merged pull requests.</p>
 			</div>
 			{#each SITEMAP as column (column.label)}
 				<nav aria-label={column.label}>
