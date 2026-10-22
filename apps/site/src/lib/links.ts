@@ -2,7 +2,7 @@ import { asset, resolve } from '$app/paths';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
-	'Malini is a free, open source Mac app for Claude Code. It takes every task to a merged pull request and builds the systems that run the work you repeat, so you approve instead of babysit.';
+	'Malini is a free, open source agentic development environment for the Mac. Each task gets its own git worktree, branch, and agent chats, and Malini takes it to a merged pull request.';
 
 export const DOWNLOAD_URL =
 	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
@@ -59,7 +59,7 @@ export const MENUS: readonly Menu[] = [
 						tag: 'Build it',
 						href: HOME,
 						icon: asset('/icons/malini.webp'),
-						line: 'You had one job. Now you have plenty.',
+						line: 'Run many coding agents. Merge a pull request each.',
 					},
 					{
 						title: 'Grip',

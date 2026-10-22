@@ -1,11 +1,12 @@
 ---
 title: What Malini is
-description: Malini is a free, open source Mac app for Claude Code. It takes every task to a merged pull request and builds the systems that run the work you repeat, so you approve instead of babysit.
+description: Malini is a free, open source agentic development environment for the Mac. Each task gets its own git worktree, branch, and agent chats, and Malini takes it to a merged pull request.
 ---
 
-Malini is a desktop app for the Mac.
-Each task you start is a **workstream**: its own git worktree, its own branch, and its own Claude Code chats.
+Malini is an agentic development environment for the Mac.
+Each task you start is a **workstream**: its own git worktree, its own branch, and its own agent chats.
 Agents write the code, and Malini owns git: it commits, opens the pull request, fixes red checks, answers reviews, and merges.
+It runs on Claude Code today.
 
 Malini is free and open source under AGPL-3.0.
 There is no Malini account, no subscription, and no Malini server.
@@ -16,7 +17,7 @@ There is no Malini account, no subscription, and no Malini server.
    Each task is a workstream: its own git worktree, its own branch, its own chats.
    Start one or start a hundred.
 2. **Keep it moving.**
-   Queue prompts, run jobs, plan first if you like.
+   Queue prompts, plan first if you like.
    Agents write code, and Malini owns git.
 3. **Press Draft, then Merge.**
    Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.

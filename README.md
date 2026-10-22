@@ -5,8 +5,8 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>You had one job. Now have plenty.</b><br>
-  Many Claude Code agents, one window, one merged pull request each.<br>
+  <b>An agentic development environment.</b><br>
+  Many agents, one window, one merged pull request each. Runs on Claude Code today.<br>
   Free and open source, for the Mac.
 </p>
 

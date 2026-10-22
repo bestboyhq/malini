@@ -27,7 +27,6 @@
 		'browser',
 		'ship',
 		'merge',
-		'outcomes',
 		'routines',
 		'open',
 		'docs',
@@ -79,8 +78,8 @@
 			body: 'Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.',
 		},
 		{
-			title: 'Approve the routine',
-			body: 'Malini notices the prompts you keep repeating and offers a job and a routine. You approve it, and once you trust it, it runs without you.',
+			title: 'Automate what repeats',
+			body: 'When you keep typing the same prompt, Malini offers to save it as a routine. It starts as a draft and runs on its own only after you promote it.',
 		},
 	];
 
@@ -93,7 +92,7 @@
 		{
 			icon: 'lock',
 			title: 'No account, no server',
-			body: 'Your code leaves your Mac only through your own Claude Code and the GitHub CLI.',
+			body: 'Your code leaves your Mac only through the agent you run, Claude Code today, and the GitHub CLI.',
 		},
 		{
 			icon: 'eye',
@@ -106,7 +105,7 @@
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. The agents run on your own Claude Code, so they use your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. Agents run on your own Claude Code today, so they use your own Claude plan.',
 		},
 		{
 			question: 'What do I need?',
@@ -116,7 +115,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To Anthropic through your own Claude Code, and to GitHub through the GitHub CLI. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
@@ -129,9 +128,9 @@
 				'Not in Malini. Each workstream is its own git worktree on its own branch, branched from a private clone of your repository. Dependencies are installed for you from the lockfile.',
 		},
 		{
-			question: 'Which models can I use?',
+			question: 'Which agents and models can I use?',
 			answer:
-				'Fable, Opus, Sonnet, or Haiku, at any effort from Low to Max, picked per prompt. Your context window and plan usage are one click from the composer.',
+				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
@@ -146,11 +145,7 @@
 	];
 </script>
 
-<Head
-	title="Malini: architect your agents, don’t babysit them"
-	description={SITE_DESCRIPTION}
-	path=""
-/>
+<Head title="Malini: an agentic development environment" description={SITE_DESCRIPTION} path="" />
 
 <div class="progress" aria-hidden="true"></div>
 
@@ -162,12 +157,12 @@
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
-			<span>You had one job.</span>
-			<span class="quiet">Now you have plenty.</span>
+			<span>An agentic development environment.</span>
+			<span class="quiet">Many agents, one PR each.</span>
 		</h1>
 		<p class="lede">
-			Twenty agents you have to watch isn’t leverage. Malini makes you an architect instead of a
-			babysitter, with systems that run the work you repeat to put you ahead of the competition.
+			Each agent gets its own git worktree and branch. Malini does the git: commits, pull request,
+			red checks, review comments, merge. It runs on Claude Code today.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
@@ -202,7 +197,7 @@
 	split
 	title="You describe the task."
 	quiet="Malini runs the loop."
-	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request, then turns the work you repeat into routines."
+	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request."
 >
 	{#snippet after()}
 		<ol class="cells">
@@ -259,20 +254,12 @@
 	panel={mergePanel}
 />
 
-<SectionHeading
-	id="outcomes"
-	beat={beat('outcomes')}
-	title="You never wanted skills."
-	quiet="You wanted green checks."
-	description="A job is agent work you ask for by name, like Fix checks or Update from main. Malini notices the prompts you keep repeating and offers to save them as jobs."
-/>
-
 <FeatureRow
 	id="routines"
 	beat={beat('routines', 'Routines')}
 	mirrored
 	title="You approve it. Malini runs it."
-	body="Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft. Promote it when you trust it."
+	body="A job is a saved agent task, like Fix checks or Update from main. A routine runs jobs when something happens. Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft."
 	href={doc('routines')}
 	linkLabel="How routines work"
 	checks={['Draft, then candidate, then unattended', 'Triggers on any event Malini emits']}
@@ -283,7 +270,7 @@
 	id="open"
 	beat={beat('open')}
 	title="Open source, so we can’t rug pull you."
-	quiet="Build your systems on something you can fork."
+	quiet="If we ever go wrong, fork it."
 >
 	<div class="buttons">
 		<a class="button secondary small" href={GITHUB_URL}>
