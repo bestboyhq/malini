@@ -188,7 +188,7 @@
 		onopenchange={onContextOpenChange}
 		testId="session-context-hovercard"
 		owner="chat-composer"
-		panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 	>
 		{#snippet trigger({ open })}
 			{#if planAlert}
@@ -346,7 +346,7 @@
 		onopenchange={onMcpOpenChange}
 		testId="session-mcp-hovercard"
 		owner="chat-composer"
-		panelClass="w-72 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+		panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 	>
 		{#snippet trigger({ open })}
 			<IconButton

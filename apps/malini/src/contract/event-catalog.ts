@@ -78,6 +78,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
 	},
+	'app:connect-repository-requested': {
+		description:
+			"Fires when you pick Open Folder… or Clone Repository… from Malini's menu bar icon, with which one you picked.",
+	},
 	'app:streaming-changed': {
 		description:
 			'Fires when streamer mode turns on or off, because a screen recording or streaming app started or stopped.',

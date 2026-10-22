@@ -81,6 +81,8 @@ export interface LocalBaseSyncedPayload {
 
 export type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
+export type ConnectRepositoryRequest = Readonly<{ via: 'folder' | 'clone' }>;
+
 export type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
 
 export type ContractEventReference = Readonly<{
@@ -125,6 +127,7 @@ export interface ContractEvents {
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
+	'app:connect-repository-requested': ConnectRepositoryRequest;
 	'app:streaming-changed': StreamingChangedPayload;
 	'app:updated': AppUpdatedPayload;
 	'app:update-staged': UpdateStagedPayload;
@@ -157,6 +160,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
+	'app:connect-repository-requested': null,
 	'app:streaming-changed': null,
 	'app:updated': null,
 	'app:update-staged': null,
@@ -204,6 +208,9 @@ export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies Event
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
 
 export const APP_NOTIFICATION_OPENED_CHANNEL = 'app:notification-opened' satisfies EventChannel;
+
+export const APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL =
+	'app:connect-repository-requested' satisfies EventChannel;
 
 export const APP_STREAMING_CHANGED_CHANNEL = 'app:streaming-changed' satisfies EventChannel;
 

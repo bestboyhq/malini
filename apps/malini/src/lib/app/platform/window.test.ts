@@ -7,6 +7,7 @@ vi.mock('electron', () => ({ BrowserWindow: { getAllWindows: () => [] } }));
 
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
+	APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
 } from '$contract/events';
@@ -66,15 +67,17 @@ function setup(main: FakeWindow | null = createFakeWindow()) {
 }
 
 describe('window commands', () => {
-	it('focus shows, unminimizes and focuses the main window, and is a no-op without one', () => {
-		const { commands, main } = setup();
+	it('focus shows, unminimizes and focuses the main window, and opens one without it', () => {
+		const { commands, main, host } = setup();
 		if (!main) throw new Error('unreachable');
 		main.minimized = true;
 		commands.focusMainWindow();
 		expect(main.calls).toEqual(['show', 'restore', 'focus']);
+		expect(host.openedWindows).toBe(0);
 
 		const empty = setup(null);
-		expect(() => empty.commands.focusMainWindow()).not.toThrow();
+		empty.commands.focusMainWindow();
+		expect(empty.host.openedWindows).toBe(1);
 	});
 
 	it('sets the interface scale on the web contents and announces the change', () => {
@@ -255,6 +258,22 @@ describe('a notification that opens a chat', () => {
 		expect(commands.takeNotificationTarget()).toBeNull();
 	});
 
+	it('opens the window it points to when none was open', () => {
+		const { host, commands, setMain } = setup();
+		commands.notify({
+			options: {
+				title: 'Agent needs your input',
+				body: 'Lunar Relay',
+				opens: { workstreamId: 'ws-1', sessionId: 'chat-1' },
+			},
+		});
+		setMain(null);
+
+		host.notifications[0]?.onClick?.();
+
+		expect(host.openedWindows).toBe(1);
+	});
+
 	it('refuses a chat target without its ids', () => {
 		const { commands } = setup();
 		expect(() =>
@@ -375,5 +394,31 @@ describe('main window state', () => {
 			height: 600,
 			zoomFactor: 1,
 		});
+	});
+});
+
+describe('a request to connect a repository', () => {
+	it('brings the window forward, announces the request and hands it over once', () => {
+		const { commands, events, main } = setup();
+		const requested: unknown[] = [];
+		events.subscribe(APP_CONNECT_REPOSITORY_REQUESTED_CHANNEL, (payload) =>
+			requested.push(payload),
+		);
+
+		commands.requestConnectRepository('clone');
+
+		expect(requested).toEqual([{ via: 'clone' }]);
+		expect(main?.calls).toEqual(expect.arrayContaining(['show', 'focus']));
+		expect(commands.takeConnectRepositoryRequest()).toEqual({ via: 'clone' });
+		expect(commands.takeConnectRepositoryRequest()).toBeNull();
+	});
+
+	it('opens a window and keeps the request for it when none was open', () => {
+		const { host, commands } = setup(null);
+
+		commands.requestConnectRepository('folder');
+
+		expect(host.openedWindows).toBe(1);
+		expect(commands.takeConnectRepositoryRequest()).toEqual({ via: 'folder' });
 	});
 });

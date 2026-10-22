@@ -43,6 +43,8 @@
 	import type { Workstream } from '$shared/repositories/repositories.api';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/repositories.api';
 	import {
+		ConnectRepositoryContextMenu,
+		type ConnectRepositoryContextMenuTarget,
 		RepositoryAvatar,
 		RepositoryContextMenu,
 		type RepositoryContextMenuTarget,
@@ -111,6 +113,7 @@
 	let previewCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 	let contextMenu = $state.raw<WorkstreamContextMenuTarget | null>(null);
 	let repositoryMenu = $state.raw<RepositoryContextMenuTarget | null>(null);
+	let connectMenu = $state.raw<ConnectRepositoryContextMenuTarget | null>(null);
 	let contextMenuKeyboardRow: HTMLElement | null = null;
 
 	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
@@ -323,6 +326,13 @@
 		if (at) repositoryMenu = { repository, workstreams, ...at };
 	}
 
+	function openConnectMenu(event: MouseEvent): void {
+		if (event.defaultPrevented) return;
+		event.preventDefault();
+		contextMenuKeyboardRow = null;
+		connectMenu = { x: event.clientX, y: event.clientY };
+	}
+
 	function pointerInside(event: MouseEvent, box: DOMRect): { x: number; y: number } | null {
 		const inside =
 			event.clientX >= box.left &&
@@ -335,6 +345,7 @@
 	function closeContextMenu(): void {
 		contextMenu = null;
 		repositoryMenu = null;
+		connectMenu = null;
 		contextMenuKeyboardRow?.focus({ preventScroll: true });
 		contextMenuKeyboardRow = null;
 	}
@@ -710,6 +721,7 @@
 		class={['min-h-0 flex-1 select-none', reorder && 'cursor-grabbing']}
 		aria-label="Connected repositories"
 		onclickcapture={swallowDragClick}
+		oncontextmenu={openConnectMenu}
 	>
 		<ScrollableDiv
 			class="h-full"
@@ -792,7 +804,7 @@
 								openDelay={500}
 								triggerPress="dismiss"
 								triggerClass="w-full"
-								panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+								panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 								testId="sidebar-repository-card"
 							>
 								{#snippet trigger()}
@@ -895,12 +907,12 @@
 								{#snippet content()}
 									<div class="flex flex-col gap-3">
 										<div class="flex min-w-0 items-center gap-2.5">
-											<RepositoryAvatar fullName={row.repo.fullName} size={28} />
+											<RepositoryAvatar fullName={row.repo.fullName} size={36} />
 											<div class="flex min-w-0 flex-col">
-												<span class="text-fg-default truncate text-sm font-medium">
+												<span class="text-fg-default truncate text-sm leading-5 font-medium">
 													{row.repo.fullName}
 												</span>
-												<span class="text-fg-tertiary text-xs">
+												<span class="text-fg-tertiary text-xs leading-4">
 													{workstreamCountLabel(row.workstreams.length)}
 												</span>
 											</div>
@@ -1248,6 +1260,8 @@
 		onclose={closeContextMenu}
 		onremove={onRemoveRepository}
 	/>
+
+	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
 
 	<StagedUpdateButton />
 
