@@ -230,12 +230,6 @@
 	padding-block: 112px;
 }
 
-@property --seam-w {
-	syntax: '<number>';
-	inherits: true;
-	initial-value: 1;
-}
-
 .beat::before {
 	content: '';
 	position: absolute;
@@ -246,8 +240,7 @@
 	height: 9px;
 	margin-left: -50vw;
 	background:
-		var(--seam, linear-gradient(transparent 0 0)) calc(50vw - var(--col) * var(--seam-w) / 2) 4px /
-			calc(var(--col) * var(--seam-w)) 1px,
+		var(--seam, linear-gradient(transparent 0 0)) calc(50vw - var(--col) / 2) 4px / var(--col) 1px,
 		var(--crosses);
 	background-repeat: no-repeat;
 	pointer-events: none;

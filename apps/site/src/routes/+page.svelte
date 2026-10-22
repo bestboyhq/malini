@@ -548,7 +548,6 @@
 		isolation: isolate;
 		padding: 64px 0;
 		background: linear-gradient(var(--panel) 0 0) 50% 0 / var(--col) 100% no-repeat;
-		animation: seam calc(1600ms * var(--pace)) var(--enter-ease) calc(450ms * var(--pace)) backwards;
 	}
 
 	@property --grow {
@@ -616,12 +615,6 @@
 		from {
 			opacity: 0;
 			scale: 0.6;
-		}
-	}
-
-	@keyframes seam {
-		from {
-			--seam-w: 0;
 		}
 	}
 
