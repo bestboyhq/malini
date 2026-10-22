@@ -238,7 +238,7 @@
 <SectionHeading
 	id="ship"
 	beat={beat('ship')}
-	title="From prompt to merged."
+	title="From idea to shipped."
 	quiet="Without babysitting a branch."
 	description="A check goes red. Main moves. A reviewer asks for changes. Malini handles each one and tells you when it needs you."
 />
