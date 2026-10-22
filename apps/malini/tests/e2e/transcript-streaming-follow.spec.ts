@@ -19,6 +19,7 @@ import {
 
 declare global {
 	var transcriptFrames: { samples: number[][]; sampling: boolean };
+	var steeredRunFrames: { samples: number[][]; sampling: boolean };
 }
 
 const SCROLLER = '[data-testid="chat-message-scroller"]';
@@ -432,6 +433,52 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 			'px the transcript jumped back up when the steer landed',
 		).toBeLessThanOrEqual(STILL_PX);
 		await captureFlow(app, 'transcript-streaming-follow-steered');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a steered run keeps its height from the steer to Run cancelled, which takes the place of its timer', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await longChat(app, 'e2e-streaming-follow-steer-still-ws');
+		await sendPrompt(page, 'EDIT:b.txt HANG');
+		await expect(latestRun(page).getByTestId('run-status-line')).toBeVisible({ timeout: 10_000 });
+		await untilStill(page);
+		const steeredRunId = await latestRun(page).getAttribute('data-run-id');
+		const steeredRun = page.locator(`li[data-run-id="${steeredRunId}"]`);
+
+		await page.evaluate((runId) => {
+			const state = { samples: [] as number[][], sampling: true };
+			globalThis.steeredRunFrames = state;
+			const sample = (): void => {
+				if (!state.sampling) return;
+				const run = document.querySelector(`li[data-run-id="${runId}"]`);
+				state.samples.push([run?.getBoundingClientRect().height ?? Number.NaN]);
+				requestAnimationFrame(sample);
+			};
+			sample();
+		}, steeredRunId);
+		await page.keyboard.type('Steer now', { delay: 10 });
+		await page.keyboard.press('Meta+Enter');
+		await expect(steeredRun.getByText('Run cancelled')).toBeVisible({ timeout: 20_000 });
+		await expectRunFinished(page, 'Hello from the fake bridge');
+		await untilStill(page);
+		const heights = await page.evaluate(() => {
+			globalThis.steeredRunFrames.sampling = false;
+			return globalThis.steeredRunFrames.samples.map(([height]) => height ?? Number.NaN);
+		});
+
+		expect(heights.length, 'animation frames sampled').toBeGreaterThan(10);
+		expect(
+			Math.max(...heights) - Math.min(...heights),
+			'px the steered run grew or shrank from the steer to Run cancelled',
+		).toBeLessThanOrEqual(STILL_PX);
+		await captureFlow(app, 'transcript-streaming-follow-steer-still');
 
 		expectCleanConsole(app);
 	} finally {

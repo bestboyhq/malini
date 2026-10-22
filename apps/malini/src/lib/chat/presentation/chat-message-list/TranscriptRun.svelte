@@ -10,14 +10,11 @@
 
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { quartOut } from 'svelte/easing';
-	import type { TransitionConfig } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import type { GroupedRunTimelineItem } from '../activity-group';
-	import { arrivalMotion } from '../arrival-motion';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
 	import type { RunGroup } from '../render-state';
 	import RunStatusLine from '../RunStatusLine.svelte';
@@ -146,24 +143,26 @@
 		void transcript.showOlderTimeline(run.runId, row ?? null);
 	}
 
-	function unfoldAboveLatest(node: HTMLElement): TransitionConfig {
-		if (isLastRun || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-			return { duration: 0 };
-		}
-		const height = node.offsetHeight;
-		const gap = Number.parseFloat(getComputedStyle(node.parentElement ?? node).rowGap) || 0;
-		return {
-			duration: arrivalMotion().durationMs,
-			easing: quartOut,
-			css: (t, u) =>
-				`overflow: hidden; height: ${t * height}px; margin-top: ${u * -gap}px; opacity: ${t};`,
-		};
-	}
-
 	function promptLabel(): string | undefined {
 		return opening?.kind === 'user' ? opening.text : undefined;
 	}
 </script>
+
+{#snippet runActions()}
+	<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
+	<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
+		<IconButton
+			bare
+			class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+			ariaLabel="Copy response"
+			data-testid="chat-copy-response"
+			data-copy-run-id={run.runId}
+			onclick={() => transcript.copyRunResponse(run)}
+		>
+			<Icon name="copy" size={14} />
+		</IconButton>
+	</Tooltip>
+{/snippet}
 
 <li
 	class={[
@@ -238,18 +237,23 @@
 			{/each}
 		{/if}
 
-		{#if isLastRun}
+		{#if run.terminal === 'cancelled'}
+			<div class="flex h-6 items-center gap-1.5" data-testid="chat-run-actions">
+				<RunTerminalBanner {run} />
+				{#if hasAssistantAnswer || undoTarget || forkAvailable}
+					{@render runActions()}
+				{/if}
+			</div>
+		{:else if isLastRun || run.terminal === null}
 			<RunStatusLine
 				{run}
-				waitingForUser={transcript.waitingForUser}
+				waitingForUser={isLastRun && transcript.waitingForUser}
 				background={transcript.backgroundWork}
 			/>
 		{/if}
 
-		{#if run.terminal !== null && run.terminal !== 'completed'}
-			<div class="flex flex-col" in:unfoldAboveLatest>
-				<RunTerminalBanner {run} />
-			</div>
+		{#if run.terminal === 'failed'}
+			<RunTerminalBanner {run} />
 		{/if}
 
 		{#if run.obsoleted}
@@ -258,25 +262,9 @@
 			</p>
 		{/if}
 
-		{#if hasAssistantAnswer || undoTarget || forkAvailable}
-			<div
-				class="flex h-5 items-center justify-end gap-1.5"
-				data-testid="chat-run-actions"
-				in:unfoldAboveLatest
-			>
-				<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
-				<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
-					<IconButton
-						bare
-						class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
-						ariaLabel="Copy response"
-						data-testid="chat-copy-response"
-						data-copy-run-id={run.runId}
-						onclick={() => transcript.copyRunResponse(run)}
-					>
-						<Icon name="copy" size={14} />
-					</IconButton>
-				</Tooltip>
+		{#if run.terminal !== 'cancelled' && (hasAssistantAnswer || undoTarget || forkAvailable)}
+			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
+				{@render runActions()}
 			</div>
 		{/if}
 	{/if}
