@@ -17,7 +17,7 @@ import {
 import { registerProviders } from '$shared/providers/platform/register';
 import { createElectronShellHost, type AppPlatform, type ShellHost } from '$lib/app/app.platform';
 import { resolveBootEnvironment } from '$lib/app/platform/boot-environment';
-import { registerApp } from '$lib/app/platform/register';
+import { followSavedThemeMode, registerApp } from '$lib/app/platform/register';
 import type { MainContext } from './context';
 import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import { registerExtensions } from '$lib/extensions/platform/register';
@@ -69,6 +69,7 @@ export async function registerModules(
 	const processRunner = createNodeProcessRunner();
 	const agentRunLeases = new AgentRunLeases();
 	const shellHost = overrides.shellHost ?? createElectronShellHost();
+	followSavedThemeMode(context.db, shellHost);
 
 	await restoreStrandedCheckouts(context.db, context.appDataRoot);
 	const repositories = registerRepositories(context, {

@@ -77,6 +77,7 @@
 		pullRequestShipped?: boolean;
 		jobRuns?: readonly JobRunRecord[];
 		oncloseworkstream: () => void;
+		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 	}
 
 	let {
@@ -84,6 +85,7 @@
 		pullRequestShipped = false,
 		jobRuns = [],
 		oncloseworkstream,
+		onsavetoscratchpad,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -385,6 +387,7 @@
 										envelopes={presentedTranscript.envelopes}
 										composerControls={editorComposerControls}
 										{pullRequestShipped}
+										{onsavetoscratchpad}
 										spaceBelow={footerHeight}
 										overlayBelow={trayHeight}
 									>
