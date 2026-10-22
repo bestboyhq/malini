@@ -1,11 +1,11 @@
 import { EventEmitter } from 'node:events';
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import type { ThemeMode } from '$contract/commands';
 import type { MainContext } from '$main/context';
 import { openDatabase } from '$main/db/driver';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import type { ShellHost } from './shell-host';
+import type { ShellHost, TrayItem } from './shell-host';
 import type { SecretCipher } from './secrets';
 import type { ShellWindow } from './window';
 
@@ -15,6 +15,9 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	clipboard: string[];
 	clipboardImages: Buffer[];
 	notifications: { title: string; body: string; onClick?: () => void }[];
+	openedWindows: number;
+	tray: { icon: string; items: readonly TrayItem[] } | null;
+	applicationMenu: readonly MenuItemConstructorOptions[];
 	encryptionAvailable: boolean;
 	notificationsAvailable: boolean;
 	windowCreated: ((window: BrowserWindow) => void)[];
@@ -47,6 +50,9 @@ export function createFakeHost(): FakeHost {
 		clipboard: [],
 		clipboardImages: [],
 		notifications: [],
+		openedWindows: 0,
+		tray: null,
+		applicationMenu: [],
 		encryptionAvailable: true,
 		notificationsAvailable: true,
 		windowCreated: [],
@@ -69,6 +75,15 @@ export function createFakeHost(): FakeHost {
 		notificationsSupported: () => host.notificationsAvailable,
 		showNotification: (options) => {
 			host.notifications.push(options);
+		},
+		openMainWindow: () => {
+			host.openedWindows += 1;
+		},
+		showTray: (icon, items) => {
+			host.tray = { icon, items };
+		},
+		showApplicationMenu: (template) => {
+			host.applicationMenu = template;
 		},
 		onWindowCreated: (listener) => {
 			host.windowCreated.push(listener);

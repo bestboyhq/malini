@@ -56,6 +56,7 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 	'app.shutdown-gracefully': false,
 	'app.shutdown-impact': false,
 	'app.take-notification-target': false,
+	'app.take-menu-command': false,
 	'chat.activate-session': false,
 	'chat.adopt-attachments': (args) => ({ attachments: count(args, 'attachmentIds') }),
 	'chat.agent-capabilities': false,

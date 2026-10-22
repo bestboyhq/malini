@@ -4,7 +4,10 @@ import type { BrowserWindow } from 'electron';
 import {
 	APP_CLOSE_REQUESTED_CHANNEL,
 	APP_NOTIFICATION_OPENED_CHANNEL,
+	APP_MENU_COMMAND_CHOSEN_CHANNEL,
 	APP_SCALE_CHANGED_CHANNEL,
+	type MenuCommand,
+	type MenuCommandChosen,
 	type NotificationTarget,
 } from '$contract/events';
 import type { NotificationPermissionResult } from '$contract/system';
@@ -113,6 +116,7 @@ export interface WindowDeps {
 		ShellHost,
 		| 'notificationsSupported'
 		| 'showNotification'
+		| 'openMainWindow'
 		| 'onWindowCreated'
 		| 'onBeforeQuit'
 		| 'onDisplayMetricsChanged'
@@ -130,6 +134,8 @@ export interface WindowCommands {
 	destroy(): void;
 	notify(args: { options: { title: string; body: string; opens?: NotificationTarget } }): void;
 	takeNotificationTarget(): NotificationTarget | null;
+	chooseMenuCommand(command: MenuCommand): void;
+	takeMenuCommand(): MenuCommandChosen | null;
 	isNotificationPermissionGranted(): boolean | null;
 	requestNotificationPermission(): NotificationPermissionResult;
 	windowStateSaved(): Promise<void>;
@@ -223,10 +229,14 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 	host.onDisplayMetricsChanged(() => events.emit(APP_SCALE_CHANGED_CHANNEL, {}));
 
 	let notificationTarget: NotificationTarget | null = null;
+	let menuCommand: MenuCommandChosen | null = null;
 
 	const focusMainWindow = (): void => {
 		const window = deps.getMainWindow();
-		if (!window || window.isDestroyed()) return;
+		if (!window || window.isDestroyed()) {
+			host.openMainWindow();
+			return;
+		}
 		window.show();
 		if (window.isMinimized()) window.restore();
 		window.focus();
@@ -296,6 +306,16 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 			const target = notificationTarget;
 			notificationTarget = null;
 			return target;
+		},
+		chooseMenuCommand(command) {
+			menuCommand = { command };
+			focusMainWindow();
+			events.emit(APP_MENU_COMMAND_CHOSEN_CHANNEL, menuCommand);
+		},
+		takeMenuCommand() {
+			const chosen = menuCommand;
+			menuCommand = null;
+			return chosen;
 		},
 		isNotificationPermissionGranted: () => host.notificationsSupported(),
 		requestNotificationPermission: () => (host.notificationsSupported() ? 'granted' : 'denied'),

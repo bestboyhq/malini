@@ -502,6 +502,9 @@ test('a tool row in a run past two hundred steps stays in place while later step
 			sample();
 		});
 		await untilLatestRunShows(page, 'row-236.txt');
+		await expect
+			.poll(() => page.evaluate(() => globalThis.transcriptFrames.samples.length))
+			.toBeGreaterThan(10);
 		const samples = await stopSampling(page);
 		expect(
 			samples.filter((sample) => sample[2] === 1).length,

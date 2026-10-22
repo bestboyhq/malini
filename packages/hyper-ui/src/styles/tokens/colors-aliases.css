@@ -105,8 +105,6 @@
 	--color-surface-elevated-hover: var(--themed-color-surface-elevated-hover);
 	--color-surface-elevated-selected: var(--themed-color-surface-elevated-selected);
 	--color-surface-elevated-border: var(--themed-color-surface-elevated-border);
-	--color-surface-modal: var(--themed-color-surface-modal);
-	--color-surface-modal-border: var(--themed-color-surface-modal-border);
 	--color-surface-tooltip: var(--themed-color-surface-tooltip);
 	--color-surface-tooltip-border: var(--themed-color-surface-tooltip-border);
 	--color-surface-toast: var(--themed-color-surface-toast);
