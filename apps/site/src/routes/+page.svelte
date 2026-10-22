@@ -470,7 +470,7 @@
 		--duration: 1400ms;
 		--delay: 0ms;
 		margin-top: 24px;
-		font-size: clamp(38px, 6vw, 68px);
+		font-size: clamp(38px, 5.2vw, 68px);
 		font-weight: 550;
 		line-height: 1.02;
 		letter-spacing: -0.04em;
@@ -478,7 +478,7 @@
 	}
 
 	h1 span {
-		white-space: nowrap;
+		display: block;
 	}
 
 	.quiet {
@@ -921,11 +921,6 @@
 	}
 
 	@media (max-width: 639px) {
-		h1 span {
-			display: block;
-			white-space: normal;
-		}
-
 		.plate {
 			padding: 40px 0;
 		}
