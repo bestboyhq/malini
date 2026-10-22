@@ -16,11 +16,12 @@ vi.mock('electron', () => ({
 }));
 
 import type { MainContext } from '$main/context';
+import { openMigratedDatabase } from '$main/db/open';
 import { MainDiagnosticsLog } from '$main/diagnostics/main-diagnostics';
 import { DockerOwnership } from '$main/docker/ownership';
 import { ScriptedRunner } from '$main/process/test-support';
 import type { AppPlatform } from '../app.platform';
-import { registerApp, type AppDeps } from './register';
+import { followSavedThemeMode, registerApp, type AppDeps } from './register';
 import {
 	asBrowserWindow,
 	createFakeHost,
@@ -77,7 +78,7 @@ const booted: AppPlatform[] = [];
 
 beforeEach(async () => {
 	root = await mkdtemp(join(tmpdir(), 'malini-shell-'));
-	context = createTestContext(root);
+	context = createTestContext(root, { db: openMigratedDatabase(':memory:') });
 	host = createFakeHost();
 });
 
@@ -191,6 +192,16 @@ describe('registerApp', () => {
 			error: 'theme mode must be system, light or dark',
 		});
 		expect(host.themeMode).toBe('dark');
+	});
+
+	it('follows the theme mode the user picked from the next boot on, before any window asks', async () => {
+		boot(context);
+		await invoke('app.theme-mode', { mode: 'light' });
+		const restarted = createFakeHost();
+
+		followSavedThemeMode(context.db, restarted);
+
+		expect(restarted.themeMode).toBe('light');
 	});
 
 	it('writes clipboard text through the host', async () => {

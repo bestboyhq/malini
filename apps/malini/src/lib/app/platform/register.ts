@@ -16,6 +16,7 @@ import type {
 } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { readDiagnostics } from '$main/diagnostics/diagnostics-files';
 import type { DockerOwnership } from '$main/docker/ownership';
 import { DockerCliReaper, type ContainerReaper } from '$main/docker/reclaim';
@@ -32,7 +33,7 @@ import { announceUpdate } from './contract-updates';
 import { RendererErrorLog } from './renderer-errors';
 import { bundleIdentifierFor, createRuntimeIdentityProvider } from './runtime-identity';
 import { RendererSecretStore } from './secrets';
-import { listSettings, setSetting } from './settings.repository';
+import { getSetting, listSettings, setSetting } from './settings.repository';
 import { createElectronShellHost, type ShellHost } from './shell-host';
 import { StreamingDetector } from './streaming';
 import { startUpdates } from './updates';
@@ -96,9 +97,11 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 		}
 		await host.openExternal(url);
 	});
-	commands.define('app.theme-mode', (args: SetThemeModeArgs) =>
-		host.followThemeMode(themeMode(args?.mode)),
-	);
+	commands.define('app.theme-mode', (args: SetThemeModeArgs) => {
+		const mode = themeMode(args?.mode);
+		setSetting(context.db, THEME_MODE_SETTING, mode);
+		host.followThemeMode(mode);
+	});
 	commands.define('app.copy-text', async (args: SetClipboardTextArgs) => {
 		if (typeof args?.text !== 'string') throw new Error('text must be a string');
 		if (args.html !== undefined && typeof args.html !== 'string') {
@@ -247,6 +250,13 @@ function requireString(args: unknown, key: string): string {
 }
 
 const THEME_MODES: readonly ThemeMode[] = ['system', 'light', 'dark'];
+const THEME_MODE_SETTING = 'app.theme-mode';
+
+export function followSavedThemeMode(db: MaliniDatabase, host: ShellHost): void {
+	const setting = getSetting(db, THEME_MODE_SETTING);
+	const saved = THEME_MODES.find((mode) => mode === setting);
+	if (saved) host.followThemeMode(saved);
+}
 
 function themeMode(mode: unknown): ThemeMode {
 	const known = THEME_MODES.find((candidate) => candidate === mode);
