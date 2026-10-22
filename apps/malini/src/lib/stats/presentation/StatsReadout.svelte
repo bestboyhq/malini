@@ -37,7 +37,7 @@
 	}
 </script>
 
-<Tooltip content="Stats for nerds" placement="right" suppressed={open} class="ml-auto min-w-0">
+<Tooltip content="Stats for nerds" placement="top" suppressed={open} class="ml-auto min-w-0">
 	<Button
 		bind:element={trigger}
 		variant="ghost"
