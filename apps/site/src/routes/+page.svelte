@@ -53,7 +53,7 @@
 					io.unobserve(target);
 				}
 			},
-			{ rootMargin: `${document.documentElement.scrollHeight}px 0px -10% 0px` },
+			{ rootMargin: `${document.documentElement.scrollHeight}px 0px 0px 0px` },
 		);
 		const waiting = [...document.querySelectorAll<HTMLElement>('.beat, .rise, .sitemap')].filter(
 			(element) => element.getBoundingClientRect().top > innerHeight,
