@@ -454,7 +454,7 @@
 		--delay: 250ms;
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
+		gap: 6px;
 		height: 30px;
 		padding: 0 11px 0 10px;
 		white-space: nowrap;
