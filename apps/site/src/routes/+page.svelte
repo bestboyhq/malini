@@ -467,7 +467,7 @@
 	}
 
 	.apple {
-		translate: 0 -1px;
+		translate: 0 -1.5px;
 	}
 
 	.eyebrow :global(.ahead) {
