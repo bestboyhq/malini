@@ -473,6 +473,18 @@ export async function clickRevealedOnHover(row: Locator, button: Locator): Promi
 	await button.click({ force: true });
 }
 
+export async function showToastsTogether(
+	toasts: Locator,
+	count: number,
+	show: () => Promise<void>,
+): Promise<void> {
+	await expect(async () => {
+		await expect(toasts).toHaveCount(0, { timeout: 20_000 });
+		await show();
+		await expect(toasts).toHaveCount(count, { timeout: 20_000 });
+	}).toPass({ timeout: 90_000 });
+}
+
 export async function expectAssistantReply(page: Page, timeout = 30_000): Promise<void> {
 	await expect(page.getByTestId('chat-message-bubble').first()).toContainText(
 		'Hello from the fake bridge',
