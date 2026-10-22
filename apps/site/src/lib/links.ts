@@ -59,7 +59,7 @@ export const MENUS: readonly Menu[] = [
 						tag: 'Build it',
 						href: HOME,
 						icon: asset('/icons/malini.webp'),
-						line: 'Run many coding agents. Merge a pull request each.',
+						line: 'Run many agents. Come back to merged pull requests.',
 					},
 					{
 						title: 'Grip',
