@@ -222,6 +222,37 @@ describe('ClaudeTranscript', () => {
 		]);
 	});
 
+	it('keeps the text a steered turn streamed in that turn, once, under its own run', () => {
+		const messages = recordedMessages('readAndBash');
+		const firstText = messages.findIndex(
+			(message) =>
+				message.type === 'stream_event' &&
+				message.event.type === 'content_block_delta' &&
+				message.event.delta.type === 'text_delta',
+		);
+		const events: AgentEvent[] = [];
+		const transcript = new ClaudeTranscript('run-1', (event) => events.push(event));
+		for (const message of messages.slice(0, firstText + 1)) transcript.accept(message);
+		const streamed = ofType(events, 'assistant.delta');
+
+		transcript.interruptTurn();
+		transcript.handOff('run-2');
+		for (const message of messages.slice(firstText + 1)) transcript.accept(message);
+
+		const contentId = streamed[0]?.contentId;
+		expect(
+			ofType(events, 'assistant.message').filter((event) => event.contentId === contentId),
+		).toEqual([
+			{
+				type: 'assistant.message',
+				runId: 'run-1',
+				contentId,
+				text: streamed.map(({ text }) => text).join(''),
+			},
+		]);
+		expect(ofType(events, 'assistant.delta')).toEqual(streamed);
+	});
+
 	it('finalizes each block under its own streamed id when a block before it never finalizes', () => {
 		const messages = recordedMessages('retriedStream');
 		const retryThought = messages.findIndex(

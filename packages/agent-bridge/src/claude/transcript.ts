@@ -31,6 +31,8 @@ export class ClaudeTranscript {
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #unsettledBlocks = new Map<string, StreamBlock>();
+	readonly #streamedText = new Map<string, string>();
+	readonly #settledOnInterrupt = new Set<string>();
 	readonly #finalizedByKind = new Map<StreamContentKind, number>();
 	readonly #blockCounts = new Map<string, number>();
 	readonly #backgroundAgents = new Set<string>();
@@ -110,10 +112,12 @@ export class ClaudeTranscript {
 
 	markStoppedByUser(): void {
 		this.#stoppedByUser = true;
+		this.#settleInterruptedStream();
 	}
 
 	interruptTurn(): void {
 		for (const toolCallId of this.#openTools) this.#interruptedTools.add(toolCallId);
+		this.#settleInterruptedStream();
 	}
 
 	recordBackgroundOutput(taskId: string, line: string): void {
@@ -330,8 +334,9 @@ export class ClaudeTranscript {
 				const delta = event['delta'];
 				if (typeof index !== 'number' || !isRecord(delta)) return;
 				const block = this.#streamBlocks.get(index);
-				if (!block) return;
+				if (!block || this.#settledOnInterrupt.has(block.id)) return;
 				if (delta['type'] === 'text_delta' && typeof delta['text'] === 'string') {
+					this.#recordStreamedText(block.id, delta['text']);
 					this.#emit({
 						type: 'assistant.delta',
 						runId: this.#runId,
@@ -339,6 +344,7 @@ export class ClaudeTranscript {
 						text: delta['text'],
 					});
 				} else if (delta['type'] === 'thinking_delta' && typeof delta['thinking'] === 'string') {
+					this.#recordStreamedText(block.id, delta['thinking']);
 					this.#emit({
 						type: 'thinking.delta',
 						runId: this.#runId,
@@ -393,8 +399,9 @@ export class ClaudeTranscript {
 			if (parentToolUseId !== null) continue;
 			if (block['type'] === 'text') {
 				const id = this.#finalContentId(messageId, 'text', index);
+				if (this.#settledOnInterrupt.has(id)) continue;
 				if (typeof block['text'] !== 'string' || !block['text']) continue;
-				this.#unsettledBlocks.delete(id);
+				this.#settleBlock(id);
 				this.#emit({
 					type: 'assistant.message',
 					runId: this.#runId,
@@ -403,7 +410,8 @@ export class ClaudeTranscript {
 				});
 			} else if (block['type'] === 'thinking') {
 				const id = this.#finalContentId(messageId, 'thinking', index);
-				this.#unsettledBlocks.delete(id);
+				if (this.#settledOnInterrupt.has(id)) continue;
+				this.#settleBlock(id);
 				this.#emit({
 					type: 'thinking.message',
 					runId: this.#runId,
@@ -419,6 +427,29 @@ export class ClaudeTranscript {
 		this.#unsettledBlocks.set(block.id, block);
 	}
 
+	#recordStreamedText(id: string, text: string): void {
+		this.#streamedText.set(id, (this.#streamedText.get(id) ?? '') + text);
+	}
+
+	#settleBlock(id: string): void {
+		this.#unsettledBlocks.delete(id);
+		this.#streamedText.delete(id);
+	}
+
+	#settleInterruptedStream(): void {
+		for (const block of this.#unsettledBlocks.values()) {
+			if (block.kind === 'tool') continue;
+			const text = this.#streamedText.get(block.id) ?? '';
+			this.#settleBlock(block.id);
+			this.#settledOnInterrupt.add(block.id);
+			if (block.kind === 'thinking') {
+				this.#emit({ type: 'thinking.message', runId: this.#runId, contentId: block.id, text });
+			} else if (text) {
+				this.#emit({ type: 'assistant.message', runId: this.#runId, contentId: block.id, text });
+			}
+		}
+	}
+
 	#finalContentId(messageId: string, kind: StreamContentKind, index: number): string {
 		if (messageId !== this.#streamMessageId) return contentId(messageId, index);
 		const nth = this.#finalizedByKind.get(kind) ?? 0;
@@ -431,6 +462,7 @@ export class ClaudeTranscript {
 		if (this.#unsettledBlocks.size === 0) return;
 		const blocks = [...this.#unsettledBlocks.values()];
 		this.#unsettledBlocks.clear();
+		this.#streamedText.clear();
 		this.#emit({
 			type: 'stream.discarded',
 			runId: this.#runId,

@@ -118,7 +118,7 @@ export function createTranscriptScroll(
 	function setHoldSpace(px: number): void {
 		const next = Math.max(0, Math.round(px));
 		if (next === holdSpacePx) return;
-		if (next > 0 && Math.abs(px - holdSpacePx) <= SUBPIXEL_SLACK_PX) return;
+		if (next > 0 && Math.abs(px - holdSpacePx) < SUBPIXEL_SLACK_PX) return;
 		holdSpacePx = next;
 		messageListEl?.style.setProperty('--chat-hold-space', `${next}px`);
 	}
@@ -203,8 +203,17 @@ export function createTranscriptScroll(
 		return follow === 'bottom' && performance.now() - openedAt > OPEN_SETTLE_MS;
 	}
 
+	function uncover(): void {
+		coveredPx = Math.min(0, coveredPx);
+	}
+
+	function fillBlankBelow(viewport: HTMLElement): void {
+		if (coveredPx >= 0) return;
+		coveredPx = Math.max(coveredPx, Math.min(0, naturalMaxTop(viewport) - shownTop));
+	}
+
 	function revealContentChange(): void {
-		coveredPx = 0;
+		uncover();
 		reconcile('content');
 	}
 
@@ -230,6 +239,7 @@ export function createTranscriptScroll(
 		const shift = follow === 'bottom' && !userIsScrolling() ? shiftAboveLatestRun(viewport) : 0;
 		shownTop = Math.max(0, shownTop + shift);
 		if (hovering) heldTop += shift;
+		fillBlankBelow(viewport);
 		const target = targetTop(viewport, list);
 		const animate = glides() && cause === 'content';
 		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView || shift !== 0);
@@ -523,7 +533,7 @@ export function createTranscriptScroll(
 		releaseScrollPin: becomeReader,
 
 		followSpaceBelowChange(px: number, overlayPx: number): void {
-			const covered = coversWithOverlay() ? Math.max(0, coveredPx + overlayPx - overlayBelowPx) : 0;
+			const covered = coversWithOverlay() ? coveredPx + overlayPx - overlayBelowPx : 0;
 			const moved = px - spaceBelowPx - (covered - coveredPx);
 			spaceBelowPx = px;
 			overlayBelowPx = overlayPx;
@@ -576,7 +586,7 @@ export function createTranscriptScroll(
 		followNewContent(): void {
 			if (!opening && (follow === 'reader' || hovering)) newContentBelow = true;
 			opening = false;
-			coveredPx = 0;
+			uncover();
 			scheduleReconcile();
 		},
 

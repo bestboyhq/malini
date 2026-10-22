@@ -7,6 +7,7 @@ import type {
 	SaveJobDefinitionArgs,
 } from '$contract/jobs';
 import type { RoutineRecord, RoutineRun } from '$contract/routines';
+import { isSkillNameList } from '$contract/skills';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
@@ -75,9 +76,9 @@ function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
 }
 
 function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>> {
-	const { id, name, runsIn, output, model, effort, builtin } = job;
+	const { id, name, runsIn, output, model, effort, skills, builtin } = job;
 	const instructions = job.instructions.split('\n', 1)[0] ?? '';
-	return { id, name, runsIn, output, model, effort, builtin, instructions };
+	return { id, name, runsIn, output, model, effort, skills, builtin, instructions };
 }
 
 function routineSummary(routine: RoutineRecord): Readonly<Record<string, unknown>> {
@@ -96,6 +97,11 @@ function jobDefinition(
 	const effort = oneOf(input, 'effort', EFFORTS);
 	const runsIn = oneOf(input, 'runsIn', RUNS_IN);
 	const output = oneOf(input, 'output', OUTPUTS);
+	const skills = input['skills'];
+	if (skills !== undefined && !isSkillNameList(skills)) {
+		throw new Error('`skills` must be a list of skill names.');
+	}
+	const withSkills = skills === undefined ? {} : { skills };
 	if (id === undefined) {
 		if (name === undefined || instructions === undefined) {
 			throw new Error('To create a job, pass its name and instructions.');
@@ -107,6 +113,7 @@ function jobDefinition(
 			effort: effort ?? 'high',
 			runsIn: runsIn ?? 'workstream',
 			output: output ?? 'none',
+			...withSkills,
 		};
 	}
 	const existing = definitions.find((definition) => definition.id === id);
@@ -119,7 +126,7 @@ function jobDefinition(
 		effort: effort ?? existing.effort,
 		runsIn: runsIn ?? existing.runsIn,
 		output: output ?? existing.output,
-		skillPresetId: existing.skillPresetId,
+		...withSkills,
 	};
 }
 

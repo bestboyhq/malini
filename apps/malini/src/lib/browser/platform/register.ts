@@ -1,4 +1,4 @@
-import type { BrowserWindow } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 import {
 	BROWSER_STATE_CHANGED_CHANNEL,
 	BROWSER_TAB_OPENED_CHANNEL,
@@ -31,6 +31,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	});
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
+		onScreen: (window) => !app.isHidden() && !window.isMinimized(),
 		createView: createElectronView,
 		watchRendererReset,
 		workstreamExists: (workstreamId) => getWorkstream(db, workstreamId) !== null,

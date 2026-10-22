@@ -8,6 +8,7 @@ import type {
 	JobRunOrigin,
 	JobRunRecord,
 } from '$contract/jobs';
+import { isSkillNameList } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
@@ -57,8 +58,9 @@ export class JobError extends Error {
 
 type JobDefinitionFields = Pick<
 	JobDefinitionRecord,
-	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output' | 'skillPresetId'
->;
+	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output'
+> &
+	Readonly<{ skills: readonly string[] | null }>;
 
 export function seedBuiltinJobs(db: MaliniDatabase): void {
 	const now = nowIso8601();
@@ -66,7 +68,7 @@ export function seedBuiltinJobs(db: MaliniDatabase): void {
 		insertJobDefinition(db, {
 			id: randomUUID(),
 			...builtinDefaults(builtin),
-			skillPresetId: null,
+			skills: [],
 			builtin,
 			createdAt: now,
 			updatedAt: now,
@@ -95,6 +97,7 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 			const created: JobDefinitionRecord = {
 				id: randomUUID(),
 				...fields,
+				skills: fields.skills ?? [],
 				builtin: null,
 				createdAt: now,
 				updatedAt: now,
@@ -107,6 +110,7 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		const saved: JobDefinitionRecord = {
 			...existing,
 			...fields,
+			skills: fields.skills ?? existing.skills,
 			runsIn: existing.builtin ? existing.runsIn : fields.runsIn,
 			output: existing.builtin ? existing.output : fields.output,
 			updatedAt: now,
@@ -136,7 +140,7 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		const reset: JobDefinitionRecord = {
 			...definition,
 			...builtinDefaults(builtin),
-			skillPresetId: null,
+			skills: [],
 			updatedAt: nowIso8601(),
 		};
 		updateJobDefinition(db, reset);
@@ -229,8 +233,19 @@ function definitionFields(args: unknown): JobDefinitionFields {
 	if (!isJobRunsIn(runsIn)) throw invalid('`runsIn` must be workstream or new-workstream');
 	const output = field(args, 'output');
 	if (!isJobOutput(output)) throw invalid('`output` must be none, draft or merge');
-	const skillPresetId = optionalString(args, 'skillPresetId');
-	return { name, instructions, model, effort, runsIn, output, skillPresetId };
+	const skills = field(args, 'skills');
+	if (skills !== undefined && !isSkillNameList(skills)) {
+		throw invalid('`skills` must be a list of skill names');
+	}
+	return {
+		name,
+		instructions,
+		model,
+		effort,
+		runsIn,
+		output,
+		skills: skills === undefined ? null : [...new Set(skills.map((skill) => skill.trim()))],
+	};
 }
 
 function requireDefinition(db: MaliniDatabase, definitionId: string): JobDefinitionRecord {

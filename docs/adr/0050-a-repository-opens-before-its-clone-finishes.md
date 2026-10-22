@@ -1,4 +1,4 @@
-# 0049 - A repository opens before its clone finishes
+# 0050 - A repository opens before its clone finishes
 
 Status: accepted
 

@@ -22,6 +22,7 @@ A tab shows up as soon as the agent starts opening its page, and a page that doe
 | `browser_reload`     | Reloads the page.                              |
 
 You can also pick an element on a page, and it lands in your prompt.
+The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 
 ### Screenshots in your theme
 
@@ -33,14 +34,14 @@ Any other screenshot, recording, or image the agent makes goes under `.context/`
 
 ## Jobs, routines, and events
 
-| Tool            | What it does                                                                                          |
-| --------------- | ----------------------------------------------------------------------------------------------------- |
-| `jobs_list`     | Lists your [jobs](/malini/docs/jobs.md): id, name, where they run, what they ship, model, and effort. |
-| `jobs_save`     | Creates a job, or changes one by id.                                                                  |
-| `jobs_run`      | Starts a job now, with optional extra context. The run shows in the chat.                             |
-| `routines_list` | Lists your [routines](/malini/docs/routines.md): id, state, label, when, and steps.                   |
-| `routines_save` | Creates a routine, or changes one by id.                                                              |
-| `events_list`   | Lists every event Malini emits: its channel, what it means, and its payload type.                     |
+| Tool            | What it does                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------- |
+| `jobs_list`     | Lists your [jobs](/malini/docs/jobs.md): id, name, where they run, what they ship, model, effort, and skills. |
+| `jobs_save`     | Creates a job, or changes one by id, skills included.                                                         |
+| `jobs_run`      | Starts a job now, with optional extra context. The run shows in the chat.                                     |
+| `routines_list` | Lists your [routines](/malini/docs/routines.md): id, state, label, when, and steps.                           |
+| `routines_save` | Creates a routine, or changes one by id.                                                                      |
+| `events_list`   | Lists every event Malini emits: its channel, what it means, and its payload type.                             |
 
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.

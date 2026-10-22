@@ -20,7 +20,7 @@
 
 {#if run.terminal === 'cancelled'}
 	<div
-		class="border-surface-50-border bg-surface-50 text-2xs text-fg-secondary flex items-center gap-1.5 self-start rounded-md border-[0.5px] px-2.5 py-1 font-medium tabular-nums"
+		class="border-surface-50-border bg-surface-50 text-2xs text-fg-secondary flex items-center gap-1.5 rounded-md border-[0.5px] px-2.5 py-1 font-medium tabular-nums"
 		use:stageEnter={timelineKey(run, 'terminal')}
 		data-message-kind="terminal"
 		data-terminal="failed"

@@ -135,7 +135,7 @@ test('a prompt sent three times becomes a suggestion whose job goes away when yo
 			effort: 'medium',
 			runsIn: 'workstream',
 			output: 'none',
-			skillPresetId: null,
+			skills: [],
 		});
 		await invoke(page, 'routines.create-draft', {
 			label: 'Check the tests',

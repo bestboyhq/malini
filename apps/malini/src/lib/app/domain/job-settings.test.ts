@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { JOBS_MAX_CONCURRENT_SETTING } from '$contract/jobs';
-import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '$contract/pull-requests';
+import {
+	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	UPDATE_FROM_MAIN_TRIGGER_SETTING,
+} from '$contract/pull-requests';
 import { clampJobSetting, jobSettingFromInput, jobSettingsFromStored } from './job-settings';
 
 describe('the job settings', () => {
@@ -8,13 +11,19 @@ describe('the job settings', () => {
 		expect(jobSettingsFromStored({})).toEqual({
 			[JOBS_MAX_CONCURRENT_SETTING]: 3,
 			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 3,
+			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'main-moves',
 		});
 		expect(
 			jobSettingsFromStored({
 				[JOBS_MAX_CONCURRENT_SETTING]: '5',
 				[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: '12',
+				[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'merging',
 			}),
-		).toEqual({ [JOBS_MAX_CONCURRENT_SETTING]: 5, [MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 12 });
+		).toEqual({
+			[JOBS_MAX_CONCURRENT_SETTING]: 5,
+			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 12,
+			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'merging',
+		});
 	});
 
 	it('clamp a stored value into its range and fall back on garbage', () => {
@@ -22,8 +31,13 @@ describe('the job settings', () => {
 			jobSettingsFromStored({
 				[JOBS_MAX_CONCURRENT_SETTING]: '99',
 				[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 'lots',
+				[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'hourly',
 			}),
-		).toEqual({ [JOBS_MAX_CONCURRENT_SETTING]: 10, [MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 3 });
+		).toEqual({
+			[JOBS_MAX_CONCURRENT_SETTING]: 10,
+			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 3,
+			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'main-moves',
+		});
 	});
 
 	it('clamp to whole numbers inside each range', () => {
