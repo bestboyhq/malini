@@ -3,7 +3,6 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
 	import type { JobDefinitionRecord } from '$contract/jobs';
-	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
@@ -59,9 +58,9 @@
 	</div>
 
 	<nav class="flex flex-col gap-px px-2.5 pt-4" aria-label="Automations">
-		<h2 class="text-fg-tertiary flex items-center gap-1.5 px-2 pt-1 pb-2.5 text-xs font-medium">
+		<h2 class="text-fg-tertiary flex items-baseline gap-1.5 px-2 pt-1 pb-2.5 text-xs font-medium">
 			Automations
-			<Badge variant="warning">Lab</Badge>
+			<span class="text-3xs font-mono">lab</span>
 		</h2>
 		{#each SECTIONS as section (section.value)}
 			{@const current = labState.section === section.value}
