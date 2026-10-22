@@ -907,12 +907,12 @@
 								{#snippet content()}
 									<div class="flex flex-col gap-3">
 										<div class="flex min-w-0 items-center gap-2.5">
-											<RepositoryAvatar fullName={row.repo.fullName} size={28} />
+											<RepositoryAvatar fullName={row.repo.fullName} size={36} />
 											<div class="flex min-w-0 flex-col">
-												<span class="text-fg-default truncate text-sm font-medium">
+												<span class="text-fg-default truncate text-sm leading-5 font-medium">
 													{row.repo.fullName}
 												</span>
-												<span class="text-fg-tertiary text-xs">
+												<span class="text-fg-tertiary text-xs leading-4">
 													{workstreamCountLabel(row.workstreams.length)}
 												</span>
 											</div>
