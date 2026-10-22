@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { JobDefinitionRecord } from '$contract/jobs';
-	import { Badge } from '$hyper-ui/components/badge';
-	import { Button } from '$hyper-ui/components/button';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
 	import {
 		refreshWorkstreamsCommand,
@@ -12,50 +10,20 @@
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { builtinJobDefinitionsQuery } from '$lib/jobs/application/queries/builtin-job-definitions.query.svelte';
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
-	import { labDefaultSetup, type LabJobSetup } from './lab-triggers';
-	import LabVariantActivity from './LabVariantActivity.svelte';
-	import LabVariantCenter from './LabVariantCenter.svelte';
-	import LabVariantRecipes from './LabVariantRecipes.svelte';
-	import LabVariantSentence from './LabVariantSentence.svelte';
-	import LabVariantTable from './LabVariantTable.svelte';
-
-	type Variant = 'center' | 'sentence' | 'activity' | 'recipes' | 'table';
-
-	const VARIANTS: readonly Readonly<{ value: Variant; label: string; idea: string }>[] = [
-		{
-			value: 'center',
-			label: 'E · Automations',
-			idea: 'Recipes, full window: describe it, get a real draft, activity on the side.',
-		},
-		{
-			value: 'sentence',
-			label: 'A · Sentence',
-			idea: 'Every job reads as one sentence: when this happens, do that, then this.',
-		},
-		{
-			value: 'activity',
-			label: 'B · Activity',
-			idea: 'Lead with what ran and what waits for you; jobs are filters, setup is a sheet.',
-		},
-		{
-			value: 'recipes',
-			label: 'C · Recipes',
-			idea: 'Describe what you want or start from a recipe; your automations are cards.',
-		},
-		{
-			value: 'table',
-			label: 'D · Table',
-			idea: 'One dense table: when, how it runs, last run. Switch modes inline.',
-		},
-	];
-
-	let variant = $state<Variant>('center');
-	let setups = $state<Record<string, LabJobSetup>>({});
+	import { LAB_LOCAL_JOB_PREFIX, labState } from './lab-state.svelte';
+	import LabActivityPage from './LabActivityPage.svelte';
+	import LabJobSheet from './LabJobSheet.svelte';
+	import LabOverview from './LabOverview.svelte';
+	import LabRecipesPage from './LabRecipesPage.svelte';
 
 	const builtins = $derived(builtinJobDefinitionsQuery.data);
 	const custom = $derived(customJobDefinitionsQuery.data);
-	const jobs = $derived<readonly JobDefinitionRecord[]>([...custom, ...builtins]);
-	const idea = $derived(VARIANTS.find((option) => option.value === variant)?.idea ?? '');
+	const jobs = $derived<readonly JobDefinitionRecord[]>([
+		...labState.created,
+		...custom,
+		...builtins,
+	]);
+	const selected = $derived(jobs.find((job) => job.id === labState.selectedJobId) ?? null);
 
 	onMount(() => {
 		loadJobsCommand();
@@ -68,47 +36,24 @@
 			stopWatchingJobs();
 		};
 	});
-
-	function setupOf(definition: JobDefinitionRecord): LabJobSetup {
-		return setups[definition.id] ?? labDefaultSetup(definition);
-	}
-
-	function onSetup(definition: JobDefinitionRecord, setup: LabJobSetup): void {
-		setups[definition.id] = setup;
-	}
 </script>
 
-<main class="native-band-row-reserve flex h-full min-h-0 flex-col" data-testid="jobs-lab">
-	<header class="flex shrink-0 items-center gap-4 px-6 pt-3 pb-4">
-		<h1 class="text-fg-default text-xl font-semibold tracking-tight">Jobs</h1>
-		<Badge variant="warning">Lab</Badge>
-		<nav
-			class="bg-surface-50 border-surface-50-border inline-flex gap-0.5 rounded-[9px] border-[0.5px] p-0.5"
-			aria-label="Variants"
-		>
-			{#each VARIANTS as option (option.value)}
-				<Button
-					size="sm"
-					variant="ghost"
-					active={option.value === variant}
-					ariaPressed={option.value === variant}
-					onclick={() => (variant = option.value)}
-				>
-					{option.label}
-				</Button>
-			{/each}
-		</nav>
-		<p class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">{idea}</p>
-	</header>
-	{#if variant === 'center'}
-		<LabVariantCenter {jobs} {setupOf} onsetup={onSetup} />
-	{:else if variant === 'sentence'}
-		<LabVariantSentence {jobs} {setupOf} onsetup={onSetup} />
-	{:else if variant === 'activity'}
-		<LabVariantActivity {jobs} {setupOf} onsetup={onSetup} />
-	{:else if variant === 'recipes'}
-		<LabVariantRecipes {jobs} {setupOf} onsetup={onSetup} />
+<main class="flex h-full min-h-0 flex-col" data-testid="jobs-lab">
+	{#if labState.section === 'activity'}
+		<LabActivityPage {jobs} />
+	{:else if labState.section === 'recipes'}
+		<LabRecipesPage />
 	{:else}
-		<LabVariantTable {jobs} {setupOf} onsetup={onSetup} />
+		<LabOverview {jobs} />
 	{/if}
 </main>
+
+{#if selected}
+	<LabJobSheet
+		job={selected}
+		setup={labState.setupOf(selected)}
+		editable={!selected.id.startsWith(LAB_LOCAL_JOB_PREFIX)}
+		onsetup={(next) => labState.setSetup(selected, next)}
+		onclose={() => (labState.selectedJobId = null)}
+	/>
+{/if}

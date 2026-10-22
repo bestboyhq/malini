@@ -1,4 +1,5 @@
 import type { JobRunRecord } from '$contract/jobs';
+import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 
 const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
@@ -9,7 +10,7 @@ export function jobRunTime(run: JobRunRecord, nowMs: number): string {
 	if (run.status === 'running') {
 		return elapsed(nowMs - Date.parse(run.startedAt ?? run.createdAt));
 	}
-	return ago(nowMs - Date.parse(run.finishedAt ?? run.startedAt ?? run.createdAt));
+	return ago(nowMs - Date.parse(jobRunLastActivityAt(run)));
 }
 
 function elapsed(ms: number): string {

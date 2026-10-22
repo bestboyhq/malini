@@ -2,6 +2,7 @@ import {
 	DEFAULT_JOBS_MAX_CONCURRENT,
 	JOBS_MAX_CONCURRENT_RANGE,
 	type JobRunOrigin,
+	type JobRunRecord,
 	type JobRunStatus,
 } from '$contract/jobs';
 import { isAlreadyActiveError } from '$lib/chat/domain/prompt-dispatch-failure';
@@ -10,6 +11,12 @@ export const JOB_CONTEXT_MAX_BYTES = 64 * 1024;
 
 export function isFinishedJobRunStatus(status: JobRunStatus): boolean {
 	return status === 'succeeded' || status === 'failed' || status === 'cancelled';
+}
+
+export function jobRunLastActivityAt(
+	run: Pick<JobRunRecord, 'createdAt' | 'startedAt' | 'finishedAt'>,
+): string {
+	return run.finishedAt ?? run.startedAt ?? run.createdAt;
 }
 
 export function isJobRunOrigin(value: unknown): value is JobRunOrigin {
