@@ -16,6 +16,9 @@
 	import ExtensionGutter from './ExtensionGutter.svelte';
 	import ExtensionPanelHost from './ExtensionPanelHost.svelte';
 	import ExtensionPanelIcon from './ExtensionPanelIcon.svelte';
+	import InspectorPanelContextMenu, {
+		type InspectorPanelMenuTarget,
+	} from './InspectorPanelContextMenu.svelte';
 	import type { ExtensionPanelHostErrorHandler } from './extension-panel-host';
 	import type { InspectorPanelAction } from './inspector-panel-action';
 	import { gutterRows, type GutterChangeTotals } from '$shared/extensions/inspector-gutter-row';
@@ -118,6 +121,7 @@
 	let directoryTabStateRevision = $state(0);
 	let settingsOpen = $state(false);
 	let settingsAnchor: HTMLSpanElement | null = $state(null);
+	let panelMenu: InspectorPanelMenuTarget | null = $state.raw(null);
 	let panelFailures: Readonly<Record<string, string>> = $state.raw({});
 	let handledRequestedPanelId: string | null = $state(null);
 	let openedPanelKey: string | null = null;
@@ -200,6 +204,7 @@
 		if (!inspectorInteractive) {
 			panelPickerOpen = false;
 			settingsOpen = false;
+			panelMenu = null;
 		}
 	});
 
@@ -419,9 +424,7 @@
 			?.focus({ preventScroll: true });
 	}
 
-	function closePanel(event: MouseEvent, panelId: string): void {
-		event.preventDefault();
-		event.stopPropagation();
+	function closePanel(panelId: string): void {
 		if (!inspectorInteractive) return;
 
 		const closingIndex = visiblePanels.findIndex((panel) => panel.id === panelId);
@@ -444,6 +447,26 @@
 			closeDrawer();
 			void focusPanelTab(panelId, 'extension-inspector-gutter-row');
 		} else if (wasActive) void focusPanelTab(adjacentPanel?.id ?? next.activeId);
+	}
+
+	function openPanelMenu(event: MouseEvent, panelId: string): void {
+		event.preventDefault();
+		const panel = orderedPanels.find(({ id }) => id === panelId);
+		if (!panel || !inspectorInteractive) return;
+		panelPickerOpen = false;
+		settingsOpen = false;
+		panelMenu = {
+			panelId,
+			label: panel.label,
+			open: !presentedPreferences.hidden.includes(panelId),
+			x: event.clientX,
+			y: event.clientY,
+		};
+	}
+
+	function togglePanelFromMenu({ panelId, open }: InspectorPanelMenuTarget): void {
+		if (open) closePanel(panelId);
+		else openPanel(panelId);
 	}
 
 	function closeExtensionDirectory(event: MouseEvent): void {
@@ -720,7 +743,12 @@
 							'data-panel-id': panel.id,
 						}}
 						onselect={() => selectPanel(panel.id)}
-						onclose={(event) => closePanel(event, panel.id)}
+						oncontextmenu={(event) => openPanelMenu(event, panel.id)}
+						onclose={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							closePanel(panel.id);
+						}}
 						trailing={badge ? badgeCount : undefined}
 					>
 						{#snippet icon()}
@@ -1096,6 +1124,7 @@
 			disabled={!inspectorInteractive}
 			{renderIcon}
 			onopen={openPanel}
+			oncontextmenu={openPanelMenu}
 			onshow={visiblePanels.length > 0 ? openDrawer : undefined}
 		/>
 	{/if}
@@ -1152,6 +1181,12 @@
 		{/each}
 	{/each}
 </section>
+
+<InspectorPanelContextMenu
+	target={panelMenu}
+	onclose={() => (panelMenu = null)}
+	ontoggle={togglePanelFromMenu}
+/>
 
 <style>
 	.arrange-row[data-drop-before='true']::before,

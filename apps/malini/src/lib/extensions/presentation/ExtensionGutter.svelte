@@ -17,6 +17,7 @@
 		disabled?: boolean;
 		renderIcon?: Snippet<[icon: string, size: number]> | undefined;
 		onopen: (panelId: string) => void;
+		oncontextmenu?: ((event: MouseEvent, panelId: string) => void) | undefined;
 		onshow?: (() => void) | undefined;
 	}
 
@@ -27,6 +28,7 @@
 		disabled = false,
 		renderIcon,
 		onopen,
+		oncontextmenu,
 		onshow,
 	}: Props = $props();
 </script>
@@ -74,6 +76,7 @@
 			data-navigation-target-workstream-id={workstreamId}
 			data-navigation-panel-id={row.panelId}
 			onclick={() => onopen(row.panelId)}
+			oncontextmenu={(event: MouseEvent) => oncontextmenu?.(event, row.panelId)}
 		>
 			<span class="text-fg-tertiary grid h-4 w-4 shrink-0 place-items-center" aria-hidden="true">
 				{#if renderIcon}{@render renderIcon(row.icon, 13)}{:else}<ExtensionPanelIcon

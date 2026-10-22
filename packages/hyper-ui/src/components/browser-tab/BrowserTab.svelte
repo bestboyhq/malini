@@ -21,6 +21,7 @@
 		icon?: Snippet | undefined;
 		onclose?: ((event: MouseEvent) => void) | undefined;
 		onselect?: (event: MouseEvent) => void;
+		oncontextmenu?: ((event: MouseEvent) => void) | undefined;
 		trailing?: Snippet | undefined;
 		surface?: BrowserTabSurface;
 		tone?: BrowserTabTone;
@@ -52,6 +53,7 @@
 		icon,
 		onclose,
 		onselect,
+		oncontextmenu,
 		trailing,
 		surface = 'panel',
 		tone = 'neutral',
@@ -184,6 +186,7 @@
 	]}
 	data-selected={selected}
 	{...rest}
+	{oncontextmenu}
 	out:collapse|global
 >
 	{#if tooltip}
@@ -232,8 +235,7 @@
 		ariaSelected={selected}
 		{disabled}
 		class={[
-			'flex h-full min-w-0 cursor-pointer items-center py-0 pl-2 text-xs font-medium outline-none disabled:cursor-not-allowed',
-			surface === 'panel' && onclose ? 'pr-6' : 'pr-2',
+			'flex h-full min-w-0 cursor-pointer items-center px-2 py-0 text-xs font-medium outline-none disabled:cursor-not-allowed',
 		]}
 		{...tabLink}
 		{...tabAttributes}
@@ -262,7 +264,7 @@
 				labelWidthClass[surface],
 				preview && 'pr-0.5 italic',
 				busy && !selected && 'text-fg-secondary',
-				surface === 'band' && onclose && !trailing && 'tab-label-faded',
+				onclose && !trailing && 'tab-label-faded',
 			]}
 			textClass="tab-label-text"
 			textAttach={observeLabelOverflow}

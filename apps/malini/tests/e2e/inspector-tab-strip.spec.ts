@@ -103,7 +103,7 @@ test('the inspector strip is a tab list of tabs only, walked with the arrow keys
 	}
 });
 
-test('closing Files folds the inspector to its rail in every workstream, and the Files row brings it back', async () => {
+test('closing Files, from its tab or its right-click menu, folds the inspector to its rail in every workstream', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -124,8 +124,8 @@ test('closing Files folds the inspector to its rail in every workstream, and the
 		const files = inspectorTab(page, 'Files');
 		await expect(files).toBeVisible({ timeout: 20_000 });
 
-		await files.hover();
-		await page.getByRole('button', { name: 'Close Files', exact: true }).click();
+		await files.click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Close Files' }).click();
 		const inspector = page.getByRole('region', { name: 'Inspector' });
 		const filesRow = inspector.getByRole('button', { name: /^Files/ });
 		await expect(filesRow).toBeFocused();
@@ -138,13 +138,19 @@ test('closing Files folds the inspector to its rail in every workstream, and the
 		await expect(filesRow).toBeVisible({ timeout: 20_000 });
 		await expect(panels(page)).toHaveCount(0);
 
-		await filesRow.click();
+		await filesRow.click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Open Files' }).click();
 		await expectPanels(page, ['tab "Files" [selected]']);
 		await expect(
 			page
 				.getByRole('tabpanel', { name: 'Files' })
 				.getByRole('treeitem', { name: 'Open seed.txt' }),
 		).toBeVisible();
+
+		await files.hover();
+		await page.getByRole('button', { name: 'Close Files', exact: true }).click();
+		await expect(filesRow).toBeFocused();
+		await expect(panels(page)).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
