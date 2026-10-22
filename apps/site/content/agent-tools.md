@@ -22,6 +22,7 @@ A tab shows up as soon as the agent starts opening its page, and a page that doe
 | `browser_reload`     | Reloads the page.                              |
 
 You can also pick an element on a page, and it lands in your prompt.
+The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 
 ### Screenshots in your theme
 

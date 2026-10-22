@@ -11,8 +11,8 @@ import type {
 	BrowserTabProcess,
 } from '../browser.platform';
 import {
+	captureFrame,
 	clickSelector,
-	delay,
 	openUrl,
 	saveScreenshot,
 	settleAfterAction,
@@ -24,11 +24,11 @@ import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from 
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
-export const OFFSCREEN_RENDER_MS = 150;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
 
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
+	onScreen(window: W): boolean;
 	createView(events: PageEvents): PageView<W>;
 	watchRendererReset(window: W, reset: () => void): void;
 	workstreamExists(workstreamId: string): boolean;
@@ -146,11 +146,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) return null;
-		const image = await this.rendered(entry, () =>
-			contents.capturePage(undefined, { stayHidden: false }),
-		).catch(() => null);
-		if (!image || image.isEmpty()) return null;
-		return `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
+		const image = await this.rendered(entry, () => captureFrame(contents));
+		return image && `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
 	async pick(tab: BrowserTabArgs): Promise<BrowserElementPrompt | null> {
@@ -246,18 +243,16 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	}
 
 	private async rendered<T>(entry: Entry<W>, capture: () => Promise<T>): Promise<T> {
-		if (entry.shown) return capture();
-		const { width, height } = entry.bounds;
-		// ponytail: Chromium stops painting a view wholly outside its window, so one corner pixel stays inside, under the rounded corner; a hidden app (Cmd+H) still cannot paint, offscreen rendering would fix that
-		entry.view.setBounds({ x: 1 - width, y: 1 - height, width, height });
+		const window = entry.window;
+		if (!window || window.isDestroyed() || (entry.shown && this.deps.onScreen(window)))
+			return capture();
+		entry.view.removeFrom(window);
 		entry.view.setVisible(true);
-		await delay(OFFSCREEN_RENDER_MS);
 		try {
 			return await capture();
 		} finally {
-			if (!entry.shown && entry.alive) {
-				entry.view.setVisible(false);
-				entry.view.setBounds(entry.bounds);
+			if (entry.alive && entry.window && !entry.window.isDestroyed()) {
+				entry.view.placeIn(entry.window, entry.shown ? 'front' : 'back');
 			}
 		}
 	}
