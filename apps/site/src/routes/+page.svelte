@@ -544,7 +544,7 @@
 			#fb8400 82%,
 			transparent 96%
 		);
-		--delay: 100ms;
+		--delay: 350ms;
 		isolation: isolate;
 		padding: 64px 0;
 		background: linear-gradient(var(--panel) 0 0) 50% 0 / var(--col) 100% no-repeat;
