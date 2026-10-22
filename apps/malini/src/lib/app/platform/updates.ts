@@ -4,7 +4,6 @@ import {
 	app,
 	autoUpdater as squirrel,
 	dialog,
-	Menu,
 	powerMonitor,
 	type MenuItemConstructorOptions,
 } from 'electron';
@@ -28,10 +27,10 @@ export interface Updates {
 	exit(): void;
 }
 
-export function startUpdates({
-	commands,
-	events,
-}: Pick<MainContext, 'commands' | 'events'>): Updates {
+export function startUpdates(
+	{ commands, events }: Pick<MainContext, 'commands' | 'events'>,
+	showUpdateItem: (item: MenuItemConstructorOptions) => void,
+): Updates {
 	const exitNow = (): void => app.exit(0);
 	let staged = '';
 	let restartToLatest = (): void => {
@@ -79,7 +78,7 @@ export function startUpdates({
 				};
 	const set = (next: UpdateState): void => {
 		state = next;
-		Menu.setApplicationMenu(applicationMenu(menuItem()));
+		showUpdateItem(menuItem());
 	};
 	const settle = (): void => {
 		set(staged ? 'ready' : 'idle');
@@ -163,28 +162,4 @@ function offerMoveToApplications(): boolean {
 		dialog.showErrorBox('Malini could not move itself.', describeError(error));
 		return false;
 	}
-}
-
-function applicationMenu(update: MenuItemConstructorOptions): Menu {
-	return Menu.buildFromTemplate([
-		{
-			label: app.name,
-			submenu: [
-				{ role: 'about' },
-				update,
-				{ type: 'separator' },
-				{ role: 'services' },
-				{ type: 'separator' },
-				{ role: 'hide' },
-				{ role: 'hideOthers' },
-				{ role: 'unhide' },
-				{ type: 'separator' },
-				{ role: 'quit' },
-			],
-		},
-		{ role: 'fileMenu' },
-		{ role: 'editMenu' },
-		{ role: 'viewMenu' },
-		{ role: 'windowMenu' },
-	]);
 }
