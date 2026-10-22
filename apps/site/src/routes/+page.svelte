@@ -157,12 +157,12 @@
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
-			<span>Agents write the code.</span>
-			<span class="quiet">Malini does the git.</span>
+			<span>An agentic development environment</span>
+			<span class="quiet">for builders running many agents.</span>
 		</h1>
 		<p class="lede">
-			An agentic development environment. Run many agents at once, each in its own git worktree, and
-			come back to merged pull requests. It runs on Claude Code today.
+			Every agent works in its own git worktree, and Malini does the git: commits, pull request, red
+			checks, review comments, merge. It runs on Claude Code today.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>

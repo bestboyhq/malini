@@ -2,7 +2,7 @@ import { asset, resolve } from '$app/paths';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
 export const SITE_DESCRIPTION =
-	'Malini is a free, open source agentic development environment for the Mac. Each task gets its own git worktree, branch, and agent chats, and Malini takes it to a merged pull request.';
+	'Malini is a free, open source agentic development environment for builders running many agents. Each task gets its own git worktree and branch, and Malini takes it to a merged pull request.';
 
 export const DOWNLOAD_URL =
 	'https://github.com/bestboyhq/malini/releases/latest/download/malini-arm64.dmg';
