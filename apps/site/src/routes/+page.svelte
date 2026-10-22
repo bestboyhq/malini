@@ -27,7 +27,6 @@
 		'browser',
 		'ship',
 		'merge',
-		'outcomes',
 		'routines',
 		'open',
 		'docs',
@@ -79,8 +78,8 @@
 			body: 'Malini commits, opens the pull request, fixes red checks, addresses reviews, and merges once GitHub allows.',
 		},
 		{
-			title: 'Approve the routine',
-			body: 'Malini notices the prompts you keep repeating and offers a job and a routine. You approve it, and once you trust it, it runs without you.',
+			title: 'Automate what repeats',
+			body: 'When you keep typing the same prompt, Malini offers to save it as a routine. It starts as a draft and runs on its own only after you promote it.',
 		},
 	];
 
@@ -93,7 +92,7 @@
 		{
 			icon: 'lock',
 			title: 'No account, no server',
-			body: 'Your code leaves your Mac only through your own Claude Code and the GitHub CLI.',
+			body: 'Your code leaves your Mac only through the agent you run, Claude Code today, and the GitHub CLI.',
 		},
 		{
 			icon: 'eye',
@@ -106,7 +105,7 @@
 		{
 			question: 'Is Malini free?',
 			answer:
-				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. The agents run on your own Claude Code, so they use your own Claude plan.',
+				'Yes. Malini is free and open source under AGPL-3.0, with no account and no subscription. Agents run on your own Claude Code today, so they use your own Claude plan.',
 		},
 		{
 			question: 'What do I need?',
@@ -116,7 +115,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To Anthropic through your own Claude Code, and to GitHub through the GitHub CLI. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
@@ -129,9 +128,9 @@
 				'Not in Malini. Each workstream is its own git worktree on its own branch, branched from a private clone of your repository. Dependencies are installed for you from the lockfile.',
 		},
 		{
-			question: 'Which models can I use?',
+			question: 'Which agents and models can I use?',
 			answer:
-				'Fable, Opus, Sonnet, or Haiku, at any effort from Low to Max, picked per prompt. Your context window and plan usage are one click from the composer.',
+				'Claude Code today, and we want to support more agents. Pick Fable, Opus, Sonnet, or Haiku at any effort from Low to Max, per prompt. Your context window and plan usage are one click from the composer.',
 		},
 		{
 			question: 'Can I extend it?',
@@ -146,11 +145,7 @@
 	];
 </script>
 
-<Head
-	title="Malini: architect your agents, don’t babysit them"
-	description={SITE_DESCRIPTION}
-	path=""
-/>
+<Head title="Malini: an agentic development environment" description={SITE_DESCRIPTION} path="" />
 
 <div class="progress" aria-hidden="true"></div>
 
@@ -158,16 +153,16 @@
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
 			<GitHubIcon size={14} />
-			<span>Free and open source, for the Mac</span>
+			<span>Free and open source macOS app</span>
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
-			<span>You had one job.</span>
-			<span class="quiet">Now you have plenty.</span>
+			<span>An agentic development environment</span>
+			<span class="quiet">for builders moving fast.</span>
 		</h1>
 		<p class="lede">
-			Twenty agents you have to watch isn’t leverage. Malini makes you an architect instead of a
-			babysitter, with systems that run the work you repeat to put you ahead of the competition.
+			Run as many agents as you want. Malini handles the chores, so you only review pull requests
+			and the gains compound.
 		</p>
 		<div class="actions">
 			<a class="button primary" href={DOWNLOAD_URL}>
@@ -202,7 +197,7 @@
 	split
 	title="You describe the task."
 	quiet="Malini runs the loop."
-	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request, then turns the work you repeat into routines."
+	description="Each task gets its own agent, branch, and worktree. Malini carries it to a merged pull request."
 >
 	{#snippet after()}
 		<ol class="cells">
@@ -232,7 +227,7 @@
 	id="browser"
 	beat={beat('browser', 'Browser')}
 	mirrored
-	title="Give the agent a browser."
+	title="The browser agents enjoy using."
 	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
 	linkLabel="What the agent can do"
@@ -243,7 +238,7 @@
 <SectionHeading
 	id="ship"
 	beat={beat('ship')}
-	title="From prompt to merged."
+	title="From idea to shipped."
 	quiet="Without babysitting a branch."
 	description="A check goes red. Main moves. A reviewer asks for changes. Malini handles each one and tells you when it needs you."
 />
@@ -251,7 +246,7 @@
 <FeatureRow
 	id="merge"
 	beat={beat('merge', 'Merge queue')}
-	title="Press Merge. Do something else."
+	title="Press Merge. Ship the next thing."
 	body="Malini pushes, marks the pull request ready, and waits for checks and review. While it waits, it fixes red checks, catches up with main, and answers reviewers."
 	href={doc('workstreams')}
 	linkLabel="How a merge works"
@@ -259,20 +254,12 @@
 	panel={mergePanel}
 />
 
-<SectionHeading
-	id="outcomes"
-	beat={beat('outcomes')}
-	title="You never wanted skills."
-	quiet="You wanted green checks."
-	description="A job is agent work you ask for by name, like Fix checks or Update from main. Malini notices the prompts you keep repeating and offers to save them as jobs."
-/>
-
 <FeatureRow
 	id="routines"
 	beat={beat('routines', 'Routines')}
 	mirrored
 	title="You approve it. Malini runs it."
-	body="Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft. Promote it when you trust it."
+	body="A job is a saved agent task, like Fix checks or Update from main. A routine runs jobs when something happens. Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft."
 	href={doc('routines')}
 	linkLabel="How routines work"
 	checks={['Draft, then candidate, then unattended', 'Triggers on any event Malini emits']}
@@ -283,7 +270,7 @@
 	id="open"
 	beat={beat('open')}
 	title="Open source, so we can’t rug pull you."
-	quiet="Build your systems on something you can fork."
+	quiet="If we ever go wrong, fork it."
 >
 	<div class="buttons">
 		<a class="button secondary small" href={GITHUB_URL}>
@@ -378,7 +365,14 @@
 </section>
 
 {#snippet apple()}
-	<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+	<svg
+		class="apple"
+		viewBox="4 3.1 14.8 18.2"
+		width="13"
+		height="16"
+		aria-hidden="true"
+		fill="currentColor"
+	>
 		<path
 			d="M16.37 12.73c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.82-.81-3-.79-1.54.02-2.97.9-3.76 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74s1.78.74 3 .72c1.24-.02 2.02-1.12 2.78-2.23.88-1.28 1.24-2.52 1.26-2.58-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.89-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.28Z"
 		/>
@@ -460,15 +454,20 @@
 		--delay: 250ms;
 		display: inline-flex;
 		align-items: center;
-		gap: 8px;
+		gap: 6px;
 		height: 30px;
-		padding: 0 12px;
+		padding: 0 11px 0 10px;
+		white-space: nowrap;
 		border-radius: 999px;
 		box-shadow: inset 0 0 0 1px var(--border-subtle);
 		color: var(--fg-secondary);
 		font-size: 13px;
 		font-weight: 500;
 		text-decoration: none;
+	}
+
+	.apple {
+		translate: 0 -1.5px;
 	}
 
 	.eyebrow :global(.ahead) {
@@ -483,7 +482,7 @@
 		--duration: 1400ms;
 		--delay: 0ms;
 		margin-top: 24px;
-		font-size: clamp(38px, 6vw, 68px);
+		font-size: clamp(38px, 5.2vw, 68px);
 		font-weight: 550;
 		line-height: 1.02;
 		letter-spacing: -0.04em;
@@ -491,7 +490,7 @@
 	}
 
 	h1 span {
-		white-space: nowrap;
+		display: block;
 	}
 
 	.quiet {
@@ -545,10 +544,10 @@
 			#fb8400 82%,
 			transparent 96%
 		);
+		--delay: 350ms;
 		isolation: isolate;
 		padding: 64px 0;
 		background: linear-gradient(var(--panel) 0 0) 50% 0 / var(--col) 100% no-repeat;
-		animation: seam calc(1600ms * var(--pace)) var(--enter-ease) calc(450ms * var(--pace)) backwards;
 	}
 
 	@property --grow {
@@ -616,12 +615,6 @@
 		from {
 			opacity: 0;
 			scale: 0.6;
-		}
-	}
-
-	@keyframes seam {
-		from {
-			--seam-w: 0;
 		}
 	}
 
@@ -934,11 +927,6 @@
 	}
 
 	@media (max-width: 639px) {
-		h1 span {
-			display: block;
-			white-space: normal;
-		}
-
 		.plate {
 			padding: 40px 0;
 		}
