@@ -1,13 +1,13 @@
 import { followSystemThemeCommand } from '$lib/app/application/commands/follow-system-theme.command';
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
+import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
 import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-native-theme.command';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
-import { connectRepositoryRequestsService } from '$lib/app/infrastructure/services/connect-repository-requests.service';
+import { menuCommandsService } from '$lib/app/infrastructure/services/menu-commands.service';
 import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-chrome-zoom.service';
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { updatesService } from '$lib/app/infrastructure/services/updates.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
-import { requestRepositoryConnectionCommand } from '$shared/repositories/repositories.api';
 import { stagedUpdateStore } from '$lib/app/infrastructure/stores/staged-update.store.svelte';
 import { streamerModeStore } from '$lib/app/infrastructure/stores/streamer-mode.store.svelte';
 
@@ -18,12 +18,10 @@ export function bootAppHook(): () => void {
 	syncNativeThemeCommand();
 	const stopWatchingStreaming = watchStreaming();
 	const stopWatchingUpdates = watchStagedUpdate();
-	const stopAnsweringConnectRequests = connectRepositoryRequestsService.onRequest(
-		requestRepositoryConnectionCommand,
-	);
+	const stopAnsweringMenu = menuCommandsService.onCommand(runMenuChoiceCommand);
 	if (!windowLifecycleService.isNativeWindow()) {
 		return () => {
-			stopAnsweringConnectRequests();
+			stopAnsweringMenu();
 			stopWatchingUpdates();
 			stopWatchingStreaming();
 			stopFollowingSystemTheme();
@@ -51,7 +49,7 @@ export function bootAppHook(): () => void {
 		disposed = true;
 		disarmCloseGuard?.();
 		disarmCloseGuard = null;
-		stopAnsweringConnectRequests();
+		stopAnsweringMenu();
 		stopWatchingUpdates();
 		stopWatchingStreaming();
 		stopFollowingSystemTheme();

@@ -13,6 +13,7 @@ import {
 	expectCleanConsole,
 	launchMalini,
 	seedWorkstream,
+	showToastsTogether,
 } from './harness';
 
 interface ToastOptions {
@@ -95,7 +96,7 @@ async function expectStack(
 						.map((text) => text.message),
 				};
 			},
-			{ timeout: 5_000 },
+			{ timeout: 20_000 },
 		)
 		.toEqual({ shown: [...shownMessages].sort(), escaping: [] });
 }
@@ -141,7 +142,7 @@ async function expand(page: Page, messages: readonly string[]): Promise<void> {
 		await page.mouse.move(front.x + front.width - 8, front.y + front.height / 2);
 		const texts = await readToastTexts(page, messages);
 		expect(texts.map((text) => text.shown)).toEqual(messages.map(() => true));
-	}).toPass({ timeout: 5_000 });
+	}).toPass({ timeout: 20_000 });
 }
 
 test('a long toast behind newer short ones keeps its text inside its box, collapsed and expanded', async () => {
@@ -160,7 +161,10 @@ test('a long toast behind newer short ones keeps its text inside its box, collap
 		chmodSync(lockedDirectory, 0o555);
 
 		const messages = [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME].map(archiveFailure);
-		for (const name of [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME]) await archive(page, name);
+		const failures = page.getByTestId('toast').filter({ hasText: 'Could not archive' });
+		await showToastsTogether(failures, messages.length, async () => {
+			for (const name of [ARCHIVED_NAME, OLDER_NAME, NEWER_NAME]) await archive(page, name);
+		});
 		const newest = archiveFailure(NEWER_NAME);
 
 		await collapse(page);

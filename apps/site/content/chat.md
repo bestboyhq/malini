@@ -87,6 +87,10 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **⌘↵**          | Steer now, interrupting the run                        |
 | **@**           | Mention a file                                         |
 | **/**           | Compact the conversation, or run a job                 |
+| **⌘T**          | Start a new chat in this workstream                    |
+| **⌘N**          | Start a new workstream in this repository              |
+| **⌘O**          | Open a folder as a repository                          |
+| **⌘,**          | Open Settings                                          |
 | **⌘W**          | Close the chat tab                                     |
 | **⌘K**          | Find a chat tab that doesn't fit                       |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |
