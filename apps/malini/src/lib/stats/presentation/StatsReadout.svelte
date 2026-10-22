@@ -30,7 +30,7 @@
 	}
 </script>
 
-<Tooltip content="Stats" placement="top" suppressed={open} class="ml-auto min-w-0">
+<Tooltip content="Stats for nerds" placement="top" suppressed={open} class="ml-auto min-w-0">
 	<Button
 		bind:element={trigger}
 		variant="ghost"
@@ -48,7 +48,7 @@
 			<span class="flex min-w-0 items-baseline gap-1" data-testid="sidebar-stats-readout">
 				{@render fixedWidth(formatMemory(latest.memoryBytes), '000 MB')}
 				<span aria-hidden="true">·</span>
-				{@render fixedWidth(formatCpu(latest.cpuPercent), '100%')}
+				{@render fixedWidth(formatCpu(latest.cpuPercent), '00%')}
 			</span>
 		{/if}
 	</Button>
