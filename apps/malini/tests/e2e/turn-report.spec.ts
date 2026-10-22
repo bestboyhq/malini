@@ -80,13 +80,11 @@ test('a turn that ends with a report shows it as a result card that asks the use
 			'Approve the new shadow',
 			'Merge the pull request',
 		]);
-		const lead = card.getByTestId('turn-report-lead');
-		await expect(lead).toContainText('checked at 320 px and 1440 px.');
-		await expect(card.getByTestId('turn-report-notes')).toBeHidden();
-		await lead.click();
-		await expect(card.getByTestId('turn-report-notes')).toContainText(
-			'the header is position: sticky.',
-		);
+		const notes = card.getByTestId('turn-report-notes');
+		await expect(notes).toContainText('the header is position: sticky.');
+		await expect(notes).toContainText('checked at 320 px and 1440 px.');
+		await expect(card.getByRole('img', { name: 'Changed' })).toBeVisible();
+		await expect(card.getByRole('img', { name: 'Verified' })).toBeVisible();
 		await captureFlow(app, 'turn-report-card');
 
 		await sendPrompt(page, 'CHAT_TURN_REPORT again');

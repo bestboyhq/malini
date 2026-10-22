@@ -14,9 +14,10 @@ function sendCommandPromptCommand(
 		workstreamId: string;
 		sessionId: SessionId;
 		prompt: string;
+		subject: string;
 	}>,
 ): void {
-	const { workstreamId, sessionId, prompt } = request;
+	const { workstreamId, sessionId, prompt, subject } = request;
 	const requestId = newChatRequestId();
 	submitPromptCommand({
 		requestId,
@@ -34,6 +35,6 @@ function sendCommandPromptCommand(
 	void (async () => {
 		const outcome = await chatRequestsStore.settled(requestId);
 		if (outcome.status !== 'failed') return;
-		toast.error(`Command not sent · ${outcome.error}`, aboutWorkstream(workstreamId));
+		toast.error(`${subject} not sent · ${outcome.error}`, aboutWorkstream(workstreamId));
 	})();
 }

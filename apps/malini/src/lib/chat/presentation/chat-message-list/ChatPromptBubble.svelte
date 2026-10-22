@@ -2,6 +2,7 @@
 	import { copyTextCommand } from '$lib/chat/application/commands/copy-text.command';
 	import { chatRequestQuery } from '$lib/chat/application/queries/chat-request.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
+	import { variantLabel } from '$lib/chat/domain/variant-pick';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -18,6 +19,7 @@
 	import { checkpointRestoreWarning } from './checkpoint-edit.svelte';
 	import { OPEN_RUN_BLOCKS_RESTORE } from './destructive-confirm.svelte';
 	import { clampPrompt } from './clamp-prompt';
+	import { reportMediaSource } from '../workstream-images';
 	import ChatPromptChips from './ChatPromptChips.svelte';
 	import { transcriptContext } from './transcript-context';
 
@@ -32,6 +34,14 @@
 	const transcript = transcriptContext();
 	const { promptArrival, checkpointEdit } = transcript;
 	const editable = $derived(Boolean(item.checkpointId && !run.superseded && !run.obsoleted));
+	const pick = $derived(
+		item.key === transcript.firstUserKey(run)
+			? (transcript.promptPick(run.runId)?.pick ?? null)
+			: null,
+	);
+	const pickSrc = $derived(
+		pick ? reportMediaSource(pick.picked.src, transcript.markdownImageSource) : null,
+	);
 
 	const blocked = $derived(transcript.workstreamRunInFlight);
 	const editing = $derived(checkpointEdit.isEditing(item));
@@ -85,15 +95,36 @@
 </script>
 
 {#snippet promptBody()}
-	<span class="prompt-clamp-body" data-prompt-body>
-		<InlinePromptContent
-			text={item.text}
-			attachments={item.attachments ?? []}
-			transcriptReferences={item.transcriptReferences ?? []}
-			elementReferences={item.elementReferences ?? []}
-			onopenattachment={transcript.openAttachment}
-		/>
-	</span>
+	{#if pick}
+		<span class="flex items-center gap-3" data-prompt-body data-testid="chat-prompt-pick">
+			<span
+				class="outline-border-subtle bg-surface-root block h-9 w-16 shrink-0 overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]"
+				aria-hidden="true"
+			>
+				{#if pickSrc}
+					<img src={pickSrc} alt="" class="size-full object-cover object-top-left" />
+				{/if}
+			</span>
+			<span class="min-w-0">
+				<span class="block">
+					Go with <span class="font-medium">{variantLabel(pick.picked)}</span>
+				</span>
+				{#if pick.reason}
+					<span class="text-fg-secondary block text-xs leading-5">“{pick.reason}”</span>
+				{/if}
+			</span>
+		</span>
+	{:else}
+		<span class="prompt-clamp-body" data-prompt-body>
+			<InlinePromptContent
+				text={item.text}
+				attachments={item.attachments ?? []}
+				transcriptReferences={item.transcriptReferences ?? []}
+				elementReferences={item.elementReferences ?? []}
+				onopenattachment={transcript.openAttachment}
+			/>
+		</span>
+	{/if}
 {/snippet}
 
 {#snippet copyPromptButton()}
