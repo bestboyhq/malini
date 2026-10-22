@@ -155,7 +155,7 @@
 		>
 			<div
 				class={[
-					'border-surface-modal-border bg-surface-modal text-fg-default inset-0 border',
+					'border-surface-elevated-border bg-surface-elevated text-fg-default inset-0 border-[0.5px]',
 					backdrop === 'dim' ? 'shadow-popup' : 'shadow-2xl',
 					hasConsumerRounded ? null : 'rounded-xl',
 					title ? sizeClass[size] : null,
@@ -167,7 +167,7 @@
 			>
 				{#if title}
 					<header
-						class="border-border-subtle flex items-start justify-between gap-4 border-b px-5 py-4"
+						class="border-surface-elevated-border flex items-start justify-between gap-4 border-b px-5 py-4"
 					>
 						<div class="min-w-0">
 							<h2 id={titleId} class="text-fg-default truncate text-lg font-semibold">

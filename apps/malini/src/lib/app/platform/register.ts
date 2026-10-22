@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { RecentDiagnosticsArgs, ReportToastArgs } from '$contract/diagnostics';
 import type {
@@ -169,6 +170,13 @@ function defineShellCommands(context: MainContext, deps: AppDeps, host: ShellHos
 	commands.define('app.destroy-window', () => window.destroy());
 	commands.define('app.notify', (args: NotifyArgs) => window.notify(args));
 	commands.define('app.take-notification-target', () => window.takeNotificationTarget());
+	commands.define('app.take-connect-repository-request', () =>
+		window.takeConnectRepositoryRequest(),
+	);
+	host.showTray(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'), [
+		{ label: 'Open Folder…', click: () => window.requestConnectRepository('folder') },
+		{ label: 'Clone Repository…', click: () => window.requestConnectRepository('clone') },
+	]);
 	commands.define('app.notification-permission-granted', () =>
 		window.isNotificationPermissionGranted(),
 	);
