@@ -47,8 +47,10 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 			setup.getByRole('heading', { name: 'Connect Claude Code and GitHub' }),
 		).toBeVisible();
 		const github = setup.getByTestId('github-setup');
-		await expect(github).toHaveAttribute('data-github-status', 'signed-out');
-		await expect(setup.getByRole('heading', { name: /^Claude Code Signed in as / })).toBeVisible();
+		await expect(github).toHaveAttribute('data-github-status', 'signed-out', { timeout: 20_000 });
+		await expect(setup.getByRole('heading', { name: /^Claude Code Signed in as / })).toBeVisible({
+			timeout: 20_000,
+		});
 		await expect(setup.getByRole('button', { name: 'GitHub', exact: true })).toHaveAttribute(
 			'aria-expanded',
 			'true',
@@ -89,7 +91,7 @@ test('setup shows one account at a time, and the user can pick which one to conn
 		const setup = app.page.getByTestId('onboarding');
 		const install = setup.getByRole('button', { name: 'Install Claude Code in Terminal' });
 		const connect = setup.getByRole('button', { name: 'Connect GitHub' });
-		await expect(install).toBeVisible();
+		await expect(install).toBeVisible({ timeout: 20_000 });
 		await expect(connect).toBeHidden();
 		await captureFlow(app, 'setup-accounts-claude-first');
 

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { BrowserWindow } from 'electron';
+import type { BrowserWindow, MenuItemConstructorOptions } from 'electron';
 import type { ThemeMode } from '$contract/commands';
 import type { MainContext } from '$main/context';
 import { openDatabase } from '$main/db/driver';
@@ -17,6 +17,7 @@ export interface FakeHost extends Omit<ShellHost, 'executablePath'> {
 	notifications: { title: string; body: string; onClick?: () => void }[];
 	openedWindows: number;
 	tray: { icon: string; items: readonly TrayItem[] } | null;
+	applicationMenu: readonly MenuItemConstructorOptions[];
 	encryptionAvailable: boolean;
 	notificationsAvailable: boolean;
 	windowCreated: ((window: BrowserWindow) => void)[];
@@ -51,6 +52,7 @@ export function createFakeHost(): FakeHost {
 		notifications: [],
 		openedWindows: 0,
 		tray: null,
+		applicationMenu: [],
 		encryptionAvailable: true,
 		notificationsAvailable: true,
 		windowCreated: [],
@@ -79,6 +81,9 @@ export function createFakeHost(): FakeHost {
 		},
 		showTray: (icon, items) => {
 			host.tray = { icon, items };
+		},
+		showApplicationMenu: (template) => {
+			host.applicationMenu = template;
 		},
 		onWindowCreated: (listener) => {
 			host.windowCreated.push(listener);
