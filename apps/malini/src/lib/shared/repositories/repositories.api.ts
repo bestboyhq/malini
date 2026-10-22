@@ -131,6 +131,7 @@ export { workstreamsForRepository } from './domain/repository-connection';
 
 export { archiveWorkstreamCommand } from './application/commands/archive-workstream.command';
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
+export { answerRepositoryConnectionRequestCommand } from './application/commands/answer-repository-connection-request.command';
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
 export { consumeWorkstreamCreationCommand } from './application/commands/consume-workstream-creation.command';
 export { createWorkstreamForRepositoryCommand } from './application/commands/create-workstream-for-repository.command';
@@ -151,6 +152,7 @@ export { refreshWorkstreamChangeTotalsCommand } from './application/commands/ref
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
 export { prepareRepositoryCommand } from './application/commands/prepare-repository.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
+export { requestRepositoryConnectionCommand } from './application/commands/request-repository-connection.command';
 export { restoreWorkstreamCommand } from './application/commands/restore-workstream.command';
 export { setRepositoryHiddenCommand } from './application/commands/set-repository-hidden.command';
 export { restartWorkstreamOnBaseCommand } from './application/commands/restart-workstream-on-base.command';
@@ -195,6 +197,7 @@ export { repositoryAvatarQuery } from './application/queries/repository-avatar.q
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
 export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
+export { repositoryConnectionRequestedQuery } from './application/queries/repository-connection-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
@@ -213,6 +216,10 @@ export { workstreamCheckedOutQuery } from './application/queries/workstream-chec
 export { workstreamReadyForPromptsQuery } from './application/queries/workstream-ready-for-prompts.query.svelte';
 
 export { default as CloneRepositoryDialog } from './presentation/CloneRepositoryDialog.svelte';
+export {
+	default as ConnectRepositoryContextMenu,
+	type ConnectRepositoryContextMenuTarget,
+} from './presentation/ConnectRepositoryContextMenu.svelte';
 export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';

@@ -9,6 +9,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import {
 		activeWorkstreamsQuery,
+		answerRepositoryConnectionRequestCommand,
 		clearRepositoryConnectErrorCommand,
 		CloneRepositoryDialog,
 		connectedRepositoriesQuery,
@@ -24,6 +25,7 @@
 		repositoriesScopeRetryingQuery,
 		repositoryConnectErrorQuery,
 		repositoryConnectingQuery,
+		repositoryConnectionRequestedQuery,
 		retryRepositoriesScopeCommand,
 		setRepositoryHiddenCommand,
 		workstreamsForRepository,
@@ -55,6 +57,7 @@
 	const githubAuth = $derived(githubAuthQuery.data);
 	const connecting = $derived(repositoryConnectingQuery.data);
 	const connectError = $derived(repositoryConnectErrorQuery.data);
+	const connectionRequested = $derived(repositoryConnectionRequestedQuery.data);
 	const claudeStatus = $derived(claudeCodeStatusQuery.data);
 	const claudeNeedsSetup = $derived(
 		claudeStatus.kind === 'missing' ||
@@ -92,6 +95,11 @@
 		loadOnboardingCommand();
 		clearRepositoryConnectErrorCommand();
 		loadGithubAuthCommand();
+	});
+
+	$effect(() => {
+		if (connectionRequested)
+			answerRepositoryConnectionRequestCommand(() => (cloneDialogOpen = true));
 	});
 
 	function workstreamsFor(repo: Repository): Workstream[] {

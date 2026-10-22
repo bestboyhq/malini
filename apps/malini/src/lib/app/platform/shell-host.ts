@@ -3,19 +3,26 @@ import {
 	BrowserWindow,
 	clipboard,
 	ClipboardItem,
+	Menu,
 	nativeTheme,
 	Notification,
 	safeStorage,
 	screen,
 	shell,
+	Tray,
 	type Rectangle,
 } from 'electron';
 import type { AgentTheme } from '$contract/agent';
 import type { ThemeMode } from '$contract/commands';
+import { BACKGROUND_WINDOW, createMainWindow } from '$main/window';
 
 const LIVE_NOTIFICATION_LIMIT = 32;
 
 const liveNotifications = new Set<Notification>();
+
+let tray: Tray | null = null;
+
+export type TrayItem = Readonly<{ label: string; click: () => void }>;
 
 function holdUntilSettled(notification: Notification): void {
 	const release = (): void => {
@@ -42,6 +49,8 @@ export interface ShellHost {
 	decryptString(encrypted: Buffer): string;
 	notificationsSupported(): boolean;
 	showNotification(options: { title: string; body: string; onClick?: () => void }): void;
+	openMainWindow(): void;
+	showTray(icon: string, items: readonly TrayItem[]): void;
 	onWindowCreated(listener: (window: BrowserWindow) => void): void;
 	onBeforeQuit(listener: () => void): void;
 	onDisplayMetricsChanged(listener: () => void): void;
@@ -75,6 +84,15 @@ export function createElectronShellHost(): ShellHost {
 			if (onClick) notification.on('click', () => onClick());
 			holdUntilSettled(notification);
 			notification.show();
+		},
+		openMainWindow: () => {
+			createMainWindow();
+		},
+		showTray: (icon, items) => {
+			if (BACKGROUND_WINDOW) return;
+			tray = new Tray(icon);
+			tray.setToolTip(app.getName());
+			tray.setContextMenu(Menu.buildFromTemplate([...items]));
 		},
 		onWindowCreated: (listener) => {
 			app.on('browser-window-created', (_event, window) => listener(window));
