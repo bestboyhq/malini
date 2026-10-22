@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
+import { holdAgentRuns } from './fake-github';
 import {
 	captureFlow,
 	createSourceRepo,
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -335,6 +337,62 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 			'the command row moved when its output collapsed',
 		).toBeLessThanOrEqual(STILL_PX);
 		await captureFlow(app, 'transcript-streaming-follow-collapsed');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a job leaving the composer tray leaves the transcript where it is', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const workstreamId = 'e2e-streaming-follow-tray-ws';
+		await longChat(app, workstreamId);
+		const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+			name: 'Watch the deploy',
+			instructions: 'HANG',
+			model: 'opus',
+			effort: 'medium',
+			runsIn: 'workstream',
+			output: 'none',
+			skillPresetId: null,
+		});
+		holdAgentRuns(app, true);
+		await sendPrompt(page, 'Wait for the deploy job');
+		const jobRun = await invoke<{ id: string }>(page, 'jobs.run', {
+			definitionId: job.id,
+			workstreamId,
+		});
+		const jobs = page.getByRole('region', { name: 'Jobs in this workstream (1)' });
+		await expect(jobs).toContainText('Watch the deploy', { timeout: 20_000 });
+		holdAgentRuns(app, false);
+		await expectRunFinished(page, 'Hello from the fake bridge');
+		await untilStill(page);
+
+		await startSampling(page, [LATEST_PROMPT]);
+		await invoke(page, 'jobs.cancel-run', { jobRunId: jobRun.id });
+		await expect(jobs).toHaveCount(0, { timeout: 20_000 });
+		await untilStill(page);
+		const samples = await stopSampling(page);
+
+		expect(
+			drift(samples, 1),
+			'px the transcript moved when the job left the tray',
+		).toBeLessThanOrEqual(STILL_PX);
+		await captureFlow(app, 'transcript-streaming-follow-job-left-tray');
+
+		await sendPrompt(page, 'Carry on');
+		await expectRunFinished(page, 'Hello from the fake bridge');
+		await untilStill(page);
+		await startSampling(page, []);
+		await untilStill(page);
+		expect(
+			blankAboveComposer(await stopSampling(page)),
+			'px of blank space between the next reply and the composer',
+		).toBeLessThanOrEqual(BLANK_PX);
 
 		expectCleanConsole(app);
 	} finally {
