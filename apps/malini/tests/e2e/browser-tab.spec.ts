@@ -61,7 +61,7 @@ test('browser tabs show only once opened, each with its own page and close butto
 		await inspector.getByRole('tab', { name: 'Files' }).click();
 		await expect(inspector.getByRole('tab', { name: 'Files', selected: true })).toBeVisible();
 		await expect(split).toHaveAttribute('aria-valuenow', browserWidth ?? '');
-		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Close Files', exact: true })).toHaveCount(1);
 		await expect(page.getByRole('button', { name: 'Close Lobby music', exact: true })).toHaveCount(
 			1,
 		);

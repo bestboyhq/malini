@@ -21,6 +21,7 @@
 		icon?: Snippet | undefined;
 		onclose?: ((event: MouseEvent) => void) | undefined;
 		onselect?: (event: MouseEvent) => void;
+		oncontextmenu?: ((event: MouseEvent) => void) | undefined;
 		trailing?: Snippet | undefined;
 		surface?: BrowserTabSurface;
 		tone?: BrowserTabTone;
@@ -42,6 +43,7 @@
 		onpin?: () => void;
 		shimmerRename?: boolean;
 		isClosing?: (() => boolean) | undefined;
+		animatesClose?: (() => boolean) | undefined;
 		[attr: `data-${string}`]: string | undefined;
 	}
 
@@ -52,6 +54,7 @@
 		icon,
 		onclose,
 		onselect,
+		oncontextmenu,
 		trailing,
 		surface = 'panel',
 		tone = 'neutral',
@@ -73,6 +76,7 @@
 		onpin,
 		shimmerRename = false,
 		isClosing,
+		animatesClose,
 		...rest
 	}: Props = $props();
 
@@ -159,7 +163,7 @@
 
 	function collapse(node: HTMLElement): TransitionConfig {
 		const closeClicked = performance.now() - closeClickedAt < CLOSE_CLICK_MS;
-		if (!(closeClicked || isClosing?.())) return { duration: 0 };
+		if (!(closeClicked || isClosing?.()) || animatesClose?.() === false) return { duration: 0 };
 		const width = node.getBoundingClientRect().width;
 		const gap = stripGap(node);
 		return {
@@ -184,6 +188,7 @@
 	]}
 	data-selected={selected}
 	{...rest}
+	{oncontextmenu}
 	out:collapse|global
 >
 	{#if tooltip}

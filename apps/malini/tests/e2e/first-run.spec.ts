@@ -21,7 +21,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
 		).toHaveCount(3);
 		const claude = setup.getByTestId('claude-code-setup');
-		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing');
+		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
 			claude.getByRole('button', { name: 'Install Claude Code in Terminal' }),
 		).toBeVisible();

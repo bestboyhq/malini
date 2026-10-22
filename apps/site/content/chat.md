@@ -14,6 +14,7 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
 
 A run stays open while its background commands and subagents run, and you can stop each one.
+A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 
 ## Run a command from the chat
 
@@ -87,6 +88,10 @@ See [Agent tools](/malini/docs/agent-tools.md).
 | **⌘↵**          | Steer now, interrupting the run                        |
 | **@**           | Mention a file                                         |
 | **/**           | Compact the conversation, or run a job                 |
+| **⌘T**          | Start a new chat in this workstream                    |
+| **⌘N**          | Start a new workstream in this repository              |
+| **⌘O**          | Open a folder as a repository                          |
+| **⌘,**          | Open Settings                                          |
 | **⌘W**          | Close the chat tab                                     |
 | **⌘K**          | Find a chat tab that doesn't fit                       |
 | **⌥↑** / **⌥↓** | Move a repository, a workstream, or an inspector panel |

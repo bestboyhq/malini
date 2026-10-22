@@ -57,6 +57,13 @@ export function replaceState(url: string | URL | '', state: PageState): void {
 	router.replaceState(url, state);
 }
 
+export function back(): Promise<void> {
+	return new Promise((settled) => {
+		window.addEventListener('popstate', () => settled(), { once: true });
+		window.history.back();
+	});
+}
+
 export function invalidate(_resource: string | URL | ((url: URL) => boolean)): Promise<void> {
 	return Promise.resolve();
 }

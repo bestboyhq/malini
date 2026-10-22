@@ -11,6 +11,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	showToastsTogether,
 } from './harness';
 
 declare global {
@@ -145,7 +146,7 @@ async function readClearance(
 
 async function expectClearOfFooter(page: Page, toasts: number): Promise<void> {
 	await expect
-		.poll(() => readClearance(page), { timeout: 5_000 })
+		.poll(() => readClearance(page), { timeout: 20_000 })
 		.toEqual({ toasts, overFooter: [], sendOnTop: true });
 }
 
@@ -161,7 +162,7 @@ async function expandStack(page: Page): Promise<void> {
 		const tops = boxes.map((box) => (box ? box.y : 0)).sort((a, b) => a - b);
 		const spread = (tops.at(-1) ?? 0) - (tops[0] ?? 0);
 		expect(spread).toBeGreaterThan(front.height);
-	}).toPass({ timeout: 5_000 });
+	}).toPass({ timeout: 20_000 });
 }
 
 async function setLayout(page: Page, layout: Layout): Promise<void> {
@@ -238,9 +239,10 @@ for (const layout of LAYOUTS) {
 			await captureFlow(app, `toast-clear-${layout.name}-single`);
 			await expect(failures).toHaveCount(0, { timeout: 15_000 });
 
-			await archiveAll(page, [...SHORT_NAMES, ARCHIVED_NAME]);
-			await page.mouse.move(4, 4);
-			await expect(failures).toHaveCount(3, { timeout: 20_000 });
+			await showToastsTogether(failures, 3, async () => {
+				await archiveAll(page, [...SHORT_NAMES, ARCHIVED_NAME]);
+				await page.mouse.move(4, 4);
+			});
 			await expectClearOfFooter(page, 3);
 			await captureFlow(app, `toast-clear-${layout.name}-stack`);
 

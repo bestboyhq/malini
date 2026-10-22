@@ -500,14 +500,16 @@ Payload: `NotificationTarget`
 type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 ```
 
-## `app:connect-repository-requested`
+## `app:menu-command-chosen`
 
-Fires when you pick Open Folder… or Clone Repository… from Malini's menu bar icon, with which one you picked.
+Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
 
-Payload: `ConnectRepositoryRequest`
+Payload: `MenuCommandChosen`
 
 ```ts
-type ConnectRepositoryRequest = Readonly<{ via: 'folder' | 'clone' }>;
+type MenuCommand = 'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+
+type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 ```
 
 ## `app:streaming-changed`

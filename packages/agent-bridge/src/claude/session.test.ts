@@ -1013,7 +1013,11 @@ describe('ClaudeSession', () => {
 					'Go',
 					'run-2',
 					profile(),
-					...([undefined, undefined, undefined, undefined, 'light'] as const),
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					'light',
 				),
 		],
 	])(
