@@ -37,12 +37,12 @@
 	}
 </script>
 
-<Tooltip content="Stats for nerds" placement="top" suppressed={open} class="ml-auto min-w-0">
+<Tooltip content="Stats for nerds" placement="right" suppressed={open} class="ml-auto min-w-0">
 	<Button
 		bind:element={trigger}
 		variant="ghost"
 		size="auto"
-		class="text-fg-tertiary h-6 gap-1.5 px-1.5 text-xs tabular-nums"
+		class="text-fg-tertiary h-6 px-1.5 text-xs tabular-nums"
 		ariaLabel={readout ? `Stats: ${readout} CPU` : 'Stats'}
 		ariaHasPopup="dialog"
 		ariaExpanded={open}
@@ -50,21 +50,23 @@
 		onclick={onToggle}
 		data-testid="sidebar-open-stats"
 	>
-		<Icon name="signal" size={14} />
-		{#if readout}
-			<span
-				class="flex justify-end overflow-hidden"
-				style:width={readoutWidth.current ? `${readoutWidth.current}px` : undefined}
-			>
+		<span class="flex items-center gap-1">
+			<Icon name="signal" size={14} />
+			{#if readout}
 				<span
-					class="w-max shrink-0"
-					bind:contentRect={readoutRect}
-					data-testid="sidebar-stats-readout"
+					class="flex justify-end overflow-hidden"
+					style:width={readoutWidth.current ? `${readoutWidth.current}px` : undefined}
 				>
-					{readout}
+					<span
+						class="w-max shrink-0"
+						bind:contentRect={readoutRect}
+						data-testid="sidebar-stats-readout"
+					>
+						{readout}
+					</span>
 				</span>
-			</span>
-		{/if}
+			{/if}
+		</span>
 	</Button>
 </Tooltip>
 
