@@ -1,4 +1,5 @@
-import { LAB_MANUAL_TRIGGER_ID, LAB_TRIGGERS } from './lab-triggers';
+import type { JobOutput } from '$contract/jobs';
+import { LAB_MANUAL_TRIGGER_ID, LAB_TRIGGERS, type LabJobSetup } from './lab-triggers';
 
 export type LabRecipe = Readonly<{
 	id: string;
@@ -9,6 +10,14 @@ export type LabRecipe = Readonly<{
 }>;
 
 export const LAB_RECIPES: readonly LabRecipe[] = [
+	{
+		id: 'show-what-shipped',
+		triggerId: 'pr-merged',
+		title: 'Show what shipped',
+		description: 'Record what changed with Grip and post the link to Slack.',
+		sentence:
+			'When a pull request merges, record what changed with Grip and post the link to Slack',
+	},
 	{
 		id: 'changelog',
 		triggerId: 'pr-merged',
@@ -43,13 +52,6 @@ export const LAB_RECIPES: readonly LabRecipe[] = [
 		title: 'Check agent changes',
 		description: 'Run lint and the tests near the changed files.',
 		sentence: 'When an agent changes files, run lint and the tests near the changed files',
-	},
-	{
-		id: 'shipped-summary',
-		triggerId: 'pr-merged',
-		title: 'Summarize what shipped',
-		description: 'Write a short summary to the scratchpad.',
-		sentence: 'When a pull request merges, write a short summary to the scratchpad',
 	},
 ];
 
@@ -108,3 +110,57 @@ export function labDraftWork(text: string): string {
 	const work = text.trim().replace(/^(when|whenever|after|once|if)\b[^,]*,\s*/iu, '');
 	return `${work.charAt(0).toUpperCase()}${work.slice(1)}`;
 }
+
+const LEAD = /^(when|whenever|after|once|if)\b[^,]*,?\s*/iu;
+
+const OUTPUT_STEPS: readonly Readonly<{ pattern: RegExp; output: JobOutput }>[] = [
+	{ pattern: /\b(open|create|make)\s+a\s+draft\s+(pr|pull request)\b/iu, output: 'draft' },
+	{ pattern: /\bqueue\s+(the\s+|a\s+)?merge\b/iu, output: 'merge' },
+];
+
+const TOOLS = ['Grip', 'Slack', 'Linear', 'Sentry', 'Notion', 'Figma', 'Vercel', 'Discord'];
+
+export type LabDraft = Readonly<{
+	name: string;
+	lead: string;
+	steps: readonly string[];
+	output: JobOutput | null;
+	tools: readonly string[];
+}>;
+
+function capitalized(text: string): string {
+	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+export function labDraft(text: string): LabDraft {
+	const trimmed = text.trim();
+	const lead = LEAD.exec(trimmed)?.[0]?.trim().replace(/,$/u, '') ?? '';
+	const clauses = trimmed
+		.slice(LEAD.exec(trimmed)?.[0]?.length ?? 0)
+		.split(/\s*(?:,\s*(?:and\s+)?then|,\s*and|\band then|\bthen|\band)\s+/iu)
+		.map((clause) => clause.trim().replace(/[.!]+$/u, ''))
+		.filter(Boolean);
+	const output = OUTPUT_STEPS.find(({ pattern }) => clauses.some((clause) => pattern.test(clause)));
+	const steps = clauses
+		.filter((clause) => !OUTPUT_STEPS.some(({ pattern }) => pattern.test(clause)))
+		.map(capitalized);
+	const first = steps[0] ?? 'New job';
+	const name = first
+		.split(/\s+/u)
+		.slice(0, 4)
+		.join(' ')
+		.replace(/\s+(with|to|in|on|for|and|the|a)$/iu, '');
+	return {
+		name,
+		lead,
+		steps,
+		output: output?.output ?? null,
+		tools: TOOLS.filter((tool) => new RegExp(`\\b${tool}\\b`, 'iu').test(trimmed)),
+	};
+}
+
+export type LabSavedDraft = Readonly<{
+	name: string;
+	steps: readonly string[];
+	setup: LabJobSetup;
+}>;

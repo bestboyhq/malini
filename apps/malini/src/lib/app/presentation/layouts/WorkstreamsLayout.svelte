@@ -68,6 +68,7 @@
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
 	const onboardingShown = $derived(onboardingQuery.data.shown);
+	const fullWindow = $derived(page.route.id === '/jobs/lab');
 	const releases: (() => void)[] = [];
 
 	onMount(() => {
@@ -116,7 +117,7 @@
 	data-navigation-error-message={scopeError ?? undefined}
 	data-navigation-freshness-phase={activeWorkstreamFreshnessPhase}
 >
-	{#if !onboardingShown}
+	{#if !onboardingShown && !fullWindow}
 		<Sidebar
 			repositories={connectedRepositories}
 			{workstreams}

@@ -14,13 +14,19 @@
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { labDefaultSetup, type LabJobSetup } from './lab-triggers';
 	import LabVariantActivity from './LabVariantActivity.svelte';
+	import LabVariantCenter from './LabVariantCenter.svelte';
 	import LabVariantRecipes from './LabVariantRecipes.svelte';
 	import LabVariantSentence from './LabVariantSentence.svelte';
 	import LabVariantTable from './LabVariantTable.svelte';
 
-	type Variant = 'sentence' | 'activity' | 'recipes' | 'table';
+	type Variant = 'center' | 'sentence' | 'activity' | 'recipes' | 'table';
 
 	const VARIANTS: readonly Readonly<{ value: Variant; label: string; idea: string }>[] = [
+		{
+			value: 'center',
+			label: 'E · Automations',
+			idea: 'Recipes, full window: describe it, get a real draft, activity on the side.',
+		},
 		{
 			value: 'sentence',
 			label: 'A · Sentence',
@@ -43,7 +49,7 @@
 		},
 	];
 
-	let variant = $state<Variant>('sentence');
+	let variant = $state<Variant>('center');
 	let setups = $state<Record<string, LabJobSetup>>({});
 
 	const builtins = $derived(builtinJobDefinitionsQuery.data);
@@ -72,7 +78,7 @@
 	}
 </script>
 
-<main class="flex h-full min-h-0 flex-col" data-testid="jobs-lab">
+<main class="native-band-row-reserve flex h-full min-h-0 flex-col" data-testid="jobs-lab">
 	<header class="flex shrink-0 items-center gap-4 px-6 pt-3 pb-4">
 		<h1 class="text-fg-default text-xl font-semibold tracking-tight">Jobs</h1>
 		<Badge variant="warning">Lab</Badge>
@@ -94,7 +100,9 @@
 		</nav>
 		<p class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">{idea}</p>
 	</header>
-	{#if variant === 'sentence'}
+	{#if variant === 'center'}
+		<LabVariantCenter {jobs} {setupOf} onsetup={onSetup} />
+	{:else if variant === 'sentence'}
 		<LabVariantSentence {jobs} {setupOf} onsetup={onSetup} />
 	{:else if variant === 'activity'}
 		<LabVariantActivity {jobs} {setupOf} onsetup={onSetup} />

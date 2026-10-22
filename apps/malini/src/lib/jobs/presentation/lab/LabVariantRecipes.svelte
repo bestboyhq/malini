@@ -1,37 +1,23 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
-	import { isAutomaticJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
+	import type { JobDefinitionRecord } from '$contract/jobs';
 	import { Badge } from '$hyper-ui/components/badge';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { EnterShortcut } from '$hyper-ui/components/enter-shortcut';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import { Sheet } from '$hyper-ui/components/sheet';
-	import { Switch } from '$hyper-ui/components/switch';
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
-	import {
-		JOB_OUTPUT_OPTIONS,
-		JOB_RUNS_IN_OPTIONS,
-		instructionsPreview,
-	} from '../job-definition-copy';
-	import JobEditor from '../JobEditor.svelte';
-	import JobRecentRuns from '../JobRecentRuns.svelte';
-	import { JOB_RUN_STATUS } from '../job-run-status';
-	import { jobRunTime } from '../job-run-time';
 	import { LAB_RECIPES, labDraftWork, labGuessTriggerId, type LabRecipe } from './lab-recipes';
 	import {
-		LAB_RUN_MODES,
 		labIsManual,
-		labSentence,
 		labTrigger,
 		labWhenClause,
 		type LabJobSetup,
 		type LabRunMode,
 	} from './lab-triggers';
-	import LabChoiceMenu from './LabChoiceMenu.svelte';
-	import LabRunsMode from './LabRunsMode.svelte';
+	import LabJobCard from './LabJobCard.svelte';
+	import LabJobSheet from './LabJobSheet.svelte';
 	import LabTriggerButton from './LabTriggerButton.svelte';
 
 	interface Props {
@@ -106,10 +92,6 @@
 	function recipeSetup(recipe: LabRecipe): LabJobSetup {
 		return { triggerId: recipe.triggerId, mode: 'auto' };
 	}
-
-	function modeCopy(mode: LabRunMode): Readonly<{ label: string; hint: string }> {
-		return LAB_RUN_MODES.find((option) => option.value === mode) ?? { label: '', hint: '' };
-	}
 </script>
 
 {#snippet triggerChip(icon: IconName)}
@@ -125,15 +107,6 @@
 	<div class="flex items-baseline gap-2 px-0.5">
 		<h2 {id} class="text-fg-default text-sm font-semibold">{heading}</h2>
 		<p class="text-fg-tertiary min-w-0 truncate text-xs">{note}</p>
-	</div>
-{/snippet}
-
-{#snippet setupRow(label: string, body: Snippet)}
-	<div
-		class="border-surface-50-border grid grid-cols-[56px_1fr] items-center gap-3 border-t-[0.5px] px-4 py-3 first:border-t-0"
-	>
-		<span class="text-fg-tertiary text-xs font-medium">{label}</span>
-		<div class="flex min-w-0 flex-wrap items-center gap-2">{@render body()}</div>
 	</div>
 {/snippet}
 
@@ -215,63 +188,15 @@
 				{@render sectionHeading('lab-recipes-jobs', 'Your jobs', `${jobs.length}`)}
 				<ul class="grid grid-cols-2 gap-3">
 					{#each jobs as job (job.id)}
-						{@const setup = setupOf(job)}
-						{@const manual = labIsManual(setup)}
-						{@const last = runsFor(job.id)[0] ?? null}
 						<li class="flex">
-							<article
-								class="border-surface-50-border bg-surface-50 relative flex w-full flex-col rounded-xl border-[0.5px]"
-								aria-label={job.name}
-							>
-								<Button
-									bare
-									ariaLabel={`Set up ${job.name}`}
-									ariaHasPopup="dialog"
-									class="hover:bg-surface-50-hover focus-visible:ring-border-default/50 absolute inset-0 cursor-pointer rounded-xl outline-none focus-visible:ring-2"
-									onclick={() => (selectedId = job.id)}
-								/>
-								<div class="pointer-events-none relative flex flex-1 flex-col gap-3 px-4 pt-4 pb-3">
-									<div class="flex min-w-0 items-center gap-2">
-										{@render triggerChip(labTrigger(setup).icon)}
-										<span class="text-fg-tertiary min-w-0 truncate text-xs">
-											{labWhenClause(setup)}
-										</span>
-									</div>
-									<div class="flex flex-col gap-1">
-										<h3 class="text-fg-default truncate text-sm font-semibold">{job.name}</h3>
-										<p class="text-fg-secondary line-clamp-2 min-h-10 text-xs leading-5">
-											{instructionsPreview(job.instructions)}
-										</p>
-									</div>
-								</div>
-								<div
-									class="border-surface-50-border pointer-events-none relative flex h-11 items-center gap-2 border-t-[0.5px] px-4 text-xs"
-								>
-									{#if last}
-										{@const look = JOB_RUN_STATUS[last.status]}
-										<span class={['flex shrink-0 items-center gap-1', look.tone]}>
-											<Icon name={look.icon} size={12} />
-											{look.label}
-										</span>
-										<span class="text-fg-tertiary min-w-0 flex-1 truncate tabular-nums">
-											{jobRunTime(last, nowMs)}
-										</span>
-									{:else}
-										<span class="text-fg-tertiary min-w-0 flex-1 truncate">No runs yet</span>
-									{/if}
-									{#if manual}
-										<span class="text-fg-tertiary shrink-0">Runs when you run it</span>
-									{:else}
-										<span class="text-fg-tertiary shrink-0">{modeCopy(setup.mode).label}</span>
-										<Switch
-											checked={setup.mode !== 'off'}
-											ariaLabel={job.name}
-											class="pointer-events-auto"
-											onchange={(on) => onToggle(job, on)}
-										/>
-									{/if}
-								</div>
-							</article>
+							<LabJobCard
+								{job}
+								setup={setupOf(job)}
+								last={runsFor(job.id)[0] ?? null}
+								{nowMs}
+								onopen={() => (selectedId = job.id)}
+								ontoggle={(on) => onToggle(job, on)}
+							/>
 						</li>
 					{/each}
 				</ul>
@@ -323,77 +248,10 @@
 </div>
 
 {#if selected}
-	{@const setup = setupOf(selected)}
-	{@const manual = labIsManual(setup)}
-	{@const automatic = isAutomaticJobBuiltin(selected.builtin)}
-	<Sheet
-		open
-		title={selected.name}
-		description={labSentence(selected, setup)}
-		class="max-w-[800px]"
+	<LabJobSheet
+		job={selected}
+		setup={setupOf(selected)}
+		onsetup={(next) => onsetup(selected, next)}
 		onclose={() => (selectedId = null)}
-	>
-		<div class="flex flex-col gap-8 pt-1">
-			<section
-				class="border-surface-50-border bg-surface-50 flex flex-col rounded-xl border-[0.5px]"
-				aria-label="How it runs"
-			>
-				{#snippet whenBody()}
-					<LabTriggerButton
-						{setup}
-						jobName={selected.name}
-						onchange={(next) => onsetup(selected, next)}
-					/>
-				{/snippet}
-				{@render setupRow('When', whenBody)}
-
-				{#snippet howBody()}
-					{#if manual}
-						<p class="text-fg-tertiary text-xs">Only when you start it: type / in any chat.</p>
-					{:else}
-						<LabRunsMode
-							value={setup.mode}
-							label={`How ${selected.name} runs`}
-							onchange={(mode) => onsetup(selected, { ...setup, mode })}
-						/>
-						<p class="text-fg-tertiary min-w-0 truncate text-xs">{modeCopy(setup.mode).hint}</p>
-					{/if}
-				{/snippet}
-				{@render setupRow('How', howBody)}
-
-				{#if !automatic}
-					{#snippet whereBody()}
-						<LabChoiceMenu
-							value={setup.runsIn ?? selected.runsIn}
-							options={JOB_RUNS_IN_OPTIONS}
-							ariaLabel="Runs in"
-							icon="branch"
-							onchange={(runsIn) => onsetup(selected, { ...setup, runsIn })}
-						/>
-					{/snippet}
-					{@render setupRow('Where', whereBody)}
-
-					{#snippet thenBody()}
-						<LabChoiceMenu
-							value={setup.output ?? selected.output}
-							options={JOB_OUTPUT_OPTIONS}
-							ariaLabel="When it finishes"
-							icon="pr-draft"
-							onchange={(output) => onsetup(selected, { ...setup, output })}
-						/>
-					{/snippet}
-					{@render setupRow('Then', thenBody)}
-				{/if}
-			</section>
-
-			<JobRecentRuns definitionId={selected.id} />
-
-			<section class="flex flex-col gap-3" aria-labelledby="lab-recipes-instructions">
-				<h3 id="lab-recipes-instructions" class="text-fg-default text-sm font-medium">
-					Instructions
-				</h3>
-				<JobEditor definition={selected} />
-			</section>
-		</div>
-	</Sheet>
+	/>
 {/if}
