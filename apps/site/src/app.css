@@ -284,8 +284,7 @@
 }
 
 [data-reveal='go'] {
-	--pace: 1;
-	--blur: 4px;
+	--blur: 6px;
 	--duration: 500ms;
 	--delay: calc(var(--i) * 80ms);
 }
