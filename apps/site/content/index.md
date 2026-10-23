@@ -34,8 +34,9 @@ There is no Malini account, no subscription, and no Malini server.
 ## Where your code goes
 
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data to PostHog.
-Usage data says which features are used and which errors happen, and never contains your code, prompts, paths, or keys.
+Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data to Logdash, stored in the EU.
+Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
+It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.
 
 ## For agents reading this
