@@ -37,6 +37,7 @@
 	});
 	const drawAsCommand = $derived(everCommand || isCommandTool(item));
 	const waiting = $derived(item.tool.status === 'running' && transcript.waitingForUser);
+	const blockedReason = $derived(item.tool.autoModeReason ?? null);
 	const outputLength = $derived(truncatedOutputLength(item.tool));
 	const toolCallId = $derived(item.tool.toolCallId ?? null);
 	const fullOutput = $derived(
@@ -58,6 +59,7 @@
 			{waiting}
 			output={item.tool.output}
 			error={item.tool.error ?? null}
+			{blockedReason}
 			{outputLength}
 			{fullOutput}
 			onloadfulloutput={toolCallId === null ? undefined : loadFullOutput}
@@ -70,7 +72,7 @@
 		data-message-kind="tool"
 		data-tool-status={item.tool.status}
 	>
-		{#if item.tool.status === 'failed'}
+		{#if item.tool.status === 'failed' && blockedReason === null}
 			<div
 				class="bg-error flex items-start gap-2 rounded-md px-2.5 py-2 text-xs"
 				data-testid="tool-card-failed"
@@ -110,11 +112,12 @@
 			<ToolCard
 				workstreamId={transcript.workstreamId}
 				name={item.tool.name}
-				status={item.tool.status}
+				status={item.tool.status === 'running' ? 'running' : 'completed'}
 				{waiting}
 				durationMs={durationFromTool(item.tool)}
 				input={item.tool.input}
-				output={item.tool.output}
+				output={blockedReason === null ? item.tool.output : item.tool.error}
+				{blockedReason}
 				liveInputJson={item.tool.status === 'running'
 					? transcript.liveInputJsonForRunningTool(run.runId, item.tool)
 					: null}

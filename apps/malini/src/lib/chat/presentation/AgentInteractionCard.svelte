@@ -16,6 +16,7 @@
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
+	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
@@ -87,8 +88,13 @@
 	);
 	const targets = $derived(maliniTool ? [] : approvalTargets(item.permission));
 	const reason = $derived(maliniTool ? null : approvalReason(item.reason));
+	const alwaysAllowed = $derived(
+		interactionState.status === 'resolved' && interactionState.alwaysAllowed === true,
+	);
 	const settledSubject = $derived(
-		maliniTool?.headline ?? approvalShortTarget(item.toolName, item.permission),
+		alwaysAllowed && item.autoModeRule
+			? item.autoModeRule
+			: (maliniTool?.headline ?? approvalShortTarget(item.toolName, item.permission)),
 	);
 	const settledTone = $derived(
 		interactionState.status === 'stale'
@@ -102,6 +108,7 @@
 		approval: Props['item'],
 		decision: 'allow' | 'deny',
 		scope: AgentApprovalScope,
+		alwaysAllow = false,
 	): void {
 		alwaysAllowOpen = false;
 		decideApprovalCommand({
@@ -110,6 +117,7 @@
 			approvalId: approval.approvalId,
 			decision,
 			scope,
+			...(alwaysAllow ? { alwaysAllow } : {}),
 		});
 	}
 </script>
@@ -208,9 +216,27 @@
 					disabled={submitting}
 					onclick={() => decideApproval(item, 'deny', 'once')}
 				>
-					Deny
+					{item.autoModeRule ? 'Keep blocked' : 'Deny'}
 				</Button>
-				{#if canOfferPersistentScope}
+				{#if item.autoModeRule}
+					{@const rule = item.autoModeRule}
+					{#snippet ruleHint()}
+						Adds <code class="font-mono"><SensitiveText text={rule} /></code>
+						to your Claude Code settings
+					{/snippet}
+					<Tooltip content={ruleHint}>
+						<Button
+							variant="secondary"
+							size="md"
+							bordered
+							class="text-xs"
+							disabled={submitting}
+							onclick={() => decideApproval(item, 'allow', 'once', true)}
+						>
+							Always allow
+						</Button>
+					</Tooltip>
+				{:else if canOfferPersistentScope}
 					<Dropdown
 						bind:open={alwaysAllowOpen}
 						side="bottom"

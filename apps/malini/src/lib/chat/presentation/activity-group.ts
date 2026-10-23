@@ -124,10 +124,9 @@ function itemActionKind(item: MachineActivityItem): ToolActionKind {
 }
 
 function itemStatus(item: MachineActivityItem): ItemStatus {
-	if (item.kind === 'tool') {
-		return shellExitCode(item.tool.error) === null ? item.tool.status : 'completed';
-	}
-	return 'completed';
+	if (item.kind !== 'tool') return 'completed';
+	if (item.tool.autoModeReason || shellExitCode(item.tool.error) !== null) return 'completed';
+	return item.tool.status;
 }
 
 function itemFailure(item: MachineActivityItem): ActivityFailure | null {

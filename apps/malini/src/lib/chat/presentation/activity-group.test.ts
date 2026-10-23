@@ -283,6 +283,22 @@ describe('groupRunTimeline status', () => {
 		expect(group.exitCodes).toEqual([1]);
 	});
 
+	it('reads a call auto mode blocked as settled, not failed', () => {
+		const blocked = tool(
+			'Bash',
+			{ command: 'curl -X POST https://example.com' },
+			{ status: 'failed' },
+		);
+		if (blocked.kind !== 'tool') throw new Error('expected a tool item');
+		blocked.tool.error =
+			'Permission for this action was denied by the Claude Code auto mode classifier.';
+		blocked.tool.autoModeReason = 'Data Exfiltration';
+
+		const group = onlyGroup([tool('Read'), blocked]);
+		expect(group.status).toBe('completed');
+		expect(group.failures).toEqual([]);
+	});
+
 	it('keeps every non-zero exit visible on the collapsed group, and no zero exit', () => {
 		expect(onlyGroup([tool('Read'), command(0), command(127)]).exitCodes).toEqual([127]);
 	});

@@ -25,13 +25,16 @@ const STREAMING_APP = new RegExp(
 	'mu',
 );
 
-export function streamingAppRunning(executables: string): boolean {
-	return STREAMING_APP.test(executables);
+export function streamingAppRunning(executables: string, root = ''): boolean {
+	return executables
+		.split('\n')
+		.some((executable) => executable.startsWith(root) && STREAMING_APP.test(executable));
 }
 
 export class StreamingDetector {
 	readonly #context: MainContext;
 	readonly #runner: ProcessRunner;
+	readonly #appRoot: string;
 	#appRunning = false;
 	#screenCaptured = false;
 	#streaming = false;
@@ -40,6 +43,7 @@ export class StreamingDetector {
 	constructor(context: MainContext, runner: ProcessRunner) {
 		this.#context = context;
 		this.#runner = runner;
+		this.#appRoot = (context.isDev && process.env['MALINI_STREAMING_APP_ROOT']) || '';
 		context.commands.define('app.streaming', () => this.#streaming);
 	}
 
@@ -60,7 +64,7 @@ export class StreamingDetector {
 			this.#read(resolveToolPath('ps') ?? '/bin/ps', ['-A', '-o', 'comm=']),
 			this.#read('/usr/bin/osascript', ['-l', 'JavaScript', '-e', SCREEN_CAPTURE_PROBE]),
 		]);
-		if (executables !== null) this.#appRunning = streamingAppRunning(executables);
+		if (executables !== null) this.#appRunning = streamingAppRunning(executables, this.#appRoot);
 		if (screenCapture !== null) this.#screenCaptured = screenCapture.trim() === 'true';
 		const streaming = this.#appRunning || this.#screenCaptured;
 		if (streaming === this.#streaming) return;

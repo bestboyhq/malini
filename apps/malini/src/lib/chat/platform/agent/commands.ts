@@ -1035,6 +1035,7 @@ export interface DecideApprovalInput {
 	readonly decision: string;
 	readonly scope: string;
 	readonly permission?: unknown;
+	readonly alwaysAllow?: boolean;
 	readonly updatedInput?: unknown;
 }
 
@@ -1047,14 +1048,24 @@ export async function decideAgentApproval(
 	const { sessionId, runId, approvalId } = input;
 	const { decision, scope } = checkedDecision(input.decision, input.scope);
 	const permission = input.permission === undefined ? null : input.permission;
+	const alwaysAllow = input.alwaysAllow === true;
 	const record = getInteraction(db, 'approval', sessionId, runId, approvalId);
 	if (!record) {
 		throw new Error(
 			`pending approval \`${approvalId}\` was not found for session \`${sessionId}\` run \`${runId}\``,
 		);
 	}
+	if (alwaysAllow && (decision !== 'allow' || scope !== 'once' || !blockedByAutoMode(record))) {
+		throw new Error('only an allow-once decision on a call auto mode blocked can always allow it');
+	}
 	const updatedInput = reviewedInput(record, decision, input.updatedInput);
-	const response = { decision, scope, permission, ...(updatedInput ? { updatedInput } : {}) };
+	const response = {
+		decision,
+		scope,
+		permission,
+		...(updatedInput ? { updatedInput } : {}),
+		...(alwaysAllow ? { alwaysAllow } : {}),
+	};
 	if (interactionResponseMatches(record, response)) {
 		return approvalDecisionResult(
 			decision,
@@ -1119,6 +1130,7 @@ export async function decideAgentApproval(
 			decision,
 			scope,
 			...(updatedInput ? { updatedInput } : {}),
+			...(alwaysAllow ? { alwaysAllow } : {}),
 		});
 	} catch (error) {
 		abortInteractionDispatch(db, 'approval', sessionId, runId, approvalId, response);
@@ -1145,6 +1157,12 @@ export async function decideAgentApproval(
 					},
 	});
 	return approvalDecisionResult(decision, scope, ruleId);
+}
+
+function blockedByAutoMode(record: { readonly requestPayload: unknown }): boolean {
+	return (
+		isRecord(record.requestPayload) && typeof record.requestPayload['autoModeRule'] === 'string'
+	);
 }
 
 export async function answerAgentQuestion(
@@ -1508,6 +1526,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				decision: requireString(args, 'decision'),
 				scope: requireString(args, 'scope'),
 				...(permission === undefined || permission === null ? {} : { permission }),
+				...(field(args, 'alwaysAllow') === true ? { alwaysAllow: true } : {}),
 				...(updatedInput === undefined || updatedInput === null ? {} : { updatedInput }),
 			},
 			() => runtime.ensureSessionReady(sessionId),

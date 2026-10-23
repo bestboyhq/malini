@@ -59,6 +59,7 @@ export type DecideAgentApprovalInput = Readonly<{
 	decision: AgentApprovalDecision;
 	scope: AgentApprovalScope;
 	permission?: AgentPermissionDescriptor;
+	alwaysAllow?: boolean;
 	updatedInput?: Readonly<Record<string, unknown>>;
 }>;
 

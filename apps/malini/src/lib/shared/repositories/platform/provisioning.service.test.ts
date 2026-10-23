@@ -288,7 +288,7 @@ describe('installing', () => {
 		const { deps, statuses, last } = harness(runner);
 		const slot = deps.registry.claim('ws-fail')!;
 		const outcome = await installWithArgv(deps, slot, 'ws-fail', dir, ['sh', '-c', 'exit 7']);
-		expect(outcome).toEqual({ status: 'failed' });
+		expect(outcome).toEqual({ status: 'failed', command: 'sh -c exit 7', detail: 'boom' });
 		expect(statuses()).toEqual(['running', 'failed']);
 		expect(last().exitCode).toBe(7);
 		expect(last().detail).toBe('boom');
@@ -305,7 +305,7 @@ describe('installing', () => {
 		const outcome = await installWithArgv(deps, slot, 'ws-missing', dir, [
 			'malini-no-such-package-manager',
 		]);
-		expect(outcome).toEqual({ status: 'failed' });
+		expect(outcome).toMatchObject({ status: 'failed' });
 		expect(statuses()).toEqual(['running', 'failed']);
 		expect(last().detail).toContain('ENOENT');
 	});
@@ -320,7 +320,7 @@ describe('installing', () => {
 		const { deps, last } = harness(runner);
 		const slot = deps.registry.claim('ws-pnpm')!;
 		const outcome = await installWithArgv(deps, slot, 'ws-pnpm', dir, ['pnpm', 'install']);
-		expect(outcome).toEqual({ status: 'failed' });
+		expect(outcome).toMatchObject({ status: 'failed' });
 		expect(last().detail).toBe('ERR_PNPM_BROKEN_LOCKFILE  nope');
 	});
 
@@ -333,7 +333,7 @@ describe('installing', () => {
 			'pnpm',
 			'install',
 		]);
-		expect(outcome).toEqual({ status: 'failed' });
+		expect(outcome).toMatchObject({ status: 'failed' });
 		expect(last().detail).toBe('timed out after 0 minutes');
 		expect(runner.groupSignals.some((entry) => entry.signal === 'SIGKILL')).toBe(true);
 	});

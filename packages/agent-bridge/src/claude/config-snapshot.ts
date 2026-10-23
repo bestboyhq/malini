@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { claudeUserDirectory, userSettingsFile } from './user-settings.js';
 
 export type ConfigSnapshot = ReadonlyMap<string, string>;
 
@@ -13,11 +13,15 @@ export function configChanged(snapshot: ConfigSnapshot): boolean {
 	return false;
 }
 
+export function restamped(snapshot: ConfigSnapshot, path: string): ConfigSnapshot {
+	return snapshot.has(path) ? new Map([...snapshot, [path, fileStamp(path)]]) : snapshot;
+}
+
 // ponytail: user and local MCP servers in ~/.claude.json reach a live Claude Code only when it restarts, since Claude Code rewrites that file all the time; compare its mcpServers keys if that matters
 function configFiles(cwd: string): string[] {
-	const user = process.env['CLAUDE_CONFIG_DIR'] || join(homedir(), '.claude');
+	const user = claudeUserDirectory();
 	return [
-		join(user, 'settings.json'),
+		userSettingsFile(),
 		join(user, 'CLAUDE.md'),
 		join(cwd, '.mcp.json'),
 		join(cwd, '.claude', 'settings.json'),

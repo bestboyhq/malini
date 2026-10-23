@@ -10,6 +10,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
+import { autoModeCategory } from './permissions.js';
 
 export const COMPACTION_TOOL = 'Compact';
 
@@ -29,6 +30,7 @@ export class ClaudeTranscript {
 	#runId: string;
 	readonly #emit: (event: AgentEvent) => void;
 	readonly #toolNames = new Map<string, { name: string; input: unknown }>();
+	readonly #autoModeBlocks = new Map<string, string>();
 	readonly #streamBlocks = new Map<number, StreamBlock>();
 	readonly #unsettledBlocks = new Map<string, StreamBlock>();
 	readonly #streamedText = new Map<string, string>();
@@ -148,6 +150,12 @@ export class ClaudeTranscript {
 				if (message.subtype === 'task_progress') this.#acceptTaskProgress(message);
 				if (message.subtype === 'background_tasks_changed') this.#acceptBackgroundTasks(message);
 				if (message.subtype === 'api_retry') this.#discardUnsettledStream();
+				if (
+					message.subtype === 'permission_denied' &&
+					message.decision_reason_type === 'classifier'
+				) {
+					this.#autoModeBlocks.set(message.tool_use_id, autoModeCategory(message.decision_reason));
+				}
 				if (message.subtype === 'session_state_changed') {
 					this.#idle = message.state === 'idle';
 					this.#emitBackground();
@@ -499,6 +507,8 @@ export class ClaudeTranscript {
 			const handedOffPlan = name === 'ExitPlanMode';
 			const output = handedOffPlan ? '' : toolResultText(block['content']);
 			const parent = parentToolUseId ? { parentToolCallId: parentToolUseId } : {};
+			const autoModeReason = this.#autoModeBlocks.get(toolCallId);
+			this.#autoModeBlocks.delete(toolCallId);
 			if (block['is_error'] === true && !handedOffPlan) {
 				this.#emit({
 					type: 'tool.failed',
@@ -506,6 +516,7 @@ export class ClaudeTranscript {
 					name,
 					toolCallId,
 					error: output || `${name} failed`,
+					...(autoModeReason ? { autoModeReason } : {}),
 					...parent,
 				});
 			} else {
@@ -520,7 +531,7 @@ export class ClaudeTranscript {
 				const path = editedPath(name, tool?.input);
 				if (path) this.#emit({ type: 'file.changed', runId: this.#runId, path });
 			}
-			if (name === 'Bash' && isRecord(tool?.input)) {
+			if (name === 'Bash' && !autoModeReason && isRecord(tool?.input)) {
 				const command = tool.input['command'];
 				if (typeof command === 'string') {
 					this.#emit({

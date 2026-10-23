@@ -1,3 +1,4 @@
+import type { InstallOutcomeResult } from '$contract/system';
 import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
@@ -63,7 +64,7 @@ class WorkstreamsService {
 		return invoke('repositories.sync-own-pull-requests', undefined);
 	}
 
-	provisionDependencies(workstreamId: WorkstreamId): Promise<string> {
+	provisionDependencies(workstreamId: WorkstreamId): Promise<InstallOutcomeResult> {
 		return invoke('repositories.provision-dependencies', { workstreamId });
 	}
 

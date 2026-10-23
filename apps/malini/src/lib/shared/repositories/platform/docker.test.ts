@@ -193,10 +193,10 @@ describe('provisioning command', () => {
 		const { invoke, test, checkout } = boot(runner);
 		writeFileSync(join(checkout, 'package.json'), '{}');
 		writeFileSync(join(checkout, 'package-lock.json'), '{}');
-		const status = await invoke<string>('repositories.provision-dependencies', {
+		const outcome = await invoke('repositories.provision-dependencies', {
 			workstreamId: 'ws-1',
 		});
-		expect(status).toBe('succeeded');
+		expect(outcome).toEqual({ status: 'succeeded' });
 		expect(runner.last('npm').cwd).toBe(realpathSync(checkout));
 		expect(runner.last('npm').env?.['PATH']).toBeTruthy();
 		const frames = test.events.frames.filter(
@@ -215,9 +215,10 @@ describe('provisioning command', () => {
 
 	it('answers skipped for a checkout with no manifest and rejects an unknown workstream', async () => {
 		const { invoke, invokeRaw } = boot();
-		expect(await invoke('repositories.provision-dependencies', { workstreamId: 'ws-1' })).toBe(
-			'skipped',
-		);
+		expect(await invoke('repositories.provision-dependencies', { workstreamId: 'ws-1' })).toEqual({
+			status: 'skipped',
+			reason: 'no-manifest',
+		});
 		const unknown = await invokeRaw('repositories.provision-dependencies', {
 			workstreamId: 'ws-nope',
 		});
@@ -229,13 +230,13 @@ describe('provisioning command', () => {
 		const { invoke, platform, checkout } = boot(runner);
 		writeFileSync(join(checkout, 'package.json'), '{}');
 		writeFileSync(join(checkout, 'pnpm-lock.yaml'), '');
-		const installing = invoke<string>('repositories.provision-dependencies', {
+		const installing = invoke('repositories.provision-dependencies', {
 			workstreamId: 'ws-1',
 		});
 		await waitFor(() => runner.spawns.length === 1);
 		expect(platform.installs.has('ws-1')).toBe(true);
 		await platform.abortInstall('ws-1');
-		expect(await installing).toBe('aborted');
+		expect(await installing).toEqual({ status: 'aborted' });
 		expect(platform.installs.has('ws-1')).toBe(false);
 	});
 });

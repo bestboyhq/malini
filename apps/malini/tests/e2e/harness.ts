@@ -213,6 +213,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 	env['MALINI_USAGE_DATA'] = 'off';
 	env['MALINI_BACKGROUND_WINDOW'] = '1';
 	env['MALINI_SHIP_DELAY_SCALE'] = '0.1';
+	env['MALINI_STREAMING_APP_ROOT'] = root;
 	Object.assign(env, options.env);
 
 	const electronApp = await electron.launch({

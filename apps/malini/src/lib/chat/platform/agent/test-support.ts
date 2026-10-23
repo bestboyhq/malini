@@ -103,6 +103,13 @@ const handle = (command) => {
         }
       }
       if (prompt.includes('HANG')) { pendingRuns.set(runId, sessionId); return; }
+      if (prompt.includes('AUTO_MODE_BLOCK')) {
+        pendingRuns.set(runId, sessionId);
+        event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-blocked-1', reason: 'Blocked by auto mode: Permission Grant',
+          toolName: 'mcp__ops__set_member_role', autoModeRule: 'mcp__ops__set_member_role',
+          permission: { capability: 'external-service', resources: [{ kind: 'service', value: 'ops', boundary: 'external' }] } });
+        return;
+      }
       const malini = /MALINI_APPROVAL:(\\w+):(\\{.*\\})/.exec(prompt);
       if (malini) {
         pendingRuns.set(runId, sessionId);
@@ -135,7 +142,7 @@ const handle = (command) => {
     case 'approve': {
       ack(command.id);
       event({ type: 'tool.completed', runId: command.runId, name: 'read_file', output: { decision: command.decision, scope: command.scope } });
-      completeRun(command.sessionId, command.runId, 'approved:' + command.decision + ':' + command.scope + (command.updatedInput ? ':' + JSON.stringify(command.updatedInput) : ''));
+      completeRun(command.sessionId, command.runId, 'approved:' + command.decision + ':' + (command.alwaysAllow ? 'always' : command.scope) + (command.updatedInput ? ':' + JSON.stringify(command.updatedInput) : ''));
       pendingRuns.delete(command.runId);
       return;
     }

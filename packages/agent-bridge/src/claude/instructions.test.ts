@@ -35,6 +35,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('git commit');
+		expect(prompt).toContain('the user approved that exact call in Malini');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
 		expect(prompt).toContain('one-line bullet that starts with `Next:`');
 		expect(prompt).toContain(

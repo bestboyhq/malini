@@ -41,6 +41,7 @@
 		outputLength?: number | null;
 		fullOutput?: FullToolOutput | null;
 		onloadfulloutput?: (() => void) | undefined;
+		blockedReason?: string | null;
 	}
 
 	let {
@@ -56,6 +57,7 @@
 		outputLength = null,
 		fullOutput = null,
 		onloadfulloutput,
+		blockedReason = null,
 	}: Props = $props();
 	let expanded = $state(false);
 	let contentMounted = $state(false);
@@ -171,7 +173,7 @@
 	<div class="text-sm">
 		<ToolImageRow {workstreamId} image={imageRead} {status} {durationLabel} {onopenimage} />
 	</div>
-{:else if editPath && (actionKind === 'edit' || actionKind === 'read')}
+{:else if editPath && blockedReason === null && (actionKind === 'edit' || actionKind === 'read')}
 	<FileToolRow
 		verb={displayName}
 		icon={actionKind === 'edit' ? 'pencil' : 'note'}
@@ -233,7 +235,17 @@
 				detail={description ? label : null}
 				emphasized={description !== null}
 			/>
-			{@render duration()}
+			{#if blockedReason}
+				<span
+					class="text-3xs text-fg-tertiary/70 shrink-0 font-mono"
+					data-testid="tool-blocked"
+					in:fade={{ duration: 190 }}
+				>
+					blocked · {blockedReason}
+				</span>
+			{:else}
+				{@render duration()}
+			{/if}
 		</summary>
 
 		{#if contentMounted}

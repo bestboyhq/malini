@@ -42,7 +42,7 @@ export type InstallOutcome =
 	| { readonly status: 'skipped'; readonly reason: InstallSkipReason }
 	| { readonly status: 'already-running' }
 	| { readonly status: 'succeeded' }
-	| { readonly status: 'failed' }
+	| { readonly status: 'failed'; readonly command: string; readonly detail: string }
 	| { readonly status: 'aborted' };
 
 interface InstallSource {
@@ -351,12 +351,11 @@ export async function installWithArgv(
 			},
 		});
 	} catch (error) {
-		emit(deps.events, workstreamId, 'failed', {
+		return fail(deps.events, workstreamId, {
 			command: display,
 			durationMs: Date.now() - started,
 			detail: error instanceof Error ? error.message : String(error),
 		});
-		return { status: 'failed' };
 	}
 	const durationMs = Date.now() - started;
 	switch (end.kind) {
@@ -366,20 +365,18 @@ export async function installWithArgv(
 				emit(deps.events, workstreamId, 'succeeded', { command: display, durationMs });
 				return { status: 'succeeded' };
 			}
-			emit(deps.events, workstreamId, 'failed', {
+			return fail(deps.events, workstreamId, {
 				command: display,
 				durationMs,
 				exitCode: end.code,
 				detail: failureDetail(stdout, stderr),
 			});
-			return { status: 'failed' };
 		case 'timed-out':
-			emit(deps.events, workstreamId, 'failed', {
+			return fail(deps.events, workstreamId, {
 				command: display,
 				durationMs,
 				detail: `timed out after ${Math.floor((deps.timeoutMs ?? INSTALL_TIMEOUT_MS) / 60_000)} minutes`,
 			});
-			return { status: 'failed' };
 		case 'aborted':
 			emit(deps.events, workstreamId, 'aborted', { command: display, durationMs });
 			return { status: 'aborted' };
@@ -432,6 +429,15 @@ async function runInstallChild(
 		if (timer) clearTimeout(timer);
 		deps.runner.signalProcessGroup(pid, 'SIGKILL');
 	}
+}
+
+function fail(
+	events: EventBus,
+	workstreamId: string,
+	fields: { command: string; detail: string; durationMs: number; exitCode?: number },
+): InstallOutcome {
+	emit(events, workstreamId, 'failed', fields);
+	return { status: 'failed', command: fields.command, detail: fields.detail };
 }
 
 function emit(

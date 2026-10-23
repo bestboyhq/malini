@@ -70,7 +70,7 @@ function createFakes() {
 		queueMerge: vi.fn((_args: unknown): Promise<ShipStateRecord> => Promise.resolve(shipState())),
 		createWorkstream: vi.fn((_args: unknown): string => '/tmp/new-workstream'),
 		syncBase: vi.fn((_args: unknown) => 'current' as const),
-		provision: vi.fn((_args: unknown) => 'succeeded' as const),
+		provision: vi.fn((_args: unknown) => ({ status: 'succeeded' as const })),
 		workstreamStatus: vi.fn((_args: unknown): WorktreeStatus => worktree()),
 		countBehind: vi.fn((_args: unknown): number | Promise<number> => 0),
 		pull: vi.fn((_args: unknown): string => 'abc1234'),

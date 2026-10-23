@@ -93,6 +93,7 @@ export interface ApproveCommand {
 	readonly approvalId: string;
 	readonly decision: ApprovalDecision;
 	readonly scope: ApprovalScope;
+	readonly alwaysAllow?: boolean;
 	readonly updatedInput?: Readonly<Record<string, unknown>>;
 }
 
@@ -775,6 +776,7 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 	const approvalId = obj.approvalId;
 	const decision = obj.decision;
 	const scope = obj.scope ?? 'once';
+	const alwaysAllow = obj.alwaysAllow;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'approve: sessionId required (non-empty string)', obj);
 	}
@@ -798,6 +800,9 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 	if (updatedInput !== undefined && (!isRecord(updatedInput) || decision === 'deny')) {
 		return err('INVALID_PAYLOAD', 'approve: updatedInput must be an object on an allow', obj);
 	}
+	if (alwaysAllow !== undefined && typeof alwaysAllow !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'approve: alwaysAllow must be a boolean', obj);
+	}
 	return {
 		ok: true,
 		command: {
@@ -808,6 +813,7 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 			approvalId,
 			decision: decision === 'approve' ? 'allow' : decision,
 			scope,
+			...(alwaysAllow === true ? { alwaysAllow } : {}),
 			...(updatedInput === undefined ? {} : { updatedInput }),
 		},
 	};

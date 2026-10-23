@@ -24,6 +24,7 @@ export type AgentInteractionState =
 			decision?: AgentApprovalDecision;
 			requestedScope?: AgentApprovalScope;
 			scopeStored?: boolean;
+			alwaysAllowed?: boolean;
 			ruleId?: string;
 	  }>;
 

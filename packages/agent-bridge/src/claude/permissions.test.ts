@@ -6,6 +6,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import {
 	approvedInput,
+	autoModeCategory,
+	autoModeRule,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -180,6 +182,32 @@ describe('permissionDescriptor', () => {
 			capability: 'write',
 			resources: [{ kind: 'tool', value: 'Open a draft pull request', boundary: 'workstream' }],
 		});
+	});
+});
+
+describe('a call auto mode blocked', () => {
+	it('names the narrowest rule Claude Code can match it with', () => {
+		expect(autoModeRule('Bash', { command: 'printf "(x)" > out.txt' }, worktree)).toBe(
+			'Bash(printf "\\(x\\)" > out.txt)',
+		);
+		expect(autoModeRule('WebFetch', { url: 'https://docs.example.com/a?b=1' }, worktree)).toBe(
+			'WebFetch(domain:docs.example.com)',
+		);
+		expect(autoModeRule('Edit', { file_path: 'src/a.ts' }, worktree)).toBe(
+			`Edit(/${join(worktree, 'src/a.ts')})`,
+		);
+		expect(autoModeRule('mcp__ops__set_member_role', { org: 'acme' }, worktree)).toBe(
+			'mcp__ops__set_member_role',
+		);
+		expect(autoModeRule('Bash', {}, worktree)).toBe('Bash');
+	});
+
+	it('reads the category out of the reason auto mode gives', () => {
+		expect(autoModeCategory('[Account & Standing-Rule Changes]')).toBe(
+			'Account & Standing-Rule Changes',
+		);
+		expect(autoModeCategory('judged dangerous')).toBe('judged dangerous');
+		expect(autoModeCategory(undefined)).toBe('no reason given');
 	});
 });
 

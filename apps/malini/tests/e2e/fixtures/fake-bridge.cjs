@@ -93,6 +93,9 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const blockedRuns = new Set();
+const BLOCKED_TOOL = 'mcp__ops__set_member_role';
+const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
 const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
@@ -661,6 +664,32 @@ const respond = async (sessionId, runId, prompt) => {
 		pendingRuns.set(runId, sessionId);
 		return;
 	}
+	if (prompt.includes('AUTO_MODE_BLOCK')) {
+		pendingRuns.set(runId, sessionId);
+		blockedRuns.add(runId);
+		event({
+			type: 'tool.started',
+			runId,
+			name: BLOCKED_TOOL,
+			toolCallId: 'blocked-1',
+			input: BLOCKED_INPUT,
+		});
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-blocked-1',
+			reason: 'Blocked by auto mode: Permission Grant',
+			toolName: BLOCKED_TOOL,
+			input: BLOCKED_INPUT,
+			permission: {
+				capability: 'external-service',
+				resources: [{ kind: 'service', value: 'ops', boundary: 'external' }],
+			},
+			autoModeRule: BLOCKED_TOOL,
+		});
+		return;
+	}
 	if (prompt.includes('MALINI_TOOL')) {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);
@@ -1031,6 +1060,40 @@ const handle = (command) => {
 			return ack(command.id);
 		case 'approve': {
 			ack(command.id);
+			if (blockedRuns.delete(command.runId)) {
+				event({
+					type: 'tool.failed',
+					runId: command.runId,
+					name: BLOCKED_TOOL,
+					toolCallId: 'blocked-1',
+					error:
+						'Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Permission Grant].',
+					autoModeReason: 'Permission Grant',
+				});
+				if (command.decision === 'allow') {
+					event({
+						type: 'tool.started',
+						runId: command.runId,
+						name: BLOCKED_TOOL,
+						toolCallId: 'retried-1',
+						input: BLOCKED_INPUT,
+					});
+					event({
+						type: 'tool.completed',
+						runId: command.runId,
+						name: BLOCKED_TOOL,
+						toolCallId: 'retried-1',
+						output: 'vendor-sync-bot is now owner of acme',
+					});
+				}
+				completeRun(
+					command.sessionId,
+					command.runId,
+					['blocked', command.decision, command.alwaysAllow ? 'always' : command.scope].join(':'),
+				);
+				pendingRuns.delete(command.runId);
+				return;
+			}
 			const malini = maliniCalls.get(command.runId);
 			if (malini) {
 				if (command.decision === 'deny') {
