@@ -411,9 +411,9 @@ describe('platform requests from the agent', () => {
 				effort: 'high',
 				skills: ['adr'],
 				builtin: null,
-				instructions: 'Do Update docs.',
+				instructions: 'Do Update docs.\nThen report.',
 			},
-			expect.objectContaining({ id: 'job-2', instructions: 'Do Triage.' }),
+			expect.objectContaining({ id: 'job-2', instructions: 'Do Triage.\nThen report.' }),
 		]);
 		expect(calls).toHaveLength(5);
 		expect(calls).toEqual(
@@ -490,6 +490,48 @@ describe('platform requests from the agent', () => {
 		expect(answer('p-10')).toMatchObject({
 			ok: false,
 			error: '`effort` must be one of low, medium, high, xhigh, max.',
+		});
+	});
+
+	it('asks the merge queue to open a draft of the session workstream and answers before the turn ends', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		const opened: unknown[] = [];
+		test.context.commands.define('pull-requests.open-draft', (args) => {
+			opened.push(args);
+			return {
+				workstreamId: 'ws-1',
+				phase: 'draft',
+				step: 'opening-draft',
+				pullRequestNumber: null,
+				pullRequestUrl: null,
+				needsYou: null,
+				queuedAt: null,
+				attempts: 0,
+				activeJobRunId: null,
+				lastError: null,
+				nextAttemptAt: null,
+				updatedAt: '2026-10-23T00:00:00.000Z',
+			};
+		});
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			log: () => {},
+		});
+
+		bridge.send(platformRequest('p-1', 'pull_requests_open_draft', {}));
+
+		const result = (): Record<string, unknown> | undefined =>
+			bridge.received.find((command) => command['cmd'] === 'platform_result');
+		await waitFor(() => result() !== undefined, 5_000, 'the open draft result');
+		expect(opened).toEqual([{ workstreamId: 'ws-1' }]);
+		expect(JSON.parse(String(result()?.['text']))).toEqual({
+			status: 'Malini opens the draft pull request once this turn ends.',
 		});
 	});
 });

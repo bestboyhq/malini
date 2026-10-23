@@ -27,6 +27,8 @@ Jobs live on the **Jobs** page.
 - Run it from the Jobs page, in a workstream or a new one.
 - Let a [routine](/malini/docs/routines.md) run it when something happens.
 - Ask the agent: in a Malini chat it can list, save, and run jobs with its [tools](/malini/docs/agent-tools.md).
+  It asks before it runs a job, until you always allow that job.
+  Its edit to a job that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
 
 The **Job center** shows what is running and what just finished.
 Settings decides how many jobs run at once.

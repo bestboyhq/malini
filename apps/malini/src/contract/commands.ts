@@ -21,6 +21,7 @@ import type {
 	StagedAgentAttachment,
 	StagedAgentAttachmentBytes,
 } from './agent';
+import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
 import type {
 	BrowserElementPrompt,
 	BrowserNavigateArgs,
@@ -171,6 +172,7 @@ export type DecideAgentApprovalArgs = Readonly<{
 	decision: AgentApprovalDecision;
 	scope: AgentApprovalScope;
 	permission?: unknown;
+	updatedInput?: Readonly<Record<string, unknown>>;
 }>;
 
 export type ListAgentEventsArgs = Readonly<{ sessionId: string; afterSeq: number }>;
@@ -413,6 +415,8 @@ export interface ContractCommands {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
 	};
+	'chat.list-permission-grants': { args: undefined; result: PermissionGrantRecord[] };
+	'chat.revoke-permission-grant': { args: RevokePermissionGrantArgs; result: void };
 	'repositories.delete-workstream': {
 		args: WorkstreamIdArgs;
 		result: WorkstreamRetirementReceipt;
@@ -690,6 +694,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.create-repository',
 	'repositories.create-workstream',
 	'chat.decide-approval',
+	'chat.list-permission-grants',
+	'chat.revoke-permission-grant',
 	'repositories.delete-workstream',
 	'extensions.recovery-mode-enabled',
 	'chat.run-change-patch',

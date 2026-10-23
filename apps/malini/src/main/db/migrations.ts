@@ -410,6 +410,82 @@ UPDATE skill_choices SET choice = CASE json_extract(choice, '$.kind')
 DELETE FROM skill_choices WHERE json_type(choice) != 'array' OR json_array_length(choice) = 0;
 DROP TABLE skill_presets;
 `,
+	`
+CREATE TABLE agent_interactions_next (
+  kind TEXT NOT NULL CHECK (kind IN ('approval', 'question')),
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
+  run_id TEXT NOT NULL REFERENCES agent_runs(id) ON DELETE CASCADE,
+  request_id TEXT NOT NULL,
+  request_payload_json TEXT NOT NULL,
+  permission_json TEXT,
+  permission_fingerprint TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending', 'dispatching', 'resolved', 'closed')),
+  intended_response_json TEXT,
+  response_json TEXT,
+  decision TEXT CHECK (decision IN ('allow', 'deny', 'answered')),
+  scope TEXT CHECK (scope IN ('once', 'session', 'workstream', 'everywhere')),
+  source TEXT CHECK (source IN ('manual', 'auto')),
+  requested_at TEXT NOT NULL,
+  decided_at TEXT,
+  closed_at TEXT,
+  PRIMARY KEY (kind, session_id, run_id, request_id),
+  CHECK (
+    (state = 'pending' AND intended_response_json IS NULL AND response_json IS NULL
+      AND decision IS NULL AND scope IS NULL AND source IS NULL AND decided_at IS NULL
+      AND closed_at IS NULL)
+    OR
+    (state = 'dispatching' AND intended_response_json IS NOT NULL AND response_json IS NULL
+      AND decision IS NULL AND scope IS NULL AND source IS NULL AND decided_at IS NULL
+      AND closed_at IS NULL)
+    OR
+    (state = 'resolved' AND intended_response_json IS NOT NULL AND response_json IS NOT NULL
+      AND decision IS NOT NULL AND source IS NOT NULL AND decided_at IS NOT NULL
+      AND closed_at IS NULL)
+    OR
+    (state = 'closed' AND response_json IS NULL AND decision IS NULL AND scope IS NULL
+      AND source IS NULL AND decided_at IS NULL AND closed_at IS NOT NULL)
+  )
+);
+INSERT INTO agent_interactions_next SELECT * FROM agent_interactions;
+DROP TABLE agent_interactions;
+ALTER TABLE agent_interactions_next RENAME TO agent_interactions;
+CREATE INDEX idx_agent_interactions_pending
+  ON agent_interactions(session_id, run_id, state, kind);
+
+CREATE TABLE agent_permission_rules_next (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL CHECK (scope IN ('session', 'workstream', 'everywhere')),
+  workstream_id TEXT REFERENCES workstreams(id) ON DELETE CASCADE,
+  session_id TEXT REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  permission_fingerprint TEXT NOT NULL CHECK (length(permission_fingerprint) = 64),
+  permission_json TEXT NOT NULL,
+  created_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+  created_request_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_used_at TEXT,
+  revoked_at TEXT,
+  CHECK (
+    (scope = 'session' AND workstream_id IS NOT NULL AND session_id IS NOT NULL)
+    OR (scope = 'workstream' AND workstream_id IS NOT NULL AND session_id IS NULL)
+    OR (scope = 'everywhere' AND workstream_id IS NULL AND session_id IS NULL)
+  )
+);
+INSERT INTO agent_permission_rules_next SELECT * FROM agent_permission_rules;
+DROP TABLE agent_permission_rules;
+ALTER TABLE agent_permission_rules_next RENAME TO agent_permission_rules;
+CREATE UNIQUE INDEX idx_agent_permission_rules_active_session
+  ON agent_permission_rules(session_id, permission_fingerprint)
+  WHERE scope = 'session' AND revoked_at IS NULL;
+CREATE UNIQUE INDEX idx_agent_permission_rules_active_workstream
+  ON agent_permission_rules(workstream_id, permission_fingerprint)
+  WHERE scope = 'workstream' AND revoked_at IS NULL;
+CREATE UNIQUE INDEX idx_agent_permission_rules_active_everywhere
+  ON agent_permission_rules(permission_fingerprint)
+  WHERE scope = 'everywhere' AND revoked_at IS NULL;
+CREATE INDEX idx_agent_permission_rules_effective
+  ON agent_permission_rules(workstream_id, session_id, permission_fingerprint, revoked_at);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -23,7 +23,7 @@ export function platformTools(request: PlatformToolRequester) {
 	return [
 		tool(
 			'jobs_list',
-			"List the jobs saved in Malini. A job is a reusable agent task: instructions, a model and effort, where it runs (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository) and what it ships (`none`, a `draft` pull request, or `merge`). Returns JSON with each job's id, name, runsIn, output, model, effort, skills, builtin and the first line of its instructions.",
+			"List the jobs saved in Malini. A job is a reusable agent task: instructions, a model and effort, where it runs (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository) and what it ships (`none`, a `draft` pull request, or `merge`). Returns JSON with each job's id, name, runsIn, output, model, effort, skills, builtin and its full instructions, so an edit can keep every line it does not change.",
 			{},
 			() => call('jobs_list', {}),
 		),
@@ -137,6 +137,12 @@ export function platformTools(request: PlatformToolRequester) {
 			"List every event Malini emits: its channel, what it means and the TypeScript declaration of its payload. Use a channel in a routine's `on <channel>` trigger, and a payload field path in its `where` clause.",
 			{},
 			() => call('events_list', {}),
+		),
+		tool(
+			'pull_requests_open_draft',
+			"Open a draft pull request of this workstream's changes once your turn ends. Malini commits with your `Commit:` line, pushes the branch and opens the draft under your `Pull request:` title, so leave your changes in the working tree and write both footer lines. When a pull request is already open, Malini pushes this turn's changes to it instead. Returns right away; a failure shows in Malini's top bar. The user approves it in the chat unless they always allow it.",
+			{},
+			() => call('pull_requests_open_draft', {}),
 		),
 	];
 }

@@ -130,6 +130,14 @@ describe('malini tool approval', () => {
 			headline: 'Run job ‘Update docs’',
 			details: [],
 		});
+		expect(
+			maliniToolApproval('mcp__malini__jobs_save', { id: 'job-1', model: 'sonnet' }, () => 'Lint')
+				?.headline,
+		).toBe('Save job ‘Lint’');
+		expect(maliniToolApproval('mcp__malini__pull_requests_open_draft', {})).toEqual({
+			headline: 'Open a draft pull request',
+			details: [{ label: 'When', value: 'Once this turn ends' }],
+		});
 	});
 
 	it('leaves every other tool to the generic card', () => {

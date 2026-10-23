@@ -111,6 +111,7 @@ describe('malini MCP server', () => {
 					{ name: 'routines_list' },
 					{ name: 'routines_save' },
 					{ name: 'events_list' },
+					{ name: 'pull_requests_open_draft' },
 				],
 			},
 		});
@@ -209,7 +210,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser and the read tools, never a tool that changes jobs or routines', () => {
+	it('pre-approves the browser and the read tools, never a tool that changes jobs, routines or pull requests', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -288,6 +289,7 @@ describe('malini MCP server', () => {
 			},
 		});
 		const refused = await call('tools/call', { name: 'jobs_run', arguments: { job: 'Ship it' } });
+		const draft = await call('tools/call', { name: 'pull_requests_open_draft', arguments: {} });
 		const invalid = await call('tools/call', { name: 'jobs_save', arguments: { effort: 'huge' } });
 
 		expect(platformCalls).toEqual([
@@ -301,7 +303,11 @@ describe('malini MCP server', () => {
 				},
 			},
 			{ tool: 'jobs_run', input: { job: 'Ship it' } },
+			{ tool: 'pull_requests_open_draft', input: {} },
 		]);
+		expect(draft).toMatchObject({
+			result: { content: [{ type: 'text', text: '[pull_requests_open_draft]' }] },
+		});
 		expect(listed).toMatchObject({
 			result: { content: [{ type: 'text', text: '[routines_list]' }] },
 		});

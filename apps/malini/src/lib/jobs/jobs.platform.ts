@@ -1,7 +1,7 @@
-import type { AutomaticJobBuiltin } from '$contract/jobs';
+import type { AutomaticJobBuiltin, JobDefinitionRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { BUILTIN_JOBS } from './domain/builtin-jobs';
-import { getBuiltinJobDefinition } from './platform/job-definitions.repository';
+import { getBuiltinJobDefinition, listJobDefinitions } from './platform/job-definitions.repository';
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
 
@@ -23,4 +23,8 @@ export function serviceNamingJob(db: MaliniDatabase): AutomaticJob {
 function automaticJob(db: MaliniDatabase, builtin: AutomaticJobBuiltin): AutomaticJob {
 	const { instructions, model } = getBuiltinJobDefinition(db, builtin) ?? BUILTIN_JOBS[builtin];
 	return { instructions, model };
+}
+
+export function jobDefinitions(db: MaliniDatabase): JobDefinitionRecord[] {
+	return listJobDefinitions(db);
 }

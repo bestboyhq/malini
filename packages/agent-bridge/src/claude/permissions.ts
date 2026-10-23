@@ -15,6 +15,7 @@ import type {
 	ProviderPermissionDescriptor,
 } from '../interaction-types.js';
 import { isRecord } from '../type-guards.js';
+import { MALINI_MCP_SERVER } from './browser-tools.js';
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS']);
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -60,7 +61,7 @@ export const refuseMaliniOwnedCommands: HookCallback = async (input) => {
 		hookSpecificOutput: {
 			hookEventName: 'PreToolUse',
 			permissionDecision: 'deny',
-			permissionDecisionReason: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes and opens the pull request.`,
+			permissionDecisionReason: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes and opens the pull request. To open a draft pull request when your turn ends, call \`pull_requests_open_draft\` from the \`malini\` MCP server.`,
 		},
 	};
 };
@@ -193,12 +194,20 @@ export function permissionDescriptor(
 }
 
 const MALINI_WRITE_TOOLS: Readonly<
-	Record<string, readonly [capability: PermissionCapability, action: string, nameKey: string]>
+	Record<
+		string,
+		readonly [capability: PermissionCapability, action: string, nameKey: string | null]
+	>
 > = {
 	mcp__malini__jobs_save: ['write', 'Save job', 'name'],
 	mcp__malini__jobs_run: ['execute', 'Run job', 'job'],
 	mcp__malini__routines_save: ['write', 'Save routine', 'label'],
+	mcp__malini__pull_requests_open_draft: ['write', 'Open a draft pull request', null],
 };
+
+export function isMaliniTool(toolName: string): boolean {
+	return toolName.startsWith(`mcp__${MALINI_MCP_SERVER}__`);
+}
 
 function maliniWriteDescriptor(
 	toolName: string,
@@ -207,7 +216,7 @@ function maliniWriteDescriptor(
 	const write = MALINI_WRITE_TOOLS[toolName];
 	if (!write) return null;
 	const [capability, action, nameKey] = write;
-	const name = stringField(input, nameKey) ?? stringField(input, 'id');
+	const name = nameKey && (stringField(input, nameKey) ?? stringField(input, 'id'));
 	return {
 		capability,
 		resources: [
@@ -252,11 +261,22 @@ function stringField(input: Record<string, unknown>, key: string): string | unde
 }
 
 export function rememberedPermissions(
+	toolName: string,
 	suggestions: readonly PermissionUpdate[] | undefined,
 	scope: ApprovalScope,
 ): PermissionUpdate[] | undefined {
-	if (scope === 'once' || !suggestions || suggestions.length === 0) return undefined;
+	if (scope === 'once' || isMaliniTool(toolName) || !suggestions || suggestions.length === 0) {
+		return undefined;
+	}
 	return suggestions.map((suggestion) => ({ ...suggestion, destination: 'session' }));
+}
+
+export function approvedInput(
+	toolName: string,
+	input: Record<string, unknown>,
+	updatedInput: Readonly<Record<string, unknown>> | undefined,
+): Record<string, unknown> {
+	return updatedInput && isMaliniTool(toolName) ? { ...updatedInput } : input;
 }
 
 export function claudeQuestions(input: Record<string, unknown>): AgentQuestion[] {

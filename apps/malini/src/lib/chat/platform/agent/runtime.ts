@@ -38,6 +38,7 @@ import {
 	type BridgeAgentRequest,
 	type BridgeEvent,
 } from './protocol';
+import { withMaliniApproval } from './malini-approvals.service';
 import {
 	persistedBridgeSession,
 	persistedBridgeSessions,
@@ -136,10 +137,12 @@ export function recordBridgeInteractionRequest(
 	let kind: 'approval' | 'question';
 	let requestId: string;
 	let permission: unknown;
+	let toolName: string | undefined;
 	if (event.type === 'approval.requested') {
 		kind = 'approval';
 		requestId = event.approvalId;
 		permission = event.permission;
+		toolName = event.toolName;
 	} else if (event.type === 'question.requested') {
 		kind = 'question';
 		requestId = event.questionId;
@@ -156,7 +159,7 @@ export function recordBridgeInteractionRequest(
 			throw new Error(`interaction \`${requestId}\` belongs to a stale session/run correlation`);
 		}
 		try {
-			normalizedPermission = normalizeRememberablePermission(permission, identity.path);
+			normalizedPermission = normalizeRememberablePermission(permission, identity.path, toolName);
 		} catch {
 			normalizedPermission = null;
 		}
@@ -681,9 +684,10 @@ export class BridgeRuntime {
 	private async pumpOne(
 		correlator: SessionCorrelator,
 		generation: number,
-		event: BridgeEvent,
+		bridgeEvent: BridgeEvent,
 	): Promise<void> {
 		if (this.eventGeneration !== generation) return;
+		const event = withMaliniApproval(this.db, bridgeEvent);
 		const interactionSessionId = eventSessionId(event);
 		const handled = await tryAutoApprove(
 			this.db,

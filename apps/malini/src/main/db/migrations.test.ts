@@ -49,6 +49,7 @@ const ALL_INDEXES = [
 	'idx_agent_events_run',
 	'idx_agent_events_session_seq',
 	'idx_agent_interactions_pending',
+	'idx_agent_permission_rules_active_everywhere',
 	'idx_agent_permission_rules_active_session',
 	'idx_agent_permission_rules_active_workstream',
 	'idx_agent_permission_rules_effective',
@@ -163,6 +164,37 @@ describe('migrate', () => {
 			{ owner_id: 'custom-session', choice: '["dataviz"]' },
 			{ owner_id: 'preset-session', choice: '["humanizer","adr"]' },
 		]);
+		db.close();
+	});
+
+	it('keeps remembered approvals and lets a rule hold everywhere, outside any workstream', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		seedWorkstream(db);
+		const fingerprint = 'a'.repeat(64);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-10-20T00:00:00Z');
+			INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at)
+			  VALUES ('kept', 'workstream', 'w', NULL, '${fingerprint}', '{}', 'approval-1', '2026-10-20T00:00:00Z');
+		`);
+
+		migrate(db);
+
+		expect(all(db, 'SELECT id, scope, workstream_id FROM agent_permission_rules')).toEqual([
+			{ id: 'kept', scope: 'workstream', workstream_id: 'w' },
+		]);
+		db.exec(`INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at)
+			VALUES ('everywhere', 'everywhere', NULL, NULL, '${fingerprint}', '{}', 'approval-2', '2026-10-21T00:00:00Z')`);
+		expect(() =>
+			db.exec(`INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at)
+				VALUES ('tied', 'everywhere', 'w', NULL, '${'b'.repeat(64)}', '{}', 'approval-3', '2026-10-21T00:00:00Z')`),
+		).toThrow();
+		expect(() =>
+			db.exec(`INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at)
+				VALUES ('loose', 'workstream', NULL, NULL, '${'c'.repeat(64)}', '{}', 'approval-4', '2026-10-21T00:00:00Z')`),
+		).toThrow();
+		expect(indexNames(db)).toEqual(ALL_INDEXES);
 		db.close();
 	});
 

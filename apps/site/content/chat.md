@@ -44,7 +44,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 - **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else.
 - **Full access** never asks.
 
-When the agent asks, approve once, or always for the chat or the workstream.
+When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+**Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
 ## Reports
 

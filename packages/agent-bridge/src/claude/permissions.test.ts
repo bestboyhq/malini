@@ -1,9 +1,11 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { AgentRunProfile } from '../agent-profile.js';
 import {
+	approvedInput,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -184,6 +186,10 @@ describe('permissionDescriptor', () => {
 			capability: 'execute',
 			resources: [{ kind: 'tool', value: 'Run job ‘Update docs’', boundary: 'workstream' }],
 		});
+		expect(descriptor('pull_requests_open_draft', {})).toEqual({
+			capability: 'write',
+			resources: [{ kind: 'tool', value: 'Open a draft pull request', boundary: 'workstream' }],
+		});
 	});
 });
 
@@ -193,18 +199,47 @@ describe('rememberedPermissions', () => {
 	] as const;
 
 	it('remembers an approval for the rest of the session only', () => {
-		expect(rememberedPermissions([...suggestions], 'session')).toEqual([
+		expect(rememberedPermissions('Read', [...suggestions], 'session')).toEqual([
 			{ type: 'setMode', mode: 'acceptEdits', destination: 'session' },
 		]);
-		expect(rememberedPermissions([...suggestions], 'workstream')).toEqual([
+		expect(rememberedPermissions('Read', [...suggestions], 'workstream')).toEqual([
 			{ type: 'setMode', mode: 'acceptEdits', destination: 'session' },
 		]);
 	});
 
 	it('remembers nothing for a one-time approval or without suggestions', () => {
-		expect(rememberedPermissions([...suggestions], 'once')).toBeUndefined();
-		expect(rememberedPermissions(undefined, 'session')).toBeUndefined();
-		expect(rememberedPermissions([], 'session')).toBeUndefined();
+		expect(rememberedPermissions('Read', [...suggestions], 'once')).toBeUndefined();
+		expect(rememberedPermissions('Read', undefined, 'session')).toBeUndefined();
+		expect(rememberedPermissions('Read', [], 'session')).toBeUndefined();
+	});
+
+	it('leaves remembering a Malini action to Malini, so Claude Code never allows the whole tool', () => {
+		const rule: PermissionUpdate[] = [
+			{
+				type: 'addRules',
+				rules: [{ toolName: 'mcp__malini__jobs_run' }],
+				behavior: 'allow',
+				destination: 'localSettings',
+			},
+		];
+		for (const scope of ['session', 'workstream', 'everywhere'] as const) {
+			expect(rememberedPermissions('mcp__malini__jobs_run', rule, scope)).toBeUndefined();
+		}
+	});
+});
+
+describe('approvedInput', () => {
+	const input = { id: 'job-1', instructions: 'Agent text' };
+	const edited = { id: 'job-1', instructions: 'Reviewed text' };
+
+	it('hands a Malini tool the version the user reviewed', () => {
+		expect(approvedInput('mcp__malini__jobs_save', input, edited)).toEqual(edited);
+		expect(approvedInput('mcp__malini__jobs_save', input, undefined)).toBe(input);
+	});
+
+	it('never lets a reply rewrite any other tool', () => {
+		const command = { command: 'ls' };
+		expect(approvedInput('Bash', command, { command: 'rm -rf /' })).toBe(command);
 	});
 });
 

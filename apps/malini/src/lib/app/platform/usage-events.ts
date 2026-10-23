@@ -69,6 +69,8 @@ export const COMMAND_USAGE: Readonly<Record<CommandName, CommandUsage>> = {
 		scope: text(args, 'scope'),
 	}),
 	'chat.get-or-create-session': false,
+	'chat.list-permission-grants': false,
+	'chat.revoke-permission-grant': plain,
 	'chat.list-events': false,
 	'chat.list-event-page': false,
 	'chat.tool-output': false,

@@ -8,10 +8,11 @@ import { listPermissionRules } from './permissions.repository';
 
 import { isAtOrInsideDirectory } from '$main/fs/paths';
 import { isDirectory } from '$main/fs/stat';
-import type {
-	AgentApprovalDecision,
-	AgentApprovalDecisionResult,
-	AgentApprovalScope,
+import {
+	isAgentApprovalScope,
+	type AgentApprovalDecision,
+	type AgentApprovalDecisionResult,
+	type AgentApprovalScope,
 } from '$contract/agent';
 
 export type { AgentApprovalDecision, AgentApprovalDecisionResult, AgentApprovalScope };
@@ -38,9 +39,44 @@ interface PermissionWire {
 	resources: PermissionResourceWire[];
 }
 
+export const MALINI_TOOL_PREFIX = 'mcp__malini__';
+
+const MALINI_ACTION =
+	/^(?:pull-requests\.open-draft|jobs\.save|routines\.save|jobs\.run:[^\s:]{1,256})$/u;
+
+export type MaliniActionPermission = Readonly<{
+	capability: 'execute';
+	resources: readonly [Readonly<{ kind: 'action'; value: string; boundary: 'workstream' }>];
+}>;
+
+export function maliniActionPermission(action: string): MaliniActionPermission {
+	if (!MALINI_ACTION.test(action)) throw new Error(`\`${action}\` is not a Malini action`);
+	return {
+		capability: 'execute',
+		resources: [{ kind: 'action', value: action, boundary: 'workstream' }],
+	};
+}
+
+export function maliniActionFingerprint(action: string): string {
+	return finishNormalization(JSON.stringify(maliniActionPermission(action))).fingerprint;
+}
+
+export type RememberedResource = Readonly<{ kind: string; value: string }>;
+
+export function rememberedResources(permissionJson: string): RememberedResource[] {
+	const permission: unknown = JSON.parse(permissionJson);
+	if (!isPlainObject(permission) || !Array.isArray(permission['resources'])) return [];
+	return permission['resources'].flatMap((resource: unknown) => {
+		if (!isPlainObject(resource) || typeof resource['kind'] !== 'string') return [];
+		const value = resource['value'] ?? resource['canonicalValue'];
+		return typeof value === 'string' ? [{ kind: resource['kind'], value }] : [];
+	});
+}
+
 export function normalizeRememberablePermission(
 	permission: unknown,
 	workstreamPath: string,
+	toolName?: string,
 ): NormalizedPermission {
 	let encoded: string;
 	try {
@@ -55,6 +91,7 @@ export function normalizeRememberablePermission(
 	if (wire.resources.length === 0 || wire.resources.length > MAX_PERMISSION_RESOURCES) {
 		throw new Error(`remembered permissions require 1-${MAX_PERMISSION_RESOURCES} resources`);
 	}
+	if (toolName?.startsWith(MALINI_TOOL_PREFIX)) return normalizeMaliniAction(wire);
 	if (wire.capability !== 'read') {
 		throw new Error('only canonical external reads can be remembered');
 	}
@@ -99,6 +136,21 @@ function parsePermissionWire(permission: unknown): PermissionWire {
 		resources.push(parsed);
 	}
 	return { capability: permission['capability'], resources };
+}
+
+function normalizeMaliniAction(wire: PermissionWire): NormalizedPermission {
+	const [resource] = wire.resources;
+	if (
+		wire.capability !== 'execute' ||
+		wire.resources.length !== 1 ||
+		resource?.kind !== 'action' ||
+		resource.boundary !== 'workstream' ||
+		resource.canonicalValue !== undefined ||
+		resource.readOnly !== undefined
+	) {
+		throw new Error('a Malini tool is remembered only as one Malini action');
+	}
+	return finishNormalization(JSON.stringify(maliniActionPermission(resource.value)));
 }
 
 function normalizeExternalReadPermission(
@@ -300,8 +352,8 @@ export function validateApprovalDecision(
 	if (decision !== 'allow' && decision !== 'deny') {
 		throw new Error('approval decision must be `allow` or `deny`');
 	}
-	if (scope !== 'once' && scope !== 'session' && scope !== 'workstream') {
-		throw new Error('approval scope must be `once`, `session`, or `workstream`');
+	if (!isAgentApprovalScope(scope)) {
+		throw new Error('approval scope must be `once`, `session`, `workstream`, or `everywhere`');
 	}
 }
 
@@ -332,7 +384,7 @@ export function rememberedRuleIdForResolvedApproval(
 			candidate.revokedAt === null &&
 			candidate.scope === scope &&
 			candidate.permissionFingerprint === fingerprint &&
-			(scope === 'workstream' || candidate.sessionId === record.sessionId),
+			(scope !== 'session' || candidate.sessionId === record.sessionId),
 	);
 	return rule ? rule.id : null;
 }

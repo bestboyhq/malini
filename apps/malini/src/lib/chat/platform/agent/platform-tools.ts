@@ -12,7 +12,10 @@ import type { MaliniDatabase } from '$main/db/driver';
 import type { CommandRegistry } from '$main/ipc/registry';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
-import { persistedBridgeSession } from './sessions';
+import { isRecord, jsonEqual } from '$main/db/rows';
+import { answeredApprovalsInRun } from '../interactions.repository';
+import { jobsNamed } from './malini-approvals.service';
+import { persistedBridgeSession, type PersistedBridgeSession } from './sessions';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies AgentReasoningEffort[];
 const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies JobRunsIn[];
@@ -46,11 +49,10 @@ async function runPlatformTool(
 			return (await jobs(commands)).map(jobSummary);
 		case 'jobs_save': {
 			const args = jobDefinition(input, await jobs(commands));
-			return jobSummary(await commands.call('jobs.save-definition', args));
+			return reviewed(db, request, jobSummary(await commands.call('jobs.save-definition', args)));
 		}
 		case 'jobs_run': {
-			const session = persistedBridgeSession(db, request.sessionId);
-			if (!session) throw new Error(`Agent session \`${request.sessionId}\` is unknown.`);
+			const session = requestSession(db, request);
 			const job = findJob(await jobs(commands), requiredText(input, 'job'));
 			const context = text(input, 'context');
 			const run = await commands.call('jobs.run', {
@@ -65,10 +67,50 @@ async function runPlatformTool(
 		case 'routines_list':
 			return (await commands.call('routines.list', undefined)).map(routineSummary);
 		case 'routines_save':
-			return routineSummary(await saveRoutine(input, commands));
+			return reviewed(db, request, routineSummary(await saveRoutine(input, commands)));
 		case 'events_list':
 			return CONTRACT_REFERENCE.events;
+		case 'pull_requests_open_draft': {
+			const { workstreamId } = requestSession(db, request);
+			const ship = await commands.call('pull-requests.open-draft', { workstreamId });
+			return ship.pullRequestUrl
+				? {
+						pullRequest: ship.pullRequestUrl,
+						status: 'Malini pushes this turn to the open pull request once the turn ends.',
+					}
+				: { status: 'Malini opens the draft pull request once this turn ends.' };
+		}
 	}
+}
+
+const REVIEWED =
+	'The user reviewed your change and saved the version above. Where it differs from what you sent, the user rejected or rewrote that part: keep it as saved, and do not propose it again unless they ask.';
+
+function reviewed(
+	db: MaliniDatabase,
+	request: BridgePlatformRequest,
+	saved: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+	const toolName = `mcp__malini__${request.tool}`;
+	const byUser = answeredApprovalsInRun(db, request.sessionId, request.runId).some(
+		({ requestPayload, response }) =>
+			isRecord(requestPayload) &&
+			requestPayload['toolName'] === toolName &&
+			isRecord(response) &&
+			response['decision'] === 'allow' &&
+			isRecord(response['updatedInput']) &&
+			jsonEqual(response['updatedInput'], request.input),
+	);
+	return byUser ? { ...saved, reviewedByUser: REVIEWED } : saved;
+}
+
+function requestSession(
+	db: MaliniDatabase,
+	request: BridgePlatformRequest,
+): PersistedBridgeSession {
+	const session = persistedBridgeSession(db, request.sessionId);
+	if (!session) throw new Error(`Agent session \`${request.sessionId}\` is unknown.`);
+	return session;
 }
 
 function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
@@ -76,8 +118,7 @@ function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
 }
 
 function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>> {
-	const { id, name, runsIn, output, model, effort, skills, builtin } = job;
-	const instructions = job.instructions.split('\n', 1)[0] ?? '';
+	const { id, name, runsIn, output, model, effort, skills, builtin, instructions } = job;
 	return { id, name, runsIn, output, model, effort, skills, builtin, instructions };
 }
 
@@ -164,10 +205,7 @@ function findJob(
 	definitions: readonly JobDefinitionRecord[],
 	reference: string,
 ): JobDefinitionRecord {
-	const byId = definitions.find((definition) => definition.id === reference);
-	if (byId) return byId;
-	const wanted = reference.trim().toLocaleLowerCase();
-	const named = definitions.filter((definition) => definition.name.toLocaleLowerCase() === wanted);
+	const named = jobsNamed(definitions, reference);
 	const [only] = named;
 	if (only && named.length === 1) return only;
 	throw new Error(

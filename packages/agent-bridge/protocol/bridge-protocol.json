@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 31,
+	"protocolVersion": 32,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -71,6 +71,7 @@
 		"jobs_run",
 		"routines_list",
 		"routines_save",
-		"events_list"
+		"events_list",
+		"pull_requests_open_draft"
 	]
 }
