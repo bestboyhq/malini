@@ -1,6 +1,7 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserState, BrowserTabArgs } from './browser';
 import type { JobDefinitionChangedEvent, JobRunChangedEvent, JobSuggestedEvent } from './jobs';
+import type { McpServerReport } from './mcp-servers';
 import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
@@ -115,6 +116,7 @@ export interface ContractEvents {
 	'chat:run-changes-captured': RunChangesCapturedPayload;
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
 	'chat:session-renamed': SessionRenamedPayload;
+	'chat:mcp-server-changed': McpServerReport;
 	'repositories:workstream-created': WorktreeAddedPayload;
 	'repositories:workstream-removed': WorktreeRemovedPayload;
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
@@ -147,6 +149,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:run-changes-captured': null,
 	'chat:checkpoint-restored': null,
 	'chat:session-renamed': null,
+	'chat:mcp-server-changed': null,
 	'repositories:workstream-created': null,
 	'repositories:workstream-removed': null,
 	'repositories:workstream-files-changed': null,
@@ -186,6 +189,8 @@ export const CHAT_RUN_CHANGES_CAPTURED_CHANNEL = 'chat:run-changes-captured' sat
 export const CHAT_CHECKPOINT_RESTORED_CHANNEL = 'chat:checkpoint-restored' satisfies EventChannel;
 
 export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies EventChannel;
+
+export const CHAT_MCP_SERVER_CHANGED_CHANNEL = 'chat:mcp-server-changed' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_CREATED_CHANNEL =
 	'repositories:workstream-created' satisfies EventChannel;

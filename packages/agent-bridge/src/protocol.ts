@@ -16,6 +16,7 @@ import {
 } from './agent-profile.js';
 import type { AgentQuestionAnswer, ApprovalDecision, ApprovalScope } from './interaction-types.js';
 import { isOneOf, isRecord } from './type-guards.js';
+import type { McpServerReport } from './types.js';
 
 export type AgentCommand =
 	| StartSessionCommand
@@ -27,6 +28,8 @@ export type AgentCommand =
 	| RefreshCapabilitiesCommand
 	| RefreshSessionStatusCommand
 	| McpServerCommand
+	| ListMcpServersCommand
+	| CancelMcpAuthorizationCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
 	| ListSkillsCommand
@@ -113,10 +116,21 @@ export interface RefreshSessionStatusCommand {
 	readonly sessionId: string;
 }
 
-export interface McpServerCommand {
+export type McpServerCommand = {
 	readonly cmd: 'authorize_mcp_server' | 'reconnect_mcp_server';
 	readonly id: string;
-	readonly sessionId: string;
+	readonly serverName: string;
+} & ({ readonly sessionId: string } | { readonly cwd: string });
+
+export interface ListMcpServersCommand {
+	readonly cmd: 'list_mcp_servers';
+	readonly id: string;
+	readonly cwd: string;
+}
+
+export interface CancelMcpAuthorizationCommand {
+	readonly cmd: 'cancel_mcp_authorization';
+	readonly id: string;
 	readonly serverName: string;
 }
 
@@ -305,6 +319,19 @@ export interface BridgeMcpAuthorizationFrame {
 	readonly authUrl?: string;
 }
 
+export interface BridgeMcpServersFrame {
+	readonly type: 'bridge.mcp_servers';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly servers: readonly McpServerReport[];
+}
+
+export interface BridgeMcpServerFrame {
+	readonly type: 'bridge.mcp_server';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly server: McpServerReport;
+}
+
 export type BridgeBrowserRequestFrame = {
 	readonly type: 'bridge.browser_request';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -328,6 +355,8 @@ export type BridgeControlFrame =
 	| BridgeTitleFrame
 	| BridgeSkillsFrame
 	| BridgeMcpAuthorizationFrame
+	| BridgeMcpServersFrame
+	| BridgeMcpServerFrame
 	| BridgeBrowserRequestFrame
 	| BridgePlatformRequestFrame;
 
@@ -374,6 +403,17 @@ export function bridgeMcpAuthorizationFrame(
 		id,
 		...(authUrl === null ? {} : { authUrl }),
 	};
+}
+
+export function bridgeMcpServersFrame(
+	id: string,
+	servers: readonly McpServerReport[],
+): BridgeMcpServersFrame {
+	return { type: 'bridge.mcp_servers', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, servers };
+}
+
+export function bridgeMcpServerFrame(server: McpServerReport): BridgeMcpServerFrame {
+	return { type: 'bridge.mcp_server', protocolVersion: BRIDGE_PROTOCOL_VERSION, server };
 }
 
 export function bridgeBrowserRequestFrame(
@@ -495,6 +535,10 @@ export function parseCommandLine(raw: string): ParseResult {
 		case 'authorize_mcp_server':
 		case 'reconnect_mcp_server':
 			return validateMcpServerCommand(cmd, obj);
+		case 'list_mcp_servers':
+			return validateListMcpServers(obj);
+		case 'cancel_mcp_authorization':
+			return validateCancelMcpAuthorization(obj);
 		case 'stop_task':
 			return validateStopTask(obj);
 		case 'suggest_title':
@@ -859,14 +903,45 @@ function validateMcpServerCommand(
 ): ParseResult {
 	const id = commandId(obj, cmd);
 	if (!id.ok) return id;
-	const { sessionId, serverName } = obj;
-	if (typeof sessionId !== 'string' || sessionId.length === 0) {
-		return err('INVALID_PAYLOAD', `${cmd}: sessionId required (non-empty string)`, obj);
-	}
+	const { sessionId, cwd, serverName } = obj;
 	if (typeof serverName !== 'string' || serverName.length === 0) {
 		return err('INVALID_PAYLOAD', `${cmd}: serverName required (non-empty string)`, obj);
 	}
-	return { ok: true, command: { cmd, id: id.value, sessionId, serverName } };
+	if (typeof sessionId === 'string' && sessionId.length > 0 && cwd === undefined) {
+		return { ok: true, command: { cmd, id: id.value, sessionId, serverName } };
+	}
+	if (typeof cwd === 'string' && isAbsolute(cwd) && sessionId === undefined) {
+		return { ok: true, command: { cmd, id: id.value, cwd, serverName } };
+	}
+	return err(
+		'INVALID_PAYLOAD',
+		`${cmd}: exactly one of sessionId (non-empty string) or cwd (absolute path) required`,
+		obj,
+	);
+}
+
+function validateListMcpServers(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'list_mcp_servers');
+	if (!id.ok) return id;
+	const cwd = obj.cwd;
+	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
+		return err('INVALID_PAYLOAD', 'list_mcp_servers: cwd required (absolute path)', obj);
+	}
+	return { ok: true, command: { cmd: 'list_mcp_servers', id: id.value, cwd } };
+}
+
+function validateCancelMcpAuthorization(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'cancel_mcp_authorization');
+	if (!id.ok) return id;
+	const serverName = obj.serverName;
+	if (typeof serverName !== 'string' || serverName.length === 0) {
+		return err(
+			'INVALID_PAYLOAD',
+			'cancel_mcp_authorization: serverName required (non-empty string)',
+			obj,
+		);
+	}
+	return { ok: true, command: { cmd: 'cancel_mcp_authorization', id: id.value, serverName } };
 }
 
 function validateStopTask(obj: Record<string, unknown>): ParseResult {

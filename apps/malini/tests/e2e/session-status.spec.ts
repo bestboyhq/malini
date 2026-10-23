@@ -27,7 +27,9 @@ test('the MCP panel shows the live status of the chat servers when it opens', as
 
 		await page.getByRole('button', { name: 'View MCP server status' }).hover();
 		const panel = page.getByRole('dialog', { name: 'MCP server status' });
-		await expect(panel.getByRole('listitem')).toHaveText(['Fs']);
+		await expect(panel.getByTestId('session-mcp-ready-count')).toHaveText('1 of 1 ready');
+		await expect(panel.getByTestId('session-mcp-display-name')).toHaveText(['Fs']);
+		await expect(panel.getByRole('button', { name: /^Fix / })).toHaveCount(0);
 
 		expectCleanConsole(app);
 	} finally {
@@ -84,7 +86,8 @@ test('the MCP panel signs in to a server that needs it and retries one that fail
 
 		await retry.click();
 		await expect(retry).toBeHidden();
-		await expect(panel.getByRole('button')).toHaveCount(0);
+		await expect(panel.getByTestId('session-mcp-ready-count')).toHaveText('3 of 3 ready');
+		await expect(panel.getByRole('button', { name: /^Fix / })).toHaveCount(0);
 
 		expectCleanConsole(app);
 	} finally {

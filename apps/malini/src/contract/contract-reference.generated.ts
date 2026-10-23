@@ -35,6 +35,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'interface SessionRenamedPayload {\n\tworkstreamId: string;\n\tsessionId: string;\n\tname: string;\n}',
 		},
 		{
+			channel: 'chat:mcp-server-changed',
+			description:
+				'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',
+			payloadType: 'McpServerReport',
+			payload:
+				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;',
+		},
+		{
 			channel: 'repositories:workstream-created',
 			description:
 				'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.',

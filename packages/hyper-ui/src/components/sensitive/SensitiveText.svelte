@@ -11,6 +11,9 @@
 	const segments = $derived(sensitiveSegments(text));
 </script>
 
-{#each segments as segment}{#if segment.kind}<Sensitive kind={segment.kind} {interactive}>
-			{segment.text}
-		</Sensitive>{:else}{segment.text}{/if}{/each}
+{#each segments as segment}{#if segment.kind}<Sensitive
+			kind={segment.kind}
+			text={segment.text}
+			masked={segment.masked}
+			{interactive}
+		/>{:else}{segment.text}{/if}{/each}

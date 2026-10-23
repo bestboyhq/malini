@@ -4,6 +4,7 @@ export { sensitiveMasking } from './sensitive-masking.svelte';
 export { maskSensitiveHtml, maskSensitiveText, revealSensitiveTarget } from './sensitive-dom';
 export {
 	hasSensitiveText,
+	maskSensitive,
 	sensitiveSegments,
 	sensitiveSegmentsAcross,
 	type SensitiveKind,

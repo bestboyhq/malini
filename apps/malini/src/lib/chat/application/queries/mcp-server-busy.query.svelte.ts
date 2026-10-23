@@ -1,4 +1,4 @@
-import type { SessionId } from '$lib/chat/domain/session';
+import type { McpServerTarget } from '$contract/mcp-servers';
 import {
 	mcpServerActionsStore,
 	mcpServerKey,
@@ -7,9 +7,9 @@ import {
 export { mcpServerBusyQuery };
 
 class McpServerBusyQuery {
-	public readonly data: (sessionId: SessionId, serverName: string) => boolean = $derived(
-		(sessionId: SessionId, serverName: string) =>
-			mcpServerActionsStore.busy.has(mcpServerKey(sessionId, serverName)),
+	public readonly data: (target: McpServerTarget, serverName: string) => boolean = $derived(
+		(target: McpServerTarget, serverName: string) =>
+			mcpServerActionsStore.busy.has(mcpServerKey(target, serverName)),
 	);
 }
 

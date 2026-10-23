@@ -937,31 +937,39 @@ const respond = async (sessionId, runId, prompt) => {
 					: '',
 	);
 };
-const mcpServers = new Map();
-const mcpOf = (sessionId) => {
-	if (!mcpServers.has(sessionId)) {
-		mcpServers.set(
-			sessionId,
-			env.FAKE_BRIDGE_MCP_SERVERS
-				? JSON.parse(env.FAKE_BRIDGE_MCP_SERVERS)
-				: [{ name: 'fs', status: 'connected' }],
+let mcpServers = env.FAKE_BRIDGE_MCP_SERVERS
+	? JSON.parse(env.FAKE_BRIDGE_MCP_SERVERS)
+	: [{ name: 'fs', status: 'connected', source: 'user', toolCount: 3 }];
+const deniedMcpServers = () => {
+	try {
+		const settings = JSON.parse(
+			fs.readFileSync(nodePath.join(env.HOME, '.claude', 'settings.json'), 'utf8'),
 		);
+		return (settings.deniedMcpServers || []).map((entry) => entry.serverName);
+	} catch {
+		return [];
 	}
-	return mcpServers.get(sessionId);
 };
 const reportMcp = (sessionId) => {
 	const runId = lastRuns.get(sessionId);
-	if (runId) event({ type: 'mcp.status', runId, servers: mcpOf(sessionId) });
+	if (runId) event({ type: 'mcp.status', runId, servers: mcpServers });
 };
-const connectMcp = (sessionId, serverName) => {
-	mcpServers.set(
-		sessionId,
-		mcpOf(sessionId).map((server) =>
-			server.name === serverName ? { name: serverName, status: 'connected' } : server,
-		),
-	);
-	reportMcp(sessionId);
+const stuckMcpServers = env.FAKE_BRIDGE_MCP_STUCK ? JSON.parse(env.FAKE_BRIDGE_MCP_STUCK) : [];
+const connectMcp = (serverName) => {
+	const stuck = stuckMcpServers.includes(serverName);
+	mcpServers = mcpServers.map((server) => {
+		if (server.name !== serverName) return server;
+		const { error: _error, ...rest } = server;
+		return stuck
+			? { ...rest, status: 'failed', error: 'Connection closed' }
+			: { ...rest, status: 'connected', toolCount: 2 };
+	});
+	const changed = mcpServers.find((server) => server.name === serverName);
+	for (const sessionId of lastRuns.keys()) reportMcp(sessionId);
+	if (changed) write({ type: 'bridge.mcp_server', protocolVersion: version, server: changed });
 };
+const mcpSignInDelayMs = Number(env.FAKE_BRIDGE_MCP_SIGN_IN_DELAY_MS || 300);
+const mcpSignIns = new Map();
 const handle = (command) => {
 	switch (command.cmd) {
 		case 'start_session':
@@ -1108,11 +1116,30 @@ const handle = (command) => {
 				authUrl: 'https://auth.example.test/' + command.serverName,
 			});
 			ack(command.id);
-			setTimeout(() => connectMcp(command.sessionId, command.serverName), 300);
+			clearTimeout(mcpSignIns.get(command.serverName));
+			mcpSignIns.set(
+				command.serverName,
+				setTimeout(() => connectMcp(command.serverName), mcpSignInDelayMs),
+			);
 			return;
 		}
+		case 'cancel_mcp_authorization': {
+			clearTimeout(mcpSignIns.get(command.serverName));
+			mcpSignIns.delete(command.serverName);
+			return ack(command.id);
+		}
 		case 'reconnect_mcp_server': {
-			connectMcp(command.sessionId, command.serverName);
+			connectMcp(command.serverName);
+			return ack(command.id);
+		}
+		case 'list_mcp_servers': {
+			const denied = deniedMcpServers();
+			write({
+				type: 'bridge.mcp_servers',
+				protocolVersion: version,
+				id: command.id,
+				servers: mcpServers.filter((server) => !denied.includes(server.name)),
+			});
 			return ack(command.id);
 		}
 		case 'list_skills': {
