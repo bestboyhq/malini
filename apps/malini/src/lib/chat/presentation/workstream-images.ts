@@ -62,6 +62,10 @@ export const GALLERY_IMAGE_ATTRIBUTE = 'data-gallery-image';
 
 export type GalleryMedia = 'image' | 'video';
 
+export function galleryImageId(src: string): string {
+	return workstreamImagePath(src) ?? src;
+}
+
 export function galleryImageLabel(name: string, media: GalleryMedia = 'image'): string {
 	return `Open ${media} ${name} in gallery`;
 }

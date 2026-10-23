@@ -71,13 +71,15 @@ What the agent left for later, or would do next, sits at the bottom of the repor
 When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture.
 **Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
 Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, and press Escape to zoom back out.
+The expand button opens the picture you see in the gallery.
 Recordings play side by side on one timeline: step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
 
 ### Variants
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
+A large preview shows the one you select, and it stays after you pick; click it to open it in the gallery.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
-Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions.
+Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
@@ -86,6 +88,7 @@ Once you pick one, the agent builds it into the real thing and removes what it r
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
 - Click an image, GIF, or video in a chat to open the gallery: videos play there with their controls, and every image and video of the chat sits in its strip.
+  Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
