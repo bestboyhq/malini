@@ -40,6 +40,14 @@ import type {
 	SaveJobDefinitionArgs,
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
+import type {
+	ListMcpServersArgs,
+	McpAuthorization,
+	McpServerArgs,
+	McpServerList,
+	McpServerNameArgs,
+	SwitchMcpServerArgs,
+} from './mcp-servers';
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
@@ -110,10 +118,6 @@ export type WorkstreamIdArgs = Readonly<{ workstreamId: string }>;
 export type RepositoryBaseFilesArgs = Readonly<{ repoPath: string; baseBranch: string }>;
 
 export type SessionIdArgs = Readonly<{ sessionId: string }>;
-
-export type McpServerArgs = Readonly<{ sessionId: string; serverName: string }>;
-
-export type McpAuthorization = Readonly<{ authUrl: string | null }>;
 
 export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string | null }>;
 
@@ -542,6 +546,10 @@ export interface ContractCommands {
 	'chat.refresh-session-status': { args: SessionIdArgs; result: void };
 	'chat.authorize-mcp-server': { args: McpServerArgs; result: McpAuthorization };
 	'chat.reconnect-mcp-server': { args: McpServerArgs; result: void };
+	'chat.list-mcp-servers': { args: ListMcpServersArgs; result: McpServerList };
+	'chat.turned-off-mcp-servers': { args: undefined; result: readonly string[] };
+	'chat.switch-mcp-server': { args: SwitchMcpServerArgs; result: readonly string[] };
+	'chat.cancel-mcp-sign-in': { args: McpServerNameArgs; result: void };
 	'repositories.release-owned-docker-container': { args: ReleaseOwnedContainerArgs; result: void };
 	'repositories.remove': { args: RepositoryIdArgs; result: void };
 	'chat.remove-staged-attachment': { args: StagedAttachmentArgs; result: void };
@@ -772,6 +780,10 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.refresh-session-status',
 	'chat.authorize-mcp-server',
 	'chat.reconnect-mcp-server',
+	'chat.list-mcp-servers',
+	'chat.turned-off-mcp-servers',
+	'chat.switch-mcp-server',
+	'chat.cancel-mcp-sign-in',
 	'repositories.release-owned-docker-container',
 	'repositories.remove',
 	'chat.remove-staged-attachment',

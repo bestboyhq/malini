@@ -18,6 +18,7 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { defineMcpServerCommands } from './mcp-servers';
 import { getSession } from './sessions.repository';
 
 export interface ChatDeps {
@@ -25,6 +26,7 @@ export interface ChatDeps {
 	readonly leases: AgentRunLeases;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
+	readonly claudeSettings: () => string;
 	readonly picker?: FilePicker;
 	readonly browser?: BrowserAutomation;
 	readonly processFactory?: BridgeProcessFactory;
@@ -89,6 +91,12 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.browser ? { browser: deps.browser } : {}),
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
+	});
+
+	defineMcpServerCommands(context.commands, {
+		runtime: agent.runtime,
+		claudeSettings: deps.claudeSettings,
+		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
 	});
 
 	return {

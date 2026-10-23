@@ -4,7 +4,7 @@
 	import { page } from '$shared/router/state';
 	import Router from '$shared/router/Router.svelte';
 	import { router } from '$shared/router/hash-router.svelte';
-	import { ChatLifecycleMonitor } from '$lib/chat/chat.api';
+	import { ChatLifecycleMonitor, McpFixDialog } from '$lib/chat/chat.api';
 	import { ExtensionRuntimeHost } from '$lib/extensions/extensions.api';
 	import { JobCenter } from '$lib/jobs/jobs.api';
 	import { JOBS_HREF } from '$shared/router/routes-hrefs';
@@ -52,6 +52,8 @@
 <CloseConfirmationDialog />
 
 <SettingsModal />
+
+<McpFixDialog />
 
 {#if !page.params.workstreamId && !page.url.pathname.startsWith(JOBS_HREF)}
 	<JobCenter />

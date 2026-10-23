@@ -16,6 +16,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	'chat:session-renamed': {
 		description: 'Fires when a chat gets a new name, from the user or from the Name chats job.',
 	},
+	'chat:mcp-server-changed': {
+		description:
+			'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',
+	},
 	'repositories:workstream-created': {
 		description:
 			'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.',

@@ -20,6 +20,8 @@ export const MODEL_SETTINGS_HREF = '/settings/models';
 
 export const SKILL_SETTINGS_HREF = '/settings/skills';
 
+export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
+
 export function jobHref(definitionId: string): string {
 	return `/jobs/${encodeURIComponent(definitionId)}`;
 }

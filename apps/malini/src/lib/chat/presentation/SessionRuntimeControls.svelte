@@ -5,6 +5,10 @@
 	import { liveContextUsageQuery } from '$lib/chat/application/queries/live-context-usage.query.svelte';
 	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
 	import { refreshSessionStatusCommand } from '$lib/chat/application/commands/refresh-session-status.command';
+	import { loadTurnedOffMcpServersCommand } from '$lib/chat/application/commands/load-turned-off-mcp-servers.command';
+	import { turnedOffMcpServersQuery } from '$lib/chat/application/queries/turned-off-mcp-servers.query.svelte';
+	import { groupMcpServers, needsYouCount } from '$lib/chat/domain/mcp-server';
+	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -17,20 +21,20 @@
 		contextUnavailableMessage,
 		contextUsagePercent,
 		contextWindowUnknownMessage,
-		mcpUnavailableMessage,
 		usagePressure,
 		withLiveContext,
 		type ContextPressure,
 	} from './session-runtime-metadata';
-	import McpServerRow from './McpServerRow.svelte';
+	import McpStatusPanel from './McpStatusPanel.svelte';
 	import { TranscriptFactsProjector } from './transcript-facts';
 
 	interface Props {
 		envelopes: readonly EventEnvelope[];
 		sessionId?: SessionId | null;
+		workstreamId?: string | null;
 	}
 
-	let { envelopes, sessionId = null }: Props = $props();
+	let { envelopes, sessionId = null, workstreamId = null }: Props = $props();
 	let contextOpen = $state(false);
 	let mcpOpen = $state(false);
 	let nowMs = $state(Date.now());
@@ -65,11 +69,12 @@
 	const GAUGE_RADIUS = 5.75;
 	const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS;
 	const gaugeDashOffset = $derived(GAUGE_CIRCUMFERENCE * (1 - (contextPercent ?? 0) / 100));
+	const turnedOffMcpServers = $derived(turnedOffMcpServersQuery.data);
 	const unhealthyMcpCount = $derived(
-		metadata.mcpServers?.filter(
-			(server) => server.status === 'failed' || server.status === 'needs-auth',
-		).length ?? 0,
+		needsYouCount(groupMcpServers(metadata.mcpServers ?? [], turnedOffMcpServers)),
 	);
+
+	onMount(loadTurnedOffMcpServersCommand);
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), 60_000);
@@ -88,6 +93,7 @@
 		mcpOpen = next;
 		if (!next) return;
 		contextOpen = false;
+		loadTurnedOffMcpServersCommand();
 		if (sessionId) refreshSessionStatusCommand(sessionId);
 	}
 
@@ -346,7 +352,7 @@
 		onopenchange={onMcpOpenChange}
 		testId="session-mcp-hovercard"
 		owner="chat-composer"
-		panelClass="w-72 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
+		panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 	>
 		{#snippet trigger({ open })}
 			<IconButton
@@ -377,22 +383,7 @@
 				aria-label="MCP server status"
 				data-testid="session-mcp-status-panel"
 			>
-				<h3 class="text-fg-default text-sm font-medium">MCPs</h3>
-				{#if metadata.mcpServers === null}
-					<p class="text-fg-tertiary mt-2 text-xs leading-5">{mcpUnavailableMessage()}</p>
-				{:else if metadata.mcpServers.length === 0}
-					<p class="text-fg-secondary mt-2 text-xs leading-5">No MCP servers configured</p>
-					<p class="text-2xs text-fg-tertiary mt-0.5 leading-5">
-						MCP servers give the agent extra tools. Declare them in this repository's MCP config and
-						the agent picks them up on the next run.
-					</p>
-				{:else}
-					<ul class="mt-2 space-y-0.5">
-						{#each metadata.mcpServers as server (server.name)}
-							<McpServerRow {server} {sessionId} />
-						{/each}
-					</ul>
-				{/if}
+				<McpStatusPanel servers={metadata.mcpServers} {sessionId} {workstreamId} />
 			</div>
 		{/snippet}
 	</HoverCard>

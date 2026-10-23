@@ -36,7 +36,7 @@ function harness(
 		readonly context?: Partial<ProviderContext>;
 		readonly executable?: string | null;
 		readonly onEvent?: (event: AgentEvent, session: ClaudeSession) => void;
-		readonly mcpServerStatus?: () => readonly Pick<McpServerStatus, 'name' | 'status'>[];
+		readonly mcpServerStatus?: () => readonly McpServerStatus[];
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
@@ -556,6 +556,71 @@ describe('ClaudeSession', () => {
 			},
 			interim: true,
 		});
+	});
+
+	it('reports where each MCP server comes from and how many tools it brings', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, events } = harness(
+			[[...script, 'wait-for-prompt', ...script, 'wait-for-prompt']],
+			{
+				mcpServerStatus: () => [
+					{
+						name: 'plugin:svelte:svelte',
+						status: 'connected',
+						source: 'plugin',
+						scope: 'dynamic',
+						tools: [{ name: 'get-documentation' }, { name: 'list-sections' }],
+					},
+					{ name: 'codebase-memory-mcp', status: 'connected', scope: 'user', tools: [] },
+				],
+			},
+		);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.sendPrompt('And again', 'run-2', profile());
+		const fromInit = ofType(events, 'mcp.status').at(-1);
+		await session.refreshSessionStatus();
+
+		expect(fromInit).toEqual({
+			type: 'mcp.status',
+			runId: 'run-2',
+			servers: [
+				{ name: 'plugin:svelte:svelte', status: 'pending', source: 'plugin' },
+				{ name: 'codebase-memory-mcp', status: 'connected', source: 'user', toolCount: 0 },
+			],
+		});
+		expect(ofType(events, 'mcp.status').at(-1)).toEqual({
+			type: 'mcp.status',
+			runId: 'run-2',
+			servers: [
+				{ name: 'plugin:svelte:svelte', status: 'connected', source: 'plugin', toolCount: 2 },
+				{ name: 'codebase-memory-mcp', status: 'connected', source: 'user', toolCount: 0 },
+			],
+		});
+	});
+
+	it('marks a server another Claude Code connected in the report of a chat at rest', async () => {
+		const { session, events } = harness([recordedScript('readAndBash')]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await session.adoptMcpServer({ name: 'linear', status: 'connected' });
+		await session.adoptMcpServer({
+			name: 'plugin:svelte:svelte',
+			status: 'connected',
+			source: 'plugin',
+			toolCount: 2,
+		});
+
+		expect(ofType(events, 'mcp.status').map(({ servers }) => servers)).toEqual([
+			[
+				{ name: 'plugin:svelte:svelte', status: 'pending' },
+				{ name: 'codebase-memory-mcp', status: 'connected' },
+			],
+			[
+				{ name: 'plugin:svelte:svelte', status: 'connected', source: 'plugin', toolCount: 2 },
+				{ name: 'codebase-memory-mcp', status: 'connected' },
+			],
+		]);
 	});
 
 	it('switches to accept-edits when Claude Code cannot run in auto mode', async () => {
