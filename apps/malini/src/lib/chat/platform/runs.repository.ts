@@ -137,6 +137,20 @@ export function getRunWorkstreamId(db: MaliniDatabase, runId: string): string | 
 	);
 }
 
+export function recordOpenTurnReply(db: MaliniDatabase, runId: string, reply: string | null): void {
+	run(db, 'UPDATE agent_runs SET summary = ? WHERE id = ? AND completed_at IS NULL', reply, runId);
+}
+
+export function openTurnReply(db: MaliniDatabase, runId: string): string | null {
+	return (
+		get<{ summary: string | null }>(
+			db,
+			'SELECT summary FROM agent_runs WHERE id = ? AND completed_at IS NULL',
+			runId,
+		)?.summary ?? null
+	);
+}
+
 export function finalizeRunLifecycle(
 	db: MaliniDatabase,
 	sessionId: string,

@@ -33,7 +33,7 @@
 		class={[
 			'group/tile bg-surface-root hover:bg-surface-root-hover border-border-default flex flex-1 flex-col items-start gap-6 rounded-[18px] border-[0.5px] p-4 text-left',
 			'focus-visible:ring-border-default outline-0 focus-visible:ring-2',
-			'transition-[scale,opacity] duration-150 ease-out active:scale-[0.985] disabled:opacity-60 motion-reduce:transition-none',
+			'transition-[scale,opacity] duration-150 ease-out active:scale-[0.985] disabled:not-aria-busy:opacity-60 aria-busy:cursor-progress motion-reduce:transition-none',
 		]}
 		data-testid={testId}
 		{onclick}
@@ -60,7 +60,7 @@
 		{@render tile(
 			'folder-open',
 			'Open a folder',
-			'A git repository on this Mac',
+			connecting === 'folder' ? 'Opening…' : 'A git repository on this Mac',
 			connecting === 'folder',
 			openRepositoryFolderCommand,
 			'repository-open-folder',
@@ -69,7 +69,7 @@
 		{@render tile(
 			'link',
 			'Clone a repository',
-			'From GitHub, or any URL git can clone',
+			connecting === 'clone' ? 'Cloning…' : 'From GitHub, or any URL git can clone',
 			connecting === 'clone',
 			() => (cloneDialogOpen = true),
 			'repository-clone-open',

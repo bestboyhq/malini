@@ -211,17 +211,18 @@ export type ProviderResumePoint =
 	{ readonly resumeAt: string } | { readonly freshConversation: true } | Record<string, never>;
 
 export function providerResumePoint(db: MaliniDatabase, sessionId: string): ProviderResumePoint {
-	const terminalEvents = all<{ event: string; obsoleted: number }>(
+	const resumePoints = all<{ event: string; obsoleted: number }>(
 		db,
 		`SELECT e.event, r.obsoleted_at IS NOT NULL AS obsoleted FROM agent_events e
 		 JOIN agent_runs r ON r.id = e.run_id AND r.session_id = e.session_id
 		 WHERE e.session_id = ?
-		   AND (e.event LIKE 'run.completed' || char(10) || '%' OR e.event LIKE 'run.failed' || char(10) || '%')
+		   AND (e.event LIKE 'run.completed' || char(10) || '%' OR e.event LIKE 'run.failed' || char(10) || '%'
+		     OR e.event LIKE 'background.updated' || char(10) || '%')
 		 ORDER BY e.seq DESC`,
 		sessionId,
 	);
 	let undoneCursor = false;
-	for (const row of terminalEvents) {
+	for (const row of resumePoints) {
 		const { payload } = eventFromBlob(row.event);
 		const cursor = isRecord(payload) ? payload['providerCursor'] : undefined;
 		if (typeof cursor !== 'string' || cursor.length === 0) continue;

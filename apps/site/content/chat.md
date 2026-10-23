@@ -16,6 +16,8 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
+A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
+Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
 ## Run a command from the chat
 
@@ -44,7 +46,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 - **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else.
 - **Full access** never asks.
 
-When the agent asks, approve once, or always for the chat or the workstream.
+When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+**Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
 ## Reports
 
@@ -70,6 +73,8 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 When you ask for options, or the direction is open, the agent makes two to four variants.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions.
+Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
+Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
 ## Context
 
@@ -81,7 +86,6 @@ Every pick stays in the chat as a step, with what lost and why, and the pull req
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers, read live from the chat's Claude Code.
-- An MCP server that needs you shows its fix in that list: **Sign in** opens the server's sign-in page in your browser, **Retry** reconnects one that failed, and its row shows a check once it connects.
 
 ## Undo, edit, fork
 
@@ -95,9 +99,24 @@ A chat loads every Claude Code skill that is on.
 Settings, Skills ranks your skills and plugins by how often Claude Code used them, and turns them off in Claude Code's own settings.
 A [job](/malini/docs/jobs.md) can name the skills it loads.
 
+## MCP servers
+
+The plug in the composer lists the chat's MCP servers by what fixes them: servers to sign in to, claude.ai connectors to reconnect on claude.ai, servers that failed, and duplicates of a server that already connects.
+Servers that work fold into **Ready**, and servers you turned off into **Off**.
+When two servers share a name, each shows where it comes from, such as claude.ai or the plugin that ships it.
+
+- **Sign in** opens the server's sign-in page in your browser.
+  Once it connects, every open chat reconnects it.
+- **Retry** reconnects a server that failed; its error shows under its name.
+- **Fix** walks every server that needs you, one at a time: it opens the next sign-in page as soon as the last one connects, retries the failed ones, and lets you skip a server or turn it off.
+- **Turn off** adds the server to `deniedMcpServers` in your Claude Code settings, so it leaves every chat, here and in the terminal.
+
+Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
+Filter it to the servers that need you or the ones that are off, sign in or retry from there, and switch any server on or off.
+
 ## Tools
 
-In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs, routines, and events.
+In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs and events.
 See [Agent tools](/malini/docs/agent-tools.md).
 
 ## Keys

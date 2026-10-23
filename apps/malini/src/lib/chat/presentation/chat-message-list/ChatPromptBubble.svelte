@@ -226,6 +226,7 @@
 							<SessionRuntimeControls
 								envelopes={controls.envelopes}
 								sessionId={transcript.sessionId}
+								workstreamId={transcript.workstreamId}
 							/>
 						{/if}
 						{#if checkpointEdit.isArmed(item)}

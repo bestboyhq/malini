@@ -3,7 +3,6 @@ import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigat
 
 import { extensionWorkstreamFingerprint } from '../../domain/extension-workstream-fingerprint';
 import { extensionRuntimeStore } from '../../infrastructure/stores/extension-runtime.store.svelte';
-import { publishAutomationRunOptionsCommand } from './publish-automation-run-options.command';
 
 export function warmExtensionRuntimeCommand(workstream: ExtensionWorkstream): void {
 	const service = extensionRuntimeStore.service;
@@ -37,7 +36,6 @@ export function warmExtensionRuntimeCommand(workstream: ExtensionWorkstream): vo
 			}
 			extensionRuntimeStore.workstreamRevision += 1;
 			extensionRuntimeStore.ready = true;
-			publishAutomationRunOptionsCommand();
 		})();
 	});
 	extensionRuntimeStore.registerTeardown(cancelWarm);

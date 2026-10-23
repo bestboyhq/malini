@@ -1,7 +1,7 @@
 class JobActionsStore {
 	busyIds = $state.raw<ReadonlySet<string>>(new Set());
 	errors = $state.raw<Readonly<Record<string, string>>>({});
-	saves = $state<number>(0);
+	completions = $state.raw<Readonly<Record<string, number>>>({});
 
 	isBusy(id: string): boolean {
 		return this.busyIds.has(id);
@@ -11,8 +11,8 @@ class JobActionsStore {
 		return this.errors[id] ?? null;
 	}
 
-	noteSaved(): void {
-		this.saves += 1;
+	completedFor(id: string): number {
+		return this.completions[id] ?? 0;
 	}
 
 	async run(id: string, action: () => Promise<void>): Promise<void> {
@@ -21,6 +21,7 @@ class JobActionsStore {
 		this.#clearError(id);
 		try {
 			await action();
+			this.completions = { ...this.completions, [id]: this.completedFor(id) + 1 };
 		} catch (error) {
 			this.errors = {
 				...this.errors,
@@ -34,7 +35,7 @@ class JobActionsStore {
 	reset(): void {
 		this.busyIds = new Set();
 		this.errors = {};
-		this.saves = 0;
+		this.completions = {};
 	}
 
 	#setBusy(id: string, busy: boolean): void {
@@ -53,3 +54,9 @@ class JobActionsStore {
 export const jobActionsStore = new JobActionsStore();
 
 export const JOB_FORM_ACTION_ID = 'jobs.form';
+
+export const NEW_JOB_ACTION_ID = 'jobs.new';
+
+export function jobSettingsActionId(jobId: string): string {
+	return `jobs.settings:${jobId}`;
+}

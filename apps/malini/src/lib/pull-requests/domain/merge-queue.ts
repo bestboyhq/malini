@@ -130,11 +130,13 @@ const CHECKS_RERUN_GRACE_MS = 60_000;
 const JOB_STEPS: Readonly<Record<ShippingJobBuiltin, ShipStep>> = {
 	'fix-checks': 'fixing-checks',
 	'update-from-main': 'updating-from-main',
+	'resolve-conflicts': 'resolving-conflicts',
 	'address-review': 'addressing-review',
 };
 const JOB_LABELS: Readonly<Record<ShippingJobBuiltin, string>> = {
 	'fix-checks': 'Fixing the checks',
 	'update-from-main': 'Updating from main',
+	'resolve-conflicts': 'Resolving conflicts',
 	'address-review': 'Addressing the review',
 };
 
@@ -148,6 +150,10 @@ export function nextMergeQueueMove(snapshot: MergeQueueSnapshot): MergeQueueMove
 
 export function jobIsActive(job: MergeQueueJob | null): boolean {
 	return job !== null && ACTIVE_JOB_STATUSES.has(job.status);
+}
+
+export function isUpdateJob(builtin: ShippingJobBuiltin | null): boolean {
+	return builtin === 'update-from-main' || builtin === 'resolve-conflicts';
 }
 
 export function jobStep(builtin: ShippingJobBuiltin | null): ShipStep {
@@ -261,11 +267,9 @@ function workingMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
 	}
 	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
 	const operation = worktree.operationInProgress;
-	if (operation === 'merge' && snapshot.lastJobBuiltin === 'update-from-main') {
+	if (operation === 'merge' && isUpdateJob(snapshot.lastJobBuiltin)) {
 		if (worktree.conflictedPaths.length > 0 && !conflictsResolved(snapshot)) {
-			return withoutNeedsYou(
-				fixJob(snapshot, 'update-from-main', signature('conflicts', worktree.conflictedPaths)),
-			);
+			return withoutNeedsYou(resolveConflictsMove(snapshot));
 		}
 		return saveMove(snapshot);
 	}
@@ -343,7 +347,7 @@ function queuedMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
 		worktree.conflictedPaths.length > 0 &&
 		!conflictsResolved(snapshot)
 	) {
-		return fixJob(snapshot, 'update-from-main', signature('conflicts', worktree.conflictedPaths));
+		return resolveConflictsMove(snapshot);
 	}
 	if (snapshot.pullRequestNumber === null) return { kind: 'open-draft' };
 	if (operation === 'merge' || hasUnpushedWork(worktree)) return { kind: 'push' };
@@ -512,9 +516,18 @@ function signature(kind: string, parts: readonly string[]): string {
 	return `${kind}:${JSON.stringify([...new Set(parts)].sort())}`;
 }
 
+function resolveConflictsMove(snapshot: MergeQueueSnapshot): MergeQueueMove {
+	return fixJob(
+		snapshot,
+		'resolve-conflicts',
+		signature('conflicts', snapshot.worktree.conflictedPaths),
+	);
+}
+
 function conflictsResolved(snapshot: MergeQueueSnapshot): boolean {
 	return (
-		snapshot.settledJob === 'update-from-main' && snapshot.worktree.conflictMarkerPaths.length === 0
+		snapshot.settledJob === 'resolve-conflicts' &&
+		snapshot.worktree.conflictMarkerPaths.length === 0
 	);
 }
 

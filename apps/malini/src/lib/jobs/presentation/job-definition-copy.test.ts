@@ -9,14 +9,15 @@ describe('job definition copy', () => {
 	});
 
 	it('says what starts a built-in job, and where your own job runs', () => {
-		expect(jobWhen({ runsIn: 'workstream', builtin: 'name-chats' })).toBe(
-			'Your first message in a chat',
-		);
+		expect(jobWhen({ runsIn: 'workstream', builtin: 'name-chats' })).toBe('You start a chat');
 		expect(jobWhen({ runsIn: 'workstream', builtin: 'name-services' })).toBe(
-			'A command an agent leaves running',
+			'An agent leaves a command running',
 		);
 		expect(jobWhen({ runsIn: 'new-workstream', builtin: null })).toBe(
 			'When you run it, in a new workstream',
+		);
+		expect(jobWhen({ runsIn: 'workstream', builtin: 'merge' })).toBe(
+			'When you run it, or after another job',
 		);
 	});
 });

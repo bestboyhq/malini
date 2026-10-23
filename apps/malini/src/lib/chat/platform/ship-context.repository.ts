@@ -19,7 +19,7 @@ const VALIDATION_EVENT_LIMIT = 12;
 
 const WORKSTREAM_RUNS = `agent_runs r JOIN agent_sessions s ON s.id = r.session_id
 	WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`;
-const COMPLETED = 'r.completed_at IS NOT NULL AND r.error IS NULL AND r.summary IS NOT NULL';
+const REPLIED = 'r.error IS NULL AND r.summary IS NOT NULL';
 
 export function workstreamShipContext(
 	db: MaliniDatabase,
@@ -43,13 +43,13 @@ export function workstreamShipContext(
 	)?.prompt;
 	const lastUserIntent =
 		lastPrompt === undefined ? '' : promptPlainText(lastPrompt).replace(/\s+/gu, ' ').trim();
-	const completed = all<{ id: string; summary: string }>(
+	const replied = all<{ id: string; summary: string }>(
 		db,
-		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND ${COMPLETED}
+		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND ${REPLIED}
 		 ORDER BY r.rowid ASC`,
 		workstreamId,
 	);
-	const described = completed
+	const described = replied
 		.map(({ id, summary }) => ({ id, summary: commitLineOrSummary(summary) }))
 		.filter(({ summary }) => summary);
 	const runSummaries = takeLastUnique(
@@ -59,7 +59,7 @@ export function workstreamShipContext(
 	const latestRunId = described.at(-1)?.id;
 	const pullRequestTitle = all<{ summary: string }>(
 		db,
-		`SELECT r.summary FROM ${WORKSTREAM_RUNS} AND ${COMPLETED} ORDER BY r.rowid ASC`,
+		`SELECT r.summary FROM ${WORKSTREAM_RUNS} AND ${REPLIED} ORDER BY r.rowid ASC`,
 		workstreamId,
 	)
 		.map(({ summary }) => pullRequestTitleLine(summary))
@@ -68,14 +68,14 @@ export function workstreamShipContext(
 	const decisions = variantDecisions(
 		all<{ prompt: string; summary: string | null }>(
 			db,
-			`SELECT r.prompt, CASE WHEN ${COMPLETED} THEN r.summary END AS summary
+			`SELECT r.prompt, CASE WHEN ${REPLIED} THEN r.summary END AS summary
 			 FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' ORDER BY r.rowid ASC`,
 			workstreamId,
 		).map(({ prompt, summary }) => ({ prompt: promptPlainText(prompt), summary })),
 	);
 	const events = validationEvents(
 		db,
-		completed.slice(-RUN_SUMMARY_LIMIT).map(({ id }) => id),
+		replied.slice(-RUN_SUMMARY_LIMIT).map(({ id }) => id),
 	);
 	return {
 		...(sessionTitle ? { sessionTitle } : {}),

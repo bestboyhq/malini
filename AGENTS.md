@@ -8,7 +8,7 @@ There is no backend service and no cloud.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0043).
 The app makes two outbound calls of its own.
-Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0050).
+Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Everything else on GitHub is reached through the `gh` CLI.
@@ -59,8 +59,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain    |
 | `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints    |
 | `pull-requests`        | pull request state, open draft, merge queue, top-bar status           |
-| `jobs`                 | job definitions, job runs and their scheduler, Jobs page, Job center  |
-| `routines`             | triggers that run job steps in order, suggestions, gated runs         |
+| `jobs`                 | jobs, their triggers and Thens, job runs and their runner, Jobs page  |
 | `skills`               | skill usage and on/off switches in Claude settings, a job's skills    |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
 | `browser`              | browser tabs in the inspector and the agent's browser tools           |

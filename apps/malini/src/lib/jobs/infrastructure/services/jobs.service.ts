@@ -2,6 +2,7 @@ import type { CommandArgs, CommandName, CommandResult } from '$contract/commands
 import type {
 	JobDefinitionRecord,
 	JobRunRecord,
+	JobSuggestionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 } from '$contract/jobs';
@@ -37,8 +38,24 @@ class JobsService {
 		return this.#invoke('jobs.run', args);
 	}
 
+	confirmRun(jobRunId: string): Promise<JobRunRecord> {
+		return this.#invoke('jobs.confirm-run', { jobRunId });
+	}
+
 	cancelRun(jobRunId: string): Promise<JobRunRecord> {
 		return this.#invoke('jobs.cancel-run', { jobRunId });
+	}
+
+	listSuggestions(): Promise<JobSuggestionRecord[]> {
+		return this.#invoke('jobs.list-suggestions', undefined);
+	}
+
+	acceptSuggestion(suggestionId: string): Promise<JobDefinitionRecord> {
+		return this.#invoke('jobs.accept-suggestion', { suggestionId });
+	}
+
+	dismissSuggestion(suggestionId: string): Promise<JobSuggestionRecord> {
+		return this.#invoke('jobs.dismiss-suggestion', { suggestionId });
 	}
 
 	async #invoke<Name extends CommandName>(

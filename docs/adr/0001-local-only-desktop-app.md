@@ -1,6 +1,6 @@
 # 0001 - A local-only desktop app
 
-Status: superseded by 0050
+Status: superseded by 0058
 
 ## Context
 

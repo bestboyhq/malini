@@ -7,6 +7,8 @@ import {
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
 	bridgeMcpAuthorizationFrame,
+	bridgeMcpServerFrame,
+	bridgeMcpServersFrame,
 	bridgePlatformRequestFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
@@ -16,6 +18,8 @@ import {
 	type AgentCommand,
 	type AgentSkill,
 	type BridgeControlFrame,
+	type CancelMcpAuthorizationCommand,
+	type ListMcpServersCommand,
 	type ListSkillsCommand,
 	type McpServerCommand,
 	type SuggestTitleCommand,
@@ -28,6 +32,7 @@ import {
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { registerClaudeProvider } from './claude/index.js';
+import { claudeMcpServers, type McpServerProbes } from './claude/mcp-servers.js';
 import { listClaudeSkills } from './claude/skills.js';
 import { suggestClaudeTitle, type TitleJob } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
@@ -36,7 +41,7 @@ import { SessionManager, UnknownSessionError } from './session-manager.js';
 import { defaultProviderRegistry } from './providers/registry.js';
 import type { ProviderContext, ProviderHandle } from './providers/types.js';
 import { ProviderInteractionError } from './provider-interactions.js';
-import type { AgentEvent } from './types.js';
+import type { AgentEvent, McpServerReport } from './types.js';
 
 export interface OutputSink {
 	write(chunk: string): boolean;
@@ -52,6 +57,7 @@ export interface RunOptions {
 	capabilityProbe?: () => Promise<ProviderCapability>;
 	suggestTitle?: (task: string, job: TitleJob) => Promise<string>;
 	listSkills?: (cwd: string, turnedOff?: TurnedOffSkills) => Promise<readonly AgentSkill[]>;
+	mcpServers?: McpServerProbes;
 	closeSessionTimeoutMs?: number;
 	requestTimeoutMs?: number;
 }
@@ -167,9 +173,19 @@ function sanitizeControlFrameErrors(frame: BridgeControlFrame): BridgeControlFra
 				: { ...frame, error: sanitizePublicError(frame.error) };
 		case 'bridge.protocol_error':
 			return { ...frame, message: sanitizePublicError(frame.message) };
+		case 'bridge.mcp_server':
+			return { ...frame, server: sanitizeMcpServer(frame.server) };
+		case 'bridge.mcp_servers':
+			return { ...frame, servers: frame.servers.map(sanitizeMcpServer) };
 		default:
 			return frame;
 	}
+}
+
+function sanitizeMcpServer(server: McpServerReport): McpServerReport {
+	return server.error === undefined
+		? server
+		: { ...server, error: sanitizePublicError(server.error) };
 }
 
 function sanitizeEventErrors(event: AgentEvent): AgentEvent {
@@ -178,14 +194,7 @@ function sanitizeEventErrors(event: AgentEvent): AgentEvent {
 		case 'tool.failed':
 			return { ...event, error: sanitizePublicError(event.error) };
 		case 'mcp.status':
-			return {
-				...event,
-				servers: event.servers.map((server) =>
-					server.error === undefined
-						? server
-						: { ...server, error: sanitizePublicError(server.error) },
-				),
-			};
+			return { ...event, servers: event.servers.map(sanitizeMcpServer) };
 		default:
 			return event;
 	}
@@ -204,6 +213,9 @@ async function resolveProviderCapabilities(
 export function createIpc(options: RunOptions = {}): IpcBundle {
 	const manager = new SessionManager();
 	const handles = new Map<string, ProviderHandle>();
+	const sessionFolders = new Map<string, string>();
+	const mcpServers = options.mcpServers ?? claudeMcpServers;
+	const signIns = new Map<string, () => void>();
 	const startingSessions = new Map<string, Promise<void>>();
 	const inFlightPromises = new Set<Promise<void>>();
 	const activeRunSessions = new Set<string>();
@@ -249,6 +261,14 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'authorize_mcp_server' || cmd.cmd === 'reconnect_mcp_server') {
 			trackInFlight(answerMcpServer(cmd));
+			return;
+		}
+		if (cmd.cmd === 'list_mcp_servers') {
+			trackInFlight(answerMcpServers(cmd));
+			return;
+		}
+		if (cmd.cmd === 'cancel_mcp_authorization') {
+			cancelSignIn(cmd);
 			return;
 		}
 		switch (cmd.cmd) {
@@ -430,6 +450,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			...(cmd.providerSessionId !== undefined ? { providerSessionId: cmd.providerSessionId } : {}),
 		});
 		const ctx = providerContext(cmd);
+		sessionFolders.set(cmd.sessionId, ctx.cwd);
 		let startupError: string | null = null;
 		const starting = (async (): Promise<void> => {
 			try {
@@ -551,29 +572,84 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 	}
 
 	async function answerMcpServer(cmd: McpServerCommand): Promise<void> {
-		const starting = startingSessions.get(cmd.sessionId);
-		if (starting) await starting;
-		const handle = handles.get(cmd.sessionId);
-		if (!handle) {
-			emitControl(
-				bridgeCommandAckFrame(cmd.id, `NO_SESSION: no active session for ${cmd.sessionId}`),
-			);
-			return;
+		let cwd: string;
+		let handle: ProviderHandle | undefined;
+		if ('sessionId' in cmd) {
+			const starting = startingSessions.get(cmd.sessionId);
+			if (starting) await starting;
+			handle = handles.get(cmd.sessionId);
+			const folder = sessionFolders.get(cmd.sessionId);
+			if (!handle || folder === undefined) {
+				emitControl(
+					bridgeCommandAckFrame(cmd.id, `NO_SESSION: no active session for ${cmd.sessionId}`),
+				);
+				return;
+			}
+			cwd = folder;
+		} else {
+			cwd = cmd.cwd;
 		}
 		try {
 			if (cmd.cmd === 'authorize_mcp_server') {
-				if (!handle.authorizeMcpServer)
-					throw new Error('the provider cannot authorize MCP servers');
-				const authUrl = await handle.authorizeMcpServer(cmd.serverName);
+				closeSignIn(cmd.serverName);
+				const { authUrl, settled, cancel } = await mcpServers.authorize(cwd, cmd.serverName);
+				closeSignIn(cmd.serverName);
+				signIns.set(cmd.serverName, cancel);
+				void announceOnceSettled(settled.finally(() => forgetSignIn(cmd.serverName, cancel)));
 				emitControl(bridgeMcpAuthorizationFrame(cmd.id, authUrl));
-			} else {
+			} else if (handle) {
 				if (!handle.reconnectMcpServer)
 					throw new Error('the provider cannot reconnect MCP servers');
 				await handle.reconnectMcpServer(cmd.serverName);
+			} else {
+				const server = await mcpServers.probe(cwd, cmd.serverName);
+				if (!server) throw new Error(`Claude Code has no MCP server named ${cmd.serverName}`);
+				await announceMcpServer(server);
 			}
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVER_FAILED: ${errorMessage(err)}`));
+		}
+	}
+
+	function cancelSignIn(cmd: CancelMcpAuthorizationCommand): void {
+		closeSignIn(cmd.serverName);
+		emitControl(bridgeCommandAckFrame(cmd.id));
+	}
+
+	function closeSignIn(serverName: string): void {
+		const cancel = signIns.get(serverName);
+		signIns.delete(serverName);
+		cancel?.();
+	}
+
+	function forgetSignIn(serverName: string, cancel: () => void): void {
+		if (signIns.get(serverName) === cancel) signIns.delete(serverName);
+	}
+
+	async function announceOnceSettled(settled: Promise<McpServerReport | null>): Promise<void> {
+		const server = await settled.catch(() => null);
+		if (server) await announceMcpServer(server);
+	}
+
+	async function announceMcpServer(server: McpServerReport): Promise<void> {
+		if (server.status === 'connected') {
+			await Promise.all(
+				[...handles.values()].map((handle) =>
+					handle.adoptMcpServer?.(server).catch(() => undefined),
+				),
+			);
+		}
+		emitControl(bridgeMcpServerFrame(server));
+	}
+
+	async function answerMcpServers(cmd: ListMcpServersCommand): Promise<void> {
+		try {
+			const servers = await mcpServers.list(cmd.cwd);
+			emitControl(bridgeMcpServersFrame(cmd.id, servers));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVERS_FAILED: ${errorMessage(err)}`));
 		}
 	}
 
@@ -617,6 +693,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		const handle = handles.get(cmd.sessionId);
 		if (!handle) {
 			manager.unregister(cmd.sessionId);
+			sessionFolders.delete(cmd.sessionId);
 			activeRunSessions.delete(cmd.sessionId);
 			activeRunIdsBySession.delete(cmd.sessionId);
 			return null;
@@ -645,6 +722,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 
 		if (handles.get(cmd.sessionId) === handle) handles.delete(cmd.sessionId);
 		manager.unregister(cmd.sessionId);
+		sessionFolders.delete(cmd.sessionId);
 		activeRunSessions.delete(cmd.sessionId);
 		activeRunIdsBySession.delete(cmd.sessionId);
 		return null;
@@ -696,6 +774,7 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 				approvalId: cmd.approvalId,
 				decision: cmd.decision,
 				scope: cmd.scope,
+				...(cmd.updatedInput ? { updatedInput: cmd.updatedInput } : {}),
 			});
 			return null;
 		} catch (error) {

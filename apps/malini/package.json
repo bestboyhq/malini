@@ -2,7 +2,7 @@
 	"name": "malini",
 	"productName": "Malini",
 	"version": "0.1.0",
-	"description": "Local-only agent workstreams that turn repeated prompts into routines",
+	"description": "Local-only agent workstreams that turn repeated prompts into jobs",
 	"private": true,
 	"license": "AGPL-3.0-only",
 	"main": "./out/main/index.js",

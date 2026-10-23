@@ -16,7 +16,8 @@
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { Icon } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
+	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
 	import { jobName } from '$lib/jobs/jobs.api';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
@@ -41,6 +42,32 @@
 	}
 	let alwaysAllowOpen = $state(false);
 
+	const ALWAYS_ALLOW = [
+		{
+			scope: 'session',
+			label: 'Allow for this chat',
+			description: 'Asks again in a new chat',
+			icon: 'chat',
+		},
+		{
+			scope: 'workstream',
+			label: 'Allow for this workstream',
+			description: 'Every chat in this workstream',
+			icon: 'branch',
+		},
+		{
+			scope: 'everywhere',
+			label: 'Allow everywhere',
+			description: 'Every workstream, until you revoke it',
+			icon: 'globe',
+		},
+	] as const satisfies readonly {
+		scope: AgentApprovalScope;
+		label: string;
+		description: string;
+		icon: IconName;
+	}[];
+
 	const reference = $derived({
 		kind: item.kind,
 		sessionId: item.sessionId,
@@ -54,7 +81,7 @@
 	const submitting = $derived(interactionState.status === 'submitting');
 	const headingId = $derived(`agent-interaction-${item.kind}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
-	const maliniTool = $derived(maliniToolApproval(item.toolName, item.input, jobName));
+	const maliniTool = $derived(maliniToolApproval(item.toolName, item.input, jobName, item.review));
 	const headline = $derived(
 		maliniTool?.headline ?? approvalHeadline(item.toolName, item.permission),
 	);
@@ -126,104 +153,120 @@
 		aria-labelledby={headingId}
 		aria-busy={submitting}
 	>
-		<div class="flex items-start gap-2.5">
-			<span class="grid h-5 w-4 shrink-0 place-items-center" aria-hidden="true">
-				<Icon name="shield-alert" class="text-warning-content" size={15} />
-			</span>
-			<div class="min-w-0 flex-1">
-				<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>
-				{#each targets as target, index (`${target.value}-${index}`)}
-					<code
-						class="text-fg-secondary mt-1 block font-mono text-xs leading-5 break-words select-text"
-						data-testid="approval-normalized-resource"
-					>
-						{#if target.kind === 'command'}
-							<CodeTokens code={target.value} language="shell" />
-						{:else}
-							<SensitiveText text={target.value} />
-						{/if}
-					</code>
-				{/each}
-				{#if maliniTool && maliniTool.details.length > 0}
-					<dl class="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs leading-5">
-						{#each maliniTool.details as detail (detail.label)}
-							<dt class="text-fg-tertiary">{detail.label}</dt>
-							<dd
-								class="text-fg-secondary max-h-40 overflow-y-auto break-words whitespace-pre-wrap select-text"
-							>
-								<SensitiveText text={detail.value} />
-							</dd>
-						{/each}
-					</dl>
-				{/if}
-				{#if reason}
-					<p class="text-fg-tertiary mt-1 text-xs leading-4 select-text">
-						<SensitiveText text={reason} />
-					</p>
-				{/if}
-			</div>
-		</div>
-
-		<div
-			class="mt-3 flex flex-wrap items-center justify-end gap-1.5"
-			role="group"
-			aria-label="Permission decision"
-		>
-			<Button
-				variant="ghost"
-				size="md"
-				class="text-xs"
-				disabled={submitting}
-				onclick={() => decideApproval(item, 'deny', 'once')}
-			>
-				Deny
-			</Button>
-			{#if canOfferPersistentScope}
-				<Dropdown bind:open={alwaysAllowOpen} side="bottom" align="end" role={null}>
-					{#snippet trigger()}
-						<Button
-							variant="secondary"
-							size="md"
-							bordered
-							class="gap-1 text-xs"
-							disabled={submitting}
-							ariaHasPopup="menu"
-							ariaExpanded={alwaysAllowOpen}
+		{#if item.review}
+			<AgentEditReview {item} review={item.review} {headingId} {submitting} />
+		{:else}
+			<div class="flex items-start gap-2.5">
+				<span class="grid h-5 w-4 shrink-0 place-items-center" aria-hidden="true">
+					<Icon name="shield-alert" class="text-warning-content" size={15} />
+				</span>
+				<div class="min-w-0 flex-1">
+					<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>
+					{#each targets as target, index (`${target.value}-${index}`)}
+						<code
+							class="text-fg-secondary mt-1 block font-mono text-xs leading-5 break-words select-text"
+							data-testid="approval-normalized-resource"
 						>
-							Always allow
-							{#snippet trailing()}
-								<Icon name="chevron-down" size={10} />
-							{/snippet}
-						</Button>
-					{/snippet}
-					{#snippet content()}
-						<div class="w-52 p-1" role="menu" aria-label="Always allow">
-							<DropdownItem
-								role="menuitem"
-								onSelect={() => decideApproval(item, 'allow', 'session')}
-							>
-								Allow for this chat
-							</DropdownItem>
-							<DropdownItem
-								role="menuitem"
-								onSelect={() => decideApproval(item, 'allow', 'workstream')}
-							>
-								Allow for this workstream
-							</DropdownItem>
-						</div>
-					{/snippet}
-				</Dropdown>
-			{/if}
-			<Button
-				variant="primary"
-				size="md"
-				class="text-xs"
-				disabled={submitting}
-				onclick={() => decideApproval(item, 'allow', 'once')}
+							{#if target.kind === 'command'}
+								<CodeTokens code={target.value} language="shell" />
+							{:else}
+								<SensitiveText text={target.value} />
+							{/if}
+						</code>
+					{/each}
+					{#if maliniTool && maliniTool.details.length > 0}
+						<dl
+							class="mt-1.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs leading-5"
+						>
+							{#each maliniTool.details as detail (detail.label)}
+								<dt class="text-fg-tertiary">{detail.label}</dt>
+								<dd
+									class="text-fg-secondary max-h-40 overflow-y-auto break-words whitespace-pre-wrap select-text"
+								>
+									<SensitiveText text={detail.value} />
+								</dd>
+							{/each}
+						</dl>
+					{/if}
+					{#if reason}
+						<p class="text-fg-tertiary mt-1 text-xs leading-4 select-text">
+							<SensitiveText text={reason} />
+						</p>
+					{/if}
+				</div>
+			</div>
+
+			<div
+				class="mt-3 flex flex-wrap items-center justify-end gap-1.5"
+				role="group"
+				aria-label="Permission decision"
 			>
-				Allow once
-			</Button>
-		</div>
+				<Button
+					variant="ghost"
+					size="md"
+					class="text-xs"
+					disabled={submitting}
+					onclick={() => decideApproval(item, 'deny', 'once')}
+				>
+					Deny
+				</Button>
+				{#if canOfferPersistentScope}
+					<Dropdown
+						bind:open={alwaysAllowOpen}
+						side="bottom"
+						align="end"
+						role={null}
+						panelClass="w-72"
+						contentClass="overflow-hidden"
+					>
+						{#snippet trigger()}
+							<Button
+								variant="secondary"
+								size="md"
+								bordered
+								class="gap-1 text-xs"
+								disabled={submitting}
+								ariaHasPopup="menu"
+								ariaExpanded={alwaysAllowOpen}
+							>
+								Always allow
+								{#snippet trailing()}
+									<Icon name="chevron-down" size={10} />
+								{/snippet}
+							</Button>
+						{/snippet}
+						{#snippet content()}
+							<div class="p-1.5" role="menu" aria-label="Always allow">
+								{#each ALWAYS_ALLOW as choice (choice.scope)}
+									<DropdownItem
+										role="menuitem"
+										class="gap-2.5 py-2"
+										onSelect={() => decideApproval(item, 'allow', choice.scope)}
+									>
+										<Icon name={choice.icon} size={14} class="text-fg-tertiary shrink-0" />
+										<span class="flex min-w-0 flex-1 flex-col">
+											<span class="truncate text-[13px] leading-5">{choice.label}</span>
+											<span class="text-fg-tertiary text-2xs truncate leading-4">
+												{choice.description}
+											</span>
+										</span>
+									</DropdownItem>
+								{/each}
+							</div>
+						{/snippet}
+					</Dropdown>
+				{/if}
+				<Button
+					variant="primary"
+					size="md"
+					class="text-xs"
+					disabled={submitting}
+					onclick={() => decideApproval(item, 'allow', 'once')}
+				>
+					Allow once
+				</Button>
+			</div>
+		{/if}
 
 		{#if interactionState.status === 'error'}
 			<p class="text-2xs text-error-content mt-2 flex items-start gap-1.5 leading-4" role="alert">

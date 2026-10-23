@@ -249,6 +249,7 @@ export class ClaudeTranscript {
 			waiting,
 			tasks,
 			...(summary === undefined ? {} : { summary }),
+			...(summary !== undefined && this.#cursor ? { providerCursor: this.#cursor } : {}),
 			...(interim ? { interim } : {}),
 		});
 	}

@@ -6,7 +6,7 @@ description: Every event Malini emits, when it fires, and the TypeScript shape o
 # Events
 
 Malini announces everything that happens on the platform as an event on a `<domain>:<event>` channel.
-Routines can trigger on any of them, and agents inside Malini can list them with the `events_list` tool.
+A [job](/malini/docs/jobs.md) can start on any of them, and agents inside Malini can list them with the `events_list` tool.
 This page is generated from the contract in `apps/malini/src/contract/events.ts`, so it always matches the app.
 
 ## `chat:agent-event`
@@ -65,6 +65,22 @@ interface SessionRenamedPayload {
 	sessionId: string;
 	name: string;
 }
+```
+
+## `chat:mcp-server-changed`
+
+Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.
+
+Payload: `McpServerReport`
+
+```ts
+type McpServerReport = Readonly<{
+	name: string;
+	status: string;
+	error?: string;
+	source?: string;
+	toolCount?: number;
+}>;
 ```
 
 ## `repositories:workstream-created`
@@ -165,6 +181,20 @@ interface WorkstreamInstallStatusPayload {
 }
 ```
 
+## `repositories:workstream-merge-conflicted`
+
+Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.
+
+Payload: `WorkstreamMergeConflictedPayload`
+
+```ts
+interface WorkstreamMergeConflictedPayload {
+	workstreamId: string;
+	baseBranch: string;
+	conflictedPaths: string[];
+}
+```
+
 ## `repositories:clone-progress`
 
 Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.
@@ -211,6 +241,7 @@ type ShipStep =
 	| 'marking-ready'
 	| 'updating-branch'
 	| 'updating-from-main'
+	| 'resolving-conflicts'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'
@@ -259,14 +290,15 @@ type ShipChangedEvent = Readonly<{
 
 ## `jobs:run-changed`
 
-Fires whenever a job run is queued, starts, needs you, or finishes as succeeded, failed or cancelled.
+Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.
 
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'routine';
+type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then';
 
-type JobRunStatus = 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+type JobRunStatus =
+	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
 
 type JobRunRecord = Readonly<{
 	id: string;
@@ -279,6 +311,7 @@ type JobRunRecord = Readonly<{
 	origin: JobRunOrigin;
 	status: JobRunStatus;
 	detail: string | null;
+	parentRunId: string | null;
 	chatSessionId: string | null;
 	chatAfterRunId: string | null;
 	createdAt: string;
@@ -300,16 +333,21 @@ type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 type JobRunsIn = 'workstream' | 'new-workstream';
 
-type JobOutput = 'none' | 'draft' | 'merge';
-
 type JobBuiltin =
 	| 'name-chats'
 	| 'name-services'
 	| 'fix-checks'
 	| 'update-from-main'
+	| 'resolve-conflicts'
 	| 'address-review'
 	| 'check-compatibility'
-	| 'update-docs';
+	| 'update-docs'
+	| 'open-draft'
+	| 'merge';
+
+type JobRunMode = 'off' | 'ask' | 'auto';
+
+type JobTrigger = Readonly<{ when: string; mode: JobRunMode }>;
 
 type JobDefinitionRecord = Readonly<{
 	id: string;
@@ -318,9 +356,10 @@ type JobDefinitionRecord = Readonly<{
 	model: string;
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
-	output: JobOutput;
 	skills: readonly string[];
 	builtin: JobBuiltin | null;
+	trigger: JobTrigger | null;
+	thenJobId: string | null;
 	createdAt: string;
 	updatedAt: string;
 }>;
@@ -331,17 +370,16 @@ type JobDefinitionChangedEvent = Readonly<{
 }>;
 ```
 
-## `routines:suggested`
+## `jobs:suggested`
 
-Fires when Malini notices a prompt you keep repeating and suggests turning it into a routine.
+Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.
 
-Payload: `RoutineSuggestedEvent`
+Payload: `JobSuggestedEvent`
 
 ```ts
-type RoutineSuggestionStatus = 'open' | 'dismissed' | 'accepted';
+type JobSuggestionStatus = 'open' | 'dismissed' | 'accepted';
 
-type RoutinePromptEvidence = Readonly<{
-	kind: 'prompt';
+type JobPromptEvidence = Readonly<{
 	text: string;
 	runId?: string;
 	sessionId?: string;
@@ -349,125 +387,16 @@ type RoutinePromptEvidence = Readonly<{
 	submittedAt?: string;
 }>;
 
-type RoutineSuggestionRecord = Readonly<{
+type JobSuggestionRecord = Readonly<{
 	id: string;
 	clusterKey: string;
-	status: RoutineSuggestionStatus;
-	evidence: readonly RoutinePromptEvidence[];
+	status: JobSuggestionStatus;
+	evidence: readonly JobPromptEvidence[];
 	createdAt: string;
 	updatedAt: string;
 }>;
 
-type RoutineSuggestedEvent = Readonly<{
-	suggestion: RoutineSuggestionRecord;
-}>;
-```
-
-## `routines:changed`
-
-Fires when a routine is created, updated, promoted, demoted or deleted; `routine` is `null` after a delete.
-
-Payload: `RoutineChangedEvent`
-
-```ts
-type RoutineChange = 'created' | 'updated' | 'promoted' | 'demoted' | 'deleted';
-
-type RoutineStatus = 'draft' | 'candidate' | 'routine';
-
-type RoutineOrigin = 'user' | 'suggested';
-
-type RoutineJsonValue =
-	| string
-	| number
-	| boolean
-	| null
-	| readonly RoutineJsonValue[]
-	| { readonly [key: string]: RoutineJsonValue };
-
-type RoutineWorkflowRun = Readonly<{
-	workflow: string;
-	input: Readonly<Record<string, RoutineJsonValue>>;
-}>;
-
-type RoutineCommandRun = Readonly<{
-	command: string;
-	args: readonly RoutineJsonValue[];
-}>;
-
-type RoutineJobRun = Readonly<{ job: string }>;
-
-type RoutineRun = RoutineWorkflowRun | RoutineCommandRun | RoutineJobRun;
-
-type RoutinePromptEvidence = Readonly<{
-	kind: 'prompt';
-	text: string;
-	runId?: string;
-	sessionId?: string;
-	workstreamId?: string;
-	submittedAt?: string;
-}>;
-
-type RoutineRunEvidence = Readonly<{
-	kind: 'run';
-	runId: string;
-	sessionId?: string;
-	workstreamId?: string;
-	summary?: string;
-}>;
-
-type RoutineEvidence = RoutinePromptEvidence | RoutineRunEvidence;
-
-type RoutineRecord = Readonly<{
-	id: string;
-	status: RoutineStatus;
-	origin: RoutineOrigin;
-	label: string;
-	when: string;
-	steps: readonly RoutineRun[];
-	evidence: readonly RoutineEvidence[];
-	createdAt: string;
-	updatedAt: string;
-}>;
-
-type RoutineChangedEvent = Readonly<{
-	routineId: string;
-	change: RoutineChange;
-	routine: RoutineRecord | null;
-}>;
-```
-
-## `routines:gated-run-changed`
-
-Fires when a routine run waits for your confirmation, and again when you confirm or reject it.
-
-Payload: `RoutineGatedRunChangedEvent`
-
-```ts
-type RoutineJsonValue =
-	| string
-	| number
-	| boolean
-	| null
-	| readonly RoutineJsonValue[]
-	| { readonly [key: string]: RoutineJsonValue };
-
-type RoutineGatedRunState = 'pending' | 'confirmed' | 'rejected';
-
-type RoutineGatedRunRecord = Readonly<{
-	id: string;
-	routineId: string;
-	workstreamId: string;
-	runKey: string;
-	event: string;
-	payload: RoutineJsonValue;
-	state: RoutineGatedRunState;
-	createdAt: string;
-	decidedAt: string | null;
-}>;
-
-type RoutineGatedRunChangedEvent = Readonly<{
-	gatedRun: RoutineGatedRunRecord;
-}>;
+type JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;
 ```
 
 ## `app:close-requested`

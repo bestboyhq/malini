@@ -55,7 +55,7 @@ describe('connecting a repository', () => {
 			repositoryConnectFailure(
 				new Error('git clone failed: repository rabbits/hutch not found'),
 				'Failed',
-				{ kind: 'clone-url', url: 'https://github.com/rabbits/hutch.git' },
+				'rabbits/hutch',
 			),
 		).toMatchObject({ detail: "GitHub didn't give access to rabbits/hutch." });
 		expect(
@@ -64,11 +64,11 @@ describe('connecting a repository', () => {
 					kind: 'repository-not-found',
 				}),
 				'Failed',
-				{ kind: 'clone-url', url: 'https://github.com/rabbits/hutch.git' },
+				'rabbits/hutch',
 			),
 		).toMatchObject({ detail: "GitHub didn't give access to rabbits/hutch." });
 		expect(repositoryConnectFailure(new Error('worktrees are locked'), 'Failed')).toEqual({
-			detail: 'workstreams are locked',
+			detail: 'Workstreams are locked',
 			remedy: null,
 			technical: null,
 		});

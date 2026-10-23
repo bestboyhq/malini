@@ -36,6 +36,7 @@ function run(runId: string, items: RenderItem[]): RunGroup {
 		items,
 		terminal: 'completed',
 		terminalText: '',
+		turnEnded: true,
 		superseded: false,
 		obsoleted: false,
 	};

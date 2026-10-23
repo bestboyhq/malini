@@ -10,6 +10,7 @@
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
+	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
 	import { JOB_RUN_STATUS } from './job-run-status';
 	import { jobRunTime } from './job-run-time';
 
@@ -27,6 +28,10 @@
 	const workstreamName = $derived(workstreamNameQuery.data(run.workstreamId ?? ''));
 	const projects = $derived(projectsQuery.data);
 	const actionState = $derived(jobActionStateQuery.data(run.id));
+	const parent = $derived(jobRunByIdQuery.data(run.parentRunId));
+	const followed = $derived(
+		run.parentRunId === null ? null : `After ${parent?.title ?? 'another job'}`,
+	);
 	const look = $derived(JOB_RUN_STATUS[run.status]);
 	const placeName = $derived.by(() => {
 		if (inWorkstream) return `Job · ${JOB_RUN_STATUS[run.status].label}`;
@@ -35,15 +40,15 @@
 		);
 	});
 	const subject = $derived.by(() => {
-		if (inWorkstream) return `${run.title} job`;
-		return placeName ? `${run.title} · ${placeName}` : run.title;
+		const what = inWorkstream ? `${run.title} job` : run.title;
+		return [what, inWorkstream ? null : placeName, followed].filter(Boolean).join(' · ');
 	});
 	const transcriptHref = $derived(
 		run.workstreamId && run.sessionId
 			? workstreamHref(run.workstreamId, { agentSessionId: run.sessionId })
 			: null,
 	);
-	const cancellable = $derived(run.status === 'queued' || run.status === 'running');
+	const cancellable = $derived(['waiting', 'queued', 'running'].includes(run.status));
 	const detail = $derived(
 		run.status === 'needs-you' || run.status === 'failed' ? run.detail : null,
 	);
@@ -79,6 +84,9 @@
 			{#if placeName}
 				<span class="text-fg-tertiary">· {placeName}</span>
 			{/if}
+		{/if}
+		{#if followed}
+			<span class="text-fg-tertiary">· {followed}</span>
 		{/if}
 	</span>
 {/snippet}

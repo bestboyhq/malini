@@ -8,15 +8,17 @@ export const REPOSITORIES_HREF = '/';
 
 export const JOBS_HREF = '/jobs';
 
-export const NEW_JOB_HREF = '/jobs/new';
+export const JOBS_ACTIVITY_HREF = '/jobs/activity';
 
-export const ROUTINES_HREF = '/jobs/routines';
+export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
 export const SETTINGS_HREF = '/settings';
 
 export const MODEL_SETTINGS_HREF = '/settings/models';
 
 export const SKILL_SETTINGS_HREF = '/settings/skills';
+
+export const MCP_SETTINGS_HREF = '/settings/mcp-servers';
 
 export function jobHref(definitionId: string): string {
 	return `/jobs/${encodeURIComponent(definitionId)}`;

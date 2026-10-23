@@ -18,12 +18,15 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { installPermissionGrants } from './grants/commands';
+import { defineMcpServerCommands } from './mcp-servers';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
 	readonly leases: AgentRunLeases;
 	readonly resolveWorkstreamCheckout: WorkstreamCheckoutResolver;
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
+	readonly claudeSettings: () => string;
 	readonly picker?: FilePicker;
 	readonly browser?: BrowserAutomation;
 	readonly processFactory?: BridgeProcessFactory;
@@ -53,6 +56,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
+	const stopGrants = installPermissionGrants(context);
 
 	const agent: AgentService = await startAgentService(context, {
 		leases: deps.leases,
@@ -89,9 +93,18 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
 	});
 
+	defineMcpServerCommands(context.commands, {
+		runtime: agent.runtime,
+		claudeSettings: deps.claudeSettings,
+		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
+	});
+
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
-		stop: () => agent.stop(),
+		stop: () => {
+			stopGrants();
+			return agent.stop();
+		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
 			const health = agent.health();

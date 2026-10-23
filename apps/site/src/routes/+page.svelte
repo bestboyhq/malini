@@ -8,7 +8,7 @@
 	import Head from '$lib/Head.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
 	import QueueMock from '$lib/QueueMock.svelte';
-	import RoutineMock from '$lib/RoutineMock.svelte';
+	import JobMock from '$lib/JobMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
 	import Glow, { type Layer } from '$lib/Glow.svelte';
 	import TerminalMock from '$lib/TerminalMock.svelte';
@@ -27,7 +27,7 @@
 		'browser',
 		'ship',
 		'merge',
-		'routines',
+		'jobs',
 		'open',
 		'docs',
 		'faq',
@@ -79,7 +79,7 @@
 		},
 		{
 			title: 'Automate what repeats',
-			body: 'When you keep typing the same prompt, Malini offers to save it as a routine. It starts as a draft and runs on its own only after you promote it.',
+			body: 'When you keep typing the same prompt, Malini offers to save it as a job. Give it a trigger, and it asks you first until you let it run on its own.',
 		},
 	];
 
@@ -255,15 +255,15 @@
 />
 
 <FeatureRow
-	id="routines"
-	beat={beat('routines', 'Routines')}
+	id="jobs"
+	beat={beat('jobs', 'Jobs')}
 	mirrored
 	title="You approve it. Malini runs it."
-	body="A job is a saved agent task, like Fix checks or Update from main. A routine runs jobs when something happens. Tell the agent what should happen when a pull request merges, and it writes the routine. You approve every save, and a new routine starts as a draft."
-	href={doc('routines')}
-	linkLabel="How routines work"
-	checks={['Draft, then candidate, then unattended', 'Triggers on any event Malini emits']}
-	panel={routinePanel}
+	body="A job is a saved task, like Fix checks or Open draft. Its When starts it when something happens, and its Then runs the next job. Tell the agent what should happen when a pull request merges, and it writes the job. You approve every save, and its trigger starts Off."
+	href={doc('jobs')}
+	linkLabel="How jobs work"
+	checks={['Off, then Ask me first, then On its own', 'Triggers on any event Malini emits']}
+	panel={jobPanel}
 />
 
 <SectionHeading
@@ -391,8 +391,8 @@
 	<MergeQueueMock />
 {/snippet}
 
-{#snippet routinePanel()}
-	<RoutineMock />
+{#snippet jobPanel()}
+	<JobMock />
 {/snippet}
 
 {#snippet terminalHeader()}

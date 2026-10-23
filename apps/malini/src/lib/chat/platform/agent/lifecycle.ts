@@ -11,6 +11,7 @@ import {
 	releaseRunAttachmentsForRetry,
 	stagedAttachmentExpiryFrom,
 } from '../attachments.repository';
+import { openTurnReply } from '../runs.repository';
 import { invariant, WORKSTREAM_FOLDER_MISSING } from '$main/errors';
 import { all, column, nowIso8601, run, scalar } from '$main/db/rows';
 import { repairSessionStatusesWithoutOpenRuns } from '../sessions.repository';
@@ -324,6 +325,25 @@ interface OpenRun {
 	sessionId: string;
 }
 
+interface RunClosing {
+	readonly kind: 'run.completed' | 'run.failed';
+	readonly payload: Readonly<Record<string, string>>;
+	readonly error: string | null;
+	readonly sessionStatus: 'completed' | 'idle';
+}
+
+function closingOf(db: MaliniDatabase, runId: string, error: string): RunClosing {
+	const reply = openTurnReply(db, runId);
+	return reply === null
+		? { kind: 'run.failed', payload: { error }, error, sessionStatus: 'idle' }
+		: {
+				kind: 'run.completed',
+				payload: { summary: reply },
+				error: null,
+				sessionStatus: 'completed',
+			};
+}
+
 function listOpenRunsOrdered(db: MaliniDatabase): OpenRun[] {
 	return all<{ id: string; session_id: string }>(
 		db,
@@ -334,16 +354,16 @@ function listOpenRunsOrdered(db: MaliniDatabase): OpenRun[] {
 
 export function terminalizeRunsAfterBridgeLoss(db: MaliniDatabase, emit: EmitEnvelope): number {
 	const now = nowIso8601();
-	const payload = { error: BRIDGE_INTERRUPTED_ERROR };
 	const committed = db.transaction(() => {
 		const emitted: Array<[SyntheticEventEnvelope, number]> = [];
 		for (const { runId, sessionId } of listOpenRunsOrdered(db)) {
-			const seq = appendEvent(db, sessionId, runId, 'run.failed', payload);
+			const closing = closingOf(db, runId, BRIDGE_INTERRUPTED_ERROR);
+			const seq = appendEvent(db, sessionId, runId, closing.kind, closing.payload);
 			const closed = run(
 				db,
 				'UPDATE agent_runs SET completed_at = ?, error = ? WHERE id = ? AND completed_at IS NULL',
 				now,
-				BRIDGE_INTERRUPTED_ERROR,
+				closing.error,
 				runId,
 			).changes;
 			if (closed !== 1) {
@@ -354,7 +374,8 @@ export function terminalizeRunsAfterBridgeLoss(db: MaliniDatabase, emit: EmitEnv
 			closeTerminalInteractions(db, sessionId, runId, now);
 			const sessions = run(
 				db,
-				"UPDATE agent_sessions SET status = 'idle' WHERE id = ?",
+				'UPDATE agent_sessions SET status = ? WHERE id = ?',
+				closing.sessionStatus,
 				sessionId,
 			).changes;
 			if (sessions !== 1) {
@@ -363,7 +384,7 @@ export function terminalizeRunsAfterBridgeLoss(db: MaliniDatabase, emit: EmitEnv
 				);
 			}
 			emitted.push([
-				{ sessionId, runId, seq, eventKind: 'run.failed', eventPayload: payload },
+				{ sessionId, runId, seq, eventKind: closing.kind, eventPayload: closing.payload },
 				seq,
 			]);
 		}
@@ -376,16 +397,16 @@ export function terminalizeRunsAfterBridgeLoss(db: MaliniDatabase, emit: EmitEnv
 export function reapOrphansOnStartup(db: MaliniDatabase): number {
 	const now = nowIso8601();
 	const retryExpiresAt = stagedAttachmentExpiryFrom();
-	const payload = { error: ORPHAN_INTERRUPTED_ERROR };
 	return db.transaction(() => {
 		const open = listOpenRunsOrdered(db);
 		for (const { runId, sessionId } of open) {
-			appendEvent(db, sessionId, runId, 'run.failed', payload);
+			const closing = closingOf(db, runId, ORPHAN_INTERRUPTED_ERROR);
+			appendEvent(db, sessionId, runId, closing.kind, closing.payload);
 			const closed = run(
 				db,
 				'UPDATE agent_runs SET completed_at = ?, error = ? WHERE id = ? AND completed_at IS NULL',
 				now,
-				ORPHAN_INTERRUPTED_ERROR,
+				closing.error,
 				runId,
 			).changes;
 			if (closed !== 1) {
@@ -394,7 +415,8 @@ export function reapOrphansOnStartup(db: MaliniDatabase): number {
 			closeTerminalInteractions(db, sessionId, runId, now);
 			const sessions = run(
 				db,
-				"UPDATE agent_sessions SET status = 'idle' WHERE id = ?",
+				'UPDATE agent_sessions SET status = ? WHERE id = ?',
+				closing.sessionStatus,
 				sessionId,
 			).changes;
 			if (sessions !== 1) {
@@ -402,7 +424,7 @@ export function reapOrphansOnStartup(db: MaliniDatabase): number {
 					`expected owning session \`${sessionId}\` during startup recovery, updated ${sessions}`,
 				);
 			}
-			releaseRunAttachmentsForRetry(db, runId, retryExpiresAt);
+			if (closing.error !== null) releaseRunAttachmentsForRetry(db, runId, retryExpiresAt);
 		}
 		return open.length;
 	});
@@ -412,16 +434,11 @@ export function reapOrphansOnExit(db: MaliniDatabase, emit: EmitEnvelope): strin
 	const open = listOpenRunsOrdered(db);
 	const now = nowIso8601();
 	for (const { runId, sessionId } of open) {
+		const closing = closingOf(db, runId, ORPHAN_INTERRUPTED_ERROR);
 		try {
 			emitPersisted(
 				db,
-				{
-					sessionId,
-					runId,
-					seq: 0,
-					eventKind: 'run.failed',
-					eventPayload: { error: ORPHAN_INTERRUPTED_ERROR },
-				},
+				{ sessionId, runId, seq: 0, eventKind: closing.kind, eventPayload: closing.payload },
 				emit,
 			);
 		} catch {}
@@ -430,11 +447,16 @@ export function reapOrphansOnExit(db: MaliniDatabase, emit: EmitEnvelope): strin
 				db,
 				'UPDATE agent_runs SET completed_at = ?, error = ? WHERE id = ?',
 				now,
-				ORPHAN_INTERRUPTED_ERROR,
+				closing.error,
 				runId,
 			);
 			closeTerminalInteractions(db, sessionId, runId, now);
-			run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", sessionId);
+			run(
+				db,
+				'UPDATE agent_sessions SET status = ? WHERE id = ?',
+				closing.sessionStatus,
+				sessionId,
+			);
 		} catch {}
 	}
 	return open.map(({ runId }) => runId);
@@ -448,28 +470,23 @@ export function resetWorkstreamRuns(
 	const openRuns = listActiveRunsWithSessionsForWorkstream(db, workstreamId);
 	const now = nowIso8601();
 	for (const { runId, sessionId } of openRuns) {
+		const closing = closingOf(db, runId, RESET_BY_USER_ERROR);
 		try {
 			emitPersisted(
 				db,
-				{
-					sessionId,
-					runId,
-					seq: 0,
-					eventKind: 'run.failed',
-					eventPayload: { error: RESET_BY_USER_ERROR },
-				},
+				{ sessionId, runId, seq: 0, eventKind: closing.kind, eventPayload: closing.payload },
 				emit,
 			);
 		} catch {}
 		run(
 			db,
-			"UPDATE agent_runs SET completed_at = ?, summary = 'reset-by-user', error = ? WHERE id = ?",
+			"UPDATE agent_runs SET completed_at = ?, summary = COALESCE(summary, 'reset-by-user'), error = ? WHERE id = ?",
 			now,
-			RESET_BY_USER_ERROR,
+			closing.error,
 			runId,
 		);
 		closeTerminalInteractions(db, sessionId, runId, now);
-		run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", sessionId);
+		run(db, 'UPDATE agent_sessions SET status = ? WHERE id = ?', closing.sessionStatus, sessionId);
 	}
 	return openRuns.length;
 }

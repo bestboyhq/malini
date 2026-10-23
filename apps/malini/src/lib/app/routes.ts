@@ -33,9 +33,9 @@ export const routes: RouteNode = {
 					segment: 'jobs',
 					page: jobsPage,
 					children: [
-						{ segment: 'new', page: jobsPage },
-						{ segment: 'lab', page: () => import('./presentation/pages/JobsLabPage.svelte') },
-						{ segment: 'routines', page: jobsPage },
+						{ segment: 'activity', page: jobsPage },
+						{ segment: 'recipes', page: jobsPage },
+						{ segment: 'routines', redirect: '/jobs' },
 						{ segment: ':jobId', page: jobsPage },
 					],
 				},
