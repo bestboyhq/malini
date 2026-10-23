@@ -97,6 +97,13 @@ export type InstallStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'ab
 export type InstallOutcomeStatus =
 	'skipped' | 'already-running' | 'succeeded' | 'failed' | 'aborted';
 
+export interface InstallOutcomeResult {
+	status: InstallOutcomeStatus;
+	command?: string;
+	reason?: InstallSkipReason;
+	detail?: string;
+}
+
 export interface ShutdownImpact {
 	agentRuns: number;
 	containers: number;

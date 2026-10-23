@@ -92,7 +92,7 @@ import type {
 	ExtensionDevelopmentLog,
 	ExtensionFileStat,
 	ExtensionSourceSnapshot,
-	InstallOutcomeStatus,
+	InstallOutcomeResult,
 	LogicalViewport,
 	ManagedExtensionSourceSnapshot,
 	NotificationPermissionResult,
@@ -520,7 +520,7 @@ export interface ContractCommands {
 	'repositories.pick-folder': { args: undefined; result: string | null };
 	'repositories.provision-dependencies': {
 		args: WorkstreamIdArgs;
-		result: InstallOutcomeStatus;
+		result: InstallOutcomeResult;
 	};
 	'repositories.pull-workstream': { args: PullWorkstreamArgs; result: string };
 	'repositories.count-behind-base': { args: PullWorkstreamArgs; result: number };

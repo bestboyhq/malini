@@ -78,6 +78,7 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 			.getByRole('button', { name: 'On' })
 			.click();
 		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
 		await page.evaluate(() => {
 			location.hash = '#/';
 		});
@@ -131,6 +132,7 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 			.getByRole('button', { name: 'On' })
 			.click();
 		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
 		await openWorkstream(page, workstreamId);
 		const composer = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 		await composer.click();

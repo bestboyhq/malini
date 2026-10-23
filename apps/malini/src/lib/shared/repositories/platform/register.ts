@@ -439,8 +439,7 @@ export function registerRepositories(
 	commands.define('repositories.list-owned-docker-containers', () => ownership.reconcile());
 
 	commands.define('repositories.provision-dependencies', async (args: unknown) => {
-		const outcome = await provisionDependencies(requireString(args, 'workstreamId'));
-		return outcome.status;
+		return provisionDependencies(requireString(args, 'workstreamId'));
 	});
 
 	async function checkout(args: unknown): Promise<string> {

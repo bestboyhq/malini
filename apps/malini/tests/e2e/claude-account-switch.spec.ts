@@ -100,6 +100,7 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		await waiting.getByRole('button', { name: 'Cancel signing in to Claude Code' }).click();
 		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`);
 		await page.keyboard.press('Escape');
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/privacy';

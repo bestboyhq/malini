@@ -1,3 +1,4 @@
+import type { InstallOutcomeResult } from '$contract/system';
 import {
 	installNoticeAt,
 	provisioningClonePercent,
@@ -141,19 +142,12 @@ export class WorkstreamDependencyInstallAggregate {
 		this.report({ workstreamId, status: 'failed', detail });
 	}
 
-	settleFromOutcome(workstreamId: string, outcome: string): void {
-		const existing = this.get(workstreamId);
-		if (existing && existing.status !== 'running') return;
-		if (outcome === 'failed') {
-			this.report({
-				workstreamId,
-				status: 'failed',
-				command: existing?.command ?? null,
-				detail: existing?.detail ?? null,
-			});
+	settleFromOutcome(workstreamId: string, outcome: InstallOutcomeResult): void {
+		if (outcome.status === 'failed' || outcome.status === 'skipped') {
+			this.report({ ...outcome, workstreamId });
 			return;
 		}
-		this.clear(workstreamId);
+		if (this.get(workstreamId)?.status === 'running') this.clear(workstreamId);
 	}
 
 	get(workstreamId: string): WorkstreamInstallRecord | null {

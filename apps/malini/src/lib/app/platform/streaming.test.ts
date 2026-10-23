@@ -22,6 +22,13 @@ describe('streaming detection', () => {
 		).toBe(true);
 	});
 
+	it('looks only under a root when one is given', () => {
+		expect(streamingAppRunning(STREAMING, '/tmp/e2e-a')).toBe(false);
+		expect(
+			streamingAppRunning(`${QUIET}\n/tmp/e2e-a/OBS.app/Contents/MacOS/OBS`, '/tmp/e2e-a'),
+		).toBe(true);
+	});
+
 	it('reports a change once when a streaming app starts and once when it quits', async () => {
 		const { context, detector, listing, changes, streaming } = startDetector();
 
