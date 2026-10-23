@@ -18,14 +18,39 @@ A job has:
 - where it **runs**: in this workstream, or in a new one,
 - what happens when it **finishes**: nothing, a draft pull request, or a queued merge.
 
-Jobs live on the **Jobs** page.
+## The Jobs page
+
+The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the top takes you back.
+
+- **Overview**: say what should happen and when, like "When a pull request merges, update CHANGELOG.md and open a draft PR".
+  Malini reads the trigger, the steps, and what happens at the end, and drafts the job for you to adjust and save.
+  Below sit your jobs, each with when it runs, its last run, and a switch, then a few recipes.
+- **Activity**: what waits for you, what is running, and every run by day.
+- **Routines**: every routine, including chains of several steps, and the ones Malini suggests.
+- **Recipes**: ready-made jobs to start from.
+
+Click a job to set it up: when it runs, how, where, what happens when it finishes, its recent runs, and its instructions, model, effort and skills.
+**Run** starts it now, **Delete** removes one of yours, and **Reset** brings back a built-in job's original.
+
+## When a job runs
+
+A job runs when you run it, or when something happens: a pull request merges, a workstream is created, dependencies finish installing, a job fails, or any Malini event.
+A job with a trigger runs one of three ways:
+
+1. **Off**: it never starts on its own.
+2. **Ask me first**: every run waits for you under Activity, with **Run it** and **Skip**.
+3. **On its own**: it runs as soon as its trigger fires.
+
+New jobs ask first.
+The switch on a job turns it off and back on.
+A job's trigger is a [routine](/malini/docs/routines.md) that runs only that job, so it also shows under Routines, and deleting the job deletes it.
 
 ## Run a job
 
 - Type **/** in the composer to run a job from a chat.
   Its result lands in that chat.
 - Run it from the Jobs page, in a workstream or a new one.
-- Let a [routine](/malini/docs/routines.md) run it when something happens.
+- Give it a trigger, or let a [routine](/malini/docs/routines.md) run it as one of its steps.
 - Ask the agent: in a Malini chat it can list, save, and run jobs with its [tools](/malini/docs/agent-tools.md).
   It asks before it runs a job, until you always allow that job.
   Its edit to a job that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
@@ -46,7 +71,7 @@ With many workstreams open, the last two keep Malini from starting an update in 
 | **Check compatibility** | After an update, fixes jobs and routines that rely on changed events. See [Updates](/malini/docs/updates.md). |
 | **Update docs**         | Brings a repository's user-facing docs up to date with its code, in a new workstream, as a draft.             |
 
-The built-in jobs are yours to edit.
+The built-in jobs are yours to edit, and Malini decides when they run.
 **Reset** brings back the original.
 
 ## Suggested jobs

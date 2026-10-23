@@ -448,6 +448,47 @@ export async function openWorkstream(
 	await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 }
 
+export async function openJobs(page: Page, hash = '#/jobs'): Promise<void> {
+	await page.evaluate((next) => {
+		globalThis.location.hash = next;
+	}, hash);
+	await page.reload();
+	await expect(page.getByRole('navigation', { name: 'Automations' })).toBeVisible({
+		timeout: 20_000,
+	});
+}
+
+export function jobCard(page: Page, name: string): Locator {
+	return page.getByTestId('job-card').and(page.getByRole('article', { name, exact: true }));
+}
+
+export async function draftJob(
+	page: Page,
+	job: Readonly<{ name: string; words: string; when?: string }>,
+): Promise<void> {
+	await page.getByRole('textbox', { name: 'What should happen, and when?' }).fill(job.words);
+	await page.getByRole('button', { name: /^Draft it/u }).click();
+	const draft = page.getByRole('article', { name: 'New job draft' });
+	await draft.getByRole('textbox', { name: 'Job name' }).fill(job.name);
+	await draft.getByRole('button', { name: new RegExp(`^When ${job.name} runs: `, 'u') }).click();
+	await page
+		.getByRole('dialog', { name: 'When should it run' })
+		.getByRole('option', { name: new RegExp(`^${job.when ?? 'When you run it'}`, 'u') })
+		.click();
+	await draft.getByRole('button', { name: 'Save job' }).click();
+	await expect(draft).toHaveCount(0);
+	await expect(jobCard(page, job.name)).toBeVisible();
+}
+
+export async function openJob(page: Page, name: string): Promise<Locator> {
+	await jobCard(page, name)
+		.getByRole('link', { name: `Set up ${name}` })
+		.click();
+	const detail = page.getByRole('dialog', { name, exact: true });
+	await expect(detail).toBeVisible();
+	return detail;
+}
+
 function composer(page: Page) {
 	return page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 }
@@ -648,10 +689,13 @@ export async function untilStill(page: Page): Promise<void> {
 				if (effect.getComputedTiming().endTime === Infinity) return false;
 				return !effect.target || shows(effect.target, screen);
 			});
+			const renaming = [...doc.querySelectorAll('[data-renaming]')].some((label) =>
+				shows(label, screen),
+			);
 			const list = scroller();
 			const area = list?.getBoundingClientRect() ?? screen;
 			const gliding = [...(list?.querySelectorAll('[style*="translate"]') ?? [])];
-			return animating || gliding.some((row) => shows(row, area));
+			return animating || renaming || gliding.some((row) => shows(row, area));
 		};
 		let previous = pose();
 		let still = 0;

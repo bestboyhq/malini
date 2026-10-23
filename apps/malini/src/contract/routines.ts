@@ -89,6 +89,8 @@ export type CreateRoutineDraftArgs = Readonly<{
 	suggestionId?: string;
 }>;
 
+export type JobTrigger = Readonly<{ when: string; status: RoutineStatus }>;
+
 export type RoutineIdArgs = Readonly<{ routineId: string }>;
 
 export type UpdateRoutineArgs = Readonly<{

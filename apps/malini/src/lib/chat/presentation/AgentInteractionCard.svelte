@@ -16,7 +16,7 @@
 	import type { AgentApprovalScope } from '$lib/chat/domain/agent-interaction';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { Icon } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
 	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
 	import { jobName } from '$lib/jobs/jobs.api';
@@ -41,6 +41,12 @@
 		};
 	}
 	let alwaysAllowOpen = $state(false);
+
+	const ALWAYS_ALLOW = [
+		{ scope: 'session', label: 'Allow for this chat', icon: 'chat' },
+		{ scope: 'workstream', label: 'Allow for this workstream', icon: 'branch' },
+		{ scope: 'everywhere', label: 'Allow everywhere', icon: 'globe' },
+	] as const satisfies readonly { scope: AgentApprovalScope; label: string; icon: IconName }[];
 
 	const reference = $derived({
 		kind: item.kind,
@@ -203,25 +209,17 @@
 							</Button>
 						{/snippet}
 						{#snippet content()}
-							<div class="w-52 p-1" role="menu" aria-label="Always allow">
-								<DropdownItem
-									role="menuitem"
-									onSelect={() => decideApproval(item, 'allow', 'session')}
-								>
-									Allow for this chat
-								</DropdownItem>
-								<DropdownItem
-									role="menuitem"
-									onSelect={() => decideApproval(item, 'allow', 'workstream')}
-								>
-									Allow for this workstream
-								</DropdownItem>
-								<DropdownItem
-									role="menuitem"
-									onSelect={() => decideApproval(item, 'allow', 'everywhere')}
-								>
-									Allow everywhere
-								</DropdownItem>
+							<div class="w-56 space-y-0.5 p-1" role="menu" aria-label="Always allow">
+								{#each ALWAYS_ALLOW as choice (choice.scope)}
+									<DropdownItem
+										role="menuitem"
+										class="gap-2.5"
+										onSelect={() => decideApproval(item, 'allow', choice.scope)}
+									>
+										<Icon name={choice.icon} size={14} class="text-fg-tertiary shrink-0" />
+										{choice.label}
+									</DropdownItem>
+								{/each}
 							</div>
 						{/snippet}
 					</Dropdown>

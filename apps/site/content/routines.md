@@ -56,8 +56,11 @@ A routine has one of three states.
 You promote a routine from one state to the next, and demote it any time.
 A routine the agent creates in a chat, and a routine Malini suggests from your repeated prompts, starts as a draft.
 
+Off, Ask me first and On its own on the [Jobs page](/malini/docs/jobs.md) are these three states for a job's own routine.
+
 ## Make one
 
-- On the Jobs page, write the steps and the when.
+- Give a job a trigger on the Jobs page, and Malini makes the routine that runs it.
+- Under **Routines** on the Jobs page, write the steps and the when.
 - Accept a suggestion: Malini notices the prompts you keep repeating and offers a job and a routine.
 - Ask the agent in a Malini chat, which saves it with `routines_save` (see [Agent tools](/malini/docs/agent-tools.md)).

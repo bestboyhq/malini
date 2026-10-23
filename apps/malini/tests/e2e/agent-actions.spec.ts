@@ -75,6 +75,8 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 
 		await sendPrompt(page, 'EDIT:alpha.txt MALINI_TOOL');
 		await decision(page).getByRole('button', { name: 'Always allow' }).click();
+		await expect(page.getByRole('menu', { name: 'Always allow' })).toBeVisible();
+		await captureFlow(app, 'agent-actions-always-allow-menu');
 		await page
 			.getByRole('menu', { name: 'Always allow' })
 			.getByRole('menuitem', { name: 'Allow everywhere' })

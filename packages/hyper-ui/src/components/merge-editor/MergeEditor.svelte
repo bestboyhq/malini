@@ -3,7 +3,7 @@
 	import { acceptChunk, getChunks, rejectChunk, unifiedMergeView } from '@codemirror/merge';
 	import { EditorState } from '@codemirror/state';
 	import { EditorView, keymap } from '@codemirror/view';
-	import { onMount } from 'svelte';
+	import { createRawSnippet, mount, onMount, unmount } from 'svelte';
 	import type { ClassValue } from 'svelte/elements';
 	import Button from '../button/Button.svelte';
 	import { mergeEditorTheme } from './merge-editor-theme';
@@ -20,6 +20,7 @@
 	let host: HTMLDivElement | null = $state(null);
 	let view: EditorView | null = null;
 	let changes = $state(0);
+	const chunkButtons: ReturnType<typeof mount>[] = [];
 
 	onMount(() => {
 		if (!host) return;
@@ -47,7 +48,10 @@
 		});
 		view = editor;
 		changes = chunkCount(editor.state);
-		return () => editor.destroy();
+		return () => {
+			editor.destroy();
+			for (const button of chunkButtons.splice(0)) void unmount(button);
+		};
 	});
 
 	function chunkCount(state: EditorState): number {
@@ -58,16 +62,22 @@
 		kind: 'accept' | 'reject',
 		action: (event: MouseEvent) => void,
 	): HTMLElement {
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.textContent = kind === 'accept' ? 'Accept' : 'Reject';
-		button.setAttribute('aria-label', kind === 'accept' ? 'Accept change' : 'Reject change');
-		button.className =
-			kind === 'accept'
-				? 'btn-small btn-secondary'
-				: 'btn-small text-fg-secondary hover:bg-surface-150-hover hover:text-fg-default bg-transparent';
-		button.addEventListener('click', action);
-		return button;
+		const target = document.createElement('span');
+		const text = kind === 'accept' ? 'Accept' : 'Reject';
+		chunkButtons.push(
+			mount(Button, {
+				target,
+				props: {
+					variant: kind === 'accept' ? 'secondary' : 'ghost',
+					size: '2xs',
+					class: 'text-xs',
+					ariaLabel: `${text} change`,
+					onclick: action,
+					children: createRawSnippet(() => ({ render: () => `<span>${text}</span>` })),
+				},
+			}),
+		);
+		return target;
 	}
 
 	function resolveAll(resolve: typeof acceptChunk): void {

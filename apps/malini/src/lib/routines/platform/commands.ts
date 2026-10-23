@@ -22,6 +22,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import type { EventBus } from '$main/events';
 import type { CommandRegistry } from '$main/ipc/registry';
+import { isJobOwnRoutine } from '../domain/job-trigger';
 import { ROUTINE_LABEL_MAX_LENGTH, ROUTINE_MAX_STEPS } from '../domain/routine';
 import { ROUTINE_CLUSTER_MIN_PROMPT_TOKENS, promptTokenSet } from './prompt-clustering.service';
 import {
@@ -85,10 +86,7 @@ export function defineRoutineCommands(commands: CommandRegistry, deps: RoutineCo
 		routineId: string,
 		change: RoutineChange,
 		routine: RoutineRecord | null,
-	): void => {
-		const payload: RoutineChangedEvent = { routineId, change, routine };
-		events.emit(ROUTINE_EVENT_CHANNELS.changed, payload);
-	};
+	): void => emitRoutineChanged(events, routineId, change, routine);
 
 	const emitGatedRunChanged = (gatedRun: RoutineGatedRunRecord): void => {
 		const payload: RoutineGatedRunChangedEvent = { gatedRun };
@@ -240,6 +238,24 @@ export function defineRoutineCommands(commands: CommandRegistry, deps: RoutineCo
 		if (changed) emitGatedRunChanged(record);
 		return record;
 	}
+}
+
+export function deleteJobOwnRoutines(deps: RoutineCommandDeps, jobId: string): void {
+	for (const routine of listRoutines(deps.db)) {
+		if (!isJobOwnRoutine(routine, jobId)) continue;
+		deleteRoutine(deps.db, routine.id);
+		emitRoutineChanged(deps.events, routine.id, 'deleted', null);
+	}
+}
+
+function emitRoutineChanged(
+	events: EventBus,
+	routineId: string,
+	change: RoutineChange,
+	routine: RoutineRecord | null,
+): void {
+	const payload: RoutineChangedEvent = { routineId, change, routine };
+	events.emit(ROUTINE_EVENT_CHANNELS.changed, payload);
 }
 
 export function emitSuggested(events: EventBus, suggestion: RoutineSuggestionRecord): void {

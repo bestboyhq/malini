@@ -6,13 +6,10 @@ import {
 export { jobFormSubmissionQuery };
 
 class JobFormSubmissionQuery {
-	public readonly data: Readonly<{ busy: boolean; error: string | null; saves: number }> = $derived(
-		{
-			busy: jobActionsStore.isBusy(JOB_FORM_ACTION_ID),
-			error: jobActionsStore.errorFor(JOB_FORM_ACTION_ID),
-			saves: jobActionsStore.saves,
-		},
-	);
+	public readonly data: Readonly<{ busy: boolean; error: string | null }> = $derived({
+		busy: jobActionsStore.isBusy(JOB_FORM_ACTION_ID),
+		error: jobActionsStore.errorFor(JOB_FORM_ACTION_ID),
+	});
 }
 
 const jobFormSubmissionQuery = new JobFormSubmissionQuery();

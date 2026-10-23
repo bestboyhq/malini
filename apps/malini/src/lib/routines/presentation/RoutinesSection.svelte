@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
+	import { Well } from '$hyper-ui/components/well';
 	import { loadRoutinesCommand } from '$lib/routines/application/commands/load-routines.command';
 	import { watchRoutinesHook } from '$lib/routines/application/hooks/watch-routines.hook';
 	import { routineFormSeedQuery } from '$lib/routines/application/queries/routine-form-seed.query.svelte';
@@ -61,99 +62,71 @@
 	];
 </script>
 
-<section class="space-y-8" aria-labelledby="routines-heading" data-testid="routines-section">
-	<header>
-		<h2 id="routines-heading" class="text-fg-default text-base font-semibold tracking-tight">
-			Routines
-		</h2>
-		<p class="text-fg-tertiary mt-1 text-xs">
-			A routine runs its steps in order when its trigger fires, or when you run it. It starts as a
-			draft, earns a promotion to candidate where every triggered run asks first, and becomes a
-			routine that runs unattended.
-		</p>
-	</header>
-
-	{#if load.state === 'error'}
-		<div
-			class="border-error-content/20 bg-error rounded-lg border px-3 py-2.5"
-			role="alert"
-			data-testid="routines-load-error"
-		>
-			<p class="text-error-content text-xs">{load.error}</p>
-			<div class="mt-2">
-				<Button
-					variant="secondary"
-					size="2xs"
-					ariaLabel="Retry loading routines"
-					data-testid="routines-load-retry"
-					onclick={() => loadRoutinesCommand()}
-				>
-					Retry
-				</Button>
-			</div>
+{#if load.state === 'error'}
+	<div
+		class="border-error-content/20 bg-error rounded-xl border-[0.5px] px-4 py-3"
+		role="alert"
+		data-testid="routines-load-error"
+	>
+		<p class="text-error-content text-xs">{load.error}</p>
+		<div class="mt-2">
+			<Button
+				variant="secondary"
+				size="sm"
+				ariaLabel="Retry loading routines"
+				data-testid="routines-load-retry"
+				onclick={() => loadRoutinesCommand()}
+			>
+				Retry
+			</Button>
 		</div>
-	{/if}
+	</div>
+{/if}
 
-	{#if suggestions.length > 0}
-		<section class="space-y-3" aria-labelledby="routines-suggested-heading">
-			<div>
-				<h3 id="routines-suggested-heading" class="text-fg-default text-sm font-medium">
-					Suggested
-				</h3>
-				<p class="text-fg-tertiary mt-0.5 text-xs">
-					Prompts you keep repeating. Accepting one saves the prompt as a job and starts a draft
-					routine that runs it.
-				</p>
-			</div>
-			<ul class="space-y-2">
-				{#each suggestions as suggestion (suggestion.id)}
-					<RoutineSuggestionCard {suggestion} />
+{#if suggestions.length > 0}
+	<Well title="Suggested" note={`${suggestions.length}`}>
+		<p class="text-fg-tertiary px-3 pb-1 text-xs">
+			Prompts you keep repeating. Accepting one saves the prompt as a job and starts a draft routine
+			that runs it.
+		</p>
+		<ul class="flex flex-col gap-1.5">
+			{#each suggestions as suggestion (suggestion.id)}
+				<RoutineSuggestionCard {suggestion} />
+			{/each}
+		</ul>
+	</Well>
+{/if}
+
+{#each groups as group (group.status)}
+	{@const routines = routinesWithStatus(group.status)}
+	<Well title={group.heading} note={routines.length > 0 ? `${routines.length}` : undefined}>
+		<p class="text-fg-tertiary px-3 pb-1 text-xs">{group.description}</p>
+		{#if routines.length === 0}
+			<p
+				class="border-surface-50-border bg-surface-50 text-fg-tertiary rounded-xl border-[0.5px] px-4 py-3 text-xs"
+				data-testid={`routines-${group.status}-empty`}
+			>
+				{load.state === 'ready' ? group.empty : ''}
+			</p>
+		{:else}
+			<ul class="flex flex-col gap-1.5">
+				{#each routines as routine (routine.id)}
+					<RoutineRow {routine} />
 				{/each}
 			</ul>
-		</section>
-	{/if}
+		{/if}
+	</Well>
+{/each}
 
-	{#each groups as group (group.status)}
-		{@const routines = routinesWithStatus(group.status)}
-		<section class="space-y-3" aria-labelledby={`routines-${group.status}-heading`}>
-			<div>
-				<h3 id={`routines-${group.status}-heading`} class="text-fg-default text-sm font-medium">
-					{group.heading}
-					{#if routines.length > 0}
-						<span class="text-fg-tertiary font-normal">({routines.length})</span>
-					{/if}
-				</h3>
-				<p class="text-fg-tertiary mt-0.5 text-xs">{group.description}</p>
-			</div>
-			{#if routines.length === 0}
-				<p class="text-fg-tertiary text-xs" data-testid={`routines-${group.status}-empty`}>
-					{load.state === 'ready' ? group.empty : ''}
-				</p>
-			{:else}
-				<ul class="space-y-2">
-					{#each routines as routine (routine.id)}
-						<RoutineRow {routine} />
-					{/each}
-				</ul>
-			{/if}
-		</section>
-	{/each}
-
-	<section
-		class="space-y-3"
-		aria-labelledby="routines-new-draft-heading"
-		{@attach revealSeededForm}
-	>
-		<div>
-			<h3 id="routines-new-draft-heading" class="text-fg-default text-sm font-medium">
-				New routine
-			</h3>
-			<p class="text-fg-tertiary mt-0.5 text-xs">
-				Name it, pick its trigger, and list its steps. It stays a draft until you promote it.
-			</p>
+<div {@attach revealSeededForm}>
+	<Well title="New routine">
+		<p class="text-fg-tertiary px-3 pb-1 text-xs">
+			Name it, pick its trigger, and list its steps. It stays a draft until you promote it.
+		</p>
+		<div class="border-surface-50-border bg-surface-50 rounded-xl border-[0.5px] p-4">
+			{#key draftFormKey}
+				<RoutineForm seed={formSeed} />
+			{/key}
 		</div>
-		{#key draftFormKey}
-			<RoutineForm seed={formSeed} />
-		{/key}
-	</section>
-</section>
+	</Well>
+</div>

@@ -16,6 +16,8 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 
 A run stays open while its background commands and subagents run, and you can stop each one.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
+A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
+Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
 ## Run a command from the chat
 
@@ -71,6 +73,8 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 When you ask for options, or the direction is open, the agent makes two to four variants.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions.
+Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
+Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
 ## Context
 

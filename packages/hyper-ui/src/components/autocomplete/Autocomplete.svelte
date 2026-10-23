@@ -136,6 +136,7 @@
 		}
 
 		if (event.key === 'Escape') {
+			if (listboxVisible) event.preventDefault();
 			menuOpen = false;
 			activeIndex = -1;
 			return;

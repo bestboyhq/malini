@@ -71,83 +71,90 @@
 			It runs without asking, so each change waits for you. Save keeps every change you do not
 			reject, plus your own edits.
 		</p>
+
+		{#if edit.changes.length > 0}
+			<ul class="mt-2 grid text-xs leading-5" aria-label="Changed settings">
+				{#each edit.changes as change (change.key)}
+					{@const decision = decisions[change.key] ?? 'pending'}
+					<li
+						class="grid min-h-7 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3"
+						aria-label={`${change.label} change`}
+						data-decision={decision}
+					>
+						<span class="text-fg-tertiary">{change.label}</span>
+						<span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+							{#if decision !== 'accepted'}
+								<span
+									class={[
+										'break-words',
+										decision === 'rejected' ? 'text-fg-secondary' : 'text-fg-tertiary line-through',
+									]}
+								>
+									<SensitiveText text={change.before} />
+								</span>
+							{/if}
+							{#if decision === 'pending'}
+								<Icon name="arrow-right" class="text-fg-tertiary shrink-0 self-center" size={11} />
+							{/if}
+							{#if decision !== 'rejected'}
+								<span class="text-fg-secondary break-words">
+									<SensitiveText text={change.after} />
+								</span>
+							{/if}
+						</span>
+						<span class="flex items-center gap-1.5">
+							{#if decision === 'pending'}
+								<Button
+									variant="ghost"
+									size="2xs"
+									class="text-xs"
+									ariaLabel={`Reject ${change.label}`}
+									disabled={submitting}
+									onclick={() => decide(change.key, 'rejected')}
+								>
+									Reject
+								</Button>
+								<Button
+									variant="secondary"
+									size="2xs"
+									class="text-xs"
+									ariaLabel={`Accept ${change.label}`}
+									disabled={submitting}
+									onclick={() => decide(change.key, 'accepted')}
+								>
+									Accept
+								</Button>
+							{:else}
+								<span class="text-fg-tertiary">
+									{decision === 'accepted' ? 'Accepted' : 'Rejected'}
+								</span>
+								<Button
+									variant="ghost"
+									size="2xs"
+									class="text-xs"
+									ariaLabel={`Undo ${change.label}`}
+									disabled={submitting}
+									onclick={() => decide(change.key, 'pending')}
+								>
+									Undo
+								</Button>
+							{/if}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		{#if edit.text && text !== null}
+			<MergeEditor
+				class="mt-2"
+				label={edit.text.label}
+				original={edit.text.before}
+				bind:value={text}
+			/>
+		{/if}
 	</div>
 </div>
-
-{#if edit.changes.length > 0}
-	<ul class="mt-3 grid gap-1" aria-label="Changed settings">
-		{#each edit.changes as change (change.key)}
-			{@const decision = decisions[change.key] ?? 'pending'}
-			<li
-				class="bg-surface-input border-surface-input-border grid grid-cols-[6rem_minmax(0,1fr)_auto] items-center gap-3 rounded-md border px-2.5 py-1.5 text-xs leading-5"
-				aria-label={`${change.label} change`}
-				data-decision={decision}
-			>
-				<span class="text-fg-tertiary">{change.label}</span>
-				<span class="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-					{#if decision !== 'accepted'}
-						<span
-							class={[
-								'break-words',
-								decision === 'rejected' ? 'text-fg-default' : 'text-fg-tertiary line-through',
-							]}
-						>
-							<SensitiveText text={change.before} />
-						</span>
-					{/if}
-					{#if decision === 'pending'}
-						<Icon name="arrow-right" class="text-fg-tertiary shrink-0 self-center" size={11} />
-					{/if}
-					{#if decision !== 'rejected'}
-						<span class="text-fg-default break-words"><SensitiveText text={change.after} /></span>
-					{/if}
-				</span>
-				<span class="flex items-center gap-1">
-					{#if decision === 'pending'}
-						<Button
-							variant="ghost"
-							size="2xs"
-							class="text-xs"
-							ariaLabel={`Reject ${change.label}`}
-							disabled={submitting}
-							onclick={() => decide(change.key, 'rejected')}
-						>
-							Reject
-						</Button>
-						<Button
-							variant="secondary"
-							size="2xs"
-							class="text-xs"
-							ariaLabel={`Accept ${change.label}`}
-							disabled={submitting}
-							onclick={() => decide(change.key, 'accepted')}
-						>
-							Accept
-						</Button>
-					{:else}
-						<span class="text-fg-tertiary text-2xs">
-							{decision === 'accepted' ? 'Accepted' : 'Rejected'}
-						</span>
-						<Button
-							variant="ghost"
-							size="2xs"
-							class="text-xs"
-							ariaLabel={`Undo ${change.label}`}
-							disabled={submitting}
-							onclick={() => decide(change.key, 'pending')}
-						>
-							Undo
-						</Button>
-					{/if}
-				</span>
-			</li>
-		{/each}
-	</ul>
-{/if}
-
-{#if edit.text && text !== null}
-	<MergeEditor class="mt-3" label={edit.text.label} original={edit.text.before} bind:value={text} />
-{/if}
 
 <div
 	class="mt-3 flex flex-wrap items-center justify-end gap-1.5"
