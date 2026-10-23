@@ -267,3 +267,45 @@ test('a chat reopens where its reader left it after malini restarts', async () =
 		await app.close();
 	}
 });
+
+test('a chat reopens where its reader left it after a restart, even when that turn loads after the newest ones', async () => {
+	test.setTimeout(300_000);
+	const first = await launchMalini();
+	let workstreamId: string;
+	let view: ReaderView;
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root);
+		const reading = await seedWorkstream(page, source, 'e2e-restart-paged-ws', 'Paged workstream');
+		const other = await seedWorkstream(page, source, 'e2e-restart-paged-other', 'Other paged');
+		workstreamId = reading.workstreamId;
+		await openWorkstream(page, workstreamId);
+		const chat = await fillChat(page, 12, 3);
+		for (let turn = 1; turn <= 3; turn += 1) {
+			await sendPrompt(page, `Big turn ${turn} BIG_OUTPUT:300`);
+			await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+				timeout: 30_000,
+			});
+		}
+		await untilStill(page);
+		view = await readFrom(page, chat, -(await overflow(page)));
+		await selectWorkstream(page, other.workstreamId);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await startSampling(page, view);
+		await selectWorkstream(page, workstreamId);
+		await expectRestored(page, view, 'after a restart that loads the newest turns first');
+		await captureFlow(app, 'transcript-scroll-restore-paged');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

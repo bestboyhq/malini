@@ -27,6 +27,7 @@
 	import { streamingBlocksQuery } from '$lib/chat/application/queries/streaming-blocks.query.svelte';
 	import { transcriptAnchorQuery } from '$lib/chat/application/queries/transcript-anchor.query.svelte';
 	import { transcriptHeightsQuery } from '$lib/chat/application/queries/transcript-heights.query.svelte';
+	import { transcriptHistoryCompleteQuery } from '$lib/chat/application/queries/transcript-history-complete.query.svelte';
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
@@ -119,6 +120,7 @@
 	const pendingPrompt = $derived(pendingPromptQuery.data(sessionId));
 	const rememberedAnchor = $derived(transcriptAnchorQuery.data(sessionId));
 	const rememberedHeights = $derived(transcriptHeightsQuery.data(sessionId));
+	const historyComplete = $derived(transcriptHistoryCompleteQuery.data(sessionId));
 	const waitingForUser = $derived(sessionWaitingForUserQuery.data(sessionId));
 	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
 
@@ -704,6 +706,8 @@
 			anchoredSessionId = currentSessionId;
 			anchoredFirstSeq = firstSeq;
 			if (!prepended) return;
+			openingBudgetByRun = null;
+			followLatestRun(visibleRuns.at(-1) ?? null);
 			transcriptScroll.holdBottomAnchor();
 			rebaseRowLayout();
 		});
@@ -740,6 +744,12 @@
 			transcriptScroll.open(currentSessionId, rememberedAnchor);
 			listRendered = true;
 		});
+	});
+
+	$effect(() => {
+		if (historyComplete && transcriptScroll.awaitingAnchor) {
+			untrack(() => transcriptScroll.abandonRestore());
+		}
 	});
 
 	const latestPersistedPromptKey = $derived.by(() => {
@@ -853,6 +863,7 @@
 			bind:this={viewportEl}
 			class="chat-scroller flex h-full w-full flex-col overflow-x-hidden overflow-y-auto"
 			style:padding-right="{splitInset.secondarySize}px"
+			style:visibility={transcriptScroll.awaitingAnchor ? 'hidden' : undefined}
 			aria-label="Agent chat messages"
 			data-testid="chat-message-scroller"
 			onscroll={(event) => transcriptScroll.handleScroll(event.currentTarget)}
