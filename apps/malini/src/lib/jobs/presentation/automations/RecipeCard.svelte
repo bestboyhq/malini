@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import type { LabRecipe } from './lab-recipes';
-	import { labTrigger, labWhenClause, type LabJobSetup } from './lab-triggers';
+	import type { Recipe } from './recipes';
+	import { triggerById, whenClause } from './triggers';
 
 	interface Props {
-		recipe: LabRecipe;
+		recipe: Recipe;
 		onuse: () => void;
 	}
 
 	let { recipe, onuse }: Props = $props();
 
-	const setup = $derived<LabJobSetup>({ triggerId: recipe.triggerId, mode: 'auto' });
+	const trigger = $derived(triggerById(recipe.triggerId));
 </script>
 
 <article
@@ -23,9 +23,9 @@
 			class="border-chip-border bg-chip text-fg-secondary grid size-6 shrink-0 place-items-center rounded-md border-[0.5px]"
 			aria-hidden="true"
 		>
-			<Icon name={labTrigger(setup).icon} size={13} />
+			<Icon name={trigger.icon} size={13} />
 		</span>
-		<span class="text-fg-tertiary min-w-0 truncate text-xs">{labWhenClause(setup)}</span>
+		<span class="text-fg-tertiary min-w-0 truncate text-xs">{whenClause(trigger)}</span>
 	</div>
 	<div class="flex flex-col gap-1">
 		<h3 class="text-fg-default truncate text-sm font-semibold">{recipe.title}</h3>

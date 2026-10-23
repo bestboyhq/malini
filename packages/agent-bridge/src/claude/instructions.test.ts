@@ -42,6 +42,8 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`#t=<seconds>` to the After path');
 		expect(prompt).toContain('`![Variant A: Name - one-line note](path)`');
 		expect(prompt).toContain('`Go with variant B (Name).`');
+		expect(prompt).toContain('every other prototype only under `.context/`');
+		expect(prompt).toContain('A prototype never enters tracked source');
 		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
 		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});

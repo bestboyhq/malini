@@ -1,39 +1,45 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { labTrigger, type LabJobSetup } from './lab-triggers';
-	import LabTriggerPicker from './LabTriggerPicker.svelte';
+	import { triggerFor } from './triggers';
+	import TriggerPicker from './TriggerPicker.svelte';
 
 	interface Props {
-		setup: LabJobSetup;
+		when: string | null;
 		jobName: string;
-		size?: 'xs' | 'sm';
-		onchange: (setup: LabJobSetup) => void;
+		disabled?: boolean;
+		onpick: (when: string | null) => void;
 	}
 
-	let { setup, jobName, size = 'sm', onchange }: Props = $props();
+	let { when, jobName, disabled = false, onpick }: Props = $props();
 
 	let open = $state(false);
+	let opened = $state(0);
 	let element: HTMLAnchorElement | HTMLButtonElement | null = $state(null);
 
-	const trigger = $derived(labTrigger(setup));
+	const trigger = $derived(triggerFor(when));
 
-	function onPick(choice: Readonly<{ triggerId: string; phrase?: string }>): void {
-		const { phrase: _previous, ...rest } = setup;
-		onchange({ ...rest, ...choice });
+	function onToggle(): void {
+		if (!open) opened += 1;
+		open = !open;
+	}
+
+	function onPick(next: string | null): void {
 		open = false;
+		if (next !== when) onpick(next);
 	}
 </script>
 
 <Button
 	bind:element
 	variant="secondary"
-	{size}
+	size="sm"
 	ariaLabel={`When ${jobName} runs: ${trigger.label}`}
 	ariaHasPopup="dialog"
 	ariaExpanded={open}
+	{disabled}
 	class="max-w-full min-w-0"
-	onclick={() => (open = !open)}
+	onclick={onToggle}
 >
 	{#snippet leading()}
 		<Icon name={trigger.icon} size={14} />
@@ -45,10 +51,12 @@
 </Button>
 
 {#if open}
-	<LabTriggerPicker
-		anchor={element instanceof HTMLElement ? element : null}
-		current={setup}
-		onpick={onPick}
-		onclose={() => (open = false)}
-	/>
+	{#key opened}
+		<TriggerPicker
+			anchor={element instanceof HTMLElement ? element : null}
+			{when}
+			onpick={onPick}
+			onclose={() => (open = false)}
+		/>
+	{/key}
 {/if}

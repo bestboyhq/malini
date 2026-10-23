@@ -12,9 +12,9 @@ export const JOB_OUTPUT_OPTIONS: readonly Readonly<{ value: JobOutput; label: st
 	{ value: 'merge', label: 'Queue the merge' },
 ];
 
-const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
-	'name-chats': 'Your first message in a chat',
-	'name-services': 'A command an agent leaves running',
+export const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
+	'name-chats': 'You start a chat',
+	'name-services': 'An agent leaves a command running',
 	'fix-checks': 'Checks fail while shipping',
 	'update-from-main': 'The branch falls behind while shipping',
 	'address-review': 'A bot reviews while shipping',
