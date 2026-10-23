@@ -255,6 +255,7 @@ export type BridgeEvent =
 			waiting: boolean;
 			tasks: AgentBackgroundTask[];
 			summary?: string;
+			providerCursor?: string;
 			interim?: boolean;
 			handedOff?: boolean;
 	  }
@@ -650,6 +651,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					waiting: f.boolean('waiting'),
 					tasks: f.array('tasks').map(decodeBackgroundTask),
 					...optional('summary', f.optionalString('summary')),
+					...optional('providerCursor', f.optionalString('providerCursor')),
 					...optional('interim', f.optionalBoolean('interim')),
 					...optional('handedOff', f.optionalBoolean('handedOff')),
 				});
