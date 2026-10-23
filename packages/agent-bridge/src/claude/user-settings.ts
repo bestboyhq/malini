@@ -14,6 +14,11 @@ export function userSettingsFile(): string {
 	return join(claudeUserDirectory(), 'settings.json');
 }
 
+export function claudeStateFile(): string {
+	const directory = process.env['CLAUDE_CONFIG_DIR'];
+	return directory ? join(directory, '.claude.json') : join(homedir(), '.claude.json');
+}
+
 export async function allowInUserSettings(rule: string): Promise<void> {
 	const file = await realpath(userSettingsFile()).catch(() => userSettingsFile());
 	const settings = await readSettings(file);

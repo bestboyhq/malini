@@ -10,7 +10,8 @@
 		type McpServerFix,
 	} from '$lib/chat/domain/mcp-server';
 	import { authorizeMcpServerCommand } from '$lib/chat/application/commands/authorize-mcp-server.command';
-	import { loadMcpServersCommand } from '$lib/chat/application/commands/load-mcp-servers.command';
+	import { watchMcpServersCommand } from '$lib/chat/application/commands/watch-mcp-servers.command';
+	import { keepMcpServersWatchedHook } from '$lib/chat/application/hooks/keep-mcp-servers-watched.hook';
 	import { openClaudeAiConnectorsCommand } from '$lib/chat/application/commands/open-claude-ai-connectors.command';
 	import { openMcpFixQueueCommand } from '$lib/chat/application/commands/open-mcp-fix-queue.command';
 	import { reconnectMcpServerCommand } from '$lib/chat/application/commands/reconnect-mcp-server.command';
@@ -62,7 +63,7 @@
 	const refreshing = $derived(listing.state === 'loading' && servers.length > 0);
 	const listId = $props.id();
 
-	onMount(() => loadMcpServersCommand(workstreamId));
+	onMount(() => keepMcpServersWatchedHook(workstreamId));
 
 	function matchesFilter(server: McpServer): boolean {
 		if (filter === 'needs-you') return needsYou.has(server.name);
@@ -82,7 +83,7 @@
 		if (off) {
 			return server.status === 'disabled' && !turnedOff.includes(server.name)
 				? 'Off in Claude Code for this folder'
-				: 'Off. New chats leave it out.';
+				: 'Off';
 		}
 		if (fix === 'duplicate') return 'A connected server with the same name covers it.';
 		if (server.status === 'needs-auth') return 'Not signed in';
@@ -156,7 +157,7 @@
 			ariaLabel="Check MCP servers again"
 			class="text-fg-tertiary shrink-0"
 			disabled={listing.state === 'loading'}
-			onclick={() => loadMcpServersCommand(workstreamId)}
+			onclick={() => watchMcpServersCommand(workstreamId, true)}
 		>
 			{#if refreshing}
 				<LoadingCircle size={14} />
@@ -186,7 +187,11 @@
 			testId="mcp-servers-error"
 		>
 			{#snippet action()}
-				<Button variant="secondary" size="sm" onclick={() => loadMcpServersCommand(workstreamId)}>
+				<Button
+					variant="secondary"
+					size="sm"
+					onclick={() => watchMcpServersCommand(workstreamId, true)}
+				>
 					Try again
 				</Button>
 			{/snippet}

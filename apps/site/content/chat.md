@@ -5,7 +5,7 @@ description: How a Malini chat runs Claude Code - queue or steer prompts, plan m
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
 It keeps running between prompts, so your MCP servers stay connected.
-It restarts after 10 idle minutes, when you change the access, mode, report or skills, and when `CLAUDE.md`, your Claude Code settings or `.mcp.json` change.
+It restarts after 10 idle minutes, when you change the access, mode, report or skills, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
 
 ## Queue or steer
 
@@ -118,9 +118,12 @@ When two servers share a name, each shows where it comes from, such as claude.ai
 - **Retry** reconnects a server that failed; its error shows under its name.
 - **Fix** walks every server that needs you, one at a time: it opens the next sign-in page as soon as the last one connects, retries the failed ones, and lets you skip a server or turn it off.
 - **Turn off** adds the server to `deniedMcpServers` in your Claude Code settings, so it leaves every chat, here and in the terminal.
+  A chat that is open drops it at once, without a restart, and **Turn on** brings it back the same way.
 
 Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
+It opens with what it found last time and updates each row live while its server connects, signs in or fails.
 Filter it to the servers that need you or the ones that are off, sign in or retry from there, and switch any server on or off.
+The refresh button starts its Claude Code again, for a claude.ai connector you just added on claude.ai.
 
 ## Tools
 

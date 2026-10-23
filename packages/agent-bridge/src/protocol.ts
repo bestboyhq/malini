@@ -16,7 +16,7 @@ import {
 } from './agent-profile.js';
 import type { AgentQuestionAnswer, ApprovalDecision, ApprovalScope } from './interaction-types.js';
 import { isOneOf, isRecord } from './type-guards.js';
-import type { McpServerReport } from './types.js';
+import type { McpServerListing, McpServerReport } from './types.js';
 
 export type AgentCommand =
 	| StartSessionCommand
@@ -28,7 +28,8 @@ export type AgentCommand =
 	| RefreshCapabilitiesCommand
 	| RefreshSessionStatusCommand
 	| McpServerCommand
-	| ListMcpServersCommand
+	| WatchMcpServersCommand
+	| SwitchMcpServerCommand
 	| CancelMcpAuthorizationCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
@@ -123,10 +124,19 @@ export type McpServerCommand = {
 	readonly serverName: string;
 } & ({ readonly sessionId: string } | { readonly cwd: string });
 
-export interface ListMcpServersCommand {
-	readonly cmd: 'list_mcp_servers';
+export interface WatchMcpServersCommand {
+	readonly cmd: 'watch_mcp_servers';
 	readonly id: string;
 	readonly cwd: string;
+	readonly restart?: true;
+}
+
+export interface SwitchMcpServerCommand {
+	readonly cmd: 'switch_mcp_server';
+	readonly id: string;
+	readonly serverName: string;
+	readonly on: boolean;
+	readonly folders: readonly string[];
 }
 
 export interface CancelMcpAuthorizationCommand {
@@ -323,8 +333,17 @@ export interface BridgeMcpAuthorizationFrame {
 export interface BridgeMcpServersFrame {
 	readonly type: 'bridge.mcp_servers';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
-	readonly id: string;
+	readonly cwd: string;
 	readonly servers: readonly McpServerReport[];
+	readonly settled: boolean;
+	readonly error?: string;
+}
+
+export interface BridgeMcpSwitchedFrame {
+	readonly type: 'bridge.mcp_switched';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly folders: readonly string[];
 }
 
 export interface BridgeMcpServerFrame {
@@ -358,6 +377,7 @@ export type BridgeControlFrame =
 	| BridgeMcpAuthorizationFrame
 	| BridgeMcpServersFrame
 	| BridgeMcpServerFrame
+	| BridgeMcpSwitchedFrame
 	| BridgeBrowserRequestFrame
 	| BridgePlatformRequestFrame;
 
@@ -407,10 +427,24 @@ export function bridgeMcpAuthorizationFrame(
 }
 
 export function bridgeMcpServersFrame(
-	id: string,
-	servers: readonly McpServerReport[],
+	cwd: string,
+	{ servers, settled, error }: McpServerListing,
 ): BridgeMcpServersFrame {
-	return { type: 'bridge.mcp_servers', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, servers };
+	return {
+		type: 'bridge.mcp_servers',
+		protocolVersion: BRIDGE_PROTOCOL_VERSION,
+		cwd,
+		servers,
+		settled,
+		...(error === undefined ? {} : { error }),
+	};
+}
+
+export function bridgeMcpSwitchedFrame(
+	id: string,
+	folders: readonly string[],
+): BridgeMcpSwitchedFrame {
+	return { type: 'bridge.mcp_switched', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, folders };
 }
 
 export function bridgeMcpServerFrame(server: McpServerReport): BridgeMcpServerFrame {
@@ -536,8 +570,10 @@ export function parseCommandLine(raw: string): ParseResult {
 		case 'authorize_mcp_server':
 		case 'reconnect_mcp_server':
 			return validateMcpServerCommand(cmd, obj);
-		case 'list_mcp_servers':
-			return validateListMcpServers(obj);
+		case 'watch_mcp_servers':
+			return validateWatchMcpServers(obj);
+		case 'switch_mcp_server':
+			return validateSwitchMcpServer(obj);
 		case 'cancel_mcp_authorization':
 			return validateCancelMcpAuthorization(obj);
 		case 'stop_task':
@@ -926,14 +962,42 @@ function validateMcpServerCommand(
 	);
 }
 
-function validateListMcpServers(obj: Record<string, unknown>): ParseResult {
-	const id = commandId(obj, 'list_mcp_servers');
+function validateWatchMcpServers(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'watch_mcp_servers');
 	if (!id.ok) return id;
-	const cwd = obj.cwd;
+	const { cwd, restart } = obj;
 	if (typeof cwd !== 'string' || !isAbsolute(cwd)) {
-		return err('INVALID_PAYLOAD', 'list_mcp_servers: cwd required (absolute path)', obj);
+		return err('INVALID_PAYLOAD', 'watch_mcp_servers: cwd required (absolute path)', obj);
 	}
-	return { ok: true, command: { cmd: 'list_mcp_servers', id: id.value, cwd } };
+	if (restart !== undefined && restart !== true) {
+		return err('INVALID_PAYLOAD', 'watch_mcp_servers: restart must be true when present', obj);
+	}
+	return {
+		ok: true,
+		command: { cmd: 'watch_mcp_servers', id: id.value, cwd, ...(restart ? { restart } : {}) },
+	};
+}
+
+function validateSwitchMcpServer(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'switch_mcp_server');
+	if (!id.ok) return id;
+	const { serverName, on, folders } = obj;
+	if (typeof serverName !== 'string' || serverName.length === 0) {
+		return err('INVALID_PAYLOAD', 'switch_mcp_server: serverName required (non-empty string)', obj);
+	}
+	if (typeof on !== 'boolean') {
+		return err('INVALID_PAYLOAD', 'switch_mcp_server: on required (boolean)', obj);
+	}
+	if (
+		!Array.isArray(folders) ||
+		!folders.every((folder) => typeof folder === 'string' && isAbsolute(folder))
+	) {
+		return err('INVALID_PAYLOAD', 'switch_mcp_server: folders required (absolute paths)', obj);
+	}
+	return {
+		ok: true,
+		command: { cmd: 'switch_mcp_server', id: id.value, serverName, on, folders },
+	};
 }
 
 function validateCancelMcpAuthorization(obj: Record<string, unknown>): ParseResult {

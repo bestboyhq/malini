@@ -32,6 +32,7 @@ import { systemPromptAppend } from './instructions.js';
 import {
 	mcpServerReport,
 	probeMcpServer,
+	switchMcpServerLive,
 	type McpProbeOptions,
 	type McpServerEntry,
 } from './mcp-servers.js';
@@ -52,7 +53,7 @@ import {
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
-import { allowInUserSettings, userSettingsFile } from './user-settings.js';
+import { allowInUserSettings, claudeStateFile, userSettingsFile } from './user-settings.js';
 import { isRecord } from '../type-guards.js';
 
 const INTERRUPT_GRACE_MS = 3_000;
@@ -79,6 +80,7 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 		| 'setMcpPermissionModeOverride'
 		| 'mcpServerStatus'
 		| 'reconnectMcpServer'
+		| 'toggleMcpServer'
 		| 'initializationResult'
 		| 'close'
 		| 'stopTask'
@@ -845,6 +847,16 @@ export class ClaudeSession implements ProviderHandle {
 			report.runId,
 			report.servers.map((known) => (known.name === server.name ? server : known)),
 		);
+	}
+
+	async switchMcpServer(serverName: string, on: boolean): Promise<boolean> {
+		const active = this.#active;
+		if (!active || !(await switchMcpServerLive(active.query, serverName, on))) return false;
+		if (active.config) {
+			active.config = restamped(active.config, userSettingsFile(), claudeStateFile());
+		}
+		await this.refreshSessionStatus().catch(() => undefined);
+		return true;
 	}
 
 	async close(): Promise<void> {

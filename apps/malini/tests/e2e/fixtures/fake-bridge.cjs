@@ -979,9 +979,35 @@ const deniedMcpServers = () => {
 		return [];
 	}
 };
+const mcpOffInSessions = new Map();
+const mcpOffIn = (sessionId) => {
+	if (!mcpOffInSessions.has(sessionId)) mcpOffInSessions.set(sessionId, new Set());
+	return mcpOffInSessions.get(sessionId);
+};
 const reportMcp = (sessionId) => {
 	const runId = lastRuns.get(sessionId);
-	if (runId) event({ type: 'mcp.status', runId, servers: mcpServers });
+	const off = mcpOffIn(sessionId);
+	if (runId) {
+		event({
+			type: 'mcp.status',
+			runId,
+			servers: mcpServers.map((server) =>
+				off.has(server.name) ? { ...server, status: 'disabled' } : server,
+			),
+		});
+	}
+};
+const mcpWatchers = new Set();
+const mcpWatchDelayMs = Number(env.FAKE_BRIDGE_MCP_WATCH_DELAY_MS || 0);
+const reportMcpListing = (cwd) => {
+	const denied = deniedMcpServers();
+	write({
+		type: 'bridge.mcp_servers',
+		protocolVersion: version,
+		cwd,
+		servers: mcpServers.filter((server) => !denied.includes(server.name)),
+		settled: true,
+	});
 };
 const stuckMcpServers = env.FAKE_BRIDGE_MCP_STUCK ? JSON.parse(env.FAKE_BRIDGE_MCP_STUCK) : [];
 const connectMcp = (serverName) => {
@@ -995,6 +1021,7 @@ const connectMcp = (serverName) => {
 	});
 	const changed = mcpServers.find((server) => server.name === serverName);
 	for (const sessionId of lastRuns.keys()) reportMcp(sessionId);
+	for (const cwd of mcpWatchers) reportMcpListing(cwd);
 	if (changed) write({ type: 'bridge.mcp_server', protocolVersion: version, server: changed });
 };
 const mcpSignInDelayMs = Number(env.FAKE_BRIDGE_MCP_SIGN_IN_DELAY_MS || 300);
@@ -1195,13 +1222,30 @@ const handle = (command) => {
 			connectMcp(command.serverName);
 			return ack(command.id);
 		}
-		case 'list_mcp_servers': {
-			const denied = deniedMcpServers();
+		case 'watch_mcp_servers': {
+			const watching = mcpWatchers.has(command.cwd) && !command.restart;
+			mcpWatchers.add(command.cwd);
+			if (watching) reportMcpListing(command.cwd);
+			ack(command.id);
+			if (!watching) setTimeout(() => reportMcpListing(command.cwd), mcpWatchDelayMs);
+			return;
+		}
+		case 'switch_mcp_server': {
+			const switched = [];
+			for (const sessionId of lastRuns.keys()) {
+				if (!mcpServers.some((server) => server.name === command.serverName)) continue;
+				const off = mcpOffIn(sessionId);
+				if (command.on) off.delete(command.serverName);
+				else off.add(command.serverName);
+				if (worktrees.has(sessionId)) switched.push(worktrees.get(sessionId));
+				reportMcp(sessionId);
+			}
+			for (const cwd of mcpWatchers) reportMcpListing(cwd);
 			write({
-				type: 'bridge.mcp_servers',
+				type: 'bridge.mcp_switched',
 				protocolVersion: version,
 				id: command.id,
-				servers: mcpServers.filter((server) => !denied.includes(server.name)),
+				folders: command.on ? command.folders : switched,
 			});
 			return ack(command.id);
 		}
@@ -1258,6 +1302,9 @@ const buffered = [];
 const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 input.on('line', (line) => {
 	const command = JSON.parse(line);
+	if (env.FAKE_BRIDGE_MCP_COMMAND_LOG && command.cmd.includes('mcp')) {
+		fs.appendFileSync(env.FAKE_BRIDGE_MCP_COMMAND_LOG, JSON.stringify(command) + '\n');
+	}
 	if (reverse > 0) {
 		buffered.push(command);
 		if (buffered.length !== reverse) return;
