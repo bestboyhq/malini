@@ -1,6 +1,6 @@
 # 0040 - MCP servers sign in through a Claude Code probe
 
-Status: accepted
+Status: superseded by 0057
 
 ## Context
 

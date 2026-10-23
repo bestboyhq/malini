@@ -1,4 +1,5 @@
 import type { EventEnvelope } from '$lib/chat/domain/events';
+import { mcpServer, type McpServer } from '$lib/chat/domain/mcp-server';
 
 export const CONTEXT_HANDOFF_CONTENT_ID_PREFIX = 'malini.context-handoff:';
 
@@ -31,17 +32,9 @@ export type ContextPressure = 'ok' | 'high' | 'critical';
 export const CONTEXT_PRESSURE_HIGH_PERCENT = 70;
 export const CONTEXT_PRESSURE_CRITICAL_PERCENT = 90;
 
-export type McpServerSnapshot = {
-	name: string;
-	displayName: string;
-	status: 'connected' | 'pending' | 'failed' | 'needs-auth' | 'disabled';
-	usable: boolean;
-	error: string | null;
-};
-
 export type SessionRuntimeMetadata = {
 	context: ContextUsageSnapshot | null;
-	mcpServers: McpServerSnapshot[] | null;
+	mcpServers: McpServer[] | null;
 };
 
 export type RunTokenUsage = {
@@ -95,19 +88,7 @@ export function foldRuntimeMetadata(
 		};
 	}
 	if (event.type !== 'mcp.status') return metadata;
-	return {
-		...metadata,
-		mcpServers: event.servers.map((server) => {
-			const status = normalizeMcpStatus(server.status);
-			return {
-				name: server.name,
-				displayName: mcpServerDisplayName(server.name),
-				status,
-				usable: status === 'connected',
-				error: server.error?.trim() || null,
-			};
-		}),
-	};
+	return { ...metadata, mcpServers: event.servers.map(mcpServer) };
 }
 
 export function withLiveContext(
@@ -145,52 +126,6 @@ export function deriveSessionRuntimeMetadata(
 
 function positiveTokenCount(value: number | undefined): number | null {
 	return value !== undefined && Number.isFinite(value) && value > 0 ? value : null;
-}
-
-const MCP_SERVER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-	'codebase-memory-mcp': 'Codebase Memory',
-	'computer-use': 'Computer Use',
-	github: 'GitHub',
-	linear: 'Linear',
-	node_repl: 'Node REPL',
-	svelte: 'Svelte',
-};
-
-export function mcpServerDisplayName(serverId: string): string {
-	const trimmed = serverId
-		.trim()
-		.replace(/^plugin:[^:]+:/iu, '')
-		.replace(/^claude\.ai\s+/iu, '');
-	const known = MCP_SERVER_DISPLAY_NAMES[trimmed.toLowerCase()];
-	if (known) return known;
-	const normalized = trimmed
-		.replace(/^mcp[-_:./]+/iu, '')
-		.replace(/[-_:./]+mcp$/iu, '')
-		.replace(/[-_:./]+/gu, ' ')
-		.trim();
-	if (!normalized) return trimmed || 'MCP server';
-	return normalized
-		.split(/\s+/u)
-		.map((token) => {
-			const lower = token.toLowerCase();
-			if (lower === 'mcp') return 'MCP';
-			if (lower === 'repl') return 'REPL';
-			if (lower === 'api') return 'API';
-			return `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`;
-		})
-		.join(' ');
-}
-
-function normalizeMcpStatus(value: string): McpServerSnapshot['status'] {
-	if (
-		value === 'connected' ||
-		value === 'pending' ||
-		value === 'needs-auth' ||
-		value === 'disabled'
-	) {
-		return value;
-	}
-	return 'failed';
 }
 
 export function contextUsagePercent(snapshot: ContextUsageSnapshot): number | null {

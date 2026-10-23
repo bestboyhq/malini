@@ -11,8 +11,8 @@ import {
 	formatRunUsage,
 	lastRunUsage,
 	mcpUnavailableMessage,
-	mcpServerDisplayName,
 } from './session-runtime-metadata';
+import { mcpServerDisplayName } from '$lib/chat/domain/mcp-server';
 import { CONTEXT_HANDOFF_CONTENT_ID_PREFIX } from './render-state';
 
 function envelope(seq: number, event: EventEnvelope['event']): EventEnvelope {
@@ -45,7 +45,7 @@ describe('session runtime metadata', () => {
 				type: 'mcp.status',
 				runId: 'run-1',
 				servers: [
-					{ name: 'linear', status: 'connected' },
+					{ name: 'linear', status: 'connected', source: 'user', toolCount: 12 },
 					{ name: 'computer-use', status: 'failed', error: 'handshake failed' },
 				],
 			}),
@@ -62,18 +62,26 @@ describe('session runtime metadata', () => {
 		});
 		expect(contextUsagePercent(metadata.context!)).toBeCloseTo(37.77, 2);
 		expect(metadata.mcpServers).toEqual([
-			{ name: 'linear', displayName: 'Linear', status: 'connected', usable: true, error: null },
+			{
+				name: 'linear',
+				displayName: 'Linear',
+				status: 'connected',
+				error: null,
+				origin: { kind: 'user' },
+				toolCount: 12,
+			},
 			{
 				name: 'computer-use',
 				displayName: 'Computer Use',
 				status: 'failed',
-				usable: false,
 				error: 'handshake failed',
+				origin: { kind: 'other' },
+				toolCount: null,
 			},
 		]);
 	});
 
-	it('never marks pending, auth-gated, disabled, failed, or unknown MCP states as usable', () => {
+	it('reads unknown MCP states as failed', () => {
 		const metadata = deriveSessionRuntimeMetadata([
 			envelope(1, {
 				type: 'mcp.status',
@@ -88,18 +96,12 @@ describe('session runtime metadata', () => {
 			}),
 		]);
 
-		expect(metadata.mcpServers).toEqual([
-			{ name: 'Linear', displayName: 'Linear', status: 'pending', usable: false, error: null },
-			{ name: 'GitHub', displayName: 'GitHub', status: 'needs-auth', usable: false, error: null },
-			{ name: 'Disabled', displayName: 'Disabled', status: 'disabled', usable: false, error: null },
-			{ name: 'Broken', displayName: 'Broken', status: 'failed', usable: false, error: null },
-			{
-				name: 'Future status',
-				displayName: 'Future Status',
-				status: 'failed',
-				usable: false,
-				error: null,
-			},
+		expect(metadata.mcpServers?.map(({ name, status }) => [name, status])).toEqual([
+			['Linear', 'pending'],
+			['GitHub', 'needs-auth'],
+			['Disabled', 'disabled'],
+			['Broken', 'failed'],
+			['Future status', 'failed'],
 		]);
 	});
 

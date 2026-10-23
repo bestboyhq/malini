@@ -5,6 +5,8 @@ import {
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
+	bridgeMcpServerFrame,
+	bridgeMcpServersFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
 	parseCommandLine,
@@ -346,7 +348,7 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
-		it('parses MCP server commands and rejects one without a server', () => {
+		it('parses MCP server commands for a chat or a folder, never both or neither', () => {
 			expect(
 				parseCommandLine(
 					'{"cmd":"authorize_mcp_server","id":"mcp-1","sessionId":"session-1","serverName":"linear"}',
@@ -361,8 +363,35 @@ describe('protocol: parseCommandLine', () => {
 				},
 			});
 			expect(
-				parseCommandLine('{"cmd":"reconnect_mcp_server","id":"mcp-2","sessionId":"session-1"}').ok,
-			).toBe(false);
+				parseCommandLine(
+					'{"cmd":"reconnect_mcp_server","id":"mcp-2","cwd":"/repo","serverName":"linear"}',
+				),
+			).toEqual({
+				ok: true,
+				command: { cmd: 'reconnect_mcp_server', id: 'mcp-2', cwd: '/repo', serverName: 'linear' },
+			});
+			for (const target of [
+				'"sessionId":"session-1"',
+				'"sessionId":"session-1","cwd":"/repo","serverName":"linear"',
+				'"serverName":"linear"',
+				'"sessionId":"","serverName":"linear"',
+				'"cwd":"repo","serverName":"linear"',
+			]) {
+				expect(
+					parseCommandLine(`{"cmd":"authorize_mcp_server","id":"mcp-3",${target}}`),
+				).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD', id: 'mcp-3' });
+			}
+		});
+
+		it('parses list_mcp_servers for an absolute folder and rejects any other', () => {
+			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m1","cwd":"/repo"}')).toEqual({
+				ok: true,
+				command: { cmd: 'list_mcp_servers', id: 'm1', cwd: '/repo' },
+			});
+			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m2","cwd":"repo"}')).toMatchObject({
+				ok: false,
+				code: 'INVALID_PAYLOAD',
+			});
 		});
 
 		it('parses a stop_task command and rejects one without a task', () => {
@@ -517,6 +546,8 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_session_status',
 				'authorize_mcp_server',
 				'reconnect_mcp_server',
+				'list_mcp_servers',
+				'cancel_mcp_authorization',
 				'stop_task',
 				'suggest_title',
 				'list_skills',
@@ -533,6 +564,8 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.title',
 				'bridge.skills',
 				'bridge.mcp_authorization',
+				'bridge.mcp_servers',
+				'bridge.mcp_server',
 				'bridge.browser_request',
 				'bridge.platform_request',
 			]);
@@ -611,6 +644,18 @@ describe('protocol: parseCommandLine', () => {
 				runId: 'r1',
 				tool: 'jobs_save',
 				input: { name: 'Docs after merge', when: null },
+			});
+			const linear = { name: 'linear', status: 'connected', source: 'user', toolCount: 4 };
+			expect(bridgeMcpServersFrame('m1', [linear])).toEqual({
+				type: 'bridge.mcp_servers',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				id: 'm1',
+				servers: [linear],
+			});
+			expect(bridgeMcpServerFrame(linear)).toEqual({
+				type: 'bridge.mcp_server',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				server: linear,
 			});
 			expect(bridgeCommandAckFrame('c1')).toMatchObject({
 				type: 'bridge.command_ack',

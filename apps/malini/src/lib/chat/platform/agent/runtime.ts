@@ -1,5 +1,5 @@
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, CHAT_MCP_SERVER_CHANGED_CHANNEL } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
 import { getCheckpointForRun } from '../checkpoints.repository';
@@ -707,6 +707,13 @@ export class BridgeRuntime {
 				return;
 			}
 			this.hooks.onAgentRequest?.(request, supervisor);
+		});
+		const unsubscribeMcpServers = supervisor.onMcpServer((server) => {
+			if (this.eventGeneration !== generation) {
+				unsubscribeMcpServers();
+				return;
+			}
+			this.events.emit(CHAT_MCP_SERVER_CHANGED_CHANNEL, server);
 		});
 	}
 

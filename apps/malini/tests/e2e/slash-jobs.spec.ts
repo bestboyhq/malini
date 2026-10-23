@@ -49,7 +49,7 @@ test('a typed slash opens the job list while the prompt keeps the text, the focu
 		await expect(input).not.toHaveAttribute('aria-activedescendant');
 
 		await page.keyboard.type(' /zz', { delay: 10 });
-		await expect(picker.getByRole('status')).toHaveText('No job matches “zz”');
+		await expect(picker.getByRole('status')).toHaveText('No job matches “/zz”');
 		await page.keyboard.press('Space');
 		await expect(picker).toBeHidden();
 		await expect(input).toBeFocused();

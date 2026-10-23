@@ -9,6 +9,7 @@
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
+	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
 	import { JOBS_HREF } from '$shared/router/routes-hrefs';
@@ -260,7 +261,9 @@
 			{:else if load.error}
 				{load.error}
 			{:else if query.trim()}
-				No job matches “{query.trim()}”
+				<span>
+					No job matches “<SensitiveText text={`/${query.trim()}`} interactive={false} />”
+				</span>
 			{:else}
 				No jobs yet
 			{/if}

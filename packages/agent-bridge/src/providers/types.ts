@@ -1,4 +1,4 @@
-import type { AgentEvent } from '../types.js';
+import type { AgentEvent, McpServerReport } from '../types.js';
 import type { AgentRunProfile, AgentTheme } from '../agent-profile.js';
 import type {
 	BrowserRequest,
@@ -41,8 +41,8 @@ export interface ProviderHandle {
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;
 	respondToQuestion?(reply: ProviderQuestionReply): Promise<void>;
 	refreshSessionStatus?(): Promise<void>;
-	authorizeMcpServer?(serverName: string): Promise<string | null>;
 	reconnectMcpServer?(serverName: string): Promise<void>;
+	adoptMcpServer?(server: McpServerReport): Promise<void>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
 	close(): Promise<void>;
 }

@@ -1244,7 +1244,7 @@
 			</div>
 
 			<div class="flex shrink-0 items-center gap-1">
-				<SessionRuntimeControls {envelopes} {sessionId} />
+				<SessionRuntimeControls {envelopes} {sessionId} {workstreamId} />
 				<Tooltip content={queuesOnSend ? queueOrSteerHelp : submitTitle} placement="top">
 					<IconButton
 						variant={stopsRun ? 'secondary' : 'primary'}

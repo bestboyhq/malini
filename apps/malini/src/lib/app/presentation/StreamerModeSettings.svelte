@@ -14,12 +14,13 @@
 	<div class="min-w-0">
 		<h3 class="text-fg-default text-sm font-medium">Streamer mode</h3>
 		<p class="text-fg-tertiary text-xs">
-			Blurs email addresses and your user name in paths. Auto blurs while OBS or another streaming
-			app runs, or while an app records the screen.
+			Masks email addresses and your user name in paths, keeping only the first letter, and the last
+			for longer names, so you can tell your own. Auto masks while OBS or another streaming app
+			runs, or while an app records the screen. Click a masked one to show it.
 		</p>
 		{#if detected}
 			<p class="text-fg-secondary mt-0.5 text-xs" data-testid="streamer-mode-detected">
-				Streaming or screen recording detected, so Malini blurs now.
+				Streaming or screen recording detected, so Malini masks now.
 			</p>
 		{/if}
 	</div>

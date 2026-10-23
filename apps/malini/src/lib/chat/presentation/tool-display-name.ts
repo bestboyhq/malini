@@ -1,5 +1,5 @@
 import { toolTarget } from '$lib/chat/domain/tool-target';
-import { mcpServerDisplayName } from './session-runtime-metadata';
+import { mcpServerDisplayName } from '$lib/chat/domain/mcp-server';
 import { relativizeWorkstreamCommand, relativizeWorkstreamPath } from './workstream-path';
 
 export type ToolActionKind = 'command' | 'read' | 'edit' | 'search' | 'other';

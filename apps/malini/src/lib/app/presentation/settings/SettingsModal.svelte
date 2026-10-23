@@ -5,7 +5,11 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import type { PageState } from '$shared/router/hash-router.svelte';
-	import { MODEL_SETTINGS_HREF, SKILL_SETTINGS_HREF } from '$shared/router/routes-hrefs';
+	import {
+		MCP_SETTINGS_HREF,
+		MODEL_SETTINGS_HREF,
+		SKILL_SETTINGS_HREF,
+	} from '$shared/router/routes-hrefs';
 	import { page } from '$shared/router/state';
 	import { loadRuntimeInfoCommand } from '$lib/app/application/commands/load-runtime-info.command';
 	import { runtimeInfoQuery } from '$lib/app/application/queries/runtime-info.query.svelte';
@@ -13,6 +17,7 @@
 	import AgentSection from './AgentSection.svelte';
 	import AppearanceSection from './AppearanceSection.svelte';
 	import JobsSection from './JobsSection.svelte';
+	import McpServersSection from './McpServersSection.svelte';
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
@@ -41,6 +46,7 @@
 			content: AgentAccessSection,
 		},
 		{ href: SKILL_SETTINGS_HREF, label: 'Skills', icon: 'puzzle', content: SkillsSection },
+		{ href: MCP_SETTINGS_HREF, label: 'MCP servers', icon: 'plug', content: McpServersSection },
 		APPEARANCE,
 		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
