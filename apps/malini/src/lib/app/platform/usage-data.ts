@@ -127,7 +127,7 @@ function logdashSink(appVersion: string): UsageSink | null {
 				{
 					siteId: site,
 					sentAt: at,
-					events: [{ id: randomUUID(), timestamp: at, name, path: '/' }],
+					events: [{ id: randomUUID(), timestamp: at, name: `malini_desktop_${name}`, path: '/' }],
 				},
 			);
 		},
