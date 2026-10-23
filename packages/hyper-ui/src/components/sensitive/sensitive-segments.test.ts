@@ -62,29 +62,27 @@ describe('sensitive segments', () => {
 		expect(pieces[0]?.[1]?.match).toBe(pieces[1]?.[0]?.match);
 		expect(pieces.flat().map(({ masked }) => masked)).toEqual([
 			'cd /Users/',
-			'a',
-			'**',
+			'a***',
+			'',
 			'/src',
 			' ok',
 		]);
 	});
 
-	it('masks with asterisks its owner can still recognize, keeping every length', () => {
+	it('masks with a fixed run of asterisks that hides the domain and every length', () => {
 		const shown = (text: string): string =>
 			sensitiveSegments(text)
 				.map((segment) => segment.masked)
 				.join('');
-		expect(shown('Signed in as ada.lovelace@example.co.uk')).toBe(
-			'Signed in as a**********e@e*****e.c*.uk',
-		);
+		expect(shown('Signed in as ada.lovelace@example.co.uk')).toBe('Signed in as a***e@***');
 		expect(shown('/Users/szymeo/notes.md and /home/al/x')).toBe(
-			'/Users/s****o/notes.md and /home/a*/x',
+			'/Users/s***o/notes.md and /home/a***/x',
 		);
-		expect(maskSensitive('e2e@x.io', 'email')).toBe('e**@*.io');
-		expect(maskSensitive('zoë🙂x', 'user')).toBe('z****x');
-		for (const text of ['ada.lovelace@example.co.uk', 'zoë🙂x']) {
-			expect(maskSensitive(text, text.includes('@') ? 'email' : 'user')).toHaveLength(text.length);
-		}
+		expect(maskSensitive('e2e@gmail.com', 'email')).toBe('e***@***');
+		expect(maskSensitive('e2e.tester@x.io', 'email')).toBe(
+			maskSensitive('e2e.long.tester@other.example.org', 'email'),
+		);
+		expect(maskSensitive('zoë🙂x', 'user')).toBe('z***x');
 	});
 
 	it('masks nothing while masking is off', () => {

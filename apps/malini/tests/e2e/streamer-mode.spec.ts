@@ -91,7 +91,7 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 		await expect(mask).toHaveCount(0);
 		await url.blur();
 		await expect(mask).toBeVisible();
-		await expect(mask).toHaveText('file:///Users/a**/repos/hutch');
+		await expect(mask).toHaveText('file:///Users/a***/repos/hutch');
 		await expect(url).toHaveValue(homePath);
 		await captureFlow(app, 'streamer-mode-field-masked');
 
@@ -136,13 +136,12 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 		await composer.click();
 		await page.keyboard.type('Mail ada.lovelace@example.com about /Users/ada/notes.md');
 		await expect(page.getByRole('status').filter({ hasText: 'No job matches' })).toHaveText(
-			'No job matches “/Users/a**/notes.md”',
+			'No job matches “/Users/a***/notes.md”',
 		);
 		await page.getByRole('button', { name: 'View MCP server status' }).focus();
-		await expect(composer).toContainText(
-			'Mail a**********e@e*****e.com about /Users/a**/notes.md',
-			{ useInnerText: true },
-		);
+		await expect(composer).toContainText('Mail a***e@*** about /Users/a***/notes.md', {
+			useInnerText: true,
+		});
 		await captureFlow(app, 'streamer-mode-composer');
 		await composer.click();
 		await expect(composer).toContainText(
@@ -152,7 +151,7 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 
 		await openSettings(page, '');
 		const signedIn = page.getByTestId('claude-code-setup').getByTestId('claude-code-detail');
-		await expect(signedIn).toContainText('Signed in as e**@e*****e.com');
+		await expect(signedIn).toContainText('Signed in as e***@***');
 		await captureFlow(app, 'streamer-mode-account');
 		await signedIn.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(signedIn).toContainText('Signed in as e2e@example.com');

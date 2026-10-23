@@ -1,6 +1,11 @@
 import { highlightCode, resolveLanguage, type CodeToken } from '@malini/extension-api';
 import { revealedText } from '../sensitive/sensitive-dom';
-import { SENSITIVE_REVEAL_LABEL, sensitiveSegmentsAcross } from '../sensitive/sensitive-segments';
+import {
+	SENSITIVE_REVEAL_LABEL,
+	sensitiveSegmentsAcross,
+	type SensitiveKind,
+	type SensitiveSegment,
+} from '../sensitive/sensitive-segments';
 import { sensitiveMasking } from '../sensitive/sensitive-masking.svelte';
 import { BoundedHtmlCache, textFingerprint } from './bounded-html-cache';
 
@@ -46,13 +51,17 @@ function tokensHtml(tokens: readonly CodeToken[]): string {
 	tokens.forEach((token, index) => {
 		let inner = '';
 		for (const piece of pieces[index] ?? []) {
-			inner += piece.kind
-				? `<span class="hyper-sensitive" data-sensitive="${piece.kind}" data-sensitive-text="${escapeCodeAttribute(piece.text)}" ${SENSITIVE_MATCH_ATTRIBUTE}="${piece.match}" role="button" tabindex="0" aria-label="${SENSITIVE_REVEAL_LABEL[piece.kind]}"><span class="hyper-sensitive-mask">${escapeCodeText(piece.masked)}</span></span>`
-				: escapeCodeText(piece.text);
+			inner += piece.kind ? sensitivePieceHtml(piece, piece.kind) : escapeCodeText(piece.text);
 		}
 		html += token.kind === 'plain' ? inner : `<span class="tok-${token.kind}">${inner}</span>`;
 	});
 	return html;
+}
+
+function sensitivePieceHtml(piece: SensitiveSegment, kind: SensitiveKind): string {
+	const attributes = `data-sensitive="${kind}" data-sensitive-text="${escapeCodeAttribute(piece.text)}" ${SENSITIVE_MATCH_ATTRIBUTE}="${piece.match}"`;
+	if (!piece.masked) return `<span ${attributes}></span>`;
+	return `<span class="hyper-sensitive" ${attributes} role="button" tabindex="0" aria-label="${SENSITIVE_REVEAL_LABEL[kind]}"><span class="hyper-sensitive-mask">${escapeCodeText(piece.masked)}</span></span>`;
 }
 
 export function revealSensitiveCode(event: Event): boolean {

@@ -14,9 +14,9 @@
 	<div class="min-w-0">
 		<h3 class="text-fg-default text-sm font-medium">Streamer mode</h3>
 		<p class="text-fg-tertiary text-xs">
-			Masks email addresses and your user name in paths with asterisks, keeping the first and last
-			letters so you can tell your own. Auto masks while OBS or another streaming app runs, or
-			while an app records the screen. Click a masked one to show it.
+			Masks email addresses and your user name in paths, keeping only the first letter, and the last
+			for longer names, so you can tell your own. Auto masks while OBS or another streaming app
+			runs, or while an app records the screen. Click a masked one to show it.
 		</p>
 		{#if detected}
 			<p class="text-fg-secondary mt-0.5 text-xs" data-testid="streamer-mode-detected">

@@ -28,24 +28,18 @@ function sensitiveRanges(text: string): SensitiveRange[] {
 	});
 }
 
+const MASK = '***';
+const LAST_LETTER_FROM_LENGTH = 5;
+
 export function maskSensitive(text: string, kind: SensitiveKind): string {
-	if (kind === 'user') return maskWord(text);
-	const at = text.lastIndexOf('@');
-	const labels = text.slice(at + 1).split('.');
-	const topLevel = labels.pop() ?? '';
-	return `${maskWord(text.slice(0, at))}@${labels.map((label) => `${maskWord(label)}.`).join('')}${topLevel}`;
+	if (kind === 'user') return maskName(text);
+	return `${maskName(text.slice(0, text.lastIndexOf('@')))}@${MASK}`;
 }
 
-function maskWord(word: string): string {
-	const characters = [...word];
-	const last = characters.length - 1;
-	return characters
-		.map((character, index) =>
-			(index === 0 && last > 0) || (index === last && last >= 3)
-				? character
-				: '*'.repeat(character.length),
-		)
-		.join('');
+function maskName(name: string): string {
+	const characters = [...name];
+	const last = characters.length >= LAST_LETTER_FROM_LENGTH ? characters.at(-1) : '';
+	return `${characters[0] ?? ''}${MASK}${last}`;
 }
 
 export function hasSensitiveText(text: string): boolean {
@@ -68,7 +62,7 @@ export function sensitiveSegmentsAcross(parts: readonly string[]): SensitiveSegm
 			if (from > cursor) segments.push(plain(part.slice(cursor - start, from - start)));
 			segments.push({
 				text: part.slice(from - start, to - start),
-				masked: range.masked.slice(from - range.start, to - range.start),
+				masked: from === range.start ? range.masked : '',
 				kind: range.kind,
 				match,
 			});

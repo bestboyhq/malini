@@ -64,8 +64,12 @@ function runDecorations({ texts, positions }: TextRun): Decoration[] {
 			const at = from;
 			from += segment.text.length;
 			if (!segment.kind) return [];
+			const hidden = Decoration.inline(at, at + segment.text.length, {
+				class: 'hyper-sensitive-hidden',
+			});
+			if (!segment.masked) return [hidden];
 			return [
-				Decoration.inline(at, at + segment.text.length, { class: 'hyper-sensitive-hidden' }),
+				hidden,
 				Decoration.widget(at, () => maskElement(segment.masked), {
 					side: -1,
 					ignoreSelection: true,
