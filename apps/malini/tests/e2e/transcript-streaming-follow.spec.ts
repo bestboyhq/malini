@@ -446,6 +446,7 @@ test('a steered run keeps its height from the steer to Run cancelled, which take
 		await longChat(app, 'e2e-streaming-follow-steer-still-ws');
 		await sendPrompt(page, 'EDIT:b.txt HANG');
 		await expect(latestRun(page).getByTestId('run-status-line')).toBeVisible({ timeout: 10_000 });
+		await expect(latestRun(page).getByTestId('run-activity-file')).toBeVisible({ timeout: 20_000 });
 		await untilStill(page);
 		const steeredRunId = await latestRun(page).getAttribute('data-run-id');
 		const steeredRun = page.locator(`li[data-run-id="${steeredRunId}"]`);
