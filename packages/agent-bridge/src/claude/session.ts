@@ -24,6 +24,7 @@ import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
 import { probeMcpServer, startMcpAuthorization, type McpProbeOptions } from './mcp-servers.js';
 import {
+	approvedInput,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -625,10 +626,14 @@ export class ClaudeSession implements ProviderHandle {
 				}
 				return { behavior: 'deny', message: 'The user denied this action.', interrupt: true };
 			}
-			const updatedPermissions = rememberedPermissions(options.suggestions, resolution.scope);
+			const updatedPermissions = rememberedPermissions(
+				toolName,
+				options.suggestions,
+				resolution.scope,
+			);
 			return {
 				behavior: 'allow',
-				updatedInput: input,
+				updatedInput: approvedInput(toolName, input, resolution.updatedInput),
 				...(updatedPermissions ? { updatedPermissions } : {}),
 			};
 		};

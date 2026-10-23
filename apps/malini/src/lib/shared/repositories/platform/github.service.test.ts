@@ -17,7 +17,6 @@ import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import type { GhRunner } from './github.service';
 import {
-	getConnectedRepository,
 	listConnectedRepositories,
 	upsertConnectedRepository,
 } from './connected-repositories.repository';
@@ -283,19 +282,6 @@ describe('repositories.connect', () => {
 		expect(listed).toEqual([
 			expect.objectContaining({ id: 'stored-clone', fullName: 'bestboyhq/malini' }),
 		]);
-	});
-
-	it('removes a connected repository', async () => {
-		const repoPath = join(root, 'remove-me');
-		gitRepoWithRemote(repoPath, 'git@github.com:bestboyhq/malini.git');
-		const { run } = fakeRunner(() => ok(''));
-		boot({ ghRunner: run });
-		const { repository: imported } = await invoke<{ repository: { id: string } }>(
-			'repositories.connect',
-			{ source: { kind: 'local-folder', path: repoPath } },
-		);
-		await invoke('repositories.disconnect', { repoId: imported.id });
-		expect(getConnectedRepository(db, imported.id)).toBeNull();
 	});
 });
 

@@ -107,7 +107,13 @@ export interface AgentElementReference {
 
 export type AgentApprovalDecision = 'allow' | 'deny';
 
-export type AgentApprovalScope = 'once' | 'session' | 'workstream';
+export const AGENT_APPROVAL_SCOPES = ['once', 'session', 'workstream', 'everywhere'] as const;
+
+export type AgentApprovalScope = (typeof AGENT_APPROVAL_SCOPES)[number];
+
+export function isAgentApprovalScope(value: unknown): value is AgentApprovalScope {
+	return AGENT_APPROVAL_SCOPES.some((scope) => scope === value);
+}
 
 export interface AgentApprovalDecisionResult {
 	readonly decision: AgentApprovalDecision;

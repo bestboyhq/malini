@@ -7,6 +7,7 @@ export type ShipStep =
 	| 'marking-ready'
 	| 'updating-branch'
 	| 'updating-from-main'
+	| 'resolving-conflicts'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'

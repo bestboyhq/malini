@@ -1,19 +1,17 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
 	import type { JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
 	import { Well } from '$hyper-ui/components/well';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
-	import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
+	import { isFinishedJobRunStatus, jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 	import JobRunRow from '../JobRunRow.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
+	import WaitingJobRunRow from './WaitingJobRunRow.svelte';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
-		waitingCount: number;
-		waiting: Snippet;
 	}
 
-	let { jobs, waitingCount, waiting }: Props = $props();
+	let { jobs }: Props = $props();
 
 	const RECENT_LIMIT = 60;
 	const ROWS =
@@ -28,16 +26,14 @@
 			.flatMap((job) => runsFor(job.id))
 			.sort((left, right) => jobRunLastActivityAt(right).localeCompare(jobRunLastActivityAt(left))),
 	);
+	const waiting = $derived(runs.filter((run) => run.status === 'waiting'));
 	const needsYou = $derived(runs.filter((run) => run.status === 'needs-you'));
+	const waitingForYou = $derived(waiting.length + needsYou.length);
 	const running = $derived(
 		runs.filter((run) => run.status === 'running' || run.status === 'queued'),
 	);
 	const days = $derived(
-		groupByDay(
-			runs
-				.filter((run) => !['needs-you', 'running', 'queued'].includes(run.status))
-				.slice(0, RECENT_LIMIT),
-		),
+		groupByDay(runs.filter((run) => isFinishedJobRunStatus(run.status)).slice(0, RECENT_LIMIT)),
 	);
 
 	$effect(() => {
@@ -77,15 +73,14 @@
 	description="What your jobs did, and what waits for you."
 	testId="automations-activity"
 >
-	<Well
-		title="Waiting for you"
-		note={needsYou.length + waitingCount > 0 ? `${needsYou.length + waitingCount}` : undefined}
-	>
+	<Well title="Waiting for you" note={waitingForYou > 0 ? `${waitingForYou}` : undefined}>
 		<div class={ROWS}>
-			{#if needsYou.length + waitingCount === 0}
+			{#if waitingForYou === 0}
 				<p class="text-fg-tertiary px-4 py-3 text-xs">Nothing waits for you.</p>
 			{/if}
-			{@render waiting()}
+			{#each waiting as run (run.id)}
+				<WaitingJobRunRow {run} {nowMs} />
+			{/each}
 			{#if needsYou.length > 0}
 				<ul class="flex flex-col p-1">
 					{#each needsYou as run (run.id)}

@@ -223,7 +223,6 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
 			'mcp__malini__jobs_list',
-			'mcp__malini__routines_list',
 			'mcp__malini__events_list',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([

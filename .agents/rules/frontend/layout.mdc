@@ -21,8 +21,7 @@ apps/malini/src/
     app/               the consumer domain: shell, sidebar, layouts, pages, routes.ts, boot
     chat/              transcript, composer, prompt queue, sessions and runs, approvals, checkpoints
     pull-requests/     pull request state, actions, top-bar status, merge
-    jobs/              job definitions, job runs and their scheduler, Job center
-    routines/          drafts, routines, suggestions, gated runs
+    jobs/              jobs, their triggers and Thens, job runs and their runner, suggestions, Job center
     skills/            skill usage, turning skills off in Claude settings, the skills a job loads
     extensions/        runtime, host adapters, inspector, directory, configuration
     browser/           browser tabs in the inspector, the agent's browser tools

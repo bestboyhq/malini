@@ -11,15 +11,19 @@ vi.mock('electron', () => ({
 
 import {
 	findActivePermissionRule,
+	hasActivePermissionRule,
+	listActivePermissionRules,
 	listPermissionRules,
 	markPermissionRuleUsed,
 	matchPermissionRule,
 	rememberPermissionRule,
 	revokePermissionRule,
+	revokePermissionRulesFor,
 } from './permissions.repository';
 import {
 	approvalDecisionResult,
 	isSensitivePathForHome,
+	maliniActionFingerprint,
 	normalizeRememberablePermission,
 	rememberedRuleIdForResolvedApproval,
 	resolveHomeDirectory,
@@ -233,7 +237,7 @@ describe('approval decisions', () => {
 			'approval decision must be `allow` or `deny`',
 		);
 		expect(() => validateApprovalDecision('allow', 'forever')).toThrow(
-			'approval scope must be `once`, `session`, or `workstream`',
+			'approval scope must be `once`, `session`, `workstream`, or `everywhere`',
 		);
 		expect(() => validateApprovalDecision('deny', 'workstream')).not.toThrow();
 	});
@@ -250,6 +254,43 @@ describe('approval decisions', () => {
 			remembered: true,
 			ruleId: 'rule-1',
 		});
+	});
+});
+
+describe('Malini actions', () => {
+	const action = (value: string) => ({
+		capability: 'execute',
+		resources: [{ kind: 'action', value, boundary: 'workstream' }],
+	});
+
+	it('remembers a Malini tool only as the one action Malini named', () => {
+		const root = tempDir();
+		const normalized = normalizeRememberablePermission(
+			action('jobs.run:job-1'),
+			root,
+			'mcp__malini__jobs_run',
+		);
+		expect(normalized.fingerprint).toBe(maliniActionFingerprint('jobs.run:job-1'));
+		expect(maliniActionFingerprint('jobs.run:job-2')).not.toBe(normalized.fingerprint);
+		expect(() =>
+			normalizeRememberablePermission(
+				{
+					capability: 'write',
+					resources: [{ kind: 'tool', value: 'Save job', boundary: 'workstream' }],
+				},
+				root,
+				'mcp__malini__jobs_save',
+			),
+		).toThrow('a Malini tool is remembered only as one Malini action');
+		expect(() =>
+			normalizeRememberablePermission(action('anything'), root, 'mcp__malini__jobs_save'),
+		).toThrow('`anything` is not a Malini action');
+	});
+
+	it('never lets another tool borrow a Malini action', () => {
+		expect(() => normalizeRememberablePermission(action('jobs.save'), tempDir(), 'Bash')).toThrow(
+			'only canonical external reads can be remembered',
+		);
 	});
 });
 
@@ -336,6 +377,44 @@ describe('agent_permission_rules repository', () => {
 		expect(findActivePermissionRule(db, 'ws-1', 'sess-1', fingerprint, 'workstream')?.id).toBe(
 			'rule-workstream',
 		);
+		db.close();
+	});
+
+	it('matches an everywhere rule in every workstream and chat, after their own rules', () => {
+		const db = setup();
+		rememberPermissionRule(db, {
+			id: 'rule-everywhere',
+			scope: 'everywhere',
+			workstreamId: 'ws-1',
+			sessionId: 'sess-1',
+			permissionFingerprint: fingerprint,
+			permissionJson: '{}',
+			createdRunId: null,
+			createdRequestId: 'req-1',
+			createdAt: '2026-09-18T10:00:00.000Z',
+		});
+		expect(matchPermissionRule(db, 'ws-2', 'sess-other', fingerprint)?.id).toBe('rule-everywhere');
+		expect(listPermissionRules(db, 'ws-2').map((rule) => rule.id)).toEqual(['rule-everywhere']);
+		expect(listActivePermissionRules(db)).toMatchObject([
+			{ id: 'rule-everywhere', scope: 'everywhere', workstreamId: null, workstreamName: null },
+		]);
+		rememberPermissionRule(db, {
+			id: 'rule-session',
+			scope: 'session',
+			workstreamId: 'ws-1',
+			sessionId: 'sess-1',
+			permissionFingerprint: fingerprint,
+			permissionJson: '{}',
+			createdRunId: null,
+			createdRequestId: 'req-2',
+			createdAt: '2026-09-18T10:01:00.000Z',
+		});
+		expect(matchPermissionRule(db, 'ws-1', 'sess-1', fingerprint)?.id).toBe('rule-session');
+		expect(hasActivePermissionRule(db, fingerprint)).toBe(true);
+
+		expect(revokePermissionRulesFor(db, fingerprint, '2026-09-18T11:00:00.000Z')).toBe(2);
+		expect(hasActivePermissionRule(db, fingerprint)).toBe(false);
+		expect(matchPermissionRule(db, 'ws-2', 'sess-other', fingerprint)).toBeNull();
 		db.close();
 	});
 

@@ -1,13 +1,13 @@
 <script lang="ts">
-	import type { RoutineStatus } from '$contract/routines';
+	import type { JobRunMode } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { RUN_MODES } from './triggers';
 
 	interface Props {
-		value: RoutineStatus;
+		value: JobRunMode;
 		label: string;
 		disabled?: boolean;
-		onchange: (status: RoutineStatus) => void;
+		onchange: (mode: JobRunMode) => void;
 	}
 
 	let { value, label, disabled = false, onchange }: Props = $props();

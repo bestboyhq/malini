@@ -21,6 +21,7 @@ import type {
 	StagedAgentAttachment,
 	StagedAgentAttachmentBytes,
 } from './agent';
+import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
 import type {
 	BrowserElementPrompt,
 	BrowserNavigateArgs,
@@ -36,6 +37,8 @@ import type {
 	JobDefinitionRecord,
 	JobRunIdArgs,
 	JobRunRecord,
+	JobSuggestionIdArgs,
+	JobSuggestionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 } from './jobs';
@@ -75,18 +78,6 @@ import type {
 	WorktreeChangeTotals,
 	WorktreeStatus,
 } from './repositories';
-import type {
-	CreateRoutineDraftArgs,
-	ListRoutineGatedRunsArgs,
-	RecordRoutineGatedRunArgs,
-	RoutineGatedRunIdArgs,
-	RoutineGatedRunRecord,
-	RoutineIdArgs,
-	RoutineRecord,
-	RoutineSuggestionIdArgs,
-	RoutineSuggestionRecord,
-	UpdateRoutineArgs,
-} from './routines';
 import type {
 	DesktopRuntimeIdentity,
 	DockerOwnershipHandshake,
@@ -171,6 +162,7 @@ export type DecideAgentApprovalArgs = Readonly<{
 	decision: AgentApprovalDecision;
 	scope: AgentApprovalScope;
 	permission?: unknown;
+	updatedInput?: Readonly<Record<string, unknown>>;
 }>;
 
 export type ListAgentEventsArgs = Readonly<{ sessionId: string; afterSeq: number }>;
@@ -413,6 +405,8 @@ export interface ContractCommands {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
 	};
+	'chat.list-permission-grants': { args: undefined; result: PermissionGrantRecord[] };
+	'chat.revoke-permission-grant': { args: RevokePermissionGrantArgs; result: void };
 	'repositories.delete-workstream': {
 		args: WorkstreamIdArgs;
 		result: WorkstreamRetirementReceipt;
@@ -481,13 +475,16 @@ export interface ContractCommands {
 	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
 	'jobs.list-chat-runs': { args: ChatJobRunsArgs; result: JobRunRecord[] };
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
+	'jobs.confirm-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
+	'jobs.list-suggestions': { args: undefined; result: JobSuggestionRecord[] };
+	'jobs.accept-suggestion': { args: JobSuggestionIdArgs; result: JobDefinitionRecord };
+	'jobs.dismiss-suggestion': { args: JobSuggestionIdArgs; result: JobSuggestionRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
 	'scratchpad.save': { args: SaveScratchpadArgs; result: void };
-	'repositories.disconnect': { args: RepositoryIdArgs; result: void };
 	'repositories.list-hidden': { args: undefined; result: string[] };
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
@@ -562,27 +559,6 @@ export interface ContractCommands {
 		args: ExtensionIdArgs;
 		result: ManagedExtensionSourceSnapshot;
 	};
-	'routines.confirm-run': { args: RoutineGatedRunIdArgs; result: RoutineGatedRunRecord };
-	'routines.create-draft': { args: CreateRoutineDraftArgs; result: RoutineRecord };
-	'routines.update': { args: UpdateRoutineArgs; result: RoutineRecord };
-	'routines.delete': { args: RoutineIdArgs; result: null };
-	'routines.demote': { args: RoutineIdArgs; result: RoutineRecord };
-	'routines.dismiss-suggestion': {
-		args: RoutineSuggestionIdArgs;
-		result: RoutineSuggestionRecord;
-	};
-	'routines.list': { args: undefined; result: RoutineRecord[] };
-	'routines.list-gated-runs': {
-		args: ListRoutineGatedRunsArgs;
-		result: RoutineGatedRunRecord[];
-	};
-	'routines.list-suggestions': { args: undefined; result: RoutineSuggestionRecord[] };
-	'routines.promote': { args: RoutineIdArgs; result: RoutineRecord };
-	'routines.record-gated-run': {
-		args: RecordRoutineGatedRunArgs;
-		result: RoutineGatedRunRecord;
-	};
-	'routines.reject-run': { args: RoutineGatedRunIdArgs; result: RoutineGatedRunRecord };
 	'chat.send-prompt': { args: SendAgentPromptArgs; result: string };
 	'app.set-setting': { args: SetSettingArgs; result: void };
 	'extensions.set-managed-enabled': {
@@ -691,6 +667,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.create-repository',
 	'repositories.create-workstream',
 	'chat.decide-approval',
+	'chat.list-permission-grants',
+	'chat.revoke-permission-grant',
 	'repositories.delete-workstream',
 	'extensions.recovery-mode-enabled',
 	'chat.run-change-patch',
@@ -732,13 +710,16 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.list-runs',
 	'jobs.list-chat-runs',
 	'jobs.run',
+	'jobs.confirm-run',
 	'jobs.cancel-run',
+	'jobs.list-suggestions',
+	'jobs.accept-suggestion',
+	'jobs.dismiss-suggestion',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',
 	'scratchpad.load',
 	'scratchpad.save',
-	'repositories.disconnect',
 	'repositories.list-hidden',
 	'repositories.set-hidden',
 	'chat.list-events',
@@ -784,18 +765,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.sync-workstream-base',
 	'repositories.sync-own-pull-requests',
 	'extensions.rollback-managed',
-	'routines.confirm-run',
-	'routines.create-draft',
-	'routines.update',
-	'routines.delete',
-	'routines.demote',
-	'routines.dismiss-suggestion',
-	'routines.list',
-	'routines.list-gated-runs',
-	'routines.list-suggestions',
-	'routines.promote',
-	'routines.record-gated-run',
-	'routines.reject-run',
 	'chat.send-prompt',
 	'app.set-setting',
 	'extensions.set-managed-enabled',

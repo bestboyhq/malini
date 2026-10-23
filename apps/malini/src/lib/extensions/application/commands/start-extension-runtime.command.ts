@@ -1,16 +1,8 @@
 import type { ExtensionWorkstream } from '@malini/extension-api';
 import { REPOSITORY_STATE_CHANGED_EVENT } from '@malini-extension/repository';
-import { createPlatformRoutineGateStore } from '$shared/extensions/automation-gate';
-import { createPlatformRoutineJobRunner } from '$shared/extensions/automation-jobs';
-import {
-	automationRulesStore,
-	loadAutomationRules,
-} from '$shared/extensions/automation-rules.store.svelte';
 import { extensionCommands } from '$shared/extensions/commands.store.svelte';
 import { workstreamSnapshotsHook } from '$shared/repositories/repositories.api';
 
-import { attachRoutineGateDecisions } from '../../infrastructure/services/routine-gate-decisions.service';
-import { onRoutinesChanged } from '../../infrastructure/services/routines-changed.service';
 import { extensionRuntimeStore } from '../../infrastructure/stores/extension-runtime.store.svelte';
 import { announceWorkstreamLifecycleCommand } from './announce-workstream-lifecycle.command';
 
@@ -25,14 +17,6 @@ export function startExtensionRuntimeCommand(start: ExtensionRuntimeStart = {}):
 	const service = coordinator.initialize({
 		...(start.knownWorkstreams ? { knownWorkstreams: start.knownWorkstreams } : {}),
 		workstreamSnapshots: workstreamSnapshotsHook(),
-		routineGate: createPlatformRoutineGateStore(),
-		routineJobs: createPlatformRoutineJobRunner(),
-		onAutomationFailuresChanged: () => {
-			automationRulesStore.publishFailures(
-				extensionRuntimeStore.service?.automations.failures ?? [],
-			);
-		},
-		routinesLoader: () => loadAutomationRules(),
 	});
 	extensionRuntimeStore.service = service;
 	extensionRuntimeStore.ready = service.workstream !== null;
@@ -60,17 +44,6 @@ export function startExtensionRuntimeCommand(start: ExtensionRuntimeStart = {}):
 		}),
 	);
 
-	extensionRuntimeStore.registerTeardown(attachRoutineGateDecisions(service.automations));
-	extensionRuntimeStore.registerTeardown(
-		automationRulesStore.connectRunner((routine, workstreamId) =>
-			service.automations.runNow(routine, workstreamId),
-		),
-	);
-	extensionRuntimeStore.registerTeardown(
-		onRoutinesChanged(() => {
-			void coordinator.reloadRoutines();
-		}),
-	);
 	for (const { action, workstreamId } of extensionRuntimeStore.takeDeferredLifecycle()) {
 		announceWorkstreamLifecycleCommand(action, workstreamId);
 	}

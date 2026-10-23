@@ -1,4 +1,5 @@
 import { isCancellationError } from '$contract/agent-state-machine';
+import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentQuestion } from '$lib/chat/domain/agent-interaction';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import {
@@ -118,6 +119,7 @@ export type RenderItem =
 			toolName?: string;
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
+			review?: MaliniEditReview;
 	  }
 	| {
 			kind: 'question';
@@ -326,6 +328,7 @@ export function renderInteractionItem(
 			reason: event.reason,
 			...(event.toolName ? { toolName: event.toolName } : {}),
 			...('input' in event ? { input: event.input } : {}),
+			...(event.review ? { review: event.review } : {}),
 			...(event.permission
 				? {
 						permission: {

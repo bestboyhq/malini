@@ -32,6 +32,7 @@ const STEP_DETAILS: Readonly<Partial<Record<ShipStep, string>>> = {
 	'waiting-for-agent': 'Waiting for the agent',
 	'opening-draft': 'Opening the pull request',
 	'updating-from-main': 'Clearing blockers',
+	'resolving-conflicts': 'Clearing blockers',
 	'fixing-checks': 'Clearing blockers',
 	'addressing-review': 'Clearing blockers',
 	'waiting-for-checks': 'Waiting for checks',

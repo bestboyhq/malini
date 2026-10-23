@@ -10,12 +10,27 @@ import {
 	openJobs,
 } from './harness';
 
-type RoutineRow = Readonly<{ label: string; status: string; when: string }>;
+type JobRow = Readonly<{
+	id: string;
+	name: string;
+	builtin: string | null;
+	instructions: string;
+	trigger: Readonly<{ when: string; mode: string }> | null;
+	thenJobId: string | null;
+}>;
 
-async function routines(page: Page): Promise<RoutineRow[]> {
-	return (await invoke<RoutineRow[]>(page, 'routines.list', undefined)).map(
-		({ label, status, when }) => ({ label, status, when }),
-	);
+async function jobs(page: Page): Promise<JobRow[]> {
+	return invoke<JobRow[]>(page, 'jobs.list-definitions', undefined);
+}
+
+async function jobNamed(page: Page, name: string): Promise<JobRow | undefined> {
+	return (await jobs(page)).find((job) => job.name === name);
+}
+
+async function builtinId(page: Page, builtin: string): Promise<string> {
+	const job = (await jobs(page)).find((candidate) => candidate.builtin === builtin);
+	if (!job) throw new Error(`the built-in ${builtin} job is missing`);
+	return job.id;
 }
 
 test('the Jobs page slides the sidebar into its sections and opens the job its address names', async () => {
@@ -30,14 +45,14 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 			'aria-current',
 			'page',
 		);
+		await expect(sections.getByRole('link', { name: /^Routines/u })).toHaveCount(0);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 		await expect(page.getByRole('region', { name: 'Your jobs' }).getByRole('article')).toHaveCount(
-			7,
+			10,
 		);
 
 		for (const [name, title] of [
 			['Activity', 'Activity'],
-			['Routines', 'Routines'],
 			['Recipes', 'Recipes'],
 		] as const) {
 			await sections.getByRole('link', { name: new RegExp(`^${name}`, 'u') }).click();
@@ -63,12 +78,31 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 		);
 		const detail = page.getByRole('dialog', { name: 'Update from main' });
 		await expect(detail).toContainText('The merge queue runs it when a branch it is shipping');
+		await expect(detail).toContainText('Resolve conflicts, when the merge stops on conflicts');
+		await expect(detail.getByRole('textbox', { name: 'Instructions' })).toHaveCount(0);
 
 		await page.reload();
 		await expect(detail).toBeVisible({ timeout: 20_000 });
 		await detail.getByRole('button', { name: 'Close Update from main' }).click();
 		await expect(detail).toHaveCount(0);
 		await expect(page).toHaveURL(/#\/jobs$/u);
+
+		await page.getByRole('link', { name: 'Set up Update from main' }).click();
+		await detail.getByRole('button', { name: 'Close Update from main' }).click();
+		await page.evaluate(() => {
+			globalThis.location.hash = '#/jobs';
+		});
+		await page.getByRole('link', { name: 'Set up Merge' }).click();
+		const merge = page.getByRole('dialog', { name: 'Merge', exact: true });
+		await expect(merge).toBeVisible();
+		await page.waitForTimeout(1_000);
+		await expect(merge).toBeVisible();
+		await merge.getByRole('button', { name: 'Close Merge' }).click();
+		await expect(merge).toHaveCount(0);
+
+		await openJobs(page, '#/jobs/routines');
+		await expect(page).toHaveURL(/#\/jobs$/u);
+		await expect(page).toHaveTitle('Malini · Automations');
 
 		await sections.getByRole('link', { name: 'Overview' }).click();
 		await page.getByRole('link', { name: 'Workstreams' }).click();
@@ -79,7 +113,7 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 	}
 });
 
-test("a job's trigger and run mode are its own routine, and deleting the job deletes it", async () => {
+test("a job's When, run mode and Then are fields of the job, and a Then that would loop is refused", async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -95,9 +129,7 @@ test("a job's trigger and run mode are its own routine, and deleting the job del
 		await expect(
 			draft.getByRole('button', { name: /runs: A pull request merges$/u }),
 		).toBeVisible();
-		await expect(
-			draft.getByRole('button', { name: 'When it finishes: Open a draft PR' }),
-		).toBeVisible();
+		await expect(draft.getByRole('button', { name: 'Then: Open draft' })).toBeVisible();
 		await expect(draft.getByRole('radio', { name: 'Ask me first' })).toHaveAttribute(
 			'aria-checked',
 			'true',
@@ -108,38 +140,42 @@ test("a job's trigger and run mode are its own routine, and deleting the job del
 		const card = jobCard(page, 'Changelog on merge');
 		await expect(card).toContainText('When a pull request merges');
 		await expect(card).toContainText('Ask me first');
+		const openDraft = await builtinId(page, 'open-draft');
 		await expect
-			.poll(() => routines(page))
-			.toEqual([
-				{
-					label: 'Changelog on merge',
-					status: 'candidate',
-					when: 'on pull-requests:ship-changed where merged is set',
-				},
-			]);
-		const jobs = await invoke<{ name: string; output: string; instructions: string }[]>(
-			page,
-			'jobs.list-definitions',
-			undefined,
-		);
-		expect(jobs.find(({ name }) => name === 'Changelog on merge')).toMatchObject({
-			output: 'draft',
-			instructions: 'Update CHANGELOG.md',
-		});
+			.poll(() => jobNamed(page, 'Changelog on merge'))
+			.toMatchObject({
+				instructions: 'Update CHANGELOG.md',
+				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'ask' },
+				thenJobId: openDraft,
+			});
 
 		await card.getByRole('switch', { name: 'Changelog on merge' }).click();
 		await expect(card).toContainText('Off');
-		await expect.poll(async () => (await routines(page))[0]?.status).toBe('draft');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger?.mode)
+			.toBe('off');
 		await card.getByRole('switch', { name: 'Changelog on merge' }).click();
-		await expect.poll(async () => (await routines(page))[0]?.status).toBe('candidate');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger?.mode)
+			.toBe('ask');
 
 		const detail = await openJob(page, 'Changelog on merge');
 		await detail.getByRole('radio', { name: 'On its own' }).click();
-		await expect.poll(async () => (await routines(page))[0]?.status).toBe('routine');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger?.mode)
+			.toBe('auto');
 		await expect(detail).toContainText(
-			'runs in the workstream it fires in and will open a draft PR',
+			'runs in the workstream it fires in and then runs Open draft.',
 		);
 		await captureFlow(app, 'jobs-detail');
+
+		await detail.getByRole('button', { name: 'Then: Open draft' }).click();
+		await page.getByRole('menuitemradio', { name: 'Merge' }).click();
+		const merge = await builtinId(page, 'merge');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.thenJobId)
+			.toBe(merge);
+		await expect(detail).toContainText('and then runs Merge.');
 
 		await detail.getByRole('button', { name: /^When Changelog on merge runs: /u }).click();
 		const picker = page.getByRole('dialog', { name: 'When should it run' });
@@ -147,30 +183,43 @@ test("a job's trigger and run mode are its own routine, and deleting the job del
 		await picker.getByRole('combobox', { name: 'Event' }).selectOption('chat:session-renamed');
 		await picker.getByRole('button', { name: 'Use this event' }).click();
 		await expect(picker).toHaveCount(0);
-		await expect.poll(async () => (await routines(page))[0]?.when).toBe('on chat:session-renamed');
-		await expect(
-			detail.getByRole('button', { name: 'When Changelog on merge runs: chat:session-renamed' }),
-		).toBeVisible();
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger)
+			.toEqual({ when: 'on chat:session-renamed', mode: 'auto' });
 
 		await detail.getByRole('button', { name: /^When Changelog on merge runs: /u }).click();
 		await picker.getByRole('option', { name: /^When you run it/u }).click();
 		await expect(picker).toHaveCount(0);
-		await expect.poll(() => routines(page)).toEqual([]);
+		await expect.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger).toBeNull();
 		await expect(detail.getByRole('radiogroup')).toHaveCount(0);
 
-		await detail.getByRole('button', { name: /^When Changelog on merge runs: /u }).click();
-		await picker.getByRole('option', { name: /^A job fails/u }).click();
-		await expect.poll(async () => (await routines(page)).length).toBe(1);
+		await detail.getByRole('button', { name: 'Close Changelog on merge' }).click();
+		await draftJob(page, { name: 'Release notes', words: 'Write the release notes' });
+		const changelog = await jobNamed(page, 'Changelog on merge');
+		const notes = await jobNamed(page, 'Release notes');
+		if (!changelog || !notes) throw new Error('the drafted jobs are missing');
+		const notesDetail = await openJob(page, 'Release notes');
+		await notesDetail.getByRole('button', { name: 'Then: Nothing' }).click();
+		await page.getByRole('menuitemradio', { name: 'Changelog on merge' }).click();
+		await expect
+			.poll(async () => (await jobNamed(page, 'Release notes'))?.thenJobId)
+			.toBe(changelog.id);
+		await notesDetail.getByRole('button', { name: 'Close Release notes' }).click();
 
-		await detail.getByRole('button', { name: 'Delete Changelog on merge' }).click();
-		await detail.getByRole('button', { name: 'Confirm deleting Changelog on merge' }).click();
-		await expect(detail).toHaveCount(0);
+		const loop = await openJob(page, 'Changelog on merge');
+		await loop.getByRole('button', { name: 'Then: Merge' }).click();
+		await page.getByRole('menuitemradio', { name: 'Release notes' }).click();
+		await expect(loop.getByRole('alert')).toContainText('loop');
+		await expect
+			.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.thenJobId)
+			.toBe(merge);
+
+		await loop.getByRole('button', { name: 'Delete Changelog on merge' }).click();
+		await loop.getByRole('button', { name: 'Confirm deleting Changelog on merge' }).click();
+		await expect(loop).toHaveCount(0);
 		await expect(card).toHaveCount(0);
-		await expect.poll(() => routines(page)).toEqual([]);
-
-		await draftJob(page, { name: 'By hand', words: 'Tidy the docs' });
-		await expect(jobCard(page, 'By hand')).toContainText('Runs when you run it');
-		expect(await routines(page)).toEqual([]);
+		await expect.poll(async () => (await jobNamed(page, 'Release notes'))?.thenJobId).toBeNull();
+		await expect(jobCard(page, 'Release notes')).toContainText('Runs when you run it');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -195,7 +195,7 @@ export async function formatPage(events) {
 		'# Events',
 		'',
 		'Malini announces everything that happens on the platform as an event on a `<domain>:<event>` channel.',
-		'Routines can trigger on any of them, and agents inside Malini can list them with the `events_list` tool.',
+		'A [job](/malini/docs/jobs.md) can start on any of them, and agents inside Malini can list them with the `events_list` tool.',
 		'This page is generated from the contract in `apps/malini/src/contract/events.ts`, so it always matches the app.',
 		'',
 		...sections.flatMap((section) => [section, '']),

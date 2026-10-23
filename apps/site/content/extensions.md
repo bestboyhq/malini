@@ -22,7 +22,7 @@ An extension declares its contributions in `manifest.json`:
 - **settings**,
 - **workflows**.
 
-A [routine](/malini/docs/routines.md) can run an extension's commands and workflows as steps.
+An automation in a repository's `.malini/workspace.json` runs an extension's commands and workflows when a new workstream is created or a frontend resource becomes ready.
 
 ## The extension API
 

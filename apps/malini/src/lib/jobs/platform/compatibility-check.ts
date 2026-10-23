@@ -32,7 +32,7 @@ async function checkCompatibility(
 			definitionId: definition.id,
 			workstreamId: workstream.id,
 			context: JSON.stringify(changes, null, 2),
-			origin: 'routine',
+			origin: 'trigger',
 		});
 	} catch (error) {
 		log(

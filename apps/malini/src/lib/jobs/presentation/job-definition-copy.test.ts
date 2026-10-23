@@ -16,5 +16,8 @@ describe('job definition copy', () => {
 		expect(jobWhen({ runsIn: 'new-workstream', builtin: null })).toBe(
 			'When you run it, in a new workstream',
 		);
+		expect(jobWhen({ runsIn: 'workstream', builtin: 'merge' })).toBe(
+			'When you run it, or after another job',
+		);
 	});
 });
