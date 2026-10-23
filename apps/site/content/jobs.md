@@ -103,6 +103,7 @@ Every way of starting a job only asks Malini's job runner, which starts it when 
 - Type **/** in the composer to run a job from a chat.
   Its result lands in that chat.
 - Run it from the Jobs page, in a workstream or a new one.
+  A new one shows **Setting up** in the sidebar while Malini updates its branch and installs its dependencies.
 - Give it a When, or make it another job's Then.
 - Ask the agent: in a Malini chat it can list, save, and run jobs with its [tools](/malini/docs/agent-tools.md).
   It asks before it runs a job, until you always allow that job.

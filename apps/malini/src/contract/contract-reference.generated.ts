@@ -89,6 +89,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type InstallStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'aborted';\n\ntype InstallSkipReason = 'already-installed' | 'no-manifest' | 'unrecognized-project';\n\ninterface WorkstreamInstallStatusPayload {\n\ttype: 'repositories:workstream-install-status';\n\tworkstreamId: string;\n\tstatus: InstallStatus;\n\tcommand?: string;\n\treason?: InstallSkipReason;\n\tdetail?: string;\n\tdurationMs?: number;\n\texitCode?: number;\n}",
 		},
 		{
+			channel: 'repositories:workstream-setup-status',
+			description:
+				'Fires when Malini starts setting up a workstream an agent or a job started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
+			payloadType: 'WorkstreamSetupStatusPayload',
+			payload:
+				"interface WorkstreamSetupStatusPayload {\n\tworkstreamId: string;\n\tstatus: 'running' | 'done';\n}",
+		},
+		{
 			channel: 'repositories:workstream-merge-conflicted',
 			description:
 				"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",

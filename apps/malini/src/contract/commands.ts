@@ -225,6 +225,7 @@ export type CreateWorkstreamArgs = Readonly<{
 	projectId: string;
 	name: string;
 	githubToken?: string | null;
+	baseRef?: string | null;
 }>;
 
 export type WorkstreamDiffArgs = Readonly<{

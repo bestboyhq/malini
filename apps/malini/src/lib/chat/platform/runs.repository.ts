@@ -111,6 +111,15 @@ export function getRun(db: MaliniDatabase, runId: string): AgentRun | null {
 	return row ? runFromRow(row) : null;
 }
 
+export function storedRunProfile(db: MaliniDatabase, runId: string): unknown {
+	const row = get<{ profile: string | null }>(
+		db,
+		'SELECT profile FROM agent_runs WHERE id = ?',
+		runId,
+	);
+	return row?.profile ? JSON.parse(row.profile) : null;
+}
+
 export function getWorkstreamRun(
 	db: MaliniDatabase,
 	workstreamId: string,

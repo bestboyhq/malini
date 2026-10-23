@@ -42,11 +42,20 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                           |
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                             |
 | `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, and which one the chat runs in.                 |
-| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, and installs its dependencies.                  |
+| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt.       |
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Archived**, where you can restore it.       |
 
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
+A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
+Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
+The approval card shows that prompt before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
+
+To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
+The workstream starts from the default branch, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.
+Malini fetches that from the repository's origin, and the workstream's pull request still targets the default branch.
+When it reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools.
+A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any.
 
 ## Jobs and events
 

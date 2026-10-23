@@ -26,6 +26,7 @@ import {
 	createPlannedWorkstream,
 	getWorkstream,
 	planRepositoryWorkstream,
+	prepareStartedWorkstream,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
@@ -388,13 +389,8 @@ export class JobRunner {
 		const { workstreamId } = plan;
 		this.#update(jobRun.id, (current) => ({ ...current, workstreamId }));
 		if (!this.#dispatching(jobRun.id)) return workstreamId;
-		await this.#quietly(
-			`update the base branch of \`${workstreamId}\``,
-			commands.call('repositories.sync-workstream-base', { workstreamId }),
-		);
-		await this.#quietly(
-			`install dependencies in \`${workstreamId}\``,
-			commands.call('repositories.provision-dependencies', { workstreamId }),
+		await prepareStartedWorkstream(this.#context, workstreamId, (line) =>
+			this.#log(`jobs: ${line}`),
 		);
 		return workstreamId;
 	}
@@ -641,14 +637,6 @@ export class JobRunner {
 			this.kick();
 		}, delayMs);
 		this.#timers.add(timer);
-	}
-
-	async #quietly(what: string, step: Promise<unknown>): Promise<void> {
-		try {
-			await step;
-		} catch (error) {
-			this.#log(`jobs: could not ${what}: ${describeError(error)}`);
-		}
 	}
 
 	#background(work: Promise<void>): void {

@@ -194,7 +194,7 @@ export async function createWorkstream(
 		);
 	}
 
-	if (start.fetched) baseSync.rememberFetchedAtCreation(workstreamId);
+	if (start.fetched || input.startRef !== undefined) baseSync.keepCreationStart(workstreamId);
 	const payload: WorktreeAddedPayload = { workstreamId, project, workstream };
 	events.emit(REPOSITORIES_WORKSTREAM_CREATED_CHANNEL, payload);
 	return worktreePath;

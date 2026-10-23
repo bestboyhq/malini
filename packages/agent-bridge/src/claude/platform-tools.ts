@@ -130,7 +130,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'repositories_clone',
-			`Add a repository to Malini and clone it on this machine, or show a hidden one again. Malini clones in the background: the result's clone is \`cloned\`, or \`cloning\` when it takes longer, and repositories_list shows when it is done. ${ASKS} Returns the repository as JSON.`,
+			`Add a repository to Malini and clone it on this machine, or show a hidden one again. Use it instead of git clone or gh repo clone for a repository whose code you will change, then start a workstream in it with workstreams_create. Malini clones in the background: the result's clone is \`cloned\`, or \`cloning\` when it takes longer, and repositories_list shows when it is done. ${ASKS} Returns the repository as JSON.`,
 			{
 				repository: z
 					.string()
@@ -166,18 +166,25 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository: its own git worktree on a fresh branch from the default branch. Malini clones the repository first when it has not yet, and installs dependencies in the background. Returns the workstream as JSON with its id and status: \`ready\`, or \`cloning\` when the clone takes longer, and workstreams_list lists it once it is ready. To give it work, run a job in it with jobs_run and \`workstream\`. ${ASKS}`,
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
 			{
 				repository: z
 					.string()
 					.min(1)
 					.describe('Id or owner/name of the repository, from repositories_list'),
-				name: z
+				prompt: z
 					.string()
 					.min(1)
-					.max(80)
+					.describe(
+						'The first message of the new chat, written as a prompt to the agent there. That agent does not see this chat, so give it the task and everything it needs.',
+					),
+				base: z
+					.string()
+					.min(1)
 					.optional()
-					.describe('Name the sidebar shows. Leave out and Malini names it.'),
+					.describe(
+						"A tag, branch or full commit hash on the repository's origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.",
+					),
 			},
 			(input) => call('workstreams_create', input),
 		),

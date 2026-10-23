@@ -26,10 +26,13 @@ import {
 	listRepositoryCatalog,
 	listWorkstreams,
 	planRepositoryWorkstream,
+	prepareStartedWorkstream,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { answeredApprovalsInRun } from '../interactions.repository';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
+import { storedRunProfile } from '../runs.repository';
+import { parseRunProfile } from './commands';
 import { jobsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, type PersistedBridgeSession } from './sessions';
@@ -153,7 +156,7 @@ async function runPlatformTool(
 				}));
 		}
 		case 'workstreams_create':
-			return createWorkstream(deps, requiredText(input, 'repository'), text(input, 'name'));
+			return createWorkstream(deps, request);
 		case 'workstreams_archive': {
 			const { workstreamId } = requestSession(db, request);
 			const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
@@ -190,14 +193,20 @@ async function cloneRepository(
 }
 
 async function createWorkstream(
-	{ db, commands, log }: PlatformRequestDeps,
-	reference: string,
-	name: string | undefined,
+	deps: PlatformRequestDeps,
+	request: BridgePlatformRequest,
 ): Promise<unknown> {
-	const repository = findRepository(await listRepositoryCatalog(db), reference);
-	const planned = await planRepositoryWorkstream(db, repository.id);
-	if (!planned) throw new Error(`${repository.fullName} is no longer in Malini.`);
-	const plan = name === undefined ? planned : { ...planned, name };
+	const { db, commands, log } = deps;
+	const { input } = request;
+	const prompt = requiredText(input, 'prompt');
+	const base = text(input, 'base') ?? null;
+	const source = requestSession(db, request);
+	const repository = findRepository(
+		await listRepositoryCatalog(db),
+		requiredText(input, 'repository'),
+	);
+	const plan = await planRepositoryWorkstream(db, repository.id);
+	if (!plan) throw new Error(`${repository.fullName} is no longer in Malini.`);
 	const projectRepoPath = await settledWithin(
 		clonePlannedRepository(commands, plan),
 		CLONE_WAIT_MS,
@@ -207,14 +216,33 @@ async function createWorkstream(
 			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
 		);
 	}
-	await createPlannedWorkstream(commands, plan, projectRepoPath);
+	await createPlannedWorkstream(commands, plan, projectRepoPath, base);
 	const { workstreamId } = plan;
+	const settingUp = prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
+	let chat: string;
+	try {
+		chat = await commands.call('chat.start-session', {
+			workstreamId,
+			origin: 'user',
+			...(source.model === null ? {} : { model: source.model }),
+		});
+	} catch (error) {
+		throw new Error(
+			`Malini started the workstream “${plan.name}” (\`${workstreamId}\`) but could not start its chat, so it did not send the prompt: ${describeError(error)}. Do not start it again.`,
+		);
+	}
+	const profile = parseRunProfile(storedRunProfile(db, request.runId));
+	const sessionId = chat;
 	void (async () => {
+		await settingUp;
 		try {
-			await commands.call('repositories.sync-workstream-base', { workstreamId });
-			await commands.call('repositories.provision-dependencies', { workstreamId });
+			await commands.call('chat.send-prompt', {
+				sessionId,
+				prompt,
+				...(profile === null ? {} : { profile }),
+			});
 		} catch (error) {
-			log(`agent: could not prepare workstream \`${workstreamId}\`: ${describeError(error)}`);
+			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
 		}
 	})();
 	return {
@@ -223,6 +251,8 @@ async function createWorkstream(
 		repository: repository.fullName,
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
+		...(base === null ? {} : { base }),
+		chat,
 	};
 }
 

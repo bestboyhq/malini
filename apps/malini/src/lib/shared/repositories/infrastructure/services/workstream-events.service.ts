@@ -3,6 +3,7 @@ import type {
 	WorkstreamFilesChangedPayload,
 	WorkstreamInstallStatusPayload,
 	WorkstreamRenamedPayload,
+	WorkstreamSetupStatusPayload,
 	WorktreeAddedPayload,
 } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
@@ -45,14 +46,22 @@ class WorkstreamEventsService {
 		);
 	}
 
-	onInstallStatus(
-		workstreamId: string,
-		listener: (payload: WorkstreamInstallStatusPayload) => void,
-	): () => void {
+	onInstallStatus(listener: (payload: WorkstreamInstallStatusPayload) => void): () => void {
 		return onPlatformEvent(
 			'repositories:workstream-install-status',
 			(payload: WorkstreamInstallStatusPayload | null) => {
-				if (payload?.workstreamId !== workstreamId) return;
+				if (typeof payload?.workstreamId !== 'string') return;
+				listener(payload);
+			},
+		);
+	}
+
+	onSetupStatus(listener: (payload: WorkstreamSetupStatusPayload) => void): () => void {
+		return onPlatformEvent(
+			'repositories:workstream-setup-status',
+			(payload: WorkstreamSetupStatusPayload | null) => {
+				if (typeof payload?.workstreamId !== 'string') return;
+				if (payload.status !== 'running' && payload.status !== 'done') return;
 				listener(payload);
 			},
 		);

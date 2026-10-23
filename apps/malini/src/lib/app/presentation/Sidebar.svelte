@@ -28,6 +28,7 @@
 	import {
 		provisioningRecordQuery,
 		workstreamNativeExistenceQuery,
+		workstreamSettingUpQuery,
 		type WorkstreamChangeTotals,
 		type WorkstreamProvisioningRecord,
 	} from '$shared/repositories/repositories.api';
@@ -94,6 +95,7 @@
 		pullRequestBadge = unknownPullRequestBadge,
 	}: Props = $props();
 	const provisioningRecord = $derived(provisioningRecordQuery.data);
+	const settingUp = $derived(workstreamSettingUpQuery.data);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
 	const workstreamRunning = $derived(workstreamRunningQuery.data);
 	const scopeFailure = $derived(
@@ -629,6 +631,9 @@
 		}
 		if (provisioning) {
 			return { label: 'Creating', icon: 'text-fg-secondary', tone: 'provisioning' };
+		}
+		if (settingUp(workstream.id)) {
+			return { label: 'Setting up', icon: 'text-fg-secondary', tone: 'provisioning' };
 		}
 		if (!isWorkstreamCheckoutUsable(workstream)) {
 			return {
