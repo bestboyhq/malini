@@ -7,7 +7,7 @@ import type {
 	JobRunChangedEvent,
 	JobSuggestedEvent,
 } from './jobs';
-import type { McpServerReport } from './mcp-servers';
+import type { McpServerListing, McpServerReport } from './mcp-servers';
 import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
@@ -128,6 +128,7 @@ export interface ContractEvents {
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
 	'chat:session-renamed': SessionRenamedPayload;
 	'chat:mcp-server-changed': McpServerReport;
+	'chat:mcp-servers-listed': McpServerListing;
 	'repositories:workstream-created': WorktreeAddedPayload;
 	'repositories:workstream-removed': WorktreeRemovedPayload;
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
@@ -165,6 +166,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:checkpoint-restored': null,
 	'chat:session-renamed': null,
 	'chat:mcp-server-changed': null,
+	'chat:mcp-servers-listed': null,
 	'repositories:workstream-created': null,
 	'repositories:workstream-removed': null,
 	'repositories:workstream-files-changed': null,
@@ -210,6 +212,8 @@ export const CHAT_CHECKPOINT_RESTORED_CHANNEL = 'chat:checkpoint-restored' satis
 export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies EventChannel;
 
 export const CHAT_MCP_SERVER_CHANGED_CHANNEL = 'chat:mcp-server-changed' satisfies EventChannel;
+
+export const CHAT_MCP_SERVERS_LISTED_CHANNEL = 'chat:mcp-servers-listed' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_CREATED_CHANNEL =
 	'repositories:workstream-created' satisfies EventChannel;

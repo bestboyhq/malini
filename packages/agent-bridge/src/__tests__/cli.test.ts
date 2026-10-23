@@ -8,8 +8,8 @@ import { createInterface } from 'node:readline';
 import { BridgeOutputWriter, createIpc, attachStdio, runCli, type OutputSink } from '../cli';
 import { unknownCapability } from '../claude/capabilities';
 import { BRIDGE_EVENT_TYPES, BRIDGE_PROTOCOL_VERSION } from '../generated/protocol-contract';
-import type { AgentEvent, McpServerReport } from '../types';
-import type { McpServerProbes } from '../claude/mcp-servers';
+import type { AgentEvent, McpServerListing, McpServerReport } from '../types';
+import type { McpServerProbes, McpServerWatch } from '../claude/mcp-servers';
 import {
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
@@ -107,15 +107,21 @@ function mcpIpc(probes: Partial<McpServerProbes>): {
 	readonly ipc: ReturnType<typeof createIpc>;
 	readonly frames: () => WireFrame[];
 	readonly adopted: string[];
+	readonly switched: string[];
 } {
 	const writes: string[] = [];
 	const adopted: string[] = [];
+	const switched: string[] = [];
 	defaultProviderRegistry.setProvider(async (ctx) => ({
 		async sendPrompt() {},
 		async cancel() {},
 		async close() {},
 		async adoptMcpServer(server) {
 			adopted.push(`${ctx.sessionId} ${server.name}`);
+		},
+		async switchMcpServer(serverName, on) {
+			switched.push(`${ctx.sessionId} ${serverName} ${on ? 'on' : 'off'}`);
+			return ctx.cwd === '/work/one';
 		},
 	}));
 	const ipc = createIpc({
@@ -124,17 +130,29 @@ function mcpIpc(probes: Partial<McpServerProbes>): {
 			once: () => undefined,
 		},
 		mcpServers: {
-			list: async () => [],
+			watch: () => idleWatch(),
 			authorize: async () => ({
 				authUrl: null,
 				settled: Promise.resolve(null),
 				cancel: () => undefined,
 			}),
 			probe: async () => null,
+			turnOn: async () => true,
 			...probes,
 		},
 	});
-	return { ipc, frames: () => parseFrames(writes.join('')), adopted };
+	return { ipc, frames: () => parseFrames(writes.join('')), adopted, switched };
+}
+
+function idleWatch(overrides: Partial<McpServerWatch> = {}): McpServerWatch {
+	return {
+		current: () => null,
+		reconnect: async () => null,
+		turnOn: async () => true,
+		absorbConfig: () => undefined,
+		close: () => undefined,
+		...overrides,
+	};
 }
 
 async function startChats(ipc: ReturnType<typeof createIpc>): Promise<void> {
@@ -346,9 +364,11 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 			bridgeMcpServerFrame({ name: 'one', status: 'failed', error: 'MCP ak-mcp-secret failed' }),
 		);
 		writer.writeControl(
-			bridgeMcpServersFrame('m1', [
-				{ name: 'two', status: 'failed', error: '{"error":"sk-json-secret"}' },
-			]),
+			bridgeMcpServersFrame('/repo', {
+				servers: [{ name: 'two', status: 'failed', error: '{"error":"sk-json-secret"}' }],
+				settled: true,
+				error: 'Claude Code failed with sk-listing-secret',
+			}),
 		);
 
 		stream.release();
@@ -357,7 +377,7 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		const frames = parseFrames(stdout);
 
 		expect(stdout).not.toMatch(
-			/org-control|control-token|ak-control:opaque|sk-control-secret|ak-mcp-secret|sk-json-secret/u,
+			/org-control|control-token|ak-control:opaque|sk-control-secret|ak-mcp-secret|sk-json-secret|sk-listing-secret/u,
 		);
 		expect(frames[0]?.error).toBe(
 			'Close failed for [redacted] with Authorization: Bearer [redacted].',
@@ -720,31 +740,86 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 	});
 
-	it('lists the MCP servers of a folder before acknowledging', async () => {
+	it('keeps one Claude Code per folder open while the folder is watched and reports each change', async () => {
+		const opened: string[] = [];
+		const closed: string[] = [];
+		let report: (listing: McpServerListing) => void = () => undefined;
+		let current: McpServerListing | null = null;
 		const { ipc, frames } = mcpIpc({
-			list: async (cwd) => {
+			watch: (cwd, onListing) => {
 				if (cwd === '/missing') throw new Error('Claude Code is not installed');
-				return [{ name: 'linear', status: 'needs-auth', source: 'user' }];
+				opened.push(cwd);
+				report = (listing) => {
+					current = listing;
+					onListing(listing);
+				};
+				return idleWatch({ current: () => current, close: () => closed.push(cwd) });
 			},
 		});
 
-		await ipc.run('{"cmd":"list_mcp_servers","id":"mcp-1","cwd":"/repo"}');
-		await ipc.run('{"cmd":"list_mcp_servers","id":"mcp-2","cwd":"/missing"}');
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"watch-1","cwd":"/repo"}');
+		report({ servers: [{ name: 'linear', status: 'pending', source: 'user' }], settled: false });
+		report({ servers: [{ name: 'linear', status: 'needs-auth', source: 'user' }], settled: true });
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"watch-2","cwd":"/repo"}');
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"watch-3","cwd":"/missing"}');
 		await ipc.drain();
 
-		expect(frames().filter(({ id }) => id === 'mcp-1')).toEqual([
+		expect(opened).toEqual(['/repo']);
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"watch-4","cwd":"/repo","restart":true}');
+		expect(closed).toEqual(['/repo']);
+		expect(opened).toEqual(['/repo', '/repo']);
+		const listed = { type: 'bridge.mcp_servers', cwd: '/repo' };
+		expect(
+			frames().filter(({ type }) => type === 'bridge.mcp_servers' || type === 'bridge.command_ack'),
+		).toEqual([
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'watch-1', accepted: true }),
+			expect.objectContaining({ ...listed, settled: false }),
 			expect.objectContaining({
-				type: 'bridge.mcp_servers',
+				...listed,
 				servers: [{ name: 'linear', status: 'needs-auth', source: 'user' }],
+				settled: true,
 			}),
-			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
-		]);
-		expect(frames().filter(({ id }) => id === 'mcp-2')).toEqual([
+			expect.objectContaining({ ...listed, settled: true }),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'watch-2', accepted: true }),
 			expect.objectContaining({
 				type: 'bridge.command_ack',
+				id: 'watch-3',
 				accepted: false,
 				error: 'MCP_SERVERS_FAILED: Claude Code is not installed',
 			}),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'watch-4', accepted: true }),
+		]);
+	});
+
+	it('switches a server in every open Claude Code and cleans up the folders it was off in', async () => {
+		const cleaned: string[] = [];
+		const watched: string[] = [];
+		const { ipc, frames, switched } = mcpIpc({
+			watch: () => idleWatch({ turnOn: async (name) => watched.push(name) > 0 }),
+			turnOn: async (cwd, name) => cleaned.push(`${cwd} ${name}`) > 0,
+		});
+		await startChats(ipc);
+		await ipc.run('{"cmd":"watch_mcp_servers","id":"watch-1","cwd":"/repo"}');
+
+		await ipc.run(
+			'{"cmd":"switch_mcp_server","id":"off-1","serverName":"linear","on":false,"folders":[]}',
+		);
+		await ipc.run(
+			'{"cmd":"switch_mcp_server","id":"on-1","serverName":"linear","on":true,"folders":["/work/one","/work/gone"]}',
+		);
+		await ipc.drain();
+
+		expect(switched).toEqual([
+			'chat-1 linear off',
+			'chat-2 linear off',
+			'chat-1 linear on',
+			'chat-2 linear on',
+		]);
+		expect(watched).toEqual(['linear']);
+		expect(cleaned).toEqual(['/work/gone linear']);
+		expect(frames().filter(({ type }) => type === 'bridge.mcp_switched')).toEqual([
+			expect.objectContaining({ id: 'off-1', folders: ['/work/one'] }),
+			expect.objectContaining({ id: 'on-1', folders: ['/work/one', '/work/gone'] }),
 		]);
 	});
 

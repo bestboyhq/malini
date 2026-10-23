@@ -48,7 +48,7 @@ export const BRIDGE_START_SESSION_ACK_TIMEOUT_MS = 30_000;
 export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS = 60_000;
-export const BRIDGE_LIST_MCP_SERVERS_ACK_TIMEOUT_MS = 60_000;
+export const BRIDGE_SWITCH_MCP_SERVER_ACK_TIMEOUT_MS = 120_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -78,6 +78,13 @@ export interface AgentMcpServerStatus {
 }
 
 export type BridgeMcpServerTarget = { sessionId: string } | { cwd: string };
+
+export interface AgentMcpServerListing {
+	cwd: string;
+	servers: AgentMcpServerStatus[];
+	settled: boolean;
+	error?: string;
+}
 
 export type BridgeCommand =
 	| {
@@ -131,7 +138,14 @@ export type BridgeCommand =
 			id: string;
 			serverName: string;
 	  } & BridgeMcpServerTarget)
-	| { cmd: 'list_mcp_servers'; id: string; cwd: string }
+	| { cmd: 'watch_mcp_servers'; id: string; cwd: string; restart?: true }
+	| {
+			cmd: 'switch_mcp_server';
+			id: string;
+			serverName: string;
+			on: boolean;
+			folders: readonly string[];
+	  }
 	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
@@ -183,7 +197,7 @@ export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number 
 	if (command.cmd === 'authorize_mcp_server' || command.cmd === 'reconnect_mcp_server') {
 		return BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS;
 	}
-	if (command.cmd === 'list_mcp_servers') return BRIDGE_LIST_MCP_SERVERS_ACK_TIMEOUT_MS;
+	if (command.cmd === 'switch_mcp_server') return BRIDGE_SWITCH_MCP_SERVER_ACK_TIMEOUT_MS;
 	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
@@ -337,9 +351,12 @@ export type BridgeControlFrame =
 	| {
 			type: 'bridge.mcp_servers';
 			protocolVersion: number;
-			id: string;
+			cwd: string;
 			servers: AgentMcpServerStatus[];
+			settled: boolean;
+			error?: string;
 	  }
+	| { type: 'bridge.mcp_switched'; protocolVersion: number; id: string; folders: string[] }
 	| { type: 'bridge.mcp_server'; protocolVersion: number; server: AgentMcpServerStatus }
 	| BridgeBrowserRequest
 	| BridgePlatformRequest;
@@ -884,8 +901,20 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 					value: {
 						type,
 						protocolVersion: f.number('protocolVersion'),
-						id: f.string('id'),
+						cwd: f.string('cwd'),
 						servers: decodeMcpServers(f.array('servers'), type),
+						settled: f.boolean('settled'),
+						...optional('error', f.optionalString('error')),
+					},
+				};
+			case 'bridge.mcp_switched':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						folders: f.stringArray('folders'),
 					},
 				};
 			case 'bridge.mcp_server':

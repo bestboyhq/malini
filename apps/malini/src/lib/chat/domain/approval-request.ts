@@ -137,10 +137,7 @@ export function maliniToolApproval(
 		case 'mcp__malini__workstreams_create':
 			return {
 				headline: named('Start a workstream in', repository),
-				details: present([
-					['Name', field('name')],
-					['First message', field('prompt')],
-				]),
+				details: present([['First message', field('prompt')]]),
 			};
 		case 'mcp__malini__workstreams_archive':
 			return {

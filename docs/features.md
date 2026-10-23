@@ -18,6 +18,7 @@ The [README](../README.md) has the short version.
 | The pull request sits red for hours                                      | The merge queue runs **Fix checks**, **Update from main**, and **Address review** until it merges, and says **Needs you** only when it must.                                    |
 | The merge lands a commit nobody checked                                  | Malini merges with `--match-head-commit`, so GitHub merges **exactly the commit that passed**.                                                                                  |
 | Quitting the app halfway through a run loses the work in flight          | Runs that a restart cut short **pick up where they left off** the next time Malini opens.                                                                                       |
+| You turn on an MCP server and have to start a new chat to use it         | **Turn on** and **Turn off** reach every open chat at once, and the MCP servers page opens with your servers already listed, updating live.                                     |
 
 ## First launch
 

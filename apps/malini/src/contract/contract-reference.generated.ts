@@ -43,6 +43,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;',
 		},
 		{
+			channel: 'chat:mcp-servers-listed',
+			description:
+				'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.',
+			payloadType: 'McpServerListing',
+			payload:
+				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;\n\ntype McpServerListing = Readonly<{\n\tworkstreamId: string | null;\n\tservers: readonly McpServerReport[];\n\tsettled: boolean;\n\terror?: string;\n}>;',
+		},
+		{
 			channel: 'repositories:workstream-created',
 			description:
 				'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.',

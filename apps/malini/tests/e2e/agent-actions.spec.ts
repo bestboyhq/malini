@@ -208,7 +208,7 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 
 test('an agent clones a repository, starts a workstream in it and hides it, and Activity shows every call with its outcome', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini();
+	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch' } });
 	try {
 		const { page } = app;
 		const { workstreamId } = await seedWorkstream(
@@ -237,10 +237,13 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		agentCalls(app, {
 			tool: 'workstreams_create',
-			input: { repository: kennelName, name: 'Fetch', prompt: 'Add a fetch command' },
+			input: { repository: kennelName, prompt: 'Add a fetch command' },
 		});
 		await allowOnce(`Start a workstream in ‘${kennelName}’`);
-		await expect(sidebar.getByText('Fetch', { exact: true })).toBeVisible({ timeout: 20_000 });
+		const fetchRow = sidebar.locator(
+			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
+		);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
@@ -248,7 +251,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			timeout: 20_000,
 		});
 		await decision(page).getByRole('button', { name: 'Deny' }).click();
-		await expect(sidebar.getByText('Fetch', { exact: true })).toBeVisible();
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
 		await allowOnce(`Hide ‘${kennelName}’`);
@@ -280,7 +283,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			.getByRole('button', { name: `Start a workstream in ‘${kennelName}’, Done` })
 			.click();
 		await expect(calls.nth(2)).toContainText('Called with');
-		await expect(calls.nth(2)).toContainText('"name": "Fetch"');
+		await expect(calls.nth(2)).toContainText('"prompt": "Add a fetch command"');
 		await expect(calls.nth(2)).toContainText(`"repository": "${kennelName}"`);
 		await expect(calls.nth(2).getByRole('link', { name: 'Open chat' })).toBeVisible();
 		await captureFlow(app, 'agent-actions-activity');

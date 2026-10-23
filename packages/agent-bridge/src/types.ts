@@ -140,6 +140,12 @@ export interface McpServerReport {
 	readonly toolCount?: number;
 }
 
+export interface McpServerListing {
+	readonly servers: readonly McpServerReport[];
+	readonly settled: boolean;
+	readonly error?: string;
+}
+
 export const BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
 
 export type BackgroundTaskKind = (typeof BACKGROUND_TASK_KINDS)[number];

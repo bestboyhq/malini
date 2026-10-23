@@ -708,6 +708,19 @@ CREATE INDEX idx_agent_actions_started ON agent_actions(started_at);
 DELETE FROM agent_permission_rules
   WHERE permission_json LIKE '%"value":"pull-requests.open-draft"%';
 `,
+	`
+CREATE TABLE mcp_server_listings (
+  folder TEXT PRIMARY KEY,
+  servers TEXT NOT NULL,
+  listed_at TEXT NOT NULL
+);
+
+CREATE TABLE mcp_server_folder_offs (
+  server_name TEXT NOT NULL,
+  folder TEXT NOT NULL,
+  PRIMARY KEY (server_name, folder)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

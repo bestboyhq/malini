@@ -49,7 +49,15 @@ export type McpFixStep = Readonly<{
 
 export type McpServerInventory = Readonly<{
 	servers: readonly McpServer[];
+	settled: boolean;
 	turnedOff: readonly string[];
+}>;
+
+export type ListedMcpServers = Readonly<{
+	workstreamId: string | null;
+	servers: readonly McpServer[];
+	settled: boolean;
+	error: string | null;
 }>;
 
 export type McpServerListing = Readonly<{

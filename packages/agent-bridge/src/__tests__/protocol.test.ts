@@ -7,6 +7,7 @@ import {
 	bridgeHeartbeatFrame,
 	bridgeMcpServerFrame,
 	bridgeMcpServersFrame,
+	bridgeMcpSwitchedFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
 	parseCommandLine,
@@ -383,15 +384,43 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
-		it('parses list_mcp_servers for an absolute folder and rejects any other', () => {
-			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m1","cwd":"/repo"}')).toEqual({
+		it('parses watch_mcp_servers for an absolute folder and rejects any other', () => {
+			expect(parseCommandLine('{"cmd":"watch_mcp_servers","id":"m1","cwd":"/repo"}')).toEqual({
 				ok: true,
-				command: { cmd: 'list_mcp_servers', id: 'm1', cwd: '/repo' },
+				command: { cmd: 'watch_mcp_servers', id: 'm1', cwd: '/repo' },
 			});
-			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m2","cwd":"repo"}')).toMatchObject({
+			expect(parseCommandLine('{"cmd":"watch_mcp_servers","id":"m2","cwd":"repo"}')).toMatchObject({
 				ok: false,
 				code: 'INVALID_PAYLOAD',
 			});
+		});
+
+		it('parses switch_mcp_server with the folders to clean up and rejects a relative one', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"switch_mcp_server","id":"s1","serverName":"linear","on":true,"folders":["/work/one"]}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'switch_mcp_server',
+					id: 's1',
+					serverName: 'linear',
+					on: true,
+					folders: ['/work/one'],
+				},
+			});
+			for (const payload of [
+				'"serverName":"linear","on":"yes","folders":[]',
+				'"serverName":"linear","on":false,"folders":["work"]',
+				'"serverName":"","on":false,"folders":[]',
+			]) {
+				expect(parseCommandLine(`{"cmd":"switch_mcp_server","id":"s2",${payload}}`)).toMatchObject({
+					ok: false,
+					code: 'INVALID_PAYLOAD',
+					id: 's2',
+				});
+			}
 		});
 
 		it('parses a stop_task command and rejects one without a task', () => {
@@ -546,7 +575,8 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_session_status',
 				'authorize_mcp_server',
 				'reconnect_mcp_server',
-				'list_mcp_servers',
+				'watch_mcp_servers',
+				'switch_mcp_server',
 				'cancel_mcp_authorization',
 				'stop_task',
 				'suggest_title',
@@ -566,6 +596,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.mcp_authorization',
 				'bridge.mcp_servers',
 				'bridge.mcp_server',
+				'bridge.mcp_switched',
 				'bridge.browser_request',
 				'bridge.platform_request',
 			]);
@@ -651,11 +682,18 @@ describe('protocol: parseCommandLine', () => {
 				input: { name: 'Docs after merge', when: null },
 			});
 			const linear = { name: 'linear', status: 'connected', source: 'user', toolCount: 4 };
-			expect(bridgeMcpServersFrame('m1', [linear])).toEqual({
+			expect(bridgeMcpServersFrame('/repo', { servers: [linear], settled: true })).toEqual({
 				type: 'bridge.mcp_servers',
 				protocolVersion: BRIDGE_PROTOCOL_VERSION,
-				id: 'm1',
+				cwd: '/repo',
 				servers: [linear],
+				settled: true,
+			});
+			expect(bridgeMcpSwitchedFrame('s1', ['/work/one'])).toEqual({
+				type: 'bridge.mcp_switched',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				id: 's1',
+				folders: ['/work/one'],
 			});
 			expect(bridgeMcpServerFrame(linear)).toEqual({
 				type: 'bridge.mcp_server',

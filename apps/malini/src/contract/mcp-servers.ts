@@ -13,11 +13,19 @@ export type McpServerArgs = McpServerTarget & Readonly<{ serverName: string }>;
 
 export type McpAuthorization = Readonly<{ authUrl: string | null }>;
 
-export type ListMcpServersArgs = Readonly<{ workstreamId: string | null }>;
+export type WatchMcpServersArgs = Readonly<{ workstreamId: string | null; restart?: boolean }>;
 
 export type McpServerList = Readonly<{
 	servers: readonly McpServerReport[];
+	settled: boolean;
 	turnedOff: readonly string[];
+}>;
+
+export type McpServerListing = Readonly<{
+	workstreamId: string | null;
+	servers: readonly McpServerReport[];
+	settled: boolean;
+	error?: string;
 }>;
 
 export type McpServerNameArgs = Readonly<{ serverName: string }>;

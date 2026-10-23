@@ -198,16 +198,14 @@ async function createWorkstream(
 ): Promise<unknown> {
 	const { db, commands, log } = deps;
 	const { input } = request;
-	const name = text(input, 'name');
 	const prompt = requiredText(input, 'prompt');
 	const source = requestSession(db, request);
 	const repository = findRepository(
 		await listRepositoryCatalog(db),
 		requiredText(input, 'repository'),
 	);
-	const planned = await planRepositoryWorkstream(db, repository.id);
-	if (!planned) throw new Error(`${repository.fullName} is no longer in Malini.`);
-	const plan = name === undefined ? planned : { ...planned, name };
+	const plan = await planRepositoryWorkstream(db, repository.id);
+	if (!plan) throw new Error(`${repository.fullName} is no longer in Malini.`);
 	const projectRepoPath = await settledWithin(
 		clonePlannedRepository(commands, plan),
 		CLONE_WAIT_MS,

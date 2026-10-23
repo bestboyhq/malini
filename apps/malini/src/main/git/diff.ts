@@ -1,4 +1,5 @@
-import { copyFile, rm, stat } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { copyFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { ensureStagingPrecondition } from './excludes';
@@ -26,17 +27,14 @@ export interface SnapshotChangedFile {
 	isBinary: boolean;
 }
 
-let temporaryIndexSequence = 0;
+const TEMPORARY_INDEX_PREFIX = 'malini-workstream-snapshot-';
+const STALE_TEMPORARY_INDEX_MS = 60 * 60_000;
 
 export class TemporaryGitIndex {
 	readonly path: string;
 
 	constructor() {
-		temporaryIndexSequence += 1;
-		this.path = join(
-			tmpdir(),
-			`malini-workstream-snapshot-${process.pid}-${temporaryIndexSequence}.index`,
-		);
+		this.path = join(tmpdir(), `${TEMPORARY_INDEX_PREFIX}${randomUUID()}.index`);
 	}
 
 	env(): GitEnv {
@@ -47,6 +45,23 @@ export class TemporaryGitIndex {
 		await rm(this.path, { force: true });
 		await rm(`${this.path}.lock`, { force: true });
 	}
+}
+
+export async function removeStaleTemporaryIndexes(
+	directory = tmpdir(),
+	now = Date.now(),
+): Promise<void> {
+	const names = await readdir(directory).catch(() => []);
+	await Promise.all(
+		names
+			.filter((name) => name.startsWith(TEMPORARY_INDEX_PREFIX))
+			.map(async (name) => {
+				const path = join(directory, name);
+				const stats = await stat(path).catch(() => null);
+				if (stats && now - stats.mtimeMs > STALE_TEMPORARY_INDEX_MS)
+					await rm(path, { force: true });
+			}),
+	);
 }
 
 export async function withTemporaryIndex<T>(

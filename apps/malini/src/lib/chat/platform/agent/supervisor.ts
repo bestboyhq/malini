@@ -10,6 +10,7 @@ import {
 	decodeControlFrame,
 	readyFrameMismatch,
 	validateCapabilities,
+	type AgentMcpServerListing,
 	type AgentMcpServerStatus,
 	type BridgeAgentRequest,
 	type BridgeCommand,
@@ -192,8 +193,9 @@ export class BridgeSupervisor {
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly mcpAuthorizations = new Map<string, string | null>();
-	private readonly listedMcpServers = new Map<string, AgentMcpServerStatus[]>();
+	private readonly mcpSwitches = new Map<string, string[]>();
 	private readonly mcpServerListeners = new Set<(server: AgentMcpServerStatus) => void>();
+	private readonly mcpListingListeners = new Set<(listing: AgentMcpServerListing) => void>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly agentRequestListeners = new Set<(request: BridgeAgentRequest) => void>();
 	private readonly startedAtMs: number;
@@ -476,9 +478,25 @@ export class BridgeSupervisor {
 					);
 					return;
 				}
-				if (this.pendingAcks.has(control.id)) {
-					this.listedMcpServers.set(control.id, control.servers);
+				const { cwd, servers, settled, error } = control;
+				const listing = { cwd, servers, settled, ...(error === undefined ? {} : { error }) };
+				for (const listener of [...this.mcpListingListeners]) {
+					try {
+						listener(listing);
+					} catch (error) {
+						this.log(`agent-bridge bridge.mcp_servers listener failed: ${describe(error)}`);
+					}
 				}
+				return;
+			}
+			case 'bridge.mcp_switched': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: mcp switched v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.mcpSwitches.set(control.id, control.folders);
 				return;
 			}
 			case 'bridge.mcp_server': {
@@ -555,6 +573,13 @@ export class BridgeSupervisor {
 		this.mcpServerListeners.add(listener);
 		return () => {
 			this.mcpServerListeners.delete(listener);
+		};
+	}
+
+	onMcpServers(listener: (listing: AgentMcpServerListing) => void): () => void {
+		this.mcpListingListeners.add(listener);
+		return () => {
+			this.mcpListingListeners.delete(listener);
 		};
 	}
 
@@ -679,20 +704,33 @@ export class BridgeSupervisor {
 		return this.sendCommand({ cmd: 'refresh_session_status', id: this.nextCommandId(), sessionId });
 	}
 
-	async listMcpServers(cwd: string): Promise<AgentMcpServerStatus[]> {
+	watchMcpServers(cwd: string, restart = false): Promise<void> {
+		return this.sendCommand({
+			cmd: 'watch_mcp_servers',
+			id: this.nextCommandId(),
+			cwd,
+			...(restart ? { restart } : {}),
+		});
+	}
+
+	async switchMcpServer(
+		serverName: string,
+		on: boolean,
+		folders: readonly string[],
+	): Promise<string[]> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'list_mcp_servers', id, cwd });
-			const servers = this.listedMcpServers.get(id);
-			if (servers === undefined) {
+			await this.sendCommand({ cmd: 'switch_mcp_server', id, serverName, on, folders });
+			const switched = this.mcpSwitches.get(id);
+			if (switched === undefined) {
 				throw new SupervisorError(
 					'protocol',
-					'MCP servers were acknowledged without a bridge.mcp_servers frame',
+					'the switch was acknowledged without a bridge.mcp_switched frame',
 				);
 			}
-			return servers;
+			return switched;
 		} finally {
-			this.listedMcpServers.delete(id);
+			this.mcpSwitches.delete(id);
 		}
 	}
 
