@@ -189,6 +189,7 @@ export { githubAuthErrorQuery } from './application/queries/github-auth-error.qu
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
+export { workstreamSettingUpQuery } from './application/queries/workstream-setting-up.query.svelte';
 export { provisioningRetryingQuery } from './application/queries/provisioning-retrying.query.svelte';
 export { repositoriesScopeErrorQuery } from './application/queries/repositories-scope-error.query.svelte';
 export { repositoriesScopeLoadedQuery } from './application/queries/repositories-scope-loaded.query.svelte';

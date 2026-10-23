@@ -26,6 +26,7 @@ import {
 	listRepositoryCatalog,
 	listWorkstreams,
 	planRepositoryWorkstream,
+	prepareStartedWorkstream,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { answeredApprovalsInRun } from '../interactions.repository';
@@ -190,10 +191,11 @@ async function cloneRepository(
 }
 
 async function createWorkstream(
-	{ db, commands, log }: PlatformRequestDeps,
+	deps: PlatformRequestDeps,
 	reference: string,
 	name: string | undefined,
 ): Promise<unknown> {
+	const { db, commands, log } = deps;
 	const repository = findRepository(await listRepositoryCatalog(db), reference);
 	const planned = await planRepositoryWorkstream(db, repository.id);
 	if (!planned) throw new Error(`${repository.fullName} is no longer in Malini.`);
@@ -209,21 +211,27 @@ async function createWorkstream(
 	}
 	await createPlannedWorkstream(commands, plan, projectRepoPath);
 	const { workstreamId } = plan;
-	void (async () => {
-		try {
-			await commands.call('repositories.sync-workstream-base', { workstreamId });
-			await commands.call('repositories.provision-dependencies', { workstreamId });
-		} catch (error) {
-			log(`agent: could not prepare workstream \`${workstreamId}\`: ${describeError(error)}`);
-		}
-	})();
+	void prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
 	return {
 		id: workstreamId,
 		name: plan.name,
 		repository: repository.fullName,
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
+		chat: await defaultChat(deps, workstreamId),
 	};
+}
+
+async function defaultChat(
+	{ commands, log }: PlatformRequestDeps,
+	workstreamId: string,
+): Promise<string | null> {
+	try {
+		return await commands.call('chat.start-session', { workstreamId, origin: 'user' });
+	} catch (error) {
+		log(`agent: could not start a chat in \`${workstreamId}\`: ${describeError(error)}`);
+		return null;
+	}
 }
 
 function cloneUrl(reference: string): string {

@@ -181,6 +181,19 @@ interface WorkstreamInstallStatusPayload {
 }
 ```
 
+## `repositories:workstream-setup-status`
+
+Fires when Malini starts setting up a workstream an agent or a job started, updating its base branch and installing its dependencies, and again with `done` once it finishes.
+
+Payload: `WorkstreamSetupStatusPayload`
+
+```ts
+interface WorkstreamSetupStatusPayload {
+	workstreamId: string;
+	status: 'running' | 'done';
+}
+```
+
 ## `repositories:workstream-merge-conflicted`
 
 Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.

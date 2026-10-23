@@ -1,5 +1,7 @@
+import { REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
+import { describeError } from '$main/errors';
 import {
 	planWorkstreamProvisioning,
 	type WorkstreamProvisioningPlan,
@@ -48,4 +50,27 @@ export async function createPlannedWorkstream(
 		projectId: plan.projectId,
 		name: plan.name,
 	});
+}
+
+export async function prepareStartedWorkstream(
+	{ commands, events }: Pick<MainContext, 'commands' | 'events'>,
+	workstreamId: string,
+	log: (line: string) => void,
+): Promise<void> {
+	const steps = [
+		['update the base branch of', 'repositories.sync-workstream-base'],
+		['install dependencies in', 'repositories.provision-dependencies'],
+	] as const;
+	events.emit(REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL, { workstreamId, status: 'running' });
+	try {
+		for (const [what, command] of steps) {
+			try {
+				await commands.call(command, { workstreamId });
+			} catch (error) {
+				log(`could not ${what} \`${workstreamId}\`: ${describeError(error)}`);
+			}
+		}
+	} finally {
+		events.emit(REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL, { workstreamId, status: 'done' });
+	}
 }

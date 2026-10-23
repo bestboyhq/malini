@@ -166,7 +166,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository: its own git worktree on a fresh branch from the default branch. Malini clones the repository first when it has not yet, and installs dependencies in the background. Returns the workstream as JSON with its id and status: \`ready\`, or \`cloning\` when the clone takes longer, and workstreams_list lists it once it is ready. To give it work, run a job in it with jobs_run and \`workstream\`. ${ASKS}`,
+			`Start a workstream of a repository: its own git worktree on a fresh branch from the default branch, with a new chat in it that the user lands on when they open it. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies in the background while the sidebar shows it setting up. Returns the workstream as JSON with its id, name, repository, branch, base branch and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. To give it work, run a job in it with jobs_run and \`workstream\`. ${ASKS}`,
 			{
 				repository: z
 					.string()
