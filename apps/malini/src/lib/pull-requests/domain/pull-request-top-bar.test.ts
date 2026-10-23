@@ -814,11 +814,16 @@ describe('the workstream status', () => {
 		});
 		expect(
 			status(
-				local({ step: 'updating-from-main' }),
+				local({ step: 'resolving-conflicts' }),
 				surface({ operationInProgress: 'merge', conflictMarkerPaths: ['a.ts'] }),
 			),
 		).toMatchObject({ label: 'Clearing blockers', action: { kind: 'queue-merge' } });
-		for (const step of ['updating-from-main', 'fixing-checks', 'addressing-review'] as const) {
+		for (const step of [
+			'updating-from-main',
+			'resolving-conflicts',
+			'fixing-checks',
+			'addressing-review',
+		] as const) {
 			expect(status(ship({ step }), open(), 'ready', 'agent')).toMatchObject({
 				label: 'Clearing blockers',
 				action: { kind: 'queue-merge', ariaLabel: 'Merge pull request #42', tone: 'secondary' },

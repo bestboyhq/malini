@@ -4,6 +4,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
+	import { repositoryPreparationQuery } from '$shared/repositories/application/queries/repository-preparation.query.svelte';
 	import { workstreamNativeExistenceQuery } from '$shared/repositories/application/queries/workstream-native-existence.query.svelte';
 	import type { Repository } from '$shared/repositories/domain/repository';
 	import type { Workstream } from '$shared/repositories/domain/workstream';
@@ -23,8 +24,9 @@
 	let armedForCount = $state<number | null>(null);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
 	const armed = $derived(armedForCount === workstreams.length);
+	const cloning = $derived(repositoryPreparationQuery.data(repository).kind === 'preparing');
 	const blocked = $derived(
-		workstreams.some((workstream) => nativeExistence(workstream.id) === 'in-flight'),
+		cloning || workstreams.some((workstream) => nativeExistence(workstream.id) === 'in-flight'),
 	);
 	const removal = $derived.by(() => {
 		const count = workstreams.length;
@@ -33,9 +35,11 @@
 			return {
 				label: '',
 				ariaLabel: `Remove ${repository.fullName}`,
-				tooltip: blocked
-					? 'Still setting up a workstream. Remove the repository once setup finishes or fails.'
-					: 'Remove repository',
+				tooltip: cloning
+					? 'Still cloning. Remove the repository once the clone finishes or fails.'
+					: blocked
+						? 'Still setting up a workstream. Remove the repository once setup finishes or fails.'
+						: 'Remove repository',
 			};
 		}
 		if (count === 0) {

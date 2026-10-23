@@ -30,8 +30,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('Write both in the commit convention the repository states');
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
-		expect(prompt).toContain('a routine that runs it with `routines_save`');
-		expect(prompt).toContain('A routine starts as a draft the user promotes');
+		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
+		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
+		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('git commit');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');

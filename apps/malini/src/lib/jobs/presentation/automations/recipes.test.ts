@@ -11,16 +11,20 @@ describe('draftFromWords', () => {
 			name: 'Record what changed',
 			lead: 'When a pull request merges',
 			steps: ['Record what changed with Grip', 'Post the link to Slack'],
-			output: null,
+			then: null,
 		});
 	});
 
-	it('moves opening a draft PR into what happens after', () => {
+	it('moves opening a draft PR or queueing the merge into the job that runs next', () => {
 		const draft = draftFromWords(
 			'When a pull request merges, update CHANGELOG.md and open a draft PR',
 		);
 		expect(draft.steps).toEqual(['Update CHANGELOG.md']);
-		expect(draft.output).toBe('draft');
+		expect(draft.then).toBe('open-draft');
+		expect(draftFromWords('Fix the flaky test, then queue the merge')).toMatchObject({
+			steps: ['Fix the flaky test'],
+			then: 'merge',
+		});
 	});
 
 	it('reads then as a step break', () => {

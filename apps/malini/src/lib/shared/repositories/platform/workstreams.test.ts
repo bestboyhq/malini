@@ -225,6 +225,40 @@ describe('the workstream commands', () => {
 		expect(await headSubject()).toBe('feat: add gamma');
 	});
 
+	it('announces the conflicts a pull of the base branch stops on, and only those', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { remote, base, checkout } = await workstreamFixture(dir, 'ws-1');
+		const { invoke, events, db } = harness(dir);
+		seed(db, 'ws-1', base, checkout);
+		const conflicted: unknown[] = [];
+		events.subscribe('repositories:workstream-merge-conflicted', (payload) =>
+			conflicted.push(payload),
+		);
+		const upstream = join(dir, 'upstream');
+		await realGit(dir, ['clone', '-q', remote, upstream]);
+		await realGit(upstream, ['config', 'user.email', 't@example.com']);
+		await realGit(upstream, ['config', 'user.name', 't']);
+		const pushUpstream = async (file: string, text: string): Promise<void> => {
+			await writeFile(join(upstream, file), text);
+			await realGit(upstream, ['add', '.']);
+			await realGit(upstream, ['commit', '-q', '-m', file]);
+			await realGit(upstream, ['push', '-q', 'origin', 'main']);
+		};
+
+		await pushUpstream('upstream.txt', 'upstream\n');
+		await invoke('repositories.pull-workstream', { workstreamId: 'ws-1', baseBranch: 'main' });
+		expect(conflicted).toEqual([]);
+
+		await writeFile(join(checkout, 'seed.txt'), 'ours\n');
+		await realGit(checkout, ['commit', '-qam', 'ours']);
+		await pushUpstream('seed.txt', 'theirs\n');
+		await invoke('repositories.pull-workstream', { workstreamId: 'ws-1', baseBranch: 'main' });
+		expect(conflicted).toEqual([
+			{ workstreamId: 'ws-1', baseBranch: 'main', conflictedPaths: ['seed.txt'] },
+		]);
+	});
+
 	it('creates a workstream from a base clone, emits worktree-added, then tears it down', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));

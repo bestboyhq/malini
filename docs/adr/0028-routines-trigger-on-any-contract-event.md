@@ -1,6 +1,6 @@
 # 0028 - Routines trigger on any contract event
 
-Status: accepted
+Status: superseded by 0055
 
 ## Context
 

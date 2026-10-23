@@ -1,10 +1,12 @@
 import type { AgentReasoningEffort } from '$contract/agent';
-import type { JobOutput, JobRunsIn } from '$contract/jobs';
+import type { JobRunMode, JobRunsIn } from '$contract/jobs';
 import { AGENT_REASONING_EFFORTS } from '$shared/providers/domain/run-profile';
 
 export const JOB_NAME_MAX_LENGTH = 80;
 
 export const JOB_INSTRUCTIONS_MAX_LENGTH = 20_000;
+
+const SUGGESTED_JOB_NAME_LENGTH = 60;
 
 export function isJobEffort(value: unknown): value is AgentReasoningEffort {
 	return AGENT_REASONING_EFFORTS.some((effort) => effort === value);
@@ -14,6 +16,13 @@ export function isJobRunsIn(value: unknown): value is JobRunsIn {
 	return value === 'workstream' || value === 'new-workstream';
 }
 
-export function isJobOutput(value: unknown): value is JobOutput {
-	return value === 'none' || value === 'draft' || value === 'merge';
+export function isJobRunMode(value: unknown): value is JobRunMode {
+	return value === 'off' || value === 'ask' || value === 'auto';
+}
+
+export function suggestedJobName(prompt: string): string {
+	const line = prompt.split('\n')[0]?.replaceAll(/\s+/gu, ' ').trim() ?? '';
+	return line.length > SUGGESTED_JOB_NAME_LENGTH
+		? `${line.slice(0, SUGGESTED_JOB_NAME_LENGTH - 1).trimEnd()}…`
+		: line;
 }

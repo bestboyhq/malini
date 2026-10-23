@@ -1,13 +1,12 @@
-import { parseAutomationTrigger } from '$contract/automation-trigger';
 import {
 	isAutomaticJobBuiltin,
 	type JobBuiltin,
 	type JobDefinitionRecord,
-	type JobOutput,
+	type JobRunMode,
 	type JobRunsIn,
 } from '$contract/jobs';
-import type { JobTrigger, RoutineStatus } from '$contract/routines';
 import type { IconName } from '$hyper-ui/icons';
+import { isRunnableJob } from '$lib/jobs/domain/builtin-jobs';
 import { BUILTIN_WHEN, jobWhenDetail } from '../job-definition-copy';
 
 export type TriggerGroup = 'You' | 'Shipping' | 'Workstreams' | 'Chats' | 'Jobs' | 'Malini';
@@ -61,7 +60,7 @@ export const TRIGGERS: readonly Trigger[] = [
 	},
 	{
 		id: 'workstream-created',
-		when: 'when a new workstream is created',
+		when: 'on repositories:workstream-created',
 		group: 'Workstreams',
 		label: 'A workstream is created',
 		detail: 'Its checkout is ready for chats',
@@ -84,12 +83,12 @@ export const TRIGGERS: readonly Trigger[] = [
 		icon: 'warning',
 	},
 	{
-		id: 'frontend-ready',
-		when: 'when a frontend resource becomes ready',
+		id: 'merge-conflicted',
+		when: 'on repositories:workstream-merge-conflicted',
 		group: 'Workstreams',
-		label: 'A frontend comes up',
-		detail: 'A dev server or container is ready',
-		icon: 'globe',
+		label: 'A merge stops on conflicts',
+		detail: 'Merging the base branch into a workstream left conflicts',
+		icon: 'swap',
 	},
 	{
 		id: 'workstream-archived',
@@ -138,18 +137,19 @@ const BUILTIN_TRIGGER_ICONS: Readonly<Partial<Record<JobBuiltin, IconName>>> = {
 	'name-services': 'terminal',
 	'fix-checks': 'pr-failed',
 	'update-from-main': 'branch',
+	'resolve-conflicts': 'swap',
 	'address-review': 'pr-open',
 	'check-compatibility': 'sparkles',
 };
 
 export const RUN_MODES: readonly Readonly<{
-	value: RoutineStatus;
+	value: JobRunMode;
 	label: string;
 	hint: string;
 }>[] = [
-	{ value: 'draft', label: 'Off', hint: 'Never starts on its own' },
-	{ value: 'candidate', label: 'Ask me first', hint: 'Each run waits for your yes' },
-	{ value: 'routine', label: 'On its own', hint: 'Runs as soon as it fires' },
+	{ value: 'off', label: 'Off', hint: 'Never starts on its own' },
+	{ value: 'ask', label: 'Ask me first', hint: 'Each run waits for your yes' },
+	{ value: 'auto', label: 'On its own', hint: 'Runs as soon as it fires' },
 ];
 
 export const EVENT_RUNS_IN_OPTIONS: readonly Readonly<{ value: JobRunsIn; label: string }>[] = [
@@ -167,17 +167,15 @@ const MANUAL_RUNS_IN_PHRASE: Readonly<Record<JobRunsIn, string>> = {
 	'new-workstream': 'in a new workstream',
 };
 
-const OUTPUT_PHRASE: Readonly<Record<JobOutput, string>> = {
-	none: 'leave the changes to you',
-	draft: 'open a draft PR',
-	merge: 'queue the merge',
+const MODE_SUFFIX: Readonly<Record<JobRunMode, string>> = {
+	off: ' It is off for now.',
+	ask: ' It asks you first.',
+	auto: '',
 };
 
-const STATUS_SUFFIX: Readonly<Record<RoutineStatus, string>> = {
-	draft: ' It is off for now.',
-	candidate: ' It asks you first.',
-	routine: '',
-};
+const THEN_FIRST: readonly JobBuiltin[] = ['open-draft', 'merge'];
+
+export const UPDATE_FROM_MAIN_THEN = 'Resolve conflicts, when the merge stops on conflicts';
 
 export function triggerById(id: string): Trigger {
 	return TRIGGERS.find((trigger) => trigger.id === id) ?? MANUAL_TRIGGER;
@@ -194,19 +192,31 @@ export function builtinTrigger(job: Pick<JobDefinitionRecord, 'builtin'>): Trigg
 	return icon ? { label: BUILTIN_WHEN[job.builtin], icon } : null;
 }
 
-export function jobTriggerLook(
-	job: Pick<JobDefinitionRecord, 'builtin'>,
-	trigger: JobTrigger | null,
-): TriggerLook {
-	return builtinTrigger(job) ?? triggerFor(trigger?.when ?? null);
+export function jobTriggerLook(job: Pick<JobDefinitionRecord, 'builtin' | 'trigger'>): TriggerLook {
+	return builtinTrigger(job) ?? triggerFor(job.trigger?.when ?? null);
 }
 
-export function runModeLabel(status: RoutineStatus): string {
-	return RUN_MODES.find((mode) => mode.value === status)?.label ?? status;
+export function runModeLabel(mode: JobRunMode): string {
+	return RUN_MODES.find((option) => option.value === mode)?.label ?? mode;
 }
 
-export function runModeHint(status: RoutineStatus): string {
-	return RUN_MODES.find((mode) => mode.value === status)?.hint ?? '';
+export function runModeHint(mode: JobRunMode): string {
+	return RUN_MODES.find((option) => option.value === mode)?.hint ?? '';
+}
+
+export function thenChoices(
+	jobs: readonly JobDefinitionRecord[],
+	selfId: string | null,
+): readonly Readonly<{ value: string; label: string }>[] {
+	return jobs
+		.filter((job) => job.id !== selfId && isRunnableJob(job))
+		.sort((left, right) => thenRank(left) - thenRank(right) || left.name.localeCompare(right.name))
+		.map((job) => ({ value: job.id, label: job.name }));
+}
+
+function thenRank(job: Pick<JobDefinitionRecord, 'builtin'>): number {
+	const rank = job.builtin === null ? -1 : THEN_FIRST.indexOf(job.builtin);
+	return rank === -1 ? THEN_FIRST.length : rank;
 }
 
 export function whenClause(look: TriggerLook): string {
@@ -217,16 +227,18 @@ export function whenClause(look: TriggerLook): string {
 	return `When ${lead}${look.label.slice(1)}`;
 }
 
-export function jobSentence(job: JobDefinitionRecord, trigger: JobTrigger | null): string {
+export function jobSentence(job: JobDefinitionRecord, thenName: string | null): string {
 	if (builtinTrigger(job) !== null) {
 		return isAutomaticJobBuiltin(job.builtin)
-			? `${whenClause(jobTriggerLook(job, null))}, ${job.name} runs in the background.`
+			? `${whenClause(jobTriggerLook(job))}, ${job.name} runs in the background.`
 			: jobWhenDetail(job);
 	}
-	const when = whenClause(jobTriggerLook(job, trigger));
+	const { trigger } = job;
+	const when = whenClause(jobTriggerLook(job));
 	const runsIn = (trigger === null ? MANUAL_RUNS_IN_PHRASE : RUNS_IN_PHRASE)[job.runsIn];
-	const suffix = trigger === null ? '' : STATUS_SUFFIX[trigger.status];
-	return `${when}, ${job.name} runs ${runsIn} and will ${OUTPUT_PHRASE[job.output]}.${suffix}`;
+	const then = thenName === null ? '' : ` and then runs ${thenName}`;
+	const suffix = trigger === null ? '' : MODE_SUFFIX[trigger.mode];
+	return `${when}, ${job.name} runs ${runsIn}${then}.${suffix}`;
 }
 
 function customTrigger(when: string): Trigger {
@@ -234,19 +246,8 @@ function customTrigger(when: string): Trigger {
 		id: when,
 		when,
 		group: 'Malini',
-		label: customLabel(when),
+		label: when.replace(/^on\s+/u, ''),
 		detail: 'A Malini event',
 		icon: 'signal',
 	};
-}
-
-function customLabel(when: string): string {
-	try {
-		const parsed = parseAutomationTrigger(when);
-		if (parsed.kind === 'event') return when.replace(/^on\s+/u, '');
-		const rest = parsed.description.replace(/^When\s+/u, '');
-		return `${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
-	} catch {
-		return when;
-	}
 }

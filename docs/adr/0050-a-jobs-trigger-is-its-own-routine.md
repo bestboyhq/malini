@@ -1,6 +1,6 @@
 # 0050 - A job's trigger is its own routine
 
-Status: accepted
+Status: superseded by 0055
 
 ## Context
 

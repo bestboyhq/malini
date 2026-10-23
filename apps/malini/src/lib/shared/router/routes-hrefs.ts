@@ -12,8 +12,6 @@ export const JOBS_ACTIVITY_HREF = '/jobs/activity';
 
 export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
-export const ROUTINES_HREF = '/jobs/routines';
-
 export const SETTINGS_HREF = '/settings';
 
 export const MODEL_SETTINGS_HREF = '/settings/models';

@@ -32,6 +32,10 @@
 		"./styles/*": "./src/styles/*"
 	},
 	"dependencies": {
+		"@codemirror/commands": "^6.11.1",
+		"@codemirror/merge": "^6.12.3",
+		"@codemirror/state": "^6.7.6",
+		"@codemirror/view": "^6.43.15",
 		"@malini/extension-api": "workspace:*",
 		"svelte-sonner": "^1.1.1"
 	},

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { prefersReducedMotion } from 'svelte/motion';
 	import type { JobDefinitionRecord, SaveJobDefinitionArgs } from '$contract/jobs';
-	import type { JobTrigger } from '$contract/routines';
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { EnterShortcut } from '$hyper-ui/components/enter-shortcut';
@@ -9,25 +8,25 @@
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
 	import { JOBS_RECIPES_HREF } from '$shared/router/routes-hrefs';
+	import { createJobCommand } from '$lib/jobs/application/commands/create-job.command';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
-	import { automationsState, type ActionState } from './automations-state.svelte';
+	import { jobSuggestionsQuery } from '$lib/jobs/application/queries/job-suggestions.query.svelte';
+	import { BUILTIN_JOBS } from '$lib/jobs/domain/builtin-jobs';
+	import { newJobStateQuery } from '$lib/jobs/application/queries/new-job-state.query.svelte';
+	import { automationsState } from './automations-state.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
 	import JobCard from './JobCard.svelte';
 	import JobDraftCard from './JobDraftCard.svelte';
+	import JobSuggestionCard from './JobSuggestionCard.svelte';
 	import RecipeCard from './RecipeCard.svelte';
 	import { draftFromWords, guessTriggerId, RECIPES } from './recipes';
 	import { triggerById } from './triggers';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
-		triggerOf: (jobId: string) => JobTrigger | null;
-		triggerStateOf: (jobId: string) => ActionState;
-		creating: ActionState & Readonly<{ completed: number }>;
-		ontrigger: (job: JobDefinitionRecord, trigger: JobTrigger | null) => void;
-		oncreate: (job: Omit<SaveJobDefinitionArgs, 'id'>, trigger: JobTrigger | null) => void;
 	}
 
-	let { jobs, triggerOf, triggerStateOf, creating, ontrigger, oncreate }: Props = $props();
+	let { jobs }: Props = $props();
 
 	const PROMPT = 'What should happen, and when?';
 	const RECIPE_TEASER = 3;
@@ -35,6 +34,8 @@
 	let nowMs = $state(Date.now());
 
 	const runsFor = $derived(jobRunsForDefinitionQuery.data);
+	const creating = $derived(newJobStateQuery.data);
+	const suggestions = $derived(jobSuggestionsQuery.data);
 	const reading = $derived(
 		automationsState.text.trim() ? draftFromWords(automationsState.text) : null,
 	);
@@ -64,9 +65,9 @@
 		automationsState.startDraft(automationsState.text);
 	}
 
-	function onSave(job: Omit<SaveJobDefinitionArgs, 'id'>, trigger: JobTrigger | null): void {
+	function onSave(job: Omit<SaveJobDefinitionArgs, 'id'>): void {
 		automationsState.noteSaving(creating.completed);
-		oncreate(job, trigger);
+		createJobCommand(job);
 	}
 </script>
 
@@ -100,7 +101,15 @@
 						{#if reading.steps.length > 0}
 							<span class="text-fg-tertiary">
 								then {reading.steps.length}
-								{reading.steps.length === 1 ? 'step' : 'steps'}
+								{reading.steps.length === 1 ? 'step' : 'steps'}{reading.then ? ', then' : ''}
+							</span>
+						{/if}
+						{#if reading.then}
+							<span
+								class="border-chip-border bg-chip text-fg-secondary inline-flex h-6 items-center gap-1 rounded-md border-[0.5px] px-1.5"
+							>
+								<Icon name="arrow-right" size={12} />
+								{BUILTIN_JOBS[reading.then].name}
 							</span>
 						{/if}
 					{:else}
@@ -130,6 +139,7 @@
 					<JobDraftCard
 						text={automationsState.draft.text}
 						title={automationsState.draft.title}
+						{jobs}
 						saving={creating.busy}
 						error={automationsState.savingSince === null ? null : creating.error}
 						onsave={onSave}
@@ -140,18 +150,21 @@
 		{/if}
 	</Well>
 
+	{#if suggestions.length > 0}
+		<Well title="Suggested" note={`${suggestions.length}`}>
+			<ul class="flex flex-col gap-1.5">
+				{#each suggestions as suggestion (suggestion.id)}
+					<JobSuggestionCard {suggestion} />
+				{/each}
+			</ul>
+		</Well>
+	{/if}
+
 	<Well title="Your jobs" note={`${jobs.length}`}>
 		<ul class="grid grid-cols-1 gap-1.5 @2xl:grid-cols-2">
 			{#each jobs as job (job.id)}
 				<li class="flex">
-					<JobCard
-						{job}
-						trigger={triggerOf(job.id)}
-						triggerState={triggerStateOf(job.id)}
-						last={runsFor(job.id)[0] ?? null}
-						{nowMs}
-						ontrigger={(trigger) => ontrigger(job, trigger)}
-					/>
+					<JobCard {job} last={runsFor(job.id)[0] ?? null} {nowMs} />
 				</li>
 			{/each}
 		</ul>

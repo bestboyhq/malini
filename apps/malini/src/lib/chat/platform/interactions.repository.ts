@@ -1,12 +1,13 @@
+import { isAgentApprovalScope, type AgentApprovalScope } from '$contract/agent';
 import type { MaliniDatabase } from '$main/db/driver';
 import { findActivePermissionRule, type RememberPermissionRule } from './permissions.repository';
 import { invariant } from '$main/errors';
-import { canonicalJson, get, jsonEqual, parseJsonColumn, run, scalar } from '$main/db/rows';
+import { all, canonicalJson, get, jsonEqual, parseJsonColumn, run, scalar } from '$main/db/rows';
 
 export type InteractionKind = 'approval' | 'question';
 export type InteractionState = 'pending' | 'dispatching' | 'resolved' | 'closed';
 export type InteractionDecision = 'allow' | 'deny' | 'answered';
-export type InteractionScope = 'once' | 'session' | 'workstream';
+export type InteractionScope = AgentApprovalScope;
 export type InteractionSource = 'manual' | 'auto';
 
 export type InteractionRecordOutcome = InteractionState;
@@ -245,6 +246,24 @@ function optionalJsonEqual(left: unknown | null, right: unknown | null): boolean
 	return jsonEqual(left, right);
 }
 
+export function answeredApprovalsInRun(
+	db: MaliniDatabase,
+	sessionId: string,
+	runId: string,
+): Array<Readonly<{ requestPayload: unknown; response: unknown }>> {
+	return all<{ request_payload_json: string; response_json: string | null }>(
+		db,
+		`SELECT request_payload_json, COALESCE(response_json, intended_response_json) AS response_json
+		 FROM agent_interactions WHERE kind = 'approval' AND session_id = ? AND run_id = ?
+		   AND state IN ('dispatching', 'resolved')`,
+		sessionId,
+		runId,
+	).map((row) => ({
+		requestPayload: parseJsonColumn(row.request_payload_json),
+		response: parseJsonColumn(row.response_json),
+	}));
+}
+
 export function getInteraction(
 	db: MaliniDatabase,
 	kind: InteractionKind,
@@ -387,8 +406,7 @@ export function finalizeInteractionResponse(
 
 	const shapeValid =
 		kind === 'approval'
-			? (decision === 'allow' || decision === 'deny') &&
-				(scope === 'once' || scope === 'session' || scope === 'workstream')
+			? (decision === 'allow' || decision === 'deny') && isAgentApprovalScope(scope)
 			: kind === 'question'
 				? decision === 'answered' && scope === null
 				: false;
@@ -398,7 +416,8 @@ export function finalizeInteractionResponse(
 			: source === 'auto'
 				? kind === 'approval' &&
 					decision === 'allow' &&
-					(scope === 'session' || scope === 'workstream') &&
+					scope !== null &&
+					scope !== 'once' &&
 					remember === null &&
 					matchedRuleId !== null
 				: false;
@@ -439,7 +458,6 @@ export function finalizeInteractionResponse(
 			if (
 				kind !== 'approval' ||
 				decision !== 'allow' ||
-				(remember.scope !== 'session' && remember.scope !== 'workstream') ||
 				scope !== remember.scope ||
 				record.permissionFingerprint !== remember.permissionFingerprint
 			) {
@@ -464,7 +482,7 @@ export function finalizeInteractionResponse(
 					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					remember.id,
 					remember.scope,
-					record.workstreamId,
+					remember.scope === 'everywhere' ? null : record.workstreamId,
 					ruleSession,
 					remember.permissionFingerprint,
 					canonicalJson(remember.permission),
@@ -479,13 +497,13 @@ export function finalizeInteractionResponse(
 			const touched = run(
 				db,
 				`UPDATE agent_permission_rules SET last_used_at = ?
-				 WHERE id = ? AND workstream_id = ?
-				   AND permission_fingerprint = ?
-				   AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))`,
+				 WHERE id = ? AND permission_fingerprint = ?
+				   AND (scope = 'everywhere' OR (workstream_id = ?
+				     AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))))`,
 				decidedAt,
 				matchedRuleId,
-				record.workstreamId,
 				record.permissionFingerprint,
+				record.workstreamId,
 				sessionId,
 			).changes;
 			if (touched !== 1) {
