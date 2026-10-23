@@ -94,6 +94,12 @@ test('a before and after shows as one picture that wipes, flips and diffs at one
 		await captureFlow(app, 'report-compare-zoomed-diff');
 		await page.keyboard.press('Escape');
 		await expect(frame.getByRole('button', { name: 'Show all' })).toHaveCount(0);
+
+		await compare.getByRole('button', { name: 'Open in gallery' }).click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await expect(gallery.getByRole('img', { name: 'After: pricing page' })).toBeVisible();
+		await gallery.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(gallery).toBeHidden();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -183,6 +189,25 @@ test('the user picks a variant with a reason, sees the pick in the chat, and the
 		await expect(offer.getByRole('img', { name: 'Picked' })).toBeVisible();
 		await expect(offer.getByText('Your turn')).toHaveCount(0);
 		await captureFlow(app, 'report-variants-decision');
+
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await offer.getByRole('button', { name: 'Open image Variant B · Bold in gallery' }).click();
+		await expect(
+			gallery.getByRole('img', { name: 'Variant B: Bold - dark, high contrast' }),
+		).toBeVisible();
+		await gallery.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(gallery).toBeHidden();
+
+		const pickStep = cards.last().getByTestId('turn-pick-step');
+		await pickStep.getByText('You picked').click();
+		await pickStep
+			.getByRole('button', { name: 'Open image Variant C · Playful in gallery' })
+			.click();
+		await expect(
+			gallery.getByRole('img', { name: 'Variant C: Playful - warm and loud' }),
+		).toBeVisible();
+		await gallery.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(gallery).toBeHidden();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
