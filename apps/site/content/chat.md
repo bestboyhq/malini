@@ -17,7 +17,7 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 A run stays open while its background commands and subagents run, and you can stop each one.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
-Stopping that run, or quitting Malini, then leaves it done, not cancelled, and Malini does not resume it on the next start.
+Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
 ## Run a command from the chat
 
