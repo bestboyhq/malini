@@ -1,7 +1,8 @@
 import type { AgentReasoningEffort } from '$contract/agent';
-import type { JobBuiltin, JobDefinitionRecord, JobOutput, JobRunsIn } from '$contract/jobs';
+import type { JobBuiltin, JobDefinitionRecord, JobRunMode, JobRunsIn } from '$contract/jobs';
+import { isSkillNameList } from '$contract/skills';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, run } from '$main/db/rows';
+import { all, column, get, nowIso8601, parseJsonColumn, run } from '$main/db/rows';
 
 interface JobDefinitionRow {
 	id: string;
@@ -10,17 +11,20 @@ interface JobDefinitionRow {
 	model: string;
 	effort: AgentReasoningEffort;
 	runs_in: JobRunsIn;
-	output: JobOutput;
-	skill_preset_id: string | null;
+	skills: string;
 	builtin: JobBuiltin | null;
+	trigger_when: string | null;
+	trigger_mode: JobRunMode | null;
+	then_job_id: string | null;
 	created_at: string;
 	updated_at: string;
 }
 
 const COLUMNS =
-	'id, name, instructions, model, effort, runs_in, output, skill_preset_id, builtin, created_at, updated_at';
+	'id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, created_at, updated_at';
 
 function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
+	const skills = parseJsonColumn(row.skills);
 	return {
 		id: row.id,
 		name: row.name,
@@ -28,9 +32,13 @@ function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 		model: row.model,
 		effort: row.effort,
 		runsIn: row.runs_in,
-		output: row.output,
-		skillPresetId: row.skill_preset_id,
+		skills: isSkillNameList(skills) ? skills : [],
 		builtin: row.builtin,
+		trigger:
+			row.trigger_when === null || row.trigger_mode === null
+				? null
+				: { when: row.trigger_when, mode: row.trigger_mode },
+		thenJobId: row.then_job_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -64,7 +72,7 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	return (
 		run(
 			db,
-			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO job_definitions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT DO NOTHING`,
 			definition.id,
 			definition.name,
@@ -72,9 +80,11 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 			definition.model,
 			definition.effort,
 			definition.runsIn,
-			definition.output,
-			definition.skillPresetId,
+			JSON.stringify(definition.skills),
 			definition.builtin,
+			definition.trigger?.when ?? null,
+			definition.trigger?.mode ?? null,
+			definition.thenJobId,
 			definition.createdAt,
 			definition.updatedAt,
 		).changes > 0
@@ -85,18 +95,29 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 	run(
 		db,
 		`UPDATE job_definitions
-		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, output = ?,
-		     skill_preset_id = ?, updated_at = ?
+		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, skills = ?,
+		     trigger_when = ?, trigger_mode = ?, then_job_id = ?, updated_at = ?
 		 WHERE id = ?`,
 		definition.name,
 		definition.instructions,
 		definition.model,
 		definition.effort,
 		definition.runsIn,
-		definition.output,
-		definition.skillPresetId,
+		JSON.stringify(definition.skills),
+		definition.trigger?.when ?? null,
+		definition.trigger?.mode ?? null,
+		definition.thenJobId,
 		definition.updatedAt,
 		definition.id,
+	);
+}
+
+export function clearThenLinksTo(db: MaliniDatabase, jobId: string): string[] {
+	return column(
+		db,
+		'UPDATE job_definitions SET then_job_id = NULL, updated_at = ? WHERE then_job_id = ? RETURNING id',
+		nowIso8601(),
+		jobId,
 	);
 }
 

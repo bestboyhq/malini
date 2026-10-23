@@ -59,9 +59,8 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain    |
 | `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints    |
 | `pull-requests`        | pull request state, open draft, merge queue, top-bar status           |
-| `jobs`                 | job definitions, job runs and their scheduler, Jobs page, Job center  |
-| `routines`             | triggers that run job steps in order, suggestions, gated runs         |
-| `skills`               | skill usage and on/off switches in Claude settings, job skill presets |
+| `jobs`                 | jobs, their triggers and Thens, job runs and their runner, Jobs page  |
+| `skills`               | skill usage and on/off switches in Claude settings, a job's skills    |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
 | `browser`              | browser tabs in the inspector and the agent's browser tools           |
 | `stats`                | resource readout, stats panel, what keeps running in each workstream  |

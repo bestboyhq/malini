@@ -103,8 +103,16 @@ describe('events', () => {
 			providerCursor: 'c1',
 		});
 		appendEvent(db, 'sess-cursor', 'run-2', 'run.failed', { error: 'x', providerCursor: 'c2' });
-		appendEvent(db, 'sess-cursor', 'run-3', 'run.failed', { error: 'interrupted' });
+		appendEvent(db, 'sess-cursor', 'run-3', 'background.updated', {
+			waiting: true,
+			tasks: [],
+			summary: 'serving',
+			providerCursor: 'c3',
+		});
+		appendEvent(db, 'sess-cursor', 'run-3', 'run.completed', { summary: 'serving' });
 
+		expect(providerResumePoint(db, 'sess-cursor')).toEqual({ resumeAt: 'c3' });
+		run(db, "UPDATE agent_runs SET obsoleted_at = 'undone' WHERE id = 'run-3'");
 		expect(providerResumePoint(db, 'sess-cursor')).toEqual({ resumeAt: 'c2' });
 		run(db, "UPDATE agent_runs SET obsoleted_at = 'undone' WHERE id = 'run-2'");
 		expect(providerResumePoint(db, 'sess-cursor')).toEqual({ resumeAt: 'c1' });

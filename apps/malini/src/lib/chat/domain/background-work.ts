@@ -10,6 +10,15 @@ export type BackgroundWork = Readonly<{
 
 export type BackgroundWait = 'agents' | 'commands';
 
+type BackgroundUpdate = Extract<EventEnvelope['event'], { type: 'background.updated' }>;
+
+const AGENT_WORK: ReadonlySet<string> = new Set([
+	'assistant.message',
+	'thinking.message',
+	'plan.updated',
+	'tool.started',
+]);
+
 const KIND_NOUNS: Readonly<Record<AgentBackgroundTaskKind, readonly [string, string]>> = {
 	command: ['background command', 'background commands'],
 	agent: ['background agent', 'background agents'],
@@ -50,6 +59,16 @@ export function backgroundWaitOf(
 ): BackgroundWait | null {
 	if (!work?.waiting || work.tasks.length === 0) return null;
 	return work.tasks.every((task) => task.kind === 'command') ? 'commands' : 'agents';
+}
+
+export function replyOverCommands(
+	update: Pick<BackgroundUpdate, 'waiting' | 'tasks' | 'summary'>,
+): string | null {
+	return backgroundWaitOf(update) === 'commands' ? (update.summary ?? null) : null;
+}
+
+export function resumesTurn(event: Readonly<{ type: string }>): boolean {
+	return AGENT_WORK.has(event.type);
 }
 
 export function backgroundWorkSummary(tasks: readonly AgentBackgroundTask[]): string {

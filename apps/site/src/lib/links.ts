@@ -136,7 +136,6 @@ export const SITEMAP: readonly Readonly<{ label: string; links: readonly Link[] 
 			{ title: 'Workstreams', href: docHref('/docs/workstreams') },
 			{ title: 'Chat', href: docHref('/docs/chat') },
 			{ title: 'Jobs', href: docHref('/docs/jobs') },
-			{ title: 'Routines', href: docHref('/docs/routines') },
 			{ title: 'Download', href: DOWNLOAD_URL },
 		],
 	},

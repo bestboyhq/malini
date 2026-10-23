@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { appendEvent, listEventRowsForSession } from '../events.repository';
 import { getInteraction, recordPendingInteraction } from '../interactions.repository';
 import { get, run, scalar } from '$main/db/rows';
-import { getRun } from '../runs.repository';
+import { getRun, recordOpenTurnReply } from '../runs.repository';
 import { getSession } from '../sessions.repository';
 import {
 	BRIDGE_INTERRUPTED_ERROR,
@@ -266,5 +266,44 @@ describe('recovery', () => {
 		expect(seqs).toEqual([1]);
 		expect(getRun(test.db, 'run-1')).toMatchObject({ error: ORPHAN_INTERRUPTED_ERROR });
 		expect(reapOrphansOnExit(test.db, () => {})).toEqual([]);
+	});
+
+	it('completes a run that already replied however recovery closes it, and keeps its attachments', () => {
+		const reply = 'Started the dev server.\n\nOutcome: The site runs.';
+		const closers: Array<[string, () => unknown]> = [
+			['bridge', () => terminalizeRunsAfterBridgeLoss(test.db, () => {})],
+			['startup', () => reapOrphansOnStartup(test.db)],
+			['exit', () => reapOrphansOnExit(test.db, () => {})],
+			['reset', () => resetWorkstreamRuns(test.db, 'ws-reset', () => {})],
+		];
+		for (const [name, close] of closers) {
+			seedRunning(`run-${name}`, `sess-${name}`, `ws-${name}`);
+			recordOpenTurnReply(test.db, `run-${name}`, reply);
+			run(
+				test.db,
+				`INSERT INTO agent_attachments (id, workstream_id, run_id, display_name, relative_path, media_type, size, sha256, state, created_at, expires_at, bound_at)
+				 VALUES (?, ?, ?, 'a.txt', '.malini/agent-attachments/a.txt', 'text/plain', 1, 'x', 'bound', 't', NULL, 't')`,
+				`att-${name.padEnd(32, '0')}`,
+				`ws-${name}`,
+				`run-${name}`,
+			);
+			close();
+
+			expect(getRun(test.db, `run-${name}`), name).toMatchObject({ summary: reply, error: null });
+			expect(getSession(test.db, `sess-${name}`)?.status, name).toBe('completed');
+			expect(
+				listEventRowsForSession(test.db, `sess-${name}`, 0).map(({ kind, payload }) => ({
+					kind,
+					payload,
+				})),
+				name,
+			).toEqual([{ kind: 'run.completed', payload: { summary: reply } }]);
+		}
+		expect(
+			get<{ bound: number }>(
+				test.db,
+				"SELECT COUNT(*) AS bound FROM agent_attachments WHERE state = 'bound'",
+			),
+		).toEqual({ bound: closers.length });
 	});
 });

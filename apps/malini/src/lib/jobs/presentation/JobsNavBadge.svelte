@@ -7,9 +7,9 @@
 	import { page } from '$shared/router/state';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
-	import { needsYouJobCountQuery } from '$lib/jobs/application/queries/needs-you-job-count.query.svelte';
+	import { waitingForYouJobCountQuery } from '$lib/jobs/application/queries/waiting-for-you-job-count.query.svelte';
 
-	const needsYou = $derived(needsYouJobCountQuery.data);
+	const needsYou = $derived(waitingForYouJobCountQuery.data);
 	const current = $derived(page.url.pathname.startsWith(JOBS_HREF));
 	const needsYouText = $derived(`${needsYou} ${needsYou === 1 ? 'job needs' : 'jobs need'} you`);
 

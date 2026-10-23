@@ -41,6 +41,11 @@ type RegisteredInteraction =
 	  }>;
 
 const IDLE_STATE = Object.freeze({ status: 'idle' }) satisfies AgentInteractionState;
+const SCOPE_MESSAGES = {
+	session: 'Allowed for this chat',
+	workstream: 'Allowed for this workstream',
+	everywhere: 'Allowed everywhere',
+} as const;
 const STALE_MESSAGE = 'No longer active';
 const ANSWERED_STATE = Object.freeze({
 	status: 'resolved',
@@ -254,7 +259,7 @@ export class AgentInteractionCommands {
 		const request = this.#requests.get(key);
 		if (
 			(input.decision !== 'allow' && input.decision !== 'deny') ||
-			!(['once', 'session', 'workstream'] as const).includes(input.scope)
+			!(['once', 'session', 'workstream', 'everywhere'] as const).includes(input.scope)
 		) {
 			this.#fail(key, 'Choose a valid approval decision.');
 			return false;
@@ -284,6 +289,7 @@ export class AgentInteractionCommands {
 				...(request?.kind === 'approval' && request.permission
 					? { permission: $state.snapshot(request.permission) }
 					: {}),
+				...(input.updatedInput ? { updatedInput: input.updatedInput } : {}),
 				...(alwaysAllow ? { alwaysAllow } : {}),
 			});
 			if (this.states[key]?.status === 'stale') return false;
@@ -393,8 +399,9 @@ function resolvedMessage(
 ): string {
 	if (input.decision === 'deny') return blockedByAutoMode ? 'Kept blocked' : 'Denied';
 	if (input.alwaysAllow) return 'Always allowed';
+	if (input.updatedInput) return 'Saved after review';
 	if (input.scope === 'once' || !remembered) return 'Allowed once';
-	return input.scope === 'session' ? 'Allowed for this chat' : 'Allowed for this workstream';
+	return SCOPE_MESSAGES[input.scope];
 }
 
 type QuestionAnswerValidation =

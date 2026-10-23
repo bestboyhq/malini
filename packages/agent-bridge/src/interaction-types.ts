@@ -1,6 +1,6 @@
 export type ApprovalDecision = 'allow' | 'deny';
 
-export type ApprovalScope = 'once' | 'session' | 'workstream';
+export type ApprovalScope = 'once' | 'session' | 'workstream' | 'everywhere';
 
 export type PermissionCapability = 'read' | 'write' | 'execute' | 'network' | 'external-service';
 
@@ -28,6 +28,7 @@ export interface ProviderApprovalReply {
 	readonly decision: ApprovalDecision;
 	readonly scope: ApprovalScope;
 	readonly alwaysAllow?: boolean;
+	readonly updatedInput?: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentQuestionOption {

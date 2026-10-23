@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobDefinitionRecord } from '$contract/jobs';
-import type { RoutineRecord } from '$contract/routines';
+import { run } from '$main/db/rows';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
 import {
@@ -286,7 +286,11 @@ function platformRequest(requestId: string, tool: string, input: Record<string, 
 	};
 }
 
-function jobDefinition(id: string, name: string): JobDefinitionRecord {
+function jobDefinition(
+	id: string,
+	name: string,
+	changes: Partial<JobDefinitionRecord> = {},
+): JobDefinitionRecord {
 	return {
 		id,
 		name,
@@ -294,32 +298,41 @@ function jobDefinition(id: string, name: string): JobDefinitionRecord {
 		model: 'opus',
 		effort: 'high',
 		runsIn: 'workstream',
-		output: 'none',
-		skillPresetId: 'preset-1',
+		skills: ['adr'],
 		builtin: null,
+		trigger: null,
+		thenJobId: null,
 		createdAt: '2026-10-19T00:00:00.000Z',
 		updatedAt: '2026-10-19T00:00:00.000Z',
+		...changes,
 	};
 }
 
 describe('platform requests from the agent', () => {
-	it('manages jobs and routines through the registered commands and answers the bridge', async () => {
+	it('manages jobs, their triggers and Thens through the registered commands and answers the bridge', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		seedSession(test.db, 'sess-1', 'ws-1');
+		run(
+			test.db,
+			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
+			 VALUES ('job-0', 'Triage issues', 'Triage.', 'opus', 'high', 'workstream', ?, ?)`,
+			'2026-10-19T00:00:00.000Z',
+			'2026-10-19T00:00:00.000Z',
+		);
+		run(
+			test.db,
+			`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, created_at)
+			 VALUES ('job-run-0', 'job-0', 'Triage issues', 'ws-1', 'sess-1', 'trigger', 'running', ?)`,
+			'2026-10-19T00:00:00.000Z',
+		);
 		const calls: Array<readonly [string, unknown]> = [];
-		const definitions = [jobDefinition('job-1', 'Update docs'), jobDefinition('job-2', 'Triage')];
-		const routine = (changes: Partial<RoutineRecord>): RoutineRecord => ({
-			id: 'routine-1',
-			status: 'draft',
-			origin: 'user',
-			label: 'Docs after merge',
-			when: 'on pull-requests:ship-changed where merged is set',
-			steps: [{ job: 'job-1' }],
-			evidence: [],
-			createdAt: '2026-10-19T00:00:00.000Z',
-			updatedAt: '2026-10-19T00:00:00.000Z',
-			...changes,
-		});
+		const definitions = [
+			jobDefinition('job-1', 'Update docs', {
+				trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
+				thenJobId: 'job-2',
+			}),
+			jobDefinition('job-2', 'Triage'),
+		];
 		const { commands } = test.context;
 		commands.define('jobs.list-definitions', () => definitions);
 		commands.define('jobs.save-definition', (args) => {
@@ -339,21 +352,13 @@ describe('platform requests from the agent', () => {
 				origin: 'manual',
 				status: 'queued',
 				detail: null,
+				parentRunId: 'job-run-0',
 				chatSessionId: 'sess-1',
 				chatAfterRunId: 'run-9',
 				createdAt: '2026-10-19T00:00:00.000Z',
 				startedAt: null,
 				finishedAt: null,
 			};
-		});
-		commands.define('routines.list', () => [routine({})]);
-		commands.define('routines.create-draft', (args) => {
-			calls.push(['routines.create-draft', args]);
-			return routine({});
-		});
-		commands.define('routines.update', (args) => {
-			calls.push(['routines.update', args]);
-			return routine({ label: 'Docs on merge' });
 		});
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
@@ -367,25 +372,23 @@ describe('platform requests from the agent', () => {
 
 		bridge.send(platformRequest('p-1', 'jobs_list', {}));
 		bridge.send(
-			platformRequest('p-2', 'jobs_save', { name: 'Ship notes', instructions: 'Write.' }),
+			platformRequest('p-2', 'jobs_save', {
+				name: 'Ship notes',
+				instructions: 'Write.',
+				skills: ['humanizer'],
+				when: 'on jobs:suggested',
+				then: 'triage',
+			}),
 		);
 		bridge.send(platformRequest('p-3', 'jobs_save', { id: 'job-2', effort: 'low' }));
 		bridge.send(platformRequest('p-4', 'jobs_run', { job: 'update docs', context: 'PR #12' }));
 		bridge.send(
-			platformRequest('p-5', 'routines_save', {
-				label: 'Docs after merge',
-				when: 'on pull-requests:ship-changed where merged is set',
-				steps: ['Update docs'],
-			}),
+			platformRequest('p-5', 'jobs_save', { id: 'job-1', when: 'on jobs:suggested', then: null }),
 		);
-		bridge.send(
-			platformRequest('p-6', 'routines_save', { id: 'routine-1', label: 'Docs on merge' }),
-		);
-		bridge.send(platformRequest('p-7', 'routines_list', {}));
+		bridge.send(platformRequest('p-6', 'jobs_save', { id: 'job-2', when: 'on jobs:suggested' }));
+		bridge.send(platformRequest('p-7', 'jobs_save', { id: 'job-1', when: null }));
 		bridge.send(platformRequest('p-8', 'events_list', {}));
-		bridge.send(
-			platformRequest('p-9', 'routines_save', { label: 'x', when: 'y', steps: ['Nope'] }),
-		);
+		bridge.send(platformRequest('p-9', 'jobs_save', { id: 'job-2', then: 'Nope' }));
 		bridge.send(platformRequest('p-10', 'jobs_save', { effort: 'huge' }));
 
 		const results = (): Array<Record<string, unknown>> =>
@@ -396,21 +399,23 @@ describe('platform requests from the agent', () => {
 			if (result?.['ok'] !== true) return result;
 			return JSON.parse(String(result['text']));
 		};
-
 		expect(answer('p-1')).toEqual([
 			{
 				id: 'job-1',
 				name: 'Update docs',
+				instructions: 'Do Update docs.\nThen report.',
 				runsIn: 'workstream',
-				output: 'none',
 				model: 'opus',
 				effort: 'high',
+				skills: ['adr'],
 				builtin: null,
-				instructions: 'Do Update docs.',
+				when: 'on pull-requests:ship-changed where merged is set',
+				mode: 'auto',
+				then: 'job-2',
 			},
-			expect.objectContaining({ id: 'job-2', instructions: 'Do Triage.' }),
+			expect.objectContaining({ id: 'job-2', when: null, mode: null, then: null }),
 		]);
-		expect(calls).toHaveLength(5);
+		expect(calls).toHaveLength(6);
 		expect(calls).toEqual(
 			expect.arrayContaining([
 				[
@@ -421,7 +426,9 @@ describe('platform requests from the agent', () => {
 						model: 'opus',
 						effort: 'high',
 						runsIn: 'workstream',
-						output: 'none',
+						skills: ['humanizer'],
+						trigger: { when: 'on jobs:suggested', mode: 'off' },
+						thenJobId: 'job-2',
 					},
 				],
 				[
@@ -433,30 +440,35 @@ describe('platform requests from the agent', () => {
 						model: 'opus',
 						effort: 'low',
 						runsIn: 'workstream',
-						output: 'none',
-						skillPresetId: 'preset-1',
 					},
 				],
+				[
+					'jobs.save-definition',
+					expect.objectContaining({
+						id: 'job-1',
+						trigger: { when: 'on jobs:suggested', mode: 'auto' },
+						thenJobId: null,
+					}),
+				],
+				[
+					'jobs.save-definition',
+					expect.objectContaining({
+						id: 'job-2',
+						trigger: { when: 'on jobs:suggested', mode: 'off' },
+					}),
+				],
+				['jobs.save-definition', expect.objectContaining({ id: 'job-1', trigger: null })],
 				[
 					'jobs.run',
 					{
 						definitionId: 'job-1',
 						workstreamId: 'ws-1',
 						context: 'PR #12',
+						parentRunId: 'job-run-0',
 						chatSessionId: 'sess-1',
 						chatAfterRunId: 'run-9',
 					},
 				],
-				[
-					'routines.create-draft',
-					{
-						label: 'Docs after merge',
-						when: 'on pull-requests:ship-changed where merged is set',
-						steps: [{ job: 'job-1' }],
-						origin: 'user',
-					},
-				],
-				['routines.update', { routineId: 'routine-1', label: 'Docs on merge' }],
 			]),
 		);
 		expect(answer('p-4')).toEqual({
@@ -465,16 +477,6 @@ describe('platform requests from the agent', () => {
 			status: 'queued',
 			workstreamId: 'ws-1',
 		});
-		expect(answer('p-6')).toMatchObject({ id: 'routine-1', label: 'Docs on merge' });
-		expect(answer('p-7')).toEqual([
-			{
-				id: 'routine-1',
-				status: 'draft',
-				label: 'Docs after merge',
-				when: 'on pull-requests:ship-changed where merged is set',
-				steps: [{ job: 'job-1' }],
-			},
-		]);
 		expect(answer('p-8')).toContainEqual(
 			expect.objectContaining({ channel: 'chat:session-renamed', description: expect.any(String) }),
 		);
@@ -485,6 +487,48 @@ describe('platform requests from the agent', () => {
 		expect(answer('p-10')).toMatchObject({
 			ok: false,
 			error: '`effort` must be one of low, medium, high, xhigh, max.',
+		});
+	});
+
+	it('asks the merge queue to open a draft of the session workstream and answers before the turn ends', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		const opened: unknown[] = [];
+		test.context.commands.define('pull-requests.open-draft', (args) => {
+			opened.push(args);
+			return {
+				workstreamId: 'ws-1',
+				phase: 'draft',
+				step: 'opening-draft',
+				pullRequestNumber: null,
+				pullRequestUrl: null,
+				needsYou: null,
+				queuedAt: null,
+				attempts: 0,
+				activeJobRunId: null,
+				lastError: null,
+				nextAttemptAt: null,
+				updatedAt: '2026-10-23T00:00:00.000Z',
+			};
+		});
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			log: () => {},
+		});
+
+		bridge.send(platformRequest('p-1', 'pull_requests_open_draft', {}));
+
+		const result = (): Record<string, unknown> | undefined =>
+			bridge.received.find((command) => command['cmd'] === 'platform_result');
+		await waitFor(() => result() !== undefined, 5_000, 'the open draft result');
+		expect(opened).toEqual([{ workstreamId: 'ws-1' }]);
+		expect(JSON.parse(String(result()?.['text']))).toEqual({
+			status: 'Malini opens the draft pull request once this turn ends.',
 		});
 	});
 });

@@ -5,8 +5,12 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	draftJob,
 	expectCleanConsole,
+	invoke,
 	launchMalini,
+	openJob,
+	openJobs,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -112,37 +116,74 @@ test('Settings ranks skills by use and turns a skill and a plugin off in Claude 
 	}
 });
 
-test('Settings → Jobs keeps skill presets for jobs, built by menu and by dragging', async () => {
-	test.setTimeout(120_000);
+test('a job names its own skills in the editor, and its agent loads only those', async () => {
+	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
-		const { workstreamId } = await seedWorkstream(page, source, 'e2e-presets-ws', 'Presets');
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-job-skills', 'Job skills');
+		await openJobs(page);
+		await draftJob(page, { name: 'Which skills', words: 'WHICH_SKILLS' });
+		const form = (await openJob(page, 'Which skills')).getByRole('form', {
+			name: 'Edit Which skills',
+		});
+		const skills = form.getByRole('combobox', { name: 'Skills' });
+		await expect(skills).toHaveAttribute('placeholder', 'Every skill that is on');
+		await skills.fill('data');
+		await form
+			.getByRole('listbox')
+			.getByRole('option', { name: /^dataviz/u })
+			.click();
+		await skills.fill('adr');
+		await form.getByRole('listbox').getByRole('option', { name: /^adr/u }).click();
+		await skills.press('Escape');
+		await expect(form.getByRole('listbox')).toHaveCount(0);
+		await expect(form.getByRole('button', { name: /^Remove /u })).toHaveCount(2);
+		await expect(form).toContainText("The job's agent loads only these");
+		await captureFlow(app, 'skills-job-editor');
+		await form.getByRole('button', { name: 'Save changes' }).click();
+		await expect
+			.poll(
+				async () =>
+					(
+						await invoke<{ name: string; skills: string[] }[]>(
+							page,
+							'jobs.list-definitions',
+							undefined,
+						)
+					).find(({ name }) => name === 'Which skills')?.skills,
+			)
+			.toEqual(['dataviz', 'adr']);
+		await page.getByRole('button', { name: 'Remove adr' }).click();
+		await page.getByRole('button', { name: 'Save changes' }).click();
+		await expect
+			.poll(
+				async () =>
+					(
+						await invoke<{ name: string; skills: string[] }[]>(
+							page,
+							'jobs.list-definitions',
+							undefined,
+						)
+					).find(({ name }) => name === 'Which skills')?.skills,
+			)
+			.toEqual(['dataviz']);
+
 		await openWorkstream(page, workstreamId);
-
-		await page.getByTestId('sidebar-open-settings').click();
+		const input = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
+		await input.click();
+		await page.keyboard.type('/Which', { delay: 10 });
 		await page
-			.getByRole('navigation', { name: 'Settings' })
-			.getByRole('link', { name: 'Jobs' })
+			.getByRole('listbox', { name: 'Jobs' })
+			.getByRole('option', { name: /^Which skills/u })
 			.click();
-		const presets = page.getByRole('region', { name: 'Skill presets' });
-		await presets.getByRole('button', { name: 'dataviz. Add to a preset' }).click();
-		await page.getByRole('menuitem', { name: 'New preset with this skill' }).click();
-		await page.getByRole('textbox', { name: 'Preset name' }).fill('Analyst');
-		await page.getByRole('textbox', { name: 'Preset name' }).press('Enter');
-		const analyst = preset(page, 'Analyst');
-		await expect(analyst).toContainText('dataviz');
-		await page.getByRole('button', { name: 'Emoji for Analyst' }).click();
-		await page
-			.getByRole('dialog', { name: 'Emoji for Analyst' })
-			.getByRole('button', { name: '📊' })
-			.click();
-		await expect(page.getByRole('button', { name: 'Emoji for Analyst' })).toHaveText('📊');
-
-		await dragSkill(page, 'adr', analyst);
-		await expect(analyst.getByTestId('skill-preset-skill')).toHaveText([/dataviz/u, /adr/u]);
-		await captureFlow(app, 'skills-job-presets');
+		const card = page.getByRole('article', { name: 'Job Which skills' });
+		await expect(card).toContainText('Done', { timeout: 30_000 });
+		await card.getByRole('link', { name: 'Open transcript' }).click();
+		await expect(page.getByText('Skills: dataviz', { exact: true })).toBeVisible({
+			timeout: 20_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -154,25 +195,4 @@ function row(page: Page, name: string) {
 		.getByRole('list', { name: 'Skills by use' })
 		.getByRole('listitem')
 		.filter({ has: page.getByRole('heading', { name, exact: true }) });
-}
-
-function preset(page: Page, name: string) {
-	return page.locator(`[data-testid="skill-preset"][data-preset="${name}"]`);
-}
-
-async function dragSkill(
-	page: Page,
-	skill: string,
-	target: ReturnType<Page['locator']>,
-): Promise<void> {
-	const source = page.locator(`[data-testid="skill-row"][data-skill="${skill}"]`);
-	await source.scrollIntoViewIfNeeded();
-	const from = await source.boundingBox();
-	const to = await target.boundingBox();
-	if (!from || !to) throw new Error(`cannot drag ${skill}: nothing is laid out`);
-	await page.mouse.move(from.x + 24, from.y + from.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(from.x + 48, from.y + from.height / 2 + 8, { steps: 4 });
-	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-	await page.mouse.up();
 }

@@ -8,10 +8,13 @@ import { createInterface } from 'node:readline';
 import { BridgeOutputWriter, createIpc, attachStdio, runCli, type OutputSink } from '../cli';
 import { unknownCapability } from '../claude/capabilities';
 import { BRIDGE_EVENT_TYPES, BRIDGE_PROTOCOL_VERSION } from '../generated/protocol-contract';
-import type { AgentEvent } from '../types';
+import type { AgentEvent, McpServerReport } from '../types';
+import type { McpServerProbes } from '../claude/mcp-servers';
 import {
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
+	bridgeMcpServerFrame,
+	bridgeMcpServersFrame,
 	type BrowserResult,
 	type PlatformResult,
 	type ProviderCapability,
@@ -36,7 +39,9 @@ interface WireFrame {
 	text?: string;
 	code?: string;
 	capabilities?: Array<{ state: string }>;
-	servers?: Array<{ name: string; status: string; error?: string }>;
+	servers?: McpServerReport[];
+	server?: McpServerReport;
+	authUrl?: string;
 }
 
 class ManualBackpressureStream {
@@ -96,6 +101,49 @@ function registerTestProvider(): void {
 			},
 		};
 	});
+}
+
+function mcpIpc(probes: Partial<McpServerProbes>): {
+	readonly ipc: ReturnType<typeof createIpc>;
+	readonly frames: () => WireFrame[];
+	readonly adopted: string[];
+} {
+	const writes: string[] = [];
+	const adopted: string[] = [];
+	defaultProviderRegistry.setProvider(async (ctx) => ({
+		async sendPrompt() {},
+		async cancel() {},
+		async close() {},
+		async adoptMcpServer(server) {
+			adopted.push(`${ctx.sessionId} ${server.name}`);
+		},
+	}));
+	const ipc = createIpc({
+		stdout: {
+			write: (chunk) => writes.push(chunk) > 0,
+			once: () => undefined,
+		},
+		mcpServers: {
+			list: async () => [],
+			authorize: async () => ({
+				authUrl: null,
+				settled: Promise.resolve(null),
+				cancel: () => undefined,
+			}),
+			probe: async () => null,
+			...probes,
+		},
+	});
+	return { ipc, frames: () => parseFrames(writes.join('')), adopted };
+}
+
+async function startChats(ipc: ReturnType<typeof createIpc>): Promise<void> {
+	await ipc.run(
+		'{"cmd":"start_session","id":"start-1","sessionId":"chat-1","workstreamId":"w-1","worktreePath":"/work/one"}',
+	);
+	await ipc.run(
+		'{"cmd":"start_session","id":"start-2","sessionId":"chat-2","workstreamId":"w-2","worktreePath":"/work/two"}',
+	);
 }
 
 function createOutputSink(): OutputSink {
@@ -294,17 +342,33 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 			code: 'INTERNAL',
 			message: 'Protocol failed for <ak-control:opaque> and sk-control-secret.',
 		});
+		writer.writeControl(
+			bridgeMcpServerFrame({ name: 'one', status: 'failed', error: 'MCP ak-mcp-secret failed' }),
+		);
+		writer.writeControl(
+			bridgeMcpServersFrame('m1', [
+				{ name: 'two', status: 'failed', error: '{"error":"sk-json-secret"}' },
+			]),
+		);
 
 		stream.release();
 		await writer.drain();
 		const stdout = stream.chunks.join('');
 		const frames = parseFrames(stdout);
 
-		expect(stdout).not.toMatch(/org-control|control-token|ak-control:opaque|sk-control-secret/u);
+		expect(stdout).not.toMatch(
+			/org-control|control-token|ak-control:opaque|sk-control-secret|ak-mcp-secret|sk-json-secret/u,
+		);
 		expect(frames[0]?.error).toBe(
 			'Close failed for [redacted] with Authorization: Bearer [redacted].',
 		);
 		expect(frames[1]?.message).toBe('Protocol failed for [redacted] and [redacted].');
+		expect(frames[2]?.server).toEqual({
+			name: 'one',
+			status: 'failed',
+			error: 'MCP [redacted] failed',
+		});
+		expect(frames[3]?.servers).toEqual([{ name: 'two', status: 'failed', error: '[redacted]' }]);
 	});
 
 	it('respects stdout backpressure while prioritizing ACKs and coalescing heartbeats', async () => {
@@ -653,6 +717,154 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 		expect(framesFor('skills-3')).toEqual([
 			expect.objectContaining({ type: 'bridge.protocol_error' }),
+		]);
+	});
+
+	it('lists the MCP servers of a folder before acknowledging', async () => {
+		const { ipc, frames } = mcpIpc({
+			list: async (cwd) => {
+				if (cwd === '/missing') throw new Error('Claude Code is not installed');
+				return [{ name: 'linear', status: 'needs-auth', source: 'user' }];
+			},
+		});
+
+		await ipc.run('{"cmd":"list_mcp_servers","id":"mcp-1","cwd":"/repo"}');
+		await ipc.run('{"cmd":"list_mcp_servers","id":"mcp-2","cwd":"/missing"}');
+		await ipc.drain();
+
+		expect(frames().filter(({ id }) => id === 'mcp-1')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.mcp_servers',
+				servers: [{ name: 'linear', status: 'needs-auth', source: 'user' }],
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+		expect(frames().filter(({ id }) => id === 'mcp-2')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				accepted: false,
+				error: 'MCP_SERVERS_FAILED: Claude Code is not installed',
+			}),
+		]);
+	});
+
+	it('signs in to an MCP server in a folder or a chat, then connects it in every open chat', async () => {
+		const asked: string[] = [];
+		const signIns = new Map<string, (server: McpServerReport | null) => void>();
+		const { ipc, frames, adopted } = mcpIpc({
+			authorize: async (cwd, serverName) => {
+				asked.push(`${cwd} ${serverName}`);
+				return {
+					authUrl: `https://${serverName}.example/oauth`,
+					settled: new Promise((resolve) => signIns.set(serverName, resolve)),
+					cancel: () => undefined,
+				};
+			},
+		});
+		await startChats(ipc);
+
+		await ipc.run(
+			'{"cmd":"authorize_mcp_server","id":"auth-1","cwd":"/work/settings","serverName":"linear"}',
+		);
+		await ipc.run(
+			'{"cmd":"authorize_mcp_server","id":"auth-2","sessionId":"chat-2","serverName":"sentry"}',
+		);
+		await ipc.run(
+			'{"cmd":"authorize_mcp_server","id":"auth-3","sessionId":"chat-9","serverName":"sentry"}',
+		);
+		await ipc.drain();
+
+		expect(asked).toEqual(['/work/settings linear', '/work/two sentry']);
+		expect(frames().filter(({ id }) => id === 'auth-1')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.mcp_authorization',
+				authUrl: 'https://linear.example/oauth',
+			}),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+		expect(frames().filter(({ id }) => id === 'auth-3')).toEqual([
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				accepted: false,
+				error: 'NO_SESSION: no active session for chat-9',
+			}),
+		]);
+		const announced = (): WireFrame[] =>
+			frames().filter(({ type }) => type === 'bridge.mcp_server');
+		expect(announced()).toEqual([]);
+
+		signIns.get('linear')?.({ name: 'linear', status: 'connected', source: 'user', toolCount: 3 });
+		await vi.waitFor(() => expect(announced()).toHaveLength(1));
+		signIns.get('sentry')?.({ name: 'sentry', status: 'needs-auth', source: 'user' });
+		await vi.waitFor(() => expect(announced()).toHaveLength(2));
+
+		expect(adopted).toEqual(['chat-1 linear', 'chat-2 linear']);
+		expect(announced().map(({ server }) => server)).toEqual([
+			{ name: 'linear', status: 'connected', source: 'user', toolCount: 3 },
+			{ name: 'sentry', status: 'needs-auth', source: 'user' },
+		]);
+	});
+
+	it('keeps one sign-in per MCP server open and closes it when Malini cancels it', async () => {
+		const cancelled: string[] = [];
+		let attempt = 0;
+		const { ipc, frames } = mcpIpc({
+			authorize: async (_cwd, serverName) => {
+				const label = `${serverName}-${(attempt += 1)}`;
+				return {
+					authUrl: `https://${serverName}.example/oauth`,
+					settled: new Promise(() => undefined),
+					cancel: () => cancelled.push(label),
+				};
+			},
+		});
+
+		await ipc.run('{"cmd":"authorize_mcp_server","id":"a-1","cwd":"/work","serverName":"linear"}');
+		await ipc.drain();
+		await ipc.run('{"cmd":"authorize_mcp_server","id":"a-2","cwd":"/work","serverName":"linear"}');
+		await ipc.drain();
+		expect(cancelled).toEqual(['linear-1']);
+
+		await ipc.run('{"cmd":"cancel_mcp_authorization","id":"c-1","serverName":"linear"}');
+		await ipc.run('{"cmd":"cancel_mcp_authorization","id":"c-2","serverName":"linear"}');
+		await ipc.drain();
+		expect(cancelled).toEqual(['linear-1', 'linear-2']);
+		expect(frames().filter(({ id }) => id === 'c-1' || id === 'c-2')).toEqual([
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+			expect.objectContaining({ type: 'bridge.command_ack', accepted: true }),
+		]);
+	});
+
+	it('retries an MCP server in a folder and connects it in every open chat', async () => {
+		const { ipc, frames, adopted } = mcpIpc({
+			probe: async (_cwd, serverName) =>
+				serverName === 'linear' ? { name: 'linear', status: 'connected', toolCount: 3 } : null,
+		});
+		await startChats(ipc);
+
+		await ipc.run(
+			'{"cmd":"reconnect_mcp_server","id":"retry-1","cwd":"/work/settings","serverName":"linear"}',
+		);
+		await ipc.drain();
+		await ipc.run(
+			'{"cmd":"reconnect_mcp_server","id":"retry-2","cwd":"/work/settings","serverName":"ghost"}',
+		);
+		await ipc.drain();
+
+		expect(adopted).toEqual(['chat-1 linear', 'chat-2 linear']);
+		expect(frames().filter(({ type }) => type.startsWith('bridge.mcp'))).toEqual([
+			expect.objectContaining({
+				type: 'bridge.mcp_server',
+				server: { name: 'linear', status: 'connected', toolCount: 3 },
+			}),
+		]);
+		expect(frames().filter(({ id }) => id === 'retry-1' || id === 'retry-2')).toEqual([
+			expect.objectContaining({ id: 'retry-1', accepted: true }),
+			expect.objectContaining({
+				id: 'retry-2',
+				accepted: false,
+				error: 'MCP_SERVER_FAILED: Claude Code has no MCP server named ghost',
+			}),
 		]);
 	});
 

@@ -62,7 +62,7 @@
 </script>
 
 <div
-	class="border-surface-50-border mt-3 border-t pt-3"
+	class="px-4 py-3"
 	role="group"
 	aria-label={`Run ${definition.name}`}
 	data-testid="job-run-target"

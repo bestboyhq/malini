@@ -36,6 +36,8 @@ export function canPersistAgentApproval(
 	permission: AgentPermissionDescriptor | undefined,
 ): boolean {
 	if (!permission) return false;
+	const [only] = permission.resources;
+	if (only?.kind === 'action') return permission.resources.length === 1;
 	return (
 		permission.capability === 'read' &&
 		permission.resources.length > 0 &&

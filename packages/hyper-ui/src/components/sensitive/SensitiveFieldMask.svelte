@@ -68,7 +68,7 @@
 	>
 		{#each segments as segment, index (index)}
 			{#if segment.kind}
-				<span class="hyper-sensitive-mask" data-sensitive={segment.kind}>{segment.text}</span>
+				<span class="hyper-sensitive-mask" data-sensitive={segment.kind}>{segment.masked}</span>
 			{:else}
 				{segment.text}
 			{/if}

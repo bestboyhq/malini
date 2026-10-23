@@ -1,18 +1,19 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
-	import { SENSITIVE_REVEAL_LABEL, type SensitiveKind } from './sensitive-segments';
+	import { SENSITIVE_REVEAL_LABEL, maskSensitive, type SensitiveKind } from './sensitive-segments';
 
 	interface Props {
 		kind: SensitiveKind;
+		text: string;
+		masked?: string;
 		revealed?: boolean;
 		onreveal?: () => void;
 		interactive?: boolean;
-		children: Snippet;
 	}
 
-	let { kind, revealed, onreveal, interactive = true, children }: Props = $props();
+	let { kind, text, masked, revealed, onreveal, interactive = true }: Props = $props();
 	let revealedHere = $state(false);
 	const shown = $derived(revealed ?? revealedHere);
+	const mask = $derived(masked ?? maskSensitive(text, kind));
 
 	function reveal(event: Event): void {
 		event.preventDefault();
@@ -26,11 +27,8 @@
 	}
 </script>
 
-{#if shown}{@render children()}{:else if !interactive}<span
-		class="hyper-sensitive-mask inline-block"
-		data-sensitive={kind}
-	>
-		{@render children()}
+{#if shown}{text}{:else if !interactive}<span class="hyper-sensitive-mask" data-sensitive={kind}>
+		{mask}
 	</span>{:else}<span
 		class="hyper-sensitive"
 		data-sensitive={kind}
@@ -40,5 +38,5 @@
 		onclick={reveal}
 		onkeydown={revealFromKeyboard}
 	>
-		<span class="hyper-sensitive-mask">{@render children()}</span>
+		<span class="hyper-sensitive-mask">{mask}</span>
 	</span>{/if}

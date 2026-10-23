@@ -5,7 +5,6 @@
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Textarea } from '$hyper-ui/components/textarea';
 	import {
-		DEFAULT_AGENT_MODEL,
 		DEFAULT_AGENT_RUN_PROFILE,
 		type AgentReasoningEffort,
 		catalogModelLabel,
@@ -13,21 +12,18 @@
 		modelCatalogQuery,
 		normalizeReasoningEffort,
 	} from '$shared/providers/providers.api';
-	import { createJobDefinitionCommand } from '$lib/jobs/application/commands/create-job-definition.command';
 	import { saveJobDefinitionCommand } from '$lib/jobs/application/commands/save-job-definition.command';
 	import { jobFormSubmissionQuery } from '$lib/jobs/application/queries/job-form-submission.query.svelte';
 	import {
 		JOB_INSTRUCTIONS_MAX_LENGTH,
 		JOB_NAME_MAX_LENGTH,
 		isJobEffort,
-		isJobOutput,
-		isJobRunsIn,
 	} from '$lib/jobs/domain/job-definition';
-	import { SkillPresetSelect } from '$lib/skills/skills.api';
-	import { JOB_OUTPUT_OPTIONS, JOB_RUNS_IN_OPTIONS, effortLabel } from './job-definition-copy';
+	import { SkillsField } from '$lib/skills/skills.api';
+	import { effortLabel } from './job-definition-copy';
 
 	interface Props {
-		definition: JobDefinitionRecord | null;
+		definition: JobDefinitionRecord;
 	}
 
 	let { definition }: Props = $props();
@@ -37,9 +33,7 @@
 		instructions: string;
 		model: string;
 		effort: string;
-		runsIn: string;
-		output: string;
-		skillPresetId: string | null;
+		skills: string[];
 	};
 
 	let draft = $state<JobDraft>(startingDraft());
@@ -47,7 +41,7 @@
 
 	const submission = $derived(jobFormSubmissionQuery.data);
 	const catalog = $derived(modelCatalogQuery.data);
-	const builtin = $derived(definition?.builtin ?? null);
+	const builtin = $derived(definition.builtin);
 	const thinks = $derived(!isAutomaticJobBuiltin(builtin));
 	const efforts = $derived(effortsForModel(catalog, draft.model));
 	const modelOptions: SelectOption[] = $derived([
@@ -59,18 +53,16 @@
 	const effortOptions: SelectOption[] = $derived(
 		efforts.map((effort) => ({ value: effort, label: effortLabel(effort) })),
 	);
-	const dirty = $derived(definition === null || differs(startingDraft(), draft));
+	const dirty = $derived(differs(startingDraft(), draft));
 	const submitError = $derived(localError ?? submission.error);
 
 	function startingDraft(): JobDraft {
 		return {
-			name: definition?.name ?? '',
-			instructions: definition?.instructions ?? '',
-			model: definition?.model ?? DEFAULT_AGENT_MODEL,
-			effort: definition?.effort ?? DEFAULT_AGENT_RUN_PROFILE.effort,
-			runsIn: definition?.runsIn ?? 'workstream',
-			output: definition?.output ?? 'none',
-			skillPresetId: definition?.skillPresetId ?? null,
+			name: definition.name,
+			instructions: definition.instructions,
+			model: definition.model,
+			effort: definition.effort,
+			skills: [...definition.skills],
 		};
 	}
 
@@ -80,9 +72,7 @@
 			left.instructions !== right.instructions.trim() ||
 			left.model !== right.model ||
 			left.effort !== right.effort ||
-			left.runsIn !== right.runsIn ||
-			left.output !== right.output ||
-			left.skillPresetId !== right.skillPresetId
+			left.skills.join('\n') !== right.skills.join('\n')
 		);
 	}
 
@@ -113,23 +103,21 @@
 			return;
 		}
 		localError = null;
-		const fields = {
+		saveJobDefinitionCommand({
+			id: definition.id,
 			name,
 			instructions,
 			model: draft.model,
 			effort: thinks ? normalizeReasoningEffort(efforts, draftEffort()) : draftEffort(),
-			runsIn: isJobRunsIn(draft.runsIn) ? draft.runsIn : 'workstream',
-			output: isJobOutput(draft.output) ? draft.output : 'none',
-			skillPresetId: thinks ? draft.skillPresetId : null,
-		};
-		if (definition) saveJobDefinitionCommand({ id: definition.id, ...fields });
-		else createJobDefinitionCommand(fields);
+			runsIn: definition.runsIn,
+			skills: thinks ? [...draft.skills] : [],
+		});
 	}
 </script>
 
 <form
 	class="flex flex-col gap-4"
-	aria-label={definition ? `Edit ${definition.name}` : 'New job'}
+	aria-label={`Edit ${definition.name}`}
 	data-testid="job-editor"
 	onsubmit={onSubmit}
 >
@@ -172,21 +160,7 @@
 	</div>
 
 	{#if thinks}
-		<SkillPresetSelect
-			value={draft.skillPresetId}
-			onchange={(presetId) => (draft.skillPresetId = presetId)}
-		/>
-	{/if}
-
-	{#if builtin === null}
-		<div class="grid grid-cols-2 gap-3">
-			<Select bind:value={draft.runsIn} label="Runs in" options={[...JOB_RUNS_IN_OPTIONS]} />
-			<Select
-				bind:value={draft.output}
-				label="When it finishes"
-				options={[...JOB_OUTPUT_OPTIONS]}
-			/>
-		</div>
+		<SkillsField value={draft.skills} onchange={(skills) => (draft.skills = skills)} />
 	{/if}
 
 	{#if submitError}
@@ -194,16 +168,10 @@
 	{/if}
 
 	<div class="flex items-center gap-2">
-		<Button
-			type="submit"
-			variant={definition ? 'secondary' : 'primary'}
-			size="sm"
-			loading={submission.busy}
-			disabled={!dirty}
-		>
-			{definition ? 'Save changes' : 'Create job'}
+		<Button type="submit" variant="secondary" size="sm" loading={submission.busy} disabled={!dirty}>
+			Save changes
 		</Button>
-		{#if definition && dirty}
+		{#if dirty}
 			<Button variant="ghost" size="sm" onclick={onDiscard}>Discard</Button>
 		{/if}
 	</div>

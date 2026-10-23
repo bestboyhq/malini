@@ -12,7 +12,7 @@ The bridge (`packages/agent-bridge`, a child process on Electron's binary) hands
 
 Claude Code owns the loop: tools, compaction, skills, `CLAUDE.md`, hooks, MCP, and model access through the user's own login.
 `settingSources` loads the user, project, and local settings, so a run behaves like `claude` in a terminal.
-The one exception is skills: `send_prompt` carries the skill names of a job's preset (ADR 0015), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
+The one exception is skills: `send_prompt` carries the skills a job names (ADR 0049), and the session passes them to the SDK's `skills` option; no list, as in every chat, means every skill that is on.
 
 Malini owns the rest, and the adapter enforces it:
 
@@ -21,10 +21,11 @@ Malini owns the rest, and the adapter enforces it:
 - Approvals and questions: every `canUseTool` call becomes a Malini interaction; `AskUserQuestion` answers return as `updatedInput.answers`, keyed by question text.
   A user's deny returns `interrupt: true`, so the run stops the way it does in the `claude` CLI and ends as cancelled.
 - Calls auto mode blocks: the `PermissionDenied` hook turns each classifier denial into a Malini approval carrying `autoModeRule`, and an allow answers `retry: true` while a `PreToolUse` hook lets that exact call through once.
-  **Always allow** writes the rule into the user's settings (`user-settings.ts`) and applies it live with `applyFlagSettings`; keeping it blocked lets the run carry on (`docs/adr/0049-a-call-auto-mode-blocks-becomes-an-approval.md`).
-- Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, routine and event tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
-  The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `routines_save` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
-- MCP sign-in: `authorize_mcp_server` opens a probe Claude Code in the chat's worktree and calls the SDK's untyped `mcpAuthenticate`, which answers with the link Malini opens; the probe stays open until the server connects, then the chat's own process reconnects it (`mcp-servers.ts`, `docs/adr/0040-mcp-servers-sign-in-through-a-claude-code-probe.md`).
+  **Always allow** writes the rule into the user's settings (`user-settings.ts`) and applies it live with `applyFlagSettings`; keeping it blocked lets the run carry on (`docs/adr/0058-a-call-auto-mode-blocks-becomes-an-approval.md`).
+- Malini's tools: the in-process `malini` MCP server (`browser-tools.ts`, `platform-tools.ts`) holds the browser tools and the job, event and pull request tools, answered by main over `bridge.browser_request` and `bridge.platform_request`.
+  The browser and read tools are in `allowedTools`; each query calls `setMcpPermissionModeOverride('malini', 'default')`, so `jobs_save`, `jobs_run` and `pull_requests_open_draft` reach `canUseTool` even in `auto` and `bypassPermissions` (`docs/adr/0029-agents-manage-jobs-and-routines-through-malini-tools.md`).
+- MCP sign-in: `authorize_mcp_server` opens a probe Claude Code in the chat's worktree or a given folder and calls the SDK's untyped `mcpAuthenticate`, which answers with the link Malini opens; the probe stays open until the server connects or `cancel_mcp_authorization` closes it, then every open chat reconnects the server and the bridge sends `bridge.mcp_server`.
+  `list_mcp_servers` reads `mcpServerStatus()` from a probe for the Settings page, and Turn off writes `deniedMcpServers` in user settings, never `toggleMcpServer`, which only turns a server off for one folder (`mcp-servers.ts`, `docs/adr/0057-mcp-servers-are-managed-app-wide.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
 - Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.

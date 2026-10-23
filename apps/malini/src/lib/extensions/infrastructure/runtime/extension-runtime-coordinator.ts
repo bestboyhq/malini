@@ -161,12 +161,6 @@ export class ExtensionRuntimeCoordinator {
 		await this.#transition;
 	}
 
-	reloadRoutines(): Promise<void> {
-		return this.#enqueue(async () => {
-			await this.#service?.reloadRoutines();
-		});
-	}
-
 	announceWorkstreamCreated(
 		workstreamId: string,
 		context: WorkstreamCreatedAutomationContext = {},

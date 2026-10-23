@@ -9,7 +9,7 @@ export type RunPick = Readonly<{ reportRunId: string; promptRunId: string; pick:
 const EARLIER_TURN_LIMIT = 3;
 
 export function finalTurnReport(run: RunGroup, itemKey: string, text: string): TurnReport | null {
-	if (run.terminal !== 'completed' || lastAssistant(run)?.key !== itemKey) return null;
+	if (!run.turnEnded || lastAssistant(run)?.key !== itemKey) return null;
 	const report = parseTurnReport(text);
 	return hasTurnReport(report) ? report : null;
 }

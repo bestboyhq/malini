@@ -23,7 +23,6 @@ import type { ExtensionsPlatform } from '$lib/extensions/extensions.platform';
 import { registerExtensions } from '$lib/extensions/platform/register';
 import { registerJobs } from '$lib/jobs/platform/register';
 import { registerPullRequests } from '$lib/pull-requests/platform/register';
-import { registerRoutines } from '$lib/routines/platform/register';
 import { registerScratchpad } from '$lib/scratchpad/platform/register';
 import { claudeConfigFiles } from '$lib/skills/platform/claude-settings';
 import { registerSkills } from '$lib/skills/platform/register';
@@ -92,8 +91,6 @@ export async function registerModules(
 
 	const pullRequests = registerPullRequests(context);
 
-	registerRoutines(context);
-
 	registerScratchpad(context);
 
 	const providers = registerProviders(context);
@@ -108,6 +105,7 @@ export async function registerModules(
 		resolveWorkstreamCheckout: (workstreamId) =>
 			repositories.checkouts.resolveCheckout(workstreamId),
 		spawnEnvironment: buildSpawnEnvironment,
+		claudeSettings: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()).settings,
 		browser,
 		theme: () => shellHost.theme(),
 		log,

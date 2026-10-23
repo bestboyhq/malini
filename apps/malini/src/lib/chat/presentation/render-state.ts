@@ -1,4 +1,5 @@
 import { isCancellationError } from '$contract/agent-state-machine';
+import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentQuestion } from '$lib/chat/domain/agent-interaction';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import {
@@ -7,6 +8,7 @@ import {
 } from '$lib/chat/domain/element-reference';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
+import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import {
 	undoTargetsByRun,
 	type RunUndoTarget,
@@ -119,6 +121,7 @@ export type RenderItem =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			review?: MaliniEditReview;
 	  }
 	| {
 			kind: 'question';
@@ -139,6 +142,7 @@ export type RunGroup = {
 	items: RenderItem[];
 	terminal: 'completed' | 'failed' | 'cancelled' | null;
 	terminalText: string;
+	turnEnded: boolean;
 	superseded: boolean;
 	obsoleted: boolean;
 };
@@ -335,6 +339,7 @@ export function renderInteractionItem(
 			reason: event.reason,
 			...(event.toolName ? { toolName: event.toolName } : {}),
 			...('input' in event ? { input: event.input } : {}),
+			...(event.review ? { review: event.review } : {}),
 			...(event.permission
 				? {
 						permission: {
@@ -437,6 +442,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				items: [],
 				terminal: null,
 				terminalText: '',
+				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
 			};
@@ -477,6 +483,8 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 		const event = env.event;
 		const key = envelopeKey(env);
 		const runId = env.runId;
+		const resumed = resumesTurn(event) ? runById.get(runId) : undefined;
+		if (resumed) resumed.turnEnded = false;
 		switch (event.type) {
 			case 'run.started': {
 				runFor(runId);
@@ -671,6 +679,11 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				}
 				break;
 			}
+			case 'background.updated': {
+				const group = runFor(runId);
+				if (group.terminal === null && replyOverCommands(event) !== null) group.turnEnded = true;
+				break;
+			}
 			case 'run.completed': {
 				const group = runFor(runId);
 				if (group.terminal !== null) {
@@ -680,6 +693,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				terminal = 'completed';
 				group.terminal = 'completed';
 				group.terminalText = event.summary;
+				group.turnEnded = true;
 				push(runId, {
 					kind: 'terminal',
 					key,

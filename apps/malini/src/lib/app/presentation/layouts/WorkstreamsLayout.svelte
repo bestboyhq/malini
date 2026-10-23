@@ -38,7 +38,9 @@
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
+	import JobsSidebar from '../JobsSidebar.svelte';
 	import Sidebar from '../Sidebar.svelte';
+	import { JOBS_HREF, REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
 	import { globalTopBarBandSlot } from '$shared/shell/global-topbar-actions.svelte';
 	import { scheduleAfterSettledNavigationPaint } from '$shared/performance/navigation-paint-scheduler';
 	import {
@@ -68,6 +70,11 @@
 	const pullRequestActivity = pullRequestRefreshActivityQuery.data;
 	const activeWorkstreamFreshnessPhase = $derived(activeWorkstreamFreshnessPhaseQuery.data);
 	const onboardingShown = $derived(onboardingQuery.data.shown);
+	const inJobs = $derived(page.route.id?.startsWith(JOBS_HREF) ?? false);
+	let lastWorkstreamId = $state<string | null>(null);
+	const jobsBackHref = $derived(
+		lastWorkstreamId ? workstreamHref(lastWorkstreamId) : REPOSITORIES_HREF,
+	);
 	const releases: (() => void)[] = [];
 
 	onMount(() => {
@@ -101,6 +108,10 @@
 
 	$effect(() => followActiveWorkstreamHook(activeWorkstreamId, activeWorkstreamCheckedOut));
 
+	$effect(() => {
+		if (activeWorkstreamId) lastWorkstreamId = activeWorkstreamId;
+	});
+
 	onDestroy(() => {
 		for (const release of releases.splice(0).reverse()) release();
 		releaseChangeTotals();
@@ -116,7 +127,9 @@
 	data-navigation-error-message={scopeError ?? undefined}
 	data-navigation-freshness-phase={activeWorkstreamFreshnessPhase}
 >
-	{#if !onboardingShown}
+	{#if !onboardingShown && inJobs}
+		<JobsSidebar backHref={jobsBackHref} backLabel="Workstreams" />
+	{:else if !onboardingShown}
 		<Sidebar
 			repositories={connectedRepositories}
 			{workstreams}

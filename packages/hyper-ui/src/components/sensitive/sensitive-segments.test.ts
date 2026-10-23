@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { sensitiveMasking } from './sensitive-masking.svelte';
-import { hasSensitiveText, sensitiveSegments, sensitiveSegmentsAcross } from './sensitive-segments';
+import {
+	hasSensitiveText,
+	maskSensitive,
+	sensitiveSegments,
+	sensitiveSegmentsAcross,
+} from './sensitive-segments';
 
 beforeEach(() => {
 	sensitiveMasking.on = true;
@@ -55,6 +60,29 @@ describe('sensitive segments', () => {
 			[[' ok', null]],
 		]);
 		expect(pieces[0]?.[1]?.match).toBe(pieces[1]?.[0]?.match);
+		expect(pieces.flat().map(({ masked }) => masked)).toEqual([
+			'cd /Users/',
+			'a***',
+			'',
+			'/src',
+			' ok',
+		]);
+	});
+
+	it('masks with a fixed run of asterisks that hides the domain and every length', () => {
+		const shown = (text: string): string =>
+			sensitiveSegments(text)
+				.map((segment) => segment.masked)
+				.join('');
+		expect(shown('Signed in as ada.lovelace@example.co.uk')).toBe('Signed in as a***e@***');
+		expect(shown('/Users/szymeo/notes.md and /home/al/x')).toBe(
+			'/Users/s***o/notes.md and /home/a***/x',
+		);
+		expect(maskSensitive('e2e@gmail.com', 'email')).toBe('e***@***');
+		expect(maskSensitive('e2e.tester@x.io', 'email')).toBe(
+			maskSensitive('e2e.long.tester@other.example.org', 'email'),
+		);
+		expect(maskSensitive('zoë🙂x', 'user')).toBe('z***x');
 	});
 
 	it('masks nothing while masking is off', () => {

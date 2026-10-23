@@ -1,9 +1,10 @@
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, CHAT_MCP_SERVER_CHANGED_CHANNEL } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
+import { replyOverCommands, resumesTurn } from '../../domain/background-work';
 import { appendEvent, withToolOutputPreview, type AgentEventEnvelope } from '../events.repository';
 import {
 	abortInteractionDispatch,
@@ -18,6 +19,8 @@ import {
 	finalizeRunLifecycle,
 	listOpenRunIds,
 	listOpenRuns,
+	openTurnReply,
+	recordOpenTurnReply,
 } from '../runs.repository';
 import { setProviderSessionId, setSessionStatus, type SessionStatus } from '../sessions.repository';
 import { get, nowIso8601 } from '$main/db/rows';
@@ -38,6 +41,7 @@ import {
 	type BridgeAgentRequest,
 	type BridgeEvent,
 } from './protocol';
+import { withMaliniApproval } from './malini-approvals.service';
 import {
 	persistedBridgeSession,
 	persistedBridgeSessions,
@@ -136,10 +140,12 @@ export function recordBridgeInteractionRequest(
 	let kind: 'approval' | 'question';
 	let requestId: string;
 	let permission: unknown;
+	let toolName: string | undefined;
 	if (event.type === 'approval.requested') {
 		kind = 'approval';
 		requestId = event.approvalId;
 		permission = event.permission;
+		toolName = event.toolName;
 	} else if (event.type === 'question.requested') {
 		kind = 'question';
 		requestId = event.questionId;
@@ -156,7 +162,7 @@ export function recordBridgeInteractionRequest(
 			throw new Error(`interaction \`${requestId}\` belongs to a stale session/run correlation`);
 		}
 		try {
-			normalizedPermission = normalizeRememberablePermission(permission, identity.path);
+			normalizedPermission = normalizeRememberablePermission(permission, identity.path, toolName);
 		} catch {
 			normalizedPermission = null;
 		}
@@ -298,8 +304,9 @@ export function pumpStep(
 	event: BridgeEvent,
 	log: (line: string) => void = defaultLog,
 ): LiveEventEnvelope | null {
-	const resolved = correlator.resolve(event);
-	if (resolved === null) return null;
+	const correlated = correlator.resolve(event);
+	if (correlated === null) return null;
+	const resolved = completedOnceTurnEnded(db, correlated, log);
 
 	try {
 		const recorded = recordBridgeInteractionRequest(db, resolved.event);
@@ -370,8 +377,51 @@ export function pumpStep(
 				setSessionStatus(db, resolved.sessionId, status);
 			} catch {}
 		}
+		try {
+			recordTurnReply(db, resolved.runId, resolved.event);
+		} catch (error) {
+			log(
+				`agent: failed to record the turn reply of run \`${resolved.runId}\`: ${describe(error)}`,
+			);
+		}
 	}
 	return envelopeWithSeq(resolved, persistedSeq);
+}
+
+function recordTurnReply(db: MaliniDatabase, runId: string, event: BridgeEvent): void {
+	if (event.type === 'background.updated') {
+		const reply = replyOverCommands(event);
+		if (reply !== null) recordOpenTurnReply(db, runId, reply);
+	} else if (resumesTurn(event)) {
+		recordOpenTurnReply(db, runId, null);
+	}
+}
+
+function completedOnceTurnEnded(
+	db: MaliniDatabase,
+	resolved: ResolvedEnvelope,
+	log: (line: string) => void,
+): ResolvedEnvelope {
+	const { event } = resolved;
+	if (event.type !== 'run.failed') return resolved;
+	let reply: string | null;
+	try {
+		reply = openTurnReply(db, resolved.runId);
+	} catch (error) {
+		log(`agent: failed to read the turn reply of run \`${resolved.runId}\`: ${describe(error)}`);
+		return resolved;
+	}
+	if (reply === null) return resolved;
+	return {
+		...resolved,
+		event: {
+			type: 'run.completed',
+			runId: event.runId,
+			summary: reply,
+			...(event.providerCursor === undefined ? {} : { providerCursor: event.providerCursor }),
+			...(event.handedOff === undefined ? {} : { handedOff: event.handedOff }),
+		},
+	};
 }
 
 interface BridgeRecoveryReport {
@@ -658,6 +708,13 @@ export class BridgeRuntime {
 			}
 			this.hooks.onAgentRequest?.(request, supervisor);
 		});
+		const unsubscribeMcpServers = supervisor.onMcpServer((server) => {
+			if (this.eventGeneration !== generation) {
+				unsubscribeMcpServers();
+				return;
+			}
+			this.events.emit(CHAT_MCP_SERVER_CHANGED_CHANNEL, server);
+		});
 	}
 
 	private async pumpAfter(
@@ -681,9 +738,10 @@ export class BridgeRuntime {
 	private async pumpOne(
 		correlator: SessionCorrelator,
 		generation: number,
-		event: BridgeEvent,
+		bridgeEvent: BridgeEvent,
 	): Promise<void> {
 		if (this.eventGeneration !== generation) return;
+		const event = withMaliniApproval(this.db, bridgeEvent);
 		const interactionSessionId = eventSessionId(event);
 		const handled = await tryAutoApprove(
 			this.db,

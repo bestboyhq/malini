@@ -19,6 +19,7 @@ import type { ProviderApprovalReply, ProviderQuestionReply } from '../interactio
 import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } from '../protocol.js';
 import { ProviderInteractionBroker } from '../provider-interactions.js';
 import type { ProviderContext, ProviderEventListener, ProviderHandle } from '../providers/types.js';
+import type { McpServerReport } from '../types.js';
 import { MALINI_MCP_SERVER, maliniTools } from './browser-tools.js';
 import {
 	configChanged,
@@ -28,8 +29,14 @@ import {
 } from './config-snapshot.js';
 import { CLAUDE_LOGIN_COMMAND } from './installation.js';
 import { systemPromptAppend } from './instructions.js';
-import { probeMcpServer, startMcpAuthorization, type McpProbeOptions } from './mcp-servers.js';
 import {
+	mcpServerReport,
+	probeMcpServer,
+	type McpProbeOptions,
+	type McpServerEntry,
+} from './mcp-servers.js';
+import {
+	approvedInput,
 	autoModeCategory,
 	autoModeRule,
 	claudeAnswers,
@@ -84,7 +91,7 @@ export type ClaudeQuery = AsyncIterable<SDKMessage> &
 
 interface McpReport {
 	readonly runId: string;
-	readonly servers: readonly { name: string; status: string; error?: string }[];
+	readonly servers: readonly McpServerReport[];
 }
 
 export type QueryFunction = (params: {
@@ -146,6 +153,7 @@ export class ClaudeSession implements ProviderHandle {
 	#requestedMode: PermissionMode = 'default';
 	#initialized = false;
 	#knownMcpServers: readonly string[] = [];
+	#mcpStatus = new Map<string, McpServerStatus>();
 	#mcpReport: McpReport | null = null;
 
 	constructor(options: ClaudeSessionOptions) {
@@ -289,6 +297,7 @@ export class ClaudeSession implements ProviderHandle {
 				active.query.mcpServerStatus().catch(() => null),
 				delay(deadline - Date.now(), null, { ref: false }),
 			]);
+			if (servers) this.#learnMcpStatus(servers);
 			if (!servers || mcpSettled(servers, this.#knownMcpServers)) break;
 			await delay(MCP_SETTLE_POLL_MS, undefined, { ref: false });
 		}
@@ -465,26 +474,29 @@ export class ClaudeSession implements ProviderHandle {
 		});
 		const active = this.#active;
 		if (active) {
-			this.#reportMcp(active.runId, message.mcp_servers);
+			this.#reportMcp(
+				active.runId,
+				message.mcp_servers.map((server) => this.#describeMcp(server)),
+			);
 			void this.#learnContextWindow(active);
 		}
 	}
 
-	#reportMcp(
-		runId: string,
-		servers: readonly { name: string; status: string; error?: string }[],
-	): void {
+	#learnMcpStatus(servers: readonly McpServerStatus[]): void {
+		this.#mcpStatus = new Map(servers.map((server) => [server.name, server]));
+	}
+
+	#describeMcp(server: McpServerEntry): McpServerReport {
+		const known = this.#mcpStatus.get(server.name);
+		const report = mcpServerReport(known?.status === server.status ? known : server);
+		const source = report.source ?? (known && mcpServerReport(known).source);
+		return source ? { ...report, source } : report;
+	}
+
+	#reportMcp(runId: string, servers: readonly McpServerReport[]): void {
 		this.#knownMcpServers = servers.map(({ name }) => name);
-		const report: McpReport = {
-			runId,
-			servers: servers.map(({ name, status, error }) => ({
-				name,
-				status,
-				...(error ? { error } : {}),
-			})),
-		};
-		this.#mcpReport = report;
-		this.#emit({ type: 'mcp.status', ...report, servers: [...report.servers] });
+		this.#mcpReport = { runId, servers };
+		this.#emit({ type: 'mcp.status', runId, servers: [...servers] });
 	}
 
 	async #learnContextWindow(active: ActiveRun): Promise<void> {
@@ -653,10 +665,14 @@ export class ClaudeSession implements ProviderHandle {
 				}
 				return { behavior: 'deny', message: 'The user denied this action.', interrupt: true };
 			}
-			const updatedPermissions = rememberedPermissions(options.suggestions, resolution.scope);
+			const updatedPermissions = rememberedPermissions(
+				toolName,
+				options.suggestions,
+				resolution.scope,
+			);
 			return {
 				behavior: 'allow',
-				updatedInput: input,
+				updatedInput: approvedInput(toolName, input, resolution.updatedInput),
 				...(updatedPermissions ? { updatedPermissions } : {}),
 			};
 		};
@@ -780,7 +796,11 @@ export class ClaudeSession implements ProviderHandle {
 			query.mcpServerStatus(),
 			anthropicSnapshot(query, new Date()),
 		]);
-		this.#reportMcp(runId, servers);
+		this.#learnMcpStatus(servers);
+		this.#reportMcp(
+			runId,
+			servers.map((server) => mcpServerReport(server)),
+		);
 		if (!context) return;
 		this.#emit({
 			type: 'usage.updated',
@@ -792,22 +812,11 @@ export class ClaudeSession implements ProviderHandle {
 		});
 	}
 
-	async authorizeMcpServer(serverName: string): Promise<string | null> {
-		const { authUrl, settled } = await startMcpAuthorization(serverName, this.#mcpProbe());
-		void this.#adoptOnceConnected(settled);
-		return authUrl;
-	}
-
-	async #adoptOnceConnected(settled: Promise<McpServerStatus | null>): Promise<void> {
-		const server = await settled;
-		if (server) await this.#adoptMcpServer(server);
-	}
-
 	async reconnectMcpServer(serverName: string): Promise<void> {
 		const active = this.#active;
 		if (!active) {
 			const server = await probeMcpServer(serverName, this.#mcpProbe());
-			if (server) await this.#adoptMcpServer(server);
+			if (server) await this.adoptMcpServer(server);
 			return;
 		}
 		try {
@@ -823,20 +832,18 @@ export class ClaudeSession implements ProviderHandle {
 		return { cwd: this.#context.cwd, executable, env: claudeEnvironment(), query: this.#query };
 	}
 
-	async #adoptMcpServer({ name, status, error }: McpServerStatus): Promise<void> {
+	async adoptMcpServer(server: McpServerReport): Promise<void> {
 		const active = this.#active;
 		if (active) {
-			await active.query.reconnectMcpServer(name).catch(() => undefined);
+			await active.query.reconnectMcpServer(server.name).catch(() => undefined);
 			await this.refreshSessionStatus().catch(() => undefined);
 			return;
 		}
 		const report = this.#mcpReport;
-		if (!report) return;
+		if (!report?.servers.some(({ name }) => name === server.name)) return;
 		this.#reportMcp(
 			report.runId,
-			report.servers.map((server) =>
-				server.name === name ? { name, status, ...(error ? { error } : {}) } : server,
-			),
+			report.servers.map((known) => (known.name === server.name ? server : known)),
 		);
 	}
 

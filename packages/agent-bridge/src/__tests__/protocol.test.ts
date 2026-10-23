@@ -5,6 +5,8 @@ import {
 	bridgeCapabilitiesFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
+	bridgeMcpServerFrame,
+	bridgeMcpServersFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
 	parseCommandLine,
@@ -267,6 +269,50 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses an approval for everywhere that carries the input the user reviewed', () => {
+			const r = parseCommandLine(
+				JSON.stringify({
+					cmd: 'approve',
+					id: 'cmd-approve',
+					sessionId: 's1',
+					runId: 'r1',
+					approvalId: 'a1',
+					decision: 'allow',
+					scope: 'everywhere',
+					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+				}),
+			);
+			expect(r).toEqual({
+				ok: true,
+				command: {
+					cmd: 'approve',
+					id: 'cmd-approve',
+					sessionId: 's1',
+					runId: 'r1',
+					approvalId: 'a1',
+					decision: 'allow',
+					scope: 'everywhere',
+					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+				},
+			});
+		});
+
+		it('rejects a reviewed input on a deny or one that is not an object', () => {
+			const approve = (fields: Record<string, unknown>) =>
+				parseCommandLine(
+					JSON.stringify({
+						cmd: 'approve',
+						id: 'cmd-approve',
+						sessionId: 's1',
+						runId: 'r1',
+						approvalId: 'a1',
+						...fields,
+					}),
+				);
+			expect(approve({ decision: 'deny', updatedInput: { id: 'job-1' } }).ok).toBe(false);
+			expect(approve({ decision: 'allow', updatedInput: ['job-1'] }).ok).toBe(false);
+		});
+
 		it('parses structured question answers with full correlation', () => {
 			const result = parseCommandLine(
 				'{"cmd":"answer_question","id":"answer-1","sessionId":"s1","runId":"r1","questionId":"request-1","answers":[{"questionId":"request-1:0","values":["Vitest"]}]}',
@@ -302,7 +348,7 @@ describe('protocol: parseCommandLine', () => {
 			});
 		});
 
-		it('parses MCP server commands and rejects one without a server', () => {
+		it('parses MCP server commands for a chat or a folder, never both or neither', () => {
 			expect(
 				parseCommandLine(
 					'{"cmd":"authorize_mcp_server","id":"mcp-1","sessionId":"session-1","serverName":"linear"}',
@@ -317,8 +363,35 @@ describe('protocol: parseCommandLine', () => {
 				},
 			});
 			expect(
-				parseCommandLine('{"cmd":"reconnect_mcp_server","id":"mcp-2","sessionId":"session-1"}').ok,
-			).toBe(false);
+				parseCommandLine(
+					'{"cmd":"reconnect_mcp_server","id":"mcp-2","cwd":"/repo","serverName":"linear"}',
+				),
+			).toEqual({
+				ok: true,
+				command: { cmd: 'reconnect_mcp_server', id: 'mcp-2', cwd: '/repo', serverName: 'linear' },
+			});
+			for (const target of [
+				'"sessionId":"session-1"',
+				'"sessionId":"session-1","cwd":"/repo","serverName":"linear"',
+				'"serverName":"linear"',
+				'"sessionId":"","serverName":"linear"',
+				'"cwd":"repo","serverName":"linear"',
+			]) {
+				expect(
+					parseCommandLine(`{"cmd":"authorize_mcp_server","id":"mcp-3",${target}}`),
+				).toMatchObject({ ok: false, code: 'INVALID_PAYLOAD', id: 'mcp-3' });
+			}
+		});
+
+		it('parses list_mcp_servers for an absolute folder and rejects any other', () => {
+			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m1","cwd":"/repo"}')).toEqual({
+				ok: true,
+				command: { cmd: 'list_mcp_servers', id: 'm1', cwd: '/repo' },
+			});
+			expect(parseCommandLine('{"cmd":"list_mcp_servers","id":"m2","cwd":"repo"}')).toMatchObject({
+				ok: false,
+				code: 'INVALID_PAYLOAD',
+			});
 		});
 
 		it('parses a stop_task command and rejects one without a task', () => {
@@ -473,6 +546,8 @@ describe('protocol: parseCommandLine', () => {
 				'refresh_session_status',
 				'authorize_mcp_server',
 				'reconnect_mcp_server',
+				'list_mcp_servers',
+				'cancel_mcp_authorization',
 				'stop_task',
 				'suggest_title',
 				'list_skills',
@@ -489,6 +564,8 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.title',
 				'bridge.skills',
 				'bridge.mcp_authorization',
+				'bridge.mcp_servers',
+				'bridge.mcp_server',
 				'bridge.browser_request',
 				'bridge.platform_request',
 			]);
@@ -496,9 +573,8 @@ describe('protocol: parseCommandLine', () => {
 				'jobs_list',
 				'jobs_save',
 				'jobs_run',
-				'routines_list',
-				'routines_save',
 				'events_list',
+				'pull_requests_open_draft',
 			]);
 		});
 
@@ -556,8 +632,8 @@ describe('protocol: parseCommandLine', () => {
 			});
 			expect(
 				bridgePlatformRequestFrame('q3', 's1', {
-					tool: 'routines_save',
-					input: { label: 'Docs after merge' },
+					tool: 'jobs_save',
+					input: { name: 'Docs after merge', when: null },
 					runId: 'r1',
 				}),
 			).toEqual({
@@ -566,8 +642,20 @@ describe('protocol: parseCommandLine', () => {
 				requestId: 'q3',
 				sessionId: 's1',
 				runId: 'r1',
-				tool: 'routines_save',
-				input: { label: 'Docs after merge' },
+				tool: 'jobs_save',
+				input: { name: 'Docs after merge', when: null },
+			});
+			const linear = { name: 'linear', status: 'connected', source: 'user', toolCount: 4 };
+			expect(bridgeMcpServersFrame('m1', [linear])).toEqual({
+				type: 'bridge.mcp_servers',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				id: 'm1',
+				servers: [linear],
+			});
+			expect(bridgeMcpServerFrame(linear)).toEqual({
+				type: 'bridge.mcp_server',
+				protocolVersion: BRIDGE_PROTOCOL_VERSION,
+				server: linear,
 			});
 			expect(bridgeCommandAckFrame('c1')).toMatchObject({
 				type: 'bridge.command_ack',

@@ -15,6 +15,7 @@ import {
 	seedWorkstream,
 	sendPrompt,
 	startFreshChat,
+	untilStill,
 	type LaunchedApp,
 } from './harness';
 
@@ -516,6 +517,7 @@ test('same-name files in different folders are told apart by their path', async 
 		const libTab = tabRow(page).getByRole('tab', { name: 'index.ts', exact: true, selected: true });
 		await expect(tabRow(page).getByRole('tab', { name: 'index.ts', exact: true })).toHaveCount(2);
 		await expect(libTab).toHaveAttribute('aria-selected', 'true');
+		await untilStill(page);
 		await libTab.hover();
 		await expect(page.getByRole('tooltip')).toHaveText('lib/index.ts');
 		const fileView = page.getByRole('tabpanel', { name: 'index.ts' });

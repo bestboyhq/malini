@@ -21,6 +21,7 @@ import {
 	type ProviderCapabilityState,
 } from '$contract/agent';
 import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills';
+import type { MaliniEditReview } from '$contract/approvals';
 
 export type {
 	AgentQuestionAnswer,
@@ -47,6 +48,7 @@ export const BRIDGE_START_SESSION_ACK_TIMEOUT_MS = 30_000;
 export const BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS = 20_000;
 export const BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS = 60_000;
+export const BRIDGE_LIST_MCP_SERVERS_ACK_TIMEOUT_MS = 60_000;
 
 export interface AgentConversationMessage {
 	role: 'user' | 'assistant';
@@ -71,7 +73,11 @@ export interface AgentMcpServerStatus {
 	name: string;
 	status: string;
 	error?: string;
+	source?: string;
+	toolCount?: number;
 }
+
+export type BridgeMcpServerTarget = { sessionId: string } | { cwd: string };
 
 export type BridgeCommand =
 	| {
@@ -108,6 +114,7 @@ export type BridgeCommand =
 			decision: string;
 			scope: string;
 			alwaysAllow?: boolean;
+			updatedInput?: Readonly<Record<string, unknown>>;
 	  }
 	| {
 			cmd: 'answer_question';
@@ -119,12 +126,13 @@ export type BridgeCommand =
 	  }
 	| { cmd: 'refresh_capabilities'; id: string }
 	| { cmd: 'refresh_session_status'; id: string; sessionId: string }
-	| {
+	| ({
 			cmd: 'authorize_mcp_server' | 'reconnect_mcp_server';
 			id: string;
-			sessionId: string;
 			serverName: string;
-	  }
+	  } & BridgeMcpServerTarget)
+	| { cmd: 'list_mcp_servers'; id: string; cwd: string }
+	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
@@ -175,6 +183,7 @@ export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number 
 	if (command.cmd === 'authorize_mcp_server' || command.cmd === 'reconnect_mcp_server') {
 		return BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS;
 	}
+	if (command.cmd === 'list_mcp_servers') return BRIDGE_LIST_MCP_SERVERS_ACK_TIMEOUT_MS;
 	return BRIDGE_COMMAND_ACK_TIMEOUT_MS;
 }
 
@@ -230,6 +239,7 @@ export type BridgeEvent =
 			input?: unknown;
 			permission?: unknown;
 			autoModeRule?: string;
+			review?: MaliniEditReview;
 	  }
 	| {
 			type: 'question.requested';
@@ -258,6 +268,7 @@ export type BridgeEvent =
 			waiting: boolean;
 			tasks: AgentBackgroundTask[];
 			summary?: string;
+			providerCursor?: string;
 			interim?: boolean;
 			handedOff?: boolean;
 	  }
@@ -323,6 +334,13 @@ export type BridgeControlFrame =
 	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
 	| { type: 'bridge.skills'; protocolVersion: number; id: string; skills: SkillRecord[] }
 	| { type: 'bridge.mcp_authorization'; protocolVersion: number; id: string; authUrl?: string }
+	| {
+			type: 'bridge.mcp_servers';
+			protocolVersion: number;
+			id: string;
+			servers: AgentMcpServerStatus[];
+	  }
+	| { type: 'bridge.mcp_server'; protocolVersion: number; server: AgentMcpServerStatus }
 	| BridgeBrowserRequest
 	| BridgePlatformRequest;
 
@@ -476,14 +494,20 @@ function decodeQuestion(value: unknown, index: number): AgentQuestion {
 	};
 }
 
-function decodeMcpServer(value: unknown, index: number): AgentMcpServerStatus {
-	if (!isRecord(value)) throw new Error(`mcp.status: servers[${index}] is not an object`);
-	const fields = new Fields(value, `mcp.status: servers[${index}]`);
+function decodeMcpServer(value: unknown, where: string): AgentMcpServerStatus {
+	if (!isRecord(value)) throw new Error(`${where} is not an object`);
+	const fields = new Fields(value, where);
 	return {
 		name: fields.string('name'),
 		status: fields.string('status'),
 		...optional('error', fields.optionalString('error')),
+		...optional('source', fields.optionalString('source')),
+		...optional('toolCount', fields.optionalNumber('toolCount')),
 	};
+}
+
+function decodeMcpServers(values: unknown[], where: string): AgentMcpServerStatus[] {
+	return values.map((value, index) => decodeMcpServer(value, `${where}: servers[${index}]`));
 }
 
 const SKILL_SOURCES: ReadonlySet<string> = new Set<SkillSource>([
@@ -646,7 +670,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 				return ok({
 					type: kind,
 					runId: f.string('runId'),
-					servers: f.array('servers').map(decodeMcpServer),
+					servers: decodeMcpServers(f.array('servers'), 'mcp.status'),
 				});
 			case 'background.updated':
 				return ok({
@@ -655,6 +679,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					waiting: f.boolean('waiting'),
 					tasks: f.array('tasks').map(decodeBackgroundTask),
 					...optional('summary', f.optionalString('summary')),
+					...optional('providerCursor', f.optionalString('providerCursor')),
 					...optional('interim', f.optionalBoolean('interim')),
 					...optional('handedOff', f.optionalBoolean('handedOff')),
 				});
@@ -851,6 +876,25 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						...optional('authUrl', f.optionalString('authUrl')),
+					},
+				};
+			case 'bridge.mcp_servers':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						servers: decodeMcpServers(f.array('servers'), type),
+					},
+				};
+			case 'bridge.mcp_server':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						server: decodeMcpServer(value['server'], `${type}: server`),
 					},
 				};
 			case 'bridge.browser_request':

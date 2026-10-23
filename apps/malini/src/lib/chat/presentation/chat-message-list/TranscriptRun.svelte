@@ -148,6 +148,22 @@
 	}
 </script>
 
+{#snippet runActions()}
+	<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
+	<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
+		<IconButton
+			bare
+			class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+			ariaLabel="Copy response"
+			data-testid="chat-copy-response"
+			data-copy-run-id={run.runId}
+			onclick={() => transcript.copyRunResponse(run)}
+		>
+			<Icon name="copy" size={14} />
+		</IconButton>
+	</Tooltip>
+{/snippet}
+
 <li
 	class={[
 		'group/run relative flex flex-col gap-2',
@@ -221,15 +237,22 @@
 			{/each}
 		{/if}
 
-		{#if isLastRun}
+		{#if run.terminal === 'cancelled'}
+			<div class="flex h-6 items-center gap-1.5" data-testid="chat-run-actions">
+				<RunTerminalBanner {run} />
+				{#if hasAssistantAnswer || undoTarget || forkAvailable}
+					{@render runActions()}
+				{/if}
+			</div>
+		{:else if isLastRun || run.terminal === null}
 			<RunStatusLine
 				{run}
-				waitingForUser={transcript.waitingForUser}
+				waitingForUser={isLastRun && transcript.waitingForUser}
 				background={transcript.backgroundWork}
 			/>
 		{/if}
 
-		{#if run.terminal !== null && run.terminal !== 'completed'}
+		{#if run.terminal === 'failed'}
 			<RunTerminalBanner {run} />
 		{/if}
 
@@ -239,21 +262,9 @@
 			</p>
 		{/if}
 
-		{#if hasAssistantAnswer || undoTarget || forkAvailable}
+		{#if run.terminal !== 'cancelled' && (hasAssistantAnswer || undoTarget || forkAvailable)}
 			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
-				<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
-				<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
-					<IconButton
-						bare
-						class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
-						ariaLabel="Copy response"
-						data-testid="chat-copy-response"
-						data-copy-run-id={run.runId}
-						onclick={() => transcript.copyRunResponse(run)}
-					>
-						<Icon name="copy" size={14} />
-					</IconButton>
-				</Tooltip>
+				{@render runActions()}
 			</div>
 		{/if}
 	{/if}

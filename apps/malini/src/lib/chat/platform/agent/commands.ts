@@ -66,6 +66,8 @@ import { chatNamingJob } from '$lib/jobs/jobs.platform';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
+import { isAgentApprovalScope } from '$contract/agent';
+import type { PermissionRuleScope } from '../permissions.repository';
 import {
 	approvalDecisionResult,
 	normalizeRememberablePermission,
@@ -927,6 +929,34 @@ export function listAgentEventPage(
 	};
 }
 
+const REVIEWED_TOOL = 'mcp__malini__jobs_save';
+
+function requestToolName(record: AgentInteractionRecord): string | undefined {
+	const toolName = isRecord(record.requestPayload) ? record.requestPayload['toolName'] : undefined;
+	return typeof toolName === 'string' ? toolName : undefined;
+}
+
+function reviewedInput(
+	record: AgentInteractionRecord,
+	decision: AgentApprovalDecision,
+	updatedInput: unknown,
+): Readonly<Record<string, unknown>> | null {
+	if (updatedInput === undefined || updatedInput === null) return null;
+	const request = isRecord(record.requestPayload) ? record.requestPayload : {};
+	const requested = isRecord(request['input']) ? request['input'] : {};
+	if (
+		decision !== 'allow' ||
+		!isRecord(request['review']) ||
+		request['toolName'] !== REVIEWED_TOOL ||
+		!isRecord(updatedInput) ||
+		typeof requested['id'] !== 'string' ||
+		updatedInput['id'] !== requested['id']
+	) {
+		throw new Error('only a reviewed edit of the same job can change what is saved');
+	}
+	return updatedInput;
+}
+
 function interactionResponseMatches(record: AgentInteractionRecord, response: unknown): boolean {
 	if (record.state !== 'resolved') return false;
 	if (record.response !== null && jsonEqual(record.response, response)) return true;
@@ -1004,6 +1034,7 @@ export interface DecideApprovalInput {
 	readonly scope: string;
 	readonly permission?: unknown;
 	readonly alwaysAllow?: boolean;
+	readonly updatedInput?: unknown;
 }
 
 export async function decideAgentApproval(
@@ -1016,7 +1047,6 @@ export async function decideAgentApproval(
 	const { decision, scope } = checkedDecision(input.decision, input.scope);
 	const permission = input.permission === undefined ? null : input.permission;
 	const alwaysAllow = input.alwaysAllow === true;
-	const response = { decision, scope, permission, ...(alwaysAllow ? { alwaysAllow } : {}) };
 	const record = getInteraction(db, 'approval', sessionId, runId, approvalId);
 	if (!record) {
 		throw new Error(
@@ -1026,6 +1056,14 @@ export async function decideAgentApproval(
 	if (alwaysAllow && (decision !== 'allow' || scope !== 'once' || !blockedByAutoMode(record))) {
 		throw new Error('only an allow-once decision on a call auto mode blocked can always allow it');
 	}
+	const updatedInput = reviewedInput(record, decision, input.updatedInput);
+	const response = {
+		decision,
+		scope,
+		permission,
+		...(updatedInput ? { updatedInput } : {}),
+		...(alwaysAllow ? { alwaysAllow } : {}),
+	};
 	if (interactionResponseMatches(record, response)) {
 		return approvalDecisionResult(
 			decision,
@@ -1036,16 +1074,20 @@ export async function decideAgentApproval(
 
 	let remembered: {
 		id: string;
-		scope: 'session' | 'workstream';
+		scope: PermissionRuleScope;
 		fingerprint: string;
 		permission: unknown;
 	} | null = null;
-	if (decision === 'allow' && (scope === 'session' || scope === 'workstream')) {
+	if (decision === 'allow' && scope !== 'once') {
 		if (permission === null)
 			throw new Error('remembered approval requires the exact pending permission descriptor');
 		const identity = activeRunWorkstreamIdentity(db, sessionId, runId);
 		if (!identity) throw new Error('approval belongs to a stale run');
-		const normalized = normalizeRememberablePermission(permission, identity.path);
+		const normalized = normalizeRememberablePermission(
+			permission,
+			identity.path,
+			requestToolName(record),
+		);
 		if (record.permissionFingerprint !== normalized.fingerprint) {
 			throw new Error('permission fingerprint does not match the pending request');
 		}
@@ -1085,6 +1127,7 @@ export async function decideAgentApproval(
 			approvalId,
 			decision,
 			scope,
+			...(updatedInput ? { updatedInput } : {}),
 			...(alwaysAllow ? { alwaysAllow } : {}),
 		});
 	} catch (error) {
@@ -1257,8 +1300,6 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.list-event-page',
 	'chat.list-sessions',
 	'chat.refresh-session-status',
-	'chat.authorize-mcp-server',
-	'chat.reconnect-mcp-server',
 	'chat.reset-workstream-runs',
 	'chat.restart-agent',
 	'chat.send-prompt',
@@ -1473,6 +1514,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 	commands.define('chat.decide-approval', (args: unknown) => {
 		const sessionId = requireString(args, 'sessionId');
 		const permission = field(args, 'permission');
+		const updatedInput = field(args, 'updatedInput');
 		return decideAgentApproval(
 			db,
 			{
@@ -1483,6 +1525,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				scope: requireString(args, 'scope'),
 				...(permission === undefined || permission === null ? {} : { permission }),
 				...(field(args, 'alwaysAllow') === true ? { alwaysAllow: true } : {}),
+				...(updatedInput === undefined || updatedInput === null ? {} : { updatedInput }),
 			},
 			() => runtime.ensureSessionReady(sessionId),
 			ids,
@@ -1558,20 +1601,6 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		const sessionId = requireString(args, 'sessionId');
 		const supervisor = await runtime.ensureReady();
 		await supervisor.refreshSessionStatus(sessionId);
-	});
-
-	commands.define('chat.authorize-mcp-server', async (args: unknown) => {
-		const sessionId = requireString(args, 'sessionId');
-		const serverName = requireString(args, 'serverName');
-		const supervisor = await runtime.ensureSessionReady(sessionId);
-		return { authUrl: await supervisor.authorizeMcpServer(sessionId, serverName) };
-	});
-
-	commands.define('chat.reconnect-mcp-server', async (args: unknown) => {
-		const sessionId = requireString(args, 'sessionId');
-		const serverName = requireString(args, 'serverName');
-		const supervisor = await runtime.ensureSessionReady(sessionId);
-		await supervisor.reconnectMcpServer(sessionId, serverName);
 	});
 
 	commands.define(
@@ -1762,8 +1791,8 @@ function checkedDecision(
 	scope: string,
 ): { decision: AgentApprovalDecision; scope: AgentApprovalScope } {
 	validateApprovalDecision(decision, scope);
-	if (scope !== 'once' && scope !== 'session' && scope !== 'workstream') {
-		throw new Error('approval scope must be `once`, `session`, or `workstream`');
+	if (!isAgentApprovalScope(scope)) {
+		throw new Error('approval scope must be `once`, `session`, `workstream`, or `everywhere`');
 	}
 	return { decision, scope };
 }

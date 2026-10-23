@@ -1,4 +1,6 @@
 import type { AgentBackgroundTask } from '$contract/agent';
+import type { MaliniEditReview } from '$contract/approvals';
+import type { McpServerReport } from '$contract/mcp-servers';
 import type { StagedAgentAttachment } from './composer-actions';
 import type { AgentElementReference } from './element-reference';
 import type { AgentTranscriptReference } from './transcript-reference';
@@ -70,6 +72,7 @@ export type AgentEvent =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			review?: MaliniEditReview;
 	  }
 	| {
 			type: 'question.requested';
@@ -94,7 +97,7 @@ export type AgentEvent =
 	| {
 			type: 'mcp.status';
 			runId: string;
-			servers: { name: string; status: string; error?: string }[];
+			servers: McpServerReport[];
 	  }
 	| {
 			type: 'background.updated';

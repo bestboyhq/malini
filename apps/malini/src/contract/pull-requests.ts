@@ -7,6 +7,7 @@ export type ShipStep =
 	| 'marking-ready'
 	| 'updating-branch'
 	| 'updating-from-main'
+	| 'resolving-conflicts'
 	| 'fixing-checks'
 	| 'addressing-review'
 	| 'waiting-for-checks'
@@ -61,3 +62,13 @@ export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';
 export const DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS = 3;
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_RANGE = Object.freeze({ min: 1, max: 20 });
+
+export const UPDATE_FROM_MAIN_TRIGGER_SETTING = 'merge-queue.update-from-main';
+
+export const UPDATE_FROM_MAIN_TRIGGERS = ['main-moves', 'workstream-opened', 'merging'] as const;
+
+export type UpdateFromMainTrigger = (typeof UPDATE_FROM_MAIN_TRIGGERS)[number];
+
+export function updateFromMainTrigger(stored: string | undefined): UpdateFromMainTrigger {
+	return UPDATE_FROM_MAIN_TRIGGERS.find((trigger) => trigger === stored) ?? 'main-moves';
+}

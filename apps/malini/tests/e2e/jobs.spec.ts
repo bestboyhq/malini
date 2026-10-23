@@ -2,119 +2,119 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	draftJob,
 	expectCleanConsole,
 	invoke,
+	jobCard,
 	launchMalini,
+	openJob,
+	openJobs,
 	openWorkstream,
 	seedWorkstream,
 } from './harness';
 
 const WORKSTREAM = 'Jobs workstream';
 
-async function openJobs(page: Page): Promise<void> {
-	await page.evaluate(() => {
-		globalThis.location.hash = '#/jobs';
-	});
-	await page.reload();
-	await expect(page.getByRole('navigation', { name: 'Jobs', exact: true })).toBeVisible({
-		timeout: 20_000,
-	});
-}
-
-async function createJob(page: Page, name: string, instructions: string): Promise<void> {
-	await page.getByRole('link', { name: 'New job' }).click();
-	const form = page.getByRole('form', { name: 'New job' });
-	await form.getByRole('textbox', { name: 'Name' }).fill(name);
-	await form.getByRole('textbox', { name: 'Instructions' }).fill(instructions);
-	await form.getByRole('button', { name: 'Create job' }).click();
-	await expect(page.getByRole('heading', { name, level: 2 })).toBeVisible();
-}
-
 async function runJob(page: Page, name: string): Promise<void> {
-	await page.getByRole('link', { name: new RegExp(`^${name}`, 'u') }).click();
-	await page.getByRole('button', { name: `Run ${name}` }).click();
-	const target = page.getByRole('group', { name: `Run ${name}` });
+	const detail = await openJob(page, name);
+	await detail.getByRole('button', { name: `Run ${name}` }).click();
+	const target = detail.getByRole('group', { name: `Run ${name}` });
 	await expect(target.getByRole('combobox', { name: 'Workstream' })).toContainText(WORKSTREAM);
 	await target.getByRole('button', { name: 'Run job' }).click();
 	await expect(target).toHaveCount(0);
+	await detail.getByRole('button', { name: `Close ${name}` }).click();
+	await expect(detail).toHaveCount(0);
 }
 
-test('the Jobs page lists the built-in jobs first, creates, edits, resets and deletes jobs behind confirmations', async () => {
+test('the Jobs page lists your jobs then the built-in ones, drafts, edits, resets and deletes jobs behind confirmations', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await openJobs(page);
-		const builtIn = page.getByRole('region', { name: 'Built in' }).getByRole('link');
-		await expect(builtIn).toHaveCount(7);
+		const cards = page.getByRole('region', { name: 'Your jobs' }).getByRole('article');
+		await expect(cards).toHaveCount(10);
 		for (const [index, name] of [
 			'Name chats',
 			'Name services',
 			'Fix checks',
 			'Update from main',
+			'Resolve conflicts',
 			'Address review',
 			'Check compatibility',
 			'Update docs',
+			'Open draft',
+			'Merge',
 		].entries()) {
-			await expect(builtIn.nth(index)).toContainText(name);
+			await expect(cards.nth(index)).toHaveAccessibleName(name);
 		}
-		await expect(page.getByRole('region', { name: 'Yours' })).toContainText(
-			'Jobs you make show up here.',
-		);
-		await expect(builtIn.first()).toHaveAttribute('aria-current', 'page');
-		await expect(page.getByRole('heading', { name: 'Name chats', level: 2 })).toBeVisible();
-		await expect(
-			page.getByText('Runs on its own when you send the first message in a chat.'),
-		).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Run Name chats' })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Delete Name chats' })).toHaveCount(0);
-		await expect(page.getByRole('button', { name: 'Reset Name chats' })).toBeVisible();
+		await expect(jobCard(page, 'Name chats')).toContainText('When you start a chat');
+		await expect(jobCard(page, 'Name chats')).toContainText('Runs on its own');
+		await expect(jobCard(page, 'Name chats').getByRole('switch')).toHaveCount(0);
 
-		await builtIn.nth(2).click();
-		const instructions = page.getByRole('textbox', { name: 'Instructions' });
+		const nameChats = await openJob(page, 'Name chats');
+		await expect(nameChats).toContainText(
+			'When you start a chat, Name chats runs in the background.',
+		);
+		await expect(nameChats.getByRole('button', { name: 'Run Name chats' })).toHaveCount(0);
+		await expect(nameChats.getByRole('button', { name: 'Delete Name chats' })).toHaveCount(0);
+		await expect(nameChats.getByRole('button', { name: 'Reset Name chats' })).toBeVisible();
+		await nameChats.getByRole('button', { name: 'Close Name chats' }).click();
+
+		const fixChecks = await openJob(page, 'Fix checks');
+		const instructions = fixChecks.getByRole('textbox', { name: 'Instructions' });
 		const original = await instructions.inputValue();
 		await instructions.fill('Fix them my way.');
-		await page.getByRole('button', { name: 'Save changes' }).click();
-		await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-		await page.getByRole('button', { name: 'Reset Fix checks' }).click();
+		await fixChecks.getByRole('button', { name: 'Save changes' }).click();
+		await expect(fixChecks.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+		await fixChecks.getByRole('button', { name: 'Reset Fix checks' }).click();
 		await expect(instructions).toHaveValue('Fix them my way.');
-		await page.getByRole('button', { name: 'Confirm resetting Fix checks' }).click();
+		await fixChecks.getByRole('button', { name: 'Confirm resetting Fix checks' }).click();
 		await expect(instructions).toHaveValue(original);
+		await fixChecks.getByRole('button', { name: 'Close Fix checks' }).click();
 
-		await page.getByRole('link', { name: 'New job' }).click();
-		const form = page.getByRole('form', { name: 'New job' });
-		await form.getByRole('textbox', { name: 'Name' }).fill('   ');
-		await form.getByRole('textbox', { name: 'Instructions' }).fill('Tidy the docs.');
-		await form.getByRole('button', { name: 'Create job' }).click();
-		await expect(form.getByRole('alert')).toHaveText('Give the job a name.');
+		const composer = page.getByRole('textbox', { name: 'What should happen, and when?' });
+		await composer.fill('Tidy the docs, then link every page from the index');
+		await page.getByRole('button', { name: /^Draft it/u }).click();
+		const draft = page.getByRole('article', { name: 'New job draft' });
+		await expect(draft.getByRole('textbox', { name: 'Step 2' })).toHaveValue(
+			'Link every page from the index',
+		);
+		await draft.getByRole('button', { name: 'Remove step 2' }).click();
+		await draft.getByRole('button', { name: 'Remove step 1' }).click();
+		await expect(draft.getByRole('button', { name: 'Save job' })).toBeDisabled();
+		await draft.getByRole('button', { name: 'Discard', exact: true }).click();
+		await expect(draft).toHaveCount(0);
 
-		await form.getByRole('textbox', { name: 'Name' }).fill('Nightly docs');
-		await form.getByRole('button', { name: 'Create job' }).click();
-		const yours = page.getByRole('region', { name: 'Yours' }).getByRole('link');
-		await expect(yours).toHaveCount(1);
-		await expect(yours.first()).toContainText('Nightly docs');
-		await expect(yours.first()).toHaveAttribute('aria-current', 'page');
-		const save = page.getByRole('button', { name: 'Save changes' });
+		await draftJob(page, { name: 'Nightly docs', words: 'Tidy the docs' });
+		await expect(cards.first()).toHaveAccessibleName('Nightly docs');
+		const nightly = await openJob(page, 'Nightly docs');
+		const save = nightly.getByRole('button', { name: 'Save changes' });
 		await expect(save).toBeDisabled();
-		await page.getByRole('textbox', { name: 'Name' }).fill('Weekly docs');
+		await nightly.getByRole('textbox', { name: 'Name' }).fill('Weekly docs');
 		await expect(save).toBeEnabled();
 		await save.click();
-		await expect(yours.first()).toContainText('Weekly docs');
+		const weekly = page.getByRole('dialog', { name: 'Weekly docs' });
+		await expect(weekly).toBeVisible();
+		await weekly.getByRole('button', { name: 'Runs in: The workstream you pick' }).click();
+		await page.getByRole('menuitemradio', { name: 'A new workstream' }).click();
 		await expect
 			.poll(async () =>
-				(await invoke<{ name: string }[]>(page, 'jobs.list-definitions', undefined)).map(
-					({ name }) => name,
-				),
+				(
+					await invoke<{ name: string; runsIn: string }[]>(page, 'jobs.list-definitions', undefined)
+				).find(({ name }) => name === 'Weekly docs'),
 			)
-			.toContain('Weekly docs');
+			.toMatchObject({ runsIn: 'new-workstream' });
+		await expect(weekly).toContainText('runs in a new workstream');
 		await captureFlow(app, 'jobs-page');
 
-		await page.getByRole('button', { name: 'Delete Weekly docs' }).click();
-		await page.getByRole('button', { name: 'Keep' }).click();
-		await expect(yours).toHaveCount(1);
-		await page.getByRole('button', { name: 'Delete Weekly docs' }).click();
-		await page.getByRole('button', { name: 'Confirm deleting Weekly docs' }).click();
-		await expect(yours).toHaveCount(0);
+		await weekly.getByRole('button', { name: 'Delete Weekly docs' }).click();
+		await weekly.getByRole('button', { name: 'Keep' }).click();
+		await expect(jobCard(page, 'Weekly docs')).toHaveCount(1);
+		await weekly.getByRole('button', { name: 'Delete Weekly docs' }).click();
+		await weekly.getByRole('button', { name: 'Confirm deleting Weekly docs' }).click();
+		await expect(weekly).toHaveCount(0);
+		await expect(jobCard(page, 'Weekly docs')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -139,8 +139,8 @@ test('the Job center appears with a job, puts the one that needs you first, hold
 		await expect(page.getByTestId('sidebar-open-jobs')).not.toHaveAttribute('aria-describedby');
 
 		await openJobs(page);
-		await createJob(page, 'Ask first', 'QUESTION before you start');
-		await createJob(page, 'Keep going', 'HANG until stopped');
+		await draftJob(page, { name: 'Ask first', words: 'QUESTION before you start' });
+		await draftJob(page, { name: 'Keep going', words: 'HANG until stopped' });
 		await runJob(page, 'Ask first');
 		await runJob(page, 'Keep going');
 

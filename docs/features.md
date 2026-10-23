@@ -81,7 +81,7 @@ The [README](../README.md) has the short version.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands.
-- **While it waits, it works.** The queue runs **Fix checks**, **Update from main**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
+- **While it waits, it works.** The queue runs **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
@@ -93,25 +93,31 @@ The [README](../README.md) has the short version.
 
 - **Every skill that is on loads in every chat.** No per-chat picking.
 - **Settings, Skills ranks them by use:** last use, token cost, origin, and an on/off switch, plus how many skills that are on were never used.
-- **A job can narrow its skills** to a preset, edited under Settings, Jobs.
+- **A job can name its skills** in its editor on the Jobs page, and then loads only those.
 
-## Jobs and routines
+## Jobs
 
 <p align="center">
-  <img src="../.github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
+  <img src="../.github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
-- **A job is agent work you reuse.** A name, instructions, a model, an effort, and optionally a skill preset.
-  Run it in this workstream or a new one, and pick what happens when it finishes: nothing, a draft pull request, or a queued merge.
-- **Six jobs come built in.** **Fix checks**, **Update from main**, and **Address review** get a pull request merged.
-  **Name chats** names a chat from its first message, **Update docs** brings a repository's docs up to date in a draft pull request, and **Check compatibility** runs after an update that changed Malini's events.
+- **A job is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
+  Run it in this workstream or a new one.
+- **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
+  A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits under Activity with **Run it** and **Skip**.
+- **Then: what runs next.** One job runs after this one succeeds, in the same workstream, with its result.
+  **Open draft** and **Merge** are jobs, so "open a draft PR" is a Then.
+  A Then that would loop is refused.
+- **Fire and forget.** Every way of starting a job only asks Malini's job runner, which starts it when a slot is free, the workstream has no other job, and its agent is idle.
+- **Ten jobs come built in.** **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** get a pull request merged.
+  **Update from main** merges the base branch without an agent and hands conflicts to **Resolve conflicts**.
+  **Open draft** and **Merge** ship a workstream without an agent, **Update docs** brings a repository's docs up to date and then opens a draft, and **Check compatibility** runs after an update that changed Malini's events.
+  **Name chats** and **Name services** name chats and the commands agents leave running.
   Type **/** in the composer to run one from a chat, and its result lands in that chat.
 - **The built-in jobs are yours to edit.** Reset brings back the original.
-- **Routines chain steps.** Jobs, extension commands, and workflows run in order when you run the routine or when a new workstream is created.
-  A routine of jobs can also run on any platform event, like `on pull-requests:ship-changed where merged is set`, even with no workstream open.
-- **Trust is earned.** A routine starts as a draft, becomes a candidate whose every triggered run asks you first, and only then runs unattended.
-- **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to turn them into a job and a routine.
-- **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs and saves routines with its Malini tools, and every write waits for your approval.
+- **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to make them a job: **Make it a job** or **Dismiss**.
+- **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools, and every write waits for your approval.
+  A trigger it adds starts Off.
 - **A Job center** shows what's running and what just finished.
   Settings decides how many jobs run at once.
 
@@ -141,8 +147,10 @@ Malini makes two calls of its own: update checks to GitHub Releases, and anonymo
 Usage data says which features are used and which errors happen, and never contains your code, prompts, paths, or keys.
 Turn it off under Settings, Privacy, Share usage data.
 
-**Streamer mode** blurs email addresses and your user name in paths.
-Auto blurs while OBS or another streaming app runs, or while an app such as Grip records the screen.
+**Streamer mode** masks email addresses and your user name in paths, such as `s***o` for `szymeo`.
+Only the first letter stays, and the last one for names of five letters or more; the stars never show the length, and an email's domain is hidden whole, so `s***o@***` gives a viewer nothing to work with.
+Click a masked one to show it.
+Auto masks while OBS or another streaming app runs, or while an app such as Grip records the screen.
 You can set it to On or Off under Settings, Privacy.
 
 Updates download in the background and install when you quit, or right away with **Restart to Update**.

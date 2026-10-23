@@ -9,9 +9,12 @@ import {
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	UPDATE_FROM_MAIN_TRIGGER_SETTING,
+	updateFromMainTrigger,
 	type ShipPhase,
 	type ShipStateRecord,
 	type ShipStep,
+	type UpdateFromMainTrigger,
 } from '$contract/pull-requests';
 import type {
 	PullRequestStatusDto,
@@ -37,6 +40,7 @@ import {
 	addressedChangeRequests,
 	blockingFailedChecks,
 	clampedFixAttempts,
+	isUpdateJob,
 	jobIsActive,
 	jobStep,
 	needsReviewFeedback,
@@ -264,6 +268,7 @@ export class MergeQueue {
 	}
 
 	async workstreamOpened(workstreamId: string): Promise<void> {
+		if ((await this.#updateTrigger()) === 'merging') return;
 		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
 	}
 
@@ -271,11 +276,23 @@ export class MergeQueue {
 		if (pullRequest.state === 'not_open') this.#forgetPullRequestBranchLeft(workstreamId);
 		if (pullRequest.state !== 'open') return;
 		if ((pullRequest.behindBase ?? 0) > 0 || pullRequest.mergeable === false) {
-			void this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
+			void this.#requestUpdateAsMainMoves(workstreamId);
 		}
 		if (pullRequest.reviewDecision === 'changes_requested') {
 			void this.#requestWork(workstreamId, this.#reviewRequests, this.#reviewRequestedAt);
 		}
+	}
+
+	async #requestUpdateAsMainMoves(workstreamId: string): Promise<void> {
+		if ((await this.#updateTrigger()) !== 'main-moves') return;
+		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
+	}
+
+	async #updateTrigger(): Promise<UpdateFromMainTrigger> {
+		const settings = await this.#context.commands
+			.call('app.list-settings', undefined)
+			.catch((): Record<string, string> => ({}));
+		return updateFromMainTrigger(settings[UPDATE_FROM_MAIN_TRIGGER_SETTING]);
 	}
 
 	async #requestWork(
@@ -295,9 +312,27 @@ export class MergeQueue {
 	jobChanged(run: JobRunRecord): void {
 		this.#jobs.set(run.id, run);
 		if (run.workstreamId === null) return;
-		if (getShip(this.#context.db, run.workstreamId)?.activeJobRunId === run.id) {
+		const row = getShip(this.#context.db, run.workstreamId);
+		if (row?.activeJobRunId === run.id) {
 			this.wake(run.workstreamId);
+			return;
 		}
+		if (row && this.#takesOver(row, run)) {
+			this.#save(row.workstreamId, {
+				activeJobRunId: run.id,
+				step: jobStep(this.#builtins.get(run.definitionId) ?? null),
+			});
+			this.wake(row.workstreamId);
+		}
+	}
+
+	#takesOver(row: ShipRow, run: JobRunRecord): boolean {
+		return (
+			run.origin === 'then' &&
+			row.activeJobRunId !== null &&
+			run.parentRunId === row.activeJobRunId &&
+			jobIsActive({ builtin: null, status: run.status })
+		);
 	}
 
 	#forgetPullRequestBranchLeft(workstreamId: string): void {
@@ -431,6 +466,7 @@ export class MergeQueue {
 			reviewFeedback: null,
 		};
 		if (recheck) snapshot = await this.#withPullRequest(snapshot, target, row);
+		if (this.#jobMovedOn(row)) return true;
 		let move = nextMergeQueueMove(snapshot);
 		if (move.kind === 'read-base') {
 			const behindBase = await commands.call('repositories.count-behind-base', {
@@ -781,6 +817,7 @@ export class MergeQueue {
 		const pullRequestNumber = snapshot.pullRequest?.number ?? row.pullRequestNumber ?? 0;
 		switch (builtin) {
 			case 'update-from-main':
+			case 'resolve-conflicts':
 				return null;
 			case 'fix-checks':
 				return checkFixJobContext({
@@ -895,8 +932,7 @@ export class MergeQueue {
 			if (row.pullRequestNumber !== null) await this.#retitleAfterJob(row.workstreamId);
 		}
 		const interrupted = job?.status === 'failed' && job.detail === JOB_INTERRUPTED_DETAIL;
-		const updateFailed =
-			builtin === 'update-from-main' && job?.status === 'failed' && row.phase !== 'queued';
+		const updateFailed = isUpdateJob(builtin) && job?.status === 'failed' && row.phase !== 'queued';
 		return (
 			this.#save(row.workstreamId, {
 				activeJobRunId: null,
@@ -906,6 +942,14 @@ export class MergeQueue {
 				...(interrupted ? { attempts: Math.max(0, row.attempts - 1) } : {}),
 				...(updateFailed ? { lastError: job.detail } : {}),
 			}) ?? row
+		);
+	}
+
+	#jobMovedOn(row: ShipRow): boolean {
+		const current = getShip(this.#context.db, row.workstreamId);
+		return (
+			current?.activeJobRunId !== row.activeJobRunId ||
+			(row.activeJobRunId !== null && this.#activeJob(row) === null)
 		);
 	}
 
@@ -1101,6 +1145,7 @@ export class MergeQueue {
 				return this.#delays.reviewPollMs;
 			case 'fixing-checks':
 			case 'updating-from-main':
+			case 'resolving-conflicts':
 			case 'addressing-review':
 				return this.#delays.agentPollMs;
 			default:

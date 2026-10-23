@@ -44,8 +44,7 @@ test('every page names the window, so the previous page title never lingers', as
 		const { page } = app;
 		await expect(page).toHaveTitle('Malini · Repositories');
 		for (const [hash, title] of [
-			['#/jobs', 'Malini · Jobs'],
-			['#/jobs/routines', 'Malini · Routines'],
+			['#/jobs', 'Malini · Automations'],
 			['#/dev/runtime', 'Malini · Runtime'],
 			['#/nowhere', 'Malini · Not found'],
 			['#/', 'Malini · Repositories'],

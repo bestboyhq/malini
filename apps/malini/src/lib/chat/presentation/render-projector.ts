@@ -1,4 +1,5 @@
 import { isCancellationError } from '$contract/agent-state-machine';
+import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import { sanitizeAgentElementReferences } from '$lib/chat/domain/element-reference';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import {
@@ -327,6 +328,7 @@ export class IncrementalRenderProjector {
 				items: [],
 				terminal: null,
 				terminalText: '',
+				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
 			};
@@ -337,12 +339,11 @@ export class IncrementalRenderProjector {
 		return group;
 	}
 
-	#withTerminal(
+	#withState(
 		group: RunGroup,
-		terminal: Exclude<RunGroup['terminal'], null>,
-		terminalText: string,
+		state: Partial<Pick<RunGroup, 'terminal' | 'terminalText' | 'turnEnded'>>,
 	): void {
-		const next = { ...group, items: [...group.items], terminal, terminalText };
+		const next = { ...group, items: [...group.items], ...state };
 		const index = this.#runs.indexOf(group);
 		if (index >= 0) this.#runs[index] = next;
 		this.#runById.set(group.runId, next);
@@ -412,6 +413,8 @@ export class IncrementalRenderProjector {
 		const event = envelope.event;
 		const key = envelopeKey(envelope);
 		const runId = envelope.runId;
+		const resumed = resumesTurn(event) ? this.#runById.get(runId) : undefined;
+		if (resumed?.turnEnded) this.#withState(resumed, { turnEnded: false });
 
 		switch (event.type) {
 			case 'run.started':
@@ -567,6 +570,13 @@ export class IncrementalRenderProjector {
 				}
 				return;
 			}
+			case 'background.updated': {
+				const group = this.#runFor(runId);
+				if (group.terminal === null && !group.turnEnded && replyOverCommands(event) !== null) {
+					this.#withState(group, { turnEnded: true });
+				}
+				return;
+			}
 			case 'run.completed':
 			case 'run.failed': {
 				const group = this.#runFor(runId);
@@ -574,7 +584,11 @@ export class IncrementalRenderProjector {
 				this.#discardOpenToolsForRun(runId);
 				if (event.type === 'run.completed') {
 					this.#terminal = 'completed';
-					this.#withTerminal(group, 'completed', event.summary);
+					this.#withState(group, {
+						terminal: 'completed',
+						terminalText: event.summary,
+						turnEnded: true,
+					});
 					this.#push(runId, {
 						kind: 'terminal',
 						key,
@@ -585,7 +599,10 @@ export class IncrementalRenderProjector {
 				} else {
 					this.#terminal = 'failed';
 					const cancelled = isCancellationError(event.error);
-					this.#withTerminal(group, cancelled ? 'cancelled' : 'failed', event.error);
+					this.#withState(group, {
+						terminal: cancelled ? 'cancelled' : 'failed',
+						terminalText: event.error,
+					});
 					this.#push(runId, {
 						kind: 'terminal',
 						key,

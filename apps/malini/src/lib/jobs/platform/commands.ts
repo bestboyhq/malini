@@ -1,49 +1,76 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
+import { parseAutomationTrigger } from '$contract/automation-trigger';
 import { JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
-import type {
-	JobBuiltin,
-	JobDefinitionChangedEvent,
-	JobDefinitionRecord,
-	JobRunOrigin,
-	JobRunRecord,
+import {
+	isAgentlessJobBuiltin,
+	type JobBuiltin,
+	type JobDefinitionChangedEvent,
+	type JobDefinitionRecord,
+	type JobRunOrigin,
+	type JobRunRecord,
+	type JobSuggestionRecord,
+	type JobTrigger,
 } from '$contract/jobs';
+import { isSkillNameList } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
-import { isValidAgentModel } from '$shared/providers/providers.platform';
+import { describeError } from '$main/errors';
+import { DEFAULT_AGENT_MODEL, isValidAgentModel } from '$shared/providers/providers.platform';
 import {
 	getWorkstream,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
-import { BUILTIN_JOBS, BUILTIN_JOB_KEYS, isRunnableJob } from '../domain/builtin-jobs';
+import {
+	BUILTIN_JOBS,
+	BUILTIN_JOB_KEYS,
+	isRunnableJob,
+	isTriggerableJob,
+} from '../domain/builtin-jobs';
 import {
 	JOB_INSTRUCTIONS_MAX_LENGTH,
 	JOB_NAME_MAX_LENGTH,
 	isJobEffort,
-	isJobOutput,
+	isJobRunMode,
 	isJobRunsIn,
+	suggestedJobName,
 } from '../domain/job-definition';
-import { JOB_CONTEXT_MAX_BYTES, isFinishedJobRunStatus, isJobRunOrigin } from '../domain/job-run';
 import {
+	JOB_CHAIN_MAX_DEPTH,
+	JOB_CONTEXT_MAX_BYTES,
+	isFinishedJobRunStatus,
+	isJobRunOrigin,
+} from '../domain/job-run';
+import {
+	clearThenLinksTo,
 	deleteJobDefinition,
+	getBuiltinJobDefinition,
 	getJobDefinition,
 	insertJobDefinition,
 	listJobDefinitions,
 	updateJobDefinition,
 } from './job-definitions.repository';
 import {
-	countUnfinishedJobRuns,
+	countStartedOrQueuedJobRuns,
 	getJobRun,
+	jobRunChainDefinitionIds,
 	listChatJobRuns,
 	listRecentFinishedJobRuns,
 	listUnfinishedJobRuns,
+	listWaitingJobRuns,
 } from './job-runs.repository';
+import { getSuggestion, listSuggestions, setSuggestionStatus } from './job-suggestions.repository';
 import type { JobRunner } from './job-runner.service';
+import { PROMPT_CLUSTER_MIN_PROMPT_TOKENS, promptTokenSet } from './prompt-clustering.service';
 
 const RECENT_FINISHED_RUNS = 30;
 
-export type JobErrorKind = 'invalid-args' | 'not-found' | 'builtin' | 'not-builtin' | 'busy';
+const EVENT_TRIGGER_GRAMMAR =
+	'on <channel>, optionally followed by where <path> is <value> or where <path> is set, joined with and';
+
+export type JobErrorKind =
+	'invalid-args' | 'not-found' | 'builtin' | 'not-builtin' | 'busy' | 'loop';
 
 export class JobError extends Error {
 	readonly kind: JobErrorKind;
@@ -57,20 +84,32 @@ export class JobError extends Error {
 
 type JobDefinitionFields = Pick<
 	JobDefinitionRecord,
-	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output' | 'skillPresetId'
+	'name' | 'instructions' | 'model' | 'effort' | 'runsIn'
+> &
+	Readonly<{ skills: readonly string[] | null }>;
+
+type BuiltinFields = Pick<
+	JobDefinitionRecord,
+	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'trigger'
 >;
 
 export function seedBuiltinJobs(db: MaliniDatabase): void {
 	const now = nowIso8601();
-	for (const builtin of BUILTIN_JOB_KEYS) {
-		insertJobDefinition(db, {
+	const inserted = BUILTIN_JOB_KEYS.flatMap((builtin) => {
+		const definition: JobDefinitionRecord = {
 			id: randomUUID(),
-			...builtinDefaults(builtin),
-			skillPresetId: null,
+			...builtinFields(builtin),
+			thenJobId: null,
+			skills: [],
 			builtin,
 			createdAt: now,
 			updatedAt: now,
-		});
+		};
+		return insertJobDefinition(db, definition) ? [{ builtin, definition }] : [];
+	});
+	for (const { builtin, definition } of inserted) {
+		const thenJobId = defaultThen(db, builtin);
+		if (thenJobId !== null) updateJobDefinition(db, { ...definition, thenJobId });
 	}
 }
 
@@ -85,17 +124,35 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		events.emit(JOBS_DEFINITION_CHANGED_CHANNEL, payload);
 	};
 
+	const skipWaitingRuns = async (definitionId: string): Promise<void> => {
+		for (const waiting of listWaitingJobRuns(db, definitionId)) await runner.cancel(waiting);
+	};
+
+	const saveChanged = async (
+		before: JobDefinitionRecord,
+		after: JobDefinitionRecord,
+	): Promise<JobDefinitionRecord> => {
+		updateJobDefinition(db, after);
+		definitionChanged(after.id, after);
+		if (disarms(before.trigger, after.trigger)) await skipWaitingRuns(after.id);
+		return after;
+	};
+
 	commands.define('jobs.list-definitions', () => listJobDefinitions(db));
 
-	commands.define('jobs.save-definition', (args: unknown) => {
+	commands.define('jobs.save-definition', async (args: unknown) => {
 		const id = optionalString(args, 'id');
 		const fields = definitionFields(args);
+		const trigger = triggerField(args);
 		const now = nowIso8601();
 		if (id === null) {
 			const created: JobDefinitionRecord = {
 				id: randomUUID(),
 				...fields,
+				skills: fields.skills ?? [],
 				builtin: null,
+				trigger: trigger ?? null,
+				thenJobId: thenJobField(db, args, null) ?? null,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -104,25 +161,43 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 			return created;
 		}
 		const existing = requireDefinition(db, id);
-		const saved: JobDefinitionRecord = {
+		const thenJobId = thenJobField(db, args, existing.id);
+		if (!isTriggerableJob(existing) && (trigger || thenJobId)) {
+			throw new JobError(
+				'builtin',
+				`${existing.name} is built in and Malini starts it, so it takes no When or Then.`,
+			);
+		}
+		const agentless = isAgentlessJobBuiltin(existing.builtin);
+		return saveChanged(existing, {
 			...existing,
-			...fields,
+			name: fields.name,
+			...(agentless
+				? {}
+				: {
+						instructions: fields.instructions,
+						model: fields.model,
+						effort: fields.effort,
+						skills: fields.skills ?? existing.skills,
+					}),
 			runsIn: existing.builtin ? existing.runsIn : fields.runsIn,
-			output: existing.builtin ? existing.output : fields.output,
+			trigger: trigger === undefined ? existing.trigger : trigger,
+			thenJobId: thenJobId === undefined ? existing.thenJobId : thenJobId,
 			updatedAt: now,
-		};
-		updateJobDefinition(db, saved);
-		definitionChanged(saved.id, saved);
-		return saved;
+		});
 	});
 
-	commands.define('jobs.delete-definition', (args: unknown) => {
+	commands.define('jobs.delete-definition', async (args: unknown) => {
 		const definition = requireDefinition(db, requireString(args, 'definitionId'));
 		if (definition.builtin) {
 			throw new JobError('builtin', `${definition.name} is built in. Reset it instead.`);
 		}
-		if (countUnfinishedJobRuns(db, definition.id) > 0) {
+		if (countStartedOrQueuedJobRuns(db, definition.id) > 0) {
 			throw new JobError('busy', `${definition.name} is queued or running. Cancel it first.`);
+		}
+		await skipWaitingRuns(definition.id);
+		for (const linkedId of clearThenLinksTo(db, definition.id)) {
+			definitionChanged(linkedId, getJobDefinition(db, linkedId));
 		}
 		deleteJobDefinition(db, definition.id);
 		definitionChanged(definition.id, null);
@@ -133,15 +208,13 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		const definition = requireDefinition(db, requireString(args, 'definitionId'));
 		const builtin: JobBuiltin | null = definition.builtin;
 		if (builtin === null) throw new JobError('not-builtin', 'Only a built-in job can be reset.');
-		const reset: JobDefinitionRecord = {
+		return saveChanged(definition, {
 			...definition,
-			...builtinDefaults(builtin),
-			skillPresetId: null,
+			...builtinFields(builtin),
+			thenJobId: defaultThen(db, builtin),
+			skills: [],
 			updatedAt: nowIso8601(),
-		};
-		updateJobDefinition(db, reset);
-		definitionChanged(reset.id, reset);
-		return reset;
+		});
 	});
 
 	commands.define('jobs.list-runs', () =>
@@ -166,10 +239,13 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 		const repositoryId = optionalString(args, 'repositoryId');
 		const jobContext = optionalContext(args);
 		const origin = optionalOrigin(args);
+		const parentRunId = optionalString(args, 'parentRunId');
+		const waitForYou = optionalFlag(args, 'waitForYou');
 		const chatSessionId = optionalString(args, 'chatSessionId');
 		const chatAfterRunId = chatSessionId === null ? null : optionalString(args, 'chatAfterRunId');
+		if (parentRunId !== null) requireNoLoop(db, definition, parentRunId);
 		const target =
-			definition.runsIn === 'workstream'
+			definition.runsIn === 'workstream' || origin === 'then'
 				? { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null }
 				: {
 						workstreamId: null,
@@ -178,7 +254,7 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 							repositoryId ?? repositoryOfWorkstream(db, workstreamId),
 						),
 					};
-		const queued: JobRunRecord = {
+		const requested: JobRunRecord = {
 			id: randomUUID(),
 			definitionId: definition.id,
 			title: definition.name,
@@ -186,30 +262,72 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 			sessionId: null,
 			agentRunId: null,
 			origin,
-			status: 'queued',
+			status: waitForYou ? 'waiting' : 'queued',
 			detail: null,
+			parentRunId,
 			chatSessionId,
 			chatAfterRunId,
 			createdAt: nowIso8601(),
 			startedAt: null,
 			finishedAt: null,
 		};
-		return runner.enqueue(queued, jobContext);
+		return runner.enqueue(requested, jobContext);
 	});
+
+	commands.define('jobs.confirm-run', (args: unknown) => runner.confirm(requireRun(db, args)));
 
 	commands.define('jobs.cancel-run', (args: unknown) => {
-		const jobRunId = requireString(args, 'jobRunId');
-		const jobRun = getJobRun(db, jobRunId);
-		if (!jobRun) throw new JobError('not-found', `Job run \`${jobRunId}\` not found.`);
+		const jobRun = requireRun(db, args);
 		return isFinishedJobRunStatus(jobRun.status) ? jobRun : runner.cancel(jobRun);
 	});
+
+	commands.define('jobs.list-suggestions', () => listSuggestions(db).filter(isTaskSuggestion));
+
+	commands.define('jobs.accept-suggestion', (args: unknown) => {
+		const suggestion = requireSuggestion(db, args);
+		if (suggestion.status === 'accepted') {
+			throw invalid('this suggestion is already a job');
+		}
+		const prompt = suggestion.evidence[0]?.text.trim() ?? '';
+		if (prompt.length === 0) throw invalid('this suggestion has no prompt to make a job from');
+		const now = nowIso8601();
+		const created: JobDefinitionRecord = {
+			id: randomUUID(),
+			name: suggestedJobName(prompt),
+			instructions: prompt.slice(0, JOB_INSTRUCTIONS_MAX_LENGTH),
+			model: DEFAULT_AGENT_MODEL,
+			effort: 'high',
+			runsIn: 'workstream',
+			skills: [],
+			builtin: null,
+			trigger: null,
+			thenJobId: null,
+			createdAt: now,
+			updatedAt: now,
+		};
+		insertJobDefinition(db, created);
+		setSuggestionStatus(db, suggestion.id, 'accepted', now);
+		definitionChanged(created.id, created);
+		return created;
+	});
+
+	commands.define('jobs.dismiss-suggestion', (args: unknown) =>
+		setSuggestionStatus(db, requireSuggestion(db, args).id, 'dismissed', nowIso8601()),
+	);
 }
 
-function builtinDefaults(
-	builtin: JobBuiltin,
-): Pick<JobDefinitionRecord, 'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'output'> {
-	const { runsIn = 'workstream', output = 'none', ...defaults } = BUILTIN_JOBS[builtin];
-	return { ...defaults, runsIn, output };
+function builtinFields(builtin: JobBuiltin): BuiltinFields {
+	const { name, instructions, model, effort, runsIn = 'workstream' } = BUILTIN_JOBS[builtin];
+	return { name, instructions, model, effort, runsIn, trigger: null };
+}
+
+function defaultThen(db: MaliniDatabase, builtin: JobBuiltin): string | null {
+	const then = BUILTIN_JOBS[builtin].then;
+	return then === undefined ? null : (getBuiltinJobDefinition(db, then)?.id ?? null);
+}
+
+function disarms(before: JobTrigger | null, after: JobTrigger | null): boolean {
+	return before !== null && (after === null || after.mode === 'off' || after.when !== before.when);
 }
 
 function definitionFields(args: unknown): JobDefinitionFields {
@@ -227,16 +345,113 @@ function definitionFields(args: unknown): JobDefinitionFields {
 	if (!isJobEffort(effort)) throw invalid('`effort` must be low, medium, high, xhigh or max');
 	const runsIn = field(args, 'runsIn');
 	if (!isJobRunsIn(runsIn)) throw invalid('`runsIn` must be workstream or new-workstream');
-	const output = field(args, 'output');
-	if (!isJobOutput(output)) throw invalid('`output` must be none, draft or merge');
-	const skillPresetId = optionalString(args, 'skillPresetId');
-	return { name, instructions, model, effort, runsIn, output, skillPresetId };
+	const skills = field(args, 'skills');
+	if (skills !== undefined && !isSkillNameList(skills)) {
+		throw invalid('`skills` must be a list of skill names');
+	}
+	return {
+		name,
+		instructions,
+		model,
+		effort,
+		runsIn,
+		skills: skills === undefined ? null : [...new Set(skills.map((skill) => skill.trim()))],
+	};
+}
+
+function triggerField(args: unknown): JobTrigger | null | undefined {
+	const value = field(args, 'trigger');
+	if (value === undefined || value === null) return value;
+	if (!isRecord(value)) throw invalid('`trigger` must be { when, mode } or null');
+	const mode = value['mode'];
+	if (!isJobRunMode(mode)) throw invalid('`trigger.mode` must be off, ask or auto');
+	return { when: eventWhen(value['when']), mode };
+}
+
+function eventWhen(value: unknown): string {
+	const when = typeof value === 'string' ? value.trim() : '';
+	let reason = '';
+	try {
+		if (parseAutomationTrigger(when).kind === 'event') return when;
+	} catch (error) {
+		if (/^on\s+\S+:/iu.test(when)) reason = ` (${describeError(error)})`;
+	}
+	throw invalid(`\`trigger.when\` must read ${EVENT_TRIGGER_GRAMMAR}${reason}`);
+}
+
+function thenJobField(
+	db: MaliniDatabase,
+	args: unknown,
+	jobId: string | null,
+): string | null | undefined {
+	const value = field(args, 'thenJobId');
+	if (value === undefined || value === null) return value;
+	if (typeof value !== 'string' || value.length === 0) {
+		throw invalid('`thenJobId` must be a job id or null');
+	}
+	const next = requireDefinition(db, value);
+	if (!isRunnableJob(next)) {
+		throw new JobError('builtin', `${next.name} runs on its own, never after another job.`);
+	}
+	if (value === jobId) throw invalid('a job cannot run after itself');
+	if (jobId !== null && thenChainReaches(db, value, jobId)) {
+		throw new JobError('loop', `${next.name} already leads back to this job, so they would loop.`);
+	}
+	return value;
+}
+
+function thenChainReaches(db: MaliniDatabase, from: string, target: string): boolean {
+	const seen = new Set<string>();
+	for (
+		let id: string | null = from;
+		id !== null && !seen.has(id);
+		id = getJobDefinition(db, id)?.thenJobId ?? null
+	) {
+		if (id === target) return true;
+		seen.add(id);
+	}
+	return false;
+}
+
+function requireNoLoop(
+	db: MaliniDatabase,
+	definition: JobDefinitionRecord,
+	parentRunId: string,
+): void {
+	const chain = jobRunChainDefinitionIds(db, parentRunId, JOB_CHAIN_MAX_DEPTH);
+	if (chain.length === 0) throw new JobError('not-found', `Job run \`${parentRunId}\` not found.`);
+	if (chain.includes(definition.id)) {
+		throw new JobError(
+			'loop',
+			`${definition.name} already ran earlier in this chain of jobs, so it does not run again.`,
+		);
+	}
+}
+
+function isTaskSuggestion({ evidence }: JobSuggestionRecord): boolean {
+	return evidence.every(
+		({ text }) => promptTokenSet(text).size >= PROMPT_CLUSTER_MIN_PROMPT_TOKENS,
+	);
 }
 
 function requireDefinition(db: MaliniDatabase, definitionId: string): JobDefinitionRecord {
 	const definition = getJobDefinition(db, definitionId);
 	if (!definition) throw new JobError('not-found', `Job \`${definitionId}\` not found.`);
 	return definition;
+}
+
+function requireRun(db: MaliniDatabase, args: unknown): JobRunRecord {
+	const jobRunId = requireString(args, 'jobRunId');
+	const jobRun = getJobRun(db, jobRunId);
+	if (!jobRun) throw new JobError('not-found', `Job run \`${jobRunId}\` not found.`);
+	return jobRun;
+}
+
+function requireSuggestion(db: MaliniDatabase, args: unknown): JobSuggestionRecord {
+	const suggestionId = requireString(args, 'suggestionId');
+	const suggestion = getSuggestion(db, suggestionId);
+	if (!suggestion) throw new JobError('not-found', `Suggestion \`${suggestionId}\` not found.`);
+	return suggestion;
 }
 
 function requireWorkstream(db: MaliniDatabase, workstreamId: string | null): string {
@@ -271,7 +486,15 @@ function optionalContext(args: unknown): string | null {
 function optionalOrigin(args: unknown): JobRunOrigin {
 	const value = field(args, 'origin');
 	if (value === undefined || value === null) return 'manual';
-	if (!isJobRunOrigin(value)) throw invalid('`origin` must be merge-queue, manual or routine');
+	if (!isJobRunOrigin(value))
+		throw invalid('`origin` must be merge-queue, manual, trigger or then');
+	return value;
+}
+
+function optionalFlag(args: unknown, key: string): boolean {
+	const value = field(args, key);
+	if (value === undefined || value === null) return false;
+	if (typeof value !== 'boolean') throw invalid(`\`${key}\` must be true or false when present`);
 	return value;
 }
 

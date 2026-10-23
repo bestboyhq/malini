@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 31,
+	"protocolVersion": 35,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -23,6 +23,8 @@
 		"refresh_session_status",
 		"authorize_mcp_server",
 		"reconnect_mcp_server",
+		"list_mcp_servers",
+		"cancel_mcp_authorization",
 		"stop_task",
 		"suggest_title",
 		"list_skills",
@@ -62,15 +64,10 @@
 		"bridge.title",
 		"bridge.skills",
 		"bridge.mcp_authorization",
+		"bridge.mcp_servers",
+		"bridge.mcp_server",
 		"bridge.browser_request",
 		"bridge.platform_request"
 	],
-	"platformTools": [
-		"jobs_list",
-		"jobs_save",
-		"jobs_run",
-		"routines_list",
-		"routines_save",
-		"events_list"
-	]
+	"platformTools": ["jobs_list", "jobs_save", "jobs_run", "events_list", "pull_requests_open_draft"]
 }

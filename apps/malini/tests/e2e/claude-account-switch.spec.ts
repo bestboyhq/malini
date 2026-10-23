@@ -113,17 +113,21 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		});
 		const card = page.getByTestId('claude-code-setup');
 		const detail = card.getByTestId('claude-code-detail');
-		await expect(detail).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`);
+		await expect(detail).toContainText('Signed in as m***@***');
 		await card.getByRole('button', { name: 'Switch Claude account' }).click();
 		const accounts = page.getByRole('group', { name: 'Claude accounts' });
 		const switchToWork = accounts.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` });
+		await expect(switchToWork).toHaveText('Switch to m***@***');
 		await expect(switchToWork).toBeVisible();
 		await expect(accounts.getByRole('button', { name: 'Reveal email address' })).toHaveCount(0);
 		await captureFlow(app, 'claude-account-settings');
 		writeFileSync(browserDone, '');
 		await switchToWork.click();
+		await expect
+			.poll(() => readFileSync(argsFile, 'utf8'), { timeout: 20_000 })
+			.toBe(`auth login --email=${WORK_ACCOUNT}\n`);
+		await detail.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(detail).toContainText(`Signed in as ${WORK_ACCOUNT}`, { timeout: 20_000 });
-		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login --email=${WORK_ACCOUNT}\n`);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

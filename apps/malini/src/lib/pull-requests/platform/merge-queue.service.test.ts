@@ -12,6 +12,7 @@ import {
 } from '$contract/jobs';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	UPDATE_FROM_MAIN_TRIGGER_SETTING,
 	type ShipChangedEvent,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
@@ -329,7 +330,7 @@ let shaCounter: number;
 let clockOffsetMs: number;
 
 const DEFINITIONS: JobDefinitionRecord[] = (
-	['fix-checks', 'update-from-main', 'address-review'] as const
+	['fix-checks', 'update-from-main', 'resolve-conflicts', 'address-review'] as const
 ).map((builtin) => ({
 	id: `def-${builtin}`,
 	name: builtin,
@@ -337,9 +338,10 @@ const DEFINITIONS: JobDefinitionRecord[] = (
 	model: 'anthropic/claude-sonnet-4-6',
 	effort: 'medium',
 	runsIn: 'workstream',
-	output: 'none',
-	skillPresetId: null,
+	skills: [],
 	builtin,
+	trigger: null,
+	thenJobId: null,
 	createdAt: '2026-10-01T00:00:00Z',
 	updatedAt: '2026-10-01T00:00:00Z',
 }));
@@ -555,6 +557,7 @@ function defineFakes(): void {
 			origin: args.origin ?? 'manual',
 			status: 'running',
 			detail: null,
+			parentRunId: args.parentRunId ?? null,
 			chatSessionId: null,
 			chatAfterRunId: null,
 			createdAt: new Date(Date.now() + index).toISOString(),
@@ -887,19 +890,53 @@ describe('keeping a workstream current with main', () => {
 		expect(jobRuns.size).toBe(1);
 	});
 
-	it('retries conflicts the update could not resolve, then commits and pushes the merge', async () => {
+	it('waits for the Resolve conflicts job Update from main hands its conflicts to, then pushes', async () => {
 		await openDraft();
 		behind.set('ws-1', 2);
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
 		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
-		const first = activeJob();
+		const update = activeJob();
 		mergeMain('ws-1', ['src/search.ts']);
-		finishJob(first.id, 'succeeded');
+		const resolve = await invoke<JobRunRecord>('jobs.run', {
+			definitionId: 'def-resolve-conflicts',
+			workstreamId: 'ws-1',
+			origin: 'then',
+			parentRunId: update.id,
+		});
+		finishJob(update.id, 'succeeded');
+
+		const handedOff = { step: 'resolving-conflicts', activeJobRunId: resolve.id };
+		await until(() => expect(ship('ws-1')).toMatchObject(handedOff));
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.agentPollMs * 2));
+		expect(ship('ws-1')).toMatchObject(handedOff);
+		expect(jobRuns.size).toBe(2);
+		finishJob(resolve.id, 'succeeded', { resolveConflicts: true });
+
+		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
+		expect(commits.at(-1)).toMatchObject({
+			message: 'Merge main into malini/ws-1',
+			runId: resolve.agentRunId,
+		});
+		expect(jobRuns.size).toBe(2);
+	});
+
+	it('resolves conflicts an update left behind with its own job, then pushes the merge', async () => {
+		await openDraft();
+		behind.set('ws-1', 2);
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		const update = activeJob();
+		mergeMain('ws-1', ['src/search.ts']);
+		finishJob(update.id, 'succeeded');
 
 		await until(() => expect(jobRuns.size).toBe(2));
-		const second = activeJob();
-		expect(second.definitionId).toBe('def-update-from-main');
-		finishJob(second.id, 'succeeded', { resolveConflicts: true });
+		const resolve = activeJob();
+		expect(resolve).toMatchObject({
+			definitionId: 'def-resolve-conflicts',
+			origin: 'merge-queue',
+		});
+		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
+		finishJob(resolve.id, 'succeeded', { resolveConflicts: true });
 
 		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
 		expect(commits.at(-1)).toMatchObject({ message: 'Merge main into malini/ws-1' });
@@ -938,6 +975,38 @@ describe('keeping a workstream current with main', () => {
 		finishJob(activeJob().id, 'succeeded', { summary: 'Merged 3 commits from main' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 		expect(jobRuns.size).toBe(1);
+	});
+
+	it('waits for you to open the workstream when Settings update from main only then', async () => {
+		settings[UPDATE_FROM_MAIN_TRIGGER_SETTING] = 'workstream-opened';
+		await openDraft();
+		behind.set('ws-1', 3);
+		github.only().mergeStateStatus = 'BEHIND';
+
+		await readPullRequest();
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(0);
+
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		expect(activeJob().definitionId).toBe('def-update-from-main');
+	});
+
+	it('updates from main only once you merge when Settings say so', async () => {
+		settings[UPDATE_FROM_MAIN_TRIGGER_SETTING] = 'merging';
+		await openDraft();
+		behind.set('ws-1', 3);
+		github.only().mergeStateStatus = 'BEHIND';
+
+		await readPullRequest();
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
+		expect(jobRuns.size).toBe(0);
+		expect(pulls).toEqual([]);
+
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(pulls).toEqual(['ws-1']);
 	});
 
 	it('addresses changes a reviewer requested while you work, and records the review', async () => {
@@ -1088,10 +1157,10 @@ describe('the merge queue', () => {
 
 		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
 
-		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
 		expect(pulls).toEqual(['ws-1']);
 		const job = activeJob();
-		expect(job.definitionId).toBe('def-update-from-main');
+		expect(job.definitionId).toBe('def-resolve-conflicts');
 
 		pullConflicts = [];
 		finishJob(job.id, 'succeeded', { resolveConflicts: true });

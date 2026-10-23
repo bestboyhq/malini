@@ -1,12 +1,12 @@
 export type AgentApprovalDecision = 'allow' | 'deny';
 
-export type AgentApprovalScope = 'once' | 'session' | 'workstream';
+export type AgentApprovalScope = 'once' | 'session' | 'workstream' | 'everywhere';
 
 export type AgentPermissionCapability =
 	'read' | 'write' | 'execute' | 'network' | 'external-service';
 
 export type AgentPermissionResourceKind =
-	'path' | 'command' | 'url' | 'project' | 'service' | 'tool';
+	'path' | 'command' | 'url' | 'project' | 'service' | 'tool' | 'action';
 
 export type AgentPermissionBoundary =
 	'workstream' | 'git-admin' | 'external' | 'sensitive' | 'unknown';
@@ -60,6 +60,7 @@ export type DecideAgentApprovalInput = Readonly<{
 	scope: AgentApprovalScope;
 	permission?: AgentPermissionDescriptor;
 	alwaysAllow?: boolean;
+	updatedInput?: Readonly<Record<string, unknown>>;
 }>;
 
 export type DecideAgentApprovalResult = Readonly<{

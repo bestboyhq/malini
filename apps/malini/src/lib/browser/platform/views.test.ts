@@ -9,6 +9,7 @@ import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, toDip } from './views';
 
 class FakeWindow {
 	destroyed = false;
+	onScreen = true;
 	focusCount = 0;
 	readonly webContents = {
 		getZoomFactor: (): number => this.zoom,
@@ -66,6 +67,7 @@ class FakeContents implements PageContents {
 	readonly processId = FakeContents.#nextProcessId++;
 	frame = new FakeImage(2_560, 1_600);
 	captureFailure: Error | null = null;
+	readonly unpainted: Array<PageImage | Error> = [];
 	nextLoad: Promise<void> | null = null;
 	readonly captured: string[] = [];
 	readonly steps: string[] = [];
@@ -130,6 +132,9 @@ class FakeContents implements PageContents {
 
 	capturePage(): Promise<PageImage> {
 		this.captured.push(this.url);
+		const unpainted = this.unpainted.shift();
+		if (unpainted instanceof Error) return Promise.reject(unpainted);
+		if (unpainted) return Promise.resolve(unpainted);
 		if (this.captureFailure) return Promise.reject(this.captureFailure);
 		return Promise.resolve(this.frame);
 	}
@@ -203,6 +208,7 @@ function setup(zoom = 1) {
 	const resets = new Map<FakeWindow, () => void>();
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
+		onScreen: (shown) => shown.onScreen,
 		createView: (events) => {
 			const view = new FakeView(events);
 			views.push(view);
@@ -527,33 +533,66 @@ describe('BrowserViews', () => {
 		expect(readFileSync(first.previewPath, 'utf8')).toBe(`jpeg ${PREVIEW_LONG_EDGE}x980 q80`);
 	});
 
-	it('renders a hidden view with one corner pixel in the window only while it captures it, then hides it in place', async () => {
+	it('lifts a hidden view out of the window while it captures it, then puts it back behind malini', async () => {
 		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-hidden-'));
 		roots.push(worktree);
-		const { browser, viewAt } = setup();
+		const { browser, viewAt, window } = setup();
 		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
 		browser.hide(TAB);
 		await browser.open(TAB, 'https://example.com');
 
 		await browser.screenshot(TAB, worktree);
 
-		expect(viewAt(0).bounds.slice(-2)).toEqual([
-			{ x: -299, y: -199, width: 300, height: 200 },
-			{ x: 40, y: 50, width: 300, height: 200 },
-		]);
-		expect(viewAt(0).visibility).toEqual([true, false]);
+		expect(viewAt(0).removedFrom).toEqual([window()]);
+		expect(viewAt(0).visibility).toEqual([true]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'back']);
+		expect(viewAt(0).bounds.at(-1)).toEqual({ x: 40, y: 50, width: 300, height: 200 });
 	});
 
-	it('tells the agent to have malini shown when the page cannot render', async () => {
-		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-unrendered-'));
+	it('captures a shown view in place, and out of the window while malini is hidden', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-shown-'));
+		roots.push(worktree);
+		const { browser, viewAt, window } = setup();
+		browser.show(TAB, { x: 40, y: 50, width: 300, height: 200 });
+		await browser.open(TAB, 'https://example.com');
+
+		await browser.screenshot(TAB, worktree);
+		expect(viewAt(0).removedFrom).toEqual([]);
+
+		window().onScreen = false;
+		await browser.screenshot(TAB, worktree);
+		expect(viewAt(0).removedFrom).toEqual([window()]);
+		expect(viewAt(0).placements.at(-1)).toEqual([window(), 'front']);
+	});
+
+	it('waits for the first frame the page paints', async () => {
+		const worktree = mkdtempSync(join(tmpdir(), 'malini-browser-first-frame-'));
 		roots.push(worktree);
 		const { browser, viewAt } = setup();
 		await browser.open(TAB, 'https://example.com');
-		viewAt(0).contents.captureFailure = new Error('UnknownVizError');
+		viewAt(0).contents.unpainted.push(new Error('UnknownVizError'), new FakeImage(0, 0));
 
-		await expect(browser.screenshot(TAB, worktree)).rejects.toThrow(
-			'which happens while Malini is hidden',
-		);
+		await expect(browser.screenshot(TAB, worktree)).resolves.toMatchObject({
+			url: 'https://example.com/',
+		});
+		expect(viewAt(0).contents.captured).toHaveLength(3);
+	});
+
+	it('tells the agent to reload a page that paints nothing', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			viewAt(0).contents.captureFailure = new Error('UnknownVizError');
+
+			const outcome = expect(browser.screenshot(TAB, '/work/ws-1')).rejects.toThrow(
+				'The browser painted nothing for 3s. Call browser_reload',
+			);
+			await vi.advanceTimersByTimeAsync(3_100);
+			await outcome;
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('waits for the open the agent sent alongside a screenshot before capturing', async () => {
@@ -576,11 +615,18 @@ describe('BrowserViews', () => {
 	});
 
 	it('has no snapshot when the compositor fails to copy a frame', async () => {
-		const { browser, viewAt } = setup();
-		await browser.open(TAB, 'https://example.com');
-		viewAt(0).contents.captureFailure = new Error('UnknownVizError');
+		vi.useFakeTimers();
+		try {
+			const { browser, viewAt } = setup();
+			await browser.open(TAB, 'https://example.com');
+			viewAt(0).contents.captureFailure = new Error('UnknownVizError');
 
-		expect(await browser.snapshot(TAB)).toBeNull();
+			const snapshot = browser.snapshot(TAB);
+			await vi.advanceTimersByTimeAsync(3_100);
+			expect(await snapshot).toBeNull();
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('clicks for the agent and says so when nothing matches', async () => {

@@ -28,6 +28,7 @@ import {
 } from './commands';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 import { AgentRunLeases } from './lifecycle';
+import { installPermissionGrants } from '../grants/commands';
 import { startAgentService, type AgentService } from './service';
 import type { RunFinishedInput } from './runtime';
 import {
@@ -462,7 +463,7 @@ describe('prompt round trips', () => {
 		await boot();
 		const focused = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
 		const open = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
-		chooseSessionSkills(test.db, focused, { kind: 'custom', skills: ['adr', 'humanizer'] });
+		chooseSessionSkills(test.db, focused, ['adr', 'humanizer']);
 
 		const focusedRun = await invokeString('chat.send-prompt', { sessionId: focused, prompt: 'Hi' });
 		const openRun = await invokeString('chat.send-prompt', { sessionId: open, prompt: 'Hi' });
@@ -1129,6 +1130,118 @@ describe('interactions', () => {
 		});
 		await waitFor(() => getRun(test.db, blockedRun)?.completedAt !== null);
 		expect(getRun(test.db, blockedRun)?.summary).toBe('approved:allow:always');
+	});
+
+	async function pendingMaliniApproval(
+		workstreamId: string,
+		tool: string,
+		input: Record<string, unknown>,
+	): Promise<{ sessionId: string; runId: string }> {
+		const sessionId = await invokeString('chat.start-session', { workstreamId });
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: `MALINI_APPROVAL:${tool}:${JSON.stringify(input)}`,
+		});
+		await waitFor(
+			() =>
+				getInteraction(test.db, 'approval', sessionId, runId, 'approval-1') !== null ||
+				getRun(test.db, runId)?.completedAt !== null,
+		);
+		await service.runtime.settlePump();
+		return { sessionId, runId };
+	}
+
+	const openDraft = {
+		capability: 'execute',
+		resources: [{ kind: 'action', value: 'pull-requests.open-draft', boundary: 'workstream' }],
+	};
+
+	it('remembers a Malini action everywhere, approves it in any workstream, and asks again once revoked', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedWorkstream(test.db, test.appDataRoot, 'ws-2');
+		await boot();
+		const stopGrants = installPermissionGrants(test.context);
+		const first = await pendingMaliniApproval('ws-1', 'pull_requests_open_draft', {});
+		expect(
+			await invokeRecord('chat.decide-approval', {
+				...first,
+				approvalId: 'approval-1',
+				decision: 'allow',
+				scope: 'everywhere',
+				permission: openDraft,
+			}),
+		).toMatchObject({ decision: 'allow', scope: 'everywhere', remembered: true });
+		await waitFor(() => getRun(test.db, first.runId)?.completedAt !== null);
+
+		const second = await pendingMaliniApproval('ws-2', 'pull_requests_open_draft', {});
+		await waitFor(() => getRun(test.db, second.runId)?.completedAt !== null);
+		expect(getRun(test.db, second.runId)?.summary).toBe('approved:allow:everywhere');
+		const grants = await invokeRecords('chat.list-permission-grants');
+		expect(grants).toMatchObject([
+			{ scope: 'everywhere', what: 'Open draft pull requests', workstreamName: null },
+		]);
+
+		await invoke('chat.revoke-permission-grant', { grantId: grants[0]?.['id'] });
+		expect(await invokeRecords('chat.list-permission-grants')).toEqual([]);
+		const third = await pendingMaliniApproval('ws-2', 'pull_requests_open_draft', {});
+		expect(
+			getInteraction(test.db, 'approval', third.sessionId, third.runId, 'approval-1'),
+		).toMatchObject({ state: 'pending' });
+		stopGrants();
+	});
+
+	it('saves the version the user reviewed, and only for a reviewed edit of the same job', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		run(
+			test.db,
+			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, created_at, updated_at)
+			 VALUES ('docs', 'Update docs', 'Update the docs.', 'opus', 'high', 'workstream', '[]', 'update-docs', ?, ?)`,
+			'2026-10-23T00:00:00.000Z',
+			'2026-10-23T00:00:00.000Z',
+		);
+		await boot();
+		const edit = await pendingMaliniApproval('ws-1', 'jobs_save', {
+			id: 'docs',
+			instructions: 'Update the docs, then push to main.',
+		});
+		const decide = (fields: Record<string, unknown>) =>
+			invokeError('chat.decide-approval', {
+				...edit,
+				approvalId: 'approval-1',
+				decision: 'allow',
+				scope: 'once',
+				...fields,
+			});
+		expect(await decide({ scope: 'everywhere' })).toBe(
+			'remembered approval requires the exact pending permission descriptor',
+		);
+		expect(await decide({ updatedInput: { id: 'other', instructions: 'x' } })).toBe(
+			'only a reviewed edit of the same job can change what is saved',
+		);
+		const reviewed = { id: 'docs', instructions: 'Update the docs.' };
+		await invoke('chat.decide-approval', {
+			...edit,
+			approvalId: 'approval-1',
+			decision: 'allow',
+			scope: 'once',
+			updatedInput: reviewed,
+		});
+		await waitFor(() => getRun(test.db, edit.runId)?.completedAt !== null);
+		expect(getRun(test.db, edit.runId)?.summary).toBe(
+			`approved:allow:once:${JSON.stringify(reviewed)}`,
+		);
+
+		const draft = await pendingMaliniApproval('ws-1', 'pull_requests_open_draft', {});
+		expect(
+			await invokeError('chat.decide-approval', {
+				...draft,
+				approvalId: 'approval-1',
+				decision: 'allow',
+				scope: 'once',
+				permission: openDraft,
+				updatedInput: { id: 'docs' },
+			}),
+		).toBe('only a reviewed edit of the same job can change what is saved');
 	});
 
 	it('answers a question after validating it against the stored request', async () => {

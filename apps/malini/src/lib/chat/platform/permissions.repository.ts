@@ -2,12 +2,12 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, run, scalar } from '$main/db/rows';
 import { invariant } from '$main/errors';
 
-export type PermissionRuleScope = 'session' | 'workstream';
+export type PermissionRuleScope = 'session' | 'workstream' | 'everywhere';
 
 export interface AgentPermissionRule {
 	readonly id: string;
 	readonly scope: PermissionRuleScope;
-	readonly workstreamId: string;
+	readonly workstreamId: string | null;
 	readonly sessionId: string | null;
 	readonly permissionFingerprint: string;
 	readonly permissionJson: string;
@@ -17,6 +17,9 @@ export interface AgentPermissionRule {
 	readonly lastUsedAt: string | null;
 	readonly revokedAt: string | null;
 }
+
+export type ActivePermissionRule = AgentPermissionRule &
+	Readonly<{ workstreamName: string | null }>;
 
 export interface RememberPermissionRule {
 	id: string;
@@ -40,7 +43,7 @@ export interface NewPermissionRule {
 interface PermissionRuleRow {
 	id: string;
 	scope: string;
-	workstream_id: string;
+	workstream_id: string | null;
 	session_id: string | null;
 	permission_fingerprint: string;
 	permission_json: string;
@@ -57,7 +60,7 @@ const RULE_COLUMNS = `id, scope, workstream_id, session_id, permission_fingerpri
 function ruleFromRow(row: PermissionRuleRow): AgentPermissionRule {
 	return {
 		id: row.id,
-		scope: row.scope === 'session' ? 'session' : 'workstream',
+		scope: ruleScope(row.scope),
 		workstreamId: row.workstream_id,
 		sessionId: row.session_id,
 		permissionFingerprint: row.permission_fingerprint,
@@ -70,6 +73,13 @@ function ruleFromRow(row: PermissionRuleRow): AgentPermissionRule {
 	};
 }
 
+function ruleScope(scope: string): PermissionRuleScope {
+	return scope === 'session' || scope === 'everywhere' ? scope : 'workstream';
+}
+
+const APPLIES_TO_SESSION = `(scope = 'everywhere' OR (workstream_id = ?
+	AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))))`;
+
 export function findActivePermissionRule(
 	db: MaliniDatabase,
 	workstreamId: string,
@@ -80,13 +90,13 @@ export function findActivePermissionRule(
 	const row = get<PermissionRuleRow>(
 		db,
 		`SELECT ${RULE_COLUMNS}
-		 FROM agent_permission_rules WHERE workstream_id = ?
-		   AND permission_fingerprint = ? AND revoked_at IS NULL
-		   AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))
+		 FROM agent_permission_rules WHERE permission_fingerprint = ? AND revoked_at IS NULL
+		   AND ${APPLIES_TO_SESSION}
 		   AND (? IS NULL OR scope = ?)
-		 ORDER BY CASE scope WHEN 'session' THEN 0 ELSE 1 END, created_at DESC LIMIT 1`,
-		workstreamId,
+		 ORDER BY CASE scope WHEN 'session' THEN 0 WHEN 'workstream' THEN 1 ELSE 2 END,
+		   created_at DESC LIMIT 1`,
 		fingerprint,
+		workstreamId,
 		sessionId,
 		requiredScope,
 		requiredScope,
@@ -122,13 +132,64 @@ export function listPermissionRules(
 	return all<PermissionRuleRow>(
 		db,
 		`SELECT ${RULE_COLUMNS}
-		 FROM agent_permission_rules WHERE workstream_id = ?
-		   AND (? IS NULL OR scope = 'workstream' OR session_id = ?)
+		 FROM agent_permission_rules WHERE scope = 'everywhere' OR (workstream_id = ?
+		   AND (? IS NULL OR scope = 'workstream' OR session_id = ?))
 		 ORDER BY revoked_at IS NOT NULL, created_at DESC, id DESC`,
 		workstreamId,
 		sessionId,
 		sessionId,
 	).map(ruleFromRow);
+}
+
+export function listActivePermissionRules(db: MaliniDatabase): ActivePermissionRule[] {
+	return all<PermissionRuleRow & { workstream_name: string | null }>(
+		db,
+		`SELECT r.id, r.scope, r.workstream_id, r.session_id, r.permission_fingerprint,
+		        r.permission_json, r.created_run_id, r.created_request_id, r.created_at,
+		        r.last_used_at, r.revoked_at, w.name AS workstream_name
+		 FROM agent_permission_rules r LEFT JOIN workstreams w ON w.id = r.workstream_id
+		 WHERE r.revoked_at IS NULL ORDER BY r.created_at DESC, r.id DESC`,
+	).map((row) => ({ ...ruleFromRow(row), workstreamName: row.workstream_name }));
+}
+
+export function hasActivePermissionRule(db: MaliniDatabase, fingerprint: string): boolean {
+	return (
+		scalar(
+			db,
+			`SELECT COUNT(*) FROM agent_permission_rules
+			 WHERE permission_fingerprint = ? AND revoked_at IS NULL`,
+			fingerprint,
+		) > 0
+	);
+}
+
+export function revokePermissionRuleById(
+	db: MaliniDatabase,
+	ruleId: string,
+	revokedAt: string,
+): boolean {
+	return (
+		run(
+			db,
+			'UPDATE agent_permission_rules SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL',
+			revokedAt,
+			ruleId,
+		).changes === 1
+	);
+}
+
+export function revokePermissionRulesFor(
+	db: MaliniDatabase,
+	fingerprint: string,
+	revokedAt: string,
+): number {
+	return run(
+		db,
+		`UPDATE agent_permission_rules SET revoked_at = ?
+		 WHERE permission_fingerprint = ? AND revoked_at IS NULL`,
+		revokedAt,
+		fingerprint,
+	).changes;
 }
 
 export function revokePermissionRule(
@@ -174,7 +235,7 @@ export function rememberPermissionRule(db: MaliniDatabase, rule: NewPermissionRu
 		  created_run_id, created_request_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rule.id,
 		rule.scope,
-		rule.workstreamId,
+		rule.scope === 'everywhere' ? null : rule.workstreamId,
 		rule.scope === 'session' ? rule.sessionId : null,
 		rule.permissionFingerprint,
 		rule.permissionJson,
@@ -198,12 +259,11 @@ export function markPermissionRuleUsed(
 	const result = run(
 		db,
 		`UPDATE agent_permission_rules SET last_used_at = ?
-		 WHERE id = ? AND workstream_id = ? AND permission_fingerprint = ?
-		   AND (scope = 'workstream' OR (scope = 'session' AND session_id = ?))`,
+		 WHERE id = ? AND permission_fingerprint = ? AND ${APPLIES_TO_SESSION}`,
 		input.usedAt,
 		input.ruleId,
-		input.workstreamId,
 		input.permissionFingerprint,
+		input.workstreamId,
 		input.sessionId,
 	);
 	return result.changes === 1;

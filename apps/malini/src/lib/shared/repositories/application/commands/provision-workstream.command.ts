@@ -67,7 +67,10 @@ async function cloneRepository(plan: WorkstreamProvisioningPlan): Promise<string
 		(fraction) => workstreamProvisioning.reportCloneProgress(plan.workstreamId, fraction),
 	);
 	try {
-		const projectRepoPath = await workstreamsService.createProject({ repoUrl: plan.repoUrl });
+		const projectRepoPath = await workstreamsService.createProject({
+			repoUrl: plan.repoUrl,
+			defaultBranch: plan.baseBranch,
+		});
 		workstreamProvisioning.resolveProjectRepoPath(plan.workstreamId, projectRepoPath);
 		return projectRepoPath;
 	} finally {

@@ -48,6 +48,7 @@ Claude names each one from its title.
 Malini checks again every 5 minutes, on every Mac you use, and skips pull requests from forks.
 A workstream you delete stays deleted.
 Like every workstream, each one is kept current: a pull request that falls behind its base or conflicts gets **Update from main**.
+Settings → Jobs picks when that happens: as main moves, when you open the workstream, or only when you merge.
 
 ## From prompt to merged
 
@@ -56,7 +57,7 @@ Like every workstream, each one is kept current: a pull request that falls behin
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
 - **A dev server doesn't hold it.** The queue merges past a command the agent left running in the background, and archiving stops it.
-- **While it waits, it works.** The queue runs the **Fix checks**, **Update from main**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
+- **While it waits, it works.** The queue runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.

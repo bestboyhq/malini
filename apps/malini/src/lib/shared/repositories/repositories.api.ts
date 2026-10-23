@@ -151,6 +151,7 @@ export { refreshRepositoriesCommand } from './application/commands/refresh-repos
 export { refreshWorkstreamAfterChangeCommand } from './application/commands/refresh-workstream-after-change.command';
 export { refreshWorkstreamChangeTotalsCommand } from './application/commands/refresh-workstream-change-totals.command';
 export { refreshWorkstreamsCommand } from './application/commands/refresh-workstreams.command';
+export { prepareRepositoryCommand } from './application/commands/prepare-repository.command';
 export { removeRepositoryCommand } from './application/commands/remove-repository.command';
 export { requestRepositoryConnectionCommand } from './application/commands/request-repository-connection.command';
 export { restoreWorkstreamCommand } from './application/commands/restore-workstream.command';
@@ -196,6 +197,7 @@ export { repositoriesScopeRetryingQuery } from './application/queries/repositori
 export { repositoryAvatarQuery } from './application/queries/repository-avatar.query.svelte';
 export { repositoryConnectErrorQuery } from './application/queries/repository-connect-error.query.svelte';
 export { repositoryConnectingQuery } from './application/queries/repository-connecting.query.svelte';
+export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryConnectionRequestedQuery } from './application/queries/repository-connection-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
