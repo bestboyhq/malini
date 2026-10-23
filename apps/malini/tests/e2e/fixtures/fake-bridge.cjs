@@ -490,6 +490,15 @@ const backgroundCommandRun = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
 };
+const backgroundReportRun = (sessionId, runId, commit) => {
+	startBackgroundCommand(sessionId, runId);
+	waitOnBackgroundCommand(
+		sessionId,
+		runId,
+		'- Verified: the suite started.\n\nOutcome: The e2e suite runs in the background.\nNeeds: nothing' +
+			(commit ? '\nCommit: ' + commit : ''),
+	);
+};
 const busyBackgroundCommandRun = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	pendingRuns.set(runId, sessionId);
@@ -503,10 +512,16 @@ const busyBackgroundCommandRun = (sessionId, runId) => {
 };
 const handOffBackgroundCommand = (sessionId, runId, steer) => {
 	const waiting = backgroundCommands.get(sessionId);
-	event({ type: 'background.updated', runId: waiting.runId, waiting: false, tasks: [] });
+	event({
+		type: 'background.updated',
+		runId: waiting.runId,
+		waiting: false,
+		tasks: [],
+		handedOff: true,
+	});
 	event(
 		steer
-			? { type: 'run.failed', runId: waiting.runId, error: 'cancelled' }
+			? { type: 'run.failed', runId: waiting.runId, error: 'cancelled', handedOff: true }
 			: {
 					type: 'run.completed',
 					runId: waiting.runId,
@@ -676,6 +691,9 @@ const respond = async (sessionId, runId, prompt) => {
 		return;
 	}
 	if (prompt.includes('BACKGROUND_COMMAND')) return backgroundCommandRun(sessionId, runId);
+	if (prompt.includes('BACKGROUND_REPORT')) {
+		return backgroundReportRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
+	}
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));

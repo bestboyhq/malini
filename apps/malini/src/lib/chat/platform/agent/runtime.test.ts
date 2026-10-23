@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { AgentBackgroundTask } from '$contract/agent';
 import { listEventRowsForSession } from '../events.repository';
 import { getInteraction } from '../interactions.repository';
 import { get, run } from '$main/db/rows';
 import { getRun } from '../runs.repository';
 import { getSession } from '../sessions.repository';
+import { workstreamShipContext } from '../ship-context.repository';
 import { rememberPermissionRule } from '../permissions.repository';
 import { normalizeRememberablePermission } from '../permissions.service';
 import { AgentRunLeases, BRIDGE_INTERRUPTED_ERROR } from './lifecycle';
@@ -131,6 +133,50 @@ describe('pumpStep', () => {
 		]);
 		expect(step({ type: 'file.changed', runId: 'run-unknown', path: 'x' })).toBeNull();
 		expect(log).toEqual([]);
+	});
+
+	it('keeps the reply of a turn that ended over a background command, so stopping it later completes the run', () => {
+		seedRun();
+		const correlator = new SessionCorrelator();
+		const step = (event: BridgeEvent) => pumpStep(correlator, test.db, event, () => {});
+		const devServer: AgentBackgroundTask = {
+			taskId: 't',
+			kind: 'command',
+			description: 'Dev server',
+			startedAt: 1,
+		};
+		const reply =
+			'Started it.\n\nOutcome: The site runs.\nNeeds: nothing\nCommit: fix: serve the site';
+		const endTurn = (runId: string) =>
+			step({
+				type: 'background.updated',
+				runId,
+				waiting: true,
+				tasks: [devServer],
+				summary: reply,
+			});
+
+		step({ type: 'run.started', runId: 'run-1', sessionId: 'sess-1' });
+		endTurn('run-1');
+		expect(getRun(test.db, 'run-1')).toMatchObject({ summary: reply, completedAt: null });
+		expect(workstreamShipContext(test.db, 'ws-1').runSummaries).toEqual(['fix: serve the site']);
+
+		step({ type: 'background.updated', runId: 'run-1', waiting: false, tasks: [] });
+		expect(
+			step({ type: 'run.failed', runId: 'run-1', error: 'cancelled', providerCursor: 'c-1' })
+				?.event,
+		).toEqual({ type: 'run.completed', runId: 'run-1', summary: reply, providerCursor: 'c-1' });
+		expect(getRun(test.db, 'run-1')).toMatchObject({ summary: reply, error: null });
+		expect(getSession(test.db, 'sess-1')?.status).toBe('completed');
+
+		seedOpenRun(test.db, 'run-2', 'sess-1');
+		step({ type: 'run.started', runId: 'run-2', sessionId: 'sess-1' });
+		endTurn('run-2');
+		step({ type: 'assistant.message', runId: 'run-2', text: 'The server stopped, restarting it.' });
+		expect(getRun(test.db, 'run-2')?.summary).toBeNull();
+		expect(step({ type: 'run.failed', runId: 'run-2', error: 'cancelled' })?.event.type).toBe(
+			'run.failed',
+		);
 	});
 
 	it('records an interaction request as pending before it becomes visible, and drops a stale one', () => {

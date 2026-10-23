@@ -551,7 +551,7 @@ describe('ClaudeTranscript', () => {
 		]);
 	});
 
-	it('carries the turn summary on the first wait after a successful result, and only there', () => {
+	it('carries the turn summary and its resume point on the first wait after a successful result, and only there', () => {
 		const messages = recordedMessages('backgroundCommand');
 		const firstIdle = messages.findIndex(
 			(message) =>
@@ -574,14 +574,15 @@ describe('ClaudeTranscript', () => {
 		transcript.accept(running);
 		transcript.accept(idle);
 
+		expect(transcript.cursor).toEqual(expect.any(String));
 		expect(
 			ofType(events, 'background.updated')
 				.filter(({ waiting }) => waiting)
-				.map(({ summary, interim }) => ({ summary, interim })),
+				.map(({ summary, providerCursor, interim }) => ({ summary, providerCursor, interim })),
 		).toEqual([
-			{ summary: 'launched', interim: undefined },
-			{ summary: undefined, interim: true },
-			{ summary: undefined, interim: undefined },
+			{ summary: 'launched', providerCursor: transcript.cursor, interim: undefined },
+			{ summary: undefined, providerCursor: undefined, interim: true },
+			{ summary: undefined, providerCursor: undefined, interim: undefined },
 		]);
 	});
 

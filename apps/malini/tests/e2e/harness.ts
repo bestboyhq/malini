@@ -689,10 +689,13 @@ export async function untilStill(page: Page): Promise<void> {
 				if (effect.getComputedTiming().endTime === Infinity) return false;
 				return !effect.target || shows(effect.target, screen);
 			});
+			const renaming = [...doc.querySelectorAll('[data-renaming]')].some((label) =>
+				shows(label, screen),
+			);
 			const list = scroller();
 			const area = list?.getBoundingClientRect() ?? screen;
 			const gliding = [...(list?.querySelectorAll('[style*="translate"]') ?? [])];
-			return animating || gliding.some((row) => shows(row, area));
+			return animating || renaming || gliding.some((row) => shows(row, area));
 		};
 		let previous = pose();
 		let still = 0;

@@ -8,6 +8,7 @@ import {
 	type RenderState,
 	type RunGroup,
 } from './render-state';
+import { runTurn } from './turn-result';
 
 function firstRun(state: RenderState): RunGroup {
 	const run = state.runs[0];
@@ -61,6 +62,53 @@ describe('IncrementalRenderProjector', () => {
 				foldEnvelopes(envelopes.slice(0, length)),
 			);
 		}
+	});
+
+	it('ends the turn when the agent replies while only background commands run, until it works again', () => {
+		const devServer = {
+			taskId: 'dev',
+			kind: 'command' as const,
+			description: 'Dev server',
+			startedAt: 1,
+		};
+		const started = 'Started it.\n\nOutcome: The site runs.';
+		const checked = 'Checked it.\n\nOutcome: The site still runs.';
+		const update = (seq: number, tasks: (typeof devServer)[], summary?: string) =>
+			envelope(seq, {
+				type: 'background.updated',
+				runId: 'run-1',
+				waiting: tasks.length > 0,
+				tasks,
+				...(summary === undefined ? {} : { summary }),
+			});
+		const envelopes = [
+			envelope(1, { type: 'user.message', runId: 'run-1', text: 'Serve the site' }),
+			envelope(2, { type: 'assistant.message', runId: 'run-1', text: started }),
+			update(3, [devServer], started),
+			update(4, [devServer]),
+			update(5, []),
+			envelope(6, { type: 'assistant.message', runId: 'run-1', text: checked }),
+			update(7, [devServer], checked),
+			envelope(8, { type: 'run.completed', runId: 'run-1', summary: checked, handedOff: true }),
+		];
+		const projector = new IncrementalRenderProjector();
+		const outcomes: (string | null)[] = [];
+
+		for (let length = 1; length <= envelopes.length; length += 1) {
+			const state = projector.project(envelopes.slice(0, length));
+			expect(state).toEqual(foldEnvelopes(envelopes.slice(0, length)));
+			outcomes.push(runTurn(firstRun(state))?.report.outcome ?? null);
+		}
+		expect(outcomes).toEqual([
+			null,
+			null,
+			'The site runs.',
+			'The site runs.',
+			'The site runs.',
+			null,
+			'The site still runs.',
+			'The site still runs.',
+		]);
 	});
 
 	it('keeps one row per tool call when a background agent hands back the same call again', () => {
