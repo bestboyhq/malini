@@ -67,6 +67,22 @@ interface SessionRenamedPayload {
 }
 ```
 
+## `chat:mcp-server-changed`
+
+Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.
+
+Payload: `McpServerReport`
+
+```ts
+type McpServerReport = Readonly<{
+	name: string;
+	status: string;
+	error?: string;
+	source?: string;
+	toolCount?: number;
+}>;
+```
+
 ## `repositories:workstream-created`
 
 Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.

@@ -1,20 +1,23 @@
-import type { SessionId } from '$lib/chat/domain/session';
+import type { McpServerTarget } from '$contract/mcp-servers';
 
 class McpServerActionsStore {
 	busy: ReadonlySet<string> = $state.raw(new Set());
 
-	start(sessionId: SessionId, serverName: string): void {
-		this.busy = new Set([...this.busy, mcpServerKey(sessionId, serverName)]);
+	start(target: McpServerTarget, serverName: string): void {
+		this.busy = new Set([...this.busy, mcpServerKey(target, serverName)]);
 	}
 
-	finish(sessionId: SessionId, serverName: string): void {
-		const key = mcpServerKey(sessionId, serverName);
+	finish(target: McpServerTarget, serverName: string): void {
+		const key = mcpServerKey(target, serverName);
 		this.busy = new Set([...this.busy].filter((busy) => busy !== key));
 	}
 }
 
-export function mcpServerKey(sessionId: SessionId, serverName: string): string {
-	return JSON.stringify([sessionId, serverName]);
+export function mcpServerKey(target: McpServerTarget, serverName: string): string {
+	return JSON.stringify([
+		'sessionId' in target ? target.sessionId : target.workstreamId,
+		serverName,
+	]);
 }
 
 export const mcpServerActionsStore = new McpServerActionsStore();

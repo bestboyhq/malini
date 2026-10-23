@@ -149,7 +149,7 @@ function fill(element: HTMLSpanElement, request: TooltipRequest): void {
 			const mask = document.createElement('span');
 			mask.className = 'hyper-sensitive-mask';
 			mask.dataset.sensitive = segment.kind;
-			mask.textContent = segment.text;
+			mask.textContent = segment.masked;
 			return mask;
 		}),
 	);

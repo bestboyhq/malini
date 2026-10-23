@@ -11,6 +11,7 @@ import Strike from '@tiptap/extension-strike';
 import Text from '@tiptap/extension-text';
 
 import { PromptChip, type PromptChipOpener } from './prompt-chip-node';
+import { SensitiveMask } from './sensitive-mask';
 import { StripPrivateUse } from './strip-private-use';
 
 export type PromptEditorExtensionOptions = {
@@ -70,5 +71,7 @@ export function promptEditorExtensions(options: PromptEditorExtensionOptions): A
 		PromptChip.configure({ opener: options.chipOpener }),
 
 		StripPrivateUse,
+
+		SensitiveMask,
 	];
 }

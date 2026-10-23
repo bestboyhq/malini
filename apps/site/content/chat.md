@@ -89,7 +89,6 @@ Once you pick one, the agent builds it into the real thing and removes what it r
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers, read live from the chat's Claude Code.
-- An MCP server that needs you shows its fix in that list: **Sign in** opens the server's sign-in page in your browser, **Retry** reconnects one that failed, and its row shows a check once it connects.
 
 ## Undo, edit, fork
 
@@ -102,6 +101,21 @@ Runs that a restart cut short pick up where they left off the next time Malini o
 A chat loads every Claude Code skill that is on.
 Settings, Skills ranks your skills and plugins by how often Claude Code used them, and turns them off in Claude Code's own settings.
 A [job](/malini/docs/jobs.md) can name the skills it loads.
+
+## MCP servers
+
+The plug in the composer lists the chat's MCP servers by what fixes them: servers to sign in to, claude.ai connectors to reconnect on claude.ai, servers that failed, and duplicates of a server that already connects.
+Servers that work fold into **Ready**, and servers you turned off into **Off**.
+When two servers share a name, each shows where it comes from, such as claude.ai or the plugin that ships it.
+
+- **Sign in** opens the server's sign-in page in your browser.
+  Once it connects, every open chat reconnects it.
+- **Retry** reconnects a server that failed; its error shows under its name.
+- **Fix** walks every server that needs you, one at a time: it opens the next sign-in page as soon as the last one connects, retries the failed ones, and lets you skip a server or turn it off.
+- **Turn off** adds the server to `deniedMcpServers` in your Claude Code settings, so it leaves every chat, here and in the terminal.
+
+Settings, MCP servers lists every server a chat in the open workstream connects, grouped by where it comes from: claude.ai connectors, each plugin, your own servers, and the repository's `.mcp.json`.
+Filter it to the servers that need you or the ones that are off, sign in or retry from there, and switch any server on or off.
 
 ## Tools
 

@@ -90,7 +90,7 @@ export type AgentEvent =
 	| {
 			type: 'mcp.status';
 			runId: string;
-			servers: { name: string; status: string; error?: string }[];
+			servers: McpServerReport[];
 	  }
 	| {
 			type: 'background.updated';
@@ -129,6 +129,14 @@ const EVENT_CONTRACT_IS_EXHAUSTIVE: MissingGeneratedEvent extends never ? true :
 const GENERATED_EVENTS_ARE_KNOWN: UnknownGeneratedEvent extends never ? true : never = true;
 void EVENT_CONTRACT_IS_EXHAUSTIVE;
 void GENERATED_EVENTS_ARE_KNOWN;
+
+export interface McpServerReport {
+	readonly name: string;
+	readonly status: string;
+	readonly error?: string;
+	readonly source?: string;
+	readonly toolCount?: number;
+}
 
 export const BACKGROUND_TASK_KINDS = ['command', 'agent', 'task'] as const;
 

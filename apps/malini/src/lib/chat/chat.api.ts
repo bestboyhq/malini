@@ -4,3 +4,5 @@ export { default as PermissionGrants } from './presentation/PermissionGrants.sve
 export { default as WorkstreamChatBridge } from './presentation/WorkstreamChatBridge.svelte';
 export { default as WorkstreamChatSummary } from './presentation/WorkstreamChatSummary.svelte';
 export { default as WorkstreamChatsPreloader } from './presentation/WorkstreamChatsPreloader.svelte';
+export { default as McpFixDialog } from './presentation/McpFixDialog.svelte';
+export { default as McpServersSettings } from './presentation/McpServersSettings.svelte';

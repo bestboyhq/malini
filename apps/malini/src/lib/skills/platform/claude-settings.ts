@@ -16,7 +16,7 @@ export interface ClaudeConfigFiles {
 	readonly state: string;
 }
 
-type JsonObject = Record<string, unknown>;
+export type JsonObject = Record<string, unknown>;
 
 export function claudeConfigFiles(
 	env: Readonly<Record<string, string | undefined>>,
@@ -55,13 +55,21 @@ export async function switchSkill(
 	files: ClaudeConfigFiles,
 	change: SwitchSkillArgs,
 ): Promise<void> {
-	const target = await realpath(files.settings).catch(() => files.settings);
-	const settings = await readJsonObject(target);
-	const switched =
+	await updateClaudeSettings(files.settings, (settings) =>
 		change.kind === 'skill'
 			? withSkillSwitched(settings, change.name, change.on)
-			: withPluginSwitched(settings, change.name, change.on);
-	await atomicReplaceFile(target, `${JSON.stringify(switched, null, 2)}\n`);
+			: withPluginSwitched(settings, change.name, change.on),
+	);
+}
+
+export async function updateClaudeSettings(
+	path: string,
+	change: (settings: JsonObject) => JsonObject,
+): Promise<JsonObject> {
+	const target = await realpath(path).catch(() => path);
+	const updated = change(await readJsonObject(target));
+	await atomicReplaceFile(target, `${JSON.stringify(updated, null, 2)}\n`);
+	return updated;
 }
 
 export function withSkillSwitched(settings: JsonObject, name: string, on: boolean): JsonObject {
@@ -112,7 +120,7 @@ function claudePlugins(settings: JsonObject): ClaudePlugin[] {
 	});
 }
 
-async function readJsonObject(path: string): Promise<JsonObject> {
+export async function readJsonObject(path: string): Promise<JsonObject> {
 	let text: string;
 	try {
 		text = await readFile(path, 'utf8');

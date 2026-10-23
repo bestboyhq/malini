@@ -10,8 +10,10 @@ import {
 	decodeControlFrame,
 	readyFrameMismatch,
 	validateCapabilities,
+	type AgentMcpServerStatus,
 	type BridgeAgentRequest,
 	type BridgeCommand,
+	type BridgeMcpServerTarget,
 	type BridgeControlFrame,
 	type BridgeEvent,
 	type ProviderCapability,
@@ -190,6 +192,8 @@ export class BridgeSupervisor {
 	private readonly suggestedTitles = new Map<string, string>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly mcpAuthorizations = new Map<string, string | null>();
+	private readonly listedMcpServers = new Map<string, AgentMcpServerStatus[]>();
+	private readonly mcpServerListeners = new Set<(server: AgentMcpServerStatus) => void>();
 	private readonly eventListeners = new Set<(event: BridgeEvent) => void>();
 	private readonly agentRequestListeners = new Set<(request: BridgeAgentRequest) => void>();
 	private readonly startedAtMs: number;
@@ -465,6 +469,34 @@ export class BridgeSupervisor {
 				}
 				return;
 			}
+			case 'bridge.mcp_servers': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: mcp servers v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) {
+					this.listedMcpServers.set(control.id, control.servers);
+				}
+				return;
+			}
+			case 'bridge.mcp_server': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: mcp server v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				for (const listener of [...this.mcpServerListeners]) {
+					try {
+						listener(control.server);
+					} catch (error) {
+						this.log(`agent-bridge bridge.mcp_server listener failed: ${describe(error)}`);
+					}
+				}
+				return;
+			}
 			case 'bridge.browser_request':
 			case 'bridge.platform_request': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
@@ -516,6 +548,13 @@ export class BridgeSupervisor {
 		this.agentRequestListeners.add(listener);
 		return () => {
 			this.agentRequestListeners.delete(listener);
+		};
+	}
+
+	onMcpServer(listener: (server: AgentMcpServerStatus) => void): () => void {
+		this.mcpServerListeners.add(listener);
+		return () => {
+			this.mcpServerListeners.delete(listener);
 		};
 	}
 
@@ -640,10 +679,30 @@ export class BridgeSupervisor {
 		return this.sendCommand({ cmd: 'refresh_session_status', id: this.nextCommandId(), sessionId });
 	}
 
-	async authorizeMcpServer(sessionId: string, serverName: string): Promise<string | null> {
+	async listMcpServers(cwd: string): Promise<AgentMcpServerStatus[]> {
 		const id = this.nextCommandId();
 		try {
-			await this.sendCommand({ cmd: 'authorize_mcp_server', id, sessionId, serverName });
+			await this.sendCommand({ cmd: 'list_mcp_servers', id, cwd });
+			const servers = this.listedMcpServers.get(id);
+			if (servers === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'MCP servers were acknowledged without a bridge.mcp_servers frame',
+				);
+			}
+			return servers;
+		} finally {
+			this.listedMcpServers.delete(id);
+		}
+	}
+
+	async authorizeMcpServer(
+		target: BridgeMcpServerTarget,
+		serverName: string,
+	): Promise<string | null> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'authorize_mcp_server', id, serverName, ...target });
 			const authUrl = this.mcpAuthorizations.get(id);
 			if (authUrl === undefined) {
 				throw new SupervisorError(
@@ -657,12 +716,20 @@ export class BridgeSupervisor {
 		}
 	}
 
-	reconnectMcpServer(sessionId: string, serverName: string): Promise<void> {
+	cancelMcpAuthorization(serverName: string): Promise<void> {
+		return this.sendCommand({
+			cmd: 'cancel_mcp_authorization',
+			id: this.nextCommandId(),
+			serverName,
+		});
+	}
+
+	reconnectMcpServer(target: BridgeMcpServerTarget, serverName: string): Promise<void> {
 		return this.sendCommand({
 			cmd: 'reconnect_mcp_server',
 			id: this.nextCommandId(),
-			sessionId,
 			serverName,
+			...target,
 		});
 	}
 

@@ -1,8 +1,4 @@
-import type {
-	McpAuthorization,
-	SendAgentPromptArgs,
-	StartAgentSessionArgs,
-} from '$contract/commands';
+import type { SendAgentPromptArgs, StartAgentSessionArgs } from '$contract/commands';
 import { CHAT_SESSION_RENAMED_CHANNEL } from '$contract/events';
 import type { ChatSessionSummary } from '$lib/chat/domain/chat-session-summary';
 import type { EventPage } from '$lib/chat/domain/event-page';
@@ -53,14 +49,6 @@ class AgentSessionsService {
 
 	refreshSessionStatus(sessionId: SessionId): Promise<void> {
 		return invoke('chat.refresh-session-status', { sessionId });
-	}
-
-	authorizeMcpServer(sessionId: SessionId, serverName: string): Promise<McpAuthorization> {
-		return invoke('chat.authorize-mcp-server', { sessionId, serverName });
-	}
-
-	reconnectMcpServer(sessionId: SessionId, serverName: string): Promise<void> {
-		return invoke('chat.reconnect-mcp-server', { sessionId, serverName });
 	}
 
 	resetWorkstreamRuns(workstreamId: string): Promise<number> {
