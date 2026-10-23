@@ -11,6 +11,7 @@ import type { MainContext } from './context';
 import type { MaliniDatabase } from './db/driver';
 import { openMigratedDatabase } from './db/open';
 import { DbInvariantError } from './errors';
+import { removeStaleTemporaryIndexes } from './git/diff';
 import { withBundledGh } from './process/gh';
 import { captureMainProcess, nodeProcessHooks } from './diagnostics/capture';
 import { MainDiagnosticsLog } from './diagnostics/main-diagnostics';
@@ -53,6 +54,7 @@ async function boot(): Promise<void> {
 		return;
 	}
 	await app.whenReady();
+	void removeStaleTemporaryIndexes();
 	const appDataRoot = app.getPath('userData');
 	try {
 		db = openMigratedDatabase(join(appDataRoot, 'malini.sqlite'));

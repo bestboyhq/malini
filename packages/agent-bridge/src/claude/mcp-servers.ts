@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
 	query as sdkQuery,
@@ -5,8 +6,9 @@ import {
 	type Options,
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { McpServerReport } from '../types.js';
+import type { McpServerListing, McpServerReport } from '../types.js';
 import { idle } from './capabilities.js';
+import { configChanged, mcpConfigSnapshot } from './config-snapshot.js';
 import { findClaudeExecutable } from './installation.js';
 import { claudeEnvironment, type ClaudeQuery } from './session.js';
 
@@ -15,10 +17,22 @@ const AUTHORIZATION_WINDOW_MS = 5 * 60_000;
 const SETTLE_WINDOW_MS = 30_000;
 const POLL_MS = 1_000;
 const CONNECTOR_POLL_MS = 3_000;
+const WATCH_POLL_MS = 1_000;
+const WATCH_SETTLING_POLL_MS = 250;
+const WATCH_CONFIG_CHECK_MS = 3_000;
+const WATCH_RETRY_MS = 5_000;
+const SWITCH_WINDOW_MS = 5_000;
+const SWITCH_RETRY_MS = 250;
 
 export type McpProbeQuery = Pick<
 	ClaudeQuery,
-	'initializationResult' | 'mcpServerStatus' | 'reconnectMcpServer' | 'mcpAuthenticate' | 'close'
+	| 'initializationResult'
+	| 'mcpServerStatus'
+	| 'reconnectMcpServer'
+	| 'toggleMcpServer'
+	| 'applyFlagSettings'
+	| 'mcpAuthenticate'
+	| 'close'
 >;
 
 export interface McpProbeOptions {
@@ -37,10 +51,19 @@ export interface McpAuthorization {
 	readonly cancel: () => void;
 }
 
+export interface McpServerWatch {
+	current(): McpServerListing | null;
+	reconnect(serverName: string): Promise<McpServerReport | null>;
+	turnOn(serverName: string): Promise<boolean>;
+	absorbConfig(): void;
+	close(): void;
+}
+
 export interface McpServerProbes {
-	list(cwd: string): Promise<readonly McpServerReport[]>;
+	watch(cwd: string, onListing: (listing: McpServerListing) => void): McpServerWatch;
 	authorize(cwd: string, serverName: string): Promise<McpAuthorization>;
 	probe(cwd: string, serverName: string): Promise<McpServerReport | null>;
+	turnOn(cwd: string, serverName: string): Promise<boolean>;
 }
 
 export type McpServerEntry = Pick<
@@ -51,9 +74,11 @@ export type McpServerEntry = Pick<
 };
 
 export const claudeMcpServers: McpServerProbes = {
-	list: async (cwd) => listMcpServers(claudeProbe(cwd)),
+	watch: (cwd, onListing) => watchMcpServers(claudeProbe(cwd), onListing),
 	authorize: async (cwd, serverName) => startMcpAuthorization(serverName, claudeProbe(cwd)),
 	probe: async (cwd, serverName) => probeMcpServer(serverName, claudeProbe(cwd)),
+	turnOn: async (cwd, serverName) =>
+		!existsSync(cwd) || turnOnMcpServer(serverName, claudeProbe(cwd)),
 };
 
 function claudeProbe(cwd: string): McpProbeOptions {
@@ -131,18 +156,110 @@ export async function probeMcpServer(
 	}
 }
 
-export async function listMcpServers(options: McpProbeOptions): Promise<McpServerReport[]> {
+export function watchMcpServers(
+	options: McpProbeOptions,
+	onListing: (listing: McpServerListing) => void,
+): McpServerWatch {
+	let closed = false;
+	let probe = openProbe(options);
+	let ready = probe.query.initializationResult();
+	let config = mcpConfigSnapshot(options.cwd);
+	let latest: McpServerListing | null = null;
+	const report = (listing: McpServerListing): void => {
+		if (closed || JSON.stringify(listing) === JSON.stringify(latest)) return;
+		latest = listing;
+		onListing(listing);
+	};
+	const read = async (): Promise<McpServerStatus[]> => {
+		await ready;
+		const servers = await probe.query.mcpServerStatus();
+		report({
+			servers: servers.map((server) => mcpServerReport(server)),
+			settled: servers.every(({ status }) => status !== 'pending'),
+		});
+		return servers;
+	};
+	const restart = (): void => {
+		probe.close();
+		probe = openProbe(options);
+		ready = probe.query.initializationResult();
+		config = mcpConfigSnapshot(options.cwd);
+	};
+	void (async () => {
+		let checkedAt = Date.now();
+		while (!closed) {
+			let settled: boolean;
+			try {
+				settled = (await read()).every(({ status }) => status !== 'pending');
+			} catch (error) {
+				report({ servers: [], settled: true, error: describe(error) });
+				await delay(WATCH_RETRY_MS, undefined, { ref: false });
+				if (!closed) restart();
+				continue;
+			}
+			if (Date.now() - checkedAt >= WATCH_CONFIG_CHECK_MS) {
+				checkedAt = Date.now();
+				if (configChanged(config)) {
+					restart();
+					continue;
+				}
+			}
+			await delay(settled ? WATCH_POLL_MS : WATCH_SETTLING_POLL_MS, undefined, { ref: false });
+		}
+	})();
+	return {
+		current: () => latest,
+		reconnect: async (serverName) => {
+			await ready;
+			await probe.query.reconnectMcpServer(serverName).catch(() => undefined);
+			const server = (await read()).find(({ name }) => name === serverName);
+			return server ? mcpServerReport(server) : null;
+		},
+		turnOn: async (serverName) => {
+			await ready;
+			const on = await switchMcpServerLive(probe.query, serverName, true);
+			config = mcpConfigSnapshot(options.cwd);
+			await read().catch(() => undefined);
+			return on;
+		},
+		absorbConfig: () => {
+			config = mcpConfigSnapshot(options.cwd);
+		},
+		close: () => {
+			closed = true;
+			probe.close();
+		},
+	};
+}
+
+export async function switchMcpServerLive(
+	query: Pick<McpProbeQuery, 'toggleMcpServer' | 'applyFlagSettings'>,
+	serverName: string,
+	on: boolean,
+): Promise<boolean> {
+	const deadline = Date.now() + (on ? SWITCH_WINDOW_MS : 0);
+	if (on) await query.applyFlagSettings({}).catch(() => undefined);
+	for (;;) {
+		try {
+			await query.toggleMcpServer(serverName, on);
+			return true;
+		} catch {
+			if (Date.now() >= deadline) return false;
+		}
+		await delay(SWITCH_RETRY_MS, undefined, { ref: false });
+	}
+}
+
+export async function turnOnMcpServer(
+	serverName: string,
+	options: McpProbeOptions,
+): Promise<boolean> {
 	const probe = openProbe(options);
 	try {
 		await probe.query.initializationResult();
-		const deadline = Date.now() + SETTLE_WINDOW_MS;
-		for (;;) {
-			const servers = await probe.query.mcpServerStatus();
-			if (Date.now() >= deadline || servers.every(({ status }) => status !== 'pending')) {
-				return servers.map((server) => mcpServerReport(server));
-			}
-			await delay(POLL_MS, undefined, { ref: false });
-		}
+		const server = await settle(probe.query, serverName, () => true, LISTED_WITHIN_MS);
+		if (server?.status !== 'disabled') return true;
+		return await switchMcpServerLive(probe.query, serverName, true);
 	} finally {
 		probe.close();
 	}
@@ -212,4 +329,8 @@ function authentication(value: unknown): { authUrl: string | null; callbackExpec
 		authUrl,
 		callbackExpected: 'callbackExpected' in value && value.callbackExpected === true,
 	};
+}
+
+function describe(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }

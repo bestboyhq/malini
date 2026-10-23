@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -7,6 +8,7 @@ import {
 	listWorkstreamFiles,
 	parseNumstatTotals,
 	parseSnapshotNumstat,
+	removeStaleTemporaryIndexes,
 	resolveBaseCommit,
 	workstreamChangeTotals,
 	workstreamDiff,
@@ -307,6 +309,31 @@ describe('a huge untracked tree', () => {
 		await writeFile(join(repo, 'src', 'feature', 'index.ts'), 'export const feature = 1;\n');
 
 		expect(await diffAll(repo)).toContain('+export const feature = 1;');
+	});
+});
+
+describe('removeStaleTemporaryIndexes', () => {
+	it('removes the temporary indexes a quit cut short, and leaves a fresh one and other files', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'malini-indexes-'));
+		const now = Date.now();
+		const hoursAgo = (hours: number): Date => new Date(now - hours * 60 * 60_000);
+		for (const [name, age] of [
+			['malini-workstream-snapshot-4242-7.index', 3],
+			['malini-workstream-snapshot-4242-7.index.lock', 3],
+			['malini-workstream-snapshot-1d2e.index', 0],
+			['unrelated.index', 3],
+		] as const) {
+			await writeFile(join(directory, name), '');
+			await utimes(join(directory, name), hoursAgo(age), hoursAgo(age));
+		}
+
+		await removeStaleTemporaryIndexes(directory, now);
+
+		expect((await readdir(directory)).sort()).toEqual([
+			'malini-workstream-snapshot-1d2e.index',
+			'unrelated.index',
+		]);
+		await rm(directory, { recursive: true, force: true });
 	});
 });
 

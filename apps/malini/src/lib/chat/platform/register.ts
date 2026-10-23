@@ -19,7 +19,7 @@ import {
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
 import { installPermissionGrants } from './grants/commands';
-import { defineMcpServerCommands } from './mcp-servers';
+import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
@@ -58,6 +58,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	let mcpServers: McpServerListings | null = null;
 
 	const agent: AgentService = await startAgentService(context, {
 		leases: deps.leases,
@@ -86,6 +87,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			onRunFinished: async ({ runId }) => {
 				await checkpoints.captureRunFinish(runId);
 			},
+			onMcpServers: (listing) => mcpServers?.received(listing),
 		},
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
@@ -94,10 +96,13 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
 	});
 
-	defineMcpServerCommands(context.commands, {
+	mcpServers = defineMcpServerCommands(context.commands, {
+		db: context.db,
+		events: context.events,
 		runtime: agent.runtime,
 		claudeSettings: deps.claudeSettings,
 		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
+		log: deps.log ?? (() => undefined),
 	});
 
 	const suggestTitle: SuggestWithJob = async (task, job) =>

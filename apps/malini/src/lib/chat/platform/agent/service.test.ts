@@ -525,16 +525,20 @@ describe('platform requests from the agent', () => {
 			return result?.['ok'] === true ? JSON.parse(String(result['text'])) : result?.['error'];
 		};
 		bridge.send(platformRequest('p-1', 'repositories_list', {}));
-		expect(await answer('p-1')).toEqual([
-			{
-				id: 'local:project-ws-1',
-				name: 'project-ws-1',
-				defaultBranch: 'main',
-				cloned: true,
-				hidden: false,
-			},
-			expect.objectContaining({ id: 'local:project-ws-2', cloned: true }),
-		]);
+		const repositories = await answer('p-1');
+		expect(repositories).toHaveLength(2);
+		expect(repositories).toEqual(
+			expect.arrayContaining([
+				{
+					id: 'local:project-ws-1',
+					name: 'project-ws-1',
+					defaultBranch: 'main',
+					cloned: true,
+					hidden: false,
+				},
+				expect.objectContaining({ id: 'local:project-ws-2', cloned: true }),
+			]),
+		);
 		bridge.send(platformRequest('p-2', 'repositories_hide', { repository: 'Project-WS-2' }));
 		expect(await answer('p-2')).toMatchObject({ id: 'local:project-ws-2', hidden: true });
 		bridge.send(platformRequest('p-3', 'workstreams_list', { repository: 'project-ws-1' }));

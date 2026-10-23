@@ -20,6 +20,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',
 	},
+	'chat:mcp-servers-listed': {
+		description:
+			'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.',
+	},
 	'repositories:workstream-created': {
 		description:
 			'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.',

@@ -43,6 +43,7 @@ export interface ProviderHandle {
 	refreshSessionStatus?(): Promise<void>;
 	reconnectMcpServer?(serverName: string): Promise<void>;
 	adoptMcpServer?(server: McpServerReport): Promise<void>;
+	switchMcpServer?(serverName: string, on: boolean): Promise<boolean>;
 	stopTask?(runId: string, taskId: string): Promise<void>;
 	close(): Promise<void>;
 }

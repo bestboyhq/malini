@@ -1,5 +1,6 @@
 import {
 	IDLE_MCP_SERVER_LISTING,
+	type ListedMcpServers,
 	type McpServer,
 	type McpServerListing,
 } from '$lib/chat/domain/mcp-server';
@@ -18,18 +19,19 @@ class McpServersAggregate {
 		return this.listings.get(listingKey(workstreamId)) ?? IDLE_MCP_SERVER_LISTING;
 	}
 
-	async load(workstreamId: string | null): Promise<void> {
+	async watch(workstreamId: string | null, restart: boolean): Promise<void> {
 		const key = listingKey(workstreamId);
 		const generation = (this.#generations.get(key) ?? 0) + 1;
 		this.#generations.set(key, generation);
 		const current = this.listing(workstreamId);
-		this.#setListing(key, { ...current, state: 'loading', error: null });
+		if (restart || current.state !== 'ready') {
+			this.#setListing(key, { ...current, state: 'loading', error: null });
+		}
 		try {
-			const { servers, turnedOff } = await mcpServersService.list(workstreamId);
+			const { servers, settled, turnedOff } = await mcpServersService.watch(workstreamId, restart);
 			if (this.#generations.get(key) !== generation) return;
-			this.updates = withoutUpdatesFor(this.updates, servers);
-			this.#setListing(key, { state: 'ready', servers, error: null });
 			this.replaceTurnedOff(turnedOff);
+			this.#show(key, servers, settled && !restart);
 		} catch (error) {
 			if (this.#generations.get(key) !== generation) return;
 			this.#setListing(key, {
@@ -38,6 +40,15 @@ class McpServersAggregate {
 				error: errorMessage(error, 'unknown error'),
 			});
 		}
+	}
+
+	listed({ workstreamId, servers, settled, error }: ListedMcpServers): void {
+		const key = listingKey(workstreamId);
+		if (error === null) {
+			this.#show(key, servers, settled);
+			return;
+		}
+		this.#setListing(key, { ...this.listing(workstreamId), state: 'error', error });
 	}
 
 	async loadTurnedOff(): Promise<void> {
@@ -53,6 +64,11 @@ class McpServersAggregate {
 
 	update(server: McpServer): void {
 		this.updates = new Map([...this.updates, [server.name, server]]);
+	}
+
+	#show(key: string, servers: readonly McpServer[], settled: boolean): void {
+		this.updates = withoutUpdatesFor(this.updates, servers);
+		this.#setListing(key, { state: settled ? 'ready' : 'loading', servers, error: null });
 	}
 
 	#setListing(key: string, listing: McpServerListing): void {

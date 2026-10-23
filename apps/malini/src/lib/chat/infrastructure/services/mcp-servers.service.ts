@@ -1,14 +1,17 @@
-import { CHAT_MCP_SERVER_CHANGED_CHANNEL } from '$contract/events';
+import { CHAT_MCP_SERVER_CHANGED_CHANNEL, CHAT_MCP_SERVERS_LISTED_CHANNEL } from '$contract/events';
 import type { McpServerTarget } from '$contract/mcp-servers';
-import type { McpServer, McpServerInventory } from '$lib/chat/domain/mcp-server';
+import type { ListedMcpServers, McpServer, McpServerInventory } from '$lib/chat/domain/mcp-server';
 import { McpServerMapper } from '$lib/chat/infrastructure/mappers/mcp-server.mapper';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class McpServersService {
-	async list(workstreamId: string | null): Promise<McpServerInventory> {
-		const { servers, turnedOff } = await invoke('chat.list-mcp-servers', { workstreamId });
-		return { servers: McpServerMapper.fromRawList(servers), turnedOff: [...turnedOff] };
+	async watch(workstreamId: string | null, restart: boolean): Promise<McpServerInventory> {
+		const { servers, settled, turnedOff } = await invoke('chat.watch-mcp-servers', {
+			workstreamId,
+			restart,
+		});
+		return { servers: McpServerMapper.fromRawList(servers), settled, turnedOff: [...turnedOff] };
 	}
 
 	async turnedOff(): Promise<string[]> {
@@ -35,6 +38,17 @@ class McpServersService {
 	onChanged(listener: (server: McpServer) => void): () => void {
 		return onPlatformEvent(CHAT_MCP_SERVER_CHANGED_CHANNEL, (raw) =>
 			listener(McpServerMapper.fromRaw(raw)),
+		);
+	}
+
+	onListed(listener: (listed: ListedMcpServers) => void): () => void {
+		return onPlatformEvent(CHAT_MCP_SERVERS_LISTED_CHANNEL, (raw) =>
+			listener({
+				workstreamId: raw.workstreamId,
+				servers: McpServerMapper.fromRawList(raw.servers),
+				settled: raw.settled,
+				error: raw.error ?? null,
+			}),
 		);
 	}
 }

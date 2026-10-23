@@ -464,6 +464,33 @@ describe('ClaudeSession', () => {
 		await rm(cwd, { recursive: true, force: true });
 	});
 
+	it('turns an MCP server off in the Claude Code a chat keeps running and keeps it warm', async () => {
+		const home = await mkdtemp(join(tmpdir(), 'malini-claude-'));
+		vi.stubEnv('CLAUDE_CONFIG_DIR', home);
+		const script = recordedScript('readAndBash');
+		const { session, claude, events } = harness([[...script, 'wait-for-prompt', ...script]]);
+
+		await session.sendPrompt('Hello', 'run-1', profile());
+		await writeFile(
+			join(home, 'settings.json'),
+			JSON.stringify({ deniedMcpServers: [{ serverName: 'codebase-memory-mcp' }] }),
+		);
+		await expect(session.switchMcpServer('codebase-memory-mcp', false)).resolves.toBe(true);
+		await expect(session.switchMcpServer('linear', false)).resolves.toBe(false);
+		const switchedStatus = ofType(events, 'mcp.status').at(-1);
+		await session.sendPrompt('And again', 'run-2', profile(), READ_AND_BASH_CURSOR);
+
+		expect(switchedStatus?.servers).toEqual([
+			{ name: 'plugin:svelte:svelte', status: 'connected' },
+			{ name: 'codebase-memory-mcp', status: 'disabled' },
+		]);
+		expect(claude.runs).toHaveLength(1);
+		expect(claude.runs[0]?.switchedMcpServers).toEqual(['codebase-memory-mcp off']);
+		expect(claude.runs[0]?.followUps).toEqual(['And again']);
+		vi.unstubAllEnvs();
+		await rm(home, { recursive: true, force: true });
+	});
+
 	it('closes an idle Claude Code that starts a turn of its own', async () => {
 		const script = recordedScript('readAndBash');
 		const running: SDKMessage = {

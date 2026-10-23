@@ -5,8 +5,13 @@ import { settleMcpFixStepCommand } from '$lib/chat/application/commands/settle-m
 export { watchMcpServersHook };
 
 function watchMcpServersHook(): () => void {
-	return mcpServersService.onChanged((server) => {
+	const stopChanged = mcpServersService.onChanged((server) => {
 		mcpServersAggregate.update(server);
 		settleMcpFixStepCommand(server);
 	});
+	const stopListed = mcpServersService.onListed((listed) => mcpServersAggregate.listed(listed));
+	return () => {
+		stopChanged();
+		stopListed();
+	};
 }
