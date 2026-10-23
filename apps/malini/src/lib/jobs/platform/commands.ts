@@ -13,6 +13,7 @@ import {
 	type JobTrigger,
 } from '$contract/jobs';
 import { isSkillNameList } from '$contract/skills';
+import { listChatTurns } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
@@ -42,6 +43,7 @@ import {
 	isFinishedJobRunStatus,
 	isJobRunOrigin,
 } from '../domain/job-run';
+import { listAgentActions } from './agent-actions.repository';
 import type { AutomaticJob } from './automatic-jobs.service';
 import {
 	isAutomaticJobDefinition,
@@ -99,6 +101,8 @@ type BuiltinFields = Pick<
 	JobDefinitionRecord,
 	'name' | 'instructions' | 'model' | 'effort' | 'runsIn' | 'trigger'
 >;
+
+const CHAT_TURNS_SHOWN = 100;
 
 export function seedBuiltinJobs(db: MaliniDatabase): void {
 	const now = nowIso8601();
@@ -227,6 +231,16 @@ export function defineJobCommands(
 			updatedAt: nowIso8601(),
 		});
 	});
+
+	commands.define('jobs.list-agent-actions', () => listAgentActions(db));
+
+	commands.define('jobs.list-chat-turns', (args: unknown) =>
+		listChatTurns(
+			db,
+			[...new Set(listAgentActions(db).map((action) => action.runId))],
+			optionalFlag(args, 'every') ? CHAT_TURNS_SHOWN : 0,
+		),
+	);
 
 	commands.define('jobs.list-runs', () =>
 		[...listUnfinishedJobRuns(db), ...listRecentFinishedJobRuns(db, RECENT_FINISHED_RUNS)].sort(

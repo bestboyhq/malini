@@ -22,10 +22,10 @@ import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import type { CommandOutcome } from '$main/ipc/registry';
 import {
+	clonePlannedRepository,
+	createPlannedWorkstream,
 	getWorkstream,
-	listProjects,
-	listWorkstreams,
-	planWorkstreamProvisioning,
+	planRepositoryWorkstream,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
@@ -381,27 +381,11 @@ export class JobRunner {
 
 	async #createWorkstream(jobRun: JobRunRecord): Promise<string> {
 		const { db, commands } = this.#context;
-		const repository =
-			jobRun.repositoryId === null
-				? null
-				: await resolveConnectedRepository(db, jobRun.repositoryId);
-		if (!repository) throw new Error('The repository for this job is no longer connected.');
-		const plan = planWorkstreamProvisioning({
-			repo: repository,
-			projects: listProjects(db),
-			takenNames: listWorkstreams(db).map((workstream) => workstream.name),
-		});
-		const projectRepoPath =
-			plan.projectRepoPath ??
-			(await commands.call('repositories.create-repository', { repoUrl: plan.repoUrl }));
+		const plan =
+			jobRun.repositoryId === null ? null : await planRepositoryWorkstream(db, jobRun.repositoryId);
+		if (!plan) throw new Error('The repository for this job is no longer connected.');
+		await createPlannedWorkstream(commands, plan, await clonePlannedRepository(commands, plan));
 		const { workstreamId } = plan;
-		await commands.call('repositories.create-workstream', {
-			projectRepoPath,
-			workstreamId,
-			baseBranch: plan.baseBranch,
-			projectId: plan.projectId,
-			name: plan.name,
-		});
 		this.#update(jobRun.id, (current) => ({ ...current, workstreamId }));
 		if (!this.#dispatching(jobRun.id)) return workstreamId;
 		await this.#quietly(

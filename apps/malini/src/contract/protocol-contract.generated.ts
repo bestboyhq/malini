@@ -1,7 +1,7 @@
 // Generated from packages/agent-bridge/protocol/bridge-protocol.json. Do not edit.
 
 export const BRIDGE_CONTRACT_NAME = 'malini.agent-bridge' as const;
-export const BRIDGE_PROTOCOL_VERSION = 36 as const;
+export const BRIDGE_PROTOCOL_VERSION = 37 as const;
 export const BRIDGE_READY_TIMEOUT_MS = 10000 as const;
 export const BRIDGE_HEARTBEAT_INTERVAL_MS = 1000 as const;
 export const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5000 as const;
@@ -77,5 +77,10 @@ export const BRIDGE_PLATFORM_TOOLS = [
 	'jobs_save',
 	'jobs_run',
 	'events_list',
-	'pull_requests_open_draft',
+	'repositories_list',
+	'repositories_clone',
+	'repositories_hide',
+	'workstreams_list',
+	'workstreams_create',
+	'workstreams_archive',
 ] as const;

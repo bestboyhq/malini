@@ -71,16 +71,17 @@ async function startSampling(page: Page, rows: readonly string[]): Promise<void>
 				);
 				return composerTop - Math.max(...bottoms);
 			};
-			const sample = (): void => {
+			const sample = (frameMs: number): void => {
 				if (!state.sampling) return;
 				state.samples.push([
 					doc.querySelector(scroller)?.scrollTop ?? Number.NaN,
 					...rows.map((row) => doc.querySelector(row)?.getBoundingClientRect().top ?? Number.NaN),
+					frameMs,
 					blankAboveComposer(),
 				]);
 				doc.defaultView?.requestAnimationFrame(sample);
 			};
-			sample();
+			sample(performance.now());
 		},
 		{ scroller: SCROLLER, rows, latestRun: LATEST_RUN, composer: COMPOSER },
 	);
@@ -127,16 +128,17 @@ function climb(samples: readonly number[][], column: number): number {
 
 function jumpOnScreen(samples: readonly number[][], column: number): number {
 	let jumped = 0;
-	let carried = 0;
+	let carriedPxPerMs = 0;
 	for (let index = 1; index < samples.length; index += 1) {
 		const previous = samples[index - 1] ?? [];
 		const current = samples[index] ?? [];
 		const moved = (current[column] ?? Number.NaN) - (previous[column] ?? Number.NaN);
 		const scrolled = (current[SCROLL_TOP] ?? Number.NaN) - (previous[SCROLL_TOP] ?? Number.NaN);
-		// ponytail: one frame may last twice the one before; time each step if longer stalls flake
+		const elapsedMs = (current.at(-2) ?? Number.NaN) - (previous.at(-2) ?? Number.NaN);
+		const carried = carriedPxPerMs * elapsedMs;
 		const pastCarrying = Math.max(0, Math.abs(moved - carried) - Math.abs(carried));
 		jumped = Math.max(jumped, Math.min(Math.abs(moved + scrolled), pastCarrying));
-		carried = moved;
+		carriedPxPerMs = elapsedMs > 0 ? moved / elapsedMs : 0;
 	}
 	return Math.round(jumped * 10) / 10;
 }

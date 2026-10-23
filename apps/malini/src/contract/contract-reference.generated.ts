@@ -105,6 +105,13 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"interface CloneProgressPayload {\n\trepo_id: string;\n\tstage: 'fetch' | 'checkout' | 'done';\n\tfraction: number;\n}",
 		},
 		{
+			channel: 'repositories:changed',
+			description:
+				'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
+			payloadType: 'EmptyEventPayload',
+			payload: 'type EmptyEventPayload = Readonly<Record<string, never>>;',
+		},
+		{
 			channel: 'pull-requests:local-base-synced',
 			description:
 				"Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.",
@@ -151,6 +158,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'JobExperimentChangedEvent',
 			payload:
 				'type JobExperimentResult = Readonly<{\n\toutputId: string;\n\toutput: string | null;\n\terror: string | null;\n}>;\n\ntype JobExperimentRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\tname: string;\n\tmodel: string;\n\tinstructions: string;\n\tcurrent: boolean;\n\trunning: boolean;\n\tresults: readonly JobExperimentResult[];\n\tcreatedAt: string;\n}>;\n\ntype JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;',
+		},
+		{
+			channel: 'jobs:agent-action-changed',
+			description:
+				"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.",
+			payloadType: 'AgentActionChangedEvent',
+			payload:
+				"type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';\n\ntype AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';\n\ntype AgentActionRecord = Readonly<{\n\tid: string;\n\tsessionId: string;\n\trunId: string;\n\tworkstreamId: string | null;\n\ttool: string;\n\tinput: Readonly<Record<string, unknown>>;\n\tstatus: AgentActionStatus;\n\tapproval: AgentActionApproval;\n\toutput: string | null;\n\tstartedAt: string;\n\tfinishedAt: string | null;\n}>;\n\ntype AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;",
 		},
 		{
 			channel: 'app:close-requested',

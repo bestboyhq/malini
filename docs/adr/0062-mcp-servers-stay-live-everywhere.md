@@ -1,4 +1,4 @@
-# 0061 - MCP servers stay live everywhere
+# 0062 - MCP servers stay live everywhere
 
 Status: accepted
 
@@ -13,7 +13,7 @@ Tracer bullets against Claude Code 2.1.293 showed that neither `applyFlagSetting
 
 ## Decision
 
-- The bridge protocol is version 36 (`packages/agent-bridge/protocol/bridge-protocol.json`).
+- The bridge protocol is version 37 (`packages/agent-bridge/protocol/bridge-protocol.json`).
   `list_mcp_servers` is gone; `watch_mcp_servers { cwd, restart? }` keeps one Claude Code per folder open for 90 s after the last watch and sends `bridge.mcp_servers { cwd, servers, settled, error? }` whenever what it lists changes (`watchMcpServers` in `packages/agent-bridge/src/claude/mcp-servers.ts`).
   A watch that renews an open one sends the current listing before its acknowledgement.
 - The watching Claude Code restarts when the MCP part of the user's configuration changes: the settings files, `.mcp.json`, and the `mcpServers` and folder MCP keys of `~/.claude.json` (`mcpConfigSnapshot` in `config-snapshot.ts`).

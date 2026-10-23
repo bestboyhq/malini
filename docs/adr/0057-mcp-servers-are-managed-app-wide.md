@@ -1,6 +1,6 @@
 # 0057 - MCP servers are managed app-wide
 
-Status: superseded by 0061
+Status: superseded by 0062
 
 ## Context
 

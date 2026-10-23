@@ -31,6 +31,7 @@ export const MALINI_OWNED_GIT_COMMANDS = [
 	'git rebase',
 	'git merge',
 	'gh pr create',
+	'gh pr merge',
 ] as const;
 
 const STASH_WRITES = ['push', 'save', 'pop', 'apply', 'drop', 'clear', 'store', 'branch'];
@@ -61,7 +62,7 @@ export const refuseMaliniOwnedCommands: HookCallback = async (input) => {
 		hookSpecificOutput: {
 			hookEventName: 'PreToolUse',
 			permissionDecision: 'deny',
-			permissionDecisionReason: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes and opens the pull request. To open a draft pull request when your turn ends, call \`pull_requests_open_draft\` from the \`malini\` MCP server.`,
+			permissionDecisionReason: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge job with \`jobs_run\` from the \`malini\` MCP server.`,
 		},
 	};
 };
@@ -80,7 +81,9 @@ export function maliniOwnedCommand(command: string): string | null {
 			const owned = ownedGitSubcommand(args);
 			if (owned !== null) return owned;
 		}
-		if (program === 'gh' && args[0] === 'pr' && args[1] === 'create') return 'gh pr create';
+		if (program === 'gh' && args[0] === 'pr' && (args[1] === 'create' || args[1] === 'merge')) {
+			return `gh pr ${args[1]}`;
+		}
 	}
 	return null;
 }
@@ -201,7 +204,10 @@ const MALINI_WRITE_TOOLS: Readonly<
 > = {
 	mcp__malini__jobs_save: ['write', 'Save job', 'name'],
 	mcp__malini__jobs_run: ['execute', 'Run job', 'job'],
-	mcp__malini__pull_requests_open_draft: ['write', 'Open a draft pull request', null],
+	mcp__malini__repositories_clone: ['write', 'Clone repository', 'repository'],
+	mcp__malini__repositories_hide: ['write', 'Hide repository', 'repository'],
+	mcp__malini__workstreams_create: ['write', 'Start a workstream in', 'repository'],
+	mcp__malini__workstreams_archive: ['write', 'Archive workstream', 'workstream'],
 };
 
 export function isMaliniTool(toolName: string): boolean {

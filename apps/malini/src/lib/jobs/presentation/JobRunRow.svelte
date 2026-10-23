@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { JobRunRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
@@ -11,6 +12,7 @@
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobRunByIdQuery } from '$lib/jobs/application/queries/job-run-by-id.query.svelte';
+	import ActivityKind from './automations/ActivityKind.svelte';
 	import { JOB_RUN_STATUS } from './job-run-status';
 	import { jobRunTime } from './job-run-time';
 
@@ -19,9 +21,20 @@
 		nowMs: number;
 		placeFirst?: boolean;
 		inWorkstream?: boolean;
+		kind?: string;
+		origin?: string | null;
+		trailing?: Snippet | undefined;
 	}
 
-	let { run, nowMs, placeFirst = false, inWorkstream = false }: Props = $props();
+	let {
+		run,
+		nowMs,
+		placeFirst = false,
+		inWorkstream = false,
+		kind,
+		origin = null,
+		trailing,
+	}: Props = $props();
 
 	let armed = $state(false);
 
@@ -30,7 +43,7 @@
 	const actionState = $derived(jobActionStateQuery.data(run.id));
 	const parent = $derived(jobRunByIdQuery.data(run.parentRunId));
 	const followed = $derived(
-		run.parentRunId === null ? null : `After ${parent?.title ?? 'another job'}`,
+		run.parentRunId === null ? origin : `After ${parent?.title ?? 'another job'}`,
 	);
 	const look = $derived(JOB_RUN_STATUS[run.status]);
 	const placeName = $derived.by(() => {
@@ -76,6 +89,9 @@
 			<Icon name={look.icon} size={13} />
 		{/if}
 	</span>
+	{#if kind}
+		<ActivityKind label={kind} />
+	{/if}
 	<span class="min-w-0 flex-1 truncate">
 		{#if placeFirst}
 			<span class="text-fg-default font-medium">{placeName ?? 'Closed workstream'}</span>
@@ -128,6 +144,7 @@
 	{:else}
 		{@render opener()}
 	{/if}
+	{@render trailing?.()}
 	{#if armed}
 		<Button
 			variant="danger-ghost"

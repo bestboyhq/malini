@@ -689,6 +689,26 @@ CREATE TABLE job_experiment_results (
 );
 `,
 	`
+CREATE TABLE agent_actions (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  workstream_id TEXT,
+  tool TEXT NOT NULL,
+  input_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed', 'denied')),
+  approval TEXT NOT NULL CHECK (approval IN ('not-needed', 'allowed', 'always-allowed', 'denied')),
+  output TEXT,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  CHECK ((status = 'running') = (finished_at IS NULL))
+);
+CREATE INDEX idx_agent_actions_started ON agent_actions(started_at);
+
+DELETE FROM agent_permission_rules
+  WHERE permission_json LIKE '%"value":"pull-requests.open-draft"%';
+`,
+	`
 CREATE TABLE mcp_server_listings (
   folder TEXT PRIMARY KEY,
   servers TEXT NOT NULL,

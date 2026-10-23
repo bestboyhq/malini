@@ -1,6 +1,9 @@
 import type { BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
-import { REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL } from '$contract/events';
+import {
+	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+} from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
 import { agentHasReadFile } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
@@ -174,14 +177,18 @@ export function registerRepositories(
 		Promise.all(listProjects(db).map(projectDto)),
 	);
 
-	commands.define('repositories.create-repository', (args: unknown) => {
+	const repositoriesChanged = (): void => events.emit(REPOSITORIES_CHANGED_CHANNEL, {});
+
+	commands.define('repositories.create-repository', async (args: unknown) => {
 		const defaultBranch = optionalString(args, 'defaultBranch');
 		if (defaultBranch !== null) validateBaseBranch(defaultBranch);
-		return createRepository(workstreams, {
+		const repoPath = await createRepository(workstreams, {
 			repoUrl: requireString(args, 'repoUrl'),
 			githubToken: optionalString(args, 'githubToken'),
 			defaultBranch,
 		});
+		repositoriesChanged();
+		return repoPath;
 	});
 
 	commands.define('repositories.create-workstream', (args: unknown) =>
@@ -399,9 +406,11 @@ export function registerRepositories(
 
 	commands.define('repositories.list-github-repositories', () => listGithubRepositories(gh));
 
-	commands.define('repositories.connect', (args: unknown) =>
-		connectRepository(db, gh, parseImportSource(field(args, 'source'))),
-	);
+	commands.define('repositories.connect', async (args: unknown) => {
+		const connection = await connectRepository(db, gh, parseImportSource(field(args, 'source')));
+		repositoriesChanged();
+		return connection;
+	});
 
 	commands.define('repositories.owner-avatar', (args: unknown) =>
 		avatars.get(validateOwner(field(args, 'owner'))),
@@ -411,6 +420,7 @@ export function registerRepositories(
 
 	commands.define('repositories.set-hidden', (args: unknown) => {
 		setRepositoryHidden(db, requireNonEmptyString(args, 'repoId'), requireBoolean(args, 'hidden'));
+		repositoriesChanged();
 	});
 
 	commands.define('repositories.remove', (args: unknown) =>

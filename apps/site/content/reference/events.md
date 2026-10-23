@@ -232,6 +232,16 @@ interface CloneProgressPayload {
 }
 ```
 
+## `repositories:changed`
+
+Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.
+
+Payload: `EmptyEventPayload`
+
+```ts
+type EmptyEventPayload = Readonly<Record<string, never>>;
+```
+
 ## `pull-requests:local-base-synced`
 
 Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.
@@ -448,6 +458,34 @@ type JobExperimentRecord = Readonly<{
 }>;
 
 type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
+```
+
+## `jobs:agent-action-changed`
+
+Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.
+
+Payload: `AgentActionChangedEvent`
+
+```ts
+type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+
+type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+
+type AgentActionRecord = Readonly<{
+	id: string;
+	sessionId: string;
+	runId: string;
+	workstreamId: string | null;
+	tool: string;
+	input: Readonly<Record<string, unknown>>;
+	status: AgentActionStatus;
+	approval: AgentActionApproval;
+	output: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+}>;
+
+type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 ```
 
 ## `app:close-requested`

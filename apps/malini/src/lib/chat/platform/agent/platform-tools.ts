@@ -1,29 +1,47 @@
 import type { AgentReasoningEffort } from '$contract/agent';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import type {
+	AgentActionApproval,
 	JobDefinitionRecord,
 	JobRunsIn,
 	JobTrigger,
 	SaveJobDefinitionArgs,
 } from '$contract/jobs';
+import type { Workstream } from '$contract/repositories';
 import { isSkillNameList } from '$contract/skills';
+import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { CommandRegistry } from '$main/ipc/registry';
-import { activeJobRunForSession } from '$lib/jobs/jobs.platform';
-import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
-import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { isRecord, jsonEqual } from '$main/db/rows';
+import { describeError } from '$main/errors';
+import {
+	activeJobRunForSession,
+	finishAgentAction,
+	recordAgentAction,
+} from '$lib/jobs/jobs.platform';
+import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
+import {
+	clonePlannedRepository,
+	createPlannedWorkstream,
+	listRepositoryCatalog,
+	listWorkstreams,
+	planRepositoryWorkstream,
+	type CatalogRepository,
+} from '$shared/repositories/repositories.platform';
 import { answeredApprovalsInRun } from '../interactions.repository';
+import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { jobsNamed } from './malini-approvals.service';
+import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, type PersistedBridgeSession } from './sessions';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies AgentReasoningEffort[];
 const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies JobRunsIn[];
+const CLONE_WAIT_MS = 40_000;
+const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
+const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
-export interface PlatformRequestDeps {
-	readonly db: MaliniDatabase;
-	readonly commands: CommandRegistry;
-}
+export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events'> &
+	Readonly<{ log: (line: string) => void }>;
 
 type Input = Readonly<Record<string, unknown>>;
 
@@ -31,17 +49,56 @@ export async function answerPlatformRequest(
 	request: BridgePlatformRequest,
 	deps: PlatformRequestDeps,
 ): Promise<PlatformAnswer> {
+	const action = recordAgentAction(deps, {
+		sessionId: request.sessionId,
+		runId: request.runId,
+		workstreamId: persistedBridgeSession(deps.db, request.sessionId)?.workstreamId ?? null,
+		tool: request.tool,
+		input: request.input,
+		status: 'running',
+		approval: approvalOf(deps, request),
+		output: null,
+	});
 	try {
-		return { ok: true, text: JSON.stringify(await runPlatformTool(request, deps)) };
+		const text = JSON.stringify(await runPlatformTool(request, deps));
+		finishAgentAction(deps, action.id, 'succeeded', text);
+		return { ok: true, text };
 	} catch (error) {
-		return { ok: false, error: error instanceof Error ? error.message : String(error) };
+		const message = error instanceof Error ? error.message : String(error);
+		finishAgentAction(deps, action.id, 'failed', message);
+		return { ok: false, error: message };
 	}
+}
+
+function approvalOf(
+	{ db }: PlatformRequestDeps,
+	request: BridgePlatformRequest,
+): AgentActionApproval {
+	const toolName = `${MALINI_TOOL_PREFIX}${request.tool}`;
+	const answers = answeredApprovalsInRun(db, request.sessionId, request.runId).filter(
+		({ requestPayload, response }) =>
+			isRecord(requestPayload) &&
+			requestPayload['toolName'] === toolName &&
+			isRecord(response) &&
+			response['decision'] === 'allow',
+	);
+	const exact = answers.filter(
+		({ requestPayload, response }) =>
+			(isRecord(requestPayload) && jsonEqual(requestPayload['input'], request.input)) ||
+			(isRecord(response) && jsonEqual(response['updatedInput'], request.input)),
+	);
+	const answer = exact.at(-1) ?? answers.at(-1);
+	if (!answer) return 'not-needed';
+	return isRecord(answer.response) && answer.response['scope'] === 'once'
+		? 'allowed'
+		: 'always-allowed';
 }
 
 async function runPlatformTool(
 	request: BridgePlatformRequest,
-	{ db, commands }: PlatformRequestDeps,
+	deps: PlatformRequestDeps,
 ): Promise<unknown> {
+	const { db, commands } = deps;
 	const { input } = request;
 	switch (request.tool) {
 		case 'jobs_list':
@@ -55,9 +112,13 @@ async function runPlatformTool(
 			const job = findJob(await jobs(commands), requiredText(input, 'job'));
 			const context = text(input, 'context');
 			const parent = activeJobRunForSession(db, request.sessionId);
+			const workstream = text(input, 'workstream');
 			const run = await commands.call('jobs.run', {
 				definitionId: job.id,
-				workstreamId: session.workstreamId,
+				workstreamId:
+					workstream === undefined
+						? session.workstreamId
+						: findWorkstream(listWorkstreams(db), workstream).id,
 				...(context === undefined ? {} : { context }),
 				...(parent ? { parentRunId: parent.id } : {}),
 				chatSessionId: request.sessionId,
@@ -67,17 +128,177 @@ async function runPlatformTool(
 		}
 		case 'events_list':
 			return CONTRACT_REFERENCE.events;
-		case 'pull_requests_open_draft': {
+		case 'repositories_list':
+			return (await listRepositoryCatalog(db)).map(repositorySummary);
+		case 'repositories_clone':
+			return cloneRepository(deps, requiredText(input, 'repository'));
+		case 'repositories_hide': {
+			const repository = findRepository(
+				await listRepositoryCatalog(db),
+				requiredText(input, 'repository'),
+			);
+			await commands.call('repositories.set-hidden', { repoId: repository.id, hidden: true });
+			return { ...repositorySummary(repository), hidden: true };
+		}
+		case 'workstreams_list': {
 			const { workstreamId } = requestSession(db, request);
-			const ship = await commands.call('pull-requests.open-draft', { workstreamId });
-			return ship.pullRequestUrl
-				? {
-						pullRequest: ship.pullRequestUrl,
-						status: 'Malini pushes this turn to the open pull request once the turn ends.',
-					}
-				: { status: 'Malini opens the draft pull request once this turn ends.' };
+			const catalog = await listRepositoryCatalog(db);
+			const reference = text(input, 'repository');
+			const only = reference === undefined ? null : findRepository(catalog, reference);
+			return listWorkstreams(db)
+				.filter((workstream) => only === null || only.projectIds.includes(workstream.projectId))
+				.map((workstream) => ({
+					...workstreamSummary(workstream, catalog),
+					current: workstream.id === workstreamId,
+				}));
+		}
+		case 'workstreams_create':
+			return createWorkstream(deps, requiredText(input, 'repository'), text(input, 'name'));
+		case 'workstreams_archive': {
+			const { workstreamId } = requestSession(db, request);
+			const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
+			if (workstream.id === workstreamId) {
+				throw new Error(
+					'This chat runs in that workstream, so you cannot archive it. The user archives it from the sidebar.',
+				);
+			}
+			const { savedWork } = await commands.call('repositories.archive-workstream', {
+				workstreamId: workstream.id,
+			});
+			return { id: workstream.id, name: workstream.name, archived: true, savedWork };
 		}
 	}
+}
+
+async function cloneRepository(
+	{ db, commands }: PlatformRequestDeps,
+	reference: string,
+): Promise<unknown> {
+	const { repository } = await commands.call('repositories.connect', {
+		source: { kind: 'clone-url', url: cloneUrl(reference) },
+	});
+	const plan = await planRepositoryWorkstream(db, repository.id);
+	if (!plan) throw new Error(`${repository.fullName} is no longer in Malini.`);
+	const cloned = await settledWithin(clonePlannedRepository(commands, plan), CLONE_WAIT_MS);
+	return {
+		id: repository.id,
+		name: repository.fullName,
+		defaultBranch: repository.defaultBranch,
+		cloned: cloned !== null,
+		hidden: false,
+	};
+}
+
+async function createWorkstream(
+	{ db, commands, log }: PlatformRequestDeps,
+	reference: string,
+	name: string | undefined,
+): Promise<unknown> {
+	const repository = findRepository(await listRepositoryCatalog(db), reference);
+	const planned = await planRepositoryWorkstream(db, repository.id);
+	if (!planned) throw new Error(`${repository.fullName} is no longer in Malini.`);
+	const plan = name === undefined ? planned : { ...planned, name };
+	const projectRepoPath = await settledWithin(
+		clonePlannedRepository(commands, plan),
+		CLONE_WAIT_MS,
+	);
+	if (projectRepoPath === null) {
+		throw new Error(
+			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
+		);
+	}
+	await createPlannedWorkstream(commands, plan, projectRepoPath);
+	const { workstreamId } = plan;
+	void (async () => {
+		try {
+			await commands.call('repositories.sync-workstream-base', { workstreamId });
+			await commands.call('repositories.provision-dependencies', { workstreamId });
+		} catch (error) {
+			log(`agent: could not prepare workstream \`${workstreamId}\`: ${describeError(error)}`);
+		}
+	})();
+	return {
+		id: workstreamId,
+		name: plan.name,
+		repository: repository.fullName,
+		branch: plan.branch,
+		baseBranch: plan.baseBranch,
+	};
+}
+
+function cloneUrl(reference: string): string {
+	if (GITHUB_FULL_NAME.test(reference)) return `https://github.com/${reference}.git`;
+	if (CLONE_URL.test(reference)) return reference;
+	throw new Error(
+		'`repository` must be owner/name, or a git URL that starts with https://, ssh://, file:// or git@.',
+	);
+}
+
+async function settledWithin<T>(work: Promise<T>, ms: number): Promise<T | null> {
+	work.catch(() => undefined);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const late = new Promise<null>((resolve) => {
+		timer = setTimeout(() => resolve(null), ms);
+	});
+	try {
+		return await Promise.race([work, late]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+function repositorySummary(repository: CatalogRepository): Readonly<Record<string, unknown>> {
+	return {
+		id: repository.id,
+		name: repository.fullName,
+		defaultBranch: repository.defaultBranch,
+		cloned: repository.projectIds.length > 0,
+		hidden: repository.hidden,
+	};
+}
+
+function workstreamSummary(
+	workstream: Workstream,
+	catalog: readonly CatalogRepository[],
+): Readonly<Record<string, unknown>> {
+	return {
+		id: workstream.id,
+		name: workstream.name,
+		repository:
+			catalog.find((repository) => repository.projectIds.includes(workstream.projectId))
+				?.fullName ?? null,
+		branch: workstream.branch,
+		baseBranch: workstream.baseBranch,
+	};
+}
+
+function findRepository(
+	catalog: readonly CatalogRepository[],
+	reference: string,
+): CatalogRepository {
+	const wanted = reference.trim().toLocaleLowerCase();
+	const found = catalog.find(
+		(repository) =>
+			repository.id === reference || repository.fullName.toLocaleLowerCase() === wanted,
+	);
+	if (found) return found;
+	throw new Error(
+		`No repository in Malini is \`${reference}\`. Call repositories_list for them, or repositories_clone to add it.`,
+	);
+}
+
+function findWorkstream(workstreams: readonly Workstream[], reference: string): Workstream {
+	const byId = workstreams.find((workstream) => workstream.id === reference);
+	if (byId) return byId;
+	const wanted = reference.trim().toLocaleLowerCase();
+	const named = workstreams.filter((workstream) => workstream.name.toLocaleLowerCase() === wanted);
+	const [only] = named;
+	if (only && named.length === 1) return only;
+	throw new Error(
+		named.length > 1
+			? `Several workstreams are named “${reference}”. Pass the id from workstreams_list instead.`
+			: `No workstream is named or has the id “${reference}”. Call workstreams_list for them.`,
+	);
 }
 
 const REVIEWED =

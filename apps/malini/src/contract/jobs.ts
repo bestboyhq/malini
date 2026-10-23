@@ -203,12 +203,53 @@ export type JobCommandName =
 	| 'jobs.save-experiment'
 	| 'jobs.delete-experiment'
 	| 'jobs.run-experiment'
-	| 'jobs.use-experiment';
+	| 'jobs.use-experiment'
+	| 'jobs.list-agent-actions'
+	| 'jobs.list-chat-turns';
 
 export type JobEventChannel =
-	'jobs:run-changed' | 'jobs:definition-changed' | 'jobs:suggested' | 'jobs:experiment-changed';
+	| 'jobs:run-changed'
+	| 'jobs:definition-changed'
+	| 'jobs:suggested'
+	| 'jobs:experiment-changed'
+	| 'jobs:agent-action-changed';
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
+
+export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+
+export type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+
+export type AgentActionRecord = Readonly<{
+	id: string;
+	sessionId: string;
+	runId: string;
+	workstreamId: string | null;
+	tool: string;
+	input: Readonly<Record<string, unknown>>;
+	status: AgentActionStatus;
+	approval: AgentActionApproval;
+	output: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+}>;
+
+export type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
+
+export type ChatTurnStatus = 'running' | 'succeeded' | 'failed';
+
+export type ChatTurnRecord = Readonly<{
+	runId: string;
+	sessionId: string;
+	workstreamId: string;
+	chatName: string;
+	prompt: string;
+	status: ChatTurnStatus;
+	startedAt: string;
+	finishedAt: string | null;
+}>;
+
+export type ListChatTurnsArgs = Readonly<{ every: boolean }>;
 
 export type JobDefinitionChangedEvent = Readonly<{
 	definitionId: string;
