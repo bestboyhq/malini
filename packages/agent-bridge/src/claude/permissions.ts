@@ -52,31 +52,43 @@ const GIT_OPTIONS_TAKING_A_VALUE = new Set([
 ]);
 const COMMAND_PREFIXES = new Set(['env', 'command', 'exec', 'sudo', 'nohup', 'time']);
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+const SHELL_TOKEN = /"[^"]*"|'[^']*'|&&|\|\||[;|&\n`(){}]|[^\s"';|&`(){}]+/gu;
+const SHELL_OPERATOR = /^(?:&&|\|\||[;|&\n`(){}])$/u;
+const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
 
-export const refuseMaliniOwnedCommands: HookCallback = async (input) => {
+const START_A_WORKSTREAM =
+	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, and hand its chat the task in `prompt`';
+const NO_WORKAROUND =
+	'Do not work around this with another clone, git worktree, gh api or a script.';
+const CLONE_HINT = `To change this repository's code, ${START_A_WORKSTREAM} instead: Malini commits, pushes and opens pull requests only from its workstreams. A clone made with git is only for reading code.`;
+
+export const steerToMalini: HookCallback = async (input) => {
 	if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
 	const command = input.tool_input['command'];
-	const owned = typeof command === 'string' ? maliniOwnedCommand(command) : null;
-	if (owned === null) return {};
-	return {
-		hookSpecificOutput: {
-			hookEventName: 'PreToolUse',
-			permissionDecision: 'deny',
-			permissionDecisionReason: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge job with \`jobs_run\` from the \`malini\` MCP server.`,
-		},
-	};
+	if (typeof command !== 'string') return {};
+	const owned = maliniOwnedCommand(command);
+	if (owned !== null) {
+		return {
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'deny',
+				permissionDecisionReason: refusal(owned),
+			},
+		};
+	}
+	return clonesRepository(command)
+		? { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: CLONE_HINT } }
+		: {};
 };
 
-// ponytail: splits on shell operators with naive quoting, not a shell parser; eval, aliases and scripts still pass. Parse a real shell grammar if agents reach for those.
+function refusal(owned: string): string {
+	return BRANCH_COMMANDS.has(owned)
+		? `Malini runs \`${owned}\` itself: it owns this workstream's branch and every worktree. To restore files, use git restore. To change code in another repository, such as a fork, or apart from this branch, ${START_A_WORKSTREAM}. ${NO_WORKAROUND}`
+		: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge job with \`jobs_run\` from the \`malini\` MCP server. ${NO_WORKAROUND}`;
+}
+
 export function maliniOwnedCommand(command: string): string | null {
-	for (const segment of command.split(/&&|\|\||[;|&\n`(){}]/u)) {
-		const words = (segment.match(/"[^"]*"|'[^']*'|\S+/gu) ?? []).map((word) =>
-			word.replace(/^(["'])(.*)\1$/u, '$2'),
-		);
-		let at = 0;
-		while (at < words.length && isCommandPrefix(words[at] ?? '', at)) at += 1;
-		const program = basename(words[at] ?? '');
-		const args = words.slice(at + 1);
+	for (const [program, args] of programCalls(command)) {
 		if (program === 'git') {
 			const owned = ownedGitSubcommand(args);
 			if (owned !== null) return owned;
@@ -88,21 +100,51 @@ export function maliniOwnedCommand(command: string): string | null {
 	return null;
 }
 
+function clonesRepository(command: string): boolean {
+	return programCalls(command).some(
+		([program, args]) =>
+			(program === 'git' && args[gitSubcommandAt(args)] === 'clone') ||
+			(program === 'gh' &&
+				args[0] === 'repo' &&
+				(args[1] === 'clone' || (args[1] === 'fork' && args.includes('--clone')))),
+	);
+}
+
+// ponytail: tokenizes quotes and operators, not a shell grammar; eval, aliases, scripts and $(…) inside double quotes still pass. Parse a real shell grammar if agents reach for those.
+function programCalls(command: string): (readonly [program: string, args: string[]])[] {
+	const segments: string[][] = [[]];
+	for (const [token] of command.matchAll(SHELL_TOKEN)) {
+		if (SHELL_OPERATOR.test(token)) segments.push([]);
+		else segments.at(-1)?.push(token.replace(/^(["'])(.*)\1$/su, '$2'));
+	}
+	return segments.map((words) => {
+		let at = 0;
+		while (at < words.length && isCommandPrefix(words[at] ?? '', at)) at += 1;
+		return [basename(words[at] ?? ''), words.slice(at + 1)] as const;
+	});
+}
+
 function isCommandPrefix(word: string, at: number): boolean {
 	return (
 		ENV_ASSIGNMENT.test(word) || COMMAND_PREFIXES.has(word) || (at > 0 && word.startsWith('-'))
 	);
 }
 
-function ownedGitSubcommand(args: readonly string[]): string | null {
+function gitSubcommandAt(args: readonly string[]): number {
 	let at = 0;
 	while (args[at]?.startsWith('-')) at += GIT_OPTIONS_TAKING_A_VALUE.has(args[at] ?? '') ? 2 : 1;
+	return at;
+}
+
+function ownedGitSubcommand(args: readonly string[]): string | null {
+	const at = gitSubcommandAt(args);
 	const subcommand = args[at];
 	if (subcommand === undefined) return null;
 	if (OWNED_GIT_SUBCOMMANDS.has(subcommand)) return `git ${subcommand}`;
-	const stashAction = args[at + 1];
+	const action = args[at + 1];
+	if (subcommand === 'worktree') return action === 'list' ? null : 'git worktree';
 	const writesStash =
-		stashAction === undefined || stashAction.startsWith('-') || STASH_WRITES.includes(stashAction);
+		action === undefined || action.startsWith('-') || STASH_WRITES.includes(action);
 	return subcommand === 'stash' && writesStash ? 'git stash' : null;
 }
 

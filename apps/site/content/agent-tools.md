@@ -51,6 +51,10 @@ Once it is set up, Malini sends the agent's prompt as that chat's first message,
 The approval card shows that first message before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
+To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
+When it reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools.
+A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any.
+
 ## Jobs and events
 
 | Tool          | What it does                                                                                                                              |

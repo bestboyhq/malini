@@ -16,6 +16,7 @@ import {
 	permissionModeFor,
 	rememberedPermissions,
 	sandboxFor,
+	steerToMalini,
 } from './permissions.js';
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'malini-permissions-')));
@@ -346,6 +347,70 @@ describe('maliniOwnedCommand', () => {
 		expect(maliniOwnedCommand('git log --oneline -5 | head')).toBeNull();
 		expect(maliniOwnedCommand('git stash list')).toBeNull();
 		expect(maliniOwnedCommand('echo "git commit"')).toBeNull();
+		expect(maliniOwnedCommand('grep -rn -E "refuse|git checkout|worktree" apps')).toBeNull();
 		expect(maliniOwnedCommand('gh pr view 12')).toBeNull();
+		expect(maliniOwnedCommand('git worktree list')).toBeNull();
+	});
+
+	it('owns every worktree change', () => {
+		expect(maliniOwnedCommand('git worktree add -q --detach ../fork v0.17.5 && cd ../fork')).toBe(
+			'git worktree',
+		);
+		expect(maliniOwnedCommand('git worktree remove ../fork')).toBe('git worktree');
+	});
+});
+
+describe('steerToMalini', () => {
+	async function steer(command: string) {
+		const output = await steerToMalini(
+			{
+				hook_event_name: 'PreToolUse',
+				session_id: 'session',
+				transcript_path: '/tmp/transcript.jsonl',
+				cwd: worktree,
+				tool_name: 'Bash',
+				tool_input: { command },
+				tool_use_id: 'tool-use',
+			},
+			'tool-use',
+			{ signal: new AbortController().signal },
+		);
+		return 'hookSpecificOutput' in output ? output.hookSpecificOutput : undefined;
+	}
+
+	it('points a refused branch or worktree change at a new workstream', async () => {
+		for (const command of [
+			'git checkout -q -b fix/language v0.17.5',
+			'git worktree add ../fork v0.17.5',
+		]) {
+			expect(await steer(command)).toMatchObject({
+				permissionDecision: 'deny',
+				permissionDecisionReason: expect.stringContaining('`workstreams_create`'),
+			});
+		}
+	});
+
+	it('points a refused commit at the Open draft job and rules out workarounds', async () => {
+		const output = await steer('git commit -am fix');
+		expect(output).toMatchObject({ permissionDecision: 'deny' });
+		expect(output).toMatchObject({
+			permissionDecisionReason: expect.stringContaining('Open draft or Merge job'),
+		});
+		expect(output).toMatchObject({ permissionDecisionReason: expect.stringContaining('gh api') });
+	});
+
+	it('lets a clone run and tells the agent to change its code in a workstream', async () => {
+		for (const command of [
+			'git clone https://github.com/acme/fork /tmp/fork',
+			'gh repo clone acme/fork',
+			'gh repo fork upstream/lib --clone',
+		]) {
+			const output = await steer(command);
+			expect(output).not.toHaveProperty('permissionDecision');
+			expect(output).toMatchObject({
+				additionalContext: expect.stringContaining('`repositories_clone`'),
+			});
+		}
+		expect(await steer('git status')).toBeUndefined();
 	});
 });

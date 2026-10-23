@@ -15,6 +15,7 @@ Two agents never edit one checkout, so they never clobber each other.
 ## Malini owns git
 
 The agent bridge refuses to commit, push, rebase, reset, or run `gh pr create`.
+It refuses `git checkout`, `git switch` and `git worktree` too, and points the agent at a new workstream instead.
 Agents write code, and Malini writes the history: it commits, pushes, and opens the pull request when you ask it to.
 
 ## The sidebar
