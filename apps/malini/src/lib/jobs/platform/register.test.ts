@@ -5,6 +5,8 @@ import {
 	APP_UPDATED_CHANNEL,
 	CHAT_AGENT_EVENT_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
+	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_SUGGESTED_CHANNEL,
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
 import {
@@ -13,15 +15,21 @@ import {
 	type JobDefinitionRecord,
 	type JobRunRecord,
 	type JobRunStatus,
+	type JobSuggestionRecord,
+	type JobTrigger,
+	type RunJobArgs,
 	type SaveJobDefinitionArgs,
 } from '$contract/jobs';
 import type { ShipStateRecord } from '$contract/pull-requests';
 import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
-import type { MaliniDatabase } from '$main/db/driver';
+import { openDatabase, type MaliniDatabase } from '$main/db/driver';
+import { BASELINE_USER_VERSION, SCHEMA, migrate } from '$main/db/migrations';
 import { openMigratedDatabase } from '$main/db/open';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
+import { insertRun } from '$lib/chat/platform/runs.repository';
+import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { addressedReviewThreadIds } from '$lib/pull-requests/domain/pull-request-fix-prompt';
 import {
 	upsertConnectedRepository,
@@ -29,9 +37,12 @@ import {
 	upsertWorkstream,
 } from '$shared/repositories/repositories.platform';
 import type { JobsPlatform } from '../jobs.platform';
+import { BUILTIN_JOBS } from '../domain/builtin-jobs';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
+import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { BUSY_RETRY_MS } from './job-runner.service';
-import { insertJobRun } from './job-runs.repository';
+import { getJobRun, insertJobRun } from './job-runs.repository';
+import { insertSuggestionIfAbsent } from './job-suggestions.repository';
 import { registerJobs } from './register';
 import { skillsForRun } from '$lib/skills/skills.platform';
 
@@ -44,6 +55,7 @@ let settings: Record<string, string>;
 let openRuns: Set<string>;
 let sessionEvents: Map<string, AgentEventEnvelope[]>;
 let definitionEvents: unknown[];
+let suggested: JobSuggestionRecord[];
 let fakes: ReturnType<typeof createFakes>;
 let seq = 0;
 
@@ -70,6 +82,7 @@ function harness(database: MaliniDatabase): MainContext {
 	const commands = new CommandRegistry();
 	fakes = createFakes();
 	events.subscribe(JOBS_DEFINITION_CHANGED_CHANNEL, (payload) => definitionEvents.push(payload));
+	events.subscribe(JOBS_SUGGESTED_CHANNEL, ({ suggestion }) => suggested.push(suggestion));
 	commands.define('app.list-settings', () => settings);
 	commands.define('chat.workstream-has-working-run', (args: unknown) =>
 		openRuns.has(String(Reflect.get(Object(args), 'workstreamId'))),
@@ -111,6 +124,7 @@ beforeEach(() => {
 	openRuns = new Set();
 	sessionEvents = new Map();
 	definitionEvents = [];
+	suggested = [];
 	for (const workstreamId of ['ws-a', 'ws-b', 'ws-c', 'ws-d']) seedWorkstream(workstreamId);
 	context = harness(db);
 	jobs = registerJobs(context, { log: () => {} });
@@ -122,6 +136,10 @@ afterEach(() => {
 	jobs.dispose();
 	db.close();
 });
+
+function defaults(name: string, effort: string, model = 'opus') {
+	return { name, effort, model, runsIn: 'workstream', trigger: null, thenJobId: null };
+}
 
 function shipState(): ShipStateRecord {
 	return {
@@ -212,9 +230,23 @@ function saveDefinition(
 		model: 'opus',
 		effort: 'low',
 		runsIn: 'workstream',
-		output: 'none',
 		...overrides,
 	});
+}
+
+async function runOf(
+	definition: JobDefinitionRecord,
+	args: Omit<RunJobArgs, 'definitionId'> = {},
+): Promise<JobRunRecord> {
+	return context.commands.call('jobs.run', {
+		definitionId: definition.id,
+		workstreamId: 'ws-a',
+		...args,
+	});
+}
+
+function complete(sessionId: string, summary: string): void {
+	agentEvent(sessionId, 'agent-run-1', { type: 'run.completed', summary });
 }
 
 async function runFixChecks(workstreamId: string): Promise<JobRunRecord> {
@@ -259,83 +291,74 @@ async function failure(command: string, args: unknown): Promise<CommandFailure> 
 }
 
 describe('job definitions', () => {
-	it('seeds the six built-in jobs once, with their defaults', async () => {
+	it('seeds every built-in job once, with its defaults and Update docs then Open draft', async () => {
 		const second = registerJobs(harness(db), { log: () => {} });
 		second.dispose();
 
 		const definitions = await context.commands.call('jobs.list-definitions', undefined);
+		const openDraft = await builtin('open-draft');
+		expect(definitions).toHaveLength(Object.keys(BUILTIN_JOBS).length);
 		expect(
-			definitions.map(({ builtin: key, name, effort, model, runsIn, output }) => ({
-				key,
-				name,
-				effort,
-				model,
-				runsIn,
-				output,
-			})),
-		).toEqual([
-			{
-				key: 'name-chats',
-				name: 'Name chats',
-				effort: 'low',
-				model: 'haiku',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'name-services',
-				name: 'Name services',
-				effort: 'low',
-				model: 'haiku',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'fix-checks',
-				name: 'Fix checks',
-				effort: 'high',
-				model: 'opus',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'update-from-main',
-				name: 'Update from main',
-				effort: 'high',
-				model: 'opus',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'address-review',
-				name: 'Address review',
-				effort: 'medium',
-				model: 'opus',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'check-compatibility',
-				name: 'Check compatibility',
-				effort: 'high',
-				model: 'opus',
-				runsIn: 'workstream',
-				output: 'none',
-			},
-			{
-				key: 'update-docs',
-				name: 'Update docs',
-				effort: 'high',
-				model: 'opus',
+			Object.fromEntries(
+				definitions.map(({ builtin: key, name, effort, model, runsIn, trigger, thenJobId }) => [
+					key,
+					{ name, effort, model, runsIn, trigger, thenJobId },
+				]),
+			),
+		).toEqual({
+			'name-chats': defaults('Name chats', 'low', 'haiku'),
+			'name-services': defaults('Name services', 'low', 'haiku'),
+			'fix-checks': defaults('Fix checks', 'high'),
+			'update-from-main': defaults('Update from main', 'low'),
+			'resolve-conflicts': defaults('Resolve conflicts', 'high'),
+			'address-review': defaults('Address review', 'medium'),
+			'check-compatibility': defaults('Check compatibility', 'high'),
+			'update-docs': {
+				...defaults('Update docs', 'high'),
 				runsIn: 'new-workstream',
-				output: 'draft',
+				thenJobId: openDraft.id,
 			},
-		]);
+			'open-draft': defaults('Open draft', 'low'),
+			merge: defaults('Merge', 'low'),
+		});
 	});
 
-	it('resets Update docs to run in a new workstream and open a draft', async () => {
+	it('holds the built-in rows the migration writes exactly as the code defines them', () => {
+		const old = openDatabase(':memory:');
+		old.exec(SCHEMA);
+		old.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		old.exec(`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at)
+			VALUES ('main', 'Update from main', 'Old.', 'opus', 'high', 'workstream', 'none', 'update-from-main', '${NOW}', '${NOW}')`);
+		migrate(old);
+		const fresh = openMigratedDatabase(':memory:');
+
+		for (const [database, key] of [
+			[fresh, 'open-draft'],
+			[fresh, 'merge'],
+			[old, 'update-from-main'],
+		] as const) {
+			const { name, instructions, effort, model } = BUILTIN_JOBS[key];
+			expect(getBuiltinJobDefinition(database, key), key).toMatchObject({
+				name,
+				instructions,
+				effort,
+				model,
+			});
+		}
+		old.close();
+		fresh.close();
+	});
+
+	it('resets Update docs to run in a new workstream, then Open draft, with no trigger', async () => {
 		const docs = await builtin('update-docs');
-		await saveDefinition({ id: docs.id, name: 'Docs', runsIn: 'workstream', output: 'none' });
+		const merge = await builtin('merge');
+		await saveDefinition({
+			id: docs.id,
+			name: 'Docs',
+			runsIn: 'workstream',
+			trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
+			thenJobId: merge.id,
+		});
 
 		const reset = await context.commands.call('jobs.reset-definition', {
 			definitionId: docs.id,
@@ -344,7 +367,8 @@ describe('job definitions', () => {
 		expect(reset).toMatchObject({
 			name: 'Update docs',
 			runsIn: 'new-workstream',
-			output: 'draft',
+			trigger: null,
+			thenJobId: (await builtin('open-draft')).id,
 		});
 	});
 
@@ -374,7 +398,7 @@ describe('job definitions', () => {
 			if (!found) throw new Error('no compatibility run yet');
 			return found;
 		});
-		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'routine' });
+		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'trigger' });
 		await session(run.id);
 		expect(fakes.sendPrompt).toHaveBeenCalledWith(
 			expect.objectContaining({ prompt: expect.stringContaining('"jobs:run-changed"') }),
@@ -391,17 +415,17 @@ describe('job definitions', () => {
 		expect(addressedReviewThreadIds(prompt, reply)).toEqual(['PRRT_kw1']);
 	});
 
-	it('saves custom jobs, keeps where a built-in runs and what it produces, and resets it', async () => {
+	it('saves custom jobs, keeps where a built-in runs, and resets it', async () => {
 		const custom = await saveDefinition({
 			name: '  Write changelog  ',
 			runsIn: 'new-workstream',
-			output: 'draft',
 		});
 		expect(custom).toMatchObject({
 			name: 'Write changelog',
 			runsIn: 'new-workstream',
-			output: 'draft',
 			builtin: null,
+			trigger: null,
+			thenJobId: null,
 		});
 
 		const fixChecks = await builtin('fix-checks');
@@ -410,13 +434,13 @@ describe('job definitions', () => {
 			name: 'Fix CI',
 			effort: 'max',
 			runsIn: 'new-workstream',
-			output: 'merge',
+			trigger: null,
+			thenJobId: null,
 		});
 		expect(edited).toMatchObject({
 			name: 'Fix CI',
 			effort: 'max',
 			runsIn: 'workstream',
-			output: 'none',
 			builtin: 'fix-checks',
 		});
 
@@ -441,6 +465,34 @@ describe('job definitions', () => {
 		expect(definitionEvents).toContainEqual({ definitionId: custom.id, definition: null });
 	});
 
+	it('keeps what a built-in job without an agent does, and lets it take a trigger and a Then', async () => {
+		const openDraft = await builtin('open-draft');
+		const merge = await builtin('merge');
+		const trigger: JobTrigger = {
+			when: 'on jobs:run-changed where run.status is succeeded',
+			mode: 'ask',
+		};
+
+		const edited = await saveDefinition({
+			id: openDraft.id,
+			name: 'Draft PR',
+			instructions: 'Do something else entirely.',
+			model: 'haiku',
+			effort: 'max',
+			skills: ['adr'],
+			trigger,
+			thenJobId: merge.id,
+		});
+
+		expect(edited).toEqual({
+			...openDraft,
+			name: 'Draft PR',
+			trigger,
+			thenJobId: merge.id,
+			updatedAt: edited.updatedAt,
+		});
+	});
+
 	it('refuses to delete a job that is still queued or running', async () => {
 		const custom = await saveDefinition();
 		openRuns.add('ws-a');
@@ -458,11 +510,11 @@ describe('job definitions', () => {
 			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',
-			output: 'none',
 		};
 		const fixChecks = await builtin('fix-checks');
 		const nameChats = await builtin('name-chats');
 		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
+		const when = (text: unknown) => ({ ...valid, trigger: { when: text, mode: 'auto' } });
 		const cases: ReadonlyArray<readonly [string, unknown, string]> = [
 			['jobs.run', { definitionId: nameChats.id, workstreamId: 'ws-a' }, 'builtin'],
 			[
@@ -478,7 +530,26 @@ describe('job definitions', () => {
 			['jobs.save-definition', { ...valid, model: 'Not A Model!' }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, effort: 'extreme' }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, runsIn: 'nowhere' }, 'invalid-args'],
-			['jobs.save-definition', { ...valid, output: 'ship' }, 'invalid-args'],
+			['jobs.save-definition', when('whenever'), 'invalid-args'],
+			['jobs.save-definition', when('when a new workstream is created'), 'invalid-args'],
+			['jobs.save-definition', when('on jobs:nothing-changed'), 'invalid-args'],
+			['jobs.save-definition', when(42), 'invalid-args'],
+			['jobs.save-definition', { ...valid, trigger: 'on app:updated' }, 'invalid-args'],
+			[
+				'jobs.save-definition',
+				{ ...valid, trigger: { when: 'on app:updated', mode: 'sometimes' } },
+				'invalid-args',
+			],
+			['jobs.save-definition', { ...valid, thenJobId: 'missing' }, 'not-found'],
+			['jobs.save-definition', { ...valid, thenJobId: nameChats.id }, 'builtin'],
+			['jobs.save-definition', { ...valid, thenJobId: '' }, 'invalid-args'],
+			[
+				'jobs.save-definition',
+				{ ...valid, id: fixChecks.id, trigger: { when: 'on app:updated', mode: 'auto' } },
+				'builtin',
+			],
+			['jobs.save-definition', { ...valid, id: fixChecks.id, thenJobId: fresh.id }, 'builtin'],
+			['jobs.save-definition', { ...valid, id: fresh.id, thenJobId: fresh.id }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, id: 'missing' }, 'not-found'],
 			['jobs.run', { definitionId: 'missing', workstreamId: 'ws-a' }, 'not-found'],
 			['jobs.run', { definitionId: fixChecks.id }, 'invalid-args'],
@@ -492,10 +563,24 @@ describe('job definitions', () => {
 			],
 			[
 				'jobs.run',
-				{ definitionId: fixChecks.id, workstreamId: 'ws-a', origin: 'cron' },
+				{ definitionId: fixChecks.id, workstreamId: 'ws-a', origin: 'routine' },
 				'invalid-args',
 			],
+			[
+				'jobs.run',
+				{ definitionId: fixChecks.id, workstreamId: 'ws-a', waitForYou: 'yes' },
+				'invalid-args',
+			],
+			[
+				'jobs.run',
+				{ definitionId: fixChecks.id, workstreamId: 'ws-a', parentRunId: 'missing' },
+				'not-found',
+			],
+			['jobs.run', { definitionId: fresh.id, origin: 'then' }, 'invalid-args'],
 			['jobs.cancel-run', { jobRunId: 'missing' }, 'not-found'],
+			['jobs.confirm-run', { jobRunId: 'missing' }, 'not-found'],
+			['jobs.accept-suggestion', { suggestionId: 'missing' }, 'not-found'],
+			['jobs.dismiss-suggestion', {}, 'invalid-args'],
 		];
 
 		for (const [command, args, kind] of cases) {
@@ -750,7 +835,7 @@ describe('scheduling', () => {
 		);
 	});
 
-	it('starts a new-workstream job from a routine step in the repository of that step', async () => {
+	it('starts a new-workstream job from a trigger in the repository of its workstream', async () => {
 		upsertProject(db, {
 			id: 'local__acme__app',
 			name: 'acme__app',
@@ -780,7 +865,7 @@ describe('scheduling', () => {
 		const queued = await context.commands.call('jobs.run', {
 			definitionId: definition.id,
 			workstreamId: 'ws-acme',
-			origin: 'routine',
+			origin: 'trigger',
 		});
 
 		expect(queued).toMatchObject({ workstreamId: null, repositoryId: 'local__acme__app' });
@@ -831,29 +916,60 @@ describe('update from main', () => {
 		expect(fakes.startSession).not.toHaveBeenCalled();
 	});
 
-	it('starts the agent on the conflicts a merge left, after the context the run carries', async () => {
+	it('asks Resolve conflicts to finish a merge that stopped on conflicts, before it finishes', async () => {
+		const resolver = await builtin('resolve-conflicts');
+		const handOffs: Array<{ run: JobRunRecord; parent: JobRunStatus | undefined }> = [];
+		context.events.subscribe(JOBS_RUN_CHANGED_CHANNEL, ({ run }) => {
+			if (run.parentRunId !== null && run.status === 'queued') {
+				handOffs.push({ run, parent: getJobRun(db, run.parentRunId)?.status });
+			}
+		});
 		fakes.countBehind.mockReturnValueOnce(1);
-		fakes.workstreamStatus.mockReturnValueOnce(worktree()).mockReturnValueOnce(conflictedMerge());
+		fakes.workstreamStatus
+			.mockReturnValueOnce(worktree())
+			.mockReturnValueOnce(conflictedMerge())
+			.mockReturnValueOnce(conflictedMerge());
 		const queued = await runUpdate('Pull request: #7');
 
-		await session(queued.id);
-		const { instructions } = await builtin('update-from-main');
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Stopped on conflicts in 1 file. Resolve conflicts finishes the merge.',
+		});
 		expect(fakes.pull).toHaveBeenCalledTimes(1);
+		expect(handOffs).toEqual([
+			{
+				run: expect.objectContaining({
+					definitionId: resolver.id,
+					workstreamId: 'ws-a',
+					origin: 'then',
+					parentRunId: queued.id,
+				}),
+				parent: 'running',
+			},
+		]);
+		const child = handOffs[0]?.run;
+		if (!child) throw new Error('no Resolve conflicts run');
+		await session(child.id);
+		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+		expect(fakes.startSession).toHaveBeenCalledWith(
+			expect.objectContaining({ displayName: 'Resolve conflicts' }),
+		);
 		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
-			prompt: `${instructions}\n\nPull request: #7\n\n${conflictContext}`,
+			prompt: `${resolver.instructions}\n\n${conflictContext}`,
 		});
 	});
 
-	it('hands a merge already stopped on conflicts straight to the agent', async () => {
+	it('hands a merge already stopped on conflicts straight to Resolve conflicts', async () => {
+		const resolver = await builtin('resolve-conflicts');
 		fakes.workstreamStatus.mockReturnValueOnce(conflictedMerge());
 		const queued = await runUpdate();
 
-		await session(queued.id);
-		const { instructions } = await builtin('update-from-main');
+		await until(queued.id, 'succeeded');
 		expect(fakes.countBehind).not.toHaveBeenCalled();
 		expect(fakes.pull).not.toHaveBeenCalled();
-		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
-			prompt: `${instructions}\n\n${conflictContext}`,
+		const runs = await context.commands.call('jobs.list-runs', undefined);
+		expect(runs.find((run) => run.definitionId === resolver.id)).toMatchObject({
+			origin: 'then',
+			parentRunId: queued.id,
 		});
 	});
 
@@ -932,32 +1048,6 @@ describe('tracking', () => {
 		await until(queued.id, 'cancelled');
 	});
 
-	it('opens a draft or queues the merge after a job succeeds, and records what went wrong', async () => {
-		const drafting = await saveDefinition({ name: 'Draft it', output: 'draft' });
-		const merging = await saveDefinition({ name: 'Merge it', output: 'merge' });
-		fakes.queueMerge.mockRejectedValueOnce(new Error('GitHub said no'));
-		const draft = await context.commands.call('jobs.run', {
-			definitionId: drafting.id,
-			workstreamId: 'ws-a',
-		});
-		const merge = await context.commands.call('jobs.run', {
-			definitionId: merging.id,
-			workstreamId: 'ws-b',
-		});
-
-		agentEvent(await session(draft.id), 'agent-run-1', { type: 'run.completed', summary: 'A.' });
-		agentEvent(await session(merge.id), 'agent-run-2', { type: 'run.completed', summary: 'B.' });
-
-		await vi.waitFor(() => expect(fakes.openDraft).toHaveBeenCalledWith({ workstreamId: 'ws-a' }));
-		await vi.waitFor(() => expect(fakes.queueMerge).toHaveBeenCalledWith({ workstreamId: 'ws-b' }));
-		await vi.waitFor(async () =>
-			expect((await jobRun(merge.id)).detail).toBe(
-				'B.\n\nCould not queue the merge: GitHub said no',
-			),
-		);
-		expect(await jobRun(draft.id)).toMatchObject({ status: 'succeeded', detail: 'A.' });
-	});
-
 	it('cancels queued jobs without starting them and stops running ones', async () => {
 		settings[JOBS_MAX_CONCURRENT_SETTING] = '1';
 		const running = await runFixChecks('ws-a');
@@ -1000,6 +1090,7 @@ describe('restart', () => {
 				origin: 'merge-queue',
 				status,
 				detail: null,
+				parentRunId: null,
 				chatSessionId: null,
 				chatAfterRunId: null,
 				createdAt: `2026-10-10T00:00:0${id.length}.000Z`,
@@ -1014,6 +1105,7 @@ describe('restart', () => {
 		left('finished', 'ws-c', 's-finished', 'needs-you');
 		left('never', 'ws-d', null, 'running');
 		left('waiting-for-b', 'ws-b', null, 'queued');
+		left('held', 'ws-a', null, 'waiting');
 		const envelope = (sessionId: string, runId: string, event: Record<string, unknown>) => {
 			seq += 1;
 			return { sessionId, runId, seq, event: { runId, ...event } };
@@ -1045,9 +1137,357 @@ describe('restart', () => {
 		expect(await until('finished', 'succeeded')).toMatchObject({ detail: 'All green.' });
 		await until('waiting-for-b', 'running');
 		expect(await jobRun('resumed')).toMatchObject({ status: 'running', agentRunId: 'r2' });
+		expect((await jobRun('held')).status).toBe('waiting');
 
 		agentEvent('s-resumed', 'r2', { type: 'run.started', sessionId: 's-resumed' });
 		agentEvent('s-resumed', 'r2', { type: 'run.completed', summary: 'Picked up where it left.' });
 		await until('resumed', 'succeeded');
+	});
+});
+
+describe('resolve conflicts', () => {
+	const conflictContext = updateFromMainJobContext({
+		branch: 'malini/ws-a',
+		baseBranch: 'main',
+		conflictedPaths: ['src/shared.ts'],
+		conflictMarkerPaths: ['src/shared.ts'],
+	});
+
+	it('finishes without an agent when there is nothing to resolve', async () => {
+		const queued = await runOf(await builtin('resolve-conflicts'));
+
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'No conflicts to resolve.',
+		});
+		expect(fakes.workstreamStatus).toHaveBeenCalledWith({ workstreamId: 'ws-a' });
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+
+	it('starts the agent on the conflicts, after the context the run carries', async () => {
+		const resolver = await builtin('resolve-conflicts');
+		fakes.workstreamStatus.mockReturnValueOnce(conflictedMerge());
+		const queued = await runOf(resolver, { context: 'Pull request: #7', origin: 'merge-queue' });
+
+		await session(queued.id);
+		expect(fakes.sendPrompt.mock.calls[0]?.[0]).toMatchObject({
+			prompt: `${resolver.instructions}\n\nPull request: #7\n\n${conflictContext}`,
+		});
+	});
+});
+
+describe('jobs without an agent', () => {
+	it('opens a draft pull request without starting a chat', async () => {
+		fakes.openDraft.mockResolvedValueOnce({
+			...shipState(),
+			pullRequestNumber: 7,
+			pullRequestUrl: 'https://github.com/acme/app/pull/7',
+		});
+		const queued = await runOf(await builtin('open-draft'));
+
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Malini pushes to https://github.com/acme/app/pull/7',
+		});
+		expect(fakes.openDraft).toHaveBeenCalledWith({ workstreamId: 'ws-a' });
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+
+	it('queues the merge, and fails with what went wrong', async () => {
+		const merge = await builtin('merge');
+		const queued = await runOf(merge);
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Queued to merge. Malini opens the pull request once the workstream is idle.',
+		});
+		expect(fakes.queueMerge).toHaveBeenCalledWith({ workstreamId: 'ws-a' });
+
+		fakes.queueMerge.mockRejectedValueOnce(new Error('GitHub said no'));
+		const refused = await runOf(merge, { workstreamId: 'ws-b' });
+		expect(await until(refused.id, 'failed')).toMatchObject({ detail: 'GitHub said no' });
+		expect(fakes.startSession).not.toHaveBeenCalled();
+	});
+});
+
+describe('then', () => {
+	it('saves a Then, refuses one that loops back, and drops it when the next job is deleted', async () => {
+		const first = await saveDefinition({ name: 'First' });
+		const second = await saveDefinition({ name: 'Second', thenJobId: first.id });
+		const third = await saveDefinition({ name: 'Third' });
+		const linked = await saveDefinition({ id: third.id, name: 'Third', thenJobId: second.id });
+		expect(linked.thenJobId).toBe(second.id);
+
+		expect(
+			await failure('jobs.save-definition', {
+				name: 'First',
+				instructions: 'Go.',
+				model: 'opus',
+				effort: 'low',
+				runsIn: 'workstream',
+				id: first.id,
+				thenJobId: third.id,
+			}),
+		).toMatchObject({ kind: 'loop' });
+		const kept = await saveDefinition({ id: second.id, name: 'Renamed second' });
+		expect(kept.thenJobId).toBe(first.id);
+
+		definitionEvents = [];
+		await context.commands.call('jobs.delete-definition', { definitionId: second.id });
+		expect(definitionEvents).toEqual([
+			{ definitionId: third.id, definition: expect.objectContaining({ thenJobId: null }) },
+			{ definitionId: second.id, definition: null },
+		]);
+	});
+
+	it('asks for the next job in the same workstream with the result, after a success only', async () => {
+		const next = await saveDefinition({ name: 'Ship notes', instructions: 'Write the notes.' });
+		const first = await saveDefinition({ name: 'Fix it', thenJobId: next.id });
+		const succeeding = await runOf(first);
+		complete(await session(succeeding.id), 'Fixed the bug.');
+		await until(succeeding.id, 'succeeded');
+
+		const followUp = await vi.waitFor(async () => {
+			const runs = await context.commands.call('jobs.list-runs', undefined);
+			const found = runs.find((run) => run.definitionId === next.id);
+			if (!found) throw new Error('no Then run yet');
+			return found;
+		});
+		expect(followUp).toMatchObject({
+			workstreamId: 'ws-a',
+			origin: 'then',
+			parentRunId: succeeding.id,
+		});
+		await session(followUp.id);
+		expect(fakes.sendPrompt.mock.calls[1]?.[0]).toMatchObject({
+			prompt:
+				'Write the notes.\n\nThis job runs after “Fix it”, which finished with:\n\nFixed the bug.',
+		});
+
+		const failing = await runOf(first, { workstreamId: 'ws-b' });
+		agentEvent(await session(failing.id), 'agent-run-3', {
+			type: 'run.failed',
+			error: 'tests fail',
+		});
+		await until(failing.id, 'failed');
+		await settle();
+		const runs = await context.commands.call('jobs.list-runs', undefined);
+		expect(runs.filter((run) => run.definitionId === next.id)).toHaveLength(1);
+	});
+
+	it('runs a Then in the workstream it follows, even when the job runs in a new one', async () => {
+		const fresh = await saveDefinition({ runsIn: 'new-workstream' });
+
+		expect(await runOf(fresh, { origin: 'then' })).toMatchObject({
+			workstreamId: 'ws-a',
+			repositoryId: null,
+		});
+	});
+
+	it('refuses a job that already ran in its chain, and records why the Then did not start', async () => {
+		const next = await saveDefinition({ name: 'Notes' });
+		const first = await saveDefinition({ name: 'Fix it', thenJobId: next.id });
+		openRuns.add('ws-b');
+		const earlier = await runOf(next, { workstreamId: 'ws-b' });
+
+		expect(
+			await failure('jobs.run', {
+				definitionId: next.id,
+				workstreamId: 'ws-a',
+				parentRunId: earlier.id,
+			}),
+		).toMatchObject({ kind: 'loop' });
+
+		const chained = await runOf(first, { parentRunId: earlier.id });
+		complete(await session(chained.id), 'Fixed.');
+		await vi.waitFor(async () =>
+			expect((await jobRun(chained.id)).detail).toBe(
+				'Fixed.\n\nCould not start Notes: Notes already ran earlier in this chain of jobs, so it does not run again.',
+			),
+		);
+		expect((await jobRun(chained.id)).status).toBe('succeeded');
+	});
+});
+
+describe('waiting for you', () => {
+	it('never starts a waiting run or lets it hold its workstream, until you confirm it', async () => {
+		settings[JOBS_MAX_CONCURRENT_SETTING] = '1';
+		const job = await saveDefinition();
+		const waiting = await runOf(job, { waitForYou: true, origin: 'trigger' });
+		expect(waiting.status).toBe('waiting');
+
+		const other = await runFixChecks('ws-a');
+		const otherSession = await session(other.id);
+		expect((await jobRun(waiting.id)).status).toBe('waiting');
+		expect(fakes.startSession).toHaveBeenCalledTimes(1);
+
+		expect(await context.commands.call('jobs.confirm-run', { jobRunId: waiting.id })).toMatchObject(
+			{
+				status: 'queued',
+			},
+		);
+		await settle();
+		expect((await jobRun(waiting.id)).status).toBe('queued');
+
+		complete(otherSession, 'Done.');
+		await until(waiting.id, 'running');
+		expect(await context.commands.call('jobs.confirm-run', { jobRunId: waiting.id })).toMatchObject(
+			{
+				status: 'running',
+			},
+		);
+	});
+
+	it('skips a waiting run without starting it', async () => {
+		const waiting = await runOf(await saveDefinition(), { waitForYou: true });
+
+		expect(await context.commands.call('jobs.cancel-run', { jobRunId: waiting.id })).toMatchObject({
+			status: 'cancelled',
+		});
+		await settle();
+		expect(fakes.startSession).not.toHaveBeenCalled();
+		expect(fakes.cancelRun).not.toHaveBeenCalled();
+	});
+
+	it('skips the waiting runs of a job whose trigger is switched off or changed', async () => {
+		const trigger: JobTrigger = { when: 'on pull-requests:ship-changed', mode: 'ask' };
+		const job = await saveDefinition({ trigger });
+		const first = await runOf(job, { waitForYou: true });
+
+		await saveDefinition({ id: job.id, trigger: { ...trigger, mode: 'auto' } });
+		expect((await jobRun(first.id)).status).toBe('waiting');
+		await saveDefinition({ id: job.id, trigger: { ...trigger, mode: 'off' } });
+		expect((await jobRun(first.id)).status).toBe('cancelled');
+
+		await saveDefinition({ id: job.id, trigger });
+		const second = await runOf(job, { waitForYou: true });
+		await saveDefinition({ id: job.id, trigger: { ...trigger, when: 'on app:updated' } });
+		expect((await jobRun(second.id)).status).toBe('cancelled');
+	});
+
+	it('deletes a job that only has runs waiting for you', async () => {
+		const job = await saveDefinition();
+		const waiting = await runOf(job, { waitForYou: true });
+		const changes: JobRunRecord[] = [];
+		context.events.subscribe(JOBS_RUN_CHANGED_CHANNEL, ({ run }) => changes.push(run));
+
+		await context.commands.call('jobs.delete-definition', { definitionId: job.id });
+
+		expect(changes).toEqual([expect.objectContaining({ id: waiting.id, status: 'cancelled' })]);
+		expect(getJobRun(db, waiting.id)).toBeNull();
+	});
+});
+
+describe('suggestions from repeated prompts', () => {
+	let promptSeq = 0;
+
+	function submitPrompt(workstreamId: string, prompt: string): void {
+		promptSeq += 1;
+		const sessionId = `chat-${workstreamId}`;
+		if (!insertedSessions.has(sessionId)) {
+			insertedSessions.add(sessionId);
+			insertSession(db, {
+				id: sessionId,
+				workstreamId,
+				model: null,
+				providerSessionId: null,
+				status: 'running',
+				startedAt: NOW,
+			});
+		}
+		const runId = `prompt-${promptSeq}`;
+		insertRun(db, {
+			id: runId,
+			sessionId,
+			prompt,
+			startedAt: `2026-10-11T00:${String(promptSeq % 60).padStart(2, '0')}:00.000Z`,
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+		agentEvent(sessionId, runId, { type: 'user.message', text: prompt });
+	}
+
+	const insertedSessions = new Set<string>();
+	const repeated = 'Update the dependencies and run the tests';
+
+	beforeEach(() => {
+		insertedSessions.clear();
+	});
+
+	it('suggests a job once when a prompt repeats, with the prompts as evidence', async () => {
+		submitPrompt('ws-a', repeated);
+		submitPrompt('ws-b', 'Open a pull request for the sidebar');
+		submitPrompt('ws-b', repeated.toLowerCase());
+		expect(suggested).toEqual([]);
+
+		submitPrompt('ws-c', `Please ${repeated.toLowerCase()}!`);
+		submitPrompt('ws-c', repeated);
+		expect(suggested).toHaveLength(1);
+		expect(suggested[0]?.evidence.map(({ text, workstreamId }) => [text, workstreamId])).toEqual([
+			[repeated, 'ws-a'],
+			[repeated.toLowerCase(), 'ws-b'],
+			[`Please ${repeated.toLowerCase()}!`, 'ws-c'],
+		]);
+		expect(await context.commands.call('jobs.list-suggestions', undefined)).toEqual(suggested);
+	});
+
+	it('stays silent while every prompt is distinct', () => {
+		submitPrompt('ws-a', 'Update the dependencies');
+		submitPrompt('ws-a', 'Open a pull request');
+		submitPrompt('ws-a', 'Rename the settings page');
+		submitPrompt('ws-a', 'Delete the stale worktrees');
+		expect(suggested).toEqual([]);
+	});
+
+	it('makes a job from the first prompt when you accept, and stays quiet after', async () => {
+		const long = `${repeated} in every package of the monorepo, then fix what breaks\nand report back`;
+		for (let index = 0; index < 3; index += 1) submitPrompt('ws-a', long);
+		const [suggestion] = suggested;
+		if (!suggestion) throw new Error('no suggestion');
+
+		const job = await context.commands.call('jobs.accept-suggestion', {
+			suggestionId: suggestion.id,
+		});
+
+		expect(job).toMatchObject({
+			name: 'Update the dependencies and run the tests in every package…',
+			instructions: long,
+			model: 'opus',
+			effort: 'high',
+			runsIn: 'workstream',
+			skills: [],
+			builtin: null,
+			trigger: null,
+			thenJobId: null,
+		});
+		expect(job.name.length).toBeLessThanOrEqual(60);
+		expect(definitionEvents).toContainEqual({ definitionId: job.id, definition: job });
+		expect(await context.commands.call('jobs.list-suggestions', undefined)).toEqual([
+			expect.objectContaining({ id: suggestion.id, status: 'accepted' }),
+		]);
+		expect(await failure('jobs.accept-suggestion', { suggestionId: suggestion.id })).toMatchObject({
+			kind: 'invalid-args',
+		});
+		submitPrompt('ws-a', long);
+		expect(suggested).toHaveLength(1);
+	});
+
+	it('keeps a dismissed suggestion so the same prompts stay quiet', async () => {
+		for (let index = 0; index < 3; index += 1) submitPrompt('ws-a', repeated);
+		const [suggestion] = suggested;
+		if (!suggestion) throw new Error('no suggestion');
+
+		expect(
+			await context.commands.call('jobs.dismiss-suggestion', { suggestionId: suggestion.id }),
+		).toMatchObject({ status: 'dismissed' });
+		submitPrompt('ws-a', repeated);
+		expect(suggested).toHaveLength(1);
+	});
+
+	it('hides a suggestion saved from replies too short to be a task', async () => {
+		insertSuggestionIfAbsent(db, {
+			id: 'replies',
+			clusterKey: 'done',
+			evidence: ['done', 'done', 'done'].map((text) => ({ text })),
+			createdAt: NOW,
+		});
+		expect(await context.commands.call('jobs.list-suggestions', undefined)).toEqual([]);
 	});
 });

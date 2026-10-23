@@ -83,7 +83,7 @@
 <div
 	class="terminal"
 	role="img"
-	aria-label="A terminal listing the markdown URL of every docs page from bestboy.dev/malini/llms.txt, then printing the start of the Routines page as markdown."
+	aria-label="A terminal listing the markdown URL of every docs page from bestboy.dev/malini/llms.txt, then printing the start of the Jobs page as markdown."
 	data-nosnippet
 	{@attach play}
 >

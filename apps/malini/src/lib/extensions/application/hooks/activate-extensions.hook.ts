@@ -13,7 +13,6 @@ import {
 } from '../../infrastructure/runtime/extension-readiness-deadline';
 import { extensionRuntimeStore } from '../../infrastructure/stores/extension-runtime.store.svelte';
 import { dismissExtensionReadinessToastCommand } from '../commands/dismiss-extension-readiness-toast.command';
-import { publishAutomationRunOptionsCommand } from '../commands/publish-automation-run-options.command';
 
 type ExtensionActivationRequest = Readonly<{
 	workstream: ExtensionWorkstream;
@@ -64,7 +63,6 @@ function requestActivation(request: ExtensionActivationRequest): () => void {
 				extensionRuntimeStore.ready = true;
 				extensionRuntimeStore.error = null;
 				settleReadiness(workstream.id);
-				publishAutomationRunOptionsCommand();
 				announceCreation(generation, request);
 			} catch (error) {
 				commitActiveWorkstream();

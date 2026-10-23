@@ -7,6 +7,7 @@ import {
 	captureFlow,
 	expectCleanConsole,
 	git,
+	invoke,
 	launchMalini,
 	openWorkstream,
 	type LaunchedApp,
@@ -23,7 +24,7 @@ import {
 const execFileAsync = promisify(execFile);
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
-test('a queued merge updates a conflicting branch from main, has the agent resolve the conflicts and pushes a two-parent merge', async () => {
+test('a queued merge updates a conflicting branch from main, hands the conflicts to Resolve conflicts and pushes a two-parent merge', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -55,7 +56,19 @@ test('a queued merge updates a conflicting branch from main, has the agent resol
 		expect(await output(github.remote, ['show', `${merge}:conflict.txt`])).toBe(
 			'branch line\nmain line',
 		);
-		await expect(page.getByRole('region', { name: 'Jobs: 1 finished recently' })).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Jobs: 2 finished recently' })).toBeVisible();
+		const runs = await invoke<
+			{ id: string; title: string; status: string; parentRunId: string | null; detail: string }[]
+		>(page, 'jobs.list-runs', undefined);
+		const update = runs.find(({ title }) => title === 'Update from main');
+		expect(update).toMatchObject({
+			status: 'succeeded',
+			detail: 'Stopped on conflicts in 1 file. Resolve conflicts finishes the merge.',
+		});
+		expect(runs.find(({ title }) => title === 'Resolve conflicts')).toMatchObject({
+			status: 'succeeded',
+			parentRunId: update?.id,
+		});
 		await captureFlow(app, 'update-from-main');
 		expectCleanConsole(app);
 	} finally {

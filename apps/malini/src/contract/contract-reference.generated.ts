@@ -73,6 +73,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type InstallStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'aborted';\n\ntype InstallSkipReason = 'already-installed' | 'no-manifest' | 'unrecognized-project';\n\ninterface WorkstreamInstallStatusPayload {\n\ttype: 'repositories:workstream-install-status';\n\tworkstreamId: string;\n\tstatus: InstallStatus;\n\tcommand?: string;\n\treason?: InstallSkipReason;\n\tdetail?: string;\n\tdurationMs?: number;\n\texitCode?: number;\n}",
 		},
 		{
+			channel: 'repositories:workstream-merge-conflicted',
+			description:
+				"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",
+			payloadType: 'WorkstreamMergeConflictedPayload',
+			payload:
+				'interface WorkstreamMergeConflictedPayload {\n\tworkstreamId: string;\n\tbaseBranch: string;\n\tconflictedPaths: string[];\n}',
+		},
+		{
 			channel: 'repositories:clone-progress',
 			description:
 				'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.',
@@ -94,15 +102,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you.",
 			payloadType: 'ShipChangedEvent',
 			payload:
-				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
+				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
 		},
 		{
 			channel: 'jobs:run-changed',
 			description:
-				'Fires whenever a job run is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
+				'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
 			payloadType: 'JobRunChangedEvent',
 			payload:
-				"type JobRunOrigin = 'merge-queue' | 'manual' | 'routine';\n\ntype JobRunStatus =\n\t'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype JobRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: JobRunOrigin;\n\tstatus: JobRunStatus;\n\tdetail: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;",
+				"type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then';\n\ntype JobRunStatus =\n\t'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';\n\ntype JobRunRecord = Readonly<{\n\tid: string;\n\tdefinitionId: string;\n\ttitle: string;\n\tworkstreamId: string | null;\n\trepositoryId: string | null;\n\tsessionId: string | null;\n\tagentRunId: string | null;\n\torigin: JobRunOrigin;\n\tstatus: JobRunStatus;\n\tdetail: string | null;\n\tparentRunId: string | null;\n\tchatSessionId: string | null;\n\tchatAfterRunId: string | null;\n\tcreatedAt: string;\n\tstartedAt: string | null;\n\tfinishedAt: string | null;\n}>;\n\ntype JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;",
 		},
 		{
 			channel: 'jobs:definition-changed',
@@ -110,31 +118,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 			payloadType: 'JobDefinitionChangedEvent',
 			payload:
-				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobOutput = 'none' | 'draft' | 'merge';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs';\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\toutput: JobOutput;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
+				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'resolve-conflicts'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs'\n\t| 'open-draft'\n\t| 'merge';\n\ntype JobRunMode = 'off' | 'ask' | 'auto';\n\ntype JobTrigger = Readonly<{ when: string; mode: JobRunMode }>;\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\ttrigger: JobTrigger | null;\n\tthenJobId: string | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
 		},
 		{
-			channel: 'routines:suggested',
+			channel: 'jobs:suggested',
 			description:
-				'Fires when Malini notices a prompt you keep repeating and suggests turning it into a routine.',
-			payloadType: 'RoutineSuggestedEvent',
+				'Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.',
+			payloadType: 'JobSuggestedEvent',
 			payload:
-				"type RoutineSuggestionStatus = 'open' | 'dismissed' | 'accepted';\n\ntype RoutinePromptEvidence = Readonly<{\n\tkind: 'prompt';\n\ttext: string;\n\trunId?: string;\n\tsessionId?: string;\n\tworkstreamId?: string;\n\tsubmittedAt?: string;\n}>;\n\ntype RoutineSuggestionRecord = Readonly<{\n\tid: string;\n\tclusterKey: string;\n\tstatus: RoutineSuggestionStatus;\n\tevidence: readonly RoutinePromptEvidence[];\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype RoutineSuggestedEvent = Readonly<{\n\tsuggestion: RoutineSuggestionRecord;\n}>;",
-		},
-		{
-			channel: 'routines:changed',
-			description:
-				'Fires when a routine is created, updated, promoted, demoted or deleted; `routine` is `null` after a delete.',
-			payloadType: 'RoutineChangedEvent',
-			payload:
-				"type RoutineChange = 'created' | 'updated' | 'promoted' | 'demoted' | 'deleted';\n\ntype RoutineStatus = 'draft' | 'candidate' | 'routine';\n\ntype RoutineOrigin = 'user' | 'suggested';\n\ntype RoutineJsonValue =\n\t| string\n\t| number\n\t| boolean\n\t| null\n\t| readonly RoutineJsonValue[]\n\t| { readonly [key: string]: RoutineJsonValue };\n\ntype RoutineWorkflowRun = Readonly<{\n\tworkflow: string;\n\tinput: Readonly<Record<string, RoutineJsonValue>>;\n}>;\n\ntype RoutineCommandRun = Readonly<{\n\tcommand: string;\n\targs: readonly RoutineJsonValue[];\n}>;\n\ntype RoutineJobRun = Readonly<{ job: string }>;\n\ntype RoutineRun = RoutineWorkflowRun | RoutineCommandRun | RoutineJobRun;\n\ntype RoutinePromptEvidence = Readonly<{\n\tkind: 'prompt';\n\ttext: string;\n\trunId?: string;\n\tsessionId?: string;\n\tworkstreamId?: string;\n\tsubmittedAt?: string;\n}>;\n\ntype RoutineRunEvidence = Readonly<{\n\tkind: 'run';\n\trunId: string;\n\tsessionId?: string;\n\tworkstreamId?: string;\n\tsummary?: string;\n}>;\n\ntype RoutineEvidence = RoutinePromptEvidence | RoutineRunEvidence;\n\ntype RoutineRecord = Readonly<{\n\tid: string;\n\tstatus: RoutineStatus;\n\torigin: RoutineOrigin;\n\tlabel: string;\n\twhen: string;\n\tsteps: readonly RoutineRun[];\n\tevidence: readonly RoutineEvidence[];\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype RoutineChangedEvent = Readonly<{\n\troutineId: string;\n\tchange: RoutineChange;\n\troutine: RoutineRecord | null;\n}>;",
-		},
-		{
-			channel: 'routines:gated-run-changed',
-			description:
-				'Fires when a routine run waits for your confirmation, and again when you confirm or reject it.',
-			payloadType: 'RoutineGatedRunChangedEvent',
-			payload:
-				"type RoutineJsonValue =\n\t| string\n\t| number\n\t| boolean\n\t| null\n\t| readonly RoutineJsonValue[]\n\t| { readonly [key: string]: RoutineJsonValue };\n\ntype RoutineGatedRunState = 'pending' | 'confirmed' | 'rejected';\n\ntype RoutineGatedRunRecord = Readonly<{\n\tid: string;\n\troutineId: string;\n\tworkstreamId: string;\n\trunKey: string;\n\tevent: string;\n\tpayload: RoutineJsonValue;\n\tstate: RoutineGatedRunState;\n\tcreatedAt: string;\n\tdecidedAt: string | null;\n}>;\n\ntype RoutineGatedRunChangedEvent = Readonly<{\n\tgatedRun: RoutineGatedRunRecord;\n}>;",
+				"type JobSuggestionStatus = 'open' | 'dismissed' | 'accepted';\n\ntype JobPromptEvidence = Readonly<{\n\ttext: string;\n\trunId?: string;\n\tsessionId?: string;\n\tworkstreamId?: string;\n\tsubmittedAt?: string;\n}>;\n\ntype JobSuggestionRecord = Readonly<{\n\tid: string;\n\tclusterKey: string;\n\tstatus: JobSuggestionStatus;\n\tevidence: readonly JobPromptEvidence[];\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;",
 		},
 		{
 			channel: 'app:close-requested',

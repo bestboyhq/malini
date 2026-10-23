@@ -1,3 +1,4 @@
+import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentPermissionResourceKind } from './agent-interaction';
 
 export type ApprovalTarget = Readonly<{ kind: AgentPermissionResourceKind; value: string }>;
@@ -58,21 +59,26 @@ export type ApprovalDetail = Readonly<{ label: string; value: string }>;
 
 export type MaliniToolApproval = Readonly<{ headline: string; details: readonly ApprovalDetail[] }>;
 
-const RUNS_IN_COPY: Readonly<Record<string, string>> = {
+export const RUNS_IN_COPY: Readonly<Record<string, string>> = {
 	workstream: 'The workstream it is started from',
 	'new-workstream': 'A new workstream',
 };
 
-const OUTPUT_COPY: Readonly<Record<string, string>> = {
-	none: 'Leave the changes to you',
-	draft: 'Open a draft PR',
-	merge: 'Queue the merge',
+export const MODE_COPY: Readonly<Record<string, string>> = {
+	off: 'Off',
+	ask: 'Ask me first',
+	auto: 'On its own',
 };
+
+export const NO_TRIGGER = 'Only when you run it';
+
+export const NO_THEN = 'Nothing';
 
 export function maliniToolApproval(
 	toolName: string | undefined,
 	input: unknown,
 	jobName: (reference: string) => string = (reference) => reference,
+	review?: MaliniEditReview,
 ): MaliniToolApproval | null {
 	if (typeof input !== 'object' || input === null) return null;
 	const field = (key: string): string | undefined => {
@@ -80,31 +86,19 @@ export function maliniToolApproval(
 		return typeof value === 'string' && value.trim() ? value : undefined;
 	};
 	const runsIn = field('runsIn');
-	const output = field('output');
+	const id = field('id');
+	const when = field('when');
+	const then = field('then');
+	const cleared = (key: string): boolean => Reflect.get(input, key) === null;
 	switch (toolName) {
-		case 'mcp__malini__routines_save': {
-			const steps: unknown = Reflect.get(input, 'steps');
-			const jobs = Array.isArray(steps)
-				? steps.filter((step) => typeof step === 'string').map(jobName)
-				: [];
-			return {
-				headline: named('Save routine', field('label') ?? field('id')),
-				details: present([
-					['When', field('when')],
-					['Runs', jobs.length > 0 ? jobs.join(' → ') : undefined],
-					[
-						'Starts as',
-						field('id') === undefined ? 'A draft you promote on the Jobs page' : undefined,
-					],
-				]),
-			};
-		}
 		case 'mcp__malini__jobs_save':
 			return {
-				headline: named('Save job', field('name') ?? field('id')),
+				headline: named('Save job', field('name') ?? review?.current.name ?? (id && jobName(id))),
 				details: present([
 					['Runs in', runsIn && (RUNS_IN_COPY[runsIn] ?? runsIn)],
-					['When done', output && (OUTPUT_COPY[output] ?? output)],
+					['When', cleared('when') ? NO_TRIGGER : when],
+					['Runs', when && 'Off until you turn it on in the Jobs page'],
+					['Then', cleared('then') ? NO_THEN : then && jobName(then)],
 					['Model', field('model')],
 					['Effort', field('effort')],
 					['Instructions', field('instructions')],
@@ -117,6 +111,11 @@ export function maliniToolApproval(
 				details: present([['Context', field('context')]]),
 			};
 		}
+		case 'mcp__malini__pull_requests_open_draft':
+			return {
+				headline: 'Open a draft pull request',
+				details: [{ label: 'When', value: 'Once this turn ends' }],
+			};
 		default:
 			return null;
 	}

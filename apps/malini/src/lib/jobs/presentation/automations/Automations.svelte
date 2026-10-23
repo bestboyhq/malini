@@ -1,20 +1,20 @@
 <script lang="ts">
-	import { onMount, type Snippet } from 'svelte';
-	import type { JobDefinitionRecord, SaveJobDefinitionArgs } from '$contract/jobs';
-	import type { JobTrigger } from '$contract/routines';
+	import { onMount } from 'svelte';
+	import type { JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
 	import {
 		refreshWorkstreamsCommand,
 		syncWorkstreamsHook,
 	} from '$shared/repositories/repositories.api';
+	import { loadJobSuggestionsCommand } from '$lib/jobs/application/commands/load-job-suggestions.command';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { builtinJobDefinitionsQuery } from '$lib/jobs/application/queries/builtin-job-definitions.query.svelte';
 	import { customJobDefinitionsQuery } from '$lib/jobs/application/queries/custom-job-definitions.query.svelte';
 	import { jobDefinitionByIdQuery } from '$lib/jobs/application/queries/job-definition-by-id.query.svelte';
 	import { jobsLoadQuery } from '$lib/jobs/application/queries/jobs-load.query.svelte';
-	import type { ActionState, AutomationsView } from './automations-state.svelte';
+	import type { AutomationsView } from './automations-state.svelte';
 	import AutomationsActivity from './AutomationsActivity.svelte';
 	import AutomationsOverview from './AutomationsOverview.svelte';
 	import AutomationsRecipes from './AutomationsRecipes.svelte';
@@ -23,26 +23,9 @@
 	interface Props {
 		view: AutomationsView;
 		selectedJobId: string | null;
-		triggerOf: (jobId: string) => JobTrigger | null;
-		triggerStateOf: (jobId: string) => ActionState;
-		creating: ActionState & Readonly<{ completed: number }>;
-		waitingCount: number;
-		waiting: Snippet;
-		ontrigger: (job: JobDefinitionRecord, trigger: JobTrigger | null) => void;
-		oncreate: (job: Omit<SaveJobDefinitionArgs, 'id'>, trigger: JobTrigger | null) => void;
 	}
 
-	let {
-		view,
-		selectedJobId,
-		triggerOf,
-		triggerStateOf,
-		creating,
-		waitingCount,
-		waiting,
-		ontrigger,
-		oncreate,
-	}: Props = $props();
+	let { view, selectedJobId }: Props = $props();
 
 	const load = $derived(jobsLoadQuery.data);
 	const builtins = $derived(builtinJobDefinitionsQuery.data);
@@ -52,6 +35,7 @@
 
 	onMount(() => {
 		loadJobsCommand();
+		loadJobSuggestionsCommand();
 		refreshWorkstreamsCommand();
 		loadProviderCapabilitiesCommand();
 		const stopWatchingJobs = watchJobsHook();
@@ -75,19 +59,14 @@
 	</div>
 {:else if selected}
 	{#key selected.id}
-		<JobDetail
-			job={selected}
-			trigger={triggerOf(selected.id)}
-			triggerState={triggerStateOf(selected.id)}
-			ontrigger={(trigger) => ontrigger(selected, trigger)}
-		/>
+		<JobDetail job={selected} {jobs} />
 	{/key}
 {:else if selectedJobId === null || load.state === 'ready'}
 	{#if view === 'activity'}
-		<AutomationsActivity {jobs} {waitingCount} {waiting} />
+		<AutomationsActivity {jobs} />
 	{:else if view === 'recipes'}
 		<AutomationsRecipes />
 	{:else}
-		<AutomationsOverview {jobs} {triggerOf} {triggerStateOf} {creating} {ontrigger} {oncreate} />
+		<AutomationsOverview {jobs} />
 	{/if}
 {/if}

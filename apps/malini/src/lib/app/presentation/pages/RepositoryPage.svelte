@@ -6,12 +6,18 @@
 	import { Scratchpad } from '$lib/scratchpad/scratchpad.api';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
+		RemoveRepositoryButton,
 		RepositoryAvatar,
+		activeWorkstreamsQuery,
 		connectedRepositoriesQuery,
+		prepareRepositoryCommand,
+		removeRepositoryCommand,
 		repositoriesScopeLoadedQuery,
 		repositoryName,
 		repositoryOwner,
+		repositoryPreparationQuery,
 		repositoryWebUrl,
+		workstreamsForRepository,
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
 
@@ -20,6 +26,7 @@
 	const scopeLoaded = $derived(repositoriesScopeLoadedQuery.data);
 	const repository = $derived(repositories.find(({ id }) => id === repositoryId) ?? null);
 	const title = $derived(repository ? repositoryName(repository.fullName) : 'Repository');
+	const preparation = $derived(repository ? repositoryPreparationQuery.data(repository) : null);
 </script>
 
 <svelte:head>
@@ -49,6 +56,39 @@
 					</Button>
 				{/if}
 			</header>
+			{#if preparation?.kind === 'failed'}
+				<div
+					class="border-surface-50-border bg-surface-50 -mx-4 mb-8 rounded-2xl border-[0.5px] px-2"
+					data-testid="repository-preparation-error"
+				>
+					<StateBlock
+						layout="inline"
+						live="alert"
+						tone="critical"
+						heading="Could not clone this repository"
+						detail={preparation.failure.detail}
+						remedy={preparation.failure.remedy ?? 'Workstreams start once it clones.'}
+						technical={preparation.failure.technical}
+					>
+						{#snippet icon()}
+							<Icon name="alert" size={14} />
+						{/snippet}
+						{#snippet action()}
+							<Button variant="secondary" size="sm" onclick={() => prepareRepositoryCommand(repo)}>
+								{#snippet leading()}<Icon name="refresh" size={14} />{/snippet}
+								Retry
+							</Button>
+							<RemoveRepositoryButton
+								repository={repo}
+								workstreams={workstreamsForRepository(repo, activeWorkstreamsQuery.data)}
+								onremove={removeRepositoryCommand}
+								placement="top"
+								testId="repository-preparation-remove"
+							/>
+						{/snippet}
+					</StateBlock>
+				</div>
+			{/if}
 			{#key repo.fullName}
 				<Scratchpad
 					repositoryFullName={repo.fullName}

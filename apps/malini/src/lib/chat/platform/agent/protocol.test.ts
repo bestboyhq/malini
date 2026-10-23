@@ -401,12 +401,12 @@ describe('platform requests', () => {
 	it('decodes a tool call with its run and answers it with its ids', () => {
 		const decoded = decodeControlFrame({
 			...frame,
-			tool: 'routines_save',
-			input: { label: 'Docs after merge' },
+			tool: 'jobs_save',
+			input: { name: 'Docs after merge', when: null },
 		});
 		expect(decoded).toEqual({
 			ok: true,
-			value: { ...frame, tool: 'routines_save', input: { label: 'Docs after merge' } },
+			value: { ...frame, tool: 'jobs_save', input: { name: 'Docs after merge', when: null } },
 		});
 		const request = { ...frame, tool: 'jobs_list', input: {} } as const;
 		expect(platformResultCommand('cmd-1', request, { ok: true, text: '[]' })).toEqual({

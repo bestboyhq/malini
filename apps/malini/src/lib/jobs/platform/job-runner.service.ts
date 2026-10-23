@@ -7,10 +7,12 @@ import {
 	type SessionStatus,
 } from '$contract/agent-state-machine';
 import { CHAT_AGENT_EVENT_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
-import type { WorktreeStatus } from '$contract/repositories';
+import type { Workstream, WorktreeStatus } from '$contract/repositories';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	JOBS_MAX_CONCURRENT_SETTING,
+	isAgentlessJobBuiltin,
+	type AgentlessJobBuiltin,
 	type JobRunChangedEvent,
 	type JobRunRecord,
 	type JobRunStatus,
@@ -30,10 +32,11 @@ import {
 	isFinishedJobRunStatus,
 	jobPrompt,
 	jobsMaxConcurrent,
+	truncateJobContext,
 	workstreamWasBusy,
 } from '../domain/job-run';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
-import { getJobDefinition } from './job-definitions.repository';
+import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
 import {
 	findActiveJobRunForSession,
 	getJobRun,
@@ -46,6 +49,19 @@ import { turnEndedOverBackgroundCommands } from '$lib/chat/chat.platform';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 
 const SAFETY_INTERVAL_MS = 15_000;
+
+const SHIPPING = {
+	'open-draft': {
+		command: 'pull-requests.open-draft',
+		opening: 'Malini opens the draft pull request once the workstream is idle.',
+		pushing: 'Malini pushes to',
+	},
+	merge: {
+		command: 'pull-requests.queue-merge',
+		opening: 'Queued to merge. Malini opens the pull request once the workstream is idle.',
+		pushing: 'Queued to merge:',
+	},
+} as const satisfies Record<Exclude<AgentlessJobBuiltin, 'update-from-main'>, object>;
 
 export const BUSY_RETRY_MS = 3_000;
 
@@ -93,12 +109,22 @@ export class JobRunner {
 	enqueue(jobRun: JobRunRecord, context: string | null): JobRunRecord {
 		insertJobRun(this.#context.db, jobRun, context);
 		this.#emit(jobRun);
-		this.kick();
+		if (jobRun.status === 'queued') this.kick();
 		return jobRun;
 	}
 
+	confirm(jobRun: JobRunRecord): JobRunRecord {
+		return (
+			this.#update(jobRun.id, (current) =>
+				current.status === 'waiting' ? { ...current, status: 'queued' } : null,
+			) ??
+			getJobRun(this.#context.db, jobRun.id) ??
+			jobRun
+		);
+	}
+
 	async cancel(jobRun: JobRunRecord): Promise<JobRunRecord> {
-		if (jobRun.status !== 'queued' && jobRun.sessionId !== null) {
+		if (isActive(jobRun.status) && jobRun.sessionId !== null) {
 			await this.#stopAgentRun(jobRun.id, jobRun.sessionId, jobRun.agentRunId);
 		}
 		return (
@@ -135,7 +161,7 @@ export class JobRunner {
 		let running = unfinished.filter((jobRun) => jobRun.status === 'running').length;
 		const blocked = new Set(
 			unfinished.flatMap((jobRun) =>
-				jobRun.status !== 'queued' && jobRun.workstreamId !== null ? [jobRun.workstreamId] : [],
+				isActive(jobRun.status) && jobRun.workstreamId !== null ? [jobRun.workstreamId] : [],
 			),
 		);
 		for (const queued of unfinished.filter((jobRun) => jobRun.status === 'queued')) {
@@ -183,14 +209,19 @@ export class JobRunner {
 		try {
 			const definition = getJobDefinition(db, jobRun.definitionId);
 			if (!definition) throw new Error('This job no longer exists.');
-			const updating = definition.builtin === 'update-from-main';
-			if (updating && jobRun.workstreamId === null) {
-				throw new Error('Update from main needs a workstream to update.');
+			if (isAgentlessJobBuiltin(definition.builtin)) {
+				if (jobRun.workstreamId === null) throw new Error(`${definition.name} needs a workstream.`);
+				await this.#runAgentless(jobRun, definition.builtin, jobRun.workstreamId);
+				return;
 			}
 			const workstreamId = jobRun.workstreamId ?? (await this.#createWorkstream(jobRun));
 			if (!this.#dispatching(jobRun.id)) return;
-			const updateContext = updating ? await this.#updateFromMain(jobRun.id, workstreamId) : '';
-			if (updateContext === null) return;
+			const runContext = getJobRunContext(db, jobRun.id);
+			const conflicts =
+				definition.builtin === 'resolve-conflicts'
+					? await this.#conflicts(jobRun.id, workstreamId)
+					: null;
+			if (!this.#dispatching(jobRun.id)) return;
 			const sessionId =
 				jobRun.sessionId ??
 				(await commands.call('chat.start-session', {
@@ -208,8 +239,8 @@ export class JobRunner {
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt: jobPrompt(
-					jobPrompt(definition.instructions, getJobRunContext(db, jobRun.id)),
-					updateContext,
+					jobPrompt(definition.instructions, runContext),
+					conflicts === runContext ? null : conflicts,
 				),
 				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
@@ -228,25 +259,91 @@ export class JobRunner {
 		}
 	}
 
-	async #updateFromMain(jobRunId: string, workstreamId: string): Promise<string | null> {
+	async #runAgentless(
+		jobRun: JobRunRecord,
+		builtin: AgentlessJobBuiltin,
+		workstreamId: string,
+	): Promise<void> {
+		if (builtin === 'update-from-main') {
+			await this.#updateFromMain(jobRun, workstreamId);
+			return;
+		}
+		const { command, opening, pushing } = SHIPPING[builtin];
+		try {
+			const { pullRequestUrl } = await this.#context.commands.call(command, { workstreamId });
+			this.#succeed(jobRun.id, pullRequestUrl ? `${pushing} ${pullRequestUrl}` : opening);
+		} catch (error) {
+			this.#finish(jobRun.id, 'failed', describeError(error));
+		}
+	}
+
+	async #updateFromMain(jobRun: JobRunRecord, workstreamId: string): Promise<void> {
 		const { db, commands } = this.#context;
-		const workstream = getWorkstream(db, workstreamId);
-		if (!workstream) throw new Error('The workstream for this job no longer exists.');
-		const baseBranch =
-			workstream.baseBranch ||
-			(await resolveConnectedRepository(db, workstream.projectId))?.defaultBranch;
+		const workstream = this.#workstream(workstreamId);
+		const baseBranch = await this.#baseBranch(workstream);
 		if (!baseBranch) throw new Error('This workstream has no base branch to update from.');
 		const status = await commands.call('repositories.workstream-status', { workstreamId });
 		const conflicted = hasConflictedMerge(status)
 			? status
-			: await this.#mergeBase(jobRunId, status, workstreamId, baseBranch);
-		if (conflicted === null || !this.#dispatching(jobRunId)) return null;
+			: await this.#mergeBase(jobRun.id, status, workstreamId, baseBranch);
+		if (conflicted === null || !this.#dispatching(jobRun.id)) return;
+		const files = conflicted.conflictedPaths.length;
+		const stopped = `Stopped on conflicts in ${files} ${files === 1 ? 'file' : 'files'}.`;
+		const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
+		try {
+			if (!resolver) throw new Error('the Resolve conflicts job is missing');
+			await commands.call('jobs.run', {
+				definitionId: resolver.id,
+				workstreamId,
+				origin: 'then',
+				parentRunId: jobRun.id,
+				context: updateFromMainJobContext({
+					branch: workstream.branch,
+					baseBranch,
+					conflictedPaths: conflicted.conflictedPaths,
+					conflictMarkerPaths: conflicted.conflictMarkerPaths,
+				}),
+			});
+		} catch (error) {
+			this.#finish(
+				jobRun.id,
+				'failed',
+				`${stopped} Could not start Resolve conflicts: ${describeError(error)}`,
+			);
+			return;
+		}
+		this.#succeed(jobRun.id, `${stopped} Resolve conflicts finishes the merge.`);
+	}
+
+	async #conflicts(jobRunId: string, workstreamId: string): Promise<string | null> {
+		const workstream = this.#workstream(workstreamId);
+		const status = await this.#context.commands.call('repositories.workstream-status', {
+			workstreamId,
+		});
+		if (!hasConflictedMerge(status) && status.conflictMarkerPaths.length === 0) {
+			this.#succeed(jobRunId, 'No conflicts to resolve.');
+			return null;
+		}
 		return updateFromMainJobContext({
 			branch: workstream.branch,
-			baseBranch,
-			conflictedPaths: conflicted.conflictedPaths,
-			conflictMarkerPaths: conflicted.conflictMarkerPaths,
+			baseBranch: (await this.#baseBranch(workstream)) ?? '',
+			conflictedPaths: [...new Set([...status.conflictedPaths, ...status.conflictMarkerPaths])],
+			conflictMarkerPaths: status.conflictMarkerPaths,
 		});
+	}
+
+	#workstream(workstreamId: string): Workstream {
+		const workstream = getWorkstream(this.#context.db, workstreamId);
+		if (!workstream) throw new Error('The workstream for this job no longer exists.');
+		return workstream;
+	}
+
+	async #baseBranch(workstream: Workstream): Promise<string | null> {
+		return (
+			workstream.baseBranch ||
+			(await resolveConnectedRepository(this.#context.db, workstream.projectId))?.defaultBranch ||
+			null
+		);
 	}
 
 	async #mergeBase(
@@ -434,22 +531,24 @@ export class JobRunner {
 
 	#succeed(jobRunId: string, summary: string | null): void {
 		const succeeded = this.#finish(jobRunId, 'succeeded', summary);
-		if (succeeded) this.#background(this.#chainOutput(succeeded));
+		if (succeeded) this.#background(this.#then(succeeded));
 	}
 
-	async #chainOutput(jobRun: JobRunRecord): Promise<void> {
-		const definition = getJobDefinition(this.#context.db, jobRun.definitionId);
-		if (!definition || definition.output === 'none' || jobRun.workstreamId === null) return;
-		const args = { workstreamId: jobRun.workstreamId };
+	async #then(jobRun: JobRunRecord): Promise<void> {
+		const { db, commands } = this.#context;
+		const thenJobId = getJobDefinition(db, jobRun.definitionId)?.thenJobId ?? null;
+		if (thenJobId === null || jobRun.workstreamId === null) return;
 		try {
-			if (definition.output === 'draft') {
-				await this.#context.commands.call('pull-requests.open-draft', args);
-			} else {
-				await this.#context.commands.call('pull-requests.queue-merge', args);
-			}
+			await commands.call('jobs.run', {
+				definitionId: thenJobId,
+				workstreamId: jobRun.workstreamId,
+				origin: 'then',
+				parentRunId: jobRun.id,
+				context: truncateJobContext(thenContext(jobRun)),
+			});
 		} catch (error) {
-			const action = definition.output === 'draft' ? 'open the draft' : 'queue the merge';
-			const failure = `Could not ${action}: ${describeError(error)}`;
+			const next = getJobDefinition(db, thenJobId)?.name ?? 'the next job';
+			const failure = `Could not start ${next}: ${describeError(error)}`;
 			this.#update(jobRun.id, (current) => ({
 				...current,
 				detail: current.detail ? `${current.detail}\n\n${failure}` : failure,
@@ -460,7 +559,7 @@ export class JobRunner {
 	async #recover(): Promise<void> {
 		for (const jobRun of listUnfinishedJobRuns(this.#context.db)) {
 			if (this.#stopped) return;
-			if (jobRun.status === 'queued') continue;
+			if (!isActive(jobRun.status)) continue;
 			try {
 				await this.#recoverRun(jobRun);
 			} catch (error) {
@@ -571,6 +670,12 @@ export class JobRunner {
 	#background(work: Promise<void>): void {
 		void work.catch((error: unknown) => this.#log(`jobs: ${describeError(error)}`));
 	}
+}
+
+function thenContext({ title, detail }: JobRunRecord): string {
+	return detail
+		? `This job runs after “${title}”, which finished with:\n\n${detail}`
+		: `This job runs after “${title}”.`;
 }
 
 function hasConflictedMerge(status: WorktreeStatus): boolean {

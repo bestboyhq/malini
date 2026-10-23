@@ -1,40 +1,38 @@
 <script lang="ts">
-	import type { JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
-	import type { JobTrigger, RoutineStatus } from '$contract/routines';
+	import type { JobDefinitionRecord, JobRunMode, JobRunRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { Switch } from '$hyper-ui/components/switch';
 	import { Icon } from '$hyper-ui/icons';
 	import { jobHref } from '$shared/router/routes-hrefs';
+	import { updateJobSettingsCommand } from '$lib/jobs/application/commands/update-job-settings.command';
+	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
 	import { instructionsPreview } from '../job-definition-copy';
 	import { JOB_RUN_STATUS } from '../job-run-status';
 	import { jobRunTime } from '../job-run-time';
-	import type { ActionState } from './automations-state.svelte';
 	import { builtinTrigger, jobTriggerLook, runModeLabel, whenClause } from './triggers';
 
 	interface Props {
 		job: JobDefinitionRecord;
-		trigger: JobTrigger | null;
-		triggerState: ActionState;
 		last: JobRunRecord | null;
 		nowMs: number;
-		ontrigger: (trigger: JobTrigger | null) => void;
 	}
 
-	let { job, trigger, triggerState, last, nowMs, ontrigger }: Props = $props();
+	let { job, last, nowMs }: Props = $props();
 
-	let statusBeforeOff = $state<RoutineStatus>('candidate');
+	let modeBeforeOff = $state<JobRunMode>('ask');
 
-	const look = $derived(jobTriggerLook(job, trigger));
+	const settingsState = $derived(jobSettingsStateQuery.data(job.id));
+	const look = $derived(jobTriggerLook(job));
 	const builtIn = $derived(builtinTrigger(job) !== null);
 
 	function onToggle(on: boolean): void {
-		if (trigger === null) return;
+		if (job.trigger === null) return;
 		if (on) {
-			ontrigger({ ...trigger, status: statusBeforeOff });
+			updateJobSettingsCommand(job, { trigger: { ...job.trigger, mode: modeBeforeOff } });
 			return;
 		}
-		statusBeforeOff = trigger.status;
-		ontrigger({ ...trigger, status: 'draft' });
+		modeBeforeOff = job.trigger.mode;
+		updateJobSettingsCommand(job, { trigger: { ...job.trigger, mode: 'off' } });
 	}
 </script>
 
@@ -64,8 +62,8 @@
 			<p class="text-fg-secondary line-clamp-2 min-h-10 text-xs leading-5">
 				{instructionsPreview(job.instructions)}
 			</p>
-			{#if triggerState.error}
-				<p class="text-error-content text-xs" role="alert">{triggerState.error}</p>
+			{#if settingsState.error}
+				<p class="text-error-content text-xs" role="alert">{settingsState.error}</p>
 			{/if}
 		</div>
 	</div>
@@ -86,13 +84,13 @@
 		{/if}
 		{#if builtIn}
 			<span class="text-fg-tertiary shrink-0">Runs on its own</span>
-		{:else if trigger === null}
+		{:else if job.trigger === null}
 			<span class="text-fg-tertiary shrink-0">Runs when you run it</span>
 		{:else}
-			<span class="text-fg-tertiary shrink-0">{runModeLabel(trigger.status)}</span>
+			<span class="text-fg-tertiary shrink-0">{runModeLabel(job.trigger.mode)}</span>
 			<Switch
-				checked={trigger.status !== 'draft'}
-				disabled={triggerState.busy}
+				checked={job.trigger.mode !== 'off'}
+				disabled={settingsState.busy}
 				ariaLabel={job.name}
 				class="pointer-events-auto"
 				onchange={onToggle}

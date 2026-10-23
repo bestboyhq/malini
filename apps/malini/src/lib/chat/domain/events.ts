@@ -1,4 +1,5 @@
 import type { AgentBackgroundTask } from '$contract/agent';
+import type { MaliniEditReview } from '$contract/approvals';
 import type { StagedAgentAttachment } from './composer-actions';
 import type { AgentElementReference } from './element-reference';
 import type { AgentTranscriptReference } from './transcript-reference';
@@ -68,6 +69,7 @@ export type AgentEvent =
 			toolName?: string;
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
+			review?: MaliniEditReview;
 	  }
 	| {
 			type: 'question.requested';

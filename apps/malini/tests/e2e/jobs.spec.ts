@@ -34,15 +34,18 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 		const { page } = app;
 		await openJobs(page);
 		const cards = page.getByRole('region', { name: 'Your jobs' }).getByRole('article');
-		await expect(cards).toHaveCount(7);
+		await expect(cards).toHaveCount(10);
 		for (const [index, name] of [
 			'Name chats',
 			'Name services',
 			'Fix checks',
 			'Update from main',
+			'Resolve conflicts',
 			'Address review',
 			'Check compatibility',
 			'Update docs',
+			'Open draft',
+			'Merge',
 		].entries()) {
 			await expect(cards.nth(index)).toHaveAccessibleName(name);
 		}

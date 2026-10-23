@@ -26,11 +26,10 @@ There is no Malini account, no subscription, and no Malini server.
 
 - [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, and a merge queue that takes it to merged.
 - [Chat](/malini/docs/chat.md): queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
-- [Jobs](/malini/docs/jobs.md): agent work you reuse by name, with five built in.
-- [Routines](/malini/docs/routines.md): jobs that run in order when something happens.
-- [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, routines, and events, as tools the agent can call.
+- [Jobs](/malini/docs/jobs.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
+- [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.
 - [Extensions](/malini/docs/extensions.md): the inspector, its panels, commands, settings, and workflows.
-- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs and routines working.
+- [Updates and compatibility](/malini/docs/updates.md): how Malini updates itself and keeps your jobs working.
 
 ## Where your code goes
 

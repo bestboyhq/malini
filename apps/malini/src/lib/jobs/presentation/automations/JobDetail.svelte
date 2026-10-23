@@ -1,37 +1,42 @@
 <script lang="ts">
-	import type { JobDefinitionRecord, JobOutput, JobRunsIn } from '$contract/jobs';
-	import type { JobTrigger } from '$contract/routines';
+	import { isAgentlessJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
 	import { deleteJobDefinitionCommand } from '$lib/jobs/application/commands/delete-job-definition.command';
 	import { resetJobDefinitionCommand } from '$lib/jobs/application/commands/reset-job-definition.command';
-	import { saveJobDefinitionCommand } from '$lib/jobs/application/commands/save-job-definition.command';
+	import { updateJobSettingsCommand } from '$lib/jobs/application/commands/update-job-settings.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
-	import { isRunnableJob } from '$lib/jobs/domain/builtin-jobs';
-	import { JOB_OUTPUT_OPTIONS, JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
+	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
+	import { isRunnableJob, isTriggerableJob } from '$lib/jobs/domain/builtin-jobs';
+	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import JobEditor from '../JobEditor.svelte';
 	import JobRunRow from '../JobRunRow.svelte';
 	import JobRunTarget from '../JobRunTarget.svelte';
-	import type { ActionState } from './automations-state.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import RunModePicker from './RunModePicker.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
-	import { builtinTrigger, EVENT_RUNS_IN_OPTIONS, jobSentence, runModeHint } from './triggers';
+	import {
+		builtinTrigger,
+		EVENT_RUNS_IN_OPTIONS,
+		jobSentence,
+		runModeHint,
+		thenChoices,
+		UPDATE_FROM_MAIN_THEN,
+	} from './triggers';
 
 	interface Props {
 		job: JobDefinitionRecord;
-		trigger: JobTrigger | null;
-		triggerState: ActionState;
-		ontrigger: (trigger: JobTrigger | null) => void;
+		jobs: readonly JobDefinitionRecord[];
 	}
 
-	let { job, trigger, triggerState, ontrigger }: Props = $props();
+	let { job, jobs }: Props = $props();
 
 	const RECENT_RUNS = 10;
+	const NOTHING = '';
 	const ROWS =
 		'border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]';
 
@@ -41,9 +46,17 @@
 
 	const runsFor = $derived(jobRunsForDefinitionQuery.data);
 	const actionState = $derived(jobActionStateQuery.data(job.id));
+	const settingsState = $derived(jobSettingsStateQuery.data(job.id));
 	const runs = $derived(runsFor(job.id).slice(0, RECENT_RUNS));
 	const fixed = $derived(builtinTrigger(job));
 	const runnable = $derived(isRunnableJob(job));
+	const triggerable = $derived(isTriggerableJob(job));
+	const agentless = $derived(isAgentlessJobBuiltin(job.builtin));
+	const thenName = $derived(jobs.find((other) => other.id === job.thenJobId)?.name ?? null);
+	const thenOptions = $derived([
+		{ value: NOTHING, label: 'Nothing' },
+		...thenChoices(jobs, job.id),
+	]);
 	const editorKey = $derived(
 		JSON.stringify([job.id, job.name, job.instructions, job.model, job.effort, job.skills]),
 	);
@@ -54,19 +67,8 @@
 	});
 
 	function onWhen(when: string | null): void {
-		ontrigger(when === null ? null : { when, status: trigger?.status ?? 'candidate' });
-	}
-
-	function onPlace(change: Readonly<{ runsIn?: JobRunsIn; output?: JobOutput }>): void {
-		saveJobDefinitionCommand({
-			id: job.id,
-			name: job.name,
-			instructions: job.instructions,
-			model: job.model,
-			effort: job.effort,
-			runsIn: change.runsIn ?? job.runsIn,
-			output: change.output ?? job.output,
-			skills: job.skills,
+		updateJobSettingsCommand(job, {
+			trigger: when === null ? null : { when, mode: job.trigger?.mode ?? 'ask' },
 		});
 	}
 
@@ -77,7 +79,7 @@
 	}
 </script>
 
-<AutomationsSection title={job.name} description={jobSentence(job, trigger)}>
+<AutomationsSection title={job.name} description={jobSentence(job, thenName)}>
 	{#snippet actions()}
 		<div class="flex shrink-0 items-center gap-1.5">
 			{#if confirming}
@@ -163,9 +165,9 @@
 					</span>
 				{:else}
 					<TriggerButton
-						when={trigger?.when ?? null}
+						when={job.trigger?.when ?? null}
 						jobName={job.name}
-						disabled={triggerState.busy}
+						disabled={settingsState.busy}
 						onpick={onWhen}
 					/>
 				{/if}
@@ -174,16 +176,17 @@
 				title="Runs"
 				description={fixed
 					? 'On its own, whenever it fires.'
-					: trigger === null
+					: job.trigger === null
 						? 'Only when you start it: type / in any chat.'
-						: runModeHint(trigger.status)}
+						: runModeHint(job.trigger.mode)}
 			>
-				{#if !fixed && trigger !== null}
+				{#if !fixed && job.trigger !== null}
+					{@const trigger = job.trigger}
 					<RunModePicker
-						value={trigger.status}
+						value={trigger.mode}
 						label={`How ${job.name} runs`}
-						disabled={triggerState.busy}
-						onchange={(status) => ontrigger({ ...trigger, status })}
+						disabled={settingsState.busy}
+						onchange={(mode) => updateJobSettingsCommand(job, { trigger: { ...trigger, mode } })}
 					/>
 				{/if}
 			</SettingRow>
@@ -191,25 +194,34 @@
 				<SettingRow title="Runs in" description="Where the agent works on it.">
 					<ChoiceMenu
 						value={job.runsIn}
-						options={trigger === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
+						options={job.trigger === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
 						ariaLabel="Runs in"
 						icon="branch"
-						onchange={(runsIn) => onPlace({ runsIn })}
-					/>
-				</SettingRow>
-				<SettingRow title="When it finishes" description="What Malini does with the changes.">
-					<ChoiceMenu
-						value={job.output}
-						options={JOB_OUTPUT_OPTIONS}
-						ariaLabel="When it finishes"
-						icon="pr-draft"
-						onchange={(output) => onPlace({ output })}
+						onchange={(runsIn) => updateJobSettingsCommand(job, { runsIn })}
 					/>
 				</SettingRow>
 			{/if}
-			{#if triggerState.error}
+			{#if triggerable}
+				<SettingRow title="Then" description="The job that runs next, once this one succeeds.">
+					<ChoiceMenu
+						value={job.thenJobId ?? NOTHING}
+						options={thenOptions}
+						ariaLabel="Then"
+						icon="arrow-right"
+						onchange={(thenJobId) =>
+							updateJobSettingsCommand(job, {
+								thenJobId: thenJobId === NOTHING ? null : thenJobId,
+							})}
+					/>
+				</SettingRow>
+			{:else if job.builtin === 'update-from-main'}
+				<SettingRow title="Then" description="What runs next.">
+					<span class="text-fg-secondary text-xs">{UPDATE_FROM_MAIN_THEN}</span>
+				</SettingRow>
+			{/if}
+			{#if settingsState.error}
 				<p class="text-error-content px-4 py-3 text-xs" role="alert">
-					{triggerState.error}
+					{settingsState.error}
 				</p>
 			{/if}
 		</div>
@@ -233,11 +245,19 @@
 		</Well>
 	{/if}
 
-	<Well title="Instructions">
-		<div class={[ROWS, 'p-4']}>
-			{#key editorKey}
-				<JobEditor definition={job} />
-			{/key}
-		</div>
-	</Well>
+	{#if agentless}
+		<Well title="What it does">
+			<p class={[ROWS, 'text-fg-secondary px-4 py-3 text-xs leading-5']}>
+				{job.instructions}
+			</p>
+		</Well>
+	{:else}
+		<Well title="Instructions">
+			<div class={[ROWS, 'p-4']}>
+				{#key editorKey}
+					<JobEditor definition={job} />
+				{/key}
+			</div>
+		</Well>
+	{/if}
 </AutomationsSection>

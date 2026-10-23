@@ -13,6 +13,7 @@ import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggre
 import { workstreamProvisioning } from '$shared/repositories/infrastructure/aggregates/workstream-provisioning.aggregate.svelte';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { githubService } from '$shared/repositories/infrastructure/services/github.service';
+import { repositoryConnectionStore } from '$shared/repositories/infrastructure/stores/repository-connection.store.svelte';
 import { repositoryRemovalStore } from '$shared/repositories/infrastructure/stores/repository-removal.store.svelte';
 import { goto } from '$shared/router/navigation';
 import { REPOSITORIES_HREF } from '$shared/router/routes-hrefs';
@@ -25,6 +26,7 @@ function removeRepositoryCommand(repository: Repository, workstreams: readonly W
 	const existence = (workstream: Workstream): WorkstreamNativeExistence =>
 		workstreamNativeExistence(workstreamProvisioning.get(workstream.id));
 	if (workstreams.some((workstream) => existence(workstream) === 'in-flight')) return;
+	if (repositoryConnectionStore.preparing.has(repository.id)) return;
 	if (!repositoryRemovalStore.start(repository.id)) return;
 	const failedSetups = workstreams.filter((workstream) => existence(workstream) === 'absent');
 	for (const workstream of workstreams) {

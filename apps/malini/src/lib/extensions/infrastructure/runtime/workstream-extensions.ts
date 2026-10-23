@@ -4,9 +4,6 @@ import {
 	type ExtensionWorkstream,
 } from '@malini/extension-api';
 
-import type { WorkstreamRoutineGateStore } from '$shared/extensions/automation-gate';
-import type { WorkstreamRoutineJobRunner } from '$shared/extensions/automation-jobs';
-import type { WorkstreamRoutineDefinition } from '$shared/extensions/automation-rules.store.svelte';
 import { compileWorkstreamAutomation } from '$shared/extensions/compile-automation-trigger';
 import {
 	PERFORMANCE_BUDGETS,
@@ -35,19 +32,11 @@ type WorkstreamExtensionConfigurationLoader = (
 	workstreamId: string,
 ) => Promise<LoadedWorkstreamExtensionConfiguration>;
 
-type WorkstreamRoutinesLoader = (
-	workstreamId: string,
-) => Promise<readonly WorkstreamRoutineDefinition[]>;
-
 type WorkstreamExtensionsOptions = Omit<
 	ConstructorParameters<typeof DesktopExtensionHost>[0],
 	'workstream'
 > & {
 	configurationLoader?: WorkstreamExtensionConfigurationLoader;
-	routinesLoader?: WorkstreamRoutinesLoader;
-	routineGate?: WorkstreamRoutineGateStore;
-	routineJobs?: WorkstreamRoutineJobRunner;
-	onAutomationFailuresChanged?: () => void;
 };
 
 export class WorkstreamExtensions {
@@ -56,11 +45,9 @@ export class WorkstreamExtensions {
 	readonly local: LocalExtensions;
 	readonly automations: WorkstreamExtensionAutomationRuntime;
 	readonly #loadConfiguration: WorkstreamExtensionConfigurationLoader;
-	readonly #loadRoutines: WorkstreamRoutinesLoader;
 	#workstream: ExtensionWorkstream | null = null;
 	#transitionWorkstream: ExtensionWorkstream | null = null;
 	#configuration: WorkstreamExtensionConfiguration | null = null;
-	#routines: readonly WorkstreamRoutineDefinition[] = [];
 	#started = false;
 	readonly #postCommitEffects = new Set<Promise<void>>();
 
@@ -78,16 +65,10 @@ export class WorkstreamExtensions {
 				extensionId: 'malini.workstream-automation-runtime',
 				...(options.stateStorage !== undefined ? { storage: options.stateStorage } : {}),
 			}),
-			...(options.routineGate !== undefined ? { gate: options.routineGate } : {}),
-			...(options.routineJobs !== undefined ? { jobs: options.routineJobs } : {}),
-			...(options.onAutomationFailuresChanged !== undefined
-				? { onFailuresChanged: options.onAutomationFailuresChanged }
-				: {}),
 		});
 		this.#loadConfiguration =
 			options.configurationLoader ??
 			((workstreamId) => extensionConfigurationReaderService.load(workstreamId));
-		this.#loadRoutines = options.routinesLoader ?? (() => Promise.resolve([]));
 	}
 
 	get workstream(): ExtensionWorkstream | null {
@@ -127,14 +108,11 @@ export class WorkstreamExtensions {
 				};
 			}
 			await this.#applyConfiguredSettings(loaded.configuration);
-			const routines = await this.#loadRoutines(workstream.id);
 			await this.automations.configure(
 				this.#configurationForActiveExtensions(loaded.configuration),
-				routines,
 			);
 			this.#workstream = { ...workstream };
 			this.#configuration = loaded.configuration;
-			this.#routines = routines;
 			return {
 				activated: [...bundled.activated, ...community.activated],
 				failed: [...bundled.failed, ...community.failed],
@@ -174,7 +152,6 @@ export class WorkstreamExtensions {
 		}
 		const previous = this.#workstream ? { ...this.#workstream } : null;
 		const previousConfiguration = this.#configuration;
-		const previousRoutines = this.#routines;
 		if (!previous || !previousConfiguration) {
 			throw new Error('Desktop bundled extensions have no committed workstream to replace');
 		}
@@ -193,7 +170,6 @@ export class WorkstreamExtensions {
 			try {
 				await this.automations.configure(
 					this.#configurationForActiveExtensions(previousConfiguration),
-					previousRoutines,
 				);
 			} catch (restoreError) {
 				failures.push(asError(restoreError));
@@ -211,14 +187,11 @@ export class WorkstreamExtensions {
 				{ deactivationReason },
 			);
 			await this.#applyConfiguredSettings(loaded.configuration);
-			const routines = await this.#loadRoutines(target.id);
 			await this.automations.configure(
 				this.#configurationForActiveExtensions(loaded.configuration),
-				routines,
 			);
 			this.#workstream = target;
 			this.#configuration = loaded.configuration;
-			this.#routines = routines;
 		} catch (error) {
 			const forwardError = asError(error);
 			const rollbackFailures: Error[] = [];
@@ -240,10 +213,7 @@ export class WorkstreamExtensions {
 				this.#applyConfiguredSettings(previousConfiguration),
 			);
 			await captureFailure(rollbackFailures, () =>
-				this.automations.configure(
-					this.#configurationForActiveExtensions(previousConfiguration),
-					previousRoutines,
-				),
+				this.automations.configure(this.#configurationForActiveExtensions(previousConfiguration)),
 			);
 			if (rollbackFailures.length > 0) {
 				throw new AggregateError(
@@ -259,19 +229,6 @@ export class WorkstreamExtensions {
 		}
 		this.#dispatchWorkstreamPostCommitEffects(previous, target);
 		return report;
-	}
-
-	async reloadRoutines(): Promise<void> {
-		if (!this.#started) return;
-		const workstream = this.#workstream;
-		const configuration = this.#configuration;
-		if (!workstream || !configuration) return;
-		const routines = await this.#loadRoutines(workstream.id);
-		await this.automations.configure(
-			this.#configurationForActiveExtensions(configuration),
-			routines,
-		);
-		this.#routines = routines;
 	}
 
 	async announceWorkstreamCreated(
@@ -326,7 +283,6 @@ export class WorkstreamExtensions {
 			this.#workstream = null;
 			this.#transitionWorkstream = null;
 			this.#configuration = null;
-			this.#routines = [];
 		}
 		if (failures.length > 0) throw new AggregateError(failures, 'Extensions failed to stop');
 	}

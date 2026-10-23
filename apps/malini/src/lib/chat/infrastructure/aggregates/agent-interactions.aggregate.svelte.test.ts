@@ -256,8 +256,14 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
-	it('only offers and accepts broader scopes for canonical external reads', async () => {
+	it('only offers and accepts broader scopes for canonical external reads and Malini actions', async () => {
 		expect(canPersistAgentApproval(externalReadApproval().permission)).toBe(true);
+		expect(
+			canPersistAgentApproval({
+				capability: 'execute',
+				resources: [{ kind: 'action', value: 'pull-requests.open-draft', boundary: 'workstream' }],
+			}),
+		).toBe(true);
 		expect(
 			canPersistAgentApproval({
 				capability: 'execute',

@@ -35,6 +35,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			"Fires as a new workstream's dependency install moves through its states: running, succeeded, failed, skipped or aborted.",
 	},
+	'repositories:workstream-merge-conflicted': {
+		description:
+			"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",
+	},
 	'repositories:clone-progress': {
 		description:
 			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.',
@@ -49,23 +53,15 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'jobs:run-changed': {
 		description:
-			'Fires whenever a job run is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
+			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
 	},
 	'jobs:definition-changed': {
 		description:
 			'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 	},
-	'routines:suggested': {
+	'jobs:suggested': {
 		description:
-			'Fires when Malini notices a prompt you keep repeating and suggests turning it into a routine.',
-	},
-	'routines:changed': {
-		description:
-			'Fires when a routine is created, updated, promoted, demoted or deleted; `routine` is `null` after a delete.',
-	},
-	'routines:gated-run-changed': {
-		description:
-			'Fires when a routine run waits for your confirmation, and again when you confirm or reject it.',
+			'Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.',
 	},
 	'app:close-requested': {
 		description:

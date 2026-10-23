@@ -3,7 +3,6 @@ import {
 	isAutomaticJobBuiltin,
 	type JobBuiltin,
 	type JobDefinitionRecord,
-	type JobOutput,
 	type JobRunsIn,
 } from '$contract/jobs';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/domain/model-id';
@@ -14,7 +13,7 @@ export type BuiltinJobDefaults = Readonly<{
 	model: string;
 	effort: AgentReasoningEffort;
 	runsIn?: JobRunsIn;
-	output?: JobOutput;
+	then?: JobBuiltin;
 }>;
 
 export const BUILTIN_JOB_KEYS: readonly JobBuiltin[] = [
@@ -22,9 +21,12 @@ export const BUILTIN_JOB_KEYS: readonly JobBuiltin[] = [
 	'name-services',
 	'fix-checks',
 	'update-from-main',
+	'resolve-conflicts',
 	'address-review',
 	'check-compatibility',
 	'update-docs',
+	'open-draft',
+	'merge',
 ];
 
 const UNTRUSTED_CONTEXT =
@@ -105,12 +107,19 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 	'update-from-main': {
 		name: 'Update from main',
 		model: DEFAULT_AGENT_MODEL,
+		effort: 'low',
+		instructions:
+			"Merge this workstream's base branch into it. When the merge stops on conflicts, Resolve conflicts finishes it.",
+	},
+	'resolve-conflicts': {
+		name: 'Resolve conflicts',
+		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
 		instructions: [
-			"Bring this workstream's branch up to date with its base branch.",
+			"Finish merging this workstream's base branch into it: resolve every merge conflict.",
 			'',
 			UNTRUSTED_CONTEXT,
-			'- Malini merges the base branch before you start. If the merge stopped on conflicts, resolve every conflict by hand so both sides keep working. Never discard one side wholesale.',
+			'- The merge stopped on conflicts, and the context lists the conflicted files. Resolve every conflict by hand so both sides keep working. Never discard one side wholesale.',
 			'- Keep the change minimal: nothing beyond what the merge needs.',
 			...VERIFY_AND_HAND_BACK,
 			'',
@@ -137,16 +146,16 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
 		instructions: [
-			"Keep the user's jobs and routines working after Malini updated and its events changed.",
+			"Keep the user's jobs working after Malini updated and its events changed.",
 			'',
-			"- The context below the instructions is the change to Malini's events as JSON: `added` and `removed` list event channels, and `changed` lists each channel whose payload changed with its TypeScript payload `before` and `after`. With no context, check every job and routine against the current events.",
-			"- Read the current events and their payloads with mcp__malini__events_list, and the user's jobs and routines with mcp__malini__jobs_list and mcp__malini__routines_list.",
-			'- Find every routine whose trigger names a changed or removed channel or filters on a payload field that moved, and every job whose instructions rely on one.',
-			'- Fix each one with mcp__malini__routines_save or mcp__malini__jobs_save: rename the channel, adjust the `where` filter to the new payload, or update the instructions. Keep the rest of it exactly as the user wrote it.',
-			'- Before you save each edit, show the user what changes and wait for their approval. Never delete a job or a routine, and never touch one the changes do not affect.',
-			'- When no event replaces a removed one, leave that job or routine alone and report it.',
+			"- The context below the instructions is the change to Malini's events as JSON: `added` and `removed` list event channels, and `changed` lists each channel whose payload changed with its TypeScript payload `before` and `after`. With no context, check every job against the current events.",
+			"- Read the current events and their payloads with mcp__malini__events_list, and the user's jobs, with their triggers, with mcp__malini__jobs_list.",
+			'- Find every job whose trigger (`when`) names a changed or removed channel or filters on a payload field that moved, and every job whose instructions rely on one.',
+			'- Fix each one with mcp__malini__jobs_save: rename the channel, adjust the `where` filter to the new payload, or update the instructions. Keep the rest of it exactly as the user wrote it.',
+			'- Before you save each edit, show the user what changes and wait for their approval. Never delete a job, and never touch one the changes do not affect.',
+			'- When no event replaces a removed one, leave that job alone and report it.',
 			'',
-			'End with a summary: each job and routine you changed and how, and each one that still needs the user, and why.',
+			'End with a summary: each job you changed and how, and each one that still needs the user, and why.',
 		].join('\n'),
 	},
 	'update-docs': {
@@ -154,7 +163,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
 		runsIn: 'new-workstream',
-		output: 'draft',
+		then: 'open-draft',
 		instructions: [
 			"Bring this repository's user-facing docs up to date with the code on its base branch.",
 			'',
@@ -168,8 +177,32 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			'End with a one-paragraph summary of what you changed in the docs, and anything you found that the docs cannot fix.',
 		].join('\n'),
 	},
+	'open-draft': {
+		name: 'Open draft',
+		model: DEFAULT_AGENT_MODEL,
+		effort: 'low',
+		instructions:
+			"Commit this workstream's changes, push its branch and open a draft pull request. When the workstream already has an open pull request, push to it instead.",
+	},
+	merge: {
+		name: 'Merge',
+		model: DEFAULT_AGENT_MODEL,
+		effort: 'low',
+		instructions:
+			"Queue this workstream's pull request to merge: Malini opens it when there is none, marks it ready, keeps it up to date with its base, fixes failing checks, answers bot reviews and merges it.",
+	},
 };
+
+const TRIGGERABLE_BUILTINS: ReadonlySet<JobBuiltin> = new Set([
+	'update-docs',
+	'open-draft',
+	'merge',
+]);
 
 export function isRunnableJob(definition: Pick<JobDefinitionRecord, 'builtin'>): boolean {
 	return !isAutomaticJobBuiltin(definition.builtin);
+}
+
+export function isTriggerableJob(definition: Pick<JobDefinitionRecord, 'builtin'>): boolean {
+	return definition.builtin === null || TRIGGERABLE_BUILTINS.has(definition.builtin);
 }

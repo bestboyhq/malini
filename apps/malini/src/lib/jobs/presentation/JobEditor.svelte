@@ -110,7 +110,6 @@
 			model: draft.model,
 			effort: thinks ? normalizeReasoningEffort(efforts, draftEffort()) : draftEffort(),
 			runsIn: definition.runsIn,
-			output: definition.output,
 			skills: thinks ? [...draft.skills] : [],
 		});
 	}
