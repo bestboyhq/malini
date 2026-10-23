@@ -25,9 +25,14 @@
 	import { blockKey } from './streaming-finalization';
 	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
 	import { transcriptContext } from './transcript-context';
-	import { estimateRowHeight, estimateRunHeight } from './transcript-estimates';
+	import {
+		anchoredRowStart,
+		estimateRowHeight,
+		estimateRunHeight,
+		rowsFillingDown,
+	} from './transcript-estimates';
 	import TranscriptRow from './TranscriptRow.svelte';
-	import { runWindowKey } from './transcript-window.svelte';
+	import { rowWindowKey, runWindowKey } from './transcript-window.svelte';
 
 	interface Props {
 		run: RunGroup;
@@ -37,9 +42,6 @@
 	}
 
 	let { run, isLastRun, live, copied }: Props = $props();
-
-	const ANCHOR_ROWS_BEFORE = 3;
-	const ANCHOR_ROWS_AFTER = 8;
 
 	const transcript = transcriptContext();
 	const { timelines, stageEnter } = transcript;
@@ -52,17 +54,14 @@
 			opening.checkpointId !== undefined &&
 			transcript.checkpointEdit.editingCheckpointId === opening.checkpointId,
 	);
-	const initiallyMounted = untrack(
-		() =>
-			isLastRun ||
-			transcript.openingAnchor?.runId === run.runId ||
-			transcript.openingBudget(run.runId) > 0,
-	);
+	const initiallyMounted = untrack(() => isLastRun || transcript.openingBudget(run.runId) > 0);
 	const mounted = $derived(
 		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted),
 	);
 	const placeholderHeight = $derived(
-		mounted ? null : (transcriptWindow.heightOf(runKey) ?? estimateRunHeight(run)),
+		mounted
+			? null
+			: (transcriptWindow.heightOf(runKey) ?? estimateRunHeight(run, transcriptWindow.textWidth)),
 	);
 
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
@@ -88,7 +87,7 @@
 	});
 
 	function rowKey(item: GroupedRunTimelineItem): string {
-		return `row:${run.runId}:${item.key}`;
+		return rowWindowKey(run.runId, item.key);
 	}
 
 	function rowInitiallyMounted(item: GroupedRunTimelineItem): boolean {
@@ -99,21 +98,21 @@
 
 	function seedRows(rows: readonly GroupedRunTimelineItem[]): ReadonlySet<string> {
 		if (isLastRun && transcript.listRendered()) return new Set(rows.map((row) => row.key));
+		const budget = transcript.openingBudget(run.runId);
 		const anchor = transcript.openingAnchor;
 		if (anchor) {
-			if (anchor.runId !== run.runId) return new Set();
-			const from = anchor.row - ANCHOR_ROWS_BEFORE;
-			const to = anchor.row + ANCHOR_ROWS_AFTER;
-			return new Set(rows.filter((_, index) => index >= from && index <= to).map((row) => row.key));
+			const from = anchor.runId === run.runId ? anchoredRowStart(anchor) : 0;
+			return rowsFillingDown(run.runId, rows, from, budget, transcriptWindow).keys;
 		}
-		const budget = transcript.openingBudget(run.runId);
 		const seeded = new Set<string>();
 		let height = 0;
 		for (let index = rows.length - 1; index >= 0 && height < budget; index -= 1) {
 			const row = rows[index];
 			if (!row) continue;
 			seeded.add(row.key);
-			height += transcriptWindow.heightOf(rowKey(row)) ?? estimateRowHeight(row);
+			height +=
+				transcriptWindow.heightOf(rowKey(row)) ??
+				estimateRowHeight(row, transcriptWindow.textWidth);
 		}
 		return seeded;
 	}
@@ -204,7 +203,7 @@
 				<TranscriptRow
 					rowKey={rowKey(item)}
 					initiallyMounted={rowInitiallyMounted(item)}
-					estimate={() => estimateRowHeight(item)}
+					estimate={() => estimateRowHeight(item, transcriptWindow.textWidth)}
 				>
 					{#if item.kind === 'activity-group'}
 						<ChatActivityGroup group={item} {run} {isLastRun} />

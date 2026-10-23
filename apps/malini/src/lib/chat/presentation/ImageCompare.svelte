@@ -7,7 +7,7 @@
 	import { imageComparisonQuery } from '$lib/chat/application/queries/image-comparison.query.svelte';
 	import type { TurnComparison } from '$lib/chat/domain/turn-report';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
-	import { reportMediaSource, workstreamImagePath } from './workstream-images';
+	import { galleryImageId, reportMediaSource, workstreamImagePath } from './workstream-images';
 
 	type Mode = 'wipe' | 'flip' | 'diff';
 
@@ -15,9 +15,10 @@
 		workstreamId: string;
 		comparison: TurnComparison;
 		imagesrc?: ((path: string) => string | null) | undefined;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
-	let { workstreamId, comparison, imagesrc }: Props = $props();
+	let { workstreamId, comparison, imagesrc, onopenimage }: Props = $props();
 
 	const MODES: readonly Readonly<{ value: Mode; label: string; icon: IconName; tip: string }>[] = [
 		{ value: 'wipe', label: 'Wipe', icon: 'contrast', tip: 'Wipe · drag across the picture' },
@@ -63,7 +64,8 @@
 			y: `${clamp(0.5 - (focus.y + focus.h / 2) * scale) * 100}%`,
 		};
 	});
-	const shownSrc = $derived(mode === 'flip' && flipped ? beforeSrc : afterSrc);
+	const showsBefore = $derived(mode === 'flip' && flipped);
+	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
 
 	onMount(() => {
 		if (request) compareImagesCommand(request);
@@ -255,7 +257,18 @@
 				{/if}
 			{/each}
 		</div>
-		<span class="text-2xs text-fg-tertiary">{HINTS[mode]}</span>
+		<div class="flex items-center gap-2">
+			<span class="text-2xs text-fg-tertiary">{HINTS[mode]}</span>
+			<MediaToolbarButton
+				tooltip="Open in gallery"
+				label="Open in gallery"
+				square
+				onclick={() =>
+					onopenimage?.(galleryImageId((showsBefore ? comparison.before : comparison.after).src))}
+			>
+				<Icon name="maximize" size={14} />
+			</MediaToolbarButton>
+		</div>
 	</div>
 </div>
 

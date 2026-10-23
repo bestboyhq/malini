@@ -1,14 +1,16 @@
 <script lang="ts">
+	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
-	import { reportMediaSource } from './workstream-images';
+	import { galleryImageId, galleryImageLabel, reportMediaSource } from './workstream-images';
 
 	interface Props {
 		pick: VariantPick;
 		imagesrc?: ((path: string) => string | null) | undefined;
+		onopenimage?: ((id: string) => void) | undefined;
 	}
 
-	let { pick, imagesrc }: Props = $props();
+	let { pick, imagesrc, onopenimage }: Props = $props();
 
 	const others = $derived(pick.options.filter((option) => option.id !== pick.picked.id));
 </script>
@@ -50,15 +52,18 @@
 			{#each pick.options as option (option.id)}
 				{@const src = reportMediaSource(option.src, imagesrc)}
 				<figure class={['flex flex-col gap-1', option.id !== pick.picked.id && 'opacity-50']}>
-					<span
+					<Button
+						bare
 						class={[
-							'mini bg-surface-root relative block h-16 overflow-hidden rounded-[4px]',
+							'bg-surface-root outline-border-subtle relative block h-16 cursor-zoom-in overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]',
 							option.id === pick.picked.id &&
 								'ring-brand-foreground/70 ring-offset-surface-50 ring-[1.5px] ring-offset-2',
 						]}
+						ariaLabel={galleryImageLabel(`Variant ${variantLabel(option)}`)}
+						onclick={() => onopenimage?.(galleryImageId(option.src))}
 					>
 						{#if src}<img {src} alt="" class="size-full object-cover object-top-left" />{/if}
-					</span>
+					</Button>
 					<figcaption class="text-2xs text-fg-tertiary">
 						<span class="text-fg-secondary font-medium">{option.id}</span>
 						{option.name}
