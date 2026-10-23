@@ -273,14 +273,8 @@
 	function openingBudget(runId: string): number {
 		openingBudgetByRun ??= untrack(() => {
 			const budgetPx = globalThis.innerHeight * OPENING_VIEWPORTS;
-			if (!openingAnchor) return openingBudgets(runs, transcriptWindow.heightOf, budgetPx);
-			return anchoredOpeningBudgets(
-				runs,
-				openingAnchor,
-				openingRows,
-				transcriptWindow.heightOf,
-				budgetPx,
-			);
+			if (!openingAnchor) return openingBudgets(runs, transcriptWindow, budgetPx);
+			return anchoredOpeningBudgets(runs, openingAnchor, openingRows, transcriptWindow, budgetPx);
 		});
 		return openingBudgetByRun.get(runId) ?? 0;
 	}
@@ -772,7 +766,7 @@
 		if (!viewport || !messageList) return;
 		return untrack(() => {
 			const stopScroll = transcriptScroll.observe(viewport, messageList);
-			const stopWindow = transcriptWindow.observe(viewport);
+			const stopWindow = transcriptWindow.observe(viewport, messageList);
 			return () => {
 				stopWindow();
 				stopScroll();

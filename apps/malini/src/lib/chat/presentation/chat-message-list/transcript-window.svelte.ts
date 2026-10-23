@@ -16,8 +16,9 @@ export function rowWindowKey(runId: string, itemKey: string): string {
 export type TranscriptWindow = {
 	mounted(key: string, initially: boolean): boolean;
 	heightOf(key: string): number | undefined;
+	readonly textWidth: number;
 	track(key: string): Attachment<HTMLElement>;
-	observe(root: HTMLElement): () => void;
+	observe(root: HTMLElement, column: HTMLElement): () => void;
 	open(heights: ReadonlyMap<string, number>): void;
 	heights(): ReadonlyMap<string, number>;
 };
@@ -27,6 +28,7 @@ export function createTranscriptWindow(): TranscriptWindow {
 	const seen = new SvelteSet<string>();
 	const keys = new Map<Element, string>();
 	let heights = new Map<string, number>();
+	let textWidth = $state(0);
 	let observer: IntersectionObserver | null = null;
 
 	function onIntersections(entries: readonly IntersectionObserverEntry[]): void {
@@ -58,6 +60,10 @@ export function createTranscriptWindow(): TranscriptWindow {
 			return heights.get(key);
 		},
 
+		get textWidth(): number {
+			return textWidth;
+		},
+
 		track(key: string): Attachment<HTMLElement> {
 			return (element) => {
 				keys.set(element, key);
@@ -69,14 +75,19 @@ export function createTranscriptWindow(): TranscriptWindow {
 			};
 		},
 
-		observe(root: HTMLElement): () => void {
+		observe(root: HTMLElement, column: HTMLElement): () => void {
 			const next = new IntersectionObserver(onIntersections, {
 				root,
 				rootMargin: MOUNT_MARGIN,
 			});
 			observer = next;
 			for (const element of keys.keys()) next.observe(element);
+			const columnObserver = new ResizeObserver(([entry]) => {
+				if (entry) textWidth = entry.contentRect.width;
+			});
+			columnObserver.observe(column);
 			return () => {
+				columnObserver.disconnect();
 				next.disconnect();
 				if (observer === next) observer = null;
 			};

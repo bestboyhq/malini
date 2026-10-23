@@ -59,7 +59,9 @@
 		isLastRun || editing || transcriptWindow.mounted(runKey, initiallyMounted),
 	);
 	const placeholderHeight = $derived(
-		mounted ? null : (transcriptWindow.heightOf(runKey) ?? estimateRunHeight(run)),
+		mounted
+			? null
+			: (transcriptWindow.heightOf(runKey) ?? estimateRunHeight(run, transcriptWindow.textWidth)),
 	);
 
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
@@ -100,7 +102,7 @@
 		const anchor = transcript.openingAnchor;
 		if (anchor) {
 			const from = anchor.runId === run.runId ? anchoredRowStart(anchor) : 0;
-			return rowsFillingDown(run.runId, rows, from, budget, transcriptWindow.heightOf).keys;
+			return rowsFillingDown(run.runId, rows, from, budget, transcriptWindow).keys;
 		}
 		const seeded = new Set<string>();
 		let height = 0;
@@ -108,7 +110,9 @@
 			const row = rows[index];
 			if (!row) continue;
 			seeded.add(row.key);
-			height += transcriptWindow.heightOf(rowKey(row)) ?? estimateRowHeight(row);
+			height +=
+				transcriptWindow.heightOf(rowKey(row)) ??
+				estimateRowHeight(row, transcriptWindow.textWidth);
 		}
 		return seeded;
 	}
@@ -199,7 +203,7 @@
 				<TranscriptRow
 					rowKey={rowKey(item)}
 					initiallyMounted={rowInitiallyMounted(item)}
-					estimate={() => estimateRowHeight(item)}
+					estimate={() => estimateRowHeight(item, transcriptWindow.textWidth)}
 				>
 					{#if item.kind === 'activity-group'}
 						<ChatActivityGroup group={item} {run} {isLastRun} />
