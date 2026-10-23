@@ -1,6 +1,11 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserState, BrowserTabArgs } from './browser';
-import type { JobDefinitionChangedEvent, JobRunChangedEvent, JobSuggestedEvent } from './jobs';
+import type {
+	JobDefinitionChangedEvent,
+	JobExperimentChangedEvent,
+	JobRunChangedEvent,
+	JobSuggestedEvent,
+} from './jobs';
 import type { McpServerReport } from './mcp-servers';
 import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
@@ -129,6 +134,7 @@ export interface ContractEvents {
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'jobs:suggested': JobSuggestedEvent;
+	'jobs:experiment-changed': JobExperimentChangedEvent;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
@@ -162,6 +168,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'jobs:run-changed': null,
 	'jobs:definition-changed': null,
 	'jobs:suggested': null,
+	'jobs:experiment-changed': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
@@ -244,3 +251,5 @@ export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChanne
 export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;
 
 export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
+
+export const JOBS_EXPERIMENT_CHANGED_CHANNEL = 'jobs:experiment-changed' satisfies EventChannel;

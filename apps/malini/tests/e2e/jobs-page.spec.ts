@@ -8,6 +8,7 @@ import {
 	launchMalini,
 	openJob,
 	openJobs,
+	openOverview,
 } from './harness';
 
 type JobRow = Readonly<{
@@ -33,7 +34,7 @@ async function builtinId(page: Page, builtin: string): Promise<string> {
 	return job.id;
 }
 
-test('the Jobs page slides the sidebar into its sections and opens the job its address names', async () => {
+test('the Jobs page slides the sidebar into its sections and opens the job its address names as its own page', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -76,35 +77,34 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 			'aria-current',
 			'page',
 		);
-		const detail = page.getByRole('dialog', { name: 'Update from main' });
+		const detail = page.getByRole('region', { name: 'Update from main', exact: true });
 		await expect(detail).toContainText('The merge queue runs it when a branch it is shipping');
 		await expect(detail).toContainText('Resolve conflicts, when the merge stops on conflicts');
 		await expect(detail.getByRole('textbox', { name: 'Instructions' })).toHaveCount(0);
 
 		await page.reload();
 		await expect(detail).toBeVisible({ timeout: 20_000 });
-		await detail.getByRole('button', { name: 'Close Update from main' }).click();
+		await sections.getByRole('link', { name: 'Overview' }).click();
 		await expect(detail).toHaveCount(0);
 		await expect(page).toHaveURL(/#\/jobs$/u);
 
 		await page.getByRole('link', { name: 'Set up Update from main' }).click();
-		await detail.getByRole('button', { name: 'Close Update from main' }).click();
+		await sections.getByRole('link', { name: 'Overview' }).click();
 		await page.evaluate(() => {
 			globalThis.location.hash = '#/jobs';
 		});
 		await page.getByRole('link', { name: 'Set up Merge' }).click();
-		const merge = page.getByRole('dialog', { name: 'Merge', exact: true });
+		const merge = page.getByRole('region', { name: 'Merge', exact: true });
 		await expect(merge).toBeVisible();
 		await page.waitForTimeout(1_000);
 		await expect(merge).toBeVisible();
-		await merge.getByRole('button', { name: 'Close Merge' }).click();
+		await sections.getByRole('link', { name: 'Overview' }).click();
 		await expect(merge).toHaveCount(0);
 
 		await openJobs(page, '#/jobs/routines');
 		await expect(page).toHaveURL(/#\/jobs$/u);
 		await expect(page).toHaveTitle('Malini · Automations');
 
-		await sections.getByRole('link', { name: 'Overview' }).click();
 		await page.getByRole('link', { name: 'Workstreams' }).click();
 		await expect(sections).toHaveCount(0);
 		expectCleanConsole(app);
@@ -193,7 +193,7 @@ test("a job's When, run mode and Then are fields of the job, and a Then that wou
 		await expect.poll(async () => (await jobNamed(page, 'Changelog on merge'))?.trigger).toBeNull();
 		await expect(detail.getByRole('radiogroup')).toHaveCount(0);
 
-		await detail.getByRole('button', { name: 'Close Changelog on merge' }).click();
+		await openOverview(page);
 		await draftJob(page, { name: 'Release notes', words: 'Write the release notes' });
 		const changelog = await jobNamed(page, 'Changelog on merge');
 		const notes = await jobNamed(page, 'Release notes');
@@ -204,7 +204,7 @@ test("a job's When, run mode and Then are fields of the job, and a Then that wou
 		await expect
 			.poll(async () => (await jobNamed(page, 'Release notes'))?.thenJobId)
 			.toBe(changelog.id);
-		await notesDetail.getByRole('button', { name: 'Close Release notes' }).click();
+		await openOverview(page);
 
 		const loop = await openJob(page, 'Changelog on merge');
 		await loop.getByRole('button', { name: 'Then: Merge' }).click();

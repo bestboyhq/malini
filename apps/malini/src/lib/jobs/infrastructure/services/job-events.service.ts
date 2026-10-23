@@ -1,6 +1,12 @@
-import type { JobDefinitionRecord, JobRunRecord, JobSuggestionRecord } from '$contract/jobs';
+import type {
+	JobDefinitionRecord,
+	JobExperimentRecord,
+	JobRunRecord,
+	JobSuggestionRecord,
+} from '$contract/jobs';
 import {
 	JOBS_DEFINITION_CHANGED_CHANNEL,
+	JOBS_EXPERIMENT_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
 	JOBS_SUGGESTED_CHANNEL,
 } from '$contract/events';
@@ -10,6 +16,7 @@ interface JobEventHandlers {
 	onRunChanged(run: JobRunRecord): void;
 	onDefinitionChanged(definitionId: string, definition: JobDefinitionRecord | null): void;
 	onSuggested(suggestion: JobSuggestionRecord): void;
+	onExperimentChanged(experiment: JobExperimentRecord): void;
 }
 
 class JobEventsService {
@@ -20,6 +27,9 @@ class JobEventsService {
 				handlers.onDefinitionChanged(definitionId, definition),
 			),
 			onPlatformEvent(JOBS_SUGGESTED_CHANNEL, ({ suggestion }) => handlers.onSuggested(suggestion)),
+			onPlatformEvent(JOBS_EXPERIMENT_CHANGED_CHANNEL, ({ experiment }) =>
+				handlers.onExperimentChanged(experiment),
+			),
 		];
 		return () => {
 			for (const unlisten of unlistens) unlisten();

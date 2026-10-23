@@ -1,16 +1,22 @@
 <script lang="ts">
-	import { isAgentlessJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
+	import { onMount } from 'svelte';
+	import {
+		isAgentlessJobBuiltin,
+		isAutomaticJobBuiltin,
+		type JobDefinitionRecord,
+	} from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
-	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Modal } from '$hyper-ui/components/modal';
-	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
+	import { jobImproveHref } from '$shared/router/routes-hrefs';
 	import { deleteJobDefinitionCommand } from '$lib/jobs/application/commands/delete-job-definition.command';
+	import { loadJobScorecardCommand } from '$lib/jobs/application/commands/load-job-scorecard.command';
 	import { resetJobDefinitionCommand } from '$lib/jobs/application/commands/reset-job-definition.command';
 	import { updateJobSettingsCommand } from '$lib/jobs/application/commands/update-job-settings.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
+	import { jobScorecardErrorQuery } from '$lib/jobs/application/queries/job-scorecard-error.query.svelte';
+	import { jobScorecardQuery } from '$lib/jobs/application/queries/job-scorecard.query.svelte';
 	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
 	import { isRunnableJob, isTriggerableJob } from '$lib/jobs/domain/builtin-jobs';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
@@ -19,6 +25,7 @@
 	import JobRunTarget from '../JobRunTarget.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
+	import JobScorecard from './JobScorecard.svelte';
 	import RunModePicker from './RunModePicker.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
@@ -34,10 +41,9 @@
 	interface Props {
 		job: JobDefinitionRecord;
 		jobs: readonly JobDefinitionRecord[];
-		onclose: () => void;
 	}
 
-	let { job, jobs, onclose }: Props = $props();
+	let { job, jobs }: Props = $props();
 
 	const RECENT_RUNS = 10;
 	const NOTHING = '';
@@ -56,6 +62,9 @@
 	const runnable = $derived(isRunnableJob(job));
 	const triggerable = $derived(isTriggerableJob(job));
 	const agentless = $derived(isAgentlessJobBuiltin(job.builtin));
+	const scorecardFor = $derived(jobScorecardQuery.data);
+	const scorecard = $derived(scorecardFor(job, nowMs));
+	const scorecardError = $derived(jobScorecardErrorQuery.data(job.id));
 	const thenName = $derived(jobs.find((other) => other.id === job.thenJobId)?.name ?? null);
 	const thenOptions = $derived([
 		{ value: NOTHING, label: 'Nothing' },
@@ -64,6 +73,10 @@
 	const editorKey = $derived(
 		JSON.stringify([job.id, job.name, job.instructions, job.model, job.effort, job.skills]),
 	);
+
+	onMount(() => {
+		if (isAutomaticJobBuiltin(job.builtin)) loadJobScorecardCommand(job.id);
+	});
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), 30_000);
@@ -83,212 +96,206 @@
 	}
 </script>
 
-<Modal
-	open
-	ariaLabel={job.name}
-	{onclose}
-	class="h-[min(720px,calc(100vh_-_4rem))] w-[min(800px,calc(100vw_-_4rem))] overflow-hidden rounded-[32px]"
-	contentClass="bg-surface-root flex size-full min-h-0 p-2"
->
-	{#snippet children(dismiss)}
-		<div
-			class="bg-surface-50 border-surface-50-border relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border-[0.5px]"
-			data-testid="job-detail"
-			data-job-definition-id={job.id}
-		>
-			<div class="absolute top-5 right-4.5 z-10">
-				<Tooltip content="Close" placement="bottom">
-					<IconButton variant="ghost" size="sm" ariaLabel={`Close ${job.name}`} onclick={dismiss}>
-						<Icon name="close" size={16} />
-					</IconButton>
-				</Tooltip>
-			</div>
-			<AutomationsSection title={job.name} description={jobSentence(job, thenName)}>
-				{#snippet actions()}
-					<div class="flex shrink-0 items-center gap-1.5">
-						{#if confirming}
-							<span class="text-fg-secondary text-xs">
-								{confirming === 'delete' ? 'Delete this job?' : 'Undo your edits?'}
-							</span>
-							<Button
-								variant={confirming === 'delete' ? 'danger' : 'secondary'}
-								size="sm"
-								ariaLabel={confirming === 'delete'
-									? `Confirm deleting ${job.name}`
-									: `Confirm resetting ${job.name}`}
-								onclick={onConfirm}
-							>
-								{confirming === 'delete' ? 'Delete' : 'Reset'}
-							</Button>
-							<Button variant="ghost" size="sm" onclick={() => (confirming = null)}>Keep</Button>
-						{:else}
-							{#if job.builtin !== null}
-								<Button
-									variant="ghost"
-									size="sm"
-									ariaLabel={`Reset ${job.name}`}
-									disabled={actionState.busy}
-									onclick={() => (confirming = 'reset')}
-								>
-									Reset
-								</Button>
-							{:else}
-								<Button
-									variant="danger-ghost"
-									size="sm"
-									ariaLabel={`Delete ${job.name}`}
-									disabled={actionState.busy}
-									onclick={() => (confirming = 'delete')}
-								>
-									Delete
-								</Button>
-							{/if}
-							{#if runnable}
-								<Button
-									variant="primary"
-									size="sm"
-									ariaLabel={`Run ${job.name}`}
-									ariaExpanded={choosingTarget}
-									loading={actionState.busy}
-									onclick={() => (choosingTarget = !choosingTarget)}
-								>
-									{#snippet leading()}
-										<Icon name="play" size={12} />
-									{/snippet}
-									Run
-								</Button>
-							{/if}
-						{/if}
-					</div>
-				{/snippet}
-
-				{#if actionState.error}
-					<p
-						class="border-error-content/20 bg-error text-error-content rounded-xl border-[0.5px] px-4 py-3 text-xs"
-						role="alert"
+<AutomationsSection title={job.name} description={jobSentence(job, thenName)}>
+	{#snippet actions()}
+		<div class="flex shrink-0 items-center gap-1.5">
+			{#if confirming}
+				<span class="text-fg-secondary text-xs">
+					{confirming === 'delete' ? 'Delete this job?' : 'Undo your edits?'}
+				</span>
+				<Button
+					variant={confirming === 'delete' ? 'danger' : 'secondary'}
+					size="sm"
+					ariaLabel={confirming === 'delete'
+						? `Confirm deleting ${job.name}`
+						: `Confirm resetting ${job.name}`}
+					onclick={onConfirm}
+				>
+					{confirming === 'delete' ? 'Delete' : 'Reset'}
+				</Button>
+				<Button variant="ghost" size="sm" onclick={() => (confirming = null)}>Keep</Button>
+			{:else}
+				{#if job.builtin !== null}
+					<Button
+						variant="ghost"
+						size="sm"
+						ariaLabel={`Reset ${job.name}`}
+						disabled={actionState.busy}
+						onclick={() => (confirming = 'reset')}
 					>
-						{actionState.error}
-					</p>
-				{/if}
-
-				{#if choosingTarget && runnable}
-					<Well title="Run it now">
-						<div class={ROWS}>
-							<JobRunTarget definition={job} onclose={() => (choosingTarget = false)} />
-						</div>
-					</Well>
-				{/if}
-
-				<Well title="How it runs">
-					<div class={ROWS}>
-						<SettingRow title="When" description={fixed ? 'Built into Malini.' : 'What starts it.'}>
-							{#if fixed}
-								<span class="text-fg-secondary flex items-center gap-1.5 text-xs">
-									<Icon name={fixed.icon} size={14} />
-									{fixed.label}
-								</span>
-							{:else}
-								<TriggerButton
-									when={job.trigger?.when ?? null}
-									jobName={job.name}
-									disabled={settingsState.busy}
-									onpick={onWhen}
-								/>
-							{/if}
-						</SettingRow>
-						<SettingRow
-							title="Runs"
-							description={fixed
-								? 'On its own, whenever it fires.'
-								: job.trigger === null
-									? 'Only when you start it: type / in any chat.'
-									: runModeHint(job.trigger.mode)}
-						>
-							{#if !fixed && job.trigger !== null}
-								{@const trigger = job.trigger}
-								<RunModePicker
-									value={trigger.mode}
-									label={`How ${job.name} runs`}
-									disabled={settingsState.busy}
-									onchange={(mode) =>
-										updateJobSettingsCommand(job, { trigger: { ...trigger, mode } })}
-								/>
-							{/if}
-						</SettingRow>
-						{#if job.builtin === null}
-							<SettingRow title="Runs in" description="Where the agent works on it.">
-								<ChoiceMenu
-									value={job.runsIn}
-									options={job.trigger === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
-									ariaLabel="Runs in"
-									icon="branch"
-									onchange={(runsIn) => updateJobSettingsCommand(job, { runsIn })}
-								/>
-							</SettingRow>
-						{/if}
-						{#if triggerable}
-							<SettingRow
-								title="Then"
-								description="The job that runs next, once this one succeeds."
-							>
-								<ChoiceMenu
-									value={job.thenJobId ?? NOTHING}
-									options={thenOptions}
-									ariaLabel="Then"
-									icon="arrow-right"
-									onchange={(thenJobId) =>
-										updateJobSettingsCommand(job, {
-											thenJobId: thenJobId === NOTHING ? null : thenJobId,
-										})}
-								/>
-							</SettingRow>
-						{:else if job.builtin === 'update-from-main'}
-							<SettingRow title="Then" description="What runs next.">
-								<span class="text-fg-secondary text-xs">{UPDATE_FROM_MAIN_THEN}</span>
-							</SettingRow>
-						{/if}
-						{#if settingsState.error}
-							<p class="text-error-content px-4 py-3 text-xs" role="alert">
-								{settingsState.error}
-							</p>
-						{/if}
-					</div>
-				</Well>
-
-				{#if runnable}
-					<Well title="Recent runs" note={runs.length > 0 ? `${runs.length}` : undefined}>
-						<div class={ROWS}>
-							{#if runs.length > 0}
-								<ul class="flex flex-col p-1" aria-label="Recent runs">
-									{#each runs as run (run.id)}
-										<li><JobRunRow {run} {nowMs} placeFirst /></li>
-									{/each}
-								</ul>
-							{:else}
-								<p class="text-fg-tertiary px-4 py-3 text-xs">
-									No runs yet. Run it from here, or type / in any chat.
-								</p>
-							{/if}
-						</div>
-					</Well>
-				{/if}
-
-				{#if agentless}
-					<Well title="What it does">
-						<p class={[ROWS, 'text-fg-secondary px-4 py-3 text-xs leading-5']}>
-							{job.instructions}
-						</p>
-					</Well>
+						Reset
+					</Button>
 				{:else}
-					<Well title="Instructions">
-						<div class={[ROWS, 'p-4']}>
-							{#key editorKey}
-								<JobEditor definition={job} />
-							{/key}
-						</div>
-					</Well>
+					<Button
+						variant="danger-ghost"
+						size="sm"
+						ariaLabel={`Delete ${job.name}`}
+						disabled={actionState.busy}
+						onclick={() => (confirming = 'delete')}
+					>
+						Delete
+					</Button>
 				{/if}
-			</AutomationsSection>
+				{#if isAutomaticJobBuiltin(job.builtin)}
+					<Button variant="primary" size="sm" href={jobImproveHref(job.id)}>
+						{#snippet leading()}
+							<Icon name="sparkles" size={12} />
+						{/snippet}
+						Improve
+					</Button>
+				{/if}
+				{#if runnable}
+					<Button
+						variant="primary"
+						size="sm"
+						ariaLabel={`Run ${job.name}`}
+						ariaExpanded={choosingTarget}
+						loading={actionState.busy}
+						onclick={() => (choosingTarget = !choosingTarget)}
+					>
+						{#snippet leading()}
+							<Icon name="play" size={12} />
+						{/snippet}
+						Run
+					</Button>
+				{/if}
+			{/if}
 		</div>
 	{/snippet}
-</Modal>
+
+	{#if actionState.error}
+		<p
+			class="border-error-content/20 bg-error text-error-content rounded-xl border-[0.5px] px-4 py-3 text-xs"
+			role="alert"
+		>
+			{actionState.error}
+		</p>
+	{/if}
+
+	{#if scorecardError}
+		<p
+			class="border-error-content/20 bg-error text-error-content rounded-xl border-[0.5px] px-4 py-3 text-xs"
+			role="alert"
+		>
+			{scorecardError}
+		</p>
+	{/if}
+
+	{#if scorecard && isAutomaticJobBuiltin(job.builtin)}
+		<JobScorecard jobName={job.name} builtin={job.builtin} card={scorecard} />
+	{/if}
+
+	{#if choosingTarget && runnable}
+		<Well title="Run it now">
+			<div class={ROWS}>
+				<JobRunTarget definition={job} onclose={() => (choosingTarget = false)} />
+			</div>
+		</Well>
+	{/if}
+
+	<Well title="How it runs">
+		<div class={ROWS}>
+			<SettingRow title="When" description={fixed ? 'Built into Malini.' : 'What starts it.'}>
+				{#if fixed}
+					<span class="text-fg-secondary flex items-center gap-1.5 text-xs">
+						<Icon name={fixed.icon} size={14} />
+						{fixed.label}
+					</span>
+				{:else}
+					<TriggerButton
+						when={job.trigger?.when ?? null}
+						jobName={job.name}
+						disabled={settingsState.busy}
+						onpick={onWhen}
+					/>
+				{/if}
+			</SettingRow>
+			<SettingRow
+				title="Runs"
+				description={fixed
+					? 'On its own, whenever it fires.'
+					: job.trigger === null
+						? 'Only when you start it: type / in any chat.'
+						: runModeHint(job.trigger.mode)}
+			>
+				{#if !fixed && job.trigger !== null}
+					{@const trigger = job.trigger}
+					<RunModePicker
+						value={trigger.mode}
+						label={`How ${job.name} runs`}
+						disabled={settingsState.busy}
+						onchange={(mode) => updateJobSettingsCommand(job, { trigger: { ...trigger, mode } })}
+					/>
+				{/if}
+			</SettingRow>
+			{#if job.builtin === null}
+				<SettingRow title="Runs in" description="Where the agent works on it.">
+					<ChoiceMenu
+						value={job.runsIn}
+						options={job.trigger === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
+						ariaLabel="Runs in"
+						icon="branch"
+						onchange={(runsIn) => updateJobSettingsCommand(job, { runsIn })}
+					/>
+				</SettingRow>
+			{/if}
+			{#if triggerable}
+				<SettingRow title="Then" description="The job that runs next, once this one succeeds.">
+					<ChoiceMenu
+						value={job.thenJobId ?? NOTHING}
+						options={thenOptions}
+						ariaLabel="Then"
+						icon="arrow-right"
+						onchange={(thenJobId) =>
+							updateJobSettingsCommand(job, {
+								thenJobId: thenJobId === NOTHING ? null : thenJobId,
+							})}
+					/>
+				</SettingRow>
+			{:else if job.builtin === 'update-from-main'}
+				<SettingRow title="Then" description="What runs next.">
+					<span class="text-fg-secondary text-xs">{UPDATE_FROM_MAIN_THEN}</span>
+				</SettingRow>
+			{/if}
+			{#if settingsState.error}
+				<p class="text-error-content px-4 py-3 text-xs" role="alert">
+					{settingsState.error}
+				</p>
+			{/if}
+		</div>
+	</Well>
+
+	{#if runnable}
+		<Well title="Recent runs" note={runs.length > 0 ? `${runs.length}` : undefined}>
+			<div class={ROWS}>
+				{#if runs.length > 0}
+					<ul class="flex flex-col p-1" aria-label="Recent runs">
+						{#each runs as run (run.id)}
+							<li><JobRunRow {run} {nowMs} placeFirst /></li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="text-fg-tertiary px-4 py-3 text-xs">
+						No runs yet. Run it from here, or type / in any chat.
+					</p>
+				{/if}
+			</div>
+		</Well>
+	{/if}
+
+	{#if agentless}
+		<Well title="What it does">
+			<p class={[ROWS, 'text-fg-secondary px-4 py-3 text-xs leading-5']}>
+				{job.instructions}
+			</p>
+		</Well>
+	{:else}
+		<Well title="Instructions">
+			<div class={[ROWS, 'p-4']}>
+				{#key editorKey}
+					<JobEditor definition={job} />
+				{/key}
+			</div>
+		</Well>
+	{/if}
+</AutomationsSection>

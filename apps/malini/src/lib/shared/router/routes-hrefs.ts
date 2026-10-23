@@ -24,6 +24,10 @@ export function jobHref(definitionId: string): string {
 	return `/jobs/${encodeURIComponent(definitionId)}`;
 }
 
+export function jobImproveHref(definitionId: string): string {
+	return `${jobHref(definitionId)}/improve`;
+}
+
 export function repositoryHref(repositoryId: string): string {
 	return `/repositories/${encodeURIComponent(repositoryId)}`;
 }

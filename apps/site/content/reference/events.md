@@ -399,6 +399,34 @@ type JobSuggestionRecord = Readonly<{
 type JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;
 ```
 
+## `jobs:experiment-changed`
+
+Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.
+
+Payload: `JobExperimentChangedEvent`
+
+```ts
+type JobExperimentResult = Readonly<{
+	outputId: string;
+	output: string | null;
+	error: string | null;
+}>;
+
+type JobExperimentRecord = Readonly<{
+	id: string;
+	definitionId: string;
+	name: string;
+	model: string;
+	instructions: string;
+	current: boolean;
+	running: boolean;
+	results: readonly JobExperimentResult[];
+	createdAt: string;
+}>;
+
+type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
+```
+
 ## `app:close-requested`
 
 Fires when you close the Malini window, so Malini can show what is still running and ask before it quits.

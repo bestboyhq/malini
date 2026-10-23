@@ -193,7 +193,9 @@ test('a prompt sent three times becomes a suggested job on the Overview, and Mak
 		await expect(suggested).toContainText(repeated);
 		await captureFlow(app, 'job-suggestion');
 		await suggested.getByRole('button', { name: 'Make it a job' }).click();
-		await expect(page.getByRole('dialog', { name: repeated })).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByRole('region', { name: repeated, exact: true })).toBeVisible({
+			timeout: 20_000,
+		});
 		await expect(suggested).toHaveCount(0);
 		await expect
 			.poll(async () =>

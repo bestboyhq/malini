@@ -42,6 +42,13 @@ import {
 	isFinishedJobRunStatus,
 	isJobRunOrigin,
 } from '../domain/job-run';
+import type { AutomaticJob } from './automatic-jobs.service';
+import {
+	isAutomaticJobDefinition,
+	type AutomaticJobDefinition,
+	type JobExperiments,
+} from './job-experiments.service';
+import { listJobOutputs, listJobSetups } from './job-outputs.repository';
 import {
 	clearThenLinksTo,
 	deleteJobDefinition,
@@ -113,7 +120,11 @@ export function seedBuiltinJobs(db: MaliniDatabase): void {
 	}
 }
 
-export function defineJobCommands(context: MainContext, runner: JobRunner): void {
+export function defineJobCommands(
+	context: MainContext,
+	runner: JobRunner,
+	experiments: JobExperiments,
+): void {
 	const { db, commands, events } = context;
 
 	const definitionChanged = (
@@ -314,6 +325,51 @@ export function defineJobCommands(context: MainContext, runner: JobRunner): void
 	commands.define('jobs.dismiss-suggestion', (args: unknown) =>
 		setSuggestionStatus(db, requireSuggestion(db, args).id, 'dismissed', nowIso8601()),
 	);
+
+	commands.define('jobs.list-outputs', (args: unknown) => {
+		const definition = requireDefinition(db, requireString(args, 'definitionId'));
+		const since = requireString(args, 'since');
+		if (Number.isNaN(Date.parse(since))) throw invalid('`since` must be an ISO 8601 time');
+		return listJobOutputs(db, definition.id, new Date(since).toISOString());
+	});
+
+	commands.define('jobs.list-setups', (args: unknown) =>
+		listJobSetups(db, requireDefinition(db, requireString(args, 'definitionId')).id),
+	);
+
+	commands.define('jobs.open-experiments', (args: unknown) =>
+		experiments.open(requireAutomaticDefinition(db, args)),
+	);
+
+	commands.define('jobs.save-experiment', (args: unknown) =>
+		experiments.save(
+			requireAutomaticDefinition(db, args),
+			optionalString(args, 'experimentId'),
+			experimentSetup(args),
+		),
+	);
+
+	commands.define('jobs.delete-experiment', (args: unknown) => {
+		experiments.delete(requireString(args, 'experimentId'));
+		return null;
+	});
+
+	commands.define('jobs.run-experiment', (args: unknown) =>
+		experiments.run(requireString(args, 'experimentId')),
+	);
+
+	commands.define('jobs.use-experiment', async (args: unknown) => {
+		const { definitionId, setup } = experiments.prepareUse(requireString(args, 'experimentId'));
+		const definition = requireDefinition(db, definitionId);
+		const saved = await saveChanged(definition, {
+			...definition,
+			model: setup.model,
+			instructions: setup.instructions,
+			updatedAt: setup.createdAt,
+		});
+		experiments.finishUse(definitionId, setup);
+		return saved;
+	});
 }
 
 function builtinFields(builtin: JobBuiltin): BuiltinFields {
@@ -357,6 +413,24 @@ function definitionFields(args: unknown): JobDefinitionFields {
 		runsIn,
 		skills: skills === undefined ? null : [...new Set(skills.map((skill) => skill.trim()))],
 	};
+}
+
+function requireAutomaticDefinition(db: MaliniDatabase, args: unknown): AutomaticJobDefinition {
+	const definition = requireDefinition(db, requireString(args, 'definitionId'));
+	if (!isAutomaticJobDefinition(definition)) {
+		throw new JobError('builtin', `${definition.name} takes no experiments.`);
+	}
+	return definition;
+}
+
+function experimentSetup(args: unknown): AutomaticJob {
+	const instructions = requireString(args, 'instructions').trim();
+	if (instructions.length === 0 || instructions.length > JOB_INSTRUCTIONS_MAX_LENGTH) {
+		throw invalid(`\`instructions\` must be 1 to ${JOB_INSTRUCTIONS_MAX_LENGTH} characters`);
+	}
+	const model = field(args, 'model');
+	if (!isValidAgentModel(model)) throw invalid('`model` must be a model id');
+	return { model, instructions };
 }
 
 function triggerField(args: unknown): JobTrigger | null | undefined {

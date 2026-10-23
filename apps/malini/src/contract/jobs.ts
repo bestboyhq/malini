@@ -132,6 +132,58 @@ export type JobSuggestionRecord = Readonly<{
 
 export type JobSuggestionIdArgs = Readonly<{ suggestionId: string }>;
 
+export type JobOutputRecord = Readonly<{
+	id: string;
+	setupId: string;
+	excerpt: string;
+	output: string | null;
+	error: string | null;
+	createdAt: string;
+}>;
+
+export type JobSetupRecord = Readonly<{
+	id: string;
+	model: string;
+	instructions: string;
+	expectedRate: number | null;
+	createdAt: string;
+}>;
+
+export type JobOutputsArgs = Readonly<{ definitionId: string; since: string }>;
+
+export type JobExperimentResult = Readonly<{
+	outputId: string;
+	output: string | null;
+	error: string | null;
+}>;
+
+export type JobExperimentRecord = Readonly<{
+	id: string;
+	definitionId: string;
+	name: string;
+	model: string;
+	instructions: string;
+	current: boolean;
+	running: boolean;
+	results: readonly JobExperimentResult[];
+	createdAt: string;
+}>;
+
+export type JobExperimentsRecord = Readonly<{
+	definitionId: string;
+	sample: readonly JobOutputRecord[];
+	experiments: readonly JobExperimentRecord[];
+}>;
+
+export type SaveJobExperimentArgs = Readonly<{
+	definitionId: string;
+	experimentId?: string;
+	model: string;
+	instructions: string;
+}>;
+
+export type JobExperimentIdArgs = Readonly<{ experimentId: string }>;
+
 export type JobCommandName =
 	| 'jobs.list-definitions'
 	| 'jobs.save-definition'
@@ -144,9 +196,17 @@ export type JobCommandName =
 	| 'jobs.cancel-run'
 	| 'jobs.list-suggestions'
 	| 'jobs.accept-suggestion'
-	| 'jobs.dismiss-suggestion';
+	| 'jobs.dismiss-suggestion'
+	| 'jobs.list-outputs'
+	| 'jobs.list-setups'
+	| 'jobs.open-experiments'
+	| 'jobs.save-experiment'
+	| 'jobs.delete-experiment'
+	| 'jobs.run-experiment'
+	| 'jobs.use-experiment';
 
-export type JobEventChannel = 'jobs:run-changed' | 'jobs:definition-changed' | 'jobs:suggested';
+export type JobEventChannel =
+	'jobs:run-changed' | 'jobs:definition-changed' | 'jobs:suggested' | 'jobs:experiment-changed';
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
 
@@ -156,6 +216,8 @@ export type JobDefinitionChangedEvent = Readonly<{
 }>;
 
 export type JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;
+
+export type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
 
 export const JOB_INTERRUPTED_DETAIL = 'Interrupted when Malini closed';
 

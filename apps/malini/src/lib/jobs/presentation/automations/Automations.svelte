@@ -1,14 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { JobDefinitionRecord } from '$contract/jobs';
+	import { isAutomaticJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/providers.api';
 	import {
 		refreshWorkstreamsCommand,
 		syncWorkstreamsHook,
 	} from '$shared/repositories/repositories.api';
-	import { goto } from '$shared/router/navigation';
-	import { JOBS_HREF } from '$shared/router/routes-hrefs';
 	import { loadJobSuggestionsCommand } from '$lib/jobs/application/commands/load-job-suggestions.command';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
@@ -21,13 +19,15 @@
 	import AutomationsOverview from './AutomationsOverview.svelte';
 	import AutomationsRecipes from './AutomationsRecipes.svelte';
 	import JobDetail from './JobDetail.svelte';
+	import JobImprove from './JobImprove.svelte';
 
 	interface Props {
 		view: AutomationsView;
 		selectedJobId: string | null;
+		improving: boolean;
 	}
 
-	let { view, selectedJobId }: Props = $props();
+	let { view, selectedJobId, improving }: Props = $props();
 
 	const load = $derived(jobsLoadQuery.data);
 	const builtins = $derived(builtinJobDefinitionsQuery.data);
@@ -59,14 +59,20 @@
 			<Button variant="secondary" size="sm" onclick={() => loadJobsCommand()}>Retry</Button>
 		</div>
 	</div>
-{:else if view === 'activity'}
-	<AutomationsActivity {jobs} />
-{:else if view === 'recipes'}
-	<AutomationsRecipes />
-{:else}
-	<AutomationsOverview {jobs} />
-{/if}
-
-{#if selected}
-	<JobDetail job={selected} {jobs} onclose={() => void goto(JOBS_HREF)} />
+{:else if selected}
+	{#key selected.id}
+		{#if improving && isAutomaticJobBuiltin(selected.builtin)}
+			<JobImprove job={selected} builtin={selected.builtin} />
+		{:else}
+			<JobDetail job={selected} {jobs} />
+		{/if}
+	{/key}
+{:else if selectedJobId === null || load.state === 'ready'}
+	{#if view === 'activity'}
+		<AutomationsActivity {jobs} />
+	{:else if view === 'recipes'}
+		<AutomationsRecipes />
+	{:else}
+		<AutomationsOverview {jobs} />
+	{/if}
 {/if}

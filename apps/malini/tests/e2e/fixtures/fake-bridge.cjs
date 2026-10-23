@@ -1152,12 +1152,16 @@ const handle = (command) => {
 			return ack(command.id);
 		}
 		case 'suggest_title': {
-			if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
+			const titlesByModel = env.FAKE_BRIDGE_TITLES_BY_MODEL
+				? JSON.parse(env.FAKE_BRIDGE_TITLES_BY_MODEL)
+				: {};
+			const title = titlesByModel[command.model] ?? env.FAKE_BRIDGE_TITLE;
+			if (!title) return ack(command.id, 'TITLE_FAILED: no title');
 			write({
 				type: 'bridge.title',
 				protocolVersion: version,
 				id: command.id,
-				title: env.FAKE_BRIDGE_TITLE,
+				title,
 			});
 			return ack(command.id);
 		}
