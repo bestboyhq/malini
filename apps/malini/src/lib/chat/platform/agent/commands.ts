@@ -1275,7 +1275,7 @@ export async function continuePausedRuns(deps: BridgeCommandDeps): Promise<void>
 					sessionId: paused.sessionId,
 					workstreamId: paused.workstreamId,
 					prompt: CONTINUE_AFTER_PAUSE_PROMPT,
-					profile: parseProfile(paused.profile),
+					profile: parseRunProfile(paused.profile),
 					automated: true,
 					worktree: resolvePromptWorktree(db, appDataRoot, paused.workstreamId, [], hooks),
 				};
@@ -1481,7 +1481,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 					parseTranscriptReference,
 				),
 				elementReferences: optionalArray(args, 'elementReferences').map(parseElementReference),
-				profile: parseProfile(field(args, 'profile')),
+				profile: parseRunProfile(field(args, 'profile')),
 				automated: field(args, 'automated') === true,
 				steer: field(args, 'steer') === true,
 				worktree,
@@ -1769,7 +1769,7 @@ function isReport(value: unknown): value is NonNullable<AgentRunProfile['report'
 	return value === 'low' || value === 'medium' || value === 'high';
 }
 
-function parseProfile(value: unknown): AgentRunProfile | null {
+export function parseRunProfile(value: unknown): AgentRunProfile | null {
 	if (value === undefined || value === null) return null;
 	if (!isRecord(value)) throw invalidProfile();
 	const effort = value['effort'];

@@ -31,6 +31,8 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { answeredApprovalsInRun } from '../interactions.repository';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
+import { storedRunProfile } from '../runs.repository';
+import { parseRunProfile } from './commands';
 import { jobsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, type PersistedBridgeSession } from './sessions';
@@ -154,7 +156,7 @@ async function runPlatformTool(
 				}));
 		}
 		case 'workstreams_create':
-			return createWorkstream(deps, requiredText(input, 'repository'), text(input, 'name'));
+			return createWorkstream(deps, request);
 		case 'workstreams_archive': {
 			const { workstreamId } = requestSession(db, request);
 			const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
@@ -192,11 +194,17 @@ async function cloneRepository(
 
 async function createWorkstream(
 	deps: PlatformRequestDeps,
-	reference: string,
-	name: string | undefined,
+	request: BridgePlatformRequest,
 ): Promise<unknown> {
 	const { db, commands, log } = deps;
-	const repository = findRepository(await listRepositoryCatalog(db), reference);
+	const { input } = request;
+	const name = text(input, 'name');
+	const prompt = requiredText(input, 'prompt');
+	const source = requestSession(db, request);
+	const repository = findRepository(
+		await listRepositoryCatalog(db),
+		requiredText(input, 'repository'),
+	);
 	const planned = await planRepositoryWorkstream(db, repository.id);
 	if (!planned) throw new Error(`${repository.fullName} is no longer in Malini.`);
 	const plan = name === undefined ? planned : { ...planned, name };
@@ -211,27 +219,41 @@ async function createWorkstream(
 	}
 	await createPlannedWorkstream(commands, plan, projectRepoPath);
 	const { workstreamId } = plan;
-	void prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
+	const settingUp = prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
+	let chat: string;
+	try {
+		chat = await commands.call('chat.start-session', {
+			workstreamId,
+			origin: 'user',
+			...(source.model === null ? {} : { model: source.model }),
+		});
+	} catch (error) {
+		throw new Error(
+			`Malini started the workstream “${plan.name}” (\`${workstreamId}\`) but could not start its chat, so it did not send the prompt: ${describeError(error)}. Do not start it again.`,
+		);
+	}
+	const profile = parseRunProfile(storedRunProfile(db, request.runId));
+	const sessionId = chat;
+	void (async () => {
+		await settingUp;
+		try {
+			await commands.call('chat.send-prompt', {
+				sessionId,
+				prompt,
+				...(profile === null ? {} : { profile }),
+			});
+		} catch (error) {
+			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
+		}
+	})();
 	return {
 		id: workstreamId,
 		name: plan.name,
 		repository: repository.fullName,
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
-		chat: await defaultChat(deps, workstreamId),
+		chat,
 	};
-}
-
-async function defaultChat(
-	{ commands, log }: PlatformRequestDeps,
-	workstreamId: string,
-): Promise<string | null> {
-	try {
-		return await commands.call('chat.start-session', { workstreamId, origin: 'user' });
-	} catch (error) {
-		log(`agent: could not start a chat in \`${workstreamId}\`: ${describeError(error)}`);
-		return null;
-	}
 }
 
 function cloneUrl(reference: string): string {

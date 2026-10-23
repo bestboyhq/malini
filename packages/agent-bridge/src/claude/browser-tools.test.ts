@@ -266,8 +266,9 @@ describe('malini MCP server', () => {
 			properties: {
 				repository: { type: 'string', description: expect.any(String) },
 				name: { type: 'string', description: expect.any(String) },
+				prompt: { type: 'string', description: expect.any(String) },
 			},
-			required: ['repository'],
+			required: ['repository', 'prompt'],
 		});
 		expect(schemaOf('workstreams_archive')).toMatchObject({ required: ['workstream'] });
 		expect(schemaOf('repositories_clone')).toMatchObject({ required: ['repository'] });

@@ -237,7 +237,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		agentCalls(app, {
 			tool: 'workstreams_create',
-			input: { repository: kennelName, name: 'Fetch' },
+			input: { repository: kennelName, name: 'Fetch', prompt: 'Add a fetch command' },
 		});
 		await allowOnce(`Start a workstream in ‘${kennelName}’`);
 		await expect(sidebar.getByText('Fetch', { exact: true })).toBeVisible({ timeout: 20_000 });

@@ -166,7 +166,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository: its own git worktree on a fresh branch from the default branch, with a new chat in it that the user lands on when they open it. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies in the background while the sidebar shows it setting up. Returns the workstream as JSON with its id, name, repository, branch, base branch and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. To give it work, run a job in it with jobs_run and \`workstream\`. ${ASKS}`,
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Returns the workstream as JSON with its id, name, repository, branch, base branch and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
 			{
 				repository: z
 					.string()
@@ -178,6 +178,12 @@ export function platformTools(request: PlatformToolRequester) {
 					.max(80)
 					.optional()
 					.describe('Name the sidebar shows. Leave out and Malini names it.'),
+				prompt: z
+					.string()
+					.min(1)
+					.describe(
+						'The first message of the new chat, written as a prompt to the agent there. That agent does not see this chat, so give it the task and everything it needs.',
+					),
 			},
 			(input) => call('workstreams_create', input),
 		),

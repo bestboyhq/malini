@@ -42,7 +42,7 @@ function holdNpmInstall(app: LaunchedApp): string {
 	return release;
 }
 
-test('a workstream an agent starts shows Setting up and its install, and opens on its own chat', async () => {
+test('a workstream an agent starts opens on a chat that gets its prompt once it is set up', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -70,9 +70,18 @@ test('a workstream an agent starts shows Setting up and its install, and opens o
 		await allowOnce(page, `Clone ‘file://${kennel}’`);
 		agentCalls(app, {
 			tool: 'workstreams_create',
-			input: { repository: kennelName, name: 'Fetch' },
+			input: { repository: kennelName, name: 'Fetch', prompt: 'Add a fetch command to kennel' },
 		});
-		await allowOnce(page, `Start a workstream in ‘${kennelName}’`);
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect(
+			page.getByRole('heading', { name: `Start a workstream in ‘${kennelName}’` }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText('Add a fetch command to kennel', { exact: true })).toBeVisible();
+		await captureFlow(app, 'agent-workstream-approval');
+		await page
+			.getByRole('group', { name: 'Permission decision' })
+			.getByRole('button', { name: 'Allow once' })
+			.click();
 
 		const fetch = sidebar
 			.locator('[data-testid="sidebar-workstream"]')
@@ -94,11 +103,28 @@ test('a workstream an agent starts shows Setting up and its install, and opens o
 		await expect(install).toContainText('Installing dependencies · npm ci', { timeout: 20_000 });
 		await captureFlow(app, 'agent-workstream-opened');
 
+		const transcript = page.getByTestId('transcript-pane');
+		await expect(transcript.getByText('Add a fetch command to kennel')).toHaveCount(0);
+
 		writeFileSync(release, '');
-		await expect(fetch.getByRole('status', { name: 'Workstream status: Idle' })).toBeVisible({
+		await expect(
+			transcript.getByText('Add a fetch command to kennel', { exact: true }),
+		).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(transcript.getByText('Hello from the fake bridge', { exact: true })).toBeVisible({
 			timeout: 30_000,
 		});
 		await expect(install).toHaveCount(0);
+		await expect(
+			fetch.getByRole('status', { name: /^Workstream status: (Ready|Idle)/u }),
+		).toBeVisible({ timeout: 30_000 });
+		await expect(
+			page
+				.getByTestId('chat-agent-tabs')
+				.getByRole('tab', { name: 'Add a fetch command to kennel' }),
+		).toHaveText('Add a fetch command to kennel', { timeout: 20_000 });
+		await captureFlow(app, 'agent-workstream-prompt-sent');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
