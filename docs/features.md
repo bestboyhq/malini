@@ -141,8 +141,10 @@ Malini makes two calls of its own: update checks to GitHub Releases, and anonymo
 Usage data says which features are used and which errors happen, and never contains your code, prompts, paths, or keys.
 Turn it off under Settings, Privacy, Share usage data.
 
-**Streamer mode** blurs email addresses and your user name in paths.
-Auto blurs while OBS or another streaming app runs, or while an app such as Grip records the screen.
+**Streamer mode** masks email addresses and your user name in paths with asterisks, such as `s****o` for `szymeo`.
+The first and last letters and the length stay, so you can tell your own, while a viewer cannot read it.
+Click a masked one to show it.
+Auto masks while OBS or another streaming app runs, or while an app such as Grip records the screen.
 You can set it to On or Off under Settings, Privacy.
 
 Updates download in the background and install when you quit, or right away with **Restart to Update**.

@@ -1,4 +1,5 @@
 import { highlightCode, resolveLanguage, type CodeToken } from '@malini/extension-api';
+import { revealedText } from '../sensitive/sensitive-dom';
 import { SENSITIVE_REVEAL_LABEL, sensitiveSegmentsAcross } from '../sensitive/sensitive-segments';
 import { sensitiveMasking } from '../sensitive/sensitive-masking.svelte';
 import { BoundedHtmlCache, textFingerprint } from './bounded-html-cache';
@@ -10,6 +11,10 @@ const highlightedHtml = new BoundedHtmlCache(CODE_HTML_CACHE_CHARACTERS);
 
 export function escapeCodeText(text: string): string {
 	return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function escapeCodeAttribute(text: string): string {
+	return escapeCodeText(text).replaceAll('"', '&quot;');
 }
 
 export function highlightedCodeHtml(code: string, language: string | null | undefined): string {
@@ -42,7 +47,7 @@ function tokensHtml(tokens: readonly CodeToken[]): string {
 		let inner = '';
 		for (const piece of pieces[index] ?? []) {
 			inner += piece.kind
-				? `<span class="hyper-sensitive" data-sensitive="${piece.kind}" ${SENSITIVE_MATCH_ATTRIBUTE}="${piece.match}" role="button" tabindex="0" aria-label="${SENSITIVE_REVEAL_LABEL[piece.kind]}"><span class="hyper-sensitive-mask">${escapeCodeText(piece.text)}</span></span>`
+				? `<span class="hyper-sensitive" data-sensitive="${piece.kind}" data-sensitive-text="${escapeCodeAttribute(piece.text)}" ${SENSITIVE_MATCH_ATTRIBUTE}="${piece.match}" role="button" tabindex="0" aria-label="${SENSITIVE_REVEAL_LABEL[piece.kind]}"><span class="hyper-sensitive-mask">${escapeCodeText(piece.masked)}</span></span>`
 				: escapeCodeText(piece.text);
 		}
 		html += token.kind === 'plain' ? inner : `<span class="tok-${token.kind}">${inner}</span>`;
@@ -60,7 +65,7 @@ export function revealSensitiveCode(event: Event): boolean {
 	event.stopPropagation();
 	const match = control.getAttribute(SENSITIVE_MATCH_ATTRIBUTE);
 	for (const piece of code.querySelectorAll(`[${SENSITIVE_MATCH_ATTRIBUTE}="${match}"]`)) {
-		piece.replaceWith(...(piece.firstElementChild?.childNodes ?? []));
+		piece.replaceWith(revealedText(piece));
 	}
 	return true;
 }

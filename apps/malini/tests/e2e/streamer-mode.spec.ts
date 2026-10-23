@@ -13,7 +13,7 @@ import {
 
 const DETECTION_TIMEOUT_MS = 15_000;
 
-test('streamer mode blurs personal data on demand, and by itself while a streaming app runs', async () => {
+test('streamer mode masks personal data on demand, and by itself while a streaming app runs', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	let streamingApp: ChildProcess | null = null;
@@ -91,7 +91,7 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 		await expect(mask).toHaveCount(0);
 		await url.blur();
 		await expect(mask).toBeVisible();
-		await expect(mask).toHaveText(homePath);
+		await expect(mask).toHaveText('file:///Users/a**/repos/hutch');
 		await expect(url).toHaveValue(homePath);
 		await captureFlow(app, 'streamer-mode-field-masked');
 
@@ -117,6 +117,50 @@ async function openSettings(page: Page, section: string): Promise<void> {
 		`#/settings${section ? `/${section}` : ''}`,
 	);
 }
+
+test('streamer mode masks an email and a home folder with asterisks, in the composer too', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-streamer-mask', 'Masked');
+		await openSettings(page, 'privacy');
+		await page
+			.getByRole('group', { name: 'Streamer mode' })
+			.getByRole('button', { name: 'On' })
+			.click();
+		await page.keyboard.press('Escape');
+		await openWorkstream(page, workstreamId);
+		const composer = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
+		await composer.click();
+		await page.keyboard.type('Mail ada.lovelace@example.com about /Users/ada/notes.md');
+		await expect(page.getByRole('status').filter({ hasText: 'No job matches' })).toHaveText(
+			'No job matches “/Users/a**/notes.md”',
+		);
+		await page.getByRole('button', { name: 'View MCP server status' }).focus();
+		await expect(composer).toContainText(
+			'Mail a**********e@e*****e.com about /Users/a**/notes.md',
+			{ useInnerText: true },
+		);
+		await captureFlow(app, 'streamer-mode-composer');
+		await composer.click();
+		await expect(composer).toContainText(
+			'Mail ada.lovelace@example.com about /Users/ada/notes.md',
+			{ useInnerText: true },
+		);
+
+		await openSettings(page, '');
+		const signedIn = page.getByTestId('claude-code-setup').getByTestId('claude-code-detail');
+		await expect(signedIn).toContainText('Signed in as e**@e*****e.com');
+		await captureFlow(app, 'streamer-mode-account');
+		await signedIn.getByRole('button', { name: 'Reveal email address' }).click();
+		await expect(signedIn).toContainText('Signed in as e2e@example.com');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
 
 function launchStandInObs(root: string): ChildProcess {
 	const bundle = join(root, 'OBS.app', 'Contents', 'MacOS');

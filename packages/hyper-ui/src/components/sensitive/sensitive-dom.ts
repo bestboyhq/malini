@@ -22,9 +22,10 @@ export function maskSensitiveText(root: ParentNode): void {
 			control.setAttribute('role', 'button');
 			control.tabIndex = 0;
 			control.setAttribute('aria-label', SENSITIVE_REVEAL_LABEL[segment.kind]);
+			control.dataset['sensitiveText'] = segment.text;
 			const mask = document.createElement('span');
 			mask.className = 'hyper-sensitive-mask';
-			mask.textContent = segment.text;
+			mask.textContent = segment.masked;
 			control.append(mask);
 			fragment.append(control);
 		}
@@ -40,8 +41,12 @@ export function revealSensitiveTarget(event: Event): boolean {
 	if (!control) return false;
 	event.preventDefault();
 	event.stopPropagation();
-	control.replaceWith(...(control.firstElementChild?.childNodes ?? []));
+	control.replaceWith(revealedText(control));
 	return true;
+}
+
+export function revealedText(control: Element): string {
+	return control instanceof HTMLElement ? (control.dataset['sensitiveText'] ?? '') : '';
 }
 
 export function maskSensitiveHtml(html: string): string {

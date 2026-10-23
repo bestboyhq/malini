@@ -4,6 +4,7 @@ export type SensitiveKind = 'email' | 'user';
 
 export type SensitiveSegment = Readonly<{
 	text: string;
+	masked: string;
 	kind: SensitiveKind | null;
 	match: number;
 }>;
@@ -12,15 +13,39 @@ const EMAIL = String.raw`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A
 const HOME_USER = String.raw`(?<=/(?:Users|home)/)[^/\s"'\x60<>:]+`;
 const SENSITIVE = new RegExp(`(${EMAIL})|(${HOME_USER})`, 'gu');
 
-type SensitiveRange = Readonly<{ start: number; end: number; kind: SensitiveKind }>;
+type SensitiveRange = Readonly<{ start: number; end: number; kind: SensitiveKind; masked: string }>;
 
 function sensitiveRanges(text: string): SensitiveRange[] {
 	if (!sensitiveMasking.on) return [];
-	return [...text.matchAll(SENSITIVE)].map((match) => ({
-		start: match.index,
-		end: match.index + match[0].length,
-		kind: match[1] === undefined ? 'user' : 'email',
-	}));
+	return [...text.matchAll(SENSITIVE)].map((match) => {
+		const kind = match[1] === undefined ? 'user' : 'email';
+		return {
+			start: match.index,
+			end: match.index + match[0].length,
+			kind,
+			masked: maskSensitive(match[0], kind),
+		};
+	});
+}
+
+export function maskSensitive(text: string, kind: SensitiveKind): string {
+	if (kind === 'user') return maskWord(text);
+	const at = text.lastIndexOf('@');
+	const labels = text.slice(at + 1).split('.');
+	const topLevel = labels.pop() ?? '';
+	return `${maskWord(text.slice(0, at))}@${labels.map((label) => `${maskWord(label)}.`).join('')}${topLevel}`;
+}
+
+function maskWord(word: string): string {
+	const characters = [...word];
+	const last = characters.length - 1;
+	return characters
+		.map((character, index) =>
+			(index === 0 && last > 0) || (index === last && last >= 3)
+				? character
+				: '*'.repeat(character.length),
+		)
+		.join('');
 }
 
 export function hasSensitiveText(text: string): boolean {
@@ -40,14 +65,22 @@ export function sensitiveSegmentsAcross(parts: readonly string[]): SensitiveSegm
 			const from = Math.max(range.start, start);
 			const to = Math.min(range.end, end);
 			if (from >= to) return;
-			if (from > cursor)
-				segments.push({ text: part.slice(cursor - start, from - start), kind: null, match: -1 });
-			segments.push({ text: part.slice(from - start, to - start), kind: range.kind, match });
+			if (from > cursor) segments.push(plain(part.slice(cursor - start, from - start)));
+			segments.push({
+				text: part.slice(from - start, to - start),
+				masked: range.masked.slice(from - range.start, to - range.start),
+				kind: range.kind,
+				match,
+			});
 			cursor = to;
 		});
-		if (cursor < end) segments.push({ text: part.slice(cursor - start), kind: null, match: -1 });
+		if (cursor < end) segments.push(plain(part.slice(cursor - start)));
 		return segments;
 	});
+}
+
+function plain(text: string): SensitiveSegment {
+	return { text, masked: text, kind: null, match: -1 };
 }
 
 export function sensitiveSegments(text: string): SensitiveSegment[] {
