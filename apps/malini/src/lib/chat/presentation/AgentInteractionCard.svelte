@@ -43,10 +43,30 @@
 	let alwaysAllowOpen = $state(false);
 
 	const ALWAYS_ALLOW = [
-		{ scope: 'session', label: 'Allow for this chat', icon: 'chat' },
-		{ scope: 'workstream', label: 'Allow for this workstream', icon: 'branch' },
-		{ scope: 'everywhere', label: 'Allow everywhere', icon: 'globe' },
-	] as const satisfies readonly { scope: AgentApprovalScope; label: string; icon: IconName }[];
+		{
+			scope: 'session',
+			label: 'Allow for this chat',
+			description: 'Asks again in a new chat',
+			icon: 'chat',
+		},
+		{
+			scope: 'workstream',
+			label: 'Allow for this workstream',
+			description: 'Every chat in this workstream',
+			icon: 'branch',
+		},
+		{
+			scope: 'everywhere',
+			label: 'Allow everywhere',
+			description: 'Every workstream, until you revoke it',
+			icon: 'globe',
+		},
+	] as const satisfies readonly {
+		scope: AgentApprovalScope;
+		label: string;
+		description: string;
+		icon: IconName;
+	}[];
 
 	const reference = $derived({
 		kind: item.kind,
@@ -191,7 +211,14 @@
 					Deny
 				</Button>
 				{#if canOfferPersistentScope}
-					<Dropdown bind:open={alwaysAllowOpen} side="bottom" align="end" role={null}>
+					<Dropdown
+						bind:open={alwaysAllowOpen}
+						side="bottom"
+						align="end"
+						role={null}
+						panelClass="w-72"
+						contentClass="overflow-hidden"
+					>
 						{#snippet trigger()}
 							<Button
 								variant="secondary"
@@ -209,15 +236,20 @@
 							</Button>
 						{/snippet}
 						{#snippet content()}
-							<div class="w-56 space-y-0.5 p-1" role="menu" aria-label="Always allow">
+							<div class="p-1.5" role="menu" aria-label="Always allow">
 								{#each ALWAYS_ALLOW as choice (choice.scope)}
 									<DropdownItem
 										role="menuitem"
-										class="gap-2.5"
+										class="gap-2.5 py-2"
 										onSelect={() => decideApproval(item, 'allow', choice.scope)}
 									>
 										<Icon name={choice.icon} size={14} class="text-fg-tertiary shrink-0" />
-										{choice.label}
+										<span class="flex min-w-0 flex-1 flex-col">
+											<span class="truncate text-[13px] leading-5">{choice.label}</span>
+											<span class="text-fg-tertiary text-2xs truncate leading-4">
+												{choice.description}
+											</span>
+										</span>
 									</DropdownItem>
 								{/each}
 							</div>

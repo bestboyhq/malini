@@ -27,9 +27,9 @@
 						<p class="text-fg-tertiary text-xs">{permissionGrantWhere(grant)}</p>
 					</div>
 					<Button
-						variant="ghost"
+						variant="secondary"
 						size="sm"
-						class="text-xs"
+						bordered
 						ariaLabel={`Revoke ${grant.what}`}
 						onclick={() => revokePermissionGrantCommand(grant.id)}
 					>

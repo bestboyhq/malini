@@ -106,8 +106,7 @@
 							{#if decision === 'pending'}
 								<Button
 									variant="ghost"
-									size="2xs"
-									class="text-xs"
+									size="sm"
 									ariaLabel={`Reject ${change.label}`}
 									disabled={submitting}
 									onclick={() => decide(change.key, 'rejected')}
@@ -116,8 +115,8 @@
 								</Button>
 								<Button
 									variant="secondary"
-									size="2xs"
-									class="text-xs"
+									size="sm"
+									bordered
 									ariaLabel={`Accept ${change.label}`}
 									disabled={submitting}
 									onclick={() => decide(change.key, 'accepted')}
@@ -130,8 +129,7 @@
 								</span>
 								<Button
 									variant="ghost"
-									size="2xs"
-									class="text-xs"
+									size="sm"
 									ariaLabel={`Undo ${change.label}`}
 									disabled={submitting}
 									onclick={() => decide(change.key, 'pending')}

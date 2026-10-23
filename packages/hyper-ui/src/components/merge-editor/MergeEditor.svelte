@@ -69,8 +69,8 @@
 				target,
 				props: {
 					variant: kind === 'accept' ? 'secondary' : 'ghost',
-					size: '2xs',
-					class: 'text-xs',
+					size: 'sm',
+					bordered: kind === 'accept',
 					ariaLabel: `${text} change`,
 					onclick: action,
 					children: createRawSnippet(() => ({ render: () => `<span>${text}</span>` })),
@@ -95,20 +95,10 @@
 			{changes === 0 ? 'No changes left' : changes === 1 ? '1 change' : `${changes} changes`}
 		</span>
 		{#if changes > 0}
-			<Button
-				variant="ghost"
-				size="2xs"
-				class="ml-auto text-xs"
-				onclick={() => resolveAll(rejectChunk)}
-			>
+			<Button variant="ghost" size="sm" class="ml-auto" onclick={() => resolveAll(rejectChunk)}>
 				Reject all
 			</Button>
-			<Button
-				variant="secondary"
-				size="2xs"
-				class="text-xs"
-				onclick={() => resolveAll(acceptChunk)}
-			>
+			<Button variant="secondary" size="sm" bordered onclick={() => resolveAll(acceptChunk)}>
 				Accept all
 			</Button>
 		{/if}
