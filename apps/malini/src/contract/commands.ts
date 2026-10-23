@@ -35,12 +35,19 @@ import type {
 	ChatJobRunsArgs,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
+	JobExperimentIdArgs,
+	JobExperimentRecord,
+	JobExperimentsRecord,
+	JobOutputRecord,
+	JobOutputsArgs,
 	JobRunIdArgs,
 	JobRunRecord,
+	JobSetupRecord,
 	JobSuggestionIdArgs,
 	JobSuggestionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
+	SaveJobExperimentArgs,
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type {
@@ -484,6 +491,13 @@ export interface ContractCommands {
 	'jobs.list-suggestions': { args: undefined; result: JobSuggestionRecord[] };
 	'jobs.accept-suggestion': { args: JobSuggestionIdArgs; result: JobDefinitionRecord };
 	'jobs.dismiss-suggestion': { args: JobSuggestionIdArgs; result: JobSuggestionRecord };
+	'jobs.list-outputs': { args: JobOutputsArgs; result: JobOutputRecord[] };
+	'jobs.list-setups': { args: JobDefinitionIdArgs; result: JobSetupRecord[] };
+	'jobs.open-experiments': { args: JobDefinitionIdArgs; result: JobExperimentsRecord };
+	'jobs.save-experiment': { args: SaveJobExperimentArgs; result: JobExperimentRecord };
+	'jobs.delete-experiment': { args: JobExperimentIdArgs; result: null };
+	'jobs.run-experiment': { args: JobExperimentIdArgs; result: JobExperimentRecord };
+	'jobs.use-experiment': { args: JobExperimentIdArgs; result: JobDefinitionRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
@@ -723,6 +737,13 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.list-suggestions',
 	'jobs.accept-suggestion',
 	'jobs.dismiss-suggestion',
+	'jobs.list-outputs',
+	'jobs.list-setups',
+	'jobs.open-experiments',
+	'jobs.save-experiment',
+	'jobs.delete-experiment',
+	'jobs.run-experiment',
+	'jobs.use-experiment',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',

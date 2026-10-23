@@ -62,7 +62,7 @@ import {
 	workstreamAwaitsName,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
-import { chatNamingJob } from '$lib/jobs/jobs.platform';
+import { runAutomaticJob } from '$lib/jobs/jobs.platform';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
@@ -769,7 +769,9 @@ async function suggestedTitle(
 	const task = promptPlainText(prompt).trim();
 	if (task.length === 0) return null;
 	try {
-		return await supervisor.suggestTitle(task, chatNamingJob(db));
+		return await runAutomaticJob(db, 'name-chats', task, (named, job) =>
+			supervisor.suggestTitle(named, job),
+		);
 	} catch (error) {
 		log(`agent: Claude did not name the chat, so its first words name it: ${describe(error)}`);
 		return conciseSessionTitle(prompt);

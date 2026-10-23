@@ -132,7 +132,9 @@ export async function registerModules(
 
 	const extensions = registerExtensions(context, { resolver: repositories.checkouts });
 
-	const jobs = registerJobs(context);
+	const jobs = registerJobs(context, {
+		suggestTitle: (task, job) => chat.suggestTitle(task, job),
+	});
 	jobs.start();
 	app.announceUpdate();
 	pullRequests.start();

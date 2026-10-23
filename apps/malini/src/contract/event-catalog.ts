@@ -67,6 +67,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			'Fires when Malini notices a prompt you keep repeating and suggests turning it into a job.',
 	},
+	'jobs:experiment-changed': {
+		description:
+			"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
+	},
 	'app:close-requested': {
 		description:
 			'Fires when you close the Malini window, so Malini can show what is still running and ask before it quits.',

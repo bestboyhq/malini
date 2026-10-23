@@ -134,6 +134,27 @@ The built-in jobs are yours to edit, except where they run.
 The ones that run without an agent also keep their instructions, model, effort, and skills.
 **Reset** brings back the original.
 
+## Improve Name chats and Name services
+
+**Name chats** and **Name services** keep every name they give, with the model and instructions that gave it.
+Their page shows the last two weeks: how many names they gave, how many followed every rule of their instructions, and a bar per day.
+A band under the bars shows which model and instructions were in use, and a dashed line marks the day they changed.
+**Names that broke a rule this week** lists each name that broke one, with the rule it broke.
+
+Malini checks each name against the rules of the job's built-in instructions:
+
+- **Name chats**: three words at most, no leading verb such as fix or investigating, no punctuation at the end, and no quotes.
+- **Name services**: two lowercase words at most, or `task:` and three; no leading verb such as start or run; and not only the tool's name, such as vite.
+
+**Improve** opens experiments that replay the job's last 12 tasks.
+**Today** is what the job runs now.
+**New experiment** copies the experiment you are looking at, so you change its model or its instructions and run it.
+Every result lands in one table beside the others, with each name that breaks a rule marked, and each experiment counts how many of its names broke one.
+Run an experiment again to see how much its names vary, and delete the ones you are done with.
+**Use** makes an experiment what the job runs from now on, and the job's page marks that day with the share of names it expects to follow every rule.
+
+An experiment calls the model once per task, through your Claude login, the same way the job does.
+
 ## Suggested jobs
 
 Malini notices the prompts you keep repeating and suggests turning them into a job, on the Overview.

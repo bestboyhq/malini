@@ -2,7 +2,7 @@ import type { AgentTheme } from '$contract/agent';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
-import { chatNamingJob, serviceNamingJob } from '$lib/jobs/jobs.platform';
+import { runAutomaticJob, type SuggestWithJob } from '$lib/jobs/jobs.platform';
 import { stopBackgroundTask, stopWorkstreamBackgroundCommands } from './agent/commands';
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
@@ -46,6 +46,7 @@ export interface ChatPlatform {
 	stopWorkstreamBackgroundCommands(workstreamId: string): Promise<void>;
 	nameService(task: string): Promise<string>;
 	nameWorkstream(task: string): Promise<string>;
+	suggestTitle: SuggestWithJob;
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -101,6 +102,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
 	});
 
+	const suggestTitle: SuggestWithJob = async (task, job) =>
+		(await agent.ensureReady()).suggestTitle(task, job);
+
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: () => {
@@ -117,9 +121,8 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			stopBackgroundTask(context.db, agent.runtime, sessionId, taskId),
 		stopWorkstreamBackgroundCommands: (workstreamId) =>
 			stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
-		nameService: async (task) =>
-			(await agent.ensureReady()).suggestTitle(task, serviceNamingJob(context.db)),
-		nameWorkstream: async (task) =>
-			(await agent.ensureReady()).suggestTitle(task, chatNamingJob(context.db)),
+		nameService: (task) => runAutomaticJob(context.db, 'name-services', task, suggestTitle),
+		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
+		suggestTitle,
 	};
 }

@@ -637,6 +637,57 @@ DELETE FROM agent_permission_rules
   WHERE json_valid(permission_json)
     AND json_extract(permission_json, '$.resources[0].value') = 'routines.save';
 `,
+	`
+CREATE TABLE job_setups (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  expected_rate REAL CHECK (expected_rate IS NULL OR (expected_rate >= 0 AND expected_rate <= 1)),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_job_setups_definition_created ON job_setups(definition_id, created_at);
+
+CREATE TABLE job_outputs (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  setup_id TEXT NOT NULL REFERENCES job_setups(id) ON DELETE CASCADE,
+  input TEXT NOT NULL,
+  output TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  CHECK ((output IS NULL) <> (error IS NULL))
+);
+CREATE INDEX idx_job_outputs_definition_created ON job_outputs(definition_id, created_at);
+
+CREATE TABLE job_experiments (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  model TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  current INTEGER NOT NULL DEFAULT 0 CHECK (current IN (0, 1)),
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_job_experiments_definition ON job_experiments(definition_id, created_at);
+
+CREATE TABLE job_experiment_samples (
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  output_id TEXT NOT NULL REFERENCES job_outputs(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (definition_id, output_id)
+);
+
+CREATE TABLE job_experiment_results (
+  experiment_id TEXT NOT NULL REFERENCES job_experiments(id) ON DELETE CASCADE,
+  output_id TEXT NOT NULL REFERENCES job_outputs(id) ON DELETE CASCADE,
+  output TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (experiment_id, output_id),
+  CHECK ((output IS NULL) <> (error IS NULL))
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

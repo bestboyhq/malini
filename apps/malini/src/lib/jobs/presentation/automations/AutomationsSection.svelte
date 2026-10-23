@@ -6,11 +6,12 @@
 		title: string;
 		description: string;
 		testId?: string;
+		eyebrow?: Snippet;
 		actions?: Snippet;
 		children: Snippet;
 	}
 
-	let { title, description, testId, actions, children }: Props = $props();
+	let { title, description, testId, eyebrow, actions, children }: Props = $props();
 	const headingId = $props.id();
 </script>
 
@@ -22,6 +23,7 @@
 	>
 		<header class="mx-3 mb-1.5 flex items-end justify-between gap-6">
 			<div class="min-w-0">
+				{@render eyebrow?.()}
 				<h1 id={headingId} class="text-fg-default text-xl font-semibold tracking-tight">{title}</h1>
 				<p class="text-fg-tertiary mt-0.5 text-xs">{description}</p>
 			</div>

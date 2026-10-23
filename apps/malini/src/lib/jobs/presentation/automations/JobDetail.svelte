@@ -1,13 +1,22 @@
 <script lang="ts">
-	import { isAgentlessJobBuiltin, type JobDefinitionRecord } from '$contract/jobs';
+	import { onMount } from 'svelte';
+	import {
+		isAgentlessJobBuiltin,
+		isAutomaticJobBuiltin,
+		type JobDefinitionRecord,
+	} from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { Well } from '$hyper-ui/components/well';
 	import { Icon } from '$hyper-ui/icons';
+	import { jobImproveHref } from '$shared/router/routes-hrefs';
 	import { deleteJobDefinitionCommand } from '$lib/jobs/application/commands/delete-job-definition.command';
+	import { loadJobScorecardCommand } from '$lib/jobs/application/commands/load-job-scorecard.command';
 	import { resetJobDefinitionCommand } from '$lib/jobs/application/commands/reset-job-definition.command';
 	import { updateJobSettingsCommand } from '$lib/jobs/application/commands/update-job-settings.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
+	import { jobScorecardErrorQuery } from '$lib/jobs/application/queries/job-scorecard-error.query.svelte';
+	import { jobScorecardQuery } from '$lib/jobs/application/queries/job-scorecard.query.svelte';
 	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
 	import { isRunnableJob, isTriggerableJob } from '$lib/jobs/domain/builtin-jobs';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
@@ -16,6 +25,7 @@
 	import JobRunTarget from '../JobRunTarget.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
 	import ChoiceMenu from './ChoiceMenu.svelte';
+	import JobScorecard from './JobScorecard.svelte';
 	import RunModePicker from './RunModePicker.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
@@ -52,6 +62,9 @@
 	const runnable = $derived(isRunnableJob(job));
 	const triggerable = $derived(isTriggerableJob(job));
 	const agentless = $derived(isAgentlessJobBuiltin(job.builtin));
+	const scorecardFor = $derived(jobScorecardQuery.data);
+	const scorecard = $derived(scorecardFor(job, nowMs));
+	const scorecardError = $derived(jobScorecardErrorQuery.data(job.id));
 	const thenName = $derived(jobs.find((other) => other.id === job.thenJobId)?.name ?? null);
 	const thenOptions = $derived([
 		{ value: NOTHING, label: 'Nothing' },
@@ -60,6 +73,10 @@
 	const editorKey = $derived(
 		JSON.stringify([job.id, job.name, job.instructions, job.model, job.effort, job.skills]),
 	);
+
+	onMount(() => {
+		if (isAutomaticJobBuiltin(job.builtin)) loadJobScorecardCommand(job.id);
+	});
 
 	$effect(() => {
 		const clock = setInterval(() => (nowMs = Date.now()), 30_000);
@@ -119,6 +136,14 @@
 						Delete
 					</Button>
 				{/if}
+				{#if isAutomaticJobBuiltin(job.builtin)}
+					<Button variant="primary" size="sm" href={jobImproveHref(job.id)}>
+						{#snippet leading()}
+							<Icon name="sparkles" size={12} />
+						{/snippet}
+						Improve
+					</Button>
+				{/if}
 				{#if runnable}
 					<Button
 						variant="primary"
@@ -145,6 +170,19 @@
 		>
 			{actionState.error}
 		</p>
+	{/if}
+
+	{#if scorecardError}
+		<p
+			class="border-error-content/20 bg-error text-error-content rounded-xl border-[0.5px] px-4 py-3 text-xs"
+			role="alert"
+		>
+			{scorecardError}
+		</p>
+	{/if}
+
+	{#if scorecard && isAutomaticJobBuiltin(job.builtin)}
+		<JobScorecard jobName={job.name} builtin={job.builtin} card={scorecard} />
 	{/if}
 
 	{#if choosingTarget && runnable}

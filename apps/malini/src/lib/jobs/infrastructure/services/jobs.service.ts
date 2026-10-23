@@ -1,10 +1,15 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
 import type {
 	JobDefinitionRecord,
+	JobExperimentRecord,
+	JobExperimentsRecord,
+	JobOutputRecord,
 	JobRunRecord,
+	JobSetupRecord,
 	JobSuggestionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
+	SaveJobExperimentArgs,
 } from '$contract/jobs';
 import { invoke } from '$shared/port/invoke';
 import { JobFailureMapper } from '$lib/jobs/infrastructure/mappers/job-failure.mapper';
@@ -56,6 +61,34 @@ class JobsService {
 
 	dismissSuggestion(suggestionId: string): Promise<JobSuggestionRecord> {
 		return this.#invoke('jobs.dismiss-suggestion', { suggestionId });
+	}
+
+	listOutputs(definitionId: string, since: string): Promise<JobOutputRecord[]> {
+		return this.#invoke('jobs.list-outputs', { definitionId, since });
+	}
+
+	listSetups(definitionId: string): Promise<JobSetupRecord[]> {
+		return this.#invoke('jobs.list-setups', { definitionId });
+	}
+
+	openExperiments(definitionId: string): Promise<JobExperimentsRecord> {
+		return this.#invoke('jobs.open-experiments', { definitionId });
+	}
+
+	saveExperiment(args: SaveJobExperimentArgs): Promise<JobExperimentRecord> {
+		return this.#invoke('jobs.save-experiment', args);
+	}
+
+	async deleteExperiment(experimentId: string): Promise<void> {
+		await this.#invoke('jobs.delete-experiment', { experimentId });
+	}
+
+	runExperiment(experimentId: string): Promise<JobExperimentRecord> {
+		return this.#invoke('jobs.run-experiment', { experimentId });
+	}
+
+	useExperiment(experimentId: string): Promise<JobDefinitionRecord> {
+		return this.#invoke('jobs.use-experiment', { experimentId });
 	}
 
 	async #invoke<Name extends CommandName>(
