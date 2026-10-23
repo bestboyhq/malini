@@ -138,8 +138,8 @@ export function maliniToolApproval(
 			return {
 				headline: named('Start a workstream in', repository),
 				details: present([
-					['From', field('from')],
-					['First message', field('prompt')],
+					['Base', field('base')],
+					['Prompt', field('prompt')],
 				]),
 			};
 		case 'mcp__malini__workstreams_archive':

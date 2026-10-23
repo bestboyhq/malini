@@ -57,7 +57,7 @@ const SHELL_OPERATOR = /^(?:&&|\|\||[;|&\n`(){}])$/u;
 const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
 
 const START_A_WORKSTREAM =
-	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `from` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`';
+	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`';
 const NO_WORKAROUND =
 	'Do not work around this with another clone, git worktree, gh api or a script.';
 const CLONE_HINT = `To change this repository's code, ${START_A_WORKSTREAM} instead: Malini commits, pushes and opens pull requests only from its workstreams. A clone made with git is only for reading code.`;

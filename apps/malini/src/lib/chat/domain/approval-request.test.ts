@@ -157,19 +157,19 @@ describe('malini tool approval', () => {
 			}),
 		).toEqual({
 			headline: 'Start a workstream in ‘acme/site’',
-			details: [{ label: 'First message', value: 'Fix the footer links' }],
+			details: [{ label: 'Prompt', value: 'Fix the footer links' }],
 		});
 		expect(
 			maliniToolApproval('mcp__malini__workstreams_create', {
 				repository: 'acme/site',
 				prompt: 'Fix the footer links',
-				from: 'v0.17.5',
+				base: 'v0.17.5',
 			}),
 		).toEqual({
 			headline: 'Start a workstream in ‘acme/site’',
 			details: [
-				{ label: 'From', value: 'v0.17.5' },
-				{ label: 'First message', value: 'Fix the footer links' },
+				{ label: 'Base', value: 'v0.17.5' },
+				{ label: 'Prompt', value: 'Fix the footer links' },
 			],
 		});
 	});

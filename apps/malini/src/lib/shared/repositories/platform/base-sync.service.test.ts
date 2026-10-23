@@ -67,7 +67,7 @@ async function harness(): Promise<Harness> {
 async function createWorkstream(
 	harness: Harness,
 	workstreamId: string,
-	from?: string,
+	baseRef?: string,
 ): Promise<string> {
 	const path = await harness.invoke('repositories.create-workstream', {
 		projectRepoPath: harness.base,
@@ -75,7 +75,7 @@ async function createWorkstream(
 		baseBranch: 'main',
 		projectId: 'proj',
 		name: workstreamId,
-		...(from === undefined ? {} : { from }),
+		...(baseRef === undefined ? {} : { baseRef }),
 	});
 	if (typeof path !== 'string') throw new Error('create-workstream returned no path');
 	return path;
@@ -341,11 +341,11 @@ describe('starting a workstream from a tag, branch or commit', () => {
 		['a commit', null],
 	] as const)(
 		'starts at %s on origin and keeps it there when the new workstream syncs',
-		async (_kind, from) => {
+		async (_kind, baseRef) => {
 			const repo = await harness();
 			const release = await releaseBehindMain(repo);
 
-			const checkout = await createWorkstream(repo, 'ws-release', from ?? release);
+			const checkout = await createWorkstream(repo, 'ws-release', baseRef ?? release);
 
 			expect(await head(checkout)).toBe(release);
 			expect(

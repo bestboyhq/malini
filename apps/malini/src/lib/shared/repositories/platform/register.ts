@@ -195,7 +195,7 @@ export function registerRepositories(
 	commands.define('repositories.create-workstream', async (args: unknown) => {
 		const projectRepoPath = requireString(args, 'projectRepoPath');
 		const githubToken = optionalString(args, 'githubToken');
-		const from = optionalString(args, 'from');
+		const baseRef = optionalString(args, 'baseRef');
 		return createWorkstream(workstreams, {
 			projectRepoPath,
 			workstreamId: requireString(args, 'workstreamId'),
@@ -203,9 +203,9 @@ export function registerRepositories(
 			projectId: requireString(args, 'projectId'),
 			name: requireString(args, 'name'),
 			githubToken,
-			...(from === null
+			...(baseRef === null
 				? {}
-				: { startRef: await fetchRemoteStart(projectRepoPath, from, githubToken, credentials) }),
+				: { startRef: await fetchRemoteStart(projectRepoPath, baseRef, githubToken, credentials) }),
 		});
 	});
 

@@ -166,7 +166,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`from\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, from and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
 			{
 				repository: z
 					.string()
@@ -178,12 +178,12 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe(
 						'The first message of the new chat, written as a prompt to the agent there. That agent does not see this chat, so give it the task and everything it needs.',
 					),
-				from: z
+				base: z
 					.string()
 					.min(1)
 					.optional()
 					.describe(
-						'A tag, branch or full commit hash on the repository\'s origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.',
+						"A tag, branch or full commit hash on the repository's origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.",
 					),
 			},
 			(input) => call('workstreams_create', input),

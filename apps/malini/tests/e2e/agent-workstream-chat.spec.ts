@@ -158,7 +158,7 @@ test('a workstream an agent starts from a release tag stays on that release once
 		await allowOnce(page, `Clone ‘file://${kennel}’`);
 		agentCalls(app, {
 			tool: 'workstreams_create',
-			input: { repository: kennelName, prompt: 'Fix the release', from: 'v0.17.5' },
+			input: { repository: kennelName, prompt: 'Fix the release', base: 'v0.17.5' },
 		});
 		await sendPrompt(page, 'MALINI_TOOL');
 		await expect(
