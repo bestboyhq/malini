@@ -102,7 +102,7 @@ A [job](/malini/docs/jobs.md) can name the skills it loads.
 
 ## Tools
 
-In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs, routines, and events.
+In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs and events.
 See [Agent tools](/malini/docs/agent-tools.md).
 
 ## Keys

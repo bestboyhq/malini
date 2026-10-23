@@ -7,8 +7,10 @@ export function bootRoute(hash: string, remembered: string | null, routes: Route
 	if (requested !== '/') return requested;
 	if (!remembered) return requested;
 	const pathname = remembered.split(/[?#]/u, 1)[0] ?? '';
-	if (pathname === '/' || !matchRoute(routes, pathname)) return requested;
-	return remembered;
+	if (pathname === '/') return requested;
+	const match = matchRoute(routes, pathname);
+	if (!match) return requested;
+	return match.redirect ?? remembered;
 }
 
 export function readLastRoute(): string | null {

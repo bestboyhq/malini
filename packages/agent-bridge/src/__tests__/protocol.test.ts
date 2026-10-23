@@ -540,8 +540,6 @@ describe('protocol: parseCommandLine', () => {
 				'jobs_list',
 				'jobs_save',
 				'jobs_run',
-				'routines_list',
-				'routines_save',
 				'events_list',
 				'pull_requests_open_draft',
 			]);
@@ -601,8 +599,8 @@ describe('protocol: parseCommandLine', () => {
 			});
 			expect(
 				bridgePlatformRequestFrame('q3', 's1', {
-					tool: 'routines_save',
-					input: { label: 'Docs after merge' },
+					tool: 'jobs_save',
+					input: { name: 'Docs after merge', when: null },
 					runId: 'r1',
 				}),
 			).toEqual({
@@ -611,8 +609,8 @@ describe('protocol: parseCommandLine', () => {
 				requestId: 'q3',
 				sessionId: 's1',
 				runId: 'r1',
-				tool: 'routines_save',
-				input: { label: 'Docs after merge' },
+				tool: 'jobs_save',
+				input: { name: 'Docs after merge', when: null },
 			});
 			expect(bridgeCommandAckFrame('c1')).toMatchObject({
 				type: 'bridge.command_ack',

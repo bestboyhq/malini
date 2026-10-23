@@ -486,6 +486,157 @@ CREATE UNIQUE INDEX idx_agent_permission_rules_active_everywhere
 CREATE INDEX idx_agent_permission_rules_effective
   ON agent_permission_rules(workstream_id, session_id, permission_fingerprint, revoked_at);
 `,
+	`
+CREATE TABLE job_definitions_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','name-services','fix-checks','update-from-main','resolve-conflicts','address-review','check-compatibility','update-docs','open-draft','merge')),
+  skills TEXT NOT NULL DEFAULT '[]',
+  trigger_when TEXT,
+  trigger_mode TEXT CHECK (trigger_mode IN ('off','ask','auto')),
+  then_job_id TEXT REFERENCES job_definitions_next(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((trigger_when IS NULL) = (trigger_mode IS NULL)),
+  CHECK (then_job_id IS NULL OR then_job_id != id)
+);
+INSERT INTO job_definitions_next
+  (id, name, instructions, model, effort, runs_in, builtin, skills, created_at, updated_at)
+  SELECT id, name, instructions, model, effort, runs_in, builtin, skills, created_at, updated_at
+  FROM job_definitions;
+INSERT INTO job_definitions_next
+  (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at)
+  VALUES
+  (lower(hex(randomblob(16))), 'Open draft',
+   'Commit this workstream''s changes, push its branch and open a draft pull request. When the workstream already has an open pull request, push to it instead.',
+   'opus', 'low', 'workstream', 'open-draft',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  (lower(hex(randomblob(16))), 'Merge',
+   'Queue this workstream''s pull request to merge: Malini opens it when there is none, marks it ready, keeps it up to date with its base, fixes failing checks, answers bot reviews and merges it.',
+   'opus', 'low', 'workstream', 'merge',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+UPDATE job_definitions_next
+  SET instructions = 'Merge this workstream''s base branch into it. When the merge stops on conflicts, Resolve conflicts finishes it.',
+      effort = 'low'
+  WHERE builtin = 'update-from-main';
+UPDATE job_definitions_next
+  SET then_job_id = (SELECT id FROM job_definitions_next WHERE builtin = 'open-draft')
+  WHERE id IN (SELECT id FROM job_definitions WHERE output = 'draft');
+UPDATE job_definitions_next
+  SET then_job_id = (SELECT id FROM job_definitions_next WHERE builtin = 'merge')
+  WHERE id IN (SELECT id FROM job_definitions WHERE output = 'merge');
+WITH firsts AS (
+  SELECT id, status, created_at, json_extract(steps_json, '$[0].job') AS job_id,
+    CASE
+      WHEN lower(trim(trigger_when)) LIKE 'on %' THEN trim(trigger_when)
+      WHEN lower(trigger_when) LIKE '%workstream%' AND lower(trigger_when) LIKE '%creat%'
+        THEN 'on repositories:workstream-created'
+    END AS event_when
+  FROM routines
+  WHERE json_valid(steps_json) AND json_type(steps_json, '$[0].job') = 'text'
+),
+ranked AS (
+  SELECT job_id, event_when, status,
+    ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY created_at, id) AS rank
+  FROM firsts
+  WHERE event_when IS NOT NULL
+)
+UPDATE job_definitions_next
+  SET trigger_when = ranked.event_when,
+      trigger_mode = CASE ranked.status WHEN 'routine' THEN 'auto' WHEN 'candidate' THEN 'ask' ELSE 'off' END
+  FROM ranked
+  WHERE ranked.job_id = job_definitions_next.id AND ranked.rank = 1;
+WITH job_steps AS (
+  SELECT routines.id AS routine_id, routines.created_at, CAST(step.key AS INTEGER) AS position,
+    json_extract(step.value, '$.job') AS job_id
+  FROM routines, json_each(routines.steps_json) AS step
+  WHERE json_valid(routines.steps_json) AND json_type(step.value, '$.job') = 'text'
+),
+steps AS (
+  SELECT routine_id, created_at, job_id,
+    ROW_NUMBER() OVER (PARTITION BY routine_id ORDER BY position) AS position
+  FROM job_steps
+),
+links AS (
+  SELECT this.job_id AS from_id, next.job_id AS to_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY this.job_id ORDER BY this.created_at, this.routine_id, this.position
+    ) AS rank
+  FROM steps AS this
+  JOIN steps AS next ON next.routine_id = this.routine_id AND next.position = this.position + 1
+  WHERE NOT EXISTS (
+      SELECT 1 FROM steps AS earlier
+      WHERE earlier.routine_id = this.routine_id AND earlier.position <= this.position
+        AND earlier.job_id = next.job_id
+    )
+)
+UPDATE job_definitions_next
+  SET then_job_id = links.to_id
+  FROM links
+  WHERE links.from_id = job_definitions_next.id AND links.rank = 1
+    AND job_definitions_next.then_job_id IS NULL
+    AND links.to_id IN (SELECT id FROM job_definitions_next);
+
+CREATE TABLE job_runs_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  workstream_id TEXT,
+  repository_id TEXT,
+  session_id TEXT,
+  agent_run_id TEXT,
+  origin TEXT NOT NULL CHECK (origin IN ('merge-queue','manual','trigger','then')),
+  status TEXT NOT NULL CHECK (status IN ('waiting','queued','running','needs-you','succeeded','failed','cancelled')),
+  context TEXT,
+  detail TEXT,
+  parent_run_id TEXT REFERENCES job_runs_next(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  chat_session_id TEXT,
+  chat_after_run_id TEXT
+);
+INSERT INTO job_runs_next
+  (id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin,
+   status, context, detail, created_at, started_at, finished_at, chat_session_id, chat_after_run_id)
+  SELECT id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id,
+    CASE origin WHEN 'routine' THEN 'trigger' ELSE origin END,
+    status, context, detail, created_at, started_at, finished_at, chat_session_id, chat_after_run_id
+  FROM job_runs;
+INSERT INTO job_runs_next
+  (id, definition_id, title, workstream_id, repository_id, origin, status, context, created_at)
+  SELECT gated.id, job.id, job.name, NULLIF(gated.workstream_id, ''), workstreams.project_id,
+    'trigger', 'waiting', json_object('event', gated.event, 'payload', json(gated.payload_json)),
+    gated.created_at
+  FROM routine_gated_runs AS gated
+  JOIN routines ON routines.id = gated.routine_id
+  JOIN job_definitions_next AS job ON job.id = json_extract(routines.steps_json, '$[0].job')
+  LEFT JOIN workstreams ON workstreams.id = gated.workstream_id
+  WHERE gated.state = 'pending' AND json_valid(routines.steps_json)
+    AND json_valid(gated.payload_json);
+
+DROP TABLE job_runs;
+DROP TABLE job_definitions;
+ALTER TABLE job_definitions_next RENAME TO job_definitions;
+ALTER TABLE job_runs_next RENAME TO job_runs;
+CREATE INDEX idx_job_runs_status_created ON job_runs(status, created_at);
+CREATE INDEX idx_job_runs_session ON job_runs(session_id);
+CREATE INDEX idx_job_runs_chat_session ON job_runs(chat_session_id);
+CREATE INDEX idx_job_runs_parent ON job_runs(parent_run_id);
+
+DROP TABLE routine_gated_runs;
+DROP TABLE routines;
+DROP INDEX idx_routine_suggestions_cluster;
+ALTER TABLE routine_suggestions RENAME TO job_suggestions;
+CREATE UNIQUE INDEX idx_job_suggestions_cluster ON job_suggestions(cluster_key);
+DELETE FROM agent_permission_rules
+  WHERE json_valid(permission_json)
+    AND json_extract(permission_json, '$.resources[0].value') = 'routines.save';
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

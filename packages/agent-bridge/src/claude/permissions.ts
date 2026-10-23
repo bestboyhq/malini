@@ -201,7 +201,6 @@ const MALINI_WRITE_TOOLS: Readonly<
 > = {
 	mcp__malini__jobs_save: ['write', 'Save job', 'name'],
 	mcp__malini__jobs_run: ['execute', 'Run job', 'job'],
-	mcp__malini__routines_save: ['write', 'Save routine', 'label'],
 	mcp__malini__pull_requests_open_draft: ['write', 'Open a draft pull request', null],
 };
 

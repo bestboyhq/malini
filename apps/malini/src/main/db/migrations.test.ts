@@ -28,10 +28,8 @@ const ALL_TABLES = [
 	'hidden_repositories',
 	'job_definitions',
 	'job_runs',
+	'job_suggestions',
 	'projects',
-	'routine_gated_runs',
-	'routine_suggestions',
-	'routines',
 	'scratchpads',
 	'settings',
 	'skill_choices',
@@ -62,12 +60,10 @@ const ALL_INDEXES = [
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
 	'idx_job_runs_chat_session',
+	'idx_job_runs_parent',
 	'idx_job_runs_session',
 	'idx_job_runs_status_created',
-	'idx_routine_gated_runs_routine',
-	'idx_routine_gated_runs_workstream_state',
-	'idx_routine_suggestions_cluster',
-	'idx_routines_status',
+	'idx_job_suggestions_cluster',
 ];
 
 type Database = ReturnType<typeof openDatabase>;
@@ -155,7 +151,9 @@ describe('migrate', () => {
 
 		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
 		expect(appTables(db)).toEqual(ALL_TABLES);
-		expect(all(db, 'SELECT id, skills FROM job_definitions ORDER BY id')).toEqual([
+		expect(
+			all(db, 'SELECT id, skills FROM job_definitions WHERE builtin IS NULL ORDER BY id'),
+		).toEqual([
 			{ id: 'copy', skills: '["humanizer","adr"]' },
 			{ id: 'gone', skills: '[]' },
 			{ id: 'plain', skills: '[]' },
@@ -170,7 +168,7 @@ describe('migrate', () => {
 	it('keeps remembered approvals and lets a rule hold everywhere, outside any workstream', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
 		seedWorkstream(db);
 		const fingerprint = 'a'.repeat(64);
 		db.exec(`
@@ -195,6 +193,116 @@ describe('migrate', () => {
 				VALUES ('loose', 'workstream', NULL, NULL, '${'c'.repeat(64)}', '{}', 'approval-4', '2026-10-21T00:00:00Z')`),
 		).toThrow();
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
+		db.close();
+	});
+
+	it('turns routines into job triggers and Then chains, and a job ending into its Then', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		const at = '2026-10-20T00:00:00Z';
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, output, builtin, created_at, updated_at) VALUES
+			  ('docs', 'Update docs', 'Docs.', 'opus', 'high', 'new-workstream', 'draft', 'update-docs', '${at}', '${at}'),
+			  ('main', 'Update from main', 'Old.', 'opus', 'high', 'workstream', 'none', 'update-from-main', '${at}', '${at}'),
+			  ('log', 'Changelog', 'Log.', 'opus', 'high', 'workstream', 'merge', NULL, '${at}', '${at}'),
+			  ('a', 'A', 'A.', 'opus', 'high', 'workstream', 'none', NULL, '${at}', '${at}'),
+			  ('b', 'B', 'B.', 'opus', 'high', 'workstream', 'none', NULL, '${at}', '${at}'),
+			  ('c', 'C', 'C.', 'opus', 'high', 'workstream', 'none', NULL, '${at}', '${at}'),
+			  ('manual', 'Manual', 'M.', 'opus', 'high', 'workstream', 'none', NULL, '${at}', '${at}');
+			INSERT INTO routines (id, status, origin, label, trigger_when, steps_json, evidence_json, created_at, updated_at) VALUES
+			  ('own-log', 'routine', 'user', 'Changelog', 'on pull-requests:ship-changed where merged is set', '[{"job":"log"}]', '[]', '2026-10-20T00:00:01Z', '${at}'),
+			  ('second-log', 'candidate', 'user', 'Again', 'on app:updated', '[{"job":"log"}]', '[]', '2026-10-20T00:00:02Z', '${at}'),
+			  ('chain', 'candidate', 'user', 'Chain', 'when a new workstream is created', '[{"job":"a"},{"command":"x","args":[]},{"job":"b"}]', '[]', '2026-10-20T00:00:03Z', '${at}'),
+			  ('pair', 'draft', 'user', 'Pair', 'when I run it', '[{"job":"b"},{"job":"c"}]', '[]', '2026-10-20T00:00:04Z', '${at}'),
+			  ('by-hand', 'routine', 'user', 'By hand', 'when I run it', '[{"job":"manual"}]', '[]', '2026-10-20T00:00:05Z', '${at}');
+			INSERT INTO routine_gated_runs (id, routine_id, workstream_id, run_key, event, payload_json, state, created_at, decided_at) VALUES
+			  ('held', 'second-log', 'w', 'k1', 'app:updated', '{"to":"1.2.0"}', 'pending', '${at}', NULL),
+			  ('done', 'second-log', 'w', 'k2', 'app:updated', '{}', 'rejected', '${at}', '${at}');
+			INSERT INTO job_runs (id, definition_id, title, workstream_id, origin, status, created_at) VALUES
+			  ('past', 'log', 'Changelog', 'w', 'routine', 'succeeded', '${at}');
+			INSERT INTO routine_suggestions (id, cluster_key, status, evidence_json, created_at, updated_at) VALUES
+			  ('idea', 'k', 'open', '[]', '${at}', '${at}');
+			INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at) VALUES
+			  ('save-routines', 'workstream', 'w', NULL, '${'d'.repeat(64)}', '{"capability":"execute","resources":[{"kind":"action","value":"routines.save","boundary":"workstream"}]}', 'r1', '${at}'),
+			  ('save-jobs', 'workstream', 'w', NULL, '${'e'.repeat(64)}', '{"capability":"execute","resources":[{"kind":"action","value":"jobs.save","boundary":"workstream"}]}', 'r2', '${at}');
+		`);
+
+		migrate(db);
+
+		const builtinId = (builtin: string): unknown =>
+			get<{ id: string }>(db, 'SELECT id FROM job_definitions WHERE builtin = ?', builtin)?.id;
+		expect(
+			all(
+				db,
+				`SELECT id, trigger_when, trigger_mode, then_job_id FROM job_definitions
+				 WHERE builtin IS NULL OR builtin = 'update-docs' ORDER BY id`,
+			),
+		).toEqual([
+			{
+				id: 'a',
+				trigger_when: 'on repositories:workstream-created',
+				trigger_mode: 'ask',
+				then_job_id: 'b',
+			},
+			{ id: 'b', trigger_when: null, trigger_mode: null, then_job_id: 'c' },
+			{ id: 'c', trigger_when: null, trigger_mode: null, then_job_id: null },
+			{ id: 'docs', trigger_when: null, trigger_mode: null, then_job_id: builtinId('open-draft') },
+			{
+				id: 'log',
+				trigger_when: 'on pull-requests:ship-changed where merged is set',
+				trigger_mode: 'auto',
+				then_job_id: builtinId('merge'),
+			},
+			{ id: 'manual', trigger_when: null, trigger_mode: null, then_job_id: null },
+		]);
+		expect(
+			all(
+				db,
+				"SELECT name, effort FROM job_definitions WHERE builtin IN ('open-draft', 'merge', 'update-from-main') ORDER BY name",
+			),
+		).toEqual([
+			{ name: 'Merge', effort: 'low' },
+			{ name: 'Open draft', effort: 'low' },
+			{ name: 'Update from main', effort: 'low' },
+		]);
+		expect(
+			all(
+				db,
+				'SELECT id, definition_id, workstream_id, repository_id, origin, status, context FROM job_runs ORDER BY id',
+			),
+		).toEqual([
+			{
+				id: 'held',
+				definition_id: 'log',
+				workstream_id: 'w',
+				repository_id: 'p',
+				origin: 'trigger',
+				status: 'waiting',
+				context: '{"event":"app:updated","payload":{"to":"1.2.0"}}',
+			},
+			{
+				id: 'past',
+				definition_id: 'log',
+				workstream_id: 'w',
+				repository_id: null,
+				origin: 'trigger',
+				status: 'succeeded',
+				context: null,
+			},
+		]);
+		expect(all(db, 'SELECT id FROM job_suggestions')).toEqual([{ id: 'idea' }]);
+		expect(all(db, 'SELECT id FROM agent_permission_rules')).toEqual([{ id: 'save-jobs' }]);
+		expect(appTables(db)).toEqual(ALL_TABLES);
+		expect(indexNames(db)).toEqual(ALL_INDEXES);
+
+		db.exec("DELETE FROM job_definitions WHERE id = 'b'");
+		expect(scalar(db, "SELECT then_job_id IS NULL FROM job_definitions WHERE id = 'a'")).toBe(1);
+		expect(() => db.exec("UPDATE job_definitions SET then_job_id = 'c' WHERE id = 'c'")).toThrow();
+		expect(() =>
+			db.exec("UPDATE job_definitions SET trigger_when = 'on app:updated' WHERE id = 'c'"),
+		).toThrow();
 		db.close();
 	});
 

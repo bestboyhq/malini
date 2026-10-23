@@ -77,6 +77,7 @@ function workstreamStatus(
 
 const CLEARING_BLOCKERS_STEPS: ReadonlySet<ShipStep> = new Set([
 	'updating-from-main',
+	'resolving-conflicts',
 	'fixing-checks',
 	'addressing-review',
 ]);

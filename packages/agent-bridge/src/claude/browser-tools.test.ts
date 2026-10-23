@@ -108,8 +108,6 @@ describe('malini MCP server', () => {
 					{ name: 'jobs_list' },
 					{ name: 'jobs_save' },
 					{ name: 'jobs_run' },
-					{ name: 'routines_list' },
-					{ name: 'routines_save' },
 					{ name: 'events_list' },
 					{ name: 'pull_requests_open_draft' },
 				],
@@ -210,7 +208,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser and the read tools, never a tool that changes jobs, routines or pull requests', () => {
+	it('pre-approves the browser and the read tools, never a tool that changes jobs or pull requests', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -218,12 +216,11 @@ describe('malini MCP server', () => {
 
 		expect(allowedTools.filter((name) => !name.startsWith('mcp__malini__browser_'))).toEqual([
 			'mcp__malini__jobs_list',
-			'mcp__malini__routines_list',
 			'mcp__malini__events_list',
 		]);
 	});
 
-	it('describes every field of the job and routine tools to the agent', async () => {
+	it('describes every field of the job tools to the agent', async () => {
 		const { call } = await connect(async () => ({ ok: true }));
 
 		const listed = await call('tools/list', {});
@@ -244,9 +241,11 @@ describe('malini MCP server', () => {
 					description: expect.any(String),
 				},
 				runsIn: { enum: ['workstream', 'new-workstream'], description: expect.any(String) },
-				output: { enum: ['none', 'draft', 'merge'], description: expect.any(String) },
+				when: { description: expect.any(String) },
+				then: { description: expect.any(String) },
 			},
 		});
+		expect(schemaOf('jobs_save')).not.toHaveProperty('properties.output');
 		expect(schemaOf('jobs_save')).not.toHaveProperty('required');
 		expect(schemaOf('jobs_run')).toMatchObject({
 			properties: {
@@ -255,22 +254,13 @@ describe('malini MCP server', () => {
 			},
 			required: ['job'],
 		});
-		expect(schemaOf('routines_save')).toMatchObject({
-			properties: {
-				id: { type: 'string', description: expect.any(String) },
-				label: { type: 'string', description: expect.any(String) },
-				when: { type: 'string', description: expect.any(String) },
-				steps: { type: 'array', items: { type: 'string' }, description: expect.any(String) },
-			},
-		});
-		const routinesSave = tools.find(
-			(tool: { name?: unknown }) => tool.name === 'routines_save',
-		)?.description;
-		expect(routinesSave).toContain('`on <channel>`');
-		expect(routinesSave).toContain('`when a new workstream is created`');
+		const jobsSave = tools.find((tool: { name?: unknown }) => tool.name === 'jobs_save')
+			?.inputSchema?.properties?.when?.description;
+		expect(jobsSave).toContain('`on <channel>`');
+		expect(jobsSave).toContain('null for a job that runs only when asked');
 	});
 
-	it('sends each job and routine tool call to malini and returns its answer as text', async () => {
+	it('sends each job tool call to malini and returns its answer as text', async () => {
 		const { call, platformCalls } = await connect(
 			async () => ({ ok: true }),
 			async ({ tool }) =>
@@ -279,13 +269,13 @@ describe('malini MCP server', () => {
 					: { ok: true, text: `[${tool}]` },
 		);
 
-		const listed = await call('tools/call', { name: 'routines_list', arguments: {} });
+		const listed = await call('tools/call', { name: 'jobs_list', arguments: {} });
 		const saved = await call('tools/call', {
-			name: 'routines_save',
+			name: 'jobs_save',
 			arguments: {
-				label: 'Docs after merge',
+				id: 'job-1',
 				when: 'on pull-requests:ship-changed where merged is set',
-				steps: ['Update docs'],
+				then: null,
 			},
 		});
 		const refused = await call('tools/call', { name: 'jobs_run', arguments: { job: 'Ship it' } });
@@ -293,13 +283,13 @@ describe('malini MCP server', () => {
 		const invalid = await call('tools/call', { name: 'jobs_save', arguments: { effort: 'huge' } });
 
 		expect(platformCalls).toEqual([
-			{ tool: 'routines_list', input: {} },
+			{ tool: 'jobs_list', input: {} },
 			{
-				tool: 'routines_save',
+				tool: 'jobs_save',
 				input: {
-					label: 'Docs after merge',
+					id: 'job-1',
 					when: 'on pull-requests:ship-changed where merged is set',
-					steps: ['Update docs'],
+					then: null,
 				},
 			},
 			{ tool: 'jobs_run', input: { job: 'Ship it' } },
@@ -309,10 +299,10 @@ describe('malini MCP server', () => {
 			result: { content: [{ type: 'text', text: '[pull_requests_open_draft]' }] },
 		});
 		expect(listed).toMatchObject({
-			result: { content: [{ type: 'text', text: '[routines_list]' }] },
+			result: { content: [{ type: 'text', text: '[jobs_list]' }] },
 		});
 		expect(saved).toMatchObject({
-			result: { content: [{ type: 'text', text: '[routines_save]' }] },
+			result: { content: [{ type: 'text', text: '[jobs_save]' }] },
 		});
 		expect(refused).toMatchObject({
 			result: { isError: true, content: [{ type: 'text', text: 'No job is named "Ship it".' }] },

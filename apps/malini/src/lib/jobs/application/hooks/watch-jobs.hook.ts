@@ -1,5 +1,6 @@
 import { jobDefinitionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-definitions.aggregate.svelte';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
+import { jobSuggestionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-suggestions.aggregate.svelte';
 import { jobEventsService } from '$lib/jobs/infrastructure/services/job-events.service';
 
 let watchers = 0;
@@ -17,6 +18,7 @@ export function watchJobsHook(): () => void {
 			jobDefinitionsAggregate.remove(definitionId);
 			jobRunsAggregate.forgetDefinition(definitionId);
 		},
+		onSuggested: (suggestion) => jobSuggestionsAggregate.apply(suggestion),
 	});
 
 	let released = false;

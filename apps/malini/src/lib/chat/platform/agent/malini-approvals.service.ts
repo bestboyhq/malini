@@ -2,7 +2,6 @@ import type { MaliniEditReview } from '$contract/approvals';
 import type { JobDefinitionRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { jobDefinitions } from '$lib/jobs/jobs.platform';
-import { routines } from '$lib/routines/routines.platform';
 import { hasActivePermissionRule } from '../permissions.repository';
 import {
 	MALINI_TOOL_PREFIX,
@@ -52,19 +51,12 @@ export function assessMaliniApproval(
 		}
 		case 'jobs_save': {
 			if (id === undefined) return grant('jobs.save');
-			const job = jobDefinitions(db).find((definition) => definition.id === id);
+			const definitions = jobDefinitions(db);
+			const job = definitions.find((definition) => definition.id === id);
 			if (!job) return ASK;
-			return runsWithoutAsking(db, job)
+			return runsWithoutAsking(db, definitions, job)
 				? { permission: null, review: { kind: 'job', current: job } }
 				: grant('jobs.save');
-		}
-		case 'routines_save': {
-			if (id === undefined) return grant('routines.save');
-			const routine = routines(db).find((candidate) => candidate.id === id);
-			if (!routine) return ASK;
-			return routine.status === 'draft'
-				? grant('routines.save')
-				: { permission: null, review: { kind: 'routine', current: routine } };
 		}
 		default:
 			return ASK;
@@ -84,20 +76,26 @@ export function jobsNamed(
 export function maliniActionLabel(db: MaliniDatabase, action: string): string {
 	if (action === 'pull-requests.open-draft') return 'Open draft pull requests';
 	if (action === 'jobs.save') return 'Save jobs';
-	if (action === 'routines.save') return 'Save draft routines';
 	const jobId = action.slice('jobs.run:'.length);
 	const job = jobDefinitions(db).find((definition) => definition.id === jobId);
 	return `Run ‘${job?.name ?? jobId}’`;
 }
 
-function runsWithoutAsking(db: MaliniDatabase, job: JobDefinitionRecord): boolean {
+function runsWithoutAsking(
+	db: MaliniDatabase,
+	definitions: readonly JobDefinitionRecord[],
+	job: JobDefinitionRecord,
+	visited = new Set<string>(),
+): boolean {
+	if (visited.has(job.id)) return false;
+	visited.add(job.id);
 	return (
 		job.builtin !== null ||
 		hasActivePermissionRule(db, maliniActionFingerprint(`jobs.run:${job.id}`)) ||
-		routines(db).some(
-			(routine) =>
-				routine.status !== 'draft' &&
-				routine.steps.some((step) => 'job' in step && step.job === job.id),
+		(job.trigger !== null && job.trigger.mode !== 'off') ||
+		definitions.some(
+			(before) =>
+				before.thenJobId === job.id && runsWithoutAsking(db, definitions, before, visited),
 		)
 	);
 }

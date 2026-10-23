@@ -1,9 +1,6 @@
 import type { JobDefinitionRecord } from './jobs';
-import type { RoutineRecord } from './routines';
 
-export type MaliniEditReview =
-	| Readonly<{ kind: 'job'; current: JobDefinitionRecord }>
-	| Readonly<{ kind: 'routine'; current: RoutineRecord }>;
+export type MaliniEditReview = Readonly<{ kind: 'job'; current: JobDefinitionRecord }>;
 
 export type PermissionGrantScope = 'session' | 'workstream' | 'everywhere';
 

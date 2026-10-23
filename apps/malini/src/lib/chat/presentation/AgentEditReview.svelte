@@ -29,6 +29,10 @@
 		new Set(Object.keys(decisions).filter((key) => decisions[key] === 'rejected')),
 	);
 
+	function labelOf(key: string): string {
+		return edit.changes.find((change) => change.key === key)?.label ?? key;
+	}
+
 	function decide(key: string, decision: Decision): void {
 		decisions = { ...decisions, [key]: decision };
 	}
@@ -75,7 +79,7 @@
 		{#if edit.changes.length > 0}
 			<ul class="mt-2 grid text-xs leading-5" aria-label="Changed settings">
 				{#each edit.changes as change (change.key)}
-					{@const decision = decisions[change.key] ?? 'pending'}
+					{@const decision = decisions[change.follows ?? change.key] ?? 'pending'}
 					<li
 						class="grid min-h-7 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3"
 						aria-label={`${change.label} change`}
@@ -103,7 +107,9 @@
 							{/if}
 						</span>
 						<span class="flex items-center gap-1.5">
-							{#if decision === 'pending'}
+							{#if change.follows !== null}
+								<span class="text-fg-tertiary">Follows {labelOf(change.follows)}</span>
+							{:else if decision === 'pending'}
 								<Button
 									variant="ghost"
 									size="sm"

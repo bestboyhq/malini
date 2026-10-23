@@ -127,16 +127,8 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 			model: 'opus',
 			effort: 'high',
 			runsIn: 'workstream',
-			output: 'none',
+			trigger: { when: 'on pull-requests:ship-changed where merged is set', mode: 'auto' },
 		});
-		const routine = await invoke<{ id: string }>(page, 'routines.create-draft', {
-			label: 'Notes on merge',
-			when: 'when I run it',
-			steps: [{ job: job.id }],
-			origin: 'user',
-		});
-		await invoke(page, 'routines.promote', { routineId: routine.id });
-		await invoke(page, 'routines.promote', { routineId: routine.id });
 		agentCalls(app, {
 			tool: 'jobs_save',
 			input: {

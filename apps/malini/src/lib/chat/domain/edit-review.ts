@@ -1,5 +1,5 @@
 import type { MaliniEditReview } from '$contract/approvals';
-import { OUTPUT_COPY, RUNS_IN_COPY } from './approval-request';
+import { MODE_COPY, NO_THEN, NO_TRIGGER, RUNS_IN_COPY } from './approval-request';
 
 export type ReviewChange = Readonly<{
 	key: string;
@@ -8,6 +8,7 @@ export type ReviewChange = Readonly<{
 	after: string;
 	current: unknown;
 	proposed: unknown;
+	follows: string | null;
 }>;
 
 export type EditReview = Readonly<{
@@ -23,7 +24,6 @@ const JOB_FIELDS: readonly Field[] = [
 	['model', 'Model', String],
 	['effort', 'Effort', String],
 	['runsIn', 'Runs in', (value) => RUNS_IN_COPY[String(value)] ?? String(value)],
-	['output', 'When done', (value) => OUTPUT_COPY[String(value)] ?? String(value)],
 	['skills', 'Skills', (value) => list(value).join(', ') || 'Every skill that is on'],
 ];
 
@@ -34,37 +34,44 @@ export function editReview(
 ): EditReview {
 	const proposed = (key: string): unknown =>
 		typeof input === 'object' && input !== null ? Reflect.get(input, key) : undefined;
-	if (review.kind === 'job') {
-		const current: Readonly<Record<string, unknown>> = review.current;
-		const instructions = proposed('instructions');
-		return {
-			subject: `job ‘${review.current.name}’`,
-			changes: JOB_FIELDS.flatMap(([key, label, show]) =>
-				change(key, label, current[key], proposed(key), show),
-			),
-			text:
-				typeof instructions === 'string' && instructions !== review.current.instructions
-					? {
-							key: 'instructions',
-							label: 'Instructions',
-							before: review.current.instructions,
-							after: instructions,
-							current: review.current.instructions,
-							proposed: instructions,
-						}
-					: null,
-		};
-	}
-	const steps = review.current.steps.flatMap((step) => ('job' in step ? [step.job] : []));
-	const showSteps = (value: unknown): string => list(value).map(jobName).join(' → ');
+	const { current } = review;
+	const fields: Readonly<Record<string, unknown>> = current;
+	const currentMode = current.trigger?.mode ?? null;
+	const when = change('when', 'When', current.trigger?.when ?? null, proposed('when'), showWhen);
+	const instructions = proposed('instructions');
 	return {
-		subject: `routine ‘${review.current.label}’`,
+		subject: `job ‘${current.name}’`,
 		changes: [
-			...change('label', 'Name', review.current.label, proposed('label'), String),
-			...change('when', 'When', review.current.when, proposed('when'), String),
-			...change('steps', 'Runs', steps, proposed('steps'), showSteps),
+			...JOB_FIELDS.flatMap(([key, label, show]) =>
+				change(key, label, fields[key], proposed(key), show),
+			),
+			...when,
+			...when.flatMap(({ proposed: next }) =>
+				change(
+					'mode',
+					'Runs',
+					currentMode,
+					typeof next === 'string' ? (currentMode ?? 'off') : null,
+					showMode,
+					'when',
+				),
+			),
+			...change('then', 'Then', current.thenJobId, proposed('then'), (value) =>
+				typeof value === 'string' ? jobName(value) : NO_THEN,
+			),
 		],
-		text: null,
+		text:
+			typeof instructions === 'string' && instructions !== current.instructions
+				? {
+						key: 'instructions',
+						label: 'Instructions',
+						before: current.instructions,
+						after: instructions,
+						current: current.instructions,
+						proposed: instructions,
+						follows: null,
+					}
+				: null,
 	};
 }
 
@@ -76,10 +83,9 @@ export function reviewedInput(
 ): Record<string, unknown> {
 	return Object.fromEntries([
 		['id', review.current.id],
-		...edit.changes.map(({ key, current, proposed }) => [
-			key,
-			rejected.has(key) ? current : proposed,
-		]),
+		...edit.changes.flatMap(({ key, current, proposed, follows }) =>
+			follows === null ? [[key, rejected.has(key) ? current : proposed]] : [],
+		),
 		...(edit.text && text !== null ? [[edit.text.key, text]] : []),
 	]);
 }
@@ -90,7 +96,7 @@ export function keepsCurrent(
 	text: string | null,
 ): boolean {
 	return (
-		edit.changes.every(({ key }) => rejected.has(key)) &&
+		edit.changes.every(({ key, follows }) => follows !== null || rejected.has(key)) &&
 		(edit.text === null || text === edit.text.before)
 	);
 }
@@ -101,11 +107,20 @@ function change(
 	current: unknown,
 	proposed: unknown,
 	show: (value: unknown) => string,
+	follows: string | null = null,
 ): ReviewChange[] {
 	if (proposed === undefined) return [];
 	const before = show(current);
 	const after = show(proposed);
-	return before === after ? [] : [{ key, label, before, after, current, proposed }];
+	return before === after ? [] : [{ key, label, before, after, current, proposed, follows }];
+}
+
+function showWhen(value: unknown): string {
+	return typeof value === 'string' ? value : NO_TRIGGER;
+}
+
+function showMode(value: unknown): string {
+	return typeof value === 'string' ? (MODE_COPY[value] ?? value) : NO_TRIGGER;
 }
 
 function list(value: unknown): string[] {

@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
+import { REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
 import { agentHasReadFile } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
@@ -325,14 +326,24 @@ export function registerRepositories(
 		const workstreamId = requireString(args, 'workstreamId');
 		const baseBranch = requireString(args, 'baseBranch');
 		const githubToken = optionalString(args, 'githubToken');
-		return pullWorkstreamBaseBranch(
-			await checkout(args),
+		const worktree = await checkout(args);
+		const head = await pullWorkstreamBaseBranch(
+			worktree,
 			recordedBranch(workstreamId),
 			baseBranch,
 			githubToken,
 			credentials,
 			(move) => guardCheckoutMove(workstreamId, move),
 		);
+		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
+		if (operationInProgress === 'merge' && conflictedPaths.length > 0) {
+			events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+				workstreamId,
+				baseBranch,
+				conflictedPaths,
+			});
+		}
+		return head;
 	});
 
 	commands.define('repositories.count-behind-base', async (args: unknown) => {

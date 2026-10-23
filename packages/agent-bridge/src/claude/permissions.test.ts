@@ -162,20 +162,10 @@ describe('permissionDescriptor', () => {
 		});
 	});
 
-	it('names the job or routine a malini tool saves or runs', () => {
+	it('names the job a malini tool saves or runs', () => {
 		const descriptor = (tool: string, input: Record<string, unknown>) =>
 			permissionDescriptor(`mcp__malini__${tool}`, input, worktree, undefined);
 
-		expect(descriptor('routines_save', { label: 'Docs after merge', when: 'on x:y' })).toEqual({
-			capability: 'write',
-			resources: [
-				{ kind: 'tool', value: 'Save routine ‘Docs after merge’', boundary: 'workstream' },
-			],
-		});
-		expect(descriptor('routines_save', { id: 'routine-7', when: 'when I run it' })).toEqual({
-			capability: 'write',
-			resources: [{ kind: 'tool', value: 'Save routine ‘routine-7’', boundary: 'workstream' }],
-		});
 		expect(descriptor('jobs_save', { name: 'Update docs', instructions: 'Read the diff' })).toEqual(
 			{
 				capability: 'write',

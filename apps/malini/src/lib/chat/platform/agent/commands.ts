@@ -929,7 +929,7 @@ export function listAgentEventPage(
 	};
 }
 
-const REVIEWED_TOOLS = new Set(['mcp__malini__jobs_save', 'mcp__malini__routines_save']);
+const REVIEWED_TOOL = 'mcp__malini__jobs_save';
 
 function requestToolName(record: AgentInteractionRecord): string | undefined {
 	const toolName = isRecord(record.requestPayload) ? record.requestPayload['toolName'] : undefined;
@@ -947,12 +947,12 @@ function reviewedInput(
 	if (
 		decision !== 'allow' ||
 		!isRecord(request['review']) ||
-		!REVIEWED_TOOLS.has(String(request['toolName'])) ||
+		request['toolName'] !== REVIEWED_TOOL ||
 		!isRecord(updatedInput) ||
 		typeof requested['id'] !== 'string' ||
 		updatedInput['id'] !== requested['id']
 	) {
-		throw new Error('only a reviewed edit of the same job or routine can change what is saved');
+		throw new Error('only a reviewed edit of the same job can change what is saved');
 	}
 	return updatedInput;
 }

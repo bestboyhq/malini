@@ -631,7 +631,11 @@ const respond = async (sessionId, runId, prompt) => {
 		fs.writeFileSync(nodePath.join(worktree, 'checks-fixed.txt'), 'fixed by ' + runId + '\n');
 		event({ type: 'file.changed', runId, path: 'checks-fixed.txt' });
 	}
-	if (worktree && prompt.includes('up to date with its base branch')) {
+	if (
+		worktree &&
+		(prompt.includes('up to date with its base branch') ||
+			prompt.includes('resolve every merge conflict'))
+	) {
 		for (const path of conflictedFiles(prompt)) {
 			const file = nodePath.join(worktree, path);
 			const kept = fs

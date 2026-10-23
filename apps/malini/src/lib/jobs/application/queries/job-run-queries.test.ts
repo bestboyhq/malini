@@ -6,6 +6,7 @@ import { jobRunsForDefinitionQuery } from './job-runs-for-definition.query.svelt
 import { needsYouJobCountQuery } from './needs-you-job-count.query.svelte';
 import { recentFinishedJobRunsQuery } from './recent-finished-job-runs.query.svelte';
 import { runningJobCountQuery } from './running-job-count.query.svelte';
+import { waitingForYouJobCountQuery } from './waiting-for-you-job-count.query.svelte';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
 const HOUR_MS = 60 * 60 * 1_000;
@@ -22,6 +23,7 @@ function run(id: string, patch: Partial<JobRunRecord>): JobRunRecord {
 		origin: 'manual',
 		status: 'queued',
 		detail: null,
+		parentRunId: null,
 		chatSessionId: null,
 		chatAfterRunId: null,
 		createdAt: '2026-10-11T11:00:00.000Z',
@@ -59,6 +61,18 @@ describe('the jobs in progress', () => {
 		]);
 		expect(runningJobCountQuery.data).toBe(1);
 		expect(needsYouJobCountQuery.data).toBe(1);
+	});
+
+	it('leave out the runs that wait for your yes, which still count as waiting for you', () => {
+		jobRunsAggregate.runs = [
+			run('waiting', { status: 'waiting' }),
+			run('needs-you', { status: 'needs-you' }),
+			run('running', { status: 'running' }),
+		];
+
+		expect(ids(activeJobRunsQuery.data)).toEqual(['needs-you', 'running']);
+		expect(runningJobCountQuery.data).toBe(1);
+		expect(waitingForYouJobCountQuery.data).toBe(2);
 	});
 });
 

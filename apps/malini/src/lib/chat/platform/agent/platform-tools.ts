@@ -2,14 +2,14 @@ import type { AgentReasoningEffort } from '$contract/agent';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
 import type {
 	JobDefinitionRecord,
-	JobOutput,
 	JobRunsIn,
+	JobTrigger,
 	SaveJobDefinitionArgs,
 } from '$contract/jobs';
-import type { RoutineRecord, RoutineRun } from '$contract/routines';
 import { isSkillNameList } from '$contract/skills';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { CommandRegistry } from '$main/ipc/registry';
+import { activeJobRunForSession } from '$lib/jobs/jobs.platform';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { isRecord, jsonEqual } from '$main/db/rows';
@@ -19,7 +19,6 @@ import { persistedBridgeSession, type PersistedBridgeSession } from './sessions'
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies AgentReasoningEffort[];
 const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies JobRunsIn[];
-const OUTPUTS = ['none', 'draft', 'merge'] as const satisfies JobOutput[];
 
 export interface PlatformRequestDeps {
 	readonly db: MaliniDatabase;
@@ -55,19 +54,17 @@ async function runPlatformTool(
 			const session = requestSession(db, request);
 			const job = findJob(await jobs(commands), requiredText(input, 'job'));
 			const context = text(input, 'context');
+			const parent = activeJobRunForSession(db, request.sessionId);
 			const run = await commands.call('jobs.run', {
 				definitionId: job.id,
 				workstreamId: session.workstreamId,
 				...(context === undefined ? {} : { context }),
+				...(parent ? { parentRunId: parent.id } : {}),
 				chatSessionId: request.sessionId,
 				chatAfterRunId: request.runId,
 			});
 			return { id: run.id, job: run.title, status: run.status, workstreamId: run.workstreamId };
 		}
-		case 'routines_list':
-			return (await commands.call('routines.list', undefined)).map(routineSummary);
-		case 'routines_save':
-			return reviewed(db, request, routineSummary(await saveRoutine(input, commands)));
 		case 'events_list':
 			return CONTRACT_REFERENCE.events;
 		case 'pull_requests_open_draft': {
@@ -118,13 +115,21 @@ function jobs(commands: CommandRegistry): Promise<JobDefinitionRecord[]> {
 }
 
 function jobSummary(job: JobDefinitionRecord): Readonly<Record<string, unknown>> {
-	const { id, name, runsIn, output, model, effort, skills, builtin, instructions } = job;
-	return { id, name, runsIn, output, model, effort, skills, builtin, instructions };
-}
-
-function routineSummary(routine: RoutineRecord): Readonly<Record<string, unknown>> {
-	const { id, status, label, when, steps } = routine;
-	return { id, status, label, when, steps };
+	const { id, name, instructions, runsIn, model, effort, skills, builtin, trigger, thenJobId } =
+		job;
+	return {
+		id,
+		name,
+		instructions,
+		runsIn,
+		model,
+		effort,
+		skills,
+		builtin,
+		when: trigger?.when ?? null,
+		mode: trigger?.mode ?? null,
+		then: thenJobId,
+	};
 }
 
 function jobDefinition(
@@ -137,13 +142,23 @@ function jobDefinition(
 	const model = text(input, 'model');
 	const effort = oneOf(input, 'effort', EFFORTS);
 	const runsIn = oneOf(input, 'runsIn', RUNS_IN);
-	const output = oneOf(input, 'output', OUTPUTS);
+	const when = nullableText(input, 'when');
+	const then = nullableText(input, 'then');
 	const skills = input['skills'];
 	if (skills !== undefined && !isSkillNameList(skills)) {
 		throw new Error('`skills` must be a list of skill names.');
 	}
-	const withSkills = skills === undefined ? {} : { skills };
-	if (id === undefined) {
+	const existing =
+		id === undefined ? undefined : definitions.find((definition) => definition.id === id);
+	if (id !== undefined && !existing) {
+		throw new Error(`No job has the id \`${id}\`. Call jobs_list for the ids.`);
+	}
+	const links = {
+		...(skills === undefined ? {} : { skills }),
+		...(when === undefined ? {} : { trigger: trigger(when, existing?.trigger ?? null) }),
+		...(then === undefined ? {} : { thenJobId: then && findJob(definitions, then).id }),
+	};
+	if (!existing) {
 		if (name === undefined || instructions === undefined) {
 			throw new Error('To create a job, pass its name and instructions.');
 		}
@@ -153,52 +168,22 @@ function jobDefinition(
 			model: model ?? DEFAULT_AGENT_MODEL,
 			effort: effort ?? 'high',
 			runsIn: runsIn ?? 'workstream',
-			output: output ?? 'none',
-			...withSkills,
+			...links,
 		};
 	}
-	const existing = definitions.find((definition) => definition.id === id);
-	if (!existing) throw new Error(`No job has the id \`${id}\`. Call jobs_list for the ids.`);
 	return {
-		id,
+		id: existing.id,
 		name: name ?? existing.name,
 		instructions: instructions ?? existing.instructions,
 		model: model ?? existing.model,
 		effort: effort ?? existing.effort,
 		runsIn: runsIn ?? existing.runsIn,
-		output: output ?? existing.output,
-		...withSkills,
+		...links,
 	};
 }
 
-async function saveRoutine(input: Input, commands: CommandRegistry): Promise<RoutineRecord> {
-	const id = text(input, 'id');
-	const label = text(input, 'label');
-	const when = text(input, 'when');
-	const steps = input['steps'] === undefined ? undefined : await jobSteps(input['steps'], commands);
-	if (id === undefined) {
-		if (label === undefined || when === undefined || steps === undefined) {
-			throw new Error('To create a routine, pass its label, when and steps.');
-		}
-		return commands.call('routines.create-draft', { label, when, steps, origin: 'user' });
-	}
-	return commands.call('routines.update', {
-		routineId: id,
-		...(label === undefined ? {} : { label }),
-		...(when === undefined ? {} : { when }),
-		...(steps === undefined ? {} : { steps }),
-	});
-}
-
-async function jobSteps(value: unknown, commands: CommandRegistry): Promise<RoutineRun[]> {
-	if (!Array.isArray(value) || value.length === 0) {
-		throw new Error('`steps` must list at least one job id or name.');
-	}
-	const definitions = await jobs(commands);
-	return value.map((step) => {
-		if (typeof step !== 'string') throw new Error('Each step must be a job id or name.');
-		return { job: findJob(definitions, step).id };
-	});
+function trigger(when: string | null, current: JobTrigger | null): JobTrigger | null {
+	return when === null ? null : { when, mode: current?.mode ?? 'off' };
 }
 
 function findJob(
@@ -220,6 +205,10 @@ function text(input: Input, key: string): string | undefined {
 	if (value === undefined) return undefined;
 	if (typeof value !== 'string') throw new Error(`\`${key}\` must be a string.`);
 	return value;
+}
+
+function nullableText(input: Input, key: string): string | null | undefined {
+	return input[key] === null ? null : text(input, key);
 }
 
 function requiredText(input: Input, key: string): string {

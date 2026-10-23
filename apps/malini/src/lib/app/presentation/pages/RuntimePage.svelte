@@ -27,7 +27,7 @@
 	<div class="text-center">
 		<h1 class="text-fg-default text-2xl font-semibold tracking-tight">Malini</h1>
 		<p class="text-fg-secondary mt-1 text-sm">
-			Local-only workstreams for your coding agent. Repeated prompts become routines.
+			Local-only workstreams for your coding agent. Repeated prompts become jobs.
 		</p>
 	</div>
 

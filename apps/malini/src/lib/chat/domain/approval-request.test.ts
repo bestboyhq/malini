@@ -79,51 +79,45 @@ describe('approval request', () => {
 });
 
 describe('malini tool approval', () => {
-	it('names the routine or job and spells out what the user approves', () => {
-		expect(
-			maliniToolApproval('mcp__malini__routines_save', {
-				label: 'Docs after merge',
-				when: 'on pull-requests:ship-changed where merged is set',
-				steps: ['Update docs', 'Triage'],
-			}),
-		).toEqual({
-			headline: 'Save routine ‘Docs after merge’',
-			details: [
-				{ label: 'When', value: 'on pull-requests:ship-changed where merged is set' },
-				{ label: 'Runs', value: 'Update docs → Triage' },
-				{ label: 'Starts as', value: 'A draft you promote on the Jobs page' },
-			],
-		});
-		const names: Record<string, string> = { 'job-1': 'Update docs' };
-		expect(
-			maliniToolApproval(
-				'mcp__malini__routines_save',
-				{ label: 'Docs', steps: ['job-1', 'Triage'] },
-				(reference) => names[reference] ?? reference,
-			)?.details,
-		).toContainEqual({ label: 'Runs', value: 'Update docs → Triage' });
+	it('names the job and spells out what the user approves', () => {
+		const names: Record<string, string> = { 'job-1': 'Update docs', draft: 'Open draft' };
+		const jobName = (reference: string): string => names[reference] ?? reference;
 		expect(
 			maliniToolApproval('mcp__malini__jobs_run', { job: 'job-1' }, () => 'Update docs')?.headline,
 		).toBe('Run job ‘Update docs’');
 		expect(
-			maliniToolApproval('mcp__malini__routines_save', { id: 'r-1', when: 'when I run it' }),
-		).toEqual({
-			headline: 'Save routine ‘r-1’',
-			details: [{ label: 'When', value: 'when I run it' }],
-		});
-		expect(
-			maliniToolApproval('mcp__malini__jobs_save', {
-				name: 'Update docs',
-				instructions: 'Read the diff.\nUpdate docs/.',
-				runsIn: 'new-workstream',
-				output: 'draft',
-			}),
+			maliniToolApproval(
+				'mcp__malini__jobs_save',
+				{
+					name: 'Update docs',
+					instructions: 'Read the diff.\nUpdate docs/.',
+					runsIn: 'new-workstream',
+					when: 'on pull-requests:ship-changed where merged is set',
+					then: 'draft',
+				},
+				jobName,
+			),
 		).toEqual({
 			headline: 'Save job ‘Update docs’',
 			details: [
 				{ label: 'Runs in', value: 'A new workstream' },
-				{ label: 'When done', value: 'Open a draft PR' },
+				{ label: 'When', value: 'on pull-requests:ship-changed where merged is set' },
+				{ label: 'Runs', value: 'Off until you turn it on in the Jobs page' },
+				{ label: 'Then', value: 'Open draft' },
 				{ label: 'Instructions', value: 'Read the diff.\nUpdate docs/.' },
+			],
+		});
+		expect(
+			maliniToolApproval(
+				'mcp__malini__jobs_save',
+				{ id: 'job-1', when: null, then: null },
+				jobName,
+			),
+		).toEqual({
+			headline: 'Save job ‘Update docs’',
+			details: [
+				{ label: 'When', value: 'Only when you run it' },
+				{ label: 'Then', value: 'Nothing' },
 			],
 		});
 		expect(maliniToolApproval('mcp__malini__jobs_run', { job: 'Update docs' })).toEqual({

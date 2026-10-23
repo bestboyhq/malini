@@ -1,6 +1,6 @@
 import type { JobRunOrigin, JobRunRecord, JobRunStatus } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, run, scalar } from '$main/db/rows';
+import { all, column, get, run, scalar } from '$main/db/rows';
 
 interface JobRunRow {
 	id: string;
@@ -13,6 +13,7 @@ interface JobRunRow {
 	origin: JobRunOrigin;
 	status: JobRunStatus;
 	detail: string | null;
+	parent_run_id: string | null;
 	chat_session_id: string | null;
 	chat_after_run_id: string | null;
 	created_at: string;
@@ -21,9 +22,11 @@ interface JobRunRow {
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, detail, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
 
-const UNFINISHED = "status IN ('queued', 'running', 'needs-you')";
+const UNFINISHED = "status IN ('waiting', 'queued', 'running', 'needs-you')";
+
+const STARTED_OR_QUEUED = "status IN ('queued', 'running', 'needs-you')";
 
 function fromRow(row: JobRunRow): JobRunRecord {
 	return {
@@ -37,6 +40,7 @@ function fromRow(row: JobRunRow): JobRunRecord {
 		origin: row.origin,
 		status: row.status,
 		detail: row.detail,
+		parentRunId: row.parent_run_id,
 		chatSessionId: row.chat_session_id,
 		chatAfterRunId: row.chat_after_run_id,
 		createdAt: row.created_at,
@@ -52,7 +56,8 @@ export function insertJobRun(
 ): void {
 	run(
 		db,
-		`INSERT INTO job_runs (${COLUMNS}, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO job_runs (${COLUMNS}, context)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		jobRun.id,
 		jobRun.definitionId,
 		jobRun.title,
@@ -63,6 +68,7 @@ export function insertJobRun(
 		jobRun.origin,
 		jobRun.status,
 		jobRun.detail,
+		jobRun.parentRunId,
 		jobRun.chatSessionId,
 		jobRun.chatAfterRunId,
 		jobRun.createdAt,
@@ -140,10 +146,39 @@ export function findActiveJobRunForSession(
 	return row ? fromRow(row) : null;
 }
 
-export function countUnfinishedJobRuns(db: MaliniDatabase, definitionId: string): number {
+export function countStartedOrQueuedJobRuns(db: MaliniDatabase, definitionId: string): number {
 	return scalar(
 		db,
-		`SELECT COUNT(*) FROM job_runs WHERE definition_id = ? AND ${UNFINISHED}`,
+		`SELECT COUNT(*) FROM job_runs WHERE definition_id = ? AND ${STARTED_OR_QUEUED}`,
 		definitionId,
+	);
+}
+
+export function listWaitingJobRuns(db: MaliniDatabase, definitionId: string): JobRunRecord[] {
+	return all<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE definition_id = ? AND status = 'waiting'
+		 ORDER BY created_at, rowid`,
+		definitionId,
+	).map(fromRow);
+}
+
+export function jobRunChainDefinitionIds(
+	db: MaliniDatabase,
+	jobRunId: string,
+	maxDepth: number,
+): string[] {
+	return column(
+		db,
+		`WITH RECURSIVE chain(definition_id, parent_run_id, depth) AS (
+		   SELECT definition_id, parent_run_id, 1 FROM job_runs WHERE id = ?
+		   UNION ALL
+		   SELECT run.definition_id, run.parent_run_id, chain.depth + 1
+		   FROM job_runs AS run JOIN chain ON run.id = chain.parent_run_id
+		   WHERE chain.depth < ?
+		 )
+		 SELECT definition_id FROM chain`,
+		jobRunId,
+		maxDepth,
 	);
 }

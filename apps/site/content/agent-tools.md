@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, your jobs, routines, and events, and a draft pull request - and how you decide how often they ask.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, your jobs and events, and a draft pull request - and how you decide how often they ask.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -32,17 +32,16 @@ The agent is told the theme too, so it switches anything else it captures, such 
 Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
 Any other screenshot, recording, or image the agent makes goes under `.context/` in the worktree, which Malini keeps out of git, so it shows in the chat and stays with the workstream.
 
-## Jobs, routines, and events
+## Jobs and events
 
-| Tool            | What it does                                                                                                                |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `jobs_list`     | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, what they ship, model, effort, and skills. |
-| `jobs_save`     | Creates a job, or changes one by id, skills included.                                                                       |
-| `jobs_run`      | Starts a job now, with optional extra context. The run shows in the chat.                                                   |
-| `routines_list` | Lists your [routines](/malini/docs/routines.md): id, state, label, when, and steps.                                         |
-| `routines_save` | Creates a routine, or changes one by id.                                                                                    |
-| `events_list`   | Lists every event Malini emits: its channel, what it means, and its payload type.                                           |
+| Tool          | What it does                                                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, and `then`. |
+| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                         |
+| `jobs_run`    | Asks Malini to run a job, with optional extra context, and returns at once. The run shows in the chat.                                    |
+| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                         |
 
+`when` is a job's [event trigger](/malini/docs/jobs.md#when-a-job-runs), and `then` names the job that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
 
@@ -60,35 +59,37 @@ A failure shows in the top bar, where pull request problems always do.
 
 ## You decide how often it asks
 
-- The read tools, `jobs_list`, `routines_list`, and `events_list`, run without asking.
+- The read tools, `jobs_list` and `events_list`, run without asking.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
-- **Always allow** remembers one action: opening drafts, saving jobs, saving draft routines, or running one job.
+- **Always allow** remembers one action: opening drafts, saving jobs, or running one job.
   Always allowing **Release notes** to run never lets the agent run any other job.
 - **Settings > Agent access > Always allowed** lists everything you always allow, and **Revoke** takes it back.
-- A routine the agent creates starts as a **draft**: it never runs on its own until you promote it.
+- A trigger the agent adds starts **Off**: the job never runs on its own until you turn it on from the [Jobs page](/malini/docs/jobs.md).
 
 ## Edits you review
 
-A job runs without asking when it is built in, when you always allow it to run, or when a promoted routine runs it.
-When the agent changes such a job, or a promoted routine, Malini shows you the change instead of saving it, and **Always allow** never skips this.
+A job runs without asking when it is built in, when you always allow it to run, when its trigger is not Off, or when it is the Then of such a job.
+When the agent changes such a job, Malini shows you the change instead of saving it, and **Always allow** never skips this.
 
-- Each changed setting, such as the model or the trigger, gets its own row with **Accept** and **Reject**.
+- Each changed setting, such as the model, the When, or the Then, gets its own row with **Accept** and **Reject**.
 - The instructions show as a diff you can edit, and each change in them has its own **Accept** and **Reject**, with **Accept all** and **Reject all** above.
 - **Save** keeps every change you did not reject, plus your own edits, and the agent gets the version you saved.
-- **Reject** keeps the job or routine as it was.
+- **Reject** keeps the job as it was.
 
 ## Example
 
-> Every time one of my pull requests merges, update the docs.
+> Every time one of my pull requests merges, update the docs and open a draft PR.
 
-The agent can read `events_list`, find `pull-requests:ship-changed`, and save a draft routine:
+The agent can read `events_list`, find `pull-requests:ship-changed`, and save a job:
 
 ```json
 {
-	"label": "Docs after merge",
+	"name": "Docs after merge",
+	"instructions": "Bring the docs up to date with the pull request that merged.",
 	"when": "on pull-requests:ship-changed where merged is set",
-	"steps": ["Update docs"]
+	"then": "Open draft"
 }
 ```
 
-You approve the save, then promote the routine when you trust it.
+You approve the save, and its trigger starts Off.
+Turn it on from the Jobs page, as **Ask me first** or **On its own**, when you trust it.

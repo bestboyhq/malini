@@ -1135,8 +1135,8 @@ describe('interactions', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		run(
 			test.db,
-			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, output, skills, builtin, created_at, updated_at)
-			 VALUES ('docs', 'Update docs', 'Update the docs.', 'opus', 'high', 'workstream', 'none', '[]', 'update-docs', ?, ?)`,
+			`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, created_at, updated_at)
+			 VALUES ('docs', 'Update docs', 'Update the docs.', 'opus', 'high', 'workstream', '[]', 'update-docs', ?, ?)`,
 			'2026-10-23T00:00:00.000Z',
 			'2026-10-23T00:00:00.000Z',
 		);
@@ -1157,7 +1157,7 @@ describe('interactions', () => {
 			'remembered approval requires the exact pending permission descriptor',
 		);
 		expect(await decide({ updatedInput: { id: 'other', instructions: 'x' } })).toBe(
-			'only a reviewed edit of the same job or routine can change what is saved',
+			'only a reviewed edit of the same job can change what is saved',
 		);
 		const reviewed = { id: 'docs', instructions: 'Update the docs.' };
 		await invoke('chat.decide-approval', {
@@ -1182,7 +1182,7 @@ describe('interactions', () => {
 				permission: openDraft,
 				updatedInput: { id: 'docs' },
 			}),
-		).toBe('only a reviewed edit of the same job or routine can change what is saved');
+		).toBe('only a reviewed edit of the same job can change what is saved');
 	});
 
 	it('answers a question after validating it against the stored request', async () => {

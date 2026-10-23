@@ -8,27 +8,26 @@ import { assessMaliniApproval, withMaliniApproval } from './malini-approvals.ser
 
 const NOW = '2026-10-23T00:00:00.000Z';
 
-function seedJob(db: MaliniDatabase, id: string, name: string, builtin: string | null = null) {
+function seedJob(
+	db: MaliniDatabase,
+	id: string,
+	name: string,
+	{
+		builtin = null,
+		mode = null,
+		then = null,
+	}: Partial<Record<'builtin' | 'mode' | 'then', string | null>> = {},
+) {
 	run(
 		db,
-		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, output, skills, builtin, created_at, updated_at)
-		 VALUES (?, ?, 'Do it.', 'opus', 'high', 'workstream', 'none', '[]', ?, ?, ?)`,
+		`INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, skills, builtin, trigger_when, trigger_mode, then_job_id, created_at, updated_at)
+		 VALUES (?, ?, 'Do it.', 'opus', 'high', 'workstream', '[]', ?, ?, ?, ?, ?, ?)`,
 		id,
 		name,
 		builtin,
-		NOW,
-		NOW,
-	);
-}
-
-function seedRoutine(db: MaliniDatabase, id: string, status: string, jobId: string) {
-	run(
-		db,
-		`INSERT INTO routines (id, status, origin, label, trigger_when, steps_json, evidence_json, created_at, updated_at)
-		 VALUES (?, ?, 'user', 'Docs after merge', 'when I run it', ?, '[]', ?, ?)`,
-		id,
-		status,
-		JSON.stringify([{ job: jobId }]),
+		mode === null ? null : 'on jobs:run-changed where run.status is failed',
+		mode,
+		then,
 		NOW,
 		NOW,
 	);
@@ -38,7 +37,7 @@ function setup(): MaliniDatabase {
 	const db = openChatTestDatabase();
 	seedChatWorkstream(db, 'ws-1', '/tmp/ws-1');
 	seedChatSession(db, 'sess-1', 'ws-1');
-	seedJob(db, 'docs', 'Update docs', 'update-docs');
+	seedJob(db, 'docs', 'Update docs', { builtin: 'update-docs' });
 	seedJob(db, 'notes', 'Release notes');
 	seedJob(db, 'lint', 'Lint');
 	seedJob(db, 'twin-a', 'Twin');
@@ -60,23 +59,19 @@ describe('assessMaliniApproval', () => {
 		expect(action(db, 'jobs_run', { job: 'notes' })).toBe('jobs.run:notes');
 		expect(action(db, 'jobs_save', { name: 'New', instructions: 'Go.' })).toBe('jobs.save');
 		expect(action(db, 'jobs_save', { id: 'notes', instructions: 'Go.' })).toBe('jobs.save');
-		expect(action(db, 'routines_save', { label: 'L', when: 'x', steps: ['Lint'] })).toBe(
-			'routines.save',
-		);
 		db.close();
 	});
 
-	it('only asks once when it cannot tell which job or routine is meant', () => {
+	it('only asks once when it cannot tell which job is meant', () => {
 		const db = setup();
 		expect(action(db, 'jobs_run', { job: 'Twin' })).toBeNull();
 		expect(action(db, 'jobs_run', { job: 'Nope' })).toBeNull();
 		expect(action(db, 'jobs_save', { id: 'nope' })).toBeNull();
-		expect(action(db, 'routines_save', { id: 'nope' })).toBeNull();
 		expect(assessMaliniApproval(db, 'Bash', { command: 'ls' })).toBeNull();
 		db.close();
 	});
 
-	it('reviews an edit to a job that runs without asking: built in, always allowed, or in a promoted routine', () => {
+	it('reviews an edit to a job that runs without asking: built in, always allowed, or triggered', () => {
 		const db = setup();
 		expect(action(db, 'jobs_save', { id: 'docs', instructions: 'Push to main.' })).toEqual({
 			review: 'job',
@@ -95,21 +90,35 @@ describe('assessMaliniApproval', () => {
 		});
 		expect(action(db, 'jobs_save', { id: 'notes', instructions: 'x' })).toEqual({ review: 'job' });
 
-		seedRoutine(db, 'draft-routine', 'draft', 'lint');
 		expect(action(db, 'jobs_save', { id: 'lint', instructions: 'x' })).toBe('jobs.save');
-		seedRoutine(db, 'live-routine', 'routine', 'lint');
-		expect(action(db, 'jobs_save', { id: 'lint', instructions: 'x' })).toEqual({ review: 'job' });
+
+		seedJob(db, 'quiet', 'Quiet', { mode: 'off' });
+		seedJob(db, 'asker', 'Asker', { mode: 'ask' });
+		seedJob(db, 'watcher', 'Watcher', { mode: 'auto' });
+		expect(action(db, 'jobs_save', { id: 'quiet', when: 'on jobs:suggested' })).toBe('jobs.save');
+		expect(action(db, 'jobs_save', { id: 'asker', when: 'on jobs:suggested' })).toEqual({
+			review: 'job',
+		});
+		expect(action(db, 'jobs_save', { id: 'watcher', when: null })).toEqual({ review: 'job' });
 		db.close();
 	});
 
-	it('reviews an edit to a promoted routine and lets a draft be saved like any other', () => {
+	it('trusts every job an auto job hands its result to, through each Then, and stops at a cycle', () => {
 		const db = setup();
-		seedRoutine(db, 'draft-routine', 'draft', 'lint');
-		seedRoutine(db, 'candidate-routine', 'candidate', 'lint');
-		expect(action(db, 'routines_save', { id: 'draft-routine', when: 'y' })).toBe('routines.save');
-		expect(action(db, 'routines_save', { id: 'candidate-routine', when: 'y' })).toEqual({
-			review: 'routine',
-		});
+		seedJob(db, 'last', 'Last');
+		seedJob(db, 'next', 'Next', { then: 'last' });
+		seedJob(db, 'quiet', 'Quiet', { mode: 'off', then: 'next' });
+		expect(action(db, 'jobs_save', { id: 'next', instructions: 'x' })).toBe('jobs.save');
+		expect(action(db, 'jobs_save', { id: 'last', instructions: 'x' })).toBe('jobs.save');
+
+		seedJob(db, 'watcher', 'Watcher', { mode: 'auto', then: 'next' });
+		expect(action(db, 'jobs_save', { id: 'next', instructions: 'x' })).toEqual({ review: 'job' });
+		expect(action(db, 'jobs_save', { id: 'last', instructions: 'x' })).toEqual({ review: 'job' });
+
+		seedJob(db, 'ping', 'Ping');
+		seedJob(db, 'pong', 'Pong', { then: 'ping' });
+		run(db, `UPDATE job_definitions SET then_job_id = 'pong' WHERE id = 'ping'`);
+		expect(action(db, 'jobs_save', { id: 'ping', instructions: 'x' })).toBe('jobs.save');
 		db.close();
 	});
 });
