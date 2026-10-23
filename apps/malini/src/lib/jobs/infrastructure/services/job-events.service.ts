@@ -1,10 +1,12 @@
 import type {
+	AgentActionRecord,
 	JobDefinitionRecord,
 	JobExperimentRecord,
 	JobRunRecord,
 	JobSuggestionRecord,
 } from '$contract/jobs';
 import {
+	JOBS_AGENT_ACTION_CHANGED_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_EXPERIMENT_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
@@ -17,6 +19,7 @@ interface JobEventHandlers {
 	onDefinitionChanged(definitionId: string, definition: JobDefinitionRecord | null): void;
 	onSuggested(suggestion: JobSuggestionRecord): void;
 	onExperimentChanged(experiment: JobExperimentRecord): void;
+	onAgentActionChanged(action: AgentActionRecord): void;
 }
 
 class JobEventsService {
@@ -29,6 +32,9 @@ class JobEventsService {
 			onPlatformEvent(JOBS_SUGGESTED_CHANNEL, ({ suggestion }) => handlers.onSuggested(suggestion)),
 			onPlatformEvent(JOBS_EXPERIMENT_CHANGED_CHANNEL, ({ experiment }) =>
 				handlers.onExperimentChanged(experiment),
+			),
+			onPlatformEvent(JOBS_AGENT_ACTION_CHANGED_CHANNEL, ({ action }) =>
+				handlers.onAgentActionChanged(action),
 			),
 		];
 		return () => {

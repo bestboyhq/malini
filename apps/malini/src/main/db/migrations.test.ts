@@ -12,6 +12,7 @@ import {
 import { all, get, scalar } from './rows';
 
 const ALL_TABLES = [
+	'agent_actions',
 	'agent_attachments',
 	'agent_checkpoints',
 	'agent_events',
@@ -44,6 +45,7 @@ const ALL_TABLES = [
 ];
 
 const ALL_INDEXES = [
+	'idx_agent_actions_started',
 	'idx_agent_attachments_run',
 	'idx_agent_attachments_workstream_state_expiry',
 	'idx_agent_checkpoints_session_obsoleted',
@@ -201,6 +203,28 @@ describe('migrate', () => {
 				VALUES ('loose', 'workstream', NULL, NULL, '${'c'.repeat(64)}', '{}', 'approval-4', '2026-10-21T00:00:00Z')`),
 		).toThrow();
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
+		db.close();
+	});
+
+	it('drops the always-allowed open draft rules now that the agent runs the Open draft job', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		const action = (value: string) =>
+			JSON.stringify({
+				capability: 'execute',
+				resources: [{ kind: 'action', value, boundary: 'workstream' }],
+			});
+		db.exec(`
+			INSERT INTO agent_permission_rules (id, scope, workstream_id, session_id, permission_fingerprint, permission_json, created_request_id, created_at) VALUES
+			  ('draft', 'workstream', 'w', NULL, '${'a'.repeat(64)}', '${action('pull-requests.open-draft')}', 'approval-1', '2026-10-20T00:00:00Z'),
+			  ('save', 'workstream', 'w', NULL, '${'b'.repeat(64)}', '${action('jobs.save')}', 'approval-2', '2026-10-20T00:00:00Z');
+		`);
+
+		migrate(db);
+
+		expect(all(db, 'SELECT id FROM agent_permission_rules')).toEqual([{ id: 'save' }]);
 		db.close();
 	});
 

@@ -54,7 +54,15 @@ function action(db: MaliniDatabase, tool: string, input: Record<string, unknown>
 describe('assessMaliniApproval', () => {
 	it('names each action a user can always allow, one per job for runs', () => {
 		const db = setup();
-		expect(action(db, 'pull_requests_open_draft', {})).toBe('pull-requests.open-draft');
+		expect(action(db, 'repositories_clone', { repository: 'acme/site' })).toBe(
+			'repositories.clone',
+		);
+		expect(action(db, 'repositories_hide', { repository: 'acme/site' })).toBe('repositories.hide');
+		expect(action(db, 'workstreams_create', { repository: 'acme/site' })).toBe(
+			'workstreams.create',
+		);
+		expect(action(db, 'workstreams_archive', { workstream: 'ws-1' })).toBe('workstreams.archive');
+		expect(action(db, 'pull_requests_open_draft', {})).toBeNull();
 		expect(action(db, 'jobs_run', { job: 'release notes' })).toBe('jobs.run:notes');
 		expect(action(db, 'jobs_run', { job: 'notes' })).toBe('jobs.run:notes');
 		expect(action(db, 'jobs_save', { name: 'New', instructions: 'Go.' })).toBe('jobs.save');

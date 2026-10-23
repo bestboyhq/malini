@@ -42,6 +42,7 @@ import {
 	isFinishedJobRunStatus,
 	isJobRunOrigin,
 } from '../domain/job-run';
+import { listAgentActions } from './agent-actions.repository';
 import type { AutomaticJob } from './automatic-jobs.service';
 import {
 	isAutomaticJobDefinition,
@@ -227,6 +228,8 @@ export function defineJobCommands(
 			updatedAt: nowIso8601(),
 		});
 	});
+
+	commands.define('jobs.list-agent-actions', () => listAgentActions(db));
 
 	commands.define('jobs.list-runs', () =>
 		[...listUnfinishedJobRuns(db), ...listRecentFinishedJobRuns(db, RECENT_FINISHED_RUNS)].sort(

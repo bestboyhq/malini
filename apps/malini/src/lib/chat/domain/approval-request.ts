@@ -74,10 +74,20 @@ export const NO_TRIGGER = 'Only when you run it';
 
 export const NO_THEN = 'Nothing';
 
+export type MaliniNames = Readonly<{
+	job: (reference: string) => string;
+	workstream: (reference: string) => string;
+}>;
+
+const AS_GIVEN: MaliniNames = {
+	job: (reference) => reference,
+	workstream: (reference) => reference,
+};
+
 export function maliniToolApproval(
 	toolName: string | undefined,
 	input: unknown,
-	jobName: (reference: string) => string = (reference) => reference,
+	names: MaliniNames = AS_GIVEN,
 	review?: MaliniEditReview,
 ): MaliniToolApproval | null {
 	if (typeof input !== 'object' || input === null) return null;
@@ -90,6 +100,9 @@ export function maliniToolApproval(
 	const when = field('when');
 	const then = field('then');
 	const cleared = (key: string): boolean => Reflect.get(input, key) === null;
+	const { job: jobName } = names;
+	const repository = field('repository');
+	const workstream = field('workstream');
 	switch (toolName) {
 		case 'mcp__malini__jobs_save':
 			return {
@@ -108,13 +121,28 @@ export function maliniToolApproval(
 			const job = field('job');
 			return {
 				headline: named('Run job', job && jobName(job)),
-				details: present([['Context', field('context')]]),
+				details: present([
+					['In', workstream && names.workstream(workstream)],
+					['Context', field('context')],
+				]),
 			};
 		}
-		case 'mcp__malini__pull_requests_open_draft':
+		case 'mcp__malini__repositories_clone':
+			return { headline: named('Clone', repository), details: [] };
+		case 'mcp__malini__repositories_hide':
 			return {
-				headline: 'Open a draft pull request',
-				details: [{ label: 'When', value: 'Once this turn ends' }],
+				headline: named('Hide', repository),
+				details: [{ label: 'Keeps', value: 'Its clone and workstreams, under Hidden' }],
+			};
+		case 'mcp__malini__workstreams_create':
+			return {
+				headline: named('Start a workstream in', repository),
+				details: present([['Name', field('name')]]),
+			};
+		case 'mcp__malini__workstreams_archive':
+			return {
+				headline: named('Archive', workstream && names.workstream(workstream)),
+				details: [{ label: 'Keeps', value: 'Its branch and uncommitted work, under Archived' }],
 			};
 		default:
 			return null;

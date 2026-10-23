@@ -1,3 +1,4 @@
+import { agentActionsAggregate } from '$lib/jobs/infrastructure/aggregates/agent-actions.aggregate.svelte';
 import { jobDefinitionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-definitions.aggregate.svelte';
 import { jobExperimentsAggregate } from '$lib/jobs/infrastructure/aggregates/job-experiments.aggregate.svelte';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
@@ -21,6 +22,7 @@ export function watchJobsHook(): () => void {
 		},
 		onSuggested: (suggestion) => jobSuggestionsAggregate.apply(suggestion),
 		onExperimentChanged: (experiment) => jobExperimentsAggregate.apply(experiment),
+		onAgentActionChanged: (action) => agentActionsAggregate.apply(action),
 	});
 
 	let released = false;

@@ -5,6 +5,12 @@ import { findActiveJobRunForSession } from './platform/job-runs.repository';
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
 export {
+	finishAgentAction,
+	recordAgentAction,
+	type AgentActionContext,
+	type AgentActionStart,
+} from './platform/agent-actions.service';
+export {
 	runAutomaticJob,
 	type AutomaticJob,
 	type SuggestWithJob,

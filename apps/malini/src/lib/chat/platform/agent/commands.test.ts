@@ -1151,9 +1151,9 @@ describe('interactions', () => {
 		return { sessionId, runId };
 	}
 
-	const openDraft = {
+	const cloneRepositories = {
 		capability: 'execute',
-		resources: [{ kind: 'action', value: 'pull-requests.open-draft', boundary: 'workstream' }],
+		resources: [{ kind: 'action', value: 'repositories.clone', boundary: 'workstream' }],
 	};
 
 	it('remembers a Malini action everywhere, approves it in any workstream, and asks again once revoked', async () => {
@@ -1161,29 +1161,35 @@ describe('interactions', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-2');
 		await boot();
 		const stopGrants = installPermissionGrants(test.context);
-		const first = await pendingMaliniApproval('ws-1', 'pull_requests_open_draft', {});
+		const first = await pendingMaliniApproval('ws-1', 'repositories_clone', {
+			repository: 'acme/site',
+		});
 		expect(
 			await invokeRecord('chat.decide-approval', {
 				...first,
 				approvalId: 'approval-1',
 				decision: 'allow',
 				scope: 'everywhere',
-				permission: openDraft,
+				permission: cloneRepositories,
 			}),
 		).toMatchObject({ decision: 'allow', scope: 'everywhere', remembered: true });
 		await waitFor(() => getRun(test.db, first.runId)?.completedAt !== null);
 
-		const second = await pendingMaliniApproval('ws-2', 'pull_requests_open_draft', {});
+		const second = await pendingMaliniApproval('ws-2', 'repositories_clone', {
+			repository: 'acme/site',
+		});
 		await waitFor(() => getRun(test.db, second.runId)?.completedAt !== null);
 		expect(getRun(test.db, second.runId)?.summary).toBe('approved:allow:everywhere');
 		const grants = await invokeRecords('chat.list-permission-grants');
 		expect(grants).toMatchObject([
-			{ scope: 'everywhere', what: 'Open draft pull requests', workstreamName: null },
+			{ scope: 'everywhere', what: 'Clone repositories', workstreamName: null },
 		]);
 
 		await invoke('chat.revoke-permission-grant', { grantId: grants[0]?.['id'] });
 		expect(await invokeRecords('chat.list-permission-grants')).toEqual([]);
-		const third = await pendingMaliniApproval('ws-2', 'pull_requests_open_draft', {});
+		const third = await pendingMaliniApproval('ws-2', 'repositories_clone', {
+			repository: 'acme/site',
+		});
 		expect(
 			getInteraction(test.db, 'approval', third.sessionId, third.runId, 'approval-1'),
 		).toMatchObject({ state: 'pending' });
@@ -1231,14 +1237,16 @@ describe('interactions', () => {
 			`approved:allow:once:${JSON.stringify(reviewed)}`,
 		);
 
-		const draft = await pendingMaliniApproval('ws-1', 'pull_requests_open_draft', {});
+		const clone = await pendingMaliniApproval('ws-1', 'repositories_clone', {
+			repository: 'acme/site',
+		});
 		expect(
 			await invokeError('chat.decide-approval', {
-				...draft,
+				...clone,
 				approvalId: 'approval-1',
 				decision: 'allow',
 				scope: 'once',
-				permission: openDraft,
+				permission: cloneRepositories,
 				updatedInput: { id: 'docs' },
 			}),
 		).toBe('only a reviewed edit of the same job can change what is saved');

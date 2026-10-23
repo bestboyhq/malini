@@ -574,7 +574,12 @@ describe('protocol: parseCommandLine', () => {
 				'jobs_save',
 				'jobs_run',
 				'events_list',
-				'pull_requests_open_draft',
+				'repositories_list',
+				'repositories_clone',
+				'repositories_hide',
+				'workstreams_list',
+				'workstreams_create',
+				'workstreams_archive',
 			]);
 		});
 

@@ -21,6 +21,7 @@
 	import AgentEditReview from './AgentEditReview.svelte';
 	import type { RenderItem } from './render-state';
 	import { jobName } from '$lib/jobs/jobs.api';
+	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 	interface Props {
@@ -82,7 +83,14 @@
 	const submitting = $derived(interactionState.status === 'submitting');
 	const headingId = $derived(`agent-interaction-${item.kind}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
-	const maliniTool = $derived(maliniToolApproval(item.toolName, item.input, jobName, item.review));
+	const maliniTool = $derived(
+		maliniToolApproval(
+			item.toolName,
+			item.input,
+			{ job: jobName, workstream: (id) => workstreamNameQuery.data(id) ?? id },
+			item.review,
+		),
+	);
 	const headline = $derived(
 		maliniTool?.headline ?? approvalHeadline(item.toolName, item.permission),
 	);

@@ -11,7 +11,14 @@ export type PlatformToolRequester = (call: PlatformToolCall) => Promise<Platform
 export const PLATFORM_READ_TOOLS = [
 	'jobs_list',
 	'events_list',
+	'repositories_list',
+	'workstreams_list',
 ] as const satisfies readonly PlatformTool[];
+
+const SHIP_ONLY_WHEN_ASKED =
+	'Open draft and Merge ship work: use them only when the user explicitly asked in this chat to open a pull request or to merge, never on your own.';
+
+const ASKS = 'The user approves it in the chat unless they always allow it.';
 
 const JOB_TRIGGER_GRAMMAR =
 	'An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`.';
@@ -28,7 +35,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'jobs_save',
-			'Create a job in Malini, or change one by id. To create, leave out id and pass name and instructions; the other fields have defaults. To change, pass id and only the fields that change. Opening a draft pull request and merging are jobs too, Open draft and Merge: to ship what a job did, set its `then` to one of them. A trigger you add starts Off and never runs until the user turns it on in the Jobs page, so say so. The user approves every save in the chat. Returns the saved job as JSON.',
+			`Create a job in Malini, or change one by id. To create, leave out id and pass name and instructions; the other fields have defaults. To change, pass id and only the fields that change. Opening a draft pull request and merging are jobs too, Open draft and Merge: to ship what a job did, set its \`then\` to one of them. ${SHIP_ONLY_WHEN_ASKED} A trigger you add starts Off and never runs until the user turns it on in the Jobs page, so say so. The user approves every save in the chat. Returns the saved job as JSON.`,
 			{
 				id: z
 					.string()
@@ -89,7 +96,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'jobs_run',
-			"Start a job now. A `workstream` job runs in this chat's workstream; a `new-workstream` job gets a fresh workstream of this repository. The run shows in this chat. The user approves every run. Returns the queued run as JSON.",
+			`Start a job now. A \`workstream\` job runs in this chat's workstream, or in \`workstream\` when you pass one; a \`new-workstream\` job gets a fresh workstream of that workstream's repository. The run shows in this chat. Jobs are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} ${ASKS} Returns the queued run as JSON.`,
 			{
 				job: z.string().min(1).describe('Id or exact name of the job, from jobs_list'),
 				context: z
@@ -98,6 +105,13 @@ export function platformTools(request: PlatformToolRequester) {
 					.optional()
 					.describe(
 						'Extra context the job gets after its instructions, for example the issue to fix',
+					),
+				workstream: z
+					.string()
+					.min(1)
+					.optional()
+					.describe(
+						"Id or exact name of the workstream to run it in, from workstreams_list. Leave out for this chat's workstream.",
 					),
 			},
 			(input) => call('jobs_run', input),
@@ -109,10 +123,74 @@ export function platformTools(request: PlatformToolRequester) {
 			() => call('events_list', {}),
 		),
 		tool(
-			'pull_requests_open_draft',
-			"Open a draft pull request of this workstream's changes once your turn ends. Malini commits with your `Commit:` line, pushes the branch and opens the draft under your `Pull request:` title, so leave your changes in the working tree and write both footer lines. When a pull request is already open, Malini pushes this turn's changes to it instead. Returns right away; a failure shows in Malini's top bar. The user approves it in the chat unless they always allow it.",
+			'repositories_list',
+			"List the repositories in Malini. Returns JSON with each repository's id, name (owner/name), default branch, clone (`cloned`, `cloning` or `not cloned`: whether Malini has it on this machine) and hidden (whether the sidebar hides it).",
 			{},
-			() => call('pull_requests_open_draft', {}),
+			() => call('repositories_list', {}),
+		),
+		tool(
+			'repositories_clone',
+			`Add a repository to Malini and clone it on this machine, or show a hidden one again. Malini clones in the background: the result's clone is \`cloned\`, or \`cloning\` when it takes longer, and repositories_list shows when it is done. ${ASKS} Returns the repository as JSON.`,
+			{
+				repository: z
+					.string()
+					.min(1)
+					.describe(
+						'owner/name of a GitHub repository, or a git URL (https://, ssh://, file:// or git@) to clone',
+					),
+			},
+			(input) => call('repositories_clone', input),
+		),
+		tool(
+			'repositories_hide',
+			`Hide a repository from Malini's sidebar. Its clone and workstreams stay on disk, and repositories_clone shows it again. No tool removes a repository: that stays with the user. ${ASKS}`,
+			{
+				repository: z
+					.string()
+					.min(1)
+					.describe('Id or owner/name of the repository, from repositories_list'),
+			},
+			(input) => call('repositories_hide', input),
+		),
+		tool(
+			'workstreams_list',
+			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch and current (whether it is this chat's workstream).",
+			{
+				repository: z
+					.string()
+					.min(1)
+					.optional()
+					.describe('Id or owner/name of a repository, to list only its workstreams'),
+			},
+			(input) => call('workstreams_list', input),
+		),
+		tool(
+			'workstreams_create',
+			`Start a workstream of a repository: its own git worktree on a fresh branch from the default branch. Malini clones the repository first when it has not yet, and installs dependencies in the background. Returns the workstream as JSON with its id and status: \`ready\`, or \`cloning\` when the clone takes longer, and workstreams_list lists it once it is ready. To give it work, run a job in it with jobs_run and \`workstream\`. ${ASKS}`,
+			{
+				repository: z
+					.string()
+					.min(1)
+					.describe('Id or owner/name of the repository, from repositories_list'),
+				name: z
+					.string()
+					.min(1)
+					.max(80)
+					.optional()
+					.describe('Name the sidebar shows. Leave out and Malini names it.'),
+			},
+			(input) => call('workstreams_create', input),
+		),
+		tool(
+			'workstreams_archive',
+			`Archive a workstream: Malini saves its uncommitted work and branch, removes its worktree, and lists it under Archived in the sidebar, where the user can restore it. You cannot archive this chat's own workstream, and no tool deletes one. ${ASKS}`,
+			{
+				workstream: z
+					.string()
+					.min(1)
+					.describe('Id or exact name of the workstream, from workstreams_list'),
+			},
+			(input) => call('workstreams_archive', input),
 		),
 	];
 }

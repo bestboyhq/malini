@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, your jobs and events, and a draft pull request - and how you decide how often they ask.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, your repositories and workstreams, your jobs and events - how you decide how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -32,39 +32,68 @@ The agent is told the theme too, so it switches anything else it captures, such 
 Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
 Any other screenshot, recording, or image the agent makes goes under `.context/` in the worktree, which Malini keeps out of git, so it shows in the chat and stays with the workstream.
 
+## Repositories and workstreams
+
+The agent can do in Malini what you do from the sidebar, short of removing anything.
+
+| Tool                  | What it does                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `repositories_list`   | Lists your repositories: id, `owner/name`, default branch, whether Malini has cloned it, and whether it is hidden. |
+| `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                           |
+| `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                             |
+| `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, and which one the chat runs in.                 |
+| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, and installs its dependencies.                  |
+| `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Archived**, where you can restore it.       |
+
+A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
+The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
+
 ## Jobs and events
 
 | Tool          | What it does                                                                                                                              |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, and `then`. |
 | `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                         |
-| `jobs_run`    | Asks Malini to run a job, with optional extra context, and returns at once. The run shows in the chat.                                    |
+| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, with optional extra context, and returns at once.                      |
 | `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                         |
 
 `when` is a job's [event trigger](/malini/docs/jobs.md#when-a-job-runs), and `then` names the job that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
+A run the agent starts shows in its chat, wherever it runs.
 
-## Pull requests
+## Tools and jobs
 
-| Tool                       | What it does                                                     |
-| -------------------------- | ---------------------------------------------------------------- |
-| `pull_requests_open_draft` | Opens a draft pull request of the workstream once the turn ends. |
+A tool does one thing at once, such as cloning a repository.
+A job is a process with steps: **Merge** waits for checks, runs **Fix checks** and **Resolve conflicts** when it has to, and only then merges.
+So the agent clones, hides, starts and archives with tools, and opens drafts and merges by running the **Open draft** and **Merge** jobs.
 
-Malini owns commits, pushes, and pull requests, so the agent cannot commit, push, or open a pull request from its shell.
-When you ask it to ship, it calls `pull_requests_open_draft` and goes on with its turn.
+## Shipping is your call
+
+Malini owns commits, pushes, and pull requests, so the agent cannot commit, push, open a pull request or merge one from its shell.
+The agent runs **Open draft** or **Merge**, or sets either as a job's `then`, only when you explicitly asked for it in the chat.
+Finished work, passing tests and green checks are never a reason for it to ship on its own.
+
+When you ask it to ship, it runs **Open draft** and goes on with its turn.
 Once the turn ends, Malini commits with the turn's `Commit:` line, pushes the branch, and opens the draft under its `Pull request:` title, the same way **Draft** in the top bar does.
 When the workstream already has an open pull request, Malini pushes the new work to it instead.
 A failure shows in the top bar, where pull request problems always do.
 
 ## You decide how often it asks
 
-- The read tools, `jobs_list` and `events_list`, run without asking.
+- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
-- **Always allow** remembers one action: opening drafts, saving jobs, or running one job.
+- **Always allow** remembers one action: cloning repositories, hiding them, starting workstreams, archiving them, saving jobs, or running one job.
   Always allowing **Release notes** to run never lets the agent run any other job.
 - **Settings > Agent access > Always allowed** lists everything you always allow, and **Revoke** takes it back.
 - A trigger the agent adds starts **Off**: the job never runs on its own until you turn it on from the [Jobs page](/malini/docs/jobs.md).
+
+## See what the agent did
+
+**Jobs > Activity** lists every call an agent made to Malini's tools, beside your job runs, by day.
+Each row names the call, the workstream of its chat, how it was approved, and when it finished.
+Open a row to see what the agent called it with and what came back, or the error, and **Open chat** to read the turn that made it.
+A call you denied shows too, as **You denied it**.
 
 ## Edits you review
 

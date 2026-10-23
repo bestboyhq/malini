@@ -29,7 +29,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
   Malini reads the When, the work, and the Then, and drafts the job for you to adjust and save.
   It also lists your jobs, each with its When, its last run, and a switch.
   The jobs Malini [suggests](#suggested-jobs) and a few recipes sit there too.
-- **Activity**: what waits for you, what is running, and every run by day.
+- **Activity**: what waits for you, what is running, and every run by day, beside every call an agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
   **Waiting for you** holds the runs that ask you first and the runs that need you.
 - **Recipes**: ready-made jobs to start from.
 

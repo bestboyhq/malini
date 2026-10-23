@@ -81,9 +81,16 @@ describe('approval request', () => {
 describe('malini tool approval', () => {
 	it('names the job and spells out what the user approves', () => {
 		const names: Record<string, string> = { 'job-1': 'Update docs', draft: 'Open draft' };
-		const jobName = (reference: string): string => names[reference] ?? reference;
+		const lookup = {
+			job: (reference: string): string => names[reference] ?? reference,
+			workstream: (reference: string): string => reference,
+		};
 		expect(
-			maliniToolApproval('mcp__malini__jobs_run', { job: 'job-1' }, () => 'Update docs')?.headline,
+			maliniToolApproval(
+				'mcp__malini__jobs_run',
+				{ job: 'job-1' },
+				{ job: () => 'Update docs', workstream: (id) => id },
+			)?.headline,
 		).toBe('Run job ‘Update docs’');
 		expect(
 			maliniToolApproval(
@@ -95,7 +102,7 @@ describe('malini tool approval', () => {
 					when: 'on pull-requests:ship-changed where merged is set',
 					then: 'draft',
 				},
-				jobName,
+				lookup,
 			),
 		).toEqual({
 			headline: 'Save job ‘Update docs’',
@@ -108,11 +115,7 @@ describe('malini tool approval', () => {
 			],
 		});
 		expect(
-			maliniToolApproval(
-				'mcp__malini__jobs_save',
-				{ id: 'job-1', when: null, then: null },
-				jobName,
-			),
+			maliniToolApproval('mcp__malini__jobs_save', { id: 'job-1', when: null, then: null }, lookup),
 		).toEqual({
 			headline: 'Save job ‘Update docs’',
 			details: [
@@ -125,13 +128,31 @@ describe('malini tool approval', () => {
 			details: [],
 		});
 		expect(
-			maliniToolApproval('mcp__malini__jobs_save', { id: 'job-1', model: 'sonnet' }, () => 'Lint')
-				?.headline,
+			maliniToolApproval(
+				'mcp__malini__jobs_save',
+				{ id: 'job-1', model: 'sonnet' },
+				{ job: () => 'Lint', workstream: (id) => id },
+			)?.headline,
 		).toBe('Save job ‘Lint’');
-		expect(maliniToolApproval('mcp__malini__pull_requests_open_draft', {})).toEqual({
-			headline: 'Open a draft pull request',
-			details: [{ label: 'When', value: 'Once this turn ends' }],
+		expect(
+			maliniToolApproval(
+				'mcp__malini__jobs_run',
+				{ job: 'Merge', workstream: 'ws-1' },
+				{ job: (reference) => reference, workstream: () => 'Docs pass' },
+			),
+		).toEqual({
+			headline: 'Run job ‘Merge’',
+			details: [{ label: 'In', value: 'Docs pass' }],
 		});
+		expect(
+			maliniToolApproval('mcp__malini__repositories_hide', { repository: 'acme/site' }),
+		).toEqual({
+			headline: 'Hide ‘acme/site’',
+			details: [{ label: 'Keeps', value: 'Its clone and workstreams, under Hidden' }],
+		});
+		expect(
+			maliniToolApproval('mcp__malini__workstreams_create', { repository: 'acme/site' })?.headline,
+		).toBe('Start a workstream in ‘acme/site’');
 	});
 
 	it('leaves every other tool to the generic card', () => {

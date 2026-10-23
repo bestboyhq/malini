@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -9,6 +9,7 @@ import {
 	invoke,
 	launchMalini,
 	listEvents,
+	openJobs,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -17,7 +18,7 @@ import {
 } from './harness';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
-const OPEN_DRAFT = { tool: 'pull_requests_open_draft', input: {} };
+const OPEN_DRAFT = { tool: 'jobs_run', input: { job: 'Open draft' } };
 
 function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
@@ -31,7 +32,7 @@ function settled(page: Page, text: string) {
 	return page.getByRole('status').filter({ hasText: text });
 }
 
-test('an agent opens a draft pull request once the user allows it, after its turn ends', async () => {
+test('an agent runs the Open draft job once the user allows it, and the draft opens after its turn ends', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -40,7 +41,7 @@ test('an agent opens a draft pull request once the user allows it, after its tur
 		agentCalls(app, OPEN_DRAFT);
 
 		await sendPrompt(page, 'EDIT:alpha.txt MALINI_TOOL COMMIT=feat: add alpha');
-		await expect(page.getByRole('heading', { name: 'Open a draft pull request' })).toBeVisible({
+		await expect(page.getByRole('heading', { name: 'Run job ‘Open draft’' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(decision(page).getByRole('button', { name: 'Always allow' })).toBeVisible();
@@ -97,10 +98,10 @@ test('Allow everywhere stops asking in every workstream until the user revokes i
 			.click();
 		const grants = page.getByRole('list', { name: 'Always allowed' });
 		await expect(grants.getByRole('listitem')).toHaveCount(1);
-		await expect(grants.getByRole('listitem')).toContainText('Open draft pull requests');
+		await expect(grants.getByRole('listitem')).toContainText('Run ‘Open draft’');
 		await expect(grants.getByRole('listitem')).toContainText('Everywhere');
 		await captureFlow(app, 'agent-actions-always-allowed');
-		await grants.getByRole('button', { name: 'Revoke Open draft pull requests' }).click();
+		await grants.getByRole('button', { name: 'Revoke Run ‘Open draft’' }).click();
 		await expect(grants).toHaveCount(0);
 		await expect(page.getByText('Nothing yet.', { exact: false })).toBeVisible();
 		await page.keyboard.press('Escape');
@@ -186,6 +187,81 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 				instructions:
 					'Read the merged pull requests.\nGroup them by area.\nWrite the notes.\nPost them.\nThank the authors.',
 			});
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('an agent clones a repository, starts a workstream in it and hides it, and Activity shows every call with its outcome', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-agent-repositories',
+			'Repository chores',
+		);
+		const kennel = await createSourceRepo(app.root, 'kennel');
+		const kennelName = `${basename(app.root)}/kennel`;
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		await openWorkstream(page, workstreamId);
+
+		async function allowOnce(heading: string, prompt = 'MALINI_TOOL'): Promise<void> {
+			await sendPrompt(page, prompt);
+			await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 20_000 });
+			await decision(page).getByRole('button', { name: 'Allow once' }).click();
+			await expect(settled(page, 'Allowed once').last()).toBeVisible({ timeout: 20_000 });
+		}
+
+		agentCalls(app, { tool: 'repositories_clone', input: { repository: `file://${kennel}` } });
+		await allowOnce(`Clone ‘file://${kennel}’`);
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toBeVisible({
+			timeout: 20_000,
+		});
+
+		agentCalls(app, {
+			tool: 'workstreams_create',
+			input: { repository: kennelName, name: 'Fetch' },
+		});
+		await allowOnce(`Start a workstream in ‘${kennelName}’`);
+		await expect(sidebar.getByText('Fetch', { exact: true })).toBeVisible({ timeout: 20_000 });
+
+		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect(page.getByRole('heading', { name: 'Archive ‘Fetch’' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await decision(page).getByRole('button', { name: 'Deny' }).click();
+		await expect(sidebar.getByText('Fetch', { exact: true })).toBeVisible();
+
+		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
+		await allowOnce(`Hide ‘${kennelName}’`);
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0, {
+			timeout: 20_000,
+		});
+
+		await openJobs(page, '#/jobs/activity');
+		const activity = page.getByTestId('automations-activity');
+		const calls = activity.getByTestId('agent-action-row');
+		await expect(calls).toHaveCount(4, { timeout: 20_000 });
+		await expect(calls.nth(0)).toContainText(`Hide ‘${kennelName}’`);
+		await expect(calls.nth(0)).toContainText('You allowed it');
+		await expect(calls.nth(1)).toContainText('Archive ‘Fetch’');
+		await expect(calls.nth(1)).toContainText('You denied it');
+		await expect(calls.nth(2)).toContainText(`Start a workstream in ‘${kennelName}’`);
+		await expect(calls.nth(3)).toContainText(`Clone ‘file://${kennel}’`);
+		await calls
+			.nth(2)
+			.getByRole('button', { name: `Start a workstream in ‘${kennelName}’, Done` })
+			.click();
+		await expect(calls.nth(2)).toContainText('Called with');
+		await expect(calls.nth(2)).toContainText('"name": "Fetch"');
+		await expect(calls.nth(2)).toContainText(`"repository": "${kennelName}"`);
+		await expect(calls.nth(2).getByRole('link', { name: 'Open chat' })).toBeVisible();
+		await captureFlow(app, 'agent-actions-activity');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

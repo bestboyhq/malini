@@ -19,6 +19,7 @@ import {
 } from './commands';
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
+import { recordDeniedMaliniCall } from './malini-approvals.service';
 import { answerPlatformRequest } from './platform-tools';
 import {
 	browserResultCommand,
@@ -236,7 +237,12 @@ export async function startAgentService(
 				? platformResultCommand(
 						id,
 						request,
-						await answerPlatformRequest(request, { db, commands: context.commands }),
+						await answerPlatformRequest(request, {
+							db,
+							commands: context.commands,
+							events: context.events,
+							log,
+						}),
 					)
 				: browserResultCommand(
 						id,
@@ -288,6 +294,9 @@ export async function startAgentService(
 		log,
 	};
 	defineBridgeCommands(context.commands, commandDeps);
+	const stopRecordingDenials = context.commands.observe((outcome) =>
+		recordDeniedMaliniCall(context, outcome),
+	);
 	if (started) await continuePausedRuns(commandDeps);
 
 	return {
@@ -300,6 +309,7 @@ export async function startAgentService(
 		ensureReady: () => runtime.ensureReady(),
 		closeOpenRunsForExit,
 		async stop() {
+			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);
 			await runtime.stop();
 			await closeOpenRunsForExit();

@@ -109,7 +109,12 @@ describe('malini MCP server', () => {
 					{ name: 'jobs_save' },
 					{ name: 'jobs_run' },
 					{ name: 'events_list' },
-					{ name: 'pull_requests_open_draft' },
+					{ name: 'repositories_list' },
+					{ name: 'repositories_clone' },
+					{ name: 'repositories_hide' },
+					{ name: 'workstreams_list' },
+					{ name: 'workstreams_create' },
+					{ name: 'workstreams_archive' },
 				],
 			},
 		});
@@ -208,7 +213,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser and the read tools, never a tool that changes jobs or pull requests', () => {
+	it('pre-approves the browser and the read tools, never a tool that changes Malini', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -217,6 +222,8 @@ describe('malini MCP server', () => {
 		expect(allowedTools.filter((name) => !name.startsWith('mcp__malini__browser_'))).toEqual([
 			'mcp__malini__jobs_list',
 			'mcp__malini__events_list',
+			'mcp__malini__repositories_list',
+			'mcp__malini__workstreams_list',
 		]);
 	});
 
@@ -251,9 +258,20 @@ describe('malini MCP server', () => {
 			properties: {
 				job: { type: 'string', description: expect.any(String) },
 				context: { type: 'string', description: expect.any(String) },
+				workstream: { type: 'string', description: expect.any(String) },
 			},
 			required: ['job'],
 		});
+		expect(schemaOf('workstreams_create')).toMatchObject({
+			properties: {
+				repository: { type: 'string', description: expect.any(String) },
+				name: { type: 'string', description: expect.any(String) },
+			},
+			required: ['repository'],
+		});
+		expect(schemaOf('workstreams_archive')).toMatchObject({ required: ['workstream'] });
+		expect(schemaOf('repositories_clone')).toMatchObject({ required: ['repository'] });
+		expect(schemaOf('repositories_hide')).toMatchObject({ required: ['repository'] });
 		const jobsSave = tools.find((tool: { name?: unknown }) => tool.name === 'jobs_save')
 			?.inputSchema?.properties?.when?.description;
 		expect(jobsSave).toContain('`on <channel>`');
@@ -279,7 +297,10 @@ describe('malini MCP server', () => {
 			},
 		});
 		const refused = await call('tools/call', { name: 'jobs_run', arguments: { job: 'Ship it' } });
-		const draft = await call('tools/call', { name: 'pull_requests_open_draft', arguments: {} });
+		const hidden = await call('tools/call', {
+			name: 'repositories_hide',
+			arguments: { repository: 'acme/site' },
+		});
 		const invalid = await call('tools/call', { name: 'jobs_save', arguments: { effort: 'huge' } });
 
 		expect(platformCalls).toEqual([
@@ -293,10 +314,10 @@ describe('malini MCP server', () => {
 				},
 			},
 			{ tool: 'jobs_run', input: { job: 'Ship it' } },
-			{ tool: 'pull_requests_open_draft', input: {} },
+			{ tool: 'repositories_hide', input: { repository: 'acme/site' } },
 		]);
-		expect(draft).toMatchObject({
-			result: { content: [{ type: 'text', text: '[pull_requests_open_draft]' }] },
+		expect(hidden).toMatchObject({
+			result: { content: [{ type: 'text', text: '[repositories_hide]' }] },
 		});
 		expect(listed).toMatchObject({
 			result: { content: [{ type: 'text', text: '[jobs_list]' }] },

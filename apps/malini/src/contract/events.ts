@@ -1,6 +1,7 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserState, BrowserTabArgs } from './browser';
 import type {
+	AgentActionChangedEvent,
 	JobDefinitionChangedEvent,
 	JobExperimentChangedEvent,
 	JobRunChangedEvent,
@@ -129,12 +130,14 @@ export interface ContractEvents {
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
 	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
+	'repositories:changed': EmptyEventPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'jobs:suggested': JobSuggestedEvent;
 	'jobs:experiment-changed': JobExperimentChangedEvent;
+	'jobs:agent-action-changed': AgentActionChangedEvent;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
@@ -163,12 +166,14 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-install-status': null,
 	'repositories:workstream-merge-conflicted': null,
 	'repositories:clone-progress': null,
+	'repositories:changed': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'jobs:run-changed': null,
 	'jobs:definition-changed': null,
 	'jobs:suggested': null,
 	'jobs:experiment-changed': null,
+	'jobs:agent-action-changed': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
@@ -253,3 +258,7 @@ export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfi
 export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
 
 export const JOBS_EXPERIMENT_CHANGED_CHANNEL = 'jobs:experiment-changed' satisfies EventChannel;
+
+export const JOBS_AGENT_ACTION_CHANGED_CHANNEL = 'jobs:agent-action-changed' satisfies EventChannel;
+
+export const REPOSITORIES_CHANGED_CHANNEL = 'repositories:changed' satisfies EventChannel;

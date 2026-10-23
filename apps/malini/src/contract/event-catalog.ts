@@ -47,6 +47,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.',
 	},
+	'repositories:changed': {
+		description:
+			'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
+	},
 	'pull-requests:local-base-synced': {
 		description:
 			"Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.",
@@ -58,6 +62,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	'jobs:run-changed': {
 		description:
 			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
+	},
+	'jobs:agent-action-changed': {
+		description:
+			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.",
 	},
 	'jobs:definition-changed': {
 		description:
