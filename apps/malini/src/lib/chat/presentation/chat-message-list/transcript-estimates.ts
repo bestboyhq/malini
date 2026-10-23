@@ -3,8 +3,8 @@ import type { GroupedRunTimelineItem } from '../activity-group';
 import type { RunGroup } from '../render-state';
 import { rowWindowKey, runWindowKey, type TranscriptWindow } from './transcript-window.svelte';
 
-const LINE_PX = 22;
-const BLANK_LINE_PX = 8;
+const LINE_PX = 22.75;
+const PARAGRAPH_GAP_PX = 12.25;
 const CHAR_PX = 7;
 const DEFAULT_TEXT_PX = 776;
 const ROW_PX = 24;
@@ -110,6 +110,7 @@ export function anchoredOpeningBudgets(
 	return budgets;
 }
 
+// ponytail: turn report cards are estimated as markdown, ~2x tall; size the card if budgets skew
 function estimateTextHeight(text: string, textWidth: number): number {
 	const charsPerLine = Math.max(
 		1,
@@ -118,7 +119,7 @@ function estimateTextHeight(text: string, textWidth: number): number {
 	let height = 0;
 	for (const line of text.split('\n')) {
 		const length = line.trim().length;
-		height += length === 0 ? BLANK_LINE_PX : Math.ceil(length / charsPerLine) * LINE_PX;
+		height += length === 0 ? PARAGRAPH_GAP_PX : Math.ceil(length / charsPerLine) * LINE_PX;
 	}
 	return Math.max(ROW_PX, height);
 }
