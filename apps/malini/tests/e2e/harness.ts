@@ -484,9 +484,17 @@ export async function openJob(page: Page, name: string): Promise<Locator> {
 	await jobCard(page, name)
 		.getByRole('link', { name: `Set up ${name}` })
 		.click();
-	const detail = page.getByRole('dialog', { name, exact: true });
+	const detail = page.getByRole('region', { name, exact: true });
 	await expect(detail).toBeVisible();
 	return detail;
+}
+
+export async function openOverview(page: Page): Promise<void> {
+	await page
+		.getByRole('navigation', { name: 'Automations' })
+		.getByRole('link', { name: 'Overview' })
+		.click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 }
 
 function composer(page: Page) {

@@ -29,7 +29,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
 - **Routines**: every routine, including chains of several steps, and the ones Malini suggests.
 - **Recipes**: ready-made jobs to start from.
 
-Click a job to set it up: when it runs, how, where, what happens when it finishes, its recent runs, and its instructions, model, effort and skills.
+Click a job to open its own page: when it runs, how, where, what happens when it finishes, its recent runs, and its instructions, model, effort and skills.
 **Run** starts it now, **Delete** removes one of yours, and **Reset** brings back a built-in job's original.
 
 ## When a job runs

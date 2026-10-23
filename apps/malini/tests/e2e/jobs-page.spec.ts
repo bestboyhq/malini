@@ -18,7 +18,7 @@ async function routines(page: Page): Promise<RoutineRow[]> {
 	);
 }
 
-test('the Jobs page slides the sidebar into its sections and opens the job its address names', async () => {
+test('the Jobs page slides the sidebar into its sections and opens the job its address names as its own page', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -61,16 +61,15 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 			'aria-current',
 			'page',
 		);
-		const detail = page.getByRole('dialog', { name: 'Update from main' });
+		const detail = page.getByRole('region', { name: 'Update from main', exact: true });
 		await expect(detail).toContainText('The merge queue runs it when a branch it is shipping');
 
 		await page.reload();
 		await expect(detail).toBeVisible({ timeout: 20_000 });
-		await detail.getByRole('button', { name: 'Close Update from main' }).click();
+		await sections.getByRole('link', { name: 'Overview' }).click();
 		await expect(detail).toHaveCount(0);
 		await expect(page).toHaveURL(/#\/jobs$/u);
 
-		await sections.getByRole('link', { name: 'Overview' }).click();
 		await page.getByRole('link', { name: 'Workstreams' }).click();
 		await expect(sections).toHaveCount(0);
 		expectCleanConsole(app);

@@ -9,6 +9,7 @@ import {
 	launchMalini,
 	openJob,
 	openJobs,
+	openOverview,
 	openWorkstream,
 	seedWorkstream,
 } from './harness';
@@ -22,7 +23,7 @@ async function runJob(page: Page, name: string): Promise<void> {
 	await expect(target.getByRole('combobox', { name: 'Workstream' })).toContainText(WORKSTREAM);
 	await target.getByRole('button', { name: 'Run job' }).click();
 	await expect(target).toHaveCount(0);
-	await detail.getByRole('button', { name: `Close ${name}` }).click();
+	await openOverview(page);
 	await expect(detail).toHaveCount(0);
 }
 
@@ -56,7 +57,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 		await expect(nameChats.getByRole('button', { name: 'Run Name chats' })).toHaveCount(0);
 		await expect(nameChats.getByRole('button', { name: 'Delete Name chats' })).toHaveCount(0);
 		await expect(nameChats.getByRole('button', { name: 'Reset Name chats' })).toBeVisible();
-		await nameChats.getByRole('button', { name: 'Close Name chats' }).click();
+		await openOverview(page);
 
 		const fixChecks = await openJob(page, 'Fix checks');
 		const instructions = fixChecks.getByRole('textbox', { name: 'Instructions' });
@@ -68,7 +69,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 		await expect(instructions).toHaveValue('Fix them my way.');
 		await fixChecks.getByRole('button', { name: 'Confirm resetting Fix checks' }).click();
 		await expect(instructions).toHaveValue(original);
-		await fixChecks.getByRole('button', { name: 'Close Fix checks' }).click();
+		await openOverview(page);
 
 		const composer = page.getByRole('textbox', { name: 'What should happen, and when?' });
 		await composer.fill('Tidy the docs, then link every page from the index');
@@ -91,7 +92,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 		await nightly.getByRole('textbox', { name: 'Name' }).fill('Weekly docs');
 		await expect(save).toBeEnabled();
 		await save.click();
-		const weekly = page.getByRole('dialog', { name: 'Weekly docs' });
+		const weekly = page.getByRole('region', { name: 'Weekly docs', exact: true });
 		await expect(weekly).toBeVisible();
 		await weekly.getByRole('button', { name: 'Runs in: The workstream you pick' }).click();
 		await page.getByRole('menuitemradio', { name: 'A new workstream' }).click();
@@ -107,7 +108,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 
 		await weekly.getByRole('button', { name: 'Delete Weekly docs' }).click();
 		await weekly.getByRole('button', { name: 'Keep' }).click();
-		await expect(jobCard(page, 'Weekly docs')).toHaveCount(1);
+		await expect(weekly.getByRole('button', { name: 'Delete Weekly docs' })).toBeVisible();
 		await weekly.getByRole('button', { name: 'Delete Weekly docs' }).click();
 		await weekly.getByRole('button', { name: 'Confirm deleting Weekly docs' }).click();
 		await expect(weekly).toHaveCount(0);
