@@ -68,7 +68,7 @@ Name the skills a job needs, and it loads only those.
 That leaves your time for the work that matters, instead of fighting your setup.
 
 <p align="center">
-  <img src=".github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
+  <img src=".github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
 <p align="center">

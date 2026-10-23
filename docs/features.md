@@ -98,7 +98,7 @@ The [README](../README.md) has the short version.
 ## Jobs
 
 <p align="center">
-  <img src="../.github/readme/jobs.webp" width="100%" alt="The Jobs page: the five built-in jobs, Name chats, Suggest skill presets, Fix checks, Update from main, and Address bot review, with the Fix checks job open to show its instructions, model, effort, skills, and Reset and Run buttons.">
+  <img src="../.github/readme/jobs.webp" width="100%" alt="The Changelog on merge job open on the Jobs page: When a pull request merges, it runs on its own in the workstream it fires in, and then runs Open draft. Below are its recent run and its instructions.">
 </p>
 
 - **A job is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
