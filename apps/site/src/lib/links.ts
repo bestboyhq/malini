@@ -50,7 +50,7 @@ export const MENUS: readonly Menu[] = [
 					{
 						title: 'Tony',
 						tag: 'Say it',
-						href: `${BESTBOY_GITHUB}/tony/releases/latest`,
+						href: `${BESTBOY_URL}/tony`,
 						icon: asset('/icons/tony.webp'),
 						line: 'Hold a key. Speak. Let go.',
 					},
@@ -64,7 +64,7 @@ export const MENUS: readonly Menu[] = [
 					{
 						title: 'Grip',
 						tag: 'Share it',
-						href: `${BESTBOY_GITHUB}/grip/releases/latest`,
+						href: `${BESTBOY_URL}/grip`,
 						icon: asset('/icons/grip.webp'),
 						line: 'Record your screen. Get a video worth watching.',
 					},
@@ -98,9 +98,9 @@ export const MENUS: readonly Menu[] = [
 						line: 'Install, workstreams, jobs, and extensions',
 					},
 					{
-						title: 'Tony on GitHub',
-						href: `${BESTBOY_GITHUB}/tony#readme`,
-						line: 'Install it and use it, in its README',
+						title: 'Tony docs',
+						href: `${BESTBOY_URL}/tony/docs`,
+						line: 'Install, languages, your words, and privacy',
 					},
 					{
 						title: 'Grip on GitHub',
