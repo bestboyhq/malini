@@ -52,10 +52,7 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await expect(gallery.getByRole('status')).toHaveText('1 of 3');
 		await expect(gallery.getByRole('img', { name: 'mockup.png' })).toBeVisible();
-		await expect(gallery.getByRole('button', { name: 'Close', exact: true })).toHaveCSS(
-			'-webkit-app-region',
-			'no-drag',
-		);
+		await expect(gallery.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0);
 
 		await page.keyboard.press('Escape');
 		await expect(gallery).toBeHidden();
@@ -105,16 +102,18 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		await expect.poll(width).toBeLessThan(shown.width * 1.1);
 
 		const center = { x: shown.x + shown.width / 2, y: shown.y + shown.height / 2 };
-		await page.mouse.click(center.x, center.y);
-		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.5×' })).toBeEnabled();
+		await page.keyboard.press('+');
+		await page.keyboard.press('+');
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.3×' })).toBeEnabled();
 		const before = await top();
 		await page.mouse.move(center.x, center.y);
 		await page.mouse.down();
 		await page.mouse.move(center.x, center.y + 60, { steps: 6 });
 		await page.mouse.up();
 		await expect.poll(top).toBeGreaterThan(before + 30);
-		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.5×' })).toBeEnabled();
-		await page.mouse.click(center.x, center.y);
+		await expect(gallery, 'a drag pans the picture without closing the gallery').toBeVisible();
+		await expect(zoom.getByRole('button', { name: 'Fit to screen from 2.3×' })).toBeEnabled();
+		await page.keyboard.press('0');
 		await expect(zoom.getByRole('button', { name: 'Fit to screen', exact: true })).toBeDisabled();
 
 		await page.keyboard.down('Meta');
@@ -131,8 +130,8 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		await expect(tooltip).toHaveText('Zoom out (-)');
 		await expect(tooltip).toHaveCount(1);
 
-		await page.mouse.click(shown.x - 24, shown.y + shown.height / 2);
-		await expect(gallery).toBeHidden();
+		await page.mouse.click(center.x, center.y);
+		await expect(gallery, 'a click on the picture closes the gallery').toBeHidden();
 
 		await page.getByRole('button', { name: /^Edit message: / }).click({ position: { x: 4, y: 4 } });
 		const editor = page.getByRole('textbox', { name: 'Edit message' });

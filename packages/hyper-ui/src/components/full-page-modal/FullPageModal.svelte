@@ -1,7 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { Icon } from '../../icons';
-	import Tooltip from '../tooltip/Tooltip.svelte';
 	import { isEditableTarget, modalBehavior } from '../modal/modal-behavior';
 	import {
 		bodyPortal,
@@ -35,6 +33,10 @@
 			isClosing = false;
 			onclose();
 		}, 150);
+	}
+
+	export function close(): void {
+		startClose();
 	}
 
 	function startSubmit(): void {
@@ -92,19 +94,6 @@
 				tabindex="-1"
 				use:modalBehavior={{ onEscape: startClose, focusReturn }}
 			>
-				<Tooltip
-					content="Close"
-					placement="bottom"
-					class={[
-						'pointer-events-auto absolute top-12 right-2 z-10 sm:right-5',
-						isClosing ? 'animate-fadeOut' : 'animate-fadeIn',
-					]}
-				>
-					<button type="button" class="icon-btn fcc p-0.5" onclick={startClose} aria-label="Close">
-						<Icon name="close" size={40} class="text-white" />
-					</button>
-				</Tooltip>
-
 				{#if headerChildren}
 					<div class="pointer-events-auto">
 						{@render headerChildren()}

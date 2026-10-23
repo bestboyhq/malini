@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import {
@@ -86,7 +85,8 @@
 		report.notes.filter((note) => note.kind === 'next').map((note) => note.text),
 	);
 	const picking = $derived(report.variants.length > 0 && needsOpen && pick === null);
-	let chosenId = $state(untrack(() => pick?.picked.id ?? report.variants[0]?.id ?? ''));
+	const defaultVariantId = $derived(pick?.picked.id ?? report.variants[0]?.id ?? '');
+	let chosenId = $derived(defaultVariantId);
 	const chosen = $derived(
 		report.variants.find((variant) => variant.id === chosenId) ?? report.variants[0] ?? null,
 	);
@@ -165,7 +165,7 @@
 						</details>
 					</li>
 					{#if earlierPick}
-						<PickStep pick={earlierPick} {imagesrc} />
+						<PickStep pick={earlierPick} {imagesrc} {onopenimage} />
 					{/if}
 				{/each}
 			</ol>
@@ -189,12 +189,12 @@
 		{#if isVideoPath(report.comparison.after.src)}
 			<VideoCompare comparison={report.comparison} {imagesrc} />
 		{:else}
-			<ImageCompare {workstreamId} comparison={report.comparison} {imagesrc} />
+			<ImageCompare {workstreamId} comparison={report.comparison} {imagesrc} {onopenimage} />
 		{/if}
 	{/if}
 
 	{#if report.variants.length > 0}
-		<VariantPicker variants={report.variants} asking={picking} {pick} bind:chosenId {imagesrc} />
+		<VariantPicker variants={report.variants} {pick} bind:chosenId {imagesrc} {onopenimage} />
 	{/if}
 
 	{#if hero}
