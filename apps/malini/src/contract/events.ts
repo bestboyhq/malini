@@ -1,14 +1,9 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserState, BrowserTabArgs } from './browser';
-import type { JobDefinitionChangedEvent, JobRunChangedEvent } from './jobs';
+import type { JobDefinitionChangedEvent, JobRunChangedEvent, JobSuggestedEvent } from './jobs';
 import type { McpServerReport } from './mcp-servers';
 import type { ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
-import type {
-	RoutineChangedEvent,
-	RoutineGatedRunChangedEvent,
-	RoutineSuggestedEvent,
-} from './routines';
 import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
@@ -66,6 +61,12 @@ export interface WorkstreamInstallStatusPayload {
 	exitCode?: number;
 }
 
+export interface WorkstreamMergeConflictedPayload {
+	workstreamId: string;
+	baseBranch: string;
+	conflictedPaths: string[];
+}
+
 export interface CloneProgressPayload {
 	repo_id: string;
 	stage: 'fetch' | 'checkout' | 'done';
@@ -121,14 +122,13 @@ export interface ContractEvents {
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
 	'repositories:workstream-renamed': WorkstreamRenamedPayload;
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
+	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
-	'routines:suggested': RoutineSuggestedEvent;
-	'routines:changed': RoutineChangedEvent;
-	'routines:gated-run-changed': RoutineGatedRunChangedEvent;
+	'jobs:suggested': JobSuggestedEvent;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
@@ -155,14 +155,13 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-files-changed': null,
 	'repositories:workstream-renamed': null,
 	'repositories:workstream-install-status': null,
+	'repositories:workstream-merge-conflicted': null,
 	'repositories:clone-progress': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'jobs:run-changed': null,
 	'jobs:definition-changed': null,
-	'routines:suggested': null,
-	'routines:changed': null,
-	'routines:gated-run-changed': null,
+	'jobs:suggested': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
@@ -208,6 +207,9 @@ export const REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL =
 export const REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL =
 	'repositories:workstream-install-status' satisfies EventChannel;
 
+export const REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL =
+	'repositories:workstream-merge-conflicted' satisfies EventChannel;
+
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
 
@@ -234,16 +236,11 @@ export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfi
 export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 	'stats:workstream-running-changed' satisfies EventChannel;
 
-export const ROUTINES_SUGGESTED_CHANNEL = 'routines:suggested' satisfies EventChannel;
-
-export const ROUTINES_CHANGED_CHANNEL = 'routines:changed' satisfies EventChannel;
-
-export const ROUTINES_GATED_RUN_CHANGED_CHANNEL =
-	'routines:gated-run-changed' satisfies EventChannel;
-
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;
 
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
 
 export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;
+
+export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;

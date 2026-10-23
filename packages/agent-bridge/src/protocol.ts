@@ -93,6 +93,7 @@ export interface ApproveCommand {
 	readonly approvalId: string;
 	readonly decision: ApprovalDecision;
 	readonly scope: ApprovalScope;
+	readonly updatedInput?: Readonly<Record<string, unknown>>;
 }
 
 export interface AnswerQuestionCommand {
@@ -787,7 +788,15 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 		return err('INVALID_PAYLOAD', 'approve: decision must be "allow" or "deny"', obj);
 	}
 	if (!isApprovalScope(scope)) {
-		return err('INVALID_PAYLOAD', 'approve: scope must be "once", "session", or "workstream"', obj);
+		return err(
+			'INVALID_PAYLOAD',
+			'approve: scope must be "once", "session", "workstream", or "everywhere"',
+			obj,
+		);
+	}
+	const updatedInput = obj.updatedInput;
+	if (updatedInput !== undefined && (!isRecord(updatedInput) || decision === 'deny')) {
+		return err('INVALID_PAYLOAD', 'approve: updatedInput must be an object on an allow', obj);
 	}
 	return {
 		ok: true,
@@ -799,12 +808,15 @@ function validateApprove(obj: Record<string, unknown>): ParseResult {
 			approvalId,
 			decision: decision === 'approve' ? 'allow' : decision,
 			scope,
+			...(updatedInput === undefined ? {} : { updatedInput }),
 		},
 	};
 }
 
 function isApprovalScope(value: unknown): value is ApprovalScope {
-	return value === 'once' || value === 'session' || value === 'workstream';
+	return (
+		typeof value === 'string' && isOneOf(['once', 'session', 'workstream', 'everywhere'], value)
+	);
 }
 
 function validateAnswerQuestion(obj: Record<string, unknown>): ParseResult {

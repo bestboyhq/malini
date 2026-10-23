@@ -1,4 +1,4 @@
-import type { JobOutput } from '$contract/jobs';
+import type { JobBuiltin } from '$contract/jobs';
 import { MANUAL_TRIGGER, TRIGGERS } from './triggers';
 
 export type Recipe = Readonly<{
@@ -34,10 +34,11 @@ export const RECIPES: readonly Recipe[] = [
 	},
 	{
 		id: 'smoke-test',
-		triggerId: 'frontend-ready',
+		triggerId: 'install-succeeded',
 		title: 'Smoke-test the frontend',
-		description: 'Open it and check the console for errors.',
-		sentence: 'When a frontend comes up, open it and check the console for errors',
+		description: 'Start it and check the console for errors.',
+		sentence:
+			'When dependencies finish installing, start the frontend and check the console for errors',
 	},
 	{
 		id: 'explain-failure',
@@ -108,16 +109,16 @@ export function guessTriggerId(text: string): string {
 
 const LEAD = /^(when|whenever|after|once|if)\b[^,]*,?\s*/iu;
 
-const OUTPUT_STEPS: readonly Readonly<{ pattern: RegExp; output: JobOutput }>[] = [
-	{ pattern: /\b(open|create|make)\s+a\s+draft\s+(pr|pull request)\b/iu, output: 'draft' },
-	{ pattern: /\bqueue\s+(the\s+|a\s+)?merge\b/iu, output: 'merge' },
+const THEN_STEPS: readonly Readonly<{ pattern: RegExp; then: JobBuiltin }>[] = [
+	{ pattern: /\b(open|create|make)\s+a\s+draft\s+(pr|pull request)\b/iu, then: 'open-draft' },
+	{ pattern: /\bqueue\s+(the\s+|a\s+)?merge\b/iu, then: 'merge' },
 ];
 
 export type WordsDraft = Readonly<{
 	name: string;
 	lead: string;
 	steps: readonly string[];
-	output: JobOutput | null;
+	then: JobBuiltin | null;
 }>;
 
 function capitalized(text: string): string {
@@ -132,9 +133,9 @@ export function draftFromWords(text: string): WordsDraft {
 		.split(/\s*(?:,\s*(?:and\s+)?then|,\s*and|\band then|\bthen|\band)\s+/iu)
 		.map((clause) => clause.trim().replace(/[.!]+$/u, ''))
 		.filter(Boolean);
-	const output = OUTPUT_STEPS.find(({ pattern }) => clauses.some((clause) => pattern.test(clause)));
+	const then = THEN_STEPS.find(({ pattern }) => clauses.some((clause) => pattern.test(clause)));
 	const steps = clauses
-		.filter((clause) => !OUTPUT_STEPS.some(({ pattern }) => pattern.test(clause)))
+		.filter((clause) => !THEN_STEPS.some(({ pattern }) => pattern.test(clause)))
 		.map(capitalized);
 	const first = steps[0] ?? 'New job';
 	const name = first
@@ -146,6 +147,6 @@ export function draftFromWords(text: string): WordsDraft {
 		name,
 		lead,
 		steps,
-		output: output?.output ?? null,
+		then: then?.then ?? null,
 	};
 }

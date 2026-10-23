@@ -358,8 +358,6 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 			model: 'opus',
 			effort: 'medium',
 			runsIn: 'workstream',
-			output: 'none',
-			skillPresetId: null,
 		});
 		holdAgentRuns(app, true);
 		await sendPrompt(page, 'Wait for the deploy job');

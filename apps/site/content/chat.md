@@ -46,7 +46,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 - **Sandboxed** edits the workstream and runs commands in a sandbox, and asks for anything else.
 - **Full access** never asks.
 
-When the agent asks, approve once, or always for the chat or the workstream.
+When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+**Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
 ## Reports
 
@@ -115,7 +116,7 @@ Filter it to the servers that need you or the ones that are off, sign in or retr
 
 ## Tools
 
-In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs, routines, and events.
+In a Malini chat the agent also has Malini's own tools: a browser it shares with you, and your jobs and events.
 See [Agent tools](/malini/docs/agent-tools.md).
 
 ## Keys

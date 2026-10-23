@@ -1,31 +1,38 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { JobOutput, JobRunsIn, SaveJobDefinitionArgs } from '$contract/jobs';
-	import type { JobTrigger, RoutineStatus } from '$contract/routines';
+	import type {
+		JobDefinitionRecord,
+		JobRunMode,
+		JobRunsIn,
+		SaveJobDefinitionArgs,
+	} from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_RUN_PROFILE } from '$shared/providers/providers.api';
-	import { JOB_OUTPUT_OPTIONS, JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
+	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import { draftFromWords, guessTriggerId } from './recipes';
 	import RunModePicker from './RunModePicker.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
-	import { EVENT_RUNS_IN_OPTIONS, runModeHint, triggerById } from './triggers';
+	import { EVENT_RUNS_IN_OPTIONS, runModeHint, thenChoices, triggerById } from './triggers';
 
 	interface Props {
 		text: string;
 		title?: string | undefined;
+		jobs: readonly JobDefinitionRecord[];
 		saving: boolean;
 		error: string | null;
-		onsave: (job: Omit<SaveJobDefinitionArgs, 'id'>, trigger: JobTrigger | null) => void;
+		onsave: (job: Omit<SaveJobDefinitionArgs, 'id'>) => void;
 		ondiscard: () => void;
 	}
 
-	let { text, title, saving, error, onsave, ondiscard }: Props = $props();
+	let { text, title, jobs, saving, error, onsave, ondiscard }: Props = $props();
+
+	const NOTHING = '';
 
 	const parsed = untrack(() => draftFromWords(text));
 	const quote = untrack(() => [
@@ -36,15 +43,19 @@
 	let name = $state(untrack(() => title) ?? parsed.name);
 	let steps = $state<string[]>([...parsed.steps]);
 	let when = $state<string | null>(untrack(() => triggerById(guessTriggerId(text)).when));
-	let status = $state<RoutineStatus>('candidate');
+	let mode = $state<JobRunMode>('ask');
 	let runsIn = $state<JobRunsIn>('workstream');
-	let output = $state<JobOutput>(parsed.output ?? 'none');
+	let thenJobId = $state<string>(
+		untrack(() => jobs.find((job) => parsed.then !== null && job.builtin === parsed.then)?.id) ??
+			NOTHING,
+	);
 
 	const filled = $derived(steps.map((step) => step.trim()).filter(Boolean));
+	const thenOptions = $derived([{ value: NOTHING, label: 'Nothing' }, ...thenChoices(jobs, null)]);
 	const modeHint = $derived(
-		status === 'candidate'
+		mode === 'ask'
 			? 'New jobs ask first. Let it run on its own once you trust it.'
-			: runModeHint(status),
+			: runModeHint(mode),
 	);
 
 	function onStep(index: number, value: string): void {
@@ -56,21 +67,19 @@
 	}
 
 	function onSave(): void {
-		onsave(
-			{
-				name: name.trim() || 'New job',
-				instructions:
-					filled.length === 1
-						? (filled[0] ?? '')
-						: filled.map((step, index) => `${index + 1}. ${step}`).join('\n'),
-				model: DEFAULT_AGENT_MODEL,
-				effort: DEFAULT_AGENT_RUN_PROFILE.effort,
-				runsIn,
-				output,
-				skills: [],
-			},
-			when === null ? null : { when, status },
-		);
+		onsave({
+			name: name.trim() || 'New job',
+			instructions:
+				filled.length === 1
+					? (filled[0] ?? '')
+					: filled.map((step, index) => `${index + 1}. ${step}`).join('\n'),
+			model: DEFAULT_AGENT_MODEL,
+			effort: DEFAULT_AGENT_RUN_PROFILE.effort,
+			runsIn,
+			skills: [],
+			trigger: when === null ? null : { when, mode },
+			thenJobId: thenJobId === NOTHING ? null : thenJobId,
+		});
 	}
 </script>
 
@@ -163,23 +172,19 @@
 		/>
 	</SettingRow>
 
-	<SettingRow title="When it finishes" description="What Malini does with the changes.">
+	<SettingRow title="Then" description="The job that runs next, once this one succeeds.">
 		<ChoiceMenu
-			value={output}
-			options={JOB_OUTPUT_OPTIONS}
-			ariaLabel="When it finishes"
-			icon="pr-draft"
-			onchange={(next) => (output = next)}
+			value={thenJobId}
+			options={thenOptions}
+			ariaLabel="Then"
+			icon="arrow-right"
+			onchange={(next) => (thenJobId = next)}
 		/>
 	</SettingRow>
 
 	{#if when !== null}
 		<SettingRow title="Runs" description={modeHint}>
-			<RunModePicker
-				value={status}
-				label="How the new job runs"
-				onchange={(next) => (status = next)}
-			/>
+			<RunModePicker value={mode} label="How the new job runs" onchange={(next) => (mode = next)} />
 		</SettingRow>
 	{/if}
 

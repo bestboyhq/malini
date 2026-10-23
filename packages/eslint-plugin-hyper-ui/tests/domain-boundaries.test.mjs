@@ -52,10 +52,7 @@ test('the domain layer stays pure', () => {
 		[],
 	);
 	assert.deepEqual(
-		runCase(
-			'src/lib/chat/domain/a.ts',
-			"import { runRoutine } from '$lib/routines/routines.api.ts';",
-		),
+		runCase('src/lib/chat/domain/a.ts', "import { runJob } from '$lib/jobs/jobs.api.ts';"),
 		['domainImportsOutward'],
 	);
 	assert.deepEqual(runCase('src/lib/chat/domain/a.ts', "import { readFile } from 'node:fs';"), [
@@ -154,7 +151,7 @@ test('the consumer domain reads every application layer', () => {
 
 test('a relative specifier never leaves the domain folder', () => {
 	assert.deepEqual(
-		runCase('src/lib/chat/application/x.ts', "import type { B } from '../../routines/domain/b';"),
+		runCase('src/lib/chat/application/x.ts', "import type { B } from '../../jobs/domain/b';"),
 		['crossDomainDeepImport', 'escapesDomain'],
 	);
 	assert.deepEqual(

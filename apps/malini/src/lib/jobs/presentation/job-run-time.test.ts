@@ -16,6 +16,7 @@ function run(patch: Partial<JobRunRecord>): JobRunRecord {
 		origin: 'manual',
 		status: 'queued',
 		detail: null,
+		parentRunId: null,
 		chatSessionId: null,
 		chatAfterRunId: null,
 		createdAt: '2026-10-11T11:00:00.000Z',

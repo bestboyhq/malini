@@ -269,6 +269,50 @@ describe('protocol: parseCommandLine', () => {
 			}
 		});
 
+		it('parses an approval for everywhere that carries the input the user reviewed', () => {
+			const r = parseCommandLine(
+				JSON.stringify({
+					cmd: 'approve',
+					id: 'cmd-approve',
+					sessionId: 's1',
+					runId: 'r1',
+					approvalId: 'a1',
+					decision: 'allow',
+					scope: 'everywhere',
+					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+				}),
+			);
+			expect(r).toEqual({
+				ok: true,
+				command: {
+					cmd: 'approve',
+					id: 'cmd-approve',
+					sessionId: 's1',
+					runId: 'r1',
+					approvalId: 'a1',
+					decision: 'allow',
+					scope: 'everywhere',
+					updatedInput: { id: 'job-1', instructions: 'Reviewed' },
+				},
+			});
+		});
+
+		it('rejects a reviewed input on a deny or one that is not an object', () => {
+			const approve = (fields: Record<string, unknown>) =>
+				parseCommandLine(
+					JSON.stringify({
+						cmd: 'approve',
+						id: 'cmd-approve',
+						sessionId: 's1',
+						runId: 'r1',
+						approvalId: 'a1',
+						...fields,
+					}),
+				);
+			expect(approve({ decision: 'deny', updatedInput: { id: 'job-1' } }).ok).toBe(false);
+			expect(approve({ decision: 'allow', updatedInput: ['job-1'] }).ok).toBe(false);
+		});
+
 		it('parses structured question answers with full correlation', () => {
 			const result = parseCommandLine(
 				'{"cmd":"answer_question","id":"answer-1","sessionId":"s1","runId":"r1","questionId":"request-1","answers":[{"questionId":"request-1:0","values":["Vitest"]}]}',
@@ -529,9 +573,8 @@ describe('protocol: parseCommandLine', () => {
 				'jobs_list',
 				'jobs_save',
 				'jobs_run',
-				'routines_list',
-				'routines_save',
 				'events_list',
+				'pull_requests_open_draft',
 			]);
 		});
 
@@ -589,8 +632,8 @@ describe('protocol: parseCommandLine', () => {
 			});
 			expect(
 				bridgePlatformRequestFrame('q3', 's1', {
-					tool: 'routines_save',
-					input: { label: 'Docs after merge' },
+					tool: 'jobs_save',
+					input: { name: 'Docs after merge', when: null },
 					runId: 'r1',
 				}),
 			).toEqual({
@@ -599,8 +642,8 @@ describe('protocol: parseCommandLine', () => {
 				requestId: 'q3',
 				sessionId: 's1',
 				runId: 'r1',
-				tool: 'routines_save',
-				input: { label: 'Docs after merge' },
+				tool: 'jobs_save',
+				input: { name: 'Docs after merge', when: null },
 			});
 			const linear = { name: 'linear', status: 'connected', source: 'user', toolCount: 4 };
 			expect(bridgeMcpServersFrame('m1', [linear])).toEqual({

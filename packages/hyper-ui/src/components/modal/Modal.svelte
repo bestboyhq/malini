@@ -67,6 +67,7 @@
 	};
 
 	let isClosing = $state(false);
+	let closing: ReturnType<typeof setTimeout> | undefined;
 
 	const uid = $props.id();
 	const titleId = `${uid}-title`;
@@ -85,7 +86,7 @@
 
 		isClosing = true;
 
-		setTimeout(() => {
+		closing = setTimeout(() => {
 			isClosing = false;
 			onclose();
 		}, 150);
@@ -98,7 +99,7 @@
 
 		isClosing = true;
 
-		setTimeout(() => {
+		closing = setTimeout(() => {
 			isClosing = false;
 			onsubmit?.();
 		}, 150);
@@ -120,6 +121,7 @@
 
 		return () => {
 			window.removeEventListener('keydown', onKeydown);
+			clearTimeout(closing);
 		};
 	});
 </script>

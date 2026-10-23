@@ -103,6 +103,13 @@ const handle = (command) => {
         }
       }
       if (prompt.includes('HANG')) { pendingRuns.set(runId, sessionId); return; }
+      const malini = /MALINI_APPROVAL:(\\w+):(\\{.*\\})/.exec(prompt);
+      if (malini) {
+        pendingRuns.set(runId, sessionId);
+        event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'malini tool', toolName: 'mcp__malini__' + malini[1],
+          input: JSON.parse(malini[2]), permission: { capability: 'write', resources: [{ kind: 'tool', value: malini[1], boundary: 'workstream' }] } });
+        return;
+      }
       if (prompt.includes('APPROVAL')) {
         pendingRuns.set(runId, sessionId);
         event({ type: 'approval.requested', sessionId, runId, approvalId: 'approval-1', reason: 'read outside', toolName: 'read_file',
@@ -128,7 +135,7 @@ const handle = (command) => {
     case 'approve': {
       ack(command.id);
       event({ type: 'tool.completed', runId: command.runId, name: 'read_file', output: { decision: command.decision, scope: command.scope } });
-      completeRun(command.sessionId, command.runId, 'approved:' + command.decision + ':' + command.scope);
+      completeRun(command.sessionId, command.runId, 'approved:' + command.decision + ':' + command.scope + (command.updatedInput ? ':' + JSON.stringify(command.updatedInput) : ''));
       pendingRuns.delete(command.runId);
       return;
     }

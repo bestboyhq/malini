@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { routes as appRoutes } from '$lib/app/routes';
 import type { RouteNode } from '$shared/router/hash-router.svelte';
 import { bootRoute } from './last-route';
 
@@ -37,5 +38,10 @@ describe('bootRoute', () => {
 	it('drops a remembered route the table no longer knows', () => {
 		expect(bootRoute('', '/routines/old', routes)).toBe('/');
 		expect(bootRoute('', '/', routes)).toBe('/');
+	});
+
+	it('follows a remembered route that moved to where it went', () => {
+		expect(bootRoute('', '/jobs/routines', appRoutes)).toBe('/jobs');
+		expect(bootRoute('', '/jobs/activity', appRoutes)).toBe('/jobs/activity');
 	});
 });

@@ -40,6 +40,11 @@ type RegisteredInteraction =
 	  }>;
 
 const IDLE_STATE = Object.freeze({ status: 'idle' }) satisfies AgentInteractionState;
+const SCOPE_MESSAGES = {
+	session: 'Allowed for this chat',
+	workstream: 'Allowed for this workstream',
+	everywhere: 'Allowed everywhere',
+} as const;
 const STALE_MESSAGE = 'No longer active';
 const ANSWERED_STATE = Object.freeze({
 	status: 'resolved',
@@ -252,7 +257,7 @@ export class AgentInteractionCommands {
 		const request = this.#requests.get(key);
 		if (
 			(input.decision !== 'allow' && input.decision !== 'deny') ||
-			!(['once', 'session', 'workstream'] as const).includes(input.scope)
+			!(['once', 'session', 'workstream', 'everywhere'] as const).includes(input.scope)
 		) {
 			this.#fail(key, 'Choose a valid approval decision.');
 			return false;
@@ -276,6 +281,7 @@ export class AgentInteractionCommands {
 				...(request?.kind === 'approval' && request.permission
 					? { permission: $state.snapshot(request.permission) }
 					: {}),
+				...(input.updatedInput ? { updatedInput: input.updatedInput } : {}),
 			});
 			if (this.states[key]?.status === 'stale') return false;
 			if (result.decision !== input.decision || result.scope !== input.scope) {
@@ -295,11 +301,11 @@ export class AgentInteractionCommands {
 					message:
 						input.decision === 'deny'
 							? 'Denied'
-							: input.scope === 'once' || !remembered
-								? 'Allowed once'
-								: input.scope === 'session'
-									? 'Allowed for this chat'
-									: 'Allowed for this workstream',
+							: input.updatedInput
+								? 'Saved after review'
+								: input.scope === 'once' || !remembered
+									? 'Allowed once'
+									: SCOPE_MESSAGES[input.scope],
 					decision: input.decision,
 					requestedScope: input.scope,
 					scopeStored: remembered,

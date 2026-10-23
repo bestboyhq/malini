@@ -18,6 +18,7 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands } from './mcp-servers';
 import { getSession } from './sessions.repository';
 
@@ -57,6 +58,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		resolveWorkstreamCheckout: deps.resolveWorkstreamCheckout,
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
+	const stopGrants = installPermissionGrants(context);
 
 	const agent: AgentService = await startAgentService(context, {
 		leases: deps.leases,
@@ -101,7 +103,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
-		stop: () => agent.stop(),
+		stop: () => {
+			stopGrants();
+			return agent.stop();
+		},
 		sessionModel: (sessionId) => getSession(context.db, sessionId)?.model ?? null,
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {

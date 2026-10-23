@@ -15,6 +15,7 @@
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { setRepositoryHiddenCommand } from '$shared/repositories/application/commands/set-repository-hidden.command';
+	import { repositoryPreparationQuery } from '$shared/repositories/application/queries/repository-preparation.query.svelte';
 	import { workstreamNativeExistenceQuery } from '$shared/repositories/application/queries/workstream-native-existence.query.svelte';
 	import { workstreamCount } from '$shared/repositories/domain/workstream-retirement';
 	import { repositoryWebUrl } from '$shared/repositories/domain/repository-context';
@@ -32,13 +33,19 @@
 	let armedFor = $state.raw<RepositoryContextMenuTarget | null>(null);
 	const nativeExistence = $derived(workstreamNativeExistenceQuery.data);
 	const armed = $derived(target !== null && armedFor === target);
+	const cloning = $derived(
+		target !== null && repositoryPreparationQuery.data(target.repository).kind === 'preparing',
+	);
 	const blocked = $derived(
-		target?.workstreams.some((workstream) => nativeExistence(workstream.id) === 'in-flight') ??
-			false,
+		cloning ||
+			(target?.workstreams.some((workstream) => nativeExistence(workstream.id) === 'in-flight') ??
+				false),
 	);
 	const removal = $derived.by(() => {
 		const fullName = target?.repository.fullName ?? '';
 		const count = target?.workstreams.length ?? 0;
+		if (cloning)
+			return { label: 'Remove after the clone finishes', ariaLabel: `Remove ${fullName}` };
 		if (blocked) return { label: 'Remove after setup finishes', ariaLabel: `Remove ${fullName}` };
 		if (!armed) return { label: 'Remove repository', ariaLabel: `Remove ${fullName}` };
 		if (count === 0)

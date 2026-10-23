@@ -21,6 +21,7 @@ import {
 	type ProviderCapabilityState,
 } from '$contract/agent';
 import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills';
+import type { MaliniEditReview } from '$contract/approvals';
 
 export type {
 	AgentQuestionAnswer,
@@ -112,6 +113,7 @@ export type BridgeCommand =
 			approvalId: string;
 			decision: string;
 			scope: string;
+			updatedInput?: Readonly<Record<string, unknown>>;
 	  }
 	| {
 			cmd: 'answer_question';
@@ -234,6 +236,7 @@ export type BridgeEvent =
 			toolName?: string;
 			input?: unknown;
 			permission?: unknown;
+			review?: MaliniEditReview;
 	  }
 	| {
 			type: 'question.requested';

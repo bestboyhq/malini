@@ -594,6 +594,7 @@ const FIXTURE_SKILLS = [
 	},
 ];
 const skillsOfRun = new Map();
+const maliniCalls = new Map();
 const themeOfRun = new Map();
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
@@ -630,7 +631,11 @@ const respond = async (sessionId, runId, prompt) => {
 		fs.writeFileSync(nodePath.join(worktree, 'checks-fixed.txt'), 'fixed by ' + runId + '\n');
 		event({ type: 'file.changed', runId, path: 'checks-fixed.txt' });
 	}
-	if (worktree && prompt.includes('up to date with its base branch')) {
+	if (
+		worktree &&
+		(prompt.includes('up to date with its base branch') ||
+			prompt.includes('resolve every merge conflict'))
+	) {
 		for (const path of conflictedFiles(prompt)) {
 			const file = nodePath.join(worktree, path);
 			const kept = fs
@@ -654,6 +659,26 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('HANG')) {
 		pendingRuns.set(runId, sessionId);
+		return;
+	}
+	if (prompt.includes('MALINI_TOOL')) {
+		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
+		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);
+		pendingRuns.set(runId, sessionId);
+		maliniCalls.set(runId, { sessionId, ...call, commit: commitLine ? commitLine[1] : null });
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-' + runId,
+			reason: 'Claude wants to use a Malini tool',
+			toolName: 'mcp__malini__' + call.tool,
+			input: call.input,
+			permission: {
+				capability: 'write',
+				resources: [{ kind: 'tool', value: call.tool, boundary: 'workstream' }],
+			},
+		});
 		return;
 	}
 	if (prompt.includes('APPROVAL')) {
@@ -1006,6 +1031,24 @@ const handle = (command) => {
 			return ack(command.id);
 		case 'approve': {
 			ack(command.id);
+			const malini = maliniCalls.get(command.runId);
+			if (malini) {
+				if (command.decision === 'deny') {
+					maliniCalls.delete(command.runId);
+					pendingRuns.delete(command.runId);
+					return completeRun(command.sessionId, command.runId, 'malini:denied');
+				}
+				write({
+					type: 'bridge.platform_request',
+					protocolVersion: version,
+					requestId: 'platform-' + command.runId,
+					sessionId: command.sessionId,
+					runId: command.runId,
+					tool: malini.tool,
+					input: command.updatedInput ?? malini.input,
+				});
+				return;
+			}
 			event({
 				type: 'tool.completed',
 				runId: command.runId,
@@ -1120,6 +1163,26 @@ const handle = (command) => {
 		}
 		case 'browser_result':
 			return ack(command.id);
+		case 'platform_result': {
+			ack(command.id);
+			const runId = command.requestId.replace(/^platform-/, '');
+			const malini = maliniCalls.get(runId);
+			if (!malini) return;
+			maliniCalls.delete(runId);
+			pendingRuns.delete(runId);
+			const result = command.ok ? command.text : command.error;
+			event({
+				type: 'tool.completed',
+				runId,
+				name: 'mcp__malini__' + malini.tool,
+				output: result,
+			});
+			return completeRun(
+				malini.sessionId,
+				runId,
+				'malini:' + result + (malini.commit ? '\nCommit: ' + malini.commit : ''),
+			);
+		}
 		default:
 			return ack(command.id, 'unknown command ' + command.cmd);
 	}

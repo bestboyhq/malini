@@ -30,6 +30,7 @@ import {
 	type McpServerEntry,
 } from './mcp-servers.js';
 import {
+	approvedInput,
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
@@ -636,10 +637,14 @@ export class ClaudeSession implements ProviderHandle {
 				}
 				return { behavior: 'deny', message: 'The user denied this action.', interrupt: true };
 			}
-			const updatedPermissions = rememberedPermissions(options.suggestions, resolution.scope);
+			const updatedPermissions = rememberedPermissions(
+				toolName,
+				options.suggestions,
+				resolution.scope,
+			);
 			return {
 				behavior: 'allow',
-				updatedInput: input,
+				updatedInput: approvedInput(toolName, input, resolution.updatedInput),
 				...(updatedPermissions ? { updatedPermissions } : {}),
 			};
 		};

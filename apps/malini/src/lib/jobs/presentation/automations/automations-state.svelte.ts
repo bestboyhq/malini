@@ -39,5 +39,3 @@ class AutomationsState {
 export const automationsState = new AutomationsState();
 
 export type AutomationsView = 'overview' | 'activity' | 'recipes';
-
-export type ActionState = Readonly<{ busy: boolean; error: string | null }>;
