@@ -8,8 +8,8 @@ There is no backend service and no cloud.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0043).
 The app makes two outbound calls of its own.
-Anonymous usage data goes to PostHog, from `src/lib/app/platform/usage-data.ts`.
-It stays silent without `MAIN_VITE_POSTHOG_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
+Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
+It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
 Everything else on GitHub is reached through the `gh` CLI.
 

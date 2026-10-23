@@ -40,7 +40,6 @@
 
 	const MAX_ZOOM = 8;
 	const ZOOM_STEP = 1.5;
-	const CLICK_ZOOM = 2.5;
 	const DRAG_SLOP_PX = 3;
 	const CENTER: Point = { x: 0, y: 0 };
 
@@ -63,6 +62,7 @@
 	let strip: HTMLDivElement | undefined = $state();
 	let stage: HTMLDivElement | undefined = $state();
 	let picture: HTMLImageElement | undefined = $state();
+	let modal: FullPageModal | undefined = $state();
 	let stripPlaced = false;
 	let stripShown = $state(false);
 	const previews = $derived(imagePreviewQuery.owned(owner));
@@ -220,10 +220,10 @@
 		pan = bounded({ x: drag.from.x + dx, y: drag.from.y + dy });
 	}
 
-	function onPointerUp(event: PointerEvent): void {
+	function onPointerUp(): void {
 		const tapped = drag?.moved === false;
 		drag = null;
-		if (tapped) glideTo(zoomed ? 1 : CLICK_ZOOM, stagePoint(event));
+		if (tapped) modal?.close();
 	}
 
 	function onKeydown(event: KeyboardEvent): void {
@@ -241,23 +241,25 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<FullPageModal open {onclose} ariaLabel="Image gallery">
+{#snippet arrow(label: string, glyph: 'chevron-left' | 'chevron-right', towards: number)}
+	<Tooltip content={label} placement={towards < 0 ? 'right' : 'left'}>
+		<Button
+			bare
+			ariaLabel={label}
+			class="fcc pointer-events-auto h-24 w-14 rounded-md text-white/60 ring-white transition-[color] hover:text-white focus-visible:text-white focus-visible:ring-2"
+			onclick={() => show(index + towards, towards)}
+		>
+			<Icon name={glyph} size={40} />
+		</Button>
+	</Tooltip>
+{/snippet}
+
+<FullPageModal bind:this={modal} open {onclose} ariaLabel="Image gallery">
 	<div class="flex h-full w-full flex-col items-center gap-3 pt-14" data-testid="image-gallery">
 		<div class="flex min-h-0 w-full flex-1 items-center gap-4">
 			{#if browsable}
 				<div in:fly|global={{ x: -8 * travel, duration: 200, easing: quintOut }}>
-					<Tooltip content="Previous image" placement="right">
-						<IconButton
-							variant="secondary"
-							size="lg"
-							radius="full"
-							ariaLabel="Previous image"
-							class="pointer-events-auto"
-							onclick={() => show(index - 1, -1)}
-						>
-							<Icon name="chevron-left" size={18} />
-						</IconButton>
-					</Tooltip>
+					{@render arrow('Previous image', 'chevron-left', -1)}
 				</div>
 			{/if}
 
@@ -297,8 +299,7 @@
 								data-workstream-image={image.kind === 'workstream' ? image.id : undefined}
 								class={[
 									'pointer-events-auto absolute inset-0 m-auto max-h-full max-w-full touch-none rounded-md object-contain select-none',
-									zoomed ? 'cursor-grab' : 'cursor-zoom-in',
-									drag?.moved && zoomed && 'cursor-grabbing',
+									zoomed && (drag?.moved ? 'cursor-grabbing' : 'cursor-grab'),
 									gliding &&
 										'transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
 								]}
@@ -329,18 +330,7 @@
 
 			{#if browsable}
 				<div in:fly|global={{ x: 8 * travel, duration: 200, easing: quintOut }}>
-					<Tooltip content="Next image" placement="left">
-						<IconButton
-							variant="secondary"
-							size="lg"
-							radius="full"
-							ariaLabel="Next image"
-							class="pointer-events-auto"
-							onclick={() => show(index + 1, 1)}
-						>
-							<Icon name="chevron-right" size={18} />
-						</IconButton>
-					</Tooltip>
+					{@render arrow('Next image', 'chevron-right', 1)}
 				</div>
 			{/if}
 		</div>
