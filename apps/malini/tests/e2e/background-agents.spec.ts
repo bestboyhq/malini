@@ -4,13 +4,14 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
 } from './harness';
-import { sidebarStatus } from './fake-github';
+import { seedWorkstreamOnFakeGithub, sidebarStatus } from './fake-github';
 
 function sidebarLoader(page: Page, workstreamId: string): Locator {
 	return page
@@ -117,6 +118,42 @@ test('a background command keeps its run waiting, lets the user keep talking, an
 		await expect(submit).toHaveAccessibleName('Send prompt');
 		await captureFlow(app, 'background-command-stopped');
 
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a turn that ends while its background command keeps running shows its result and pushes its own commit', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-background-report', null);
+		await openWorkstream(page, 'e2e-background-report');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect
+			.poll(() => github.pushedSubjects(), { timeout: 30_000 })
+			.toEqual(['feat: add alpha', 'seed']);
+
+		await sendPrompt(
+			page,
+			'EDIT:beta.txt BACKGROUND_REPORT COMMIT=test: run the suite in the background',
+		);
+
+		const card = page.getByRole('article', { name: 'Turn result' });
+		await expect(card.getByTestId('turn-report-outcome')).toHaveText(
+			'The e2e suite runs in the background.',
+			{ timeout: 20_000 },
+		);
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Waiting on 1 background command' }),
+		).toBeVisible();
+		await expect
+			.poll(() => github.pushedSubjects()[0], { timeout: 30_000 })
+			.toBe('test: run the suite in the background');
+		await captureFlow(app, 'background-command-report');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

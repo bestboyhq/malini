@@ -150,6 +150,7 @@
 				items: [opening],
 				terminal: null,
 				terminalText: '',
+				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
 			},
@@ -184,7 +185,7 @@
 
 	const latestImplementablePlanKey = $derived.by(() => {
 		const run = runs.at(-1);
-		if (!run || run.terminal !== 'completed') return null;
+		if (!run?.turnEnded) return null;
 		for (let itemIndex = run.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
 			const item = run.items[itemIndex];
 			if (item?.kind === 'plan') return `${run.runId}:${item.key}`;
