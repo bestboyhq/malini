@@ -64,13 +64,18 @@ async function harness(): Promise<Harness> {
 	return { dir, remote, base, invoke };
 }
 
-async function createWorkstream(harness: Harness, workstreamId: string): Promise<string> {
+async function createWorkstream(
+	harness: Harness,
+	workstreamId: string,
+	from?: string,
+): Promise<string> {
 	const path = await harness.invoke('repositories.create-workstream', {
 		projectRepoPath: harness.base,
 		workstreamId,
 		baseBranch: 'main',
 		projectId: 'proj',
 		name: workstreamId,
+		...(from === undefined ? {} : { from }),
 	});
 	if (typeof path !== 'string') throw new Error('create-workstream returned no path');
 	return path;
@@ -318,5 +323,57 @@ describe('syncing a new workstream with its base', () => {
 		await expect(
 			repo.invoke('repositories.sync-workstream-base', { workstreamId: 'ws-none' }),
 		).rejects.toThrow('Unknown workstream: ws-none');
+	});
+});
+
+describe('starting a workstream from a tag, branch or commit', () => {
+	async function releaseBehindMain(repo: Harness): Promise<string> {
+		const release = (await realGit(repo.base, ['rev-parse', 'origin/main'])).trim();
+		await realGit(repo.base, ['tag', '-a', 'v0.17.5', '-m', 'release', release]);
+		await realGit(repo.base, ['push', '-q', 'origin', 'v0.17.5']);
+		await realGit(repo.base, ['tag', '-d', 'v0.17.5']);
+		await pushToRemote(repo, 'unreleased.txt');
+		return release;
+	}
+
+	it.each([
+		['a tag', 'v0.17.5'],
+		['a commit', null],
+	] as const)(
+		'starts at %s on origin and keeps it there when the new workstream syncs',
+		async (_kind, from) => {
+			const repo = await harness();
+			const release = await releaseBehindMain(repo);
+
+			const checkout = await createWorkstream(repo, 'ws-release', from ?? release);
+
+			expect(await head(checkout)).toBe(release);
+			expect(
+				await repo.invoke('repositories.sync-workstream-base', { workstreamId: 'ws-release' }),
+			).toBe('current');
+			expect(await head(checkout)).toBe(release);
+			expect(existsSync(join(checkout, 'unreleased.txt'))).toBe(false);
+			expect((await realGit(checkout, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()).toBe(
+				'malini/ws-release',
+			);
+			expect(await realGit(repo.base, ['for-each-ref', 'refs/malini/'])).toBe('');
+		},
+	);
+
+	it('creates nothing when origin has no such ref', async () => {
+		const repo = await harness();
+
+		await expect(createWorkstream(repo, 'ws-missing', 'v9.9.9')).rejects.toThrow('v9.9.9');
+
+		expect(existsSync(join(repo.dir, 'workstreams', 'ws-missing'))).toBe(false);
+		expect(await realGit(repo.base, ['branch', '--list', 'malini/ws-missing'])).toBe('');
+	});
+
+	it('refuses a ref that could pass for a git option', async () => {
+		const repo = await harness();
+
+		await expect(createWorkstream(repo, 'ws-option', '--upload-pack=touch')).rejects.toThrow(
+			'invalid start ref',
+		);
 	});
 });

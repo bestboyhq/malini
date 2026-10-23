@@ -52,6 +52,8 @@ The approval card shows that first message before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
+The workstream starts from the default branch, or from the tag, branch or commit the agent names in `from`, such as the release you run, `v0.17.5`.
+Malini fetches that from the repository's origin, and the workstream's pull request still targets the default branch.
 When it reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools.
 A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any.
 

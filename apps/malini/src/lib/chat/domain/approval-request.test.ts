@@ -159,6 +159,19 @@ describe('malini tool approval', () => {
 			headline: 'Start a workstream in ‘acme/site’',
 			details: [{ label: 'First message', value: 'Fix the footer links' }],
 		});
+		expect(
+			maliniToolApproval('mcp__malini__workstreams_create', {
+				repository: 'acme/site',
+				prompt: 'Fix the footer links',
+				from: 'v0.17.5',
+			}),
+		).toEqual({
+			headline: 'Start a workstream in ‘acme/site’',
+			details: [
+				{ label: 'From', value: 'v0.17.5' },
+				{ label: 'First message', value: 'Fix the footer links' },
+			],
+		});
 	});
 
 	it('leaves every other tool to the generic card', () => {

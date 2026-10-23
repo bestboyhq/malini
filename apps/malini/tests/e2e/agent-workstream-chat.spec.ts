@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -126,6 +127,67 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 		).toHaveText('Fetch command', { timeout: 20_000 });
 		await expect(started).toContainText('Fetch command');
 		await captureFlow(app, 'agent-workstream-prompt-sent');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a workstream an agent starts from a release tag stays on that release once it is set up', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-agent-starts-from-tag',
+			'Planner',
+		);
+		const kennel = await createSourceRepo(app.root, 'kennel');
+		await git(kennel, ['tag', '-a', 'v0.17.5', '-m', 'release']);
+		const release = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: kennel }).toString().trim();
+		writeFileSync(join(kennel, 'unreleased.txt'), 'unreleased\n');
+		await git(kennel, ['add', '.']);
+		await git(kennel, ['commit', '-m', 'unreleased work']);
+		const kennelName = `${basename(app.root)}/kennel`;
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		await openWorkstream(page, workstreamId);
+
+		agentCalls(app, { tool: 'repositories_clone', input: { repository: `file://${kennel}` } });
+		await allowOnce(page, `Clone ‘file://${kennel}’`);
+		agentCalls(app, {
+			tool: 'workstreams_create',
+			input: { repository: kennelName, prompt: 'Fix the release', from: 'v0.17.5' },
+		});
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect(
+			page.getByRole('heading', { name: `Start a workstream in ‘${kennelName}’` }),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText('v0.17.5', { exact: true })).toBeVisible();
+		await captureFlow(app, 'agent-workstream-from-tag-approval');
+		await page
+			.getByRole('group', { name: 'Permission decision' })
+			.getByRole('button', { name: 'Allow once' })
+			.click();
+
+		const started = sidebar.locator(
+			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
+		);
+		await expect(
+			started.getByRole('status', { name: /^Workstream status: (Ready|Idle)/u }),
+		).toBeVisible({ timeout: 30_000 });
+		const startedId = await started.getAttribute('data-workstream-id');
+		const workstreams = await invoke<{ id: string; path: string; baseBranch: string }[]>(
+			page,
+			'repositories.list-workstreams',
+			undefined,
+		);
+		const checkout = workstreams.find(({ id }) => id === startedId);
+		expect(checkout?.baseBranch).toBe('main');
+		expect(
+			execFileSync('git', ['rev-parse', 'HEAD'], { cwd: checkout?.path }).toString().trim(),
+		).toBe(release);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

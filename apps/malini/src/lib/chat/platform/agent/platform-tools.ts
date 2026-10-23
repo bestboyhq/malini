@@ -199,6 +199,7 @@ async function createWorkstream(
 	const { db, commands, log } = deps;
 	const { input } = request;
 	const prompt = requiredText(input, 'prompt');
+	const from = text(input, 'from') ?? null;
 	const source = requestSession(db, request);
 	const repository = findRepository(
 		await listRepositoryCatalog(db),
@@ -215,7 +216,7 @@ async function createWorkstream(
 			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
 		);
 	}
-	await createPlannedWorkstream(commands, plan, projectRepoPath);
+	await createPlannedWorkstream(commands, plan, projectRepoPath, from);
 	const { workstreamId } = plan;
 	const settingUp = prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
 	let chat: string;
@@ -250,6 +251,7 @@ async function createWorkstream(
 		repository: repository.fullName,
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
+		...(from === null ? {} : { from }),
 		chat,
 	};
 }

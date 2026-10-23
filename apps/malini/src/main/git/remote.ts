@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
 	GH_CREDENTIAL_HELPER_CONFIG,
 	normalizeGithubToken,
@@ -6,6 +7,7 @@ import {
 import { ensureStagingPrecondition } from './excludes';
 import {
 	canonicalGithubHttpsUrl,
+	isValidBranchName,
 	remoteUrlMatchesCanonicalGithubUrl,
 	REPORTING_PATHSPECS,
 	validateBaseBranch,
@@ -19,7 +21,7 @@ import {
 	REQUIRE_TLS_VERIFICATION_CONFIG,
 	runGit,
 } from './run';
-import { AGENT_IDENTITY } from './snapshots';
+import { AGENT_IDENTITY, SNAPSHOT_REF_ROOT } from './snapshots';
 import { conflictMarkerPaths, inProgressOperation, statusCollector } from './status';
 
 const AGENT_COMMIT_CONFIG = [
@@ -422,6 +424,41 @@ export async function syncRemoteBase(
 	}
 	await runGit(['-C', basePath, 'rev-parse', '--verify', remoteRef]);
 	return remoteRef;
+}
+
+export async function fetchRemoteStart(
+	basePath: string,
+	ref: string,
+	githubToken: string | null | undefined,
+	credentials: GitCredentialEnv,
+): Promise<string> {
+	if (!isValidBranchName(ref)) throw GitError.unsafePath(`invalid start ref \`${ref}\``);
+	const token = normalizeGithubToken(githubToken);
+	const env = await credentials.prepare(token);
+	const fetched = `${SNAPSHOT_REF_ROOT}starts/${randomUUID()}`;
+	try {
+		await runGit(
+			[
+				'-C',
+				basePath,
+				...GH_CREDENTIAL_HELPER_CONFIG,
+				'-c',
+				DISABLED_GIT_HOOKS_CONFIG,
+				'fetch',
+				'--no-tags',
+				'origin',
+				`+${ref}:${fetched}`,
+			],
+			env,
+		);
+	} catch (error) {
+		throw error instanceof GitError ? attributeCredentials(error, token) : error;
+	}
+	try {
+		return (await runGit(['-C', basePath, 'rev-parse', '--verify', `${fetched}^{commit}`])).trim();
+	} finally {
+		await runGit(['-C', basePath, 'update-ref', '-d', fetched]);
+	}
 }
 
 export async function recordedRemoteBase(
