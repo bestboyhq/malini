@@ -98,6 +98,7 @@ export type AgentEvent =
 			waiting: boolean;
 			tasks: BackgroundTask[];
 			summary?: string;
+			providerCursor?: string;
 			interim?: boolean;
 			handedOff?: boolean;
 	  }

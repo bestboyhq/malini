@@ -29,6 +29,7 @@ describe('which message becomes the result card', () => {
 		items,
 		terminal,
 		terminalText: '',
+		turnEnded: terminal === 'completed',
 		superseded,
 		obsoleted: false,
 	});

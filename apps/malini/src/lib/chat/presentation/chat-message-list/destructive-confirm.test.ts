@@ -42,6 +42,7 @@ function run(
 		items,
 		terminal,
 		terminalText: '',
+		turnEnded: terminal === 'completed',
 		superseded: false,
 		obsoleted: false,
 	};
