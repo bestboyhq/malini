@@ -29,7 +29,7 @@ export class WorkstreamBaseSync {
 	readonly #fetches = new Map<string, Promise<string>>();
 	readonly #syncs = new Map<string, RunningSync>();
 	readonly #tearingDown = new Set<string>();
-	readonly #fetchedAtCreation = new Set<string>();
+	readonly #keptAtCreation = new Set<string>();
 
 	constructor(private readonly deps: BaseSyncDeps) {}
 
@@ -43,13 +43,13 @@ export class WorkstreamBaseSync {
 		return { ref: await this.#fetch(repoPath, baseBranch, githubToken), fetched: true };
 	}
 
-	rememberFetchedAtCreation(workstreamId: string): void {
-		this.#fetchedAtCreation.add(workstreamId);
+	keepCreationStart(workstreamId: string): void {
+		this.#keptAtCreation.add(workstreamId);
 	}
 
 	sync(workstreamId: string): Promise<WorkstreamBaseSyncOutcome> {
 		if (this.#tearingDown.has(workstreamId)) return Promise.resolve('cancelled');
-		if (this.#fetchedAtCreation.delete(workstreamId)) return Promise.resolve('current');
+		if (this.#keptAtCreation.delete(workstreamId)) return Promise.resolve('current');
 		const running = this.#syncs.get(workstreamId);
 		if (running) return running.outcome;
 		const entry: InFlightSync = { cancelled: false, fastForward: null };
@@ -60,7 +60,7 @@ export class WorkstreamBaseSync {
 
 	async whileTearingDown<T>(workstreamId: string, teardown: () => Promise<T>): Promise<T> {
 		this.#tearingDown.add(workstreamId);
-		this.#fetchedAtCreation.delete(workstreamId);
+		this.#keptAtCreation.delete(workstreamId);
 		try {
 			const running = this.#syncs.get(workstreamId);
 			if (running) {

@@ -43,7 +43,7 @@ import {
 	claudeAnswers,
 	claudeQuestions,
 	disallowedTools,
-	refuseMaliniOwnedCommands,
+	steerToMalini,
 	permissionDescriptor,
 	permissionModeFor,
 	rememberedPermissions,
@@ -600,7 +600,7 @@ export class ClaudeSession implements ProviderHandle {
 			disallowedTools: disallowedTools(),
 			hooks: {
 				PreToolUse: [
-					{ matcher: 'Bash', hooks: [refuseMaliniOwnedCommands] },
+					{ matcher: 'Bash', hooks: [steerToMalini] },
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
 				PermissionDenied: [

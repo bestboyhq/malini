@@ -32,6 +32,7 @@ import {
 	abortWorkstreamOperation,
 	commitWorkstreamBranch,
 	countCommitsBehindBase,
+	fetchRemoteStart,
 	pullWorkstreamBaseBranch,
 	pushWorkstreamBranch,
 	restartWorkstreamOnBase,
@@ -191,16 +192,22 @@ export function registerRepositories(
 		return repoPath;
 	});
 
-	commands.define('repositories.create-workstream', (args: unknown) =>
-		createWorkstream(workstreams, {
-			projectRepoPath: requireString(args, 'projectRepoPath'),
+	commands.define('repositories.create-workstream', async (args: unknown) => {
+		const projectRepoPath = requireString(args, 'projectRepoPath');
+		const githubToken = optionalString(args, 'githubToken');
+		const baseRef = optionalString(args, 'baseRef');
+		return createWorkstream(workstreams, {
+			projectRepoPath,
 			workstreamId: requireString(args, 'workstreamId'),
 			baseBranch: requireString(args, 'baseBranch'),
 			projectId: requireString(args, 'projectId'),
 			name: requireString(args, 'name'),
-			githubToken: optionalString(args, 'githubToken'),
-		}),
-	);
+			githubToken,
+			...(baseRef === null
+				? {}
+				: { startRef: await fetchRemoteStart(projectRepoPath, baseRef, githubToken, credentials) }),
+		});
+	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>
 		baseSync.sync(checkedWorkstreamId(args)),

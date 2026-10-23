@@ -151,8 +151,27 @@ describe('malini tool approval', () => {
 			details: [{ label: 'Keeps', value: 'Its clone and workstreams, under Hidden' }],
 		});
 		expect(
-			maliniToolApproval('mcp__malini__workstreams_create', { repository: 'acme/site' })?.headline,
-		).toBe('Start a workstream in ‘acme/site’');
+			maliniToolApproval('mcp__malini__workstreams_create', {
+				repository: 'acme/site',
+				prompt: 'Fix the footer links',
+			}),
+		).toEqual({
+			headline: 'Start a workstream in ‘acme/site’',
+			details: [{ label: 'Prompt', value: 'Fix the footer links' }],
+		});
+		expect(
+			maliniToolApproval('mcp__malini__workstreams_create', {
+				repository: 'acme/site',
+				prompt: 'Fix the footer links',
+				base: 'v0.17.5',
+			}),
+		).toEqual({
+			headline: 'Start a workstream in ‘acme/site’',
+			details: [
+				{ label: 'Base', value: 'v0.17.5' },
+				{ label: 'Prompt', value: 'Fix the footer links' },
+			],
+		});
 	});
 
 	it('leaves every other tool to the generic card', () => {

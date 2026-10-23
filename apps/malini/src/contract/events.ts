@@ -67,6 +67,11 @@ export interface WorkstreamInstallStatusPayload {
 	exitCode?: number;
 }
 
+export interface WorkstreamSetupStatusPayload {
+	workstreamId: string;
+	status: 'running' | 'done';
+}
+
 export interface WorkstreamMergeConflictedPayload {
 	workstreamId: string;
 	baseBranch: string;
@@ -129,6 +134,7 @@ export interface ContractEvents {
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
 	'repositories:workstream-renamed': WorkstreamRenamedPayload;
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
+	'repositories:workstream-setup-status': WorkstreamSetupStatusPayload;
 	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'repositories:changed': EmptyEventPayload;
@@ -166,6 +172,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-files-changed': null,
 	'repositories:workstream-renamed': null,
 	'repositories:workstream-install-status': null,
+	'repositories:workstream-setup-status': null,
 	'repositories:workstream-merge-conflicted': null,
 	'repositories:clone-progress': null,
 	'repositories:changed': null,
@@ -222,6 +229,9 @@ export const REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL =
 
 export const REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL =
 	'repositories:workstream-install-status' satisfies EventChannel;
+
+export const REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL =
+	'repositories:workstream-setup-status' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL =
 	'repositories:workstream-merge-conflicted' satisfies EventChannel;

@@ -43,6 +43,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			"Fires as a new workstream's dependency install moves through its states: running, succeeded, failed, skipped or aborted.",
 	},
+	'repositories:workstream-setup-status': {
+		description:
+			'Fires when Malini starts setting up a workstream an agent or a job started, updating its base branch and installing its dependencies, and again with `done` once it finishes.',
+	},
 	'repositories:workstream-merge-conflicted': {
 		description:
 			"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",
