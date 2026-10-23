@@ -8,7 +8,9 @@ export const REPOSITORIES_HREF = '/';
 
 export const JOBS_HREF = '/jobs';
 
-export const NEW_JOB_HREF = '/jobs/new';
+export const JOBS_ACTIVITY_HREF = '/jobs/activity';
+
+export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
 export const ROUTINES_HREF = '/jobs/routines';
 

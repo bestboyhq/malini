@@ -1,8 +1,8 @@
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import type { RoutinesPlatform } from '../routines.platform';
-import { defineRoutineCommands, emitSuggested } from './commands';
+import { defineRoutineCommands, deleteJobOwnRoutines, emitSuggested } from './commands';
 import { startEventTriggers } from './event-triggers.service';
 import {
 	createTokenSetClusterer,
@@ -38,11 +38,19 @@ export function registerRoutines(
 		}
 	});
 
+	const stopForgettingJobs = events.subscribe(
+		JOBS_DEFINITION_CHANGED_CHANNEL,
+		({ definitionId, definition }) => {
+			if (definition === null) deleteJobOwnRoutines({ db, events }, definitionId);
+		},
+	);
+
 	const eventTriggers = startEventTriggers(context, log);
 
 	return {
 		dispose() {
 			unsubscribe();
+			stopForgettingJobs();
 			eventTriggers.dispose();
 		},
 	};

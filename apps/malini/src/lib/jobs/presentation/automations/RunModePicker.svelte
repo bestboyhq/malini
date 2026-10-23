@@ -1,14 +1,16 @@
 <script lang="ts">
+	import type { RoutineStatus } from '$contract/routines';
 	import { Button } from '$hyper-ui/components/button';
-	import { LAB_RUN_MODES, type LabRunMode } from './lab-triggers';
+	import { RUN_MODES } from './triggers';
 
 	interface Props {
-		value: LabRunMode;
+		value: RoutineStatus;
 		label: string;
-		onchange: (mode: LabRunMode) => void;
+		disabled?: boolean;
+		onchange: (status: RoutineStatus) => void;
 	}
 
-	let { value, label, onchange }: Props = $props();
+	let { value, label, disabled = false, onchange }: Props = $props();
 </script>
 
 <div
@@ -16,13 +18,14 @@
 	role="radiogroup"
 	aria-label={label}
 >
-	{#each LAB_RUN_MODES as mode (mode.value)}
+	{#each RUN_MODES as mode (mode.value)}
 		<Button
 			size="sm"
 			variant="ghost"
 			role="radio"
 			ariaChecked={mode.value === value}
 			active={mode.value === value}
+			{disabled}
 			onclick={() => onchange(mode.value)}
 		>
 			{mode.label}

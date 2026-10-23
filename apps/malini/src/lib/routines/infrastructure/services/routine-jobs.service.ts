@@ -1,5 +1,6 @@
 import {
 	isRoutineStepJob,
+	type NewRoutineJob,
 	type RoutineJob,
 	type RoutineJobDraft,
 } from '$lib/routines/domain/routine-job';
@@ -24,6 +25,10 @@ class RoutineJobsService {
 				output: 'none',
 			}),
 		);
+	}
+
+	async save(job: NewRoutineJob): Promise<RoutineJob> {
+		return RoutineJobMapper.fromRaw(await invoke('jobs.save-definition', job));
 	}
 
 	async remove(definitionId: string): Promise<void> {

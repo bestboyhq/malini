@@ -196,6 +196,22 @@ test('a held routine run names the workstream it waits in', async () => {
 			'Held: app:updated in Held workstream',
 		);
 		await captureFlow(app, 'routines-held-run');
+
+		const sections = page.getByRole('navigation', { name: 'Automations' });
+		await expect(sections.getByRole('link', { name: 'Activity 1 waiting for you' })).toBeVisible();
+		await sections.getByRole('link', { name: /^Activity/u }).click();
+		const waiting = page.getByRole('group', { name: 'Check after updates wants to run' });
+		await expect(waiting).toContainText('app:updated in Held workstream');
+		await waiting.getByRole('button', { name: 'Skip' }).click();
+		await expect(waiting).toHaveCount(0);
+		await expect(page.getByText('Nothing waits for you.')).toBeVisible();
+		await expect
+			.poll(async () =>
+				(await invoke<{ state: string }[]>(page, 'routines.list-gated-runs', {})).map(
+					({ state }) => state,
+				),
+			)
+			.toEqual(['rejected']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -5,9 +5,12 @@ import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
+	draftJob,
 	expectCleanConsole,
 	invoke,
 	launchMalini,
+	openJob,
+	openJobs,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -120,14 +123,11 @@ test('a job names its own skills in the editor, and its agent loads only those',
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-job-skills', 'Job skills');
-		await page.evaluate(() => {
-			globalThis.location.hash = '#/jobs';
+		await openJobs(page);
+		await draftJob(page, { name: 'Which skills', words: 'WHICH_SKILLS' });
+		const form = (await openJob(page, 'Which skills')).getByRole('form', {
+			name: 'Edit Which skills',
 		});
-		await page.reload();
-		await page.getByRole('link', { name: 'New job' }).click({ timeout: 20_000 });
-		const form = page.getByRole('form', { name: 'New job' });
-		await form.getByRole('textbox', { name: 'Name' }).fill('Which skills');
-		await form.getByRole('textbox', { name: 'Instructions' }).fill('WHICH_SKILLS');
 		const skills = form.getByRole('combobox', { name: 'Skills' });
 		await expect(skills).toHaveAttribute('placeholder', 'Every skill that is on');
 		await skills.fill('data');
@@ -142,7 +142,7 @@ test('a job names its own skills in the editor, and its agent loads only those',
 		await expect(form.getByRole('button', { name: /^Remove /u })).toHaveCount(2);
 		await expect(form).toContainText("The job's agent loads only these");
 		await captureFlow(app, 'skills-job-editor');
-		await form.getByRole('button', { name: 'Create job' }).click();
+		await form.getByRole('button', { name: 'Save changes' }).click();
 		await expect
 			.poll(
 				async () =>

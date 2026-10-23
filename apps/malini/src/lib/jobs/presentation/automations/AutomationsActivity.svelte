@@ -1,21 +1,19 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
-	import { Button } from '$hyper-ui/components/button';
 	import { Well } from '$hyper-ui/components/well';
-	import { Icon } from '$hyper-ui/icons';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
 	import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 	import JobRunRow from '../JobRunRow.svelte';
-	import { labWaitingJobs } from './lab-activity';
-	import { labState } from './lab-state.svelte';
-	import { labTrigger } from './lab-triggers';
-	import LabSection from './LabSection.svelte';
+	import AutomationsSection from './AutomationsSection.svelte';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
+		waitingCount: number;
+		waiting: Snippet;
 	}
 
-	let { jobs }: Props = $props();
+	let { jobs, waitingCount, waiting }: Props = $props();
 
 	const RECENT_LIMIT = 60;
 	const ROWS =
@@ -34,7 +32,6 @@
 	const running = $derived(
 		runs.filter((run) => run.status === 'running' || run.status === 'queued'),
 	);
-	const asking = $derived(labWaitingJobs(jobs, labState.setupOf, labState.dismissed));
 	const days = $derived(
 		groupByDay(
 			runs
@@ -73,42 +70,22 @@
 		}
 		return groups;
 	}
-
-	function onDismiss(job: JobDefinitionRecord): void {
-		labState.dismissed = [...labState.dismissed, job.id];
-	}
 </script>
 
-<LabSection
+<AutomationsSection
 	title="Activity"
 	description="What your jobs did, and what waits for you."
-	testId="lab-activity-page"
+	testId="automations-activity"
 >
 	<Well
 		title="Waiting for you"
-		note={needsYou.length + asking.length > 0 ? `${needsYou.length + asking.length}` : undefined}
+		note={needsYou.length + waitingCount > 0 ? `${needsYou.length + waitingCount}` : undefined}
 	>
 		<div class={ROWS}>
-			{#if needsYou.length + asking.length === 0}
+			{#if needsYou.length + waitingCount === 0}
 				<p class="text-fg-tertiary px-4 py-3 text-xs">Nothing waits for you.</p>
 			{/if}
-			{#each asking as job (job.id)}
-				<div class="flex items-center gap-3 px-4 py-3" aria-label={`${job.name} wants to run`}>
-					<span
-						class="bg-warning text-warning-content grid size-7 shrink-0 place-items-center rounded-md"
-					>
-						<Icon name={labTrigger(labState.setupOf(job)).icon} size={14} />
-					</span>
-					<div class="min-w-0 flex-1">
-						<h3 class="text-fg-default truncate text-sm font-medium">{job.name} wants to run</h3>
-						<p class="text-fg-tertiary truncate text-xs">
-							{labTrigger(labState.setupOf(job)).label} · Preview
-						</p>
-					</div>
-					<Button variant="ghost" size="sm" onclick={() => onDismiss(job)}>Skip</Button>
-					<Button variant="primary" size="sm" onclick={() => onDismiss(job)}>Run it</Button>
-				</div>
-			{/each}
+			{@render waiting()}
 			{#if needsYou.length > 0}
 				<ul class="flex flex-col p-1">
 					{#each needsYou as run (run.id)}
@@ -138,4 +115,4 @@
 			</ul>
 		</Well>
 	{/each}
-</LabSection>
+</AutomationsSection>

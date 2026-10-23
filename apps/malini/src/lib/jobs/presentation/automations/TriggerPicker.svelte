@@ -7,21 +7,16 @@
 	import { Select } from '$hyper-ui/components/select';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Icon } from '$hyper-ui/icons';
-	import {
-		LAB_CUSTOM_TRIGGER_ID,
-		LAB_TRIGGER_GROUPS,
-		LAB_TRIGGERS,
-		type LabJobSetup,
-	} from './lab-triggers';
+	import { TRIGGER_GROUPS, TRIGGERS } from './triggers';
 
 	interface Props {
 		anchor: HTMLElement | null;
-		current: LabJobSetup;
-		onpick: (choice: Readonly<{ triggerId: string; phrase?: string }>) => void;
+		when: string | null;
+		onpick: (when: string | null) => void;
 		onclose: () => void;
 	}
 
-	let { anchor, current, onpick, onclose }: Props = $props();
+	let { anchor, when, onpick, onclose }: Props = $props();
 
 	const channels = Object.keys(EVENT_CATALOG) as (keyof typeof EVENT_CATALOG)[];
 
@@ -33,7 +28,7 @@
 
 	const terms = $derived(search.trim().toLowerCase().split(/\s+/u).filter(Boolean));
 	const matches = $derived(
-		LAB_TRIGGERS.filter((trigger) =>
+		TRIGGERS.filter((trigger) =>
 			terms.every((term) => `${trigger.label} ${trigger.detail}`.toLowerCase().includes(term)),
 		),
 	);
@@ -65,7 +60,7 @@
 		const first = matches[0];
 		if (event.key === 'Enter' && first) {
 			event.preventDefault();
-			onpick({ triggerId: first.id });
+			onpick(first.when);
 		}
 	}
 </script>
@@ -75,11 +70,11 @@
 	{anchor}
 	{onclose}
 	side="bottom"
-	align="start"
+	align="end"
 	panelClass="w-[420px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated"
 	role={null}
 	keyboardNavigation={false}
-	testId="lab-trigger-picker"
+	testId="trigger-picker"
 >
 	<div role="dialog" aria-label="When should it run">
 		{#if advanced}
@@ -118,7 +113,7 @@
 						variant="primary"
 						size="sm"
 						disabled={validation !== null}
-						onclick={() => onpick({ triggerId: LAB_CUSTOM_TRIGGER_ID, phrase })}
+						onclick={() => onpick(phrase)}
 					>
 						Use this event
 					</Button>
@@ -149,18 +144,18 @@
 				role="listbox"
 				aria-label="Triggers"
 			>
-				{#each LAB_TRIGGER_GROUPS as group (group)}
+				{#each TRIGGER_GROUPS as group (group)}
 					{@const items = matches.filter((trigger) => trigger.group === group)}
 					{#if items.length > 0}
 						<p class="text-fg-tertiary text-2xs px-2.5 pt-2 pb-1 font-medium">{group}</p>
 						{#each items as trigger (trigger.id)}
 							<DropdownItem
 								role="option"
-								aria-selected={trigger.id === current.triggerId}
-								selected={trigger.id === current.triggerId}
+								aria-selected={trigger.when === when}
+								selected={trigger.when === when}
 								focusOnHover={false}
 								class="w-full gap-2.5 px-2.5 py-1.5 text-left"
-								onclick={() => onpick({ triggerId: trigger.id })}
+								onclick={() => onpick(trigger.when)}
 							>
 								<span
 									class="border-chip-border bg-chip text-fg-secondary grid size-7 shrink-0 place-items-center rounded-md border-[0.5px]"
@@ -173,7 +168,7 @@
 									</span>
 									<span class="text-2xs text-fg-tertiary block truncate">{trigger.detail}</span>
 								</span>
-								{#if trigger.id === current.triggerId}
+								{#if trigger.when === when}
 									<Icon name="check" size={14} class="text-fg-secondary shrink-0" />
 								{/if}
 							</DropdownItem>

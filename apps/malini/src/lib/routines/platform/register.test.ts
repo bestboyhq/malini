@@ -12,7 +12,7 @@ import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
 import type { RoutinesPlatform } from '../routines.platform';
 import { ROUTINE_EVENT_CHANNELS } from './commands';
 import { registerRoutines } from './register';
@@ -180,6 +180,33 @@ describe('routine lifecycle commands', () => {
 		await expect(invoke('routines.delete', { routineId: draft.id })).rejects.toThrow(
 			`routine \`${draft.id}\` not found`,
 		);
+	});
+
+	it('deletes the routines that only run a job when that job is deleted, and keeps chains', async () => {
+		const own = await invoke<RoutineRecord>('routines.create-draft', {
+			label: 'Changelog',
+			when: 'on pull-requests:ship-changed where merged is set',
+			steps: [{ job: 'job-changelog' }],
+		});
+		const chain = await invoke<RoutineRecord>('routines.create-draft', {
+			label: 'Docs then changelog',
+			when: 'when I run it',
+			steps: [{ job: 'job-docs' }, { job: 'job-changelog' }],
+		});
+		emitted = [];
+		context.events.emit(JOBS_DEFINITION_CHANGED_CHANNEL, {
+			definitionId: 'job-changelog',
+			definition: null,
+		});
+		expect((await invoke<RoutineRecord[]>('routines.list', undefined)).map(({ id }) => id)).toEqual(
+			[chain.id],
+		);
+		expect(emitted).toEqual([
+			{
+				channel: ROUTINE_EVENT_CHANNELS.changed,
+				payload: { routineId: own.id, change: 'deleted', routine: null },
+			},
+		]);
 	});
 });
 

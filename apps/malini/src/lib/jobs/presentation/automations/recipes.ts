@@ -1,7 +1,7 @@
 import type { JobOutput } from '$contract/jobs';
-import { LAB_MANUAL_TRIGGER_ID, LAB_TRIGGERS, type LabJobSetup } from './lab-triggers';
+import { MANUAL_TRIGGER, TRIGGERS } from './triggers';
 
-export type LabRecipe = Readonly<{
+export type Recipe = Readonly<{
 	id: string;
 	triggerId: string;
 	title: string;
@@ -9,7 +9,7 @@ export type LabRecipe = Readonly<{
 	sentence: string;
 }>;
 
-export const LAB_RECIPES: readonly LabRecipe[] = [
+export const RECIPES: readonly Recipe[] = [
 	{
 		id: 'show-what-shipped',
 		triggerId: 'pr-merged',
@@ -90,10 +90,10 @@ function stems(text: string): Set<string> {
 	return new Set(words.filter((word) => !STOP_WORDS.has(word)).map((word) => word.slice(0, 4)));
 }
 
-export function labGuessTriggerId(text: string): string {
+export function guessTriggerId(text: string): string {
 	const wanted = stems(text);
-	let best = { id: LAB_MANUAL_TRIGGER_ID, score: 0 };
-	for (const trigger of LAB_TRIGGERS) {
+	let best = { id: MANUAL_TRIGGER.id, score: 0 };
+	for (const trigger of TRIGGERS) {
 		const label = stems(trigger.label);
 		const labelHits = [...label].filter((stem) => wanted.has(stem)).length;
 		if (labelHits === 0) continue;
@@ -106,11 +106,6 @@ export function labGuessTriggerId(text: string): string {
 	return best.id;
 }
 
-export function labDraftWork(text: string): string {
-	const work = text.trim().replace(/^(when|whenever|after|once|if)\b[^,]*,\s*/iu, '');
-	return `${work.charAt(0).toUpperCase()}${work.slice(1)}`;
-}
-
 const LEAD = /^(when|whenever|after|once|if)\b[^,]*,?\s*/iu;
 
 const OUTPUT_STEPS: readonly Readonly<{ pattern: RegExp; output: JobOutput }>[] = [
@@ -118,21 +113,18 @@ const OUTPUT_STEPS: readonly Readonly<{ pattern: RegExp; output: JobOutput }>[] 
 	{ pattern: /\bqueue\s+(the\s+|a\s+)?merge\b/iu, output: 'merge' },
 ];
 
-const TOOLS = ['Grip', 'Slack', 'Linear', 'Sentry', 'Notion', 'Figma', 'Vercel', 'Discord'];
-
-export type LabDraft = Readonly<{
+export type WordsDraft = Readonly<{
 	name: string;
 	lead: string;
 	steps: readonly string[];
 	output: JobOutput | null;
-	tools: readonly string[];
 }>;
 
 function capitalized(text: string): string {
 	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
-export function labDraft(text: string): LabDraft {
+export function draftFromWords(text: string): WordsDraft {
 	const trimmed = text.trim();
 	const lead = LEAD.exec(trimmed)?.[0]?.trim().replace(/,$/u, '') ?? '';
 	const clauses = trimmed
@@ -155,12 +147,5 @@ export function labDraft(text: string): LabDraft {
 		lead,
 		steps,
 		output: output?.output ?? null,
-		tools: TOOLS.filter((tool) => new RegExp(`\\b${tool}\\b`, 'iu').test(trimmed)),
 	};
 }
-
-export type LabSavedDraft = Readonly<{
-	name: string;
-	steps: readonly string[];
-	setup: LabJobSetup;
-}>;

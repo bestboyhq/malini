@@ -1,10 +1,12 @@
-import type { JobDefinitionRecord } from '$contract/jobs';
+import type { JobDefinitionRecord, SaveJobDefinitionArgs } from '$contract/jobs';
 import { isRunnableJob } from '$lib/jobs/domain/builtin-jobs';
 import type { RoutineSuggestion } from './routine-suggestion';
 
 export type RoutineJob = Readonly<{ id: string; name: string }>;
 
 export type RoutineJobDraft = Readonly<{ name: string; instructions: string }>;
+
+export type NewRoutineJob = Omit<SaveJobDefinitionArgs, 'id'>;
 
 const SUGGESTED_JOB_NAME_LENGTH = 60;
 

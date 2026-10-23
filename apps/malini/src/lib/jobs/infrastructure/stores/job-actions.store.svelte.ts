@@ -1,7 +1,6 @@
 class JobActionsStore {
 	busyIds = $state.raw<ReadonlySet<string>>(new Set());
 	errors = $state.raw<Readonly<Record<string, string>>>({});
-	saves = $state<number>(0);
 
 	isBusy(id: string): boolean {
 		return this.busyIds.has(id);
@@ -9,10 +8,6 @@ class JobActionsStore {
 
 	errorFor(id: string): string | null {
 		return this.errors[id] ?? null;
-	}
-
-	noteSaved(): void {
-		this.saves += 1;
 	}
 
 	async run(id: string, action: () => Promise<void>): Promise<void> {
@@ -34,7 +29,6 @@ class JobActionsStore {
 	reset(): void {
 		this.busyIds = new Set();
 		this.errors = {};
-		this.saves = 0;
 	}
 
 	#setBusy(id: string, busy: boolean): void {

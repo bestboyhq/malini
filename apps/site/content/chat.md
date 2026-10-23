@@ -70,6 +70,8 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 When you ask for options, or the direction is open, the agent makes two to four variants.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions.
+Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
+Once you pick one, the agent builds it into the real thing and removes what it replaces.
 
 ## Context
 

@@ -11,6 +11,5 @@ export { saveJobDefinitionCommand };
 function saveJobDefinitionCommand(args: SaveJobDefinitionArgs): void {
 	void jobActionsStore.run(JOB_FORM_ACTION_ID, async () => {
 		jobDefinitionsAggregate.upsert(await jobsService.saveDefinition(args));
-		jobActionsStore.noteSaved();
 	});
 }
