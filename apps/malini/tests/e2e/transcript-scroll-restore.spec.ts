@@ -14,7 +14,7 @@ import {
 } from './harness';
 
 declare global {
-	var restoreSampling: { samples: number[]; sampling: boolean };
+	var restoreSampling: { samples: number[]; blankFrames: number; sampling: boolean };
 }
 
 const SCROLLER = '[data-testid="chat-message-scroller"]';
@@ -64,7 +64,7 @@ async function startSampling(page: Page, view: ReaderView): Promise<void> {
 	await page.getByTestId('transcript-pane').evaluate(
 		(pane, { scrollerSelector, selector, reply }) => {
 			const doc = pane.ownerDocument;
-			const state = { samples: [] as number[], sampling: true };
+			const state = { samples: [] as number[], blankFrames: 0, sampling: true };
 			globalThis.restoreSampling = state;
 			const sample = (): void => {
 				if (!state.sampling) return;
@@ -73,9 +73,15 @@ async function startSampling(page: Page, view: ReaderView): Promise<void> {
 					(candidate) => candidate.textContent === reply,
 				);
 				if (scroller && match) {
-					state.samples.push(
-						match.getBoundingClientRect().top - scroller.getBoundingClientRect().top,
+					const view = scroller.getBoundingClientRect();
+					state.samples.push(match.getBoundingClientRect().top - view.top);
+					const blank = [...scroller.querySelectorAll('[data-transcript-placeholder]')].some(
+						(placeholder) => {
+							const box = placeholder.getBoundingClientRect();
+							return box.bottom > view.top && box.top < view.bottom;
+						},
 					);
+					if (blank) state.blankFrames += 1;
 				}
 				doc.defaultView?.requestAnimationFrame(sample);
 			};
@@ -85,10 +91,13 @@ async function startSampling(page: Page, view: ReaderView): Promise<void> {
 	);
 }
 
-async function stopSampling(page: Page): Promise<number[]> {
+async function stopSampling(
+	page: Page,
+): Promise<Readonly<{ samples: number[]; blankFrames: number }>> {
 	return page.evaluate(() => {
 		globalThis.restoreSampling.sampling = false;
-		return globalThis.restoreSampling.samples;
+		const { samples, blankFrames } = globalThis.restoreSampling;
+		return { samples, blankFrames };
 	});
 }
 
@@ -105,11 +114,12 @@ async function expectRestored(page: Page, view: ReaderView, after: string): Prom
 			message: `frames sampled ${after}`,
 		})
 		.toBeGreaterThan(5);
-	const samples = await stopSampling(page);
+	const { samples, blankFrames } = await stopSampling(page);
 	const worst = Math.max(...samples.map((offset) => Math.abs(offset - view.offset)));
 	expect(worst, `px the transcript jumped while it reopened ${after}`).toBeLessThanOrEqual(
 		RESTORED_PX,
 	);
+	expect(blankFrames, `frames a row in view was blank while it reopened ${after}`).toBe(0);
 	await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
 		'data-scroll-follow',
 		'reader',

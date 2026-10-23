@@ -45,6 +45,7 @@
 		type RunGroup,
 		type ToolAggregate,
 	} from './render-state';
+	import type { GroupedRunTimelineItem } from './activity-group';
 	import { runProjectionVersion } from './render-projector';
 	import type { RunPick } from './turn-result';
 	import { thoughtRowKey, type RunTimelineItem } from './run-timeline';
@@ -76,11 +77,8 @@
 	} from './chat-message-list/transcript-context';
 	import { createTranscriptScroll } from './chat-message-list/transcript-scroll.svelte';
 	import { createTranscriptSettleGate } from './chat-message-list/transcript-settle';
-	import { openingBudgets } from './chat-message-list/transcript-estimates';
-	import {
-		createTranscriptWindow,
-		runWindowKey,
-	} from './chat-message-list/transcript-window.svelte';
+	import { anchoredOpeningBudgets, openingBudgets } from './chat-message-list/transcript-estimates';
+	import { createTranscriptWindow } from './chat-message-list/transcript-window.svelte';
 	import TranscriptRun, { type LiveRunBlocks } from './chat-message-list/TranscriptRun.svelte';
 
 	interface Props {
@@ -269,18 +267,26 @@
 	const transcriptWindow = createTranscriptWindow();
 	let listRendered = false;
 	let openingAnchor: TranscriptAnchor | null = null;
-	const OPENING_TAIL_VIEWPORTS = 2.5;
+	const OPENING_VIEWPORTS = 2.5;
 	let openingBudgetByRun: ReadonlyMap<string, number> | null = null;
 
 	function openingBudget(runId: string): number {
-		openingBudgetByRun ??= openingAnchor
-			? new Map()
-			: openingBudgets(
-					untrack(() => runs),
-					(id) => transcriptWindow.heightOf(runWindowKey(id)),
-					globalThis.innerHeight * OPENING_TAIL_VIEWPORTS,
-				);
+		openingBudgetByRun ??= untrack(() => {
+			const budgetPx = globalThis.innerHeight * OPENING_VIEWPORTS;
+			if (!openingAnchor) return openingBudgets(runs, transcriptWindow.heightOf, budgetPx);
+			return anchoredOpeningBudgets(
+				runs,
+				openingAnchor,
+				openingRows,
+				transcriptWindow.heightOf,
+				budgetPx,
+			);
+		});
 		return openingBudgetByRun.get(runId) ?? 0;
+	}
+
+	function openingRows(run: RunGroup): readonly GroupedRunTimelineItem[] {
+		return timelines.groupedTimelineItems(run, timelines.timelineWindow(run), run === runs.at(-1));
 	}
 
 	let viewportEl: HTMLDivElement | null = $state(null);

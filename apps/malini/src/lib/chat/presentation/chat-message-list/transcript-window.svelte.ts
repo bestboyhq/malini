@@ -9,6 +9,10 @@ export function runWindowKey(runId: string): string {
 	return `run:${runId}`;
 }
 
+export function rowWindowKey(runId: string, itemKey: string): string {
+	return `row:${runId}:${itemKey}`;
+}
+
 export type TranscriptWindow = {
 	mounted(key: string, initially: boolean): boolean;
 	heightOf(key: string): number | undefined;
