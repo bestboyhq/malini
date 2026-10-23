@@ -23,7 +23,7 @@ export function platformTools(request: PlatformToolRequester) {
 	return [
 		tool(
 			'jobs_list',
-			"List the jobs saved in Malini. A job is a reusable agent task: instructions, a model and effort, where it runs (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository) and what it ships (`none`, a `draft` pull request, or `merge`). Returns JSON with each job's id, name, runsIn, output, model, effort, builtin and the first line of its instructions.",
+			"List the jobs saved in Malini. A job is a reusable agent task: instructions, a model and effort, where it runs (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository) and what it ships (`none`, a `draft` pull request, or `merge`). Returns JSON with each job's id, name, runsIn, output, model, effort, skills, builtin and the first line of its instructions.",
 			{},
 			() => call('jobs_list', {}),
 		),
@@ -67,6 +67,13 @@ export function platformTools(request: PlatformToolRequester) {
 					.optional()
 					.describe(
 						'What the run ships: `none` leaves the changes, `draft` opens a draft pull request, `merge` merges it. Defaults to none.',
+					),
+				skills: z
+					.array(z.string().min(1))
+					.max(500)
+					.optional()
+					.describe(
+						'Skills the job\'s agent loads, by name, for example ["adr"]. An empty list loads every skill that is on. Leave out to keep them.',
 					),
 			},
 			(input) => call('jobs_save', input),

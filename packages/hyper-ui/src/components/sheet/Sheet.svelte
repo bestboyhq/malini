@@ -78,7 +78,7 @@
 	>
 		<div
 			class={[
-				'sheet-panel border-surface-modal-border bg-surface-modal text-fg-default shadow-popup flex w-full flex-col overflow-hidden rounded-t-xl border-t',
+				'sheet-panel border-surface-elevated-border bg-surface-elevated text-fg-default shadow-popup flex w-full flex-col overflow-hidden rounded-t-xl border-t-[0.5px]',
 				heightClass[height],
 				className,
 			]}

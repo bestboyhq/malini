@@ -7,6 +7,7 @@ import {
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
+	untilStill,
 } from './harness';
 
 declare global {
@@ -15,7 +16,6 @@ declare global {
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
 const STILL_PX = 1;
-const SETTLE_MS = 900;
 
 async function latestRunBottomsWhile(page: Page, act: () => Promise<void>): Promise<number[]> {
 	await page.locator('body').evaluate((body, latestRun) => {
@@ -30,7 +30,7 @@ async function latestRunBottomsWhile(page: Page, act: () => Promise<void>): Prom
 		sample();
 	}, LATEST_RUN);
 	await act();
-	await page.waitForTimeout(SETTLE_MS);
+	await untilStill(page);
 	return page.evaluate(() => {
 		globalThis.toggleMotion.sampling = false;
 		return globalThis.toggleMotion.bottoms;
@@ -75,14 +75,14 @@ test('folding the changed files open and shut leaves the transcript still at any
 					BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(factor),
 				zoom,
 			);
-			await page.waitForTimeout(SETTLE_MS);
+			await untilStill(page);
 			for (const expanded of ['true', 'false']) {
 				const box = await toggle.boundingBox();
 				if (!box) throw new Error('the changed files toggle is not on screen');
-				const bottoms = await latestRunBottomsWhile(page, () =>
-					page.mouse.click(box.x + box.width / 2, box.y + box.height / 2),
-				);
-				await expect(toggle).toHaveAttribute('aria-expanded', expanded);
+				const bottoms = await latestRunBottomsWhile(page, async () => {
+					await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+					await expect(toggle).toHaveAttribute('aria-expanded', expanded);
+				});
 				expectStill(bottoms, `zoom ${zoom}, expanded ${expanded}`);
 			}
 		}

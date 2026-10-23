@@ -10,6 +10,7 @@ import {
 	selectChat,
 	sendPrompt,
 	startFreshChat,
+	untilStill,
 } from './harness';
 
 declare global {
@@ -98,7 +99,7 @@ async function expectRestored(page: Page, view: ReaderView, after: string): Prom
 			message: `px the reply on top moved from where the reader left it, ${after}`,
 		})
 		.toBeLessThanOrEqual(RESTORED_PX);
-	await page.waitForTimeout(500);
+	await untilStill(page);
 	await expect
 		.poll(() => page.evaluate(() => globalThis.restoreSampling.samples.length), {
 			message: `frames sampled ${after}`,
@@ -140,7 +141,7 @@ async function wheelTranscript(page: Page, deltaY: number): Promise<void> {
 	if (!box) throw new Error('the transcript is not laid out');
 	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 	await page.mouse.wheel(0, deltaY);
-	await page.waitForTimeout(500);
+	await untilStill(page);
 }
 
 async function readFrom(page: Page, sessionId: string, deltaY: number): Promise<ReaderView> {
@@ -175,13 +176,13 @@ test('each chat reopens where its reader left it, across chat tabs and workstrea
 		const chatA = await fillChat(page, 4, 8);
 		await startFreshChat(page);
 		const chatB = await fillChat(page, 4, 8);
-		await page.waitForTimeout(600);
+		await untilStill(page);
 		const middle = Math.round((await overflow(page)) / 2);
 		expect(middle, 'the chats overflow the transcript').toBeGreaterThan(500);
 
 		const viewB = await readFrom(page, chatB, -middle + READING_PX);
 		await selectChat(page, chatA);
-		await page.waitForTimeout(600);
+		await untilStill(page);
 		const viewA = await readFrom(page, chatA, -middle - 7);
 		await captureFlow(app, 'transcript-scroll-restore-before');
 
@@ -200,7 +201,7 @@ test('each chat reopens where its reader left it, across chat tabs and workstrea
 		);
 		await selectChat(page, chatB);
 		await selectChat(page, chatA);
-		await page.waitForTimeout(800);
+		await untilStill(page);
 		expect(await distanceFromBottom(page), 'px the pinned chat reopened above its bottom').toBe(0);
 		await expect(page.getByTestId('chat-message-viewport')).toHaveAttribute(
 			'data-scroll-follow',
@@ -226,9 +227,8 @@ test('a chat reopens where its reader left it after malini restarts', async () =
 		workstreamId = reading.workstreamId;
 		await openWorkstream(page, workstreamId);
 		chat = await fillChat(page, 4, 8);
-		await page.waitForTimeout(600);
+		await untilStill(page);
 		view = await readFrom(page, chat, -Math.round((await overflow(page)) / 2));
-		await page.waitForTimeout(600);
 		await first.quit();
 	} catch (error) {
 		await first.close();

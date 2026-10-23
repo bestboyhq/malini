@@ -29,7 +29,7 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
-import type { NotificationTarget } from './events';
+import type { MenuCommandChosen, NotificationTarget } from './events';
 import type {
 	ChatJobRunsArgs,
 	JobDefinitionIdArgs,
@@ -40,15 +40,7 @@ import type {
 	SaveJobDefinitionArgs,
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
-import type {
-	ListSkillsArgs,
-	SaveSkillPresetArgs,
-	SkillPresetIdArgs,
-	SkillPresetRecord,
-	SkillRecord,
-	SkillUsageReport,
-	SwitchSkillArgs,
-} from './skills';
+import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type {
@@ -491,9 +483,6 @@ export interface ContractCommands {
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
-	'skills.list-presets': { args: undefined; result: SkillPresetRecord[] };
-	'skills.save-preset': { args: SaveSkillPresetArgs; result: SkillPresetRecord };
-	'skills.delete-preset': { args: SkillPresetIdArgs; result: null };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
 	'scratchpad.load': { args: ScratchpadArgs; result: string | null };
@@ -635,6 +624,10 @@ export interface ContractCommands {
 	'app.notification-permission-granted': { args: undefined; result: boolean | null };
 	'app.notify': { args: NotifyArgs; result: void };
 	'app.take-notification-target': { args: undefined; result: NotificationTarget | null };
+	'app.take-menu-command': {
+		args: undefined;
+		result: MenuCommandChosen | null;
+	};
 	'app.request-notification-permission': {
 		args: undefined;
 		result: NotificationPermissionResult;
@@ -741,9 +734,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.run',
 	'jobs.cancel-run',
 	'skills.list',
-	'skills.list-presets',
-	'skills.save-preset',
-	'skills.delete-preset',
 	'skills.usage',
 	'skills.switch',
 	'scratchpad.load',
@@ -825,6 +815,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.notification-permission-granted',
 	'app.notify',
 	'app.take-notification-target',
+	'app.take-menu-command',
 	'app.request-notification-permission',
 	'app.close-guard',
 	'app.destroy-window',

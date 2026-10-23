@@ -331,3 +331,25 @@ test('lets an agent summary render as prose while refusing injected structure', 
 	expect(metadata.body).toContain('\\#40');
 	expect(metadata.body).toContain('\\<img src=x\\>');
 });
+
+test('lists the variants the user picked under Decisions, and no section when none were picked', () => {
+	const input = {
+		branch: 'malini/hero',
+		baseBranch: 'main',
+		changedPaths: ['src/hero.svelte'],
+		context: { runSummaries: ['Built the bold hero'] },
+	} as const;
+
+	const metadata = automatedPullRequestMetadata({
+		...input,
+		context: {
+			...input.context,
+			decisions: ['B · Bold over A · Calm - "darker reads\nbetter"', ''],
+		},
+	});
+
+	expect(metadata.body).toMatch(
+		/\n## Decisions\n\n- B · Bold over A · Calm - "darker reads better"\n\n## Validation\n/u,
+	);
+	expect(automatedPullRequestMetadata(input).body).not.toContain('## Decisions');
+});

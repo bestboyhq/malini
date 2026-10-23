@@ -126,8 +126,6 @@
 	--themed-color-surface-elevated-hover: var(--color-surface-elevated-hover-dark);
 	--themed-color-surface-elevated-selected: var(--color-surface-elevated-selected-dark);
 	--themed-color-surface-elevated-border: var(--color-surface-elevated-border-dark);
-	--themed-color-surface-modal: var(--color-surface-modal-dark);
-	--themed-color-surface-modal-border: var(--color-surface-modal-border-dark);
 	--themed-color-surface-tooltip: var(--color-surface-tooltip-dark);
 	--themed-color-surface-tooltip-border: var(--color-surface-tooltip-border-dark);
 	--themed-color-surface-toast: var(--color-surface-toast-dark);

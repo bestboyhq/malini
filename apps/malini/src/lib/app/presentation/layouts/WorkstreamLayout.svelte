@@ -9,9 +9,11 @@
 	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
 	import { JobCenter } from '$lib/jobs/jobs.api';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
+	import { addScratchpadIdeaCommand } from '$lib/scratchpad/application/commands/add-scratchpad-idea.command';
 	import {
 		WorkstreamTitle,
 		archiveWorkstreamCommand,
+		repositoryContextQuery,
 		workstreamByIdQuery,
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
@@ -28,6 +30,7 @@
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
 	const split = $derived(
 		hostsBrowser
@@ -61,6 +64,9 @@
 			{pullRequestShipped}
 			{jobRuns}
 			oncloseworkstream={closeWorkstream}
+			onsavetoscratchpad={repositoryFullName
+				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
+				: undefined}
 		/>
 	{/snippet}
 	{#snippet secondary()}

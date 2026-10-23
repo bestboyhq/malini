@@ -34,6 +34,7 @@ export const routes: RouteNode = {
 					page: jobsPage,
 					children: [
 						{ segment: 'new', page: jobsPage },
+						{ segment: 'lab', page: () => import('./presentation/pages/JobsLabPage.svelte') },
 						{ segment: 'routines', page: jobsPage },
 						{ segment: ':jobId', page: jobsPage },
 					],

@@ -26,7 +26,7 @@ import {
 	type EnvelopeSource,
 } from './envelope-source';
 import { EMPTY_TRANSCRIPT_FACTS, TranscriptFactsProjector } from './transcript-facts';
-import { earlierTurnsByRun, runTurn, type EarlierTurn } from './turn-result';
+import { earlierTurnsByRun, runTurn, variantPicksByRun, type EarlierTurn } from './turn-result';
 
 type RunningTool = {
 	ownerRunId: string;
@@ -152,6 +152,7 @@ export class IncrementalRenderProjector {
 		facts: EMPTY_TRANSCRIPT_FACTS,
 		undoTargets: new Map(),
 		earlierTurns: new Map(),
+		variantPicks: new Map(),
 	};
 
 	project(envelopes: readonly EventEnvelope[]): RenderState {
@@ -179,6 +180,11 @@ export class IncrementalRenderProjector {
 			facts: this.#facts.project(envelopes),
 			undoTargets: this.#undoTargets(runs),
 			earlierTurns: this.#earlierTurns(runs),
+			variantPicks: variantPicksByRun(
+				runs,
+				(run) => this.#derivation(run).turn,
+				this.#snapshot.variantPicks,
+			),
 		};
 		return this.#snapshot;
 	}
@@ -200,6 +206,7 @@ export class IncrementalRenderProjector {
 			facts: EMPTY_TRANSCRIPT_FACTS,
 			undoTargets: new Map(),
 			earlierTurns: new Map(),
+			variantPicks: new Map(),
 		};
 	}
 

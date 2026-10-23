@@ -46,6 +46,8 @@
 		type ToolAggregate,
 	} from './render-state';
 	import { runProjectionVersion } from './render-projector';
+	import type { RunPick } from './turn-result';
+	import { thoughtRowKey, type RunTimelineItem } from './run-timeline';
 	import ImageContextMenu from './ImageContextMenu.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import {
@@ -87,6 +89,7 @@
 		envelopes: readonly EventEnvelope[];
 		composerControls?: TranscriptComposerControls | null;
 		pullRequestShipped?: boolean;
+		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		spaceBelow?: number;
 		overlayBelow?: number;
 		contentBelow?: boolean;
@@ -100,6 +103,7 @@
 		envelopes,
 		composerControls = null,
 		pullRequestShipped = false,
+		onsavetoscratchpad,
 		spaceBelow = 0,
 		overlayBelow = 0,
 		contentBelow = $bindable(false),
@@ -372,9 +376,20 @@
 			: [],
 	);
 
+	const liveThoughtItems = $derived(
+		liveThinkingBlocks.map((block): RunTimelineItem => ({
+			kind: 'thought',
+			key: thoughtRowKey(block.runId, block.contentId),
+			contentId: block.contentId,
+			seq: Number.MAX_SAFE_INTEGER,
+			text: block.text,
+			durationSeconds: null,
+			live: true,
+		})),
+	);
+
 	const liveRun = $derived<LiveRunBlocks>({
-		pendingToolItems: livePendingToolItems,
-		thinking: liveThinkingBlocks,
+		pendingItems: [...liveThoughtItems, ...livePendingToolItems],
 		assistant: liveAssistantBlocks,
 	});
 
@@ -446,7 +461,19 @@
 			workstreamId,
 			sessionId,
 			prompt: shellCommandPrompt(command, language),
+			subject: 'Command',
 		});
+	}
+
+	function sendFollowUp(prompt: string, subject: string): void {
+		sendCommandPromptCommand({ workstreamId, sessionId, prompt, subject });
+	}
+
+	function promptPick(runId: string): RunPick | null {
+		for (const pick of renderState.variantPicks.values()) {
+			if (pick.promptRunId === runId) return pick;
+		}
+		return null;
 	}
 
 	const checkpointEdit = createCheckpointEditor({
@@ -575,6 +602,12 @@
 		openImageGallery,
 		openAttachment,
 		earlierTurns: (runId) => renderState.earlierTurns.get(runId) ?? [],
+		variantPick: (runId) => renderState.variantPicks.get(runId) ?? null,
+		promptPick,
+		sendFollowUp,
+		get saveToScratchpad() {
+			return onsavetoscratchpad;
+		},
 		undoTarget: (runId) => renderState.undoTargets.get(runId) ?? null,
 		window: transcriptWindow,
 		timelines,

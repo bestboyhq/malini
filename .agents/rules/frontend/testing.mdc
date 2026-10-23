@@ -35,5 +35,6 @@ Unit tests exist only where e2e cannot enumerate the cases.
 - Every spec ends with `expectCleanConsole`; `app.close()` fails on unexpected error diagnostics.
 - Builds share `apps/malini/out`: run one build and one Playwright process at a time.
 - Specs run in parallel, beside other apps: a timeout covers the product's slowest refresh under load, not the typical case.
-- A spec that measures timing is named `*-performance.spec.ts`, so it runs alone in the `performance` project (0036).
+- Never assert on elapsed time: the machines that run e2e have no consistent resources (0046).
+- Wait for the transcript to settle with `untilStill(page)`, never a fixed `waitForTimeout`; a sleep stays only to prove something does not happen for a while.
 - The harness runs the merge queue's delays ten times faster with `MALINI_SHIP_DELAY_SCALE=0.1`; a spec that needs the real delays passes its own through `launchMalini({ env })`.

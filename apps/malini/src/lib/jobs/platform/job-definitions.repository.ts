@@ -1,7 +1,8 @@
 import type { AgentReasoningEffort } from '$contract/agent';
 import type { JobBuiltin, JobDefinitionRecord, JobOutput, JobRunsIn } from '$contract/jobs';
+import { isSkillNameList } from '$contract/skills';
 import type { MaliniDatabase } from '$main/db/driver';
-import { all, get, run } from '$main/db/rows';
+import { all, get, parseJsonColumn, run } from '$main/db/rows';
 
 interface JobDefinitionRow {
 	id: string;
@@ -11,16 +12,17 @@ interface JobDefinitionRow {
 	effort: AgentReasoningEffort;
 	runs_in: JobRunsIn;
 	output: JobOutput;
-	skill_preset_id: string | null;
+	skills: string;
 	builtin: JobBuiltin | null;
 	created_at: string;
 	updated_at: string;
 }
 
 const COLUMNS =
-	'id, name, instructions, model, effort, runs_in, output, skill_preset_id, builtin, created_at, updated_at';
+	'id, name, instructions, model, effort, runs_in, output, skills, builtin, created_at, updated_at';
 
 function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
+	const skills = parseJsonColumn(row.skills);
 	return {
 		id: row.id,
 		name: row.name,
@@ -29,7 +31,7 @@ function fromRow(row: JobDefinitionRow): JobDefinitionRecord {
 		effort: row.effort,
 		runsIn: row.runs_in,
 		output: row.output,
-		skillPresetId: row.skill_preset_id,
+		skills: isSkillNameList(skills) ? skills : [],
 		builtin: row.builtin,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -73,7 +75,7 @@ export function insertJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 			definition.effort,
 			definition.runsIn,
 			definition.output,
-			definition.skillPresetId,
+			JSON.stringify(definition.skills),
 			definition.builtin,
 			definition.createdAt,
 			definition.updatedAt,
@@ -86,7 +88,7 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 		db,
 		`UPDATE job_definitions
 		 SET name = ?, instructions = ?, model = ?, effort = ?, runs_in = ?, output = ?,
-		     skill_preset_id = ?, updated_at = ?
+		     skills = ?, updated_at = ?
 		 WHERE id = ?`,
 		definition.name,
 		definition.instructions,
@@ -94,7 +96,7 @@ export function updateJobDefinition(db: MaliniDatabase, definition: JobDefinitio
 		definition.effort,
 		definition.runsIn,
 		definition.output,
-		definition.skillPresetId,
+		JSON.stringify(definition.skills),
 		definition.updatedAt,
 		definition.id,
 	);

@@ -522,7 +522,12 @@
 		const chatSessionId = jobChatSessionId;
 		onJobStarted();
 		if (!chatSessionId) return;
-		sendCommandPromptCommand({ workstreamId, sessionId: chatSessionId, prompt: `/${name}` });
+		sendCommandPromptCommand({
+			workstreamId,
+			sessionId: chatSessionId,
+			prompt: `/${name}`,
+			subject: 'Command',
+		});
 	}
 
 	function openNativeFilePicker(): void {

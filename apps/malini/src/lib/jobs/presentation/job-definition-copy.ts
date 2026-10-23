@@ -30,7 +30,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	'fix-checks':
 		'The merge queue runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
 	'update-from-main':
-		'The merge queue runs it when a branch it is shipping falls behind its base. Run it yourself from any chat with /.',
+		'The merge queue runs it when a branch it is shipping falls behind its base. Pick when it does in Settings, Jobs. Run it yourself from any chat with /.',
 	'address-review':
 		'The merge queue runs it when a bot reviews a pull request it is shipping. Run it yourself from any chat with /.',
 	'check-compatibility':

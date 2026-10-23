@@ -1,1 +1,1 @@
-export { chooseSessionSkills, skillsForRun } from './platform/skill-resolution';
+export { chooseSessionSkills, skillsForRun } from './platform/session-skills.repository';

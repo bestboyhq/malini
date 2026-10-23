@@ -3,8 +3,7 @@
 	import type { RunTimelineItem } from '../run-timeline';
 
 	export type LiveRunBlocks = Readonly<{
-		pendingToolItems: readonly RunTimelineItem[];
-		thinking: readonly StreamingBlock[];
+		pendingItems: readonly RunTimelineItem[];
 		assistant: readonly StreamingBlock[];
 	}>;
 </script>
@@ -24,7 +23,6 @@
 	import RunTerminalBanner from './RunTerminalBanner.svelte';
 	import RunUndoFooter from './RunUndoFooter.svelte';
 	import { blockKey } from './streaming-finalization';
-	import ThinkingRow from './ThinkingRow.svelte';
 	import { RUN_TIMELINE_REVEAL_INCREMENT } from './timeline-derivations.svelte';
 	import { transcriptContext } from './transcript-context';
 	import { estimateRowHeight, estimateRunHeight } from './transcript-estimates';
@@ -70,9 +68,7 @@
 	const runTimelineWindow = $derived(timelines.timelineWindow(run));
 	const runRows = $derived(timelines.groupedTimelineItems(run, runTimelineWindow, isLastRun));
 	const runTimelineItems = $derived(
-		live && live.pendingToolItems.length > 0
-			? mergePendingToolRows(runRows, live.pendingToolItems)
-			: runRows,
+		live && live.pendingItems.length > 0 ? mergePendingRows(runRows, live.pendingItems) : runRows,
 	);
 	const undoTarget = $derived(
 		!run.superseded && !run.obsoleted ? transcript.undoTarget(run.runId) : null,
@@ -122,7 +118,7 @@
 		return seeded;
 	}
 
-	function mergePendingToolRows(
+	function mergePendingRows(
 		rows: readonly GroupedRunTimelineItem[],
 		pending: readonly RunTimelineItem[],
 	): readonly GroupedRunTimelineItem[] {
@@ -151,6 +147,22 @@
 		return opening?.kind === 'user' ? opening.text : undefined;
 	}
 </script>
+
+{#snippet runActions()}
+	<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
+	<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
+		<IconButton
+			bare
+			class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+			ariaLabel="Copy response"
+			data-testid="chat-copy-response"
+			data-copy-run-id={run.runId}
+			onclick={() => transcript.copyRunResponse(run)}
+		>
+			<Icon name="copy" size={14} />
+		</IconButton>
+	</Tooltip>
+{/snippet}
 
 <li
 	class={[
@@ -204,15 +216,6 @@
 		{/each}
 
 		{#if live}
-			{#each live.thinking as block (block.contentId)}
-				<ThinkingRow
-					text={block.text}
-					live
-					durationSeconds={null}
-					enterKey={blockKey(transcript.sessionId, block.runId, block.contentId)}
-				/>
-			{/each}
-
 			{#each live.assistant as block (block.contentId)}
 				<div
 					class="text-fg-default w-full text-sm leading-relaxed"
@@ -234,15 +237,22 @@
 			{/each}
 		{/if}
 
-		{#if isLastRun}
+		{#if run.terminal === 'cancelled'}
+			<div class="flex h-6 items-center gap-1.5" data-testid="chat-run-actions">
+				<RunTerminalBanner {run} />
+				{#if hasAssistantAnswer || undoTarget || forkAvailable}
+					{@render runActions()}
+				{/if}
+			</div>
+		{:else if isLastRun || run.terminal === null}
 			<RunStatusLine
 				{run}
-				waitingForUser={transcript.waitingForUser}
+				waitingForUser={isLastRun && transcript.waitingForUser}
 				background={transcript.backgroundWork}
 			/>
 		{/if}
 
-		{#if run.terminal !== null && run.terminal !== 'completed'}
+		{#if run.terminal === 'failed'}
 			<RunTerminalBanner {run} />
 		{/if}
 
@@ -252,21 +262,9 @@
 			</p>
 		{/if}
 
-		{#if hasAssistantAnswer || undoTarget || forkAvailable}
+		{#if run.terminal !== 'cancelled' && (hasAssistantAnswer || undoTarget || forkAvailable)}
 			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
-				<RunUndoFooter {run} target={undoTarget} forkAtSeq={forkAvailable ? forkSeq : null} />
-				<Tooltip content={copied ? 'Copied' : 'Copy response'} placement="top">
-					<IconButton
-						bare
-						class="text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 transition-opacity group-hover/run:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
-						ariaLabel="Copy response"
-						data-testid="chat-copy-response"
-						data-copy-run-id={run.runId}
-						onclick={() => transcript.copyRunResponse(run)}
-					>
-						<Icon name="copy" size={14} />
-					</IconButton>
-				</Tooltip>
+				{@render runActions()}
 			</div>
 		{/if}
 	{/if}

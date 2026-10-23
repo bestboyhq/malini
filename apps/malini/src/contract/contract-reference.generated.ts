@@ -110,7 +110,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
 			payloadType: 'JobDefinitionChangedEvent',
 			payload:
-				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobOutput = 'none' | 'draft' | 'merge';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs';\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\toutput: JobOutput;\n\tskillPresetId: string | null;\n\tbuiltin: JobBuiltin | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
+				"type AgentReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';\n\ntype JobRunsIn = 'workstream' | 'new-workstream';\n\ntype JobOutput = 'none' | 'draft' | 'merge';\n\ntype JobBuiltin =\n\t| 'name-chats'\n\t| 'name-services'\n\t| 'fix-checks'\n\t| 'update-from-main'\n\t| 'address-review'\n\t| 'check-compatibility'\n\t| 'update-docs';\n\ntype JobDefinitionRecord = Readonly<{\n\tid: string;\n\tname: string;\n\tinstructions: string;\n\tmodel: string;\n\teffort: AgentReasoningEffort;\n\trunsIn: JobRunsIn;\n\toutput: JobOutput;\n\tskills: readonly string[];\n\tbuiltin: JobBuiltin | null;\n\tcreatedAt: string;\n\tupdatedAt: string;\n}>;\n\ntype JobDefinitionChangedEvent = Readonly<{\n\tdefinitionId: string;\n\tdefinition: JobDefinitionRecord | null;\n}>;",
 		},
 		{
 			channel: 'routines:suggested',
@@ -155,6 +155,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			description: 'Fires when you click a Malini notification, with the chat it points to.',
 			payloadType: 'NotificationTarget',
 			payload: 'type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;',
+		},
+		{
+			channel: 'app:menu-command-chosen',
+			description:
+				"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+			payloadType: 'MenuCommandChosen',
+			payload:
+				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',

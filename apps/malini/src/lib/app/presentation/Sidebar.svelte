@@ -16,8 +16,7 @@
 	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
 	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
 	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
-	import { JobsNavBadge } from '$lib/jobs/jobs.api';
-	import { StatsReadout, WorkstreamRunningLine } from '$lib/stats/stats.api';
+	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
@@ -43,6 +42,8 @@
 	import type { Workstream } from '$shared/repositories/repositories.api';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/repositories.api';
 	import {
+		ConnectRepositoryContextMenu,
+		type ConnectRepositoryContextMenuTarget,
 		RepositoryAvatar,
 		RepositoryContextMenu,
 		type RepositoryContextMenuTarget,
@@ -56,6 +57,7 @@
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { runtimeDiagnostics } from '$shared/performance/runtime-diagnostics.svelte';
+	import SidebarFooter from './SidebarFooter.svelte';
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
@@ -111,6 +113,7 @@
 	let previewCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 	let contextMenu = $state.raw<WorkstreamContextMenuTarget | null>(null);
 	let repositoryMenu = $state.raw<RepositoryContextMenuTarget | null>(null);
+	let connectMenu = $state.raw<ConnectRepositoryContextMenuTarget | null>(null);
 	let contextMenuKeyboardRow: HTMLElement | null = null;
 
 	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
@@ -323,6 +326,13 @@
 		if (at) repositoryMenu = { repository, workstreams, ...at };
 	}
 
+	function openConnectMenu(event: MouseEvent): void {
+		if (event.defaultPrevented) return;
+		event.preventDefault();
+		contextMenuKeyboardRow = null;
+		connectMenu = { x: event.clientX, y: event.clientY };
+	}
+
 	function pointerInside(event: MouseEvent, box: DOMRect): { x: number; y: number } | null {
 		const inside =
 			event.clientX >= box.left &&
@@ -335,6 +345,7 @@
 	function closeContextMenu(): void {
 		contextMenu = null;
 		repositoryMenu = null;
+		connectMenu = null;
 		contextMenuKeyboardRow?.focus({ preventScroll: true });
 		contextMenuKeyboardRow = null;
 	}
@@ -710,6 +721,7 @@
 		class={['min-h-0 flex-1 select-none', reorder && 'cursor-grabbing']}
 		aria-label="Connected repositories"
 		onclickcapture={swallowDragClick}
+		oncontextmenu={openConnectMenu}
 	>
 		<ScrollableDiv
 			class="h-full"
@@ -792,7 +804,7 @@
 								openDelay={500}
 								triggerPress="dismiss"
 								triggerClass="w-full"
-								panelClass="w-80 rounded-lg border border-surface-elevated-border bg-surface-elevated p-3"
+								panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
 								testId="sidebar-repository-card"
 							>
 								{#snippet trigger()}
@@ -895,12 +907,12 @@
 								{#snippet content()}
 									<div class="flex flex-col gap-3">
 										<div class="flex min-w-0 items-center gap-2.5">
-											<RepositoryAvatar fullName={row.repo.fullName} size={28} />
+											<RepositoryAvatar fullName={row.repo.fullName} size={36} />
 											<div class="flex min-w-0 flex-col">
-												<span class="text-fg-default truncate text-sm font-medium">
+												<span class="text-fg-default truncate text-sm leading-5 font-medium">
 													{row.repo.fullName}
 												</span>
-												<span class="text-fg-tertiary text-xs">
+												<span class="text-fg-tertiary text-xs leading-4">
 													{workstreamCountLabel(row.workstreams.length)}
 												</span>
 											</div>
@@ -1249,37 +1261,11 @@
 		onremove={onRemoveRepository}
 	/>
 
+	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
+
 	<StagedUpdateButton />
 
 	<SidebarArchived />
 
-	<div
-		class="border-surface-50-border flex shrink-0 items-center gap-1 border-t py-1.5 pr-1.5 pl-2.5"
-	>
-		<Tooltip content="Connect repository" placement="right">
-			<IconButton
-				variant="ghost"
-				size="sm"
-				href={REPOSITORIES_HREF}
-				ariaLabel="Connect repository"
-				data-testid="sidebar-connect-repository"
-				data-navigation-path-id="expected-path:workstream-sidebar.connect-repository"
-			>
-				<Icon name="folder-plus" size={15} />
-			</IconButton>
-		</Tooltip>
-		<JobsNavBadge />
-		<Tooltip content="Settings" placement="right">
-			<IconButton
-				variant="ghost"
-				size="sm"
-				href="/settings"
-				ariaLabel="Open settings"
-				data-testid="sidebar-open-settings"
-			>
-				<Icon name="settings" size={15} />
-			</IconButton>
-		</Tooltip>
-		<StatsReadout />
-	</div>
+	<SidebarFooter />
 </SidebarFrame>

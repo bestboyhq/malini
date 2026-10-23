@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { openMigratedDatabase } from './open';
 import { openDatabase } from './driver';
-import { TARGET_USER_VERSION, migrate, tableNames, userVersion } from './migrations';
+import {
+	BASELINE_USER_VERSION,
+	SCHEMA,
+	TARGET_USER_VERSION,
+	migrate,
+	tableNames,
+	userVersion,
+} from './migrations';
 import { all, get, scalar } from './rows';
 
 const ALL_TABLES = [
@@ -28,7 +35,6 @@ const ALL_TABLES = [
 	'scratchpads',
 	'settings',
 	'skill_choices',
-	'skill_presets',
 	'workstream_commit_runs',
 	'workstream_ship',
 	'workstreams',
@@ -115,12 +121,48 @@ describe('migrate', () => {
 	it('refuses a database older than the baseline and leaves it untouched', () => {
 		const db = openDatabase(':memory:');
 		db.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-			PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+			PRAGMA user_version = ${BASELINE_USER_VERSION - 1};`);
 		expect(() => migrate(db)).toThrow(
-			`schema version ${TARGET_USER_VERSION - 1} predates the first release`,
+			`schema version ${BASELINE_USER_VERSION - 1} predates the first release`,
 		);
-		expect(userVersion(db)).toBe(TARGET_USER_VERSION - 1);
+		expect(userVersion(db)).toBe(BASELINE_USER_VERSION - 1);
 		expect(appTables(db)).toEqual(['settings']);
+		db.close();
+	});
+
+	it('moves the skills of a preset into the jobs and job sessions that used it, then drops presets', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		db.exec(`
+			INSERT INTO skill_presets (id, name, skills, created_at, updated_at) VALUES
+			  ('writer', 'Writer', '["humanizer","adr"]', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z');
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, output, created_at, updated_at, skill_preset_id) VALUES
+			  ('copy', 'Copy', 'Edit.', 'opus', 'high', 'workstream', 'none', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z', 'writer'),
+			  ('plain', 'Plain', 'Go.', 'opus', 'high', 'workstream', 'none', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z', NULL),
+			  ('gone', 'Gone', 'Go.', 'opus', 'high', 'workstream', 'none', '2026-10-15T00:00:00Z', '2026-10-15T00:00:00Z', 'deleted');
+			INSERT INTO skill_choices (scope, owner_id, choice, updated_at) VALUES
+			  ('session', 'preset-session', '{"kind":"preset","presetId":"writer"}', '2026-10-15T00:00:00Z'),
+			  ('session', 'custom-session', '{"kind":"custom","skills":["dataviz"]}', '2026-10-15T00:00:00Z'),
+			  ('session', 'all-session', '{"kind":"all"}', '2026-10-15T00:00:00Z'),
+			  ('session', 'lost-session', '{"kind":"preset","presetId":"deleted"}', '2026-10-15T00:00:00Z'),
+			  ('session', 'broken-session', 'not json', '2026-10-15T00:00:00Z'),
+			  ('workstream', 'w', '{"kind":"custom","skills":["adr"]}', '2026-10-15T00:00:00Z');
+		`);
+
+		migrate(db);
+
+		expect(userVersion(db)).toBe(TARGET_USER_VERSION);
+		expect(appTables(db)).toEqual(ALL_TABLES);
+		expect(all(db, 'SELECT id, skills FROM job_definitions ORDER BY id')).toEqual([
+			{ id: 'copy', skills: '["humanizer","adr"]' },
+			{ id: 'gone', skills: '[]' },
+			{ id: 'plain', skills: '[]' },
+		]);
+		expect(all(db, 'SELECT owner_id, choice FROM skill_choices ORDER BY owner_id')).toEqual([
+			{ owner_id: 'custom-session', choice: '["dataviz"]' },
+			{ owner_id: 'preset-session', choice: '["humanizer","adr"]' },
+		]);
 		db.close();
 	});
 

@@ -162,11 +162,12 @@ export class ClaudeSession implements ProviderHandle {
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
 			const answered = active.transcript.waiting || active.results.length > 0;
-			if (continues && (steer || active.transcript.waiting)) {
+			const replaces = steer || active.transcript.waiting;
+			if (continues && replaces) {
 				await this.#handOff(active, prompt, runId, profile, !answered);
 				return;
 			}
-			if (!steer) throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
+			if (!replaces) throw new Error(`RUN_ACTIVE: ${active.runId} is still running`);
 			await this.cancel(active.runId);
 		}
 		this.#emit({ type: 'run.started', runId, sessionId: this.#context.sessionId });

@@ -66,59 +66,12 @@ afterEach(() => {
 	for (const folder of folders) rmSync(folder, { recursive: true, force: true });
 });
 
-describe('skill presets', () => {
-	it('saves, renames and deletes a preset, keeping each skill once', async () => {
-		const builder = await savePreset({ name: ' Builder ', skills: ['adr', 'animate', 'adr'] });
-		expect(builder).toMatchObject({ name: 'Builder', skills: ['adr', 'animate'] });
-
-		const renamed = await savePreset({ id: builder.id, name: 'Frontend', skills: ['animate'] });
-		expect(renamed).toMatchObject({ id: builder.id, name: 'Frontend', skills: ['animate'] });
-		expect(await presets()).toEqual([renamed]);
-
-		await context.commands.call('skills.delete-preset', { presetId: builder.id });
-		expect(await presets()).toEqual([]);
-	});
-
-	it('keeps a preset emoji through a rename, clears it with null, and refuses anything but one emoji', async () => {
-		const builder = await savePreset({ name: 'Builder', emoji: '🛠️', skills: ['adr'] });
-		expect(builder.emoji).toBe('🛠️');
-
-		const renamed = await savePreset({ id: builder.id, name: 'Frontend', skills: ['adr'] });
-		expect(renamed).toMatchObject({ name: 'Frontend', emoji: '🛠️' });
-
-		const cleared = await savePreset({ id: builder.id, name: 'Frontend', emoji: null, skills: [] });
-		expect(cleared.emoji).toBeNull();
-
-		await expect(savePreset({ name: 'Writer', emoji: 'W', skills: [] })).rejects.toThrow(/emoji/u);
-		await expect(savePreset({ name: 'Writer', emoji: '✍️✍️', skills: [] })).rejects.toThrow(
-			/emoji/u,
-		);
-	});
-
-	it('refuses a nameless preset, a list that is not skill names, and an unknown preset', async () => {
-		await expect(savePreset({ name: '  ', skills: [] })).rejects.toThrow(/name/u);
-		expect(
-			await context.commands.invoke({
-				command: 'skills.save-preset',
-				args: { name: 'Builder', skills: 'adr' },
-			}),
-		).toMatchObject({ ok: false, error: expect.stringMatching(/skills/u) });
-		await expect(
-			context.commands.call('skills.delete-preset', { presetId: 'missing' }),
-		).rejects.toThrow(/not found/u);
-	});
-});
-
 describe('the skills a run gets', () => {
-	it('gives a chat every skill, and a job session its preset until the preset is gone', async () => {
-		const marketer = await savePreset({ name: 'Marketer', skills: ['humanizer'] });
-		chooseSessionSkills(db, 'job-session', { kind: 'preset', presetId: marketer.id });
+	it('gives a chat every skill, and a job session the skills of its job', () => {
+		chooseSessionSkills(db, 'job-session', ['humanizer']);
 
 		expect(skillsForRun(db, 'chat-session')).toBeNull();
 		expect(skillsForRun(db, 'job-session')).toEqual(['humanizer']);
-
-		await context.commands.call('skills.delete-preset', { presetId: marketer.id });
-		expect(skillsForRun(db, 'job-session')).toBeNull();
 	});
 });
 
@@ -326,19 +279,6 @@ function skillsOf(cwd: string): SkillRecord[] {
 		{ name: 'animate', description: 'Animate', source: 'personal', tokens: 315 },
 		{ name: `${repository}-adr`, description: 'Decide', source: 'repository', tokens: 128 },
 	];
-}
-
-async function savePreset(args: {
-	id?: string;
-	name: string;
-	emoji?: string | null;
-	skills: string[];
-}) {
-	return context.commands.call('skills.save-preset', args);
-}
-
-async function presets() {
-	return context.commands.call('skills.list-presets', undefined);
 }
 
 function folder(): string {

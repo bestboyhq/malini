@@ -1,6 +1,6 @@
 # 0035 - The transcript has no frame budget test
 
-Status: accepted
+Status: superseded by 0046
 
 ## Context
 

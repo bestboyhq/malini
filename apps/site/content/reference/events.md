@@ -319,7 +319,7 @@ type JobDefinitionRecord = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn: JobRunsIn;
 	output: JobOutput;
-	skillPresetId: string | null;
+	skills: readonly string[];
 	builtin: JobBuiltin | null;
 	createdAt: string;
 	updatedAt: string;
@@ -498,6 +498,18 @@ Payload: `NotificationTarget`
 
 ```ts
 type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
+```
+
+## `app:menu-command-chosen`
+
+Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
+
+Payload: `MenuCommandChosen`
+
+```ts
+type MenuCommand = 'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+
+type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 ```
 
 ## `app:streaming-changed`

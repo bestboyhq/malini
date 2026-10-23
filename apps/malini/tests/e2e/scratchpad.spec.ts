@@ -5,6 +5,7 @@ import {
 	expectAssistantReply,
 	expectCleanConsole,
 	launchMalini,
+	listProjects,
 	seedWorkstream,
 } from './harness';
 
@@ -94,6 +95,7 @@ test('removing the repository whose scratchpad is open goes back to the reposito
 		await menu.getByRole('menuitem', { name: 'Delete 1 workstream and remove alpha' }).click();
 		await expect(page).toHaveTitle('Malini · Repositories', { timeout: 30_000 });
 		await expect(page.getByTestId('repository-page-missing')).toHaveCount(0);
+		await expect.poll(() => listProjects(page), { timeout: 30_000 }).toEqual([]);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -1,5 +1,5 @@
 import type { ExtensionPanelContext, ExtensionPanelRegistration } from '@malini/extension-api';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
 	INSPECTOR_PANEL_PREFERENCES_KEY_PREFIX,
@@ -17,7 +17,9 @@ import {
 	type InspectorPanelPreferences,
 } from './inspector-panel-preferences';
 import {
+	inspectorPanelHiddenEverywhere,
 	loadInspectorPanelPreferences,
+	saveInspectorPanelHiddenEverywhere,
 	saveInspectorPanelPreferences,
 } from './inspector-panel-preferences.store';
 
@@ -180,14 +182,63 @@ describe('extension inspector panel preferences', () => {
 		expect(placeInspectorPanel(preferences, 'zzz', 0)).toBe(preferences);
 	});
 
-	it('does not allow the final visible panel to be hidden', () => {
+	it('hides the final visible panel and leaves no panel active', () => {
 		const onlyOneVisible = {
 			version: 3 as const,
 			order: ['one', 'two'],
 			hidden: ['two'],
 			activeId: 'one',
 		};
-		expect(setInspectorPanelVisible(onlyOneVisible, 'one', false)).toBe(onlyOneVisible);
+		expect(setInspectorPanelVisible(onlyOneVisible, 'one', false)).toEqual({
+			...onlyOneVisible,
+			hidden: ['one', 'two'],
+			activeId: null,
+		});
+	});
+
+	it('keeps a closed panel in its workstream, and lets the newest choice win over every workstream', () => {
+		vi.useFakeTimers();
+		try {
+			const storage = memoryStorage();
+			const files = REPOSITORY_FILES_PANEL_ID;
+			const panels = [panel(files), panel('browser-tab')];
+			const hiddenIn = (workstreamId: string) =>
+				loadInspectorPanelPreferences(workstreamId, panels, storage).hidden.includes(files);
+			const chooseIn = (workstreamId: string, visible: boolean) =>
+				saveInspectorPanelPreferences(
+					workstreamId,
+					setInspectorPanelVisible(
+						loadInspectorPanelPreferences(workstreamId, panels, storage),
+						files,
+						visible,
+					),
+					storage,
+				);
+
+			vi.setSystemTime(1_000);
+			chooseIn('closed-here', false);
+			expect([hiddenIn('closed-here'), hiddenIn('elsewhere')]).toEqual([true, false]);
+
+			vi.setSystemTime(2_000);
+			saveInspectorPanelHiddenEverywhere(files, true, storage);
+			expect(inspectorPanelHiddenEverywhere(files, storage)).toBe(true);
+			expect([hiddenIn('closed-here'), hiddenIn('elsewhere')]).toEqual([true, true]);
+
+			vi.setSystemTime(3_000);
+			chooseIn('opened-here', true);
+			expect([hiddenIn('opened-here'), hiddenIn('elsewhere')]).toEqual([false, true]);
+
+			vi.setSystemTime(4_000);
+			saveInspectorPanelHiddenEverywhere(files, false, storage);
+			expect(inspectorPanelHiddenEverywhere(files, storage)).toBe(false);
+			expect([hiddenIn('closed-here'), hiddenIn('opened-here'), hiddenIn('elsewhere')]).toEqual([
+				false,
+				false,
+				false,
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('repairs corrupt persisted state instead of making the inspector unreachable', () => {

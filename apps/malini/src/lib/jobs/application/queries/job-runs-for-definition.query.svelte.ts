@@ -1,4 +1,5 @@
 import type { JobRunRecord } from '$contract/jobs';
+import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
 
 export { jobRunsForDefinitionQuery };
@@ -8,7 +9,9 @@ class JobRunsForDefinitionQuery {
 		(definitionId: string) =>
 			jobRunsAggregate.runs
 				.filter((run) => run.definitionId === definitionId)
-				.sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+				.sort((left, right) =>
+					jobRunLastActivityAt(right).localeCompare(jobRunLastActivityAt(left)),
+				),
 	);
 }
 
