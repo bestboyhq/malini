@@ -6,6 +6,7 @@ import type {
 	JobSuggestionRecord,
 } from '$contract/jobs';
 import {
+	CHAT_AGENT_EVENT_CHANNEL,
 	JOBS_AGENT_ACTION_CHANGED_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_EXPERIMENT_CHANGED_CHANNEL,
@@ -20,7 +21,10 @@ interface JobEventHandlers {
 	onSuggested(suggestion: JobSuggestionRecord): void;
 	onExperimentChanged(experiment: JobExperimentRecord): void;
 	onAgentActionChanged(action: AgentActionRecord): void;
+	onChatRunChanged(runId: string): void;
 }
+
+const RUN_EVENTS = new Set(['run.started', 'run.completed', 'run.failed']);
 
 class JobEventsService {
 	subscribe(handlers: JobEventHandlers): () => void {
@@ -36,6 +40,9 @@ class JobEventsService {
 			onPlatformEvent(JOBS_AGENT_ACTION_CHANGED_CHANNEL, ({ action }) =>
 				handlers.onAgentActionChanged(action),
 			),
+			onPlatformEvent(CHAT_AGENT_EVENT_CHANNEL, ({ runId, event }) => {
+				if (RUN_EVENTS.has(String(event['type']))) handlers.onChatRunChanged(runId);
+			}),
 		];
 		return () => {
 			for (const unlisten of unlistens) unlisten();

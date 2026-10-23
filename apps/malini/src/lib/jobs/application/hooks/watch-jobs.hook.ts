@@ -1,4 +1,5 @@
 import { agentActionsAggregate } from '$lib/jobs/infrastructure/aggregates/agent-actions.aggregate.svelte';
+import { chatTurnsAggregate } from '$lib/jobs/infrastructure/aggregates/chat-turns.aggregate.svelte';
 import { jobDefinitionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-definitions.aggregate.svelte';
 import { jobExperimentsAggregate } from '$lib/jobs/infrastructure/aggregates/job-experiments.aggregate.svelte';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
@@ -22,7 +23,12 @@ export function watchJobsHook(): () => void {
 		},
 		onSuggested: (suggestion) => jobSuggestionsAggregate.apply(suggestion),
 		onExperimentChanged: (experiment) => jobExperimentsAggregate.apply(experiment),
-		onAgentActionChanged: (action) => agentActionsAggregate.apply(action),
+		onAgentActionChanged: (action) => {
+			agentActionsAggregate.apply(action);
+			const inJob = jobRunsAggregate.runs.some((run) => run.sessionId === action.sessionId);
+			if (!inJob) chatTurnsAggregate.include(action.runId);
+		},
+		onChatRunChanged: (runId) => chatTurnsAggregate.refresh(runId),
 	});
 
 	let released = false;

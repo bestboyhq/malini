@@ -1,22 +1,30 @@
 <script lang="ts">
-	import type { AgentActionRecord, JobDefinitionRecord, JobRunRecord } from '$contract/jobs';
+	import type { JobDefinitionRecord } from '$contract/jobs';
+	import { Switch } from '$hyper-ui/components/switch';
 	import { Well } from '$hyper-ui/components/well';
-	import { loadAgentActionsCommand } from '$lib/jobs/application/commands/load-agent-actions.command';
+	import {
+		loadActivityCommand,
+		showEveryChatTurnCommand,
+	} from '$lib/jobs/application/commands/load-activity.command';
 	import { agentActionsQuery } from '$lib/jobs/application/queries/agent-actions.query.svelte';
+	import { chatTurnsQuery } from '$lib/jobs/application/queries/chat-turns.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
+	import {
+		activityEntries,
+		activityEntryRunning,
+		type ActivityEntry,
+	} from '$lib/jobs/domain/activity';
 	import { isFinishedJobRunStatus, jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 	import JobRunRow from '../JobRunRow.svelte';
+	import ActivityRun from './ActivityRun.svelte';
 	import AgentActionRow from './AgentActionRow.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
+	import ChatTurnRow from './ChatTurnRow.svelte';
 	import WaitingJobRunRow from './WaitingJobRunRow.svelte';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
 	}
-
-	type Entry =
-		| Readonly<{ kind: 'run'; id: string; at: string; run: JobRunRecord }>
-		| Readonly<{ kind: 'action'; id: string; at: string; action: AgentActionRecord }>;
 
 	let { jobs }: Props = $props();
 
@@ -24,6 +32,7 @@
 	const ROWS =
 		'border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] rounded-xl border-[0.5px]';
 	const DAY_MS = 24 * 60 * 60 * 1_000;
+	const everyId = $props.id();
 
 	let nowMs = $state(Date.now());
 
@@ -33,43 +42,26 @@
 			.flatMap((job) => runsFor(job.id))
 			.sort((left, right) => jobRunLastActivityAt(right).localeCompare(jobRunLastActivityAt(left))),
 	);
-	const actions = $derived(agentActionsQuery.data);
+	const entries = $derived(activityEntries(runs, chatTurnsQuery.data, agentActionsQuery.data));
 	const waiting = $derived(runs.filter((run) => run.status === 'waiting'));
 	const needsYou = $derived(runs.filter((run) => run.status === 'needs-you'));
 	const waitingForYou = $derived(waiting.length + needsYou.length);
-	const running = $derived(
-		runs.filter((run) => run.status === 'running' || run.status === 'queued'),
-	);
-	const runningActions = $derived(actions.filter((action) => action.status === 'running'));
-	const days = $derived(
-		groupByDay(
-			[
-				...runs
-					.filter((run) => isFinishedJobRunStatus(run.status))
-					.map((run): Entry => ({ kind: 'run', id: run.id, at: jobRunLastActivityAt(run), run })),
-				...actions
-					.filter((action) => action.status !== 'running')
-					.map((action): Entry => ({
-						kind: 'action',
-						id: action.id,
-						at: action.finishedAt ?? action.startedAt,
-						action,
-					})),
-			]
-				.sort((left, right) => right.at.localeCompare(left.at))
-				.slice(0, RECENT_LIMIT),
-		),
-	);
+	const running = $derived(entries.filter(activityEntryRunning));
+	const days = $derived(groupByDay(entries.filter(finished).slice(0, RECENT_LIMIT)));
 
 	$effect(() => {
-		loadAgentActionsCommand();
+		loadActivityCommand();
 	});
 
 	$effect(() => {
-		const busy = running.length + runningActions.length > 0;
-		const clock = setInterval(() => (nowMs = Date.now()), busy ? 1_000 : 30_000);
+		const clock = setInterval(() => (nowMs = Date.now()), running.length > 0 ? 1_000 : 30_000);
 		return () => clearInterval(clock);
 	});
+
+	function finished(entry: ActivityEntry): boolean {
+		if (entry.kind === 'job') return isFinishedJobRunStatus(entry.run.status);
+		return !activityEntryRunning(entry);
+	}
 
 	function dayLabel(iso: string): string {
 		const start = new Date();
@@ -85,9 +77,9 @@
 	}
 
 	function groupByDay(
-		list: readonly Entry[],
-	): readonly Readonly<{ label: string; entries: Entry[] }>[] {
-		const groups: { label: string; entries: Entry[] }[] = [];
+		list: readonly ActivityEntry[],
+	): readonly Readonly<{ label: string; entries: ActivityEntry[] }>[] {
+		const groups: { label: string; entries: ActivityEntry[] }[] = [];
 		for (const entry of list) {
 			const label = dayLabel(entry.at);
 			const last = groups.at(-1);
@@ -101,22 +93,59 @@
 		return count === 0 ? null : `${count} ${count === 1 ? one : many}`;
 	}
 
-	function dayNote(entries: readonly Entry[]): string {
-		const calls = entries.filter((entry) => entry.kind === 'action').length;
+	function dayNote(list: readonly ActivityEntry[]): string {
+		const of = (kind: ActivityEntry['kind']): number =>
+			list.filter((entry) => entry.kind === kind).length;
 		return [
-			counted(entries.length - calls, 'run', 'runs'),
-			counted(calls, 'tool call', 'tool calls'),
+			counted(of('job'), 'job run', 'job runs'),
+			counted(of('chat'), 'chat turn', 'chat turns'),
+			counted(of('call'), 'call', 'calls'),
 		]
 			.filter(Boolean)
 			.join(' · ');
 	}
 </script>
 
+{#snippet entryRow(entry: ActivityEntry)}
+	{#if entry.kind === 'job'}
+		<ActivityRun calls={entry.calls} {nowMs} subject={entry.run.title}>
+			{#snippet row(trailing)}
+				<JobRunRow
+					run={entry.run}
+					{nowMs}
+					kind="Job"
+					origin={entry.startedBy ? 'Started by an agent' : null}
+					{trailing}
+				/>
+			{/snippet}
+		</ActivityRun>
+	{:else if entry.kind === 'chat'}
+		<ActivityRun calls={entry.calls} {nowMs} subject={entry.turn.prompt}>
+			{#snippet row(trailing)}
+				<ChatTurnRow turn={entry.turn} {nowMs} {trailing} />
+			{/snippet}
+		</ActivityRun>
+	{:else}
+		<AgentActionRow action={entry.action} {nowMs} kind="Call" />
+	{/if}
+{/snippet}
+
 <AutomationsSection
 	title="Activity"
-	description="What your jobs and agents did in Malini, and what waits for you."
+	description="What your jobs and chats did in Malini, and what waits for you."
 	testId="automations-activity"
 >
+	{#snippet actions()}
+		<div class="flex shrink-0 items-center gap-2">
+			<span id={everyId} class="text-fg-secondary text-xs">Every chat turn</span>
+			<Switch
+				checked={chatTurnsQuery.every}
+				labelledBy={everyId}
+				onchange={showEveryChatTurnCommand}
+			/>
+		</div>
+	{/snippet}
+
 	<Well title="Waiting for you" note={waitingForYou > 0 ? `${waitingForYou}` : undefined}>
 		<div class={ROWS}>
 			{#if waitingForYou === 0}
@@ -135,14 +164,11 @@
 		</div>
 	</Well>
 
-	{#if running.length + runningActions.length > 0}
-		<Well title="Running now" note={`${running.length + runningActions.length}`}>
+	{#if running.length > 0}
+		<Well title="Running now" note={`${running.length}`}>
 			<ul class={[ROWS, 'flex flex-col p-1']}>
-				{#each running as run (run.id)}
-					<li><JobRunRow {run} {nowMs} /></li>
-				{/each}
-				{#each runningActions as action (action.id)}
-					<li><AgentActionRow {action} {nowMs} /></li>
+				{#each running as entry (`${entry.kind}:${entry.id}`)}
+					<li>{@render entryRow(entry)}</li>
 				{/each}
 			</ul>
 		</Well>
@@ -151,14 +177,8 @@
 	{#each days as day (day.label)}
 		<Well title={day.label} note={dayNote(day.entries)}>
 			<ul class={[ROWS, 'flex flex-col p-1']}>
-				{#each day.entries as entry (entry.id)}
-					<li>
-						{#if entry.kind === 'run'}
-							<JobRunRow run={entry.run} {nowMs} />
-						{:else}
-							<AgentActionRow action={entry.action} {nowMs} />
-						{/if}
-					</li>
+				{#each day.entries as entry (`${entry.kind}:${entry.id}`)}
+					<li>{@render entryRow(entry)}</li>
 				{/each}
 			</ul>
 		</Well>

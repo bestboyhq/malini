@@ -13,15 +13,18 @@
 		agentActionTitle,
 	} from '$lib/jobs/domain/agent-action';
 	import { jobName } from '../job-name';
+	import ActivityKind from './ActivityKind.svelte';
 	import { AGENT_ACTION_STATUS } from '../job-run-status';
-	import { agentActionTime } from '../job-run-time';
+	import { activityTime } from '../job-run-time';
 
 	interface Props {
 		action: AgentActionRecord;
 		nowMs: number;
+		nested?: boolean;
+		kind?: string;
 	}
 
-	let { action, nowMs }: Props = $props();
+	let { action, nowMs, nested = false, kind }: Props = $props();
 
 	let open = $state(false);
 
@@ -32,6 +35,7 @@
 	const place = $derived(
 		action.workstreamId === null ? null : workstreamNameQuery.data(action.workstreamId),
 	);
+	const shownPlace = $derived(nested ? null : place);
 	const approval = $derived(AGENT_ACTION_APPROVAL[action.approval]);
 	const input = $derived(agentActionInput(action));
 	const output = $derived(agentActionOutput(action));
@@ -58,17 +62,20 @@
 				<Icon name={look.icon} size={13} />
 			{/if}
 		</span>
+		{#if kind}
+			<ActivityKind label={kind} />
+		{/if}
 		<span class="min-w-0 flex-1 truncate">
 			<span class="text-fg-default font-medium">{title}</span>
-			{#if place}
-				<span class="text-fg-tertiary">· {place}</span>
+			{#if shownPlace}
+				<span class="text-fg-tertiary">· {shownPlace}</span>
 			{/if}
 			{#if approval}
 				<span class="text-fg-tertiary">· {approval}</span>
 			{/if}
 		</span>
 		<span class="text-fg-tertiary text-2xs shrink-0 tabular-nums">
-			{agentActionTime(action, nowMs)}
+			{activityTime(action, nowMs)}
 		</span>
 	</Button>
 	{#if open}

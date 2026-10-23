@@ -1,4 +1,4 @@
-import type { AgentActionRecord, JobRunRecord } from '$contract/jobs';
+import type { JobRunRecord } from '$contract/jobs';
 import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 
 const SECOND_MS = 1_000;
@@ -13,9 +13,12 @@ export function jobRunTime(run: JobRunRecord, nowMs: number): string {
 	return ago(nowMs - Date.parse(jobRunLastActivityAt(run)));
 }
 
-export function agentActionTime(action: AgentActionRecord, nowMs: number): string {
-	if (action.status === 'running') return elapsed(nowMs - Date.parse(action.startedAt));
-	return ago(nowMs - Date.parse(action.finishedAt ?? action.startedAt));
+export function activityTime(
+	entry: Readonly<{ status: string; startedAt: string; finishedAt: string | null }>,
+	nowMs: number,
+): string {
+	if (entry.status === 'running') return elapsed(nowMs - Date.parse(entry.startedAt));
+	return ago(nowMs - Date.parse(entry.finishedAt ?? entry.startedAt));
 }
 
 function elapsed(ms: number): string {

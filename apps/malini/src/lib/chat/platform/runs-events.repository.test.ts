@@ -24,6 +24,7 @@ import {
 	finalizeRunLifecycle,
 	getRun,
 	insertRun,
+	listChatTurns,
 	listOpenRunIds,
 	listOpenRuns,
 	workstreamHasOpenRun,
@@ -532,6 +533,46 @@ describe('what keeps running in a workstream', () => {
 			need: 'Open localhost:8791',
 		});
 		expect(latestWorkstreamTurn(db, 'ws-other')).toBeNull();
+		db.close();
+	});
+});
+
+describe('chat turns', () => {
+	it('lists the chat turns that called Malini, or the latest ones too, never a job session, with their status', () => {
+		const db = openMigratedDatabase(':memory:');
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES ('w', 'p', 'w', '/tmp/w', 'malini/w', 'main', 'active', '2026-10-23T00:00:00Z');
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at, display_name, origin) VALUES
+			  ('chat', 'w', 'idle', '2026-10-23T00:00:00Z', 'Ship it', 'user'),
+			  ('job', 'w', 'idle', '2026-10-23T00:00:00Z', 'Fix checks', 'job');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, error, obsoleted_at) VALUES
+			  ('called', 'chat', '
+  Clone acme/site
+then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
+			  ('failed', 'chat', 'Try again', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', 'boom', NULL),
+			  ('running', 'chat', 'Keep going', '2026-10-23T12:00:00Z', NULL, NULL, NULL),
+			  ('edited', 'chat', 'Old prompt', '2026-10-23T09:00:00Z', '2026-10-23T09:01:00Z', NULL, '2026-10-23T09:02:00Z'),
+			  ('in-job', 'job', 'Fix the checks', '2026-10-23T13:00:00Z', NULL, NULL, NULL);
+		`);
+
+		expect(listChatTurns(db, ['called', 'in-job', 'edited'], 0)).toEqual([
+			{
+				runId: 'called',
+				sessionId: 'chat',
+				workstreamId: 'w',
+				chatName: 'Ship it',
+				prompt: 'Clone acme/site',
+				status: 'succeeded',
+				startedAt: '2026-10-23T10:00:00Z',
+				finishedAt: '2026-10-23T10:01:00Z',
+			},
+		]);
+		expect(listChatTurns(db, ['called'], 2).map(({ runId, status }) => [runId, status])).toEqual([
+			['running', 'running'],
+			['failed', 'failed'],
+			['called', 'succeeded'],
+		]);
 		db.close();
 	});
 });

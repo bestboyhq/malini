@@ -1,6 +1,7 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
 import type {
 	AgentActionRecord,
+	ChatTurnRecord,
 	JobDefinitionRecord,
 	JobExperimentRecord,
 	JobExperimentsRecord,
@@ -38,6 +39,10 @@ class JobsService {
 
 	listAgentActions(): Promise<AgentActionRecord[]> {
 		return this.#invoke('jobs.list-agent-actions', undefined);
+	}
+
+	listChatTurns(every: boolean): Promise<ChatTurnRecord[]> {
+		return this.#invoke('jobs.list-chat-turns', { every });
 	}
 
 	listChatRuns(chatSessionId: string): Promise<JobRunRecord[]> {

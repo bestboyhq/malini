@@ -90,10 +90,13 @@ A failure shows in the top bar, where pull request problems always do.
 
 ## See what the agent did
 
-**Jobs > Activity** lists every call an agent made to Malini's tools, beside your job runs, by day.
-Each row names the call, the workstream of its chat, how it was approved, and when it finished.
-Open a row to see what the agent called it with and what came back, or the error, and **Open chat** to read the turn that made it.
-A call you denied shows too, as **You denied it**.
+A chat is a job without a preset, so **Jobs > Activity** lists both as runs, by day: job runs marked **Job** and chat turns marked **Chat**.
+A chat turn shows when its agent called Malini's tools; turn on **Every chat turn** to list the latest ones too.
+
+- **N calls** on a run folds open every call its agent made to Malini, in order: what it was, how it was approved, and when it finished.
+- Open a call to see what the agent called it with and what came back, or the error, and **Open chat** to read the turn that made it.
+- A call you denied shows too, as **You denied it**.
+- A job an agent started with `jobs_run` reads **Started by an agent**, and its own calls fold under it.
 
 ## Edits you review
 

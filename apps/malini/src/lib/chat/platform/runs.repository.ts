@@ -1,4 +1,5 @@
 import type { AgentRunProfile } from '$contract/agent';
+import type { ChatTurnRecord } from '$contract/jobs';
 import {
 	nextSessionStatus,
 	PAUSED_FOR_EXIT_ERROR,
@@ -317,4 +318,57 @@ export function listRunActivity(db: MaliniDatabase): RunActivity[] {
 		jobRuns: row.job_runs,
 		seconds: row.seconds,
 	}));
+}
+
+const CHAT_TURN_PROMPT_CHARS = 300;
+
+interface ChatTurnRow {
+	id: string;
+	session_id: string;
+	workstream_id: string;
+	display_name: string;
+	prompt: string;
+	started_at: string;
+	completed_at: string | null;
+	error: string | null;
+}
+
+export function listChatTurns(
+	db: MaliniDatabase,
+	runIds: readonly string[],
+	latest: number,
+): ChatTurnRecord[] {
+	return all<ChatTurnRow>(
+		db,
+		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.started_at,
+		        r.completed_at, r.error
+		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
+		   AND (r.id IN (SELECT value FROM json_each(?))
+		     OR r.id IN (SELECT latest.id FROM agent_runs latest
+		                 JOIN agent_sessions owner ON owner.id = latest.session_id
+		                 WHERE owner.origin = 'user' AND latest.obsoleted_at IS NULL
+		                 ORDER BY latest.started_at DESC LIMIT ?))
+		 ORDER BY r.started_at DESC`,
+		JSON.stringify(runIds),
+		latest,
+	).map((row) => ({
+		runId: row.id,
+		sessionId: row.session_id,
+		workstreamId: row.workstream_id,
+		chatName: row.display_name,
+		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
+		status: row.completed_at === null ? 'running' : row.error === null ? 'succeeded' : 'failed',
+		startedAt: row.started_at,
+		finishedAt: row.completed_at,
+	}));
+}
+
+function firstLine(text: string): string {
+	return (
+		text
+			.split('\n')
+			.map((line) => line.trim())
+			.find(Boolean) ?? ''
+	);
 }

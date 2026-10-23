@@ -54,6 +54,19 @@ test('an agent runs the Open draft job once the user allows it, and the draft op
 		});
 		expect(github.pullRequest()).toMatchObject({ isDraft: true, title: 'feat: add alpha' });
 		expect(github.pushedSubjects()).toEqual(['feat: add alpha', 'seed']);
+
+		await openJobs(page, '#/jobs/activity');
+		const activity = page.getByTestId('automations-activity');
+		await expect(
+			activity.getByTestId('job-run-row').filter({ hasText: 'Open draft' }),
+		).toContainText('Started by an agent', { timeout: 20_000 });
+		const turn = activity.getByTestId('chat-turn-row');
+		await expect(turn).toHaveCount(1);
+		await expect(turn).toContainText('Chat');
+		await turn.getByRole('button', { name: /^Show 1 call in / }).click();
+		await expect(activity.getByRole('list', { name: /^Calls in / })).toContainText(
+			'Run job ‘Open draft’',
+		);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -245,8 +258,17 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		await openJobs(page, '#/jobs/activity');
 		const activity = page.getByTestId('automations-activity');
+		const turns = activity.getByTestId('chat-turn-row');
+		await expect(turns).toHaveCount(4, { timeout: 20_000 });
 		const calls = activity.getByTestId('agent-action-row');
-		await expect(calls).toHaveCount(4, { timeout: 20_000 });
+		await expect(calls).toHaveCount(0);
+		for (let index = 0; index < 4; index += 1) {
+			await turns
+				.nth(index)
+				.getByRole('button', { name: /^Show 1 call in / })
+				.click();
+		}
+		await expect(calls).toHaveCount(4);
 		await expect(calls.nth(0)).toContainText(`Hide ‘${kennelName}’`);
 		await expect(calls.nth(0)).toContainText('You allowed it');
 		await expect(calls.nth(1)).toContainText('Archive ‘Fetch’');
