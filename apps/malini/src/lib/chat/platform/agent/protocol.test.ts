@@ -298,6 +298,27 @@ describe('event frames', () => {
 	});
 });
 
+describe('MCP server frames', () => {
+	it('decodes what a watched folder lists and where a switch reached', () => {
+		const listed = {
+			type: 'bridge.mcp_servers',
+			protocolVersion: BRIDGE_PROTOCOL_VERSION,
+			cwd: '/work/one',
+			servers: [{ name: 'linear', status: 'pending', source: 'user' }],
+			settled: false,
+		};
+		expect(decodeControlFrame(listed)).toEqual({ ok: true, value: listed });
+		const switched = {
+			type: 'bridge.mcp_switched',
+			protocolVersion: BRIDGE_PROTOCOL_VERSION,
+			id: 'switch-1',
+			folders: ['/work/one'],
+		};
+		expect(decodeControlFrame(switched)).toEqual({ ok: true, value: switched });
+		expect(decodeControlFrame({ ...switched, folders: [1] })).toMatchObject({ ok: false });
+	});
+});
+
 describe('browser requests', () => {
 	const frame = {
 		type: 'bridge.browser_request',

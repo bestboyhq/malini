@@ -9,6 +9,7 @@ import {
 	bridgeMcpAuthorizationFrame,
 	bridgeMcpServerFrame,
 	bridgeMcpServersFrame,
+	bridgeMcpSwitchedFrame,
 	bridgePlatformRequestFrame,
 	bridgeProtocolErrorFrame,
 	bridgeReadyFrame,
@@ -19,20 +20,25 @@ import {
 	type AgentSkill,
 	type BridgeControlFrame,
 	type CancelMcpAuthorizationCommand,
-	type ListMcpServersCommand,
 	type ListSkillsCommand,
 	type McpServerCommand,
 	type SuggestTitleCommand,
+	type SwitchMcpServerCommand,
 	type TurnedOffSkills,
 	type BrowserRequest,
 	type BrowserResult,
 	type PlatformRequest,
 	type PlatformResult,
 	type ProviderCapability,
+	type WatchMcpServersCommand,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
 import { registerClaudeProvider } from './claude/index.js';
-import { claudeMcpServers, type McpServerProbes } from './claude/mcp-servers.js';
+import {
+	claudeMcpServers,
+	type McpServerProbes,
+	type McpServerWatch,
+} from './claude/mcp-servers.js';
 import { listClaudeSkills } from './claude/skills.js';
 import { suggestClaudeTitle, type TitleJob } from './claude/titles.js';
 import { BRIDGE_HEARTBEAT_INTERVAL_MS } from './generated/protocol-contract.js';
@@ -77,6 +83,12 @@ export interface AttachedIpc extends IpcBundle {
 
 const CAPABILITY_DISCOVERY_FAILURE_MESSAGE = 'Could not check Claude Code';
 const REQUEST_TIMEOUT_MS = 60_000;
+const MCP_WATCH_LEASE_MS = 90_000;
+
+interface McpWatcher {
+	readonly watch: McpServerWatch;
+	lease: NodeJS.Timeout;
+}
 
 interface PendingRequest {
 	readonly sessionId: string;
@@ -176,7 +188,11 @@ function sanitizeControlFrameErrors(frame: BridgeControlFrame): BridgeControlFra
 		case 'bridge.mcp_server':
 			return { ...frame, server: sanitizeMcpServer(frame.server) };
 		case 'bridge.mcp_servers':
-			return { ...frame, servers: frame.servers.map(sanitizeMcpServer) };
+			return {
+				...frame,
+				servers: frame.servers.map(sanitizeMcpServer),
+				...(frame.error === undefined ? {} : { error: sanitizePublicError(frame.error) }),
+			};
 		default:
 			return frame;
 	}
@@ -216,6 +232,8 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 	const sessionFolders = new Map<string, string>();
 	const mcpServers = options.mcpServers ?? claudeMcpServers;
 	const signIns = new Map<string, () => void>();
+	const watchers = new Map<string, McpWatcher>();
+	const switches = new Map<string, Promise<void>>();
 	const startingSessions = new Map<string, Promise<void>>();
 	const inFlightPromises = new Set<Promise<void>>();
 	const activeRunSessions = new Set<string>();
@@ -263,8 +281,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			trackInFlight(answerMcpServer(cmd));
 			return;
 		}
-		if (cmd.cmd === 'list_mcp_servers') {
-			trackInFlight(answerMcpServers(cmd));
+		if (cmd.cmd === 'watch_mcp_servers') {
+			watchMcpServers(cmd);
+			return;
+		}
+		if (cmd.cmd === 'switch_mcp_server') {
+			trackInFlight(queueMcpSwitch(cmd));
 			return;
 		}
 		if (cmd.cmd === 'cancel_mcp_authorization') {
@@ -602,9 +624,12 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 					throw new Error('the provider cannot reconnect MCP servers');
 				await handle.reconnectMcpServer(cmd.serverName);
 			} else {
-				const server = await mcpServers.probe(cwd, cmd.serverName);
+				const watch = watchers.get(cwd)?.watch;
+				const server = watch
+					? await watch.reconnect(cmd.serverName)
+					: await mcpServers.probe(cwd, cmd.serverName);
 				if (!server) throw new Error(`Claude Code has no MCP server named ${cmd.serverName}`);
-				await announceMcpServer(server);
+				await announceMcpServer(server, watch);
 			}
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
@@ -632,25 +657,104 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		if (server) await announceMcpServer(server);
 	}
 
-	async function announceMcpServer(server: McpServerReport): Promise<void> {
+	async function announceMcpServer(
+		server: McpServerReport,
+		announcedBy?: McpServerWatch,
+	): Promise<void> {
 		if (server.status === 'connected') {
-			await Promise.all(
-				[...handles.values()].map((handle) =>
+			await Promise.all([
+				...[...handles.values()].map((handle) =>
 					handle.adoptMcpServer?.(server).catch(() => undefined),
 				),
-			);
+				...[...watchers.values()]
+					.filter(({ watch }) => watch !== announcedBy)
+					.map(({ watch }) => watch.reconnect(server.name).catch(() => undefined)),
+			]);
 		}
 		emitControl(bridgeMcpServerFrame(server));
 	}
 
-	async function answerMcpServers(cmd: ListMcpServersCommand): Promise<void> {
+	function watchMcpServers(cmd: WatchMcpServersCommand): void {
+		const watching = watchers.get(cmd.cwd);
+		if (watching && cmd.restart) {
+			clearTimeout(watching.lease);
+			watching.watch.close();
+			watchers.delete(cmd.cwd);
+		} else if (watching) {
+			clearTimeout(watching.lease);
+			watching.lease = leaseFor(cmd.cwd);
+			const listing = watching.watch.current();
+			if (listing) emitControl(bridgeMcpServersFrame(cmd.cwd, listing));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+			return;
+		}
 		try {
-			const servers = await mcpServers.list(cmd.cwd);
-			emitControl(bridgeMcpServersFrame(cmd.id, servers));
+			const watch = mcpServers.watch(cmd.cwd, (listing) =>
+				emitControl(bridgeMcpServersFrame(cmd.cwd, listing)),
+			);
+			watchers.set(cmd.cwd, { watch, lease: leaseFor(cmd.cwd) });
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `MCP_SERVERS_FAILED: ${errorMessage(err)}`));
 		}
+	}
+
+	function leaseFor(cwd: string): NodeJS.Timeout {
+		const lease = setTimeout(() => {
+			watchers.get(cwd)?.watch.close();
+			watchers.delete(cwd);
+		}, MCP_WATCH_LEASE_MS);
+		lease.unref();
+		return lease;
+	}
+
+	async function queueMcpSwitch(cmd: SwitchMcpServerCommand): Promise<void> {
+		const previous = switches.get(cmd.serverName);
+		const queued = (async (): Promise<void> => {
+			await previous;
+			await switchMcpServer(cmd);
+		})();
+		switches.set(cmd.serverName, queued);
+		try {
+			await queued;
+		} finally {
+			if (switches.get(cmd.serverName) === queued) switches.delete(cmd.serverName);
+		}
+	}
+
+	async function switchMcpServer(cmd: SwitchMcpServerCommand): Promise<void> {
+		absorbMcpConfig();
+		const live = await Promise.all(
+			[...handles].map(async ([sessionId, handle]) => {
+				const folder = sessionFolders.get(sessionId);
+				const switched = await handle.switchMcpServer?.(cmd.serverName, cmd.on).catch(() => false);
+				return switched && folder !== undefined ? [folder] : [];
+			}),
+		);
+		const switched = new Set(live.flat());
+		absorbMcpConfig();
+		if (!cmd.on) {
+			emitControl(bridgeMcpSwitchedFrame(cmd.id, [...switched]));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+			return;
+		}
+		await Promise.all(
+			[...watchers.values()].map(({ watch }) => watch.turnOn(cmd.serverName).catch(() => false)),
+		);
+		const cleared: string[] = [];
+		for (const folder of cmd.folders) {
+			const clear = switched.has(folder)
+				? true
+				: await mcpServers.turnOn(folder, cmd.serverName).catch(() => false);
+			if (clear) cleared.push(folder);
+		}
+		absorbMcpConfig();
+		emitControl(bridgeMcpSwitchedFrame(cmd.id, cleared));
+		emitControl(bridgeCommandAckFrame(cmd.id));
+	}
+
+	function absorbMcpConfig(): void {
+		for (const { watch } of watchers.values()) watch.absorbConfig();
 	}
 
 	async function handleCancelRun(cmd: AgentCommand): Promise<string | null> {

@@ -34,6 +34,8 @@ const ALL_TABLES = [
 	'job_runs',
 	'job_setups',
 	'job_suggestions',
+	'mcp_server_folder_offs',
+	'mcp_server_listings',
 	'projects',
 	'scratchpads',
 	'settings',

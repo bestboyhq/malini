@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -48,6 +48,35 @@ async function captureOpenedUrls(app: LaunchedApp): Promise<() => Promise<string
 
 function deniedServers(settingsFile: string): unknown {
 	return JSON.parse(readFileSync(settingsFile, 'utf8')).deniedMcpServers ?? [];
+}
+
+function liveSwitches(commandLog: string): unknown[] {
+	let lines: string[];
+	try {
+		lines = readFileSync(commandLog, 'utf8').split('\n').filter(Boolean);
+	} catch {
+		return [];
+	}
+	return lines
+		.map((line): unknown => JSON.parse(line))
+		.flatMap((command) =>
+			isRecord(command) && command['cmd'] === 'switch_mcp_server'
+				? [{ serverName: command['serverName'], on: command['on'], folders: command['folders'] }]
+				: [],
+		);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+async function openMcpSettings(page: LaunchedApp['page']): Promise<Locator> {
+	await page.getByTestId('sidebar-open-settings').click();
+	await page
+		.getByRole('navigation', { name: 'Settings' })
+		.getByRole('link', { name: 'MCP servers' })
+		.click();
+	return page.getByRole('region', { name: 'MCP servers' });
 }
 
 test('the MCP panel groups servers by their fix, and Fix walks them one after another', async () => {
@@ -212,6 +241,112 @@ test('skipping a sign-in in Fix stops waiting for it', async () => {
 		await expect(
 			panel.getByRole('region', { name: 'Sign in' }).getByTestId('session-mcp-display-name'),
 		).toHaveText(['Linear']);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a switch reaches the Claude Code of an open chat at once and is undone where it was off', async () => {
+	test.setTimeout(180_000);
+	const { root } = claudeHome();
+	const commandLog = join(root, 'mcp-commands.jsonl');
+	const app = await launchMalini({
+		profile: root,
+		env: {
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify(SERVERS),
+			FAKE_BRIDGE_MCP_COMMAND_LOG: commandLog,
+		},
+	});
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-live-ws', 'MCP live');
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Check the servers');
+		await expectAssistantReply(page);
+		const settings = await openMcpSettings(page);
+		const memory = settings.getByRole('switch', { name: 'MCP server Codebase Memory' });
+
+		await memory.click();
+		await expect
+			.poll(() => liveSwitches(commandLog))
+			.toEqual([{ serverName: 'codebase-memory-mcp', on: false, folders: [] }]);
+		await expect(settings.locator('[data-mcp-server-id="codebase-memory-mcp"]')).toHaveAttribute(
+			'data-mcp-status',
+			'off',
+		);
+		await expect(settings.getByRole('region', { name: 'Your servers' })).toContainText(
+			'Codebase Memory',
+		);
+
+		await memory.click();
+		await expect
+			.poll(() => liveSwitches(commandLog))
+			.toEqual([
+				{ serverName: 'codebase-memory-mcp', on: false, folders: [] },
+				{
+					serverName: 'codebase-memory-mcp',
+					on: true,
+					folders: [expect.stringContaining(workstreamId)],
+				},
+			]);
+		await page.getByRole('button', { name: 'Close settings' }).click();
+		await page.getByRole('button', { name: 'View MCP server status' }).hover();
+		await expect(
+			page
+				.getByRole('dialog', { name: 'MCP server status' })
+				.getByTestId('session-mcp-ready-count'),
+		).toHaveText('2 of 6 ready');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Settings shows the MCP servers it saw last time at once after a relaunch', async () => {
+	test.setTimeout(180_000);
+	const { root } = claudeHome();
+	const first = await launchMalini({
+		profile: root,
+		env: { FAKE_BRIDGE_MCP_SERVERS: JSON.stringify(SERVERS) },
+	});
+	let workstreamId: string;
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root);
+		({ workstreamId } = await seedWorkstream(page, source, 'e2e-mcp-cache-ws', 'MCP cache'));
+		await openWorkstream(page, workstreamId);
+		const settings = await openMcpSettings(page);
+		await expect(settings.locator('[data-mcp-server-id]')).toHaveCount(SERVERS.length);
+		expectCleanConsole(first);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({
+		profile: root,
+		env: {
+			FAKE_BRIDGE_MCP_SERVERS: JSON.stringify(SERVERS),
+			FAKE_BRIDGE_MCP_WATCH_DELAY_MS: '600000',
+		},
+	});
+	try {
+		const { page } = app;
+		await openWorkstream(page, workstreamId);
+		const settings = await openMcpSettings(page);
+
+		await expect(settings.locator('[data-mcp-server-id]')).toHaveCount(SERVERS.length);
+		await expect(settings.locator('[data-mcp-server-id="codebase-memory-mcp"]')).toHaveAttribute(
+			'data-mcp-status',
+			'connected',
+		);
+		await expect(settings.getByRole('button', { name: 'Check MCP servers again' })).toBeDisabled();
+		await captureFlow(app, 'mcp-settings-cached');
 
 		expectCleanConsole(app);
 	} finally {

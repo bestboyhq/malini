@@ -51,12 +51,12 @@ import type {
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type {
-	ListMcpServersArgs,
 	McpAuthorization,
 	McpServerArgs,
 	McpServerList,
 	McpServerNameArgs,
 	SwitchMcpServerArgs,
+	WatchMcpServersArgs,
 } from './mcp-servers';
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
@@ -558,7 +558,7 @@ export interface ContractCommands {
 	'chat.refresh-session-status': { args: SessionIdArgs; result: void };
 	'chat.authorize-mcp-server': { args: McpServerArgs; result: McpAuthorization };
 	'chat.reconnect-mcp-server': { args: McpServerArgs; result: void };
-	'chat.list-mcp-servers': { args: ListMcpServersArgs; result: McpServerList };
+	'chat.watch-mcp-servers': { args: WatchMcpServersArgs; result: McpServerList };
 	'chat.turned-off-mcp-servers': { args: undefined; result: readonly string[] };
 	'chat.switch-mcp-server': { args: SwitchMcpServerArgs; result: readonly string[] };
 	'chat.cancel-mcp-sign-in': { args: McpServerNameArgs; result: void };
@@ -783,7 +783,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.refresh-session-status',
 	'chat.authorize-mcp-server',
 	'chat.reconnect-mcp-server',
-	'chat.list-mcp-servers',
+	'chat.watch-mcp-servers',
 	'chat.turned-off-mcp-servers',
 	'chat.switch-mcp-server',
 	'chat.cancel-mcp-sign-in',

@@ -70,6 +70,7 @@ export interface FakeRun {
 	readonly followUps: string[];
 	readonly efforts: unknown[];
 	readonly reconnectedMcpServers: string[];
+	readonly switchedMcpServers: string[];
 	interrupted: boolean;
 	closed: boolean;
 }
@@ -163,11 +164,13 @@ export function fakeClaude(
 			followUps: [],
 			efforts: [],
 			reconnectedMcpServers: [],
+			switchedMcpServers: [],
 			interrupted: false,
 			closed: false,
 		};
 		runs.push(run);
 		let iterating = true;
+		const disabled = new Set<string>();
 		const whileIterating = async <T>(answer: T): Promise<T> => {
 			if (!iterating) throw new Error('Claude Code closed when the session stopped reading');
 			return answer;
@@ -224,10 +227,21 @@ export function fakeClaude(
 				return {};
 			},
 			async mcpServerStatus() {
-				return initServers(script).map(({ name }) => ({ name, status: 'connected' as const }));
+				return initServers(script).map(({ name }) => ({
+					name,
+					status: disabled.has(name) ? ('disabled' as const) : ('connected' as const),
+				}));
 			},
 			async reconnectMcpServer(name) {
 				run.reconnectedMcpServers.push(name);
+			},
+			async toggleMcpServer(name, enabled) {
+				if (!initServers(script).some((server) => server.name === name)) {
+					throw new Error(`MCP server ${name} not found`);
+				}
+				run.switchedMcpServers.push(`${name} ${enabled ? 'on' : 'off'}`);
+				if (enabled) disabled.delete(name);
+				else disabled.add(name);
 			},
 			getContextUsage() {
 				return whileIterating({

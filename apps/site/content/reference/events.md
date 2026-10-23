@@ -83,6 +83,29 @@ type McpServerReport = Readonly<{
 }>;
 ```
 
+## `chat:mcp-servers-listed`
+
+Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.
+
+Payload: `McpServerListing`
+
+```ts
+type McpServerReport = Readonly<{
+	name: string;
+	status: string;
+	error?: string;
+	source?: string;
+	toolCount?: number;
+}>;
+
+type McpServerListing = Readonly<{
+	workstreamId: string | null;
+	servers: readonly McpServerReport[];
+	settled: boolean;
+	error?: string;
+}>;
+```
+
 ## `repositories:workstream-created`
 
 Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.

@@ -38,6 +38,7 @@ import {
 	eventToPersistable,
 	isEphemeralEvent,
 	isTerminalEvent,
+	type AgentMcpServerListing,
 	type BridgeAgentRequest,
 	type BridgeEvent,
 } from './protocol';
@@ -69,6 +70,7 @@ export interface RunFinishedInput {
 export interface BridgeRuntimeHooks {
 	readonly onRunFinished?: (input: RunFinishedInput) => Promise<void> | void;
 	readonly onAgentRequest?: (request: BridgeAgentRequest, supervisor: BridgeSupervisor) => void;
+	readonly onMcpServers?: (listing: AgentMcpServerListing, supervisor: BridgeSupervisor) => void;
 }
 
 export interface BridgeRuntimeDeps {
@@ -708,12 +710,19 @@ export class BridgeRuntime {
 			}
 			this.hooks.onAgentRequest?.(request, supervisor);
 		});
-		const unsubscribeMcpServers = supervisor.onMcpServer((server) => {
+		const unsubscribeMcpServer = supervisor.onMcpServer((server) => {
+			if (this.eventGeneration !== generation) {
+				unsubscribeMcpServer();
+				return;
+			}
+			this.events.emit(CHAT_MCP_SERVER_CHANGED_CHANNEL, server);
+		});
+		const unsubscribeMcpServers = supervisor.onMcpServers((listing) => {
 			if (this.eventGeneration !== generation) {
 				unsubscribeMcpServers();
 				return;
 			}
-			this.events.emit(CHAT_MCP_SERVER_CHANGED_CHANNEL, server);
+			this.hooks.onMcpServers?.(listing, supervisor);
 		});
 	}
 
