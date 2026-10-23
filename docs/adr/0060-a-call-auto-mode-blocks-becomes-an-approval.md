@@ -1,4 +1,4 @@
-# 0058 - A call auto mode blocks becomes an approval
+# 0060 - A call auto mode blocks becomes an approval
 
 Status: accepted
 

@@ -16,7 +16,7 @@
 	<div class="min-w-0">
 		<h3 id="usage-data-label" class="text-fg-default text-sm font-medium">Share usage data</h3>
 		<p class="text-fg-tertiary text-xs">
-			Anonymous feature usage and errors. Never your code, prompts, paths or keys.
+			Anonymous daily use, run counts and error names. Never your code, prompts, paths or keys.
 		</p>
 	</div>
 	<Switch

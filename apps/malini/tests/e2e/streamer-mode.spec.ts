@@ -77,8 +77,7 @@ test('streamer mode hides the home folder in a typed path until the field is foc
 			.getByRole('group', { name: 'Streamer mode' })
 			.getByRole('button', { name: 'On' })
 			.click();
-		await page.keyboard.press('Escape');
-		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+		await closeSettings(page);
 		await page.evaluate(() => {
 			location.hash = '#/';
 		});
@@ -119,6 +118,12 @@ async function openSettings(page: Page, section: string): Promise<void> {
 	);
 }
 
+async function closeSettings(page: Page): Promise<void> {
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
+	await expect(page).not.toHaveURL(/#\/settings/u);
+}
+
 test('streamer mode masks an email and a home folder with asterisks, in the composer too', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -131,8 +136,7 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 			.getByRole('group', { name: 'Streamer mode' })
 			.getByRole('button', { name: 'On' })
 			.click();
-		await page.keyboard.press('Escape');
-		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+		await closeSettings(page);
 		await openWorkstream(page, workstreamId);
 		const composer = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
 		await composer.click();
