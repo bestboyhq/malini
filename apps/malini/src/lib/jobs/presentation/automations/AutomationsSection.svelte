@@ -14,9 +14,9 @@
 	const headingId = $props.id();
 </script>
 
-<ScrollableDiv class="min-h-0 flex-1" ariaLabel={title}>
+<ScrollableDiv class="min-h-0 flex-1" ariaLabel={title} fadeEdges>
 	<section
-		class="@container mx-auto flex w-full max-w-[880px] flex-col gap-1.5 px-1.5 pt-4 pb-1.5"
+		class="@container mx-auto flex w-full max-w-[880px] flex-col gap-1.5 px-1.5 pt-1 pb-1.5"
 		aria-labelledby={headingId}
 		data-testid={testId}
 	>

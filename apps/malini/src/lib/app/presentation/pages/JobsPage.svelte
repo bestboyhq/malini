@@ -17,10 +17,7 @@
 	<title>Malini · {TITLES[view]}</title>
 </svelte:head>
 
-<main class="flex h-full min-h-0 p-2" data-testid="jobs-page">
-	<div
-		class="bg-surface-50 border-surface-50-border flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border-[0.5px]"
-	>
-		<Automations {view} {selectedJobId} />
-	</div>
+<main class="flex h-full min-h-0 min-w-0 flex-col" data-testid="jobs-page">
+	<div class="native-page-drag-strip" data-native-drag-region></div>
+	<Automations {view} {selectedJobId} />
 </main>
