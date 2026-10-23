@@ -32,7 +32,9 @@ import type {
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { MenuCommandChosen, NotificationTarget } from './events';
 import type {
+	AgentActionRecord,
 	ChatJobRunsArgs,
+	ChatTurnRecord,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
 	JobExperimentIdArgs,
@@ -45,6 +47,7 @@ import type {
 	JobSetupRecord,
 	JobSuggestionIdArgs,
 	JobSuggestionRecord,
+	ListChatTurnsArgs,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 	SaveJobExperimentArgs,
@@ -498,6 +501,8 @@ export interface ContractCommands {
 	'jobs.save-experiment': { args: SaveJobExperimentArgs; result: JobExperimentRecord };
 	'jobs.delete-experiment': { args: JobExperimentIdArgs; result: null };
 	'jobs.run-experiment': { args: JobExperimentIdArgs; result: JobExperimentRecord };
+	'jobs.list-agent-actions': { args: undefined; result: AgentActionRecord[] };
+	'jobs.list-chat-turns': { args: ListChatTurnsArgs; result: ChatTurnRecord[] };
 	'jobs.use-experiment': { args: JobExperimentIdArgs; result: JobDefinitionRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
@@ -745,6 +750,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.delete-experiment',
 	'jobs.run-experiment',
 	'jobs.use-experiment',
+	'jobs.list-agent-actions',
+	'jobs.list-chat-turns',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',

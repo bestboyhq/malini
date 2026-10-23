@@ -15,6 +15,7 @@ export {
 export {
 	getRunWorkstreamId,
 	getWorkstreamRun,
+	listChatTurns,
 	listOpenRuns,
 	listRunActivity,
 	type RunActivity,

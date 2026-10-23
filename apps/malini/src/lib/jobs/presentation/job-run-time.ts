@@ -13,6 +13,14 @@ export function jobRunTime(run: JobRunRecord, nowMs: number): string {
 	return ago(nowMs - Date.parse(jobRunLastActivityAt(run)));
 }
 
+export function activityTime(
+	entry: Readonly<{ status: string; startedAt: string; finishedAt: string | null }>,
+	nowMs: number,
+): string {
+	if (entry.status === 'running') return elapsed(nowMs - Date.parse(entry.startedAt));
+	return ago(nowMs - Date.parse(entry.finishedAt ?? entry.startedAt));
+}
+
 function elapsed(ms: number): string {
 	const total = Number.isFinite(ms) ? Math.max(0, ms) : 0;
 	const hours = Math.floor(total / HOUR_MS);

@@ -1,7 +1,14 @@
 import type { MaliniEditReview } from '$contract/approvals';
 import type { JobDefinitionRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
-import { jobDefinitions } from '$lib/jobs/jobs.platform';
+import { isRecord } from '$main/db/rows';
+import type { CommandOutcome } from '$main/ipc/registry';
+import {
+	jobDefinitions,
+	recordAgentAction,
+	type AgentActionContext,
+} from '$lib/jobs/jobs.platform';
+import { getInteraction } from '../interactions.repository';
 import { hasActivePermissionRule } from '../permissions.repository';
 import {
 	MALINI_TOOL_PREFIX,
@@ -43,8 +50,14 @@ export function assessMaliniApproval(
 	};
 	const id = field('id');
 	switch (toolName.slice(MALINI_TOOL_PREFIX.length)) {
-		case 'pull_requests_open_draft':
-			return grant('pull-requests.open-draft');
+		case 'repositories_clone':
+			return grant('repositories.clone');
+		case 'repositories_hide':
+			return grant('repositories.hide');
+		case 'workstreams_create':
+			return grant('workstreams.create');
+		case 'workstreams_archive':
+			return grant('workstreams.archive');
 		case 'jobs_run': {
 			const [job, ...others] = jobsNamed(jobDefinitions(db), field('job') ?? '');
 			return job && others.length === 0 ? grant(`jobs.run:${job.id}`) : ASK;
@@ -73,12 +86,49 @@ export function jobsNamed(
 	return definitions.filter((definition) => definition.name.toLocaleLowerCase() === wanted);
 }
 
+const ACTION_LABELS: Readonly<Record<string, string>> = {
+	'jobs.save': 'Save jobs',
+	'repositories.clone': 'Clone repositories',
+	'repositories.hide': 'Hide repositories',
+	'workstreams.create': 'Start workstreams',
+	'workstreams.archive': 'Archive workstreams',
+};
+
 export function maliniActionLabel(db: MaliniDatabase, action: string): string {
-	if (action === 'pull-requests.open-draft') return 'Open draft pull requests';
-	if (action === 'jobs.save') return 'Save jobs';
+	const label = ACTION_LABELS[action];
+	if (label) return label;
 	const jobId = action.slice('jobs.run:'.length);
 	const job = jobDefinitions(db).find((definition) => definition.id === jobId);
 	return `Run ‘${job?.name ?? jobId}’`;
+}
+
+export function recordDeniedMaliniCall(context: AgentActionContext, outcome: CommandOutcome): void {
+	if (!outcome.ok || outcome.command !== 'chat.decide-approval') return;
+	const { args } = outcome;
+	if (!isRecord(args) || args['decision'] !== 'deny') return;
+	const { sessionId, runId, approvalId } = args;
+	if (
+		typeof sessionId !== 'string' ||
+		typeof runId !== 'string' ||
+		typeof approvalId !== 'string'
+	) {
+		return;
+	}
+	const record = getInteraction(context.db, 'approval', sessionId, runId, approvalId);
+	const request = record?.requestPayload;
+	if (!record || !isRecord(request)) return;
+	const { toolName, input } = request;
+	if (typeof toolName !== 'string' || !toolName.startsWith(MALINI_TOOL_PREFIX)) return;
+	recordAgentAction(context, {
+		sessionId,
+		runId,
+		workstreamId: record.workstreamId,
+		tool: toolName.slice(MALINI_TOOL_PREFIX.length),
+		input: isRecord(input) ? input : {},
+		status: 'denied',
+		approval: 'denied',
+		output: null,
+	});
 }
 
 function runsWithoutAsking(

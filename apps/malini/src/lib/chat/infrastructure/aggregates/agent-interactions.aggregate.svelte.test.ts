@@ -261,7 +261,7 @@ describe('AgentInteractionCommands', () => {
 		expect(
 			canPersistAgentApproval({
 				capability: 'execute',
-				resources: [{ kind: 'action', value: 'pull-requests.open-draft', boundary: 'workstream' }],
+				resources: [{ kind: 'action', value: 'repositories.clone', boundary: 'workstream' }],
 			}),
 		).toBe(true);
 		expect(

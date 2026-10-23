@@ -78,6 +78,7 @@ describe('run profile mapping', () => {
 				'Bash(git commit:*)',
 				'Bash(git push:*)',
 				'Bash(gh pr create:*)',
+				'Bash(gh pr merge:*)',
 				'Bash(git stash)',
 				'Bash(git stash -*)',
 				'Bash(git stash pop:*)',
@@ -178,9 +179,19 @@ describe('permissionDescriptor', () => {
 			capability: 'execute',
 			resources: [{ kind: 'tool', value: 'Run job ‘Update docs’', boundary: 'workstream' }],
 		});
-		expect(descriptor('pull_requests_open_draft', {})).toEqual({
+		expect(descriptor('repositories_hide', { repository: 'acme/site' })).toEqual({
 			capability: 'write',
-			resources: [{ kind: 'tool', value: 'Open a draft pull request', boundary: 'workstream' }],
+			resources: [{ kind: 'tool', value: 'Hide repository ‘acme/site’', boundary: 'workstream' }],
+		});
+		expect(descriptor('workstreams_create', { repository: 'acme/site' })).toEqual({
+			capability: 'write',
+			resources: [
+				{ kind: 'tool', value: 'Start a workstream in ‘acme/site’', boundary: 'workstream' },
+			],
+		});
+		expect(descriptor('repositories_list', {})).toEqual({
+			capability: 'external-service',
+			resources: [{ kind: 'service', value: 'malini', boundary: 'external' }],
 		});
 	});
 });
@@ -327,6 +338,7 @@ describe('maliniOwnedCommand', () => {
 		expect(maliniOwnedCommand('GIT_EDITOR=true git -c user.name=a rebase main')).toBe('git rebase');
 		expect(maliniOwnedCommand('env git stash')).toBe('git stash');
 		expect(maliniOwnedCommand('gh pr create --fill')).toBe('gh pr create');
+		expect(maliniOwnedCommand('gh pr merge 12 --squash')).toBe('gh pr merge');
 	});
 
 	it('leaves reads and quoted text alone', () => {

@@ -32,7 +32,7 @@ describe('parseAutomationTrigger event phrases', () => {
 
 	it('names the channels of the same domain for a misspelled channel', () => {
 		expect(() => parseAutomationTrigger('on jobs:run-finished')).toThrow(
-			'Unknown event channel "jobs:run-finished". jobs has jobs:run-changed, jobs:definition-changed, jobs:suggested, jobs:experiment-changed.',
+			'Unknown event channel "jobs:run-finished". jobs has jobs:run-changed, jobs:definition-changed, jobs:suggested, jobs:experiment-changed, jobs:agent-action-changed.',
 		);
 		expect(() => parseAutomationTrigger('on deploys:done')).toThrow(/with domains chat, /u);
 	});

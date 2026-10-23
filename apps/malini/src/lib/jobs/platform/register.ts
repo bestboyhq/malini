@@ -1,6 +1,8 @@
 import type { MainContext } from '$main/context';
+import { nowIso8601 } from '$main/db/rows';
 import type { JobsPlatform } from '../jobs.platform';
 import { defineJobCommands, seedBuiltinJobs } from './commands';
+import { settleInterruptedAgentActions } from './agent-actions.repository';
 import type { SuggestWithJob } from './automatic-jobs.service';
 import { checkCompatibilityAfterUpdates } from './compatibility-check';
 import { JobExperiments } from './job-experiments.service';
@@ -23,6 +25,7 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 		log,
 	);
 	seedBuiltinJobs(context.db);
+	settleInterruptedAgentActions(context.db, nowIso8601());
 	defineJobCommands(context, runner, experiments);
 	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
 	const triggers = startJobTriggers(context, log);

@@ -20,6 +20,10 @@ class WorkstreamEventsService {
 		};
 	}
 
+	onRepositoriesChanged(listener: () => void): () => void {
+		return onPlatformEvent('repositories:changed', () => listener());
+	}
+
 	onWorkstreamCreated(listener: (workstream: Workstream) => void): () => void {
 		return onPlatformEvent(
 			'repositories:workstream-created',

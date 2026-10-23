@@ -74,6 +74,11 @@ export {
 	type PullRequestAutomationContext,
 	type PullRequestAutomationEvent,
 } from './domain/pull-request-metadata';
-export { planWorkstreamProvisioning } from './domain/provisioning';
+export { listRepositoryCatalog, type CatalogRepository } from './platform/repository-catalog';
+export {
+	clonePlannedRepository,
+	createPlannedWorkstream,
+	planRepositoryWorkstream,
+} from './platform/workstream-start.service';
 export { displayWorkstreamName } from './domain/workstream-names';
 export { projectIdentityIdsForRepository, repositoryName } from './domain/repository-context';

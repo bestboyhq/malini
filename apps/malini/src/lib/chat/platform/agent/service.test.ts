@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobDefinitionRecord } from '$contract/jobs';
-import { run } from '$main/db/rows';
+import { all, run } from '$main/db/rows';
 import { AgentRunLeases } from './lifecycle';
 import type { BridgeProcess, BridgeProcessFactory } from './process';
 import {
@@ -490,26 +490,18 @@ describe('platform requests from the agent', () => {
 		});
 	});
 
-	it('asks the merge queue to open a draft of the session workstream and answers before the turn ends', async () => {
+	it('lists, hides and archives through the registered commands, never archives its own workstream, and logs every call', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedWorkstream(test.db, test.appDataRoot, 'ws-2');
 		seedSession(test.db, 'sess-1', 'ws-1');
-		const opened: unknown[] = [];
-		test.context.commands.define('pull-requests.open-draft', (args) => {
-			opened.push(args);
-			return {
-				workstreamId: 'ws-1',
-				phase: 'draft',
-				step: 'opening-draft',
-				pullRequestNumber: null,
-				pullRequestUrl: null,
-				needsYou: null,
-				queuedAt: null,
-				attempts: 0,
-				activeJobRunId: null,
-				lastError: null,
-				nextAttemptAt: null,
-				updatedAt: '2026-10-23T00:00:00.000Z',
-			};
+		const calls: Array<readonly [string, unknown]> = [];
+		const { commands } = test.context;
+		commands.define('repositories.set-hidden', (args) => {
+			calls.push(['repositories.set-hidden', args]);
+		});
+		commands.define('repositories.archive-workstream', (args) => {
+			calls.push(['repositories.archive-workstream', args]);
+			return { savedWork: null };
 		});
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
@@ -521,14 +513,113 @@ describe('platform requests from the agent', () => {
 			log: () => {},
 		});
 
-		bridge.send(platformRequest('p-1', 'pull_requests_open_draft', {}));
-
-		const result = (): Record<string, unknown> | undefined =>
-			bridge.received.find((command) => command['cmd'] === 'platform_result');
-		await waitFor(() => result() !== undefined, 5_000, 'the open draft result');
-		expect(opened).toEqual([{ workstreamId: 'ws-1' }]);
-		expect(JSON.parse(String(result()?.['text']))).toEqual({
-			status: 'Malini opens the draft pull request once this turn ends.',
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'platform_result');
+		const answer = async (requestId: string): Promise<unknown> => {
+			await waitFor(
+				() => results().some((command) => command['requestId'] === requestId),
+				5_000,
+				requestId,
+			);
+			const result = results().find((command) => command['requestId'] === requestId);
+			return result?.['ok'] === true ? JSON.parse(String(result['text'])) : result?.['error'];
+		};
+		bridge.send(platformRequest('p-1', 'repositories_list', {}));
+		expect(await answer('p-1')).toEqual([
+			{
+				id: 'local:project-ws-1',
+				name: 'project-ws-1',
+				defaultBranch: 'main',
+				cloned: true,
+				hidden: false,
+			},
+			expect.objectContaining({ id: 'local:project-ws-2', cloned: true }),
+		]);
+		bridge.send(platformRequest('p-2', 'repositories_hide', { repository: 'Project-WS-2' }));
+		expect(await answer('p-2')).toMatchObject({ id: 'local:project-ws-2', hidden: true });
+		bridge.send(platformRequest('p-3', 'workstreams_list', { repository: 'project-ws-1' }));
+		expect(await answer('p-3')).toEqual([
+			{
+				id: 'ws-1',
+				name: 'Bright Arc',
+				repository: 'project-ws-1',
+				branch: 'malini/ws-1',
+				baseBranch: 'main',
+				current: true,
+			},
+		]);
+		bridge.send(platformRequest('p-4', 'workstreams_archive', { workstream: 'ws-1' }));
+		expect(await answer('p-4')).toBe(
+			'This chat runs in that workstream, so you cannot archive it. The user archives it from the sidebar.',
+		);
+		bridge.send(platformRequest('p-5', 'workstreams_archive', { workstream: 'bright arc' }));
+		expect(await answer('p-5')).toBe(
+			'Several workstreams are named “bright arc”. Pass the id from workstreams_list instead.',
+		);
+		bridge.send(platformRequest('p-6', 'workstreams_archive', { workstream: 'ws-2' }));
+		expect(await answer('p-6')).toEqual({
+			id: 'ws-2',
+			name: 'Bright Arc',
+			archived: true,
+			savedWork: null,
 		});
+		bridge.send(platformRequest('p-7', 'repositories_clone', { repository: '--upload-pack=x' }));
+		expect(await answer('p-7')).toBe(
+			'`repository` must be owner/name, or a git URL that starts with https://, ssh://, file:// or git@.',
+		);
+
+		expect(calls).toEqual([
+			['repositories.set-hidden', { repoId: 'local:project-ws-2', hidden: true }],
+			['repositories.archive-workstream', { workstreamId: 'ws-2' }],
+		]);
+		expect(
+			all(
+				test.db,
+				'SELECT tool, workstream_id, status, approval FROM agent_actions ORDER BY rowid',
+			),
+		).toEqual([
+			{
+				tool: 'repositories_list',
+				workstream_id: 'ws-1',
+				status: 'succeeded',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'repositories_hide',
+				workstream_id: 'ws-1',
+				status: 'succeeded',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'workstreams_list',
+				workstream_id: 'ws-1',
+				status: 'succeeded',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'workstreams_archive',
+				workstream_id: 'ws-1',
+				status: 'failed',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'workstreams_archive',
+				workstream_id: 'ws-1',
+				status: 'failed',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'workstreams_archive',
+				workstream_id: 'ws-1',
+				status: 'succeeded',
+				approval: 'not-needed',
+			},
+			{
+				tool: 'repositories_clone',
+				workstream_id: 'ws-1',
+				status: 'failed',
+				approval: 'not-needed',
+			},
+		]);
 	});
 });

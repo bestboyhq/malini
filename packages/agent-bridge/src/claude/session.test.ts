@@ -224,6 +224,8 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_reload',
 			'mcp__malini__jobs_list',
 			'mcp__malini__events_list',
+			'mcp__malini__repositories_list',
+			'mcp__malini__workstreams_list',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([
 			{ malini: 'default' },
