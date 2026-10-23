@@ -1,4 +1,4 @@
 interface ImportMetaEnv {
-	readonly MAIN_VITE_POSTHOG_KEY?: string;
-	readonly MAIN_VITE_POSTHOG_HOST?: string;
+	readonly MAIN_VITE_LOGDASH_SITE?: string;
+	readonly MAIN_VITE_LOGDASH_API_KEY?: string;
 }

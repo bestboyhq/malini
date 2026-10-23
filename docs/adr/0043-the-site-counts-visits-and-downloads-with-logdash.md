@@ -1,6 +1,6 @@
 # 0043 - The site counts visits and downloads with Logdash
 
-Status: superseded by 0058
+Status: superseded by 0059
 
 ## Context
 

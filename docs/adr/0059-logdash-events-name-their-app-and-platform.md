@@ -1,4 +1,4 @@
-# 0058 - Logdash events name their app and platform
+# 0059 - Logdash events name their app and platform
 
 Status: accepted
 
