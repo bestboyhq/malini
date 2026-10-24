@@ -1,4 +1,4 @@
-export type ClaudeSignInState = 'idle' | 'waiting-for-browser' | 'confirming';
+export type ClaudeSignInState = 'idle' | 'switching' | 'waiting-for-browser' | 'confirming';
 
 export const MAX_REMEMBERED_CLAUDE_ACCOUNTS = 5;
 

@@ -46,4 +46,22 @@ describe('mcpConfigSnapshot', () => {
 		expect(configChanged(config)).toBe(true);
 		expect(configChanged(restamped(config, claudeStateFile()))).toBe(false);
 	});
+
+	it('sees a switch to another Claude account, but not the account details Claude Code refreshes', () => {
+		const signedIn = { accountUuid: 'private', organizationUuid: 'private-org', displayName: 'Me' };
+		writeState({ mcpServers: { linear: { type: 'http' } }, oauthAccount: signedIn });
+		const config = mcpConfigSnapshot(folder);
+
+		writeState({
+			mcpServers: { linear: { type: 'http' } },
+			oauthAccount: { ...signedIn, displayName: 'Me again', profileFetchedAt: 2 },
+		});
+		expect(configChanged(config)).toBe(false);
+
+		writeState({
+			mcpServers: { linear: { type: 'http' } },
+			oauthAccount: { accountUuid: 'work', organizationUuid: 'work-org' },
+		});
+		expect(configChanged(config)).toBe(true);
+	});
 });

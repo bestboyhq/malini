@@ -60,10 +60,10 @@ function mcpConfigFiles(cwd: string): string[] {
 }
 
 function configStamp(cwd: string, path: string): string {
-	return path === claudeStateFile() ? mcpStateStamp(cwd, path) : fileStamp(path);
+	return path === claudeStateFile() ? claudeStateStamp(cwd, path) : fileStamp(path);
 }
 
-function mcpStateStamp(cwd: string, path: string): string {
+function claudeStateStamp(cwd: string, path: string): string {
 	let state: unknown;
 	try {
 		state = JSON.parse(readFileSync(path, 'utf8'));
@@ -76,7 +76,13 @@ function mcpStateStamp(cwd: string, path: string): string {
 	const folderMcp = FOLDER_MCP_KEYS.map((key) =>
 		isRecord(folder) ? meaningful(folder[key]) : null,
 	);
-	return JSON.stringify([meaningful(state['mcpServers']), folderMcp]);
+	return JSON.stringify([meaningful(state['mcpServers']), folderMcp, signedInAccount(state)]);
+}
+
+function signedInAccount(state: Record<string, unknown>): unknown {
+	const account = state['oauthAccount'];
+	if (!isRecord(account)) return null;
+	return [account['accountUuid'] ?? null, account['organizationUuid'] ?? null];
 }
 
 function meaningful(value: unknown): unknown {

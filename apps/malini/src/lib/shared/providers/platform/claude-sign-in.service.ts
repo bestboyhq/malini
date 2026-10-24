@@ -18,14 +18,17 @@ export class ClaudeSignIn {
 		this.#deps = deps;
 	}
 
-	run(email: string | null): Promise<ClaudeSignInOutcome> {
+	run(
+		email: string | null,
+		environment: Readonly<Record<string, string>> = this.#deps.environment(),
+	): Promise<ClaudeSignInOutcome> {
 		this.cancel();
 		const executable = this.#deps.executable();
 		if (!executable) {
 			return Promise.reject(new Error('Claude Code is not installed. Install it, then sign in.'));
 		}
 		const child = spawn(executable, ['auth', 'login', ...(email ? [`--email=${email}`] : [])], {
-			env: { ...this.#deps.environment() },
+			env: { ...environment },
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 		this.#child = child;

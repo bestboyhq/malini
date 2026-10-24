@@ -37,7 +37,7 @@ function boot(deps: ProvidersDeps = {}) {
 		isDev: true,
 		appVersion: '0.0.0-test',
 	};
-	const providers = registerProviders(context, deps);
+	const providers = registerProviders(context, { security: () => null, ...deps });
 	stops.push(() => providers.stop());
 	return { appDataRoot, commands };
 }
@@ -51,7 +51,10 @@ function fakeClaude(body: string): { executable: string; argsFile: string } {
 	roots.push(directory);
 	const executable = join(directory, 'claude');
 	const argsFile = join(directory, 'args');
-	writeFileSync(executable, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n${body}\n`);
+	writeFileSync(
+		executable,
+		`#!/bin/sh\n[ "$2" = status ] && exit 0\nprintf '%s\\n' "$@" > '${argsFile}'\n${body}\n`,
+	);
 	chmodSync(executable, 0o755);
 	return { executable, argsFile };
 }
@@ -106,6 +109,9 @@ describe('providers.sign-in-to-claude', () => {
 			ok: false,
 			error: 'invalid args: `email` must be an email address',
 		});
+		expect(await commands.invoke({ command: 'providers.switch-claude-account', args: {} })).toEqual(
+			{ ok: false, error: 'invalid args: `email` must be an email address' },
+		);
 	});
 
 	it('surfaces why the login failed, without the browser hints', async () => {

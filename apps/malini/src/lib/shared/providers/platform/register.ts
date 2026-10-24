@@ -9,11 +9,15 @@ import {
 	currentEnvironment,
 	resolveToolPath,
 } from '$main/process/environment';
-import { ClaudeSignIn, type ClaudeSignInDeps } from './claude-sign-in.service';
+import {
+	ClaudeAccounts,
+	type ClaudeAccountsDeps,
+	type SecretCipher,
+} from './claude-accounts.service';
 
 const MAX_EMAIL_LENGTH = 320;
 
-export interface ProvidersDeps extends Partial<ClaudeSignInDeps> {
+export interface ProvidersDeps extends Partial<Omit<ClaudeAccountsDeps, 'directory'>> {
 	readonly platform?: NodeJS.Platform;
 	readonly openPath?: (path: string) => Promise<string>;
 }
@@ -28,9 +32,12 @@ export function registerProviders(
 ): ProvidersPlatform {
 	const platform = deps.platform ?? process.platform;
 	const openPath = deps.openPath ?? openWithElectron;
-	const signIn = new ClaudeSignIn({
+	const accounts = new ClaudeAccounts({
+		directory: join(context.appDataRoot, 'claude-accounts'),
 		executable: deps.executable ?? claudeExecutable,
 		environment: deps.environment ?? buildSpawnEnvironment,
+		security: deps.security ?? (() => (platform === 'darwin' ? resolveToolPath('security') : null)),
+		cipher: deps.cipher ?? electronCipher,
 	});
 
 	context.commands.define('providers.install-claude-code', async () => {
@@ -46,12 +53,16 @@ export function registerProviders(
 	});
 
 	context.commands.define('providers.sign-in-to-claude', (args: unknown) =>
-		signIn.run(parseEmail(args)),
+		accounts.signIn(parseEmail(args)),
 	);
 
-	context.commands.define('providers.cancel-claude-sign-in', () => signIn.cancel());
+	context.commands.define('providers.switch-claude-account', (args: unknown) =>
+		accounts.switchTo(parseEmail(args) ?? invalidEmail()),
+	);
 
-	return { stop: () => signIn.cancel() };
+	context.commands.define('providers.cancel-claude-sign-in', () => accounts.cancelSignIn());
+
+	return { stop: () => accounts.cancelSignIn() };
 }
 
 function parseEmail(args: unknown): string | null {
@@ -62,9 +73,13 @@ function parseEmail(args: unknown): string | null {
 		email.length > MAX_EMAIL_LENGTH ||
 		!/^[^\s@]+@[^\s@]+$/u.test(email)
 	) {
-		throw new Error('invalid args: `email` must be an email address');
+		return invalidEmail();
 	}
 	return email;
+}
+
+function invalidEmail(): never {
+	throw new Error('invalid args: `email` must be an email address');
 }
 
 function claudeExecutable(): string | null {
@@ -77,4 +92,9 @@ function claudeExecutable(): string | null {
 async function openWithElectron(path: string): Promise<string> {
 	const { shell } = await import('electron');
 	return shell.openPath(path);
+}
+
+async function electronCipher(): Promise<SecretCipher> {
+	const { safeStorage } = await import('electron');
+	return safeStorage;
 }
