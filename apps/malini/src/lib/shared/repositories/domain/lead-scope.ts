@@ -4,6 +4,8 @@ export const HOME_SCOPE: LeadScope = { kind: 'home' };
 
 export const LEAD_SPACE_PROJECT_ID = 'malini-lead-space';
 
+export const LEAD_SPACE_BRANCH = 'main';
+
 const OWNER_KEY_PREFIX = 'owner:';
 
 export function leadScopeKey(scope: LeadScope): string {

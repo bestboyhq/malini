@@ -1,4 +1,4 @@
-# 0073 - Jobs run on a schedule, in a place of their own
+# 0074 - Jobs run on a schedule, in a place of their own
 
 Status: accepted
 
@@ -17,7 +17,7 @@ Malini is a desktop app with no backend (0001), so a schedule can only run while
   A job is due when its latest time is after its last change, its last scheduled run and the last time it tried, so missed times coalesce into one run at launch or wake, and a time before the schedule was set never runs.
   A due time is skipped while any run of the job is waiting, queued, running or needs you.
 - A scheduled run is `jobs.run` with `origin: 'schedule'`, kept by migration 64, which rebuilds `job_runs` with that origin and a `scope` column (`home` or `owner:<owner>`).
-  It runs in the job's own place: the workstream of its last scheduled run while that is still open and in the same place, or else a new lead chat (`repositories.create-lead { scope, name }`) or a new workstream of the repository, named after the job.
+  It runs in the job's own place: the workstream of its last scheduled run while that is still open and in the same place, or else a new lead chat (`repositories.create-lead { scope, workstreamId, name }`) or a new workstream of the repository, named after the job.
 - Before a scheduled run in a repository workstream it already used, the runner merges the base branch into it (`JobRunner.#freshen`); when it cannot, because of uncommitted changes, an operation in progress or conflicts, the run's prompt says why.
 - The main process notifies for scheduled runs, so a notification arrives with the window closed: when a run waits for your yes, needs you, fails or finishes, and a click opens its chat.
   A run that needs an approval still waits for it.

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	provisioningClonePercent,
-	type WorkstreamProvisioningPlan,
+	type RepositoryWorkstreamPlan,
 } from '$shared/repositories/domain/provisioning';
 import { WorkstreamProvisioningAggregate } from './workstream-provisioning.aggregate.svelte';
 
-function plan(overrides: Partial<WorkstreamProvisioningPlan> = {}): WorkstreamProvisioningPlan {
+function plan(overrides: Partial<RepositoryWorkstreamPlan> = {}): RepositoryWorkstreamPlan {
 	return {
+		scope: null,
 		workstreamId: '01JWORKSTREAMA',
 		projectId: 'local__rabbits__hutch',
 		projectRepoPath: null,
@@ -92,7 +93,9 @@ describe('WorkstreamProvisioningAggregate', () => {
 		aggregate.begin(plan());
 		aggregate.resolveProjectRepoPath('01JWORKSTREAMA', '/tmp/base/hutch');
 
-		expect(aggregate.get('01JWORKSTREAMA')?.plan.projectRepoPath).toBe('/tmp/base/hutch');
+		expect(aggregate.get('01JWORKSTREAMA')?.plan).toMatchObject({
+			projectRepoPath: '/tmp/base/hutch',
+		});
 	});
 
 	it('ignores transitions for an attempt that already settled', () => {

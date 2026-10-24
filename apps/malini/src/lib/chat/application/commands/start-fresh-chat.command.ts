@@ -5,12 +5,13 @@ import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svel
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { defaultAgentModel, roleForAgentMode } from '$shared/providers/providers.api';
+import { worktreePendingQuery } from '$shared/repositories/repositories.api';
 
 export { startFreshChatCommand };
 
 async function startFreshChatCommand(): Promise<void> {
 	const workstreamId = chatRoute.workstreamId;
-	if (!workstreamId) return;
+	if (!workstreamId || worktreePendingQuery.data(workstreamId)) return;
 	try {
 		const sessionId = await sessionActivation.mint({
 			workstreamId,

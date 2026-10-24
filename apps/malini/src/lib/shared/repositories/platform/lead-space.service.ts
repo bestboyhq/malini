@@ -4,22 +4,23 @@ import { join } from 'node:path';
 import type { Workstream } from '$contract/repositories';
 import { nowIso8601 } from '$main/db/rows';
 import { runGit } from '$main/git/run';
-import { LEAD_SPACE_PROJECT_ID, leadScopeKey, type LeadScope } from '../domain/lead-scope';
-import { nextWorkstreamId } from '../domain/project-identity';
-import { uniqueWorkstreamName } from '../domain/workstream-names';
+import {
+	LEAD_SPACE_BRANCH,
+	LEAD_SPACE_PROJECT_ID,
+	leadScopeKey,
+	type LeadScope,
+} from '../domain/lead-scope';
 import { getProject, upsertProject } from './projects.repository';
 import { createWorkstream, type WorkstreamsDeps } from './workstreams.service';
-import { getWorkstream, listWorkstreams } from './workstreams.repository';
+import { getWorkstream } from './workstreams.repository';
 
-const LEAD_SPACE_BRANCH = 'main';
+type LeadChat = Readonly<{ scope: LeadScope; workstreamId: string; name: string }>;
 
 export function leadSpacePath(appDataRoot: string): string {
 	return join(appDataRoot, 'lead-space');
 }
 
-export function createLeadSpace(
-	deps: WorkstreamsDeps,
-): (scope: LeadScope, name?: string | null) => Promise<Workstream> {
+export function createLeadSpace(deps: WorkstreamsDeps): (chat: LeadChat) => Promise<Workstream> {
 	let ready: Promise<string> | null = null;
 	const prepared = (): Promise<string> => {
 		ready ??= prepareLeadSpace(deps).catch((error: unknown) => {
@@ -28,18 +29,14 @@ export function createLeadSpace(
 		});
 		return ready;
 	};
-	return async (scope, name = null) => {
+	return async ({ scope, workstreamId, name }) => {
 		const projectRepoPath = await prepared();
-		const workstreamId = nextWorkstreamId();
-		const taken = listWorkstreams(deps.db)
-			.filter((workstream) => workstream.scope !== null)
-			.map((workstream) => workstream.name);
 		await createWorkstream(deps, {
 			projectRepoPath,
 			workstreamId,
 			baseBranch: LEAD_SPACE_BRANCH,
 			projectId: LEAD_SPACE_PROJECT_ID,
-			name: name ?? uniqueWorkstreamName(workstreamId, taken),
+			name,
 			githubToken: null,
 			startRef: LEAD_SPACE_BRANCH,
 			scope: leadScopeKey(scope),
@@ -56,6 +53,7 @@ async function prepareLeadSpace({ db, appDataRoot }: WorkstreamsDeps): Promise<s
 		await mkdir(repoPath, { recursive: true });
 		await runGit(['-C', repoPath, 'init', '--quiet', '-b', LEAD_SPACE_BRANCH]);
 	}
+	await runGit(['-C', repoPath, 'config', 'core.hooksPath', '/dev/null']);
 	if (!(await hasCommit(repoPath))) {
 		await runGit([
 			'-C',

@@ -25,6 +25,7 @@ import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
 	getWorkstream,
+	nextWorkstreamId,
 	planRepositoryWorkstream,
 	prepareStartedWorkstream,
 	resolveConnectedRepository,
@@ -393,6 +394,7 @@ export class JobRunner {
 		if (jobRun.scope !== null) {
 			const lead = await commands.call('repositories.create-lead', {
 				scope: jobRun.scope,
+				workstreamId: nextWorkstreamId(),
 				name: jobRun.title,
 			});
 			this.#update(jobRun.id, (current) => ({ ...current, workstreamId: lead.id }));

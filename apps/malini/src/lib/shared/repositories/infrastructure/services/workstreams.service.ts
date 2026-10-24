@@ -1,8 +1,9 @@
 import type { InstallOutcomeResult } from '$contract/system';
 import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
-import { leadScopeKey, type LeadScope } from '$shared/repositories/domain/lead-scope';
+import { leadScopeKey } from '$shared/repositories/domain/lead-scope';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
+import type { LeadChatPlan } from '$shared/repositories/domain/provisioning';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
 	ArchivedWorkstream,
@@ -57,9 +58,13 @@ class WorkstreamsService {
 		};
 	}
 
-	async createLead(scope: LeadScope): Promise<Workstream> {
+	async createLead(plan: LeadChatPlan): Promise<Workstream> {
 		const [lead] = WorkstreamMapper.fromRawList([
-			await invoke('repositories.create-lead', { scope: leadScopeKey(scope) }),
+			await invoke('repositories.create-lead', {
+				scope: leadScopeKey(plan.scope),
+				workstreamId: plan.workstreamId,
+				name: plan.name,
+			}),
 		]);
 		if (!lead) throw new Error('Malini started the chat but could not read it back.');
 		return lead;

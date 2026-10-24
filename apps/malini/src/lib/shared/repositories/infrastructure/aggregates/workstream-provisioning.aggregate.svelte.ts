@@ -41,7 +41,8 @@ export class WorkstreamProvisioningAggregate {
 
 	resolveProjectRepoPath(workstreamId: string, projectRepoPath: string): void {
 		const existing = this.records[workstreamId];
-		if (!existing || existing.plan.projectRepoPath === projectRepoPath) return;
+		if (!existing || existing.plan.scope !== null) return;
+		if (existing.plan.projectRepoPath === projectRepoPath) return;
 		this.#write(workstreamId, {
 			...existing,
 			plan: { ...existing.plan, projectRepoPath },
