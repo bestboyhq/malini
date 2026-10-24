@@ -8,9 +8,10 @@
 
 	interface Props {
 		runs: readonly JobRunRecord[];
+		workstreamId: string;
 	}
 
-	let { runs }: Props = $props();
+	let { runs, workstreamId }: Props = $props();
 
 	let nowMs = $state(Date.now());
 	const foldDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 240;
@@ -23,13 +24,13 @@
 
 <section
 	{@attach avoidedByToasts}
-	aria-label={`Jobs in this workstream (${runs.length})`}
+	aria-label={`Jobs (${runs.length})`}
 	data-testid="workstream-job-runs"
 >
 	<ul class="max-h-40 overflow-y-auto p-1">
 		{#each runs as run (run.id)}
 			<li transition:slide={{ duration: foldDuration, easing: quartOut }}>
-				<JobRunRow {run} {nowMs} inWorkstream />
+				<JobRunRow {run} {nowMs} shownIn={workstreamId} />
 			</li>
 		{/each}
 	</ul>

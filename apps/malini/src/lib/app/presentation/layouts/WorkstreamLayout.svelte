@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
+	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
 	import { ChatSurface } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { InspectorSplit } from '$lib/extensions/extensions.api';
@@ -37,8 +38,13 @@
 			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
 			: { storageKey: WORKSTREAM_TRANSCRIPT_RATIO_KEY, defaultRatio: 0.62, minSize: 480 },
 	);
+	const chatSessionId = $derived(activeSessionQuery.data);
 	const jobRuns = $derived(
-		activeJobRunsQuery.data.filter((run) => run.workstreamId === workstreamId),
+		activeJobRunsQuery.data.filter(
+			(run) =>
+				run.workstreamId === workstreamId ||
+				(chatSessionId !== null && run.chatSessionId === chatSessionId),
+		),
 	);
 
 	onMount(() => {

@@ -37,7 +37,6 @@
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
 	import { Button } from '$hyper-ui/components/button';
 	import { resizableSplitInset } from '$hyper-ui/components/resizable-split';
-	import { JobRunCards } from '$lib/jobs/jobs.api';
 	import {
 		firstPromptKey,
 		stableToolKey,
@@ -156,8 +155,6 @@
 			},
 		];
 	});
-
-	const runIds = $derived(runs.map((run) => run.runId));
 
 	const branchedFromSessionId = $derived(renderState.facts.branchedFromSessionId);
 	const branchedFrom = $derived(
@@ -932,25 +929,12 @@
 							Branched from {branchedFrom}
 						</li>
 					{/if}
-					{#key sessionId}
-						<JobRunCards
-							chatSessionId={sessionId}
-							afterRunId={null}
-							knownRunIds={runs.length === 0 ? runIds : null}
-						/>
-					{/key}
 					{#each runs as run, runIndex (run.runId)}
-						{@const isLastRun = runIndex === runs.length - 1}
 						<TranscriptRun
 							{run}
-							{isLastRun}
+							isLastRun={runIndex === runs.length - 1}
 							live={run.runId === openRunId ? liveRun : null}
 							copied={copiedResponseRunId === run.runId}
-						/>
-						<JobRunCards
-							chatSessionId={sessionId}
-							afterRunId={run.runId}
-							knownRunIds={isLastRun ? runIds : null}
 						/>
 					{/each}
 				</ol>

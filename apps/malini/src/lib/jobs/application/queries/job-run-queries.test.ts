@@ -7,6 +7,7 @@ import { needsYouJobCountQuery } from './needs-you-job-count.query.svelte';
 import { recentFinishedJobRunsQuery } from './recent-finished-job-runs.query.svelte';
 import { runningJobCountQuery } from './running-job-count.query.svelte';
 import { waitingForYouJobCountQuery } from './waiting-for-you-job-count.query.svelte';
+import { workstreamJobRunsQuery } from './workstream-job-runs.query.svelte';
 
 const NOW = Date.parse('2026-10-11T12:00:00.000Z');
 const HOUR_MS = 60 * 60 * 1_000;
@@ -97,6 +98,26 @@ describe('the recently finished jobs', () => {
 		expect(recent).toHaveLength(10);
 		expect(recent[0]?.id).toBe('done-0');
 		expect(recent.at(-1)?.id).toBe('done-9');
+	});
+});
+
+describe("a fresh chat's jobs", () => {
+	it('are the runs of its workstream the composer tray does not hold: finished in the last ten minutes, or waiting for your yes', () => {
+		jobRunsAggregate.runs = [
+			run('queued', { status: 'queued' }),
+			run('running', { status: 'running' }),
+			run('needs-you', { status: 'needs-you' }),
+			run('waiting', { status: 'waiting', createdAt: hoursBefore(0.25) }),
+			run('done', {
+				status: 'succeeded',
+				createdAt: hoursBefore(0.2),
+				finishedAt: hoursBefore(0.1),
+			}),
+			run('stale', { status: 'failed', finishedAt: hoursBefore(1) }),
+			run('elsewhere', { status: 'cancelled', workstreamId: 'ws-2', finishedAt: hoursBefore(0.1) }),
+		];
+
+		expect(ids(workstreamJobRunsQuery.data('ws-1', NOW))).toEqual(['done', 'waiting']);
 	});
 });
 

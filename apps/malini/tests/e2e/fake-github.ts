@@ -67,7 +67,7 @@ export async function seedWorkstreamOnFakeGithub(
 	beforePublish: (seeded: SeededWorkstream) => Promise<void> = async () => {},
 ): Promise<PullRequestWorkstream> {
 	const { page } = app;
-	const source = await createSourceRepo(app.root);
+	const source = await createSourceRepo(app.root, 'hutch');
 	const seeded = await seedWorkstream(page, source, workstreamId, WORKSTREAM_NAME);
 	await beforePublish(seeded);
 	const github = await fakeGithubFor(app, seeded, pullRequest);
@@ -461,7 +461,9 @@ if (command === 'auth' && sub === 'status') {
 } else if (command === 'repo' && sub === 'list') {
 	out('[]');
 } else if (command === 'pr' && sub === 'list') {
-	out(read() ? [read()] : []);
+	const current = read();
+	const head = flag('--head');
+	out(current && (head === undefined || current.headRefName === head) ? [current] : []);
 } else if (command === 'pr' && sub === 'view') {
 	if (!read()) {
 		process.stderr.write('no pull requests found for branch\\n');
@@ -482,6 +484,7 @@ if (command === 'auth' && sub === 'status') {
 	const seed = JSON.parse(fs.readFileSync(path.join(state, 'seed.json'), 'utf8'));
 	save({
 		...seed,
+		headRefName: head,
 		liveHead: true,
 		isDraft: args.includes('--draft'),
 		title: flag('--title'),
