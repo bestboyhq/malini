@@ -122,4 +122,29 @@ describe('CommandRegistry', () => {
 		expect(failed[0]?.error).toBe(cause);
 		expect(failed[0]?.durationMs).toBeGreaterThanOrEqual(15);
 	});
+
+	it('closes once every command in flight has replied, and leaves later commands unanswered', async () => {
+		const registry = new CommandRegistry();
+		const handled: string[] = [];
+		registry.define('app.focus-window', async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			handled.push('in flight');
+		});
+		registry.define('app.destroy-window', () => {
+			handled.push('after close');
+		});
+		void registry.handle({ command: 'app.focus-window', args: {} });
+
+		const closed = registry.close();
+		const unanswered = Symbol('unanswered');
+		const later = registry.handle({ command: 'app.destroy-window', args: {} });
+		await closed;
+		const reply = await Promise.race([
+			later,
+			new Promise((resolve) => setTimeout(resolve, 10, unanswered)),
+		]);
+
+		expect(handled).toEqual(['in flight']);
+		expect(reply).toBe(unanswered);
+	});
 });
