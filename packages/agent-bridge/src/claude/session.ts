@@ -14,7 +14,12 @@ import {
 	type SDKResultMessage,
 	type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentRunProfile, AgentTheme } from '../agent-profile.js';
+import {
+	lineageDirectories,
+	type AgentLineage,
+	type AgentRunProfile,
+	type AgentTheme,
+} from '../agent-profile.js';
 import type { ProviderApprovalReply, ProviderQuestionReply } from '../interaction-types.js';
 import type { ConversationHistoryMessage, PlatformResult, PlatformToolCall } from '../protocol.js';
 import { ProviderInteractionBroker } from '../provider-interactions.js';
@@ -112,6 +117,7 @@ interface RunSettings {
 	readonly profile: AgentRunProfile | undefined;
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
+	readonly lineage: AgentLineage | undefined;
 }
 
 interface ActiveRun {
@@ -120,6 +126,7 @@ interface ActiveRun {
 	profile: AgentRunProfile | undefined;
 	readonly skills: readonly string[] | undefined;
 	readonly theme: AgentTheme | undefined;
+	readonly lineage: AgentLineage | undefined;
 	results: SDKResultMessage[];
 	costBefore: number;
 	readonly query: ClaudeQuery;
@@ -182,8 +189,9 @@ export class ClaudeSession implements ProviderHandle {
 		skills?: readonly string[],
 		steer?: boolean,
 		theme?: AgentTheme,
+		lineage?: AgentLineage,
 	): Promise<void> {
-		const run: RunSettings = { profile, skills, theme };
+		const run: RunSettings = { profile, skills, theme, lineage };
 		const active = this.#active;
 		if (active && !active.idleTimeout) {
 			const continues = canContinue(active, run, resumeAt !== undefined, freshConversation);
@@ -267,6 +275,7 @@ export class ClaudeSession implements ProviderHandle {
 			profile: run.profile,
 			skills: run.skills,
 			theme: run.theme,
+			lineage: run.lineage,
 			results: [],
 			costBefore: 0,
 			query,
@@ -570,10 +579,11 @@ export class ClaudeSession implements ProviderHandle {
 
 	#options(
 		executable: string,
-		{ profile, skills, theme }: RunSettings,
+		{ profile, skills, theme, lineage }: RunSettings,
 		resumeAt: string | undefined,
 		abort: AbortController,
 	): Options {
+		const directories = lineageDirectories(lineage);
 		const permissionMode = permissionModeFor(profile);
 		this.#requestedMode = permissionMode;
 		const model = this.#context.model;
@@ -590,14 +600,20 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium', theme),
+				append: systemPromptAppend(
+					this.#context.cwd,
+					profile?.report ?? 'medium',
+					theme,
+					lineage,
+				),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },
 			permissionMode,
 			...(permissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
 			sandbox: sandboxFor(profile),
-			disallowedTools: disallowedTools(),
+			disallowedTools: disallowedTools(lineage),
+			...(directories.length > 0 ? { additionalDirectories: directories } : {}),
 			hooks: {
 				PreToolUse: [
 					{ matcher: 'Bash', hooks: [steerToMalini] },
@@ -920,7 +936,7 @@ function userTurn(text: string, promptId: UUID): SDKUserMessage {
 
 function canContinue(
 	active: ActiveRun,
-	{ profile, skills, theme }: RunSettings,
+	{ profile, skills, theme, lineage }: RunSettings,
 	rewound: boolean,
 	freshConversation: boolean | undefined,
 ): boolean {
@@ -932,7 +948,8 @@ function canContinue(
 		profile?.mode === active.profile?.mode &&
 		profile?.report === active.profile?.report &&
 		theme === active.theme &&
-		skills?.join('\n') === active.skills?.join('\n')
+		skills?.join('\n') === active.skills?.join('\n') &&
+		JSON.stringify(lineage ?? null) === JSON.stringify(active.lineage ?? null)
 	);
 }
 

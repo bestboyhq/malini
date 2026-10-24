@@ -160,6 +160,7 @@ export type SendAgentPromptArgs = Readonly<{
 	profile?: AgentRunProfile;
 	automated?: boolean;
 	steer?: boolean;
+	from?: string;
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -226,7 +227,10 @@ export type CreateWorkstreamArgs = Readonly<{
 	name: string;
 	githubToken?: string | null;
 	baseRef?: string | null;
+	startedBy?: string | null;
 }>;
+
+export type CreateLeadArgs = Readonly<{ scope: string }>;
 
 export type WorkstreamDiffArgs = Readonly<{
 	workstreamId: string;
@@ -418,6 +422,7 @@ export interface ContractCommands {
 	'repositories.commit-workstream': { args: CommitWorkstreamArgs; result: string };
 	'repositories.create-repository': { args: CreateProjectArgs; result: string };
 	'repositories.create-workstream': { args: CreateWorkstreamArgs; result: string };
+	'repositories.create-lead': { args: CreateLeadArgs; result: WorkstreamDto };
 	'chat.decide-approval': {
 		args: DecideAgentApprovalArgs;
 		result: AgentApprovalDecisionResult;
@@ -697,6 +702,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.commit-workstream',
 	'repositories.create-repository',
 	'repositories.create-workstream',
+	'repositories.create-lead',
 	'chat.decide-approval',
 	'chat.list-permission-grants',
 	'chat.revoke-permission-grant',

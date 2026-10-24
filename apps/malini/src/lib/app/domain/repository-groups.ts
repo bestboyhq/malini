@@ -1,8 +1,5 @@
 import type { Repository } from '$shared/repositories/domain/repository';
-import {
-	repositoryOwner,
-	type ConnectedRepositoryContext,
-} from '$shared/repositories/domain/repository-context';
+import { repositoryOwner } from '$shared/repositories/domain/repository-context';
 
 export type OwnerGroup<T> = Readonly<{
 	kind: 'owner';
@@ -55,13 +52,6 @@ export function repositoryGroups<T>(
 
 export function groupItems<T>(group: RepositoryGroup<T>): readonly T[] {
 	return group.kind === 'owner' ? group.items : [group.item];
-}
-
-export function showsInSidebar(
-	row: ConnectedRepositoryContext,
-	openRepositoryId: string | null,
-): boolean {
-	return row.workstreams.length > 0 || row.repo.id === openRepositoryId;
 }
 
 export function ownerGroupId(owner: string): string {

@@ -47,6 +47,8 @@ beforeEach(() => {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-10-19T00:00:00Z',
+		scope: null,
+		startedBy: null,
 	});
 	logged = [];
 	jobs = registerJobs(context, { log: (line) => logged.push(line) });

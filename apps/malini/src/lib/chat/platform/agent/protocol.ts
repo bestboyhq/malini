@@ -13,6 +13,7 @@ import {
 	type AgentBackgroundTaskKind,
 	type AgentModelInfo,
 	type AgentQuestionAnswer,
+	type AgentLineage,
 	type AgentReasoningEffort,
 	type AgentRunMode,
 	type AgentRunProfile,
@@ -109,6 +110,7 @@ export type BridgeCommand =
 			skills?: readonly string[];
 			steer?: true;
 			theme?: AgentTheme;
+			lineage?: AgentLineage;
 	  }
 	| { cmd: 'cancel_run'; id: string; sessionId: string; runId: string }
 	| { cmd: 'close_session'; id: string; sessionId: string }

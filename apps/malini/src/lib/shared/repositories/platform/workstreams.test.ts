@@ -9,7 +9,7 @@ vi.mock('electron', () => ({
 }));
 
 import type { WorktreeAddedPayload } from '$contract/events';
-import type { RepositoryConnectionDto } from '$contract/repositories';
+import type { RepositoryConnectionDto, WorkstreamDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
@@ -28,8 +28,11 @@ import type { InvokeResponse } from '$contract/ipc';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { CheckoutShell } from './checkout-shell.service';
 import { listConnectedRepositories } from './connected-repositories.repository';
+import { LEAD_SPACE_PROJECT_ID } from '../domain/lead-scope';
+import { workstreamLineage } from './lineage.service';
 import { getProject, upsertProject } from './projects.repository';
 import { registerRepositories, type RepositoriesDeps } from './register';
+import { listRepositoryCatalog } from './repository-catalog';
 import { archivedLeftoversCleared } from './teardown.service';
 import {
 	deleteWorkstream,
@@ -97,6 +100,8 @@ function seed(db: MainContext['db'], workstreamId: string, repoPath: string, pat
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-09-18T00:00:00.000Z',
+		scope: null,
+		startedBy: null,
 	});
 }
 
@@ -112,6 +117,72 @@ function isWorktreeAddedPayload(value: unknown): value is WorktreeAddedPayload {
 		isRecord(value.workstream)
 	);
 }
+
+describe('lead chats', () => {
+	it('start in their own lead space and tell the workstreams they start about each other', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const appDataRoot = join(dir, 'app');
+		await mkdir(appDataRoot);
+		const { invoke, db } = harness(appDataRoot);
+
+		const home = await invoke<WorkstreamDto>('repositories.create-lead', { scope: 'home' });
+		const acme = await invoke<WorkstreamDto>('repositories.create-lead', { scope: 'owner:acme' });
+		expect([home.scope, acme.scope]).toEqual(['home', 'owner:acme']);
+		expect([home.projectId, home.checkoutState, home.startedBy]).toEqual([
+			LEAD_SPACE_PROJECT_ID,
+			'healthy',
+			null,
+		]);
+		expect(home.name).not.toBe(acme.name);
+		await expect(invoke('repositories.create-lead', { scope: 'owner:' })).rejects.toThrow(
+			'`scope` must be `home` or `owner:<owner>`',
+		);
+
+		const source = join(dir, 'acme', 'api');
+		await initRealRepo(source);
+		await realGit(source, ['branch', '-M', 'main']);
+		const projectRepoPath = await invoke<string>('repositories.create-repository', {
+			repoUrl: `file://${source}`,
+			defaultBranch: 'main',
+		});
+		for (const id of ['child-1', 'child-2', 'solo']) {
+			await invoke('repositories.create-workstream', {
+				projectRepoPath,
+				workstreamId: id,
+				baseBranch: 'main',
+				projectId: 'local__acme__api',
+				name: id,
+				startedBy: id === 'solo' ? null : acme.id,
+			});
+		}
+
+		expect((await listRepositoryCatalog(db)).map((repository) => repository.fullName)).toEqual([
+			'acme/api',
+		]);
+		expect(await workstreamLineage(db, 'child-1')).toEqual({
+			lead: null,
+			startedBy: { name: acme.name, lead: true },
+			siblings: [
+				{
+					repository: 'acme/api',
+					branch: 'malini/child-2',
+					path: expect.stringMatching(/child-2$/u),
+				},
+			],
+		});
+		expect(await workstreamLineage(db, acme.id)).toEqual({
+			lead: {
+				owner: 'acme',
+				repositories: [{ repository: 'acme/api', branch: 'main', path: projectRepoPath }],
+			},
+			startedBy: null,
+			siblings: [],
+		});
+		expect((await workstreamLineage(db, home.id))?.lead?.repositories).toHaveLength(1);
+		expect(await workstreamLineage(db, 'solo')).toBeNull();
+	});
+});
 
 describe('the workstream commands', () => {
 	it('round-trips status, files, diff, totals, snapshot, and commit for a real workstream', async () => {

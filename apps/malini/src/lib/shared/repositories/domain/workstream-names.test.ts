@@ -24,6 +24,8 @@ function workstreamNamed(name: string, status: Workstream['status']): Workstream
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	};
 }
 

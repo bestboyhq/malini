@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { McpServerStatus, SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentRunProfile } from '../agent-profile.js';
+import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
@@ -258,6 +258,46 @@ describe('ClaudeSession', () => {
 			expect.objectContaining({ append: expect.stringContaining('the user is in dark mode') }),
 			expect.objectContaining({ append: expect.stringContaining('the user is in light mode') }),
 		]);
+	});
+
+	it('keeps a lead chat to reading and planning, and hands a started workstream its siblings', async () => {
+		const script = recordedScript('readAndBash');
+		const { session, claude } = harness([script, script]);
+		const lead: AgentLineage = {
+			lead: {
+				owner: 'acme',
+				repositories: [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }],
+			},
+			startedBy: null,
+			siblings: [],
+		};
+		const child: AgentLineage = {
+			lead: null,
+			startedBy: { name: 'Unify footers', lead: true },
+			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
+		};
+		const withLineage = (lineage: AgentLineage) =>
+			[undefined, undefined, undefined, undefined, undefined, lineage] as const;
+
+		await session.sendPrompt('Plan it', 'run-1', profile(), ...withLineage(lead));
+		await session.sendPrompt('Now as a child', 'run-2', profile(), ...withLineage(child));
+
+		expect(claude.runs[0]?.options.disallowedTools).toEqual(
+			expect.arrayContaining(['Edit', 'Write', 'NotebookEdit']),
+		);
+		expect(claude.runs[0]?.options.additionalDirectories).toEqual(['/clones/acme-api']);
+		expect(claude.runs[0]?.options.systemPrompt).toEqual(
+			expect.objectContaining({
+				append: expect.stringContaining('the acme organization level'),
+			}),
+		);
+		expect(claude.runs[1]?.options.disallowedTools).not.toContain('Edit');
+		expect(claude.runs[1]?.options.additionalDirectories).toEqual(['/workstreams/w2']);
+		expect(claude.runs[1]?.options.systemPrompt).toEqual(
+			expect.objectContaining({
+				append: expect.stringContaining('The chat “Unify footers” started this workstream'),
+			}),
+		);
 	});
 
 	it('completes a run without plan limits when Claude cannot report them', async () => {

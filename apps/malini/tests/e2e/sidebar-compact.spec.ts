@@ -43,7 +43,7 @@ async function sidebarDensity(page: Page, density: 'Comfortable' | 'Compact') {
 	});
 }
 
-test('an owner with several repositories folds into a folder, and every workstream has its own row', async () => {
+test('every repository sits under its owner, which folds, and every workstream has its own row', async () => {
 	test.setTimeout(180_000);
 	const first = await launchMalini();
 	let order: (string | null)[] = [];
@@ -61,7 +61,7 @@ test('an owner with several repositories folds into a folder, and every workstre
 		await expect(ownerFolder(page)).toHaveAttribute('aria-expanded', 'true', { timeout: 20_000 });
 		await expect
 			.poll(() => listedRows(page))
-			.toEqual(['solo/site', 'acme', 'acme/web', 'acme/api']);
+			.toEqual(['solo', 'solo/site', 'acme', 'acme/web', 'acme/api']);
 		const workstreams = sidebar(page).getByTestId('sidebar-workstream');
 		await expect(workstreams).toHaveCount(4);
 		await expect(
@@ -86,7 +86,7 @@ test('an owner with several repositories folds into a folder, and every workstre
 		await page.keyboard.press('Alt+ArrowUp');
 		await expect
 			.poll(() => listedRows(page))
-			.toEqual(['acme', 'acme/web', 'acme/api', 'solo/site']);
+			.toEqual(['acme', 'acme/web', 'acme/api', 'solo', 'solo/site']);
 		await expect(ownerFolder(page)).toBeFocused();
 		order = await listedRows(page);
 

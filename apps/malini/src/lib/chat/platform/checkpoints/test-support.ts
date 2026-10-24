@@ -58,6 +58,8 @@ export function seedRunChangeDb(db: MaliniDatabase, repo: string): void {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-07-22T00:00:00.000Z',
+		scope: null,
+		startedBy: null,
 	});
 	for (const sessionId of ['chat-a', 'chat-b']) {
 		insertSession(db, {

@@ -393,7 +393,7 @@ CREATE TABLE scratchpads (
 );
 `;
 
-const MIGRATIONS: readonly string[] = [
+export const MIGRATIONS: readonly string[] = [
 	`
 ALTER TABLE job_definitions ADD COLUMN skills TEXT NOT NULL DEFAULT '[]';
 UPDATE job_definitions
@@ -735,6 +735,21 @@ CREATE TABLE agent_session_changes (
   runs_digest TEXT NOT NULL,
   files TEXT NOT NULL
 );
+`,
+	`
+ALTER TABLE workstreams ADD COLUMN scope TEXT
+  CHECK (scope IS NULL OR scope = 'home' OR scope LIKE 'owner:_%');
+ALTER TABLE workstreams ADD COLUMN started_by TEXT REFERENCES workstreams(id) ON DELETE SET NULL;
+UPDATE workstreams SET started_by = (
+  SELECT a.workstream_id FROM agent_actions a
+  JOIN workstreams parent ON parent.id = a.workstream_id
+  WHERE a.tool = 'workstreams_create' AND a.status = 'succeeded'
+    AND a.workstream_id <> workstreams.id
+    AND json_valid(a.output) AND json_extract(a.output, '$.id') = workstreams.id
+  ORDER BY a.started_at
+  LIMIT 1
+);
+CREATE INDEX idx_workstreams_started_by ON workstreams(started_by);
 `,
 ];
 

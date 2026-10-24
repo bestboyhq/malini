@@ -623,6 +623,8 @@ const FIXTURE_SKILLS = [
 const skillsOfRun = new Map();
 const maliniCalls = new Map();
 const themeOfRun = new Map();
+
+const lineageOfRun = new Map();
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_THEME')) {
@@ -632,6 +634,32 @@ const respond = async (sessionId, runId, prompt) => {
 			contentId: 'c1',
 			text: 'Theme: ' + (themeOfRun.get(runId) ?? 'none'),
 		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('WHICH_LINEAGE')) {
+		const lineage = lineageOfRun.get(runId);
+		const lines = !lineage
+			? ['Lineage: none']
+			: [
+					'Lead: ' +
+						(lineage.lead ? (lineage.lead.owner ?? 'Home') : 'no') +
+						(lineage.lead
+							? ' reads ' +
+								lineage.lead.repositories
+									.map((r) => r.repository)
+									.sort()
+									.join(', ')
+							: ''),
+					'Started by: ' + (lineage.startedBy ? lineage.startedBy.name : 'nobody'),
+					'Siblings: ' +
+						(lineage.siblings
+							.map((s) => s.repository)
+							.sort()
+							.join(', ') || 'none'),
+				];
+		event({ type: 'assistant.message', runId, contentId: 'c1', text: lines.join('\n\n') });
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 		return;
@@ -1111,6 +1139,7 @@ const handle = (command) => {
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
 			if (command.theme) themeOfRun.set(runId, command.theme);
+			if (command.lineage) lineageOfRun.set(runId, command.lineage);
 			if (backgroundCommands.has(sessionId)) {
 				return handOffBackgroundCommand(sessionId, runId, command.steer);
 			}
@@ -1325,7 +1354,8 @@ const handle = (command) => {
 			const titlesByModel = env.FAKE_BRIDGE_TITLES_BY_MODEL
 				? JSON.parse(env.FAKE_BRIDGE_TITLES_BY_MODEL)
 				: {};
-			const title = titlesByModel[command.model] ?? env.FAKE_BRIDGE_TITLE;
+			const named = /TITLE="([^"]+)"/.exec(command.prompt ?? '');
+			const title = named?.[1] ?? titlesByModel[command.model] ?? env.FAKE_BRIDGE_TITLE;
 			if (!title) return ack(command.id, 'TITLE_FAILED: no title');
 			write({
 				type: 'bridge.title',

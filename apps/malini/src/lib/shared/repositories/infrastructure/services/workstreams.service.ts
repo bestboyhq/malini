@@ -1,6 +1,7 @@
 import type { InstallOutcomeResult } from '$contract/system';
 import type { WorkstreamBaseSyncOutcome } from '$contract/repositories';
 import { invoke } from '$shared/port/invoke';
+import { leadScopeKey, type LeadScope } from '$shared/repositories/domain/lead-scope';
 import { workstreamBranch } from '$shared/repositories/domain/project-identity';
 import type { Project } from '$shared/repositories/domain/repository';
 import type {
@@ -54,6 +55,14 @@ class WorkstreamsService {
 			baseBranch: input.baseBranch,
 			worktreePath,
 		};
+	}
+
+	async createLead(scope: LeadScope): Promise<Workstream> {
+		const [lead] = WorkstreamMapper.fromRawList([
+			await invoke('repositories.create-lead', { scope: leadScopeKey(scope) }),
+		]);
+		if (!lead) throw new Error('Malini started the chat but could not read it back.');
+		return lead;
 	}
 
 	syncBase(workstreamId: WorkstreamId): Promise<WorkstreamBaseSyncOutcome> {

@@ -547,6 +547,20 @@ describe('protocol: parseCommandLine', () => {
 			expect(parseCommandLine(`{${prompt},"steer":"yes"}`).ok).toBe(false);
 		});
 
+		it('parses the lineage a prompt runs with and rejects one with a malformed checkout', () => {
+			const prompt = '"cmd":"send_prompt","id":"c1","sessionId":"s1","runId":"r1","prompt":"hi"';
+			const lineage = {
+				lead: { owner: null, repositories: [{ repository: 'a/b', branch: 'main', path: '/c' }] },
+				startedBy: null,
+				siblings: [],
+			};
+			expect(
+				parseCommandLine(`{${prompt},"lineage":${JSON.stringify(lineage)}}`),
+			).toMatchObject({ ok: true, command: { lineage } });
+			const broken = { ...lineage, siblings: [{ repository: 'a/b', branch: '', path: '/c' }] };
+			expect(parseCommandLine(`{${prompt},"lineage":${JSON.stringify(broken)}}`).ok).toBe(false);
+		});
+
 		it('parses the theme a prompt runs in and rejects one that is not light or dark', () => {
 			const prompt = '"cmd":"send_prompt","id":"p1","sessionId":"s1","runId":"r1","prompt":"hi"';
 			expect(parseCommandLine(`{${prompt},"theme":"dark"}`)).toMatchObject({

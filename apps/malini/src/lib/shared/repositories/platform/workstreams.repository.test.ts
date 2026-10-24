@@ -35,6 +35,8 @@ describe('projects and workstreams', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt,
+				scope: null,
+				startedBy: null,
 			});
 		}
 		expect(listWorkstreams(db).map((row) => row.id)).toEqual(['w-2', 'w-1']);
@@ -93,6 +95,8 @@ describe('projects and workstreams', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: '2026-07-03T00:00:02Z',
+				scope: null,
+				startedBy: null,
 			},
 		);
 		expect(listProjects(db).map((row) => row.id)).toEqual(['p-bundle']);
@@ -119,6 +123,8 @@ describe('projects and workstreams', () => {
 					baseBranch: 'main',
 					status: 'not-a-status' as 'active',
 					createdAt: '2026-07-03T00:00:03Z',
+					scope: null,
+					startedBy: null,
 				},
 			),
 		).toThrow();

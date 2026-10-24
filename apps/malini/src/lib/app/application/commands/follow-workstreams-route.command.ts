@@ -16,11 +16,12 @@ function followWorkstreamsRouteCommand(
 	repositories: readonly Repository[],
 	loaded: boolean,
 ): void {
+	const repositoryWork = checkedOutWorkstreams.filter((workstream) => workstream.scope === null);
 	trackWorkstreamChangeTotalsCommand(
-		checkedOutWorkstreams.map(({ id, baseBranch }) => ({ id, baseBranch })),
+		repositoryWork.map(({ id, baseBranch }) => ({ id, baseBranch })),
 	);
 	loadPullRequestStatesCommand(
-		checkedOutWorkstreams.map(({ id, projectId, branch, baseBranch }) => ({
+		repositoryWork.map(({ id, projectId, branch, baseBranch }) => ({
 			workstreamId: id,
 			repoId: projectId,
 			head: branch,

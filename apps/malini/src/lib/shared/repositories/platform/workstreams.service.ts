@@ -43,6 +43,7 @@ import {
 	type ConnectedRepositoryContext,
 } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
+import { parseLeadScope } from '$shared/repositories/domain/lead-scope';
 import { UNOBSERVED_WORKSTREAM_CHECKOUT } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import type { WorkstreamBaseSync } from './base-sync.service';
@@ -100,6 +101,8 @@ export interface CreateWorkstreamInput {
 	readonly githubToken: string | null;
 	readonly startRef?: string;
 	readonly branch?: string;
+	readonly scope?: string | null;
+	readonly startedBy?: string | null;
 }
 
 export async function createRepository(
@@ -183,6 +186,8 @@ export async function createWorkstream(
 		baseBranch,
 		status: 'active',
 		createdAt: now,
+		scope: input.scope ?? null,
+		startedBy: input.startedBy ?? null,
 	};
 	try {
 		upsertWorkstreamBundle(db, project, workstream);
@@ -299,13 +304,15 @@ async function settleRestoredCheckout(
 
 export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 	return listArchivedWorkstreams(deps.db).map(
-		({ id, projectId, name, baseBranch, archivedAt, mergedPullRequest }) => ({
+		({ id, projectId, name, baseBranch, archivedAt, mergedPullRequest, scope, startedBy }) => ({
 			id,
 			projectId,
 			name,
 			baseBranch,
 			archivedAt,
 			mergedPullRequest,
+			scope,
+			startedBy,
 		}),
 	);
 }
@@ -345,6 +352,7 @@ function repositoryWorkstreams(
 	const workstreams = [...listWorkstreams(db), ...listArchivedWorkstreams(db)].map((row) => ({
 		...row,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
+		scope: parseLeadScope(row.scope),
 	}));
 	return (
 		connectedRepositoryContexts({ repositories, workstreams }).find(

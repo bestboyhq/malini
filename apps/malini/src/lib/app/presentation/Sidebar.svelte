@@ -5,32 +5,47 @@
 	import { quartOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { slide, type SlideParams } from 'svelte/transition';
-	import { BusyIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import {
+		HOME_SCOPE,
+		archivedWorkstreamsQuery,
 		connectedRepositoryContexts,
 		hiddenRepositoriesQuery,
+		inSidebarOrder,
+		isGeneratedWorkstreamName,
+		leadScopeLabel,
 		moveInSidebarCommand,
 		sidebarOrderQuery,
+		startLeadChatCommand,
+		type LeadScope,
 		type SidebarMove,
 	} from '$shared/repositories/repositories.api';
 	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { sidebarDensityQuery } from '$lib/app/application/queries/sidebar-density.query.svelte';
+	import { sidebarFocusQuery } from '$lib/app/application/queries/sidebar-focus.query.svelte';
+	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
+	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
+	import { progressDot, progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
+	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
 	import {
-		groupItems,
-		repositoryGroups,
-		showsInSidebar,
-		type OwnerGroup,
-		type RepositoryGroup,
-	} from '$lib/app/domain/repository-groups';
+		sidebarRepositoryIds,
+		sidebarTree,
+		sidebarWorkstreamIds,
+		type SidebarChild,
+		type SidebarOwner,
+		type SidebarRepository,
+	} from '$lib/app/domain/sidebar-tree';
 	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
 	import { openBrowserUrlCommand } from '$lib/browser/application/commands/open-browser-url.command';
 	import { stopRunningCommand } from '$lib/stats/application/commands/stop-running.command';
+	import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import StagedUpdateButton from './StagedUpdateButton.svelte';
+	import SidebarFocusStrip, { type FocusChoice } from './SidebarFocusStrip.svelte';
 	import { ScratchpadIdeasCount, ScratchpadIdeasPreview } from '$lib/scratchpad/scratchpad.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
@@ -132,26 +147,78 @@
 
 	const hiddenRepositoryIds = $derived(hiddenRepositoriesQuery.data);
 	const openRepositoryId = $derived(page.params.repositoryId ?? null);
+	const leads = $derived(
+		inSidebarOrder(
+			workstreams.filter((workstream) => workstream.scope !== null),
+			sidebarOrder.workstreamIds,
+		),
+	);
 	const contexts = $derived(
 		connectedRepositoryContexts({
 			repositories,
-			workstreams,
+			workstreams: workstreams.filter((workstream) => workstream.scope === null),
 			activeWorkstreamId,
 			order: sidebarOrder,
 		}),
 	);
 	const unhiddenRows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
 	const everyRepositoryHidden = $derived(contexts.length > 0 && unhiddenRows.length === 0);
-	const rows = $derived(unhiddenRows.filter((row) => showsInSidebar(row, openRepositoryId)));
-	const entries = $derived(repositoryGroups(rows, (row) => row.repo));
-	const entryIds = $derived(entries.map((entry) => entry.id));
-	const repositoryIdsByEntry = $derived(
-		new Map(entries.map((entry) => [entry.id, entryRepositoryIds(entry)])),
+	const ownerChoices = $derived(focusOwners(unhiddenRows, leads));
+	const repositoryChoices = $derived(
+		unhiddenRows.map((row): FocusChoice => ({
+			focus: { kind: 'repository', repositoryId: row.repo.id },
+			label: row.name,
+			avatarFullName: row.repo.fullName,
+		})),
 	);
-	const listedRepositoryIds = $derived(entries.flatMap(entryRepositoryIds));
+	const focusState = $derived(sidebarFocusQuery.data);
+	const presentFocuses = $derived({
+		owners: new Set(ownerChoices.map((choice) => choice.label.toLowerCase())),
+		repositoryIds: new Set(unhiddenRows.map((row) => row.repo.id)),
+	});
+	const focus = $derived(
+		focusStillExists(focusState.active, presentFocuses) ? focusState.active : ALL_FOCUS,
+	);
+	const pinnedChoices = $derived(
+		focusState.pinned.flatMap((pinned) => {
+			const choice = [...ownerChoices, ...repositoryChoices].find(
+				(candidate) => focusOwnerKey(candidate.focus) === focusOwnerKey(pinned),
+			);
+			return choice ? [choice] : [];
+		}),
+	);
+	const tree = $derived(
+		sidebarTree({
+			contexts,
+			leads,
+			hiddenRepositoryIds,
+			focus,
+			openRepositoryId,
+			workstreamOrder: sidebarOrder.workstreamIds,
+		}),
+	);
+	const blockIds = $derived(tree.blocks.map((block) => block.id));
+	const homeLeadIds = $derived(tree.homeLeads.map((lead) => lead.workstream.id));
+	const repositoryIdsByEntry = $derived(
+		new Map(
+			tree.blocks.map((block) => [
+				block.id,
+				block.kind === 'owner'
+					? block.repositories.map(({ row }) => row.repo.id)
+					: [block.repository.row.repo.id],
+			]),
+		),
+	);
+	const listedRepositoryIds = $derived(sidebarRepositoryIds(tree));
+	const listedWorkstreamIds = $derived(sidebarWorkstreamIds(tree));
+	const hasRows = $derived(tree.homeLeads.length > 0 || tree.blocks.length > 0);
 	const avatarSize = $derived(compact ? 16 : 20);
-	const listedWorkstreamIds = $derived(
-		rows.flatMap((row) => row.workstreams.map((workstream) => workstream.id)),
+	const mergedByParent = $derived(
+		archivedWorkstreamsQuery.data.reduce((merged, workstream) => {
+			if (workstream.startedBy === null || workstream.mergedPullRequest === null) return merged;
+			merged.set(workstream.startedBy, (merged.get(workstream.startedBy) ?? 0) + 1);
+			return merged;
+		}, new Map<string, number>()),
 	);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
@@ -452,10 +519,6 @@
 
 	function listedIds(kind: SidebarMove['kind']): readonly string[] {
 		return kind === 'repository' ? listedRepositoryIds : listedWorkstreamIds;
-	}
-
-	function entryRepositoryIds(entry: RepositoryGroup<ConnectedRepositoryContext>): string[] {
-		return groupItems(entry).map((row) => row.repo.id);
 	}
 
 	function movedIds(kind: SidebarMove['kind'], id: string): readonly string[] {
@@ -770,10 +833,9 @@
 
 	function workstreamView(
 		workstream: Workstream,
-		repositoryFullName: string,
+		label: string,
 		chat: ChatSummary,
 	): WorkstreamView {
-		const label = workstreamLabel(workstream, repositoryFullName);
 		const state = visualState(workstream, provisioningRecord(workstream.id), chat);
 		const badge = pullRequestBadge(workstream.id);
 		const busy =
@@ -796,20 +858,160 @@
 
 	function workstreamLinkData(
 		workstream: Workstream,
-		repositoryFullName: string,
+		repositoryFullName: string | null,
 		view: WorkstreamView,
 	): Record<`data-${string}`, string | undefined> {
 		return {
-			'data-testid': 'sidebar-workstream',
+			'data-testid': workstream.scope === null ? 'sidebar-workstream' : 'sidebar-chat',
 			'data-workstream-id': workstream.id,
 			'data-navigation-workstream-id': workstream.id,
 			'data-navigation-pending': workstream.id === pendingWorkstreamId ? 'true' : undefined,
 			'data-navigation-feedback-only': 'true',
-			'data-repository-full-name': repositoryFullName,
+			'data-repository-full-name': repositoryFullName ?? undefined,
+			'data-chat-scope': workstream.scope?.kind,
 			'data-workstream-state': view.state.tone,
 			'data-workstream-checkout': workstream.checkoutState,
 			'data-workstream-draft': view.chat.hasDraft ? 'true' : undefined,
 		};
+	}
+
+	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9', 'pl-12'] as const;
+	const MAX_PROGRESS_DOTS = 8;
+
+	function levelPadding(level: number): string {
+		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-12';
+	}
+
+	type SidebarRow = Readonly<{
+		workstream: Workstream;
+		repositoryFullName: string | null;
+		children: readonly SidebarChild[];
+		label: string;
+		detail: string | null;
+		trail: 'changes' | 'owner';
+		owner: string | null;
+	}>;
+
+	function leadRow(workstream: Workstream, children: readonly SidebarChild[]): SidebarRow {
+		return {
+			workstream,
+			repositoryFullName: null,
+			children,
+			label: leadTitle(workstream),
+			detail: null,
+			trail: 'changes',
+			owner: null,
+		};
+	}
+
+	function leadTitle(workstream: Workstream): string {
+		return isGeneratedWorkstreamName(workstream.name) ? 'New chat' : workstream.name;
+	}
+
+	function childRow(
+		child: SidebarChild,
+		parent: Workstream | null,
+		siblings: readonly SidebarChild[],
+	): SidebarRow {
+		const fullName = child.repository.repo.fullName;
+		const name = workstreamLabel(child.workstream, fullName);
+		const byRepository =
+			parent?.scope !== null &&
+			parent?.scope !== undefined &&
+			siblings.filter((sibling) => sibling.repository.repo.id === child.repository.repo.id)
+				.length === 1;
+		return {
+			workstream: child.workstream,
+			repositoryFullName: fullName,
+			children: child.children,
+			label: byRepository ? child.repository.name : name,
+			detail: byRepository ? name : null,
+			trail: parent?.scope?.kind === 'home' ? 'owner' : 'changes',
+			owner: child.repository.owner,
+		};
+	}
+
+	function progressDots(row: SidebarRow): ProgressDot[] {
+		const merged = Array.from(
+			{ length: mergedByParent.get(row.workstream.id) ?? 0 },
+			(): ProgressDot => 'merged',
+		);
+		return [...merged, ...row.children.map((child) => dotFor(child.workstream))];
+	}
+
+	function dotFor(workstream: Workstream): ProgressDot {
+		const chat = workstreamChatSummaryQuery.data(workstream.id);
+		const provisioning = provisioningRecord(workstream.id);
+		const state = visualState(workstream, provisioning, chat);
+		return progressDot({
+			merged: false,
+			pullRequest: pullRequestBadge(workstream.id).phase,
+			needsYou: chat.needsYou,
+			chatTone: chat.state?.tone ?? null,
+			busy:
+				state.tone === 'running' || state.tone === 'background' || state.tone === 'provisioning',
+			broken: state.tone === 'broken' || provisioning?.failure !== undefined,
+		});
+	}
+
+	const PROGRESS_DOT_CLASS: Readonly<Record<ProgressDot, string>> = {
+		merged: 'bg-merged-content',
+		needs: 'bg-warning-content',
+		failed: 'bg-error-content',
+		running: 'bg-brand-icon animate-pulse motion-reduce:animate-none',
+		idle: 'bg-status-idle',
+	};
+
+	function focusOwners(
+		rows: readonly ConnectedRepositoryContext[],
+		scopedLeads: readonly Workstream[],
+	): FocusChoice[] {
+		const owners = new Map<string, FocusChoice>();
+		const add = (owner: string): void => {
+			const key = owner.toLowerCase();
+			if (!owners.has(key)) {
+				owners.set(key, {
+					focus: { kind: 'owner', owner },
+					label: owner,
+					avatarFullName: `${owner}/${owner}`,
+				});
+			}
+		};
+		for (const row of rows) if (row.owner !== null) add(row.owner);
+		for (const lead of scopedLeads) if (lead.scope?.kind === 'owner') add(lead.scope.owner);
+		return [...owners.values()];
+	}
+
+	function focusOwnerKey(focus: SidebarFocus): string {
+		if (focus.kind === 'owner') return `owner:${focus.owner.toLowerCase()}`;
+		if (focus.kind === 'repository') return `repository:${focus.repositoryId}`;
+		return 'all';
+	}
+
+	function focusNeedsYou(target: SidebarFocus): boolean {
+		const focused = sidebarTree({
+			contexts,
+			leads,
+			hiddenRepositoryIds,
+			focus: target,
+			openRepositoryId: null,
+			workstreamOrder: sidebarOrder.workstreamIds,
+		});
+		return sidebarWorkstreamIds(focused).some(
+			(workstreamId) => workstreamChatSummaryQuery.data(workstreamId).needsYou,
+		);
+	}
+
+	function ownerCountLabel(block: SidebarOwner): string {
+		const chats = block.leads.length;
+		const repositories = repositoryCountLabel(block.repositories.length);
+		if (chats === 0) return repositories;
+		const chatLabel = `${chats} ${chats === 1 ? 'chat' : 'chats'}`;
+		return block.repositories.length === 0 ? chatLabel : `${chatLabel}, ${repositories}`;
+	}
+
+	function scopeOf(block: SidebarOwner): LeadScope {
+		return { kind: 'owner', owner: block.owner };
 	}
 </script>
 
@@ -821,66 +1023,110 @@
 	{/if}
 {/snippet}
 
-{#snippet ownerFolder(folder: OwnerGroup<ConnectedRepositoryContext>)}
-	{@const collapsed = collapsedGroupIds.has(folder.id)}
-	{@const siblingIds = folder.items.map((row) => row.repo.id)}
-	{@const first = folder.items[0]}
+{#snippet ownerBlock(block: SidebarOwner, focused: boolean)}
+	{@const collapsed = !focused && collapsedGroupIds.has(block.id)}
+	{@const leadIds = block.leads.map((lead) => lead.workstream.id)}
+	{@const repositoryIds = block.repositories.map(({ row }) => row.repo.id)}
 	<li
-		class={['relative w-full min-w-0', reorderClass(folder.id)]}
-		style:transform={reorderTransform(folder.id)}
-		data-sidebar-item={folder.id}
-		onpointerdown={(event) => armReorder(event, { kind: 'repository', id: folder.id })}
+		class={['relative w-full min-w-0', reorderClass(block.id)]}
+		style:transform={reorderTransform(block.id)}
+		data-sidebar-item={focused ? undefined : block.id}
+		onpointerdown={(event) => {
+			if (!focused) armReorder(event, { kind: 'repository', id: block.id });
+		}}
 	>
-		<Button
-			bare
-			class={[
-				'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
-				compact ? 'h-7 text-xs' : 'h-8 text-sm',
-			]}
-			ariaLabel={`${folder.owner}, ${repositoryCountLabel(folder.items.length)}`}
-			ariaExpanded={!collapsed}
-			ariaControls={`owner-repositories-${folder.id}`}
-			ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-			data-sidebar-grip=""
-			data-testid="sidebar-owner-folder"
-			data-owner={folder.owner}
-			onclick={() => toggleGroupCollapsedCommand(folder.id)}
-			onkeydown={(event) => void onMoveKey(event, 'repository', folder.id, entryIds)}
-		>
-			<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-				{#if first}
-					<RepositoryAvatar fullName={first.repo.fullName} size={avatarSize} />
-				{/if}
+		<div class="group/owner relative">
+			{#if focused}
+				<div
+					class={[
+						'text-fg-default flex w-full items-center gap-2 rounded-xl pr-9 pl-2',
+						compact ? 'h-7 text-xs' : 'h-8 text-sm',
+					]}
+					data-testid="sidebar-owner-folder"
+					data-owner={block.owner}
+				>
+					<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+						<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
+					</span>
+					<h2 class="min-w-0 flex-1 truncate leading-relaxed font-medium">{block.owner}</h2>
+				</div>
+			{:else}
+				<Button
+					bare
+					class={[
+						'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+						compact ? 'h-7 text-xs' : 'h-8 text-sm',
+					]}
+					ariaLabel={`${block.owner}, ${ownerCountLabel(block)}`}
+					ariaExpanded={!collapsed}
+					ariaControls={`owner-repositories-${block.id}`}
+					ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+					data-sidebar-grip=""
+					data-testid="sidebar-owner-folder"
+					data-owner={block.owner}
+					onclick={() => toggleGroupCollapsedCommand(block.id)}
+					onkeydown={(event) => void onMoveKey(event, 'repository', block.id, blockIds)}
+				>
+					<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+						<RepositoryAvatar fullName={`${block.owner}/${block.owner}`} size={avatarSize} />
+					</span>
+					<span class="min-w-0 flex-1 truncate text-left leading-relaxed font-medium">
+						{block.owner}
+					</span>
+					<span
+						class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/owner:invisible group-has-focus-visible/owner:invisible"
+					>
+						{block.leads.length + block.repositories.length}
+					</span>
+					<Icon
+						name="chevron-down"
+						class={`text-fg-tertiary shrink-0 transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
+						size={13}
+					/>
+				</Button>
+			{/if}
+			<span
+				class={[
+					'absolute top-1/2 -translate-y-1/2',
+					focused
+						? 'right-1'
+						: 'pointer-events-none right-6 opacity-0 group-hover/owner:pointer-events-auto group-hover/owner:opacity-100 group-has-focus-visible/owner:pointer-events-auto group-has-focus-visible/owner:opacity-100',
+				]}
+			>
+				{@render newChatButton(scopeOf(block))}
 			</span>
-			<span class="min-w-0 flex-1 truncate text-left leading-relaxed font-medium">
-				{folder.owner}
-			</span>
-			<span class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums">
-				{folder.items.length}
-			</span>
-			<Icon
-				name="chevron-down"
-				class={`text-fg-tertiary shrink-0 transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
-				size={13}
-			/>
-		</Button>
-		<ul
-			id={`owner-repositories-${folder.id}`}
+		</div>
+		<div
+			id={`owner-repositories-${block.id}`}
 			class={['flex w-full flex-col gap-0.5', collapsed && 'hidden']}
 		>
-			{#each folder.items as row (row.repo.id)}
-				{@render repositoryGroup(row, true, siblingIds)}
-			{/each}
-		</ul>
+			{#if block.leads.length > 0}
+				<ul class="flex w-full flex-col" aria-label={`Chats in ${block.owner}`}>
+					{#each block.leads as lead (lead.workstream.id)}
+						{@render workstreamItem(leadRow(lead.workstream, lead.children), 1, leadIds)}
+					{/each}
+				</ul>
+			{/if}
+			{#if block.repositories.length > 0}
+				<ul class="flex w-full flex-col gap-0.5">
+					{#each block.repositories as repository (repository.row.repo.id)}
+						{@render repositoryGroup(repository, 1, repositoryIds)}
+					{/each}
+				</ul>
+			{/if}
+		</div>
 	</li>
 {/snippet}
 
 {#snippet repositoryGroup(
-	row: ConnectedRepositoryContext,
-	nested: boolean,
+	repository: SidebarRepository,
+	level: number,
 	siblingIds: readonly string[],
 )}
+	{@const row = repository.row}
+	{@const nested = level > 0}
 	{@const collapsed = collapsedGroupIds.has(row.repo.id)}
+	{@const workstreamIds = repository.workstreams.map((child) => child.workstream.id)}
 	<li
 		class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
 		style:transform={reorderTransform(row.repo.id)}
@@ -901,7 +1147,7 @@
 				<div
 					class={[
 						'group/repo text-fg-secondary relative flex w-full items-center gap-2 rounded-xl pr-1',
-						nested ? 'pl-6' : 'pl-2',
+						levelPadding(level),
 						compact ? 'h-7' : 'h-8',
 						row.repo.id === openRepositoryId
 							? 'bg-surface-50-selected'
@@ -994,117 +1240,269 @@
 			id={`repository-workstreams-${row.repo.id}`}
 			class={['flex w-full flex-col', collapsed && 'hidden']}
 		>
-			{#each row.workstreams as workstream (workstream.id)}
-				{@render workstreamItem(workstream, row, nested)}
+			{#each repository.workstreams as child (child.workstream.id)}
+				{@render workstreamItem(
+					childRow(child, null, repository.workstreams),
+					level + 1,
+					workstreamIds,
+				)}
 			{/each}
 		</ul>
 	</li>
 {/snippet}
 
-{#snippet workstreamItem(workstream: Workstream, row: ConnectedRepositoryContext, nested: boolean)}
+{#snippet workstreamItem(row: SidebarRow, level: number, siblingIds: readonly string[])}
+	{@const workstream = row.workstream}
+	{@const isLead = workstream.scope !== null}
+	{@const hasChildren = row.children.length > 0}
+	{@const dots = hasChildren || mergedByParent.has(workstream.id) ? progressDots(row) : []}
+	{@const folded = collapsedGroupIds.has(workstream.id)}
+	{@const childIds = row.children.map((child) => child.workstream.id)}
 	<li
-		class={['group/row relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
+		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
 		data-sidebar-item={workstream.id}
 		onpointerdown={(event) => armReorder(event, { kind: 'workstream', id: workstream.id })}
 		transition:slide={foldMotion()}
 	>
-		<WorkstreamChatSummary workstreamId={workstream.id}>
-			{#snippet children(chat)}
-				{@const view = workstreamView(workstream, row.repo.fullName, chat)}
-				{#snippet card()}
-					{@render runningCard(workstream, view)}
-				{/snippet}
-				<Tooltip
-					content={card}
-					interactive
-					placement="right"
-					suppressed={!view.running}
-					class="w-full min-w-0"
-				>
-					<a
-						draggable="false"
-						href={rowHref(workstream.id, view.targetSessionId)}
-						data-navigation-path-id="expected-path:workstream-sidebar.switch"
-						aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-						aria-busy={workstream.id === pendingWorkstreamId || undefined}
-						class={[
-							'sidebar-row relative w-full flex-col items-stretch pr-3 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
-							nested ? 'pl-9' : 'pl-6',
-							compact && 'py-1 text-xs',
-							view.chat.attention !== null
-								? 'text-500'
-								: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
-							view.selected
-								? 'sidebar-row-active'
-								: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-						]}
-						data-active={workstream.id === contextMenu?.workstreamId}
-						{...workstreamLinkData(workstream, row.repo.fullName, view)}
-						onpointerdown={(event) =>
-							previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
-						onpointerup={() =>
-							scheduleAbandonedDestinationPreviewCleanup(
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onpointercancel={() =>
-							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-						onpointerleave={() =>
-							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-						onkeydown={(event) => {
-							if (opensMenu(event)) {
-								openWorkstreamMenu(event, workstream.id);
-								return;
-							}
-							previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
-							void onMoveKey(
-								event,
-								'workstream',
-								workstream.id,
-								row.workstreams.map((sibling) => sibling.id),
-							);
-						}}
-						onkeyup={(event) =>
-							scheduleKeyboardDestinationPreviewCleanup(
-								event,
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onblur={() =>
-							scheduleAbandonedDestinationPreviewCleanup(
-								rowHref(workstream.id, view.targetSessionId),
-							)}
-						onclick={(event) =>
-							beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
-						oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+		<div class="group/row relative w-full min-w-0">
+			<WorkstreamChatSummary workstreamId={workstream.id}>
+				{#snippet children(chat)}
+					{@const view = workstreamView(workstream, row.label, chat)}
+					{#snippet card()}
+						{@render runningCard(workstream, view)}
+					{/snippet}
+					<Tooltip
+						content={card}
+						interactive
+						placement="right"
+						suppressed={!view.running}
+						class="w-full min-w-0"
 					>
-						<span class="relative flex items-center gap-2">
-							{@render statusIndicator(view)}
-							{#if view.chat.attention && view.chat.needsYou}
-								{@render attentionDot(view.chat.attention, '-left-3.5')}
+						<a
+							draggable="false"
+							href={rowHref(workstream.id, view.targetSessionId)}
+							data-navigation-path-id="expected-path:workstream-sidebar.switch"
+							aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+							aria-busy={workstream.id === pendingWorkstreamId || undefined}
+							class={[
+								'sidebar-row relative w-full flex-col items-stretch outline-none',
+								hasChildren
+									? 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
+									: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
+								levelPadding(level),
+								compact && 'py-1 text-xs',
+								view.chat.attention !== null
+									? 'text-500'
+									: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
+								view.selected
+									? 'sidebar-row-active'
+									: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+							]}
+							data-active={workstream.id === contextMenu?.workstreamId}
+							{...workstreamLinkData(workstream, row.repositoryFullName, view)}
+							onpointerdown={(event) =>
+								previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+							onpointerup={() =>
+								scheduleAbandonedDestinationPreviewCleanup(
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onpointercancel={() =>
+								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+							onpointerleave={() =>
+								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+							aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+							onkeydown={(event) => {
+								if (opensMenu(event)) {
+									openWorkstreamMenu(event, workstream.id);
+									return;
+								}
+								previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+								void onMoveKey(event, 'workstream', workstream.id, siblingIds);
+							}}
+							onkeyup={(event) =>
+								scheduleKeyboardDestinationPreviewCleanup(
+									event,
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onblur={() =>
+								scheduleAbandonedDestinationPreviewCleanup(
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onclick={(event) =>
+								beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+							oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+						>
+							<span class="relative flex items-center gap-2">
+								{#if isLead}
+									{@render chatGlyph(view, level)}
+								{:else}
+									{@render statusIndicator(view)}
+								{/if}
+								{#if view.chat.attention && view.chat.needsYou}
+									{@render attentionDot(view.chat.attention, level === 0 ? '-left-2' : '-left-3.5')}
+								{/if}
+								<span class="sidebar-row-text gap-1.5">
+									{@render workstreamName(workstream, view, row.detail, 40)}
+									{#if dots.length > 0}
+										{@render progress(dots)}
+									{:else if row.trail === 'owner' && row.owner !== null}
+										<span
+											class="text-2xs text-fg-tertiary shrink-0 group-hover/row:hidden group-has-focus-visible/row:hidden"
+											data-testid="sidebar-workstream-owner"
+										>
+											{row.owner}
+										</span>
+									{:else}
+										{@render workstreamTrail(view)}
+									{/if}
+								</span>
+							</span>
+							{#if view.running}
+								<span class="pl-6" transition:slide={foldMotion()}>
+									<WorkstreamRunningLine running={view.running} selected={view.selected} />
+								</span>
 							{/if}
-							<span class="sidebar-row-text gap-1.5">
-								{@render workstreamName(workstream, view, 40)}
-								{@render workstreamTrail(view)}
-							</span>
-						</span>
-						{#if view.running}
-							<span class="pl-6" transition:slide={foldMotion()}>
-								<WorkstreamRunningLine running={view.running} selected={view.selected} />
-							</span>
+						</a>
+						{#if hasChildren}
+							{@render foldButton(row, folded)}
 						{/if}
-					</a>
-					{@render archiveButton(
-						workstream,
-						view,
-						compact
-							? 'absolute top-1 right-1 h-lh items-center text-xs leading-relaxed'
-							: 'absolute top-1.5 right-1 h-lh items-center text-sm leading-relaxed',
-					)}
-				</Tooltip>
-			{/snippet}
-		</WorkstreamChatSummary>
+						{@render archiveButton(
+							workstream,
+							view,
+							[
+								'absolute h-lh items-center leading-relaxed',
+								hasChildren ? 'right-7' : 'right-1',
+								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+							].join(' '),
+						)}
+					</Tooltip>
+				{/snippet}
+			</WorkstreamChatSummary>
+		</div>
+		{#if hasChildren}
+			<ul
+				id={`workstream-children-${workstream.id}`}
+				class={['flex w-full flex-col', folded && 'hidden']}
+				aria-label={`Started by ${row.label}`}
+			>
+				{#each row.children as child (child.workstream.id)}
+					{@render workstreamItem(childRow(child, workstream, row.children), level + 1, childIds)}
+				{/each}
+			</ul>
+		{/if}
 	</li>
+{/snippet}
+
+{#snippet chatGlyph(view: WorkstreamView, level: number)}
+	<Tooltip
+		content={visualStateTooltip(view.state, view.chat, view.pullRequest)}
+		placement="right"
+		suppressed={view.running !== null}
+		class="relative z-10 shrink-0"
+	>
+		<span
+			class={['grid shrink-0 place-items-center', level === 0 ? 'h-5 w-5' : 'h-4 w-4']}
+			role="status"
+			aria-label={`Chat status: ${visualStateTooltip(view.state, view.chat, view.pullRequest)}`}
+			data-testid="sidebar-chat-status"
+			data-workstream-icon-state={view.state.tone}
+		>
+			{#if view.busy}
+				<BusyIcon size={14} background={view.state.tone === 'background'} />
+			{:else}
+				<ChatTileIcon size={16} />
+			{/if}
+		</span>
+	</Tooltip>
+{/snippet}
+
+{#snippet progress(dots: readonly ProgressDot[])}
+	{@const shown = dots.slice(0, MAX_PROGRESS_DOTS)}
+	<span
+		class="flex shrink-0 items-center gap-[3px] group-hover/row:hidden group-has-focus-visible/row:hidden"
+		role="img"
+		aria-label={progressLabel(dots)}
+		data-testid="sidebar-progress"
+	>
+		{#each shown as dot, index (index)}
+			<span
+				class={['h-1.5 w-1.5 rounded-full', PROGRESS_DOT_CLASS[dot]]}
+				data-progress-dot={dot}
+			></span>
+		{/each}
+		{#if dots.length > shown.length}
+			<span class="text-3xs text-fg-tertiary font-mono font-medium tabular-nums">
+				+{dots.length - shown.length}
+			</span>
+		{/if}
+	</span>
+{/snippet}
+
+{#snippet foldButton(row: SidebarRow, folded: boolean)}
+	<Tooltip
+		content={folded ? 'Show its workstreams' : 'Fold its workstreams'}
+		placement="right"
+		class={[
+			'absolute right-1 h-lh items-center leading-relaxed',
+			compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+		]}
+	>
+		<IconButton
+			variant="ghost"
+			size="sm"
+			ariaLabel={`${folded ? 'Show' : 'Fold'} the workstreams of ${row.label}`}
+			ariaExpanded={!folded}
+			ariaControls={`workstream-children-${row.workstream.id}`}
+			data-testid="sidebar-fold"
+			onclick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				toggleGroupCollapsedCommand(row.workstream.id);
+			}}
+		>
+			<Icon
+				name="chevron-down"
+				class={`text-fg-tertiary transition-transform duration-100 ${folded ? '-rotate-90' : ''}`}
+				size={12}
+			/>
+		</IconButton>
+	</Tooltip>
+{/snippet}
+
+{#snippet newChatRow()}
+	<Button
+		bare
+		class={[
+			'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+			compact ? 'h-7 text-xs' : 'h-8 text-sm',
+		]}
+		ariaLabel="New chat"
+		data-testid="sidebar-new-home-chat"
+		onclick={() => startLeadChatCommand(HOME_SCOPE)}
+	>
+		<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+			<Icon name="plus" size={15} />
+		</span>
+		<span class="min-w-0 flex-1 truncate text-left leading-relaxed">New chat</span>
+	</Button>
+{/snippet}
+
+{#snippet newChatButton(scope: LeadScope)}
+	<Tooltip content={`New chat in ${leadScopeLabel(scope)}`} placement="top" class="relative">
+		<IconButton
+			variant="ghost"
+			size="sm"
+			ariaLabel={`New chat in ${leadScopeLabel(scope)}`}
+			data-testid="sidebar-new-chat"
+			onclick={(event) => {
+				event.stopPropagation();
+				startLeadChatCommand(scope);
+			}}
+		>
+			<Icon name="plus" size={14} />
+		</IconButton>
+	</Tooltip>
 {/snippet}
 
 {#snippet statusIndicator(view: WorkstreamView)}
@@ -1145,12 +1543,17 @@
 	></span>
 {/snippet}
 
-{#snippet workstreamName(workstream: Workstream, view: WorkstreamView, offset: number)}
+{#snippet workstreamName(
+	workstream: Workstream,
+	view: WorkstreamView,
+	detail: string | null,
+	offset: number,
+)}
 	<Tooltip
-		content={view.label}
+		content={detail === null ? view.label : `${view.label} · ${detail}`}
 		placement="right"
 		{offset}
-		onlyWhenTruncated
+		onlyWhenTruncated={detail === null}
 		suppressed={view.running !== null}
 		class="min-w-0 flex-1 truncate"
 	>
@@ -1160,6 +1563,9 @@
 			class="block"
 			textClass="block truncate"
 		/>
+		{#if detail !== null}
+			<span class="sr-only">, {detail}</span>
+		{/if}
 	</Tooltip>
 {/snippet}
 
@@ -1307,6 +1713,17 @@
 {/snippet}
 
 <SidebarFrame testId="repository-sidebar">
+	{#snippet lead()}
+		<SidebarFocusStrip
+			active={focus}
+			pinned={pinnedChoices}
+			owners={ownerChoices}
+			repositories={repositoryChoices}
+			attention={focusNeedsYou}
+			onchoose={chooseSidebarFocusCommand}
+			ontogglepin={toggleSidebarPinCommand}
+		/>
+	{/snippet}
 	<nav
 		class={['min-h-0 flex-1 select-none', reorder && 'cursor-grabbing']}
 		aria-label="Connected repositories"
@@ -1352,46 +1769,61 @@
 
 			{#if scopeLoading}
 				<RepositorySidebarSkeleton label="Loading connected repositories" />
-			{:else if rows.length === 0 && !scopeFailure}
-				<StateBlock
-					layout="inline"
-					heading={everyRepositoryHidden
-						? 'Every repository is hidden'
-						: repositories.length > 0
-							? 'No workstreams yet'
-							: 'No repositories connected'}
-					detail={everyRepositoryHidden
-						? 'Hidden repositories keep their workstreams.'
-						: repositories.length > 0
-							? 'Workstreams live here, one group per repository.'
-							: 'Connected repositories and their workstreams live here, one group per repository.'}
-					remedy={everyRepositoryHidden
-						? 'Unhide one from the repository list.'
-						: repositories.length > 0
-							? 'Start one from the repository list.'
-							: 'Connect a repository to start a workstream.'}
-					testId="repository-sidebar-empty"
-				>
-					{#snippet icon()}
-						<Icon name="link" size={14} />
-					{/snippet}
-				</StateBlock>
-			{:else if rows.length > 0}
+			{:else}
 				<ul
 					class={[
-						'flex w-full flex-col pt-2',
+						'flex w-full flex-col pt-1',
 						compact ? 'gap-1' : 'gap-3',
 						reorder && 'pointer-events-none',
 					]}
 				>
-					{#each entries as entry (entry.id)}
-						{#if entry.kind === 'owner'}
-							{@render ownerFolder(entry)}
+					{#if focus.kind === 'all'}
+						<li class="relative w-full min-w-0">
+							<ul class="flex w-full flex-col" aria-label="Home">
+								<li class="w-full min-w-0">{@render newChatRow()}</li>
+								{#each tree.homeLeads as homeLead (homeLead.workstream.id)}
+									{@render workstreamItem(
+										leadRow(homeLead.workstream, homeLead.children),
+										0,
+										homeLeadIds,
+									)}
+								{/each}
+							</ul>
+						</li>
+					{/if}
+					{#each tree.blocks as block (block.id)}
+						{#if block.kind === 'owner'}
+							{@render ownerBlock(block, focus.kind === 'owner')}
 						{:else}
-							{@render repositoryGroup(entry.item, false, entryIds)}
+							{@render repositoryGroup(block.repository, 0, blockIds)}
 						{/if}
 					{/each}
 				</ul>
+				{#if !hasRows && focus.kind === 'all' && !scopeFailure}
+					<StateBlock
+						layout="inline"
+						heading={everyRepositoryHidden
+							? 'Every repository is hidden'
+							: repositories.length > 0
+								? 'No workstreams yet'
+								: 'No repositories connected'}
+						detail={everyRepositoryHidden
+							? 'Hidden repositories keep their workstreams.'
+							: repositories.length > 0
+								? 'Workstreams live here, one group per repository.'
+								: 'Connected repositories and their workstreams live here, one group per repository.'}
+						remedy={everyRepositoryHidden
+							? 'Unhide one from the repository list.'
+							: repositories.length > 0
+								? 'Start one from the repository list.'
+								: 'Connect a repository to start a workstream.'}
+						testId="repository-sidebar-empty"
+					>
+						{#snippet icon()}
+							<Icon name="link" size={14} />
+						{/snippet}
+					</StateBlock>
+				{/if}
 			{/if}
 		</ScrollableDiv>
 	</nav>

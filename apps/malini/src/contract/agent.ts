@@ -17,6 +17,18 @@ export interface AgentRunProfile {
 	report?: AgentReport;
 }
 
+export interface AgentCheckout {
+	repository: string;
+	branch: string;
+	path: string;
+}
+
+export interface AgentLineage {
+	lead: { owner: string | null; repositories: AgentCheckout[] } | null;
+	startedBy: { name: string; lead: boolean } | null;
+	siblings: AgentCheckout[];
+}
+
 export type ProviderCapabilityState = 'ready' | 'needs_auth' | 'missing' | 'unknown';
 
 export interface AgentModelInfo {
