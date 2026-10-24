@@ -55,7 +55,7 @@
 			{
 				"id": "malini.repository.open-file",
 				"title": "Repository: Open File",
-				"description": "Open a repository file in a tab beside the workstream chats."
+				"description": "Open a repository file, or a file an agent opened outside the worktree, in an editable tab beside the workstream chats."
 			},
 			{
 				"id": "malini.repository.render-diff",

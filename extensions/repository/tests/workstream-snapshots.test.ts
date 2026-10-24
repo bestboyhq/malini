@@ -847,7 +847,12 @@ function createHarness(
 					notifications.push(body ?? '');
 				},
 			},
-			workstream: { readFile: api.workstream.readFile },
+			workstream: {
+				readFile: api.workstream.readFile,
+				writeFile: async () => {
+					throw new Error('The workstream snapshot tests do not save files');
+				},
+			},
 			panels: {
 				register: () => ({ dispose: () => undefined }),
 				open: () => undefined,

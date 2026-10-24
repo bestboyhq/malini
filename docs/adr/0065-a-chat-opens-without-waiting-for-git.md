@@ -1,4 +1,4 @@
-# 0064 - A chat opens without waiting for git
+# 0065 - A chat opens without waiting for git
 
 Status: accepted
 

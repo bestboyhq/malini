@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { extensionCommands } from '$shared/extensions/commands.store.svelte';
+import { OPEN_REPOSITORY_FILE_COMMAND } from '$shared/extensions/repository-file';
 import {
 	AgentFileMentionExtensionTarget,
-	OPEN_REPOSITORY_FILE_COMMAND,
 	RepositoryFileTargetUnavailableError,
 } from './agent-file-mention-target.service';
 

@@ -241,6 +241,7 @@ export async function startAgentService(
 							db,
 							commands: context.commands,
 							events: context.events,
+							appDataRoot: context.appDataRoot,
 							log,
 						}),
 					)

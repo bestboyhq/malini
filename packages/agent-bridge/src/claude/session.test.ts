@@ -203,7 +203,7 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-2' });
 	});
 
-	it('hands Claude the malini browser and read tools pre-approved and the report resolution of each prompt', async () => {
+	it('hands Claude the malini browser, read and file-opening tools pre-approved and the report resolution of each prompt', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, claude } = harness([script, script]);
 
@@ -226,6 +226,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',
 			'mcp__malini__workstreams_list',
+			'mcp__malini__files_open',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([
 			{ malini: 'default' },

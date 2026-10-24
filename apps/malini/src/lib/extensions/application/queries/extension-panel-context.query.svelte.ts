@@ -3,6 +3,7 @@ import type {
 	ExtensionSettingValue,
 	ExtensionWorkstream,
 } from '@malini/extension-api';
+import { sensitiveMasking } from '$hyper-ui/components/sensitive';
 
 import { extensionRuntimeStore } from '../../infrastructure/stores/extension-runtime.store.svelte';
 
@@ -25,6 +26,7 @@ class ExtensionPanelContextQuery {
 			return {
 				workstream,
 				settings,
+				maskPrivateData: sensitiveMasking.on,
 				async executeCommand(id: string, ...args: readonly unknown[]): Promise<unknown> {
 					if (!service) throw new Error('Extensions are not ready yet');
 					if (workstream && service.workstream?.id !== workstream.id) {

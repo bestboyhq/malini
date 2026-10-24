@@ -29,7 +29,7 @@ import { upstreamPositionGlyphs, upstreamPositionSentence } from './upstream-pos
 export type RepositoryPanelHost = {
 	manifest: Pick<ExtensionAPI['manifest'], 'id'>;
 	notifications: Pick<ExtensionAPI['notifications'], 'show'>;
-	workstream: Pick<ExtensionAPI['workstream'], 'readFile'>;
+	workstream: Pick<ExtensionAPI['workstream'], 'readFile' | 'writeFile'>;
 	panels: Pick<ExtensionAPI['panels'], 'register' | 'open'>;
 };
 
@@ -700,7 +700,11 @@ class RepositoryPanelView {
 			'file',
 			() => this.#controller.selectFile(node.path),
 			() => {
-				repositoryFileTabs(this.#api, this.#controller).open({ path: node.path, line: null });
+				repositoryFileTabs(this.#api, this.#controller).open({
+					path: node.path,
+					line: null,
+					pinned: false,
+				});
 			},
 		);
 	}

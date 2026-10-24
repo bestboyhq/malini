@@ -722,6 +722,14 @@ CREATE TABLE mcp_server_folder_offs (
 );
 `,
 	`
+CREATE TABLE workstream_opened_files (
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  opened_at TEXT NOT NULL,
+  PRIMARY KEY (workstream_id, path)
+);
+`,
+	`
 CREATE TABLE agent_session_changes (
   session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
   runs_digest TEXT NOT NULL,

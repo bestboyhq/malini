@@ -2,8 +2,7 @@ import type { RepositoryFileTarget } from '$lib/chat/domain/repository-file-targ
 import { extensionCommands } from '$shared/extensions/commands.store.svelte';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
-
-export const OPEN_REPOSITORY_FILE_COMMAND = 'malini.repository.open-file';
+import { OPEN_REPOSITORY_FILE_COMMAND } from '$shared/extensions/repository-file';
 
 export class RepositoryFileTargetUnavailableError extends Error {}
 
