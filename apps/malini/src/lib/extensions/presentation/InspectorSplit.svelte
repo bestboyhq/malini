@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 
 	import { ResizableSplit } from '$hyper-ui/components/resizable-split';
 	import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 	import { inspectorGutter } from '$shared/extensions/inspector-gutter.store.svelte';
+	import { inspectorWidth } from '$shared/extensions/inspector-width.store';
 	import { WORKSTREAM_TRANSCRIPT_RATIO_KEY } from '$shared/storage/panel-storage-keys';
 
 	interface Props {
@@ -32,9 +33,19 @@
 
 	const secondaryMinSize = $derived(inspectorGutter.minWidthFor(workstreamId));
 	const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay);
+
+	let split: ReturnType<typeof ResizableSplit> | undefined = $state();
+
+	onMount(() =>
+		inspectorWidth.connect({
+			workstreamId: () => workstreamId,
+			grow: (by) => split?.growSecondary(by),
+		}),
+	);
 </script>
 
 <ResizableSplit
+	bind:this={split}
 	{panelId}
 	{storageKey}
 	scope={workstreamId}

@@ -37,6 +37,14 @@ export function readBounds(args: unknown): BrowserBounds {
 	return { x, y, width, height };
 }
 
+export function readRequestId(args: unknown): string {
+	const value = field(args, 'requestId');
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error('invalid args: `requestId` must be a non-empty string');
+	}
+	return value;
+}
+
 export function readUrl(args: unknown): string {
 	const value = field(args, 'url');
 	if (typeof value !== 'string') throw new Error('invalid args: `url` must be a string');

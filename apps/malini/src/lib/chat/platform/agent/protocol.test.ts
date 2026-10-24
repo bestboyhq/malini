@@ -351,6 +351,10 @@ describe('browser requests', () => {
 				value: { ...frame, action },
 			});
 		}
+		expect(decodeControlFrame({ ...frame, action: 'resize', width: 1280 })).toEqual({
+			ok: true,
+			value: { ...frame, action: 'resize', width: 1280 },
+		});
 	});
 
 	it('refuses a request it cannot route or act on', () => {
@@ -363,6 +367,13 @@ describe('browser requests', () => {
 			error: 'bridge.browser_request: field `url` must be a string',
 		});
 		expect(decodeControlFrame({ ...frame, action: 'click' })).toMatchObject({ ok: false });
+		for (const width of [0, -320, 1280.5]) {
+			expect(decodeControlFrame({ ...frame, action: 'resize', width })).toEqual({
+				ok: false,
+				error: 'bridge.browser_request: `width` must be a whole number above zero',
+			});
+		}
+		expect(decodeControlFrame({ ...frame, action: 'resize' })).toMatchObject({ ok: false });
 		expect(
 			decodeControlFrame({ ...frame, action: 'type', selector: '#q', text: 'x' }),
 		).toMatchObject({ ok: false });

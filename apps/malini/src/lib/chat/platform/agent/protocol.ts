@@ -382,7 +382,8 @@ export type BrowserRequestAction =
 	| { action: 'type'; selector: string; text: string; submit: boolean }
 	| { action: 'back' }
 	| { action: 'forward' }
-	| { action: 'reload' };
+	| { action: 'reload' }
+	| { action: 'resize'; width: number };
 
 export type BridgeBrowserRequest = {
 	type: 'bridge.browser_request';
@@ -984,6 +985,13 @@ function decodeBrowserRequest(
 			return { ok: true, value: { ...base, action } };
 		case 'click':
 			return { ok: true, value: { ...base, action, selector: f.string('selector') } };
+		case 'resize': {
+			const width = f.number('width');
+			if (!Number.isInteger(width) || width <= 0) {
+				return { ok: false, error: `${type}: \`width\` must be a whole number above zero` };
+			}
+			return { ok: true, value: { ...base, action, width } };
+		}
 		case 'type':
 			return {
 				ok: true,

@@ -185,7 +185,8 @@ export type BrowserRequest =
 	  }
 	| { readonly action: 'back' }
 	| { readonly action: 'forward' }
-	| { readonly action: 'reload' };
+	| { readonly action: 'reload' }
+	| { readonly action: 'resize'; readonly width: number };
 
 export interface BrowserResult {
 	readonly ok: boolean;

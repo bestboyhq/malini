@@ -904,6 +904,19 @@ const respond = async (sessionId, runId, prompt) => {
 			url: browserOpen[1],
 		});
 	}
+	const browserResize = /BROWSER_RESIZE:(\d+)/.exec(prompt);
+	if (browserResize) {
+		pendingRuns.set(runId, sessionId);
+		write({
+			type: 'bridge.browser_request',
+			protocolVersion: version,
+			requestId: 'browser-resize-' + runId,
+			sessionId,
+			action: 'resize',
+			width: Number(browserResize[1]),
+		});
+		return;
+	}
 	if (prompt.includes('CHAT_BASH_EXIT')) {
 		const toolCallId = 'bash-exit-' + runId;
 		const input = { command: 'pnpm test', description: 'Run the unit tests' };
@@ -1295,8 +1308,14 @@ const handle = (command) => {
 			});
 			return ack(command.id);
 		}
-		case 'browser_result':
-			return ack(command.id);
+		case 'browser_result': {
+			ack(command.id);
+			const runId = /^browser-resize-(.+)$/.exec(command.requestId)?.[1];
+			if (!runId || !pendingRuns.has(runId)) return;
+			pendingRuns.delete(runId);
+			const result = command.ok ? command.text : command.error;
+			return completeRun(command.sessionId, runId, 'browser:' + result, [], [], '\n\n' + result);
+		}
 		case 'platform_result': {
 			ack(command.id);
 			const runId = command.requestId.replace(/^platform-/, '');

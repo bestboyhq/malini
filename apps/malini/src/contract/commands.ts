@@ -25,6 +25,7 @@ import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approva
 import type {
 	BrowserElementPrompt,
 	BrowserNavigateArgs,
+	BrowserResizedArgs,
 	BrowserShowArgs,
 	BrowserState,
 	BrowserTabArgs,
@@ -387,6 +388,7 @@ export interface ContractCommands {
 	'browser.pick-element': { args: BrowserTabArgs; result: BrowserElementPrompt | null };
 	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
 	'browser.close': { args: BrowserTabArgs; result: void };
+	'browser.resized': { args: BrowserResizedArgs; result: void };
 	'chat.activate-session': { args: SessionIdArgs; result: void };
 	'chat.agent-health': { args: undefined; result: boolean };
 	'providers.install-claude-code': { args: undefined; result: void };
@@ -672,6 +674,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'browser.pick-element',
 	'browser.cancel-pick',
 	'browser.close',
+	'browser.resized',
 	'app.copy-text',
 	'app.copy-image',
 	'chat.activate-session',

@@ -2,10 +2,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BrowserState } from '$contract/browser';
+import type { BrowserResizeRequest, BrowserState } from '$contract/browser';
 import { PREVIEW_LONG_EDGE } from './automation';
 import type { PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
-import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, toDip } from './views';
+import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, RESIZE_ANSWER_MS, toDip } from './views';
 
 class FakeWindow {
 	destroyed = false;
@@ -205,6 +205,7 @@ function setup(zoom = 1) {
 	const views: FakeView[] = [];
 	const states: BrowserState[] = [];
 	const opened: unknown[] = [];
+	const resizes: BrowserResizeRequest[] = [];
 	const resets = new Map<FakeWindow, () => void>();
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
@@ -222,6 +223,7 @@ function setup(zoom = 1) {
 		worktree: (workstreamId) => `/work/${workstreamId}`,
 		stateChanged: (state) => states.push(state),
 		tabOpened: (tab) => opened.push(tab),
+		resizeRequested: (request) => resizes.push(request),
 	});
 	const viewAt = (index: number): FakeView => {
 		const view = views[index];
@@ -233,6 +235,7 @@ function setup(zoom = 1) {
 		views,
 		states,
 		opened,
+		resizes,
 		viewAt,
 		resetRenderer(of: FakeWindow): void {
 			resets.get(of)?.();
@@ -660,6 +663,53 @@ describe('BrowserViews', () => {
 		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));
 		expect(ends).toHaveLength(2);
 		expect(window().focusCount).toBe(2);
+	});
+
+	it('asks malini to resize a tab the user sees, then reports the width its page got', async () => {
+		const { browser, resizes } = setup(1.25);
+		browser.show(TAB, { x: 0, y: 0, width: 400, height: 600 });
+		await browser.open(TAB, 'https://example.com');
+
+		const resizing = browser.resize(TAB, 1_000);
+		await expect.poll(() => resizes).toEqual([{ ...TAB, requestId: '1', width: 800 }]);
+		browser.show(TAB, { x: 0, y: 0, width: 720, height: 600 });
+		browser.resized('2');
+		browser.resized('1');
+
+		await expect(resizing).resolves.toBe(900);
+	});
+
+	it('leaves the width of a tab the user does not see, and says so', async () => {
+		const { browser, resizes, window } = setup();
+		await expect(browser.resize(TAB, 1_000)).rejects.toThrow(NOTHING_OPEN);
+		browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
+		await browser.open(TAB, 'https://example.com');
+		browser.hide(TAB);
+
+		await expect(browser.resize(TAB, 1_000)).rejects.toThrow(
+			'The browser tab is not on screen, so its width did not change: the page is 640px wide.',
+		);
+		browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
+		window().onScreen = false;
+		await expect(browser.resize(TAB, 1_000)).rejects.toThrow('not on screen');
+		expect(resizes).toEqual([]);
+	});
+
+	it('gives up on a resize malini never answers', async () => {
+		vi.useFakeTimers();
+		try {
+			const { browser } = setup();
+			browser.show(TAB, { x: 0, y: 0, width: 640, height: 600 });
+			await browser.open(TAB, 'https://example.com');
+
+			const resizing = expect(browser.resize(TAB, 1_000)).rejects.toThrow(
+				'Malini did not resize the browser tab within 5s. Call browser_resize again.',
+			);
+			await vi.advanceTimersByTimeAsync(RESIZE_ANSWER_MS);
+			await resizing;
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it('converts CSS pixels to window pixels without gaps between neighbours', () => {

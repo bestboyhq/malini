@@ -1,10 +1,15 @@
 import type {
 	BrowserBounds,
 	BrowserElementPrompt,
+	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
 } from '$contract/browser';
-import { BROWSER_STATE_CHANGED_CHANNEL, BROWSER_TAB_OPENED_CHANNEL } from '$contract/events';
+import {
+	BROWSER_RESIZE_REQUESTED_CHANNEL,
+	BROWSER_STATE_CHANGED_CHANNEL,
+	BROWSER_TAB_OPENED_CHANNEL,
+} from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
@@ -19,6 +24,14 @@ class BrowserService {
 
 	onTabOpened(listener: (tab: BrowserTabArgs) => void): () => void {
 		return onPlatformEvent(BROWSER_TAB_OPENED_CHANNEL, listener);
+	}
+
+	onResizeRequested(listener: (request: BrowserResizeRequest) => void): () => void {
+		return onPlatformEvent(BROWSER_RESIZE_REQUESTED_CHANNEL, listener);
+	}
+
+	resized(requestId: string): Promise<void> {
+		return invoke('browser.resized', { requestId });
 	}
 
 	show(tab: BrowserTabArgs, bounds: BrowserBounds): Promise<void> {

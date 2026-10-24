@@ -122,6 +122,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			'Fires when a new browser tab opens in a workstream, for example when an agent opens a page.',
 	},
+	'browser:resize-requested': {
+		description:
+			"Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.",
+	},
 	'extensions:file-open-requested': {
 		description:
 			"Fires when an agent opens a file for the user to edit, with the workstream, the file's path (relative to the worktree, or absolute outside it) and the line to show; Malini opens it in a File tab beside the workstream's chats.",

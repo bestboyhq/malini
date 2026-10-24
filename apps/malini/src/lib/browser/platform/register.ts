@@ -1,5 +1,6 @@
 import { app, type BrowserWindow } from 'electron';
 import {
+	BROWSER_RESIZE_REQUESTED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
 	BROWSER_TAB_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
@@ -8,7 +9,7 @@ import type { MainContext } from '$main/context';
 import { resolveWorkstreamCheckoutCanonical } from '$main/git/paths';
 import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
 import type { BrowserPlatform } from '../browser.platform';
-import { readBounds, readTab, readUrl } from './args';
+import { readBounds, readRequestId, readTab, readUrl } from './args';
 import { createElectronView, watchRendererReset } from './electron-view';
 import { BrowserViews } from './views';
 import { serveWorktreeFiles } from './worktree-files';
@@ -38,6 +39,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 		worktree,
 		stateChanged: (state) => events.emit(BROWSER_STATE_CHANGED_CHANNEL, state),
 		tabOpened: (tab) => events.emit(BROWSER_TAB_OPENED_CHANNEL, tab),
+		resizeRequested: (request) => events.emit(BROWSER_RESIZE_REQUESTED_CHANNEL, request),
 	});
 
 	commands.define('browser.show', (args) => views.show(readTab(args), readBounds(args)));
@@ -57,6 +59,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 	commands.define('browser.pick-element', (args) => views.pick(readTab(args)));
 	commands.define('browser.cancel-pick', (args) => views.cancelPick(readTab(args)));
 	commands.define('browser.close', (args) => views.destroy(readTab(args)));
+	commands.define('browser.resized', (args) => views.resized(readRequestId(args)));
 
 	events.subscribe(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, ({ workstreamId }) =>
 		views.destroyWorkstream(workstreamId),

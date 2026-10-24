@@ -18,13 +18,14 @@
 	import { reloadBrowserCommand } from '../application/commands/reload-browser.command';
 	import { settleBrowserAddressFocusCommand } from '../application/commands/settle-browser-address-focus.command';
 	import { pickElementHook } from '../application/hooks/pick-element.hook';
+	import { watchBrowserResizesHook } from '../application/hooks/watch-browser-resizes.hook';
 	import { browserAddressFocusQuery } from '../application/queries/browser-address-focus.query.svelte';
 	import { browserPickingQuery } from '../application/queries/browser-picking.query.svelte';
 	import { browserSnapshotQuery } from '../application/queries/browser-snapshot.query.svelte';
 	import { browserStateQuery } from '../application/queries/browser-state.query.svelte';
 	import { browserAddressLabel } from '../domain/browser-address';
 	import { browserTabKey } from '../domain/browser-tab';
-	import { HIDDEN_BROWSER, browserPlacementFor } from '../domain/browser-placement';
+	import { HIDDEN_BROWSER, browserPlacementFor, placedWidth } from '../domain/browser-placement';
 
 	interface Props {
 		workstreamId: string;
@@ -46,8 +47,11 @@
 	const failure = $derived(browser?.failure ?? null);
 
 	let draft: string | null = $state(null);
+	let viewport: HTMLElement | null = null;
 
 	const pickElement = pickElementHook((id, picked) => onElementPrompt(id, picked));
+
+	$effect(() => watchBrowserResizesHook(tab, shownWidth, placeShown));
 
 	onMount(() => {
 		loadBrowserStateCommand(tab);
@@ -56,23 +60,37 @@
 		};
 	});
 
+	function placeViewport(element: HTMLElement): void {
+		const rect = element.getBoundingClientRect();
+		const covered = overlaySuppression.isSuppressed({
+			x: rect.left,
+			y: rect.top,
+			width: rect.width,
+			height: rect.height,
+		});
+		placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage && failure === null, covered));
+	}
+
 	function followViewport(element: HTMLElement): () => void {
-		let frame = requestAnimationFrame(place);
-		function place(): void {
-			const rect = element.getBoundingClientRect();
-			const covered = overlaySuppression.isSuppressed({
-				x: rect.left,
-				y: rect.top,
-				width: rect.width,
-				height: rect.height,
-			});
-			placeBrowserViewCommand(tab, browserPlacementFor(rect, hasPage && failure === null, covered));
-			frame = requestAnimationFrame(place);
+		viewport = element;
+		let frame = requestAnimationFrame(follow);
+		function follow(): void {
+			placeViewport(element);
+			frame = requestAnimationFrame(follow);
 		}
 		return () => {
+			viewport = null;
 			cancelAnimationFrame(frame);
 			placeBrowserViewCommand(tab, HIDDEN_BROWSER);
 		};
+	}
+
+	function shownWidth(): number | null {
+		return viewport && placedWidth(viewport.getBoundingClientRect());
+	}
+
+	function placeShown(): void {
+		if (viewport) placeViewport(viewport);
 	}
 
 	function focusNewTabAddress(field: HTMLInputElement): void {
