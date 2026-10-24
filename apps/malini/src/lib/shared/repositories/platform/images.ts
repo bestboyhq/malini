@@ -177,7 +177,11 @@ export async function workstreamMediaResponse(
 			const image = await readOpenImage(file, size);
 			if (image.status !== 'ready') return new Response(image.status, { status: 404 });
 			return new Response(image.bytes.data, {
-				headers: { 'content-type': image.bytes.mediaType, 'x-content-type-options': 'nosniff' },
+				headers: {
+					'content-type': image.bytes.mediaType,
+					'x-content-type-options': 'nosniff',
+					'access-control-allow-origin': '*',
+				},
 			});
 		}
 		const span = requestedRange(range, size);
