@@ -139,6 +139,7 @@ export { workstreamCount } from './domain/workstream-retirement';
 
 export { workstreamsForRepository } from './domain/repository-connection';
 
+export { archiveSavedWorkstreamCommand } from './application/commands/archive-saved-workstream.command';
 export { archiveWorkstreamCommand } from './application/commands/archive-workstream.command';
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
 export { answerRepositoryConnectionRequestCommand } from './application/commands/answer-repository-connection-request.command';

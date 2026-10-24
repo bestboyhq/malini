@@ -71,7 +71,11 @@
 				name,
 				dot: pullRequest ? 'merged' : 'idle',
 				pullRequest: pullRequest ? 'merged' : 'none',
-				label: pullRequest ? `Merged #${pullRequest.number}` : 'Archived',
+				label: pullRequest
+					? `Merged #${pullRequest.number}`
+					: archived.savedForLater
+						? 'Saved for later'
+						: 'Archived',
 				open: false,
 			},
 		];

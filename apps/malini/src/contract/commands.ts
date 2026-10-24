@@ -421,6 +421,10 @@ export interface ContractCommands {
 		args: WorkstreamIdArgs;
 		result: WorkstreamRetirementReceipt;
 	};
+	'repositories.save-workstream-for-later': {
+		args: WorkstreamIdArgs;
+		result: WorkstreamRetirementReceipt;
+	};
 	'chat.cancel-run': { args: CancelRunArgs; result: void };
 	'repositories.claim-docker-service': {
 		args: ClaimDockerServiceArgs;
@@ -705,6 +709,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.abort-workstream-operation',
 	'chat.archive-session',
 	'repositories.archive-workstream',
+	'repositories.save-workstream-for-later',
 	'chat.cancel-run',
 	'repositories.claim-docker-service',
 	'repositories.commit-workstream',

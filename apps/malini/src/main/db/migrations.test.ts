@@ -216,7 +216,9 @@ describe('migrate', () => {
 	it('records which workstream started each one from the agent calls that started them', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		const startedBy = MIGRATIONS.findIndex((migration) => migration.includes('started_by TEXT'));
+		const startedBy = MIGRATIONS.findIndex((migration) =>
+			migration.includes('ADD COLUMN started_by'),
+		);
 		for (const migration of MIGRATIONS.slice(0, startedBy)) db.exec(migration);
 		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + startedBy};`);
 		seedWorkstream(db);

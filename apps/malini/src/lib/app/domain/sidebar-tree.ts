@@ -43,6 +43,7 @@ export type SidebarTreeInput = Readonly<{
 	contexts: readonly ConnectedRepositoryContext[];
 	leads: readonly Workstream[];
 	hiddenRepositoryIds: ReadonlySet<string>;
+	savedRepositoryIds: ReadonlySet<string>;
 	focus: SidebarFocus;
 	openRepositoryId: string | null;
 	workstreamOrder: readonly string[];
@@ -115,6 +116,7 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 				repositoryListed(repository) &&
 				((topLevelByRepository.get(repository.repo.id)?.length ?? 0) > 0 ||
 					repository.repo.id === input.openRepositoryId ||
+					input.savedRepositoryIds.has(repository.repo.id) ||
 					(focus.kind === 'repository' && focus.repositoryId === repository.repo.id)),
 		)
 		.map((row) => ({

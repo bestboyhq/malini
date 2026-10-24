@@ -11,6 +11,7 @@ export interface ArchivedWorkstreamRecord extends Workstream {
 	readonly archivedAt: string;
 	readonly archivedRef: string | null;
 	readonly mergedPullRequest: MergedPullRequest | null;
+	readonly savedForLater: boolean;
 }
 
 interface WorkstreamRow {
@@ -92,10 +93,11 @@ interface ArchivedWorkstreamRow extends WorkstreamRow {
 	archived_ref: string | null;
 	merged_pull_request_number: number | null;
 	merged_pull_request_url: string | null;
+	saved_for_later: number;
 }
 
 const ARCHIVED_WORKSTREAM_COLUMNS = `${WORKSTREAM_COLUMNS}, archived_at, archived_ref,
-	merged_pull_request_number, merged_pull_request_url`;
+	merged_pull_request_number, merged_pull_request_url, saved_for_later`;
 
 function archivedWorkstreamFromRow(row: ArchivedWorkstreamRow): ArchivedWorkstreamRecord {
 	return {
@@ -106,6 +108,7 @@ function archivedWorkstreamFromRow(row: ArchivedWorkstreamRow): ArchivedWorkstre
 			row.merged_pull_request_number === null
 				? null
 				: { number: row.merged_pull_request_number, url: row.merged_pull_request_url },
+		savedForLater: row.saved_for_later === 1,
 	};
 }
 
@@ -192,20 +195,37 @@ export function freeWorkstreamName(
 export function archiveWorkstreamRecord(
 	db: MaliniDatabase,
 	workstreamId: string,
-	archivedRef: string | null,
-	archivedAt: string,
+	archived: Readonly<{ ref: string | null; at: string; savedForLater: boolean }>,
 ): void {
 	db.transaction(() => {
 		refuseWhileRunsAreOpen(db, workstreamId, 'archive');
 		run(
 			db,
-			`UPDATE workstreams SET status = 'archived', archived_at = ?, archived_ref = ?
+			`UPDATE workstreams SET status = 'archived', archived_at = ?, archived_ref = ?,
+			   saved_for_later = ?
 			 WHERE id = ?`,
-			archivedAt,
-			archivedRef,
+			archived.at,
+			archived.ref,
+			archived.savedForLater ? 1 : 0,
 			workstreamId,
 		);
 	});
+}
+
+export function moveArchivedWorkstream(
+	db: MaliniDatabase,
+	workstreamId: string,
+	savedForLater: boolean,
+): boolean {
+	const { changes } = run(
+		db,
+		`UPDATE workstreams SET saved_for_later = ?
+		 WHERE id = ? AND status = 'archived' AND saved_for_later != ?`,
+		savedForLater ? 1 : 0,
+		workstreamId,
+		savedForLater ? 1 : 0,
+	);
+	return changes > 0;
 }
 
 export function recordMergedPullRequest(
@@ -231,7 +251,8 @@ export function restoreWorkstreamRecord(
 	run(
 		db,
 		`UPDATE workstreams SET status = 'active', path = ?, branch = ?, archived_at = NULL,
-		   archived_ref = NULL, merged_pull_request_number = NULL, merged_pull_request_url = NULL
+		   archived_ref = NULL, merged_pull_request_number = NULL, merged_pull_request_url = NULL,
+		   saved_for_later = 0
 		 WHERE id = ? AND status = 'archived'`,
 		path,
 		branch,

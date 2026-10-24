@@ -49,7 +49,9 @@
 	import { ScratchpadIdeasCount, ScratchpadIdeasPreview } from '$lib/scratchpad/scratchpad.api';
 	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
+		archivedWorkstreamsQuery,
 		provisioningRecordQuery,
+		workstreamCount,
 		workstreamNativeExistenceQuery,
 		workstreamSettingUpQuery,
 		type WorkstreamChangeTotals,
@@ -102,6 +104,7 @@
 		onRetryScope?: () => void;
 		onNewWorkstream: (repo: Repository) => void;
 		onArchiveWorkstream?: (workstream: Workstream) => void;
+		onSaveWorkstreamForLater?: (workstream: Workstream) => void;
 		onRemoveRepository?: (repo: Repository, workstreams: readonly Workstream[]) => void;
 		changeTotalsByWorkstream?: Readonly<Record<string, WorkstreamChangeTotals>>;
 		pullRequestBadge?: (workstreamId: string) => PullRequestBadge;
@@ -116,6 +119,7 @@
 		onRetryScope,
 		onNewWorkstream,
 		onArchiveWorkstream,
+		onSaveWorkstreamForLater,
 		onRemoveRepository,
 		changeTotalsByWorkstream = {},
 		pullRequestBadge = unknownPullRequestBadge,
@@ -153,12 +157,20 @@
 			sidebarOrder.workstreamIds,
 		),
 	);
+	const savedForLaterCounts = $derived(
+		archivedWorkstreamsQuery.data.reduce((counts, workstream) => {
+			if (!workstream.savedForLater || workstream.repositoryId === null) return counts;
+			return counts.set(workstream.repositoryId, (counts.get(workstream.repositoryId) ?? 0) + 1);
+		}, new Map<string, number>()),
+	);
+	const savedRepositoryIds = $derived(new Set(savedForLaterCounts.keys()));
 	const contexts = $derived(
 		connectedRepositoryContexts({
 			repositories,
 			workstreams: workstreams.filter((workstream) => workstream.scope === null),
 			activeWorkstreamId,
 			order: sidebarOrder,
+			savedRepositoryIds,
 		}),
 	);
 	const unhiddenRows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
@@ -192,6 +204,7 @@
 			contexts,
 			leads,
 			hiddenRepositoryIds,
+			savedRepositoryIds,
 			focus,
 			openRepositoryId,
 			workstreamOrder: sidebarOrder.workstreamIds,
@@ -452,6 +465,23 @@
 		event.preventDefault();
 		event.stopPropagation();
 		onArchiveWorkstream?.(workstream);
+	}
+
+	function requestSaveForLater(event: MouseEvent, workstream: Workstream): void {
+		event.preventDefault();
+		event.stopPropagation();
+		onSaveWorkstreamForLater?.(workstream);
+	}
+
+	function rowEndPadding(hasChildren: boolean, saveable: boolean): string {
+		if (hasChildren) {
+			return saveable
+				? 'pr-8 group-hover/row:pr-20 group-has-focus-visible/row:pr-20'
+				: 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14';
+		}
+		return saveable
+			? 'pr-3 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
+			: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8';
 	}
 
 	function workstreamLabel(workstream: Workstream, repositoryFullName: string): string {
@@ -959,6 +989,7 @@
 			contexts,
 			leads,
 			hiddenRepositoryIds,
+			savedRepositoryIds,
 			focus: target,
 			openRepositoryId: null,
 			workstreamOrder: sidebarOrder.workstreamIds,
@@ -1093,6 +1124,7 @@
 	{@const nested = level > 0}
 	{@const collapsed = collapsedGroupIds.has(row.repo.id)}
 	{@const workstreamIds = repository.workstreams.map((child) => child.workstream.id)}
+	{@const savedForLater = savedForLaterCounts.get(row.repo.id) ?? 0}
 	<li
 		class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
 		style:transform={reorderTransform(row.repo.id)}
@@ -1164,7 +1196,7 @@
 						href={repositoryHref(row.repo.id)}
 						data-navigation-path-id="expected-path:workstream-sidebar.repository"
 						aria-label={`Open ${row.repo.fullName}`}
-						aria-describedby={`repository-notes-${row.repo.id}`}
+						aria-describedby={`repository-saved-${row.repo.id} repository-notes-${row.repo.id}`}
 						aria-current={row.repo.id === openRepositoryId ? 'page' : undefined}
 						class="hover:text-fg-default focus-visible:text-fg-default min-w-0 flex-1 outline-none before:absolute before:inset-0 before:content-['']"
 						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
@@ -1190,6 +1222,19 @@
 							{row.name}
 						</span>
 					</a>
+					{#if savedForLater > 0}
+						<span
+							class="text-3xs text-fg-tertiary flex shrink-0 items-center gap-1 font-mono font-medium tabular-nums"
+							aria-hidden="true"
+							data-testid="sidebar-saved-for-later-count"
+						>
+							<Icon name="clock" size={12} />
+							{savedForLater}
+						</span>
+						<span id={`repository-saved-${row.repo.id}`} class="sr-only">
+							{workstreamCount(savedForLater)} saved for later
+						</span>
+					{/if}
 					<ScratchpadIdeasCount
 						repositoryFullName={row.repo.fullName}
 						descriptionId={`repository-notes-${row.repo.id}`}
@@ -1236,6 +1281,8 @@
 			<WorkstreamChatSummary workstreamId={workstream.id}>
 				{#snippet children(chat)}
 					{@const view = workstreamView(workstream, row.label, chat)}
+					{@const saveable =
+						!isLead && view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
 					{#snippet card()}
 						{@render runningCard(workstream, view)}
 					{/snippet}
@@ -1254,9 +1301,7 @@
 							aria-busy={workstream.id === pendingWorkstreamId || undefined}
 							class={[
 								'sidebar-row relative w-full flex-col items-stretch outline-none',
-								hasChildren
-									? 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
-									: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
+								rowEndPadding(hasChildren, saveable),
 								levelPadding(level),
 								compact && 'py-1 text-xs',
 								view.chat.attention !== null
@@ -1333,6 +1378,17 @@
 						</a>
 						{#if hasChildren}
 							{@render foldButton(row, folded)}
+						{/if}
+						{#if saveable}
+							{@render saveForLaterButton(
+								workstream,
+								view,
+								[
+									'absolute h-lh items-center leading-relaxed',
+									hasChildren ? 'right-13' : 'right-7',
+									compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+								].join(' '),
+							)}
 						{/if}
 						{@render archiveButton(
 							workstream,
@@ -1594,6 +1650,27 @@
 			onclick={() => openNewWorkstream(repository)}
 		>
 			<Icon name="plus" size={14} />
+		</IconButton>
+	</Tooltip>
+{/snippet}
+
+{#snippet saveForLaterButton(workstream: Workstream, view: WorkstreamView, placement: string)}
+	<Tooltip
+		content="Save for later"
+		placement="right"
+		suppressed={view.running !== null}
+		class={placement}
+	>
+		<IconButton
+			variant="ghost"
+			size="sm"
+			class="pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100"
+			ariaLabel={`Save ${view.label} for later`}
+			data-testid="sidebar-save-workstream-for-later"
+			data-workstream-id={workstream.id}
+			onclick={(event) => requestSaveForLater(event, workstream)}
+		>
+			<Icon name="clock" size={14} />
 		</IconButton>
 	</Tooltip>
 {/snippet}

@@ -35,7 +35,9 @@
 		minute: '2-digit',
 	});
 
-	const archived = $derived(archivedWorkstreamsQuery.data);
+	const archived = $derived(
+		archivedWorkstreamsQuery.data.filter((workstream) => !workstream.savedForLater),
+	);
 	const storedHeight = $derived(sidebarArchivedHeightQuery.data);
 	const busyActionFor = $derived(workstreamBusyActionQuery.data);
 	let nowMs = $state(Date.now());

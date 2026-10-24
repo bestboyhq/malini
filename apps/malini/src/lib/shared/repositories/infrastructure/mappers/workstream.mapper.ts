@@ -67,13 +67,24 @@ export class ArchivedWorkstreamMapper {
 		return raws
 			.filter(isRawArchivedWorkstream)
 			.map(
-				({ id, projectId, name, baseBranch, archivedAt, mergedPullRequest, scope, startedBy }) => ({
+				({
+					id,
+					projectId,
+					name,
+					baseBranch,
+					archivedAt,
+					mergedPullRequest,
+					savedForLater,
+					scope,
+					startedBy,
+				}) => ({
 					id,
 					projectId,
 					name,
 					baseBranch,
 					archivedAt,
 					mergedPullRequest: toMergedPullRequest(mergedPullRequest),
+					savedForLater: savedForLater === true,
 					scope: toScope(scope),
 					startedBy: toStartedBy(startedBy),
 				}),
@@ -96,9 +107,10 @@ function toMergedPullRequest(value: unknown): MergedPullRequest | null {
 
 function isRawArchivedWorkstream(value: unknown): value is Omit<
 	ArchivedWorkstream,
-	'mergedPullRequest' | 'scope' | 'startedBy'
+	'mergedPullRequest' | 'savedForLater' | 'scope' | 'startedBy'
 > & {
 	mergedPullRequest?: unknown;
+	savedForLater?: unknown;
 	scope?: unknown;
 	startedBy?: unknown;
 } {
