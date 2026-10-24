@@ -197,7 +197,7 @@
 		data-repository-id={repo.id}
 		data-full-name={repo.fullName}
 		data-default-branch={repo.defaultBranch}
-		class="group/row flex items-center gap-3 px-4 py-2"
+		class="group/row flex items-center gap-2 px-3 py-2"
 	>
 		{#if withAvatar}
 			<RepositoryAvatar fullName={repo.fullName} size={20} />
@@ -267,7 +267,7 @@
 
 {#snippet connectErrorBlock(failure: NonNullable<typeof connectError>)}
 	<div
-		class="border-surface-50-border bg-surface-50 -mx-4 mb-3 rounded-2xl border-[0.5px] px-2"
+		class="border-surface-50-border bg-surface-50 -mx-3 mb-3 rounded-2xl border-[0.5px] px-2"
 		data-testid="repository-connect-error"
 	>
 		<StateBlock
@@ -311,7 +311,7 @@
 			</header>
 
 			{#if claudeNeedsSetup || githubSignedOut}
-				<div class="-mx-4 mt-6 flex flex-col gap-3">
+				<div class="-mx-3 mt-6 flex flex-col gap-3">
 					{#if claudeNeedsSetup}
 						<ClaudeCodeSetup />
 					{/if}
@@ -349,7 +349,7 @@
 
 			{#if workstreamScopeFailure}
 				<div
-					class="border-border-subtle -mx-4 mt-3 flex items-center justify-center rounded-2xl border border-dashed"
+					class="border-border-subtle -mx-3 mt-3 flex items-center justify-center rounded-2xl border border-dashed"
 				>
 					<StateBlock
 						live="alert"
@@ -383,7 +383,7 @@
 				</div>
 			{:else if !workstreamScopeReady}
 				<section
-					class="-mx-4 mt-3"
+					class="-mx-3 mt-3"
 					data-testid="repository-cold-shell"
 					data-navigation-cold-shell="true"
 					aria-label="Repositories unavailable until their local scope is verified"
@@ -398,7 +398,7 @@
 
 					{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
 						<div
-							class="border-border-subtle -mx-4 flex items-center justify-center rounded-2xl border border-dashed"
+							class="border-border-subtle -mx-3 flex items-center justify-center rounded-2xl border border-dashed"
 							data-testid="repositories-empty-state"
 						>
 							<StateBlock
@@ -454,9 +454,8 @@
 									<Button
 										bare
 										class={[
-											'text-fg-secondary focus-visible:bg-surface-50-hover -mx-4 flex h-8 w-[calc(100%+2rem)] items-center gap-2 rounded-xl px-4 text-sm outline-none',
-											!searching &&
-												'hover:bg-surface-50-hover hover:text-fg-default cursor-pointer',
+											'group/owner text-fg-secondary focus-visible:ring-border-default/50 -mx-3 flex h-8 w-[calc(100%+1.5rem)] items-center gap-2 rounded-xl px-3 text-sm outline-none focus-visible:ring-2',
+											!searching && 'hover:text-fg-default cursor-pointer',
 										]}
 										disabled={searching}
 										ariaLabel={`${group.owner}, ${repositoryCountLabel(group.items.length)}`}
@@ -466,10 +465,17 @@
 										data-owner={group.owner}
 										onclick={() => toggleGroupCollapsedCommand(group.id)}
 									>
-										{#if first}
-											<RepositoryAvatar fullName={first.fullName} size={20} />
-										{/if}
-										<span class="font-medium">{group.owner}</span>
+										<span
+											class={[
+												'bg-surface-50 border-surface-50-border flex items-center gap-1.5 rounded-lg border-[0.5px] py-0.5 pr-2 pl-0.5',
+												!searching && 'group-hover/owner:bg-surface-50-hover',
+											]}
+										>
+											{#if first}
+												<RepositoryAvatar fullName={first.fullName} size={20} />
+											{/if}
+											<span class="font-medium">{group.owner}</span>
+										</span>
 										<span class="text-fg-tertiary text-xs">
 											{repositoryCountLabel(group.items.length)}
 										</span>
@@ -482,7 +488,7 @@
 									<ul
 										id={`owner-list-${group.id}`}
 										class={[
-											'border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]',
+											'border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]',
 											!open && 'hidden',
 										]}
 									>
@@ -494,7 +500,7 @@
 							{/each}
 							{#if loneRepositories.length > 0}
 								<ul
-									class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+									class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 								>
 									{#each loneRepositories as repo (repo.id)}
 										{@render repositoryRow(repo, repo.fullName, true)}
@@ -521,7 +527,7 @@
 								Hidden ({hiddenRepositories.length})
 							</summary>
 							<ul
-								class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 								aria-label="Hidden repositories"
 								data-testid="hidden-repository-list"
 							>
@@ -531,7 +537,7 @@
 										data-testid="hidden-repository-row"
 										data-repository-id={repo.id}
 										data-full-name={repo.fullName}
-										class="flex items-center gap-3 px-4 py-3"
+										class="flex items-center gap-3 px-3 py-3"
 									>
 										<span class="opacity-60">
 											<RepositoryAvatar fullName={repo.fullName} size={28} />
