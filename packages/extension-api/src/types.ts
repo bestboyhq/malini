@@ -33,6 +33,7 @@ export type ExtensionPanelContext = {
 	workstream: ExtensionWorkstream | null;
 	settings: Readonly<Record<string, ExtensionSettingValue>>;
 	instanceKey?: string;
+	maskPrivateData?: boolean;
 	executeCommand(id: string, ...args: readonly unknown[]): Promise<unknown>;
 };
 
@@ -40,6 +41,7 @@ export type ExtensionPanelOpenOptions = Readonly<{
 	label?: string;
 	icon?: string;
 	tooltip?: string;
+	pinned?: boolean;
 }>;
 
 export type ExtensionPanelInstance = ExtensionDisposable & {

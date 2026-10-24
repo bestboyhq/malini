@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The tools the agent gets in a Malini chat - a browser it shares with you, your repositories and workstreams, your jobs and events - how you decide how often they ask, and where you see every call.
+description: The tools the agent gets in a Malini chat - a browser it shares with you, files it opens for you to fill in, your repositories and workstreams, your jobs and events - how you decide how often they ask, and where you see every call.
 ---
 
 In a Malini chat, the agent has Claude Code's own tools plus Malini's.
@@ -31,6 +31,23 @@ Pages in the browser follow it through `prefers-color-scheme`.
 The agent is told the theme too, so it switches anything else it captures, such as your app's window or a simulator, before it takes the shot.
 Commands the agent runs see it as `MALINI_THEME`, `light` or `dark`.
 Any other screenshot, recording, or image the agent makes goes under `.context/` in the worktree, which Malini keeps out of git, so it shows in the chat and stays with the workstream.
+
+## Files you fill in
+
+Some things only you should write, such as an API key in `~/.secrets/<repo>.env`.
+The agent never reads or writes those files, so it opens the file for you instead of asking you to paste the secret into the chat.
+
+| Tool         | What it does                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| `files_open` | Opens a file in a tab beside the chat, where you edit it, at the line the agent names if any. |
+
+- The path is absolute, under `~/`, or relative to the worktree, and the agent says in its report what goes in the file.
+- The tab opens kept, not as a preview, so the next file you open never replaces it.
+- A file that does not exist yet opens empty, and Malini creates it.
+  Outside the worktree it is private to you: the file is readable only by you, and so is a folder Malini creates for it.
+- The agent gets back the path and whether Malini created the file, never what the file holds.
+- A tab can read and save a file outside the worktree only after an agent opened that file in that workstream, and it keeps that access after you quit and reopen Malini.
+- While streamer mode hides personal data, a secrets file or a file from outside the worktree stays hidden behind a **Show** button that names it.
 
 ## Repositories and workstreams
 
@@ -90,7 +107,7 @@ A failure shows in the top bar, where pull request problems always do.
 
 ## You decide how often it asks
 
-- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking.
+- The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so does `files_open`, which only opens a file for you.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
 - **Always allow** remembers one action: cloning repositories, hiding them, starting workstreams, archiving them, saving jobs, or running one job.
   Always allowing **Release notes** to run never lets the agent run any other job.

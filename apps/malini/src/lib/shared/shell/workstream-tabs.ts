@@ -3,9 +3,10 @@ export type WorkstreamDocumentOpening = Readonly<{
 	label: string;
 	icon: string;
 	tooltip: string;
+	pinned?: boolean;
 }>;
 
-export type WorkstreamDocument = WorkstreamDocumentOpening &
+export type WorkstreamDocument = Omit<WorkstreamDocumentOpening, 'pinned'> &
 	Readonly<{
 		preview: boolean;
 	}>;
@@ -44,25 +45,28 @@ export function openWorkstreamDocument(
 	state: WorkstreamTabs,
 	opening: WorkstreamDocumentOpening,
 ): WorkstreamTabs {
-	const { id, label, icon, tooltip } = opening;
+	const { id, label, icon, tooltip, pinned = false } = opening;
 	const opened: WorkstreamDocumentTab = {
 		kind: 'document',
 		id,
 		label,
 		icon,
 		tooltip,
-		preview: true,
+		preview: !pinned,
 	};
 	const existing = findDocument(state, id);
 	if (existing) {
+		const preview = existing.preview && !pinned;
 		return settle({
 			...state,
-			tabs: replaceTab(state.tabs, existing, { ...existing, label, icon, tooltip }),
+			tabs: replaceTab(state.tabs, existing, { ...existing, label, icon, tooltip, preview }),
 			activeDocumentId: id,
 		});
 	}
 
-	const preview = workstreamDocuments(state).find((document) => document.preview);
+	const preview = pinned
+		? undefined
+		: workstreamDocuments(state).find((document) => document.preview);
 	if (preview) {
 		return settle({
 			...state,

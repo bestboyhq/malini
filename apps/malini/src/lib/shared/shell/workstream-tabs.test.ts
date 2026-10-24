@@ -103,6 +103,23 @@ describe('the center tab strip', () => {
 		expect(strip(state)).toEqual(['chat a', 'g.ts', '(h.ts)', 'chat b']);
 	});
 
+	it('opens a pinned file beside the preview instead of replacing it, and keeps a preview it reaches', () => {
+		const pinned = (state: WorkstreamTabs, path: string): WorkstreamTabs =>
+			openWorkstreamDocument(state, {
+				id: path,
+				label: path,
+				icon: `path:${path}`,
+				tooltip: path,
+				pinned: true,
+			});
+		let state = pinned(open(chatsAB, 'f.ts'), 'g.ts');
+		expect(strip(state)).toEqual(['chat a', '(f.ts)', 'g.ts', 'chat b']);
+		expect(state.activeDocumentId).toBe('g.ts');
+		state = pinned(state, 'f.ts');
+		expect(strip(state)).toEqual(['chat a', 'f.ts', 'g.ts', 'chat b']);
+		expect(strip(open(state, 'g.ts'))).toEqual(['chat a', 'f.ts', 'g.ts', 'chat b']);
+	});
+
 	it('focuses a file that already has a tab without adding or replacing one', () => {
 		let state = open(pinWorkstreamDocument(open(chatsAB, 'f.ts'), 'f.ts'), 'g.ts');
 		state = open(state, 'f.ts');

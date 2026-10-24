@@ -19,7 +19,7 @@ import {
 	repositoryFileMatches,
 	type RepositoryFile,
 } from './domain.js';
-import { repositoryFileTabs } from './file-tab.js';
+import { repositoryFileTabs, type RepositoryFileTabTarget } from './file-tab.js';
 import { createRepositoryPanel } from './panel.js';
 import { COMMON_TREE_ICON_IDS, decodeTreeIcons, repositoryTreeIconIds } from './tree-icons.js';
 
@@ -105,10 +105,14 @@ const repositoryExtension: ExtensionModule = {
 					...openFileCommand,
 					handler: async (input) => {
 						const target = parseOpenFileTarget(input);
+						if (target.path.startsWith('/')) {
+							fileTabs.open(target);
+							return;
+						}
 						const { files } = controller.snapshot();
 						const path = await workstreamFilePath(api, files, target.path);
 						if (files.some((file) => file.path === path)) await controller.selectFile(path);
-						fileTabs.open({ path, line: target.line });
+						fileTabs.open({ ...target, path });
 					},
 				}),
 				api.commands.register({
@@ -225,17 +229,17 @@ async function workstreamFilePath(
 	throw new Error(`No file in this workstream matches ${requested}`);
 }
 
-function parseOpenFileTarget(input: unknown): { path: string; line: number | null } {
-	if (typeof input === 'string') return { path: input, line: null };
+function parseOpenFileTarget(input: unknown): RepositoryFileTabTarget {
+	if (typeof input === 'string') return { path: input, line: null, pinned: false };
 	if (typeof input !== 'object' || input === null) {
 		throw new Error('Open file target must be a path or an object');
 	}
-	const { path, line } = input as { path?: unknown; line?: unknown };
+	const { path, line, pinned } = input as { path?: unknown; line?: unknown; pinned?: unknown };
 	if (typeof path !== 'string' || path.length === 0) {
 		throw new Error('Open file target must name a path');
 	}
 	const usable = typeof line === 'number' && Number.isInteger(line) && line > 0;
-	return { path, line: usable ? line : null };
+	return { path, line: usable ? line : null, pinned: pinned === true };
 }
 
 function requireContribution(
