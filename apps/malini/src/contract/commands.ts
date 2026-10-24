@@ -436,6 +436,7 @@ export interface ContractCommands {
 		result: AgentSessionChangePatch;
 	};
 	'chat.session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
+	'chat.known-session-changes': { args: SessionChangesArgs; result: AgentSessionChanges };
 	'app.list-settings': { args: undefined; result: Record<string, string> };
 	'chat.get-or-create-session': { args: StartAgentSessionArgs; result: string };
 	'repositories.workstream-change-totals': {
@@ -706,6 +707,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.run-change-patch',
 	'chat.session-change-patch',
 	'chat.session-changes',
+	'chat.known-session-changes',
 	'app.list-settings',
 	'chat.get-or-create-session',
 	'repositories.workstream-change-totals',

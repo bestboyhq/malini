@@ -34,6 +34,7 @@ const BOTTOM_ANCHOR_HOLD_MS = 600;
 const HOVER_RELEASE_MS = 200;
 const REMEMBER_DELAY_MS = 250;
 const OPEN_SETTLE_MS = 1_000;
+const RESTORE_WAIT_MS = 1_500;
 const AT_BOTTOM_PX = 2;
 const SUBPIXEL_SLACK_PX = 1;
 
@@ -42,6 +43,7 @@ export type TranscriptScroll = {
 	readonly contentBelow: boolean;
 	readonly newContentBelow: boolean;
 	readonly opening: boolean;
+	readonly awaitingAnchor: boolean;
 	observe(viewport: HTMLElement, messageList: HTMLElement): () => void;
 	handleScroll(element: HTMLElement): void;
 	handleWheel(event: WheelEvent): void;
@@ -49,6 +51,7 @@ export type TranscriptScroll = {
 	followSpaceBelowChange(spaceBelowPx: number, overlayBelowPx: number): void;
 	holdBottomAnchor(): void;
 	open(key: string, remembered: TranscriptAnchor | null): void;
+	abandonRestore(): void;
 	leave(): void;
 	followNewContent(): void;
 	showNewPrompt(fromComposer: boolean): void;
@@ -82,6 +85,7 @@ export function createTranscriptScroll(
 	let coveredPx = 0;
 	let bottomAnchor: Readonly<{ distance: number; until: number }> | null = null;
 	let latestRun: Readonly<{ element: HTMLElement; top: number }> | null = null;
+	let laidOutHeight = 0;
 	let userIntentUntil = 0;
 	let pointerScrolling = false;
 	let hovering = false;
@@ -92,6 +96,8 @@ export function createTranscriptScroll(
 	let anchor: TranscriptAnchor | null = null;
 	let anchorStale = false;
 	let restoring = false;
+	let awaitingAnchor = $state(false);
+	let restoreTimer: ReturnType<typeof setTimeout> | null = null;
 	let requestedTop: number | null = null;
 	let pointerTarget: EventTarget | null = null;
 	let pointerFrame: number | null = null;
@@ -191,8 +197,11 @@ export function createTranscriptScroll(
 	function targetTop(viewport: HTMLElement, list: HTMLElement): number {
 		const naturalMax = naturalMaxTop(viewport);
 		if (bottomAnchor && performance.now() > bottomAnchor.until) bottomAnchor = null;
+		const restored = follow === 'reader' && restoring ? anchoredTop(viewport, list) : null;
+		awaitingAnchor = follow === 'reader' && restoring && restored === null;
+		if (restored !== null) return restored;
 		if (bottomAnchor) return Math.max(0, naturalMax - bottomAnchor.distance);
-		if (follow === 'reader' && restoring) return anchoredTop(viewport, list) ?? naturalMax;
+		if (follow === 'reader' && restoring) return naturalMax;
 		if (follow === 'reader') return heldTop;
 		if (hovering && !opening) return heldTop;
 		return naturalMax - coveredPx;
@@ -231,12 +240,17 @@ export function createTranscriptScroll(
 		const list = messageListEl;
 		if (!viewport || !list) return;
 		const shrunkUnderView = !userIsScrolling() && browserClamped(viewport);
+		const browserHeldView =
+			!shrunkUnderView && Math.abs(viewport.scrollTop - shownTop) >= SUBPIXEL_SLACK_PX;
 		if (follow === 'reader' && !restoring && (!shrunkUnderView || requestedTop !== null)) {
 			heldTop = requestedTop ?? viewport.scrollTop;
 		}
 		requestedTop = null;
 		if (!userIsScrolling() && !shrunkUnderView) shownTop = viewport.scrollTop;
-		const shift = follow === 'bottom' && !userIsScrolling() ? shiftAboveLatestRun(viewport) : 0;
+		const shift =
+			follow === 'bottom' && !userIsScrolling() && !browserHeldView
+				? shiftAboveLatestRun(viewport)
+				: 0;
 		shownTop = Math.max(0, shownTop + shift);
 		if (hovering) heldTop += shift;
 		fillBlankBelow(viewport);
@@ -271,6 +285,7 @@ export function createTranscriptScroll(
 	}
 
 	function trackLatestRun(viewport: HTMLElement, list: HTMLElement): void {
+		laidOutHeight = viewport.scrollHeight;
 		const runs = list.querySelectorAll<HTMLElement>(RUNS);
 		const run = follow === 'bottom' ? runs[runs.length - 1] : undefined;
 		latestRun = run ? { element: run, top: contentTop(viewport, run) } : null;
@@ -297,10 +312,27 @@ export function createTranscriptScroll(
 		shownTop = heldTop;
 	}
 
+	function stopRestoring(): void {
+		restoring = false;
+		awaitingAnchor = false;
+		if (restoreTimer !== null) clearTimeout(restoreTimer);
+		restoreTimer = null;
+	}
+
+	function abandonRestore(): void {
+		if (!awaitingAnchor) return;
+		reconcile('frame');
+		if (!awaitingAnchor) return;
+		stopRestoring();
+		anchor = null;
+		follow = 'bottom';
+		reconcile('frame');
+	}
+
 	function becomeReader(): void {
 		holdStill();
 		opening = false;
-		restoring = false;
+		stopRestoring();
 		bottomAnchor = null;
 		coveredPx = 0;
 		follow = 'reader';
@@ -311,7 +343,7 @@ export function createTranscriptScroll(
 
 	function followBottom(): void {
 		opening = false;
-		restoring = false;
+		stopRestoring();
 		anchor = null;
 		bottomAnchor = null;
 		coveredPx = 0;
@@ -331,7 +363,7 @@ export function createTranscriptScroll(
 		scrollGlide.cancel();
 		cancelScheduledReconcile();
 		opening = false;
-		restoring = false;
+		stopRestoring();
 		bottomAnchor = null;
 		const top = viewport.scrollTop;
 		const naturalMax = naturalMaxTop(viewport);
@@ -341,6 +373,7 @@ export function createTranscriptScroll(
 		heldTop = top;
 		shownTop = top;
 		setHoldSpace(top - naturalMax);
+		if (messageListEl) trackLatestRun(viewport, messageListEl);
 		rememberAnchor();
 		updateContentBelow();
 		rememberSoon();
@@ -461,6 +494,10 @@ export function createTranscriptScroll(
 			return opening;
 		},
 
+		get awaitingAnchor(): boolean {
+			return awaitingAnchor;
+		},
+
 		observe(viewport: HTMLElement, messageList: HTMLElement): () => void {
 			viewportEl = viewport;
 			messageListEl = messageList;
@@ -518,7 +555,7 @@ export function createTranscriptScroll(
 				updateContentBelow();
 				return;
 			}
-			if (browserClamped(element)) {
+			if (browserClamped(element) || element.scrollHeight !== laidOutHeight) {
 				reconcile('content');
 				return;
 			}
@@ -567,8 +604,15 @@ export function createTranscriptScroll(
 			coveredPx = 0;
 			latestRun = null;
 			anchor = remembered;
+			stopRestoring();
 			restoring = remembered !== null;
 			follow = restoring ? 'reader' : 'bottom';
+			if (restoring) {
+				restoreTimer = setTimeout(() => {
+					restoreTimer = null;
+					abandonRestore();
+				}, RESTORE_WAIT_MS);
+			}
 			setHoldSpace(0);
 			scrollGlide.cancel();
 			cancelScheduledReconcile();
@@ -582,6 +626,8 @@ export function createTranscriptScroll(
 		},
 
 		leave: rememberNow,
+
+		abandonRestore,
 
 		followNewContent(): void {
 			if (!opening && (follow === 'reader' || hovering)) newContentBelow = true;
@@ -620,6 +666,7 @@ export function createTranscriptScroll(
 		},
 
 		destroy(): void {
+			stopRestoring();
 			cancelScheduledReconcile();
 			cancelPointerFrame();
 			cancelRemember();

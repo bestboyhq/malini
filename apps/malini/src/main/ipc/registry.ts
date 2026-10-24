@@ -38,6 +38,8 @@ export type CommandFailureObserver = (failed: FailedCommand) => void;
 export class CommandRegistry {
 	private readonly handlers = new Map<CommandName, CommandHandler>();
 	private readonly observers = new Set<CommandObserver>();
+	private readonly running = new Set<Promise<InvokeReply>>();
+	private closed = false;
 
 	define<Name extends CommandName>(
 		name: Name,
@@ -83,6 +85,22 @@ export class CommandRegistry {
 	}
 
 	async handle(request: InvokeRequest): Promise<InvokeReply> {
+		if (this.closed) return new Promise<never>(() => {});
+		const reply = this.reply(request);
+		this.running.add(reply);
+		try {
+			return await reply;
+		} finally {
+			this.running.delete(reply);
+		}
+	}
+
+	async close(): Promise<void> {
+		this.closed = true;
+		while (this.running.size > 0) await Promise.all([...this.running]);
+	}
+
+	private async reply(request: InvokeRequest): Promise<InvokeReply> {
 		const startedAt = performance.now();
 		try {
 			const handler = this.lookup(request.command);

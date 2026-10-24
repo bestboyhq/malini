@@ -247,15 +247,15 @@ class SessionActivationService {
 				throw new Error('This agent session does not belong to the active workstream');
 			}
 
-			const changesLoading = chatSessionChanges.warm({ workstreamId, sessionId });
-			if (changesLoading) {
-				transcriptAggregate.deferReadiness(sessionId);
-				try {
-					const known = await this.awaitCurrentSelection(request, changesLoading);
-					if (known === SESSION_SELECTION_SUPERSEDED) return false;
-				} finally {
-					transcriptAggregate.releaseReadiness(sessionId);
-				}
+			transcriptAggregate.deferReadiness(sessionId);
+			try {
+				const known = await this.awaitCurrentSelection(
+					request,
+					chatSessionChanges.refreshKnown({ workstreamId, sessionId }),
+				);
+				if (known === SESSION_SELECTION_SUPERSEDED) return false;
+			} finally {
+				transcriptAggregate.releaseReadiness(sessionId);
 			}
 			transcriptAggregate.rememberOwner(sessionId, workstreamId);
 			this.ensureRecord(sessionId, workstreamId);

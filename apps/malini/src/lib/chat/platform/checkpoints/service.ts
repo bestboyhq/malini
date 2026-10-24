@@ -15,11 +15,13 @@ import {
 	type SupersedeEmit,
 } from '../checkpoints.repository';
 import {
+	composedSessionChanges,
 	getRunChange,
 	getRunChangeForSession,
 	insertRunChange,
 	latestWorkstreamRunChangeCommit,
 	nextRunCheckpointCommit,
+	rememberComposedSessionChanges,
 	sessionChanges,
 	previousRunSnapshotCommit,
 	terminalRunsWithoutChanges,
@@ -320,9 +322,9 @@ interface SessionChangeProjection {
 async function projectSessionChanges(
 	context: CheckpointContext,
 	workstreamId: string,
-	sessionId: string,
+	changes: AgentSessionChanges,
 ): Promise<SessionChangeProjection> {
-	const changes = sessionChanges(context.db, sessionId);
+	const { sessionId } = changes;
 	if (changes.runs.length === 0) return { changes, composed: null };
 	try {
 		const worktree = await resolveCheckout(context, workstreamId);
@@ -356,12 +358,22 @@ async function projectSessionChanges(
 	}
 }
 
+export function knownSessionChanges(db: MaliniDatabase, sessionId: string): AgentSessionChanges {
+	const recorded = sessionChanges(db, sessionId);
+	return composedSessionChanges(db, recorded) ?? recorded;
+}
+
 export async function sessionChangesForWorkstream(
 	context: CheckpointContext,
 	workstreamId: string,
 	sessionId: string,
 ): Promise<AgentSessionChanges> {
-	return (await projectSessionChanges(context, workstreamId, sessionId)).changes;
+	const recorded = sessionChanges(context.db, sessionId);
+	const known = composedSessionChanges(context.db, recorded);
+	if (known) return known;
+	const { changes, composed } = await projectSessionChanges(context, workstreamId, recorded);
+	if (composed !== null) rememberComposedSessionChanges(context.db, changes);
+	return changes;
 }
 
 export async function sessionChangePatchForWorkstream(
@@ -370,7 +382,11 @@ export async function sessionChangePatchForWorkstream(
 	sessionId: string,
 	path: string,
 ): Promise<AgentSessionChangePatch> {
-	const { changes, composed } = await projectSessionChanges(context, workstreamId, sessionId);
+	const { changes, composed } = await projectSessionChanges(
+		context,
+		workstreamId,
+		sessionChanges(context.db, sessionId),
+	);
 	const file = changes.files.find((candidate) => candidate.path === path);
 	const { beforeCommit, afterCommit } = changes;
 	if (!file || beforeCommit === null || afterCommit === null) {
@@ -646,6 +662,9 @@ export interface CheckpointService {
 	getSessionChanges(
 		input: AgentSessionChangeScope & { sessionId: string },
 	): Promise<AgentSessionChanges>;
+	getKnownSessionChanges(
+		input: AgentSessionChangeScope & { sessionId: string },
+	): AgentSessionChanges;
 	getSessionChangePatch(
 		input: AgentSessionChangeScope & { sessionId: string; path: string },
 	): Promise<AgentSessionChangePatch>;
@@ -678,11 +697,48 @@ export function createCheckpointService(
 			lease.release();
 		}
 	};
+	const composing = new Map<string, Promise<AgentSessionChanges>>();
+	const composeAfter = async (
+		prior: Promise<AgentSessionChanges> | undefined,
+		workstreamId: string,
+		sessionId: string,
+	): Promise<AgentSessionChanges> => {
+		await prior?.catch(() => null);
+		return sessionChangesForWorkstream(context, workstreamId, sessionId);
+	};
+	const composedChanges = (
+		workstreamId: string,
+		sessionId: string,
+	): Promise<AgentSessionChanges> => {
+		const turn = composeAfter(composing.get(sessionId), workstreamId, sessionId);
+		composing.set(sessionId, turn);
+		void turn
+			.catch(() => null)
+			.finally(() => {
+				if (composing.get(sessionId) === turn) composing.delete(sessionId);
+			});
+		return turn;
+	};
 	return {
 		context,
 		captureRunStart: (run) => captureRunStart(context, run),
-		captureRunFinish: (runId) =>
-			captureRunFinish(context, (channel, payload) => events.emit(channel, payload), runId),
+		captureRunFinish: async (runId) => {
+			const change = await captureRunFinish(
+				context,
+				(channel, payload) => events.emit(channel, payload),
+				runId,
+			);
+			const checkpoint = change ? getCheckpointById(db, change.checkpointId) : null;
+			if (checkpoint) {
+				void composedChanges(checkpoint.workstreamId, checkpoint.sessionId).catch(
+					(error: unknown) =>
+						console.warn(
+							`agent: chat \`${checkpoint.sessionId}\` composes its changes when they are read: ${describe(error)}`,
+						),
+				);
+			}
+			return change;
+		},
 		restoreCheckpoint: (workstreamId, checkpointId) =>
 			restoreCheckpoint(context, workstreamId, checkpointId, emit),
 		redoCheckpointRestore: (workstreamId, sessionId, restoreSeq) =>
@@ -691,7 +747,11 @@ export function createCheckpointService(
 		getSessionChanges: async (input) => {
 			scoped(input, input.sessionId);
 			await recoverWhenIdle(input.workstreamId, input.sessionId);
-			return sessionChangesForWorkstream(context, input.workstreamId, input.sessionId);
+			return composedChanges(input.workstreamId, input.sessionId);
+		},
+		getKnownSessionChanges: (input) => {
+			scoped(input, input.sessionId);
+			return knownSessionChanges(db, input.sessionId);
 		},
 		getSessionChangePatch: async (input) => {
 			scoped(input, input.sessionId);

@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { app, BrowserWindow, dialog } from 'electron';
 import { bundleIdentifierFor } from '$lib/app/platform/runtime-identity';
 import { declareWorktreeScheme } from '$lib/browser/platform/worktree-files';
@@ -37,6 +38,10 @@ const diagnostics = new MainDiagnosticsLog({
 });
 captureMainProcess(diagnostics, nodeProcessHooks());
 
+const commands = new CommandRegistry();
+commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+const COMMANDS_CLOSE_BUDGET_MS = 5_000;
+
 let db: MaliniDatabase | undefined;
 let modules: Modules | undefined;
 
@@ -66,8 +71,6 @@ async function boot(): Promise<void> {
 		return;
 	}
 
-	const commands = new CommandRegistry();
-	commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
 	const context: MainContext = {
 		db,
 		commands,
@@ -123,15 +126,20 @@ app.on('will-quit', (event) => {
 	}
 	event.preventDefault();
 	shuttingDown = true;
-	const { exit } = modules.app;
-	void modules
-		.shutdown()
-		.catch((error: unknown) => {
-			console.error('malini: shutdown failed', error);
-		})
-		.finally(() => {
-			db?.close();
-			db = undefined;
-			exit();
-		});
+	void quit(modules);
 });
+
+async function quit(running: Modules): Promise<void> {
+	try {
+		await running.shutdown();
+	} catch (error) {
+		console.error('malini: shutdown failed', error);
+	}
+	try {
+		await Promise.race([commands.close(), delay(COMMANDS_CLOSE_BUDGET_MS)]);
+	} finally {
+		db?.close();
+		db = undefined;
+		running.app.exit();
+	}
+}

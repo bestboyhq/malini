@@ -15,6 +15,7 @@ import { workstreamHasOpenRun } from '../runs.repository';
 import { insertSession } from '../sessions.repository';
 import { upsertWorkstream } from '$shared/repositories/repositories.platform';
 import { removeDir, tempDir } from '$main/git/fixtures.test-support';
+import { installGitRunnerForTests } from '$main/git/run';
 import {
 	diffWorktreeSnapshotPatch,
 	diffWorktreeSnapshots,
@@ -30,6 +31,7 @@ import {
 	CheckpointError,
 	DIFFS_NEED_THE_FOLDER,
 	ensureAgentSessionChangeScope,
+	knownSessionChanges,
 	recoverRunIntervals,
 	restoreCheckpoint,
 	runChangePatchForWorkstream,
@@ -464,6 +466,55 @@ describe('session composition', () => {
 		await expect(
 			sessionChangePatchForWorkstream(context, WORKSTREAM_ID, 'chat-a', 'tracked.txt'),
 		).rejects.toThrow(DIFFS_NEED_THE_FOLDER);
+	});
+
+	it('a composed chat reads back without git until a run changes its files', async () => {
+		const { db, repo, context } = await harness();
+		await completedRun(context, 'chat-a', 'run-one', '2026-07-22T00:00:01.000Z', () =>
+			writeFile(join(repo, 'notes.txt'), 'one\n'),
+		);
+		await completedRun(context, 'chat-a', 'run-two', '2026-07-22T00:02:00.000Z', () =>
+			writeFile(join(repo, 'notes.txt'), 'two\n'),
+		);
+		const runIds = ['run-one', 'run-two'];
+		expect(knownSessionChanges(db, 'chat-a').files).toEqual([
+			{ path: 'notes.txt', additions: 2, deletions: 1, isBinary: false, runIds },
+		]);
+		const composed = await sessionChangesForWorkstream(context, WORKSTREAM_ID, 'chat-a');
+		expect(composed.files).toEqual([
+			{ path: 'notes.txt', additions: 1, deletions: 0, isBinary: false, runIds },
+		]);
+		await completedRun(context, 'chat-a', 'run-quiet', '2026-07-22T00:04:00.000Z', () =>
+			Promise.resolve(),
+		);
+
+		const gitCalls: string[] = [];
+		const restore = installGitRunnerForTests((args, env, previous) => {
+			gitCalls.push(args.join(' '));
+			return previous(args, env);
+		});
+		try {
+			const known = knownSessionChanges(db, 'chat-a');
+			expect(known.files).toEqual(composed.files);
+			expect(known.runs.map((run) => run.runId)).toEqual([...runIds, 'run-quiet']);
+			expect(await sessionChangesForWorkstream(context, WORKSTREAM_ID, 'chat-a')).toEqual(known);
+		} finally {
+			restore();
+		}
+		expect(gitCalls).toEqual([]);
+
+		await completedRun(context, 'chat-a', 'run-three', '2026-07-22T00:06:00.000Z', () =>
+			writeFile(join(repo, 'notes.txt'), 'three\n'),
+		);
+		expect(knownSessionChanges(db, 'chat-a').files).toEqual([
+			{
+				path: 'notes.txt',
+				additions: 3,
+				deletions: 2,
+				isBinary: false,
+				runIds: [...runIds, 'run-three'],
+			},
+		]);
 	});
 });
 

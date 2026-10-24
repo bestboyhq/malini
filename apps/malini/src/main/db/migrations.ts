@@ -729,6 +729,13 @@ CREATE TABLE workstream_opened_files (
   PRIMARY KEY (workstream_id, path)
 );
 `,
+	`
+CREATE TABLE agent_session_changes (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  runs_digest TEXT NOT NULL,
+  files TEXT NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import type { MaliniDatabase } from '$main/db/driver';
 import { invariant } from '$main/errors';
-import { all, column, get, intToBool, run, scalar } from '$main/db/rows';
+import { all, column, get, intToBool, isRecord, parseJsonColumn, run, scalar } from '$main/db/rows';
 import type {
 	AgentRunChangePatch,
 	AgentRunChangeSummary,
@@ -205,6 +206,80 @@ export function sessionChanges(db: MaliniDatabase, sessionId: string): AgentSess
 		afterCommit: last?.afterCommit ?? null,
 		capturedAt: last?.capturedAt ?? null,
 	};
+}
+
+export function composedSessionChanges(
+	db: MaliniDatabase,
+	recorded: AgentSessionChanges,
+): AgentSessionChanges | null {
+	const row = get<{ files: string }>(
+		db,
+		'SELECT files FROM agent_session_changes WHERE session_id = ? AND runs_digest = ?',
+		recorded.sessionId,
+		runsDigest(recorded),
+	);
+	const composed = row ? composedFiles(row.files) : null;
+	if (!composed) return null;
+	const net = new Map(composed.map((file) => [file.path, file]));
+	return {
+		...recorded,
+		files: recorded.files.flatMap((file) => {
+			const netFile = net.get(file.path);
+			return netFile ? [{ ...netFile, runIds: file.runIds }] : [];
+		}),
+	};
+}
+
+export function rememberComposedSessionChanges(
+	db: MaliniDatabase,
+	composed: AgentSessionChanges,
+): void {
+	run(
+		db,
+		`INSERT INTO agent_session_changes (session_id, runs_digest, files)
+		 SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM agent_sessions WHERE id = ?)
+		 ON CONFLICT(session_id) DO UPDATE
+		 SET runs_digest = excluded.runs_digest, files = excluded.files`,
+		composed.sessionId,
+		runsDigest(composed),
+		JSON.stringify(
+			composed.files.map(({ path, additions, deletions, isBinary }) => ({
+				path,
+				additions,
+				deletions,
+				isBinary,
+			})),
+		),
+		composed.sessionId,
+	);
+}
+
+function runsDigest(changes: AgentSessionChanges): string {
+	return createHash('sha256')
+		.update(
+			JSON.stringify(
+				changes.runs
+					.filter((change) => change.files.length > 0)
+					.map((change) => [change.runId, change.beforeCommit, change.afterCommit]),
+			),
+		)
+		.digest('hex');
+}
+
+function composedFiles(text: string): AgentRunChangedFile[] | null {
+	const parsed = parseJsonColumn(text);
+	if (!Array.isArray(parsed)) return null;
+	const files = parsed.flatMap((value): AgentRunChangedFile[] => {
+		if (!isRecord(value)) return [];
+		const { path, additions, deletions, isBinary } = value;
+		return typeof path === 'string' &&
+			typeof additions === 'number' &&
+			typeof deletions === 'number' &&
+			typeof isBinary === 'boolean'
+			? [{ path, additions, deletions, isBinary }]
+			: [];
+	});
+	return files.length === parsed.length ? files : null;
 }
 
 export function latestWorkstreamRunChangeCommit(

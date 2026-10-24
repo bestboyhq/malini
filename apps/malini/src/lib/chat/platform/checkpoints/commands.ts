@@ -13,6 +13,7 @@ import {
 } from './service';
 
 export const CHECKPOINT_COMMAND_NAMES = [
+	'chat.known-session-changes',
 	'chat.run-change-patch',
 	'chat.session-change-patch',
 	'chat.session-changes',
@@ -50,6 +51,13 @@ export function registerCheckpointCommands(
 ): void {
 	commands.define('chat.session-changes', (args: unknown) =>
 		service.getSessionChanges({
+			...requireScope(args),
+			sessionId: requireString(args, 'sessionId'),
+		}),
+	);
+
+	commands.define('chat.known-session-changes', (args: unknown) =>
+		service.getKnownSessionChanges({
 			...requireScope(args),
 			sessionId: requireString(args, 'sessionId'),
 		}),

@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -26,6 +26,7 @@ type Frame = Readonly<{
 }>;
 
 const LATEST_RUN = '[data-testid="chat-message-list"] > li[data-run-id]:last-child';
+const MEDIA = join(APP_ROOT, 'tests/e2e/fixtures/report-media');
 const STILL_PX = 1;
 
 async function chatWithImages(app: LaunchedApp, name: string, images: boolean): Promise<string> {
@@ -77,6 +78,7 @@ async function startSampling(page: Page, workstreamId: string): Promise<void> {
 				}
 				state.frames.push({
 					shown:
+						run !== undefined &&
 						doc
 							.querySelector('[data-testid="transcript-pane"]')
 							?.getAttribute('data-presented-workstream-id') === workstreamId,
@@ -130,7 +132,7 @@ function expectImagesKeepTheirHeight(frames: readonly Frame[], label: string): v
 	}
 }
 
-function expectStillAfterOpening(frames: readonly Frame[], label: string): void {
+function expectLatestRunStill(frames: readonly Frame[], label: string): readonly Frame[] {
 	const opened = frames.findIndex((frame) => frame.shown);
 	expect(opened, `${label}: the chat opened`).toBeGreaterThanOrEqual(0);
 	const after = frames.slice(opened);
@@ -142,7 +144,11 @@ function expectStillAfterOpening(frames: readonly Frame[], label: string): void 
 			`${label}: px the ${edge} moved after the chat opened`,
 		).toBeLessThanOrEqual(STILL_PX);
 	}
-	expectImagesKeepTheirHeight(after, label);
+	return after;
+}
+
+function expectStillAfterOpening(frames: readonly Frame[], label: string): void {
+	expectImagesKeepTheirHeight(expectLatestRunStill(frames, label), label);
 }
 
 test('a chat with images opens still, its images framed at their final size before they load', async () => {
@@ -172,6 +178,83 @@ test('a chat with images opens still, its images framed at their final size befo
 		}
 
 		await captureFlow(app, 'transcript-images-still');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a reply stays still after a restart while a picture comparison above it loads', async () => {
+	test.setTimeout(240_000);
+	const first = await launchMalini();
+	let target = '';
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root, 'compare-restart');
+		const seeded = await seedWorkstream(page, source, 'e2e-compare-restart', 'Compare restart');
+		const other = await seedWorkstream(page, source, 'e2e-compare-other', 'Compare other');
+		target = seeded.workstreamId;
+		mkdirSync(join(seeded.worktree, '.context'), { recursive: true });
+		for (const file of ['before.png', 'after.png']) {
+			copyFileSync(join(MEDIA, file), join(seeded.worktree, '.context', file));
+		}
+		writeFileSync(
+			join(seeded.worktree, 'report.md'),
+			[
+				'![Before: pricing page](.context/before.png)',
+				'![After: pricing page](.context/after.png)',
+				'',
+				'Outcome: The Pro button is the primary action.',
+				'Needs: nothing',
+			].join('\n'),
+		);
+		await openWorkstream(page, target);
+		for (const prompt of [
+			'Compare turn 1',
+			'Show me REPLY_FILE:report.md',
+			'STREAM:30 Compare turn 3',
+		]) {
+			await sendPrompt(page, prompt);
+			await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed', {
+				timeout: 20_000,
+			});
+		}
+		await expect(page.getByRole('group', { name: 'Before and after' })).toHaveCount(1);
+		await openWorkstream(page, other.workstreamId);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await page
+			.locator('body')
+			.evaluate((body) =>
+				body.ownerDocument.addEventListener('load', () => body.getBoundingClientRect(), true),
+			);
+		await startSampling(page, target);
+		await workstreamLink(page, target).click();
+		await expect(page.getByTestId('transcript-pane')).toHaveAttribute(
+			'data-presented-workstream-id',
+			target,
+		);
+		const comparison = page.getByRole('group', { name: 'Before and after' });
+		await expect
+			.poll(
+				() =>
+					comparison.evaluate((group) =>
+						[...group.querySelectorAll('img')].every((image) => image.naturalHeight > 0),
+					),
+				{ message: 'the comparison pictures loaded' },
+			)
+			.toBe(true);
+		await untilStill(page);
+		expectLatestRunStill(await stopSampling(page), 'after the restart');
+		await captureFlow(app, 'transcript-compare-restart');
 
 		expectCleanConsole(app);
 	} finally {

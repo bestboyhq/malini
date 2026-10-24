@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -19,6 +22,7 @@ type SampledAnimation = Readonly<{
 
 type SampledElement = Readonly<{
 	tagName: string;
+	textContent: string | null;
 	getAttribute(name: string): string | null;
 	getBoundingClientRect(): { bottom: number; height: number };
 	getAnimations(options: { subtree: boolean }): SampledAnimation[];
@@ -35,6 +39,7 @@ type Frame = Readonly<{
 	shown: boolean;
 	latestRunBottom: number;
 	footerHeight: number;
+	changedFiles: string;
 	motion: readonly string[];
 }>;
 
@@ -100,6 +105,8 @@ function sampleOpening({ workstreamId, latestRun }: SampleTarget): void {
 					?.getAttribute('data-presented-workstream-id') === workstreamId,
 			latestRunBottom: doc.querySelector(latestRun)?.getBoundingClientRect().bottom ?? 0,
 			footerHeight: footer?.getBoundingClientRect().height ?? 0,
+			changedFiles:
+				doc.querySelector('[data-testid="chat-changed-files-toggle"]')?.textContent?.trim() ?? '',
 			motion,
 		});
 		nextFrame();
@@ -162,6 +169,10 @@ function expectStillAfterOpening(frames: readonly Frame[], label: string): void 
 		Math.round(Math.max(...footers) - Math.min(...footers)),
 		`${label}: px the composer tray changed height after the chat opened`,
 	).toBeLessThanOrEqual(STILL_PX);
+	expect(
+		[...new Set(after.map((frame) => frame.changedFiles))],
+		`${label}: what the changed files said after the chat opened`,
+	).toHaveLength(1);
 	expect(
 		after.flatMap((frame) => frame.motion),
 		`${label}: motion in the transcript or the composer tray after the chat opened`,
@@ -253,6 +264,81 @@ test('a chat opened right after launch shows its changed files and every turn in
 		await captureFlow(app, 'transcript-open-after-launch');
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+	}
+});
+
+function holdRawDiffs(bin: string, gate: string): () => void {
+	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+	const held = join(bin, 'git');
+	writeFileSync(
+		held,
+		[
+			'#!/bin/sh',
+			`case " $* " in *" --raw "*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac`,
+			`exec '${git}' "$@"`,
+			'',
+		].join('\n'),
+	);
+	chmodSync(held, 0o755);
+	writeFileSync(gate, '');
+	return () => rmSync(gate, { force: true });
+}
+
+test('a chat reopened after a restart shows its changed files without working them out again', async () => {
+	test.setTimeout(300_000);
+	const first = await launchMalini();
+	let target = '';
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root, 'git-held');
+		const seeded = await seedWorkstream(page, source, 'e2e-git-held', 'Git held');
+		const other = await seedWorkstream(page, source, 'e2e-git-held-other', 'Git held other');
+		target = seeded.workstreamId;
+		await openWorkstream(page, target);
+		await sendPrompt(page, 'EDIT:notes.txt');
+		const changedFiles = page.getByTestId('chat-changed-files-toggle');
+		await expect(changedFiles).toContainText('1 file changed in this chat', { timeout: 30_000 });
+		for (let turn = 2; turn <= 10; turn += 1) {
+			await sendPrompt(
+				page,
+				turn === 2 ? 'Git held turn 2 EDIT:notes.txt' : `Git held turn ${turn}`,
+			);
+			await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
+		}
+		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
+		await expect(changedFiles).toContainText('+1');
+		await expect(changedFiles).not.toContainText('−');
+		await openWorkstream(page, other.workstreamId);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const releaseGit = holdRawDiffs(first.bin, join(first.root, 'git-gate'));
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await expect(workstreamLink(page, target)).toBeVisible({ timeout: 20_000 });
+		await page.evaluate(sampleOpening, { workstreamId: target, latestRun: LATEST_RUN });
+		await workstreamLink(page, target).click();
+		await page.waitForFunction(
+			() => globalThis.openMotion.frames.some((frame) => frame.shown && frame.latestRunBottom > 0),
+			undefined,
+			{ timeout: 20_000 },
+		);
+		const changedFiles = page.getByTestId('chat-changed-files-toggle');
+		await expect(changedFiles).toContainText('1 file changed in this chat');
+		await expect(changedFiles).toContainText('+1');
+		await expect(changedFiles).not.toContainText('−');
+		releaseGit();
+		expectStillAfterOpening(afterFirstDrawnFrame(await sampledFrames(page)), 'raw diffs held');
+		await captureFlow(app, 'transcript-open-git-held');
+
+		expectCleanConsole(app);
+	} finally {
+		releaseGit();
 		await app.close();
 	}
 });
