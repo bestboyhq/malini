@@ -28,6 +28,9 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
 - Every click on a link is caught: `http(s)` opens through `ui.openExternal`, `#heading` scrolls to the heading GitHub would anchor it to, and a relative path opens its file through `malini.repository.open-file`; any other link does nothing.
 - The optional `ExtensionAPI.workstream.mediaUrl(path, workstreamId?)` returns a `malini-image://` URL (0044) for a worktree file, which the desktop host builds with `workstreamImageUrl`.
   A remote image, or one the worktree cannot serve, reads as its alt text.
+- Images load as soon as the article renders, never lazily, even when the file's own HTML asks for `loading="lazy"`.
+  An image without `width` and `height` takes no space until it loads, and a lazy one loads only as it scrolls into view, so scrolling up to it shoved the text below down by its whole height: the browser's scroll anchoring picked the image's own paragraph as its anchor and held still.
+  Loaded at render, an image above the view grows out of sight, scroll anchoring keeps the text in place, and a re-render reuses the loaded image at full size.
 - `MARKDOWN_ARTICLE_STYLES` ports readsimon's prose onto Malini's tokens: a 680 px column, 16/28 px Inter Variable with optical sizing, headings at 550 weight near body size, Georgia italic emphasis, STIX Two Text italic quotes behind a 3 px `--color-surface-invert` bar, and code wells half way between `--color-surface-50` and `--color-surface-100`.
 - `src/renderer/src/app.css` imports `@fontsource-variable/inter/opsz.css` and both styles of `@fontsource-variable/stix-two-text`; the browser fetches a face only when rendered text uses it.
 
@@ -35,11 +38,11 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
 
 - Docs, plans and READMEs read like an article, and their text is one click from editing.
 - A Markdown tab holds its editor and its rendered article at once, and re-renders the whole file on each change.
-- A lazy image that loads above the reading line after a switch pushes it down, as the `ponytail:` in `file-tab.ts` says.
+- A Markdown file fetches all its worktree images when it first shows **Rich**, not only the ones the reader reaches.
 - No click inside rendered Markdown navigates the window or loads anything from the network.
 - A scroll-driven animation stays `running` for as long as its scroller lives, so every wait for motion to stop counts only animations on `document.timeline`: onboarding's `somethingMoves`, `settleAnimations` and `untilStill` in the e2e harness, and `shot` in the `test-malini-app` skill.
   Without that, onboarding's rehearsal would spin forever behind an open **Raw** tab.
 - `.mdx` files stay raw: JSX would render as stray text.
 - Extension CSS works only with variables the app emits; the Files panel's `--color-surface-200` and `--color-accent-2-primary` never reached the page, so they became `--color-surface-150-hover` and `--color-warning-content`.
   Nothing enforces this.
-- Enforced by `markdown.test.ts` (links, heading anchors, sanitizing, front matter, images) and `file-tab.test.ts` (**Rich** first, a line opens **Raw**, the view is remembered) in the repository extension, and by `tests/e2e/file-editing.spec.ts`, which opens a Markdown file in **Rich**, edits it in **Raw**, sees the edit in **Rich**, follows its link to another file, and switches a long file both ways without losing its section.
+- Enforced by `markdown.test.ts` (links, heading anchors, sanitizing, front matter, images and their eager loading) and `file-tab.test.ts` (**Rich** first, a line opens **Raw**, the view is remembered) in the repository extension, and by `tests/e2e/file-editing.spec.ts`, which opens a Markdown file in **Rich**, edits it in **Raw**, sees the edit in **Rich**, follows its link to another file, and switches a long file both ways without losing its section.

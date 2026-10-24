@@ -43,7 +43,7 @@ export function renderMarkdown(
 			continue;
 		}
 		image.src = url;
-		image.loading = 'lazy';
+		image.loading = 'eager';
 		image.decoding = 'async';
 		image.addEventListener('error', () => image.replaceWith(image.alt), { once: true });
 	}

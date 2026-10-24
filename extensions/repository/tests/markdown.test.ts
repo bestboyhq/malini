@@ -63,7 +63,7 @@ test('scripts and handlers never reach the page, and front matter stays out of i
 	});
 });
 
-test('images show from the worktree, and one that cannot read as its alt text', async () => {
+test('images load from the worktree right away, and one that cannot reads as its alt text', async () => {
 	await withDom(async () => {
 		const article = rendered(
 			'![Logo](../build/icon.png) ![Release](https://img.shields.io/release.svg) ![](https://example.com/a.png)\n',
@@ -72,8 +72,11 @@ test('images show from the worktree, and one that cannot read as its alt text', 
 		);
 
 		assert.deepEqual(
-			[...article.querySelectorAll('img')].map((image) => image.getAttribute('src')),
-			['media://build/icon.png'],
+			[...article.querySelectorAll('img')].map((image) => [
+				image.getAttribute('src'),
+				image.loading,
+			]),
+			[['media://build/icon.png', 'eager']],
 		);
 		assert.match(article.textContent ?? '', /^\s*Release\s*$/u);
 

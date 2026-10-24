@@ -463,7 +463,6 @@ class RepositoryFileTabView {
 		if (!editor || !markdown) return;
 		const inset = readingInset(markdown.prose);
 		if (this.#mode === 'rich') {
-			// ponytail: lazy images above the line that load after the switch push it down; re-anchor on their load if it bites
 			const top = line > 1 ? markdownLineTop(markdown.article, line) : null;
 			const prose = markdown.prose;
 			prose.scrollTop =
