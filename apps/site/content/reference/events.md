@@ -611,6 +611,20 @@ Payload: `BrowserTabArgs`
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 ```
 
+## `extensions:file-open-requested`
+
+Fires when an agent opens a file for the user to edit, with the workstream, the file's path (relative to the worktree, or absolute outside it) and the line to show; Malini opens it in a File tab beside the workstream's chats.
+
+Payload: `FileOpenRequestedPayload`
+
+```ts
+type FileOpenRequestedPayload = Readonly<{
+	workstreamId: string;
+	path: string;
+	line: number | null;
+}>;
+```
+
 ## `stats:resources-sampled`
 
 Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.

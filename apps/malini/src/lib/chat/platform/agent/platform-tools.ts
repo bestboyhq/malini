@@ -19,6 +19,7 @@ import {
 	finishAgentAction,
 	recordAgentAction,
 } from '$lib/jobs/jobs.platform';
+import { openFileForUser } from '$lib/extensions/extensions.platform';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
@@ -35,7 +36,7 @@ import { storedRunProfile } from '../runs.repository';
 import { parseRunProfile } from './commands';
 import { jobsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
-import { persistedBridgeSession, type PersistedBridgeSession } from './sessions';
+import { persistedBridgeSession, worktreePath, type PersistedBridgeSession } from './sessions';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies AgentReasoningEffort[];
 const RUNS_IN = ['workstream', 'new-workstream'] as const satisfies JobRunsIn[];
@@ -43,7 +44,7 @@ const CLONE_WAIT_MS = 40_000;
 const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
-export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events'> &
+export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events' | 'appDataRoot'> &
 	Readonly<{ log: (line: string) => void }>;
 
 type Input = Readonly<Record<string, unknown>>;
@@ -169,6 +170,15 @@ async function runPlatformTool(
 				workstreamId: workstream.id,
 			});
 			return { id: workstream.id, name: workstream.name, archived: true, savedWork };
+		}
+		case 'files_open': {
+			const { workstreamId } = requestSession(db, request);
+			return openFileForUser(deps, {
+				workstreamId,
+				worktree: worktreePath(deps.appDataRoot, workstreamId),
+				path: requiredText(input, 'path'),
+				line: lineNumber(input, 'line'),
+			});
 		}
 	}
 }
@@ -465,6 +475,15 @@ function nullableText(input: Input, key: string): string | null | undefined {
 function requiredText(input: Input, key: string): string {
 	const value = text(input, key);
 	if (value === undefined) throw new Error(`\`${key}\` is required.`);
+	return value;
+}
+
+function lineNumber(input: Input, key: string): number | null {
+	const value = input[key];
+	if (value === undefined) return null;
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+		throw new Error(`\`${key}\` must be a line number from 1.`);
+	}
 	return value;
 }
 

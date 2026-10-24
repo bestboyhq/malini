@@ -1590,7 +1590,12 @@ function repositoryPanelApi(): RepositoryPanelHost {
 	return {
 		manifest: { id: 'malini.repository' },
 		notifications: { show: async () => undefined },
-		workstream: { readFile: async () => '' },
+		workstream: {
+			readFile: async () => '',
+			writeFile: async () => {
+				throw new Error('The repository panel tests do not save files');
+			},
+		},
 		panels: {
 			register: () => {
 				throw new Error('The repository panel tests do not register panels');

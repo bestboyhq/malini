@@ -122,6 +122,12 @@ export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: Co
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
 
+export type FileOpenRequestedPayload = Readonly<{
+	workstreamId: string;
+	path: string;
+	line: number | null;
+}>;
+
 export interface ContractEvents {
 	'chat:agent-event': LiveEventEnvelope;
 	'chat:run-changes-captured': RunChangesCapturedPayload;
@@ -154,6 +160,7 @@ export interface ContractEvents {
 	'app:update-staged': UpdateStagedPayload;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
+	'extensions:file-open-requested': FileOpenRequestedPayload;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
 }
@@ -192,6 +199,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:update-staged': null,
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
+	'extensions:file-open-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
 };
@@ -256,6 +264,9 @@ export const APP_UPDATE_STAGED_CHANNEL = 'app:update-staged' satisfies EventChan
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
+
+export const EXTENSIONS_FILE_OPEN_REQUESTED_CHANNEL =
+	'extensions:file-open-requested' satisfies EventChannel;
 
 export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfies EventChannel;
 

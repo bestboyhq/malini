@@ -6,7 +6,10 @@ declare module 'jsdom' {
 	}
 
 	export class JSDOM {
-		constructor(html: string, options: Readonly<{ virtualConsole: VirtualConsole }>);
+		constructor(
+			html: string,
+			options: Readonly<{ virtualConsole: VirtualConsole; pretendToBeVisual?: boolean }>,
+		);
 		readonly window: DOMWindow;
 	}
 }

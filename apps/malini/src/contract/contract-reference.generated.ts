@@ -241,6 +241,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;',
 		},
 		{
+			channel: 'extensions:file-open-requested',
+			description:
+				"Fires when an agent opens a file for the user to edit, with the workstream, the file's path (relative to the worktree, or absolute outside it) and the line to show; Malini opens it in a File tab beside the workstream's chats.",
+			payloadType: 'FileOpenRequestedPayload',
+			payload:
+				'type FileOpenRequestedPayload = Readonly<{\n\tworkstreamId: string;\n\tpath: string;\n\tline: number | null;\n}>;',
+		},
+		{
 			channel: 'stats:resources-sampled',
 			description:
 				'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.',

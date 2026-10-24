@@ -4,6 +4,7 @@ import type { ExtensionPackages, ExtensionPackagePaths } from './platform/packag
 
 export type { ExtensionPackagePaths } from './platform/packages';
 export { NO_MARKETPLACE_ERROR } from './platform/packages';
+export { openFileForUser, type OpenedFile } from './platform/opened-files';
 
 export type ExtensionsPlatformDeps = Readonly<{
 	resolver: CheckoutResolver;

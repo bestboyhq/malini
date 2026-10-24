@@ -38,6 +38,10 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   A shimmer writes each name in as it arrives: on the chat tab, on the sidebar row, and on the commands an agent leaves running.
   **⌘W** closes one and **⌘K** finds the ones that don't fit.
   A closed tab folds away, and the tabs after it slide into its place.
+- Files open as tabs beside the chats, from the **Files** tree or a file the chat names, and you edit them right there.
+  Malini saves as you type, and **⌘S** saves at once.
+  The first edit keeps a preview tab, and the tab marks what your branch added and removed.
+  A change the agent makes to an open file shows in its tab, unless you have typed something it has not saved yet.
 
 A repository opens on its **scratchpad**, where you keep ideas.
 Any paragraph moves into a new workstream.

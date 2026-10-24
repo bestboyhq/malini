@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { BrowserRequest } from '../protocol.js';
 import type { BrowserRequester } from '../providers/types.js';
 import {
-	PLATFORM_READ_TOOLS,
+	PRE_APPROVED_PLATFORM_TOOLS,
 	platformTools,
 	type PlatformToolRequester,
 } from './platform-tools.js';
@@ -77,7 +77,7 @@ export function maliniTools(
 			() => run({ action: 'reload' }),
 		),
 	];
-	const preApproved = [...browserTools.map(({ name }) => name), ...PLATFORM_READ_TOOLS];
+	const preApproved = [...browserTools.map(({ name }) => name), ...PRE_APPROVED_PLATFORM_TOOLS];
 	return {
 		mcpServers: {
 			[MALINI_MCP_SERVER]: createSdkMcpServer({

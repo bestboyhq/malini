@@ -8,11 +8,12 @@ type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 
 export type PlatformToolRequester = (call: PlatformToolCall) => Promise<PlatformResult>;
 
-export const PLATFORM_READ_TOOLS = [
+export const PRE_APPROVED_PLATFORM_TOOLS = [
 	'jobs_list',
 	'events_list',
 	'repositories_list',
 	'workstreams_list',
+	'files_open',
 ] as const satisfies readonly PlatformTool[];
 
 const SHIP_ONLY_WHEN_ASKED =
@@ -198,6 +199,25 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe('Id or exact name of the workstream, from workstreams_list'),
 			},
 			(input) => call('workstreams_archive', input),
+		),
+		tool(
+			'files_open',
+			"Open a file in a tab beside this chat, where the user reads and edits it. Use it whenever the user has to write something you must not read or write yourself, such as a secret in ~/.secrets/<repo>.env, and say in your report what goes in it. Malini creates the file empty when it does not exist yet, private to the user when it is outside the worktree. Returns the path it opened and whether it created the file, never the file's contents.",
+			{
+				path: z
+					.string()
+					.min(1)
+					.describe(
+						'The file to open: an absolute path, a path under ~/, or a path relative to the worktree, for example ~/.secrets/malini.env',
+					),
+				line: z
+					.number()
+					.int()
+					.positive()
+					.optional()
+					.describe('The line to show and put the cursor on'),
+			},
+			(input) => call('files_open', input),
 		),
 	];
 }

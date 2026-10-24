@@ -611,6 +611,7 @@ describe('protocol: parseCommandLine', () => {
 				'workstreams_list',
 				'workstreams_create',
 				'workstreams_archive',
+				'files_open',
 			]);
 		});
 

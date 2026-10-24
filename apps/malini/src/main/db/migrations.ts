@@ -721,6 +721,14 @@ CREATE TABLE mcp_server_folder_offs (
   PRIMARY KEY (server_name, folder)
 );
 `,
+	`
+CREATE TABLE workstream_opened_files (
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  opened_at TEXT NOT NULL,
+  PRIMARY KEY (workstream_id, path)
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

@@ -164,6 +164,18 @@ settings:
 
 catalogs:
   default:
+    '@codemirror/commands':
+      specifier: ^6.11.1
+      version: 6.11.1
+    '@codemirror/merge':
+      specifier: ^6.12.3
+      version: 6.12.3
+    '@codemirror/state':
+      specifier: ^6.7.6
+      version: 6.7.6
+    '@codemirror/view':
+      specifier: ^6.43.15
+      version: 6.43.15
     '@eslint/js':
       specifier: ^10.0.1
       version: 10.0.1
@@ -440,6 +452,15 @@ importers:
 
   extensions/repository:
     dependencies:
+      '@codemirror/commands':
+        specifier: 'catalog:'
+        version: 6.11.1
+      '@codemirror/state':
+        specifier: 'catalog:'
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: 'catalog:'
+        version: 6.43.15
       '@malini/extension-api':
         specifier: workspace:*
         version: link:../../packages/extension-api
@@ -527,16 +548,16 @@ importers:
   packages/hyper-ui:
     dependencies:
       '@codemirror/commands':
-        specifier: ^6.11.1
+        specifier: 'catalog:'
         version: 6.11.1
       '@codemirror/merge':
-        specifier: ^6.12.3
+        specifier: 'catalog:'
         version: 6.12.3
       '@codemirror/state':
-        specifier: ^6.7.6
+        specifier: 'catalog:'
         version: 6.7.6
       '@codemirror/view':
-        specifier: ^6.43.15
+        specifier: 'catalog:'
         version: 6.43.15
       '@malini/extension-api':
         specifier: workspace:*
