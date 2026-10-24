@@ -102,7 +102,7 @@
 
 				<div
 					class={[
-						'styled-scrollbar flex h-full w-full flex-col rounded-lg bg-transparent',
+						'styled-scrollbar flex h-full w-full flex-col rounded-lg bg-transparent will-change-[transform,opacity]',
 						isClosing && 'animate-scaleOut',
 					]}
 				>

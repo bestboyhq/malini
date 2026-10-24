@@ -1,6 +1,6 @@
-export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
+import { workstreamImagePath } from '$lib/chat/domain/turn-report';
 
-const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/|[#?])/iu;
+export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
 
 export function holdWorkstreamImages(sanitizedHtml: string): string {
 	if (typeof document === 'undefined' || !sanitizedHtml.includes('<img')) return sanitizedHtml;
@@ -47,15 +47,6 @@ export function showImages(
 export function workstreamImageFilePath(root: string | null, path: string): string {
 	if (root === null || path.startsWith('/')) return path;
 	return `${root.replace(/\/+$/u, '')}/${path.replace(/^(?:\.\/)+/u, '')}`;
-}
-
-export function workstreamImagePath(src: string): string | null {
-	if (src.length === 0 || NOT_A_WORKSTREAM_FILE.test(src)) return null;
-	try {
-		return decodeURI(src);
-	} catch {
-		return src;
-	}
 }
 
 export const GALLERY_IMAGE_ATTRIBUTE = 'data-gallery-image';

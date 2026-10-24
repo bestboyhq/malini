@@ -5,7 +5,6 @@ import {
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
-import { agentHasReadFile } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
 import { DEVELOPMENT_BUNDLE_IDENTIFIER, PRODUCTION_BUNDLE_IDENTIFIER } from '$main/docker/labels';
 import { DockerOwnership } from '$main/docker/ownership';
@@ -64,7 +63,8 @@ import {
 	type GhRunner,
 } from './github.service';
 import { GitHubSignIn } from './github-sign-in.service';
-import { readWorkstreamImage, parseWorkstreamId } from './images';
+import { workstreamMedia } from './image-protocol';
+import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
 import { syncOwnPullRequests } from './own-pull-requests.service';
 import { InstallRegistry, installDependencies } from './provisioning.service';
@@ -128,6 +128,7 @@ export function registerRepositories(
 	const ownership = new DockerOwnership({ db, runner, appDataRoot, bundleIdentifier });
 	const installs = new InstallRegistry(runner);
 	const checkouts = createCheckoutResolver({ db, appDataRoot });
+	const media = workstreamMedia(context, checkouts);
 	const recordedBranch = (workstreamId: string): string =>
 		getWorkstream(db, workstreamId)?.branch ?? workstreamBranchName(workstreamId);
 	const guardCheckoutMove: CheckoutMoveGuard =
@@ -394,9 +395,7 @@ export function registerRepositories(
 	commands.define('repositories.read-workstream-image', async (args: ReadWorkstreamImageArgs) => {
 		const workstreamId = parseWorkstreamId(args?.workstreamId);
 		if (typeof args?.path !== 'string') throw new Error('image path must be a string');
-		return readWorkstreamImage(await checkouts.resolveCheckout(workstreamId), args.path, (path) =>
-			agentHasReadFile(db, workstreamId, path),
-		);
+		return readImageAt(await media(workstreamId, args.path));
 	});
 
 	commands.define('repositories.pick-folder', () => picker.pick(getMainWindow()));
@@ -490,6 +489,7 @@ export function registerRepositories(
 
 	const platform: RepositoriesPlatform = {
 		checkouts,
+		media,
 		ownership,
 		installs,
 		watchers,

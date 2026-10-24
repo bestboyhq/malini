@@ -3,9 +3,16 @@ import { invariant } from '$main/errors';
 import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
 import type { WorkstreamTurn } from '$contract/stats';
-import { parseTurnReport } from '../domain/turn-report';
+import {
+	markdownImages,
+	mediaPath,
+	parseTurnReport,
+	workstreamImagePath,
+} from '../domain/turn-report';
 
 export type { AgentEventEnvelope };
+
+const SHOWN_MEDIA = /\.(?:png|jpe?g|gif|webp|mp4|m4v|mov|webm)$/iu;
 
 export interface AgentEvent {
 	kind: string;
@@ -409,6 +416,19 @@ export function agentHasReadFile(db: MaliniDatabase, workstreamId: string, path:
 		const { payload } = eventFromBlob(row.event);
 		if (!isRecord(payload) || payload['name'] !== 'Read') return false;
 		return isRecord(payload['input']) && payload['input']['file_path'] === path;
+	});
+}
+
+export function shownMediaPaths(event: Record<string, unknown>): string[] {
+	if (event['type'] === 'tool.started' && event['name'] === 'Read') {
+		const input = event['input'];
+		const path = isRecord(input) ? input['file_path'] : null;
+		return typeof path === 'string' && SHOWN_MEDIA.test(path) ? [path] : [];
+	}
+	if (event['type'] !== 'assistant.message' || typeof event['text'] !== 'string') return [];
+	return markdownImages(event['text']).flatMap(({ src }) => {
+		const path = workstreamImagePath(mediaPath(src));
+		return path !== null && SHOWN_MEDIA.test(path) ? [path] : [];
 	});
 }
 

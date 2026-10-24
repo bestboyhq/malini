@@ -1,11 +1,13 @@
 import type { DockerOwnership, OwnedContainer } from '$main/docker/ownership';
 import type { ContainerReclaim } from '$main/docker/reclaim';
 import type { CheckoutResolver } from './platform/checkout-resolver';
+import type { WorkstreamFileResolver } from './platform/image-protocol';
 import type { InstallOutcome, InstallRegistry } from './platform/provisioning.service';
 import type { WorkstreamWatchers } from './platform/watcher';
 
 export interface RepositoriesPlatform {
 	readonly checkouts: CheckoutResolver;
+	readonly media: WorkstreamFileResolver;
 	readonly ownership: DockerOwnership;
 	readonly installs: InstallRegistry;
 	readonly watchers: WorkstreamWatchers;
