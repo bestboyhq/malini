@@ -11,6 +11,7 @@ It restarts after 10 idle minutes, when you change the access, mode, report or s
 
 - **↵** sends a prompt, or queues it after the current run.
   Edit, reorder, or delete what is queued.
+- A [job](/malini/docs/jobs.md#run-a-job) run from the chat, by you or the agent, waits above the composer with what you queued until it finishes, never among the messages.
 - **⌘↵** steers: it interrupts the turn and sends the prompt now, while background commands keep running.
 - Steering or stopping keeps what the agent already wrote, marked **Run cancelled**.
 

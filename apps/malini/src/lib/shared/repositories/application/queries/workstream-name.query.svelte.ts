@@ -1,7 +1,7 @@
 import {
 	localRepositoriesFromProjects,
 	mergeRepositories,
-	repositoryContextForWorkstream,
+	workstreamRepositories,
 } from '$shared/repositories/domain/repository-context';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
@@ -12,18 +12,19 @@ export { workstreamNameQuery };
 class WorkstreamNameQuery {
 	public readonly data: (workstreamId: string) => string | null = $derived(
 		(workstreamId: string) => {
-			const { workstreams, projects } = workstreamsAggregate;
-			const workstream = workstreams.find((entry) => entry.id === workstreamId);
+			const { workstreams, archived, projects } = workstreamsAggregate;
+			const workstream =
+				workstreams.find((entry) => entry.id === workstreamId) ??
+				archived.find((entry) => entry.id === workstreamId);
 			if (!workstream) return null;
-			const context = repositoryContextForWorkstream({
+			const repository = workstreamRepositories({
 				repositories: mergeRepositories(
 					repositoriesAggregate.items,
 					localRepositoriesFromProjects(projects),
 				),
-				workstreams,
-				workstreamId,
-			});
-			return displayWorkstreamName(workstream, context?.repo.fullName);
+				workstreams: [workstream],
+			}).get(workstreamId);
+			return displayWorkstreamName(workstream, repository?.fullName);
 		},
 	);
 }

@@ -522,7 +522,6 @@ describe('job definitions', () => {
 				{ definitionId: fixChecks.id, workstreamId: 'ws-a', chatSessionId: '' },
 				'invalid-args',
 			],
-			['jobs.list-chat-runs', {}, 'invalid-args'],
 			['jobs.save-definition', { ...valid, name: '   ' }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, name: 'x'.repeat(81) }, 'invalid-args'],
 			['jobs.save-definition', { ...valid, instructions: '' }, 'invalid-args'],
@@ -592,7 +591,7 @@ describe('job definitions', () => {
 		expect(await context.commands.call('jobs.list-runs', undefined)).toEqual([]);
 	});
 
-	it('keeps the chat a job was run from, for its transcript', async () => {
+	it("keeps the chat a job was run from, for that chat's composer tray", async () => {
 		const fixChecks = await builtin('fix-checks');
 		const fromChat = await context.commands.call('jobs.run', {
 			definitionId: fixChecks.id,
@@ -607,11 +606,9 @@ describe('job definitions', () => {
 
 		expect(fromChat).toMatchObject({ chatSessionId: 'chat-1', chatAfterRunId: 'agent-run-9' });
 		expect(elsewhere).toMatchObject({ chatSessionId: null, chatAfterRunId: null });
-		expect(
-			(await context.commands.call('jobs.list-chat-runs', { chatSessionId: 'chat-1' })).map(
-				({ id }) => id,
-			),
-		).toEqual([fromChat.id]);
+		expect(await context.commands.call('jobs.list-runs', undefined)).toContainEqual(
+			expect.objectContaining({ id: fromChat.id, chatSessionId: 'chat-1' }),
+		);
 	});
 });
 

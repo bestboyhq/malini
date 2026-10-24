@@ -31,12 +31,16 @@
 		workstreamsForRepository,
 		RepositoryAvatar,
 		RepositoryListSkeleton,
+		repositoryName,
 		repositoryWebUrl,
 		type Repository,
 		type Workstream,
 	} from '$shared/repositories/repositories.api';
 	import { ClaudeCodeSetup, claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import { loadOnboardingCommand } from '$lib/app/application/commands/load-onboarding.command';
+	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
+	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
+	import { repositoryGroups, type OwnerGroup } from '$lib/app/domain/repository-groups';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import Onboarding from '../onboarding/Onboarding.svelte';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
@@ -83,6 +87,15 @@
 		matchingRepositories.filter((repo) => hiddenIds.has(repo.id)),
 	);
 	const allHidden = $derived(query.trim().length === 0 && hiddenRepositories.length > 0);
+	const searching = $derived(query.trim().length > 0);
+	const collapsedGroupIds = $derived(collapsedGroupsQuery.data);
+	const groups = $derived(repositoryGroups(filteredRepositories, (repo) => repo));
+	const ownerGroups = $derived(
+		groups.filter((group): group is OwnerGroup<Repository> => group.kind === 'owner'),
+	);
+	const loneRepositories = $derived(
+		groups.flatMap((group) => (group.kind === 'repository' ? [group.item] : [])),
+	);
 	const onboarding = $derived(onboardingQuery.data);
 	const firstRun = $derived(
 		workstreamScopeReady && !workstreamScopeError && repositories.length === 0,
@@ -107,17 +120,37 @@
 	}
 
 	function repositoryDetail(repo: Repository, streams: readonly Workstream[]): string {
-		const parts = [repositoryLocationLabel(repo), repo.defaultBranch];
-		if (streams.length > 0) {
-			parts.push(`${streams.length} ${streams.length === 1 ? 'workstream' : 'workstreams'}`);
-		}
-		return parts.join(' · ');
+		return detailLine(repositoryLocationLabel(repo), repo, streams);
+	}
+
+	function repositorySummary(repo: Repository, streams: readonly Workstream[]): string {
+		return detailLine(repo.localPath ? homeRelative(repo.localPath) : null, repo, streams);
+	}
+
+	function detailLine(
+		location: string | null,
+		repo: Repository,
+		streams: readonly Workstream[],
+	): string {
+		const count =
+			streams.length > 0
+				? `${streams.length} ${streams.length === 1 ? 'workstream' : 'workstreams'}`
+				: null;
+		return [location, repo.defaultBranch, count].filter((part) => part !== null).join(' · ');
 	}
 
 	function repositoryLocationLabel(repo: Repository): string {
-		if (repo.localPath) return repo.localPath.replace(/^\/Users\/[^/]+/u, '~');
+		if (repo.localPath) return homeRelative(repo.localPath);
 		if (repo.remoteUrl) return repo.remoteUrl;
 		return `default ${repo.defaultBranch}`;
+	}
+
+	function homeRelative(path: string): string {
+		return path.replace(/^\/Users\/[^/]+/u, '~');
+	}
+
+	function repositoryCountLabel(count: number): string {
+		return `${count} ${count === 1 ? 'repository' : 'repositories'}`;
 	}
 </script>
 
@@ -156,9 +189,85 @@
 	</Button>
 {/snippet}
 
+{#snippet repositoryRow(repo: Repository, label: string, withAvatar: boolean)}
+	{@const streams = workstreamsFor(repo)}
+	{@const webUrl = repositoryWebUrl(repo.remoteUrl)}
+	<li
+		data-testid="repository-row"
+		data-repository-id={repo.id}
+		data-full-name={repo.fullName}
+		data-default-branch={repo.defaultBranch}
+		class="group/row flex items-center gap-2 px-3 py-2"
+	>
+		{#if withAvatar}
+			<RepositoryAvatar fullName={repo.fullName} size={20} />
+		{/if}
+		<div class="flex min-w-0 flex-1 items-baseline gap-2.5">
+			<Tooltip
+				content={repo.fullName}
+				placement="top"
+				onlyWhenTruncated
+				class="max-w-[60%] min-w-0 shrink-0"
+			>
+				<span class="text-fg-default block truncate text-sm font-medium">{label}</span>
+			</Tooltip>
+			<p class="text-fg-tertiary min-w-0 flex-1 truncate text-xs">
+				<SensitiveText text={repositorySummary(repo, streams)} />
+			</p>
+		</div>
+		{#if webUrl}
+			<Tooltip content="Open on GitHub" placement="top">
+				<IconButton
+					variant="ghost"
+					size="sm"
+					class={REVEAL_ON_ROW_HOVER}
+					ariaLabel={`Open ${repo.fullName} on GitHub`}
+					href={webUrl}
+				>
+					<GitHubIcon size={14} />
+				</IconButton>
+			</Tooltip>
+		{/if}
+		<Tooltip content={`Hide ${repo.fullName}`} placement="top">
+			<IconButton
+				variant="ghost"
+				size="sm"
+				class={REVEAL_ON_ROW_HOVER}
+				ariaLabel={`Hide ${repo.fullName}`}
+				data-testid="repository-hide-button"
+				onclick={() => setRepositoryHiddenCommand(repo, true)}
+			>
+				<Icon name="eye-off" size={14} />
+			</IconButton>
+		</Tooltip>
+		<RemoveRepositoryButton
+			repository={repo}
+			workstreams={streams}
+			onremove={removeRepositoryCommand}
+			placement="top"
+			restingClass={REVEAL_ON_ROW_HOVER}
+			testId="repository-remove-button"
+		/>
+		<Button
+			variant="secondary"
+			size="sm"
+			ariaLabel={`Open ${repo.fullName}`}
+			href={repositoryHref(repo.id)}
+			data-testid="repository-open-button"
+			data-navigation-target={repositoryHref(repo.id)}
+			data-navigation-path-id="expected-path:repository.open-scratchpad"
+		>
+			Open
+			{#snippet trailing()}
+				<Icon name="arrow-right" size={14} />
+			{/snippet}
+		</Button>
+	</li>
+{/snippet}
+
 {#snippet connectErrorBlock(failure: NonNullable<typeof connectError>)}
 	<div
-		class="border-surface-50-border bg-surface-50 -mx-4 mb-3 rounded-2xl border-[0.5px] px-2"
+		class="border-surface-50-border bg-surface-50 -mx-3 mb-3 rounded-2xl border-[0.5px] px-2"
 		data-testid="repository-connect-error"
 	>
 		<StateBlock
@@ -202,7 +311,7 @@
 			</header>
 
 			{#if claudeNeedsSetup || githubSignedOut}
-				<div class="-mx-4 mt-6 flex flex-col gap-3">
+				<div class="-mx-3 mt-6 flex flex-col gap-3">
 					{#if claudeNeedsSetup}
 						<ClaudeCodeSetup />
 					{/if}
@@ -240,7 +349,7 @@
 
 			{#if workstreamScopeFailure}
 				<div
-					class="border-border-subtle -mx-4 mt-3 flex items-center justify-center rounded-2xl border border-dashed"
+					class="border-border-subtle -mx-3 mt-3 flex items-center justify-center rounded-2xl border border-dashed"
 				>
 					<StateBlock
 						live="alert"
@@ -274,7 +383,7 @@
 				</div>
 			{:else if !workstreamScopeReady}
 				<section
-					class="-mx-4 mt-3"
+					class="-mx-3 mt-3"
 					data-testid="repository-cold-shell"
 					data-navigation-cold-shell="true"
 					aria-label="Repositories unavailable until their local scope is verified"
@@ -289,7 +398,7 @@
 
 					{#if filteredRepositories.length === 0 && (hiddenRepositories.length === 0 || allHidden)}
 						<div
-							class="border-border-subtle -mx-4 flex items-center justify-center rounded-2xl border border-dashed"
+							class="border-border-subtle -mx-3 flex items-center justify-center rounded-2xl border border-dashed"
 							data-testid="repositories-empty-state"
 						>
 							<StateBlock
@@ -337,86 +446,61 @@
 							</StateBlock>
 						</div>
 					{:else if filteredRepositories.length > 0}
-						<ul
-							class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
-							data-testid="repository-list"
-						>
-							{#each filteredRepositories as repo (repo.id)}
-								{@const streams = workstreamsFor(repo)}
-								{@const webUrl = repositoryWebUrl(repo.remoteUrl)}
-								<li
-									data-testid="repository-row"
-									data-repository-id={repo.id}
-									data-full-name={repo.fullName}
-									data-default-branch={repo.defaultBranch}
-									class="group/row flex items-center gap-3 px-4 py-3"
+						<div class="flex flex-col gap-3" data-testid="repository-list">
+							{#each ownerGroups as group (group.id)}
+								{@const open = searching || !collapsedGroupIds.has(group.id)}
+								{@const first = group.items[0]}
+								<div
+									class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 								>
-									<RepositoryAvatar fullName={repo.fullName} size={28} />
-									<div class="min-w-0 flex-1">
-										<Tooltip
-											content={repo.fullName}
-											placement="top"
-											onlyWhenTruncated
-											class="min-w-0"
-										>
-											<span class="text-fg-default block truncate text-sm font-medium">
-												{repo.fullName}
-											</span>
-										</Tooltip>
-										<p class="text-fg-tertiary truncate text-xs">
-											<SensitiveText text={repositoryDetail(repo, streams)} />
-										</p>
-									</div>
-									{#if webUrl}
-										<Tooltip content="Open on GitHub" placement="top">
-											<IconButton
-												variant="ghost"
-												size="sm"
-												class={REVEAL_ON_ROW_HOVER}
-												ariaLabel={`Open ${repo.fullName} on GitHub`}
-												href={webUrl}
-											>
-												<GitHubIcon size={14} />
-											</IconButton>
-										</Tooltip>
-									{/if}
-									<Tooltip content={`Hide ${repo.fullName}`} placement="top">
-										<IconButton
-											variant="ghost"
-											size="sm"
-											class={REVEAL_ON_ROW_HOVER}
-											ariaLabel={`Hide ${repo.fullName}`}
-											data-testid="repository-hide-button"
-											onclick={() => setRepositoryHiddenCommand(repo, true)}
-										>
-											<Icon name="eye-off" size={14} />
-										</IconButton>
-									</Tooltip>
-									<RemoveRepositoryButton
-										repository={repo}
-										workstreams={streams}
-										onremove={removeRepositoryCommand}
-										placement="top"
-										restingClass={REVEAL_ON_ROW_HOVER}
-										testId="repository-remove-button"
-									/>
 									<Button
-										variant="secondary"
-										size="sm"
-										ariaLabel={`Open ${repo.fullName}`}
-										href={repositoryHref(repo.id)}
-										data-testid="repository-open-button"
-										data-navigation-target={repositoryHref(repo.id)}
-										data-navigation-path-id="expected-path:repository.open-scratchpad"
+										bare
+										class={[
+											'text-fg-secondary bg-surface-100 focus-visible:bg-surface-100-hover flex h-10 w-full items-center gap-2 px-3 text-sm outline-none',
+											!searching &&
+												'hover:bg-surface-100-hover hover:text-fg-default cursor-pointer',
+										]}
+										disabled={searching}
+										ariaLabel={`${group.owner}, ${repositoryCountLabel(group.items.length)}`}
+										ariaExpanded={open}
+										ariaControls={`owner-list-${group.id}`}
+										data-testid="repository-owner-section"
+										data-owner={group.owner}
+										onclick={() => toggleGroupCollapsedCommand(group.id)}
 									>
-										Open
-										{#snippet trailing()}
-											<Icon name="arrow-right" size={14} />
-										{/snippet}
+										{#if first}
+											<RepositoryAvatar fullName={first.fullName} size={20} />
+										{/if}
+										<span class="font-medium">{group.owner}</span>
+										<span class="text-fg-tertiary text-xs">
+											{repositoryCountLabel(group.items.length)}
+										</span>
+										<Icon
+											name="chevron-down"
+											size={13}
+											class={`text-fg-tertiary ml-auto transition-transform duration-100 ${open ? '' : '-rotate-90'}`}
+										/>
 									</Button>
-								</li>
+									<ul
+										id={`owner-list-${group.id}`}
+										class={['divide-surface-50-border divide-y-[0.5px]', !open && 'hidden']}
+									>
+										{#each group.items as repo (repo.id)}
+											{@render repositoryRow(repo, repositoryName(repo.fullName), false)}
+										{/each}
+									</ul>
+								</div>
 							{/each}
-						</ul>
+							{#if loneRepositories.length > 0}
+								<ul
+									class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								>
+									{#each loneRepositories as repo (repo.id)}
+										{@render repositoryRow(repo, repo.fullName, true)}
+									{/each}
+								</ul>
+							{/if}
+						</div>
 					{/if}
 
 					{#if hiddenRepositories.length > 0}
@@ -436,7 +520,7 @@
 								Hidden ({hiddenRepositories.length})
 							</summary>
 							<ul
-								class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-4 mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 mt-2 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
 								aria-label="Hidden repositories"
 								data-testid="hidden-repository-list"
 							>
@@ -446,7 +530,7 @@
 										data-testid="hidden-repository-row"
 										data-repository-id={repo.id}
 										data-full-name={repo.fullName}
-										class="flex items-center gap-3 px-4 py-3"
+										class="flex items-center gap-3 px-3 py-3"
 									>
 										<span class="opacity-60">
 											<RepositoryAvatar fullName={repo.fullName} size={28} />

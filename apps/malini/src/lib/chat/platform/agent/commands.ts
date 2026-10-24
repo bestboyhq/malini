@@ -1260,6 +1260,7 @@ export interface BridgeCommandDeps {
 	readonly hooks: SendPromptHooks;
 	readonly ids: IdSequence;
 	readonly leases: AgentRunLeases;
+	readonly sending: PromptsInFlight;
 	readonly log?: (line: string) => void;
 }
 
@@ -1310,7 +1311,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.tool-output',
 ] as const;
 
-class PromptsInFlight {
+export class PromptsInFlight {
 	readonly #counts = new Map<string, number>();
 
 	has(workstreamId: string): boolean {
@@ -1368,10 +1369,9 @@ export async function stopWorkstreamBackgroundCommands(
 }
 
 export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeCommandDeps): void {
-	const { db, runtime, appDataRoot, ids, leases } = deps;
+	const { db, runtime, appDataRoot, ids, leases, sending } = deps;
 	const log = deps.log ?? defaultLog;
 	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
-	const sending = new PromptsInFlight();
 
 	commands.define('chat.start-session', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');

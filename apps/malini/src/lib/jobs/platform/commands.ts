@@ -64,7 +64,6 @@ import {
 	countStartedOrQueuedJobRuns,
 	getJobRun,
 	jobRunChainDefinitionIds,
-	listChatJobRuns,
 	listRecentFinishedJobRuns,
 	listUnfinishedJobRuns,
 	listWaitingJobRuns,
@@ -246,10 +245,6 @@ export function defineJobCommands(
 		[...listUnfinishedJobRuns(db), ...listRecentFinishedJobRuns(db, RECENT_FINISHED_RUNS)].sort(
 			(left, right) => right.createdAt.localeCompare(left.createdAt),
 		),
-	);
-
-	commands.define('jobs.list-chat-runs', (args: unknown) =>
-		listChatJobRuns(db, requireString(args, 'chatSessionId')),
 	);
 
 	commands.define('jobs.run', async (args: unknown) => {

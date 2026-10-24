@@ -124,14 +124,6 @@ export function listRecentFinishedJobRuns(db: MaliniDatabase, limit: number): Jo
 	).map(fromRow);
 }
 
-export function listChatJobRuns(db: MaliniDatabase, chatSessionId: string): JobRunRecord[] {
-	return all<JobRunRow>(
-		db,
-		`SELECT ${COLUMNS} FROM job_runs WHERE chat_session_id = ? ORDER BY created_at, rowid`,
-		chatSessionId,
-	).map(fromRow);
-}
-
 export function findActiveJobRunForSession(
 	db: MaliniDatabase,
 	sessionId: string,
