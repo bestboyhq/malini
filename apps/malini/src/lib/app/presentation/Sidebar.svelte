@@ -912,7 +912,8 @@
 			{#snippet trigger()}
 				<div
 					class={[
-						'group/repo text-fg-secondary relative flex w-full items-center gap-2 rounded-xl pr-1 pl-2',
+						'group/repo text-fg-secondary relative flex w-full items-center gap-2 rounded-xl pr-1',
+						nested ? 'pl-6' : 'pl-2',
 						compact ? 'h-7' : 'h-8',
 						row.repo.id === openRepositoryId
 							? 'bg-surface-50-selected'
@@ -923,7 +924,11 @@
 					data-full-name={row.repo.fullName}
 					data-workstream-count={row.workstreams.length}
 				>
-					<div class="relative z-10 h-5 w-5 shrink-0">
+					<div
+						class={nested
+							? 'absolute top-1/2 left-0.5 z-10 h-5 w-5 -translate-y-1/2'
+							: 'relative z-10 h-5 w-5 shrink-0'}
+					>
 						{#if !nested}
 							<span
 								class="absolute inset-0 grid place-items-center group-hover/repo:opacity-0 group-has-focus-visible/repo:opacity-0"
@@ -1002,7 +1007,7 @@
 			class={['flex w-full flex-col', collapsed && 'hidden']}
 		>
 			{#each row.workstreams as workstream (workstream.id)}
-				{@render workstreamItem(workstream, row)}
+				{@render workstreamItem(workstream, row, nested)}
 			{/each}
 		</ul>
 	</li>
@@ -1036,7 +1041,8 @@
 				>
 					<div
 						class={[
-							'relative flex w-full items-center gap-2 rounded-xl pr-3 pl-2 group-hover/row:pr-15 group-has-focus-visible/row:pr-15',
+							'relative flex w-full items-center gap-2 rounded-xl pr-3 group-hover/row:pr-15 group-has-focus-visible/row:pr-15',
+							nested ? 'pl-6' : 'pl-2',
 							compact ? 'h-7 text-xs' : 'h-8 text-sm',
 							view.selected || repositoryOpen
 								? 'bg-surface-50-selected'
@@ -1048,14 +1054,14 @@
 						data-full-name={row.repo.fullName}
 						data-workstream-count={row.workstreams.length}
 					>
-						<span class="relative grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-							{#if !nested}
+						{#if !nested}
+							<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
 								<RepositoryAvatar fullName={row.repo.fullName} size={avatarSize} />
-							{/if}
-							{#if view.chat.attention && view.chat.needsYou}
-								{@render attentionDot(view.chat.attention, '-left-2')}
-							{/if}
-						</span>
+							</span>
+						{/if}
+						{#if view.chat.attention && view.chat.needsYou}
+							{@render attentionDot(view.chat.attention, nested ? 'left-2.5' : 'left-0')}
+						{/if}
 						<HoverCard
 							side="right"
 							align="start"
@@ -1162,7 +1168,7 @@
 						</span>
 					</div>
 					{#if view.running}
-						<span class="block pl-9" transition:slide={foldMotion()}>
+						<span class={['block', nested ? 'pl-6' : 'pl-9']} transition:slide={foldMotion()}>
 							<WorkstreamRunningLine running={view.running} selected={view.selected} />
 						</span>
 					{/if}
@@ -1172,7 +1178,7 @@
 	</li>
 {/snippet}
 
-{#snippet workstreamItem(workstream: Workstream, row: ConnectedRepositoryContext)}
+{#snippet workstreamItem(workstream: Workstream, row: ConnectedRepositoryContext, nested: boolean)}
 	<li
 		class={['group/row relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
@@ -1200,7 +1206,8 @@
 						aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
 						aria-busy={workstream.id === pendingWorkstreamId || undefined}
 						class={[
-							'sidebar-row relative w-full flex-col items-stretch pr-3 pl-6 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
+							'sidebar-row relative w-full flex-col items-stretch pr-3 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
+							nested ? 'pl-9' : 'pl-6',
 							compact && 'py-1 text-xs',
 							view.chat.attention !== null
 								? 'text-500'
