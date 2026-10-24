@@ -378,7 +378,7 @@ test('an open tab follows the file when the tree reads a new change to it', asyn
 	});
 });
 
-test('what the user types is saved once they pause, pins the tab, and says so', async () => {
+test('what the user types saves itself once they pause and pins the tab, with nothing to press or read', async () => {
 	await withDom(async (window) => {
 		const host = await hostWithRepository();
 		try {
@@ -387,7 +387,6 @@ test('what the user types is saved once they pause, pins the tab, and says so', 
 			try {
 				type(tab.editor, 'export const answer = 42;'.length, ' // checked');
 
-				assert.equal(tab.status.hidden, true);
 				await eventually(() => (savedFiles(host).length > 0 ? true : null));
 				assert.deepEqual(savedFiles(host), [
 					{ path: 'src/app.ts', contents: 'export const answer = 42; // checked\n' },
@@ -396,8 +395,7 @@ test('what the user types is saved once they pause, pins the tab, and says so', 
 					await host.api.workstream.readFile('src/app.ts'),
 					'export const answer = 42; // checked\n',
 				);
-				assert.equal(tab.status.textContent, 'Saved');
-				assert.equal(tab.status.hidden, false);
+				assert.equal(tab.problem.hidden, true);
 				assert.deepEqual(openedTabs(host).at(-1), {
 					panelId: FILE_PANEL_ID,
 					label: 'app.ts',
@@ -450,7 +448,8 @@ test('a save that fails says why in the tab, and tells the user when the tab is 
 
 			await tab.instance.dispose();
 
-			assert.match(tab.status.textContent ?? '', /^Could not save app\.ts: /u);
+			assert.equal(tab.problem.hidden, false);
+			assert.match(tab.problem.textContent ?? '', /^Could not save app\.ts: /u);
 			assert.deepEqual(
 				host.snapshot().notifications.map(({ title, level }) => ({ title, level })),
 				[{ title: 'Could not save app.ts', level: 'error' }],
@@ -632,7 +631,7 @@ async function mountFileTab(
 	instance: ExtensionPanelInstance;
 	root: HTMLElement;
 	editor: EditorView;
-	status: HTMLElement;
+	problem: HTMLElement;
 }> {
 	if (opened) await host.invokeCommand('malini.repository.open-file', { path, line });
 	const panel = registeredPanel(host, FILE_TEMPLATE_ID);
@@ -642,9 +641,9 @@ async function mountFileTab(
 	const root = target.querySelector<HTMLElement>('.repository-file-tab');
 	const editorElement = target.querySelector<HTMLElement>('.cm-editor');
 	const editor = editorElement ? EditorView.findFromDOM(editorElement) : null;
-	const status = target.querySelector<HTMLElement>('[role="status"]');
-	assert.ok(root && editor && status, `${path} opened in an editor`);
-	return { instance, root, editor, status };
+	const problem = target.querySelector<HTMLElement>('[role="alert"]');
+	assert.ok(root && editor && problem, `${path} opened in an editor`);
+	return { instance, root, editor, problem };
 }
 
 function fileTabContext(instanceKey: string, maskPrivateData = false): ExtensionPanelContext {

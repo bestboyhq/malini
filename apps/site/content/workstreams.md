@@ -39,7 +39,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   **⌘W** closes one and **⌘K** finds the ones that don't fit.
   A closed tab folds away, and the tabs after it slide into its place.
 - Files open as tabs beside the chats, from the **Files** tree or a file the chat names, and you edit them right there.
-  Malini saves as you type, and **⌘S** saves at once.
+  Malini saves as you type, so there is nothing to press, and only a save that fails says so, under the file.
   The first edit keeps a preview tab, and the tab marks what your branch added and removed.
   A change the agent makes to an open file shows in its tab, unless you have typed something it has not saved yet.
 

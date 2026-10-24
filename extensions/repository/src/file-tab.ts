@@ -188,7 +188,7 @@ class RepositoryFileTabView {
 	readonly #path: string;
 	readonly #root: HTMLElement;
 	readonly #body: HTMLElement;
-	readonly #status: HTMLElement;
+	readonly #problem: HTMLElement;
 	readonly #veil: HTMLElement;
 	#workstreamId: string | null = null;
 	#loadedWorkstreamId: string | null = null;
@@ -220,11 +220,11 @@ class RepositoryFileTabView {
 			this.#revealed = true;
 			this.mask(false);
 		});
-		this.#status = document.createElement('p');
-		this.#status.className = 'repository-file-tab__status malini-panel-meta';
-		this.#status.setAttribute('role', 'status');
-		this.#status.hidden = true;
-		root.append(this.#body, this.#veil, this.#status);
+		this.#problem = document.createElement('p');
+		this.#problem.className = 'repository-file-tab__problem malini-panel-meta';
+		this.#problem.setAttribute('role', 'alert');
+		this.#problem.hidden = true;
+		root.append(this.#body, this.#veil, this.#problem);
 	}
 
 	async load(context: ExtensionPanelContext): Promise<void> {
@@ -318,12 +318,7 @@ class RepositoryFileTabView {
 					drawSelection(),
 					highlightActiveLine(),
 					EditorState.tabSize.of(2),
-					keymap.of([
-						{ key: 'Mod-s', run: () => (void this.#saveNow(), true), preventDefault: true },
-						...defaultKeymap,
-						...historyKeymap,
-						indentWithTab,
-					]),
+					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
 					placeholder('This file is empty.'),
 					codeTokens(this.#language),
 					branchChanges,
@@ -389,18 +384,14 @@ class RepositoryFileTabView {
 		try {
 			await this.#api.workstream.writeFile(this.#path, contents, this.#workstreamId ?? undefined);
 			this.#saved = contents;
-			this.#announce('Saved');
+			this.#problem.hidden = true;
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error);
 			const title = `Could not save ${basename(this.#path)}`;
-			this.#announce(`${title}: ${reason}`);
+			this.#problem.textContent = `${title}: ${reason}`;
+			this.#problem.hidden = false;
 			if (this.#closing) void this.#api.notifications.show({ title, body: reason, level: 'error' });
 		}
-	}
-
-	#announce(message: string): void {
-		this.#status.textContent = message;
-		this.#status.hidden = false;
 	}
 }
 
@@ -879,13 +870,14 @@ const REPOSITORY_FILE_TAB_STYLES = `
 	background: var(--color-surface-100);
 }
 
-[data-malini-extension] .repository-file-tab__status {
+[data-malini-extension] .repository-file-tab__problem {
 	flex: none;
 	border-top: 1px solid var(--color-border-subtle);
 	padding: 0.375rem 1rem;
+	color: var(--color-error-content);
 }
 
-[data-malini-extension] .repository-file-tab__status[hidden] {
+[data-malini-extension] .repository-file-tab__problem[hidden] {
 	display: none;
 }
 `;

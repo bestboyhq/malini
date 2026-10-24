@@ -67,10 +67,10 @@ test('a file tab is an editor that saves what the user types into the worktree, 
 		await page.keyboard.type(' // checked by hand');
 
 		const panel = page.getByRole('tabpanel', { name: 'alpha.ts' });
-		await expect(panel.getByRole('status')).toHaveText('Saved', { timeout: 20_000 });
-		expect(readFileSync(join(worktree, 'alpha.ts'), 'utf8')).toBe(
-			'export const alpha = 1; // checked by hand\n',
-		);
+		await expect
+			.poll(() => readFileSync(join(worktree, 'alpha.ts'), 'utf8'), { timeout: 20_000 })
+			.toBe('export const alpha = 1; // checked by hand\n');
+		await expect(panel.getByRole('alert')).toBeHidden();
 		await expect(fileTab(page, 'alpha.ts')).not.toHaveAccessibleDescription('Preview');
 		await expect(panel).toContainText('Removed: export const alpha = 1;', { timeout: 20_000 });
 		await expect(panel).toContainText('Added: export const alpha = 1; // checked by hand');
@@ -172,8 +172,10 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 		await editor(page, /^Edit .*kennel\.env$/u).click();
 		await page.keyboard.type('KENNEL_TOKEN=pasted-by-the-user');
 		const panel = page.getByRole('tabpanel', { name: 'kennel.env' });
-		await expect(panel.getByRole('status')).toHaveText('Saved', { timeout: 20_000 });
-		expect(readFileSync(secrets, 'utf8')).toBe('KENNEL_TOKEN=pasted-by-the-user');
+		await expect
+			.poll(() => readFileSync(secrets, 'utf8'), { timeout: 20_000 })
+			.toBe('KENNEL_TOKEN=pasted-by-the-user');
+		await expect(panel.getByRole('alert')).toBeHidden();
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		await page.mouse.move(0, 0);
 		await captureFlow(first, 'file-editing-2-secrets-filled-in');
