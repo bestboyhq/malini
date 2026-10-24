@@ -14,6 +14,7 @@ function record(failure: string | null): WorkstreamProvisioningRecord {
 			name: 'Signal Arc',
 			branch: 'malini/ws-a',
 			baseBranch: 'main',
+			scope: null,
 		},
 		phase: 'cloning',
 		clonePercent: null,

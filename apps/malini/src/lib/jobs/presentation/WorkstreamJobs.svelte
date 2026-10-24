@@ -30,7 +30,7 @@
 
 {#if runs.length > 0}
 	<section class="mt-6" aria-label="Jobs">
-		<ul class="flex flex-col gap-2" aria-label="Jobs in this workstream">
+		<ul class="flex flex-col gap-2" aria-label="Jobs run here">
 			{#each runs as run (run.id)}
 				<li><JobRunCard {run} {nowMs} /></li>
 			{/each}

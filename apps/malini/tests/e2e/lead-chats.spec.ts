@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -66,6 +67,27 @@ async function lastReply(page: Page, text: string): Promise<void> {
 	await expect(transcript(page).getByText(text, { exact: true }).last()).toBeVisible({
 		timeout: 30_000,
 	});
+}
+
+function gateLeadCheckouts(app: LaunchedApp): Readonly<{ held: string; failing: string }> {
+	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+	const held = join(app.root, 'lead-checkouts-held');
+	const failing = join(app.root, 'lead-checkouts-failing');
+	const stub = join(app.bin, 'git');
+	writeFileSync(
+		stub,
+		[
+			'#!/bin/sh',
+			'case "$*" in *"lead-space worktree add "*)',
+			`\twhile [ -e '${held}' ]; do sleep 0.05; done`,
+			`\tif [ -e '${failing}' ]; then echo 'fatal: e2e lead checkout failure' 1>&2; exit 128; fi ;;`,
+			'esac',
+			`exec '${git}' "$@"`,
+			'',
+		].join('\n'),
+	);
+	chmodSync(stub, 0o755);
+	return { held, failing };
 }
 
 test('a Home chat starts workstreams in two organizations, and they fold under it', async () => {
@@ -271,5 +293,87 @@ test('a lead chat has no inspector until its agent opens a page, holds only brow
 	} finally {
 		await app.close();
 		server.close();
+	}
+});
+
+test('a new chat opens before its checkout exists, and a prompt sent meanwhile goes out once it is ready', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedWorkstream(
+			page,
+			`file://${await createSourceRepo(app.root, 'acme/api')}`,
+			'e2e-lead-held-api',
+			'Api work',
+		);
+		await page.reload();
+		const gate = gateLeadCheckouts(app);
+		writeFileSync(gate.held, '');
+
+		const before = page.url();
+		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		await expect.poll(() => page.url()).not.toBe(before);
+		const chat = sidebar(page).locator('[data-testid="sidebar-chat"][aria-current="page"]');
+		await expect(chat).toHaveAttribute('data-chat-scope', 'home');
+		await expect(chat.getByRole('status')).toHaveAccessibleName('Chat status: Creating');
+		await page.getByRole('button', { name: 'Start a fresh chat' }).click();
+		await sendPrompt(page, 'WHICH_LINEAGE');
+		const queue = page.getByRole('region', { name: 'Queued prompts (1)' });
+		await expect(queue).toContainText('WHICH_LINEAGE');
+		await expect(chat.getByRole('status')).toHaveAccessibleName('Chat status: Creating');
+		await captureFlow(app, 'lead-chat-before-checkout');
+
+		rmSync(gate.held);
+		await lastReply(page, 'Lead: Home reads acme/api');
+		await expect(queue).toHaveCount(0);
+		await expect(chat.getByRole('status')).not.toHaveAccessibleName('Chat status: Creating');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a new chat whose checkout fails says why, retries in place with its prompt, and removes a failed one', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ allowedDiagnostics: [/e2e lead checkout failure/u] });
+	try {
+		const { page } = app;
+		await seedWorkstream(
+			page,
+			`file://${await createSourceRepo(app.root, 'acme/api')}`,
+			'e2e-lead-failed-api',
+			'Api work',
+		);
+		await page.reload();
+		const gate = gateLeadCheckouts(app);
+		writeFileSync(gate.failing, '');
+
+		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		const failure = page.getByRole('alert').filter({ hasText: 'New chat has no worktree yet' });
+		await expect(failure).toContainText('e2e lead checkout failure', { timeout: 20_000 });
+		const chats = sidebar(page).getByTestId('sidebar-chat');
+		const chat = chats.and(page.locator('[aria-current="page"]'));
+		await expect(chat.getByRole('status')).toHaveAccessibleName('Chat status: Setup failed');
+		await sendPrompt(page, 'WHICH_LINEAGE');
+		await expect(page.getByRole('region', { name: 'Queued prompts (1)' })).toBeVisible();
+		await captureFlow(app, 'lead-chat-setup-failed');
+
+		rmSync(gate.failing);
+		await failure.getByRole('button', { name: 'Retry setting up New chat' }).click();
+		await lastReply(page, 'Lead: Home reads acme/api');
+		await expect(failure).toHaveCount(0);
+		await expect(chats).toHaveCount(1);
+
+		writeFileSync(gate.failing, '');
+		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+		await expect(failure).toBeVisible({ timeout: 20_000 });
+		await expect(chats).toHaveCount(2);
+		await failure.getByRole('button', { name: 'Remove New chat' }).click();
+		await expect(chats).toHaveCount(1);
+		await expect(failure).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
 	}
 });
