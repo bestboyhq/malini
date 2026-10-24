@@ -42,6 +42,7 @@ const ALL_TABLES = [
 	'settings',
 	'skill_choices',
 	'workstream_commit_runs',
+	'workstream_opened_files',
 	'workstream_ship',
 	'workstreams',
 ];

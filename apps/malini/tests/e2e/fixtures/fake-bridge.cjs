@@ -690,6 +690,29 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('MALINI_UNASKED_TOOL')) {
+		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
+		pendingRuns.set(runId, sessionId);
+		maliniCalls.set(runId, { sessionId, ...call, commit: null });
+		const request = () =>
+			write({
+				type: 'bridge.platform_request',
+				protocolVersion: version,
+				requestId: 'platform-' + runId,
+				sessionId,
+				runId,
+				tool: call.tool,
+				input: call.input,
+			});
+		const release = call.releasedBy ? nodePath.join(env.HOME, call.releasedBy) : null;
+		if (!release) return request();
+		const waiting = setInterval(() => {
+			if (!fs.existsSync(release)) return;
+			clearInterval(waiting);
+			request();
+		}, 50);
+		return;
+	}
 	if (prompt.includes('MALINI_TOOL')) {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);

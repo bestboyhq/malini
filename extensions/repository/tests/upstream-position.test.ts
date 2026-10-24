@@ -168,7 +168,12 @@ function panelApi(): RepositoryPanelHost {
 	return {
 		manifest: { id: 'malini.repository' },
 		notifications: { show: async () => undefined },
-		workstream: { readFile: async () => '' },
+		workstream: {
+			readFile: async () => '',
+			writeFile: async () => {
+				throw new Error('The upstream position tests do not save files');
+			},
+		},
 		panels: {
 			register: () => {
 				throw new Error('The upstream position tests do not register panels');

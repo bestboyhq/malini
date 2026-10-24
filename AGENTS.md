@@ -54,19 +54,19 @@ Code lives in vertical domain slices under `apps/malini/src/lib/<domain>/`.
 A slice holds its renderer layers (`domain`, `application`, `infrastructure`, `presentation`) and its main-process code (`platform/`).
 Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.platform.ts` (main process).
 
-| Domain                 | What it owns                                                          |
-| ---------------------- | --------------------------------------------------------------------- |
-| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain    |
-| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints    |
-| `pull-requests`        | pull request state, open draft, merge queue, top-bar status           |
-| `jobs`                 | jobs, their triggers and Thens, job runs and their runner, Jobs page  |
-| `skills`               | skill usage and on/off switches in Claude settings, a job's skills    |
-| `extensions`           | extension runtime, host adapters, inspector, directory, configuration |
-| `browser`              | browser tabs in the inspector and the agent's browser tools           |
-| `stats`                | resource readout, stats panel, what keeps running in each workstream  |
-| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams       |
-| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle  |
-| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities  |
+| Domain                 | What it owns                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                  |
+| `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                  |
+| `pull-requests`        | pull request state, open draft, merge queue, top-bar status                         |
+| `jobs`                 | jobs, their triggers and Thens, job runs and their runner, Jobs page                |
+| `skills`               | skill usage and on/off switches in Claude settings, a job's skills                  |
+| `extensions`           | extension runtime, host adapters, inspector, directory, configuration, opened files |
+| `browser`              | browser tabs in the inspector and the agent's browser tools                         |
+| `stats`                | resource readout, stats panel, what keeps running in each workstream                |
+| `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
+| `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
+| `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |
 
 `src/main` is node bootstrap only:
 

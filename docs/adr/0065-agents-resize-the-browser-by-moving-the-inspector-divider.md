@@ -1,4 +1,4 @@
-# 0064 - Agents resize the browser by moving the inspector divider
+# 0065 - Agents resize the browser by moving the inspector divider
 
 Status: accepted
 
@@ -11,7 +11,7 @@ The user worried a resize could swallow the chat or the sidebar, and that restor
 
 ## Decision
 
-- The agent gets `browser_resize` with a `width` in CSS pixels (`packages/agent-bridge/src/claude/browser-tools.ts`), sent as the bridge browser action `resize`; protocol 38.
+- The agent gets `browser_resize` with a `width` in CSS pixels (`packages/agent-bridge/src/claude/browser-tools.ts`), sent as the bridge browser action `resize`; protocol 39.
 - `BrowserViews.resize` (`src/lib/browser/platform/views.ts`) acts only on a tab that is shown while Malini is on screen; otherwise it changes nothing and tells the agent the page's width and why.
 - For a shown tab it emits `browser:resize-requested` with the width in Malini's interface pixels and waits up to `RESIZE_ANSWER_MS`, 5 seconds, for `browser.resized`.
 - In the renderer, `watchBrowserResizesHook` in that tab's `BrowserPanel` grows the inspector by the difference through `inspectorWidth` (`src/lib/shared/extensions/inspector-width.store.ts`), which `InspectorSplit` connects to `ResizableSplit.growSecondary`, places the view at its new bounds, then answers `browser.resized`.

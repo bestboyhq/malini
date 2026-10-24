@@ -296,6 +296,7 @@ export class DesktopExtensionContributionHost {
 			label,
 			icon: options.icon ?? owner.value.icon,
 			tooltip: options.tooltip ?? label,
+			...(options.pinned ? { pinned: true } : {}),
 		});
 	}
 

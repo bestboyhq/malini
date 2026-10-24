@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { chmod, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import test from 'node:test';
 import type {
 	ExtensionPanelContext,
@@ -8,8 +9,9 @@ import type {
 	ExtensionRepositoryDiff,
 } from '@malini/extension-api';
 import { createTestHost as createHost } from '@malini/extension-api/test';
-import { repositoryFileTabRows } from '../src/file-tab.js';
+import { isPrivateFile, repositoryFileTabRows } from '../src/file-tab.js';
 import extension from '../src/index.js';
+import { EditorView } from '@codemirror/view';
 import type { DOMWindow } from 'jsdom';
 import { withDom } from './dom.js';
 
@@ -105,8 +107,7 @@ test('a file named by its name alone opens the one file with that name, at the l
 			assert.equal(await selectedPath(host), 'src/git/remote.ts');
 			const tab = await mountFileTab(host, window, 'src/git/remote.ts', null, false);
 			try {
-				const current = tab.lines.querySelector<HTMLElement>('[data-current-line="true"]');
-				assert.equal(current?.dataset['line'], '2');
+				assert.equal(cursorLine(tab.editor), 2);
 			} finally {
 				await tab.instance.dispose();
 			}
@@ -148,7 +149,7 @@ test('a dotfile opens selected in the Files tree, but git internals and paths ou
 			const tab = await mountFileTab(host, window, '.github/workflows/ci.yml', null, false);
 			try {
 				assert.equal(tab.root.getAttribute('aria-label'), 'Contents of .github/workflows/ci.yml');
-				assert.match(tab.lines.textContent ?? '', /on: push/u);
+				assert.match(tab.editor.state.doc.toString(), /on: push/u);
 				assert.equal(await selectedPath(host), '.github/workflows/ci.yml');
 			} finally {
 				await tab.instance.dispose();
@@ -213,7 +214,7 @@ test('deactivating withdraws the file tab template', async () => {
 	}
 });
 
-test('a tab shows the file its instance key names, labelled with its path', async () => {
+test('a tab shows the file its instance key names, labelled with its path, ready to edit', async () => {
 	await withDom(async (window) => {
 		const host = await hostWithRepository();
 		try {
@@ -221,7 +222,10 @@ test('a tab shows the file its instance key names, labelled with its path', asyn
 			const tab = await mountFileTab(host, window, 'src/app.ts');
 			try {
 				assert.equal(tab.root.getAttribute('aria-label'), 'Contents of src/app.ts');
-				assert.match(tab.lines.textContent ?? '', /export const answer = 42;/u);
+				assert.equal(tab.editor.state.doc.toString(), 'export const answer = 42;\n');
+				assert.equal(tab.editor.contentDOM.getAttribute('role'), 'textbox');
+				assert.equal(tab.editor.contentDOM.getAttribute('aria-label'), 'Edit src/app.ts');
+				assert.equal(tab.editor.contentDOM.getAttribute('contenteditable'), 'true');
 			} finally {
 				await tab.instance.dispose();
 			}
@@ -244,8 +248,7 @@ test('a line asked for before the tab mounts is the line it shows once mounted',
 			await host.activate(extension);
 			const tab = await mountFileTab(host, window, 'src/three.ts', 2);
 			try {
-				const current = tab.lines.querySelector<HTMLElement>('[data-current-line="true"]');
-				assert.equal(current?.dataset['line'], '2');
+				assert.equal(cursorLine(tab.editor), 2);
 			} finally {
 				await tab.instance.dispose();
 			}
@@ -268,44 +271,6 @@ test('the files tree marks the file whose tab is on screen, and only while it is
 			assert.equal(await selectedPath(host), 'README.md');
 			await readme.instance.dispose();
 			assert.equal(await selectedPath(host), null);
-		} finally {
-			await host.cleanup();
-		}
-	});
-});
-
-test('the line-number gutter is the same width in a 3-line file and a 1,500-line file', async () => {
-	await withDom(async (window) => {
-		const host = await createHost({
-			manifest,
-			fixtureRepository: {
-				name: 'file-tab-gutter',
-				files: {
-					'src/short.ts': 'const a = 1;\nconst b = 2;\nconst c = 3;\n',
-					'src/long.ts': `${Array.from(
-						{ length: 1_500 },
-						(_, index) => `const line${String(index)} = ${String(index)};`,
-					).join('\n')}\n`,
-				},
-			},
-		});
-		try {
-			await host.activate(extension);
-			const short = await mountFileTab(host, window, 'src/short.ts');
-			const long = await mountFileTab(host, window, 'src/long.ts');
-			try {
-				assert.equal(short.lines.children.length, 4);
-				assert.equal(long.lines.children.length, 1_501);
-				assert.equal(short.lines.getAttribute('style'), null);
-				assert.equal(long.lines.getAttribute('style'), null);
-
-				const rule = gutterRule(window);
-				assert.match(rule, /width: calc\(5ch \+ 1\.5rem\)/u);
-				assert.doesNotMatch(rule, /var\(--gutter-width/u);
-			} finally {
-				await long.instance.dispose?.();
-				await short.instance.dispose?.();
-			}
 		} finally {
 			await host.cleanup();
 		}
@@ -359,17 +324,19 @@ test('a file changed on the branch shows its lines in place with the changed wor
 			await host.activate(extension);
 			const tab = await mountFileTab(host, window, 'src/app.ts');
 			try {
-				assert.deepEqual(rowTexts(tab.lines), [
-					'1 const a = 1;',
-					'2 Removed: const b = 2;',
-					'2 Added: const b = 3;',
-					'3 const c = 3;',
-					'4  ',
+				assert.deepEqual(rowTexts(tab.editor), [
+					'const a = 1;',
+					'Removed: const b = 2;',
+					'Added: const b = 3;',
+					'const c = 3;',
+					'',
 				]);
+				assert.deepEqual(lineNumbers(tab.editor), ['1', '2', '2', '3', '4']);
 				const marked = (tag: string): string[] =>
-					[...tab.lines.querySelectorAll(tag)].map((word) => word.textContent ?? '');
+					[...tab.editor.contentDOM.querySelectorAll(tag)].map((word) => word.textContent ?? '');
 				assert.deepEqual(marked('del'), ['2']);
 				assert.deepEqual(marked('ins'), ['3']);
+				assert.equal(tab.editor.state.doc.toString(), 'const a = 1;\nconst b = 3;\nconst c = 3;\n');
 			} finally {
 				await tab.instance.dispose();
 			}
@@ -381,13 +348,7 @@ test('a file changed on the branch shows its lines in place with the changed wor
 
 test('an open tab follows the file when the tree reads a new change to it', async () => {
 	await withDom(async (window) => {
-		const repository: {
-			status: { dirtyPaths: string[] };
-			diffs: ExtensionRepositoryDiff[];
-		} = {
-			status: { dirtyPaths: [] },
-			diffs: [],
-		};
+		const repository = followableRepository();
 		const host = await createHost({
 			manifest,
 			fixtureRepository: { name: 'file-tab-follow', files: { 'src/app.ts': 'const b = 2;\n' } },
@@ -397,22 +358,17 @@ test('an open tab follows the file when the tree reads a new change to it', asyn
 			await host.activate(extension);
 			const tab = await mountFileTab(host, window, 'src/app.ts');
 			try {
-				assert.deepEqual(rowTexts(tab.lines), ['1 const b = 2;', '2  ']);
+				assert.deepEqual(rowTexts(tab.editor), ['const b = 2;', '']);
 
-				await host.api.workstream.writeFile('src/app.ts', 'const b = 3;\n');
-				repository.status.dirtyPaths = ['src/app.ts'];
-				repository.diffs = [replacement('src/app.ts', 1, 'const b = 2;', 'const b = 3;')];
-				await host.invokeCommand('malini.repository.refresh');
+				await changeOnDisk(host, repository, 'const b = 2;', 'const b = 3;');
 
-				const lines = await eventually(() => {
-					const shown = tab.root.querySelector<HTMLElement>('.repository-file-tab__lines');
-					return shown && rowTexts(shown).length === 3 ? shown : null;
-				});
-				assert.deepEqual(rowTexts(lines), [
-					'1 Removed: const b = 2;',
-					'1 Added: const b = 3;',
-					'2  ',
+				await eventually(() => (rowTexts(tab.editor).length === 3 ? true : null));
+				assert.deepEqual(rowTexts(tab.editor), [
+					'Removed: const b = 2;',
+					'Added: const b = 3;',
+					'',
 				]);
+				assert.deepEqual(savedFiles(host), [{ path: 'src/app.ts', contents: 'const b = 3;\n' }]);
 			} finally {
 				await tab.instance.dispose();
 			}
@@ -422,46 +378,166 @@ test('an open tab follows the file when the tree reads a new change to it', asyn
 	});
 });
 
-test('a tab opened from the tree shows the file at once and lands on its first change', async () => {
+test('what the user types saves itself once they pause and pins the tab, with nothing to press or read', async () => {
 	await withDom(async (window) => {
-		const lines = Array.from({ length: 200 }, (_, index) => `const line${String(index + 1)} = 0;`);
-		const host = await createHost({
-			manifest,
-			fixtureRepository: {
-				name: 'file-tab-first-change',
-				files: { 'src/long.ts': `${lines.join('\n')}\n` },
-			},
-			repository: {
-				diffs: [replacement('src/long.ts', 150, 'const old = 0;', 'const line150 = 0;')],
-			},
-		});
+		const host = await hostWithRepository();
 		try {
 			await host.activate(extension);
-			await host.invokeCommand('malini.repository.refresh');
-			await host.invokeCommand('malini.repository.open-file', { path: 'src/long.ts' });
-
-			const target = window.document.createElement('div');
-			window.document.body.append(target);
-			window.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
-				return new window.DOMRect(0, this.dataset['change'] === undefined ? 0 : 3_000, 0, 0);
-			};
-			const mounting = registeredPanel(host, FILE_TEMPLATE_ID).component.mount(
-				target,
-				fileTabContext('src/long.ts'),
-			);
-			const shown = target.querySelector<HTMLElement>('.repository-file-tab__lines');
-			assert.ok(shown, 'the file shows before any read settles');
-			assert.doesNotMatch(target.textContent ?? '', /Loading/u);
-			const instance = await mounting;
+			const tab = await mountFileTab(host, window, 'src/app.ts');
 			try {
-				assert.equal(shown.scrollTop, 3_000);
+				type(tab.editor, 'export const answer = 42;'.length, ' // checked');
+
+				await eventually(() => (savedFiles(host).length > 0 ? true : null));
+				assert.deepEqual(savedFiles(host), [
+					{ path: 'src/app.ts', contents: 'export const answer = 42; // checked\n' },
+				]);
+				assert.equal(
+					await host.api.workstream.readFile('src/app.ts'),
+					'export const answer = 42; // checked\n',
+				);
+				assert.equal(tab.problem.hidden, true);
+				assert.deepEqual(openedTabs(host).at(-1), {
+					panelId: FILE_PANEL_ID,
+					label: 'app.ts',
+					icon: 'path:src/app.ts',
+					tooltip: 'src/app.ts',
+					pinned: true,
+				});
 			} finally {
-				await instance.dispose();
+				await tab.instance.dispose();
 			}
 		} finally {
 			await host.cleanup();
 		}
 	});
+});
+
+test('closing a tab saves what was typed, and a change on disk never overwrites unsaved typing', async () => {
+	await withDom(async (window) => {
+		const repository = followableRepository();
+		const host = await createHost({
+			manifest,
+			fixtureRepository: { name: 'file-tab-unsaved', files: { 'src/app.ts': 'const b = 2;\n' } },
+			repository,
+		});
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			type(tab.editor, 0, '// mine\n');
+
+			await changeOnDisk(host, repository, 'const b = 2;', 'const b = 3;');
+			await settle();
+			assert.equal(tab.editor.state.doc.toString(), '// mine\nconst b = 2;\n');
+
+			await tab.instance.dispose();
+			assert.equal(await host.api.workstream.readFile('src/app.ts'), '// mine\nconst b = 2;\n');
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('a save that fails says why in the tab, and tells the user when the tab is closing', async () => {
+	await withDom(async (window) => {
+		const host = await hostWithRepository();
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			await chmod(join(host.workstream.path, 'src/app.ts'), 0o444);
+			type(tab.editor, 0, '// mine\n');
+
+			await tab.instance.dispose();
+
+			assert.equal(tab.problem.hidden, false);
+			assert.match(tab.problem.textContent ?? '', /^Could not save app\.ts: /u);
+			assert.deepEqual(
+				host.snapshot().notifications.map(({ title, level }) => ({ title, level })),
+				[{ title: 'Could not save app.ts', level: 'error' }],
+			);
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('a file an agent opened outside the worktree opens pinned, with no tree to look it up in', async () => {
+	const host = await hostWithRepository();
+	try {
+		await host.activate(extension);
+
+		await host.invokeCommand('malini.repository.open-file', {
+			path: '/Users/someone/.secrets/malini.keys',
+			line: null,
+			pinned: true,
+		});
+
+		assert.deepEqual(openedTabs(host), [
+			{
+				panelId: 'malini.repository.file:/Users/someone/.secrets/malini.keys',
+				label: 'malini.keys',
+				icon: 'path:/Users/someone/.secrets/malini.keys',
+				tooltip: '/Users/someone/.secrets/malini.keys',
+				pinned: true,
+			},
+		]);
+		assert.equal(await selectedPath(host), null);
+	} finally {
+		await host.cleanup();
+	}
+});
+
+test('a private file hides behind a notice while personal data is masked, until the user shows it', async () => {
+	await withDom(async (window) => {
+		const host = await createHost({
+			manifest,
+			fixtureRepository: { name: 'file-tab-private', files: { 'deploy.pem': 'KEY\n' } },
+		});
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'deploy.pem', null, true, true);
+			try {
+				const show = tab.root.querySelector<HTMLButtonElement>('button');
+				assert.ok(show);
+				assert.equal(show.textContent, 'Show deploy.pem');
+				assert.equal(show.closest('[hidden]'), null);
+				assert.equal(tab.root.hasAttribute('data-masked'), true);
+
+				show.click();
+
+				assert.equal(tab.root.hasAttribute('data-masked'), false);
+				assert.notEqual(show.closest('[hidden]'), null);
+			} finally {
+				await tab.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('only files that hold secrets, or live outside the worktree, count as private', () => {
+	const privatePaths = [
+		'.env',
+		'.env.local',
+		'apps/web/.env.production',
+		'prod.env',
+		'.envrc',
+		'certs/deploy.pem',
+		'id.key',
+		'config/.secrets/token.txt',
+		'/Users/someone/.secrets/malini.keys',
+		'/etc/hosts',
+	];
+	const publicPaths = ['src/env.ts', 'README.md', 'environment.yml', '.envoy/config', 'keys.ts'];
+
+	assert.deepEqual(
+		privatePaths.filter((path) => !isPrivateFile(path)),
+		[],
+	);
+	assert.deepEqual(
+		publicPaths.filter((path) => isPrivateFile(path)),
+		[],
+	);
 });
 
 function replacement(
@@ -485,20 +561,63 @@ function replacement(
 	};
 }
 
-function rowTexts(lines: HTMLElement): readonly string[] {
-	return [...lines.children].map((row) => {
-		const [gutter, ...cells] = row.children;
-		return `${gutter?.textContent ?? ''} ${cells.map((cell) => cell.textContent).join('')}`;
-	});
+type FollowableRepository = { status: { dirtyPaths: string[] }; diffs: ExtensionRepositoryDiff[] };
+
+function followableRepository(): FollowableRepository {
+	return { status: { dirtyPaths: [] }, diffs: [] };
+}
+
+async function changeOnDisk(
+	host: Awaited<ReturnType<typeof createHost>>,
+	repository: FollowableRepository,
+	before: string,
+	after: string,
+): Promise<void> {
+	await host.api.workstream.writeFile('src/app.ts', `${after}\n`);
+	repository.status.dirtyPaths = ['src/app.ts'];
+	repository.diffs = [replacement('src/app.ts', 1, before, after)];
+	await host.invokeCommand('malini.repository.refresh');
+}
+
+function type(editor: EditorView, at: number, text: string): void {
+	editor.dispatch({ changes: { from: at, insert: text }, userEvent: 'input.type' });
+}
+
+function cursorLine(editor: EditorView): number {
+	return editor.state.doc.lineAt(editor.state.selection.main.head).number;
+}
+
+function rowTexts(editor: EditorView): readonly string[] {
+	return [...editor.contentDOM.children].map((row) => row.textContent ?? '');
+}
+
+function lineNumbers(editor: EditorView): readonly string[] {
+	return [...editor.dom.querySelectorAll<HTMLElement>('.cm-lineNumbers .cm-gutterElement')]
+		.filter((element) => element.style.visibility !== 'hidden')
+		.map((element) => element.textContent ?? '');
+}
+
+function savedFiles(
+	host: Awaited<ReturnType<typeof createHost>>,
+): readonly Readonly<{ path?: string; contents?: string }>[] {
+	return host
+		.recording()
+		.filter((entry) => entry.kind === 'workstream.writeFile')
+		.map((entry) => entry.payload as { path?: string; contents?: string })
+		.filter(({ path }) => path === 'src/app.ts');
+}
+
+async function settle(): Promise<void> {
+	await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 async function eventually<T>(read: () => T | null): Promise<T> {
-	for (let attempt = 0; attempt < 100; attempt += 1) {
+	for (let attempt = 0; attempt < 200; attempt += 1) {
 		const value = read();
 		if (value !== null) return value;
 		await new Promise((resolve) => setTimeout(resolve, 10));
 	}
-	throw new Error('The tab never showed the change');
+	throw new Error('The tab never got there');
 }
 
 async function mountFileTab(
@@ -507,23 +626,32 @@ async function mountFileTab(
 	path: string,
 	line: number | null = null,
 	opened = true,
-): Promise<{ instance: ExtensionPanelInstance; root: HTMLElement; lines: HTMLElement }> {
+	maskPrivateData = false,
+): Promise<{
+	instance: ExtensionPanelInstance;
+	root: HTMLElement;
+	editor: EditorView;
+	problem: HTMLElement;
+}> {
 	if (opened) await host.invokeCommand('malini.repository.open-file', { path, line });
 	const panel = registeredPanel(host, FILE_TEMPLATE_ID);
 	const target = window.document.createElement('div');
 	window.document.body.append(target);
-	const instance = await panel.component.mount(target, fileTabContext(path));
+	const instance = await panel.component.mount(target, fileTabContext(path, maskPrivateData));
 	const root = target.querySelector<HTMLElement>('.repository-file-tab');
-	const lines = target.querySelector<HTMLElement>('.repository-file-tab__lines');
-	assert.ok(root && lines, `${path} rendered its lines`);
-	return { instance, root, lines };
+	const editorElement = target.querySelector<HTMLElement>('.cm-editor');
+	const editor = editorElement ? EditorView.findFromDOM(editorElement) : null;
+	const problem = target.querySelector<HTMLElement>('[role="alert"]');
+	assert.ok(root && editor && problem, `${path} opened in an editor`);
+	return { instance, root, editor, problem };
 }
 
-function fileTabContext(instanceKey: string): ExtensionPanelContext {
+function fileTabContext(instanceKey: string, maskPrivateData = false): ExtensionPanelContext {
 	return {
 		workstream: null,
 		settings: {},
 		instanceKey,
+		maskPrivateData,
 		executeCommand: async () => {
 			throw new Error('The file tab tests do not execute commands');
 		},
@@ -535,24 +663,16 @@ async function selectedPath(host: Awaited<ReturnType<typeof createHost>>): Promi
 	return status.selectedPath;
 }
 
-function openedTabs(
-	host: Awaited<ReturnType<typeof createHost>>,
-): readonly Readonly<{ panelId?: string; label?: string; icon?: string }>[] {
+type OpenedTab = Readonly<{ panelId?: string; label?: string; icon?: string; pinned?: boolean }>;
+
+function openedTabs(host: Awaited<ReturnType<typeof createHost>>): readonly OpenedTab[] {
 	return host
 		.recording()
 		.filter((entry) => entry.kind === 'panels.open')
-		.map((entry) => entry.payload as { panelId?: string; label?: string; icon?: string });
-}
-
-function gutterRule(window: DOMWindow): string {
-	const sheet = window.document.querySelector<HTMLElement>(
-		'style[data-malini-panel-styles="malini.repository.file"]',
-	);
-	assert.ok(sheet, 'the file tab stylesheet is installed');
-	const css = sheet.textContent ?? '';
-	const start = css.indexOf('.repository-file-tab__gutter {');
-	assert.ok(start >= 0, 'the gutter rule exists');
-	return css.slice(start, css.indexOf('}', start));
+		.map(
+			(entry) =>
+				entry.payload as { panelId?: string; label?: string; icon?: string; pinned?: boolean },
+		);
 }
 
 function registeredPanel(

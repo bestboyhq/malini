@@ -1,4 +1,4 @@
-import { realpathSync } from 'node:fs';
+import { realpathSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
@@ -644,5 +644,57 @@ describe('platform requests from the agent', () => {
 				approval: 'not-needed',
 			},
 		]);
+	});
+
+	it('opens a file for the user beside the chat, never answers with what it holds, and logs the call', async () => {
+		const worktree = seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1');
+		writeFileSync(join(worktree, 'notes.md'), 'the plan\n');
+		const outside = join(realpathSync(test.appDataRoot), 'secrets', 'malini.keys');
+		const bridge = scriptedBridge();
+		service = await startAgentService(test.context, {
+			processFactory: bridge.factory,
+			bridgeScriptPath: test.appDataRoot,
+			spawnEnvironment: () => ({}),
+			leases: new AgentRunLeases(),
+			hooks: { captureCheckpoint: () => Promise.resolve('checkpoint') },
+			log: () => {},
+		});
+
+		const results = (): Array<Record<string, unknown>> =>
+			bridge.received.filter((command) => command['cmd'] === 'platform_result');
+		const answer = async (requestId: string): Promise<unknown> => {
+			await waitFor(
+				() => results().some((command) => command['requestId'] === requestId),
+				5_000,
+				requestId,
+			);
+			const result = results().find((command) => command['requestId'] === requestId);
+			return result?.['ok'] === true ? JSON.parse(String(result['text'])) : result?.['error'];
+		};
+		bridge.send(platformRequest('p-1', 'files_open', { path: 'notes.md', line: 2 }));
+		expect(await answer('p-1')).toEqual({ path: 'notes.md', created: false });
+		bridge.send(platformRequest('p-2', 'files_open', { path: outside }));
+		expect(await answer('p-2')).toEqual({ path: outside, created: true });
+		bridge.send(platformRequest('p-3', 'files_open', { path: 'notes.md', line: 0 }));
+		expect(await answer('p-3')).toBe('`line` must be a line number from 1.');
+
+		expect(statSync(outside).mode & 0o777).toBe(0o600);
+		expect(JSON.stringify(results())).not.toContain('the plan');
+		expect(
+			test.events.frames
+				.filter(({ channel }) => channel === 'extensions:file-open-requested')
+				.map(({ payload }) => payload),
+		).toEqual([
+			{ workstreamId: 'ws-1', path: 'notes.md', line: 2 },
+			{ workstreamId: 'ws-1', path: outside, line: null },
+		]);
+		expect(all(test.db, 'SELECT tool, status, approval FROM agent_actions ORDER BY rowid')).toEqual(
+			[
+				{ tool: 'files_open', status: 'succeeded', approval: 'not-needed' },
+				{ tool: 'files_open', status: 'succeeded', approval: 'not-needed' },
+				{ tool: 'files_open', status: 'failed', approval: 'not-needed' },
+			],
+		);
 	});
 });
