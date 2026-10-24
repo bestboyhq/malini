@@ -460,7 +460,7 @@
 
 												{#if jobRuns.length > 0}
 													<div transition:slide={foldMotion()}>
-														<WorkstreamJobRuns runs={jobRuns} />
+														<WorkstreamJobRuns runs={jobRuns} {workstreamId} />
 													</div>
 												{/if}
 

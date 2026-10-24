@@ -20,7 +20,7 @@
 		run: JobRunRecord;
 		nowMs: number;
 		placeFirst?: boolean;
-		inWorkstream?: boolean;
+		shownIn?: string | null;
 		kind?: string;
 		origin?: string | null;
 		trailing?: Snippet | undefined;
@@ -30,7 +30,7 @@
 		run,
 		nowMs,
 		placeFirst = false,
-		inWorkstream = false,
+		shownIn = null,
 		kind,
 		origin = null,
 		trailing,
@@ -46,16 +46,18 @@
 		run.parentRunId === null ? origin : `After ${parent?.title ?? 'another job'}`,
 	);
 	const look = $derived(JOB_RUN_STATUS[run.status]);
-	const placeName = $derived.by(() => {
-		if (inWorkstream) return `Job · ${JOB_RUN_STATUS[run.status].label}`;
-		return (
-			workstreamName ?? projects.find((project) => project.id === run.repositoryId)?.name ?? null
-		);
-	});
-	const subject = $derived.by(() => {
-		const what = inWorkstream ? `${run.title} job` : run.title;
-		return [what, inWorkstream ? null : placeName, followed].filter(Boolean).join(' · ');
-	});
+	const place = $derived(
+		workstreamName ?? projects.find((project) => project.id === run.repositoryId)?.name ?? null,
+	);
+	const where = $derived(
+		shownIn !== null && run.workstreamId !== shownIn && place ? ` in ${place}` : '',
+	);
+	const placeName = $derived(shownIn === null ? place : `Job${where} · ${look.label}`);
+	const subject = $derived(
+		(shownIn === null ? [run.title, place, followed] : [`${run.title} job${where}`, followed])
+			.filter(Boolean)
+			.join(' · '),
+	);
 	const transcriptHref = $derived(
 		run.workstreamId && run.sessionId
 			? workstreamHref(run.workstreamId, { agentSessionId: run.sessionId })

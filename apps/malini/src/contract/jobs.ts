@@ -107,8 +107,6 @@ export type RunJobArgs = Readonly<{
 	chatAfterRunId?: string;
 }>;
 
-export type ChatJobRunsArgs = Readonly<{ chatSessionId: string }>;
-
 export type JobRunIdArgs = Readonly<{ jobRunId: string }>;
 
 export type JobPromptEvidence = Readonly<{
@@ -190,7 +188,6 @@ export type JobCommandName =
 	| 'jobs.delete-definition'
 	| 'jobs.reset-definition'
 	| 'jobs.list-runs'
-	| 'jobs.list-chat-runs'
 	| 'jobs.run'
 	| 'jobs.confirm-run'
 	| 'jobs.cancel-run'

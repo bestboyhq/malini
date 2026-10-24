@@ -12,6 +12,7 @@ import type { MaliniDatabase } from '$main/db/driver';
 import { IdSequence } from '../id-sequence';
 import type { AgentRunLeases } from './lifecycle';
 import {
+	PromptsInFlight,
 	continuePausedRuns,
 	defineBridgeCommands,
 	type BridgeCommandDeps,
@@ -203,6 +204,7 @@ export async function startAgentService(
 ): Promise<AgentService> {
 	const log = deps.log ?? ((line: string) => console.error(line));
 	const { db } = context;
+	const sending = new PromptsInFlight();
 
 	try {
 		log(`agent: reaped ${reapOrphansOnStartup(db)} orphaned run(s) on startup`);
@@ -259,6 +261,7 @@ export async function startAgentService(
 							commands: context.commands,
 							events: context.events,
 							appDataRoot: context.appDataRoot,
+							sending,
 							log,
 						}),
 					)
@@ -291,6 +294,7 @@ export async function startAgentService(
 		appDataRoot: context.appDataRoot,
 		ids: new IdSequence(),
 		leases: deps.leases,
+		sending,
 		hooks: {
 			...(deps.verifyAttachment ? { verifyAttachment: deps.verifyAttachment } : {}),
 			...(deps.collectAttachmentGarbage

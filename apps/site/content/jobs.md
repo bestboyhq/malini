@@ -99,9 +99,11 @@ A run never starts a job that already ran earlier in its own chain, so a trigger
 
 Running a job is fire and forget.
 Every way of starting a job only asks Malini's job runner, which starts it when a slot is free, the workstream has no other job, and its agent is idle.
+A workstream an agent just started counts as busy until the turn of its first prompt ends, so a job run there right away waits for that turn.
 
 - Type **/** in the composer to run a job from a chat.
-  Its result lands in that chat.
+  It waits above the composer, next to the prompts you queued, and stays there while it runs, with its transcript a click away.
+  Once it finishes, it leaves, and the **Job center** keeps its result.
 - Run it from the Jobs page, in a workstream or a new one.
   A new one shows **Setting up** in the sidebar while Malini updates its branch and installs its dependencies.
 - Give it a When, or make it another job's Then.

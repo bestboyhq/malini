@@ -367,7 +367,7 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 			definitionId: job.id,
 			workstreamId,
 		});
-		const jobs = page.getByRole('region', { name: 'Jobs in this workstream (1)' });
+		const jobs = page.getByRole('region', { name: 'Jobs (1)', exact: true });
 		await expect(jobs).toContainText('Watch the deploy', { timeout: 20_000 });
 		holdAgentRuns(app, false);
 		await expectRunFinished(page, 'Hello from the fake bridge');

@@ -33,7 +33,7 @@ import {
 import { answeredApprovalsInRun } from '../interactions.repository';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
 import { storedRunProfile } from '../runs.repository';
-import { parseRunProfile } from './commands';
+import { parseRunProfile, type PromptsInFlight } from './commands';
 import { jobsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
 import { persistedBridgeSession, worktreePath, type PersistedBridgeSession } from './sessions';
@@ -45,7 +45,7 @@ const GITHUB_FULL_NAME = /^[\w.-]+\/[\w.-]+$/u;
 const CLONE_URL = /^(?:https:\/\/|ssh:\/\/|file:\/\/|git@[\w.-]+:)\S+$/u;
 
 export type PlatformRequestDeps = Pick<MainContext, 'db' | 'commands' | 'events' | 'appDataRoot'> &
-	Readonly<{ log: (line: string) => void }>;
+	Readonly<{ sending: PromptsInFlight; log: (line: string) => void }>;
 
 type Input = Readonly<Record<string, unknown>>;
 
@@ -206,7 +206,7 @@ async function createWorkstream(
 	deps: PlatformRequestDeps,
 	request: BridgePlatformRequest,
 ): Promise<unknown> {
-	const { db, commands, log } = deps;
+	const { db, commands, sending, log } = deps;
 	const { input } = request;
 	const prompt = requiredText(input, 'prompt');
 	const base = text(input, 'base') ?? null;
@@ -243,7 +243,7 @@ async function createWorkstream(
 	}
 	const profile = parseRunProfile(storedRunProfile(db, request.runId));
 	const sessionId = chat;
-	void (async () => {
+	void sending.during(workstreamId, async () => {
 		await settingUp;
 		try {
 			await commands.call('chat.send-prompt', {
@@ -254,7 +254,7 @@ async function createWorkstream(
 		} catch (error) {
 			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
 		}
-	})();
+	});
 	return {
 		id: workstreamId,
 		name: plan.name,

@@ -82,17 +82,17 @@ A `git clone` still runs, for reading code, and Malini reminds the agent to star
 
 ## Jobs and events
 
-| Tool          | What it does                                                                                                                              |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, and `then`. |
-| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                         |
-| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, with optional extra context, and returns at once.                      |
-| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                         |
+| Tool          | What it does                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jobs_list`   | Lists your [jobs](/malini/docs/jobs.md): id, name, instructions, where they run, model, effort, skills, `when` with its mode, and `then`.    |
+| `jobs_save`   | Creates a job, or changes one by id: its skills, its `when` trigger, and its `then` job included.                                            |
+| `jobs_run`    | Asks Malini to run a job, in the chat's workstream or another one, such as one it started, with optional extra context, and returns at once. |
+| `events_list` | Lists every event Malini emits: its channel, what it means, and its payload type.                                                            |
 
 `when` is a job's [event trigger](/malini/docs/jobs.md#when-a-job-runs), and `then` names the job that runs next, by id or exact name, such as **Open draft** or **Merge**.
 `events_list` returns the same data as the [events reference](/malini/docs/reference/events.md).
 The agent uses it to write an `on <channel>` trigger and its `where` clause.
-A run the agent starts shows in its chat, wherever it runs.
+A run the agent starts waits in its chat's composer tray until it finishes, wherever it runs.
 
 ## Tools and jobs
 
@@ -110,6 +110,16 @@ When you ask it to ship, it runs **Open draft** and goes on with its turn.
 Once the turn ends, Malini commits with the turn's `Commit:` line, pushes the branch, and opens the draft under its `Pull request:` title, the same way **Draft** in the top bar does.
 When the workstream already has an open pull request, Malini pushes the new work to it instead.
 A failure shows in the top bar, where pull request problems always do.
+
+### Workstreams it starts
+
+When the agent hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
+Right after it starts a workstream, it runs **Open draft** or **Merge** there with `jobs_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
+Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
+So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.
+
+Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Job in Fetch command**.
+Merge still waits for checks, fixes what fails and resolves conflicts first, and a problem shows in that workstream's top bar.
 
 ## You decide how often it asks
 
