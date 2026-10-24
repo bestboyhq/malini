@@ -34,7 +34,6 @@ import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './
 import type { MenuCommandChosen, NotificationTarget } from './events';
 import type {
 	AgentActionRecord,
-	ChatJobRunsArgs,
 	ChatTurnRecord,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
@@ -492,7 +491,6 @@ export interface ContractCommands {
 	'jobs.delete-definition': { args: JobDefinitionIdArgs; result: null };
 	'jobs.reset-definition': { args: JobDefinitionIdArgs; result: JobDefinitionRecord };
 	'jobs.list-runs': { args: undefined; result: JobRunRecord[] };
-	'jobs.list-chat-runs': { args: ChatJobRunsArgs; result: JobRunRecord[] };
 	'jobs.run': { args: RunJobArgs; result: JobRunRecord };
 	'jobs.confirm-run': { args: JobRunIdArgs; result: JobRunRecord };
 	'jobs.cancel-run': { args: JobRunIdArgs; result: JobRunRecord };
@@ -742,7 +740,6 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.delete-definition',
 	'jobs.reset-definition',
 	'jobs.list-runs',
-	'jobs.list-chat-runs',
 	'jobs.run',
 	'jobs.confirm-run',
 	'jobs.cancel-run',

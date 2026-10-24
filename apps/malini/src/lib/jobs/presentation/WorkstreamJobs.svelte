@@ -32,7 +32,7 @@
 	<section class="mt-6" aria-label="Jobs">
 		<ul class="flex flex-col gap-2" aria-label="Jobs in this workstream">
 			{#each runs as run (run.id)}
-				<li><JobRunCard {run} /></li>
+				<li><JobRunCard {run} {nowMs} /></li>
 			{/each}
 		</ul>
 	</section>

@@ -31,6 +31,10 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
 		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
+		expect(prompt).toContain(
+			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
+		);
+		expect(prompt).toContain("Malini holds the job until that workstream's chat ends its turn");
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
