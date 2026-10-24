@@ -446,16 +446,19 @@
 							</StateBlock>
 						</div>
 					{:else if filteredRepositories.length > 0}
-						<div class="flex flex-col gap-4" data-testid="repository-list">
+						<div class="flex flex-col gap-3" data-testid="repository-list">
 							{#each ownerGroups as group (group.id)}
 								{@const open = searching || !collapsedGroupIds.has(group.id)}
 								{@const first = group.items[0]}
-								<div class="flex flex-col gap-1.5">
+								<div
+									class="border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]"
+								>
 									<Button
 										bare
 										class={[
-											'group/owner text-fg-secondary focus-visible:ring-border-default/50 -mx-3 flex h-8 w-[calc(100%+1.5rem)] items-center gap-2 rounded-xl px-3 text-sm outline-none focus-visible:ring-2',
-											!searching && 'hover:text-fg-default cursor-pointer',
+											'text-fg-secondary bg-surface-100 focus-visible:bg-surface-100-hover flex h-10 w-full items-center gap-2 px-3 text-sm outline-none',
+											!searching &&
+												'hover:bg-surface-100-hover hover:text-fg-default cursor-pointer',
 										]}
 										disabled={searching}
 										ariaLabel={`${group.owner}, ${repositoryCountLabel(group.items.length)}`}
@@ -465,17 +468,10 @@
 										data-owner={group.owner}
 										onclick={() => toggleGroupCollapsedCommand(group.id)}
 									>
-										<span
-											class={[
-												'bg-surface-50 border-surface-50-border flex items-center gap-1.5 rounded-lg border-[0.5px] py-0.5 pr-2 pl-0.5',
-												!searching && 'group-hover/owner:bg-surface-50-hover',
-											]}
-										>
-											{#if first}
-												<RepositoryAvatar fullName={first.fullName} size={20} />
-											{/if}
-											<span class="font-medium">{group.owner}</span>
-										</span>
+										{#if first}
+											<RepositoryAvatar fullName={first.fullName} size={20} />
+										{/if}
+										<span class="font-medium">{group.owner}</span>
 										<span class="text-fg-tertiary text-xs">
 											{repositoryCountLabel(group.items.length)}
 										</span>
@@ -487,10 +483,7 @@
 									</Button>
 									<ul
 										id={`owner-list-${group.id}`}
-										class={[
-											'border-surface-50-border bg-surface-50 divide-surface-50-border -mx-3 divide-y-[0.5px] overflow-hidden rounded-2xl border-[0.5px]',
-											!open && 'hidden',
-										]}
+										class={['divide-surface-50-border divide-y-[0.5px]', !open && 'hidden']}
 									>
 										{#each group.items as repo (repo.id)}
 											{@render repositoryRow(repo, repositoryName(repo.fullName), false)}
