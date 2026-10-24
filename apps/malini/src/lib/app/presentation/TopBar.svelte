@@ -62,6 +62,7 @@
 	);
 	const dockWidth = $derived(inspectorDock.width);
 	const dockCompact = $derived(dockWidth !== null && inspectorDock.compact);
+	const dockEmpty = $derived(dockWidth !== null && inspectorDock.empty);
 	const githubStatus = $derived(globalTopBarGithubStatus.current);
 	const githubOwner = $derived(globalTopBarGithubStatus.owner);
 	const githubPanelHeadline = $derived(
@@ -338,6 +339,7 @@
 	<div
 		class="topbar-right"
 		data-docked={dockWidth === null ? undefined : ''}
+		data-dock-empty={dockEmpty ? '' : undefined}
 		data-inspector-dock
 		style={dockWidth === null ? undefined : `--dock-width: ${dockWidth}px;`}
 		data-testid="global-topbar-right"
@@ -744,6 +746,14 @@
 			color-mix(in srgb, black 35%, transparent) calc(100% - 24px)
 		);
 		pointer-events: none;
+	}
+
+	.topbar-right[data-docked][data-dock-empty] {
+		height: calc(var(--native-titlebar-safe-area) + 16px);
+		margin-bottom: -28px;
+		border-bottom: 0.5px solid var(--dock-edge);
+		border-radius: 24px;
+		padding-bottom: 0;
 	}
 
 	.topbar-right[data-docked]:not(:has(> *)) {

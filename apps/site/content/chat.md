@@ -15,6 +15,8 @@ Such a chat plans and delegates: it reads Malini's clones of the repositories in
 It starts a [workstream](/malini/docs/workstreams.md) for each change, with one repository and one prompt, so every decision it makes is a workstream you can see and checks gate every merge.
 
 - Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
+- It has no repository, so it shows no **Files**.
+  Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
 - A workstream any chat starts sits under that chat in the sidebar.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
 - The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.

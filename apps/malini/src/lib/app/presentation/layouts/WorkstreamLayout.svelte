@@ -35,6 +35,7 @@
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
+	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
 	const split = $derived(
 		hostsBrowser
 			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
@@ -65,7 +66,7 @@
 
 <WorkstreamTitle {workstreamId} />
 
-<InspectorSplit {workstreamId} {...split}>
+<InspectorSplit {workstreamId} {...split} {hasInspector}>
 	{#snippet primary()}
 		<ChatSurface
 			{workstreamId}

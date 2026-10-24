@@ -24,7 +24,10 @@ A chat needs a workstream underneath: `agent_sessions.workstream_id` is NOT NULL
   A changed lineage restarts Claude Code, like a changed theme (0038).
 - `localRepositoriesFromProjects` drops the lead space, so it is never a repository: not in the repository list, `repositories_list`, the catalog or a sidebar repository row.
   Pull request polling and change totals skip leads.
-- A lead's page counts its workstreams in the top bar, through the same `globalTopBarGithubStatus` a pull request uses, with no Draft or Merge, and opens with the inspector closed, since the lead space has no files.
+- A lead's page counts its workstreams in the top bar, through the same `globalTopBarGithubStatus` a pull request uses, with no Draft or Merge.
+  The lead space is no repository, so a lead shows no extension panel and no **Add extensions**: its inspector stays shut until its agent opens a browser tab, and then holds only browser tabs (`hasInspector` on `InspectorSplit`, `browserOnly` on `WorkstreamInspector`).
+  Shut, it leaves an empty dock (`dockInspector(compact, empty)`), so the top bar card closes under the status, the Jobs card stays docked, and the chat keeps the width it has in the lead's workstreams.
+  Extensions still run for a lead, so a file its agent opens with `files_open` opens in a tab beside the chat.
   `displayWorkstreamName` calls a lead **New chat** until Name chats names it.
 - The transcript folds every `workstreams_create` call a turn made into one **Workstreams** card where the first one ran (`foldStartedWorkstreams`), drawn by the app domain through a `ChatSurface` snippet, so the chat domain never reads pull request state.
   A started workstream shows **Started by** and its siblings above its transcript, through a second snippet.
@@ -38,4 +41,4 @@ A chat needs a workstream underneath: `agent_sessions.workstream_id` is NOT NULL
 - Anything that lists workstreams sees leads too and has to decide: the sidebar, `workstreams_list`, pull request polling and change totals skip scoped workstreams, and a lead has no repository context.
 - A lead plans from clones that can lag GitHub, and it still has Bash, so "never edits code" is its tool list plus its instructions, not a sandbox.
 - A workstream started later changes its siblings' lineage, so their Claude Code restarts at their next turn.
-- Enforced by `migrations.test.ts`, `workstreams.test.ts` (the lead space and lineage on real git), `instructions.test.ts`, `session.test.ts` and `protocol.test.ts` in the bridge, `sidebar-tree.test.ts`, `sidebar-focus.test.ts`, `lead-progress.test.ts`, `activity-group.test.ts`, `render-projector.test.ts`, `workstream-names.test.ts`, and `tests/e2e/lead-chats.spec.ts`.
+- Enforced by `migrations.test.ts`, `workstreams.test.ts` (the lead space and lineage on real git), `instructions.test.ts`, `session.test.ts` and `protocol.test.ts` in the bridge, `sidebar-tree.test.ts`, `sidebar-focus.test.ts`, `lead-progress.test.ts`, `activity-group.test.ts`, `render-projector.test.ts`, `workstream-names.test.ts`, `inspector-dock.svelte.test.ts`, and `tests/e2e/lead-chats.spec.ts`.

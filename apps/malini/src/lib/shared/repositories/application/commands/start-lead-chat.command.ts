@@ -1,5 +1,4 @@
 import { toast } from '$hyper-ui/components/toast';
-import { inspectorDrawer } from '$shared/extensions/inspector-drawer.store.svelte';
 import { leadScopeLabel, type LeadScope } from '$shared/repositories/domain/lead-scope';
 import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggregates/workstreams.aggregate.svelte';
 import { workstreamsService } from '$shared/repositories/infrastructure/services/workstreams.service';
@@ -13,7 +12,6 @@ function startLeadChatCommand(scope: LeadScope): void {
 		try {
 			const lead = await workstreamsService.createLead(scope);
 			workstreamsAggregate.upsert(lead);
-			inspectorDrawer.close(lead.id);
 			await goto(workstreamHref(lead.id));
 		} catch (error) {
 			const reason = error instanceof Error ? error.message : String(error);

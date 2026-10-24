@@ -142,6 +142,7 @@
 	creationContext={(id) => (creationPending(id) ? (creationContext(id) ?? {}) : null)}
 	oncreationannounced={consumeWorkstreamCreationCommand}
 	onruntimeretry={retryRepositoryScope}
+	browserOnly={Boolean(workstream?.scope)}
 	{builtInPanels}
 	{panelActions}
 />

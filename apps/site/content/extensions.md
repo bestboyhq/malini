@@ -8,6 +8,7 @@ description: Malini's inspector is built from extensions - panels, commands, set
 The inspector sits next to the chat.
 The built-in **Repository** extension gives you **Files**: changed files with their diffs, the full tree, file tabs, and todos.
 Browser tabs sit there too.
+A [chat above repositories](/malini/docs/chat.md#chats-above-repositories) has no repository, so its inspector holds only browser tabs, and only while one is open.
 Don't need the files?
 Right-click the **Files** tab and choose **Hide Files in every workstream**: it stays hidden everywhere, new workstreams included, until you choose **Show Files in every workstream** the same way.
 The **×** on a tab closes it in that workstream only.

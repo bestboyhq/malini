@@ -1,4 +1,6 @@
 import { writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -18,6 +20,10 @@ function sidebar(page: Page) {
 
 function transcript(page: Page) {
 	return page.getByTestId('transcript-pane');
+}
+
+function inspector(page: Page) {
+	return page.getByRole('region', { name: 'Inspector' });
 }
 
 function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
@@ -113,6 +119,7 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 			{ timeout: 20_000 },
 		);
 		await expect(page).toHaveTitle('Malini · Home');
+		await expect(inspector(page)).toHaveCount(0);
 		await captureFlow(app, 'lead-chat-home-sidebar');
 
 		await children.filter({ hasText: 'site' }).click();
@@ -124,6 +131,9 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 		await expect(transcript(page).getByTestId('chat-prompt-from')).toHaveText(
 			'Prompt from Move apps to Logdash',
 		);
+		await expect(inspector(page).getByRole('tab', { name: 'Files' })).toBeVisible({
+			timeout: 20_000,
+		});
 		await captureFlow(app, 'lead-chat-started-workstream');
 		await lineage.getByTestId('workstream-lineage-starter').click();
 		await expect(lead).toHaveAttribute('aria-current', 'page');
@@ -205,5 +215,61 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
+	}
+});
+
+test('a lead chat has no inspector until its agent opens a page, holds only browser tabs, and still opens the files its agent asks for', async () => {
+	test.setTimeout(180_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end('<!doctype html><title>Usage report</title><h1>Usage report</h1>');
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedWorkstream(
+			page,
+			`file://${await createSourceRepo(app.root, 'acme/api')}`,
+			'e2e-lead-browser-api',
+			'Api work',
+		);
+		await page.reload();
+
+		await startChat(page, 'home', 'Compare usage');
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
+			'No workstreams yet',
+		);
+		await expect(inspector(page)).toHaveCount(0);
+
+		await sendPrompt(page, `Show the report BROWSER_OPEN:${origin}/usage`);
+		await expect(
+			inspector(page).getByRole('tab', { name: 'Usage report', selected: true }),
+		).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(inspector(page).getByRole('tab')).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Open inspector panel' })).toBeEnabled();
+		await page.getByRole('button', { name: 'Open inspector panel' }).click();
+		await expect(page.getByRole('menuitem', { name: 'New browser tab' })).toBeVisible();
+		await expect(page.getByRole('menuitem', { name: 'Add extensions' })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await captureFlow(app, 'lead-chat-browser-tab');
+
+		await page.getByRole('button', { name: 'Close Usage report', exact: true }).click();
+		await expect(inspector(page)).toHaveCount(0);
+		await expect(transcript(page)).toBeVisible();
+
+		agentCalls(app, { tool: 'files_open', input: { path: '~/plans/usage.md' } });
+		await sendPrompt(page, 'MALINI_UNASKED_TOOL');
+		await expect(
+			page.getByTestId('chat-agent-tabs').getByRole('tab', { name: 'usage.md', exact: true }),
+		).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
+		await expect(inspector(page)).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
 	}
 });
