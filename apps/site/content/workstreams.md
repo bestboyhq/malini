@@ -20,17 +20,26 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 
 ## The sidebar
 
-- Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
-- A repository shows while it has open workstreams, and while you have it open.
-  Open any other from the repository list to start its first workstream.
-- Every workstream has its own row under its repository.
-- Two or more repositories from one owner fold into a folder named for the owner.
+- The focus strip at the top narrows the sidebar.
+  **All** shows everything, and **+** pins an organization or a repository beside it.
+  Click a pin to see only its chats and workstreams, and right-click it to unpin it.
+  A dot on a pin means something in it needs you.
+- **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
+  The **+** on an owner's row starts one for that organization.
+- Every repository sits under a row named for its owner, below that owner's chats.
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
   A search opens every owner it matches.
+- A repository shows while it has workstreams of its own, and while you have it open.
+  Open any other from the repository list to start its first workstream.
+- Every workstream has its own row.
+  A workstream a chat started sits under that chat, wherever its repository is, and under its repository while a focus leaves that chat out.
+- A row with workstreams under it shows a dot for each: merged, needs you, failed, working, or waiting.
+  Fold it to keep only the dots.
+- Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Drag to reorder, or use **⌥↑** and **⌥↓**.
-  An owner's folder moves as one.
+  An owner moves with everything under it.
 - Hide a repository and keep its workstreams.
   Clone or open it again and it comes back.
 - **Recently archived**, at the bottom of the sidebar, lists archived workstreams, newest first.

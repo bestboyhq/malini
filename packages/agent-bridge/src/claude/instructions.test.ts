@@ -87,8 +87,6 @@ describe('systemPromptAppend', () => {
 			'The chat “Unify footers” started this workstream, as a lead chat that plans work across repositories, and sent its first prompt.',
 		);
 		expect(child).toContain('never edit them:\n- acme/web on malini/w2: /workstreams/w2');
-		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain(
-			'<malini_lineage>',
-		);
+		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('<malini_lineage>');
 	});
 });

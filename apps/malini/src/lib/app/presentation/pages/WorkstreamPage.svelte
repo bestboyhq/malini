@@ -43,6 +43,7 @@
 		worktreePendingQuery,
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
+	import LeadTopBarStatus from '../LeadTopBarStatus.svelte';
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
@@ -108,24 +109,28 @@
 	}
 </script>
 
-<WorkstreamChatBridge {workstreamId}>
-	{#snippet children(chat)}
-		<WorkstreamTopBarStatus
-			{workstreamId}
-			{agentSessionId}
-			{extensionWorkstream}
-			{extensionGeneration}
-			{extensionReady}
-			{repositoryScopeReady}
-			{remotePullRequestsSupported}
-			{repositoryExtensionRegistered}
-			agentWork={chat.agentWork}
-			overrideStatus={provisioningStatus}
-			ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
-			onarchive={archiveWorkstream}
-		/>
-	{/snippet}
-</WorkstreamChatBridge>
+{#if workstream?.scope}
+	<LeadTopBarStatus leadId={workstreamId} />
+{:else}
+	<WorkstreamChatBridge {workstreamId}>
+		{#snippet children(chat)}
+			<WorkstreamTopBarStatus
+				{workstreamId}
+				{agentSessionId}
+				{extensionWorkstream}
+				{extensionGeneration}
+				{extensionReady}
+				{repositoryScopeReady}
+				{remotePullRequestsSupported}
+				{repositoryExtensionRegistered}
+				agentWork={chat.agentWork}
+				overrideStatus={provisioningStatus}
+				ongitstatusstale={() => loadWorkstreamGitStatusCommand(workstreamId)}
+				onarchive={archiveWorkstream}
+			/>
+		{/snippet}
+	</WorkstreamChatBridge>
+{/if}
 
 <WorkstreamInspector
 	{workstreamId}

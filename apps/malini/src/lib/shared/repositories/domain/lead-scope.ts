@@ -23,7 +23,6 @@ export function leadScopeLabel(scope: LeadScope): string {
 
 export function leadScopeOwns(scope: LeadScope, owner: string | null): boolean {
 	return (
-		scope.kind === 'home' ||
-		(owner !== null && scope.owner.toLowerCase() === owner.toLowerCase())
+		scope.kind === 'home' || (owner !== null && scope.owner.toLowerCase() === owner.toLowerCase())
 	);
 }

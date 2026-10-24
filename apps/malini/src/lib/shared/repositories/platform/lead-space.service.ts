@@ -85,7 +85,14 @@ async function prepareLeadSpace({ db, appDataRoot }: WorkstreamsDeps): Promise<s
 
 async function hasCommit(repoPath: string): Promise<boolean> {
 	try {
-		await runGit(['-C', repoPath, 'rev-parse', '--verify', '--quiet', `${LEAD_SPACE_BRANCH}^{commit}`]);
+		await runGit([
+			'-C',
+			repoPath,
+			'rev-parse',
+			'--verify',
+			'--quiet',
+			`${LEAD_SPACE_BRANCH}^{commit}`,
+		]);
 		return true;
 	} catch {
 		return false;

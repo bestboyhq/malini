@@ -8,11 +8,9 @@
 	import { BusyIcon, ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import {
 		HOME_SCOPE,
-		archivedWorkstreamsQuery,
 		connectedRepositoryContexts,
 		hiddenRepositoriesQuery,
 		inSidebarOrder,
-		isGeneratedWorkstreamName,
 		leadScopeLabel,
 		moveInSidebarCommand,
 		sidebarOrderQuery,
@@ -27,8 +25,10 @@
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
-	import { progressDot, progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
+	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
+	import { progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
 	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
+	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import {
 		sidebarRepositoryIds,
 		sidebarTree,
@@ -213,13 +213,6 @@
 	const listedWorkstreamIds = $derived(sidebarWorkstreamIds(tree));
 	const hasRows = $derived(tree.homeLeads.length > 0 || tree.blocks.length > 0);
 	const avatarSize = $derived(compact ? 16 : 20);
-	const mergedByParent = $derived(
-		archivedWorkstreamsQuery.data.reduce((merged, workstream) => {
-			if (workstream.startedBy === null || workstream.mergedPullRequest === null) return merged;
-			merged.set(workstream.startedBy, (merged.get(workstream.startedBy) ?? 0) + 1);
-			return merged;
-		}, new Map<string, number>()),
-	);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
 
@@ -897,15 +890,11 @@
 			workstream,
 			repositoryFullName: null,
 			children,
-			label: leadTitle(workstream),
+			label: displayWorkstreamName(workstream),
 			detail: null,
 			trail: 'changes',
 			owner: null,
 		};
-	}
-
-	function leadTitle(workstream: Workstream): string {
-		return isGeneratedWorkstreamName(workstream.name) ? 'New chat' : workstream.name;
 	}
 
 	function childRow(
@@ -933,34 +922,11 @@
 
 	function progressDots(row: SidebarRow): ProgressDot[] {
 		const merged = Array.from(
-			{ length: mergedByParent.get(row.workstream.id) ?? 0 },
+			{ length: leadProgressQuery.merged.get(row.workstream.id) ?? 0 },
 			(): ProgressDot => 'merged',
 		);
-		return [...merged, ...row.children.map((child) => dotFor(child.workstream))];
+		return [...merged, ...row.children.map((child) => leadProgressQuery.dot(child.workstream))];
 	}
-
-	function dotFor(workstream: Workstream): ProgressDot {
-		const chat = workstreamChatSummaryQuery.data(workstream.id);
-		const provisioning = provisioningRecord(workstream.id);
-		const state = visualState(workstream, provisioning, chat);
-		return progressDot({
-			merged: false,
-			pullRequest: pullRequestBadge(workstream.id).phase,
-			needsYou: chat.needsYou,
-			chatTone: chat.state?.tone ?? null,
-			busy:
-				state.tone === 'running' || state.tone === 'background' || state.tone === 'provisioning',
-			broken: state.tone === 'broken' || provisioning?.failure !== undefined,
-		});
-	}
-
-	const PROGRESS_DOT_CLASS: Readonly<Record<ProgressDot, string>> = {
-		merged: 'bg-merged-content',
-		needs: 'bg-warning-content',
-		failed: 'bg-error-content',
-		running: 'bg-brand-icon animate-pulse motion-reduce:animate-none',
-		idle: 'bg-status-idle',
-	};
 
 	function focusOwners(
 		rows: readonly ConnectedRepositoryContext[],
@@ -1255,7 +1221,8 @@
 	{@const workstream = row.workstream}
 	{@const isLead = workstream.scope !== null}
 	{@const hasChildren = row.children.length > 0}
-	{@const dots = hasChildren || mergedByParent.has(workstream.id) ? progressDots(row) : []}
+	{@const dots =
+		hasChildren || leadProgressQuery.merged.has(workstream.id) ? progressDots(row) : []}
 	{@const folded = collapsedGroupIds.has(workstream.id)}
 	{@const childIds = row.children.map((child) => child.workstream.id)}
 	<li

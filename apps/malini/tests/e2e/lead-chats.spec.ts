@@ -105,12 +105,28 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 				.getByText('api', { exact: true }),
 		).toBeVisible();
 		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3);
+		await expect(transcript(page).getByTestId('started-workstreams')).toHaveCount(2);
+		await expect(transcript(page).getByRole('link', { name: /^acme\/api, / })).toBeVisible();
+		await expect(transcript(page).getByRole('link', { name: /^solo\/site, / })).toBeVisible();
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
+			/^0 of 2 merged/u,
+			{ timeout: 20_000 },
+		);
+		await expect(page).toHaveTitle('Malini · Home');
 		await captureFlow(app, 'lead-chat-home-sidebar');
 
 		await children.filter({ hasText: 'site' }).click();
 		await lastReply(page, 'Started by: Move apps to Logdash');
 		await lastReply(page, 'Siblings: acme/api');
+		const lineage = page.getByTestId('workstream-lineage');
+		await expect(lineage).toContainText('Started by Move apps to Logdash');
+		await expect(lineage.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
+		await expect(transcript(page).getByTestId('chat-prompt-from')).toHaveText(
+			'Prompt from Move apps to Logdash',
+		);
 		await captureFlow(app, 'lead-chat-started-workstream');
+		await lineage.getByTestId('workstream-lineage-starter').click();
+		await expect(lead).toHaveAttribute('aria-current', 'page');
 
 		await sidebar(page)
 			.getByRole('button', { name: 'Fold the workstreams of Move apps to Logdash' })
@@ -152,6 +168,10 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 		).toHaveAttribute('data-chat-scope', 'owner');
 		await sendPrompt(page, 'WHICH_LINEAGE');
 		await lastReply(page, 'Lead: acme reads acme/api, acme/web');
+		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
+			'No workstreams yet',
+		);
+		await expect(page).toHaveTitle('Malini · acme');
 
 		const focus = page.getByRole('group', { name: 'Focus' });
 		await focus.getByRole('button', { name: 'Pin an organization or repository' }).click();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
 	import { fly, slide, type SlideParams } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
@@ -78,6 +78,8 @@
 		jobRuns?: readonly JobRunRecord[];
 		oncloseworkstream: () => void;
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
+		header: Snippet<[string]>;
+		workstreamsCard: Snippet<[readonly string[]]>;
 	}
 
 	let {
@@ -86,6 +88,8 @@
 		jobRuns = [],
 		oncloseworkstream,
 		onsavetoscratchpad,
+		header,
+		workstreamsCard,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -390,6 +394,8 @@
 										{onsavetoscratchpad}
 										spaceBelow={footerHeight}
 										overlayBelow={trayHeight}
+										{header}
+										{workstreamsCard}
 									>
 										{#snippet empty()}
 											<FreshChatSuggestions

@@ -1,4 +1,8 @@
-import { groupRunTimeline, type GroupedRunTimelineItem } from '../activity-group';
+import {
+	foldStartedWorkstreams,
+	groupRunTimeline,
+	type GroupedRunTimelineItem,
+} from '../activity-group';
 import { runProjectionVersion } from '../render-projector';
 import type { RunGroup } from '../render-state';
 import type { RunTimelineItem } from '../run-timeline';
@@ -125,7 +129,7 @@ export function createTimelineDerivations(input: {
 		): readonly GroupedRunTimelineItem[] {
 			const derivation = derivationFor(run);
 			if (derivation && isLastRun) derivation.shownLinear = true;
-			if (isLastRun || derivation?.shownLinear) return window.items;
+			if (isLastRun || derivation?.shownLinear) return foldStartedWorkstreams(window.items);
 			if (!derivation) return groupRunTimeline(window.items);
 			derivation.grouped ??= groupRunTimeline(window.items);
 			return derivation.grouped;

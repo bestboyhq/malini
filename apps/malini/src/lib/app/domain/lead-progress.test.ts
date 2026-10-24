@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { progressDot, progressLabel, type ProgressInput } from './lead-progress';
+import {
+	leadHeadline,
+	progressDot,
+	progressLabel,
+	standingLabel,
+	type ProgressInput,
+} from './lead-progress';
 
 const idle: ProgressInput = {
 	merged: false,
@@ -42,5 +48,33 @@ describe('lead progress', () => {
 		);
 		expect(progressLabel(['running'])).toBe('1 workstream: 1 working');
 		expect(progressLabel([])).toBe('0 workstreams');
+	});
+
+	it('heads a lead chat with what merged and what needs the user', () => {
+		expect(leadHeadline([])).toEqual({
+			tone: 'idle',
+			busy: false,
+			label: 'No workstreams yet',
+			detail: null,
+		});
+		expect(leadHeadline(['merged', 'needs', 'running'])).toEqual({
+			tone: 'needs-you',
+			busy: true,
+			label: '1 of 3 merged',
+			detail: '1 needs you · 1 working',
+		});
+		expect(leadHeadline(['merged', 'merged'])).toMatchObject({ tone: 'merged', detail: null });
+		expect(leadHeadline(['idle', 'running'])).toMatchObject({ tone: 'idle', busy: true });
+	});
+
+	it('names where each workstream stands', () => {
+		expect([
+			standingLabel('merged', 'none'),
+			standingLabel('running', 'queued'),
+			standingLabel('running', 'none'),
+			standingLabel('idle', 'open'),
+			standingLabel('idle', 'draft'),
+			standingLabel('idle', 'none'),
+		]).toEqual(['Merged', 'Merging', 'Working', 'In review', 'Draft', 'Waiting']);
 	});
 });

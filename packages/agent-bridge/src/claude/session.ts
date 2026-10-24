@@ -600,12 +600,7 @@ export class ClaudeSession implements ProviderHandle {
 			systemPrompt: {
 				type: 'preset',
 				preset: 'claude_code',
-				append: systemPromptAppend(
-					this.#context.cwd,
-					profile?.report ?? 'medium',
-					theme,
-					lineage,
-				),
+				append: systemPromptAppend(this.#context.cwd, profile?.report ?? 'medium', theme, lineage),
 			},
 			includePartialMessages: true,
 			thinking: { type: 'adaptive', display: 'summarized' },

@@ -44,7 +44,7 @@
 	let { run, isLastRun, live, copied }: Props = $props();
 
 	const transcript = transcriptContext();
-	const { timelines, stageEnter } = transcript;
+	const { timelines, stageEnter, timelineKey } = transcript;
 	const transcriptWindow = transcript.window;
 
 	const runKey = $derived(runWindowKey(run.runId));
@@ -207,6 +207,14 @@
 				>
 					{#if item.kind === 'activity-group'}
 						<ChatActivityGroup group={item} {run} {isLastRun} />
+					{:else if item.kind === 'workstreams'}
+						<div
+							class="w-full"
+							use:stageEnter={timelineKey(run, item.key)}
+							data-message-kind="workstreams"
+						>
+							{@render transcript.workstreamsCard(item.workstreamIds)}
+						</div>
 					{:else}
 						<ChatTimelineRow {item} {run} {isLastRun} />
 					{/if}

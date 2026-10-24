@@ -55,11 +55,7 @@ export {
 	type ConnectedRepositoryContext,
 } from './domain/repository-context';
 
-export {
-	displayWorkstreamName,
-	generatedWorkstreamName,
-	isGeneratedWorkstreamName,
-} from './domain/workstream-names';
+export { displayWorkstreamName, generatedWorkstreamName } from './domain/workstream-names';
 
 export {
 	HOME_SCOPE,

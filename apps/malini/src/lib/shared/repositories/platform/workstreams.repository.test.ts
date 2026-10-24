@@ -57,6 +57,8 @@ describe('projects and workstreams', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: '2026-07-03T00:00:01Z',
+			scope: null,
+			startedBy: null,
 		});
 		expect(getWorkstream(db, 'w-9')).toBeNull();
 		upsertProject(db, {

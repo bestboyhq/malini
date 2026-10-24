@@ -554,9 +554,10 @@ describe('protocol: parseCommandLine', () => {
 				startedBy: null,
 				siblings: [],
 			};
-			expect(
-				parseCommandLine(`{${prompt},"lineage":${JSON.stringify(lineage)}}`),
-			).toMatchObject({ ok: true, command: { lineage } });
+			expect(parseCommandLine(`{${prompt},"lineage":${JSON.stringify(lineage)}}`)).toMatchObject({
+				ok: true,
+				command: { lineage },
+			});
 			const broken = { ...lineage, siblings: [{ repository: 'a/b', branch: '', path: '/c' }] };
 			expect(parseCommandLine(`{${prompt},"lineage":${JSON.stringify(broken)}}`).ok).toBe(false);
 		});

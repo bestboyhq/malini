@@ -1,5 +1,13 @@
 import { expect, test, type ElectronApplication } from '@playwright/test';
-import { captureFlow, expectCleanConsole, launchMalini } from './harness';
+import {
+	captureFlow,
+	createSourceRepo,
+	expectCleanConsole,
+	launchMalini,
+	openWorkstream,
+	seedWorkstream,
+	sendPrompt,
+} from './harness';
 
 async function closeWindow(electronApp: ElectronApplication): Promise<void> {
 	await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close());
@@ -33,6 +41,28 @@ test('closing the window asks first, Keep working keeps it open, and Close Malin
 		expectCleanConsole(app);
 		await dialog.getByRole('button', { name: 'Close Malini' }).click();
 		await expect.poll(() => openWindows(electronApp), { timeout: 30_000 }).toBe(0);
+	} finally {
+		await app.close();
+	}
+});
+
+test('quitting while a prompt is still on its way to Claude Code records no error', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini({ env: { FAKE_BRIDGE_ACK_DELAY_MS: '2000' } });
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-quit-mid-send',
+			'Quit mid send',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Hello before quitting');
+		await expect(
+			page.getByTestId('chat-message-bubble-user').filter({ hasText: 'Hello before quitting' }),
+		).toBeVisible({ timeout: 20_000 });
+		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
