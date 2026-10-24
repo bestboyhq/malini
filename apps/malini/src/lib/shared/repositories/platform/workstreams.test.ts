@@ -126,18 +126,36 @@ describe('lead chats', () => {
 		await mkdir(appDataRoot);
 		const { invoke, db } = harness(appDataRoot);
 
-		const home = await invoke<WorkstreamDto>('repositories.create-lead', { scope: 'home' });
-		const acme = await invoke<WorkstreamDto>('repositories.create-lead', { scope: 'owner:acme' });
+		const home = await invoke<WorkstreamDto>('repositories.create-lead', {
+			scope: 'home',
+			workstreamId: 'lead-home',
+			name: 'Golden Harbor',
+		});
+		const acme = await invoke<WorkstreamDto>('repositories.create-lead', {
+			scope: 'owner:acme',
+			workstreamId: 'lead-acme',
+			name: 'Swift Summit',
+		});
 		expect([home.scope, acme.scope]).toEqual(['home', 'owner:acme']);
+		expect([home.id, home.name, home.branch]).toEqual([
+			'lead-home',
+			'Golden Harbor',
+			'malini/lead-home',
+		]);
 		expect([home.projectId, home.checkoutState, home.startedBy]).toEqual([
 			LEAD_SPACE_PROJECT_ID,
 			'healthy',
 			null,
 		]);
-		expect(home.name).not.toBe(acme.name);
-		await expect(invoke('repositories.create-lead', { scope: 'owner:' })).rejects.toThrow(
-			'`scope` must be `home` or `owner:<owner>`',
-		);
+		expect(
+			(await realGit(join(appDataRoot, 'lead-space'), ['config', 'core.hooksPath'])).trim(),
+		).toBe('/dev/null');
+		await expect(
+			invoke('repositories.create-lead', { scope: 'owner:', workstreamId: 'lead-x', name: 'X' }),
+		).rejects.toThrow('`scope` must be `home` or `owner:<owner>`');
+		await expect(
+			invoke('repositories.create-lead', { scope: 'home', workstreamId: '../x', name: 'X' }),
+		).rejects.toThrow('unsafe path');
 
 		const source = join(dir, 'acme', 'api');
 		await initRealRepo(source);

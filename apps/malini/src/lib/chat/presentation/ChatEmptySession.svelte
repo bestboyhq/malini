@@ -14,7 +14,7 @@
 	<div class="max-w-sm">
 		<p class="text-fg-secondary text-sm">No chat yet</p>
 		<p class="text-fg-tertiary mt-1 text-xs leading-5">
-			Send a prompt below to start the first chat in this workstream.
+			Send a prompt below to start the first chat here.
 		</p>
 	</div>
 </div>

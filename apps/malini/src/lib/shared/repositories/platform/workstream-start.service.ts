@@ -2,10 +2,7 @@ import { REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
-import {
-	planWorkstreamProvisioning,
-	type WorkstreamProvisioningPlan,
-} from '../domain/provisioning';
+import { planWorkstreamProvisioning, type RepositoryWorkstreamPlan } from '../domain/provisioning';
 import { listProjects } from './projects.repository';
 import { resolveConnectedRepository } from './repository.service';
 import { listWorkstreams } from './workstreams.repository';
@@ -15,7 +12,7 @@ type Commands = MainContext['commands'];
 export async function planRepositoryWorkstream(
 	db: MaliniDatabase,
 	repositoryId: string,
-): Promise<WorkstreamProvisioningPlan | null> {
+): Promise<RepositoryWorkstreamPlan | null> {
 	const repository = await resolveConnectedRepository(db, repositoryId);
 	if (!repository) return null;
 	return planWorkstreamProvisioning({
@@ -27,7 +24,7 @@ export async function planRepositoryWorkstream(
 
 export async function clonePlannedRepository(
 	commands: Commands,
-	plan: WorkstreamProvisioningPlan,
+	plan: RepositoryWorkstreamPlan,
 ): Promise<string> {
 	return (
 		plan.projectRepoPath ??
@@ -40,7 +37,7 @@ export async function clonePlannedRepository(
 
 export async function createPlannedWorkstream(
 	commands: Commands,
-	plan: WorkstreamProvisioningPlan,
+	plan: RepositoryWorkstreamPlan,
 	projectRepoPath: string,
 	baseRef: string | null = null,
 	startedBy: string | null = null,

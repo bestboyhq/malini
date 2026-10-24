@@ -55,7 +55,7 @@
 	<div class="w-full max-w-xl text-left">
 		<p class="text-fg-secondary text-sm">Bring useful context with you</p>
 		<p class="text-fg-tertiary mt-1 text-xs leading-5">
-			Start clean, or revisit a transcript or plan already prepared in this workstream.
+			Start clean, or revisit a transcript or plan already prepared here.
 		</p>
 
 		{#if recentChats.length > 0}
@@ -106,7 +106,7 @@
 
 		{#if recentChats.length === 0}
 			<p class="text-2xs text-fg-tertiary mt-4 leading-5">
-				This workstream does not have an earlier transcript or plan yet.
+				There is no earlier transcript or plan here yet.
 			</p>
 		{/if}
 
