@@ -20,7 +20,7 @@
 	import {
 		groupItems,
 		repositoryGroups,
-		showsAsOneLine,
+		showsInSidebar,
 		type OwnerGroup,
 		type RepositoryGroup,
 	} from '$lib/app/domain/repository-groups';
@@ -140,8 +140,9 @@
 			order: sidebarOrder,
 		}),
 	);
-	const rows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
-	const everyRepositoryHidden = $derived(contexts.length > 0 && rows.length === 0);
+	const unhiddenRows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
+	const everyRepositoryHidden = $derived(contexts.length > 0 && unhiddenRows.length === 0);
+	const rows = $derived(unhiddenRows.filter((row) => showsInSidebar(row, openRepositoryId)));
 	const entries = $derived(repositoryGroups(rows, (row) => row.repo));
 	const entryIds = $derived(entries.map((entry) => entry.id));
 	const repositoryIdsByEntry = $derived(
@@ -868,23 +869,10 @@
 			class={['flex w-full flex-col gap-0.5', collapsed && 'hidden']}
 		>
 			{#each folder.items as row (row.repo.id)}
-				{@render repositoryItem(row, true, siblingIds)}
+				{@render repositoryGroup(row, true, siblingIds)}
 			{/each}
 		</ul>
 	</li>
-{/snippet}
-
-{#snippet repositoryItem(
-	row: ConnectedRepositoryContext,
-	nested: boolean,
-	siblingIds: readonly string[],
-)}
-	{@const lone = row.workstreams[0]}
-	{#if lone && showsAsOneLine(row)}
-		{@render oneLineRepository(row, lone, nested, siblingIds)}
-	{:else}
-		{@render repositoryGroup(row, nested, siblingIds)}
-	{/if}
 {/snippet}
 
 {#snippet repositoryGroup(
@@ -1010,171 +998,6 @@
 				{@render workstreamItem(workstream, row, nested)}
 			{/each}
 		</ul>
-	</li>
-{/snippet}
-
-{#snippet oneLineRepository(
-	row: ConnectedRepositoryContext,
-	workstream: Workstream,
-	nested: boolean,
-	siblingIds: readonly string[],
-)}
-	<li
-		class={['group/row relative w-full min-w-0', reorderClass(row.repo.id)]}
-		style:transform={reorderTransform(row.repo.id)}
-		data-sidebar-item={row.repo.id}
-		onpointerdown={(event) => armReorder(event, { kind: 'repository', id: row.repo.id })}
-	>
-		<WorkstreamChatSummary workstreamId={workstream.id}>
-			{#snippet children(chat)}
-				{@const view = workstreamView(workstream, row.repo.fullName, chat)}
-				{@const repositoryOpen = row.repo.id === openRepositoryId}
-				{#snippet card()}
-					{@render runningCard(workstream, view)}
-				{/snippet}
-				<Tooltip
-					content={card}
-					interactive
-					placement="right"
-					suppressed={!view.running}
-					class="w-full min-w-0"
-				>
-					<div
-						class={[
-							'relative flex w-full items-center gap-2 rounded-xl pr-3 group-hover/row:pr-15 group-has-focus-visible/row:pr-15',
-							nested ? 'pl-6' : 'pl-2',
-							compact ? 'h-7 text-xs' : 'h-8 text-sm',
-							view.selected || repositoryOpen
-								? 'bg-surface-50-selected'
-								: 'group-hover/row:bg-surface-50-hover has-focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-						]}
-						data-active={row.repo.id === repositoryMenu?.repository.id ||
-							workstream.id === contextMenu?.workstreamId}
-						data-testid="sidebar-connected-repository"
-						data-full-name={row.repo.fullName}
-						data-workstream-count={row.workstreams.length}
-					>
-						{#if !nested}
-							<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
-								<RepositoryAvatar fullName={row.repo.fullName} size={avatarSize} />
-							</span>
-						{/if}
-						{#if view.chat.attention && view.chat.needsYou}
-							{@render attentionDot(view.chat.attention, nested ? 'left-2.5' : 'left-0')}
-						{/if}
-						<HoverCard
-							side="right"
-							align="start"
-							sideOffset={12}
-							openDelay={500}
-							triggerPress="dismiss"
-							triggerClass="relative z-10 min-w-0 max-w-[45%] shrink-0"
-							panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
-							testId="sidebar-repository-card"
-						>
-							{#snippet trigger()}
-								<a
-									href={repositoryHref(row.repo.id)}
-									data-navigation-path-id="expected-path:workstream-sidebar.repository"
-									aria-label={`Open ${row.repo.fullName}`}
-									aria-describedby={`repository-notes-${row.repo.id}`}
-									aria-current={repositoryOpen ? 'page' : undefined}
-									aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-									class={[
-										'block min-w-0 truncate leading-relaxed font-medium outline-none',
-										repositoryOpen || view.selected
-											? 'text-fg-default'
-											: 'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default',
-									]}
-									onkeydown={(event) => {
-										if (opensMenu(event)) {
-											openRepositoryMenu(event, row.repo, row.workstreams);
-											return;
-										}
-										void onMoveKey(event, 'repository', row.repo.id, siblingIds);
-									}}
-									oncontextmenu={(event) => openRepositoryMenu(event, row.repo, row.workstreams)}
-									draggable="false"
-								>
-									{row.name}
-								</a>
-							{/snippet}
-							{#snippet content()}
-								{@render repositoryCard(row)}
-							{/snippet}
-						</HoverCard>
-						<ScratchpadIdeasCount
-							repositoryFullName={row.repo.fullName}
-							descriptionId={`repository-notes-${row.repo.id}`}
-							class="relative z-10 shrink-0"
-						/>
-						<a
-							draggable="false"
-							href={rowHref(workstream.id, view.targetSessionId)}
-							data-navigation-path-id="expected-path:workstream-sidebar.switch"
-							aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-							aria-busy={workstream.id === pendingWorkstreamId || undefined}
-							class={[
-								"flex min-w-0 flex-1 items-center gap-2 leading-relaxed outline-none before:absolute before:inset-0 before:rounded-xl before:content-['']",
-								view.chat.attention !== null || view.selected
-									? 'text-500'
-									: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary group-data-[active=true]/row:text-fg-secondary',
-							]}
-							{...workstreamLinkData(workstream, row.repo.fullName, view)}
-							aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-							onpointerdown={(event) =>
-								previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
-							onpointerup={() =>
-								scheduleAbandonedDestinationPreviewCleanup(
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onpointercancel={() =>
-								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-							onpointerleave={() =>
-								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-							onkeydown={(event) => {
-								if (opensMenu(event)) {
-									openWorkstreamMenu(event, workstream.id);
-									return;
-								}
-								previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
-								void onMoveKey(event, 'repository', row.repo.id, siblingIds);
-							}}
-							onkeyup={(event) =>
-								scheduleKeyboardDestinationPreviewCleanup(
-									event,
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onblur={() =>
-								scheduleAbandonedDestinationPreviewCleanup(
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onclick={(event) =>
-								beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
-							oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
-						>
-							{@render statusIndicator(view)}
-							<span class="sidebar-row-text gap-1.5">
-								{@render workstreamName(workstream, view, 68)}
-								{@render workstreamTrail(view)}
-							</span>
-						</a>
-						<span class="absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center">
-							{@render newWorkstreamButton(
-								row.repo,
-								'pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100',
-							)}
-							{@render archiveButton(workstream, view, 'relative')}
-						</span>
-					</div>
-					{#if view.running}
-						<span class={['block', nested ? 'pl-6' : 'pl-9']} transition:slide={foldMotion()}>
-							<WorkstreamRunningLine running={view.running} selected={view.selected} />
-						</span>
-					{/if}
-				</Tooltip>
-			{/snippet}
-		</WorkstreamChatSummary>
 	</li>
 {/snippet}
 
@@ -1565,7 +1388,7 @@
 						{#if entry.kind === 'owner'}
 							{@render ownerFolder(entry)}
 						{:else}
-							{@render repositoryItem(entry.item, false, entryIds)}
+							{@render repositoryGroup(entry.item, false, entryIds)}
 						{/if}
 					{/each}
 				</ul>

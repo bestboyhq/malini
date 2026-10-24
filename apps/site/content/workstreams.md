@@ -21,7 +21,9 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 ## The sidebar
 
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
-- A repository with one workstream takes one line: its name opens the repository, and the rest opens the workstream.
+- A repository shows while it has open workstreams, and while you have it open.
+  Open any other from the repository list to start its first workstream.
+- Every workstream has its own row under its repository.
 - Two or more repositories from one owner fold into a folder named for the owner.
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.

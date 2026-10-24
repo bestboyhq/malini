@@ -1,5 +1,8 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
+	GITHUB_REPOSITORIES_FIXTURE,
 	captureFlow,
 	createSourceRepo,
 	expectCleanConsole,
@@ -40,7 +43,7 @@ async function sidebarDensity(page: Page, density: 'Comfortable' | 'Compact') {
 	});
 }
 
-test('an owner with several repositories folds into a folder, and a lone workstream shares its repository line', async () => {
+test('an owner with several repositories folds into a folder, and every workstream has its own row', async () => {
 	test.setTimeout(180_000);
 	const first = await launchMalini();
 	let order: (string | null)[] = [];
@@ -59,12 +62,15 @@ test('an owner with several repositories folds into a folder, and a lone workstr
 		await expect
 			.poll(() => listedRows(page))
 			.toEqual(['solo/site', 'acme', 'acme/web', 'acme/api']);
-		await expect(repositoryRow(page, 'acme/web').getByTestId('sidebar-workstream')).toHaveCount(0);
-		const siteWork = repositoryRow(page, 'solo/site').getByTestId('sidebar-workstream');
-		await expect(siteWork).toHaveText('Site work');
-		await expect(repositoryRow(page, 'acme/api').getByTestId('sidebar-workstream')).toHaveText(
-			'Api work',
-		);
+		const workstreams = sidebar(page).getByTestId('sidebar-workstream');
+		await expect(workstreams).toHaveCount(4);
+		await expect(
+			sidebar(page).locator(
+				'[data-testid="sidebar-connected-repository"] [data-testid="sidebar-workstream"]',
+			),
+		).toHaveCount(0);
+		const siteWork = workstreams.filter({ hasText: 'Site work' });
+		await expect(siteWork).toBeVisible();
 
 		await siteWork.click();
 		await expect(siteWork).toHaveAttribute('aria-current', 'page');
@@ -136,6 +142,53 @@ test('an owner with several repositories folds into a folder, and a lone workstr
 
 		const compact = await sidebarDensity(page, 'Compact');
 		await expect(compact).toHaveAttribute('aria-pressed', 'true');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a repository without open work leaves the sidebar, and shows while you have it open', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root, 'hutch');
+		writeFileSync(
+			join(app.home, GITHUB_REPOSITORIES_FIXTURE),
+			JSON.stringify([
+				{ full_name: 'e2e/hutch', clone_url: `file://${source}`, description: null },
+			]),
+		);
+		const setup = page.getByTestId('onboarding');
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await page.getByRole('button', { name: 'Clone a GitHub repository' }).first().click();
+		const dialog = page.getByRole('dialog', { name: 'Clone GitHub repo' });
+		await dialog.getByRole('button', { name: /e2e\/hutch/u }).click();
+		await dialog.getByRole('button', { name: 'Clone repo' }).click();
+		await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+
+		const hutch = sidebar(page).getByRole('link', { name: /^Open .*\/hutch$/u });
+		await expect(hutch).toHaveAttribute('aria-current', 'page', { timeout: 30_000 });
+
+		const alpha = await createSourceRepo(app.root, 'alpha');
+		await seedWorkstream(page, alpha, 'e2e-quiet-alpha', 'Alpha work');
+		const alphaWork = sidebar(page)
+			.getByTestId('sidebar-workstream')
+			.filter({ hasText: 'Alpha work' });
+		await expect(alphaWork).toBeVisible({ timeout: 20_000 });
+		await alphaWork.click();
+		await expect(alphaWork).toHaveAttribute('aria-current', 'page');
+		await expect(hutch).toHaveCount(0);
+		await captureFlow(app, 'sidebar-repository-without-work');
+
+		await page.getByRole('link', { name: 'Connect repository' }).click({ force: true });
+		await page
+			.getByTestId('repository-list')
+			.getByRole('link', { name: /^Open .*\/hutch$/u })
+			.click();
+		await expect(hutch).toHaveAttribute('aria-current', 'page');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

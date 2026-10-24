@@ -57,8 +57,11 @@ export function groupItems<T>(group: RepositoryGroup<T>): readonly T[] {
 	return group.kind === 'owner' ? group.items : [group.item];
 }
 
-export function showsAsOneLine(row: ConnectedRepositoryContext): boolean {
-	return row.workstreams.length === 1;
+export function showsInSidebar(
+	row: ConnectedRepositoryContext,
+	openRepositoryId: string | null,
+): boolean {
+	return row.workstreams.length > 0 || row.repo.id === openRepositoryId;
 }
 
 export function ownerGroupId(owner: string): string {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectedRepositoryContexts } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
 import type { Workstream } from '$shared/repositories/domain/workstream';
-import { groupItems, repositoryGroups, showsAsOneLine } from './repository-groups';
+import { groupItems, repositoryGroups, showsInSidebar } from './repository-groups';
 
 const repo = (fullName: string): Repository => ({
 	id: fullName,
@@ -42,17 +42,17 @@ describe('repositoryGroups', () => {
 	});
 });
 
-describe('showsAsOneLine', () => {
-	it('puts a repository on one line only when it has exactly one workstream', () => {
-		const counts = [0, 1, 2].map((count) => {
+describe('showsInSidebar', () => {
+	it('lists a repository while it has open workstreams or while it is open', () => {
+		const shown = [0, 1].flatMap((count) => {
 			const [row] = connectedRepositoryContexts({
 				repositories: [repo('acme/api')],
 				workstreams: Array.from({ length: count }, (_, index) =>
 					stream(`w${index}`, 'local__acme__api'),
 				),
 			});
-			return row ? showsAsOneLine(row) : null;
+			return [null, 'acme/api'].map((open) => (row ? showsInSidebar(row, open) : null));
 		});
-		expect(counts).toEqual([false, true, false]);
+		expect(shown).toEqual([false, true, true, true]);
 	});
 });
