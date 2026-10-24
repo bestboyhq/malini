@@ -268,16 +268,24 @@ test('a chat opened right after launch shows its changed files and every turn in
 	}
 });
 
-function holdGit(bin: string, gate: string): () => void {
+function holdRawDiffs(bin: string, gate: string): () => void {
 	const git = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
 	const held = join(bin, 'git');
-	writeFileSync(held, `#!/bin/sh\nwhile [ -e '${gate}' ]; do sleep 0.05; done\nexec '${git}' "$@"\n`);
+	writeFileSync(
+		held,
+		[
+			'#!/bin/sh',
+			`case " $* " in *" --raw "*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac`,
+			`exec '${git}' "$@"`,
+			'',
+		].join('\n'),
+	);
 	chmodSync(held, 0o755);
 	writeFileSync(gate, '');
 	return () => rmSync(gate, { force: true });
 }
 
-test('a chat opened after a restart shows its changed files without waiting for git', async () => {
+test('a chat reopened after a restart shows its changed files without working them out again', async () => {
 	test.setTimeout(300_000);
 	const first = await launchMalini();
 	let target = '';
@@ -292,7 +300,10 @@ test('a chat opened after a restart shows its changed files without waiting for 
 		const changedFiles = page.getByTestId('chat-changed-files-toggle');
 		await expect(changedFiles).toContainText('1 file changed in this chat', { timeout: 30_000 });
 		for (let turn = 2; turn <= 10; turn += 1) {
-			await sendPrompt(page, turn === 2 ? 'Git held turn 2 EDIT:notes.txt' : `Git held turn ${turn}`);
+			await sendPrompt(
+				page,
+				turn === 2 ? 'Git held turn 2 EDIT:notes.txt' : `Git held turn ${turn}`,
+			);
 			await expect(page.getByTestId('chat-message-bubble')).toHaveCount(turn, { timeout: 20_000 });
 		}
 		await expect(page.locator(LATEST_RUN)).toHaveAttribute('data-run-terminal', 'completed');
@@ -305,7 +316,7 @@ test('a chat opened after a restart shows its changed files without waiting for 
 		throw error;
 	}
 
-	const releaseGit = holdGit(first.bin, join(first.root, 'git-held'));
+	const releaseGit = holdRawDiffs(first.bin, join(first.root, 'git-gate'));
 	const app = await launchMalini({ profile: first.root });
 	try {
 		const { page } = app;
@@ -322,7 +333,7 @@ test('a chat opened after a restart shows its changed files without waiting for 
 		await expect(changedFiles).toContainText('+1');
 		await expect(changedFiles).not.toContainText('−');
 		releaseGit();
-		expectStillAfterOpening(afterFirstDrawnFrame(await sampledFrames(page)), 'git held');
+		expectStillAfterOpening(afterFirstDrawnFrame(await sampledFrames(page)), 'raw diffs held');
 		await captureFlow(app, 'transcript-open-git-held');
 
 		expectCleanConsole(app);
