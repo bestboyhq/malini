@@ -18,7 +18,7 @@ function seq(): number {
 function tool(
 	name: string,
 	input: Record<string, unknown> = {},
-	options: { key?: string; status?: 'running' | 'completed' | 'failed' } = {},
+	options: { key?: string; status?: 'running' | 'completed' | 'failed'; output?: unknown } = {},
 ): RunTimelineItem {
 	const at = seq();
 	return {
@@ -30,10 +30,21 @@ function tool(
 			startedAt: null,
 			completedAt: null,
 			input,
-			output: undefined,
+			output: options.output,
 			status: options.status ?? 'completed',
 		},
 	};
+}
+
+function startWorkstream(
+	id: string,
+	status: 'running' | 'completed' | 'failed' = 'completed',
+): RunTimelineItem {
+	return tool(
+		'mcp__malini__workstreams_create',
+		{ repository: 'acme/api' },
+		{ status, output: status === 'completed' ? JSON.stringify({ id, name: id }) : undefined },
+	);
 }
 
 function command(exitCode = 0): RunTimelineItem {
@@ -483,5 +494,26 @@ describe('groupRunTimeline keys', () => {
 			command(0),
 		];
 		expect(groupRunTimeline(items)).toEqual(groupRunTimeline(items));
+	});
+});
+
+describe('groupRunTimeline started workstreams', () => {
+	it('shows every workstream a run started in one card where the first one started', () => {
+		const grouped = groupRunTimeline([
+			assistant('I start one workstream per app.'),
+			startWorkstream('api'),
+			command(),
+			startWorkstream('site'),
+			startWorkstream('broken', 'failed'),
+			startWorkstream('pending', 'running'),
+			assistant('Both are running.'),
+		]);
+		expect(kinds(grouped)).toEqual(['assistant', 'workstreams', 'activity-group', 'assistant']);
+		expect(grouped[1]).toMatchObject({ kind: 'workstreams', workstreamIds: ['api', 'site'] });
+	});
+
+	it('keeps a call whose answer names no workstream as a tool row', () => {
+		const unnamed = tool('mcp__malini__workstreams_create', {}, { output: 'not json' });
+		expect(kinds(groupRunTimeline([unnamed]))).toEqual(['tool']);
 	});
 });

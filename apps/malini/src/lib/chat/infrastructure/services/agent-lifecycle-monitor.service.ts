@@ -124,6 +124,7 @@ export class AgentLifecycleMonitor {
 		if (envelope.event.type === 'background.updated') {
 			const { summary } = envelope.event;
 			if (summary === undefined || backgroundWaitOf(envelope.event) !== 'commands') return;
+			if (this.#announcedSummaryByRun.get(runKey(envelope)) === summary) return;
 			this.#announcedSummaryByRun.set(runKey(envelope), summary);
 			this.#attend({
 				...envelope,

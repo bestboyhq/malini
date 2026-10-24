@@ -22,9 +22,12 @@ interface WorkstreamRow {
 	base_branch: string;
 	status: WorkstreamStatus;
 	created_at: string;
+	scope: string | null;
+	started_by: string | null;
 }
 
-const WORKSTREAM_COLUMNS = 'id, project_id, name, path, branch, base_branch, status, created_at';
+const WORKSTREAM_COLUMNS =
+	'id, project_id, name, path, branch, base_branch, status, created_at, scope, started_by';
 
 function workstreamFromRow(row: WorkstreamRow): Workstream {
 	return {
@@ -36,14 +39,17 @@ function workstreamFromRow(row: WorkstreamRow): Workstream {
 		baseBranch: row.base_branch,
 		status: row.status,
 		createdAt: row.created_at,
+		scope: row.scope,
+		startedBy: row.started_by,
 	};
 }
 
 export function upsertWorkstream(db: MaliniDatabase, workstream: Workstream): void {
 	run(
 		db,
-		`INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO workstreams
+		   (id, project_id, name, path, branch, base_branch, status, created_at, scope, started_by)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET
 		   name=excluded.name,
 		   path=excluded.path,
@@ -58,6 +64,8 @@ export function upsertWorkstream(db: MaliniDatabase, workstream: Workstream): vo
 		workstream.baseBranch,
 		workstream.status,
 		workstream.createdAt,
+		workstream.scope,
+		workstream.startedBy,
 	);
 }
 

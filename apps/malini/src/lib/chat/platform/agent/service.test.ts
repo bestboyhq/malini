@@ -569,6 +569,7 @@ describe('platform requests from the agent', () => {
 				branch: 'malini/ws-1',
 				baseBranch: 'main',
 				current: true,
+				startedBy: null,
 			},
 		]);
 		bridge.send(platformRequest('p-4', 'workstreams_archive', { workstream: 'ws-1' }));

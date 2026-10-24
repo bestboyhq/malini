@@ -91,6 +91,8 @@ describe('session change scope', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: '2026-07-22T00:01:00.000Z',
+			scope: null,
+			startedBy: null,
 		});
 		insertSession(db, {
 			id: 'chat-other',

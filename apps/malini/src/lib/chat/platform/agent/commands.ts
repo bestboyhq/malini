@@ -60,6 +60,7 @@ import {
 	getWorkstream,
 	renameWorkstream,
 	workstreamAwaitsName,
+	workstreamLineage,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
 import { runAutomaticJob } from '$lib/jobs/jobs.platform';
@@ -87,6 +88,7 @@ import {
 	type EmitEnvelope,
 	type RunLease,
 } from './lifecycle';
+import type { AgentLineage } from '$contract/agent';
 import type {
 	AgentQuestionAnswer,
 	AgentRunProfile,
@@ -564,6 +566,7 @@ export interface SendPromptInput {
 	readonly profile?: AgentRunProfile | null;
 	readonly automated?: boolean;
 	readonly steer?: boolean;
+	readonly from?: string | null;
 	readonly worktree: string;
 }
 
@@ -654,6 +657,7 @@ async function sendAgentPromptLeased(
 		if (withTranscripts.references.length > 0)
 			payload['transcriptReferences'] = withTranscripts.references;
 		if (withElements.references.length > 0) payload['elementReferences'] = withElements.references;
+		if (input.from) payload['from'] = input.from;
 	};
 	decorate(userMessagePayload);
 	userMessagePayload['checkpointId'] = checkpointId;
@@ -688,6 +692,7 @@ async function sendAgentPromptLeased(
 	}
 	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
 	const skills = skillsForRun(db, sessionId);
+	const lineage = await lineageForRun(db, workstreamId, log);
 	lease.release();
 	try {
 		await supervisor.sendCommand({
@@ -701,6 +706,7 @@ async function sendAgentPromptLeased(
 			...(skills === null ? {} : { skills }),
 			...(input.steer === true ? { steer: true } : {}),
 			...(hooks.theme ? { theme: hooks.theme() } : {}),
+			...(lineage === null ? {} : { lineage }),
 		});
 	} catch (error) {
 		const errorMessage = `agent bridge send failed: ${describe(error)}`;
@@ -723,6 +729,19 @@ async function sendAgentPromptLeased(
 		}
 	}
 	return runId;
+}
+
+async function lineageForRun(
+	db: MaliniDatabase,
+	workstreamId: string,
+	log: (line: string) => void,
+): Promise<AgentLineage | null> {
+	try {
+		return await workstreamLineage(db, workstreamId);
+	} catch (error) {
+		log(`agent: could not tell \`${workstreamId}\` about its lineage: ${describe(error)}`);
+		return null;
+	}
 }
 
 function nameFromFirstUserPrompt(
@@ -1484,6 +1503,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				profile: parseRunProfile(field(args, 'profile')),
 				automated: field(args, 'automated') === true,
 				steer: field(args, 'steer') === true,
+				from: promptSender(args),
 				worktree,
 			},
 			deps.hooks,
@@ -1492,6 +1512,15 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 			leases,
 			log,
 		);
+	}
+
+	function promptSender(args: unknown): string | null {
+		const from = optionalString(args, 'from');
+		if (from === null) return null;
+		if (getWorkstream(db, from) === null) {
+			throw new Error(`invalid args: \`from\` names no workstream: ${from}`);
+		}
+		return from;
 	}
 
 	commands.define('chat.cancel-run', async (args: unknown) => {

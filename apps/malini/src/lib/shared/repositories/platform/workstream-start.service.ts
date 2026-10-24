@@ -43,6 +43,7 @@ export async function createPlannedWorkstream(
 	plan: WorkstreamProvisioningPlan,
 	projectRepoPath: string,
 	baseRef: string | null = null,
+	startedBy: string | null = null,
 ): Promise<void> {
 	await commands.call('repositories.create-workstream', {
 		projectRepoPath,
@@ -51,6 +52,7 @@ export async function createPlannedWorkstream(
 		projectId: plan.projectId,
 		name: plan.name,
 		baseRef,
+		startedBy,
 	});
 }
 

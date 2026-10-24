@@ -4,6 +4,7 @@
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
 	import { goto } from '$shared/router/navigation';
 	import { page } from '$shared/router/state';
+	import { dockInspector } from '$shared/shell/inspector-dock.svelte';
 	import { retryExtensionRuntimeCommand } from '../application/commands/retry-extension-runtime.command';
 	import { activateExtensionsHook } from '../application/hooks/activate-extensions.hook';
 	import { extensionActivationRetryQuery } from '../application/queries/extension-activation-retry.query.svelte';
@@ -29,6 +30,7 @@
 		creationContext: (workstreamId: string) => WorkstreamCreatedAutomationContext | null;
 		oncreationannounced: (workstreamId: string) => void;
 		onruntimeretry: () => void;
+		browserOnly?: boolean;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
 	}
@@ -43,6 +45,7 @@
 		creationContext,
 		oncreationannounced,
 		onruntimeretry,
+		browserOnly = false,
 		builtInPanels = [],
 		panelActions = [],
 	}: Props = $props();
@@ -75,10 +78,12 @@
 			? shallowExtensionDirectory.extensionId
 			: page.url.searchParams.get('extension'),
 	);
-	const extensionPanels = $derived(inspectorPanelsQuery.data);
+	const extensionPanels = $derived(browserOnly ? [] : inspectorPanelsQuery.data);
 	const ready = $derived(extensionRuntimeReadyQuery.data(workstreamId));
 	const panels = $derived(
-		extensionPanels.length > 0 || ready ? [...extensionPanels, ...builtInPanels] : extensionPanels,
+		browserOnly || extensionPanels.length > 0 || ready
+			? [...extensionPanels, ...builtInPanels]
+			: extensionPanels,
 	);
 	const workstreamPanelIds = $derived(new Set(builtInPanels.map(({ id }) => id)));
 	const runtimeError = $derived(extensionRuntimeErrorQuery.data);
@@ -132,22 +137,28 @@
 	{/if}
 {/snippet}
 
-<ExtensionInspectorShell
-	{workstreamId}
-	{workstreamName}
-	{changeTotals}
-	{agentSessionId}
-	{panels}
-	context={panelContext}
-	{ready}
-	{runtimeError}
-	onruntimeretry={onRuntimeRetry}
-	addExtensionsHref={extensionDirectoryHref({ workstreamId, agentSessionId })}
-	closeDirectoryNavigationTarget={extensionInspectorHref({ workstreamId, agentSessionId })}
-	addExtensionsActive={directoryOpen}
-	addExtensionsContent={directoryContent}
-	{panelActions}
-	{workstreamPanelIds}
-	onpanelselect={closeDirectory}
-	requestedPanelId={routePanelId}
-/>
+{#if !browserOnly || panels.length > 0}
+	<ExtensionInspectorShell
+		{workstreamId}
+		{workstreamName}
+		{changeTotals}
+		{agentSessionId}
+		{panels}
+		context={panelContext}
+		{ready}
+		{runtimeError}
+		onruntimeretry={onRuntimeRetry}
+		addExtensionsHref={browserOnly
+			? undefined
+			: extensionDirectoryHref({ workstreamId, agentSessionId })}
+		closeDirectoryNavigationTarget={extensionInspectorHref({ workstreamId, agentSessionId })}
+		addExtensionsActive={directoryOpen}
+		addExtensionsContent={directoryContent}
+		{panelActions}
+		{workstreamPanelIds}
+		onpanelselect={closeDirectory}
+		requestedPanelId={routePanelId}
+	/>
+{:else}
+	<div class="mr-3 w-72 shrink-0" {@attach dockInspector(true, true)}></div>
+{/if}

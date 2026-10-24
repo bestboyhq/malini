@@ -58,6 +58,16 @@ export {
 export { displayWorkstreamName, generatedWorkstreamName } from './domain/workstream-names';
 
 export {
+	HOME_SCOPE,
+	leadScopeKey,
+	leadScopeLabel,
+	leadScopeOwns,
+	parseLeadScope,
+	type LeadScope,
+} from './domain/lead-scope';
+
+export {
+	inSidebarOrder,
 	readIds,
 	type SidebarMove,
 	type SidebarOrder,
@@ -201,6 +211,7 @@ export { repositoryConnectingQuery } from './application/queries/repository-conn
 export { repositoryPreparationQuery } from './application/queries/repository-preparation.query.svelte';
 export { repositoryConnectionRequestedQuery } from './application/queries/repository-connection-requested.query.svelte';
 export { sidebarOrderQuery } from './application/queries/sidebar-order.query.svelte';
+export { startLeadChatCommand } from './application/commands/start-lead-chat.command';
 export { repositoryContextQuery } from './application/queries/repository-context.query.svelte';
 export { workstreamBusyActionQuery } from './application/queries/workstream-busy-action.query.svelte';
 export { workstreamByIdQuery } from './application/queries/workstream-by-id.query.svelte';

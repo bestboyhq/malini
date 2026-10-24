@@ -10,19 +10,18 @@ import {
 
 describe('turn report', () => {
 	it('splits the footer the agent closes every turn with from the body above it', () => {
-		const report = parseTurnReport(
-			[
-				'![Admin media tab](.malini/sandbox/screenshots/admin.png)',
-				'',
-				'- Uploads go to R2 in 50 MB chunks.',
-				'- A 120 MB upload landed byte for byte.',
-				'',
-				'Outcome: Admin uploads videos to R2 and encodes them on GitHub.',
-				'Needs: Add CLOUDFLARE_API_TOKEN to .env; Add the R2 keys to .env',
-				'Commit: Guard admin with Cloudflare Access',
-				'Pull request: Secure admin and add video encoding',
-			].join('\n'),
-		);
+		const text = [
+			'![Admin media tab](.malini/sandbox/screenshots/admin.png)',
+			'',
+			'- Uploads go to R2 in 50 MB chunks.',
+			'- A 120 MB upload landed byte for byte.',
+			'',
+			'Outcome: Admin uploads videos to R2 and encodes them on GitHub.',
+			'Needs: Add CLOUDFLARE_API_TOKEN to .env; Add the R2 keys to .env',
+			'Commit: Guard admin with Cloudflare Access',
+			'Pull request: Secure admin and add video encoding',
+		].join('\n');
+		const report = parseTurnReport(text);
 
 		expect(report).toEqual({
 			outcome: 'Admin uploads videos to R2 and encodes them on GitHub.',
@@ -38,7 +37,7 @@ describe('turn report', () => {
 				{ kind: 'note', text: 'A 120 MB upload landed byte for byte.' },
 			],
 		});
-		expect(hasTurnReport(report)).toBe(true);
+		expect(hasTurnReport(text)).toBe(true);
 	});
 
 	it('keeps image markdown quoted in code as text, not as a report image', () => {
@@ -70,7 +69,8 @@ describe('turn report', () => {
 		const text = 'Clean. Confirming the production guard.\n\nCommit: Fix the guard';
 		const report = parseTurnReport(text);
 
-		expect(hasTurnReport(report)).toBe(false);
+		expect(hasTurnReport(text)).toBe(false);
+		expect(hasTurnReport('Outcome:\nNeeds: nothing')).toBe(false);
 		expect(report.commit).toBe('Fix the guard');
 		expect(report.notes).toEqual([
 			{ kind: 'note', text: 'Clean. Confirming the production guard.' },

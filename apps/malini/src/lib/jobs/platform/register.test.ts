@@ -201,6 +201,8 @@ function seedWorkstream(workstreamId: string): void {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
+		scope: null,
+		startedBy: null,
 	});
 }
 
@@ -383,6 +385,8 @@ describe('job definitions', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: '2026-10-12T00:00:00.000Z',
+			scope: null,
+			startedBy: null,
 		});
 		const changes = {
 			added: ['app:updated'],
@@ -857,6 +861,8 @@ describe('scheduling', () => {
 			baseBranch: 'main',
 			status: 'active',
 			createdAt: NOW,
+			scope: null,
+			startedBy: null,
 		});
 		const definition = await saveDefinition({ runsIn: 'new-workstream' });
 		const queued = await context.commands.call('jobs.run', {

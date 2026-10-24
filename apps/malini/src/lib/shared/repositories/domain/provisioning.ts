@@ -148,6 +148,8 @@ export function provisioningWorkstreamRow(plan: WorkstreamProvisioningPlan): Wor
 		baseBranch: plan.baseBranch,
 		status: 'active',
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
+		scope: null,
+		startedBy: null,
 	};
 }
 

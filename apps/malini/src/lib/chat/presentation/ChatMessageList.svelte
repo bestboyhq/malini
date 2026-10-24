@@ -93,6 +93,8 @@
 		contentBelow?: boolean;
 		newContentBelow?: boolean;
 		empty: Snippet;
+		header: Snippet<[string]>;
+		workstreamsCard: Snippet<[readonly string[]]>;
 	}
 
 	let {
@@ -107,6 +109,8 @@
 		contentBelow = $bindable(false),
 		newContentBelow = $bindable(false),
 		empty,
+		header,
+		workstreamsCard,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -548,6 +552,9 @@
 		get sessionId() {
 			return sessionId;
 		},
+		get workstreamsCard() {
+			return workstreamsCard;
+		},
 		stageEnter: stageLatestRunEnter,
 		transcriptSettled: settle.isSettled,
 		promptArrival,
@@ -866,6 +873,9 @@
 			onscroll={(event) => transcriptScroll.handleScroll(event.currentTarget)}
 		>
 			<div class="chat-stage-inset flex grow flex-col">
+				<div class="chat-column px-7">
+					{@render header(workstreamId)}
+				</div>
 				{#if hasSupersededRuns || redoCheckpointTarget}
 					<div
 						class="flex shrink-0 flex-col items-center gap-1 pb-2"

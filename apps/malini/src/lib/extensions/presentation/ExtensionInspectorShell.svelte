@@ -66,7 +66,7 @@
 		panelBadges?: Readonly<
 			Record<string, Readonly<{ count: number; ariaLabel: string }> | null | undefined>
 		>;
-		addExtensionsHref?: string;
+		addExtensionsHref?: string | undefined;
 		closeDirectoryNavigationTarget?: string;
 		addExtensionsActive?: boolean;
 		addExtensionsContent?: Snippet;

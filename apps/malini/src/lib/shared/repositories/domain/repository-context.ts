@@ -1,4 +1,5 @@
 import type { RepositoryImportSource } from './github-auth';
+import { LEAD_SPACE_PROJECT_ID } from './lead-scope';
 import { projectIdentityCandidatesForRepoUrl } from './project-identity';
 import type { Project, Repository } from './repository';
 import { DEFAULT_SIDEBAR_ORDER, inSidebarOrder, type SidebarOrder } from './sidebar-order';
@@ -140,7 +141,7 @@ export function repositoryInitial(fullName: string): string {
 export function localRepositoriesFromProjects(projects: readonly Project[]): Repository[] {
 	const byFullName = new Map<string, Repository>();
 
-	for (const project of projects) {
+	for (const project of repositoryProjects(projects)) {
 		const fullName = localRepositoryFullName(project);
 		if (!fullName) {
 			continue;
@@ -166,12 +167,16 @@ export function repositoryProjectIds(
 	const ids = new Set(projectIdentityIdsForRepository(repository.fullName));
 	if (isLocalRepositoryId(repository.id)) ids.add(repository.id.slice('local:'.length));
 	const fullName = repository.fullName.toLowerCase();
-	return projects
+	return repositoryProjects(projects)
 		.filter(
 			(project) =>
 				ids.has(project.id) || localRepositoryFullName(project)?.toLowerCase() === fullName,
 		)
 		.map((project) => project.id);
+}
+
+function repositoryProjects(projects: readonly Project[]): readonly Project[] {
+	return projects.filter((project) => project.id !== LEAD_SPACE_PROJECT_ID);
 }
 
 function localRepositoryFullName(project: Project): string | null {

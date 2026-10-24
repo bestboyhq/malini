@@ -24,6 +24,8 @@ export interface Workstream {
 	baseBranch: string;
 	status: WorkstreamStatus;
 	createdAt: string;
+	scope: string | null;
+	startedBy: string | null;
 }
 
 export type MergedPullRequest = Readonly<{ number: number; url: string | null }>;
@@ -35,6 +37,8 @@ export interface ArchivedWorkstreamDto {
 	baseBranch: string;
 	archivedAt: string;
 	mergedPullRequest: MergedPullRequest | null;
+	scope: string | null;
+	startedBy: string | null;
 }
 
 export interface WorkstreamDto extends Workstream {
@@ -60,6 +64,8 @@ export interface GitWorkstreamRecord {
 	baseBranch: string;
 	status: string;
 	createdAt: string;
+	scope: string | null;
+	startedBy: string | null;
 }
 
 export interface WorkstreamFileEntry {

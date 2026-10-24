@@ -126,13 +126,14 @@ function watchingStreamA(): ReturnType<typeof monitorHarness> {
 }
 
 describe('AgentLifecycleMonitor', () => {
-	it('announces a turn that ended over background commands once, as a finished turn', () => {
+	it('announces a turn that ended over background commands once, as a finished turn, even when a later wait repeats its report', () => {
 		const harness = watchingStreamA();
 
 		harness.emit(waitingOn([DEV_SERVER], 4, 'Dev server is up.'));
 		harness.emit(waitingOn([DEV_SERVER], 5));
+		harness.emit(waitingOn([DEV_SERVER], 6, 'Dev server is up.'));
 		harness.emit(
-			envelope('session-a', 'run-a', 6, {
+			envelope('session-a', 'run-a', 7, {
 				type: 'run.completed',
 				runId: 'run-a',
 				summary: 'Dev server is up.',

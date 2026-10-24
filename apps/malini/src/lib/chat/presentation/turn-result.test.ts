@@ -48,6 +48,30 @@ describe('which message becomes the result card', () => {
 		).toBeNull();
 	});
 
+	it("stays the last report of the run when Claude Code's own follow-up turn answers after it", () => {
+		const followUp = 'That notice is the dev server I used for screenshots stopping.';
+		const answered = run('completed', [
+			assistant('a1', REPORT),
+			assistant('a2', followUp),
+			assistant('a3', 'Still nothing to change.'),
+		]);
+		const reportedTwice = run('completed', [
+			assistant('a1', REPORT),
+			assistant('a2', 'Outcome: Shipped the shadow.'),
+			assistant('a3', followUp),
+		]);
+
+		expect(finalTurnReport(answered, 'a1', REPORT)?.outcome).toBe(
+			'The header stays pinned while the page scrolls.',
+		);
+		expect(finalTurnReport(answered, 'a2', followUp)).toBeNull();
+		expect(runTurn(answered)?.report.outcome).toBe(
+			'The header stays pinned while the page scrolls.',
+		);
+		expect(finalTurnReport(reportedTwice, 'a1', REPORT)).toBeNull();
+		expect(runTurn(reportedTwice)?.report.outcome).toBe('Shipped the shadow.');
+	});
+
 	it('gives the last three reported turns to the latest result card only, even while a newer run is open', () => {
 		const reported = (runId: string, superseded = false): RunGroup =>
 			run('completed', [assistant(`${runId}-a`, `Outcome: ${runId} done.`)], runId, superseded);

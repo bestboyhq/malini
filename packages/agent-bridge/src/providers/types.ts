@@ -1,5 +1,5 @@
 import type { AgentEvent, McpServerReport } from '../types.js';
-import type { AgentRunProfile, AgentTheme } from '../agent-profile.js';
+import type { AgentLineage, AgentRunProfile, AgentTheme } from '../agent-profile.js';
 import type {
 	BrowserRequest,
 	BrowserResult,
@@ -36,6 +36,7 @@ export interface ProviderHandle {
 		skills?: readonly string[],
 		steer?: boolean,
 		theme?: AgentTheme,
+		lineage?: AgentLineage,
 	): Promise<void>;
 	cancel(runId: string): Promise<void>;
 	respondToApproval?(reply: ProviderApprovalReply): Promise<void>;

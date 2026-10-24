@@ -1,3 +1,4 @@
+import type { LeadScope } from './lead-scope';
 import type { WorkstreamCreationContext } from './workstream-creation-context';
 
 export type WorkstreamId = string;
@@ -24,6 +25,8 @@ export type Workstream = {
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
 	resolvedPath: string | null;
+	scope: LeadScope | null;
+	startedBy: WorkstreamId | null;
 };
 
 export type MergedPullRequest = Readonly<{ number: number; url: string | null }>;
@@ -35,6 +38,8 @@ export type ArchivedWorkstream = Readonly<{
 	baseBranch: string;
 	archivedAt: string;
 	mergedPullRequest: MergedPullRequest | null;
+	scope: LeadScope | null;
+	startedBy: WorkstreamId | null;
 }>;
 
 export function isWorkstreamCheckoutUsable(workstream: Workstream): boolean {
@@ -64,6 +69,8 @@ export function workstreamFromCreated(created: CreatedWorkstream): Workstream {
 		baseBranch: created.baseBranch,
 		status: 'active',
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
+		scope: null,
+		startedBy: null,
 	};
 }
 

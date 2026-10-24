@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AgentReport, AgentTheme } from '../agent-profile.js';
+import type { AgentCheckout, AgentLineage, AgentReport, AgentTheme } from '../agent-profile.js';
 import {
 	BRIDGE_AGENT_ATTACHMENTS_PATH,
 	BRIDGE_AGENT_CONTEXT_PATH,
@@ -52,12 +52,52 @@ function themeInstruction(theme: AgentTheme): string {
 	return `- Theme: the user is in ${theme} mode, so capture every screenshot in ${theme} mode. Pages opened with \`browser_open\` already follow it. Switch anything else you capture, such as an app window, a simulator or a browser you drive yourself, to ${theme} first, through its own theme setting or \`prefers-color-scheme\`. \`MALINI_THEME\` in your environment holds the same value.`;
 }
 
-export function systemPromptAppend(cwd: string, report: AgentReport, theme?: AgentTheme): string {
-	const instructions = maliniInstructions(report, theme);
+export function systemPromptAppend(
+	cwd: string,
+	report: AgentReport,
+	theme?: AgentTheme,
+	lineage?: AgentLineage,
+): string {
+	const instructions = [maliniInstructions(report, theme), lineage && lineageInstructions(lineage)]
+		.filter(Boolean)
+		.join('\n\n');
 	const agentsMd = projectAgentsMd(cwd);
 	return agentsMd
 		? `${instructions}\n\n<agents_md path="AGENTS.md">\n${agentsMd}\n</agents_md>`
 		: instructions;
+}
+
+export function lineageInstructions(lineage: AgentLineage): string {
+	const { lead, startedBy, siblings } = lineage;
+	const lines = [
+		...(lead
+			? [
+					`You are a lead chat at ${lead.owner === null ? 'Home, above every organization,' : `the ${lead.owner} organization`} level in Malini. You plan and delegate; only workstreams write code.`,
+					'- Malini turns off your file edit tools. Never change code yourself, not even through a shell command: hand each change to a workstream with `workstreams_create`, one repository and one prompt each, written so its chat can finish the work alone.',
+					"- Read code to plan in the checkouts below. They are Malini's own clones on each default branch and can be a few days behind GitHub; never write to them.",
+					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones come back archived. When the user asks how the work goes, answer for all of them here, and name each one that waits on the user in `Needs:`.",
+					...checkoutList('Repositories you can read:', lead.repositories),
+				]
+			: []),
+		...(startedBy
+			? [
+					`The chat “${startedBy.name}” started this workstream${startedBy.lead ? ', as a lead chat that plans work across repositories,' : ''} and sent its first prompt.`,
+					...checkoutList(
+						'It also started these workstreams. Read their checkouts when your task depends on their work, and never edit them:',
+						siblings,
+					),
+				]
+			: []),
+	];
+	return `<malini_lineage>\n${lines.join('\n')}\n</malini_lineage>`;
+}
+
+function checkoutList(heading: string, checkouts: readonly AgentCheckout[]): string[] {
+	if (checkouts.length === 0) return [];
+	return [
+		heading,
+		...checkouts.map(({ repository, branch, path }) => `- ${repository} on ${branch}: ${path}`),
+	];
 }
 
 function projectAgentsMd(cwd: string): string | null {

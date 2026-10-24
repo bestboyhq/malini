@@ -26,7 +26,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'repositories:workstream-created': {
 		description:
-			'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats.',
+			'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.',
 	},
 	'repositories:workstream-removed': {
 		description:
