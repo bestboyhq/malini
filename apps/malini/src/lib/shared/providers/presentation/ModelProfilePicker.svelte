@@ -132,9 +132,13 @@
 				>
 					<p class="text-2xs text-fg-tertiary flex items-center gap-2 leading-4">
 						<LoadingCircle size={12} />
-						{signIn === 'waiting-for-browser'
-							? 'Continue in your browser.'
-							: 'Checking the new sign-in…'}
+						{#if signIn === 'switching'}
+							Switching accounts…
+						{:else if signIn === 'waiting-for-browser'}
+							Continue in your browser.
+						{:else}
+							Checking the new sign-in…
+						{/if}
 					</p>
 					{#if signIn === 'waiting-for-browser'}
 						<Button

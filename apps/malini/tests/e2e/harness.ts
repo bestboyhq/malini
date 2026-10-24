@@ -58,6 +58,8 @@ export const DOCKER_CONTAINERS_FIXTURE = '.e2e-docker-containers';
 
 export const GITHUB_DEVICE_APPROVED = 'github-device-approved';
 
+export const KEYCHAIN_FIXTURE = '.e2e-keychain';
+
 const GH_STUB = `#!/bin/sh
 PULL_REQUEST="$HOME/${PULL_REQUEST_FIXTURE}"
 GITHUB_REPOSITORIES="$HOME/${GITHUB_REPOSITORIES_FIXTURE}"
@@ -103,6 +105,25 @@ case "$1" in
   stop) rm -f "$CONTAINERS/$2"; echo "$2"; exit 0 ;;
 esac
 exit 0
+`;
+
+const SECURITY_STUB = `#!/bin/sh
+command="$1"
+service=''
+while [ $# -gt 0 ]; do
+  [ "$1" = -s ] && service="$2"
+  shift
+done
+item="$HOME/${KEYCHAIN_FIXTURE}/$service"
+if [ -z "$service" ] || [ ! -f "$item" ]; then
+  echo "security: The specified item could not be found in the keychain." 1>&2
+  exit 44
+fi
+case "$command" in
+  find-generic-password) cat "$item" ;;
+  delete-generic-password) rm -f "$item" ;;
+  *) exit 1 ;;
+esac
 `;
 
 export interface MaliniEvent {
@@ -188,6 +209,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 		for (const [name, script] of [
 			['gh', GH_STUB],
 			['docker', DOCKER_STUB],
+			['security', SECURITY_STUB],
 		] as const) {
 			const stub = join(dir, name);
 			writeFileSync(stub, script);
@@ -221,6 +243,7 @@ export async function launchMalini(options: LaunchOptions = {}): Promise<Launche
 			'.',
 			`--user-data-dir=${userDataDir}`,
 			'--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost',
+			'--use-mock-keychain',
 		],
 		cwd: APP_ROOT,
 		env,
