@@ -1,4 +1,4 @@
-import { getContext, setContext } from 'svelte';
+import { getContext, setContext, type Snippet } from 'svelte';
 import type { AgentModel } from '$shared/providers/providers.api';
 import type { AgentRunProfile } from '$shared/providers/providers.api';
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
@@ -29,6 +29,7 @@ export type TranscriptComposerControls = {
 export type TranscriptContext = {
 	readonly workstreamId: string;
 	readonly sessionId: SessionId;
+	readonly workstreamsCard: Snippet<[readonly string[]]>;
 	readonly stageEnter: RowArrivalAction;
 	transcriptSettled(): boolean;
 	readonly promptArrival: PromptArrivalAction;

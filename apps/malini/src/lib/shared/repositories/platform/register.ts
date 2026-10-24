@@ -47,12 +47,14 @@ import {
 	requireNonEmptyString,
 	requireString,
 } from './args';
+import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
 import { createCheckoutResolver } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
+import { createLeadSpace } from './lead-space.service';
 import { listHiddenRepositoryIds, setRepositoryHidden } from './hidden-repositories.repository';
 import {
 	connectRepository,
@@ -203,10 +205,18 @@ export function registerRepositories(
 			projectId: requireString(args, 'projectId'),
 			name: requireString(args, 'name'),
 			githubToken,
+			startedBy: optionalString(args, 'startedBy'),
 			...(baseRef === null
 				? {}
 				: { startRef: await fetchRemoteStart(projectRepoPath, baseRef, githubToken, credentials) }),
 		});
+	});
+
+	const createLead = createLeadSpace(workstreams);
+	commands.define('repositories.create-lead', async (args: unknown) => {
+		const scope = parseLeadScope(requireString(args, 'scope'));
+		if (scope === null) throw new Error('invalid args: `scope` must be `home` or `owner:<owner>`');
+		return workstreamDto(appDataRoot, await createLead(scope));
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>

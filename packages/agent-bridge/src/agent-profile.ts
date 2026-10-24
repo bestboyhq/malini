@@ -36,3 +36,64 @@ export function isAgentRunProfile(value: unknown): value is AgentRunProfile {
 export function isAgentTheme(value: unknown): value is AgentTheme {
 	return typeof value === 'string' && isOneOf(AGENT_THEMES, value);
 }
+
+export interface AgentCheckout {
+	readonly repository: string;
+	readonly branch: string;
+	readonly path: string;
+}
+
+export interface AgentLead {
+	readonly owner: string | null;
+	readonly repositories: readonly AgentCheckout[];
+}
+
+export interface AgentStarter {
+	readonly name: string;
+	readonly lead: boolean;
+}
+
+export interface AgentLineage {
+	readonly lead: AgentLead | null;
+	readonly startedBy: AgentStarter | null;
+	readonly siblings: readonly AgentCheckout[];
+}
+
+const MAX_LINEAGE_CHECKOUTS = 500;
+
+export function isAgentLineage(value: unknown): value is AgentLineage {
+	if (!isRecord(value)) return false;
+	const { lead, startedBy, siblings } = value;
+	return (
+		(lead === null ||
+			(isRecord(lead) &&
+				(lead.owner === null || isText(lead.owner)) &&
+				isCheckoutList(lead.repositories))) &&
+		(startedBy === null ||
+			(isRecord(startedBy) && isText(startedBy.name) && typeof startedBy.lead === 'boolean')) &&
+		isCheckoutList(siblings)
+	);
+}
+
+export function lineageDirectories(lineage: AgentLineage | undefined): string[] {
+	if (!lineage) return [];
+	const paths = [...(lineage.lead?.repositories ?? []), ...lineage.siblings].map(
+		({ path }) => path,
+	);
+	return [...new Set(paths)];
+}
+
+function isCheckoutList(value: unknown): value is AgentCheckout[] {
+	return (
+		Array.isArray(value) &&
+		value.length <= MAX_LINEAGE_CHECKOUTS &&
+		value.every(
+			(entry) =>
+				isRecord(entry) && isText(entry.repository) && isText(entry.branch) && isText(entry.path),
+		)
+	);
+}
+
+function isText(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0 && !/[\n\r\0]/u.test(value);
+}

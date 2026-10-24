@@ -16,6 +16,8 @@ function workstream(id: string): Workstream {
 		baseBranch: 'main',
 		status: 'active',
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
+		scope: null,
+		startedBy: null,
 	};
 }
 

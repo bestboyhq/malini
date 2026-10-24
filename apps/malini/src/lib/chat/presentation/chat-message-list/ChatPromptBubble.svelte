@@ -6,11 +6,13 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { ComposerShell } from '$hyper-ui/components/composer-shell';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { Icon } from '$hyper-ui/icons';
+	import { ChatTileIcon, Icon } from '$hyper-ui/icons';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { isWithinOverlaySurface } from '$hyper-ui/overlay';
 	import type { RenderItem, RunGroup } from '../render-state';
 	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
+	import { workstreamByIdQuery, workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import InlinePromptContent from '../InlinePromptContent.svelte';
 	import PromptEditField from '../PromptEditField.svelte';
 	import { describeInlinePromptChip } from '../inline-prompt-chips';
@@ -41,6 +43,10 @@
 	);
 	const pickSrc = $derived(
 		pick ? reportMediaSource(pick.picked.src, transcript.markdownImageSource) : null,
+	);
+
+	const senderIsLead = $derived(
+		item.from ? (workstreamByIdQuery.data(item.from)?.scope ?? null) !== null : false,
 	);
 
 	const blocked = $derived(transcript.workstreamRunInFlight);
@@ -154,6 +160,26 @@
 	data-latest-message={isLastRun && item.key === transcript.firstUserKey(run) ? 'true' : undefined}
 	use:promptArrival={{ key: item.text, resumeOnly: run.runId !== transcript.submittedRunId }}
 >
+	{#if item.from && !editing}
+		<Button
+			bare
+			href={workstreamHref(item.from)}
+			class="text-fg-tertiary hover:text-fg-secondary text-2xs inline-flex items-center gap-1.5 px-3"
+			data-testid="chat-prompt-from"
+		>
+			{#if senderIsLead}
+				<ChatTileIcon size={13} />
+			{:else}
+				<Icon name="branch" size={12} />
+			{/if}
+			<span>
+				Prompt from
+				<span class="text-fg-secondary font-medium">
+					{workstreamNameQuery.data(item.from) ?? 'another chat'}
+				</span>
+			</span>
+		</Button>
+	{/if}
 	{#if editing}
 		<form
 			bind:this={editorEl}

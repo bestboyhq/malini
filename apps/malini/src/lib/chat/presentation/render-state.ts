@@ -80,6 +80,7 @@ export type RenderItem =
 			attachments?: StagedAgentAttachment[];
 			transcriptReferences?: AgentTranscriptReference[];
 			elementReferences?: AgentElementReference[];
+			from?: string;
 	  }
 	| { kind: 'plan'; key: string; seq: number; text: string }
 	| { kind: 'assistant'; key: string; seq: number; text: string; contentId?: string }
@@ -512,6 +513,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					...(event.elementReferences?.length
 						? { elementReferences: sanitizeAgentElementReferences(event.elementReferences) }
 						: {}),
+					...(event.from ? { from: event.from } : {}),
 				});
 				break;
 			}

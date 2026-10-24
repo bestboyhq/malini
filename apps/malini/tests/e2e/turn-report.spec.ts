@@ -12,6 +12,7 @@ import {
 	sendPrompt,
 	untilStill,
 } from './harness';
+import { seedWorkstreamOnFakeGithub } from './fake-github';
 
 const OUTCOME = 'The header stays pinned while the page scrolls.';
 const STILL_PX = 1;
@@ -95,6 +96,36 @@ test('a turn that ends with a report shows it as a result card that asks the use
 		await expect(first.getByText('Your turn')).toHaveCount(0);
 		const earlier = card.last().getByRole('list', { name: 'Earlier turns' });
 		await expect(earlier).toContainText(OUTCOME);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test("a reply to Claude Code's own follow-up turn leaves the report as the result card and its commit", async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-follow-up-turn', null);
+		await openWorkstream(page, 'e2e-follow-up-turn');
+
+		await sendPrompt(page, 'EDIT:alpha.txt FOLLOW_UP_TURN COMMIT=fix: keep the report');
+		const card = page.getByRole('article', { name: 'Turn result' });
+		await expect(card.getByTestId('turn-report-outcome')).toHaveText(OUTCOME, {
+			timeout: 30_000,
+		});
+		await expect(
+			page
+				.getByTestId('markdown-text')
+				.getByText('That notice is the dev server I used for screenshots stopping.'),
+		).toBeVisible();
+		await expect(page.getByText(`Outcome: ${OUTCOME}`)).toHaveCount(0);
+		await captureFlow(app, 'turn-report-follow-up');
+
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect
+			.poll(() => github.pushedSubjects(), { timeout: 30_000 })
+			.toEqual(['fix: keep the report', 'seed']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

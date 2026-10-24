@@ -28,6 +28,8 @@ function workstream(id: string, projectId: string): Workstream {
 		baseBranch: 'main',
 		status: 'active',
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
+		scope: null,
+		startedBy: null,
 	};
 }
 

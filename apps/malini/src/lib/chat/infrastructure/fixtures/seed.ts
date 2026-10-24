@@ -45,6 +45,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 	{
 		id: '01JMALINIWORKSTREAMMALINI000000000B',
@@ -57,6 +59,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 	{
 		id: '01JMALINIWORKSTREAMMALINI000000000C',
@@ -69,6 +73,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 	{
 		id: '01JMALINIWORKSTREAMMALINI000000000D',
@@ -81,6 +87,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 	{
 		id: '01JMALINIWORKSTREAMMALINI000000000E',
@@ -93,6 +101,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 	{
 		id: '01JMALINIWORKSTREAMMALINI000000000F',
@@ -105,6 +115,8 @@ export const workstreamsFixture: Workstream[] = [
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	},
 ];
 

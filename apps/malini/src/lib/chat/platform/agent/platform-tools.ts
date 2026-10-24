@@ -24,6 +24,7 @@ import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
+	listArchivedWorkstreams,
 	listRepositoryCatalog,
 	listWorkstreams,
 	planRepositoryWorkstream,
@@ -149,12 +150,23 @@ async function runPlatformTool(
 			const catalog = await listRepositoryCatalog(db);
 			const reference = text(input, 'repository');
 			const only = reference === undefined ? null : findRepository(catalog, reference);
-			return listWorkstreams(db)
-				.filter((workstream) => only === null || only.projectIds.includes(workstream.projectId))
+			const listed = (workstream: Workstream): boolean =>
+				workstream.scope === null &&
+				(only === null || only.projectIds.includes(workstream.projectId));
+			const open = listWorkstreams(db)
+				.filter(listed)
 				.map((workstream) => ({
 					...workstreamSummary(workstream, catalog),
 					current: workstream.id === workstreamId,
 				}));
+			const finished = listArchivedWorkstreams(db)
+				.filter((workstream) => workstream.startedBy === workstreamId && listed(workstream))
+				.map((workstream) => ({
+					...workstreamSummary(workstream, catalog),
+					archived: true,
+					merged: workstream.mergedPullRequest,
+				}));
+			return [...open, ...finished];
 		}
 		case 'workstreams_create':
 			return createWorkstream(deps, request);
@@ -226,7 +238,7 @@ async function createWorkstream(
 			`Malini is still cloning ${repository.fullName}. Call repositories_clone to wait for it, then workstreams_create again.`,
 		);
 	}
-	await createPlannedWorkstream(commands, plan, projectRepoPath, base);
+	await createPlannedWorkstream(commands, plan, projectRepoPath, base, source.workstreamId);
 	const { workstreamId } = plan;
 	const settingUp = prepareStartedWorkstream(deps, workstreamId, (line) => log(`agent: ${line}`));
 	let chat: string;
@@ -249,6 +261,7 @@ async function createWorkstream(
 			await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt,
+				from: source.workstreamId,
 				...(profile === null ? {} : { profile }),
 			});
 		} catch (error) {
@@ -309,6 +322,7 @@ function workstreamSummary(
 				?.fullName ?? null,
 		branch: workstream.branch,
 		baseBranch: workstream.baseBranch,
+		startedBy: workstream.startedBy,
 	};
 }
 

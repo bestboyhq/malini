@@ -308,5 +308,7 @@ function seedWorkstream(workstreamId: string): void {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
+		scope: null,
+		startedBy: null,
 	});
 }
