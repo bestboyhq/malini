@@ -230,7 +230,7 @@ export type CreateWorkstreamArgs = Readonly<{
 	startedBy?: string | null;
 }>;
 
-export type CreateLeadArgs = Readonly<{ scope: string }>;
+export type CreateLeadArgs = Readonly<{ scope: string; workstreamId: string; name: string }>;
 
 export type WorkstreamDiffArgs = Readonly<{
 	workstreamId: string;

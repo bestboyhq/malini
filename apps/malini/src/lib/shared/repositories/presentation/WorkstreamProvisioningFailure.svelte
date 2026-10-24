@@ -20,8 +20,13 @@
 
 	const label = $derived(
 		displayWorkstreamName(
-			{ id: record.plan.workstreamId, name: record.plan.name, baseBranch: record.plan.baseBranch },
-			record.plan.repositoryFullName,
+			{
+				id: record.plan.workstreamId,
+				name: record.plan.name,
+				baseBranch: record.plan.baseBranch,
+				scope: record.plan.scope,
+			},
+			record.plan.scope === null ? record.plan.repositoryFullName : null,
 		),
 	);
 </script>
