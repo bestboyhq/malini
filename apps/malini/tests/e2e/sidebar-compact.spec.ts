@@ -84,6 +84,32 @@ test('an owner with several repositories folds into a folder, and a lone workstr
 		await expect(ownerFolder(page)).toBeFocused();
 		order = await listedRows(page);
 
+		await page.getByRole('link', { name: 'Connect repository' }).click({ force: true });
+		const list = page.getByTestId('repository-list');
+		const section = list.getByRole('button', { name: 'acme, 2 repositories' });
+		const webRow = list.locator('[data-testid="repository-row"][data-full-name="acme/web"]');
+		await expect(section).toHaveAttribute('aria-expanded', 'false', { timeout: 20_000 });
+		await expect(webRow).toBeHidden();
+		await section.click();
+		await expect(section).toHaveAttribute('aria-expanded', 'true');
+		await expect(webRow.getByText('web', { exact: true })).toBeVisible();
+		await expect(ownerFolder(page)).toHaveAttribute('aria-expanded', 'true');
+		await captureFlow(first, 'repositories-owner-sections');
+		await section.click();
+		await expect(ownerFolder(page)).toHaveAttribute('aria-expanded', 'false');
+
+		const search = page.getByRole('searchbox', { name: 'Search repositories' });
+		await search.fill('acme');
+		await expect(section).toHaveAttribute('aria-expanded', 'true');
+		await expect(section).toBeDisabled();
+		await expect(webRow).toBeVisible();
+		await search.fill('web');
+		await expect(list.getByTestId('repository-row')).toHaveCount(1);
+		await expect(section).toHaveCount(0);
+		await expect(webRow.getByText('acme/web', { exact: true })).toBeVisible();
+		await search.fill('');
+		await expect(section).toHaveAttribute('aria-expanded', 'false');
+
 		const compact = await sidebarDensity(page, 'Compact');
 		await compact.click();
 		await expect(compact).toHaveAttribute('aria-pressed', 'true');

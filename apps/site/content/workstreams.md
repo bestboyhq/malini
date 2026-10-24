@@ -24,6 +24,8 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 - A repository with one workstream takes one line: its name opens the repository, and the rest opens the workstream.
 - Two or more repositories from one owner fold into a folder named for the owner.
   Click the owner to fold or unfold it, and Malini remembers.
+  The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
+  A search opens every owner it matches.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner's folder moves as one.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectedRepositoryContexts } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
 import type { Workstream } from '$shared/repositories/domain/workstream';
-import { entryRepositoryIds, showsAsOneLine, sidebarEntries } from './sidebar-entries';
+import { groupItems, repositoryGroups, showsAsOneLine } from './repository-groups';
 
 const repo = (fullName: string): Repository => ({
 	id: fullName,
@@ -26,14 +26,15 @@ const stream = (id: string, projectId: string): Workstream => ({
 	resolvedPath: null,
 });
 
-describe('sidebarEntries', () => {
-	it('folds an owner with more than one repository and keeps a lone one as it is', () => {
-		const rows = connectedRepositoryContexts({
-			repositories: [repo('acme/api'), repo('solo/site'), repo('folder'), repo('Acme/web')],
-			workstreams: [],
-		});
-		const entries = sidebarEntries(rows);
-		expect(entries.map((entry) => [entry.kind, entry.id, entryRepositoryIds(entry)])).toEqual([
+describe('repositoryGroups', () => {
+	it('groups an owner with more than one repository and keeps a lone one as it is', () => {
+		const groups = repositoryGroups(
+			[repo('acme/api'), repo('solo/site'), repo('folder'), repo('Acme/web')],
+			(item) => item,
+		);
+		expect(
+			groups.map((group) => [group.kind, group.id, groupItems(group).map((item) => item.id)]),
+		).toEqual([
 			['owner', 'owner:acme', ['acme/api', 'Acme/web']],
 			['repository', 'solo/site', ['solo/site']],
 			['repository', 'folder', ['folder']],

@@ -18,11 +18,12 @@
 	import { sidebarDensityQuery } from '$lib/app/application/queries/sidebar-density.query.svelte';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import {
-		entryRepositoryIds,
+		groupItems,
+		repositoryGroups,
 		showsAsOneLine,
-		sidebarEntries,
-		type SidebarOwnerFolder,
-	} from '$lib/app/domain/sidebar-entries';
+		type OwnerGroup,
+		type RepositoryGroup,
+	} from '$lib/app/domain/repository-groups';
 	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
@@ -141,7 +142,7 @@
 	);
 	const rows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
 	const everyRepositoryHidden = $derived(contexts.length > 0 && rows.length === 0);
-	const entries = $derived(sidebarEntries(rows));
+	const entries = $derived(repositoryGroups(rows, (row) => row.repo));
 	const entryIds = $derived(entries.map((entry) => entry.id));
 	const repositoryIdsByEntry = $derived(
 		new Map(entries.map((entry) => [entry.id, entryRepositoryIds(entry)])),
@@ -450,6 +451,10 @@
 
 	function listedIds(kind: SidebarMove['kind']): readonly string[] {
 		return kind === 'repository' ? listedRepositoryIds : listedWorkstreamIds;
+	}
+
+	function entryRepositoryIds(entry: RepositoryGroup<ConnectedRepositoryContext>): string[] {
+		return groupItems(entry).map((row) => row.repo.id);
 	}
 
 	function movedIds(kind: SidebarMove['kind'], id: string): readonly string[] {
@@ -815,10 +820,10 @@
 	{/if}
 {/snippet}
 
-{#snippet ownerFolder(folder: SidebarOwnerFolder)}
+{#snippet ownerFolder(folder: OwnerGroup<ConnectedRepositoryContext>)}
 	{@const collapsed = collapsedGroupIds.has(folder.id)}
-	{@const siblingIds = folder.rows.map((row) => row.repo.id)}
-	{@const first = folder.rows[0]}
+	{@const siblingIds = folder.items.map((row) => row.repo.id)}
+	{@const first = folder.items[0]}
 	<li
 		class={['relative w-full min-w-0', reorderClass(folder.id)]}
 		style:transform={reorderTransform(folder.id)}
@@ -831,7 +836,7 @@
 				'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
 				compact ? 'h-7 text-xs' : 'h-8 text-sm',
 			]}
-			ariaLabel={`${folder.owner}, ${repositoryCountLabel(folder.rows.length)}`}
+			ariaLabel={`${folder.owner}, ${repositoryCountLabel(folder.items.length)}`}
 			ariaExpanded={!collapsed}
 			ariaControls={`owner-repositories-${folder.id}`}
 			ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
@@ -850,7 +855,7 @@
 				{folder.owner}
 			</span>
 			<span class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums">
-				{folder.rows.length}
+				{folder.items.length}
 			</span>
 			<Icon
 				name="chevron-down"
@@ -862,7 +867,7 @@
 			id={`owner-repositories-${folder.id}`}
 			class={['flex w-full flex-col gap-0.5', collapsed && 'hidden']}
 		>
-			{#each folder.rows as row (row.repo.id)}
+			{#each folder.items as row (row.repo.id)}
 				{@render repositoryItem(row, true, siblingIds)}
 			{/each}
 		</ul>
@@ -1553,7 +1558,7 @@
 						{#if entry.kind === 'owner'}
 							{@render ownerFolder(entry)}
 						{:else}
-							{@render repositoryItem(entry.row, false, entryIds)}
+							{@render repositoryItem(entry.item, false, entryIds)}
 						{/if}
 					{/each}
 				</ul>
