@@ -6,7 +6,13 @@ import { parseWorkstreamId, workstreamFile, workstreamMediaResponse } from './im
 
 export const WORKSTREAM_IMAGE_SCHEME_PRIVILEGES: CustomScheme = {
 	scheme: WORKSTREAM_IMAGE_SCHEME,
-	privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+	privileges: {
+		standard: true,
+		secure: true,
+		supportFetchAPI: true,
+		stream: true,
+		corsEnabled: true,
+	},
 };
 
 export type WorkstreamFileResolver = (workstreamId: string, path: string) => Promise<string | null>;

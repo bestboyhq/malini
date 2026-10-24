@@ -63,11 +63,15 @@
 		}
 	}
 
-	function pngDataUrl(image: HTMLImageElement): string {
+	async function pngDataUrl(image: HTMLImageElement): Promise<string> {
+		const readable = new Image();
+		readable.crossOrigin = 'anonymous';
+		readable.src = image.currentSrc;
+		await readable.decode();
 		const canvas = document.createElement('canvas');
-		canvas.width = image.naturalWidth;
-		canvas.height = image.naturalHeight;
-		canvas.getContext('2d')?.drawImage(image, 0, 0);
+		canvas.width = readable.naturalWidth;
+		canvas.height = readable.naturalHeight;
+		canvas.getContext('2d')?.drawImage(readable, 0, 0);
 		return canvas.toDataURL('image/png');
 	}
 
