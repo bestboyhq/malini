@@ -1604,6 +1604,16 @@ function repositoryPanelApi(): RepositoryPanelHost {
 				throw new Error('The repository panel tests do not open panels');
 			},
 		},
+		commands: {
+			execute: async () => {
+				throw new Error('The repository panel tests do not execute commands');
+			},
+		},
+		ui: {
+			openExternal: async () => {
+				throw new Error('The repository panel tests do not open links');
+			},
+		},
 	};
 }
 
