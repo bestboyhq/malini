@@ -196,7 +196,9 @@ function somethingMoves(): boolean {
 		.getAnimations()
 		.some(
 			(animation) =>
-				animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity,
+				animation.playState === 'running' &&
+				animation.timeline === document.timeline &&
+				animation.effect?.getTiming().iterations !== Infinity,
 		);
 }
 

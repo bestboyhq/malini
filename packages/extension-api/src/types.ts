@@ -360,6 +360,7 @@ export type ExtensionAPI = {
 		readRepositoryFile?(path: string, workstreamId?: string): Promise<string>;
 		writeFile(path: string, contents: string, workstreamId?: string): Promise<void>;
 		stat(path: string, workstreamId?: string): Promise<ExtensionFileStat | null>;
+		mediaUrl?(path: string, workstreamId?: string): string;
 	};
 	readonly repository: {
 		status(workstreamId?: string): Promise<ExtensionRepositoryStatus>;
