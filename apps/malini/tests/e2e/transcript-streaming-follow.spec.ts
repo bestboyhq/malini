@@ -587,6 +587,8 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 		const reportedRun = page.locator(`li[data-run-id="${reported}"]`);
 		await expect(reportedRun.getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
 
+		const cdp = await page.context().newCDPSession(page);
+		await cdp.send('Emulation.setCPUThrottlingRate', { rate: Number(process.env['THROTTLE'] ?? 1) });
 		await startSampling(page, [`li[data-run-id="${reported}"] [data-testid="chat-run-actions"]`]);
 		await sendPrompt(page, 'STREAM:30 CHAT_TURN_REPORT turn 6');
 		await untilLatestRunShows(page, 'Streamed line 5 of 30.');
@@ -597,6 +599,7 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 		});
 		await untilStill(page);
 		const samples = await stopSampling(page);
+		(await import('node:fs')).writeFileSync(`/var/folders/zn/_wx1b_mx5jj5nz3wyj77cpd00000gn/T/tmp.E7PGUcmDuq/samples-${test.info().repeatEachIndex}.json`, JSON.stringify(samples));
 		await expect(earlierTurns).toHaveCount(1);
 		await expect(latestRun(page).getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
 		expect(
