@@ -21,7 +21,12 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 ## The sidebar
 
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
+- A repository with one workstream takes one line: its name opens the repository, and the rest opens the workstream.
+- Two or more repositories from one owner fold into a folder named for the owner.
+  Click the owner to fold or unfold it, and Malini remembers.
+- **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Drag to reorder, or use **⌥↑** and **⌥↓**.
+  An owner's folder moves as one.
 - Hide a repository and keep its workstreams.
   Clone or open it again and it comes back.
 - **Recently archived**, at the bottom of the sidebar, lists archived workstreams, newest first.

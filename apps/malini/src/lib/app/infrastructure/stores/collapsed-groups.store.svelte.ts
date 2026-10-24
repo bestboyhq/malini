@@ -2,12 +2,12 @@ import { readIds } from '$shared/repositories/repositories.api';
 
 const STORAGE_KEY = 'malini.app.sidebar-collapsed-repositories:v1';
 
-class CollapsedRepositoriesStore {
-	ids: ReadonlySet<string> = $state(loadCollapsedRepositoryIds());
+class CollapsedGroupsStore {
+	ids: ReadonlySet<string> = $state(loadCollapsedGroupIds());
 
-	toggle(repositoryId: string): void {
+	toggle(groupId: string): void {
 		const next = new Set(this.ids);
-		if (!next.delete(repositoryId)) next.add(repositoryId);
+		if (!next.delete(groupId)) next.add(groupId);
 		this.ids = next;
 		try {
 			globalThis.localStorage?.setItem(STORAGE_KEY, JSON.stringify([...next]));
@@ -15,7 +15,7 @@ class CollapsedRepositoriesStore {
 	}
 }
 
-function loadCollapsedRepositoryIds(): ReadonlySet<string> {
+function loadCollapsedGroupIds(): ReadonlySet<string> {
 	try {
 		return new Set(readIds(JSON.parse(globalThis.localStorage?.getItem(STORAGE_KEY) ?? 'null')));
 	} catch {
@@ -23,4 +23,4 @@ function loadCollapsedRepositoryIds(): ReadonlySet<string> {
 	}
 }
 
-export const collapsedRepositoriesStore = new CollapsedRepositoriesStore();
+export const collapsedGroupsStore = new CollapsedGroupsStore();

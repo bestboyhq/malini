@@ -18,13 +18,32 @@ describe('sidebar order', () => {
 		]);
 	});
 
-	it('moves an item before or after a target and keeps a self-drop or unknown id unchanged', () => {
+	it('moves items before or after a target and keeps a self-drop or unknown id unchanged', () => {
 		const listed = ['a', 'b', 'c', 'd'];
-		expect(movedInSidebarOrder(listed, 'd', 'b', 'before')).toEqual(['a', 'd', 'b', 'c']);
-		expect(movedInSidebarOrder(listed, 'a', 'c', 'after')).toEqual(['b', 'c', 'a', 'd']);
-		expect(movedInSidebarOrder(listed, 'b', 'b', 'after')).toEqual(listed);
-		expect(movedInSidebarOrder(listed, 'x', 'b', 'after')).toEqual(listed);
-		expect(movedInSidebarOrder(listed, 'a', 'x', 'after')).toEqual(listed);
+		expect(movedInSidebarOrder(listed, ['d'], ['b'], 'before')).toEqual(['a', 'd', 'b', 'c']);
+		expect(movedInSidebarOrder(listed, ['a'], ['c'], 'after')).toEqual(['b', 'c', 'a', 'd']);
+		expect(movedInSidebarOrder(listed, ['b'], ['b'], 'after')).toEqual(listed);
+		expect(movedInSidebarOrder(listed, ['x'], ['b'], 'after')).toEqual(listed);
+		expect(movedInSidebarOrder(listed, ['a'], ['x'], 'after')).toEqual(listed);
+	});
+
+	it('moves a group as one block past the whole target group', () => {
+		const listed = ['a', 'b', 'c', 'd', 'e'];
+		expect(movedInSidebarOrder(listed, ['a', 'b'], ['c', 'd'], 'after')).toEqual([
+			'c',
+			'd',
+			'a',
+			'b',
+			'e',
+		]);
+		expect(movedInSidebarOrder(listed, ['e'], ['b', 'c'], 'before')).toEqual([
+			'a',
+			'e',
+			'b',
+			'c',
+			'd',
+		]);
+		expect(movedInSidebarOrder(listed, ['b', 'c'], ['b', 'c'], 'after')).toEqual(listed);
 	});
 
 	it('reads only string ids from whatever storage holds', () => {
