@@ -20,6 +20,11 @@ const sessionChangesPort = Object.freeze({
 	): Promise<AgentSessionChanges> {
 		return invoke('chat.session-changes', input);
 	},
+	getKnownSessionChanges(
+		input: AgentSessionChangeScope & Readonly<{ sessionId: string }>,
+	): Promise<AgentSessionChanges> {
+		return invoke('chat.known-session-changes', input);
+	},
 	getSessionChangePatch(
 		input: AgentSessionChangeScope & Readonly<{ sessionId: string; path: string }>,
 	): Promise<AgentSessionChangePatch> {
@@ -44,16 +49,9 @@ class ChatSessionChangesService {
 		});
 	}
 
-	warm(input: { workstreamId: string; sessionId: string }): Promise<void> | null {
-		if (sessionChangesStore.changesFor(input.sessionId)) return null;
-		return this.#remember(input);
-	}
-
-	async #remember(input: { workstreamId: string; sessionId: string }): Promise<void> {
-		const changes = await sessionChangesPort.getSessionChanges(input).catch(() => null);
-		if (changes && !sessionChangesStore.changesFor(changes.sessionId)) {
-			sessionChangesStore.remember(changes);
-		}
+	async refreshKnown(input: { workstreamId: string; sessionId: string }): Promise<void> {
+		const changes = await sessionChangesPort.getKnownSessionChanges(input).catch(() => null);
+		if (changes) sessionChangesStore.remember(changes);
 	}
 
 	async openChangedFile(input: {

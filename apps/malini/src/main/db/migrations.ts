@@ -721,6 +721,13 @@ CREATE TABLE mcp_server_folder_offs (
   PRIMARY KEY (server_name, folder)
 );
 `,
+	`
+CREATE TABLE agent_session_changes (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  runs_digest TEXT NOT NULL,
+  files TEXT NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

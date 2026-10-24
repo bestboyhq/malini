@@ -21,6 +21,7 @@ const ALL_TABLES = [
 	'agent_run_change_files',
 	'agent_run_changes',
 	'agent_runs',
+	'agent_session_changes',
 	'agent_sessions',
 	'agent_user_baselines',
 	'connected_repositories',

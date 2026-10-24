@@ -164,7 +164,7 @@ class WorkstreamChatsPreloader {
 			if (signal.aborted) return;
 			const sessionId = openingSessionFor(workstreamId);
 			if (!sessionId) continue;
-			await chatSessionChanges.warm({ workstreamId, sessionId });
+			await chatSessionChanges.refreshKnown({ workstreamId, sessionId });
 			if (signal.aborted || this.#holdsTranscript(sessionId)) continue;
 			await this.#replayTranscript(sessionId);
 		}
@@ -182,7 +182,7 @@ class WorkstreamChatsPreloader {
 			}
 			const sessionId = requestedSessionId ?? openingSessionFor(workstreamId);
 			if (!sessionId || !chatBelongsTo(sessionId, workstreamId)) return;
-			await chatSessionChanges.warm({ workstreamId, sessionId });
+			await chatSessionChanges.refreshKnown({ workstreamId, sessionId });
 			if (sessionsAggregate.isTranscriptHydrated(sessionId)) return;
 			await this.#replayTranscript(sessionId);
 		} catch (error) {
