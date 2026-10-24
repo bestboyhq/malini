@@ -21,11 +21,15 @@ export function browserPlacementFor(
 ): BrowserPlacement {
 	const x = Math.round(viewport.left);
 	const y = Math.round(viewport.top);
-	const width = Math.round(viewport.right) - x;
+	const width = placedWidth(viewport);
 	const height = Math.round(viewport.bottom) - y;
 	if (!hasPage || width <= 0 || height <= 0) return HIDDEN_BROWSER;
 	if (covered) return { kind: 'covered' };
 	return { kind: 'shown', bounds: { x, y, width, height } };
+}
+
+export function placedWidth(viewport: BrowserViewport): number {
+	return Math.round(viewport.right) - Math.round(viewport.left);
 }
 
 export function sameBrowserPlacement(left: BrowserPlacement, right: BrowserPlacement): boolean {

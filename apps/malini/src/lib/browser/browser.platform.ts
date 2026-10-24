@@ -29,5 +29,6 @@ export interface BrowserPlatform {
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	resize(tab: BrowserTabArgs, width: number): Promise<number>;
 	tabProcesses(): BrowserTabProcess[];
 }

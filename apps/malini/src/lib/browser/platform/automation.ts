@@ -148,7 +148,7 @@ async function settled(contents: PageContents, deadline: number): Promise<void> 
 	while (contents.isLoading() && Date.now() < deadline) await delay(LOAD_POLL_MS);
 }
 
-async function within<T>(work: Promise<T>, ms: number): Promise<T | undefined> {
+export async function within<T>(work: Promise<T>, ms: number): Promise<T | undefined> {
 	void work.catch(() => undefined);
 	let timer: NodeJS.Timeout | undefined;
 	try {

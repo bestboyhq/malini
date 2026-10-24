@@ -129,6 +129,12 @@
 		}
 	}
 
+	export function growSecondary(by: number): void {
+		if (secondaryClosed || containerExtent <= 0) return;
+		applySize(axis === 'horizontal' ? size - by : size + by);
+		persistSize();
+	}
+
 	function persistSize(): void {
 		if (ratioMode) {
 			savePanelRatio(key, panelRatio);

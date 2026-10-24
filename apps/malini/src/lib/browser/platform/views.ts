@@ -1,6 +1,7 @@
 import type {
 	BrowserBounds,
 	BrowserElementPrompt,
+	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
 } from '$contract/browser';
@@ -17,6 +18,7 @@ import {
 	saveScreenshot,
 	settleAfterAction,
 	typeIntoSelector,
+	within,
 } from './automation';
 import type { HostWindow, PageContents, PageEvents, PageView, Rectangle } from './page';
 import { pickElement, pickerPage } from './picker';
@@ -25,6 +27,7 @@ import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
+export const RESIZE_ANSWER_MS = 5_000;
 
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
@@ -35,6 +38,7 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	worktree(workstreamId: string): string;
 	stateChanged(state: BrowserState): void;
 	tabOpened(tab: BrowserTabArgs): void;
+	resizeRequested(request: BrowserResizeRequest): void;
 }
 
 interface OpenPick {
@@ -59,6 +63,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 	private readonly entries = new Map<string, Entry<W>>();
 	private readonly watchedWindows = new WeakSet<W>();
 	private readonly turns = new Map<string, Promise<unknown>>();
+	private readonly resizes = new Map<string, () => void>();
+	private resizeCount = 0;
 
 	constructor(private readonly deps: BrowserViewsDeps<W>) {}
 
@@ -226,6 +232,39 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			await typeIntoSelector(contents, selector, text, submit);
 			return pageInfo(contents);
 		});
+	}
+
+	resize(tab: BrowserTabArgs, width: number): Promise<number> {
+		return this.inTurn(tab, async () => {
+			const { entry } = this.loaded(tab);
+			const window = entry.window;
+			if (!window || window.isDestroyed() || !entry.shown || !this.deps.onScreen(window)) {
+				throw new Error(
+					`The browser tab is not on screen, so its width did not change: the page is ${entry.bounds.width}px wide. Malini resizes it only while the user sees the tab.`,
+				);
+			}
+			this.resizeCount += 1;
+			const requestId = String(this.resizeCount);
+			const answered = new Promise<true>((resolve) =>
+				this.resizes.set(requestId, () => resolve(true)),
+			);
+			const zoom = window.webContents.getZoomFactor();
+			this.deps.resizeRequested({ ...tab, requestId, width: width / zoom });
+			try {
+				if (!(await within(answered, RESIZE_ANSWER_MS))) {
+					throw new Error(
+						`Malini did not resize the browser tab within ${RESIZE_ANSWER_MS / 1_000}s. Call browser_resize again.`,
+					);
+				}
+			} finally {
+				this.resizes.delete(requestId);
+			}
+			return entry.bounds.width;
+		});
+	}
+
+	resized(requestId: string): void {
+		this.resizes.get(requestId)?.();
 	}
 
 	private inTurn<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {
