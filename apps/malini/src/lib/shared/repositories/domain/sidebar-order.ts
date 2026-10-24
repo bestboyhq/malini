@@ -8,8 +8,8 @@ export type SidebarPlacement = 'before' | 'after';
 export type SidebarMove = Readonly<{
 	kind: 'repository' | 'workstream';
 	listedIds: readonly string[];
-	movedId: string;
-	targetId: string;
+	movedIds: readonly string[];
+	targetIds: readonly string[];
 	placement: SidebarPlacement;
 }>;
 
@@ -25,16 +25,16 @@ export function inSidebarOrder<T extends { readonly id: string }>(
 
 export function movedInSidebarOrder(
 	listedIds: readonly string[],
-	movedId: string,
-	targetId: string,
+	movedIds: readonly string[],
+	targetIds: readonly string[],
 	placement: SidebarPlacement,
 ): string[] {
-	const rest = listedIds.filter((id) => id !== movedId);
-	const targetIndex = rest.indexOf(targetId);
-	if (movedId === targetId || targetIndex === -1 || !listedIds.includes(movedId)) {
-		return [...listedIds];
-	}
-	rest.splice(placement === 'before' ? targetIndex : targetIndex + 1, 0, movedId);
+	const moved = listedIds.filter((id) => movedIds.includes(id));
+	const rest = listedIds.filter((id) => !movedIds.includes(id));
+	const anchor = placement === 'before' ? targetIds[0] : targetIds.at(-1);
+	const anchorIndex = anchor === undefined ? -1 : rest.indexOf(anchor);
+	if (moved.length !== movedIds.length || anchorIndex === -1) return [...listedIds];
+	rest.splice(placement === 'before' ? anchorIndex : anchorIndex + 1, 0, ...moved);
 	return rest;
 }
 

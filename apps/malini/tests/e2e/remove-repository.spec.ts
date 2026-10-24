@@ -99,6 +99,8 @@ test('the sidebar row actions are reachable from the keyboard', async () => {
 
 		await row.focus();
 		await page.keyboard.press('Tab');
+		await expect(sidebar.getByRole('button', { name: 'New workstream for alpha' })).toBeFocused();
+		await page.keyboard.press('Tab');
 		await expect(sidebar.getByRole('button', { name: 'Archive Alpha keys' })).toBeFocused();
 		expectCleanConsole(app);
 	} finally {

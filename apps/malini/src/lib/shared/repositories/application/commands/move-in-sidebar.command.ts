@@ -4,7 +4,7 @@ import { sidebarOrderStore } from '$shared/repositories/infrastructure/stores/si
 export { moveInSidebarCommand };
 
 function moveInSidebarCommand(move: SidebarMove): void {
-	const listed = movedInSidebarOrder(move.listedIds, move.movedId, move.targetId, move.placement);
+	const listed = movedInSidebarOrder(move.listedIds, move.movedIds, move.targetIds, move.placement);
 	const { order } = sidebarOrderStore;
 	sidebarOrderStore.set(
 		move.kind === 'repository'

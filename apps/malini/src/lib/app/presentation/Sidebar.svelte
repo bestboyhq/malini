@@ -14,8 +14,16 @@
 		type SidebarMove,
 	} from '$shared/repositories/repositories.api';
 	import { reorderIndex, reorderShift, settledOffset, type SidebarSlot } from './sidebar-reorder';
-	import { collapsedRepositoriesQuery } from '$lib/app/application/queries/collapsed-repositories.query.svelte';
-	import { toggleRepositoryCollapsedCommand } from '$lib/app/application/commands/toggle-repository-collapsed.command';
+	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
+	import { sidebarDensityQuery } from '$lib/app/application/queries/sidebar-density.query.svelte';
+	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
+	import {
+		groupItems,
+		repositoryGroups,
+		showsAsOneLine,
+		type OwnerGroup,
+		type RepositoryGroup,
+	} from '$lib/app/domain/repository-groups';
 	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
 	import { workstreamRunningQuery } from '$lib/stats/application/queries/workstream-running.query.svelte';
@@ -39,7 +47,10 @@
 		PullRequestPhase,
 	} from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 	import { formatCompactChangeTotal } from '$lib/pull-requests/pull-requests.api';
-	import type { Repository } from '$shared/repositories/repositories.api';
+	import type {
+		ConnectedRepositoryContext,
+		Repository,
+	} from '$shared/repositories/repositories.api';
 	import type { Workstream } from '$shared/repositories/repositories.api';
 	import { isWorkstreamCheckoutUsable } from '$shared/repositories/repositories.api';
 	import {
@@ -102,7 +113,8 @@
 		scopeError ? describeFailure(scopeError, { subject: 'Workstream data' }) : null,
 	);
 	const sidebarOrder = $derived(sidebarOrderQuery.data);
-	const collapsedRepositoryIds = $derived(collapsedRepositoriesQuery.data);
+	const collapsedGroupIds = $derived(collapsedGroupsQuery.data);
+	const compact = $derived(sidebarDensityQuery.data === 'compact');
 	let reorder = $state<SidebarReorder | null>(null);
 	let settling = false;
 	let clickSuppressed = false;
@@ -130,7 +142,13 @@
 	);
 	const rows = $derived(contexts.filter((row) => !hiddenRepositoryIds.has(row.repo.id)));
 	const everyRepositoryHidden = $derived(contexts.length > 0 && rows.length === 0);
-	const listedRepositoryIds = $derived(rows.map((row) => row.repo.id));
+	const entries = $derived(repositoryGroups(rows, (row) => row.repo));
+	const entryIds = $derived(entries.map((entry) => entry.id));
+	const repositoryIdsByEntry = $derived(
+		new Map(entries.map((entry) => [entry.id, entryRepositoryIds(entry)])),
+	);
+	const listedRepositoryIds = $derived(entries.flatMap(entryRepositoryIds));
+	const avatarSize = $derived(compact ? 16 : 20);
 	const listedWorkstreamIds = $derived(
 		rows.flatMap((row) => row.workstreams.map((workstream) => workstream.id)),
 	);
@@ -155,6 +173,10 @@
 	function workstreamCountLabel(count: number): string {
 		if (count === 0) return 'No workstreams';
 		return `${count} ${count === 1 ? 'workstream' : 'workstreams'}`;
+	}
+
+	function repositoryCountLabel(count: number): string {
+		return `${count} ${count === 1 ? 'repository' : 'repositories'}`;
 	}
 
 	function openNewWorkstream(repo: Repository): void {
@@ -431,6 +453,15 @@
 		return kind === 'repository' ? listedRepositoryIds : listedWorkstreamIds;
 	}
 
+	function entryRepositoryIds(entry: RepositoryGroup<ConnectedRepositoryContext>): string[] {
+		return groupItems(entry).map((row) => row.repo.id);
+	}
+
+	function movedIds(kind: SidebarMove['kind'], id: string): readonly string[] {
+		if (kind === 'workstream') return [id];
+		return repositoryIdsByEntry.get(id) ?? [id];
+	}
+
 	function reorderSiblings(row: HTMLElement): HTMLElement[] {
 		return [...(row.parentElement?.children ?? [])].filter(
 			(element): element is HTMLElement =>
@@ -459,7 +490,10 @@
 		if (event.button !== 0 || reorder || settling) return;
 		const row = event.currentTarget;
 		if (!(row instanceof HTMLElement) || !(event.target instanceof Element)) return;
-		if (event.target.closest('button') || event.target.closest('[data-sidebar-item]') !== row)
+		if (
+			event.target.closest('button:not([data-sidebar-grip])') ||
+			event.target.closest('[data-sidebar-item]') !== row
+		)
 			return;
 		const { pointerId, clientY: startY } = event;
 		let dragging = false;
@@ -522,8 +556,8 @@
 			moveInSidebarCommand({
 				kind: current.item.kind,
 				listedIds: listedIds(current.item.kind),
-				movedId: current.item.id,
-				targetId,
+				movedIds: movedIds(current.item.kind, current.item.id),
+				targetIds: movedIds(current.item.kind, targetId),
 				placement: to > current.from ? 'after' : 'before',
 			});
 		};
@@ -576,7 +610,13 @@
 		const targetId = siblingIds[placement === 'before' ? index - 1 : index + 1];
 		if (index === -1 || !targetId) return;
 		const focused = event.currentTarget;
-		moveInSidebarCommand({ kind, listedIds: listedIds(kind), movedId: id, targetId, placement });
+		moveInSidebarCommand({
+			kind,
+			listedIds: listedIds(kind),
+			movedIds: movedIds(kind, id),
+			targetIds: movedIds(kind, targetId),
+			placement,
+		});
 		await tick();
 		if (focused instanceof HTMLElement) focused.focus();
 	}
@@ -711,6 +751,65 @@
 			.filter(Boolean)
 			.join(' · ');
 	}
+
+	type WorkstreamView = Readonly<{
+		label: string;
+		chat: ChatSummary;
+		state: WorkstreamVisualState;
+		lifecycle: WorkstreamLifecycleAction;
+		targetSessionId: string | null;
+		badge: PullRequestBadge;
+		changeTotals: WorkstreamChangeTotals | undefined;
+		pullRequest: PullRequestVisual;
+		busy: boolean;
+		loading: boolean;
+		selected: boolean;
+		running: ReturnType<typeof workstreamRunning>;
+	}>;
+
+	function workstreamView(
+		workstream: Workstream,
+		repositoryFullName: string,
+		chat: ChatSummary,
+	): WorkstreamView {
+		const label = workstreamLabel(workstream, repositoryFullName);
+		const state = visualState(workstream, provisioningRecord(workstream.id), chat);
+		const badge = pullRequestBadge(workstream.id);
+		const busy =
+			state.tone === 'running' || state.tone === 'background' || state.tone === 'provisioning';
+		return {
+			label,
+			chat,
+			state,
+			lifecycle: lifecycleAction(workstream.id, label),
+			targetSessionId: chat.sessionId,
+			badge,
+			changeTotals: badge.phase === 'merged' ? undefined : changeTotalsByWorkstream[workstream.id],
+			pullRequest: pullRequestVisual(badge),
+			busy,
+			loading: busy || (badge.phase === 'queued' && state.tone !== 'broken'),
+			selected: workstream.id === visuallyActiveWorkstreamId,
+			running: workstreamRunning(workstream.id),
+		};
+	}
+
+	function workstreamLinkData(
+		workstream: Workstream,
+		repositoryFullName: string,
+		view: WorkstreamView,
+	): Record<`data-${string}`, string | undefined> {
+		return {
+			'data-testid': 'sidebar-workstream',
+			'data-workstream-id': workstream.id,
+			'data-navigation-workstream-id': workstream.id,
+			'data-navigation-pending': workstream.id === pendingWorkstreamId ? 'true' : undefined,
+			'data-navigation-feedback-only': 'true',
+			'data-repository-full-name': repositoryFullName,
+			'data-workstream-state': view.state.tone,
+			'data-workstream-checkout': workstream.checkoutState,
+			'data-workstream-draft': view.chat.hasDraft ? 'true' : undefined,
+		};
+	}
 </script>
 
 {#snippet statusGlyph(loading: boolean, background: boolean, glyph: PullRequestVisual['glyph'])}
@@ -719,6 +818,669 @@
 	{:else}
 		<Icon name={glyph} size={14} />
 	{/if}
+{/snippet}
+
+{#snippet ownerFolder(folder: OwnerGroup<ConnectedRepositoryContext>)}
+	{@const collapsed = collapsedGroupIds.has(folder.id)}
+	{@const siblingIds = folder.items.map((row) => row.repo.id)}
+	{@const first = folder.items[0]}
+	<li
+		class={['relative w-full min-w-0', reorderClass(folder.id)]}
+		style:transform={reorderTransform(folder.id)}
+		data-sidebar-item={folder.id}
+		onpointerdown={(event) => armReorder(event, { kind: 'repository', id: folder.id })}
+	>
+		<Button
+			bare
+			class={[
+				'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
+				compact ? 'h-7 text-xs' : 'h-8 text-sm',
+			]}
+			ariaLabel={`${folder.owner}, ${repositoryCountLabel(folder.items.length)}`}
+			ariaExpanded={!collapsed}
+			ariaControls={`owner-repositories-${folder.id}`}
+			ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+			data-sidebar-grip=""
+			data-testid="sidebar-owner-folder"
+			data-owner={folder.owner}
+			onclick={() => toggleGroupCollapsedCommand(folder.id)}
+			onkeydown={(event) => void onMoveKey(event, 'repository', folder.id, entryIds)}
+		>
+			<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+				{#if first}
+					<RepositoryAvatar fullName={first.repo.fullName} size={avatarSize} />
+				{/if}
+			</span>
+			<span class="min-w-0 flex-1 truncate text-left leading-relaxed font-medium">
+				{folder.owner}
+			</span>
+			<span class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums">
+				{folder.items.length}
+			</span>
+			<Icon
+				name="chevron-down"
+				class={`text-fg-tertiary shrink-0 transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
+				size={13}
+			/>
+		</Button>
+		<ul
+			id={`owner-repositories-${folder.id}`}
+			class={['flex w-full flex-col gap-0.5', collapsed && 'hidden']}
+		>
+			{#each folder.items as row (row.repo.id)}
+				{@render repositoryItem(row, true, siblingIds)}
+			{/each}
+		</ul>
+	</li>
+{/snippet}
+
+{#snippet repositoryItem(
+	row: ConnectedRepositoryContext,
+	nested: boolean,
+	siblingIds: readonly string[],
+)}
+	{@const lone = row.workstreams[0]}
+	{#if lone && showsAsOneLine(row)}
+		{@render oneLineRepository(row, lone, nested, siblingIds)}
+	{:else}
+		{@render repositoryGroup(row, nested, siblingIds)}
+	{/if}
+{/snippet}
+
+{#snippet repositoryGroup(
+	row: ConnectedRepositoryContext,
+	nested: boolean,
+	siblingIds: readonly string[],
+)}
+	{@const collapsed = collapsedGroupIds.has(row.repo.id)}
+	<li
+		class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
+		style:transform={reorderTransform(row.repo.id)}
+		data-sidebar-item={row.repo.id}
+		onpointerdown={(event) => armReorder(event, { kind: 'repository', id: row.repo.id })}
+	>
+		<HoverCard
+			side="right"
+			align="start"
+			sideOffset={12}
+			openDelay={500}
+			triggerPress="dismiss"
+			triggerClass="w-full"
+			panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
+			testId="sidebar-repository-card"
+		>
+			{#snippet trigger()}
+				<div
+					class={[
+						'group/repo text-fg-secondary relative flex w-full items-center gap-2 rounded-xl pr-1',
+						nested ? 'pl-6' : 'pl-2',
+						compact ? 'h-7' : 'h-8',
+						row.repo.id === openRepositoryId
+							? 'bg-surface-50-selected'
+							: 'hover:bg-surface-50-hover has-focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+					]}
+					data-active={row.repo.id === repositoryMenu?.repository.id}
+					data-testid="sidebar-connected-repository"
+					data-full-name={row.repo.fullName}
+					data-workstream-count={row.workstreams.length}
+				>
+					<div
+						class={nested
+							? 'absolute top-1/2 left-0.5 z-10 h-5 w-5 -translate-y-1/2'
+							: 'relative z-10 h-5 w-5 shrink-0'}
+					>
+						{#if !nested}
+							<span
+								class="absolute inset-0 grid place-items-center group-hover/repo:opacity-0 group-has-focus-visible/repo:opacity-0"
+								aria-hidden="true"
+								data-testid="sidebar-repository-icon"
+							>
+								<RepositoryAvatar fullName={row.repo.fullName} size={avatarSize} />
+							</span>
+						{/if}
+						<Tooltip
+							content={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
+							placement="right"
+							class="absolute inset-0"
+						>
+							<IconButton
+								bare
+								onclick={() => toggleGroupCollapsedCommand(row.repo.id)}
+								ariaLabel={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
+								ariaExpanded={!collapsed}
+								ariaControls={`repository-workstreams-${row.repo.id}`}
+								class="text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
+								data-testid="sidebar-repository-disclosure"
+							>
+								<Icon
+									name="chevron-down"
+									class={`transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
+									size={13}
+								/>
+							</IconButton>
+						</Tooltip>
+					</div>
+					<a
+						href={repositoryHref(row.repo.id)}
+						data-navigation-path-id="expected-path:workstream-sidebar.repository"
+						aria-label={`Open ${row.repo.fullName}`}
+						aria-describedby={`repository-notes-${row.repo.id}`}
+						aria-current={row.repo.id === openRepositoryId ? 'page' : undefined}
+						class="hover:text-fg-default focus-visible:text-fg-default min-w-0 flex-1 outline-none before:absolute before:inset-0 before:content-['']"
+						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+						onkeydown={(event) => {
+							if (opensMenu(event)) {
+								openRepositoryMenu(event, row.repo, row.workstreams);
+								return;
+							}
+							void onMoveKey(event, 'repository', row.repo.id, siblingIds);
+						}}
+						oncontextmenu={(event) => openRepositoryMenu(event, row.repo, row.workstreams)}
+						draggable="false"
+					>
+						<span
+							class={[
+								'block truncate leading-relaxed font-medium',
+								compact ? 'text-xs' : 'text-sm',
+								row.repo.id === openRepositoryId
+									? 'text-fg-default'
+									: 'text-fg-secondary group-hover/repo:text-fg-default group-data-[active=true]/repo:text-fg-default',
+							]}
+						>
+							{row.name}
+						</span>
+					</a>
+					<ScratchpadIdeasCount
+						repositoryFullName={row.repo.fullName}
+						descriptionId={`repository-notes-${row.repo.id}`}
+						class="shrink-0"
+					/>
+					{@render newWorkstreamButton(row.repo, '')}
+				</div>
+			{/snippet}
+			{#snippet content()}
+				{@render repositoryCard(row)}
+			{/snippet}
+		</HoverCard>
+		<ul
+			id={`repository-workstreams-${row.repo.id}`}
+			class={['flex w-full flex-col', collapsed && 'hidden']}
+		>
+			{#each row.workstreams as workstream (workstream.id)}
+				{@render workstreamItem(workstream, row, nested)}
+			{/each}
+		</ul>
+	</li>
+{/snippet}
+
+{#snippet oneLineRepository(
+	row: ConnectedRepositoryContext,
+	workstream: Workstream,
+	nested: boolean,
+	siblingIds: readonly string[],
+)}
+	<li
+		class={['group/row relative w-full min-w-0', reorderClass(row.repo.id)]}
+		style:transform={reorderTransform(row.repo.id)}
+		data-sidebar-item={row.repo.id}
+		onpointerdown={(event) => armReorder(event, { kind: 'repository', id: row.repo.id })}
+	>
+		<WorkstreamChatSummary workstreamId={workstream.id}>
+			{#snippet children(chat)}
+				{@const view = workstreamView(workstream, row.repo.fullName, chat)}
+				{@const repositoryOpen = row.repo.id === openRepositoryId}
+				{#snippet card()}
+					{@render runningCard(workstream, view)}
+				{/snippet}
+				<Tooltip
+					content={card}
+					interactive
+					placement="right"
+					suppressed={!view.running}
+					class="w-full min-w-0"
+				>
+					<div
+						class={[
+							'relative flex w-full items-center gap-2 rounded-xl pr-3 group-hover/row:pr-15 group-has-focus-visible/row:pr-15',
+							nested ? 'pl-6' : 'pl-2',
+							compact ? 'h-7 text-xs' : 'h-8 text-sm',
+							view.selected || repositoryOpen
+								? 'bg-surface-50-selected'
+								: 'group-hover/row:bg-surface-50-hover has-focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+						]}
+						data-active={row.repo.id === repositoryMenu?.repository.id ||
+							workstream.id === contextMenu?.workstreamId}
+						data-testid="sidebar-connected-repository"
+						data-full-name={row.repo.fullName}
+						data-workstream-count={row.workstreams.length}
+					>
+						{#if !nested}
+							<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
+								<RepositoryAvatar fullName={row.repo.fullName} size={avatarSize} />
+							</span>
+						{/if}
+						{#if view.chat.attention && view.chat.needsYou}
+							{@render attentionDot(view.chat.attention, nested ? 'left-2.5' : 'left-0')}
+						{/if}
+						<HoverCard
+							side="right"
+							align="start"
+							sideOffset={12}
+							openDelay={500}
+							triggerPress="dismiss"
+							triggerClass="relative z-10 min-w-0 max-w-[45%] shrink-0"
+							panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
+							testId="sidebar-repository-card"
+						>
+							{#snippet trigger()}
+								<a
+									href={repositoryHref(row.repo.id)}
+									data-navigation-path-id="expected-path:workstream-sidebar.repository"
+									aria-label={`Open ${row.repo.fullName}`}
+									aria-describedby={`repository-notes-${row.repo.id}`}
+									aria-current={repositoryOpen ? 'page' : undefined}
+									aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+									class={[
+										'block min-w-0 truncate leading-relaxed font-medium outline-none',
+										repositoryOpen || view.selected
+											? 'text-fg-default'
+											: 'text-fg-secondary hover:text-fg-default focus-visible:text-fg-default',
+									]}
+									onkeydown={(event) => {
+										if (opensMenu(event)) {
+											openRepositoryMenu(event, row.repo, row.workstreams);
+											return;
+										}
+										void onMoveKey(event, 'repository', row.repo.id, siblingIds);
+									}}
+									oncontextmenu={(event) => openRepositoryMenu(event, row.repo, row.workstreams)}
+									draggable="false"
+								>
+									{row.name}
+								</a>
+							{/snippet}
+							{#snippet content()}
+								{@render repositoryCard(row)}
+							{/snippet}
+						</HoverCard>
+						<ScratchpadIdeasCount
+							repositoryFullName={row.repo.fullName}
+							descriptionId={`repository-notes-${row.repo.id}`}
+							class="relative z-10 shrink-0"
+						/>
+						<a
+							draggable="false"
+							href={rowHref(workstream.id, view.targetSessionId)}
+							data-navigation-path-id="expected-path:workstream-sidebar.switch"
+							aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+							aria-busy={workstream.id === pendingWorkstreamId || undefined}
+							class={[
+								"flex min-w-0 flex-1 items-center gap-2 leading-relaxed outline-none before:absolute before:inset-0 before:rounded-xl before:content-['']",
+								view.chat.attention !== null || view.selected
+									? 'text-500'
+									: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary group-data-[active=true]/row:text-fg-secondary',
+							]}
+							{...workstreamLinkData(workstream, row.repo.fullName, view)}
+							aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+							onpointerdown={(event) =>
+								previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+							onpointerup={() =>
+								scheduleAbandonedDestinationPreviewCleanup(
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onpointercancel={() =>
+								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+							onpointerleave={() =>
+								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+							onkeydown={(event) => {
+								if (opensMenu(event)) {
+									openWorkstreamMenu(event, workstream.id);
+									return;
+								}
+								previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+								void onMoveKey(event, 'repository', row.repo.id, siblingIds);
+							}}
+							onkeyup={(event) =>
+								scheduleKeyboardDestinationPreviewCleanup(
+									event,
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onblur={() =>
+								scheduleAbandonedDestinationPreviewCleanup(
+									rowHref(workstream.id, view.targetSessionId),
+								)}
+							onclick={(event) =>
+								beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+							oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+						>
+							{@render statusIndicator(view)}
+							<span class="sidebar-row-text gap-1.5">
+								{@render workstreamName(workstream, view, 68)}
+								{@render workstreamTrail(view)}
+							</span>
+						</a>
+						<span class="absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center">
+							{@render newWorkstreamButton(
+								row.repo,
+								'pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100',
+							)}
+							{@render archiveButton(workstream, view, 'relative')}
+						</span>
+					</div>
+					{#if view.running}
+						<span class={['block', nested ? 'pl-6' : 'pl-9']} transition:slide={foldMotion()}>
+							<WorkstreamRunningLine running={view.running} selected={view.selected} />
+						</span>
+					{/if}
+				</Tooltip>
+			{/snippet}
+		</WorkstreamChatSummary>
+	</li>
+{/snippet}
+
+{#snippet workstreamItem(workstream: Workstream, row: ConnectedRepositoryContext, nested: boolean)}
+	<li
+		class={['group/row relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
+		style:transform={reorderTransform(workstream.id)}
+		data-sidebar-item={workstream.id}
+		onpointerdown={(event) => armReorder(event, { kind: 'workstream', id: workstream.id })}
+		transition:slide={foldMotion()}
+	>
+		<WorkstreamChatSummary workstreamId={workstream.id}>
+			{#snippet children(chat)}
+				{@const view = workstreamView(workstream, row.repo.fullName, chat)}
+				{#snippet card()}
+					{@render runningCard(workstream, view)}
+				{/snippet}
+				<Tooltip
+					content={card}
+					interactive
+					placement="right"
+					suppressed={!view.running}
+					class="w-full min-w-0"
+				>
+					<a
+						draggable="false"
+						href={rowHref(workstream.id, view.targetSessionId)}
+						data-navigation-path-id="expected-path:workstream-sidebar.switch"
+						aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+						aria-busy={workstream.id === pendingWorkstreamId || undefined}
+						class={[
+							'sidebar-row relative w-full flex-col items-stretch pr-3 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
+							nested ? 'pl-9' : 'pl-6',
+							compact && 'py-1 text-xs',
+							view.chat.attention !== null
+								? 'text-500'
+								: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
+							view.selected
+								? 'sidebar-row-active'
+								: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+						]}
+						data-active={workstream.id === contextMenu?.workstreamId}
+						{...workstreamLinkData(workstream, row.repo.fullName, view)}
+						onpointerdown={(event) =>
+							previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+						onpointerup={() =>
+							scheduleAbandonedDestinationPreviewCleanup(
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onpointercancel={() =>
+							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+						onpointerleave={() =>
+							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+						onkeydown={(event) => {
+							if (opensMenu(event)) {
+								openWorkstreamMenu(event, workstream.id);
+								return;
+							}
+							previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+							void onMoveKey(
+								event,
+								'workstream',
+								workstream.id,
+								row.workstreams.map((sibling) => sibling.id),
+							);
+						}}
+						onkeyup={(event) =>
+							scheduleKeyboardDestinationPreviewCleanup(
+								event,
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onblur={() =>
+							scheduleAbandonedDestinationPreviewCleanup(
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onclick={(event) =>
+							beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+						oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+					>
+						<span class="relative flex items-center gap-2">
+							{@render statusIndicator(view)}
+							{#if view.chat.attention && view.chat.needsYou}
+								{@render attentionDot(view.chat.attention, '-left-3.5')}
+							{/if}
+							<span class="sidebar-row-text gap-1.5">
+								{@render workstreamName(workstream, view, 40)}
+								{@render workstreamTrail(view)}
+							</span>
+						</span>
+						{#if view.running}
+							<span class="pl-6" transition:slide={foldMotion()}>
+								<WorkstreamRunningLine running={view.running} selected={view.selected} />
+							</span>
+						{/if}
+					</a>
+					{@render archiveButton(
+						workstream,
+						view,
+						compact
+							? 'absolute top-1 right-1 h-lh items-center text-xs leading-relaxed'
+							: 'absolute top-1.5 right-1 h-lh items-center text-sm leading-relaxed',
+					)}
+				</Tooltip>
+			{/snippet}
+		</WorkstreamChatSummary>
+	</li>
+{/snippet}
+
+{#snippet statusIndicator(view: WorkstreamView)}
+	<Tooltip
+		content={visualStateTooltip(view.state, view.chat, view.pullRequest)}
+		placement="right"
+		suppressed={view.running !== null}
+		class="relative z-10 shrink-0"
+	>
+		<span
+			class={[
+				'grid h-4 w-4 place-items-center',
+				statusIconColor(view.state, view.busy, view.pullRequest),
+			]}
+			role="status"
+			aria-label={`Workstream status: ${visualStateTooltip(view.state, view.chat, view.pullRequest)}`}
+			data-testid={view.state.tone === 'running' || view.state.tone === 'background'
+				? 'sidebar-workstream-loader'
+				: 'sidebar-workstream-status'}
+			data-workstream-icon-state={view.state.tone}
+			data-workstream-pull-request-state={view.badge.phase}
+		>
+			{@render statusGlyph(view.loading, view.state.tone === 'background', view.pullRequest.glyph)}
+		</span>
+	</Tooltip>
+{/snippet}
+
+{#snippet attentionDot(attention: ChatAttention, offset: string)}
+	<span
+		class={[
+			'absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
+			offset,
+			attention.kind === 'failed' ? 'bg-error-content' : 'bg-warning-content',
+		]}
+		aria-hidden="true"
+		data-testid="sidebar-agent-attention"
+		data-attention-kind={attention.kind}
+	></span>
+{/snippet}
+
+{#snippet workstreamName(workstream: Workstream, view: WorkstreamView, offset: number)}
+	<Tooltip
+		content={view.label}
+		placement="right"
+		{offset}
+		onlyWhenTruncated
+		suppressed={view.running !== null}
+		class="min-w-0 flex-1 truncate"
+	>
+		<RenameText
+			text={view.label}
+			shimmer={namedWorkstreamsQuery.data(workstream.id)}
+			class="block"
+			textClass="block truncate"
+		/>
+	</Tooltip>
+{/snippet}
+
+{#snippet workstreamTrail(view: WorkstreamView)}
+	{@const changeTotals = view.changeTotals}
+	{#if view.chat.hasDraft}
+		<span
+			class="text-fg-tertiary shrink-0 group-hover/row:hidden group-has-focus-visible/row:hidden"
+			aria-hidden="true"
+			data-testid="sidebar-workstream-draft"
+		>
+			<Icon name="pencil" class="shrink-0" size={14} />
+		</span>
+	{/if}
+	{#if view.chat.queueCount > 0}
+		<span
+			class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
+			data-testid="sidebar-prompt-queue-count"
+		>
+			{view.chat.queueCount} queued
+		</span>
+	{:else if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
+		<span
+			class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
+			aria-label={`${changeTotals.additions} additions, ${changeTotals.deletions} deletions`}
+			data-testid="sidebar-workstream-change-totals"
+			data-additions={changeTotals.additions}
+			data-deletions={changeTotals.deletions}
+		>
+			{#if changeTotals.additions > 0}<span class="text-success-content">
+					+{formatCompactChangeTotal(changeTotals.additions)}
+				</span>{/if}
+			{#if changeTotals.deletions > 0}<span class="text-error-content">
+					−{formatCompactChangeTotal(changeTotals.deletions)}
+				</span>{/if}
+		</span>
+	{:else if changeTotals && changeTotals.files > 0}
+		<span
+			class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
+			data-testid="sidebar-workstream-changed-files"
+			data-files={changeTotals.files}
+		>
+			{formatCompactChangeTotal(changeTotals.files)}
+			{changeTotals.files === 1 ? 'file' : 'files'}
+		</span>
+	{/if}
+{/snippet}
+
+{#snippet newWorkstreamButton(repository: Repository, className: string)}
+	<Tooltip content={`New workstream for ${repository.fullName}`} placement="top" class="relative">
+		<IconButton
+			variant="ghost"
+			size="sm"
+			class={className}
+			ariaLabel={`New workstream for ${repository.fullName}`}
+			data-testid="sidebar-new-workstream"
+			data-navigation-path-id="expected-path:workstream-sidebar.create"
+			data-navigation-dynamic-target="true"
+			onclick={() => openNewWorkstream(repository)}
+		>
+			<Icon name="plus" size={14} />
+		</IconButton>
+	</Tooltip>
+{/snippet}
+
+{#snippet archiveButton(workstream: Workstream, view: WorkstreamView, placement: string)}
+	<Tooltip
+		content={view.lifecycle.tooltip}
+		placement="right"
+		suppressed={view.running !== null}
+		class={placement}
+	>
+		<IconButton
+			variant="ghost"
+			size="sm"
+			class="pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100"
+			disabled={!onArchiveWorkstream || view.lifecycle.kind === 'blocked'}
+			ariaLabel={view.lifecycle.ariaLabel}
+			data-testid="sidebar-archive-workstream"
+			data-workstream-id={workstream.id}
+			data-workstream-lifecycle={view.lifecycle.kind}
+			data-navigation-target={workstream.id === activeWorkstreamId ? rowHref(null) : undefined}
+			data-navigation-path-id={workstream.id === activeWorkstreamId
+				? 'expected-path:workstream-lifecycle.exit-active'
+				: undefined}
+			data-navigation-outcome-key={workstream.id === activeWorkstreamId &&
+			view.lifecycle.archivesNatively
+				? 'archived'
+				: undefined}
+			onclick={(event) => requestArchive(event, workstream)}
+		>
+			{#if view.lifecycle.kind === 'discard'}
+				<Icon name="trash" size={14} />
+			{:else}
+				<Icon name="archive" size={14} />
+			{/if}
+		</IconButton>
+	</Tooltip>
+{/snippet}
+
+{#snippet runningCard(workstream: Workstream, view: WorkstreamView)}
+	{#if view.running}
+		<WorkstreamRunningCard
+			iconClass={statusIconColor(view.state, view.busy, view.pullRequest)}
+			label={view.label}
+			branch={workstream.branch}
+			baseBranch={workstream.baseBranch}
+			pullRequestLabel={view.badge.phase === 'none' || view.badge.phase === 'unknown'
+				? null
+				: view.badge.label}
+			working={view.busy}
+			stateLabel={view.state.label}
+			changeTotals={view.changeTotals}
+			running={view.running}
+			onopenport={(port) => openRunningPort(workstream.id, view.targetSessionId, port)}
+		>
+			{#snippet icon()}
+				{@render statusGlyph(
+					view.loading,
+					view.state.tone === 'background',
+					view.pullRequest.glyph,
+				)}
+			{/snippet}
+		</WorkstreamRunningCard>
+	{/if}
+{/snippet}
+
+{#snippet repositoryCard(row: ConnectedRepositoryContext)}
+	<div class="flex flex-col gap-3">
+		<div class="flex min-w-0 items-center gap-2.5">
+			<RepositoryAvatar fullName={row.repo.fullName} size={36} />
+			<div class="flex min-w-0 flex-col">
+				<span class="text-fg-default truncate text-sm leading-5 font-medium">
+					{row.repo.fullName}
+				</span>
+				<span class="text-fg-tertiary text-xs leading-4">
+					{workstreamCountLabel(row.workstreams.length)}
+				</span>
+			</div>
+		</div>
+		<div class="border-surface-elevated-border border-t pt-3">
+			<ScratchpadIdeasPreview repositoryFullName={row.repo.fullName} />
+		</div>
+	</div>
 {/snippet}
 
 <SidebarFrame testId="repository-sidebar">
@@ -792,440 +1554,19 @@
 					{/snippet}
 				</StateBlock>
 			{:else if rows.length > 0}
-				<ul class={['flex w-full flex-col gap-3 pt-2', reorder && 'pointer-events-none']}>
-					{#each rows as row (row.repo.id)}
-						{@const collapsed = collapsedRepositoryIds.has(row.repo.id)}
-						{@const repositoryItem = { kind: 'repository' as const, id: row.repo.id }}
-						<li
-							class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
-							style:transform={reorderTransform(row.repo.id)}
-							data-sidebar-item={row.repo.id}
-							onpointerdown={(event) => armReorder(event, repositoryItem)}
-						>
-							<HoverCard
-								side="right"
-								align="start"
-								sideOffset={12}
-								openDelay={500}
-								triggerPress="dismiss"
-								triggerClass="w-full"
-								panelClass="w-80 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-3"
-								testId="sidebar-repository-card"
-							>
-								{#snippet trigger()}
-									<div
-										class={[
-											'group/repo text-fg-secondary relative flex h-8 w-full items-center gap-2 rounded-xl pr-1 pl-2',
-											row.repo.id === openRepositoryId
-												? 'bg-surface-50-selected'
-												: 'hover:bg-surface-50-hover has-focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-										]}
-										data-active={row.repo.id === repositoryMenu?.repository.id}
-										data-testid="sidebar-connected-repository"
-										data-full-name={row.repo.fullName}
-										data-workstream-count={row.workstreams.length}
-									>
-										<div class="relative z-10 h-5 w-5 shrink-0">
-											<span
-												class="absolute inset-0 grid place-items-center group-hover/repo:opacity-0 group-has-focus-visible/repo:opacity-0"
-												aria-hidden="true"
-												data-testid="sidebar-repository-icon"
-											>
-												<RepositoryAvatar fullName={row.repo.fullName} size={20} />
-											</span>
-											<Tooltip
-												content={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
-												placement="right"
-												class="absolute inset-0"
-											>
-												<IconButton
-													bare
-													onclick={() => toggleRepositoryCollapsedCommand(row.repo.id)}
-													ariaLabel={`${collapsed ? 'Expand' : 'Collapse'} ${row.repo.fullName}`}
-													ariaExpanded={!collapsed}
-													ariaControls={`repository-workstreams-${row.repo.id}`}
-													class="text-fg-tertiary hover:bg-surface-50-hover hover:text-fg-default focus-visible:ring-border-default/50 pointer-events-none grid h-5 w-5 cursor-pointer place-items-center rounded opacity-0 group-hover/repo:pointer-events-auto group-hover/repo:opacity-100 group-has-focus-visible/repo:pointer-events-auto group-has-focus-visible/repo:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
-													data-testid="sidebar-repository-disclosure"
-												>
-													<Icon
-														name="chevron-down"
-														class={`transition-transform duration-100 ${collapsed ? '-rotate-90' : ''}`}
-														size={13}
-													/>
-												</IconButton>
-											</Tooltip>
-										</div>
-										<a
-											href={repositoryHref(row.repo.id)}
-											data-navigation-path-id="expected-path:workstream-sidebar.repository"
-											aria-label={`Open ${row.repo.fullName}`}
-											aria-describedby={`repository-notes-${row.repo.id}`}
-											aria-current={row.repo.id === openRepositoryId ? 'page' : undefined}
-											class="hover:text-fg-default focus-visible:text-fg-default min-w-0 flex-1 outline-none before:absolute before:inset-0 before:content-['']"
-											aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-											onkeydown={(event) => {
-												if (opensMenu(event)) {
-													openRepositoryMenu(event, row.repo, row.workstreams);
-													return;
-												}
-												void onMoveKey(event, 'repository', row.repo.id, listedRepositoryIds);
-											}}
-											oncontextmenu={(event) =>
-												openRepositoryMenu(event, row.repo, row.workstreams)}
-											draggable="false"
-										>
-											<span
-												class={[
-													'block truncate text-sm leading-relaxed font-medium',
-													row.repo.id === openRepositoryId
-														? 'text-fg-default'
-														: 'text-fg-secondary group-hover/repo:text-fg-default group-data-[active=true]/repo:text-fg-default',
-												]}
-											>
-												{row.name}
-											</span>
-										</a>
-										<ScratchpadIdeasCount
-											repositoryFullName={row.repo.fullName}
-											descriptionId={`repository-notes-${row.repo.id}`}
-											class="shrink-0"
-										/>
-										<Tooltip
-											content={`New workstream for ${row.repo.fullName}`}
-											placement="top"
-											class="relative"
-										>
-											<IconButton
-												variant="ghost"
-												size="sm"
-												ariaLabel={`New workstream for ${row.repo.fullName}`}
-												data-testid="sidebar-new-workstream"
-												data-navigation-path-id="expected-path:workstream-sidebar.create"
-												data-navigation-dynamic-target="true"
-												onclick={() => openNewWorkstream(row.repo)}
-											>
-												<Icon name="plus" size={14} />
-											</IconButton>
-										</Tooltip>
-									</div>
-								{/snippet}
-								{#snippet content()}
-									<div class="flex flex-col gap-3">
-										<div class="flex min-w-0 items-center gap-2.5">
-											<RepositoryAvatar fullName={row.repo.fullName} size={36} />
-											<div class="flex min-w-0 flex-col">
-												<span class="text-fg-default truncate text-sm leading-5 font-medium">
-													{row.repo.fullName}
-												</span>
-												<span class="text-fg-tertiary text-xs leading-4">
-													{workstreamCountLabel(row.workstreams.length)}
-												</span>
-											</div>
-										</div>
-										<div class="border-surface-elevated-border border-t pt-3">
-											<ScratchpadIdeasPreview repositoryFullName={row.repo.fullName} />
-										</div>
-									</div>
-								{/snippet}
-							</HoverCard>
-							<ul
-								id={`repository-workstreams-${row.repo.id}`}
-								class={['flex w-full flex-col', collapsed && 'hidden']}
-							>
-								{#each row.workstreams as workstream (workstream.id)}
-									<li
-										class={[
-											'group/row relative mt-0.5 w-full min-w-0',
-											reorderClass(workstream.id),
-										]}
-										style:transform={reorderTransform(workstream.id)}
-										data-sidebar-item={workstream.id}
-										onpointerdown={(event) =>
-											armReorder(event, { kind: 'workstream', id: workstream.id })}
-										transition:slide={foldMotion()}
-									>
-										<WorkstreamChatSummary workstreamId={workstream.id}>
-											{#snippet children(chat)}
-												{@const label = workstreamLabel(workstream, row.repo.fullName)}
-												{@const queueCount = chat.queueCount}
-												{@const attention = chat.attention}
-												{@const hasDraft = chat.hasDraft}
-												{@const state = visualState(
-													workstream,
-													provisioningRecord(workstream.id),
-													chat,
-												)}
-												{@const lifecycle = lifecycleAction(workstream.id, label)}
-												{@const targetSessionId = chat.sessionId}
-												{@const badge = pullRequestBadge(workstream.id)}
-												{@const changeTotals =
-													badge.phase === 'merged'
-														? undefined
-														: changeTotalsByWorkstream[workstream.id]}
-												{@const pullRequest = pullRequestVisual(badge)}
-												{@const busy =
-													state.tone === 'running' ||
-													state.tone === 'background' ||
-													state.tone === 'provisioning'}
-												{@const loading =
-													busy || (badge.phase === 'queued' && state.tone !== 'broken')}
-												{@const isSelected = workstream.id === visuallyActiveWorkstreamId}
-												{@const unread = attention !== null}
-												{@const running = workstreamRunning(workstream.id)}
-												{#snippet runningCard()}
-													{#if running}
-														<WorkstreamRunningCard
-															iconClass={statusIconColor(state, busy, pullRequest)}
-															{label}
-															branch={workstream.branch}
-															baseBranch={workstream.baseBranch}
-															pullRequestLabel={badge.phase === 'none' || badge.phase === 'unknown'
-																? null
-																: badge.label}
-															working={busy}
-															stateLabel={state.label}
-															{changeTotals}
-															{running}
-															onopenport={(port) =>
-																openRunningPort(workstream.id, targetSessionId, port)}
-														>
-															{#snippet icon()}
-																{@render statusGlyph(
-																	loading,
-																	state.tone === 'background',
-																	pullRequest.glyph,
-																)}
-															{/snippet}
-														</WorkstreamRunningCard>
-													{/if}
-												{/snippet}
-												<Tooltip
-													content={runningCard}
-													interactive
-													placement="right"
-													suppressed={!running}
-													class="w-full min-w-0"
-												>
-													<a
-														draggable="false"
-														href={rowHref(workstream.id, targetSessionId)}
-														data-navigation-path-id="expected-path:workstream-sidebar.switch"
-														aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-														aria-busy={workstream.id === pendingWorkstreamId || undefined}
-														class={[
-															'sidebar-row relative w-full flex-col items-stretch pr-3 pl-6 outline-none group-hover/row:pr-8 group-has-focus-visible/row:pr-8',
-															unread
-																? 'text-500'
-																: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
-															isSelected
-																? 'sidebar-row-active'
-																: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-														]}
-														data-active={workstream.id === contextMenu?.workstreamId}
-														data-testid="sidebar-workstream"
-														data-workstream-id={workstream.id}
-														data-navigation-workstream-id={workstream.id}
-														data-navigation-pending={workstream.id === pendingWorkstreamId
-															? 'true'
-															: undefined}
-														data-navigation-feedback-only="true"
-														data-repository-full-name={row.repo.fullName}
-														data-workstream-state={state.tone}
-														data-workstream-checkout={workstream.checkoutState}
-														data-workstream-draft={hasDraft ? 'true' : undefined}
-														onpointerdown={(event) =>
-															previewDestinationFromPointer(event, workstream.id, targetSessionId)}
-														onpointerup={() =>
-															scheduleAbandonedDestinationPreviewCleanup(
-																rowHref(workstream.id, targetSessionId),
-															)}
-														onpointercancel={() =>
-															abandonDestinationPreview(rowHref(workstream.id, targetSessionId))}
-														onpointerleave={() =>
-															abandonDestinationPreview(rowHref(workstream.id, targetSessionId))}
-														aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-														onkeydown={(event) => {
-															if (opensMenu(event)) {
-																openWorkstreamMenu(event, workstream.id);
-																return;
-															}
-															previewDestinationFromKeyboard(event, workstream.id, targetSessionId);
-															void onMoveKey(
-																event,
-																'workstream',
-																workstream.id,
-																row.workstreams.map((sibling) => sibling.id),
-															);
-														}}
-														onkeyup={(event) =>
-															scheduleKeyboardDestinationPreviewCleanup(
-																event,
-																rowHref(workstream.id, targetSessionId),
-															)}
-														onblur={() =>
-															scheduleAbandonedDestinationPreviewCleanup(
-																rowHref(workstream.id, targetSessionId),
-															)}
-														onclick={(event) =>
-															beginWorkstreamNavigation(
-																event,
-																workstream.id,
-																label,
-																targetSessionId,
-															)}
-														oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
-													>
-														<span class="relative flex items-center gap-2">
-															<Tooltip
-																content={visualStateTooltip(state, chat, pullRequest)}
-																placement="right"
-																suppressed={running !== null}
-																class="shrink-0"
-															>
-																<span
-																	class={[
-																		'grid h-4 w-4 place-items-center',
-																		statusIconColor(state, busy, pullRequest),
-																	]}
-																	role="status"
-																	aria-label={`Workstream status: ${visualStateTooltip(state, chat, pullRequest)}`}
-																	data-testid={state.tone === 'running' ||
-																	state.tone === 'background'
-																		? 'sidebar-workstream-loader'
-																		: 'sidebar-workstream-status'}
-																	data-workstream-icon-state={state.tone}
-																	data-workstream-pull-request-state={badge.phase}
-																>
-																	{@render statusGlyph(
-																		loading,
-																		state.tone === 'background',
-																		pullRequest.glyph,
-																	)}
-																</span>
-															</Tooltip>
-															{#if attention && chat.needsYou}
-																<span
-																	class={[
-																		'absolute top-1/2 -left-3.5 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
-																		attention.kind === 'failed'
-																			? 'bg-error-content'
-																			: 'bg-warning-content',
-																	]}
-																	aria-hidden="true"
-																	data-testid="sidebar-agent-attention"
-																	data-attention-kind={attention.kind}
-																></span>
-															{/if}
-															<span class="sidebar-row-text gap-1.5">
-																<Tooltip
-																	content={label}
-																	placement="right"
-																	offset={40}
-																	onlyWhenTruncated
-																	suppressed={running !== null}
-																	class="min-w-0 flex-1 truncate"
-																>
-																	<RenameText
-																		text={label}
-																		shimmer={namedWorkstreamsQuery.data(workstream.id)}
-																		class="block"
-																		textClass="block truncate"
-																	/>
-																</Tooltip>
-																{#if hasDraft}
-																	<span
-																		class="text-fg-tertiary shrink-0 group-hover/row:hidden group-has-focus-visible/row:hidden"
-																		aria-hidden="true"
-																		data-testid="sidebar-workstream-draft"
-																	>
-																		<Icon name="pencil" class="shrink-0" size={14} />
-																	</span>
-																{/if}
-																{#if queueCount > 0}
-																	<span
-																		class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
-																		data-testid="sidebar-prompt-queue-count"
-																	>
-																		{queueCount} queued
-																	</span>
-																{:else if changeTotals && (changeTotals.additions > 0 || changeTotals.deletions > 0)}
-																	<span
-																		class="text-3xs flex shrink-0 gap-1 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
-																		aria-label={`${changeTotals.additions} additions, ${changeTotals.deletions} deletions`}
-																		data-testid="sidebar-workstream-change-totals"
-																		data-additions={changeTotals.additions}
-																		data-deletions={changeTotals.deletions}
-																	>
-																		{#if changeTotals.additions > 0}<span
-																				class="text-success-content"
-																			>
-																				+{formatCompactChangeTotal(changeTotals.additions)}
-																			</span>{/if}
-																		{#if changeTotals.deletions > 0}<span
-																				class="text-error-content"
-																			>
-																				−{formatCompactChangeTotal(changeTotals.deletions)}
-																			</span>{/if}
-																	</span>
-																{:else if changeTotals && changeTotals.files > 0}
-																	<span
-																		class="text-3xs text-fg-tertiary shrink-0 font-mono font-medium tabular-nums group-hover/row:hidden group-has-focus-visible/row:hidden"
-																		data-testid="sidebar-workstream-changed-files"
-																		data-files={changeTotals.files}
-																	>
-																		{formatCompactChangeTotal(changeTotals.files)}
-																		{changeTotals.files === 1 ? 'file' : 'files'}
-																	</span>
-																{/if}
-															</span>
-														</span>
-														{#if running}
-															<span class="pl-6" transition:slide={foldMotion()}>
-																<WorkstreamRunningLine {running} selected={isSelected} />
-															</span>
-														{/if}
-													</a>
-													<Tooltip
-														content={lifecycle.tooltip}
-														placement="right"
-														suppressed={running !== null}
-														class="absolute top-1.5 right-1 h-lh items-center text-sm leading-relaxed"
-													>
-														<IconButton
-															variant="ghost"
-															size="sm"
-															class="pointer-events-none opacity-0 transition-none group-hover/row:pointer-events-auto group-hover/row:opacity-100 group-has-focus-visible/row:pointer-events-auto group-has-focus-visible/row:opacity-100"
-															disabled={!onArchiveWorkstream || lifecycle.kind === 'blocked'}
-															ariaLabel={lifecycle.ariaLabel}
-															data-testid="sidebar-archive-workstream"
-															data-workstream-id={workstream.id}
-															data-workstream-lifecycle={lifecycle.kind}
-															data-navigation-target={workstream.id === activeWorkstreamId
-																? rowHref(null)
-																: undefined}
-															data-navigation-path-id={workstream.id === activeWorkstreamId
-																? 'expected-path:workstream-lifecycle.exit-active'
-																: undefined}
-															data-navigation-outcome-key={workstream.id === activeWorkstreamId &&
-															lifecycle.archivesNatively
-																? 'archived'
-																: undefined}
-															onclick={(event) => requestArchive(event, workstream)}
-														>
-															{#if lifecycle.kind === 'discard'}
-																<Icon name="trash" size={14} />
-															{:else}
-																<Icon name="archive" size={14} />
-															{/if}
-														</IconButton>
-													</Tooltip>
-												</Tooltip>
-											{/snippet}
-										</WorkstreamChatSummary>
-									</li>
-								{/each}
-							</ul>
-						</li>
+				<ul
+					class={[
+						'flex w-full flex-col pt-2',
+						compact ? 'gap-1' : 'gap-3',
+						reorder && 'pointer-events-none',
+					]}
+				>
+					{#each entries as entry (entry.id)}
+						{#if entry.kind === 'owner'}
+							{@render ownerFolder(entry)}
+						{:else}
+							{@render repositoryItem(entry.item, false, entryIds)}
+						{/if}
 					{/each}
 				</ul>
 			{/if}

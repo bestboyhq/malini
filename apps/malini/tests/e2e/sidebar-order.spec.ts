@@ -47,12 +47,13 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		await seedWorkstream(page, alpha, 'e2e-order-a1', 'Alpha one');
 		await seedWorkstream(page, alpha, 'e2e-order-a2', 'Alpha two');
 		await seedWorkstream(page, beta, 'e2e-order-b1', 'Beta one');
+		await seedWorkstream(page, beta, 'e2e-order-b2', 'Beta two');
 		await openWorkstream(page, 'e2e-order-a1');
 
 		await expect(sidebar(page).getByTestId('sidebar-connected-repository')).toHaveCount(2);
 		await expect
 			.poll(() => listedWorkstreams(page))
-			.toEqual(['e2e-order-b1', 'e2e-order-a2', 'e2e-order-a1']);
+			.toEqual(['e2e-order-b2', 'e2e-order-b1', 'e2e-order-a2', 'e2e-order-a1']);
 		const [top, bottom] = await listedRepositories(page);
 		if (!top || !bottom) throw new Error('expected two repositories in the sidebar');
 
@@ -61,7 +62,7 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		});
 		await expect
 			.poll(() => listedWorkstreams(page))
-			.toEqual(['e2e-order-b1', 'e2e-order-a1', 'e2e-order-a2']);
+			.toEqual(['e2e-order-b2', 'e2e-order-b1', 'e2e-order-a1', 'e2e-order-a2']);
 
 		await repositoryHeader(page, bottom).dragTo(repositoryHeader(page, top), {
 			targetPosition: { x: 40, y: 4 },
@@ -78,7 +79,7 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		await page.mouse.up();
 		await expect
 			.poll(() => listedWorkstreams(page))
-			.toEqual(['e2e-order-a1', 'e2e-order-a2', 'e2e-order-b1']);
+			.toEqual(['e2e-order-a1', 'e2e-order-a2', 'e2e-order-b2', 'e2e-order-b1']);
 		await expect(page).not.toHaveURL(/e2e-order-a2/u);
 
 		await repositoryHeader(page, top).hover();
@@ -103,7 +104,7 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		await expect.poll(() => listedRepositories(page)).toEqual(repositories);
 		await expect
 			.poll(() => listedWorkstreams(page))
-			.toEqual(['e2e-order-a1', 'e2e-order-a2', 'e2e-order-b1']);
+			.toEqual(['e2e-order-a1', 'e2e-order-a2', 'e2e-order-b2', 'e2e-order-b1']);
 		await expect(
 			sidebar(page).getByRole('button', { name: `Expand ${collapsed}` }),
 		).toHaveAttribute('aria-expanded', 'false');
@@ -114,7 +115,7 @@ test('sidebar order and collapsed repositories survive a relaunch', async () => 
 		await page.keyboard.press('Alt+ArrowDown');
 		await expect
 			.poll(() => listedWorkstreams(page))
-			.toEqual(['e2e-order-a2', 'e2e-order-a1', 'e2e-order-b1']);
+			.toEqual(['e2e-order-a2', 'e2e-order-a1', 'e2e-order-b2', 'e2e-order-b1']);
 		await expect(workstreamRow(page, 'e2e-order-a1')).toBeFocused();
 
 		await captureFlow(app, 'sidebar-order');
@@ -132,6 +133,7 @@ test('a click anywhere on a repository row opens it, and its own buttons stay cl
 		const alpha = await createSourceRepo(app.root, 'alpha');
 		const beta = await createSourceRepo(app.root, 'beta');
 		await seedWorkstream(page, alpha, 'e2e-row-a1', 'Alpha one');
+		await seedWorkstream(page, alpha, 'e2e-row-a2', 'Alpha two');
 		await seedWorkstream(page, beta, 'e2e-row-b1', 'Beta one');
 		await page.reload();
 

@@ -17,15 +17,14 @@
 	data-testid="repository-list-skeleton"
 >
 	{#each rowIndexes as rowIndex (rowIndex)}
-		<li class="flex h-16 items-center gap-3 px-4">
-			<Skeleton shape="rect" width="1.75rem" height="1.75rem" />
-			<div class="flex min-w-0 flex-1 flex-col gap-2">
+		<li class="flex h-10 items-center gap-2 px-3">
+			<Skeleton shape="rect" width="1.25rem" height="1.25rem" />
+			<div class="min-w-0 flex-1">
 				<Skeleton
 					shape="text"
 					width={rowWidths[rowIndex % rowWidths.length] ?? '60%'}
 					height="0.625rem"
 				/>
-				<Skeleton shape="text" width="22%" height="0.5rem" />
 			</div>
 			<Skeleton shape="rect" width="4rem" height="1.5rem" />
 		</li>
