@@ -246,6 +246,26 @@
 	pointer-events: none;
 }
 
+@media (width > 1023px) {
+	.feature:has(+ .feature) {
+		margin-bottom: 64px;
+	}
+
+	.feature:has(+ .feature)::after {
+		content: '';
+		position: absolute;
+		z-index: 1;
+		bottom: -4px;
+		left: 50%;
+		width: 100vw;
+		height: 9px;
+		margin-left: -50vw;
+		background: var(--crosses);
+		background-repeat: no-repeat;
+		pointer-events: none;
+	}
+}
+
 @property --rail-l {
 	syntax: '<number>';
 	inherits: false;
@@ -298,12 +318,14 @@
 	}
 
 	.beat::before,
+	.feature::after,
 	.site:has(.hero) .sitemap::before {
 		animation: draw-in calc(900ms * var(--pace)) var(--enter-ease)
 			calc(var(--delay, 600ms) * var(--pace)) backwards;
 	}
 
-	:is(.beat, .sitemap)[data-reveal='wait']::before {
+	:is(.beat, .sitemap)[data-reveal='wait']::before,
+	.feature[data-reveal='wait']::after {
 		clip-path: inset(0 100% 0 0);
 		animation: none;
 	}
