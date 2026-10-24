@@ -142,6 +142,8 @@
 			onNewWorkstream={createWorkstreamForRepositoryCommand}
 			onArchiveWorkstream={(workstream) =>
 				archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand)}
+			onSaveWorkstreamForLater={(workstream) =>
+				archiveWorkstreamCommand(workstream, announceWorkstreamLifecycleCommand, 'saved-for-later')}
 			onRemoveRepository={removeRepositoryCommand}
 		/>
 	{/if}

@@ -20,6 +20,7 @@
 		workstreamsForRepository,
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
+	import SavedForLater from '../SavedForLater.svelte';
 
 	const repositoryId = $derived(page.params.repositoryId ?? '');
 	const repositories = $derived(connectedRepositoriesQuery.data);
@@ -89,6 +90,7 @@
 					</StateBlock>
 				</div>
 			{/if}
+			<SavedForLater repositoryId={repo.id} />
 			{#key repo.fullName}
 				<Scratchpad
 					repositoryFullName={repo.fullName}

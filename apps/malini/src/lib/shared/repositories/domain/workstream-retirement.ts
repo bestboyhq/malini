@@ -1,5 +1,7 @@
 export type WorkstreamLifecycleAction = 'archived' | 'deleted';
 
+export type WorkstreamShelf = 'archived' | 'saved-for-later';
+
 export type WorkstreamLifecycleAnnouncer = (
 	action: WorkstreamLifecycleAction,
 	workstreamId: string,
@@ -13,7 +15,7 @@ export function workstreamCount(count: number): string {
 }
 
 export function retirementFailureToast(
-	action: 'archive' | 'delete' | 'remove' | 'restore' | 'hide' | 'unhide',
+	action: 'archive' | 'save' | 'delete' | 'remove' | 'restore' | 'hide' | 'unhide',
 	workstreamName: string,
 	reason: string,
 ): string {

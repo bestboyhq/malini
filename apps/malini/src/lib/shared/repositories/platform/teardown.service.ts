@@ -92,7 +92,7 @@ export interface RetiredCheckout {
 	readonly savedWork: ArchivedWork | null;
 }
 
-export type WorkstreamRetirement = 'archived' | 'deleted';
+export type WorkstreamRetirement = 'archived' | 'saved-for-later' | 'deleted';
 
 export async function teardownWorkstreamCheckout(
 	deps: TeardownDeps,
@@ -154,7 +154,7 @@ async function retireCheckout(
 	const { db, appDataRoot } = deps;
 	const row = getWorkstream(db, workstreamId);
 	const wasArchived = row?.status === 'archived';
-	if (wasArchived && retirement === 'archived') {
+	if (wasArchived && retirement !== 'deleted') {
 		throw new WorkstreamRemovalError('failed', 'It is already archived', null);
 	}
 	const branch = row && !wasArchived ? row.branch : null;
@@ -169,10 +169,14 @@ async function retireCheckout(
 	const snapshotRefs =
 		retirement === 'deleted' ? listWorkstreamSnapshotRefs(db, workstreamId) : null;
 	const retireRecord = (): void => {
-		if (retirement === 'archived') {
-			archiveWorkstreamRecord(db, workstreamId, savedWork?.ref ?? null, nowIso8601());
-		} else {
+		if (retirement === 'deleted') {
 			deleteWorkstream(db, workstreamId);
+		} else {
+			archiveWorkstreamRecord(db, workstreamId, {
+				ref: savedWork?.ref ?? null,
+				at: nowIso8601(),
+				savedForLater: retirement === 'saved-for-later',
+			});
 		}
 	};
 	const leftovers = {
@@ -196,7 +200,7 @@ async function retireCheckout(
 		await putCheckoutBack(workstreamId, trash, checkout, error);
 		throw error;
 	}
-	if (retirement === 'archived' && !(await keptFoldersFrom(appDataRoot, workstreamId, trash))) {
+	if (retirement !== 'deleted' && !(await keptFoldersFrom(appDataRoot, workstreamId, trash))) {
 		return { ...leftovers, trash: null };
 	}
 	return { ...leftovers, trash };

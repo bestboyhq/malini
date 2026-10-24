@@ -170,6 +170,19 @@ describe('repository context', () => {
 		]);
 	});
 
+	it('lists a local repository without work only while it has work saved for later', () => {
+		const localRepo = repo({ id: 'local:native-self-build', fullName: 'acme/monorepo' });
+		const listed = (saved: readonly string[]): string[] =>
+			connectedRepositoryContexts({
+				repositories: [localRepo],
+				workstreams: [],
+				savedRepositoryIds: new Set(saved),
+			}).map((context) => context.repo.id);
+
+		expect(listed([])).toEqual([]);
+		expect(listed(['local:native-self-build'])).toEqual(['local:native-self-build']);
+	});
+
 	it('matches local repositories directly to their persisted project id', () => {
 		const localRepo = repo({
 			id: 'local:native-self-build',

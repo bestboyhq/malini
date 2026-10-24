@@ -67,7 +67,7 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
 | `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in. It adds the archived ones this chat started, with whether they merged. |
 | `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it.                                                              |
-| `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Archived**, where you can restore it.                                                                                              |
+| `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.

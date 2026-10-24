@@ -9,7 +9,11 @@ vi.mock('electron', () => ({
 }));
 
 import type { WorktreeAddedPayload } from '$contract/events';
-import type { RepositoryConnectionDto, WorkstreamDto } from '$contract/repositories';
+import type {
+	ArchivedWorkstreamDto,
+	RepositoryConnectionDto,
+	WorkstreamDto,
+} from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import { openMigratedDatabase } from '$main/db/open';
 import { currentLogPath, diagnosticsDirectory } from '$main/diagnostics/diagnostics-files';
@@ -457,6 +461,43 @@ describe('the workstream commands', () => {
 		await expect(
 			invoke('repositories.restore-workstream', { workstreamId: 'ws-arch' }),
 		).rejects.toThrow('Not an archived workstream: ws-arch');
+	});
+
+	it('saves a workstream for later through the archive teardown, moves it to the archive and restores it off the shelf', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-later');
+		const canonical = await realpath(checkout);
+		const { invoke, events, db } = harness(dir);
+		seed(db, 'ws-later', base, checkout);
+		await writeFile(join(checkout, 'seed.txt'), 'unsaved edit\n');
+		const removed: unknown[] = [];
+		events.subscribe('repositories:workstream-removed', (payload) => removed.push(payload));
+		const savedForLater = async (): Promise<boolean | undefined> =>
+			(
+				await invoke<ArchivedWorkstreamDto[]>('repositories.list-archived-workstreams', undefined)
+			).find(({ id }) => id === 'ws-later')?.savedForLater;
+
+		await invoke('repositories.save-workstream-for-later', { workstreamId: 'ws-later' });
+		expect(existsSync(checkout)).toBe(false);
+		expect(removed).toEqual([
+			{ workstreamId: 'ws-later', worktreePath: canonical, archived: true },
+		]);
+		expect(await savedForLater()).toBe(true);
+		await expect(
+			invoke('repositories.save-workstream-for-later', { workstreamId: 'ws-later' }),
+		).rejects.toThrow('It is already archived');
+
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-later' });
+		expect(await savedForLater()).toBe(false);
+		await invoke('repositories.save-workstream-for-later', { workstreamId: 'ws-later' });
+		expect(await savedForLater()).toBe(true);
+		expect(removed).toHaveLength(1);
+
+		await archivedLeftoversCleared();
+		await invoke('repositories.restore-workstream', { workstreamId: 'ws-later' });
+		expect(await readFile(join(checkout, 'seed.txt'), 'utf8')).toBe('unsaved edit\n');
+		expect(await savedForLater()).toBeUndefined();
 	});
 
 	it('brings back the ignored .context and the chat attachments when a workstream is restored', async () => {

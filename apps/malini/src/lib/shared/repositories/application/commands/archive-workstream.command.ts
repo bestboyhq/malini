@@ -11,6 +11,7 @@ import { displayWorkstreamName } from '$shared/repositories/domain/workstream-na
 import {
 	retirementFailureToast,
 	type WorkstreamLifecycleAnnouncer,
+	type WorkstreamShelf,
 } from '$shared/repositories/domain/workstream-retirement';
 import { repositoriesAggregate } from '$shared/repositories/infrastructure/aggregates/repositories.aggregate.svelte';
 import { workstreamProvisioning } from '$shared/repositories/infrastructure/aggregates/workstream-provisioning.aggregate.svelte';
@@ -29,6 +30,7 @@ export { archiveWorkstreamCommand };
 function archiveWorkstreamCommand(
 	workstream: Workstream,
 	announceLifecycle: WorkstreamLifecycleAnnouncer,
+	shelf: WorkstreamShelf = 'archived',
 ): void {
 	if (workstreamRetirementStore.isRetiring(workstream.id)) return;
 	const existence = workstreamNativeExistence(workstreamProvisioning.get(workstream.id));
@@ -43,7 +45,9 @@ function archiveWorkstreamCommand(
 	const settled = workstreamRetirementStore.retire({
 		workstreamId: workstream.id,
 		commit: async () => {
-			await workstreamsService.archive(workstream.id);
+			await (shelf === 'saved-for-later'
+				? workstreamsService.saveForLater(workstream.id)
+				: workstreamsService.archive(workstream.id));
 			announceLifecycle('archived', workstream.id);
 		},
 	});
@@ -53,8 +57,11 @@ function archiveWorkstreamCommand(
 		await leaveIfActive(workstream.id, destination);
 		const outcome = await settled;
 		if (outcome.status !== 'failed') return;
+		const name = displayWorkstreamName(workstream);
 		toast.error(
-			retirementFailureToast('archive', displayWorkstreamName(workstream), outcome.message),
+			shelf === 'saved-for-later'
+				? retirementFailureToast('save', `${name} for later`, outcome.message)
+				: retirementFailureToast('archive', name, outcome.message),
 			aboutWorkstream(workstream.id),
 		);
 	})();

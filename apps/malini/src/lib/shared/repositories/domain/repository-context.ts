@@ -21,6 +21,7 @@ export function connectedRepositoryContexts(input: {
 	workstreams: readonly Workstream[];
 	activeWorkstreamId?: string | null;
 	order?: SidebarOrder;
+	savedRepositoryIds?: ReadonlySet<string>;
 }): ConnectedRepositoryContext[] {
 	const contexts: ConnectedRepositoryContext[] = [];
 	const ownerByWorkstreamId = resolveWorkstreamOwners(input);
@@ -31,7 +32,11 @@ export function connectedRepositoryContexts(input: {
 		const workstreams = listedWorkstreams.filter(
 			(stream) => ownerByWorkstreamId.get(stream.id) === repo.id,
 		);
-		if (workstreams.length === 0 && isLocalRepositoryId(repo.id)) {
+		if (
+			workstreams.length === 0 &&
+			isLocalRepositoryId(repo.id) &&
+			!input.savedRepositoryIds?.has(repo.id)
+		) {
 			continue;
 		}
 		const activeWorkstream =

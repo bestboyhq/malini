@@ -72,6 +72,7 @@ import {
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
+	moveArchivedWorkstream,
 	renameWorkstream,
 	restoreWorkstreamRecord,
 	upsertWorkstreamBundle,
@@ -222,7 +223,7 @@ export async function retireWorkstream(
 	const payload: WorktreeRemovedPayload = {
 		workstreamId,
 		worktreePath,
-		...(reason === 'archived' ? { archived: true } : { deleted: true }),
+		...(reason === 'deleted' ? { deleted: true } : { archived: true }),
 	};
 	deps.events.emit(REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL, payload);
 	return {
@@ -230,6 +231,17 @@ export async function retireWorkstream(
 			? { ref: savedWork.ref, uncommitted: savedWork.uncommitted, commits: savedWork.commits }
 			: null,
 	};
+}
+
+export async function archiveWorkstream(
+	deps: WorkstreamsDeps,
+	workstreamId: string,
+	shelf: Exclude<WorkstreamRetirement, 'deleted'>,
+): Promise<WorkstreamRetirementReceipt> {
+	if (moveArchivedWorkstream(deps.db, workstreamId, shelf === 'saved-for-later')) {
+		return { savedWork: null };
+	}
+	return retireWorkstream(deps, workstreamId, shelf);
 }
 
 export async function restoreWorkstream(
@@ -304,13 +316,24 @@ async function settleRestoredCheckout(
 
 export function listArchived(deps: WorkstreamsDeps): ArchivedWorkstreamDto[] {
 	return listArchivedWorkstreams(deps.db).map(
-		({ id, projectId, name, baseBranch, archivedAt, mergedPullRequest, scope, startedBy }) => ({
+		({
 			id,
 			projectId,
 			name,
 			baseBranch,
 			archivedAt,
 			mergedPullRequest,
+			savedForLater,
+			scope,
+			startedBy,
+		}) => ({
+			id,
+			projectId,
+			name,
+			baseBranch,
+			archivedAt,
+			mergedPullRequest,
+			savedForLater,
 			scope,
 			startedBy,
 		}),
