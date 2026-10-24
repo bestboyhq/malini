@@ -268,3 +268,35 @@ test('a screen recording sent in a chat plays in the gallery beside its images',
 		await app.close();
 	}
 });
+
+test('copy image from the gallery context menu puts the picture on the clipboard', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-gallery-copy', 'Gallery copy');
+		mkdirSync(join(seeded.worktree, 'shots'), { recursive: true });
+		copyFileSync(ICON, join(seeded.worktree, 'shots/icon.png'));
+		await openWorkstream(page, seeded.workstreamId);
+		await sendPrompt(page, 'SHOW_IMAGE:shots/icon.png');
+		await expectAssistantReply(page);
+		await electronApp.evaluate(({ clipboard }) => clipboard.clear());
+
+		await page.getByRole('button', { name: 'Open image shots/icon.png in gallery' }).click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await gallery.getByRole('img', { name: 'shots/icon.png' }).click({ button: 'right' });
+		await page.getByRole('menuitem', { name: 'Copy image' }).click();
+
+		await expect
+			.poll(() =>
+				electronApp.evaluate(async ({ clipboard }) =>
+					(await clipboard.read()).flatMap((item) => item.types),
+				),
+			)
+			.toContain('image/png');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
