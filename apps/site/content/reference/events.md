@@ -611,6 +611,18 @@ Payload: `BrowserTabArgs`
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 ```
 
+## `browser:resize-requested`
+
+Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.
+
+Payload: `BrowserResizeRequest`
+
+```ts
+type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
+
+type BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;
+```
+
 ## `stats:resources-sampled`
 
 Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.

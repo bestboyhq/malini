@@ -29,3 +29,7 @@ export type BrowserElementPrompt = Readonly<{
 export type BrowserShowArgs = BrowserTabArgs & Readonly<{ bounds: BrowserBounds }>;
 
 export type BrowserNavigateArgs = BrowserTabArgs & Readonly<{ url: string }>;
+
+export type BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;
+
+export type BrowserResizedArgs = Readonly<{ requestId: string }>;

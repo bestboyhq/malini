@@ -1,5 +1,5 @@
 import type { LiveEventEnvelope } from './agent';
-import type { BrowserState, BrowserTabArgs } from './browser';
+import type { BrowserResizeRequest, BrowserState, BrowserTabArgs } from './browser';
 import type {
 	AgentActionChangedEvent,
 	JobDefinitionChangedEvent,
@@ -154,6 +154,7 @@ export interface ContractEvents {
 	'app:update-staged': UpdateStagedPayload;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
+	'browser:resize-requested': BrowserResizeRequest;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
 }
@@ -192,6 +193,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:update-staged': null,
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
+	'browser:resize-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
 };
@@ -256,6 +258,8 @@ export const APP_UPDATE_STAGED_CHANNEL = 'app:update-staged' satisfies EventChan
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
+
+export const BROWSER_RESIZE_REQUESTED_CHANNEL = 'browser:resize-requested' satisfies EventChannel;
 
 export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfies EventChannel;
 

@@ -76,6 +76,18 @@ export function maliniTools(
 			{},
 			() => run({ action: 'reload' }),
 		),
+		tool(
+			'browser_resize',
+			"Make Malini's browser tab wider or narrower, for example when the page is too narrow for the layout you check. Malini moves the divider between the chat and the inspector the way the user drags it, and the width stays until the user drags it back. The chat and the inspector keep their minimum widths, so the result says how wide the page got. It works only while the user sees the tab.",
+			{
+				width: z
+					.number()
+					.int()
+					.positive()
+					.describe('The width the page should get, in CSS pixels, for example 1280'),
+			},
+			({ width }) => run({ action: 'resize', width }),
+		),
 	];
 	const preApproved = [...browserTools.map(({ name }) => name), ...PLATFORM_READ_TOOLS];
 	return {

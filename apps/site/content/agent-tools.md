@@ -20,6 +20,12 @@ A tab shows up as soon as the agent starts opening its page, and a page that doe
 | `browser_back`       | Goes back one page.                            |
 | `browser_forward`    | Goes forward one page.                         |
 | `browser_reload`     | Reloads the page.                              |
+| `browser_resize`     | Makes the tab wider or narrower.               |
+
+When a page is too narrow or too wide for what it checks, the agent calls `browser_resize` with the width the page should get.
+Malini moves the divider between the chat and the inspector, the one you drag, and the width stays until you drag it back.
+The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
+Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
 
 You can also pick an element on a page, and it lands in your prompt.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.

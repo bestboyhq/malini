@@ -222,6 +222,7 @@ describe('ClaudeSession', () => {
 			'mcp__malini__browser_back',
 			'mcp__malini__browser_forward',
 			'mcp__malini__browser_reload',
+			'mcp__malini__browser_resize',
 			'mcp__malini__jobs_list',
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',

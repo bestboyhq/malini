@@ -167,6 +167,10 @@ describe('browser requests from the agent', () => {
 				calls.push(`reload ${workstreamId}`);
 				return { url: 'http://localhost:5173/', title: 'http://localhost:5173/' };
 			},
+			resize: async ({ workstreamId }, width) => {
+				calls.push(`resize ${workstreamId} ${width}`);
+				return Math.min(Math.max(width, 400), 900);
+			},
 		};
 		const bridge = scriptedBridge();
 		service = await startAgentService(test.context, {
@@ -189,10 +193,13 @@ describe('browser requests from the agent', () => {
 		bridge.send(browserRequest('req-6', { action: 'back' }));
 		bridge.send(browserRequest('req-7', { action: 'forward' }));
 		bridge.send(browserRequest('req-8', { action: 'reload' }));
+		bridge.send(browserRequest('req-9', { action: 'resize', width: 640 }));
+		bridge.send(browserRequest('req-10', { action: 'resize', width: 1280 }));
+		bridge.send(browserRequest('req-11', { action: 'resize', width: 320 }));
 
 		const results = (): Array<Record<string, unknown>> =>
 			bridge.received.filter((command) => command['cmd'] === 'browser_result');
-		await waitFor(() => results().length === 8, 5_000, 'eight browser results');
+		await waitFor(() => results().length === 11, 5_000, 'eleven browser results');
 		const answerTo = (requestId: string): Record<string, unknown> | undefined =>
 			results().find((command) => command['requestId'] === requestId);
 
@@ -205,6 +212,9 @@ describe('browser requests from the agent', () => {
 			'back ws-1',
 			'forward ws-1',
 			'reload ws-1',
+			'resize ws-1 640',
+			'resize ws-1 1280',
+			'resize ws-1 320',
 		]);
 		expect(answerTo('req-1')).toEqual({
 			cmd: 'browser_result',
@@ -247,6 +257,15 @@ describe('browser requests from the agent', () => {
 		expect(answerTo('req-8')).toMatchObject({
 			ok: true,
 			text: 'Reloaded http://localhost:5173/.',
+		});
+		expect(answerTo('req-9')).toMatchObject({ ok: true, text: 'The page is now 640px wide.' });
+		expect(answerTo('req-10')).toMatchObject({
+			ok: true,
+			text: "The page is now 900px wide, the widest Malini's window allows while the chat keeps its minimum width.",
+		});
+		expect(answerTo('req-11')).toMatchObject({
+			ok: true,
+			text: "The page is now 400px wide, the narrowest the inspector gets in Malini's window.",
 		});
 	});
 

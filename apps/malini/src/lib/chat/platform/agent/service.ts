@@ -33,6 +33,7 @@ import { persistedBridgeSession, worktreePath } from './sessions';
 import type { BridgeHealth, BridgeSupervisor } from './supervisor';
 
 const PAUSE_BUDGET_MS = 5_000;
+const RESIZE_ROUNDING_PX = 1;
 
 export interface BrowserPageInfo {
 	readonly url: string;
@@ -55,6 +56,7 @@ export interface BrowserAutomation {
 	goBack(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	goForward(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
 	reload(tab: BrowserTabArgs): Promise<BrowserPageInfo>;
+	resize(tab: BrowserTabArgs, width: number): Promise<number>;
 }
 
 export interface AgentServiceDeps {
@@ -131,6 +133,11 @@ export async function answerBrowserRequest(
 			}
 			case 'reload':
 				return { ok: true, text: `Reloaded ${describePage(await browser.reload(tab))}.` };
+			case 'resize':
+				return {
+					ok: true,
+					text: describeWidth(request.width, await browser.resize(tab, request.width)),
+				};
 		}
 	} catch (error) {
 		return { ok: false, error: describe(error) };
@@ -139,6 +146,16 @@ export async function answerBrowserRequest(
 
 export function agentBrowserTabId(sessionId: string): string {
 	return `chat-${sessionId}`;
+}
+
+function describeWidth(asked: number, width: number): string {
+	if (width < asked - RESIZE_ROUNDING_PX) {
+		return `The page is now ${width}px wide, the widest Malini's window allows while the chat keeps its minimum width.`;
+	}
+	if (width > asked + RESIZE_ROUNDING_PX) {
+		return `The page is now ${width}px wide, the narrowest the inspector gets in Malini's window.`;
+	}
+	return `The page is now ${width}px wide.`;
 }
 
 function describePage(page: BrowserPageInfo): string {

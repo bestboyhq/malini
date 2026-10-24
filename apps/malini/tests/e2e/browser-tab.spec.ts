@@ -300,3 +300,66 @@ test('a page the agent opens shows up as its own tab, named by its title, withou
 		server.close();
 	}
 });
+
+test('the agent resizes the browser tab you see by moving the divider, stops where the chat or the inspector keeps its width, and leaves a tab you do not see alone', async () => {
+	test.setTimeout(120_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(
+			'<!doctype html><title>Width</title><script>const name = () => (document.title = `Width ${innerWidth}`); addEventListener("resize", name); name();</script>',
+		);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		await electronApp.evaluate(({ BrowserWindow }) =>
+			BrowserWindow.getAllWindows()[0]?.setContentSize(1_600, 800),
+		);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-resize-ws',
+			'Browser resize',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+		await sendPrompt(page, `Open the ruler BROWSER_OPEN:${origin}/ruler`);
+		await expectAssistantReply(page);
+		await expect(inspector.getByRole('tab', { name: /^Width \d+$/u, selected: true })).toBeVisible({
+			timeout: 20_000,
+		});
+		const split = page.getByRole('separator', { name: 'Resize workstream-transcript' });
+
+		await sendPrompt(page, 'As narrow as it gets BROWSER_RESIZE:200');
+		await expect(page.getByText(/the narrowest the inspector gets/u)).toBeVisible({
+			timeout: 20_000,
+		});
+		await captureFlow(app, 'browser-resize-before');
+
+		await sendPrompt(page, 'As wide as it gets BROWSER_RESIZE:5000');
+		await expect(page.getByText(/allows while the chat keeps its minimum width/u)).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(split).toHaveAttribute('aria-valuenow', '400');
+		await captureFlow(app, 'browser-resize-after');
+
+		await sendPrompt(page, 'Make it 700 wide BROWSER_RESIZE:700');
+		await expect(page.getByText('The page is now 700px wide.')).toBeVisible({ timeout: 20_000 });
+		await expect(inspector.getByRole('tab', { name: 'Width 700', selected: true })).toBeVisible();
+		const resized = await split.getAttribute('aria-valuenow');
+
+		await inspector.getByRole('tab', { name: 'Files' }).click();
+		await sendPrompt(page, 'Back to the widest BROWSER_RESIZE:5000');
+		await expect(
+			page.getByText(/The browser tab is not on screen, so its width did not change/u),
+		).toBeVisible({ timeout: 20_000 });
+		await expect(split).toHaveAttribute('aria-valuenow', resized ?? '');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});

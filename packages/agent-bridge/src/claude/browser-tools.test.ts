@@ -105,6 +105,14 @@ describe('malini MCP server', () => {
 					{ name: 'browser_back', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'browser_forward', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'browser_reload', inputSchema: { type: 'object', properties: {} } },
+					{
+						name: 'browser_resize',
+						inputSchema: {
+							type: 'object',
+							properties: { width: { type: 'integer' } },
+							required: ['width'],
+						},
+					},
 					{ name: 'jobs_list' },
 					{ name: 'jobs_save' },
 					{ name: 'jobs_run' },
@@ -120,7 +128,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('types into a field, submitting only when asked, and steps through history', async () => {
+	it('types into a field, submitting only when asked, steps through history and resizes the tab', async () => {
 		const { call, requests } = await connect(async () => ({ ok: true }));
 
 		await call('tools/call', {
@@ -134,6 +142,7 @@ describe('malini MCP server', () => {
 		await call('tools/call', { name: 'browser_back', arguments: {} });
 		await call('tools/call', { name: 'browser_forward', arguments: {} });
 		await call('tools/call', { name: 'browser_reload', arguments: {} });
+		await call('tools/call', { name: 'browser_resize', arguments: { width: 1280 } });
 
 		expect(requests).toEqual([
 			{ action: 'type', selector: 'input[name=q]', text: 'malini', submit: false },
@@ -141,6 +150,7 @@ describe('malini MCP server', () => {
 			{ action: 'back' },
 			{ action: 'forward' },
 			{ action: 'reload' },
+			{ action: 'resize', width: 1280 },
 		]);
 	});
 

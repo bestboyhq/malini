@@ -241,6 +241,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;',
 		},
 		{
+			channel: 'browser:resize-requested',
+			description:
+				"Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.",
+			payloadType: 'BrowserResizeRequest',
+			payload:
+				'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;\n\ntype BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;',
+		},
+		{
 			channel: 'stats:resources-sampled',
 			description:
 				'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.',
