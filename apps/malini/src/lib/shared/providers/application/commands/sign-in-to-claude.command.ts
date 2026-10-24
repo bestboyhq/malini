@@ -7,12 +7,16 @@ export { signInToClaudeCommand };
 
 function signInToClaudeCommand(email: string | null = null): void {
 	claudeAccountsStore.remember(signedInEmail());
-	claudeAccountsStore.signIn = 'waiting-for-browser';
+	claudeAccountsStore.signIn = email ? 'switching' : 'waiting-for-browser';
 	void (async () => {
 		try {
-			const outcome = await claudeSetupService.signIn(email);
-			if (outcome === 'cancelled') return;
-			claudeAccountsStore.signIn = 'confirming';
+			const switched =
+				email !== null && (await claudeSetupService.switchAccount(email)) === 'switched';
+			if (!switched) {
+				claudeAccountsStore.signIn = 'waiting-for-browser';
+				if ((await claudeSetupService.signIn(email)) === 'cancelled') return;
+				claudeAccountsStore.signIn = 'confirming';
+			}
 			await providerCapabilitiesStore.reload();
 			claudeAccountsStore.remember(signedInEmail());
 			claudeAccountsStore.signIn = 'idle';

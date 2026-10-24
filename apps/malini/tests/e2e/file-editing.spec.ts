@@ -260,7 +260,7 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 		const tab = fileTab(page, 'kennel.env');
 		await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
 		await expect(tab).not.toHaveAccessibleDescription('Preview');
-		await expect(page.getByText('This file is empty.')).toBeVisible();
+		await expect(page.getByText('This file is empty.')).toBeVisible({ timeout: 20_000 });
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		const actions = await invoke<AgentActionRecord[]>(page, 'jobs.list-agent-actions');
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({

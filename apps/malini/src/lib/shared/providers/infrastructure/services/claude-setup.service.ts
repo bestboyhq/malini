@@ -1,4 +1,4 @@
-import type { ClaudeSignInOutcome } from '$contract/agent';
+import type { ClaudeAccountSwitchOutcome, ClaudeSignInOutcome } from '$contract/agent';
 import { invoke } from '$shared/port/invoke';
 
 class ClaudeSetupService {
@@ -8,6 +8,10 @@ class ClaudeSetupService {
 
 	signIn(email: string | null): Promise<ClaudeSignInOutcome> {
 		return invoke('providers.sign-in-to-claude', email ? { email } : {});
+	}
+
+	switchAccount(email: string): Promise<ClaudeAccountSwitchOutcome> {
+		return invoke('providers.switch-claude-account', { email });
 	}
 
 	cancelSignIn(): Promise<void> {

@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -7,6 +15,7 @@ import {
 	createSourceRepo,
 	expectAssistantReply,
 	expectCleanConsole,
+	KEYCHAIN_FIXTURE,
 	launchMalini,
 	openWorkstream,
 	seedWorkstream,
@@ -18,7 +27,7 @@ const WORK_ACCOUNT = 'me@work.example';
 
 const PLAN_ALERT = /5-hour limit 93% used/u;
 
-test('the model picker switches Claude accounts through a browser sign-in, and Settings offers the same', async () => {
+test('a Claude account signs in through the browser once, then the model picker and Settings switch to it in one click', async () => {
 	test.setTimeout(180_000);
 	const claude = mkdtempSync(join(tmpdir(), 'malini-e2e-claude-'));
 	const accountFile = join(claude, 'account');
@@ -51,6 +60,11 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 			claudeLoginStub({ accountFile, argsFile, browserDone, newAccount: WORK_ACCOUNT }),
 		);
 		chmodSync(join(app.bin, 'claude'), 0o755);
+		mkdirSync(join(app.home, KEYCHAIN_FIXTURE));
+		writeFileSync(
+			join(app.home, KEYCHAIN_FIXTURE, 'Claude Code-credentials'),
+			login(PRIVATE_ACCOUNT),
+		);
 		const { page } = app;
 		const source = await createSourceRepo(app.root);
 		const { workstreamId } = await seedWorkstream(
@@ -86,14 +100,14 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		).toBeVisible();
 		await captureFlow(app, 'claude-account-switch-back');
 
+		rmSync(browserDone);
 		await account.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }).click();
 		await picker.click();
 		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`, { timeout: 20_000 });
-		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login --email=${PRIVATE_ACCOUNT}\n`);
+		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login with refresh-${PRIVATE_ACCOUNT}\n`);
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 		await expect(account.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
 
-		rmSync(browserDone);
 		await account.getByRole('button', { name: 'Sign in with another account' }).click();
 		await picker.click();
 		await expect(waiting).toContainText('Continue in your browser.');
@@ -122,11 +136,10 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 		await expect(switchToWork).toBeVisible();
 		await expect(accounts.getByRole('button', { name: 'Reveal email address' })).toHaveCount(0);
 		await captureFlow(app, 'claude-account-settings');
-		writeFileSync(browserDone, '');
 		await switchToWork.click();
 		await expect
 			.poll(() => readFileSync(argsFile, 'utf8'), { timeout: 20_000 })
-			.toBe(`auth login --email=${WORK_ACCOUNT}\n`);
+			.toBe(`auth login with refresh-${WORK_ACCOUNT}\n`);
 		await detail.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(detail).toContainText(`Signed in as ${WORK_ACCOUNT}`, { timeout: 20_000 });
 		expectCleanConsole(app);
@@ -136,21 +149,38 @@ test('the model picker switches Claude accounts through a browser sign-in, and S
 	}
 });
 
+function login(email: string): string {
+	return JSON.stringify({
+		claudeAiOauth: { refreshToken: `refresh-${email}`, scopes: ['user:inference', 'user:profile'] },
+	});
+}
+
 function claudeLoginStub(paths: {
 	accountFile: string;
 	argsFile: string;
 	browserDone: string;
 	newAccount: string;
 }): string {
+	const keychainItem = `"$HOME/${KEYCHAIN_FIXTURE}/Claude Code-credentials"`;
 	return [
 		'#!/bin/sh',
-		`printf '%s\\n' "$*" > '${paths.argsFile}'`,
+		'if [ "$1" = auth ] && [ "$2" = status ]; then',
+		`  printf '{"loggedIn":true,"email":"%s"}\\n' "$(cat '${paths.accountFile}')"`,
+		'  exit 0',
+		'fi',
+		'token="$CLAUDE_CODE_OAUTH_REFRESH_TOKEN"',
+		`printf '%s%s\\n' "$*" "\${token:+ with $token}" > '${paths.argsFile}'`,
 		'[ "$1" = auth ] && [ "$2" = login ] || exit 2',
-		`email='${paths.newAccount}'`,
-		'case "$3" in --email=*) email="${3#--email=}" ;; esac',
-		'echo "Opening browser to sign in…"',
-		`while [ ! -f '${paths.browserDone}' ]; do sleep 0.1; done`,
+		'if [ -n "$token" ]; then',
+		'  email="${token#refresh-}"',
+		'else',
+		`  email='${paths.newAccount}'`,
+		'  case "$3" in --email=*) email="${3#--email=}" ;; esac',
+		'  echo "Opening browser to sign in…"',
+		`  while [ ! -f '${paths.browserDone}' ]; do sleep 0.1; done`,
+		'fi',
 		`printf '%s\\n' "$email" > '${paths.accountFile}'`,
+		`printf '{"claudeAiOauth":{"refreshToken":"refresh-%s","scopes":["user:inference","user:profile"]}}' "$email" > ${keychainItem}`,
 		'echo "Login successful."',
 		'',
 	].join('\n');
