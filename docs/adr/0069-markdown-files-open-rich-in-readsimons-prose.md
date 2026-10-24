@@ -16,6 +16,8 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
 
 - `.md` and `.markdown` File tabs get a **Rich** / **Raw** switch, a `role="group"` named `Show <file> as` with `aria-pressed` buttons, and open **Rich**.
   The switch floats over the tab's top-right corner and never takes a row: **Raw** starts at its first line like any other file, and **Rich** keeps 48 px of space above its text for it.
+  Text scrolls under the switch through a fade over the top 48 px, always on in **Rich** and, in **Raw**, a scroll-driven CSS animation that grows it over the first 48 px of scroll, so line 1 stays clear at rest.
+  CodeMirror's `scrollMargins` treats those 48 px as covered, so the cursor line never hides in the fade.
   A file opened at a line opens **Raw**, and each path keeps the view the user left it in until the extension stops.
 - CodeMirror stays mounted and stays the source of truth: **Raw** shows it, **Rich** hides it and renders its text, again after every change from disk or from typing.
   Saving, following the file on disk and the branch marks work as before.
@@ -35,6 +37,8 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
 - A Markdown tab holds its editor and its rendered article at once, and re-renders the whole file on each change.
 - A lazy image that loads above the reading line after a switch pushes it down, as the `ponytail:` in `file-tab.ts` says.
 - No click inside rendered Markdown navigates the window or loads anything from the network.
+- A scroll-driven animation stays `running` for as long as its scroller lives, so every wait for motion to stop counts only animations on `document.timeline`: onboarding's `somethingMoves`, `settleAnimations` and `untilStill` in the e2e harness, and `shot` in the `test-malini-app` skill.
+  Without that, onboarding's rehearsal would spin forever behind an open **Raw** tab.
 - `.mdx` files stay raw: JSX would render as stray text.
 - Extension CSS works only with variables the app emits; the Files panel's `--color-surface-200` and `--color-accent-2-primary` never reached the page, so they became `--color-surface-150-hover` and `--color-warning-content`.
   Nothing enforces this.

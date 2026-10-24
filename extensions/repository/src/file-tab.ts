@@ -374,6 +374,9 @@ class RepositoryFileTabView {
 						widget instanceof RemovedLine ? new LineNumber(widget.line) : null,
 					),
 					EditorView.contentAttributes.of({ 'aria-label': `Edit ${this.#path}` }),
+					EditorView.scrollMargins.of(() =>
+						this.#markdown ? { top: readingInset(this.#markdown.prose) } : null,
+					),
 					EditorView.updateListener.of((update) => this.#changed(update)),
 					EditorView.domEventHandlers({ blur: () => void this.#saveNow() }),
 					FILE_TAB_THEME,
@@ -473,7 +476,7 @@ class RepositoryFileTabView {
 		}
 		const target = editor.state.doc.line(Math.min(line, editor.state.doc.lines));
 		editor.dispatch({
-			effects: EditorView.scrollIntoView(target.from, { y: 'start', yMargin: inset }),
+			effects: EditorView.scrollIntoView(target.from, { y: 'start', yMargin: 0 }),
 		});
 	}
 
@@ -1079,6 +1082,22 @@ const REPOSITORY_FILE_TAB_STYLES = `
 	overflow: auto;
 	padding: 3rem 2rem 4.5rem;
 	mask-image: linear-gradient(to bottom, transparent 1.5rem, black 3rem);
+}
+
+[data-malini-extension] .repository-file-tab__modes + .repository-file-tab__source .cm-scroller {
+	mask-image: linear-gradient(to bottom, transparent 1.5rem, black 3rem);
+	mask-position: 0 -3rem;
+	mask-size: 100% calc(100% + 3rem);
+	mask-repeat: no-repeat;
+	animation: repository-file-tab-fade-in linear both;
+	animation-timeline: scroll(self);
+	animation-range: 0 3rem;
+}
+
+@keyframes repository-file-tab-fade-in {
+	to {
+		mask-position: 0 0;
+	}
 }
 
 [data-malini-extension] .repository-file-tab__modes[hidden],
