@@ -7,6 +7,7 @@ import type { SuggestWithJob } from './automatic-jobs.service';
 import { checkCompatibilityAfterUpdates } from './compatibility-check';
 import { JobExperiments } from './job-experiments.service';
 import { JobRunner } from './job-runner.service';
+import { startJobSchedules } from './job-schedules.service';
 import { startJobTriggers } from './job-triggers.service';
 import { suggestJobsFromPrompts } from './suggestions.service';
 
@@ -30,10 +31,15 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
 	const triggers = startJobTriggers(context, log);
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
+	let schedules: { dispose(): void } | null = null;
 	return {
-		start: () => runner.start(),
+		start: () => {
+			runner.start();
+			schedules ??= startJobSchedules(context, log);
+		},
 		dispose: () => {
 			stopSuggesting();
+			schedules?.dispose();
 			triggers.dispose();
 			stopCompatibilityChecks();
 			runner.dispose();

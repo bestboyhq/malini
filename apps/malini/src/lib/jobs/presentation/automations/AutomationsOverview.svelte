@@ -19,8 +19,8 @@
 	import JobDraftCard from './JobDraftCard.svelte';
 	import JobSuggestionCard from './JobSuggestionCard.svelte';
 	import RecipeCard from './RecipeCard.svelte';
-	import { draftFromWords, guessTriggerId, RECIPES } from './recipes';
-	import { triggerById } from './triggers';
+	import { draftFromWords, guessWhen, RECIPES } from './recipes';
+	import { triggerFor } from './triggers';
 
 	interface Props {
 		jobs: readonly JobDefinitionRecord[];
@@ -40,7 +40,7 @@
 		automationsState.text.trim() ? draftFromWords(automationsState.text) : null,
 	);
 	const readingTrigger = $derived(
-		automationsState.text.trim() ? triggerById(guessTriggerId(automationsState.text)) : null,
+		automationsState.text.trim() ? triggerFor(guessWhen(automationsState.text)) : null,
 	);
 
 	$effect(() => {

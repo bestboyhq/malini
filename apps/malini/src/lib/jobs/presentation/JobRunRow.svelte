@@ -6,7 +6,12 @@
 	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
-	import { projectsQuery, workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import {
+		leadScopeLabel,
+		parseLeadScope,
+		projectsQuery,
+		workstreamNameQuery,
+	} from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
@@ -46,8 +51,12 @@
 		run.parentRunId === null ? origin : `After ${parent?.title ?? 'another job'}`,
 	);
 	const look = $derived(JOB_RUN_STATUS[run.status]);
+	const leadScope = $derived(parseLeadScope(run.scope));
 	const place = $derived(
-		workstreamName ?? projects.find((project) => project.id === run.repositoryId)?.name ?? null,
+		(leadScope && leadScopeLabel(leadScope)) ??
+			workstreamName ??
+			projects.find((project) => project.id === run.repositoryId)?.name ??
+			null,
 	);
 	const where = $derived(
 		shownIn !== null && run.workstreamId !== shownIn && place ? ` in ${place}` : '',

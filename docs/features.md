@@ -106,6 +106,7 @@ The [README](../README.md) has the short version.
 - **A job is work you reuse.** A name, instructions, a model, an effort, and optionally the skills it loads.
   Run it in this workstream or a new one.
 - **When: what starts it.** You run it, or one event trigger runs it, like `on pull-requests:ship-changed where merged is set`, on any event Malini emits.
+  Or a schedule runs it, like `every weekday at 09:00 in bestboyhq/malini`, in a chat or workstream of its own, at Home, in an organization or in a repository.
   A trigger is **Off**, **Ask me first**, or **On its own**; a run that asks first waits under Activity with **Run it** and **Skip**.
 - **Then: what runs next.** One job runs after this one succeeds, in the same workstream, with its result.
   **Open draft** and **Merge** are jobs, so "open a draft PR" is a Then.

@@ -19,6 +19,7 @@
 	import { jobScorecardQuery } from '$lib/jobs/application/queries/job-scorecard.query.svelte';
 	import { jobSettingsStateQuery } from '$lib/jobs/application/queries/job-settings-state.query.svelte';
 	import { isRunnableJob, isTriggerableJob } from '$lib/jobs/domain/builtin-jobs';
+	import { scheduleOf } from '$lib/jobs/domain/schedule';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import JobEditor from '../JobEditor.svelte';
 	import JobRunRow from '../JobRunRow.svelte';
@@ -27,6 +28,7 @@
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import JobScorecard from './JobScorecard.svelte';
 	import RunModePicker from './RunModePicker.svelte';
+	import SchedulePlaceMenu from './SchedulePlaceMenu.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
 	import {
@@ -34,6 +36,7 @@
 		EVENT_RUNS_IN_OPTIONS,
 		jobSentence,
 		runModeHint,
+		SCHEDULE_RUNS_IN_HINT,
 		thenChoices,
 		UPDATE_FROM_MAIN_THEN,
 	} from './triggers';
@@ -62,6 +65,7 @@
 	const runnable = $derived(isRunnableJob(job));
 	const triggerable = $derived(isTriggerableJob(job));
 	const agentless = $derived(isAgentlessJobBuiltin(job.builtin));
+	const schedule = $derived(scheduleOf(job.trigger?.when));
 	const scorecardFor = $derived(jobScorecardQuery.data);
 	const scorecard = $derived(scorecardFor(job, nowMs));
 	const scorecardError = $derived(jobScorecardErrorQuery.data(job.id));
@@ -206,6 +210,7 @@
 						when={job.trigger?.when ?? null}
 						jobName={job.name}
 						disabled={settingsState.busy}
+						schedulable={!agentless}
 						onpick={onWhen}
 					/>
 				{/if}
@@ -228,7 +233,15 @@
 					/>
 				{/if}
 			</SettingRow>
-			{#if job.builtin === null}
+			{#if schedule && job.trigger}
+				{@const trigger = job.trigger}
+				<SettingRow title="Runs in" description={SCHEDULE_RUNS_IN_HINT}>
+					<SchedulePlaceMenu
+						{schedule}
+						onchange={(when) => updateJobSettingsCommand(job, { trigger: { ...trigger, when } })}
+					/>
+				</SettingRow>
+			{:else if job.builtin === null}
 				<SettingRow title="Runs in" description="Where the agent works on it.">
 					<ChoiceMenu
 						value={job.runsIn}

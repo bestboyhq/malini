@@ -2,7 +2,12 @@
 	import type { JobRunRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
-	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
+	import {
+		leadScopeLabel,
+		parseLeadScope,
+		projectsQuery,
+		workstreamNameQuery,
+	} from '$shared/repositories/repositories.api';
 	import { cancelJobRunCommand } from '$lib/jobs/application/commands/cancel-job-run.command';
 	import { confirmJobRunCommand } from '$lib/jobs/application/commands/confirm-job-run.command';
 	import { jobActionStateQuery } from '$lib/jobs/application/queries/job-action-state.query.svelte';
@@ -20,6 +25,13 @@
 
 	const actionState = $derived(jobActionStateQuery.data(run.id));
 	const workstreamName = $derived(workstreamNameQuery.data(run.workstreamId ?? ''));
+	const leadScope = $derived(parseLeadScope(run.scope));
+	const place = $derived(
+		(leadScope && leadScopeLabel(leadScope)) ??
+			workstreamName ??
+			projectsQuery.data.find((project) => project.id === run.repositoryId)?.name ??
+			null,
+	);
 	const parent = $derived(jobRunByIdQuery.data(run.parentRunId));
 	const trigger = $derived(jobDefinitionByIdQuery.data(run.definitionId)?.trigger ?? null);
 	const reason = $derived(
@@ -44,7 +56,7 @@
 		<h3 class="text-fg-default truncate text-sm font-medium">{run.title} wants to run</h3>
 		<p class="text-fg-tertiary truncate text-xs tabular-nums">
 			{#if reason}{reason} ·{/if}
-			{#if workstreamName}In {workstreamName} ·{/if}
+			{#if place}{leadScope?.kind === 'home' ? 'At' : 'In'} {place} ·{/if}
 			{jobRunTime(run, nowMs)}
 		</p>
 		{#if actionState.error}

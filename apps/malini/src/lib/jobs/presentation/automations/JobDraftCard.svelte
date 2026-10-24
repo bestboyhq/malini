@@ -12,13 +12,20 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_RUN_PROFILE } from '$shared/providers/providers.api';
+	import { scheduleOf } from '$lib/jobs/domain/schedule';
 	import { JOB_RUNS_IN_OPTIONS } from '../job-definition-copy';
 	import ChoiceMenu from './ChoiceMenu.svelte';
-	import { draftFromWords, guessTriggerId } from './recipes';
+	import { draftFromWords, guessWhen } from './recipes';
 	import RunModePicker from './RunModePicker.svelte';
+	import SchedulePlaceMenu from './SchedulePlaceMenu.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import TriggerButton from './TriggerButton.svelte';
-	import { EVENT_RUNS_IN_OPTIONS, runModeHint, thenChoices, triggerById } from './triggers';
+	import {
+		EVENT_RUNS_IN_OPTIONS,
+		runModeHint,
+		SCHEDULE_RUNS_IN_HINT,
+		thenChoices,
+	} from './triggers';
 
 	interface Props {
 		text: string;
@@ -42,7 +49,7 @@
 	]);
 	let name = $state(untrack(() => title) ?? parsed.name);
 	let steps = $state<string[]>([...parsed.steps]);
-	let when = $state<string | null>(untrack(() => triggerById(guessTriggerId(text)).when));
+	let when = $state<string | null>(untrack(() => guessWhen(text)));
 	let mode = $state<JobRunMode>('ask');
 	let runsIn = $state<JobRunsIn>('workstream');
 	let thenJobId = $state<string>(
@@ -51,6 +58,7 @@
 	);
 
 	const filled = $derived(steps.map((step) => step.trim()).filter(Boolean));
+	const schedule = $derived(scheduleOf(when));
 	const thenOptions = $derived([{ value: NOTHING, label: 'Nothing' }, ...thenChoices(jobs, null)]);
 	const modeHint = $derived(
 		mode === 'ask'
@@ -162,15 +170,21 @@
 		</Button>
 	</SettingRow>
 
-	<SettingRow title="Runs in" description="Where the agent works on it.">
-		<ChoiceMenu
-			value={runsIn}
-			options={when === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
-			ariaLabel="Runs in"
-			icon="branch"
-			onchange={(next) => (runsIn = next)}
-		/>
-	</SettingRow>
+	{#if schedule}
+		<SettingRow title="Runs in" description={SCHEDULE_RUNS_IN_HINT}>
+			<SchedulePlaceMenu {schedule} onchange={(next) => (when = next)} />
+		</SettingRow>
+	{:else}
+		<SettingRow title="Runs in" description="Where the agent works on it.">
+			<ChoiceMenu
+				value={runsIn}
+				options={when === null ? JOB_RUNS_IN_OPTIONS : EVENT_RUNS_IN_OPTIONS}
+				ariaLabel="Runs in"
+				icon="branch"
+				onchange={(next) => (runsIn = next)}
+			/>
+		</SettingRow>
+	{/if}
 
 	<SettingRow title="Then" description="The job that runs next, once this one succeeds.">
 		<ChoiceMenu

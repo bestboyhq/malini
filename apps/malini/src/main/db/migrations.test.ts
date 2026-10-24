@@ -74,6 +74,7 @@ const ALL_INDEXES = [
 	'idx_job_experiments_definition',
 	'idx_job_outputs_definition_created',
 	'idx_job_runs_chat_session',
+	'idx_job_runs_definition_origin',
 	'idx_job_runs_parent',
 	'idx_job_runs_session',
 	'idx_job_runs_status_created',
@@ -249,6 +250,42 @@ describe('migrate', () => {
 		db.exec("DELETE FROM workstreams WHERE id = 'w'");
 		expect(get(db, "SELECT started_by FROM workstreams WHERE id = 'child'")).toEqual({
 			started_by: null,
+		});
+		db.close();
+	});
+
+	it('keeps every job run, and lets a run come from a schedule and name the lead it starts', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
+			  VALUES ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z');
+			INSERT INTO job_runs (id, definition_id, title, origin, status, context, created_at) VALUES
+			  ('first', 'job', 'Triage', 'trigger', 'succeeded', '{}', '2026-10-20T00:00:00Z');
+			INSERT INTO job_runs (id, definition_id, title, origin, status, parent_run_id, created_at) VALUES
+			  ('next', 'job', 'Triage', 'then', 'queued', 'first', '2026-10-20T00:00:01Z');
+		`);
+
+		migrate(db);
+
+		expect(
+			all(db, 'SELECT id, origin, context, parent_run_id, scope FROM job_runs ORDER BY id'),
+		).toEqual([
+			{ id: 'first', origin: 'trigger', context: '{}', parent_run_id: null, scope: null },
+			{ id: 'next', origin: 'then', context: null, parent_run_id: 'first', scope: null },
+		]);
+		const scheduled = (id: string, scope: string) =>
+			`INSERT INTO job_runs (id, definition_id, title, origin, status, scope, created_at)
+			 VALUES ('${id}', 'job', 'Triage', 'schedule', 'waiting', '${scope}', '2026-10-21T00:00:00Z')`;
+		db.exec(scheduled('home', 'home'));
+		db.exec(scheduled('owner', 'owner:bestboyhq'));
+		expect(() => db.exec(scheduled('nowhere', 'owner:'))).toThrow();
+		expect(() => db.exec(scheduled('elsewhere', 'repository:malini'))).toThrow();
+		db.exec("DELETE FROM job_runs WHERE id = 'first'");
+		expect(get(db, "SELECT parent_run_id FROM job_runs WHERE id = 'next'")).toEqual({
+			parent_run_id: null,
 		});
 		db.close();
 	});

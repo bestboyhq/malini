@@ -45,7 +45,11 @@
 		</Button>
 	{/snippet}
 	{#snippet content()}
-		<div class="w-60 p-1" role="menu" aria-label={ariaLabel}>
+		<div
+			class="styled-scrollbar max-h-80 w-60 overflow-y-auto p-1"
+			role="menu"
+			aria-label={ariaLabel}
+		>
 			{#each options as option (option.value)}
 				<DropdownItem
 					role="menuitemradio"

@@ -19,6 +19,7 @@ function run(id: string, patch: Partial<JobRunRecord>): JobRunRecord {
 		title: id,
 		workstreamId: 'ws-1',
 		repositoryId: null,
+		scope: null,
 		sessionId: null,
 		agentRunId: null,
 		origin: 'manual',

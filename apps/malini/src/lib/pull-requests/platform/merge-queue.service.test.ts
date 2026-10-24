@@ -552,6 +552,7 @@ function defineFakes(): void {
 			title: definition?.name ?? 'job',
 			workstreamId,
 			repositoryId: null,
+			scope: null,
 			sessionId,
 			agentRunId,
 			origin: args.origin ?? 'manual',

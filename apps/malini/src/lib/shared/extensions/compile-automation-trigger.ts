@@ -13,7 +13,7 @@ export type CompiledWorkstreamAutomationTrigger = Readonly<{
 
 export function compileWorkstreamAutomation(when: string): CompiledWorkstreamAutomationTrigger {
 	const trigger = parseAutomationTrigger(when);
-	if (trigger.kind === 'manual' || trigger.kind === 'event') {
+	if (trigger.kind === 'manual' || trigger.kind === 'event' || trigger.kind === 'schedule') {
 		return {
 			kind: trigger.kind,
 			event: null,

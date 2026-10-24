@@ -8,6 +8,7 @@ interface JobRunRow {
 	title: string;
 	workstream_id: string | null;
 	repository_id: string | null;
+	scope: string | null;
 	session_id: string | null;
 	agent_run_id: string | null;
 	origin: JobRunOrigin;
@@ -22,7 +23,7 @@ interface JobRunRow {
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
 
 const UNFINISHED = "status IN ('waiting', 'queued', 'running', 'needs-you')";
 
@@ -35,6 +36,7 @@ function fromRow(row: JobRunRow): JobRunRecord {
 		title: row.title,
 		workstreamId: row.workstream_id,
 		repositoryId: row.repository_id,
+		scope: row.scope,
 		sessionId: row.session_id,
 		agentRunId: row.agent_run_id,
 		origin: row.origin,
@@ -57,12 +59,13 @@ export function insertJobRun(
 	run(
 		db,
 		`INSERT INTO job_runs (${COLUMNS}, context)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		jobRun.id,
 		jobRun.definitionId,
 		jobRun.title,
 		jobRun.workstreamId,
 		jobRun.repositoryId,
+		jobRun.scope,
 		jobRun.sessionId,
 		jobRun.agentRunId,
 		jobRun.origin,
@@ -142,6 +145,42 @@ export function countStartedOrQueuedJobRuns(db: MaliniDatabase, definitionId: st
 	return scalar(
 		db,
 		`SELECT COUNT(*) FROM job_runs WHERE definition_id = ? AND ${STARTED_OR_QUEUED}`,
+		definitionId,
+	);
+}
+
+export function latestScheduledJobRun(
+	db: MaliniDatabase,
+	definitionId: string,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE definition_id = ? AND origin = 'schedule'
+		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		definitionId,
+	);
+	return row ? fromRow(row) : null;
+}
+
+export function latestScheduledWorkstreamId(
+	db: MaliniDatabase,
+	definitionId: string,
+): string | null {
+	return (
+		get<{ workstream_id: string }>(
+			db,
+			`SELECT workstream_id FROM job_runs
+			 WHERE definition_id = ? AND origin = 'schedule' AND workstream_id IS NOT NULL
+			 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+			definitionId,
+		)?.workstream_id ?? null
+	);
+}
+
+export function countUnfinishedJobRuns(db: MaliniDatabase, definitionId: string): number {
+	return scalar(
+		db,
+		`SELECT COUNT(*) FROM job_runs WHERE definition_id = ? AND ${UNFINISHED}`,
 		definitionId,
 	);
 }

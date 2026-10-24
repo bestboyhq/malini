@@ -60,7 +60,7 @@ export const glyphs = {
 	"pause": { outline: "M2.25 8a5.75 5.75 0 1 0 11.5 0a5.75 5.75 0 1 0 -11.5 0ZM6.75 6.25v3.5M9.25 6.25v3.5", solid: "" },
 	"pencil": { outline: "M3.25 12.75 3.75 10l6.85-6.85a1.59 1.59 0 0 1 2.25 2.25L6 12.25ZM9.25 4.5l2.25 2.25", solid: "" },
 	"pick-element": { outline: "M2.25 3.5V2.25H3.5M6 2.25h1M9.5 2.25h1.25V3.5M2.25 6v1M2.25 9.5v1.25H3.5M6.75 6.75 13.5 9.25 10.5 10.5 9.25 13.5Z", solid: "" },
-	"play": { outline: "M5.5 3.75v8.5L12.75 8Z", solid: "" },
+	"play": { outline: "", solid: "M5.5 3.75v8.5L12.75 8Z" },
 	"plug": { outline: "M6 2.25v3M10 2.25v3M8 11.25v2.5M4.25 5.25h7.5V7.5a3.75 3.75 0 0 1-7.5 0Z", solid: "" },
 	"plus": { outline: "M8 3.25v9.5M3.25 8h9.5", solid: "" },
 	"pr-draft": { outline: "M2 4a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0ZM4 6v8M12 3.25h.01M12 6.75h.01", solid: "" },

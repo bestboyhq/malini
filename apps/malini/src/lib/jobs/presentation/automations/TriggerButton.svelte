@@ -8,10 +8,11 @@
 		when: string | null;
 		jobName: string;
 		disabled?: boolean;
+		schedulable?: boolean;
 		onpick: (when: string | null) => void;
 	}
 
-	let { when, jobName, disabled = false, onpick }: Props = $props();
+	let { when, jobName, disabled = false, schedulable = true, onpick }: Props = $props();
 
 	let open = $state(false);
 	let opened = $state(0);
@@ -55,6 +56,7 @@
 		<TriggerPicker
 			anchor={element instanceof HTMLElement ? element : null}
 			{when}
+			{schedulable}
 			onpick={onPick}
 			onclose={() => (open = false)}
 		/>

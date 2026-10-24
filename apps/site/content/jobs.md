@@ -1,6 +1,6 @@
 ---
 title: Jobs
-description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it or when a Malini event fires, with a Then that runs next, such as opening a draft pull request.
+description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it, when a Malini event fires, or on a schedule, with a Then that runs next, such as opening a draft pull request.
 ---
 
 You never wanted skills.
@@ -16,7 +16,7 @@ A job has:
 - a **model** and an **effort**,
 - its **skills**, so the job loads only the ones it needs, or every skill that is on when it names none,
 - where it **runs**: in this workstream, or in a new one,
-- its **When**: only when you run it, or also when a Malini event fires,
+- its **When**: only when you run it, or also when a Malini event fires or on a schedule,
 - its **Then**: the one job that runs next, after this one succeeds.
 
 Three built-in jobs, **Update from main**, **Open draft**, and **Merge**, run without an agent: their instructions only say what they do.
@@ -40,8 +40,9 @@ Click a job to open its own page: its When and how it runs, where it runs, its T
 
 A job runs when you run it.
 Give it a **When**, and it also runs when something happens: a pull request merges, a merge stops on conflicts, a workstream is created, a job fails, or any Malini event.
+Or it runs [on a schedule](#on-a-schedule), such as every weekday at 9:00.
 
-A When is one event trigger:
+A When is one event trigger, or one schedule:
 
 ```text
 on <channel> [where <path> is <value> | <path> is set [and ...]]
@@ -65,6 +66,47 @@ The Jobs page offers the common triggers by name, such as **A pull request merge
 A triggered run gets the event channel and its payload as context, and runs in the workstream the event names, or in a new one when the job runs in a new workstream.
 The same event starts a job once.
 An unknown channel or a malformed condition is refused when you save the job, with the channels Malini knows.
+
+### On a schedule
+
+A schedule runs a job at a time of day, by your Mac's clock:
+
+```text
+every <day | weekday | monday … sunday> at <HH:MM> [in <owner> | in <owner>/<repository>]
+```
+
+- `every day`, `every weekday` (Monday to Friday), or one day of the week, such as `every monday`.
+- `at` takes a 24-hour time, such as `09:00` or `17:30`.
+- `in` picks where it runs: an organization or a user, such as `in bestboyhq`, or a repository, such as `in bestboyhq/malini`.
+  Without `in`, it runs at Home, above every repository.
+
+```text
+every weekday at 09:00 in bestboyhq/malini
+```
+
+On the Jobs page, **On a schedule** in the When picker sets the day and the time, and **Runs in** sets where.
+
+A scheduled job keeps a place of its own, named after the job:
+
+- At Home or in an organization, its own [chat that leads work across repositories](/malini/docs/chat.md#chats-above-repositories), which starts workstreams for the work it finds.
+- In a repository, its own workstream.
+  Before each run, Malini merges the base branch into it, so the job starts from fresh code.
+  When it cannot, because of uncommitted changes or conflicts, the run's agent reads why in its context.
+
+Each run starts a new job chat there, so the sidebar gains one entry per job, not one per day.
+Archive that chat or workstream, and the next run starts a new one.
+
+The job runs while Malini runs, with its window open or closed.
+When your Mac sleeps or Malini is quit at the time, the job runs once when they are back, however many times it missed.
+A schedule you set runs from the next time on, never for a time that already passed.
+While the job's last run waits for you, is queued, or still runs, it skips its time, so two runs never overlap.
+
+A scheduled run tells you with a notification when it waits for your yes, when it needs you, when it fails, and when it finishes, with its result.
+A run that needs your approval waits for it, so always allow a command it needs, and later runs go on without asking.
+A scheduled run gets its schedule and the time it was due as context.
+
+A schedule in a repository or an organization Malini does not have is refused when you save the job.
+**Update from main**, **Open draft**, and **Merge** take no schedule, since they work on the changes of a workstream.
 
 ### Off, Ask me first, On its own
 

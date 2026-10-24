@@ -343,7 +343,7 @@ Fires whenever a job run waits for you, is queued, starts, needs you, or finishe
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then';
+type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -354,6 +354,7 @@ type JobRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
+	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: JobRunOrigin;
