@@ -50,7 +50,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   The first edit keeps a preview tab, and the tab marks what your branch added and removed.
   A change the agent makes to an open file shows in its tab, unless you have typed something it has not saved yet.
 - A Markdown file opens **Rich**, set for reading, and **Raw** beside it shows the text to edit.
-  The tab remembers which one you picked, and a file opened at a line opens **Raw**.
+  Switching keeps your place, the tab remembers which one you picked, and a file opened at a line opens **Raw**.
   Its links open their files in tabs, and its images show from the worktree.
 
 A repository opens on its **scratchpad**, where you keep ideas.

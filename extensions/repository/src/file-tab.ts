@@ -57,6 +57,8 @@ import {
 	isMarkdownFile,
 	MARKDOWN_ARTICLE_STYLES,
 	markdownHeading,
+	markdownLineAt,
+	markdownLineTop,
 	markdownLink,
 	renderMarkdown,
 	type MarkdownLink,
@@ -431,9 +433,48 @@ class RepositoryFileTabView {
 
 	#setMode(mode: FileTabMode): void {
 		if (!this.#markdown || mode === this.#mode) return;
+		const line = this.#readingLine();
 		this.#mode = mode;
 		this.#onmode(mode);
 		this.#applyMode();
+		if (line !== null) this.#showLine(line);
+	}
+
+	#readingLine(): number | null {
+		const editor = this.#editor;
+		const markdown = this.#markdown;
+		if (!editor || !markdown) return null;
+		const inset = readingInset(markdown.prose);
+		if (this.#mode === 'rich') {
+			if (markdown.prose.scrollTop === 0) return 1;
+			return markdownLineAt(markdown.article, markdown.prose.getBoundingClientRect().top + inset);
+		}
+		if (editor.scrollDOM.scrollTop === 0) return 1;
+		const top = editor.scrollDOM.getBoundingClientRect().top + inset - editor.documentTop;
+		return editor.state.doc.lineAt(editor.lineBlockAtHeight(top).from).number;
+	}
+
+	#showLine(line: number): void {
+		const editor = this.#editor;
+		const markdown = this.#markdown;
+		if (!editor || !markdown) return;
+		const inset = readingInset(markdown.prose);
+		if (this.#mode === 'rich') {
+			// ponytail: lazy images above the line that load after the switch push it down; re-anchor on their load if it bites
+			const top = line > 1 ? markdownLineTop(markdown.article, line) : null;
+			const prose = markdown.prose;
+			prose.scrollTop =
+				top === null ? 0 : prose.scrollTop + top - prose.getBoundingClientRect().top - inset;
+			return;
+		}
+		if (line <= 1) {
+			editor.scrollDOM.scrollTop = 0;
+			return;
+		}
+		const target = editor.state.doc.line(Math.min(line, editor.state.doc.lines));
+		editor.dispatch({
+			effects: EditorView.scrollIntoView(target.from, { y: 'start', yMargin: inset }),
+		});
 	}
 
 	#applyMode(): void {
@@ -562,6 +603,10 @@ function replacementFromDisk(shown: string, contents: string) {
 		},
 		annotations: [fromDisk.of(true), Transaction.addToHistory.of(false)],
 	};
+}
+
+function readingInset(prose: HTMLElement): number {
+	return Number.parseFloat(getComputedStyle(prose).paddingTop) || 0;
 }
 
 function isAnchor(target: EventTarget): target is HTMLElement {
@@ -1034,12 +1079,6 @@ const REPOSITORY_FILE_TAB_STYLES = `
 	overflow: auto;
 	padding: 3rem 2rem 4.5rem;
 	mask-image: linear-gradient(to bottom, transparent 1.5rem, black 3rem);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-	[data-malini-extension] .repository-file-tab__prose {
-		scroll-behavior: smooth;
-	}
 }
 
 [data-malini-extension] .repository-file-tab__modes[hidden],

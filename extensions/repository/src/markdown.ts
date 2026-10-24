@@ -9,8 +9,12 @@ export type MarkdownLink = Readonly<
 
 type MediaUrl = (path: string) => string | null;
 
+type SourceBlock = Readonly<{ line: number; top: number; bottom: number }>;
+
 const MARKDOWN_FILE = /\.(?:md|markdown)$/iu;
-const FRONT_MATTER = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/u;
+const FRONT_MATTER = /^---\n[\s\S]*?\n---[ \t]*(?:\n|$)/u;
+const SOURCE_LINE = 'data-source-line';
+const OPENING_TAG = /^<[a-z][a-z\d]*/iu;
 const WEB_LINK = /^https?:/iu;
 const NOT_A_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu;
 const INLINE_MEDIA = /^(?:data|blob):/iu;
@@ -26,9 +30,7 @@ export function renderMarkdown(
 	mediaUrl: MediaUrl,
 ): DocumentFragment {
 	const template = document.createElement('template');
-	template.innerHTML = DOMPurify(window).sanitize(
-		marked.parse(source.replace(FRONT_MATTER, ''), { async: false }),
-	);
+	template.innerHTML = DOMPurify(window).sanitize(linedHtml(source.replace(/\r\n?/gu, '\n')));
 	for (const code of template.content.querySelectorAll('pre > code')) {
 		const text = code.textContent ?? '';
 		const language = resolveLanguage(CODE_LANGUAGE.exec(code.className)?.[1], text);
@@ -48,6 +50,30 @@ export function renderMarkdown(
 	return template.content;
 }
 
+export function markdownLineAt(article: ParentNode, y: number): number {
+	const blocks = sourceBlocks(article);
+	const below = blocks.findIndex((block) => block.bottom > y);
+	const index = below === -1 ? blocks.length - 1 : below;
+	const block = blocks[index];
+	if (!block) return 1;
+	const next = blocks[index + 1]?.line ?? block.line + 1;
+	const progress = Math.min(1, Math.max(0, (y - block.top) / (block.bottom - block.top)));
+	return block.line + Math.floor(progress * (next - block.line));
+}
+
+export function markdownLineTop(article: ParentNode, line: number): number | null {
+	const blocks = sourceBlocks(article);
+	let index = -1;
+	for (const [candidate, block] of blocks.entries()) {
+		if (block.line <= line) index = candidate;
+	}
+	const block = blocks[index];
+	if (!block) return null;
+	const next = blocks[index + 1]?.line ?? block.line + 1;
+	const progress = Math.min(1, (line - block.line) / Math.max(1, next - block.line));
+	return block.top + progress * (block.bottom - block.top);
+}
+
 export function markdownLink(href: string, documentPath: string): MarkdownLink | null {
 	if (href.startsWith('#')) return { kind: 'heading', slug: decoded(href.slice(1)) };
 	if (WEB_LINK.test(href)) return { kind: 'web', url: href };
@@ -64,6 +90,48 @@ export function markdownHeading(root: ParentNode, slug: string): Element | null 
 		if ((count === 0 ? base : `${base}-${String(count)}`) === slug) return heading;
 	}
 	return null;
+}
+
+function linedHtml(text: string): string {
+	const content = text.replace(FRONT_MATTER, '');
+	const tokens = marked.lexer(content);
+	let line = 1 + newlines(text, 0, text.length - content.length);
+	let counted = 0;
+	let cursor = 0;
+	let html = '';
+	for (const token of tokens) {
+		const at = content.indexOf(token.raw, cursor);
+		const start = at === -1 ? cursor : at;
+		line += newlines(content, counted, start);
+		counted = start;
+		if (at !== -1) cursor = at + token.raw.length;
+		html += marked
+			.parser(Object.assign([token], { links: tokens.links }))
+			.replace(OPENING_TAG, `$& ${SOURCE_LINE}="${String(line)}"`);
+	}
+	return html;
+}
+
+function newlines(text: string, from: number, to: number): number {
+	let count = 0;
+	for (let at = text.indexOf('\n', from); at !== -1 && at < to; at = text.indexOf('\n', at + 1)) {
+		count += 1;
+	}
+	return count;
+}
+
+function sourceBlocks(article: ParentNode): SourceBlock[] {
+	const blocks: SourceBlock[] = [];
+	for (const element of article.querySelectorAll(`[${SOURCE_LINE}]`)) {
+		const box = element.getBoundingClientRect();
+		if (box.height === 0) continue;
+		blocks.push({
+			line: Number(element.getAttribute(SOURCE_LINE)),
+			top: box.top,
+			bottom: box.bottom,
+		});
+	}
+	return blocks;
 }
 
 function headingSlug(text: string): string {
@@ -132,7 +200,7 @@ ${ARTICLE} :is(h1, h2, h3, h4, h5, h6) {
 	font-family: inherit;
 	font-weight: 550;
 	line-height: 1.75rem;
-	scroll-margin-top: 1.5rem;
+	scroll-margin-top: 3rem;
 }
 
 ${ARTICLE} h1 {

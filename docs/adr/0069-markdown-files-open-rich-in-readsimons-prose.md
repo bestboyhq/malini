@@ -19,6 +19,8 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
   A file opened at a line opens **Raw**, and each path keeps the view the user left it in until the extension stops.
 - CodeMirror stays mounted and stays the source of truth: **Raw** shows it, **Rich** hides it and renders its text, again after every change from disk or from typing.
   Saving, following the file on disk and the branch marks work as before.
+- Switching keeps the reading position.
+  Each top-level block of the rich article carries `data-source-line`, the line it starts at in the file, and the line 3 rem below the top of one view lands 3 rem below the top of the other, through `markdownLineAt` and `markdownLineTop` on the rich side and CodeMirror's `lineBlockAtHeight` and `scrollIntoView` on the raw side.
 - `extensions/repository/src/markdown.ts` renders with `marked` (GFM) and sanitizes with DOMPurify, the versions the app already uses.
   It drops YAML front matter and colors fenced code with the extension API's tokenizer.
 - Every click on a link is caught: `http(s)` opens through `ui.openExternal`, `#heading` scrolls to the heading GitHub would anchor it to, and a relative path opens its file through `malini.repository.open-file`; any other link does nothing.
@@ -31,8 +33,9 @@ Malini routes on the URL hash, so a `#heading` link that reached the window woul
 
 - Docs, plans and READMEs read like an article, and their text is one click from editing.
 - A Markdown tab holds its editor and its rendered article at once, and re-renders the whole file on each change.
+- A lazy image that loads above the reading line after a switch pushes it down, as the `ponytail:` in `file-tab.ts` says.
 - No click inside rendered Markdown navigates the window or loads anything from the network.
 - `.mdx` files stay raw: JSX would render as stray text.
 - Extension CSS works only with variables the app emits; the Files panel's `--color-surface-200` and `--color-accent-2-primary` never reached the page, so they became `--color-surface-150-hover` and `--color-warning-content`.
   Nothing enforces this.
-- Enforced by `markdown.test.ts` (links, heading anchors, sanitizing, front matter, images) and `file-tab.test.ts` (**Rich** first, a line opens **Raw**, the view is remembered) in the repository extension, and by `tests/e2e/file-editing.spec.ts`, which opens a Markdown file in **Rich**, edits it in **Raw**, sees the edit in **Rich** and follows its link to another file.
+- Enforced by `markdown.test.ts` (links, heading anchors, sanitizing, front matter, images) and `file-tab.test.ts` (**Rich** first, a line opens **Raw**, the view is remembered) in the repository extension, and by `tests/e2e/file-editing.spec.ts`, which opens a Markdown file in **Rich**, edits it in **Raw**, sees the edit in **Rich**, follows its link to another file, and switches a long file both ways without losing its section.

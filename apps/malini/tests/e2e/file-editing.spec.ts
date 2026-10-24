@@ -150,6 +150,47 @@ test('a markdown file opens Rich, Raw edits its text, and its links open their f
 	}
 });
 
+test('switching a markdown file between Rich and Raw keeps the reading position', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const sections = Array.from(
+			{ length: 40 },
+			(_, index) => `## Section ${String(index + 1)}\n\nNotes for section ${String(index + 1)}.\n`,
+		);
+		writeFileSync(join(source, 'GUIDE.md'), `# Guide\n\n${sections.join('\n')}`);
+		await execFileAsync('git', ['-C', source, 'add', '.']);
+		await execFileAsync('git', ['-C', source, 'commit', '-m', 'guide']);
+		const seeded = await seedWorkstream(page, source, 'e2e-markdown-sync-ws', 'Markdown sync');
+		await openWorkstream(page, seeded.workstreamId);
+		await page.getByRole('treeitem', { name: 'Open GUIDE.md' }).click({ timeout: 20_000 });
+
+		const panel = page.getByRole('tabpanel', { name: 'GUIDE.md' });
+		const view = panel.getByRole('group', { name: 'Show GUIDE.md as' });
+		const title = panel.getByRole('heading', { name: 'Guide', level: 1 });
+		const section = panel.getByRole('heading', { name: 'Section 30', exact: true });
+		await expect(section).toBeAttached({ timeout: 20_000 });
+		await section.evaluate((heading) => {
+			heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+		});
+		await expect(title).not.toBeInViewport();
+
+		await view.getByRole('button', { name: 'Raw' }).click();
+		await expect(
+			editor(page, 'GUIDE.md').getByText('## Section 30', { exact: true }),
+		).toBeInViewport();
+
+		await view.getByRole('button', { name: 'Rich' }).click();
+		await expect(section).toBeInViewport();
+		await expect(title).not.toBeInViewport();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a file an agent opens in a workstream the user is not looking at waits there for them', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
