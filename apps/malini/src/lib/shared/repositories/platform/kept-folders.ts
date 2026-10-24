@@ -1,12 +1,14 @@
-import type { Stats } from 'node:fs';
-import { lstat, mkdir, readdir, rename, rm } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { constants as fsConstants, type Stats } from 'node:fs';
+import { copyFile, lstat, mkdir, readdir, rename, rm, rmdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isErrnoException } from '$main/errors';
 import { AGENT_ATTACHMENTS_PATH, validateWorkstreamId, workstreamsRoot } from '$main/git/paths';
 
 const KEPT_DIR_NAME = '.kept';
-// ponytail: an archived workstream keeps these folders until it is deleted; cap their size if archives pile up
+// ponytail: a workstream keeps these folders and every file its chats showed until it is deleted; age them out, or move chats older than 30 days to storage, if they pile up
 const KEPT_FOLDERS = ['.context', AGENT_ATTACHMENTS_PATH] as const;
+const SHOWN_DIR_NAME = 'shown';
 
 function keptFoldersRoot(appDataRoot: string): string {
 	return join(workstreamsRoot(appDataRoot), KEPT_DIR_NAME);
@@ -33,7 +35,43 @@ export async function restoreKeptFolders(
 ): Promise<void> {
 	const kept = keptFoldersOf(appDataRoot, workstreamId);
 	for (const folder of KEPT_FOLDERS) await moveMerging(join(kept, folder), join(checkout, folder));
-	await rm(kept, { recursive: true, force: true });
+	for (const entry of await readdir(kept).catch(() => [])) {
+		if (entry !== SHOWN_DIR_NAME) await rm(join(kept, entry), { recursive: true, force: true });
+	}
+	await rmdir(kept).catch(() => undefined);
+}
+
+export async function keepShownFile(
+	appDataRoot: string,
+	workstreamId: string,
+	key: string,
+	file: string,
+): Promise<void> {
+	if (!(await entryAt(file))?.isFile()) return;
+	const kept = shownFileOf(appDataRoot, workstreamId, key);
+	const partial = `${kept}.${randomUUID()}.partial`;
+	await mkdir(dirname(kept), { recursive: true });
+	try {
+		await copyFile(file, partial, fsConstants.COPYFILE_FICLONE);
+		await rename(partial, kept);
+	} catch (error) {
+		await rm(partial, { force: true });
+		throw error;
+	}
+}
+
+export async function shownFile(
+	appDataRoot: string,
+	workstreamId: string,
+	key: string,
+): Promise<string | null> {
+	const kept = shownFileOf(appDataRoot, workstreamId, key);
+	return (await entryAt(kept)) === null ? null : kept;
+}
+
+function shownFileOf(appDataRoot: string, workstreamId: string, key: string): string {
+	const name = createHash('sha256').update(key).digest('hex');
+	return join(keptFoldersOf(appDataRoot, workstreamId), SHOWN_DIR_NAME, name);
 }
 
 export function dropKeptFolders(appDataRoot: string, workstreamId: string): Promise<void> {

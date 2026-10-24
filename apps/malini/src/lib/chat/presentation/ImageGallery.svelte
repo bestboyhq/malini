@@ -122,12 +122,11 @@
 		};
 	}
 
-	function swap(_node: Element, { x }: { x: number }): TransitionConfig {
+	function slideIn(_node: Element, { x }: { x: number }): TransitionConfig {
 		return {
 			duration: 200,
 			easing: quintOut,
-			css: (t, u) =>
-				`transform: translateX(${x * u}px); opacity: ${t}; filter: blur(${2 * travel * u}px);`,
+			css: (_t, u) => `transform: translateX(${x * u}px);`,
 		};
 	}
 
@@ -269,11 +268,7 @@
 				in:grow|global
 			>
 				{#key image?.id}
-					<div
-						class="absolute inset-0"
-						in:swap={{ x: direction * slideDistance }}
-						out:swap={{ x: -direction * slideDistance }}
-					>
+					<div class="absolute inset-0" in:slideIn={{ x: direction * slideDistance }}>
 						{#if image?.media === 'video' && preview?.status === 'ready'}
 							<video
 								src={preview.src}
