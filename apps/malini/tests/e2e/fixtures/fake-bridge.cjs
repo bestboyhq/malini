@@ -502,6 +502,30 @@ const backgroundReportRun = (sessionId, runId, commit) => {
 			(commit ? '\nCommit: ' + commit : ''),
 	);
 };
+const FOLLOW_UP_REPLY = 'That notice is the dev server I used for screenshots stopping.';
+const followUpTurnRun = (sessionId, runId, commit) => {
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'report-' + runId,
+		text: CHAT_TURN_REPORT.trim() + (commit ? '\nCommit: ' + commit : ''),
+	});
+	event({
+		type: 'thinking.message',
+		runId,
+		contentId: 'follow-up-thought-' + runId,
+		text: 'The task that ended was the dev server.',
+	});
+	event({
+		type: 'assistant.message',
+		runId,
+		contentId: 'follow-up-' + runId,
+		text: FOLLOW_UP_REPLY,
+	});
+	event({ type: 'usage.updated', runId, inputTokens: 10, outputTokens: 5, ...finalUsage });
+	event({ type: 'run.completed', runId, summary: FOLLOW_UP_REPLY });
+	event({ type: 'session.state', sessionId, status: 'completed' });
+};
 const busyBackgroundCommandRun = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	pendingRuns.set(runId, sessionId);
@@ -770,6 +794,9 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('BACKGROUND_COMMAND')) return backgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_REPORT')) {
 		return backgroundReportRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
+	}
+	if (prompt.includes('FOLLOW_UP_TURN')) {
+		return followUpTurnRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
 	}
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {

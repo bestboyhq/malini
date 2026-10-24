@@ -5,7 +5,13 @@ import type { EventBus } from '$main/events';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
 import { replyOverCommands, resumesTurn } from '../../domain/background-work';
-import { appendEvent, withToolOutputPreview, type AgentEventEnvelope } from '../events.repository';
+import { hasTurnReport } from '../../domain/turn-report';
+import {
+	appendEvent,
+	latestRunReport,
+	withToolOutputPreview,
+	type AgentEventEnvelope,
+} from '../events.repository';
 import {
 	abortInteractionDispatch,
 	finalizeInteractionResponse,
@@ -308,7 +314,7 @@ export function pumpStep(
 ): LiveEventEnvelope | null {
 	const correlated = correlator.resolve(event);
 	if (correlated === null) return null;
-	const resolved = completedOnceTurnEnded(db, correlated, log);
+	const resolved = summarizedByReport(db, completedOnceTurnEnded(db, correlated, log), log);
 
 	try {
 		const recorded = recordBridgeInteractionRequest(db, resolved.event);
@@ -424,6 +430,24 @@ function completedOnceTurnEnded(
 			...(event.handedOff === undefined ? {} : { handedOff: event.handedOff }),
 		},
 	};
+}
+
+function summarizedByReport(
+	db: MaliniDatabase,
+	resolved: ResolvedEnvelope,
+	log: (line: string) => void,
+): ResolvedEnvelope {
+	const { event } = resolved;
+	if (event.type !== 'run.completed' && event.type !== 'background.updated') return resolved;
+	if (event.summary === undefined || hasTurnReport(event.summary)) return resolved;
+	let report: string | null;
+	try {
+		report = latestRunReport(db, resolved.runId);
+	} catch (error) {
+		log(`agent: failed to read the report of run \`${resolved.runId}\`: ${describe(error)}`);
+		return resolved;
+	}
+	return report === null ? resolved : { ...resolved, event: { ...event, summary: report } };
 }
 
 interface BridgeRecoveryReport {

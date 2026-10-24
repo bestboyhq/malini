@@ -41,22 +41,8 @@ const TIME_FRAGMENT = /^t=(\d+(?:\.\d+)?)/u;
 const MIN_VARIANTS = 2;
 
 export function parseTurnReport(text: string): TurnReport {
-	const lines = text.replace(/\r\n?/gu, '\n').split('\n');
-	const footer = new Map<FooterKey, string>();
-	let bodyEnd = lines.length;
-	for (let index = lines.length - 1; index >= 0; index -= 1) {
-		const line = lines[index] ?? '';
-		if (line.trim() === '') continue;
-		const match = FOOTER_LINE.exec(line);
-		const key = match?.[1]?.toLowerCase();
-		if (match && key === 'resolved') {
-			bodyEnd = index;
-			continue;
-		}
-		if (!match || !isFooterKey(key) || footer.has(key)) break;
-		footer.set(key, stripEmphasis(match[2] ?? ''));
-		bodyEnd = index;
-	}
+	const lines = reportLines(text);
+	const { footer, bodyEnd } = reportFooter(lines);
 	const body = lines.slice(0, bodyEnd).join('\n');
 	const blocks = markdownBlocks(
 		body.replace(CODE_OR_MARKDOWN_IMAGE, (_image, code: string | undefined) => code ?? ''),
@@ -79,8 +65,8 @@ export function parseTurnReport(text: string): TurnReport {
 	};
 }
 
-export function hasTurnReport(report: TurnReport): boolean {
-	return report.outcome !== null;
+export function hasTurnReport(text: string): boolean {
+	return Boolean(reportFooter(reportLines(text)).footer.get('outcome'));
 }
 
 export function turnStatus(report: TurnReport, needsOpen: boolean): TurnStatus {
@@ -101,6 +87,32 @@ export function mediaMarker(src: string): number | null {
 	if (hash === -1) return null;
 	const seconds = TIME_FRAGMENT.exec(src.slice(hash + 1))?.[1];
 	return seconds === undefined ? null : Number(seconds);
+}
+
+function reportLines(text: string): string[] {
+	return text.replace(/\r\n?/gu, '\n').split('\n');
+}
+
+function reportFooter(lines: readonly string[]): {
+	footer: ReadonlyMap<FooterKey, string>;
+	bodyEnd: number;
+} {
+	const footer = new Map<FooterKey, string>();
+	let bodyEnd = lines.length;
+	for (let index = lines.length - 1; index >= 0; index -= 1) {
+		const line = lines[index] ?? '';
+		if (line.trim() === '') continue;
+		const match = FOOTER_LINE.exec(line);
+		const key = match?.[1]?.toLowerCase();
+		if (match && key === 'resolved') {
+			bodyEnd = index;
+			continue;
+		}
+		if (!match || !isFooterKey(key) || footer.has(key)) break;
+		footer.set(key, stripEmphasis(match[2] ?? ''));
+		bodyEnd = index;
+	}
+	return { footer, bodyEnd };
 }
 
 function reportMedia(

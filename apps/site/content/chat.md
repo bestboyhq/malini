@@ -59,6 +59,7 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under **Details**.
 Reports run from a screenshot and one line to the full write-up.
+A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
 A **Your turn** list, unread marks, a chime, and a notification tell you which workstream needs you.
 
 ### Next steps
