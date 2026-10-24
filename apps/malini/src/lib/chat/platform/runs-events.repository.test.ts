@@ -11,6 +11,7 @@ import {
 	listEventsForSession,
 	listOpenBackgroundCommands,
 	providerResumePoint,
+	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	updateEventPayload,
 	workstreamHasWorkingRun,
@@ -83,6 +84,31 @@ describe('events', () => {
 		expect(agentHasReadFile(db, 'ws-reads', '/tmp/other.png')).toBe(false);
 		expect(agentHasReadFile(db, 'ws-other', '/tmp/other.png')).toBe(true);
 		db.close();
+	});
+
+	it('names the images and recordings an event shows: read images and embedded workstream media', () => {
+		expect(
+			shownMediaPaths({ type: 'tool.started', name: 'Read', input: { file_path: '/w/a.PNG' } }),
+		).toEqual(['/w/a.PNG']);
+		expect(
+			shownMediaPaths({ type: 'tool.started', name: 'Read', input: { file_path: '/w/a.ts' } }),
+		).toEqual([]);
+		expect(
+			shownMediaPaths({ type: 'tool.started', name: 'Bash', input: { file_path: '/w/a.png' } }),
+		).toEqual([]);
+		expect(
+			shownMediaPaths({
+				type: 'assistant.message',
+				text: [
+					'![Before: page](.context/before%20zoom.png)',
+					'![After: page](.context/after.mp4#t=1.5)',
+					'![remote](https://example.com/x.png) ![notes](.context/notes.md)',
+					'`![inline](.context/inline.png)`',
+					'```md\n![fenced](.context/fenced.png)\n```',
+				].join('\n\n'),
+			}),
+		).toEqual(['.context/before zoom.png', '.context/after.mp4']);
+		expect(shownMediaPaths({ type: 'thinking.message', text: '![x](.context/x.png)' })).toEqual([]);
 	});
 
 	it('resumes at the newest run the chat still shows, and starts over once every turn is undone', () => {

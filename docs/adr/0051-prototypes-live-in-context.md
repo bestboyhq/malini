@@ -1,6 +1,6 @@
 # 0051 - Prototypes live in `.context`, never in tracked source
 
-Status: accepted
+Status: superseded by 0071
 
 ## Context
 

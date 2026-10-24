@@ -71,8 +71,17 @@ export async function readWorkstreamImage(
 	path: string,
 	agentHasRead: (path: string) => boolean = () => false,
 ): Promise<WorkstreamImageRead> {
-	const file = await workstreamFile(worktree, path, agentHasRead);
-	return file === null ? MISSING : readImageFile(file);
+	return readImageAt(await workstreamFile(worktree, path, agentHasRead));
+}
+
+export function readImageAt(file: string | null): Promise<WorkstreamImageRead> {
+	return file === null ? Promise.resolve(MISSING) : readImageFile(file);
+}
+
+export async function shownFileKey(worktree: string, path: string): Promise<string> {
+	if (!isAbsolute(path)) return safeRelativePath(path);
+	const [root, file] = await Promise.all([realpath(worktree), realpath(path).catch(() => path)]);
+	return isAtOrInsideDirectory(root, file) ? safeRelativePath(relative(root, file)) : path;
 }
 
 export async function workstreamFile(

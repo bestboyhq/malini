@@ -4,6 +4,7 @@ export {
 	backgroundCommandSource,
 	latestWorkstreamTurn,
 	listOpenBackgroundCommands,
+	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	type BackgroundCommandSource,
 	type OpenBackgroundCommand,

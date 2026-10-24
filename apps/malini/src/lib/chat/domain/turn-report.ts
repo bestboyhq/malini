@@ -38,6 +38,7 @@ const VARIANT_LABEL = /^variant\s+([a-z\d]{1,3})\s*[:\-–—·]\s*(.*)$/iu;
 const NAME_AND_NOTE = /\s+[-–—]\s+/u;
 const VIDEO_PATH = /\.(?:mp4|m4v|mov|webm)$/iu;
 const TIME_FRAGMENT = /^t=(\d+(?:\.\d+)?)/u;
+const NOT_A_WORKSTREAM_FILE = /^(?:[a-z][a-z\d+.-]*:|\/\/|[#?])/iu;
 const MIN_VARIANTS = 2;
 
 export function parseTurnReport(text: string): TurnReport {
@@ -49,11 +50,7 @@ export function parseTurnReport(text: string): TurnReport {
 	);
 	const leadingDiagrams = blocks.findIndex((block) => !isFence(block));
 	const diagramCount = leadingDiagrams === -1 ? blocks.length : leadingDiagrams;
-	const media = reportMedia(
-		[...body.matchAll(CODE_OR_MARKDOWN_IMAGE)]
-			.filter((match) => match[1] === undefined)
-			.map((image) => ({ alt: image[4]?.trim() ?? '', src: image[5] ?? '' })),
-	);
+	const media = reportMedia(markdownImages(body));
 	return {
 		outcome: footer.get('outcome') || null,
 		needs: neededActions(footer.get('needs') ?? ''),
@@ -63,6 +60,21 @@ export function parseTurnReport(text: string): TurnReport {
 		diagrams: blocks.slice(0, diagramCount),
 		notes: blocks.slice(diagramCount).map(turnNote),
 	};
+}
+
+export function markdownImages(markdown: string): TurnReportImage[] {
+	return [...markdown.matchAll(CODE_OR_MARKDOWN_IMAGE)]
+		.filter((match) => match[1] === undefined)
+		.map((image) => ({ alt: image[4]?.trim() ?? '', src: image[5] ?? '' }));
+}
+
+export function workstreamImagePath(src: string): string | null {
+	if (src.length === 0 || NOT_A_WORKSTREAM_FILE.test(src)) return null;
+	try {
+		return decodeURI(src);
+	} catch {
+		return src;
+	}
 }
 
 export function hasTurnReport(text: string): boolean {

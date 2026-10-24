@@ -247,6 +247,10 @@ test('a next step sends itself as the next prompt, or lands in the scratchpad', 
 				.getByTestId('chat-message-bubble-user')
 				.filter({ hasText: 'Refresh the screenshot on the Appearance docs page' }),
 		).toBeVisible({ timeout: 30_000 });
+		await expect(
+			page.getByTestId('chat-message-bubble').filter({ hasText: 'Hello from the fake bridge' }),
+			'the sent step runs to its reply before the app quits',
+		).toHaveCount(2, { timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

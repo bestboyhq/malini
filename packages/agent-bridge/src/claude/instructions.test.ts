@@ -52,6 +52,9 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`Go with variant B (Name).`');
 		expect(prompt).toContain('every other prototype only under `.context/`');
 		expect(prompt).toContain('A prototype never enters tracked source');
+		expect(prompt).not.toContain('delete the prototype');
+		expect(prompt).toContain('never delete, move or overwrite one');
+		expect(prompt).toContain('in a `mktemp -d` folder outside the worktree');
 		expect(prompt).toContain('Other chats and jobs in this workstream can run at the same time');
 		expect(prompt).toContain('never revert them, and do not report them as a blocker');
 	});

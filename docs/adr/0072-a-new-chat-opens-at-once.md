@@ -1,4 +1,4 @@
-# 0071 - A new chat opens at once and sets up its lead checkout behind it
+# 0072 - A new chat opens at once and sets up its lead checkout behind it
 
 Status: accepted
 
