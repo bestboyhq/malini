@@ -30,7 +30,8 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
   A search opens every owner it matches.
-- A repository shows while it has workstreams of its own, and while you have it open.
+- A repository shows while it has workstreams of its own or saved for later, and while you have it open.
+  A clock and a count on its row say how many wait saved for later.
   Open any other from the repository list to start its first workstream.
 - Every workstream has its own row.
   A workstream a chat started sits under that chat, wherever its repository is, and under its repository while a focus leaves that chat out.
@@ -46,6 +47,9 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Drag its top edge to make it taller, or click **Show all**.
   Click one to restore it, or open the pull request it merged.
   Archiving stops the commands its agents left running in the background.
+- The clock beside a workstream's archive button saves it for later.
+  Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout.
+  It waits in its repository's scratchpad instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
   **Open folder…** connects a folder on your Mac, and **Clone repository…** clones one from GitHub.
 - **File → New Workstream** (**⌘N**) starts a workstream in the repository you're in, and **File → New Chat** (**⌘T**) opens a chat in the workstream you're in.
@@ -66,6 +70,8 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 
 A repository opens on its **scratchpad**, where you keep ideas.
 Any paragraph moves into a new workstream.
+Workstreams you saved for later wait above the ideas, newest first.
+Click one to resume it where you left off, or archive it to move it to **Recently archived**.
 
 ## Your open pull requests
 

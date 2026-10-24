@@ -10,7 +10,7 @@ import { workstreamsAggregate } from '$shared/repositories/infrastructure/aggreg
 export { archivedWorkstreamsQuery, type ArchivedWorkstreamListing };
 
 type ArchivedWorkstreamListing = ArchivedWorkstream &
-	Readonly<{ repositoryFullName: string | null }>;
+	Readonly<{ repositoryId: string | null; repositoryFullName: string | null }>;
 
 class ArchivedWorkstreamsQuery {
 	public readonly data: readonly ArchivedWorkstreamListing[] = $derived.by(() => {
@@ -21,10 +21,14 @@ class ArchivedWorkstreamsQuery {
 			),
 			workstreams: workstreamsAggregate.archived,
 		});
-		return workstreamsAggregate.archived.map((workstream) => ({
-			...workstream,
-			repositoryFullName: repositories.get(workstream.id)?.fullName ?? null,
-		}));
+		return workstreamsAggregate.archived.map((workstream) => {
+			const repository = repositories.get(workstream.id);
+			return {
+				...workstream,
+				repositoryId: repository?.id ?? null,
+				repositoryFullName: repository?.fullName ?? null,
+			};
+		});
 	});
 }
 

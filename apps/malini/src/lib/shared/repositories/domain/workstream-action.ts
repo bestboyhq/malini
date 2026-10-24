@@ -1,4 +1,4 @@
-export type WorkstreamActionKind = 'delete' | 'restore' | 'continue';
+export type WorkstreamActionKind = 'archive' | 'delete' | 'restore' | 'continue';
 
 export function workstreamActionFailureMessage(cause: unknown, fallback: string): string {
 	if (cause instanceof Error && cause.message.trim()) return cause.message;

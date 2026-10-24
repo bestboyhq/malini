@@ -12,6 +12,7 @@ import {
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
+	moveArchivedWorkstream,
 	recordMergedPullRequest,
 	restoreWorkstreamRecord,
 	upsertWorkstream,
@@ -182,8 +183,16 @@ describe('projects and workstreams', () => {
 			number: 7,
 			url: 'https://github.com/acme/web/pull/7',
 		});
-		archiveWorkstreamRecord(db, 'w-merged', null, '2026-10-20T18:40:00.000Z');
-		archiveWorkstreamRecord(db, 'w-by-hand', null, '2026-10-20T18:30:00.000Z');
+		archiveWorkstreamRecord(db, 'w-merged', {
+			ref: null,
+			at: '2026-10-20T18:40:00.000Z',
+			savedForLater: false,
+		});
+		archiveWorkstreamRecord(db, 'w-by-hand', {
+			ref: null,
+			at: '2026-10-20T18:30:00.000Z',
+			savedForLater: false,
+		});
 
 		expect(
 			listArchivedWorkstreams(db).map(({ id, mergedPullRequest }) => [id, mergedPullRequest]),
@@ -193,11 +202,43 @@ describe('projects and workstreams', () => {
 		]);
 
 		restoreWorkstreamRecord(db, 'w-merged', '/tmp/w-merged', 'malini/w-merged');
-		archiveWorkstreamRecord(db, 'w-merged', null, '2026-10-20T19:00:00.000Z');
+		archiveWorkstreamRecord(db, 'w-merged', {
+			ref: null,
+			at: '2026-10-20T19:00:00.000Z',
+			savedForLater: false,
+		});
 		expect(listArchivedWorkstreams(db)[0]).toMatchObject({
 			id: 'w-merged',
 			mergedPullRequest: null,
 		});
+		db.close();
+	});
+
+	it('keeps a workstream saved for later until it moves to the archive or is restored', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedWorkstream(db, 'w-later');
+		archiveWorkstreamRecord(db, 'w-later', {
+			ref: null,
+			at: '2026-10-24T10:00:00.000Z',
+			savedForLater: true,
+		});
+		const savedForLater = (): boolean | undefined =>
+			listArchivedWorkstreams(db).find(({ id }) => id === 'w-later')?.savedForLater;
+		expect(savedForLater()).toBe(true);
+
+		expect(moveArchivedWorkstream(db, 'w-later', true)).toBe(false);
+		expect(moveArchivedWorkstream(db, 'w-later', false)).toBe(true);
+		expect(savedForLater()).toBe(false);
+		expect(moveArchivedWorkstream(db, 'w-later', true)).toBe(true);
+
+		restoreWorkstreamRecord(db, 'w-later', '/tmp/w-later', 'malini/w-later');
+		expect(moveArchivedWorkstream(db, 'w-later', false)).toBe(false);
+		archiveWorkstreamRecord(db, 'w-later', {
+			ref: null,
+			at: '2026-10-24T11:00:00.000Z',
+			savedForLater: false,
+		});
+		expect(savedForLater()).toBe(false);
 		db.close();
 	});
 });

@@ -80,6 +80,7 @@ import { createWorkstreamWatchers } from './watcher';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
+	archiveWorkstream,
 	createRepository,
 	createWorkstream,
 	listArchived,
@@ -256,7 +257,11 @@ export function registerRepositories(
 	);
 
 	commands.define('repositories.archive-workstream', (args: unknown) =>
-		retireWorkstream(workstreams, requireString(args, 'workstreamId'), 'archived'),
+		archiveWorkstream(workstreams, requireString(args, 'workstreamId'), 'archived'),
+	);
+
+	commands.define('repositories.save-workstream-for-later', (args: unknown) =>
+		archiveWorkstream(workstreams, checkedWorkstreamId(args), 'saved-for-later'),
 	);
 
 	commands.define('repositories.restore-workstream', (args: unknown) =>

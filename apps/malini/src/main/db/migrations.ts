@@ -751,6 +751,10 @@ UPDATE workstreams SET started_by = (
 );
 CREATE INDEX idx_workstreams_started_by ON workstreams(started_by);
 `,
+	`
+ALTER TABLE workstreams ADD COLUMN saved_for_later INTEGER NOT NULL DEFAULT 0
+  CHECK (saved_for_later IN (0, 1));
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

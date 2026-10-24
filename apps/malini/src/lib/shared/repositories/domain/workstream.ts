@@ -38,6 +38,7 @@ export type ArchivedWorkstream = Readonly<{
 	baseBranch: string;
 	archivedAt: string;
 	mergedPullRequest: MergedPullRequest | null;
+	savedForLater: boolean;
 	scope: LeadScope | null;
 	startedBy: WorkstreamId | null;
 }>;

@@ -63,6 +63,7 @@ function tree(
 	focus: SidebarFocus = ALL_FOCUS,
 	hidden: readonly string[] = [],
 	openRepositoryId: string | null = null,
+	saved: readonly string[] = [],
 ): SidebarTree {
 	return sidebarTree({
 		contexts: connectedRepositoryContexts({
@@ -71,6 +72,7 @@ function tree(
 		}),
 		leads: LEADS,
 		hiddenRepositoryIds: new Set(hidden),
+		savedRepositoryIds: new Set(saved),
 		focus,
 		openRepositoryId,
 		workstreamOrder: [],
@@ -160,6 +162,14 @@ describe('sidebarTree', () => {
 			'  site-from-home (solo/site)',
 		]);
 		expect(outline(tree(ALL_FOCUS, ['acme/web', 'folder']))).not.toContain('repository folder');
+	});
+
+	it('lists a repository whose work waits saved for later, unless it is hidden', () => {
+		expect(outline(tree())).not.toContain('owner solo');
+		expect(outline(tree(ALL_FOCUS, [], null, ['solo/site']))).toContain('  repository solo/site');
+		expect(outline(tree(ALL_FOCUS, ['solo/site'], null, ['solo/site']))).not.toContain(
+			'  repository solo/site',
+		);
 	});
 
 	it('lists an open repository without work, and every listed workstream once in order', () => {

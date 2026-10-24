@@ -81,6 +81,10 @@ class WorkstreamsService {
 		await invoke('repositories.archive-workstream', { workstreamId });
 	}
 
+	async saveForLater(workstreamId: WorkstreamId): Promise<void> {
+		await invoke('repositories.save-workstream-for-later', { workstreamId });
+	}
+
 	restore(workstreamId: WorkstreamId): Promise<void> {
 		return invoke('repositories.restore-workstream', { workstreamId });
 	}
