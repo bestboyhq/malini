@@ -76,6 +76,8 @@ async function strandedCheckout(harness: TestContext, workstreamId: string): Pro
 		baseBranch: 'main',
 		status: 'active',
 		createdAt,
+		scope: null,
+		startedBy: null,
 	});
 	await mkdir(checkoutTrashRoot(harness.appDataRoot), { recursive: true });
 	await rename(

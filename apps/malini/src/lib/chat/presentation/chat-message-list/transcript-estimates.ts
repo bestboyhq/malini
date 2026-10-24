@@ -11,6 +11,8 @@ const ROW_PX = 24;
 const ROW_GAP_PX = 8;
 const PROMPT_PX = 74;
 const CARD_PX = 80;
+const WORKSTREAMS_HEAD_PX = 34;
+const WORKSTREAM_LINE_PX = 40;
 const ANCHOR_ROWS_BEFORE = 3;
 
 type TranscriptMeasure = Pick<TranscriptWindow, 'heightOf' | 'textWidth'>;
@@ -23,6 +25,8 @@ export function estimateRowHeight(item: GroupedRunTimelineItem, textWidth: numbe
 		case 'approval':
 		case 'question':
 			return CARD_PX;
+		case 'workstreams':
+			return WORKSTREAMS_HEAD_PX + item.workstreamIds.length * WORKSTREAM_LINE_PX;
 		default:
 			return ROW_PX;
 	}

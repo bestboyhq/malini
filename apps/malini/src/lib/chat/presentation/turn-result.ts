@@ -9,15 +9,13 @@ export type RunPick = Readonly<{ reportRunId: string; promptRunId: string; pick:
 const EARLIER_TURN_LIMIT = 3;
 
 export function finalTurnReport(run: RunGroup, itemKey: string, text: string): TurnReport | null {
-	if (!run.turnEnded || lastAssistant(run)?.key !== itemKey) return null;
-	const report = parseTurnReport(text);
-	return hasTurnReport(report) ? report : null;
+	if (!run.turnEnded || !hasTurnReport(text) || lastReport(run)?.key !== itemKey) return null;
+	return parseTurnReport(text);
 }
 
 export function runTurn(run: RunGroup): EarlierTurn | null {
-	const answer = lastAssistant(run);
-	const report = answer ? finalTurnReport(run, answer.key, answer.text) : null;
-	return report ? { runId: run.runId, report } : null;
+	const answer = run.turnEnded ? lastReport(run) : null;
+	return answer ? { runId: run.runId, report: parseTurnReport(answer.text) } : null;
 }
 
 export function earlierTurnsByRun(
@@ -76,10 +74,10 @@ function openingPrompt(run: RunGroup): string | null {
 	return opening?.kind === 'user' ? opening.text : null;
 }
 
-function lastAssistant(run: RunGroup): Extract<RenderItem, { kind: 'assistant' }> | null {
+function lastReport(run: RunGroup): Extract<RenderItem, { kind: 'assistant' }> | null {
 	for (let index = run.items.length - 1; index >= 0; index -= 1) {
 		const item = run.items[index];
-		if (item?.kind === 'assistant') return item;
+		if (item?.kind === 'assistant' && hasTurnReport(item.text)) return item;
 	}
 	return null;
 }

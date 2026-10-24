@@ -24,6 +24,8 @@ function workstreamNamed(name: string, status: Workstream['status']): Workstream
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,
+		scope: null,
+		startedBy: null,
 	};
 }
 
@@ -69,6 +71,16 @@ describe('workstream names', () => {
 				baseBranch: 'main',
 			}),
 		).toBe('Checkout billing fix');
+	});
+
+	it('calls a lead chat New chat until it is named', () => {
+		const lead = { id: 'lead', baseBranch: 'main', scope: 'home' };
+		expect(displayWorkstreamName({ ...lead, name: generatedWorkstreamName('lead') })).toBe(
+			'New chat',
+		);
+		expect(displayWorkstreamName({ ...lead, name: 'Move apps to Logdash' })).toBe(
+			'Move apps to Logdash',
+		);
 	});
 
 	it('drops repository prefixes when the workstream is already nested under the repository', () => {

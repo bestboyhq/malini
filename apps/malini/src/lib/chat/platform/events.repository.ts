@@ -4,6 +4,7 @@ import { all, column, get, isRecord, nowIso8601, run } from '$main/db/rows';
 import type { AgentEventEnvelope } from '$contract/agent';
 import type { WorkstreamTurn } from '$contract/stats';
 import {
+	hasTurnReport,
 	markdownImages,
 	mediaPath,
 	parseTurnReport,
@@ -402,6 +403,21 @@ export function latestWorkstreamTurn(
 			null,
 		need: report.needs[0] ?? null,
 	};
+}
+
+export function latestRunReport(db: MaliniDatabase, runId: string): string | null {
+	for (const row of all<{ event: string }>(
+		db,
+		`SELECT event FROM agent_events
+		 WHERE run_id = ? AND event LIKE 'assistant.message' || char(10) || '%'
+		 ORDER BY seq DESC`,
+		runId,
+	)) {
+		const { payload } = eventFromBlob(row.event);
+		const text = isRecord(payload) ? payload['text'] : null;
+		if (typeof text === 'string' && hasTurnReport(text)) return text;
+	}
+	return null;
 }
 
 export function agentHasReadFile(db: MaliniDatabase, workstreamId: string, path: string): boolean {

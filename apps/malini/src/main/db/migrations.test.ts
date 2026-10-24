@@ -3,6 +3,7 @@ import { openMigratedDatabase } from './open';
 import { openDatabase } from './driver';
 import {
 	BASELINE_USER_VERSION,
+	MIGRATIONS,
 	SCHEMA,
 	TARGET_USER_VERSION,
 	migrate,
@@ -78,6 +79,7 @@ const ALL_INDEXES = [
 	'idx_job_runs_status_created',
 	'idx_job_setups_definition_created',
 	'idx_job_suggestions_cluster',
+	'idx_workstreams_started_by',
 ];
 
 type Database = ReturnType<typeof openDatabase>;
@@ -207,6 +209,44 @@ describe('migrate', () => {
 				VALUES ('loose', 'workstream', NULL, NULL, '${'c'.repeat(64)}', '{}', 'approval-4', '2026-10-21T00:00:00Z')`),
 		).toThrow();
 		expect(indexNames(db)).toEqual(ALL_INDEXES);
+		db.close();
+	});
+
+	it('records which workstream started each one from the agent calls that started them', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		seedWorkstream(db);
+		const stream = (id: string) =>
+			`('${id}', 'p', '${id}', '/tmp/${id}', 'malini/${id}', 'main', 'active', '2026-10-20T00:00:00Z')`;
+		const call = (id: string, from: string, status: string, output: string) =>
+			`('${id}', 's', 'r', '${from}', 'workstreams_create', '{}', '${status}', 'allowed', '${output}', '2026-10-20T00:00:00Z', '2026-10-20T00:00:01Z')`;
+		db.exec(`
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES
+			  ${['child', 'orphan', 'failed', 'garbled'].map(stream).join(', ')};
+			INSERT INTO agent_actions (id, session_id, run_id, workstream_id, tool, input_json, status, approval, output, started_at, finished_at) VALUES
+			  ${call('a1', 'w', 'succeeded', '{"id":"child","chat":"sess-1"}')},
+			  ${call('a2', 'gone', 'succeeded', '{"id":"orphan"}')},
+			  ${call('a3', 'w', 'failed', 'Malini is still cloning')},
+			  ${call('a4', 'w', 'succeeded', 'not json')};
+		`);
+
+		migrate(db);
+
+		expect(all(db, 'SELECT id, started_by, scope FROM workstreams ORDER BY id')).toEqual([
+			{ id: 'child', started_by: 'w', scope: null },
+			{ id: 'failed', started_by: null, scope: null },
+			{ id: 'garbled', started_by: null, scope: null },
+			{ id: 'orphan', started_by: null, scope: null },
+			{ id: 'w', started_by: null, scope: null },
+		]);
+		db.exec("UPDATE workstreams SET scope = 'owner:bestboyhq' WHERE id = 'w'");
+		expect(() => db.exec("UPDATE workstreams SET scope = 'owner:' WHERE id = 'w'")).toThrow();
+		db.exec("DELETE FROM workstreams WHERE id = 'w'");
+		expect(get(db, "SELECT started_by FROM workstreams WHERE id = 'child'")).toEqual({
+			started_by: null,
+		});
 		db.close();
 	});
 

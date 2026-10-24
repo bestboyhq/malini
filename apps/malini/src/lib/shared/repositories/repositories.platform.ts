@@ -45,6 +45,7 @@ export { getProject, listProjects, upsertProject } from './platform/projects.rep
 export {
 	deleteWorkstream,
 	getWorkstream,
+	listArchivedWorkstreams,
 	listWorkstreams,
 	recordMergedPullRequest,
 	renameWorkstream,
@@ -77,6 +78,7 @@ export {
 	type PullRequestAutomationEvent,
 } from './domain/pull-request-metadata';
 export { listRepositoryCatalog, type CatalogRepository } from './platform/repository-catalog';
+export { workstreamLineage } from './platform/lineage.service';
 export {
 	clonePlannedRepository,
 	createPlannedWorkstream,

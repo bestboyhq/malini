@@ -65,6 +65,8 @@ function chatInWorktree() {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: NOW,
+		scope: null,
+		startedBy: null,
 	});
 	run(
 		db,

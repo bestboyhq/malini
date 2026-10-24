@@ -23,7 +23,12 @@ function envelope(seq: number, event: AgentEvent): EventEnvelope {
 describe('IncrementalRenderProjector', () => {
 	it('matches the canonical fold through a multi-stage tool run', () => {
 		const envelopes = [
-			envelope(1, { type: 'user.message', runId: 'run-1', text: 'Inspect and edit' }),
+			envelope(1, {
+				type: 'user.message',
+				runId: 'run-1',
+				text: 'Inspect and edit',
+				from: 'lead-1',
+			}),
 			envelope(2, {
 				type: 'tool.started',
 				runId: 'run-1',
@@ -62,6 +67,10 @@ describe('IncrementalRenderProjector', () => {
 				foldEnvelopes(envelopes.slice(0, length)),
 			);
 		}
+		expect(firstRun(projector.project(envelopes)).items[0]).toMatchObject({
+			kind: 'user',
+			from: 'lead-1',
+		});
 	});
 
 	it('ends the turn when the agent replies while only background commands run, until it works again', () => {

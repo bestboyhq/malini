@@ -8,8 +8,10 @@ import {
 	BRIDGE_PROTOCOL_VERSION,
 } from './generated/protocol-contract.js';
 import {
+	isAgentLineage,
 	isAgentRunProfile,
 	isAgentTheme,
+	type AgentLineage,
 	type AgentReasoningEffort,
 	type AgentRunProfile,
 	type AgentTheme,
@@ -68,6 +70,7 @@ export interface SendPromptCommand {
 	readonly skills?: readonly string[];
 	readonly steer?: boolean;
 	readonly theme?: AgentTheme;
+	readonly lineage?: AgentLineage;
 }
 
 const MAX_SKILLS = 1_000;
@@ -715,6 +718,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	const skills = obj.skills;
 	const steer = obj.steer;
 	const theme = obj.theme;
+	const lineage = obj.lineage;
 	if (typeof sessionId !== 'string' || sessionId.length === 0) {
 		return err('INVALID_PAYLOAD', 'send_prompt: sessionId required (non-empty string)', obj);
 	}
@@ -743,6 +747,13 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 	if (theme !== undefined && !isAgentTheme(theme)) {
 		return err('INVALID_PAYLOAD', 'send_prompt: theme, when present, must be light or dark', obj);
 	}
+	if (lineage !== undefined && !isAgentLineage(lineage)) {
+		return err(
+			'INVALID_PAYLOAD',
+			'send_prompt: lineage, when present, must hold lead, startedBy and siblings',
+			obj,
+		);
+	}
 	if (skills !== undefined && !isSkillList(skills)) {
 		return err(
 			'INVALID_PAYLOAD',
@@ -764,6 +775,7 @@ function validateSendPrompt(obj: Record<string, unknown>): ParseResult {
 			...(skills !== undefined ? { skills } : {}),
 			...(steer === true ? { steer } : {}),
 			...(theme !== undefined ? { theme } : {}),
+			...(lineage !== undefined ? { lineage } : {}),
 		},
 	};
 }

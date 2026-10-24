@@ -442,6 +442,7 @@ export class IncrementalRenderProjector {
 					...(event.elementReferences?.length
 						? { elementReferences: sanitizeAgentElementReferences(event.elementReferences) }
 						: {}),
+					...(event.from ? { from: event.from } : {}),
 				});
 				return;
 			}

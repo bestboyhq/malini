@@ -179,6 +179,45 @@ describe('pumpStep', () => {
 		);
 	});
 
+	it("keeps the run's report as its summary when Claude Code's own follow-up turn answers after it", () => {
+		seedRun();
+		const correlator = new SessionCorrelator();
+		const step = (event: BridgeEvent) => pumpStep(correlator, test.db, event, () => {});
+		const report =
+			'Built it.\n\nOutcome: Parents merge children.\nNeeds: nothing\nCommit: feat: merge';
+		const followUp = 'No change needed. The other chat confirmed its tray row.';
+		const devServer: AgentBackgroundTask = {
+			taskId: 't',
+			kind: 'command',
+			description: 'Dev server',
+			startedAt: 1,
+		};
+
+		step({ type: 'run.started', runId: 'run-1', sessionId: 'sess-1' });
+		step({ type: 'assistant.message', runId: 'run-1', text: report });
+		step({ type: 'assistant.message', runId: 'run-1', text: followUp });
+		expect(
+			step({
+				type: 'background.updated',
+				runId: 'run-1',
+				waiting: true,
+				tasks: [devServer],
+				summary: followUp,
+			})?.event,
+		).toMatchObject({ summary: report });
+		expect(step({ type: 'run.completed', runId: 'run-1', summary: followUp })?.event).toMatchObject(
+			{ summary: report },
+		);
+		expect(getRun(test.db, 'run-1')?.summary).toBe(report);
+		expect(workstreamShipContext(test.db, 'ws-1').runSummaries).toEqual(['feat: merge']);
+
+		seedOpenRun(test.db, 'run-2', 'sess-1');
+		step({ type: 'run.started', runId: 'run-2', sessionId: 'sess-1' });
+		step({ type: 'assistant.message', runId: 'run-2', text: followUp });
+		step({ type: 'run.completed', runId: 'run-2', summary: followUp });
+		expect(getRun(test.db, 'run-2')?.summary).toBe(followUp);
+	});
+
 	it('records an interaction request as pending before it becomes visible, and drops a stale one', () => {
 		seedRun();
 		const correlator = new SessionCorrelator();

@@ -7,6 +7,20 @@ Every chat runs your own Claude Code, through the Claude Agent SDK, inside the c
 It keeps running between prompts, so your MCP servers stay connected.
 It restarts after 10 idle minutes, when you change the access, mode, report or skills, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
 
+## Chats above repositories
+
+**New chat**, at the top of the sidebar, starts a chat at Home, above every repository.
+The **+** on an owner's row starts one for that organization.
+Such a chat plans and delegates: it reads Malini's clones of the repositories in its scope, and it never edits code.
+It starts a [workstream](/malini/docs/workstreams.md) for each change, with one repository and one prompt, so every decision it makes is a workstream you can see and checks gate every merge.
+
+- Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
+- It has no repository, so it shows no **Files**.
+  Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
+- A workstream any chat starts sits under that chat in the sidebar.
+  It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
+- The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
+
 ## Queue or steer
 
 - **↵** sends a prompt, or queues it after the current run.
@@ -60,6 +74,7 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under **Details**.
 Reports run from a screenshot and one line to the full write-up.
+A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
 A **Your turn** list, unread marks, a chime, and a notification tell you which workstream needs you.
 
 ### Next steps

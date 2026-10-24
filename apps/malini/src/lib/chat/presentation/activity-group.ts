@@ -29,7 +29,15 @@ export type ActivityGroup = {
 	exitCodes: readonly number[];
 };
 
-export type GroupedRunTimelineItem = RunTimelineItem | ActivityGroup;
+export type StartedWorkstreams = {
+	kind: 'workstreams';
+	key: string;
+	workstreamIds: readonly string[];
+};
+
+export type GroupedRunTimelineItem = RunTimelineItem | ActivityGroup | StartedWorkstreams;
+
+const START_WORKSTREAM_TOOL = 'mcp__malini__workstreams_create';
 
 export const ACTIVITY_GROUP_MIN_ITEMS = 2;
 
@@ -68,8 +76,8 @@ export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunT
 		pending = [];
 	}
 
-	for (const item of items) {
-		if (isMachineActivity(item)) {
+	for (const item of foldStartedWorkstreams(items)) {
+		if (item.kind !== 'workstreams' && isMachineActivity(item)) {
 			pending.push(item);
 			continue;
 		}
@@ -79,6 +87,32 @@ export function groupRunTimeline(items: readonly RunTimelineItem[]): GroupedRunT
 	flush();
 
 	return grouped;
+}
+
+export function foldStartedWorkstreams(
+	items: readonly RunTimelineItem[],
+): readonly (RunTimelineItem | StartedWorkstreams)[] {
+	const workstreamIds = items.flatMap((item) => startedWorkstreamId(item) ?? []);
+	if (workstreamIds.length === 0) return items;
+	let shown = false;
+	return items.flatMap((item): (RunTimelineItem | StartedWorkstreams)[] => {
+		if (startedWorkstreamId(item) === null) return [item];
+		if (shown) return [];
+		shown = true;
+		return [{ kind: 'workstreams', key: `workstreams-${item.key}`, workstreamIds }];
+	});
+}
+
+function startedWorkstreamId(item: RunTimelineItem): string | null {
+	if (item.kind !== 'tool' || item.tool.name !== START_WORKSTREAM_TOOL) return null;
+	if (item.tool.status !== 'completed' || typeof item.tool.output !== 'string') return null;
+	try {
+		const started: unknown = JSON.parse(item.tool.output);
+		const id: unknown = isRecord(started) ? started['id'] : null;
+		return typeof id === 'string' ? id : null;
+	} catch {
+		return null;
+	}
 }
 
 function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {

@@ -15,6 +15,7 @@
 		minSize?: number;
 		maxSize?: number;
 		class?: string;
+		hasInspector?: boolean;
 		primary: Snippet;
 		secondary: Snippet;
 	}
@@ -27,12 +28,15 @@
 		minSize = 480,
 		maxSize = 1100,
 		class: className = 'relative h-full min-h-0 w-full flex-1',
+		hasInspector = true,
 		primary,
 		secondary,
 	}: Props = $props();
 
 	const secondaryMinSize = $derived(inspectorGutter.minWidthFor(workstreamId));
-	const secondaryOpen = $derived(inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay);
+	const secondaryOpen = $derived(
+		hasInspector && inspectorDrawer.isOpen(workstreamId) && !inspectorDrawer.overlay,
+	);
 
 	let split: ReturnType<typeof ResizableSplit> | undefined = $state();
 

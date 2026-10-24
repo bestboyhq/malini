@@ -231,9 +231,16 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		agentCalls(app, { tool: 'repositories_clone', input: { repository: `file://${kennel}` } });
 		await allowOnce(`Clone ‘file://${kennel}’`);
-		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toBeVisible({
-			timeout: 20_000,
-		});
+		await expect
+			.poll(
+				async () =>
+					(await invoke<{ fullName: string }[]>(page, 'repositories.list-clones')).map(
+						(repository) => repository.fullName,
+					),
+				{ timeout: 20_000 },
+			)
+			.toContain(kennelName);
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
 
 		agentCalls(app, {
 			tool: 'workstreams_create',
@@ -244,6 +251,8 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
 		);
 		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
+		await expect(sidebar.getByRole('list', { name: /^Started by / })).toContainText('Fetch');
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
@@ -255,9 +264,12 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
 		await allowOnce(`Hide ‘${kennelName}’`);
-		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0, {
-			timeout: 20_000,
-		});
+		await expect
+			.poll(async () => (await invoke<string[]>(page, 'repositories.list-hidden')).length, {
+				timeout: 20_000,
+			})
+			.toBe(1);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
 
 		await openJobs(page, '#/jobs/activity');
 		const activity = page.getByTestId('automations-activity');

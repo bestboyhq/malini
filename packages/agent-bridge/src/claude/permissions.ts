@@ -6,7 +6,7 @@ import type {
 	PermissionUpdate,
 	SandboxSettings,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentRunProfile } from '../agent-profile.js';
+import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type {
 	AgentQuestion,
 	ApprovalScope,
@@ -148,12 +148,15 @@ function ownedGitSubcommand(args: readonly string[]): string | null {
 	return subcommand === 'stash' && writesStash ? 'git stash' : null;
 }
 
-export function disallowedTools(): string[] {
+export const LEAD_EDIT_TOOLS = ['Edit', 'Write', 'NotebookEdit'] as const;
+
+export function disallowedTools(lineage?: AgentLineage): string[] {
 	return [
 		...MALINI_OWNED_GIT_COMMANDS.map((command) => `Bash(${command}:*)`),
 		'Bash(git stash)',
 		'Bash(git stash -*)',
 		...STASH_WRITES.map((write) => `Bash(git stash ${write}:*)`),
+		...(lineage?.lead ? LEAD_EDIT_TOOLS : []),
 	];
 }
 

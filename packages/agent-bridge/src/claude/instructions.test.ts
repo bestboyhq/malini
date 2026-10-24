@@ -65,4 +65,31 @@ describe('systemPromptAppend', () => {
 		);
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('- Theme:');
 	});
+
+	it('tells a lead chat to plan and delegate, and a workstream it started about its siblings', () => {
+		const lead = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
+			lead: {
+				owner: null,
+				repositories: [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }],
+			},
+			startedBy: null,
+			siblings: [],
+		});
+		expect(lead).toContain('You are a lead chat at Home, above every organization, level');
+		expect(lead).toContain('Malini turns off your file edit tools');
+		expect(lead).toContain('one repository and one prompt each');
+		expect(lead).toContain('- acme/api on main: /clones/acme-api');
+
+		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
+			lead: null,
+			startedBy: { name: 'Unify footers', lead: true },
+			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
+		});
+		expect(child).not.toContain('You are a lead chat');
+		expect(child).toContain(
+			'The chat “Unify footers” started this workstream, as a lead chat that plans work across repositories, and sent its first prompt.',
+		);
+		expect(child).toContain('never edit them:\n- acme/web on malini/w2: /workstreams/w2');
+		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('<malini_lineage>');
+	});
 });

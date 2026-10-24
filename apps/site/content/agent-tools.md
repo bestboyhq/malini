@@ -60,20 +60,24 @@ The agent never reads or writes those files, so it opens the file for you instea
 
 The agent can do in Malini what you do from the sidebar, short of removing anything.
 
-| Tool                  | What it does                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `repositories_list`   | Lists your repositories: id, `owner/name`, default branch, whether Malini has cloned it, and whether it is hidden. |
-| `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                           |
-| `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                             |
-| `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, and which one the chat runs in.                 |
-| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt.       |
-| `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Archived**, where you can restore it.       |
+| Tool                  | What it does                                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repositories_list`   | Lists your repositories: id, `owner/name`, default branch, whether Malini has cloned it, and whether it is hidden.                                                                                        |
+| `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                                                                                                                  |
+| `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
+| `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in. It adds the archived ones this chat started, with whether they merged. |
+| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it.                                                              |
+| `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Archived**, where you can restore it.                                                                                              |
 
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
 Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
 The approval card shows that prompt before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
+
+Malini remembers which chat started each workstream.
+The sidebar folds the workstream under that chat, its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
+A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) works through these tools alone: it reads the repositories in its scope and starts a workstream for each change.
 
 To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
 The workstream starts from the default branch, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.

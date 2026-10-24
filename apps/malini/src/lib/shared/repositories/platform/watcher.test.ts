@@ -58,6 +58,8 @@ function seedRow(id: string, path: string, status: WorkstreamStatus): void {
 		baseBranch: 'main',
 		status,
 		createdAt: '2026-09-18T00:00:00.000Z',
+		scope: null,
+		startedBy: null,
 	});
 	worktrees.set(id, path);
 }
@@ -304,6 +306,8 @@ describe('createWorkstreamWatchers', () => {
 				baseBranch: 'main',
 				status: 'active',
 				createdAt: '2026-01-01T00:00:00.000Z',
+				scope: null,
+				startedBy: null,
 			},
 		});
 		await waitFor(() => watchers.isWatching('ws-later'));

@@ -22,6 +22,8 @@
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
+	import StartedWorkstreamsCard from '../StartedWorkstreamsCard.svelte';
+	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
 	interface Props {
 		children: Snippet;
@@ -33,6 +35,7 @@
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
 	const repositoryFullName = $derived(repositoryContextQuery.data(workstreamId)?.repo.fullName);
 	const hostsBrowser = $derived(browserTabsQuery.data(workstreamId).length > 0);
+	const hasInspector = $derived(!workstream?.scope || hostsBrowser);
 	const split = $derived(
 		hostsBrowser
 			? { storageKey: WORKSTREAM_BROWSER_RATIO_KEY, defaultRatio: 0.38, minSize: 400 }
@@ -63,7 +66,7 @@
 
 <WorkstreamTitle {workstreamId} />
 
-<InspectorSplit {workstreamId} {...split}>
+<InspectorSplit {workstreamId} {...split} {hasInspector}>
 	{#snippet primary()}
 		<ChatSurface
 			{workstreamId}
@@ -73,7 +76,14 @@
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
-		/>
+		>
+			{#snippet header(presentedWorkstreamId: string)}
+				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
+			{/snippet}
+			{#snippet workstreamsCard(workstreamIds: readonly string[])}
+				<StartedWorkstreamsCard {workstreamIds} />
+			{/snippet}
+		</ChatSurface>
 	{/snippet}
 	{#snippet secondary()}
 		<div class="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">

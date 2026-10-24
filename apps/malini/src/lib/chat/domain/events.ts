@@ -23,6 +23,7 @@ export type AgentEvent =
 				truncated?: boolean;
 			})[];
 			elementReferences?: AgentElementReference[];
+			from?: string;
 	  }
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
 	| { type: 'thinking.message'; runId: string; contentId: string; text: string }

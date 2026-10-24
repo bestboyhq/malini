@@ -39,7 +39,10 @@ const diagnostics = new MainDiagnosticsLog({
 captureMainProcess(diagnostics, nodeProcessHooks());
 
 const commands = new CommandRegistry();
-commands.observeFailures((failed) => diagnostics.recordCommandFailure(failed));
+let shuttingDown = false;
+commands.observeFailures((failed) => {
+	if (!shuttingDown) diagnostics.recordCommandFailure(failed);
+});
 const COMMANDS_CLOSE_BUDGET_MS = 5_000;
 
 let db: MaliniDatabase | undefined;
@@ -117,7 +120,6 @@ app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') app.quit();
 });
 
-let shuttingDown = false;
 app.on('will-quit', (event) => {
 	if (shuttingDown || !modules) {
 		db?.close();

@@ -1,4 +1,4 @@
-# 0070 - Chats keep the images they showed
+# 0071 - Chats keep the images they showed
 
 Status: accepted
 
