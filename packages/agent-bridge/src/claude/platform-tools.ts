@@ -22,7 +22,7 @@ const SHIP_ONLY_WHEN_ASKED =
 const ASKS = 'The user approves it in the chat unless they always allow it.';
 
 const JOB_TRIGGER_GRAMMAR =
-	'An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`.';
+	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>` for an organization or `in <owner>/<repository>` for a repository, or nothing for Home, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled job keeps its own chat at Home or in the organization, or its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
 export function platformTools(request: PlatformToolRequester) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>
@@ -30,7 +30,7 @@ export function platformTools(request: PlatformToolRequester) {
 	return [
 		tool(
 			'jobs_list',
-			"List the jobs saved in Malini. A job is an agent task (instructions, a model, effort and skills) or a built-in step such as Open draft or Merge. Returns JSON with each job's id, name, its full instructions (so an edit can keep every line it does not change), runsIn (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository), model, effort, skills, builtin, when (its event trigger, or null when it runs only when asked), mode (`off`: the trigger never starts it; `ask`: each run waits for the user; `auto`: it runs on its own; null without a trigger) and then (the id of the job that runs next after it succeeds, or null).",
+			"List the jobs saved in Malini. A job is an agent task (instructions, a model, effort and skills) or a built-in step such as Open draft or Merge. Returns JSON with each job's id, name, its full instructions (so an edit can keep every line it does not change), runsIn (`workstream`: the workstream it is started from; `new-workstream`: a fresh workstream of the same repository), model, effort, skills, builtin, when (its event trigger or schedule, or null when it runs only when asked), mode (`off`: the trigger never starts it; `ask`: each run waits for the user; `auto`: it runs on its own; null without a trigger) and then (the id of the job that runs next after it succeeds, or null).",
 			{},
 			() => call('jobs_list', {}),
 		),

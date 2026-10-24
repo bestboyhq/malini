@@ -60,7 +60,7 @@ export type JobDefinitionRecord = Readonly<{
 export type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
 
-export type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then';
+export type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule';
 
 export type JobRunRecord = Readonly<{
 	id: string;
@@ -68,6 +68,7 @@ export type JobRunRecord = Readonly<{
 	title: string;
 	workstreamId: string | null;
 	repositoryId: string | null;
+	scope: string | null;
 	sessionId: string | null;
 	agentRunId: string | null;
 	origin: JobRunOrigin;
@@ -99,6 +100,7 @@ export type RunJobArgs = Readonly<{
 	definitionId: string;
 	workstreamId?: string;
 	repositoryId?: string;
+	scope?: string;
 	context?: string;
 	origin?: JobRunOrigin;
 	parentRunId?: string;

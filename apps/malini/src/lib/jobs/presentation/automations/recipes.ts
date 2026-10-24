@@ -1,5 +1,7 @@
+import { scheduleWhen } from '$contract/automation-trigger';
 import type { JobBuiltin } from '$contract/jobs';
-import { MANUAL_TRIGGER, TRIGGERS } from './triggers';
+import { scheduleOf } from '$lib/jobs/domain/schedule';
+import { MANUAL_TRIGGER, TRIGGERS, triggerById } from './triggers';
 
 export type Recipe = Readonly<{
 	id: string;
@@ -107,7 +109,13 @@ export function guessTriggerId(text: string): string {
 	return best.id;
 }
 
-const LEAD = /^(when|whenever|after|once|if)\b[^,]*,?\s*/iu;
+const LEAD = /^(when|whenever|after|once|if|every)\b[^,]*,?\s*/iu;
+
+export function guessWhen(text: string): string | null {
+	const lead = LEAD.exec(text.trim())?.[0]?.trim().replace(/,$/u, '') ?? '';
+	const schedule = scheduleOf(lead);
+	return schedule ? scheduleWhen(schedule) : triggerById(guessTriggerId(text)).when;
+}
 
 const THEN_STEPS: readonly Readonly<{ pattern: RegExp; then: JobBuiltin }>[] = [
 	{ pattern: /\b(open|create|make)\s+a\s+draft\s+(pr|pull request)\b/iu, then: 'open-draft' },

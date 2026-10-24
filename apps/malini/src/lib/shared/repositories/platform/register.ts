@@ -217,7 +217,7 @@ export function registerRepositories(
 	commands.define('repositories.create-lead', async (args: unknown) => {
 		const scope = parseLeadScope(requireString(args, 'scope'));
 		if (scope === null) throw new Error('invalid args: `scope` must be `home` or `owner:<owner>`');
-		return workstreamDto(appDataRoot, await createLead(scope));
+		return workstreamDto(appDataRoot, await createLead(scope, optionalString(args, 'name')));
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>

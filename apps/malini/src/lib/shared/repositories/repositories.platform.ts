@@ -86,4 +86,9 @@ export {
 	prepareStartedWorkstream,
 } from './platform/workstream-start.service';
 export { displayWorkstreamName } from './domain/workstream-names';
-export { projectIdentityIdsForRepository, repositoryName } from './domain/repository-context';
+export { leadScopeKey, parseLeadScope, type LeadScope } from './domain/lead-scope';
+export {
+	projectIdentityIdsForRepository,
+	repositoryName,
+	repositoryOwner,
+} from './domain/repository-context';

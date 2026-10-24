@@ -1,6 +1,11 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
-import { parseAutomationTrigger } from '$contract/automation-trigger';
+import {
+	SCHEDULE_GRAMMAR,
+	parseAutomationTrigger,
+	scheduleWhen,
+	type SchedulePlace,
+} from '$contract/automation-trigger';
 import { JOBS_DEFINITION_CHANGED_CHANNEL } from '$contract/events';
 import {
 	isAgentlessJobBuiltin,
@@ -21,6 +26,9 @@ import { describeError } from '$main/errors';
 import { DEFAULT_AGENT_MODEL, isValidAgentModel } from '$shared/providers/providers.platform';
 import {
 	getWorkstream,
+	listRepositoryCatalog,
+	parseLeadScope,
+	repositoryOwner,
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
@@ -74,8 +82,7 @@ import { PROMPT_CLUSTER_MIN_PROMPT_TOKENS, promptTokenSet } from './prompt-clust
 
 const RECENT_FINISHED_RUNS = 30;
 
-const EVENT_TRIGGER_GRAMMAR =
-	'on <channel>, optionally followed by where <path> is <value> or where <path> is set, joined with and';
+const TRIGGER_GRAMMAR = `on <channel>, optionally followed by where <path> is <value> or where <path> is set, joined with and; or ${SCHEDULE_GRAMMAR}`;
 
 export type JobErrorKind =
 	'invalid-args' | 'not-found' | 'builtin' | 'not-builtin' | 'busy' | 'loop';
@@ -157,7 +164,7 @@ export function defineJobCommands(
 	commands.define('jobs.save-definition', async (args: unknown) => {
 		const id = optionalString(args, 'id');
 		const fields = definitionFields(args);
-		const trigger = triggerField(args);
+		const trigger = await triggerField(db, args);
 		const now = nowIso8601();
 		if (id === null) {
 			const created: JobDefinitionRecord = {
@@ -183,6 +190,12 @@ export function defineJobCommands(
 			);
 		}
 		const agentless = isAgentlessJobBuiltin(existing.builtin);
+		if (agentless && trigger && parseAutomationTrigger(trigger.when).kind === 'schedule') {
+			throw new JobError(
+				'builtin',
+				`${existing.name} works on the changes of a workstream, so it runs after an event or another job, never on a schedule.`,
+			);
+		}
 		return saveChanged(existing, {
 			...existing,
 			name: fields.name,
@@ -257,6 +270,7 @@ export function defineJobCommands(
 		}
 		const workstreamId = optionalString(args, 'workstreamId');
 		const repositoryId = optionalString(args, 'repositoryId');
+		const scope = optionalScope(args);
 		const jobContext = optionalContext(args);
 		const origin = optionalOrigin(args);
 		const parentRunId = optionalString(args, 'parentRunId');
@@ -264,16 +278,7 @@ export function defineJobCommands(
 		const chatSessionId = optionalString(args, 'chatSessionId');
 		const chatAfterRunId = chatSessionId === null ? null : optionalString(args, 'chatAfterRunId');
 		if (parentRunId !== null) requireNoLoop(db, definition, parentRunId);
-		const target =
-			definition.runsIn === 'workstream' || origin === 'then'
-				? { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null }
-				: {
-						workstreamId: null,
-						repositoryId: await requireRepository(
-							db,
-							repositoryId ?? repositoryOfWorkstream(db, workstreamId),
-						),
-					};
+		const target = await runTarget(db, definition, origin, { workstreamId, repositoryId, scope });
 		const requested: JobRunRecord = {
 			id: randomUUID(),
 			definitionId: definition.id,
@@ -442,24 +447,55 @@ function experimentSetup(args: unknown): AutomaticJob {
 	return { model, instructions };
 }
 
-function triggerField(args: unknown): JobTrigger | null | undefined {
+async function triggerField(
+	db: MaliniDatabase,
+	args: unknown,
+): Promise<JobTrigger | null | undefined> {
 	const value = field(args, 'trigger');
 	if (value === undefined || value === null) return value;
 	if (!isRecord(value)) throw invalid('`trigger` must be { when, mode } or null');
 	const mode = value['mode'];
 	if (!isJobRunMode(mode)) throw invalid('`trigger.mode` must be off, ask or auto');
-	return { when: eventWhen(value['when']), mode };
+	return { when: await triggerWhen(db, value['when']), mode };
 }
 
-function eventWhen(value: unknown): string {
+async function triggerWhen(db: MaliniDatabase, value: unknown): Promise<string> {
 	const when = typeof value === 'string' ? value.trim() : '';
 	let reason = '';
 	try {
-		if (parseAutomationTrigger(when).kind === 'event') return when;
+		const trigger = parseAutomationTrigger(when);
+		if (trigger.kind === 'event') return when;
+		if (trigger.kind === 'schedule') {
+			return scheduleWhen({ ...trigger, place: await knownPlace(db, trigger.place) });
+		}
 	} catch (error) {
-		if (/^on\s+\S+:/iu.test(when)) reason = ` (${describeError(error)})`;
+		if (error instanceof JobError) throw error;
+		if (/^(?:on\s+\S+:|every\s)/iu.test(when)) reason = ` (${describeError(error)})`;
 	}
-	throw invalid(`\`trigger.when\` must read ${EVENT_TRIGGER_GRAMMAR}${reason}`);
+	throw invalid(`\`trigger.when\` must read ${TRIGGER_GRAMMAR}${reason}`);
+}
+
+async function knownPlace(db: MaliniDatabase, place: SchedulePlace): Promise<SchedulePlace> {
+	if (place.kind === 'home') return place;
+	const names = (await listRepositoryCatalog(db)).map((repository) => repository.fullName);
+	if (place.kind === 'repository') {
+		const wanted = place.repository.toLocaleLowerCase();
+		const repository = names.find((name) => name.toLocaleLowerCase() === wanted);
+		if (repository) return { kind: 'repository', repository };
+		throw new JobError(
+			'not-found',
+			`No repository in Malini is \`${place.repository}\`. Add it first, or schedule the job in its organization or at Home.`,
+		);
+	}
+	const wanted = place.owner.toLocaleLowerCase();
+	const owner = names
+		.map(repositoryOwner)
+		.find((candidate) => candidate?.toLocaleLowerCase() === wanted);
+	if (owner) return { kind: 'owner', owner };
+	throw new JobError(
+		'not-found',
+		`No repository in Malini belongs to \`${place.owner}\`. Add one of its repositories first, or schedule the job at Home.`,
+	);
 }
 
 function thenJobField(
@@ -557,6 +593,49 @@ async function requireRepository(db: MaliniDatabase, repositoryId: string | null
 	return repositoryId;
 }
 
+type RunTarget = Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>;
+
+async function runTarget(
+	db: MaliniDatabase,
+	definition: JobDefinitionRecord,
+	origin: JobRunOrigin,
+	{ workstreamId, repositoryId, scope }: RunTarget,
+): Promise<RunTarget> {
+	const scheduled = origin === 'schedule' && !isAgentlessJobBuiltin(definition.builtin);
+	if (scheduled && workstreamId === null && scope !== null) {
+		return { workstreamId: null, repositoryId: null, scope };
+	}
+	if (scheduled && workstreamId === null) {
+		return {
+			workstreamId: null,
+			repositoryId: await requireRepository(db, repositoryId),
+			scope: null,
+		};
+	}
+	if (scheduled) {
+		return { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null, scope };
+	}
+	if (definition.runsIn === 'workstream' || origin === 'then' || origin === 'schedule') {
+		return { workstreamId: requireWorkstream(db, workstreamId), repositoryId: null, scope: null };
+	}
+	return {
+		workstreamId: null,
+		repositoryId: await requireRepository(
+			db,
+			repositoryId ?? repositoryOfWorkstream(db, workstreamId),
+		),
+		scope: null,
+	};
+}
+
+function optionalScope(args: unknown): string | null {
+	const scope = optionalString(args, 'scope');
+	if (scope !== null && parseLeadScope(scope) === null) {
+		throw invalid('`scope` must be home or owner:<owner>');
+	}
+	return scope;
+}
+
 function optionalContext(args: unknown): string | null {
 	const value = field(args, 'context');
 	if (value === undefined || value === null || value === '') return null;
@@ -570,7 +649,7 @@ function optionalOrigin(args: unknown): JobRunOrigin {
 	const value = field(args, 'origin');
 	if (value === undefined || value === null) return 'manual';
 	if (!isJobRunOrigin(value))
-		throw invalid('`origin` must be merge-queue, manual, trigger or then');
+		throw invalid('`origin` must be merge-queue, manual, trigger, then or schedule');
 	return value;
 }
 

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
+	createSourceRepo,
 	draftJob,
 	expectCleanConsole,
 	invoke,
@@ -220,6 +221,67 @@ test("a job's When, run mode and Then are fields of the job, and a Then that wou
 		await expect(card).toHaveCount(0);
 		await expect.poll(async () => (await jobNamed(page, 'Release notes'))?.thenJobId).toBeNull();
 		await expect(jobCard(page, 'Release notes')).toContainText('Runs when you run it');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a job runs on a schedule, in its own chat at Home or in the repository you pick', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${api}` });
+		await openJobs(page);
+		await page
+			.getByRole('textbox', { name: 'What should happen, and when?' })
+			.fill('Every weekday at 9:00, triage new issues');
+		await expect(page.getByText('Every weekday at 9:00', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: /^Draft it/u }).click();
+		const draft = page.getByRole('article', { name: 'New job draft' });
+		await expect(
+			draft.getByRole('button', { name: /runs: Every weekday at 9:00$/u }),
+		).toBeVisible();
+		await expect(draft.getByRole('button', { name: 'Runs in: Home' })).toBeVisible();
+		await draft.getByRole('button', { name: 'Save job' }).click();
+		await expect
+			.poll(() => jobNamed(page, 'Triage new issues'))
+			.toMatchObject({ trigger: { when: 'every weekday at 09:00', mode: 'ask' } });
+
+		const detail = await openJob(page, 'Triage new issues');
+		await expect(detail).toContainText(
+			'Every weekday at 9:00, Triage new issues runs in its own chat at Home. It asks you first.',
+		);
+		await detail.getByRole('button', { name: /^When Triage new issues runs: /u }).click();
+		const picker = page.getByRole('dialog', { name: 'When should it run' });
+		await picker.getByRole('option', { name: /^Every weekday at 9:00/u }).click();
+		await picker.getByRole('combobox', { name: 'Repeat' }).selectOption('monday');
+		await picker.getByLabel('At', { exact: true }).fill('07:30');
+		await expect(picker.getByText('every monday at 07:30', { exact: true })).toBeVisible();
+		await captureFlow(app, 'jobs-schedule');
+		await picker.getByRole('button', { name: 'Use this schedule' }).click();
+		await expect(picker).toHaveCount(0);
+		await expect
+			.poll(async () => (await jobNamed(page, 'Triage new issues'))?.trigger?.when)
+			.toBe('every monday at 07:30');
+
+		await detail.getByRole('button', { name: 'Runs in: Home' }).click();
+		await page.getByRole('menuitemradio', { name: 'acme/api' }).click();
+		await expect
+			.poll(async () => (await jobNamed(page, 'Triage new issues'))?.trigger?.when)
+			.toBe('every monday at 07:30 in acme/api');
+		await expect(detail).toContainText(
+			'Every Monday at 7:30, Triage new issues runs in its own workstream of acme/api.',
+		);
+		await captureFlow(app, 'jobs-schedule-detail');
+
+		await openOverview(page);
+		const merge = await openJob(page, 'Merge');
+		await merge.getByRole('button', { name: /^When Merge runs: /u }).click();
+		await expect(picker.getByRole('option', { name: /^On a schedule/u })).toHaveCount(0);
+		await page.keyboard.press('Escape');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

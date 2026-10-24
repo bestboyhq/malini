@@ -1088,6 +1088,7 @@ describe('restart', () => {
 				title: definition.name,
 				workstreamId,
 				repositoryId: null,
+				scope: null,
 				sessionId,
 				agentRunId: sessionId === null ? null : `${id}-first-run`,
 				origin: 'merge-queue',

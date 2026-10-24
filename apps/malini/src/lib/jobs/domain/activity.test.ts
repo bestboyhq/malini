@@ -36,6 +36,7 @@ const merge: JobRunRecord = {
 	title: 'Merge',
 	workstreamId: 'ws-1',
 	repositoryId: null,
+	scope: null,
 	sessionId: null,
 	agentRunId: null,
 	origin: 'manual',

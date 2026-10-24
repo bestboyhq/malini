@@ -1,4 +1,11 @@
 import {
+	SCHEDULE_CADENCES,
+	scheduleCadenceLabel,
+	schedulePlaceName,
+	type ScheduleCadence,
+	type SchedulePlace,
+} from '$contract/automation-trigger';
+import {
 	isAutomaticJobBuiltin,
 	type JobBuiltin,
 	type JobDefinitionRecord,
@@ -6,10 +13,13 @@ import {
 	type JobRunsIn,
 } from '$contract/jobs';
 import type { IconName } from '$hyper-ui/icons';
+import { githubOwnerFromFullName } from '$shared/repositories/repositories.api';
 import { isRunnableJob } from '$lib/jobs/domain/builtin-jobs';
+import { scheduleOf } from '$lib/jobs/domain/schedule';
 import { BUILTIN_WHEN, jobWhenDetail } from '../job-definition-copy';
 
-export type TriggerGroup = 'You' | 'Shipping' | 'Workstreams' | 'Chats' | 'Jobs' | 'Malini';
+export type TriggerGroup =
+	'You' | 'Schedule' | 'Shipping' | 'Workstreams' | 'Chats' | 'Jobs' | 'Malini';
 
 export type Trigger = Readonly<{
 	id: string;
@@ -20,7 +30,7 @@ export type Trigger = Readonly<{
 	icon: IconName;
 }>;
 
-export type TriggerLook = Readonly<{ label: string; icon: IconName }>;
+export type TriggerLook = Readonly<{ label: string; icon: IconName; group?: TriggerGroup }>;
 
 export const MANUAL_TRIGGER: Trigger = {
 	id: 'manual',
@@ -33,6 +43,7 @@ export const MANUAL_TRIGGER: Trigger = {
 
 export const TRIGGER_GROUPS: readonly TriggerGroup[] = [
 	'You',
+	'Schedule',
 	'Shipping',
 	'Workstreams',
 	'Chats',
@@ -152,6 +163,22 @@ export const RUN_MODES: readonly Readonly<{
 	{ value: 'auto', label: 'On its own', hint: 'Runs as soon as it fires' },
 ];
 
+export const SCHEDULE_ENTRY = {
+	label: 'On a schedule',
+	detail: 'Every day, every weekday or once a week',
+	words: 'daily weekly routine morning evening time clock',
+} as const;
+
+export const SCHEDULE_CADENCE_OPTIONS: readonly Readonly<{
+	value: ScheduleCadence;
+	label: string;
+}>[] = SCHEDULE_CADENCES.map((cadence) => ({
+	value: cadence,
+	label: scheduleCadenceLabel(cadence),
+}));
+
+export const SCHEDULE_RUNS_IN_HINT = 'Its own chat or workstream there, kept between runs.';
+
 export const EVENT_RUNS_IN_OPTIONS: readonly Readonly<{ value: JobRunsIn; label: string }>[] = [
 	{ value: 'workstream', label: 'The workstream it fires in' },
 	{ value: 'new-workstream', label: 'A new workstream' },
@@ -183,7 +210,38 @@ export function triggerById(id: string): Trigger {
 
 export function triggerFor(when: string | null): Trigger {
 	if (when === null) return MANUAL_TRIGGER;
-	return TRIGGERS.find((trigger) => trigger.when === when) ?? customTrigger(when);
+	return (
+		TRIGGERS.find((trigger) => trigger.when === when) ??
+		scheduledTrigger(when) ??
+		customTrigger(when)
+	);
+}
+
+export function schedulePlaces(fullNames: readonly string[]): readonly SchedulePlace[] {
+	const repositories = fullNames
+		.filter((name) => githubOwnerFromFullName(name) !== null)
+		.sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
+	const owners = [...new Set(repositories.map((name) => githubOwnerFromFullName(name) ?? ''))];
+	return [
+		{ kind: 'home' },
+		...owners.flatMap((owner): SchedulePlace[] => [
+			{ kind: 'owner', owner },
+			...repositories
+				.filter((name) => githubOwnerFromFullName(name) === owner)
+				.map((repository): SchedulePlace => ({ kind: 'repository', repository })),
+		]),
+	];
+}
+
+export function schedulePlaceValue(place: SchedulePlace): string {
+	return place.kind === 'home' ? '' : schedulePlaceName(place);
+}
+
+export function scheduleRunsIn(place: SchedulePlace): string {
+	if (place.kind === 'home') return 'in its own chat at Home';
+	return place.kind === 'owner'
+		? `in its own chat in ${place.owner}`
+		: `in its own workstream of ${place.repository}`;
 }
 
 export function builtinTrigger(job: Pick<JobDefinitionRecord, 'builtin'>): TriggerLook | null {
@@ -220,7 +278,7 @@ function thenRank(job: Pick<JobDefinitionRecord, 'builtin'>): number {
 }
 
 export function whenClause(look: TriggerLook): string {
-	if (look.label === MANUAL_TRIGGER.label) return look.label;
+	if (look.label === MANUAL_TRIGGER.label || look.group === 'Schedule') return look.label;
 	const lead = look.label.startsWith('Malini')
 		? look.label.charAt(0)
 		: look.label.charAt(0).toLowerCase();
@@ -234,11 +292,27 @@ export function jobSentence(job: JobDefinitionRecord, thenName: string | null): 
 			: jobWhenDetail(job);
 	}
 	const { trigger } = job;
+	const schedule = scheduleOf(trigger?.when);
 	const when = whenClause(jobTriggerLook(job));
-	const runsIn = (trigger === null ? MANUAL_RUNS_IN_PHRASE : RUNS_IN_PHRASE)[job.runsIn];
+	const runsIn = schedule
+		? scheduleRunsIn(schedule.place)
+		: (trigger === null ? MANUAL_RUNS_IN_PHRASE : RUNS_IN_PHRASE)[job.runsIn];
 	const then = thenName === null ? '' : ` and then runs ${thenName}`;
 	const suffix = trigger === null ? '' : MODE_SUFFIX[trigger.mode];
 	return `${when}, ${job.name} runs ${runsIn}${then}.${suffix}`;
+}
+
+function scheduledTrigger(when: string): Trigger | null {
+	const schedule = scheduleOf(when);
+	if (schedule === null) return null;
+	return {
+		id: when,
+		when,
+		group: 'Schedule',
+		label: schedule.description,
+		detail: `Runs ${scheduleRunsIn(schedule.place)}`,
+		icon: 'clock',
+	};
 }
 
 function customTrigger(when: string): Trigger {

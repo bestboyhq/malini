@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAutomationTrigger } from './automation-trigger';
+import { parseAutomationTrigger, scheduleWhen } from './automation-trigger';
 
 describe('parseAutomationTrigger event phrases', () => {
 	it('parses a channel with set and equality conditions', () => {
@@ -49,5 +49,46 @@ describe('parseAutomationTrigger event phrases', () => {
 			'workstream-created',
 		);
 		expect(() => parseAutomationTrigger('when the moon is full')).toThrow(/“on <channel>”/u);
+	});
+});
+
+describe('parseAutomationTrigger schedules', () => {
+	it('reads a day, the weekdays or one day of the week at a time, at Home without a place', () => {
+		expect(parseAutomationTrigger('every weekday at 9:05')).toEqual({
+			kind: 'schedule',
+			cadence: 'weekday',
+			hour: 9,
+			minute: 5,
+			place: { kind: 'home' },
+			description: 'Every weekday at 9:05',
+		});
+		expect(parseAutomationTrigger('Every Monday at 17:30')).toMatchObject({
+			cadence: 'monday',
+			description: 'Every Monday at 17:30',
+		});
+	});
+
+	it('reads an organization or a repository as the place it runs in', () => {
+		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq')).toMatchObject({
+			place: { kind: 'owner', owner: 'bestboyhq' },
+		});
+		expect(parseAutomationTrigger('every day at 07:00 in bestboyhq/malini')).toMatchObject({
+			place: { kind: 'repository', repository: 'bestboyhq/malini' },
+		});
+	});
+
+	it('writes a schedule back as the phrase it reads', () => {
+		for (const when of ['every day at 07:00', 'every friday at 23:59 in acme/app']) {
+			const trigger = parseAutomationTrigger(when);
+			if (trigger.kind !== 'schedule') throw new Error(`${when} is no schedule`);
+			expect(scheduleWhen(trigger)).toBe(when);
+		}
+	});
+
+	it('rejects a time that does not exist and a day it does not know', () => {
+		for (const when of ['every day at 24:00', 'every day at 9:60', 'every morning at 9:00']) {
+			expect(() => parseAutomationTrigger(when)).toThrow(/Unsupported schedule/u);
+		}
+		expect(() => parseAutomationTrigger('every day')).toThrow(/every weekday at 09:00 in/u);
 	});
 });

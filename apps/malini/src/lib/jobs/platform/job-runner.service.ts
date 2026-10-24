@@ -217,6 +217,11 @@ export class JobRunner {
 			}
 			const workstreamId = jobRun.workstreamId ?? (await this.#createWorkstream(jobRun));
 			if (!this.#dispatching(jobRun.id)) return;
+			const freshness =
+				jobRun.origin === 'schedule' && jobRun.workstreamId !== null
+					? await this.#freshen(workstreamId)
+					: null;
+			if (!this.#dispatching(jobRun.id)) return;
 			const runContext = getJobRunContext(db, jobRun.id);
 			const conflicts =
 				definition.builtin === 'resolve-conflicts'
@@ -240,8 +245,11 @@ export class JobRunner {
 			const agentRunId = await commands.call('chat.send-prompt', {
 				sessionId,
 				prompt: jobPrompt(
-					jobPrompt(definition.instructions, runContext),
-					conflicts === runContext ? null : conflicts,
+					jobPrompt(
+						jobPrompt(definition.instructions, runContext),
+						conflicts === runContext ? null : conflicts,
+					),
+					freshness,
 				),
 				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
@@ -382,9 +390,18 @@ export class JobRunner {
 
 	async #createWorkstream(jobRun: JobRunRecord): Promise<string> {
 		const { db, commands } = this.#context;
-		const plan =
+		if (jobRun.scope !== null) {
+			const lead = await commands.call('repositories.create-lead', {
+				scope: jobRun.scope,
+				name: jobRun.title,
+			});
+			this.#update(jobRun.id, (current) => ({ ...current, workstreamId: lead.id }));
+			return lead.id;
+		}
+		const planned =
 			jobRun.repositoryId === null ? null : await planRepositoryWorkstream(db, jobRun.repositoryId);
-		if (!plan) throw new Error('The repository for this job is no longer connected.');
+		if (!planned) throw new Error('The repository for this job is no longer connected.');
+		const plan = jobRun.origin === 'schedule' ? { ...planned, name: jobRun.title } : planned;
 		await createPlannedWorkstream(commands, plan, await clonePlannedRepository(commands, plan));
 		const { workstreamId } = plan;
 		this.#update(jobRun.id, (current) => ({ ...current, workstreamId }));
@@ -393,6 +410,30 @@ export class JobRunner {
 			this.#log(`jobs: ${line}`),
 		);
 		return workstreamId;
+	}
+
+	async #freshen(workstreamId: string): Promise<string | null> {
+		const { commands } = this.#context;
+		const workstream = this.#workstream(workstreamId);
+		const baseBranch = workstream.scope === null ? await this.#baseBranch(workstream) : null;
+		if (!baseBranch) return null;
+		const skipped = `Malini did not merge ${baseBranch} into this workstream before this run`;
+		try {
+			const status = await commands.call('repositories.workstream-status', { workstreamId });
+			if (status.operationInProgress !== null) {
+				return `${skipped}: a ${status.operationInProgress} is in progress.`;
+			}
+			if (status.dirtyPaths.length > 0) return `${skipped}: it has uncommitted changes.`;
+			const args = { workstreamId, baseBranch };
+			if ((await commands.call('repositories.count-behind-base', args)) === 0) return null;
+			await commands.call('repositories.pull-workstream', args);
+			const merged = await commands.call('repositories.workstream-status', { workstreamId });
+			return hasConflictedMerge(merged)
+				? `Malini merged ${baseBranch} into this workstream before this run, and the merge stopped on conflicts in ${merged.conflictedPaths.join(', ')}. Resolve them first.`
+				: null;
+		} catch (error) {
+			return `${skipped}: ${describeError(error)}`;
+		}
 	}
 
 	#requeue(jobRunId: string): boolean {

@@ -40,7 +40,7 @@ What the generator cannot judge is how a glyph looks next to its neighbours; the
 - **Air.** Keep parallel centrelines at least 2.5 apart, a 1px gap between strokes, or the gap closes at 12px.
 - **Dots.** The point of a `!` or `?` is `M8 11h.01`: a round cap one stroke wide.
   A standalone dot (grip, more) is `<circle r=".5" fill="currentColor" />`; a stroked circle smaller than r 1 renders hollow on retina.
-- **Fill.** `fill="currentColor"` only where a solid shape is the meaning (`stop`), or where the drawing is a gap between solid shapes (`send`, whose fold splits two wings).
+- **Fill.** `fill="currentColor"` only where a solid shape is the meaning (`stop`, `play`), or where the drawing is a gap between solid shapes (`send`, whose fold splits two wings).
   Every other glyph is outline, and a meaning has one glyph: no bold or filled twin.
 - **Name.** Kebab-case, after what the glyph depicts, or after its meaning where the drawing is generic (`pr-merged`).
 

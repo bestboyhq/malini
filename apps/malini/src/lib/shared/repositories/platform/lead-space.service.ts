@@ -17,7 +17,9 @@ export function leadSpacePath(appDataRoot: string): string {
 	return join(appDataRoot, 'lead-space');
 }
 
-export function createLeadSpace(deps: WorkstreamsDeps): (scope: LeadScope) => Promise<Workstream> {
+export function createLeadSpace(
+	deps: WorkstreamsDeps,
+): (scope: LeadScope, name?: string | null) => Promise<Workstream> {
 	let ready: Promise<string> | null = null;
 	const prepared = (): Promise<string> => {
 		ready ??= prepareLeadSpace(deps).catch((error: unknown) => {
@@ -26,7 +28,7 @@ export function createLeadSpace(deps: WorkstreamsDeps): (scope: LeadScope) => Pr
 		});
 		return ready;
 	};
-	return async (scope) => {
+	return async (scope, name = null) => {
 		const projectRepoPath = await prepared();
 		const workstreamId = nextWorkstreamId();
 		const taken = listWorkstreams(deps.db)
@@ -37,7 +39,7 @@ export function createLeadSpace(deps: WorkstreamsDeps): (scope: LeadScope) => Pr
 			workstreamId,
 			baseBranch: LEAD_SPACE_BRANCH,
 			projectId: LEAD_SPACE_PROJECT_ID,
-			name: uniqueWorkstreamName(workstreamId, taken),
+			name: name ?? uniqueWorkstreamName(workstreamId, taken),
 			githubToken: null,
 			startRef: LEAD_SPACE_BRANCH,
 			scope: leadScopeKey(scope),

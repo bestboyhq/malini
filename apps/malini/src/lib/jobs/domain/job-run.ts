@@ -22,7 +22,13 @@ export function jobRunLastActivityAt(
 }
 
 export function isJobRunOrigin(value: unknown): value is JobRunOrigin {
-	return value === 'merge-queue' || value === 'manual' || value === 'trigger' || value === 'then';
+	return (
+		value === 'merge-queue' ||
+		value === 'manual' ||
+		value === 'trigger' ||
+		value === 'then' ||
+		value === 'schedule'
+	);
 }
 
 export function jobPrompt(instructions: string, context: string | null): string {
