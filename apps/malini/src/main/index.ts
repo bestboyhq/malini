@@ -89,7 +89,7 @@ async function boot(): Promise<void> {
 		getMainWindow: () => BrowserWindow.getAllWindows()[0] ?? null,
 		...(bridgeScriptPath ? { overrides: { bridgeScriptPath } } : {}),
 	});
-	serveWorkstreamImages(db, modules.repositories.checkouts);
+	serveWorkstreamImages(modules.repositories.media);
 	if (context.isDev) assertContractIsRegistered(context.commands.names());
 	context.commands.install();
 	createMainWindow();

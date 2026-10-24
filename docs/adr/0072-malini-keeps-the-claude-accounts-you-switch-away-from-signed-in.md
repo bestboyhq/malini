@@ -1,4 +1,4 @@
-# 0071 - Malini keeps the Claude accounts you switch away from signed in
+# 0072 - Malini keeps the Claude accounts you switch away from signed in
 
 Status: accepted
 

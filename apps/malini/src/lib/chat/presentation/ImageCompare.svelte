@@ -5,9 +5,9 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import { compareImagesCommand } from '$lib/chat/application/commands/compare-images.command';
 	import { imageComparisonQuery } from '$lib/chat/application/queries/image-comparison.query.svelte';
-	import type { TurnComparison } from '$lib/chat/domain/turn-report';
+	import { workstreamImagePath, type TurnComparison } from '$lib/chat/domain/turn-report';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
-	import { galleryImageId, reportMediaSource, workstreamImagePath } from './workstream-images';
+	import { galleryImageId, reportMediaSource } from './workstream-images';
 
 	type Mode = 'wipe' | 'flip' | 'diff';
 

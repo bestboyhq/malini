@@ -147,8 +147,6 @@
 
 <Head title="Malini: an agentic development environment" description={SITE_DESCRIPTION} path="" />
 
-<div class="progress" aria-hidden="true"></div>
-
 <section class="hero" aria-labelledby="hero-title" data-place="hero">
 	<div class="wrap intro">
 		<a class="eyebrow" href={GITHUB_URL}>
@@ -409,30 +407,6 @@
 {/snippet}
 
 <style>
-	.progress {
-		display: none;
-	}
-
-	@supports (animation-timeline: scroll()) {
-		.progress {
-			position: fixed;
-			z-index: 50;
-			inset: 0 0 auto;
-			display: block;
-			height: 3px;
-			background: var(--painting);
-			transform-origin: 0 50%;
-			animation: fill linear both;
-			animation-timeline: scroll(root);
-		}
-	}
-
-	@keyframes fill {
-		from {
-			scale: 0 1;
-		}
-	}
-
 	.intro {
 		display: flex;
 		flex-direction: column;

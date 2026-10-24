@@ -1,6 +1,6 @@
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	APP_ROOT,
 	captureFlow,
@@ -146,6 +146,42 @@ test('clicking an image in a chat browses every image of the chat in one gallery
 		await page.mouse.up();
 		await expect(editor).toBeHidden();
 		await expect(gallery.getByRole('status')).toHaveText('3 of 3');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('the gallery still opens what the agent showed after the agent deletes the files', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-gallery-kept', 'Gallery kept');
+		const captures = join(seeded.worktree, '.context');
+		mkdirSync(captures, { recursive: true });
+		copyFileSync(ICON, join(captures, 'before.png'));
+		copyFileSync(AVATAR, join(captures, 'after.png'));
+		await openWorkstream(page, seeded.workstreamId);
+		await sendPrompt(page, 'READ_IMAGE:.context/before.png SHOW_IMAGE:.context/after.png');
+		await expectAssistantReply(page);
+		const loadedWidth = (image: Locator) => () =>
+			image.evaluate((element) => ('naturalWidth' in element ? Number(element.naturalWidth) : 0));
+		const shown = page.getByRole('button', { name: 'Open image .context/after.png in gallery' });
+		await expect.poll(loadedWidth(shown)).toBeGreaterThan(0);
+
+		rmSync(captures, { recursive: true });
+		await page.getByRole('button', { name: 'Open image before.png in gallery' }).click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await expect
+			.poll(loadedWidth(gallery.getByRole('img', { name: 'before.png' })))
+			.toBeGreaterThan(0);
+		await page.keyboard.press('ArrowRight');
+		await expect
+			.poll(loadedWidth(gallery.getByRole('img', { name: '.context/after.png' })))
+			.toBeGreaterThan(0);
+		await expect(gallery.getByText('This file no longer exists')).toHaveCount(0);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
