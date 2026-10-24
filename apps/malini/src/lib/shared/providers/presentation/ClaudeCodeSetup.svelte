@@ -41,6 +41,7 @@
 	const actionRadius = $derived(step ? 'full' : 'md');
 
 	function signInDetail(current: ClaudeSignInState): string | null {
+		if (current === 'switching') return 'Switching accounts…';
 		if (current === 'waiting-for-browser') return 'Continue in your browser to finish signing in.';
 		if (current === 'confirming') return 'Checking the new sign-in…';
 		return null;

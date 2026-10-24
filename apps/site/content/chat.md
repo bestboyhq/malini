@@ -5,7 +5,7 @@ description: How a Malini chat runs Claude Code - queue or steer prompts, plan m
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
 It keeps running between prompts, so your MCP servers stay connected.
-It restarts after 10 idle minutes, when you change the access, mode, report or skills, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
+It restarts after 10 idle minutes, when you change the access, mode, report or skills or switch Claude accounts, and when `CLAUDE.md`, your Claude Code settings, `.mcp.json` or the MCP servers in `~/.claude.json` change.
 
 ## Chats above repositories
 
@@ -54,6 +54,13 @@ Plan mode writes the plan, then **Implement plan** starts the work, with a model
 ## Model and effort per prompt
 
 Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every prompt.
+
+## Claude accounts
+
+The model picker and Settings show the Claude account Claude Code is signed in to, and **Switch to** moves to another account you used before.
+The first switch to an account signs in through your browser.
+After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
+A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
 
 ## Agent access
 
