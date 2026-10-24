@@ -73,7 +73,7 @@ The [README](../README.md) has the short version.
 - **Bring context.** **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings, and files, up to 100 MB each.
 - **Know your limits.** The context window breakdown and your plan usage, five-hour and weekly, are one click from the composer, next to MCP server status.
   Plan usage follows the Claude account you're signed in to.
-  **Switch to** in the model picker changes accounts in one click: Malini keeps every account you used signed in, so your browser opens only for the first switch to an account, and again when Claude ends its sign-in about four weeks later.
+  **Switch to** in the model picker changes accounts in one click: Malini keeps every account you used signed in, so your browser opens only for the first switch to an account, or when Claude asks you to sign in again.
 - **Undo, edit, fork.** Every run can be undone.
   Edit an earlier message to resend from there, or fork to a new chat while the agent is still busy.
 

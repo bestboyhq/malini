@@ -59,8 +59,7 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 The model picker and Settings show the Claude account Claude Code is signed in to, and **Switch to** moves to another account you used before.
 The first switch to an account signs in through your browser.
-After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click and no browser.
-Claude ends each sign-in about four weeks after you signed in through the browser, and the next switch to that account opens your browser once more.
+After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
 
 ## Agent access
