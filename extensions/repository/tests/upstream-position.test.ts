@@ -182,6 +182,16 @@ function panelApi(): RepositoryPanelHost {
 				throw new Error('The upstream position tests do not open panels');
 			},
 		},
+		commands: {
+			execute: async () => {
+				throw new Error('The upstream position tests do not execute commands');
+			},
+		},
+		ui: {
+			openExternal: async () => {
+				throw new Error('The upstream position tests do not open links');
+			},
+		},
 	};
 }
 

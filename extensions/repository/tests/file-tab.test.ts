@@ -258,6 +258,69 @@ test('a line asked for before the tab mounts is the line it shows once mounted',
 	});
 });
 
+test('a markdown file opens Rich, and a line asked for opens it Raw', async () => {
+	await withDom(async (window) => {
+		const host = await createHost({
+			manifest,
+			fixtureRepository: {
+				name: 'file-tab-markdown',
+				files: { 'NOTES.md': '# Notes\n\nFirst\n', 'GUIDE.md': '# Guide\n\nOne\nTwo\n' },
+			},
+		});
+		try {
+			await host.activate(extension);
+			const notes = await mountFileTab(host, window, 'NOTES.md');
+			try {
+				assert.equal(pressedView(notes.root), 'Rich');
+				assert.equal(notes.root.querySelector('h1')?.textContent, 'Notes');
+				assert.notEqual(notes.editor.dom.closest('[hidden]'), null);
+			} finally {
+				await notes.instance.dispose();
+			}
+
+			const guide = await mountFileTab(host, window, 'GUIDE.md', 4);
+			try {
+				assert.equal(pressedView(guide.root), 'Raw');
+				assert.equal(guide.editor.dom.closest('[hidden]'), null);
+				assert.equal(cursorLine(guide.editor), 4);
+			} finally {
+				await guide.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('a markdown tab opens again in the view it was left in, and other files have no views', async () => {
+	await withDom(async (window) => {
+		const host = await hostWithRepository();
+		try {
+			await host.activate(extension);
+			const readme = await mountFileTab(host, window, 'README.md', null, false);
+			viewButton(readme.root, 'Raw').click();
+			await readme.instance.dispose();
+
+			const again = await mountFileTab(host, window, 'README.md', null, false);
+			try {
+				assert.equal(pressedView(again.root), 'Raw');
+				assert.equal(again.editor.dom.closest('[hidden]'), null);
+			} finally {
+				await again.instance.dispose();
+			}
+
+			const app = await mountFileTab(host, window, 'src/app.ts');
+			try {
+				assert.equal(app.root.querySelector('[role="group"]'), null);
+			} finally {
+				await app.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
 test('the files tree marks the file whose tab is on screen, and only while it is', async () => {
 	await withDom(async (window) => {
 		const host = await hostWithRepository();
@@ -585,6 +648,18 @@ function type(editor: EditorView, at: number, text: string): void {
 
 function cursorLine(editor: EditorView): number {
 	return editor.state.doc.lineAt(editor.state.selection.main.head).number;
+}
+
+function viewButton(root: HTMLElement, name: string): HTMLButtonElement {
+	const button = [...root.querySelectorAll<HTMLButtonElement>('[role="group"] button')].find(
+		(candidate) => candidate.textContent === name,
+	);
+	assert.ok(button, `the tab offers the ${name} view`);
+	return button;
+}
+
+function pressedView(root: HTMLElement): string | null {
+	return root.querySelector('[role="group"] [aria-pressed="true"]')?.textContent ?? null;
 }
 
 function rowTexts(editor: EditorView): readonly string[] {

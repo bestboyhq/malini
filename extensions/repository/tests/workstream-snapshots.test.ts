@@ -857,6 +857,16 @@ function createHarness(
 				register: () => ({ dispose: () => undefined }),
 				open: () => undefined,
 			},
+			commands: {
+				execute: async () => {
+					throw new Error('The workstream snapshot tests do not execute commands');
+				},
+			},
+			ui: {
+				openExternal: async () => {
+					throw new Error('The workstream snapshot tests do not open links');
+				},
+			},
 		},
 		async switchTo(next) {
 			active = next;

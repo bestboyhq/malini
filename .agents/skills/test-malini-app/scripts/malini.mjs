@@ -42,6 +42,7 @@ export async function launch(topic, { foreground = false } = {}) {
 				.every(
 					(animation) =>
 						animation.playState !== 'running' ||
+						animation.timeline !== document.timeline ||
 						animation.effect?.getTiming().iterations === Infinity,
 				),
 		);

@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionWorkstream } from '@malini/extension-api';
 
+import { workstreamImageUrl } from '$contract/workstream-images';
 import { invoke } from '$shared/port/invoke';
 
 export function createDesktopExtensionWorkstream(input: {
@@ -54,5 +55,7 @@ export function createDesktopExtensionWorkstream(input: {
 				workstreamId: workstreamId(requestedWorkstreamId),
 				path,
 			}),
+		mediaUrl: (path, requestedWorkstreamId) =>
+			workstreamImageUrl(workstreamId(requestedWorkstreamId), path, Date.now()),
 	};
 }

@@ -53,11 +53,35 @@ import {
 } from './code-tokens.js';
 import type { RepositoryPanelController, RepositoryViewState } from './controller.js';
 import type { RepositoryDiff } from './domain.js';
+import {
+	isMarkdownFile,
+	MARKDOWN_ARTICLE_STYLES,
+	markdownHeading,
+	markdownLineAt,
+	markdownLineTop,
+	markdownLink,
+	renderMarkdown,
+	type MarkdownLink,
+} from './markdown.js';
 import type { RepositoryPanelHost } from './panel.js';
 
 export const REPOSITORY_FILE_PANEL_TEMPLATE_ID = 'malini.repository.file';
 
 const SAVE_DELAY_MS = 400;
+
+type FileTabMode = 'rich' | 'raw';
+
+const FILE_TAB_MODES: readonly Readonly<{ mode: FileTabMode; label: string }>[] = [
+	{ mode: 'rich', label: 'Rich' },
+	{ mode: 'raw', label: 'Raw' },
+];
+
+type MarkdownView = Readonly<{
+	modes: HTMLElement;
+	buttons: readonly (readonly [FileTabMode, HTMLButtonElement])[];
+	prose: HTMLElement;
+	article: HTMLElement;
+}>;
 
 export type RepositoryFileTabTarget = Readonly<{
 	path: string;
@@ -74,6 +98,7 @@ export class RepositoryFileTabs {
 	readonly #controller: RepositoryPanelController;
 	readonly #views = new Map<string, RepositoryFileTabView>();
 	readonly #pendingLines = new Map<string, number>();
+	readonly #modes = new Map<string, FileTabMode>();
 	readonly #registration: ExtensionDisposable;
 
 	constructor(api: RepositoryPanelHost, controller: RepositoryPanelController) {
@@ -100,6 +125,7 @@ export class RepositoryFileTabs {
 	async dispose(): Promise<void> {
 		this.#views.clear();
 		this.#pendingLines.clear();
+		this.#modes.clear();
 		await this.#registration.dispose();
 	}
 
@@ -119,9 +145,12 @@ export class RepositoryFileTabs {
 
 				const styles = installExtensionPanelStyles(
 					REPOSITORY_FILE_PANEL_TEMPLATE_ID,
-					REPOSITORY_FILE_TAB_STYLES,
+					REPOSITORY_FILE_TAB_STYLES + MARKDOWN_ARTICLE_STYLES,
 				);
-				const view = new RepositoryFileTabView(this.#api, this.#controller, path, root);
+				const view = new RepositoryFileTabView(this.#api, this.#controller, path, root, {
+					mode: this.#modes.get(path) ?? 'rich',
+					onmode: (mode) => this.#modes.set(path, mode),
+				});
 				this.#views.set(path, view);
 				const pendingLine = this.#pendingLines.get(path);
 				if (pendingLine !== undefined) {
@@ -188,8 +217,14 @@ class RepositoryFileTabView {
 	readonly #path: string;
 	readonly #root: HTMLElement;
 	readonly #body: HTMLElement;
+	readonly #source: HTMLElement;
+	readonly #markdown: MarkdownView | null;
+	readonly #onmode: (mode: FileTabMode) => void;
+	readonly #mediaUrls = new Map<string, string>();
 	readonly #problem: HTMLElement;
 	readonly #veil: HTMLElement;
+	#mode: FileTabMode;
+	#renderedDoc: Text | null = null;
 	#workstreamId: string | null = null;
 	#loadedWorkstreamId: string | null = null;
 	#treeDiffKey: string | null = null;
@@ -209,6 +244,7 @@ class RepositoryFileTabView {
 		controller: RepositoryPanelController,
 		path: string,
 		root: HTMLElement,
+		display: Readonly<{ mode: FileTabMode; onmode: (mode: FileTabMode) => void }>,
 	) {
 		this.#api = api;
 		this.#controller = controller;
@@ -216,6 +252,16 @@ class RepositoryFileTabView {
 		this.#root = root;
 		this.#body = document.createElement('div');
 		this.#body.className = 'repository-file-tab__body malini-panel-column';
+		this.#source = document.createElement('div');
+		this.#source.className = 'repository-file-tab__source';
+		this.#markdown = isMarkdownFile(path) ? this.#markdownView() : null;
+		this.#mode = this.#markdown ? display.mode : 'raw';
+		this.#onmode = display.onmode;
+		this.#body.append(
+			...(this.#markdown
+				? [this.#markdown.modes, this.#source, this.#markdown.prose]
+				: [this.#source]),
+		);
 		this.#veil = privacyVeil(path, () => {
 			this.#revealed = true;
 			this.mask(false);
@@ -225,6 +271,7 @@ class RepositoryFileTabView {
 		this.#problem.setAttribute('role', 'alert');
 		this.#problem.hidden = true;
 		root.append(this.#body, this.#veil, this.#problem);
+		this.#applyMode();
 	}
 
 	async load(context: ExtensionPanelContext): Promise<void> {
@@ -252,6 +299,7 @@ class RepositoryFileTabView {
 
 	revealLine(line: number): void {
 		this.#requestedLine = line;
+		this.#setMode('raw');
 		const editor = this.#editor;
 		if (!editor) return;
 		const target = editor.state.doc.line(Math.min(line, editor.state.doc.lines));
@@ -326,6 +374,9 @@ class RepositoryFileTabView {
 						widget instanceof RemovedLine ? new LineNumber(widget.line) : null,
 					),
 					EditorView.contentAttributes.of({ 'aria-label': `Edit ${this.#path}` }),
+					EditorView.scrollMargins.of(() =>
+						this.#markdown ? { top: readingInset(this.#markdown.prose) } : null,
+					),
 					EditorView.updateListener.of((update) => this.#changed(update)),
 					EditorView.domEventHandlers({ blur: () => void this.#saveNow() }),
 					FILE_TAB_THEME,
@@ -333,9 +384,10 @@ class RepositoryFileTabView {
 			}),
 		});
 		editor.scrollDOM.classList.add('styled-scrollbar');
-		this.#body.replaceChildren(editor.dom);
+		this.#source.replaceChildren(editor.dom);
 		this.#editor = editor;
 		editor.dispatch({ effects: showBranchChanges.of({ diff, language: this.#language }) });
+		this.#applyMode();
 		if (this.#requestedLine !== null) {
 			this.revealLine(this.#requestedLine);
 			return;
@@ -352,11 +404,148 @@ class RepositoryFileTabView {
 		const problem = document.createElement('p');
 		problem.className = 'malini-panel-empty malini-panel-empty-heading';
 		problem.textContent = message;
-		this.#body.replaceChildren(problem);
+		this.#source.replaceChildren(problem);
+		this.#applyMode();
+	}
+
+	#markdownView(): MarkdownView {
+		const modes = document.createElement('div');
+		modes.className = 'repository-file-tab__modes';
+		modes.setAttribute('role', 'group');
+		modes.setAttribute('aria-label', `Show ${basename(this.#path)} as`);
+		const buttons = FILE_TAB_MODES.map(({ mode, label }) => {
+			const button = document.createElement('button');
+			button.type = 'button';
+			button.className = 'repository-file-tab__mode';
+			button.textContent = label;
+			button.addEventListener('click', () => this.#setMode(mode));
+			return [mode, button] as const;
+		});
+		modes.append(...buttons.map(([, button]) => button));
+		const prose = document.createElement('div');
+		prose.className = 'repository-file-tab__prose styled-scrollbar';
+		const article = document.createElement('article');
+		article.className = 'repository-file-tab__article';
+		prose.append(article);
+		prose.addEventListener('click', (event) => this.#follow(event));
+		prose.addEventListener('auxclick', (event) => {
+			if (event.button === 1) this.#follow(event);
+		});
+		return { modes, buttons, prose, article };
+	}
+
+	#setMode(mode: FileTabMode): void {
+		if (!this.#markdown || mode === this.#mode) return;
+		const line = this.#readingLine();
+		this.#mode = mode;
+		this.#onmode(mode);
+		this.#applyMode();
+		if (line !== null) this.#showLine(line);
+	}
+
+	#readingLine(): number | null {
+		const editor = this.#editor;
+		const markdown = this.#markdown;
+		if (!editor || !markdown) return null;
+		const inset = readingInset(markdown.prose);
+		if (this.#mode === 'rich') {
+			if (markdown.prose.scrollTop === 0) return 1;
+			return markdownLineAt(markdown.article, markdown.prose.getBoundingClientRect().top + inset);
+		}
+		if (editor.scrollDOM.scrollTop === 0) return 1;
+		const top = editor.scrollDOM.getBoundingClientRect().top + inset - editor.documentTop;
+		return editor.state.doc.lineAt(editor.lineBlockAtHeight(top).from).number;
+	}
+
+	#showLine(line: number): void {
+		const editor = this.#editor;
+		const markdown = this.#markdown;
+		if (!editor || !markdown) return;
+		const inset = readingInset(markdown.prose);
+		if (this.#mode === 'rich') {
+			const top = line > 1 ? markdownLineTop(markdown.article, line) : null;
+			const prose = markdown.prose;
+			prose.scrollTop =
+				top === null ? 0 : prose.scrollTop + top - prose.getBoundingClientRect().top - inset;
+			return;
+		}
+		if (line <= 1) {
+			editor.scrollDOM.scrollTop = 0;
+			return;
+		}
+		const target = editor.state.doc.line(Math.min(line, editor.state.doc.lines));
+		editor.dispatch({
+			effects: EditorView.scrollIntoView(target.from, { y: 'start', yMargin: 0 }),
+		});
+	}
+
+	#applyMode(): void {
+		const markdown = this.#markdown;
+		if (!markdown) return;
+		const rich = this.#mode === 'rich' && this.#editor !== null;
+		markdown.modes.hidden = this.#editor === null;
+		this.#source.hidden = rich;
+		markdown.prose.hidden = !rich;
+		for (const [mode, button] of markdown.buttons) {
+			button.setAttribute('aria-pressed', String(mode === this.#mode));
+		}
+		this.#render();
+	}
+
+	#render(): void {
+		const editor = this.#editor;
+		const markdown = this.#markdown;
+		if (!editor || !markdown || this.#mode !== 'rich') return;
+		if (editor.state.doc === this.#renderedDoc) return;
+		this.#renderedDoc = editor.state.doc;
+		markdown.article.replaceChildren(
+			renderMarkdown(editor.state.doc.toString(), this.#path, (path) => this.#mediaUrl(path)),
+		);
+	}
+
+	#mediaUrl(path: string): string | null {
+		const shown = this.#mediaUrls.get(path);
+		if (shown !== undefined) return shown;
+		try {
+			const url = this.#api.workstream.mediaUrl?.(path, this.#workstreamId ?? undefined) ?? null;
+			if (url !== null) this.#mediaUrls.set(path, url);
+			return url;
+		} catch {
+			return null;
+		}
+	}
+
+	#follow(event: MouseEvent): void {
+		const anchor = event.composedPath().find(isAnchor);
+		if (!anchor) return;
+		event.preventDefault();
+		const link = markdownLink(anchor.getAttribute('href') ?? '', this.#path);
+		if (link?.kind === 'heading') {
+			if (this.#markdown) {
+				markdownHeading(this.#markdown.article, link.slug)?.scrollIntoView({ block: 'start' });
+			}
+			return;
+		}
+		if (link) void this.#open(link);
+	}
+
+	async #open(link: Exclude<MarkdownLink, { kind: 'heading' }>): Promise<void> {
+		const target = link.kind === 'web' ? link.url : link.path;
+		try {
+			if (link.kind === 'web') await this.#api.ui.openExternal(link.url);
+			else await this.#api.commands.execute('malini.repository.open-file', { path: link.path });
+		} catch (error) {
+			await this.#api.notifications.show({
+				title: `Could not open ${target}`,
+				body: error instanceof Error ? error.message : String(error),
+				level: 'error',
+			});
+		}
 	}
 
 	#changed(update: ViewUpdate): void {
 		if (!update.docChanged) return;
+		this.#render();
 		if (update.transactions.every((transaction) => transaction.annotation(fromDisk))) return;
 		this.#pin();
 		if (this.#saveTimer !== null) clearTimeout(this.#saveTimer);
@@ -416,6 +605,14 @@ function replacementFromDisk(shown: string, contents: string) {
 		},
 		annotations: [fromDisk.of(true), Transaction.addToHistory.of(false)],
 	};
+}
+
+function readingInset(prose: HTMLElement): number {
+	return Number.parseFloat(getComputedStyle(prose).paddingTop) || 0;
+}
+
+function isAnchor(target: EventTarget): target is HTMLElement {
+	return target instanceof HTMLElement && target.tagName === 'A';
 }
 
 const PRIVATE_FILE_NAME = /^(?:\.env(?:\..+)?|.+\.env|\.envrc|.+\.(?:pem|key|p12|pfx))$/u;
@@ -829,7 +1026,8 @@ const REPOSITORY_FILE_TAB_STYLES = `
 	background: var(--color-surface-50);
 }
 
-[data-malini-extension] .repository-file-tab__body {
+[data-malini-extension] .repository-file-tab__body,
+[data-malini-extension] .repository-file-tab__source {
 	display: flex;
 	min-height: 0;
 	flex: 1;
@@ -838,6 +1036,73 @@ const REPOSITORY_FILE_TAB_STYLES = `
 
 [data-malini-extension][data-masked] .repository-file-tab__body {
 	visibility: hidden;
+}
+
+[data-malini-extension] .repository-file-tab__source {
+	isolation: isolate;
+}
+
+[data-malini-extension] .repository-file-tab__modes {
+	position: absolute;
+	top: 0.75rem;
+	right: 1rem;
+	z-index: 1;
+	display: inline-flex;
+	gap: 0.125rem;
+	border: 0.5px solid var(--color-surface-50-border);
+	border-radius: 9px;
+	background: var(--color-surface-50);
+	padding: 0.125rem;
+}
+
+[data-malini-extension] .repository-file-tab__mode {
+	height: 1.5rem;
+	border: 0;
+	border-radius: 0.375rem;
+	background: transparent;
+	padding: 0 0.625rem;
+	color: var(--color-fg-secondary);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: color 150ms ease-in-out;
+}
+
+[data-malini-extension] .repository-file-tab__mode:hover,
+[data-malini-extension] .repository-file-tab__mode[aria-pressed='true'] {
+	background: var(--color-surface-150-hover);
+	color: var(--color-fg-default);
+}
+
+[data-malini-extension] .repository-file-tab__prose {
+	min-height: 0;
+	flex: 1;
+	overflow: auto;
+	padding: 3rem 2rem 4.5rem;
+	mask-image: linear-gradient(to bottom, transparent 1.5rem, black 3rem);
+}
+
+[data-malini-extension] .repository-file-tab__modes + .repository-file-tab__source .cm-scroller {
+	mask-image: linear-gradient(to bottom, transparent 1.5rem, black 3rem);
+	mask-position: 0 -3rem;
+	mask-size: 100% calc(100% + 3rem);
+	mask-repeat: no-repeat;
+	animation: repository-file-tab-fade-in linear both;
+	animation-timeline: scroll(self);
+	animation-range: 0 3rem;
+}
+
+@keyframes repository-file-tab-fade-in {
+	to {
+		mask-position: 0 0;
+	}
+}
+
+[data-malini-extension] .repository-file-tab__modes[hidden],
+[data-malini-extension] .repository-file-tab__source[hidden],
+[data-malini-extension] .repository-file-tab__prose[hidden] {
+	display: none;
 }
 
 [data-malini-extension] .repository-file-tab__veil {

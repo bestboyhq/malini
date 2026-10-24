@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -85,6 +85,106 @@ test('a file tab is an editor that saves what the user types into the worktree, 
 			.toBe('export const alpha = 1; // kept\n');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'file-editing-1-saved');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a markdown file opens Rich, Raw edits its text, and its links open their files', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		mkdirSync(join(source, 'docs'));
+		writeFileSync(join(source, 'docs', 'guide.md'), '# Guide\n\nRead me first.\n');
+		writeFileSync(
+			join(source, 'NOTES.md'),
+			'# Release notes\n\nRead the [guide](docs/guide.md) before shipping.\n\n> Ship it when it reads well.\n',
+		);
+		await execFileAsync('git', ['-C', source, 'add', '.']);
+		await execFileAsync('git', ['-C', source, 'commit', '-m', 'notes']);
+		const seeded = await seedWorkstream(page, source, 'e2e-markdown-ws', 'Markdown workstream');
+		await openWorkstream(page, seeded.workstreamId);
+		await page.getByRole('treeitem', { name: 'Open NOTES.md' }).click({ timeout: 20_000 });
+
+		const panel = page.getByRole('tabpanel', { name: 'NOTES.md' });
+		const view = panel.getByRole('group', { name: 'Show NOTES.md as' });
+		await expect(panel.getByRole('heading', { name: 'Release notes', level: 1 })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(view.getByRole('button', { name: 'Rich' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		await expect(editor(page, 'NOTES.md')).toBeHidden();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'file-editing-4-markdown-rich');
+
+		await view.getByRole('button', { name: 'Raw' }).click();
+		const notes = editor(page, 'NOTES.md');
+		await expect(notes).toContainText('# Release notes');
+		await expect(panel.getByRole('heading', { name: 'Release notes' })).toBeHidden();
+		await notes.getByText('# Release notes').click();
+		await page.keyboard.press('End');
+		await page.keyboard.type(' for 1.0');
+		await expect
+			.poll(() => readFileSync(join(seeded.worktree, 'NOTES.md'), 'utf8'), { timeout: 20_000 })
+			.toMatch(/^# Release notes for 1\.0\n/u);
+
+		await view.getByRole('button', { name: 'Rich' }).click();
+		await expect(
+			panel.getByRole('heading', { name: 'Release notes for 1.0', level: 1 }),
+		).toBeVisible();
+		await panel.getByRole('link', { name: 'guide' }).click();
+		await expect(fileTab(page, 'guide.md')).toHaveAttribute('aria-selected', 'true', {
+			timeout: 20_000,
+		});
+		await expect(
+			page.getByRole('tabpanel', { name: 'guide.md' }).getByRole('heading', { name: 'Guide' }),
+		).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('switching a markdown file between Rich and Raw keeps the reading position', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const sections = Array.from(
+			{ length: 40 },
+			(_, index) => `## Section ${String(index + 1)}\n\nNotes for section ${String(index + 1)}.\n`,
+		);
+		writeFileSync(join(source, 'GUIDE.md'), `# Guide\n\n${sections.join('\n')}`);
+		await execFileAsync('git', ['-C', source, 'add', '.']);
+		await execFileAsync('git', ['-C', source, 'commit', '-m', 'guide']);
+		const seeded = await seedWorkstream(page, source, 'e2e-markdown-sync-ws', 'Markdown sync');
+		await openWorkstream(page, seeded.workstreamId);
+		await page.getByRole('treeitem', { name: 'Open GUIDE.md' }).click({ timeout: 20_000 });
+
+		const panel = page.getByRole('tabpanel', { name: 'GUIDE.md' });
+		const view = panel.getByRole('group', { name: 'Show GUIDE.md as' });
+		const title = panel.getByRole('heading', { name: 'Guide', level: 1 });
+		const section = panel.getByRole('heading', { name: 'Section 30', exact: true });
+		await expect(section).toBeAttached({ timeout: 20_000 });
+		await section.evaluate((heading) => {
+			heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+		});
+		await expect(title).not.toBeInViewport();
+
+		await view.getByRole('button', { name: 'Raw' }).click();
+		await expect(
+			editor(page, 'GUIDE.md').getByText('## Section 30', { exact: true }),
+		).toBeInViewport();
+
+		await view.getByRole('button', { name: 'Rich' }).click();
+		await expect(section).toBeInViewport();
+		await expect(title).not.toBeInViewport();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

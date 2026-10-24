@@ -29,8 +29,10 @@ import { upstreamPositionGlyphs, upstreamPositionSentence } from './upstream-pos
 export type RepositoryPanelHost = {
 	manifest: Pick<ExtensionAPI['manifest'], 'id'>;
 	notifications: Pick<ExtensionAPI['notifications'], 'show'>;
-	workstream: Pick<ExtensionAPI['workstream'], 'readFile' | 'writeFile'>;
+	workstream: Pick<ExtensionAPI['workstream'], 'readFile' | 'writeFile' | 'mediaUrl'>;
 	panels: Pick<ExtensionAPI['panels'], 'register' | 'open'>;
+	commands: Pick<ExtensionAPI['commands'], 'execute'>;
+	ui: Pick<ExtensionAPI['ui'], 'openExternal'>;
 };
 
 type RepositoryPanelAction = 'file' | 'diff';
@@ -1950,7 +1952,7 @@ const REPOSITORY_PANEL_STYLES = `
 	}
 	.repository-panel__scope-chip:hover { color: var(--color-fg-secondary); }
 	.repository-panel__scope-chip--active {
-		background: var(--color-surface-200);
+		background: var(--color-surface-150-hover);
 		color: var(--color-fg-default);
 	}
 	.repository-panel__scope-chip--active:hover { color: var(--color-fg-default); }
@@ -1959,8 +1961,8 @@ const REPOSITORY_PANEL_STYLES = `
 		flex: none;
 		border-radius: 0.5rem;
 		padding: 0.5rem 0.625rem;
-		background: color-mix(in srgb, var(--color-accent-2-primary) 10%, transparent);
-		color: var(--color-accent-2-primary);
+		background: color-mix(in srgb, var(--color-warning-content) 10%, transparent);
+		color: var(--color-warning-content);
 		font-size: var(--text-2xs);
 	}
 	.repository-panel__diff-view,

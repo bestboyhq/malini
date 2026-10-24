@@ -667,6 +667,7 @@ interface Boxed {
 
 interface RunningAnimation {
 	readonly playState: string;
+	readonly timeline: unknown;
 	readonly effect: {
 		getComputedTiming(): { endTime?: number | string };
 		readonly target?: Boxed | null;
@@ -687,6 +688,7 @@ export async function settleAnimations(page: Page): Promise<void> {
 			const finite = running.filter(
 				(animation) =>
 					animation.playState !== 'finished' &&
+					animation.timeline === body.ownerDocument.timeline &&
 					animation.effect?.getComputedTiming().endTime !== Infinity,
 			);
 			if (finite.length === 0) return;
@@ -713,8 +715,8 @@ export async function untilStill(page: Page): Promise<void> {
 		const moving = (): boolean => {
 			const screen = { top: 0, bottom: view.innerHeight };
 			const animations: RunningAnimation[] = body.getAnimations({ subtree: true });
-			const animating = animations.some(({ playState, effect }) => {
-				if (playState !== 'running' || !effect) return false;
+			const animating = animations.some(({ playState, timeline, effect }) => {
+				if (playState !== 'running' || timeline !== doc.timeline || !effect) return false;
 				if (effect.getComputedTiming().endTime === Infinity) return false;
 				return !effect.target || shows(effect.target, screen);
 			});
