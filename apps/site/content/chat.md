@@ -128,6 +128,7 @@ Malini plays one sound when an agent finishes and another when it needs you: a q
 Play one before you pick it, and the menu stays open while you try others.
 **Record a sound…** records up to 3 seconds from your microphone, after macOS asks you to allow it, and **Choose a file…** adds a sound file of up to 5 MB.
 Your own sounds join both lists, and **No sound** turns one off.
+The trash button beside one of yours removes it once you click **Remove**, and a moment that played it goes back to its default.
 
 ## Context
 

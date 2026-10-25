@@ -33,6 +33,10 @@ export function readCustomSound(db: MaliniDatabase, id: string): SoundBytes | nu
 	return row ? { mediaType: row.media_type, bytes: new Uint8Array(row.bytes) } : null;
 }
 
+export function removeCustomSound(db: MaliniDatabase, id: string): void {
+	run(db, 'DELETE FROM custom_sounds WHERE id = ?', id);
+}
+
 export function addCustomSound(db: MaliniDatabase, sound: NewCustomSound): CustomSound {
 	const added: CustomSound = {
 		id: `custom-${randomUUID()}`,

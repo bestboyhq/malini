@@ -81,7 +81,8 @@ export function isCustomSoundKind(value: unknown): value is CustomSoundKind {
 }
 
 export function nextRecordingLabel(sounds: readonly CustomSound[]): string {
-	return `Recording ${sounds.filter((sound) => sound.kind === 'recording').length + 1}`;
+	const taken = sounds.map((sound) => Number(/^Recording (\d+)$/u.exec(sound.label)?.[1] ?? 0));
+	return `Recording ${Math.max(0, ...taken) + 1}`;
 }
 
 export function fileSoundLabel(fileName: string): string {

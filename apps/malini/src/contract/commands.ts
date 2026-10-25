@@ -672,6 +672,7 @@ export interface ContractCommands {
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
 	'sounds.add': { args: AddSoundArgs; result: CustomSound };
+	'sounds.remove': { args: SoundIdArgs; result: void };
 	'sounds.pick-file': { args: undefined; result: PickedSound | null };
 	'sounds.ask-microphone': { args: undefined; result: boolean };
 	'sounds.open-microphone-settings': { args: undefined; result: void };
@@ -873,6 +874,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'sounds.list',
 	'sounds.read',
 	'sounds.add',
+	'sounds.remove',
 	'sounds.pick-file',
 	'sounds.ask-microphone',
 	'sounds.open-microphone-settings',

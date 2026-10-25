@@ -97,6 +97,30 @@ describe('your own sounds', () => {
 		).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/no sound/u) });
 	});
 
+	it('removes the one sound you remove, and keeps the rest', async () => {
+		const add = (label: string): Promise<{ id: string }> =>
+			context.commands.call('sounds.add', {
+				label,
+				kind: 'recording',
+				mediaType: 'audio/webm',
+				bytes: RECORDING,
+			});
+		const first = await add('Recording 1');
+		const second = await add('Recording 2');
+
+		await context.commands.call('sounds.remove', { id: first.id });
+
+		expect(
+			(await context.commands.call('sounds.list', undefined)).map((sound) => sound.id),
+		).toEqual([second.id]);
+		await expect(
+			context.commands.invoke({ command: 'sounds.read', args: { id: first.id } }),
+		).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/no sound/u) });
+		await expect(
+			context.commands.invoke({ command: 'sounds.remove', args: { id: 7 } }),
+		).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/`id`/u) });
+	});
+
 	it('asks the system for the microphone each time a recording starts', async () => {
 		expect(await context.commands.call('sounds.ask-microphone', undefined)).toBe(false);
 		expect(await context.commands.call('sounds.ask-microphone', undefined)).toBe(false);

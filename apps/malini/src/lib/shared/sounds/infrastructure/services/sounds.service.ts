@@ -30,6 +30,10 @@ class SoundsService {
 		return invoke('sounds.add', { label, kind, mediaType: sound.type, bytes });
 	}
 
+	remove(id: string): Promise<void> {
+		return invoke('sounds.remove', { id });
+	}
+
 	async pickFile(): Promise<Readonly<{ name: string; sound: Blob }> | null> {
 		const picked = await invoke('sounds.pick-file', undefined);
 		return picked

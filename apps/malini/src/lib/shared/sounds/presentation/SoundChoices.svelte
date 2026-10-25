@@ -12,6 +12,7 @@
 	import { loadSoundsCommand } from '$shared/sounds/application/commands/load-sounds.command';
 	import { openSoundRecorderCommand } from '$shared/sounds/application/commands/open-sound-recorder.command';
 	import { playSoundCommand } from '$shared/sounds/application/commands/play-sound.command';
+	import { removeCustomSoundCommand } from '$shared/sounds/application/commands/remove-custom-sound.command';
 	import { soundChoicesQuery } from '$shared/sounds/application/queries/sound-choices.query.svelte';
 	import { soundOptionsQuery } from '$shared/sounds/application/queries/sound-options.query.svelte';
 	import { soundRecorderQuery } from '$shared/sounds/application/queries/sound-recorder.query.svelte';
@@ -21,6 +22,7 @@
 		type SoundOption,
 		type SoundSignal,
 	} from '$shared/sounds/domain/sounds';
+	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
 	import SoundRecorder from './SoundRecorder.svelte';
 
 	interface Props {
@@ -53,6 +55,7 @@
 		finished: null,
 		'needs-you': null,
 	});
+	let armed = $state<string | null>(null);
 
 	onMount(loadSoundsCommand);
 
@@ -63,6 +66,11 @@
 			const offset = item.getBoundingClientRect().top - list.getBoundingClientRect().top;
 			list.scrollTop += offset - (list.clientHeight - item.clientHeight) / 2;
 		}
+	});
+
+	$effect(() => {
+		if (!armed) return;
+		return disarmOnDismiss(() => (armed = null));
 	});
 
 	function optionFor(id: string, signal: SoundSignal): SoundOption {
@@ -77,6 +85,15 @@
 	function onRecord(signal: SoundSignal): void {
 		open[signal] = false;
 		openSoundRecorderCommand(signal);
+	}
+
+	function onRemove(option: SoundOption): void {
+		if (armed !== option.id) {
+			armed = option.id;
+			return;
+		}
+		armed = null;
+		removeCustomSoundCommand(option.id);
 	}
 
 	function onChooseFile(signal: SoundSignal): void {
@@ -163,7 +180,26 @@
 								{#if yours.length > 0}
 									{@render separator()}
 									{#each yours as option (option.id)}
-										{@render soundItem(row.signal, option)}
+										<div class="flex items-center gap-0.5" role="none">
+											{@render soundItem(row.signal, option)}
+											<DropdownItem
+												role="menuitem"
+												variant={armed === option.id ? 'danger' : 'default'}
+												class="max-w-fit shrink-0"
+												aria-label={armed === option.id
+													? `Confirm remove ${option.label}`
+													: `Remove ${option.label}`}
+												data-armed={armed === option.id ? '' : undefined}
+												closeOnSelect={false}
+												onSelect={() => onRemove(option)}
+											>
+												{#if armed === option.id}
+													Remove
+												{:else}
+													<Icon name="trash" size={13} class="shrink-0" />
+												{/if}
+											</DropdownItem>
+										</div>
 									{/each}
 								{/if}
 								{@render separator()}
@@ -199,7 +235,7 @@
 		aria-checked={choices[signal] === option.id}
 		selected={choices[signal] === option.id}
 		closeOnSelect={false}
-		class="gap-2.5"
+		class="min-w-0 flex-1 gap-2.5"
 		onSelect={() => chooseSoundCommand(signal, option.id)}
 	>
 		<span class="min-w-0 flex-1 truncate text-left">{option.label}</span>

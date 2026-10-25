@@ -101,7 +101,7 @@ test('setup asks which sound plays when an agent finishes and when it needs you,
 	}
 });
 
-test('Settings → Sounds adds a sound file you choose to both lists, and refuses one it cannot play', async () => {
+test('Settings → Sounds adds a sound file you choose to both lists, refuses one it cannot play, and removes yours after you confirm', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini({ allowedDiagnostics: [/Malini can’t play Not a sound\.mp3/u] });
 	try {
@@ -141,6 +141,21 @@ test('Settings → Sounds adds a sound file you choose to both lists, and refuse
 
 		await page.reload();
 		await expect(finished).toHaveAccessibleName('Finished sound: Doorbell');
+
+		await needsYou.click();
+		const menu = page.getByRole('menu', { name: 'Needs you sound' });
+		await menu.getByRole('menuitem', { name: 'Remove Doorbell' }).click();
+		const confirm = menu.getByRole('menuitem', { name: 'Confirm remove Doorbell' });
+		await expect(confirm).toBeVisible();
+		await expect(menu.getByRole('menuitemradio', { name: 'Doorbell' })).toBeVisible();
+		await captureFlow(app, 'sounds-settings-remove-your-sound');
+		await confirm.click();
+		await expect(menu.getByRole('menuitemradio', { name: 'Doorbell' })).toHaveCount(0);
+		await expect(menu).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(finished).toHaveAccessibleName('Finished sound: Malini chime');
+		await expect.poll(() => invoke<CustomSound[]>(page, 'sounds.list', undefined)).toEqual([]);
+		await expect.poll(async () => (await storedSettings(page))['sounds.finished']).toBe('chime');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

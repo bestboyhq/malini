@@ -20,6 +20,13 @@ class SoundsStore {
 		this.#urls.set(sound.id, url);
 	}
 
+	remove(id: string): void {
+		this.custom = this.custom.filter((sound) => sound.id !== id);
+		const url = this.#urls.get(id);
+		if (url) URL.revokeObjectURL(url);
+		this.#urls.delete(id);
+	}
+
 	urlFor(id: string): string | undefined {
 		return this.#urls.get(id);
 	}

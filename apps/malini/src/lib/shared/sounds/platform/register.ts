@@ -6,6 +6,7 @@ import {
 	addCustomSound,
 	listCustomSounds,
 	readCustomSound,
+	removeCustomSound,
 	type NewCustomSound,
 } from './sounds.repository';
 import { readSoundFile } from './sound-file';
@@ -34,6 +35,8 @@ export function registerSounds(
 	});
 
 	commands.define('sounds.add', (args: unknown) => addCustomSound(db, newSound(args)));
+
+	commands.define('sounds.remove', (args: unknown) => removeCustomSound(db, soundId(args)));
 
 	commands.define('sounds.pick-file', async () => {
 		const path = await dependencies.pickSoundFile();
