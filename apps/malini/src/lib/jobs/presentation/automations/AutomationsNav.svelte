@@ -4,9 +4,8 @@
 	import { fly } from 'svelte/transition';
 	import type { JobDefinitionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import { Icon, type IconName } from '$hyper-ui/icons';
+	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import {
 		JOBS_ACTIVITY_HREF,
 		JOBS_HREF,
@@ -120,7 +119,7 @@
 							<Icon name="alert" size={12} class="text-warning-content shrink-0" />
 							<span class="sr-only">Needs you</span>
 						{:else if runs.some((run) => run.status === 'running')}
-							<LoadingCircle size={11} />
+							<BusyIcon size={11} />
 							<span class="sr-only">Running</span>
 						{:else if off}
 							<span class="text-fg-tertiary text-2xs shrink-0">Off</span>

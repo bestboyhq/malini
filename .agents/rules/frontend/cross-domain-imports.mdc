@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Cross-domain imports
 
-A domain is a folder under `$lib/` (or `$shared/repositories`, `$shared/providers`) with its own layers.
+A domain is a folder under `$lib/` (or `$shared/repositories`, `$shared/providers`, `$shared/sounds`) with its own layers.
 When one domain needs another, it imports the other domain's api file, never a path inside it.
 
 ## Renderer side
@@ -15,7 +15,7 @@ A renderer file (`domain/`, `application/`, `infrastructure/`, `presentation/`, 
 
 - its own domain, following the layer rules;
 - `$lib/<domain>/<domain>.api.ts`;
-- `$shared/repositories/repositories.api.ts` and `$shared/providers/providers.api.ts`;
+- `$shared/repositories/repositories.api.ts`, `$shared/providers/providers.api.ts` and `$shared/sounds/sounds.api.ts`;
 - flat `$shared/<util>/**` modules (`router`, `extensions`, `errors`, `storage`, ...);
 - `$contract`, `$hyper-ui`, and packages.
 
@@ -27,7 +27,7 @@ A relative path that leaves the domain folder is `escapesDomain`.
 ## What an api file may export
 
 - A domain api exports from its own presentation layer only.
-- A shared domain api (`repositories.api.ts`, `providers.api.ts`) may also export its domain types, pure functions, queries, commands and hooks.
+- A shared domain api (`repositories.api.ts`, `providers.api.ts`, `sounds.api.ts`) may also export its domain types, pure functions, queries, commands and hooks.
 - Infrastructure and platform never cross an api file, anywhere.
   The check is `apiExportsInternals`.
 - If a symbol is missing from an api, move it to a shared domain.

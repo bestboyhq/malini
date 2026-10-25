@@ -792,6 +792,16 @@ CREATE INDEX idx_job_runs_chat_session ON job_runs(chat_session_id);
 CREATE INDEX idx_job_runs_parent ON job_runs(parent_run_id);
 CREATE INDEX idx_job_runs_definition_origin ON job_runs(definition_id, origin, created_at);
 `,
+	`
+CREATE TABLE custom_sounds (
+  id TEXT PRIMARY KEY,
+  label TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('recording','file')),
+  media_type TEXT NOT NULL,
+  bytes BLOB NOT NULL,
+  created_at TEXT NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

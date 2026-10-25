@@ -28,6 +28,7 @@ The chat and the inspector keep their minimum widths, so the page may end up nar
 Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
 
 You can also pick an element on a page, and it lands in your prompt.
+A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 
 ### Screenshots in your theme

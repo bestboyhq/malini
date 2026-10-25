@@ -21,6 +21,7 @@
 	import ModelsSection from './ModelsSection.svelte';
 	import PrivacySection from './PrivacySection.svelte';
 	import SkillsSection from './SkillsSection.svelte';
+	import SoundsSection from './SoundsSection.svelte';
 
 	type Section = Readonly<{ href: string; label: string; icon: IconName; content: Component }>;
 
@@ -48,6 +49,7 @@
 		{ href: SKILL_SETTINGS_HREF, label: 'Skills', icon: 'puzzle', content: SkillsSection },
 		{ href: MCP_SETTINGS_HREF, label: 'MCP servers', icon: 'plug', content: McpServersSection },
 		APPEARANCE,
+		{ href: '/settings/sounds', label: 'Sounds', icon: 'volume', content: SoundsSection },
 		{ href: '/settings/jobs', label: 'Jobs', icon: 'checklist', content: JobsSection },
 		{ href: '/settings/privacy', label: 'Privacy', icon: 'lock', content: PrivacySection },
 	];

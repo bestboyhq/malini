@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
-	import { Icon, type IconName } from '$hyper-ui/icons';
+	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import {
 		CloneRepositoryDialog,
@@ -43,7 +42,7 @@
 			aria-hidden="true"
 		>
 			{#if busy}
-				<LoadingCircle size={16} />
+				<BusyIcon size={16} />
 			{:else}
 				<Icon name={icon} size={17} />
 			{/if}

@@ -1,4 +1,5 @@
-import { session, WebContentsView, type BrowserWindow, type Session } from 'electron';
+import { dialog, session, WebContentsView, type BrowserWindow, type Session } from 'electron';
+import { rememberMediaAnswers } from './media-permission';
 import { MALINI_WORLD_ID, type PageEvents, type PageView } from './page';
 import { isAllowedNavigation } from './url';
 
@@ -9,7 +10,6 @@ const ERROR_PAGE_FOLLOWS_THEME =
 	"if (location.protocol === 'chrome-error:') document.documentElement.style.colorScheme = 'light dark';";
 
 export function createElectronView(events: PageEvents): PageView<BrowserWindow> {
-	denyPermissions();
 	const view = new WebContentsView({
 		webPreferences: {
 			partition: BROWSER_PARTITION,
@@ -106,8 +106,28 @@ async function faviconDataUrl(partition: Session, url: string | undefined): Prom
 	}
 }
 
-function denyPermissions(): void {
+export function askBeforeMediaAccess(getWindow: () => BrowserWindow | null): void {
+	const media = rememberMediaAnswers(async (question) => {
+		const window = getWindow();
+		const { response } = await (window
+			? dialog.showMessageBox(window, question)
+			: dialog.showMessageBox(question));
+		return response !== question.cancelId;
+	});
 	const partition = session.fromPartition(BROWSER_PARTITION);
-	partition.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-	partition.setPermissionCheckHandler(() => false);
+	partition.setPermissionRequestHandler(async (_contents, permission, callback, details) => {
+		callback(
+			permission === 'media' &&
+				'mediaTypes' in details &&
+				(await media.request(
+					details.securityOrigin ?? details.requestingUrl,
+					details.mediaTypes ?? [],
+				)),
+		);
+	});
+	partition.setPermissionCheckHandler(
+		(_contents, permission, requestingOrigin, details) =>
+			permission === 'media' &&
+			media.allowed(details.securityOrigin ?? requestingOrigin, details.mediaType),
+	);
 }

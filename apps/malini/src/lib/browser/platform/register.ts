@@ -10,7 +10,7 @@ import { resolveWorkstreamCheckoutCanonical } from '$main/git/paths';
 import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
 import type { BrowserPlatform } from '../browser.platform';
 import { readBounds, readRequestId, readTab, readUrl } from './args';
-import { createElectronView, watchRendererReset } from './electron-view';
+import { askBeforeMediaAccess, createElectronView, watchRendererReset } from './electron-view';
 import { BrowserViews } from './views';
 import { serveWorktreeFiles } from './worktree-files';
 
@@ -30,6 +30,7 @@ export function registerBrowser(context: MainContext, deps: BrowserDeps): Browse
 			return null;
 		}
 	});
+	askBeforeMediaAccess(deps.getMainWindow);
 	const views = new BrowserViews<BrowserWindow>({
 		getMainWindow: deps.getMainWindow,
 		onScreen: (window) => !app.isHidden() && !window.isMinimized(),

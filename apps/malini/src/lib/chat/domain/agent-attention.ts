@@ -1,6 +1,7 @@
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { AgentEvent } from './events';
 import { parseTurnReport } from './turn-report';
+import type { SoundSignal } from '$shared/sounds/domain/sounds';
 
 export type AgentAttentionKind = 'completed' | 'input' | 'failed' | 'approval';
 
@@ -36,6 +37,10 @@ type AgentAttentionInput = {
 
 export function attentionNeedsUser(attention: AgentAttention | null): boolean {
 	return attention !== null && attention.kind !== 'completed';
+}
+
+export function attentionSoundSignal(kind: AgentAttentionKind): SoundSignal {
+	return kind === 'completed' ? 'finished' : 'needs-you';
 }
 
 export function mostPressingAttention(

@@ -15,6 +15,9 @@ import {
 	type RepositoriesPlatform,
 } from '$shared/repositories/repositories.platform';
 import { registerProviders } from '$shared/providers/platform/register';
+import { askForMicrophone, openMicrophoneSettings } from '$shared/sounds/platform/microphone';
+import { registerSounds } from '$shared/sounds/platform/register';
+import { pickSoundFile } from '$shared/sounds/platform/sound-file-dialog';
 import { createElectronShellHost, type AppPlatform, type ShellHost } from '$lib/app/app.platform';
 import { resolveBootEnvironment } from '$lib/app/platform/boot-environment';
 import { followSavedThemeMode, registerApp } from '$lib/app/platform/register';
@@ -95,6 +98,12 @@ export async function registerModules(
 	const pullRequests = registerPullRequests(context);
 
 	registerScratchpad(context);
+
+	registerSounds(context, {
+		askForMicrophone,
+		openMicrophoneSettings,
+		pickSoundFile: () => pickSoundFile(options.getMainWindow()),
+	});
 
 	const providers = registerProviders(context);
 
