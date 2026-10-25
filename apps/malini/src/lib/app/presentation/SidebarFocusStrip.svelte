@@ -120,7 +120,7 @@
 				/>
 				{#if sectioned}
 					<ArrangeChoice
-						icon="list-tree"
+						icon="list-indent"
 						label="Sub-grouping"
 						value={arrangement.subgrouping}
 						choices={SIDEBAR_SUBGROUPINGS}
