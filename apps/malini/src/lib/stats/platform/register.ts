@@ -10,6 +10,7 @@ import {
 import { isRecord } from '$main/db/rows';
 import { appendNdjsonRecord } from '$main/diagnostics/ndjson-log';
 import { thrownDetail } from '$main/diagnostics/thrown';
+import { workstreamsRoot } from '$main/git/paths';
 import type { ProcessRunner } from '$main/process/runner';
 import { listOpenRuns, listRunActivity } from '$lib/chat/chat.platform';
 import {
@@ -20,6 +21,7 @@ import {
 } from '$shared/repositories/repositories.platform';
 import { localDate, summarizeActivity } from '../domain/activity';
 import { ResourceSampler, type BrowserTab } from './resource-sampler';
+import type { WorkstreamFolder } from './running-docker';
 import { WorkstreamRunningMonitor } from './workstream-running';
 
 export interface StatsDeps {
@@ -34,6 +36,7 @@ export interface StatsDeps {
 export interface StatsPlatform {
 	start(): void;
 	stop(): void;
+	stopWorkstreamLeftovers(workstreamId: string): Promise<void>;
 }
 
 export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatform {
@@ -70,14 +73,28 @@ export function registerStats(context: MainContext, deps: StatsDeps): StatsPlatf
 		return running.stopItems(workstreamId, itemIds);
 	});
 
+	const liveFolders = (): WorkstreamFolder[] =>
+		listWorkstreams(db).map(({ id, path }) => ({ id, path }));
+
 	return {
 		start: () => {
 			sampler.start();
 			running.start();
+			void running.stopLeftovers({
+				folders: [{ id: 'workstreams', path: workstreamsRoot(context.appDataRoot) }],
+				live: liveFolders(),
+			});
 		},
 		stop: () => {
 			sampler.stop();
 			running.stop();
+		},
+		stopWorkstreamLeftovers: (workstreamId) => {
+			const live = liveFolders();
+			return running.stopLeftovers({
+				folders: live.filter(({ id }) => id === workstreamId),
+				live: live.filter(({ id }) => id !== workstreamId),
+			});
 		},
 	};
 }

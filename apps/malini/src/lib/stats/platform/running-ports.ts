@@ -68,7 +68,7 @@ export function listeningPort(name: string): number | null {
 	return digits !== undefined && port > 0 && port <= 65_535 ? port : null;
 }
 
-function withDescendants(
+export function withDescendants(
 	roots: readonly number[],
 	children: ReadonlyMap<number, readonly { readonly pid: number }[]>,
 ): Set<number> {

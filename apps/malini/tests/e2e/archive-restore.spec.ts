@@ -1,3 +1,4 @@
+import { spawn, type ChildProcess } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
@@ -123,6 +124,41 @@ test('archiving a workstream stops the command its agent left running in the bac
 		).toBe(false);
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+	}
+});
+
+test('archiving a workstream stops what was left running detached from its folder', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	let server: ChildProcess | null = null;
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-archive-leftover', 'Leftover work');
+		const detached = spawn(
+			process.execPath,
+			['-e', 'setInterval(() => {}, 1000)', join(seeded.worktree, 'server.js')],
+			{ detached: true, stdio: 'ignore' },
+		);
+		server = detached;
+		detached.unref();
+
+		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
+		const row = sidebar.locator(
+			`[data-testid="sidebar-workstream"][data-workstream-id="${seeded.workstreamId}"]`,
+		);
+		const archive = sidebar.locator(
+			`[data-testid="sidebar-archive-workstream"][data-workstream-id="${seeded.workstreamId}"]`,
+		);
+		await clickRevealedOnHover(row, archive);
+
+		await expect.poll(() => existsSync(seeded.worktree), { timeout: 30_000 }).toBe(false);
+		await expect.poll(() => detached.signalCode, { timeout: 15_000 }).toBe('SIGTERM');
+		await expect(page.getByTestId('toast')).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		server?.kill('SIGKILL');
 		await app.close();
 	}
 });

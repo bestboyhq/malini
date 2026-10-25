@@ -80,7 +80,10 @@ export async function registerModules(
 			await agentRunLeases.runChangeCaptureSettled(workstreamId);
 			return leased(
 				() => agentRunLeases.acquireWorkstreamTeardown(context.db, workstreamId),
-				teardown,
+				async () => {
+					await stats.stopWorkstreamLeftovers(workstreamId);
+					return teardown();
+				},
 			);
 		},
 		guardCheckoutMove: (workstreamId, move) =>
