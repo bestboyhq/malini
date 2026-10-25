@@ -150,8 +150,12 @@ test('a failed setup says why above the workstream, retries in place, and remove
 		expect(watched.texts).toContain('Needs you · Setup failed');
 		expect(watched.texts.some((text) => text.startsWith('Setting up'))).toBe(true);
 		expect(watched.overlaps).toEqual([]);
-		const label = await headline.getByText('Needs you', { exact: true }).boundingBox();
-		const detail = await headline.getByText('Setup failed', { exact: true }).boundingBox();
+		const labelText = headline.getByText('Needs you', { exact: true });
+		const detailText = headline.getByText('Setup failed', { exact: true });
+		await expect(labelText).toBeVisible();
+		await expect(detailText).toBeVisible();
+		const label = await labelText.boundingBox();
+		const detail = await detailText.boundingBox();
 		expect(label && detail && label.x + label.width <= detail.x).toBe(true);
 		await captureFlow(app, 'workstream-setup-failed');
 
