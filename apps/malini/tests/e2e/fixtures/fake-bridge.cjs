@@ -179,12 +179,14 @@ const streamRun = (sessionId, runId, lines, appended = '') => {
 	let streamed = 0;
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
-		streamed += 1;
-		const chunk = 'Streamed line ' + streamed + ' of ' + lines + '.\n\n';
-		text += chunk;
-		streamedText.set(runId, text);
-		event({ type: 'assistant.delta', runId, contentId: 'stream', text: chunk });
-		if (streamed < lines) return;
+		if (streamed < lines) {
+			streamed += 1;
+			const chunk = 'Streamed line ' + streamed + ' of ' + lines + '.\n\n';
+			text += chunk;
+			streamedText.set(runId, text);
+			event({ type: 'assistant.delta', runId, contentId: 'stream', text: chunk });
+		}
+		if (streamed < lines || fs.existsSync(HELD_RUNS)) return;
 		clearInterval(timer);
 		pendingRuns.delete(runId);
 		streamedText.delete(runId);

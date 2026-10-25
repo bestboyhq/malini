@@ -190,6 +190,7 @@ async function runPlatformTool(
 				worktree: worktreePath(deps.appDataRoot, workstreamId),
 				path: requiredText(input, 'path'),
 				line: lineNumber(input, 'line'),
+				keys: textList(input, 'keys'),
 			});
 		}
 	}
@@ -489,6 +490,15 @@ function nullableText(input: Input, key: string): string | null | undefined {
 function requiredText(input: Input, key: string): string {
 	const value = text(input, key);
 	if (value === undefined) throw new Error(`\`${key}\` is required.`);
+	return value;
+}
+
+function textList(input: Input, key: string): readonly string[] {
+	const value = input[key];
+	if (value === undefined) return [];
+	if (!Array.isArray(value) || !value.every((item): item is string => typeof item === 'string')) {
+		throw new Error(`\`${key}\` must be a list of strings.`);
+	}
 	return value;
 }
 

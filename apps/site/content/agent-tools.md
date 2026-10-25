@@ -52,6 +52,8 @@ The agent never reads or writes those files, so it opens the file for you instea
 - The tab opens kept, not as a preview, so the next file you open never replaces it.
 - A file that does not exist yet opens empty, and Malini creates it.
   Outside the worktree it is private to you: the file is readable only by you, and so is a folder Malini creates for it.
+- The agent names the keys it needs, such as `OPENAI_API_KEY`, and Malini adds a `KEY=` line for each one the file does not set yet, so you see what to fill in.
+  It never changes a line that is already there.
 - The agent gets back the path and whether Malini created the file, never what the file holds.
 - A tab can read and save a file outside the worktree only after an agent opened that file in that workstream, and it keeps that access after you quit and reopen Malini.
 - While streamer mode hides personal data, a secrets file or a file from outside the worktree stays hidden behind a **Show** button that names it.
