@@ -7,10 +7,14 @@
 		pullRequestBadgesQuery,
 		type PullRequestPhase,
 	} from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
+	import { formatCompactChangeTotal } from '$lib/pull-requests/pull-requests.api';
+	import { formatTimeAgo } from '$lib/stats/stats.api';
 	import {
 		RepositoryAvatar,
 		archivedWorkstreamsQuery,
+		changeTotalsQuery,
 		repositoryContextQuery,
+		repositoryName,
 		workstreamByIdQuery,
 		workstreamNameQuery,
 	} from '$shared/repositories/repositories.api';
@@ -23,15 +27,23 @@
 
 	let { workstreamIds, framed = true }: Props = $props();
 
+	type Trail =
+		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
+		| Readonly<{ kind: 'archived'; pullRequestNumber: number | null; archivedAt: number }>
+		| null;
+
 	type Line = Readonly<{
 		id: string;
 		fullName: string | null;
 		name: string;
 		dot: ProgressDot;
-		pullRequest: PullRequestPhase;
+		glyph: IconName;
 		label: string;
+		trail: Trail;
 		open: boolean;
 	}>;
+
+	const CLOCK_MS = 60_000;
 
 	const TONE: Readonly<Record<ProgressDot, string>> = {
 		merged: 'text-merged-content',
@@ -41,19 +53,20 @@
 		idle: 'text-fg-tertiary',
 	};
 
-	const PILL: Readonly<Record<ProgressDot, string>> = {
-		merged: 'bg-merged-surface text-merged-content',
-		needs: 'bg-warning text-warning-content',
-		failed: 'bg-error text-error-content',
-		running: 'bg-surface-100 text-fg-secondary',
-		idle: 'bg-surface-100 text-fg-secondary',
-	};
+	let nowMs = $state(Date.now());
 
 	const rowClass = $derived(
-		framed ? 'h-10 gap-2.5 pr-2.5 pl-3.5 text-sm' : 'h-8 gap-2 rounded-xl pr-1 pl-2 text-xs',
+		framed ? 'h-10 gap-2.5 pr-3.5 pl-3.5 text-sm' : 'h-8 gap-2 rounded-xl pr-2 pl-2 text-xs',
 	);
 	const lines = $derived(workstreamIds.flatMap(lineOf));
 	const merged = $derived(lines.filter((line) => line.dot === 'merged').length);
+	const showsAges = $derived(lines.some((line) => line.trail?.kind === 'archived'));
+
+	$effect(() => {
+		if (!showsAges) return;
+		const clock = setInterval(() => (nowMs = Date.now()), CLOCK_MS);
+		return () => clearInterval(clock);
+	});
 
 	function lineOf(id: string): Line[] {
 		const name = workstreamNameQuery.data(id) ?? '';
@@ -61,40 +74,68 @@
 		if (active) {
 			const dot = leadProgressQuery.dot(active);
 			const pullRequest = pullRequestBadgesQuery.data(id).phase;
-			const fullName = repositoryContextQuery.data(id)?.repo.fullName ?? null;
-			const label = standingLabel(dot, pullRequest);
-			return [{ id, fullName, name, dot, pullRequest, label, open: true }];
+			const totals = changeTotalsQuery.data[id];
+			return [
+				{
+					id,
+					fullName: repositoryContextQuery.data(id)?.repo.fullName ?? null,
+					name,
+					dot,
+					glyph: glyphOf(dot, pullRequest),
+					label: standingLabel(dot, pullRequest),
+					trail:
+						totals && (totals.additions > 0 || totals.deletions > 0)
+							? { kind: 'changes', additions: totals.additions, deletions: totals.deletions }
+							: null,
+					open: true,
+				},
+			];
 		}
 		const archived = archivedWorkstreamsQuery.data.find((entry) => entry.id === id);
 		if (!archived) return [];
 		const pullRequest = archived.mergedPullRequest;
+		const archivedAt = Date.parse(archived.archivedAt);
 		return [
 			{
 				id,
 				fullName: archived.repositoryFullName,
 				name,
 				dot: pullRequest ? 'merged' : 'idle',
-				pullRequest: pullRequest ? 'merged' : 'none',
+				glyph: pullRequest ? 'pr-merged' : archived.savedForLater ? 'clock' : 'archive',
 				label: pullRequest
 					? `Merged #${pullRequest.number}`
 					: archived.savedForLater
 						? 'Saved for later'
 						: 'Archived',
+				trail: Number.isNaN(archivedAt)
+					? null
+					: { kind: 'archived', pullRequestNumber: pullRequest?.number ?? null, archivedAt },
 				open: false,
 			},
 		];
 	}
 
-	function glyphOf(line: Line): IconName {
-		if (line.dot === 'merged') return 'pr-merged';
-		if (line.dot === 'needs') return 'alert';
-		if (line.dot === 'failed') return 'pr-failed';
-		if (line.pullRequest === 'open') return 'pr-open';
-		return line.pullRequest === 'draft' ? 'pr-draft' : 'branch';
+	function glyphOf(dot: ProgressDot, pullRequest: PullRequestPhase): IconName {
+		if (dot === 'merged') return 'pr-merged';
+		if (dot === 'needs') return 'alert';
+		if (dot === 'failed') return 'pr-failed';
+		if (pullRequest === 'open') return 'pr-open';
+		return pullRequest === 'draft' ? 'pr-draft' : 'branch';
 	}
 
-	function repositoryName(fullName: string): string {
-		return fullName.slice(fullName.lastIndexOf('/') + 1);
+	function ageOf(archivedAt: number): string {
+		return formatTimeAgo(Math.max(0, nowMs - archivedAt));
+	}
+
+	function accessibleNameOf(line: Line): string {
+		const trail = line.trail;
+		const detail =
+			trail?.kind === 'changes'
+				? `${trail.additions} additions, ${trail.deletions} deletions`
+				: trail?.kind === 'archived'
+					? ageOf(trail.archivedAt)
+					: null;
+		return [line.fullName ?? line.name, line.name, line.label, detail].filter(Boolean).join(', ');
 	}
 </script>
 
@@ -103,7 +144,7 @@
 		{#if line.dot === 'running'}
 			<BusyIcon size={14} />
 		{:else}
-			<Icon name={glyphOf(line)} size={14} />
+			<Icon name={line.glyph} size={14} />
 		{/if}
 	</span>
 	{#if line.fullName}
@@ -112,20 +153,30 @@
 	<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
 		{line.fullName ? repositoryName(line.fullName) : line.name}
 	</span>
-	<span
-		class={[
-			'text-2xs inline-flex h-[22px] shrink-0 items-center rounded-full px-2 font-medium',
-			PILL[line.dot],
-		]}
-	>
-		{line.label}
-	</span>
+	{#if line.trail?.kind === 'changes'}
+		<span
+			class="text-2xs flex shrink-0 gap-1 font-mono font-medium tabular-nums"
+			aria-hidden="true"
+		>
+			{#if line.trail.additions > 0}<span class="text-success-content">
+					+{formatCompactChangeTotal(line.trail.additions)}
+				</span>{/if}
+			{#if line.trail.deletions > 0}<span class="text-error-content">
+					−{formatCompactChangeTotal(line.trail.deletions)}
+				</span>{/if}
+		</span>
+	{:else if line.trail?.kind === 'archived'}
+		<span class="text-fg-tertiary text-2xs shrink-0 tabular-nums" aria-hidden="true">
+			{#if line.trail.pullRequestNumber !== null}#{line.trail.pullRequestNumber} ·{/if}
+			{ageOf(line.trail.archivedAt)}
+		</span>
+	{/if}
 {/snippet}
 
 {#snippet list()}
 	<ul aria-label={framed ? undefined : 'Workstreams'}>
 		{#each lines as line (line.id)}
-			{@const accessibleName = `${line.fullName ?? line.name}, ${line.name}, ${line.label}`}
+			{@const accessibleName = accessibleNameOf(line)}
 			<li class={framed ? 'border-surface-50-border border-t-[0.5px]' : undefined}>
 				{#if line.open}
 					<Button

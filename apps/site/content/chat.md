@@ -17,7 +17,8 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - It opens at once and sets itself up behind the chat.
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
 - Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
-  Under that count, the chat lists every workstream it started, open or archived, by repository and state, and a click on one goes there.
+  Under that count, the chat lists every workstream it started: lines added and removed while it is open, and its pull request and when it merged once it lands.
+  Click one to go there.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
 - A workstream any chat starts sits under its repository in the sidebar, and the chat's row shows a dot for each.
