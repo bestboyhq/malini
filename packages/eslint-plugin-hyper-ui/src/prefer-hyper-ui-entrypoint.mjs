@@ -44,7 +44,6 @@ const PRIMITIVE_MODULES = new Map([
 	['GuardFallback', 'guard-fallback'],
 	['HoverCard', 'hover-card'],
 	['IconButton', 'icon-button'],
-	['LoadingCircle', 'loading-circle'],
 	['Modal', 'modal'],
 	['Popover', 'popover'],
 	['PresenceDot', 'presence-dot'],

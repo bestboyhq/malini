@@ -9,10 +9,9 @@
 	import { mcpFixQueueQuery } from '$lib/chat/application/queries/mcp-fix-queue.query.svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Modal } from '$hyper-ui/components/modal';
 	import { ScrollableDiv } from '$hyper-ui/components/scrollable-div';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 	const queue = $derived(mcpFixQueueQuery.data);
@@ -115,7 +114,7 @@
 							{#if step.outcome === 'fixed'}
 								<Icon name="check" size={14} class="text-success-content shrink-0" />
 							{:else if step.outcome === 'working'}
-								<LoadingCircle size={14} />
+								<BusyIcon size={14} />
 							{:else if step.outcome === 'skipped'}
 								<Icon name="chevrons-right" size={14} class="shrink-0" />
 							{:else if step.outcome === 'off'}
@@ -154,7 +153,7 @@
 								class="bg-surface-elevated text-fg-secondary mt-[18px] flex items-center gap-2.5 rounded-[10px] px-3 py-2.5"
 								role="status"
 							>
-								<LoadingCircle size={16} />
+								<BusyIcon size={16} />
 								<div class="min-w-0">
 									<p class="text-fg-default text-xs font-medium">{waitingLabel(current)}</p>
 									{#if current.fix === 'sign-in'}

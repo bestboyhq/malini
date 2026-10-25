@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { AriaRole, ClassValue } from 'svelte/elements';
-	import LoadingCircle from '../loading-circle/LoadingCircle.svelte';
+	import { BusyIcon } from '../../icons';
 
 	type ButtonVariant =
 		| 'primary'
@@ -205,7 +205,7 @@
 		none: undefined,
 	};
 
-	const spinnerSize: Record<ButtonSize, number> = {
+	const loaderSize: Record<ButtonSize, number> = {
 		'2xs': 10,
 		xs: 12,
 		sm: 12,
@@ -232,7 +232,7 @@
 				: variantClass[variant],
 	);
 
-	const showsSpinner = $derived(loading && !bare);
+	const showsLoader = $derived(loading && !bare);
 
 	const semantics = $derived({
 		role,
@@ -301,8 +301,8 @@
 		{ondblclick}
 		{...semantics}
 	>
-		{#if showsSpinner}
-			<LoadingCircle size={spinnerSize[size]} />
+		{#if showsLoader}
+			<BusyIcon size={loaderSize[size]} />
 		{:else}
 			{@render leading?.()}
 		{/if}
@@ -334,8 +334,8 @@
 		{ondblclick}
 		{...semantics}
 	>
-		{#if showsSpinner}
-			<LoadingCircle size={spinnerSize[size]} />
+		{#if showsLoader}
+			<BusyIcon size={loaderSize[size]} />
 		{:else}
 			{@render leading?.()}
 		{/if}

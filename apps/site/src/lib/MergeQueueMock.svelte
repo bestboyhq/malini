@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { BrowserTab } from '@malini/hyper-ui/components/browser-tab';
-	import { LoadingCircle } from '@malini/hyper-ui/components/loading-circle';
 	import { BusyIcon, Icon } from '@malini/hyper-ui/icons';
 	import type { Attachment } from 'svelte/attachments';
 	import { cubicOut, quartOut } from 'svelte/easing';
@@ -185,7 +184,7 @@
 	<div class="group flex items-center gap-2 rounded-xl pr-1">
 		<span class="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-xl pl-2 text-left text-xs">
 			<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
-				<LoadingCircle size={12} />
+				<BusyIcon size={12} />
 			</span>
 			<span class="min-w-0 flex-1 truncate">
 				<span class="text-fg-default font-medium">{title}</span>
@@ -211,7 +210,7 @@
 			<p class="flex min-w-0 flex-1 items-center gap-2 text-xs">
 				<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
 					{#if frame.job}
-						<LoadingCircle size={12} />
+						<BusyIcon size={12} />
 					{:else}
 						<Icon name="checklist" size={13} />
 					{/if}

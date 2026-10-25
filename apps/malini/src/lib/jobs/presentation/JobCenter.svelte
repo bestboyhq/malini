@@ -2,10 +2,9 @@
 	import { onMount } from 'svelte';
 	import type { Attachment } from 'svelte/attachments';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { avoidedByToasts, bottomOffsetClearOfAvoided } from '$hyper-ui/components/toast';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { watchJobsHook } from '$lib/jobs/application/hooks/watch-jobs.hook';
 	import { activeJobRunsQuery } from '$lib/jobs/application/queries/active-job-runs.query.svelte';
@@ -100,7 +99,7 @@
 			<p class="flex min-w-0 flex-1 items-center gap-2 text-xs" aria-hidden="true">
 				<span class="text-fg-secondary grid size-4 shrink-0 place-items-center">
 					{#if running > 0}
-						<LoadingCircle size={12} />
+						<BusyIcon size={12} />
 					{:else if needsYou > 0}
 						<Icon name="alert" size={13} class="text-warning-content" />
 					{:else}
