@@ -77,7 +77,7 @@
 				ariaHasPopup="listbox"
 				ariaExpanded={open}
 				{disabled}
-				class="text-fg-secondary hover:bg-surface-50 h-7 max-w-40 min-w-0 gap-1.5 rounded-md px-2 text-xs font-normal"
+				class="text-fg-secondary hover:bg-surface-50 h-7 max-w-[min(10rem,100%)] min-w-0 gap-1.5 overflow-hidden rounded-md px-2 text-xs font-normal"
 				data-testid="chat-composer-model"
 			>
 				<ClaudeIcon class="text-fg-secondary shrink-0" size={13} />

@@ -60,6 +60,8 @@ describe('worktree files', () => {
 		['/work/ws/docs/report.html', 'malini-worktree://ws-1/docs/report.html'],
 		['./docs/a b.html', 'malini-worktree://ws-1/docs/a%20b.html'],
 		['file:///work/ws/index.html?q=1#top', 'malini-worktree://ws-1/index.html?q=1#top'],
+		['./report.html?v=A#top', 'malini-worktree://ws-1/report.html?v=A#top'],
+		['/work/ws/docs/a b.html#current', 'malini-worktree://ws-1/docs/a%20b.html#current'],
 		['./', 'malini-worktree://ws-1/'],
 	])('opens `%s` as %s, on a host of its own workstream', (input, expected) => {
 		expect(worktreeFileUrl(input, 'WS-1', worktree)).toBe(expected);
