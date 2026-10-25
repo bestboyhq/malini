@@ -23,6 +23,7 @@ export type Workstream = {
 	baseBranch: string;
 	status: WorkstreamStatus;
 	createdAt: string;
+	activeAt: string;
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
 	resolvedPath: string | null;
@@ -71,6 +72,7 @@ export function workstreamFromCreated(created: CreatedWorkstream): Workstream {
 		baseBranch: created.baseBranch,
 		status: 'active',
 		createdAt: created.createdAt,
+		activeAt: created.createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 		scope: null,
 		startedBy: null,

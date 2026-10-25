@@ -13,10 +13,15 @@ export async function readProjectRemoteUrl(repoPath: string): Promise<string | n
 	}
 }
 
-export function workstreamDto(appDataRoot: string, workstream: Workstream): WorkstreamDto {
+export function workstreamDto(
+	appDataRoot: string,
+	workstream: Workstream,
+	activeAt: string,
+): WorkstreamDto {
 	const health = assessWorkstreamCheckout(appDataRoot, workstream.id, workstream.path);
 	return {
 		...workstream,
+		activeAt,
 		checkoutState: health.state,
 		checkoutIssue: health.issue,
 		resolvedPath: health.resolvedPath,

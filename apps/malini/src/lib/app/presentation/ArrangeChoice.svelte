@@ -1,17 +1,21 @@
 <script lang="ts" generics="Value extends string">
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { Icon } from '$hyper-ui/icons';
+	import { Icon, type IconName } from '$hyper-ui/icons';
 
 	let {
+		icon,
 		label,
 		value,
 		choices,
+		icons,
 		onchoose,
 	}: {
+		icon: IconName;
 		label: string;
 		value: Value;
 		choices: readonly Readonly<{ value: Value; label: string }>[];
+		icons: Readonly<Record<Value, IconName>>;
 		onchoose: (value: Value) => void;
 	} = $props();
 
@@ -20,21 +24,35 @@
 	const current = $derived(choices.find((choice) => choice.value === value)?.label ?? value);
 </script>
 
-<div class="flex h-9 items-center justify-between gap-3 px-1.5">
-	<span class="text-fg-secondary text-sm" aria-hidden="true">{label}</span>
-	<Dropdown bind:open nested side="bottom" align="end" sideOffset={4} role={null} panelClass="w-36">
+<div class="flex h-8 items-center gap-2 pr-1 pl-2">
+	<Icon name={icon} size={14} class="text-fg-tertiary shrink-0" />
+	<span class="text-fg-secondary min-w-0 flex-1 truncate text-xs" aria-hidden="true">{label}</span>
+	<Dropdown
+		bind:open
+		nested
+		side="bottom"
+		align="end"
+		sideOffset={4}
+		role={null}
+		panelClass="w-40"
+		contentClass="p-1"
+	>
 		{#snippet trigger()}
 			<Button
 				variant="secondary"
 				bordered
+				size="sm"
 				ariaLabel={`${label}: ${current}`}
 				ariaHasPopup="menu"
 				ariaExpanded={open}
-				class="w-36"
+				class="w-36 font-normal"
 			>
-				<span class="min-w-0 flex-1 truncate text-left">{current}</span>
+				{#snippet leading()}
+					<Icon name={icons[value]} size={13} class="text-fg-tertiary" />
+				{/snippet}
+				<span class="text-fg-default min-w-0 flex-1 truncate text-left">{current}</span>
 				{#snippet trailing()}
-					<Icon name="chevron-down" size={13} class="text-fg-tertiary" />
+					<Icon name="chevron-down" size={12} class="text-fg-tertiary" />
 				{/snippet}
 			</Button>
 		{/snippet}
@@ -44,9 +62,10 @@
 					<DropdownItem
 						role="menuitemradio"
 						aria-checked={choice.value === value}
-						class="gap-2.5"
+						class="min-h-7 gap-2 px-2 py-1 text-xs"
 						onSelect={() => onchoose(choice.value)}
 					>
+						<Icon name={icons[choice.value]} size={14} class="text-fg-tertiary shrink-0" />
 						<span class="min-w-0 flex-1 truncate text-left">{choice.label}</span>
 						{#if choice.value === value}
 							<Icon name="check" size={13} class="text-fg-secondary shrink-0" />

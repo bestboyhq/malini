@@ -31,6 +31,7 @@ type RawWorkstream = {
 	baseBranch: string;
 	status: string;
 	createdAt?: unknown;
+	activeAt?: unknown;
 	checkoutState?: string;
 	checkoutIssue?: string | null;
 	resolvedPath?: string | null;
@@ -45,6 +46,7 @@ export class WorkstreamMapper {
 	}
 
 	static fromRaw(raw: RawWorkstream): Workstream {
+		const createdAt = typeof raw.createdAt === 'string' ? raw.createdAt : '';
 		return {
 			id: raw.id,
 			projectId: raw.projectId,
@@ -53,7 +55,8 @@ export class WorkstreamMapper {
 			branch: raw.branch,
 			baseBranch: raw.baseBranch,
 			status: toStatus(raw.status),
-			createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
+			createdAt,
+			activeAt: typeof raw.activeAt === 'string' ? raw.activeAt : createdAt,
 			checkoutState: toCheckoutState(raw.checkoutState),
 			checkoutIssue: raw.checkoutIssue ?? null,
 			resolvedPath: raw.resolvedPath ?? null,

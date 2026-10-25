@@ -15,13 +15,18 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import {
+		DEFAULT_SIDEBAR_ARRANGEMENT,
 		SIDEBAR_GROUPINGS,
 		SIDEBAR_ORDERINGS,
+		SIDEBAR_SUBGROUPINGS,
+		isDefaultArrangement,
+		sectionedGrouping,
 		type SidebarArrangement,
 	} from '$lib/app/domain/sidebar-arrangement';
 	import { ALL_FOCUS, focusKey, sameFocus } from '$lib/app/domain/sidebar-focus';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
 	import ArrangeChoice from './ArrangeChoice.svelte';
+	import { GROUPING_ICONS, ORDERING_ICONS, SUBGROUPING_ICONS } from './sidebar-arrangement-icons';
 
 	interface Props {
 		active: SidebarFocus;
@@ -49,6 +54,16 @@
 
 	let pinMenuOpen = $state(false);
 	let arrangeOpen = $state(false);
+	let strip: HTMLDivElement | null = $state(null);
+
+	const sectioned = $derived(sectionedGrouping(arrangement.grouping));
+	const dragHint = $derived(
+		sectioned
+			? 'Group by organization or repository to drag rows.'
+			: arrangement.ordering === 'manual'
+				? null
+				: 'Order manually to drag rows.',
+	);
 
 	function isPinned(focus: SidebarFocus): boolean {
 		return pinned.some((choice) => sameFocus(choice.focus, focus));
@@ -56,6 +71,7 @@
 </script>
 
 <div
+	bind:this={strip}
 	class="bg-surface-root mx-2 mb-1.5 flex items-center gap-0.5 rounded-[11px] p-[3px]"
 	role="group"
 	aria-label="Focus"
@@ -68,12 +84,15 @@
 	<span class="grow"></span>
 	<Dropdown
 		bind:open={arrangeOpen}
-		side="bottom"
-		align="end"
+		positionAnchor={strip}
+		side="right"
+		align="start"
+		sideOffset={12}
 		role={null}
 		keyboardNavigation={false}
 		panelClass="w-72"
-		contentClass="p-2"
+		contentClass="p-1"
+		testId="sidebar-arrange-panel"
 	>
 		{#snippet trigger()}
 			<Tooltip content="Group and sort" placement="bottom">
@@ -90,23 +109,49 @@
 			</Tooltip>
 		{/snippet}
 		{#snippet content()}
-			<div class="flex flex-col gap-1" role="group" aria-label="Group and sort">
+			<div class="flex flex-col" role="group" aria-label="Group and sort">
 				<ArrangeChoice
-					label="Group by"
+					icon="layers"
+					label="Grouping"
 					value={arrangement.grouping}
 					choices={SIDEBAR_GROUPINGS}
+					icons={GROUPING_ICONS}
 					onchoose={(grouping) => onarrange({ grouping })}
 				/>
+				{#if sectioned}
+					<ArrangeChoice
+						icon="list-tree"
+						label="Sub-grouping"
+						value={arrangement.subgrouping}
+						choices={SIDEBAR_SUBGROUPINGS}
+						icons={SUBGROUPING_ICONS}
+						onchoose={(subgrouping) => onarrange({ subgrouping })}
+					/>
+				{/if}
 				<ArrangeChoice
-					label="Sort by"
+					icon="arrow-up-down"
+					label="Ordering"
 					value={arrangement.ordering}
 					choices={SIDEBAR_ORDERINGS}
+					icons={ORDERING_ICONS}
 					onchoose={(ordering) => onarrange({ ordering })}
 				/>
-				{#if arrangement.ordering !== 'manual'}
-					<p class="text-fg-tertiary px-1.5 pt-1 text-xs">
-						Sort by Manual to drag rows into place.
-					</p>
+				{#if dragHint || !isDefaultArrangement(arrangement)}
+					<div
+						class="border-surface-elevated-border mt-1 flex min-h-9 items-center gap-2 border-t py-1.5 pr-1 pl-2"
+					>
+						<p class="text-fg-tertiary text-2xs min-w-0 flex-1 leading-4">{dragHint}</p>
+						{#if !isDefaultArrangement(arrangement)}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="font-normal"
+								onclick={() => onarrange(DEFAULT_SIDEBAR_ARRANGEMENT)}
+							>
+								Reset
+							</Button>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		{/snippet}
