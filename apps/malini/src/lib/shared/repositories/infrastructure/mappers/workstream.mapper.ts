@@ -30,6 +30,7 @@ type RawWorkstream = {
 	branch: string;
 	baseBranch: string;
 	status: string;
+	createdAt?: unknown;
 	checkoutState?: string;
 	checkoutIssue?: string | null;
 	resolvedPath?: string | null;
@@ -52,6 +53,7 @@ export class WorkstreamMapper {
 			branch: raw.branch,
 			baseBranch: raw.baseBranch,
 			status: toStatus(raw.status),
+			createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
 			checkoutState: toCheckoutState(raw.checkoutState),
 			checkoutIssue: raw.checkoutIssue ?? null,
 			resolvedPath: raw.resolvedPath ?? null,

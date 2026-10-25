@@ -21,7 +21,8 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
-- A workstream any chat starts sits under its repository in the sidebar, and the chat's row shows a dot for each.
+- A workstream any chat starts sits under its repository in the sidebar, and the chat's row shows a dot for each, archived ones last.
+  Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
 - The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
 

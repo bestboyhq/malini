@@ -62,7 +62,7 @@
 			class="gap-2.5"
 			onclick={() => request('folder')}
 		>
-			<Icon name="folder-plus" class="shrink-0" size={15} />
+			<Icon name="folder-open" class="shrink-0" size={15} />
 			Open folder…
 		</DropdownItem>
 		<DropdownItem
@@ -71,7 +71,7 @@
 			class="gap-2.5"
 			onclick={() => request('clone')}
 		>
-			<Icon name="link" class="shrink-0" size={15} />
+			<Icon name="cloud-download" class="shrink-0" size={15} />
 			Clone repository…
 		</DropdownItem>
 	</div>

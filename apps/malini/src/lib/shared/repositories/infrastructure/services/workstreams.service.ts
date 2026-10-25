@@ -54,6 +54,7 @@ class WorkstreamsService {
 			name: input.name,
 			branch: workstreamBranch(input.workstreamId),
 			baseBranch: input.baseBranch,
+			createdAt: new Date().toISOString(),
 			worktreePath,
 		};
 	}

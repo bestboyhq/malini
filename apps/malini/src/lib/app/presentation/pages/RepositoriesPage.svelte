@@ -166,7 +166,7 @@
 		onclick={() => (cloneDialogOpen = true)}
 	>
 		{#snippet leading()}
-			<Icon name="link" size={size === 'md' ? 16 : 14} />
+			<Icon name="cloud-download" size={size === 'md' ? 16 : 14} />
 		{/snippet}
 		{connecting === 'clone' ? 'Cloning…' : 'Clone repo'}
 	</Button>
@@ -183,7 +183,7 @@
 		onclick={openRepositoryFolderCommand}
 	>
 		{#snippet leading()}
-			<Icon name="folder-plus" size={16} />
+			<Icon name="folder-open" size={16} />
 		{/snippet}
 		{connecting === 'folder' ? 'Opening…' : 'Open folder'}
 	</Button>
@@ -423,7 +423,7 @@
 									{#if query.trim().length > 0}
 										<Icon name="search" size={20} />
 									{:else}
-										<Icon name="folder-plus" size={20} />
+										<Icon name="folder-open" size={20} />
 									{/if}
 								{/snippet}
 								{#snippet action()}

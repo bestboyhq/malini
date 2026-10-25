@@ -28,9 +28,10 @@
 	interface Props {
 		workstreamIds: readonly string[];
 		framed?: boolean;
+		label?: string;
 	}
 
-	let { workstreamIds, framed = true }: Props = $props();
+	let { workstreamIds, framed = true, label = 'Workstreams' }: Props = $props();
 
 	type Trail =
 		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
@@ -57,6 +58,7 @@
 		failed: 'text-error-content',
 		running: 'text-fg-secondary',
 		idle: 'text-fg-tertiary',
+		archived: 'text-fg-tertiary',
 	};
 
 	let nowMs = $state(Date.now());
@@ -108,7 +110,7 @@
 				id,
 				fullName: archived.repositoryFullName,
 				name,
-				dot: pullRequest ? 'merged' : 'idle',
+				dot: pullRequest ? 'merged' : 'archived',
 				glyph: pullRequest ? 'pr-merged' : archived.savedForLater ? 'clock' : 'archive',
 				label: pullRequest
 					? `Merged #${pullRequest.number}`
@@ -193,7 +195,7 @@
 {/snippet}
 
 {#snippet list()}
-	<ul aria-label={framed ? undefined : 'Workstreams'}>
+	<ul aria-label={framed ? undefined : label}>
 		{#each lines as line (line.id)}
 			{@const accessibleName = accessibleNameOf(line)}
 			<li
