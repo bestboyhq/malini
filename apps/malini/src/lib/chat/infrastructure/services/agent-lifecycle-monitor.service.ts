@@ -29,6 +29,7 @@ type AgentLifecycleMonitorDependencies = {
 	clearAttention: typeof agentActivity.clearChat;
 	clearAttentionForRun: typeof agentActivity.clearForRun;
 	markAttention: typeof agentActivity.mark;
+	touchChat: typeof agentActivity.touchChat;
 	sound(signal: SoundSignal): void;
 	notify(
 		title: string,
@@ -133,6 +134,7 @@ export class AgentLifecycleMonitor {
 			return;
 		}
 		this.dependencies.applyLifecycle(envelope);
+		this.dependencies.touchChat(envelope.sessionId, Date.now());
 
 		if (envelope.event.type === 'run.started') {
 			this.#pendingAttentionBySession.delete(envelope.sessionId);
@@ -196,6 +198,7 @@ export const agentLifecycleMonitor = new AgentLifecycleMonitor({
 	clearAttention: (sessionId) => agentActivity.clearChat(sessionId),
 	clearAttentionForRun: (sessionId, runId) => agentActivity.clearForRun(sessionId, runId),
 	markAttention: (workstreamId, attention) => agentActivity.mark(workstreamId, attention),
+	touchChat: (sessionId, at) => agentActivity.touchChat(sessionId, at),
 	sound: playSignalSoundCommand,
 	notify: (title, body, workstreamId, sessionId) =>
 		notificationService.notify(title, body, workstreamId, sessionId),

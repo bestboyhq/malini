@@ -54,6 +54,7 @@ function monitorHarness() {
 			attentions.set(attention.sessionId, attention);
 			return true;
 		},
+		touchChat: () => {},
 		sound,
 		notify: (title, body, workstreamId, sessionId) => {
 			notifications.push({ title, body, workstreamId, sessionId });

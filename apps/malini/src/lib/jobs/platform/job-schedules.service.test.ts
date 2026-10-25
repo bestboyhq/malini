@@ -120,7 +120,13 @@ beforeEach(() => {
 		seedWorkstream(id, 'malini-lead-space', field(args, 'name'), field(args, 'scope'));
 		const lead = getWorkstream(db, id);
 		if (!lead) throw new Error('the lead is missing');
-		return { ...lead, checkoutState: 'healthy', checkoutIssue: null, resolvedPath: lead.path };
+		return {
+			...lead,
+			activeAt: lead.createdAt,
+			checkoutState: 'healthy',
+			checkoutIssue: null,
+			resolvedPath: lead.path,
+		};
 	});
 	commands.define('repositories.create-workstream', (args: unknown) => {
 		seedWorkstream(field(args, 'workstreamId'), 'local__acme__app', field(args, 'name'), null);
