@@ -95,7 +95,7 @@ What changed and what was verified read as one line each, with an icon for each,
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
-A **Your turn** list, unread marks, a chime, and a notification tell you which workstream needs you.
+A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you.
 
 ### Next steps
 
@@ -120,6 +120,14 @@ Pick one, say why if you like, and the agent builds on it; **None fit** asks for
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
 Once you pick one, the agent builds it into the real thing and removes what it replaces.
+
+## Sounds
+
+Malini plays one sound when an agent finishes and another when it needs you: a question, an approval, or a failed run.
+**Settings → Sounds** picks each one from the same list: the Malini chime and 16 more that ship with Malini, the same on every Mac.
+Play one before you pick it, and the menu stays open while you try others.
+**Record a sound…** records up to 3 seconds from your microphone, after macOS asks you to allow it, and **Choose a file…** adds a sound file of up to 5 MB.
+Your own sounds join both lists, and **No sound** turns one off.
 
 ## Context
 

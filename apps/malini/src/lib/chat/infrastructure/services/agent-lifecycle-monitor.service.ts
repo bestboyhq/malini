@@ -5,8 +5,8 @@ import type { LiveEventEnvelope } from '$contract/agent';
 import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { notificationService } from '$shared/system/notification.service';
-import { chime } from '$shared/system/chime.service';
-import { agentAttentionDecision } from '$lib/chat/domain/agent-attention';
+import { playSignalSoundCommand, type SoundSignal } from '$shared/sounds/sounds.api';
+import { agentAttentionDecision, attentionSoundSignal } from '$lib/chat/domain/agent-attention';
 import { backgroundWaitOf } from '$lib/chat/domain/background-work';
 import { agentActivity } from '../aggregates/agent-activity.aggregate.svelte';
 import { agentPromptQueue } from '../aggregates/prompt-queue.aggregate.svelte';
@@ -29,7 +29,7 @@ type AgentLifecycleMonitorDependencies = {
 	clearAttention: typeof agentActivity.clearChat;
 	clearAttentionForRun: typeof agentActivity.clearForRun;
 	markAttention: typeof agentActivity.mark;
-	chime(): void;
+	sound(signal: SoundSignal): void;
 	notify(
 		title: string,
 		body: string,
@@ -175,7 +175,7 @@ export class AgentLifecycleMonitor {
 			branch: context.branch,
 		});
 		if (!decision) return true;
-		this.dependencies.chime();
+		this.dependencies.sound(attentionSoundSignal(decision.kind));
 		const focused = this.dependencies.appFocused();
 		if (focused && envelope.sessionId === this.#shownChatId) return true;
 		const marked = this.dependencies.markAttention(owner, decision);
@@ -196,7 +196,7 @@ export const agentLifecycleMonitor = new AgentLifecycleMonitor({
 	clearAttention: (sessionId) => agentActivity.clearChat(sessionId),
 	clearAttentionForRun: (sessionId, runId) => agentActivity.clearForRun(sessionId, runId),
 	markAttention: (workstreamId, attention) => agentActivity.mark(workstreamId, attention),
-	chime,
+	sound: playSignalSoundCommand,
 	notify: (title, body, workstreamId, sessionId) =>
 		notificationService.notify(title, body, workstreamId, sessionId),
 });

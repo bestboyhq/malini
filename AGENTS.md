@@ -67,6 +67,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
 | `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |
+| `$shared/sounds`       | shared domain: the sounds Malini plays, your picks and your own recordings          |
 
 `src/main` is node bootstrap only:
 

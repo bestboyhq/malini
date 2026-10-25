@@ -15,6 +15,7 @@
 	import { showOnboardingHook } from '$lib/app/application/hooks/show-onboarding.hook';
 	import { onboardingQuery } from '$lib/app/application/queries/onboarding.query.svelte';
 	import { JobsIntro } from '$lib/jobs/jobs.api';
+	import { AfternoonTrial, SoundChoices } from '$shared/sounds/sounds.api';
 	import { claudeCodeStatusQuery } from '$shared/providers/providers.api';
 	import {
 		githubAuthErrorQuery,
@@ -37,6 +38,11 @@
 			title: 'Meet your jobs',
 			description:
 				'Jobs are agent work Malini does for you, each in its own chat. These come built in, and you can run any of them from a chat by typing /.',
+		},
+		sounds: {
+			title: 'Hear your afternoon',
+			description:
+				'Choose what you hear when an agent finishes, and when it needs you. Then try an afternoon of workstreams to hear how it feels.',
 		},
 		repository: {
 			title: 'Open your first repository',
@@ -190,6 +196,11 @@
 							<OnboardingAccountsStep statuses={accounts} />
 						{:else if onboarding.step === 'jobs'}
 							<JobsIntro />
+						{:else if onboarding.step === 'sounds'}
+							<div class="flex flex-col gap-3">
+								<SoundChoices class="rounded-2xl" />
+								<AfternoonTrial />
+							</div>
 						{:else}
 							<OnboardingRepositoryStep />
 						{/if}

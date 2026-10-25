@@ -6,7 +6,13 @@ vi.mock('electron', () => ({
 	ipcMain: { handle: vi.fn() },
 	BrowserWindow: { getAllWindows: () => [] },
 	app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test', isPackaged: false },
-	session: { fromPartition: () => ({ protocol: { handle: vi.fn() } }) },
+	session: {
+		fromPartition: () => ({
+			protocol: { handle: vi.fn() },
+			setPermissionRequestHandler: vi.fn(),
+			setPermissionCheckHandler: vi.fn(),
+		}),
+	},
 	protocol: { handle: vi.fn() },
 }));
 
