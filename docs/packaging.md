@@ -44,8 +44,9 @@ The first release is `0.1.0`, and `package.json`'s version is a placeholder CI o
 
 The `release` job signs with the Developer ID certificate and notarizes the app and the disk image, while the tests still run.
 The hardened runtime gets `build/entitlements.mac.plist`: electron-builder's defaults plus `com.apple.security.device.audio-input`, so recording a sound can ask for the microphone, and `NSMicrophoneUsageDescription` says why.
-The `update` job runs `pnpm --filter malini test:update` on its own runner at the same time.
-Once both pass and every check and test of the push passed too, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
+It then opens the signed build once with `scripts/packaged-smoke.mjs` and waits for it to boot to Repositories.
+The `update` job runs `pnpm --filter malini test:update` on its own runner at the same time, when a file the test covers changed since the last release (ADR 0081).
+Once the release passes and no check or test of the push failed, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
 They need the repository secrets `CSC_LINK` (the base64 `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD`.
 The bundle takes the product name from `productName` in `apps/malini/package.json`, `Malini`, while every file a release publishes keeps the lowercase identifier: `electron-builder.yml` spells out `artifactName` for both targets (ADR 0033).
 The dmg is named `malini-arm64.dmg`, without a version, so `releases/latest/download/malini-arm64.dmg` always serves the newest release; the README's download button links there.

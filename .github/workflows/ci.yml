@@ -35,8 +35,39 @@ jobs:
       - run: pnpm --filter "malini^..." build
       - run: pnpm --filter malini exec vitest run --shard=${{ matrix.shard }}
 
+  reuse:
+    name: what the pull request already proved
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      e2e: ${{ steps.e2e.outputs.needed }}
+      update: ${{ steps.update.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip e2e when a pull request of this repository passed it on this exact tree
+        id: e2e
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=e2e-passed-$(git rev-parse 'HEAD^{tree}')" --jq '[.artifacts[] | select(.expired | not) | select(.workflow_run.head_repository_id == .workflow_run.repository_id)] | length') || passed=0
+          echo "needed=$([ "$passed" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Skip the update test when nothing it covers changed since the last release
+        id: update
+        run: |
+          since=$(git describe --tags --match 'v*' --abbrev=0) || since=$(git rev-list --max-parents=0 HEAD)
+          needed=false
+          git diff --name-only "$since" HEAD | grep -qiE '^apps/malini/(src/main/(index|window|storage-name)\.ts|src/lib/app/platform/(register|shell-host|window)\.ts|src/lib/app/.*update|src/preload/|electron-builder\.yml|build/|package\.json|scripts/update-e2e\.mjs)|^(pnpm-lock|pnpm-workspace)\.yaml|^\.github/(workflows/ci\.yml|actions/)' && needed=true
+          echo "needed=$needed" >> "$GITHUB_OUTPUT"
+
   app:
     name: e2e on macOS ${{ matrix.shard }}/${{ strategy.job-total }}
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.e2e != 'false' }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -64,6 +95,22 @@ jobs:
         with:
           name: playwright-report-${{ strategy.job-index }}
           path: apps/malini/test-results
+
+  proof:
+    name: remember the tree e2e passed on
+    needs: app
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          echo "TREE=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_ENV"
+          echo "$GITHUB_SHA" > "$RUNNER_TEMP/commit"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: e2e-passed-${{ env.TREE }}
+          path: ${{ runner.temp }}/commit
+          retention-days: 14
 
   version:
     name: next version from the merged commits
@@ -117,6 +164,9 @@ jobs:
           APPLE_KEYCHAIN_PROFILE: malini
           MAIN_VITE_LOGDASH_SITE: ${{ secrets.MALINI_LOGDASH_SITE }}
           MAIN_VITE_LOGDASH_API_KEY: ${{ secrets.MALINI_LOGDASH_API_KEY }}
+      - name: Open the signed build once
+        working-directory: apps/malini
+        run: node scripts/packaged-smoke.mjs
       - run: dmg="apps/malini/release/malini-arm64.dmg" && xcrun notarytool submit "$dmg" --keychain-profile malini --wait && xcrun stapler staple "$dmg"
       - uses: actions/upload-artifact@v7
         with:
@@ -129,8 +179,8 @@ jobs:
 
   update:
     name: signed builds update themselves
-    needs: version
-    if: needs.version.outputs.next != ''
+    needs: [version, reuse]
+    if: ${{ !cancelled() && needs.version.outputs.next != '' && needs.reuse.outputs.update != 'false' }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
@@ -141,6 +191,7 @@ jobs:
   publish:
     name: publish the release
     needs: [checks, unit, app, version, release, update]
+    if: ${{ !cancelled() && needs.release.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
