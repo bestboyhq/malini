@@ -85,7 +85,7 @@ When a job it ran in another workstream, a workstream it started, or a workstrea
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
 **Open transcript** goes to the asking chat when you want its context.
 **Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.
-When requests arrive while you are typing, they wait in that row instead of taking the composer.
+A request takes the composer slot right away, even over a draft, which waits underneath, and a new one brings the queue back after **Later**.
 
 ## Reports
 

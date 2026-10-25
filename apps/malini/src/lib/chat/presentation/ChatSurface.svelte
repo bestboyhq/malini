@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
+	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
 	import { fly, slide, type SlideParams } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
@@ -214,20 +214,15 @@
 			presentedSessionId === sessionId &&
 			pendingQuestions.length > 0,
 	);
-	let childRequestsAside = $state(false);
-	let hadChildRequests = false;
+	let answerLaterKeys = $state<ReadonlySet<string>>(new Set());
+	const childRequestsAside = $derived(
+		childSteps.length > 0 && childSteps.every((step) => answerLaterKeys.has(step.key)),
+	);
 	const answeringChildren = $derived(childSteps.length > 0 && !childRequestsAside && !asking);
 	const composerHidden = $derived(asking || answeringChildren);
-	const childRequestsWaiting = $derived(childSteps.length > 0 && childRequestsAside && !asking);
+	const childRequestsWaiting = $derived(childRequestsAside && !asking);
 	let composerSlot: HTMLElement | null = $state(null);
 	let wasHidden = false;
-
-	$effect(() => {
-		const has = childSteps.length > 0;
-		if (has === hadChildRequests) return;
-		hadChildRequests = has;
-		untrack(() => (childRequestsAside = has && scopedDraft.text.trim().length > 0));
-	});
 
 	$effect(() => {
 		const now = composerHidden;
@@ -484,7 +479,7 @@
 													<div transition:slide={foldMotion()}>
 														<ChildRequestsWaiting
 															count={childSteps.length}
-															onanswer={() => (childRequestsAside = false)}
+															onanswer={() => (answerLaterKeys = new Set())}
 														/>
 													</div>
 												{/if}
@@ -540,7 +535,7 @@
 								{:else if answeringChildren}
 									<ChildRequestQueue
 										steps={childSteps}
-										onlater={() => (childRequestsAside = true)}
+										onlater={() => (answerLaterKeys = new Set(childSteps.map(({ key }) => key)))}
 									/>
 								{/if}
 								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>

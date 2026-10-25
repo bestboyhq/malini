@@ -177,7 +177,7 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 	}
 });
 
-test('requests from several children wait in one queue in the composer slot, and stay out of the way while you type', async () => {
+test('requests from several children queue in the composer slot one at a time, over a draft, and Later folds them until a new one comes', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -187,6 +187,7 @@ test('requests from several children wait in one queue in the composer slot, and
 		const children = [
 			await seedWorkstream(page, source, 'e2e-queue-switch', 'Release automation switch'),
 			await seedWorkstream(page, source, 'e2e-queue-notes', 'Release notes'),
+			await seedWorkstream(page, source, 'e2e-queue-site', 'Release site'),
 		];
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'Plan the release');
@@ -198,37 +199,42 @@ test('requests from several children wait in one queue in the composer slot, and
 		await page.keyboard.type('half a thought', { delay: 5 });
 
 		const definitionId = await saveApprovalJob(page);
-		for (const child of children) {
-			await invoke(page, 'jobs.run', {
+		const runIn = (child: { workstreamId: string }) =>
+			invoke(page, 'jobs.run', {
 				definitionId,
 				workstreamId: child.workstreamId,
 				chatSessionId: chat,
 			});
-		}
-		const waiting = (count: string) => page.getByRole('button', { name: `Answer: ${count}` });
-		await expect(waiting('2 requests need you')).toBeVisible({ timeout: 30_000 });
-		await expect(input).toHaveText('half a thought');
-		await captureFlow(app, 'child-request-queue-waiting');
+		const [switchChild, notesChild, siteChild] = children;
+		if (!switchChild || !notesChild || !siteChild) throw new Error('the children were not seeded');
+		await runIn(switchChild);
+		await runIn(notesChild);
 
-		await waiting('2 requests need you').click();
 		const queue = page.getByTestId('child-request-queue');
 		const position = queue.getByTestId('child-request-position');
-		await expect(page.getByTestId('chat-composer')).toBeHidden();
-		await expect(position).toHaveText('1 of 2');
+		const composer = page.getByTestId('chat-composer');
+		await expect(position).toHaveText('1 of 2', { timeout: 30_000 });
+		await expect(composer).toBeHidden();
 		const first = await queue.getAttribute('aria-label');
 		await queue.getByRole('button', { name: 'Next request' }).click();
 		await expect(position).toHaveText('2 of 2');
 		await expect(queue).not.toHaveAttribute('aria-label', first ?? '');
-		await captureFlow(app, 'child-request-queue-second');
+		await captureFlow(app, 'child-request-queue-over-draft');
 
 		await queue.getByRole('button', { name: 'Allow once' }).click();
 		await expect(queue).toHaveAttribute('aria-label', first ?? '');
 		await expect(position).toHaveCount(0);
 		await page.keyboard.press('Escape');
-		await expect(waiting('1 request needs you')).toBeVisible();
+		const waiting = page.getByRole('button', { name: 'Answer: 1 request needs you' });
+		await expect(waiting).toBeVisible();
+		await expect(composer).toBeVisible();
 		await expect(input).toHaveText('half a thought');
 
-		await waiting('1 request needs you').click();
+		await runIn(siteChild);
+		await expect(position).toHaveText('1 of 2', { timeout: 30_000 });
+		await expect(waiting).toHaveCount(0);
+		await queue.getByRole('button', { name: 'Allow once' }).click();
+		await expect(position).toHaveCount(0);
 		await queue.getByRole('button', { name: 'Allow once' }).click();
 		await expect(queue).toHaveCount(0, { timeout: 20_000 });
 		await expect(input).toHaveText('half a thought');
@@ -240,7 +246,7 @@ test('requests from several children wait in one queue in the composer slot, and
 						.map((run) => run.status),
 				{ timeout: 30_000 },
 			)
-			.toEqual(['succeeded', 'succeeded']);
+			.toEqual(['succeeded', 'succeeded', 'succeeded']);
 		expect(currentSessionId(page)).toBe(chat);
 		expectCleanConsole(app);
 	} finally {
