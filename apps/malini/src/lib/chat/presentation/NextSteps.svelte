@@ -11,9 +11,10 @@
 		onscratchpad?: ((step: string) => void) | undefined;
 		onopenfile?: ((target: FileMentionTarget, mention: HTMLElement) => void) | undefined;
 		canopenfile?: ((path: string) => boolean) | undefined;
+		quiet?: boolean;
 	}
 
-	let { steps, onsend, onscratchpad, onopenfile, canopenfile }: Props = $props();
+	let { steps, onsend, onscratchpad, onopenfile, canopenfile, quiet = false }: Props = $props();
 
 	let handled = $state<Readonly<Record<number, string>>>({});
 
@@ -64,7 +65,7 @@
 					{/if}
 					{#if onsend}
 						<Button
-							variant="primary"
+							variant={quiet ? 'secondary' : 'primary'}
 							size="xs"
 							onclick={() => {
 								onsend(step);
