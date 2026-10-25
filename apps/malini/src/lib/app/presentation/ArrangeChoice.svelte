@@ -31,7 +31,7 @@
 		bind:open
 		nested
 		side="bottom"
-		align="end"
+		align="center"
 		sideOffset={4}
 		role={null}
 		panelClass="w-40"
