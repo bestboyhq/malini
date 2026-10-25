@@ -21,7 +21,7 @@
 	const kind = $derived(mediaKind(src));
 	const hero = $derived(size === 'hero');
 	const fit = $derived(
-		hero ? 'block size-full object-contain' : 'size-full object-cover object-top-left',
+		hero ? 'absolute inset-0 size-full object-contain' : 'size-full object-cover object-top-left',
 	);
 	let video = $state<HTMLVideoElement>();
 	let pageWidth = $state(0);
@@ -57,7 +57,7 @@
 {:else}
 	{@const source = reportMediaSource(mediaPath(src), imagesrc)}
 	{#if !source}
-		<span class="block size-full"></span>
+		<span class={hero ? 'absolute inset-0' : 'block size-full'}></span>
 	{:else if kind === 'video'}
 		<video
 			bind:this={video}
