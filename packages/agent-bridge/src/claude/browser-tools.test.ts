@@ -288,6 +288,11 @@ describe('malini MCP server', () => {
 			properties: {
 				path: { type: 'string', description: expect.any(String) },
 				line: { type: 'integer', exclusiveMinimum: 0, description: expect.any(String) },
+				keys: {
+					type: 'array',
+					items: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_]*$' },
+					description: expect.any(String),
+				},
 			},
 			required: ['path'],
 		});

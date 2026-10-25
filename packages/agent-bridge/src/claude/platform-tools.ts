@@ -202,7 +202,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'files_open',
-			"Open a file in a tab beside this chat, where the user reads and edits it. Use it whenever the user has to write something you must not read or write yourself, such as a secret in ~/.secrets/<repo>.env, and say in your report what goes in it. Malini creates the file empty when it does not exist yet, private to the user when it is outside the worktree. Returns the path it opened and whether it created the file, never the file's contents.",
+			"Open a file in a tab beside this chat, where the user reads and edits it. Use it whenever the user has to write something you must not read or write yourself, such as a secret in ~/.secrets/<repo>.env, name each secret you need in `keys`, and say in your report what goes in each. Malini creates the file empty when it does not exist yet, private to the user when it is outside the worktree, and adds a `KEY=` line for each key the file does not set yet, for the user to fill in. Returns the path it opened and whether it created the file, never the file's contents.",
 			{
 				path: z
 					.string()
@@ -216,6 +216,13 @@ export function platformTools(request: PlatformToolRequester) {
 					.positive()
 					.optional()
 					.describe('The line to show and put the cursor on'),
+				keys: z
+					.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/u))
+					.max(100)
+					.optional()
+					.describe(
+						'Names of the keys the user fills in, for example ["OPENAI_API_KEY"]. Malini adds `KEY=` for each one the file does not set yet and never tells you which ones it had.',
+					),
 			},
 			(input) => call('files_open', input),
 		),
