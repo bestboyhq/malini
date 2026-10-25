@@ -460,6 +460,7 @@ export async function seedWorkstream(
 	sourceRepo: string,
 	workstreamId: string,
 	name: string,
+	startedBy: string | null = null,
 ): Promise<SeededWorkstream> {
 	const basePath = await invoke<string>(page, 'repositories.create-repository', {
 		repoUrl: sourceRepo,
@@ -473,8 +474,26 @@ export async function seedWorkstream(
 		baseBranch: 'main',
 		projectId: project.id,
 		name,
+		...(startedBy === null ? {} : { startedBy }),
 	});
 	return { workstreamId, projectId: project.id, basePath, worktree };
+}
+
+export async function recordBrowser(app: LaunchedApp): Promise<void> {
+	await app.electronApp.evaluate(({ shell }) => {
+		const opened: string[] = [];
+		Reflect.set(globalThis, '__openedUrls', opened);
+		shell.openExternal = async (url) => {
+			opened.push(url);
+		};
+	});
+}
+
+export function openedUrls(app: LaunchedApp): Promise<string[]> {
+	return app.electronApp.evaluate(() => {
+		const opened: unknown = Reflect.get(globalThis, '__openedUrls');
+		return Array.isArray(opened) ? opened.map(String) : [];
+	});
 }
 
 export async function openWorkstream(

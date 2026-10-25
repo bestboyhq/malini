@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount, tick, type Snippet } from 'svelte';
+	import { onDestroy, onMount, tick, untrack, type Snippet } from 'svelte';
 	import { quartOut } from 'svelte/easing';
 	import { fly, slide, type SlideParams } from 'svelte/transition';
 	import { Button } from '$hyper-ui/components/button';
@@ -18,6 +18,7 @@
 	import { stopBackgroundTaskCommand } from '$lib/chat/application/commands/stop-background-task.command';
 	import { updateQueuedPromptCommand } from '$lib/chat/application/commands/update-queued-prompt.command';
 	import { followChatRouteHook } from '$lib/chat/application/hooks/follow-chat-route.hook.svelte';
+	import { followChildRequestsHook } from '$lib/chat/application/hooks/follow-child-requests.hook.svelte';
 	import { preloadOpenChatsHook } from '$lib/chat/application/hooks/preload-open-chats.hook.svelte';
 	import { watchAgentLifecycleHook } from '$lib/chat/application/hooks/watch-agent-lifecycle.hook.svelte';
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
@@ -27,6 +28,7 @@
 	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
+	import { childRequestsQuery } from '$lib/chat/application/queries/child-requests.query.svelte';
 	import { composerDraftQuery } from '$lib/chat/application/queries/composer-draft.query.svelte';
 	import { emptySessionModeQuery } from '$lib/chat/application/queries/empty-session-mode.query.svelte';
 	import { freshChatReturnQuery } from '$lib/chat/application/queries/fresh-chat-return.query.svelte';
@@ -68,7 +70,9 @@
 	import ChatMessageList from './ChatMessageList.svelte';
 	import ChatSessionError from './ChatSessionError.svelte';
 	import ChatTabs from './ChatTabs.svelte';
-	import ChildRequest from './ChildRequest.svelte';
+	import ChildRequestQueue from './ChildRequestQueue.svelte';
+	import ChildRequestsWaiting from './ChildRequestsWaiting.svelte';
+	import { childRequestSteps } from './child-request-steps';
 	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
 	import QueuedPromptList from './QueuedPromptList.svelte';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
@@ -100,6 +104,9 @@
 	const stopPreloadingOpenChats = preloadOpenChatsHook();
 	const releaseSessionChanges = watchSessionChangesHook();
 	const releaseAgentLifecycle = watchAgentLifecycleHook();
+	const releaseChildRequests = followChildRequestsHook(() =>
+		askingChildren.map((child) => child.sessionId),
+	);
 
 	onMount(() => {
 		loadModelDefaultsCommand();
@@ -110,6 +117,7 @@
 		releaseAgentLifecycle();
 		releaseChatRoute();
 		stopPreloadingOpenChats();
+		releaseChildRequests();
 	});
 
 	const sessionId = $derived(activeSessionQuery.data);
@@ -142,6 +150,9 @@
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
 	const askingChildren = $derived(askingChildrenQuery.data(workstreamId, sessionId, jobRuns));
+	const childSteps = $derived(
+		childRequestSteps(askingChildren, childRequestsQuery.approvals, childRequestsQuery.questions),
+	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
@@ -203,13 +214,25 @@
 			presentedSessionId === sessionId &&
 			pendingQuestions.length > 0,
 	);
+	let childRequestsAside = $state(false);
+	let hadChildRequests = false;
+	const answeringChildren = $derived(childSteps.length > 0 && !childRequestsAside && !asking);
+	const composerHidden = $derived(asking || answeringChildren);
+	const childRequestsWaiting = $derived(childSteps.length > 0 && childRequestsAside && !asking);
 	let composerSlot: HTMLElement | null = $state(null);
-	let wasAsking = false;
+	let wasHidden = false;
 
 	$effect(() => {
-		const now = asking;
-		if (now === wasAsking) return;
-		wasAsking = now;
+		const has = childSteps.length > 0;
+		if (has === hadChildRequests) return;
+		hadChildRequests = has;
+		untrack(() => (childRequestsAside = has && scopedDraft.text.trim().length > 0));
+	});
+
+	$effect(() => {
+		const now = composerHidden;
+		if (now === wasHidden) return;
+		wasHidden = now;
 		if (!now) void returnToComposer();
 	});
 
@@ -314,7 +337,7 @@
 	}
 
 	function composerMayClaimInput(): boolean {
-		if (asking || documentActive || !focusIsUnclaimed()) return false;
+		if (composerHidden || documentActive || !focusIsUnclaimed()) return false;
 		return !document.querySelector('[data-dropdown-portal]:not([inert]), [aria-modal="true"]');
 	}
 
@@ -451,17 +474,21 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#each askingChildren as child (child.sessionId)}
-										<div transition:slide={foldMotion()}>
-											<ChildRequest {child} />
-										</div>
-									{/each}
-									{#if (showsSessionChanges && sessionChanges) || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if (showsSessionChanges && sessionChanges) || childRequestsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
 												data-testid="chat-composer-tray"
 											>
+												{#if childRequestsWaiting}
+													<div transition:slide={foldMotion()}>
+														<ChildRequestsWaiting
+															count={childSteps.length}
+															onanswer={() => (childRequestsAside = false)}
+														/>
+													</div>
+												{/if}
+
 												{#if showsSessionChanges && sessionChanges}
 													<div transition:slide={foldMotion()}>
 														<ChatChangedFiles
@@ -510,8 +537,13 @@
 
 								{#if asking}
 									<AgentQuestionPanel requests={pendingQuestions} />
+								{:else if answeringChildren}
+									<ChildRequestQueue
+										steps={childSteps}
+										onlater={() => (childRequestsAside = true)}
+									/>
 								{/if}
-								<div bind:this={composerSlot} class={[asking && 'hidden']}>
+								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>
 									<ChatComposer
 										bind:this={composer}
 										{sessionId}

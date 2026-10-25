@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
+	import { openExternalUrlCommand } from '$lib/app/application/commands/open-external-url.command';
 	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
 	import { standingLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
 	import {
 		pullRequestBadgesQuery,
 		type PullRequestPhase,
 	} from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
+	import {
+		pullRequestLinkQuery,
+		type PullRequestLink,
+	} from '$lib/pull-requests/application/queries/pull-request-link.query.svelte';
 	import { formatCompactChangeTotal } from '$lib/pull-requests/pull-requests.api';
 	import { formatTimeAgo } from '$lib/stats/stats.api';
 	import {
@@ -29,7 +34,7 @@
 
 	type Trail =
 		| Readonly<{ kind: 'changes'; additions: number; deletions: number }>
-		| Readonly<{ kind: 'archived'; pullRequestNumber: number | null; archivedAt: number }>
+		| Readonly<{ kind: 'archived'; archivedAt: number }>
 		| null;
 
 	type Line = Readonly<{
@@ -40,6 +45,7 @@
 		glyph: IconName;
 		label: string;
 		trail: Trail;
+		pullRequest: PullRequestLink | null;
 		open: boolean;
 	}>;
 
@@ -55,8 +61,9 @@
 
 	let nowMs = $state(Date.now());
 
+	const gapClass = $derived(framed ? 'gap-2.5' : 'gap-2');
 	const rowClass = $derived(
-		framed ? 'h-10 gap-2.5 pr-3.5 pl-3.5 text-sm' : 'h-8 gap-2 rounded-xl pr-2 pl-2 text-xs',
+		framed ? 'h-10 pr-3.5 pl-3.5 text-sm' : 'h-8 rounded-xl pr-2 pl-2 text-xs',
 	);
 	const lines = $derived(workstreamIds.flatMap(lineOf));
 	const merged = $derived(lines.filter((line) => line.dot === 'merged').length);
@@ -87,6 +94,7 @@
 						totals && (totals.additions > 0 || totals.deletions > 0)
 							? { kind: 'changes', additions: totals.additions, deletions: totals.deletions }
 							: null,
+					pullRequest: pullRequestLinkQuery.data(id),
 					open: true,
 				},
 			];
@@ -107,9 +115,8 @@
 					: archived.savedForLater
 						? 'Saved for later'
 						: 'Archived',
-				trail: Number.isNaN(archivedAt)
-					? null
-					: { kind: 'archived', pullRequestNumber: pullRequest?.number ?? null, archivedAt },
+				trail: Number.isNaN(archivedAt) ? null : { kind: 'archived', archivedAt },
+				pullRequest: pullRequest?.url ? { number: pullRequest.number, url: pullRequest.url } : null,
 				open: false,
 			},
 		];
@@ -139,7 +146,7 @@
 	}
 </script>
 
-{#snippet content(line: Line)}
+{#snippet identity(line: Line)}
 	<span class={['flex shrink-0', TONE[line.dot]]}>
 		{#if line.dot === 'running'}
 			<BusyIcon size={14} />
@@ -153,6 +160,9 @@
 	<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
 		{line.fullName ? repositoryName(line.fullName) : line.name}
 	</span>
+{/snippet}
+
+{#snippet trail(line: Line)}
 	{#if line.trail?.kind === 'changes'}
 		<span
 			class="text-2xs flex shrink-0 gap-1 font-mono font-medium tabular-nums"
@@ -167,7 +177,6 @@
 		</span>
 	{:else if line.trail?.kind === 'archived'}
 		<span class="text-fg-tertiary text-2xs shrink-0 tabular-nums" aria-hidden="true">
-			{#if line.trail.pullRequestNumber !== null}#{line.trail.pullRequestNumber} ·{/if}
 			{ageOf(line.trail.archivedAt)}
 		</span>
 	{/if}
@@ -177,27 +186,52 @@
 	<ul aria-label={framed ? undefined : 'Workstreams'}>
 		{#each lines as line (line.id)}
 			{@const accessibleName = accessibleNameOf(line)}
-			<li class={framed ? 'border-surface-50-border border-t-[0.5px]' : undefined}>
+			<li
+				class={[
+					'group/row relative flex items-center',
+					gapClass,
+					rowClass,
+					framed && 'border-surface-50-border border-t-[0.5px]',
+					(line.open || line.pullRequest) && 'hover:bg-surface-50-hover',
+				]}
+			>
 				{#if line.open}
 					<Button
 						bare
 						href={workstreamHref(line.id)}
 						ariaLabel={accessibleName}
-						class={['hover:bg-surface-50-hover flex w-full items-center', rowClass]}
+						class={[
+							'focus-visible:after:ring-border-default/50 flex min-w-0 flex-1 items-center outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2',
+							gapClass,
+						]}
 						data-testid="started-workstream"
 					>
-						{@render content(line)}
+						{@render identity(line)}
 					</Button>
 				{:else}
 					<div
-						class={['flex items-center', rowClass]}
+						class={['flex min-w-0 flex-1 items-center', gapClass]}
 						role="group"
 						aria-label={accessibleName}
 						data-testid="started-workstream"
 					>
-						{@render content(line)}
+						{@render identity(line)}
 					</div>
 				{/if}
+				{#if line.pullRequest}
+					{@const { number, url } = line.pullRequest}
+					<Button
+						bare
+						ariaLabel={`Open pull request #${number} on GitHub`}
+						class="text-fg-tertiary hover:text-fg-default focus-visible:ring-border-default/50 text-2xs relative hidden shrink-0 items-center gap-0.5 rounded-md tabular-nums outline-none group-focus-within/row:inline-flex group-hover/row:inline-flex focus-visible:ring-2"
+						data-testid="started-workstream-pull-request"
+						onclick={() => openExternalUrlCommand(url)}
+					>
+						#{number}
+						<Icon name="external-link" size={11} />
+					</Button>
+				{/if}
+				{@render trail(line)}
 			</li>
 		{/each}
 	</ul>

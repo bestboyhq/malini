@@ -17,8 +17,8 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - It opens at once and sets itself up behind the chat.
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
 - Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
-  Under that count, the chat lists every workstream it started: lines added and removed while it is open, and its pull request and when it merged once it lands.
-  Click one to go there.
+  Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
+  Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
 - A workstream any chat starts sits under its repository in the sidebar, and the chat's row shows a dot for each.
@@ -81,9 +81,11 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Keep blocked** leaves the block in place, and the agent carries on without it.
 
 A chat also answers for the work it started.
-When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request shows above this chat's composer, named after the job or workstream it came from.
-You answer it there, and the composer stays free for this chat.
+When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
+Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
 **Open transcript** goes to the asking chat when you want its context.
+**Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.
+When requests arrive while you are typing, they wait in that row instead of taking the composer.
 
 ## Reports
 

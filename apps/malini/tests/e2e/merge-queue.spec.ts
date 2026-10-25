@@ -6,9 +6,12 @@ import {
 	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
+	clickRevealedOnHover,
 	invoke,
 	launchMalini,
+	openedUrls,
 	openWorkstream,
+	recordBrowser,
 	sendPrompt,
 } from './harness';
 import {
@@ -78,6 +81,57 @@ test('Merge marks the draft ready, waits for the checks, merges and archives the
 		]);
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
 		await captureFlow(app, 'merge-queue-merged');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a merged workstream a chat started opens its pull request from the number its row shows on hover', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		await invoke(app.page, 'repositories.create-lead', {
+			scope: 'home',
+			workstreamId: 'e2e-lead-ships',
+			name: 'Ship hutch',
+		});
+		const { page, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-lead-merged',
+			null,
+			undefined,
+			'e2e-lead-ships',
+		);
+		await openWorkstream(page, 'e2e-lead-merged');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: PASSED,
+		});
+		const name = await workstreamName(page, 'e2e-lead-merged');
+		await queueMerge(page);
+		await expectMergedAndArchived(page, 'e2e-lead-merged', name);
+
+		await recordBrowser(app);
+		await openWorkstream(page, 'e2e-lead-ships');
+		const row = page
+			.getByRole('list', { name: 'Workstreams' })
+			.getByRole('listitem')
+			.filter({ has: page.getByRole('group', { name: /^e2e\/hutch, .*, Merged #7, / }) });
+		const openPullRequest = row.getByRole('button', { name: 'Open pull request #7 on GitHub' });
+		await expect(row).toBeVisible({ timeout: 20_000 });
+		await page.mouse.move(0, 0);
+		await expect(openPullRequest).toBeHidden();
+		await clickRevealedOnHover(row, openPullRequest);
+		await captureFlow(app, 'lead-workstream-pull-request-on-hover');
+		await expect.poll(() => openedUrls(app)).toEqual(['https://github.com/e2e/hutch/pull/7']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

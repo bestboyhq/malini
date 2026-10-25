@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, type Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { fly } from 'svelte/transition';
@@ -19,11 +19,12 @@
 	interface Props {
 		requests: readonly AgentQuestionRequest[];
 		ondismiss?: () => void;
+		source?: Snippet;
 	}
 
 	type QuestionStep = Readonly<{ key: string; question: AgentQuestion }>;
 
-	let { requests, ondismiss = cancelRunCommand }: Props = $props();
+	let { requests, ondismiss = cancelRunCommand, source }: Props = $props();
 
 	const RECOMMENDED = /\s*\(recommended\)\s*$/iu;
 	const ADVANCE_MS = 160;
@@ -219,6 +220,7 @@
 	data-testid="agent-question-panel"
 >
 	<ComposerShell testId="agent-question-shell" footerTestId="agent-question-footer">
+		{@render source?.()}
 		<section class="px-2 pt-2.5" aria-labelledby={promptId} aria-busy={submitting}>
 			<header class="flex min-h-7 items-center gap-2 px-2">
 				<Icon name="question" size={14} class="text-fg-tertiary shrink-0" />

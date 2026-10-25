@@ -22,6 +22,17 @@ function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
 }
 
+async function saveApprovalJob(page: Page): Promise<string> {
+	const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+		name: 'Address review',
+		instructions: 'APPROVAL',
+		model: 'opus',
+		effort: 'medium',
+		runsIn: 'workstream',
+	});
+	return job.id;
+}
+
 async function finishedRun(page: Page, title: string): Promise<RunRow> {
 	let finished: RunRow | undefined;
 	await expect
@@ -57,15 +68,8 @@ test('a job a chat runs in another workstream asks for permission in that chat, 
 		const chat = currentSessionId(page);
 		if (!chat) throw new Error('the chat did not commit a session id');
 
-		const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
-			name: 'Address review',
-			instructions: 'APPROVAL',
-			model: 'opus',
-			effort: 'medium',
-			runsIn: 'workstream',
-		});
 		await invoke(page, 'jobs.run', {
-			definitionId: job.id,
+			definitionId: await saveApprovalJob(page),
 			workstreamId: child.workstreamId,
 			chatSessionId: chat,
 		});
@@ -76,11 +80,12 @@ test('a job a chat runs in another workstream asks for permission in that chat, 
 		const decision = asking.getByRole('group', { name: 'Permission decision' });
 		await expect(decision).toBeVisible({ timeout: 30_000 });
 		await expect(asking.getByRole('link', { name: 'Open transcript' })).toBeVisible();
-		await expect(page.getByTestId('chat-composer')).toBeVisible();
-		await captureFlow(app, 'child-request-approval-after');
+		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		await captureFlow(app, 'child-request-queue-approval');
 
 		await decision.getByRole('button', { name: 'Allow once' }).click();
 		await expect(asking).toHaveCount(0, { timeout: 20_000 });
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
 		const run = await finishedRun(page, 'Address review');
 		const events = await listEvents(page, run.sessionId ?? '');
 		const read = events.find(
@@ -132,13 +137,13 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 		await expect(
 			asking.getByRole('heading', { name: 'Start a workstream in ‘acme/api’' }),
 		).toBeVisible();
-		await captureFlow(app, 'child-request-chat-approval');
+		await captureFlow(app, 'child-request-queue-chat-approval');
 		await childDecision.getByRole('button', { name: 'Allow once' }).click();
 
 		const choices = asking.getByRole('radiogroup', { name: 'Which?' });
 		await expect(choices).toBeVisible({ timeout: 60_000 });
-		await expect(page.getByTestId('chat-composer')).toBeVisible();
-		await captureFlow(app, 'child-request-grandchild-question');
+		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		await captureFlow(app, 'child-request-queue-grandchild-question');
 
 		await choices.getByRole('radio', { name: /^B/u }).click();
 		await asking.getByRole('button', { name: 'Send answer' }).click();
@@ -165,6 +170,77 @@ test('what the workstreams a chat started, and theirs, ask is answered in that c
 				{ timeout: 30_000 },
 			)
 			.toContain('"B"');
+		expect(currentSessionId(page)).toBe(chat);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('requests from several children wait in one queue in the composer slot, and stay out of the way while you type', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const { workstreamId } = await seedWorkstream(page, source, 'e2e-queue-lead', 'Release lead');
+		const children = [
+			await seedWorkstream(page, source, 'e2e-queue-switch', 'Release automation switch'),
+			await seedWorkstream(page, source, 'e2e-queue-notes', 'Release notes'),
+		];
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'Plan the release');
+		await expectAssistantReply(page);
+		const chat = currentSessionId(page);
+		if (!chat) throw new Error('the chat did not commit a session id');
+		const input = page.locator('[data-testid="chat-composer-input"][aria-disabled="false"]');
+		await input.click();
+		await page.keyboard.type('half a thought', { delay: 5 });
+
+		const definitionId = await saveApprovalJob(page);
+		for (const child of children) {
+			await invoke(page, 'jobs.run', {
+				definitionId,
+				workstreamId: child.workstreamId,
+				chatSessionId: chat,
+			});
+		}
+		const waiting = (count: string) => page.getByRole('button', { name: `Answer: ${count}` });
+		await expect(waiting('2 requests need you')).toBeVisible({ timeout: 30_000 });
+		await expect(input).toHaveText('half a thought');
+		await captureFlow(app, 'child-request-queue-waiting');
+
+		await waiting('2 requests need you').click();
+		const queue = page.getByTestId('child-request-queue');
+		const position = queue.getByTestId('child-request-position');
+		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		await expect(position).toHaveText('1 of 2');
+		const first = await queue.getAttribute('aria-label');
+		await queue.getByRole('button', { name: 'Next request' }).click();
+		await expect(position).toHaveText('2 of 2');
+		await expect(queue).not.toHaveAttribute('aria-label', first ?? '');
+		await captureFlow(app, 'child-request-queue-second');
+
+		await queue.getByRole('button', { name: 'Allow once' }).click();
+		await expect(queue).toHaveAttribute('aria-label', first ?? '');
+		await expect(position).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await expect(waiting('1 request needs you')).toBeVisible();
+		await expect(input).toHaveText('half a thought');
+
+		await waiting('1 request needs you').click();
+		await queue.getByRole('button', { name: 'Allow once' }).click();
+		await expect(queue).toHaveCount(0, { timeout: 20_000 });
+		await expect(input).toHaveText('half a thought');
+		await expect
+			.poll(
+				async () =>
+					(await invoke<RunRow[]>(page, 'jobs.list-runs', undefined))
+						.filter((run) => run.title === 'Address review')
+						.map((run) => run.status),
+				{ timeout: 30_000 },
+			)
+			.toEqual(['succeeded', 'succeeded']);
 		expect(currentSessionId(page)).toBe(chat);
 		expectCleanConsole(app);
 	} finally {

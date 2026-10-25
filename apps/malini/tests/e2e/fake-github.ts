@@ -65,10 +65,11 @@ export async function seedWorkstreamOnFakeGithub(
 	workstreamId: string,
 	pullRequest: FakePullRequest | null,
 	beforePublish: (seeded: SeededWorkstream) => Promise<void> = async () => {},
+	startedBy: string | null = null,
 ): Promise<PullRequestWorkstream> {
 	const { page } = app;
 	const source = await createSourceRepo(app.root, 'hutch');
-	const seeded = await seedWorkstream(page, source, workstreamId, WORKSTREAM_NAME);
+	const seeded = await seedWorkstream(page, source, workstreamId, WORKSTREAM_NAME, startedBy);
 	await beforePublish(seeded);
 	const github = await fakeGithubFor(app, seeded, pullRequest);
 	return { page, worktree: seeded.worktree, github };
