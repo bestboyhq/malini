@@ -37,16 +37,18 @@
 
 {#if !sent}
 	<section class="bg-brand/10 rounded-md px-2.5 py-2" aria-labelledby={headingId}>
-		<h3 id={headingId} class="text-brand-foreground text-xs font-medium">Your turn</h3>
-		{#each needs as need, index (index)}
-			<MarkdownText
-				text={need}
-				mode="prose"
-				class="text-fg-default mt-1 min-w-0 text-sm leading-relaxed"
-				{onopenfile}
-				{canopenfile}
-			/>
-		{/each}
+		<div class="flex flex-wrap items-baseline gap-x-2">
+			<h3 id={headingId} class="text-brand-foreground text-xs font-medium">Your turn</h3>
+			{#each needs as need, index (index)}
+				<MarkdownText
+					text={need}
+					mode="prose"
+					class="text-fg-default min-w-0 text-sm leading-relaxed"
+					{onopenfile}
+					{canopenfile}
+				/>
+			{/each}
+		</div>
 		<form class="mt-2 flex items-center gap-1.5" onsubmit={submit}>
 			<TextInput
 				bind:value={reason}

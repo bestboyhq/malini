@@ -32,7 +32,7 @@ async function reportTopsWhile(page: Page, act: () => Promise<void>): Promise<nu
 			if (!state.sampling) return;
 			state.tops.push([
 				top('[data-testid="turn-report-outcome"]'),
-				top('[aria-label="Report images"]'),
+				top('[aria-label="Report media"]'),
 			]);
 			doc.defaultView?.requestAnimationFrame(sample);
 		};
@@ -152,7 +152,7 @@ test('switching between report images of different heights moves nothing in the 
 		}
 		await sendPrompt(page, 'CHAT_TURN_REPORT SHOW_IMAGE:shots/tall.png SHOW_IMAGE:shots/short.png');
 		const card = page.getByRole('article', { name: 'Turn result' });
-		const thumbnails = card.getByRole('group', { name: 'Report images' });
+		const thumbnails = card.getByRole('tablist', { name: 'Report media' });
 		await expect(thumbnails).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('li[data-run-id]').last()).toHaveAttribute(
 			'data-run-terminal',
@@ -165,7 +165,7 @@ test('switching between report images of different heights moves nothing in the 
 		await expect(shown('short.png')).toBeHidden();
 
 		const pick = async (name: string): Promise<number[][]> => {
-			const thumbnail = thumbnails.getByRole('button', { name: `Show image shots/${name}` });
+			const thumbnail = thumbnails.getByRole('tab', { name: `shots/${name}` });
 			const box = await thumbnail.boundingBox();
 			if (!box) throw new Error(`the ${name} thumbnail is not on screen`);
 			const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -176,7 +176,7 @@ test('switching between report images of different heights moves nothing in the 
 			expect(underPointer, `the ${name} thumbnail is under the pointer`).toBe(true);
 			return reportTopsWhile(page, async () => {
 				await page.mouse.click(point.x, point.y);
-				await expect(thumbnail).toHaveAttribute('aria-pressed', 'true');
+				await expect(thumbnail).toHaveAttribute('aria-selected', 'true');
 				await expect(shown(name)).toBeVisible();
 			});
 		};

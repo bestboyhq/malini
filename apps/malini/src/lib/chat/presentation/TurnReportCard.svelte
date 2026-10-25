@@ -1,27 +1,21 @@
 <script lang="ts">
-	import { Button } from '$hyper-ui/components/button';
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import {
-		isVideoPath,
 		turnStatus,
 		type TurnNoteKind,
 		type TurnReport,
-		type TurnReportImage,
 		type TurnStatus,
 		type TurnVariant,
 	} from '$lib/chat/domain/turn-report';
 	import type { VariantPick } from '$lib/chat/domain/variant-pick';
 	import type { FileMentionTarget } from './file-mention-links';
-	import ImageCompare from './ImageCompare.svelte';
 	import MarkdownText from './MarkdownText.svelte';
 	import NextSteps from './NextSteps.svelte';
 	import PickStep from './PickStep.svelte';
 	import ReportNotes from './ReportNotes.svelte';
+	import ReportStage from './ReportStage.svelte';
 	import type { EarlierTurn } from './turn-result';
-	import VariantPicker from './VariantPicker.svelte';
 	import VariantPickForm from './VariantPickForm.svelte';
-	import VideoCompare from './VideoCompare.svelte';
-	import { reportMediaSource } from './workstream-images';
 
 	interface Props {
 		report: TurnReport;
@@ -77,7 +71,6 @@
 		next: 'chevrons-right',
 		note: null,
 	};
-	const MAX_THUMBNAILS = 4;
 
 	const needsHeadingId = $props.id();
 	const status = $derived(STATUS[turnStatus(report, needsOpen)]);
@@ -90,29 +83,6 @@
 	const chosen = $derived(
 		report.variants.find((variant) => variant.id === chosenId) ?? report.variants[0] ?? null,
 	);
-	let selectedSrc = $state<string | null>(null);
-	const hero = $derived(
-		report.images.find((image) => image.src === selectedSrc) ?? report.images[0] ?? null,
-	);
-	const thumbnails = $derived(
-		report.images.length > 1 ? report.images.slice(0, MAX_THUMBNAILS) : [],
-	);
-	const imagesPastThumbnails = $derived(report.images.length - thumbnails.length);
-	const heroChoices = $derived(
-		report.images.slice(
-			0,
-			report.images.length > MAX_THUMBNAILS ? MAX_THUMBNAILS - 1 : MAX_THUMBNAILS,
-		),
-	);
-
-	function imageName(image: TurnReportImage): string {
-		return image.alt || image.src.split('/').filter(Boolean).pop() || image.src;
-	}
-
-	function pickThumbnail(image: TurnReportImage, more: number): void {
-		if (more > 0) onopenimage?.(image.src);
-		else selectedSrc = image.src;
-	}
 </script>
 
 {#snippet statusGlyph(glyph: (typeof STATUS)[TurnStatus], dimmed: boolean)}
@@ -185,72 +155,7 @@
 		<MarkdownText text={report.diagrams.join('\n\n')} mode="prose" class="select-text" />
 	{/if}
 
-	{#if report.comparison}
-		{#if isVideoPath(report.comparison.after.src)}
-			<VideoCompare comparison={report.comparison} {imagesrc} />
-		{:else}
-			<ImageCompare {workstreamId} comparison={report.comparison} {imagesrc} {onopenimage} />
-		{/if}
-	{/if}
-
-	{#if report.variants.length > 0}
-		<VariantPicker
-			variants={report.variants}
-			{pick}
-			bind:chosenId
-			{workstreamId}
-			{imagesrc}
-			{onopenimage}
-		/>
-	{/if}
-
-	{#if hero}
-		<div class="flex flex-col gap-1.5">
-			<div class="grid">
-				{#each heroChoices as image (image.src)}
-					<div class={['turn-report-image col-start-1 row-start-1', { invisible: image !== hero }]}>
-						<MarkdownText
-							text={`![${image.alt}](${image.src})`}
-							mode="prose"
-							{imagesrc}
-							{onopenimage}
-						/>
-					</div>
-				{/each}
-			</div>
-			{#if thumbnails.length > 0}
-				<div class="grid grid-cols-4 gap-1.5" role="group" aria-label="Report images">
-					{#each thumbnails as image, index (image.src)}
-						{@const more = index === thumbnails.length - 1 ? imagesPastThumbnails : 0}
-						<Button
-							bare
-							class="ring-offset-surface-50 bg-surface-root aria-pressed:ring-button-primary/60 relative h-20 overflow-hidden rounded-[5px] ring-offset-2 aria-pressed:ring-[1.5px]"
-							ariaLabel={more > 0
-								? `Open image ${imageName(image)} and ${more} more in gallery`
-								: `Show image ${imageName(image)}`}
-							{...more > 0 ? {} : { ariaPressed: image === hero }}
-							onclick={() => pickThumbnail(image, more)}
-						>
-							<img
-								src={reportMediaSource(image.src, imagesrc) ?? undefined}
-								alt=""
-								class="outline-border-subtle size-full rounded-[5px] object-cover object-top-left outline-[0.5px] -outline-offset-[0.5px]"
-							/>
-							{#if more > 0}
-								<span
-									class="bg-surface-50/70 text-fg-agent-message-strong absolute inset-0 grid place-items-center text-base font-medium"
-								>
-									+{more}
-								</span>
-							{/if}
-						</Button>
-					{/each}
-				</div>
-			{/if}
-		</div>
-	{/if}
-
-	<ReportNotes notes={report.notes} {onopenfile} {canopenfile} {imagesrc} {onopenimage} />
+	<ReportStage {report} {pick} bind:chosenId {workstreamId} {imagesrc} {onopenimage} />
 
 	{#if picking && chosen}
 		<VariantPickForm
@@ -299,25 +204,21 @@
 		</section>
 	{/if}
 
+	<ReportNotes notes={report.notes} {onopenfile} {canopenfile} {imagesrc} {onopenimage} />
+
 	{#if nextSteps.length > 0}
-		<NextSteps steps={nextSteps} onsend={onsendnext} {onscratchpad} {onopenfile} {canopenfile} />
+		<NextSteps
+			steps={nextSteps}
+			onsend={onsendnext}
+			{onscratchpad}
+			{onopenfile}
+			{canopenfile}
+			quiet={picking}
+		/>
 	{/if}
 </article>
 
 <style>
-	.turn-report-image :global(img) {
-		display: block;
-		width: 100%;
-		height: auto;
-		max-height: 28rem;
-		margin: 0;
-		border: none;
-		background: var(--color-surface-root);
-		border-radius: 0.375rem;
-		outline: 0.5px solid var(--color-border-subtle);
-		outline-offset: -0.5px;
-	}
-
 	.note-count {
 		flex-shrink: 0;
 		margin-top: 1.5px;

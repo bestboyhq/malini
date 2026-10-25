@@ -51,6 +51,8 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`#t=<seconds>` to the After path');
 		expect(prompt).toContain('`![Variant A: Name - one-line note](path)`');
 		expect(prompt).toContain('`Go with variant B (Name).`');
+		expect(prompt).toContain('every picture you embed as a tab of one frame in the report');
+		expect(prompt).toContain('never label a lone option a variant');
 		expect(prompt).toContain('every other prototype only under `.context/`');
 		expect(prompt).toContain('A prototype never enters tracked source');
 		expect(prompt).not.toContain('delete the prototype');
