@@ -86,6 +86,10 @@ test('a turn that ends with a report shows it as a result card that asks the use
 		await expect(notes).toContainText('checked at 320 px and 1440 px.');
 		await expect(card.getByRole('img', { name: 'Changed' })).toBeVisible();
 		await expect(card.getByRole('img', { name: 'Verified' })).toBeVisible();
+		const writeUp = notes.getByText('The shadow shows only once the page has scrolled.');
+		await expect(writeUp).toBeHidden();
+		await notes.getByText('14 words', { exact: true }).click();
+		await expect(writeUp).toBeVisible();
 		await captureFlow(app, 'turn-report-card');
 
 		await sendPrompt(page, 'CHAT_TURN_REPORT again');

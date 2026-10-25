@@ -689,7 +689,7 @@
 				aria-owns={inspectorTabKeys.map((key) => inspectorTabId(key)).join(' ')}
 			></div>
 			<div
-				class="inspector-tab-strip flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
+				class="inspector-tab-strip flex min-w-0 items-center gap-0.5 overflow-x-auto overflow-y-hidden"
 				use:roveTabFocus
 			>
 				{#each visiblePanels as panel, panelIndex (panel.id)}
@@ -802,32 +802,32 @@
 						</BrowserTab>
 					</div>
 				{/if}
-
-				<span class="shrink-0" bind:this={panelPickerAnchor}>
-					<Tooltip
-						content="Open inspector panel"
-						placement="bottom"
-						suppressed={panelPickerOpen}
-						class="size-7 items-center justify-center"
-					>
-						<IconButton
-							bare
-							ariaLabel="Open inspector panel"
-							ariaHasPopup="menu"
-							ariaExpanded={panelPickerOpen}
-							disabled={!inspectorInteractive}
-							class="text-fg-tertiary hover:bg-surface-50-selected hover:text-fg-default aria-expanded:bg-surface-50-selected aria-expanded:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
-							data-testid="extension-inspector-add"
-							onclick={() => {
-								settingsOpen = false;
-								panelPickerOpen = !panelPickerOpen;
-							}}
-						>
-							<Icon name="plus" size={14} />
-						</IconButton>
-					</Tooltip>
-				</span>
 			</div>
+
+			<span class="mr-auto shrink-0" bind:this={panelPickerAnchor}>
+				<Tooltip
+					content="Open inspector panel"
+					placement="bottom"
+					suppressed={panelPickerOpen}
+					class="size-7 items-center justify-center"
+				>
+					<IconButton
+						bare
+						ariaLabel="Open inspector panel"
+						ariaHasPopup="menu"
+						ariaExpanded={panelPickerOpen}
+						disabled={!inspectorInteractive}
+						class="text-fg-tertiary hover:bg-surface-50-selected hover:text-fg-default aria-expanded:bg-surface-50-selected aria-expanded:text-fg-default focus-visible:ring-button-primary/40 relative grid size-5 cursor-pointer place-items-center rounded-sm outline-none before:absolute before:-inset-1 before:content-[''] focus-visible:ring-2 focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-30"
+						data-testid="extension-inspector-add"
+						onclick={() => {
+							settingsOpen = false;
+							panelPickerOpen = !panelPickerOpen;
+						}}
+					>
+						<Icon name="plus" size={14} />
+					</IconButton>
+				</Tooltip>
+			</span>
 
 			{#if arrangeable}
 				<span class="shrink-0" bind:this={settingsAnchor}>
