@@ -590,8 +590,13 @@ test('a prompt sent after a result card leaves its earlier turns there until its
 		await startSampling(page, [`li[data-run-id="${reported}"] [data-testid="chat-run-actions"]`]);
 		await sendPrompt(page, 'STREAM:30 CHAT_TURN_REPORT turn 6');
 		await untilLatestRunShows(page, 'Streamed line 5 of 30.');
+		holdAgentRuns(app, true);
 		await expect(earlierTurns).toHaveCount(1);
 		await expect(reportedRun.getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
+		await untilLatestRunShows(page, 'Streamed line 30 of 30.');
+		await untilStill(page);
+		await expect(reportedRun.getByRole('list', { name: 'Earlier turns' })).toHaveCount(1);
+		holdAgentRuns(app, false);
 		await expect(latestRun(page).getByTestId('turn-report-card')).toHaveCount(1, {
 			timeout: 20_000,
 		});

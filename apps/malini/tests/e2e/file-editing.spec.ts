@@ -91,7 +91,7 @@ test('a file tab is an editor that saves what the user types into the worktree, 
 	}
 });
 
-test('a markdown file opens Rich, Raw edits its text, and its links open their files', async () => {
+test('a markdown file opens Raw to edit, Rich renders it, and its links open their files', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -111,20 +111,9 @@ test('a markdown file opens Rich, Raw edits its text, and its links open their f
 
 		const panel = page.getByRole('tabpanel', { name: 'NOTES.md' });
 		const view = panel.getByRole('group', { name: 'Show NOTES.md as' });
-		await expect(panel.getByRole('heading', { name: 'Release notes', level: 1 })).toBeVisible({
-			timeout: 20_000,
-		});
-		await expect(view.getByRole('button', { name: 'Rich' })).toHaveAttribute(
-			'aria-pressed',
-			'true',
-		);
-		await expect(editor(page, 'NOTES.md')).toBeHidden();
-		await page.mouse.move(0, 0);
-		await captureFlow(app, 'file-editing-4-markdown-rich');
-
-		await view.getByRole('button', { name: 'Raw' }).click();
 		const notes = editor(page, 'NOTES.md');
-		await expect(notes).toContainText('# Release notes');
+		await expect(notes).toContainText('# Release notes', { timeout: 20_000 });
+		await expect(view.getByRole('button', { name: 'Raw' })).toHaveAttribute('aria-pressed', 'true');
 		await expect(panel.getByRole('heading', { name: 'Release notes' })).toBeHidden();
 		await notes.getByText('# Release notes').click();
 		await page.keyboard.press('End');
@@ -137,13 +126,14 @@ test('a markdown file opens Rich, Raw edits its text, and its links open their f
 		await expect(
 			panel.getByRole('heading', { name: 'Release notes for 1.0', level: 1 }),
 		).toBeVisible();
+		await expect(notes).toBeHidden();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'file-editing-4-markdown-rich');
 		await panel.getByRole('link', { name: 'guide' }).click();
 		await expect(fileTab(page, 'guide.md')).toHaveAttribute('aria-selected', 'true', {
 			timeout: 20_000,
 		});
-		await expect(
-			page.getByRole('tabpanel', { name: 'guide.md' }).getByRole('heading', { name: 'Guide' }),
-		).toBeVisible();
+		await expect(editor(page, 'docs/guide.md')).toContainText('# Guide');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -171,7 +161,8 @@ test('switching a markdown file between Rich and Raw keeps the reading position'
 		const view = panel.getByRole('group', { name: 'Show GUIDE.md as' });
 		const title = panel.getByRole('heading', { name: 'Guide', level: 1 });
 		const section = panel.getByRole('heading', { name: 'Section 30', exact: true });
-		await expect(section).toBeAttached({ timeout: 20_000 });
+		await view.getByRole('button', { name: 'Rich' }).click({ timeout: 20_000 });
+		await expect(section).toBeAttached();
 		await section.evaluate((heading) => {
 			heading.scrollIntoView({ block: 'start', behavior: 'instant' });
 		});
@@ -251,16 +242,21 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 		await workstreamWithFile(first, workstreamId);
 		writeFileSync(
 			join(first.home, 'malini-tool.json'),
-			JSON.stringify({ tool: 'files_open', input: { path: '~/.secrets/kennel.env' } }),
+			JSON.stringify({
+				tool: 'files_open',
+				input: { path: '~/.secrets/kennel.env', keys: ['KENNEL_TOKEN'] },
+			}),
 		);
 
 		await sendPrompt(page, 'MALINI_UNASKED_TOOL');
 		await expectAssistantReply(page);
 
 		const tab = fileTab(page, 'kennel.env');
+		const secretsEditor = editor(page, /^Edit .*kennel\.env$/u);
 		await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
 		await expect(tab).not.toHaveAccessibleDescription('Preview');
-		await expect(page.getByText('This file is empty.')).toBeVisible({ timeout: 20_000 });
+		await expect(secretsEditor).toHaveText('KENNEL_TOKEN=', { timeout: 20_000 });
+		expect(readFileSync(secrets, 'utf8')).toBe('KENNEL_TOKEN=\n');
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		const actions = await invoke<AgentActionRecord[]>(page, 'jobs.list-agent-actions');
 		expect(actions.find(({ tool }) => tool === 'files_open')).toMatchObject({
@@ -269,12 +265,13 @@ test('an agent opens a secrets file outside the worktree for the user, who fills
 			output: JSON.stringify({ path: realpathSync(secrets), created: true }),
 		});
 
-		await editor(page, /^Edit .*kennel\.env$/u).click();
-		await page.keyboard.type('KENNEL_TOKEN=pasted-by-the-user');
+		await secretsEditor.getByText('KENNEL_TOKEN=').click();
+		await page.keyboard.press('End');
+		await page.keyboard.type('pasted-by-the-user');
 		const panel = page.getByRole('tabpanel', { name: 'kennel.env' });
 		await expect
 			.poll(() => readFileSync(secrets, 'utf8'), { timeout: 20_000 })
-			.toBe('KENNEL_TOKEN=pasted-by-the-user');
+			.toBe('KENNEL_TOKEN=pasted-by-the-user\n');
 		await expect(panel.getByRole('alert')).toBeHidden();
 		expect(statSync(secrets).mode & 0o777).toBe(0o600);
 		await page.mouse.move(0, 0);

@@ -46,8 +46,8 @@ afterEach(async () => {
 	await rm(root, { recursive: true, force: true });
 });
 
-function open(path: string, line: number | null = null) {
-	return openFileForUser({ db, events }, { workstreamId: 'ws-1', worktree, path, line });
+function open(path: string, line: number | null = null, keys: readonly string[] = []) {
+	return openFileForUser({ db, events }, { workstreamId: 'ws-1', worktree, path, line, keys });
 }
 
 function grants(): unknown[] {
@@ -94,6 +94,34 @@ describe('opening a file for the user', () => {
 		expect(await readFile(secrets, 'utf8')).toBe('TOKEN=new\n');
 		expect(await mode(secrets)).toBe(0o600);
 		expect(await statOpenedFile(db, 'ws-1', secrets)).toEqual({ kind: 'file', size: 10 });
+	});
+
+	it('adds a blank line for each key the file does not set yet, keeping what it holds and its mode', async () => {
+		const created = join(root, 'new.keys');
+		expect(await open(created, null, ['API_TOKEN', 'API_TOKEN', 'REGION'])).toEqual({
+			path: created,
+			created: true,
+		});
+		expect(await readFile(created, 'utf8')).toBe('API_TOKEN=\nREGION=\n');
+		expect(await mode(created)).toBe(0o600);
+
+		const secrets = join(root, 'malini.keys');
+		await writeFile(secrets, '# kennel\nexport API_TOKEN = "a\nb"\n  REGION=eu', { mode: 0o600 });
+		await open(secrets, null, ['API_TOKEN', 'WEBHOOK_SECRET', 'REGION', 'kennel']);
+
+		expect(await readFile(secrets, 'utf8')).toBe(
+			'# kennel\nexport API_TOKEN = "a\nb"\n  REGION=eu\nWEBHOOK_SECRET=\nkennel=\n',
+		);
+		expect(await mode(secrets)).toBe(0o600);
+	});
+
+	it('refuses a key that is not a plain name before it creates or changes anything', async () => {
+		const secrets = join(root, 'refused.keys');
+
+		await expect(open(secrets, null, ['A=1\nB'])).rejects.toThrow('is not a key name');
+		await expect(open(secrets, null, [''])).rejects.toThrow('is not a key name');
+		await expect(stat(secrets)).rejects.toThrow();
+		expect(opened).toEqual([]);
 	});
 
 	it('refuses to read, save or stat a path outside the worktree no agent opened', async () => {
