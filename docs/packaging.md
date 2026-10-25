@@ -36,14 +36,14 @@ The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh
 
 ## Releases
 
-Every push to `main` that passes CI runs `apps/malini/scripts/version.mjs`, which reads the Conventional Commit subjects since the last `v*` tag.
+Every push to `main` runs `apps/malini/scripts/version.mjs`, which reads the Conventional Commit subjects since the last `v*` tag.
 A breaking change (`!` or a `BREAKING CHANGE:` footer) bumps the major, a `feat` the minor, a `fix` or `perf` the patch; anything else releases nothing.
 The first release is `0.1.0`, and `package.json`'s version is a placeholder CI overwrites.
 `.github/workflows/pr-title.yml` keeps PR titles in that shape, since a squash merge makes the title the subject.
 
-The `release` job signs with the Developer ID certificate and notarizes the app and the disk image.
+The `release` job signs with the Developer ID certificate and notarizes the app and the disk image, while the tests still run.
 The `update` job runs `pnpm --filter malini test:update` on its own runner at the same time.
-Once both pass, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
+Once both pass and every check and test of the push passed too, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
 They need the repository secrets `CSC_LINK` (the base64 `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD`.
 The bundle takes the product name from `productName` in `apps/malini/package.json`, `Malini`, while every file a release publishes keeps the lowercase identifier: `electron-builder.yml` spells out `artifactName` for both targets (ADR 0033).
 The dmg is named `malini-arm64.dmg`, without a version, so `releases/latest/download/malini-arm64.dmg` always serves the newest release; the README's download button links there.

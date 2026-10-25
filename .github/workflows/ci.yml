@@ -32,23 +32,33 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: pnpm build
+      - run: pnpm --filter "malini^..." build
       - run: pnpm --filter malini exec vitest run --shard=${{ matrix.shard }}
 
   app:
-    name: e2e on macOS ${{ matrix.shard }}
+    name: e2e on macOS ${{ matrix.shard }}/${{ strategy.job-total }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        shard: ${{ fromJSON(github.event_name == 'push' && '[1, 2, 3]' || '[1, 2, 3, 4, 5]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: pnpm build
+      - run: pnpm --filter "malini..." build
       - name: Download Electron
         run: for _ in 1 2 3; do pnpm --filter malini exec install-electron && exit 0; sleep 10; done; exit 1
-      - run: pnpm --filter malini exec playwright test --shard=${{ matrix.shard }}
+      - name: Deal the tests round robin, so slow specs spread over every shard
+        working-directory: apps/malini
+        shell: bash
+        run: |
+          pnpm exec playwright test --list | grep ' › ' | awk -v n=${{ strategy.job-total }} -v i=${{ matrix.shard }} 'NR % n == i % n' > "$RUNNER_TEMP/tests.txt"
+          test -s "$RUNNER_TEMP/tests.txt"
+          test "$(pnpm exec playwright test --list --test-list "$RUNNER_TEMP/tests.txt" | grep -c ' › ')" -eq "$(wc -l < "$RUNNER_TEMP/tests.txt")" || {
+            echo "::error::Playwright finds fewer tests than this shard dealt; a test title holding › splits in --test-list and would run nowhere."
+            exit 1
+          }
+      - run: pnpm --filter malini exec playwright test --test-list "$RUNNER_TEMP/tests.txt"
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -57,7 +67,6 @@ jobs:
 
   version:
     name: next version from the merged commits
-    needs: [checks, unit, app]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
@@ -131,7 +140,7 @@ jobs:
 
   publish:
     name: publish the release
-    needs: [version, release, update]
+    needs: [checks, unit, app, version, release, update]
     runs-on: ubuntu-latest
     permissions:
       contents: write
