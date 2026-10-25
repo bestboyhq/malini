@@ -47,6 +47,9 @@ describe('lead progress', () => {
 			'3 workstreams: 2 merged, 1 needs you',
 		);
 		expect(progressLabel(['running'])).toBe('1 workstream: 1 working');
+		expect(progressLabel(['running', 'merged', 'archived'])).toBe(
+			'3 workstreams: 1 merged, 1 working, 1 archived',
+		);
 		expect(progressLabel([])).toBe('0 workstreams');
 	});
 
@@ -65,6 +68,11 @@ describe('lead progress', () => {
 		});
 		expect(leadHeadline(['merged', 'merged'])).toMatchObject({ tone: 'merged', detail: null });
 		expect(leadHeadline(['idle', 'running'])).toMatchObject({ tone: 'idle', busy: true });
+		expect(leadHeadline(['merged', 'archived'])).toMatchObject({
+			tone: 'idle',
+			label: '1 of 2 merged',
+			detail: null,
+		});
 	});
 
 	it('names where each workstream stands', () => {

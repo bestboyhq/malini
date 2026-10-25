@@ -3,6 +3,7 @@ import { parseLeadScope } from '$shared/repositories/domain/lead-scope';
 import { connectedRepositoryContexts } from '$shared/repositories/domain/repository-context';
 import type { Repository } from '$shared/repositories/domain/repository';
 import type { Workstream } from '$shared/repositories/domain/workstream';
+import { DEFAULT_SIDEBAR_ARRANGEMENT, type SidebarArrangement } from './sidebar-arrangement';
 import { ALL_FOCUS, type SidebarFocus } from './sidebar-focus';
 import { sidebarTree, sidebarWorkstreamIds, type SidebarTree } from './sidebar-tree';
 
@@ -20,6 +21,7 @@ const stream = (
 	repository: string,
 	startedBy: string | null = null,
 	scope: string | null = null,
+	createdAt = '2026-10-24T00:00:00.000Z',
 ): Workstream => ({
 	id,
 	projectId: `local__${repository.replace('/', '__')}`,
@@ -31,6 +33,7 @@ const stream = (
 	checkoutState: 'healthy',
 	checkoutIssue: null,
 	resolvedPath: null,
+	createdAt,
 	scope: parseLeadScope(scope),
 	startedBy,
 });
@@ -60,7 +63,11 @@ const WORKSTREAMS = [
 	stream('sdk-from-api', 'logdash/sdk', 'api-work'),
 ];
 
-function tree(focus: SidebarFocus = ALL_FOCUS, hidden: readonly string[] = []): SidebarTree {
+function tree(
+	focus: SidebarFocus = ALL_FOCUS,
+	hidden: readonly string[] = [],
+	arrangement: SidebarArrangement = DEFAULT_SIDEBAR_ARRANGEMENT,
+): SidebarTree {
 	return sidebarTree({
 		contexts: connectedRepositoryContexts({
 			repositories: REPOSITORIES,
@@ -69,6 +76,7 @@ function tree(focus: SidebarFocus = ALL_FOCUS, hidden: readonly string[] = []): 
 		leads: LEADS,
 		hiddenRepositoryIds: new Set(hidden),
 		focus,
+		arrangement,
 	});
 }
 
@@ -78,7 +86,7 @@ function outline(sidebar: SidebarTree): string[] {
 	const chats = (items: readonly Workstream[], depth: number): string[] =>
 		items.map((lead) => `${'  '.repeat(depth)}chat ${lead.id}`);
 	return [
-		...chats(sidebar.homeLeads, 0),
+		...chats(sidebar.chats, 0),
 		...sidebar.blocks.flatMap((block) =>
 			block.kind === 'owner'
 				? [
@@ -150,6 +158,87 @@ describe('sidebarTree', () => {
 			'  repository acme/idle',
 		);
 		expect(outline(tree(ALL_FOCUS, ['acme/web']))).not.toContain('    web-from-home');
+	});
+
+	it('groups by repository: no owner folders, and every chat above the repositories', () => {
+		const byRepository: SidebarArrangement = { grouping: 'repository', ordering: 'manual' };
+		expect(outline(tree(ALL_FOCUS, [], byRepository))).toEqual([
+			'chat home-lead',
+			'chat acme-lead',
+			'repository acme/api',
+			'  api-work',
+			'  api-follow-up',
+			'  api-follow-up-check',
+			'  api-from-acme',
+			'repository acme/web',
+			'  web-from-home',
+			'repository acme/idle',
+			'repository solo/site',
+			'  site-from-home',
+			'repository folder',
+			'  folder-work',
+			'repository logdash/sdk',
+			'  sdk-from-api',
+		]);
+		const acme: SidebarFocus = { kind: 'owner', owner: 'acme' };
+		expect(outline(tree(acme, [], byRepository))).toEqual(outline(tree(acme)));
+	});
+
+	it('orders every level by name', () => {
+		expect(outline(tree(ALL_FOCUS, [], { grouping: 'owner', ordering: 'name' }))).toEqual([
+			'chat home-lead',
+			'owner acme',
+			'  chat acme-lead',
+			'  repository acme/api',
+			'    api-follow-up',
+			'    api-follow-up-check',
+			'    api-from-acme',
+			'    api-work',
+			'  repository acme/idle',
+			'  repository acme/web',
+			'    web-from-home',
+			'repository folder',
+			'  folder-work',
+			'owner logdash',
+			'  repository logdash/sdk',
+			'    sdk-from-api',
+			'owner solo',
+			'  repository solo/site',
+			'    site-from-home',
+		]);
+	});
+
+	it('orders newest first, a group by the newest work in it', () => {
+		const at = (hour: number): string => `2026-10-25T${String(hour).padStart(2, '0')}:00:00.000Z`;
+		const sidebar = sidebarTree({
+			contexts: connectedRepositoryContexts({
+				repositories: ['acme/api', 'acme/web', 'solo/site'].map(repo),
+				workstreams: [
+					stream('old-api', 'acme/api', null, null, at(8)),
+					stream('new-site', 'solo/site', null, null, at(10)),
+					stream('new-api', 'acme/api', null, null, at(9)),
+				],
+			}),
+			leads: [
+				stream('old-chat', 'lead', null, 'home', at(7)),
+				stream('new-chat', 'lead', null, 'home', at(11)),
+			],
+			hiddenRepositoryIds: new Set(),
+			focus: ALL_FOCUS,
+			arrangement: { grouping: 'owner', ordering: 'newest' },
+		});
+		expect(outline(sidebar)).toEqual([
+			'chat new-chat',
+			'chat old-chat',
+			'owner solo',
+			'  repository solo/site',
+			'    new-site',
+			'owner acme',
+			'  repository acme/api',
+			'    new-api',
+			'    old-api',
+			'  repository acme/web',
+		]);
 	});
 
 	it('lists every listed workstream once, in order', () => {
