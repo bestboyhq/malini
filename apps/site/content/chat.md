@@ -81,7 +81,7 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Keep blocked** leaves the block in place, and the agent carries on without it.
 
 A chat also answers for the work it started.
-When a job it ran in another workstream, or a workstream it started, asks for permission or asks a question, the request shows above this chat's composer, named after the job or workstream it came from.
+When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request shows above this chat's composer, named after the job or workstream it came from.
 You answer it there, and the composer stays free for this chat.
 **Open transcript** goes to the asking chat when you want its context.
 

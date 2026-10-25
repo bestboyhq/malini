@@ -1,5 +1,9 @@
 import type { JobRunRecord } from '$contract/jobs';
-import { askingChildren, type AskingChild } from '$lib/chat/domain/child-requests';
+import {
+	askingChildren,
+	descendantWorkstreamIds,
+	type AskingChild,
+} from '$lib/chat/domain/child-requests';
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { activeWorkstreamsQuery } from '$shared/repositories/repositories.api';
 
@@ -14,15 +18,11 @@ class AskingChildrenQuery {
 		const sessions = sessionsAggregate.listSessions();
 		const workstreams = activeWorkstreamsQuery.data;
 		return (workstreamId, shownSessionId, jobRuns) => {
-			const children = new Set(
-				workstreams
-					.filter((workstream) => workstream.startedBy === workstreamId)
-					.map((workstream) => workstream.id),
-			);
+			const descendants = descendantWorkstreamIds(workstreamId, workstreams);
 			return askingChildren(
 				shownSessionId,
 				jobRuns,
-				sessions.filter((session) => children.has(session.workstreamId)),
+				sessions.filter((session) => descendants.has(session.workstreamId)),
 			);
 		};
 	});

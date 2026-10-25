@@ -97,7 +97,7 @@ test('a job a chat runs in another workstream asks for permission in that chat, 
 	}
 });
 
-test('a question from a workstream a chat started is answered in that chat', async () => {
+test('what the workstreams a chat started, and theirs, ask is answered in that chat', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -112,35 +112,48 @@ test('a question from a workstream a chat started is answered in that chat', asy
 		await openWorkstream(page, workstreamId);
 		agentCalls(app, {
 			tool: 'workstreams_create',
-			input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api question"' },
+			input: { repository: 'acme/api', prompt: 'MALINI_TOOL TITLE="Api child"' },
 		});
 		await sendPrompt(page, 'MALINI_TOOL');
-		await page
-			.getByRole('group', { name: 'Permission decision' })
-			.getByRole('button', { name: 'Allow once' })
-			.click();
+		const ownDecision = page
+			.getByTestId('transcript-pane')
+			.getByRole('group', { name: 'Permission decision' });
+		await expect(ownDecision).toBeVisible({ timeout: 20_000 });
+		agentCalls(app, {
+			tool: 'workstreams_create',
+			input: { repository: 'acme/api', prompt: 'QUESTION TITLE="Api grandchild"' },
+		});
+		await ownDecision.getByRole('button', { name: 'Allow once' }).click();
 		const chat = currentSessionId(page);
 
 		const asking = page.getByRole('region', { name: /needs you$/u });
+		const childDecision = asking.getByRole('group', { name: 'Permission decision' });
+		await expect(childDecision).toBeVisible({ timeout: 60_000 });
+		await expect(
+			asking.getByRole('heading', { name: 'Start a workstream in ‘acme/api’' }),
+		).toBeVisible();
+		await captureFlow(app, 'child-request-chat-approval');
+		await childDecision.getByRole('button', { name: 'Allow once' }).click();
+
 		const choices = asking.getByRole('radiogroup', { name: 'Which?' });
 		await expect(choices).toBeVisible({ timeout: 60_000 });
 		await expect(page.getByTestId('chat-composer')).toBeVisible();
-		await captureFlow(app, 'child-request-question-after');
+		await captureFlow(app, 'child-request-grandchild-question');
 
 		await choices.getByRole('radio', { name: /^B/u }).click();
 		await asking.getByRole('button', { name: 'Send answer' }).click();
 		await expect(asking).toHaveCount(0, { timeout: 20_000 });
 
-		const started = (
-			await invoke<{ id: string; startedBy: string | null }[]>(
-				page,
-				'repositories.list-workstreams',
-				undefined,
-			)
-		).find((workstream) => workstream.startedBy === workstreamId);
-		if (!started) throw new Error('the chat did not start a workstream');
+		const workstreams = await invoke<{ id: string; startedBy: string | null }[]>(
+			page,
+			'repositories.list-workstreams',
+			undefined,
+		);
+		const child = workstreams.find((workstream) => workstream.startedBy === workstreamId);
+		const grandchild = workstreams.find((workstream) => workstream.startedBy === child?.id);
+		if (!grandchild) throw new Error('the started workstream did not start one of its own');
 		const [session] = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
-			workstreamId: started.id,
+			workstreamId: grandchild.id,
 		});
 		await expect
 			.poll(
