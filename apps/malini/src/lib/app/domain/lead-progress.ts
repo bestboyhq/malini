@@ -1,7 +1,7 @@
 import type { WorkstreamChatTone } from '$lib/chat/domain/workstream-chat-summary';
 import type { PullRequestPhase } from '$lib/pull-requests/domain/pull-request-state';
 
-export type ProgressDot = 'merged' | 'needs' | 'failed' | 'running' | 'idle';
+export type ProgressDot = 'merged' | 'needs' | 'failed' | 'running' | 'idle' | 'archived';
 
 export type ProgressInput = Readonly<{
 	merged: boolean;
@@ -30,6 +30,7 @@ export function progressOf(dots: readonly ProgressDot[]): Progress {
 		failed: count('failed'),
 		running: count('running'),
 		idle: count('idle'),
+		archived: count('archived'),
 	};
 }
 
@@ -41,6 +42,7 @@ export function progressLabel(dots: readonly ProgressDot[]): string {
 		progress.failed > 0 ? `${progress.failed} failed` : null,
 		progress.running > 0 ? `${progress.running} working` : null,
 		progress.idle > 0 ? `${progress.idle} waiting` : null,
+		progress.archived > 0 ? `${progress.archived} archived` : null,
 	].filter((part): part is string => part !== null);
 	const total = `${dots.length} ${dots.length === 1 ? 'workstream' : 'workstreams'}`;
 	return parts.length > 0 ? `${total}: ${parts.join(', ')}` : total;

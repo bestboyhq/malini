@@ -6,4 +6,5 @@ export const PROGRESS_DOT_CLASS: Readonly<Record<ProgressDot, string>> = {
 	failed: 'bg-error-content',
 	running: 'bg-brand-icon animate-pulse motion-reduce:animate-none',
 	idle: 'bg-status-idle',
+	archived: 'border border-status-idle',
 };

@@ -24,20 +24,25 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   **All** shows everything, and **+** pins an organization or a repository beside it.
   Click a pin to see only its chats and workstreams, and right-click it to unpin it.
   A dot on a pin means something in it needs you.
+- The sliders button beside it groups and sorts the sidebar, and Malini remembers.
+  **Group by** picks **Organization**, an owner row above its repositories, or **Repository**, every repository on its own with every chat above them.
+  **Sort by** picks **Manual**, the order you drag, **Newest**, newest first, or **Name**.
+  A repository or an owner sorts by the newest work in it.
 - **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
   The **+** on an owner's row starts one for that organization.
-- Every repository sits under a row named for its owner, below that owner's chats.
+- By organization, every repository sits under a row named for its owner, below that owner's chats.
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
   A search opens every owner it matches.
 - Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
 - Every workstream has its own row, under its repository, whichever chat started it.
-- A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting.
+- A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.
+  Hover the row to list them with where each stands.
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
-- Drag to reorder, or use **⌥↑** and **⌥↓**.
+- Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.
 - **Hide** in a repository's right-click menu takes it out of the sidebar and keeps its workstreams.
   **Unhide** brings it back from **Hidden** in the repository list, and so does cloning or opening it again.

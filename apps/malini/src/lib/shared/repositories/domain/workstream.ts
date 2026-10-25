@@ -22,6 +22,7 @@ export type Workstream = {
 	branch: string;
 	baseBranch: string;
 	status: WorkstreamStatus;
+	createdAt: string;
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
 	resolvedPath: string | null;
@@ -53,7 +54,7 @@ export function isWorkstreamCheckoutUsable(workstream: Workstream): boolean {
 
 export type CreatedWorkstream = Pick<
 	Workstream,
-	'id' | 'projectId' | 'name' | 'branch' | 'baseBranch'
+	'id' | 'projectId' | 'name' | 'branch' | 'baseBranch' | 'createdAt'
 > & {
 	worktreePath: string;
 };
@@ -69,6 +70,7 @@ export function workstreamFromCreated(created: CreatedWorkstream): Workstream {
 		branch: created.branch,
 		baseBranch: created.baseBranch,
 		status: 'active',
+		createdAt: created.createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 		scope: null,
 		startedBy: null,

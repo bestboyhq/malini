@@ -30,25 +30,26 @@ class LeadProgressQuery {
 		},
 	);
 
-	public readonly merged: ReadonlyMap<string, number> = $derived(
-		archivedWorkstreamsQuery.data.reduce((merged, workstream) => {
-			if (workstream.startedBy === null || workstream.mergedPullRequest === null) return merged;
-			return merged.set(workstream.startedBy, (merged.get(workstream.startedBy) ?? 0) + 1);
-		}, new Map<string, number>()),
-	);
-
 	public readonly dots: (parentId: string) => ProgressDot[] = $derived((parentId: string) => [
-		...Array.from({ length: this.merged.get(parentId) ?? 0 }, (): ProgressDot => 'merged'),
 		...activeWorkstreamsQuery.data
-			.filter((workstream) => workstream.startedBy === parentId && workstream.scope === null)
+			.filter(startedBy(parentId))
 			.map((workstream) => this.dot(workstream)),
+		...archivedWorkstreamsQuery.data
+			.filter(startedBy(parentId))
+			.map((workstream): ProgressDot => (workstream.mergedPullRequest ? 'merged' : 'archived')),
 	]);
 
 	public readonly startedIds: (parentId: string) => string[] = $derived((parentId: string) =>
 		[...activeWorkstreamsQuery.data, ...archivedWorkstreamsQuery.data]
-			.filter((workstream) => workstream.startedBy === parentId && workstream.scope === null)
+			.filter(startedBy(parentId))
 			.map((workstream) => workstream.id),
 	);
+}
+
+function startedBy(
+	parentId: string,
+): (workstream: Readonly<{ startedBy: string | null; scope: unknown }>) => boolean {
+	return (workstream) => workstream.startedBy === parentId && workstream.scope === null;
 }
 
 export const leadProgressQuery = new LeadProgressQuery();
