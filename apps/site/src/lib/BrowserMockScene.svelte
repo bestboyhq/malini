@@ -31,7 +31,6 @@
 	import { fly, type TransitionConfig } from 'svelte/transition';
 	import { BrowserTab } from '@malini/hyper-ui/components/browser-tab';
 	import { IconButton } from '@malini/hyper-ui/components/icon-button';
-	import { LoadingCircle } from '@malini/hyper-ui/components/loading-circle';
 	import { ShimmerText } from '@malini/hyper-ui/components/shimmer-text';
 	import { TextInput } from '@malini/hyper-ui/components/text-input';
 	import { BusyIcon, Icon, type IconName } from '@malini/hyper-ui/icons';
@@ -546,7 +545,7 @@
 							>
 								{#snippet icon()}
 									{#if loading}
-										<LoadingCircle size={14} />
+										<BusyIcon size={14} />
 									{:else}
 										<Icon name="globe" size={14} />
 									{/if}

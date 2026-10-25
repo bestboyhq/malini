@@ -5,7 +5,6 @@
 	import { BrowserTab } from '@malini/hyper-ui/components/browser-tab';
 	import { Button } from '@malini/hyper-ui/components/button';
 	import { IconButton } from '@malini/hyper-ui/components/icon-button';
-	import { LoadingCircle } from '@malini/hyper-ui/components/loading-circle';
 	import { Well } from '@malini/hyper-ui/components/well';
 	import { BusyIcon, Icon } from '@malini/hyper-ui/icons';
 	import './app-ui/app-ui.api';
@@ -483,7 +482,7 @@
 				]}
 			>
 				{#if state === 'running'}
-					<LoadingCircle size={12} />
+					<BusyIcon size={12} />
 				{:else}
 					<Icon name="check" size={13} />
 				{/if}

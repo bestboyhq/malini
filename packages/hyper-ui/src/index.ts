@@ -15,7 +15,6 @@ export * from './components/file-type-icon';
 export * from './components/full-page-modal';
 export * from './components/hover-card';
 export * from './components/icon-button';
-export * from './components/loading-circle';
 export * from './components/modal';
 export * from './components/popover';
 export * from './components/presence-dot';

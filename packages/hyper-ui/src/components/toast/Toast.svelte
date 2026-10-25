@@ -1,6 +1,6 @@
 <script lang="ts">
 	import SensitiveText from '../sensitive/SensitiveText.svelte';
-	import { Icon } from '../../icons';
+	import { BusyIcon, Icon } from '../../icons';
 	import { overlaySurface } from '../../overlay';
 	import type { ToastLevel } from './toast.store.svelte';
 
@@ -57,7 +57,7 @@
 			]}
 		>
 			{#if level === 'loading'}
-				<span class={['loading loading-spinner size-4', iconClass[level]]}></span>
+				<BusyIcon size={16} class={iconClass[level]} />
 			{:else if level === 'success'}
 				<Icon name="check" size={16} class={iconClass[level]} />
 			{:else if level === 'error'}

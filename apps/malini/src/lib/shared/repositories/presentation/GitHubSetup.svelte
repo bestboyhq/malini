@@ -2,10 +2,9 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { GitHubIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, GitHubIcon, Icon } from '$hyper-ui/icons';
 	import { cancelGithubSignInCommand } from '$shared/repositories/application/commands/cancel-github-sign-in.command';
 	import { copyGithubSignInCodeCommand } from '$shared/repositories/application/commands/copy-github-sign-in-code.command';
 	import { loadGithubAuthCommand } from '$shared/repositories/application/commands/load-github-auth.command';
@@ -75,7 +74,7 @@
 
 {#snippet action()}
 	{#if signIn.kind !== 'idle'}
-		<LoadingCircle size={16} />
+		<BusyIcon size={16} />
 		{#if signIn.kind === 'starting' || signIn.kind === 'waiting'}
 			<Button
 				variant="secondary"
@@ -89,7 +88,7 @@
 			</Button>
 		{/if}
 	{:else if status === 'checking'}
-		<LoadingCircle size={16} />
+		<BusyIcon size={16} />
 	{:else if status === 'ready'}
 		{#if step}
 			<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">

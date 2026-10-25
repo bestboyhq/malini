@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import {
 		ONBOARDING_ACCOUNTS,
 		openOnboardingAccount,
@@ -49,7 +48,7 @@
 			aria-hidden="true"
 		>
 			{#if statuses[account] === 'checking' && open === null}
-				<LoadingCircle size={12} />
+				<BusyIcon size={14} class="text-fg-secondary" />
 			{:else}
 				{index + 1}
 			{/if}

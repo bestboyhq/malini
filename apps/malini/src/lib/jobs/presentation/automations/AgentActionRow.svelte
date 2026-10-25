@@ -2,8 +2,7 @@
 	import type { AgentActionRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import {
@@ -57,7 +56,7 @@
 	>
 		<span class={['grid size-4 shrink-0 place-items-center', look.tone]} aria-hidden="true">
 			{#if action.status === 'running'}
-				<LoadingCircle size={12} />
+				<BusyIcon size={12} />
 			{:else}
 				<Icon name={look.icon} size={13} />
 			{/if}

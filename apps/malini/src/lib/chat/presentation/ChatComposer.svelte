@@ -61,13 +61,12 @@
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { FileTypeIcon } from '$hyper-ui/components/file-type-icon';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { avoidedByToasts } from '$hyper-ui/components/toast';
 	import { setOverlayFocusReturn } from '$hyper-ui/overlay';
 	import { EnterShortcut } from '$hyper-ui/components/enter-shortcut';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { JobPicker } from '$lib/jobs/jobs.api';
 
 	import InlinePromptEditor, { type PromptChipDescriptor } from './InlinePromptEditor.svelte';
@@ -1102,7 +1101,7 @@
 						aria-label="Loading workstream files"
 					>
 						<Tooltip content="Loading workstream files" placement="top">
-							<LoadingCircle class="text-fg-tertiary" size={14} />
+							<BusyIcon class="text-fg-tertiary" size={14} />
 						</Tooltip>
 						Loading workstream files…
 					</div>

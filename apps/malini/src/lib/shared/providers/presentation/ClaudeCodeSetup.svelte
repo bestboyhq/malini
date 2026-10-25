@@ -6,9 +6,8 @@
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
 	import { Dropdown } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import type { ClaudeSignInState } from '$shared/providers/domain/claude-accounts';
 	import { setupStepFor, type ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
@@ -91,7 +90,7 @@
 
 {#snippet action()}
 	{#if signIn !== 'idle'}
-		<LoadingCircle size={16} />
+		<BusyIcon size={16} />
 		{#if signIn === 'waiting-for-browser'}
 			<Button
 				variant="secondary"
@@ -105,7 +104,7 @@
 			</Button>
 		{/if}
 	{:else if status.kind === 'checking'}
-		<LoadingCircle size={16} />
+		<BusyIcon size={16} />
 	{:else if status.kind === 'ready' && step}
 		<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
 			<Icon name="check" size={14} />

@@ -88,6 +88,8 @@ test('cloning a hidden repository again brings it back', async () => {
 		const setup = page.getByTestId('onboarding');
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await setup.getByRole('button', { name: 'Continue' }).click();
 		await cloneHutch(page);
 
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });

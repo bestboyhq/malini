@@ -2,10 +2,9 @@
 	import { onMount } from 'svelte';
 	import type { BrowserElementPrompt } from '$contract/browser';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { TextInput } from '$hyper-ui/components/text-input';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { overlaySuppression } from '$hyper-ui/overlay';
 
 	import { cancelElementPickCommand } from '../application/commands/cancel-element-pick.command';
@@ -184,7 +183,7 @@
 		>
 			{#snippet icon()}
 				{#if browser?.loading}
-					<LoadingCircle size={14} />
+					<BusyIcon size={14} />
 				{:else}
 					<Icon name="globe" size={14} />
 				{/if}

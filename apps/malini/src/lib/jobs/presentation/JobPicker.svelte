@@ -8,10 +8,9 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { TextInput } from '$hyper-ui/components/text-input';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { JOBS_HREF } from '$shared/router/routes-hrefs';
 	import { loadJobsCommand } from '$lib/jobs/application/commands/load-jobs.command';
 	import { runJobCommand } from '$lib/jobs/application/commands/run-job.command';
@@ -245,7 +244,7 @@
 					</span>
 					<span class="text-fg-tertiary grid size-4 shrink-0 place-items-center">
 						{#if startedId === job.id && started?.busy}
-							<LoadingCircle size={12} />
+							<BusyIcon size={12} />
 						{:else if index === selectedIndex}
 							<Icon name="enter" size={14} />
 						{/if}
@@ -256,7 +255,7 @@
 	{:else if commandMatches.length === 0}
 		<p class="text-fg-tertiary flex items-center gap-2 px-4 py-3 text-xs" role="status">
 			{#if load.state === 'loading'}
-				<LoadingCircle size={12} />
+				<BusyIcon size={12} />
 				Loading jobs…
 			{:else if load.error}
 				{load.error}

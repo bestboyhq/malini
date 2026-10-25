@@ -19,7 +19,7 @@ test('a new Mac without Claude Code is walked to install it, with the command it
 		).toBeVisible();
 		await expect(
 			setup.getByRole('list', { name: 'Setup progress' }).getByRole('listitem'),
-		).toHaveCount(3);
+		).toHaveCount(4);
 		const claude = setup.getByTestId('claude-code-setup');
 		await expect(claude).toHaveAttribute('data-claude-code-status', 'missing', { timeout: 20_000 });
 		await expect(
@@ -126,12 +126,12 @@ test('onboarding rehearses its step transition on copies nobody can reach, and d
 		expect(continueOnCopies.before).toBeGreaterThan(0);
 		expect(continueOnCopies.after).toBe(0);
 
-		const repository = setup.getByRole('heading', { name: 'Open your first repository' });
-		await expect(repository).toBeVisible();
+		const sounds = setup.getByRole('heading', { name: 'Hear your afternoon' });
+		await expect(sounds).toBeVisible();
 		const copiedBefore = (await rehearsalCopies()).length;
 		await expect.poll(async () => (await rehearsalCopies()).length).toBeGreaterThan(copiedBefore);
 		await expect.poll(copiesOnStage, { timeout: 20_000 }).toBe(0);
-		await expect(repository).toHaveCount(1);
+		await expect(sounds).toHaveCount(1);
 		await expect(page.locator('#onboarding-heading')).toHaveCount(1);
 
 		const copies = await rehearsalCopies();
