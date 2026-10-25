@@ -112,6 +112,7 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
 A large preview shows the one you select, and it stays after you pick; click it to open it in the gallery.
+A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.

@@ -165,7 +165,7 @@
 						</details>
 					</li>
 					{#if earlierPick}
-						<PickStep pick={earlierPick} {imagesrc} {onopenimage} />
+						<PickStep pick={earlierPick} {workstreamId} {imagesrc} {onopenimage} />
 					{/if}
 				{/each}
 			</ol>
@@ -194,7 +194,14 @@
 	{/if}
 
 	{#if report.variants.length > 0}
-		<VariantPicker variants={report.variants} {pick} bind:chosenId {imagesrc} {onopenimage} />
+		<VariantPicker
+			variants={report.variants}
+			{pick}
+			bind:chosenId
+			{workstreamId}
+			{imagesrc}
+			{onopenimage}
+		/>
 	{/if}
 
 	{#if hero}
