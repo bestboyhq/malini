@@ -118,6 +118,7 @@ export class RepositoryFileTabs {
 		if (target.line === null) this.#pendingLines.delete(path);
 		else if (view) view.revealLine(target.line);
 		else this.#pendingLines.set(path, target.line);
+		view?.reload();
 
 		this.#api.panels.open(fileTabId(path), fileTabOptions(path, target.pinned));
 	}
@@ -148,7 +149,7 @@ export class RepositoryFileTabs {
 					REPOSITORY_FILE_TAB_STYLES + MARKDOWN_ARTICLE_STYLES,
 				);
 				const view = new RepositoryFileTabView(this.#api, this.#controller, path, root, {
-					mode: this.#modes.get(path) ?? 'rich',
+					mode: this.#modes.get(path) ?? 'raw',
 					onmode: (mode) => this.#modes.set(path, mode),
 				});
 				this.#views.set(path, view);
@@ -297,6 +298,10 @@ class RepositoryFileTabView {
 		void this.#read();
 	}
 
+	reload(): void {
+		void this.#read();
+	}
+
 	revealLine(line: number): void {
 		this.#requestedLine = line;
 		this.#setMode('raw');
@@ -363,7 +368,7 @@ class RepositoryFileTabView {
 					highlightActiveLineGutter(),
 					highlightSpecialChars(),
 					history(),
-					drawSelection(),
+					drawSelection({ cursorBlinkRate: 0 }),
 					highlightActiveLine(),
 					EditorState.tabSize.of(2),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
@@ -941,9 +946,9 @@ function changeLabel(text: string): HTMLElement {
 }
 
 const added = (percent: number): string =>
-	`color-mix(in srgb, var(--code-added) ${String(percent)}%, var(--color-surface-50))`;
+	`color-mix(in srgb, var(--code-added) ${String(percent)}%, transparent)`;
 const removed = (percent: number): string =>
-	`color-mix(in srgb, var(--code-removed) ${String(percent)}%, var(--color-surface-50))`;
+	`color-mix(in srgb, var(--code-removed) ${String(percent)}%, transparent)`;
 
 const FILE_TAB_THEME = EditorView.theme({
 	'&': {
@@ -956,12 +961,17 @@ const FILE_TAB_THEME = EditorView.theme({
 	'&.cm-focused': { outline: 'none' },
 	'.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
 	'.cm-content': { padding: '0.75rem 0', caretColor: 'var(--color-fg-default)' },
-	'.cm-line': { padding: '0 1rem 0 0.75rem' },
-	'.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-fg-default)' },
+	'.cm-line': { padding: '0 1rem 0 0.25rem' },
+	'.cm-cursor, .cm-dropCursor': {
+		marginLeft: '-1px',
+		borderLeft: '2px solid var(--color-fg-default)',
+	},
 	'&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
-		{ backgroundColor: 'color-mix(in srgb, var(--color-fg-default) 18%, transparent)' },
+		{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 35%, transparent)' },
 	'.cm-activeLine': { backgroundColor: 'transparent' },
-	'&.cm-focused .cm-activeLine': { backgroundColor: 'var(--color-surface-100)' },
+	'&.cm-focused .cm-activeLine': {
+		backgroundColor: 'color-mix(in srgb, var(--color-fg-default) 5%, transparent)',
+	},
 	'.cm-gutters': {
 		border: 'none',
 		backgroundColor: 'var(--color-surface-50)',
@@ -969,8 +979,7 @@ const FILE_TAB_THEME = EditorView.theme({
 	},
 	'.cm-lineNumbers .cm-gutterElement': {
 		position: 'relative',
-		minWidth: '5ch',
-		padding: '0 0.5rem 0 1rem',
+		padding: '0 0.75rem 0 0.5rem',
 		fontVariantNumeric: 'tabular-nums',
 	},
 	'.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--color-fg-secondary)' },
@@ -1000,7 +1009,7 @@ const FILE_TAB_THEME = EditorView.theme({
 			'repeating-linear-gradient(to bottom, var(--code-removed) 0 1px, transparent 1px 2px)',
 	},
 	'.repository-file-tab__removed': {
-		padding: '0 1rem 0 0.75rem',
+		padding: '0 1rem 0 0.25rem',
 		backgroundColor: removed(10),
 		whiteSpace: 'pre',
 		userSelect: 'none',

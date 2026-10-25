@@ -42,6 +42,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('the user approved that exact call in Malini');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
 		expect(prompt).toContain('open that file for them with `files_open`');
+		expect(prompt).toContain('with the name of every secret you need in `keys`');
 		expect(prompt).toContain('never ask them to paste a secret into the chat');
 		expect(prompt).toContain('one-line bullet that starts with `Next:`');
 		expect(prompt).toContain(

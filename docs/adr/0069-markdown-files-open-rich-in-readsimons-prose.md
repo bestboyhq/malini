@@ -1,6 +1,6 @@
 # 0069 - Markdown files open rich, in readsimon's prose
 
-Status: accepted
+Status: superseded by 0078
 
 ## Context
 
