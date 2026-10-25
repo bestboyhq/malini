@@ -491,9 +491,13 @@ export function registerRepositories(
 		try {
 			return await read(await checkouts.resolveCheckout(workstreamId));
 		} catch (error) {
-			if (torndown()) throw new WorkstreamRetiredError(workstreamId, error);
-			throw error;
+			if (!torndown() && !isArchived(workstreamId)) throw error;
+			throw new WorkstreamRetiredError(workstreamId, error);
 		}
+	}
+
+	function isArchived(workstreamId: string): boolean {
+		return getWorkstream(db, workstreamId)?.status === 'archived';
 	}
 
 	function checkedWorkstreamId(args: unknown): string {
