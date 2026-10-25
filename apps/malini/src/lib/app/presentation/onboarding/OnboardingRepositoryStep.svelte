@@ -69,7 +69,7 @@
 		{@render tile(
 			'cloud-download',
 			'Clone a repository',
-			connecting === 'clone' ? 'Cloning…' : 'From GitHub, or any URL git can clone',
+			connecting === 'clone' ? 'Cloning…' : 'From GitHub or any git URL',
 			connecting === 'clone',
 			() => (cloneDialogOpen = true),
 			'repository-clone-open',
