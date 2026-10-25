@@ -15,7 +15,9 @@ function startPlannedWorkstreamCommand(
 	inBackground = false,
 ): void {
 	if (workstreamProvisioning.hasUnstartedAttemptForProject(plan.projectId)) return;
-	workstreamsAggregate.stagePendingWorkstream(provisioningWorkstreamRow(plan));
+	workstreamsAggregate.stagePendingWorkstream(
+		provisioningWorkstreamRow(plan, new Date().toISOString()),
+	);
 	workstreamProvisioning.begin(plan);
 	if (inBackground) {
 		provisionWorkstreamCommand(plan);

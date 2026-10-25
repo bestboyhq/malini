@@ -14,8 +14,14 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
+	import {
+		SIDEBAR_GROUPINGS,
+		SIDEBAR_ORDERINGS,
+		type SidebarArrangement,
+	} from '$lib/app/domain/sidebar-arrangement';
 	import { ALL_FOCUS, focusKey, sameFocus } from '$lib/app/domain/sidebar-focus';
 	import { RepositoryAvatar } from '$shared/repositories/repositories.api';
+	import ArrangeChoice from './ArrangeChoice.svelte';
 
 	interface Props {
 		active: SidebarFocus;
@@ -23,13 +29,26 @@
 		owners: readonly FocusChoice[];
 		repositories: readonly FocusChoice[];
 		attention: (focus: SidebarFocus) => boolean;
+		arrangement: SidebarArrangement;
 		onchoose: (focus: SidebarFocus) => void;
 		ontogglepin: (focus: SidebarFocus) => void;
+		onarrange: (change: Partial<SidebarArrangement>) => void;
 	}
 
-	let { active, pinned, owners, repositories, attention, onchoose, ontogglepin }: Props = $props();
+	let {
+		active,
+		pinned,
+		owners,
+		repositories,
+		attention,
+		arrangement,
+		onchoose,
+		ontogglepin,
+		onarrange,
+	}: Props = $props();
 
 	let pinMenuOpen = $state(false);
+	let arrangeOpen = $state(false);
 
 	function isPinned(focus: SidebarFocus): boolean {
 		return pinned.some((choice) => sameFocus(choice.focus, focus));
@@ -47,6 +66,51 @@
 		{@render chip(choice.focus, choice.label, choice.avatarFullName)}
 	{/each}
 	<span class="grow"></span>
+	<Dropdown
+		bind:open={arrangeOpen}
+		side="bottom"
+		align="end"
+		role={null}
+		keyboardNavigation={false}
+		panelClass="w-72"
+		contentClass="p-2"
+	>
+		{#snippet trigger()}
+			<Tooltip content="Group and sort" placement="bottom">
+				<IconButton
+					variant="ghost"
+					size="sm"
+					ariaLabel="Group and sort"
+					ariaHasPopup="dialog"
+					ariaExpanded={arrangeOpen}
+					data-testid="sidebar-arrange"
+				>
+					<Icon name="settings" size={14} />
+				</IconButton>
+			</Tooltip>
+		{/snippet}
+		{#snippet content()}
+			<div class="flex flex-col gap-1" role="group" aria-label="Group and sort">
+				<ArrangeChoice
+					label="Group by"
+					value={arrangement.grouping}
+					choices={SIDEBAR_GROUPINGS}
+					onchoose={(grouping) => onarrange({ grouping })}
+				/>
+				<ArrangeChoice
+					label="Sort by"
+					value={arrangement.ordering}
+					choices={SIDEBAR_ORDERINGS}
+					onchoose={(ordering) => onarrange({ ordering })}
+				/>
+				{#if arrangement.ordering !== 'manual'}
+					<p class="text-fg-tertiary px-1.5 pt-1 text-xs">
+						Sort by Manual to drag rows into place.
+					</p>
+				{/if}
+			</div>
+		{/snippet}
+	</Dropdown>
 	<Dropdown bind:open={pinMenuOpen} side="bottom" align="end" role={null} panelClass="w-64">
 		{#snippet trigger()}
 			<Tooltip content="Pin an organization or repository" placement="bottom">

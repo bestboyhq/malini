@@ -63,6 +63,22 @@ async function startChat(page: Page, scope: 'home' | string, title: string): Pro
 	});
 }
 
+async function choose(page: Page, setting: string, choice: string): Promise<void> {
+	await page
+		.getByRole('group', { name: 'Group and sort' })
+		.getByRole('button', { name: new RegExp(`^${setting}: `, 'u') })
+		.click();
+	await page
+		.getByRole('menu', { name: setting })
+		.getByRole('menuitemradio', { name: choice })
+		.click();
+	await expect(
+		page
+			.getByRole('group', { name: 'Group and sort' })
+			.getByRole('button', { name: `${setting}: ${choice}` }),
+	).toBeVisible();
+}
+
 async function lastReply(page: Page, text: string): Promise<void> {
 	await expect(transcript(page).getByText(text, { exact: true }).last()).toBeVisible({
 		timeout: 30_000,
@@ -166,7 +182,32 @@ test('a Home chat starts workstreams in two organizations, each listed under its
 		await lineage.getByTestId('workstream-lineage-starter').click();
 		await expect(lead).toHaveAttribute('aria-current', 'page');
 		await page.mouse.move(0, 0);
-		await expect(lead.getByTestId('sidebar-progress')).toBeVisible();
+		const progress = lead.getByTestId('sidebar-progress');
+		await expect(progress).toBeVisible();
+
+		await invoke(page, 'repositories.archive-workstream', {
+			workstreamId: await startedIn('solo/site').getAttribute('data-workstream-id'),
+		});
+		await expect(progress).toHaveAccessibleName(/^2 workstreams: .*1 archived$/u, {
+			timeout: 20_000,
+		});
+		await expect
+			.poll(() =>
+				progress
+					.locator('[data-progress-dot]')
+					.evaluateAll((dots) =>
+						dots.map((dot) => dot.getAttribute('data-progress-dot')).join(' '),
+					),
+			)
+			.toMatch(/^(merged|needs|failed|running|idle) archived$/u);
+		await lead.hover();
+		await expect(progress).toBeVisible();
+		const started = page
+			.getByTestId('sidebar-started-card')
+			.getByRole('list', { name: 'Started by Move apps to Logdash' });
+		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
+		await expect(started.getByRole('group', { name: /^solo\/site, .*, Archived, / })).toBeVisible();
+		await captureFlow(app, 'lead-chat-started-card');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -235,6 +276,38 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 		);
 		await focus.getByRole('button', { name: 'All', exact: true }).click();
 		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
+
+		const arrange = page.getByRole('group', { name: 'Group and sort' });
+		const repositoryOrder = () =>
+			sidebar(page)
+				.getByTestId('sidebar-connected-repository')
+				.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-full-name')));
+		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await choose(page, 'Group by', 'Repository');
+		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
+		await expect(
+			sidebar(page)
+				.getByRole('list', { name: 'Chats' })
+				.getByTestId('sidebar-chat')
+				.filter({ hasText: 'Unify footers' }),
+		).toBeVisible();
+		await choose(page, 'Sort by', 'Name');
+		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
+		await expect(arrange).toContainText('Sort by Manual to drag rows into place.');
+		await captureFlow(app, 'sidebar-group-and-sort');
+
+		await page.reload();
+		await expect(sidebar(page).getByRole('link', { name: 'Open acme/web' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
+		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
+		await focus.getByRole('button', { name: 'Group and sort' }).click();
+		await choose(page, 'Group by', 'Organization');
+		await choose(page, 'Sort by', 'Manual');
+		await expect(
+			sidebar(page).getByRole('button', { name: 'acme, 1 chat, 2 repositories' }),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

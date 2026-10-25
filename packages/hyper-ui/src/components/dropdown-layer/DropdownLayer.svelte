@@ -40,6 +40,7 @@
 		keyboardNavigation?: boolean;
 		closeOnEscape?: boolean;
 		backdrop?: boolean;
+		nested?: boolean;
 	}
 
 	let {
@@ -62,6 +63,7 @@
 		keyboardNavigation = true,
 		closeOnEscape = true,
 		backdrop = false,
+		nested = false,
 	}: Props = $props();
 
 	let panelEl: HTMLDivElement | null = $state(null);
@@ -252,6 +254,7 @@
 			style:top="0px"
 			style:left="0px"
 			data-dropdown-portal
+			data-submenu-portal={nested ? '' : undefined}
 			use:overlaySurface={{ anchored: true }}
 			data-side={actualSide}
 			data-testid={testId}

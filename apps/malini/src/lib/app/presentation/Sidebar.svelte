@@ -22,11 +22,13 @@
 	import { collapsedGroupsQuery } from '$lib/app/application/queries/collapsed-groups.query.svelte';
 	import { sidebarDensityQuery } from '$lib/app/application/queries/sidebar-density.query.svelte';
 	import { sidebarFocusQuery } from '$lib/app/application/queries/sidebar-focus.query.svelte';
+	import { sidebarArrangementQuery } from '$lib/app/application/queries/sidebar-arrangement.query.svelte';
+	import { arrangeSidebarCommand } from '$lib/app/application/commands/arrange-sidebar.command';
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
 	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
-	import { progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
+	import { leadHeadline, progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
 	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
 	import { PROGRESS_DOT_CLASS } from './progress-dot-class';
 	import {
@@ -88,6 +90,7 @@
 	import SidebarFrame from './SidebarFrame.svelte';
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
+	import StartedWorkstreams from './StartedWorkstreams.svelte';
 	import { REPOSITORIES_HREF, repositoryHref, workstreamHref } from '$shared/router/routes-hrefs';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { RepositorySidebarSkeleton } from '$shared/repositories/repositories.api';
@@ -132,6 +135,8 @@
 	const sidebarOrder = $derived(sidebarOrderQuery.data);
 	const collapsedGroupIds = $derived(collapsedGroupsQuery.data);
 	const compact = $derived(sidebarDensityQuery.data === 'compact');
+	const arrangement = $derived(sidebarArrangementQuery.data);
+	const manualOrder = $derived(arrangement.ordering === 'manual');
 	let reorder = $state<SidebarReorder | null>(null);
 	let settling = false;
 	let clickSuppressed = false;
@@ -203,10 +208,11 @@
 			leads,
 			hiddenRepositoryIds,
 			focus,
+			arrangement,
 		}),
 	);
 	const blockIds = $derived(tree.blocks.map((block) => block.id));
-	const homeLeadIds = $derived(tree.homeLeads.map((lead) => lead.id));
+	const chatIds = $derived(tree.chats.map((chat) => chat.id));
 	const repositoryIdsByEntry = $derived(
 		new Map(
 			tree.blocks.map((block) => [
@@ -219,7 +225,7 @@
 	);
 	const listedRepositoryIds = $derived(sidebarRepositoryIds(tree));
 	const listedWorkstreamIds = $derived(sidebarWorkstreamIds(tree));
-	const hasRows = $derived(tree.homeLeads.length > 0 || tree.blocks.length > 0);
+	const hasRows = $derived(tree.chats.length > 0 || tree.blocks.length > 0);
 	const avatarSize = $derived(compact ? 16 : 20);
 	const pendingWorkstreamId = $derived(optimisticDestination?.workstreamId ?? null);
 	const visuallyActiveWorkstreamId = $derived(pendingWorkstreamId ?? activeWorkstreamId);
@@ -564,7 +570,7 @@
 	}
 
 	function armReorder(event: PointerEvent, item: SidebarItem): void {
-		if (event.button !== 0 || reorder || settling) return;
+		if (event.button !== 0 || reorder || settling || !manualOrder) return;
 		const row = event.currentTarget;
 		if (!(row instanceof HTMLElement) || !(event.target instanceof Element)) return;
 		if (
@@ -679,7 +685,7 @@
 		id: string,
 		siblingIds: readonly string[],
 	): Promise<void> {
-		if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
+		if (!manualOrder || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey) return;
 		if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
 		event.preventDefault();
 		const placement = event.key === 'ArrowUp' ? 'before' : 'after';
@@ -891,6 +897,10 @@
 	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9'] as const;
 	const MAX_PROGRESS_DOTS = 8;
 
+	function moveShortcuts(...more: readonly string[]): string {
+		return [...(manualOrder ? ['Alt+ArrowUp', 'Alt+ArrowDown'] : []), ...more].join(' ');
+	}
+
 	function levelPadding(level: number): string {
 		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-9';
 	}
@@ -945,6 +955,7 @@
 			leads,
 			hiddenRepositoryIds,
 			focus: target,
+			arrangement,
 		});
 		return sidebarWorkstreamIds(focused).some(
 			(workstreamId) => workstreamChatSummaryQuery.data(workstreamId).needsYou,
@@ -1009,7 +1020,7 @@
 					ariaLabel={`${block.owner}, ${ownerCountLabel(block)}`}
 					ariaExpanded={!collapsed}
 					ariaControls={`owner-repositories-${block.id}`}
-					ariaKeyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+					{...manualOrder ? { ariaKeyshortcuts: moveShortcuts() } : {}}
 					data-sidebar-grip=""
 					data-testid="sidebar-owner-folder"
 					data-owner={block.owner}
@@ -1150,7 +1161,7 @@
 						aria-describedby={`repository-saved-${row.repo.id} repository-notes-${row.repo.id}`}
 						aria-current={row.repo.id === openRepositoryId ? 'page' : undefined}
 						class="hover:text-fg-default focus-visible:text-fg-default min-w-0 flex-1 outline-none before:absolute before:inset-0 before:content-['']"
-						aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
+						aria-keyshortcuts={moveShortcuts('Shift+F10')}
 						onkeydown={(event) => {
 							if (opensMenu(event)) {
 								openRepositoryMenu(event, row.repo, row.workstreams);
@@ -1233,110 +1244,136 @@
 					{#snippet card()}
 						{@render runningCard(workstream, view)}
 					{/snippet}
-					<Tooltip
-						content={card}
-						interactive
-						placement="right"
-						suppressed={!view.running}
-						class="w-full min-w-0"
-					>
-						<a
-							draggable="false"
-							href={rowHref(workstream.id, view.targetSessionId)}
-							data-navigation-path-id="expected-path:workstream-sidebar.switch"
-							aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-							aria-busy={workstream.id === pendingWorkstreamId || undefined}
-							class={[
-								'sidebar-row relative w-full flex-col items-stretch outline-none',
-								rowEndPadding(saveable),
-								levelPadding(level),
-								compact && 'py-1 text-xs',
-								view.chat.attention !== null
-									? 'text-500'
-									: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
-								view.selected
-									? 'sidebar-row-active'
-									: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-							]}
-							data-active={workstream.id === contextMenu?.workstreamId}
-							{...workstreamLinkData(workstream, row.repositoryFullName, view)}
-							onpointerdown={(event) =>
-								previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
-							onpointerup={() =>
-								scheduleAbandonedDestinationPreviewCleanup(
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onpointercancel={() =>
-								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-							onpointerleave={() =>
-								abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-							aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
-							onkeydown={(event) => {
-								if (opensMenu(event)) {
-									openWorkstreamMenu(event, workstream.id);
-									return;
-								}
-								previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
-								void onMoveKey(event, 'workstream', workstream.id, siblingIds);
-							}}
-							onkeyup={(event) =>
-								scheduleKeyboardDestinationPreviewCleanup(
-									event,
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onblur={() =>
-								scheduleAbandonedDestinationPreviewCleanup(
-									rowHref(workstream.id, view.targetSessionId),
-								)}
-							onclick={(event) =>
-								beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
-							oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+					{#snippet rowLink()}
+						<Tooltip
+							content={card}
+							interactive
+							placement="right"
+							suppressed={!view.running || dots.length > 0}
+							class="w-full min-w-0"
 						>
-							<span class="relative flex items-center gap-2">
-								{#if isLead}
-									{@render chatGlyph(view, level)}
-								{:else}
-									{@render statusIndicator(view)}
-								{/if}
-								{#if view.chat.attention && view.chat.needsYou}
-									{@render attentionDot(view.chat.attention, level === 0 ? '-left-2' : '-left-3.5')}
-								{/if}
-								<span class="sidebar-row-text gap-1.5">
-									{@render workstreamName(workstream, view)}
-									{#if dots.length > 0}
-										{@render progress(dots)}
+							<a
+								draggable="false"
+								href={rowHref(workstream.id, view.targetSessionId)}
+								data-navigation-path-id="expected-path:workstream-sidebar.switch"
+								aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+								aria-busy={workstream.id === pendingWorkstreamId || undefined}
+								class={[
+									'sidebar-row relative w-full flex-col items-stretch outline-none',
+									rowEndPadding(saveable),
+									levelPadding(level),
+									compact && 'py-1 text-xs',
+									view.chat.attention !== null
+										? 'text-500'
+										: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
+									view.selected
+										? 'sidebar-row-active'
+										: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+								]}
+								data-active={workstream.id === contextMenu?.workstreamId}
+								{...workstreamLinkData(workstream, row.repositoryFullName, view)}
+								onpointerdown={(event) =>
+									previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+								onpointerup={() =>
+									scheduleAbandonedDestinationPreviewCleanup(
+										rowHref(workstream.id, view.targetSessionId),
+									)}
+								onpointercancel={() =>
+									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+								onpointerleave={() =>
+									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+								aria-keyshortcuts={moveShortcuts('Shift+F10')}
+								onkeydown={(event) => {
+									if (opensMenu(event)) {
+										openWorkstreamMenu(event, workstream.id);
+										return;
+									}
+									previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+									void onMoveKey(event, 'workstream', workstream.id, siblingIds);
+								}}
+								onkeyup={(event) =>
+									scheduleKeyboardDestinationPreviewCleanup(
+										event,
+										rowHref(workstream.id, view.targetSessionId),
+									)}
+								onblur={() =>
+									scheduleAbandonedDestinationPreviewCleanup(
+										rowHref(workstream.id, view.targetSessionId),
+									)}
+								onclick={(event) =>
+									beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+								oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+							>
+								<span class="relative flex items-center gap-2">
+									{#if isLead}
+										{@render chatGlyph(view, level)}
 									{:else}
-										{@render workstreamTrail(view)}
+										{@render statusIndicator(view)}
 									{/if}
+									{#if view.chat.attention && view.chat.needsYou}
+										{@render attentionDot(
+											view.chat.attention,
+											level === 0 ? '-left-2' : '-left-3.5',
+										)}
+									{/if}
+									<span class="sidebar-row-text gap-1.5">
+										{@render workstreamName(workstream, view)}
+										{#if dots.length > 0}
+											{@render progress(dots)}
+										{:else}
+											{@render workstreamTrail(view)}
+										{/if}
+									</span>
 								</span>
-							</span>
-							{#if view.running}
-								<span class="pl-6" transition:slide={foldMotion()}>
-									<WorkstreamRunningLine running={view.running} selected={view.selected} />
-								</span>
+								{#if view.running}
+									<span class="pl-6" transition:slide={foldMotion()}>
+										<WorkstreamRunningLine running={view.running} selected={view.selected} />
+									</span>
+								{/if}
+							</a>
+							{#if saveable}
+								{@render saveForLaterButton(
+									workstream,
+									view,
+									[
+										'absolute h-lh items-center leading-relaxed',
+										'right-7',
+										compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+									].join(' '),
+								)}
 							{/if}
-						</a>
-						{#if saveable}
-							{@render saveForLaterButton(
+							{@render archiveButton(
 								workstream,
 								view,
 								[
 									'absolute h-lh items-center leading-relaxed',
-									'right-7',
+									'right-1',
 									compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 								].join(' '),
 							)}
-						{/if}
-						{@render archiveButton(
-							workstream,
-							view,
-							[
-								'absolute h-lh items-center leading-relaxed',
-								'right-1',
-								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-							].join(' '),
-						)}
-					</Tooltip>
+						</Tooltip>
+					{/snippet}
+					{#if dots.length > 0}
+						<HoverCard
+							side="right"
+							align="start"
+							sideOffset={12}
+							openDelay={500}
+							triggerPress="dismiss"
+							triggerClass="w-full min-w-0"
+							panelClass="w-88 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
+							testId="sidebar-started-card"
+						>
+							{#snippet trigger()}
+								{@render rowLink()}
+							{/snippet}
+							{#snippet content()}
+								{@render startedCard(workstream, view, dots)}
+							{/snippet}
+						</HoverCard>
+					{:else}
+						{@render rowLink()}
+					{/if}
 				{/snippet}
 			</WorkstreamChatSummary>
 		</div>
@@ -1369,7 +1406,7 @@
 {#snippet progress(dots: readonly ProgressDot[])}
 	{@const shown = dots.slice(0, MAX_PROGRESS_DOTS)}
 	<span
-		class="flex shrink-0 items-center gap-[3px] group-hover/row:hidden group-has-focus-visible/row:hidden"
+		class="flex shrink-0 items-center gap-[3px]"
 		role="img"
 		aria-label={progressLabel(dots)}
 		data-testid="sidebar-progress"
@@ -1624,6 +1661,31 @@
 	{/if}
 {/snippet}
 
+{#snippet startedCard(workstream: Workstream, view: WorkstreamView, dots: readonly ProgressDot[])}
+	{@const headline = leadHeadline(dots)}
+	<div class="flex flex-col gap-1.5">
+		{#if view.running}
+			<div class="border-surface-elevated-border border-b px-1.5 pt-1 pb-2.5">
+				{@render runningCard(workstream, view)}
+			</div>
+		{/if}
+		<div class="flex min-w-0 flex-col gap-0.5 px-2 pt-1">
+			<span class="text-fg-default truncate text-sm font-medium">{view.label}</span>
+			<span class="text-fg-tertiary text-xs">
+				{headline.label}{#if headline.detail}
+					· {headline.detail}{/if}
+			</span>
+		</div>
+		<div class="max-h-96 overflow-y-auto">
+			<StartedWorkstreams
+				workstreamIds={leadProgressQuery.startedIds(workstream.id)}
+				framed={false}
+				label={`Started by ${view.label}`}
+			/>
+		</div>
+	</div>
+{/snippet}
+
 {#snippet repositoryCard(row: ConnectedRepositoryContext)}
 	<div class="flex flex-col gap-3">
 		<div class="flex min-w-0 items-center gap-2.5">
@@ -1651,8 +1713,10 @@
 			owners={ownerChoices}
 			repositories={repositoryChoices}
 			attention={focusNeedsYou}
+			{arrangement}
 			onchoose={chooseSidebarFocusCommand}
 			ontogglepin={toggleSidebarPinCommand}
+			onarrange={arrangeSidebarCommand}
 		/>
 	{/snippet}
 	<nav
@@ -1710,10 +1774,10 @@
 				>
 					{#if focus.kind === 'all'}
 						<li class="relative w-full min-w-0">
-							<ul class="flex w-full flex-col" aria-label="Home">
+							<ul class="flex w-full flex-col" aria-label="Chats">
 								<li class="w-full min-w-0">{@render newChatRow()}</li>
-								{#each tree.homeLeads as homeLead (homeLead.id)}
-									{@render workstreamItem(leadRow(homeLead), 0, homeLeadIds)}
+								{#each tree.chats as chat (chat.id)}
+									{@render workstreamItem(leadRow(chat), 0, chatIds)}
 								{/each}
 							</ul>
 						</li>
@@ -1747,7 +1811,7 @@
 						testId="repository-sidebar-empty"
 					>
 						{#snippet icon()}
-							<Icon name="link" size={14} />
+							<Icon name="folder-open" size={14} />
 						{/snippet}
 					</StateBlock>
 				{/if}

@@ -19,7 +19,7 @@
 			data-testid="sidebar-connect-repository"
 			data-navigation-path-id="expected-path:workstream-sidebar.connect-repository"
 		>
-			<Icon name="folder-plus" size={15} />
+			<Icon name="folder-open" size={15} />
 		</IconButton>
 	</Tooltip>
 	<JobsNavBadge />
