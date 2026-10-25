@@ -1811,7 +1811,7 @@
 						testId="repository-sidebar-empty"
 					>
 						{#snippet icon()}
-							<Icon name="link" size={14} />
+							<Icon name="folder-open" size={14} />
 						{/snippet}
 					</StateBlock>
 				{/if}
