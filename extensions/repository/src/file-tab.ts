@@ -979,8 +979,7 @@ const FILE_TAB_THEME = EditorView.theme({
 	},
 	'.cm-lineNumbers .cm-gutterElement': {
 		position: 'relative',
-		minWidth: '5ch',
-		padding: '0 0.75rem 0 1rem',
+		padding: '0 0.75rem 0 0.5rem',
 		fontVariantNumeric: 'tabular-nums',
 	},
 	'.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--color-fg-secondary)' },

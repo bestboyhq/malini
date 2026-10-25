@@ -19,6 +19,8 @@ Each line started 12 px right of where the active line band began.
 - The selection is 35% of `--color-accent`.
   Every line background in `FILE_TAB_THEME` is translucent, so the selection under it shows through: the active line is 5% of `--color-fg-default`, and added and removed lines mix their code color with `transparent` instead of `--color-surface-50`.
 - A line starts 4 px after the active line band, and the line numbers keep 12 px to their right instead.
+- The line numbers hug the left edge, 8 px from it, right after the green or red change strip, and the gutter is only as wide as its longest number.
+  CodeMirror keeps the gutter sticky, so numbers and strips stay put while a long line scrolls sideways.
 - Opening a file whose tab is already open reads it from disk again, which still leaves unsaved typing alone.
 
 ## Consequences
