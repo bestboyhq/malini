@@ -376,6 +376,7 @@ const RICH_MARKDOWN =
 	'\n```\n\n| file | lines |\n| --- | --- |\n| app.ts | 96 |';
 const CHAT_TURN_REPORT =
 	'\n\n- Changed: the header is `position: sticky`.\n- Verified: checked at 320 px and 1440 px.\n\n' +
+	'The shadow shows only once the page has scrolled.\n\n' +
 	'Outcome: The header stays pinned while the page scrolls.\n' +
 	'Needs: Approve the new shadow; Merge the pull request';
 const BACKGROUND_RELEASE = 'release-background-agent';

@@ -27,6 +27,13 @@
 		),
 	);
 	const details = $derived(notes.filter((note) => note.kind === 'note'));
+	const words = $derived(
+		[
+			...new Intl.Segmenter('en', { granularity: 'word' }).segment(
+				details.map((note) => note.text).join('\n'),
+			),
+		].filter((segment) => segment.isWordLike).length,
+	);
 </script>
 
 {#if rows.length > 0 || details.length > 0}
@@ -55,16 +62,22 @@
 			</details>
 		{/each}
 		{#if details.length > 0}
-			<details class="group/details pl-[22px]">
+			<details class="group/details mt-2">
 				<summary
-					class="text-2xs text-fg-tertiary hover:text-fg-secondary inline-flex cursor-pointer list-none items-center gap-0.5 leading-5 transition-[color]"
+					class="bg-surface-100 hover:bg-surface-100-hover border-surface-100-border text-fg-default flex cursor-pointer list-none items-center gap-2 rounded-md border-[0.5px] px-2 py-1 text-xs leading-5"
 				>
+					<span class="text-fg-tertiary grid shrink-0 place-items-center">
+						<Icon name="list-indent" size={14} />
+					</span>
 					Details
-					<span class="transition-transform group-open/details:rotate-90">
-						<Icon name="chevron-right" size={10} />
+					<span class="text-fg-tertiary">{words} {words === 1 ? 'word' : 'words'}</span>
+					<span
+						class="text-fg-tertiary ml-auto grid place-items-center transition-transform group-open/details:rotate-90"
+					>
+						<Icon name="chevron-right" size={12} />
 					</span>
 				</summary>
-				<div class="text-fg-secondary mt-1 flex flex-col gap-1.5 text-xs leading-5">
+				<div class="text-fg-secondary flex flex-col gap-1.5 px-2 pt-2 text-xs leading-5">
 					{#each details as note, index (index)}
 						<MarkdownText
 							text={note.text}
