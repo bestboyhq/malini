@@ -287,3 +287,55 @@ test('a job runs on a schedule, in its own chat at Home or in the repository you
 		await app.close();
 	}
 });
+
+test('the job center lists the scheduled jobs that are on, soonest first, says when the next one runs and opens a job from its row', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${api}` });
+		const clock = (date: Date): string =>
+			[date.getHours(), date.getMinutes()].map((part) => String(part).padStart(2, '0')).join(':');
+		const now = new Date();
+		const soon = new Date(now.getTime() + 2 * 60 * 60 * 1_000);
+		const soonDay = soon.getDate() === now.getDate() ? 'Today' : 'Tomorrow';
+		const later = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 7, 15);
+		const laterDay = later.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+		const laterShort = later.toLocaleDateString('en-US', { weekday: 'short' });
+		for (const [name, when, mode] of [
+			['Weekly digest', `every ${laterDay} at 07:15`, 'auto'],
+			['Triage issues', `every day at ${clock(soon)} in acme/api`, 'ask'],
+			['Paused report', `every day at ${clock(soon)}`, 'off'],
+		] as const) {
+			await invoke(page, 'jobs.save-definition', {
+				name,
+				instructions: 'Hello',
+				model: 'opus',
+				effort: 'medium',
+				runsIn: 'workstream',
+				trigger: { when, mode },
+			});
+		}
+
+		const center = page.getByRole('region', {
+			name: `Jobs: next at ${clock(soon)} ${soonDay.toLowerCase()}`,
+		});
+		await expect(center).toBeVisible({ timeout: 20_000 });
+		const upcoming = center.getByRole('list', { name: 'Upcoming jobs' }).getByRole('link');
+		await expect(upcoming).toHaveCount(2);
+		await expect(upcoming.nth(0)).toHaveAccessibleName(
+			`Open Triage issues · Asks first · acme/api, next run ${soonDay} ${clock(soon)}`,
+		);
+		await expect(upcoming.nth(1)).toHaveAccessibleName(
+			`Open Weekly digest · Home, next run ${laterShort} 07:15`,
+		);
+		await captureFlow(app, 'job-center-upcoming');
+
+		await upcoming.nth(1).click();
+		await expect(page.getByRole('region', { name: 'Weekly digest', exact: true })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

@@ -23,6 +23,7 @@
 	import { watchSessionChangesHook } from '$lib/chat/application/hooks/watch-session-changes.hook.svelte';
 	import { activeModelQuery } from '$lib/chat/application/queries/active-model.query.svelte';
 	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
+	import { askingChildrenQuery } from '$lib/chat/application/queries/asking-children.query.svelte';
 	import { backgroundWorkQuery } from '$lib/chat/application/queries/background-work.query.svelte';
 	import { chatPreparingQuery } from '$lib/chat/application/queries/chat-preparing.query.svelte';
 	import { chatRunningQuery } from '$lib/chat/application/queries/chat-running.query.svelte';
@@ -67,6 +68,7 @@
 	import ChatMessageList from './ChatMessageList.svelte';
 	import ChatSessionError from './ChatSessionError.svelte';
 	import ChatTabs from './ChatTabs.svelte';
+	import ChildRequest from './ChildRequest.svelte';
 	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
 	import QueuedPromptList from './QueuedPromptList.svelte';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
@@ -139,6 +141,7 @@
 	const sessionChangesTargetId = $derived(sessionChangesTargetQuery.data);
 	const openingChangedFilePath = $derived(openingChangedFileQuery.data);
 	const pendingQuestions = $derived(pendingQuestionsQuery.data(presentedSessionId));
+	const askingChildren = $derived(askingChildrenQuery.data(workstreamId, sessionId, jobRuns));
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
 
@@ -448,6 +451,11 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
+									{#each askingChildren as child (child.sessionId)}
+										<div transition:slide={foldMotion()}>
+											<ChildRequest {child} />
+										</div>
+									{/each}
 									{#if (showsSessionChanges && sessionChanges) || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div

@@ -81,7 +81,7 @@
 		interactionState.status === 'resolved' || interactionState.status === 'stale',
 	);
 	const submitting = $derived(interactionState.status === 'submitting');
-	const headingId = $derived(`agent-interaction-${item.kind}-${item.seq}`);
+	const headingId = $derived(`agent-interaction-${item.kind}-${item.sessionId}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
 	const maliniTool = $derived(
 		maliniToolApproval(

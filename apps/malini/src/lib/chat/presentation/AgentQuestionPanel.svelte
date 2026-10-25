@@ -18,11 +18,12 @@
 
 	interface Props {
 		requests: readonly AgentQuestionRequest[];
+		ondismiss?: () => void;
 	}
 
 	type QuestionStep = Readonly<{ key: string; question: AgentQuestion }>;
 
-	let { requests }: Props = $props();
+	let { requests, ondismiss = cancelRunCommand }: Props = $props();
 
 	const RECOMMENDED = /\s*\(recommended\)\s*$/iu;
 	const ADVANCE_MS = 160;
@@ -387,13 +388,7 @@
 
 		{#snippet footer()}
 			<Tooltip content="Stop the run without answering" placement="top">
-				<Button
-					variant="ghost"
-					size="md"
-					class="text-xs"
-					disabled={submitting}
-					onclick={cancelRunCommand}
-				>
+				<Button variant="ghost" size="md" class="text-xs" disabled={submitting} onclick={ondismiss}>
 					Dismiss
 				</Button>
 			</Tooltip>

@@ -18,9 +18,10 @@
 
 	interface Props {
 		workstreamIds: readonly string[];
+		framed?: boolean;
 	}
 
-	let { workstreamIds }: Props = $props();
+	let { workstreamIds, framed = true }: Props = $props();
 
 	type Line = Readonly<{
 		id: string;
@@ -48,6 +49,9 @@
 		idle: 'bg-surface-100 text-fg-secondary',
 	};
 
+	const rowClass = $derived(
+		framed ? 'h-10 gap-2.5 pr-2.5 pl-3.5 text-sm' : 'h-8 gap-2 rounded-xl pr-1 pl-2 text-xs',
+	);
 	const lines = $derived(workstreamIds.flatMap(lineOf));
 	const merged = $derived(lines.filter((line) => line.dot === 'merged').length);
 
@@ -89,11 +93,8 @@
 		return line.pullRequest === 'draft' ? 'pr-draft' : 'branch';
 	}
 
-	function split(fullName: string): Readonly<{ owner: string | null; repository: string }> {
-		const slash = fullName.lastIndexOf('/');
-		return slash === -1
-			? { owner: null, repository: fullName }
-			: { owner: fullName.slice(0, slash + 1), repository: fullName.slice(slash + 1) };
+	function repositoryName(fullName: string): string {
+		return fullName.slice(fullName.lastIndexOf('/') + 1);
 	}
 </script>
 
@@ -106,13 +107,11 @@
 		{/if}
 	</span>
 	{#if line.fullName}
-		{@const { owner, repository } = split(line.fullName)}
 		<RepositoryAvatar fullName={line.fullName} size={16} />
-		<span class="text-fg-default shrink-0 font-medium">
-			{#if owner}<span class="text-fg-tertiary font-normal">{owner}</span>{/if}{repository}
-		</span>
 	{/if}
-	<span class="text-fg-tertiary min-w-0 flex-1 truncate">{line.name}</span>
+	<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
+		{line.fullName ? repositoryName(line.fullName) : line.name}
+	</span>
 	<span
 		class={[
 			'text-2xs inline-flex h-[22px] shrink-0 items-center rounded-full px-2 font-medium',
@@ -123,7 +122,37 @@
 	</span>
 {/snippet}
 
-{#if lines.length > 0}
+{#snippet list()}
+	<ul aria-label={framed ? undefined : 'Workstreams'}>
+		{#each lines as line (line.id)}
+			{@const accessibleName = `${line.fullName ?? line.name}, ${line.name}, ${line.label}`}
+			<li class={framed ? 'border-surface-50-border border-t-[0.5px]' : undefined}>
+				{#if line.open}
+					<Button
+						bare
+						href={workstreamHref(line.id)}
+						ariaLabel={accessibleName}
+						class={['hover:bg-surface-50-hover flex w-full items-center', rowClass]}
+						data-testid="started-workstream"
+					>
+						{@render content(line)}
+					</Button>
+				{:else}
+					<div
+						class={['flex items-center', rowClass]}
+						role="group"
+						aria-label={accessibleName}
+						data-testid="started-workstream"
+					>
+						{@render content(line)}
+					</div>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
+
+{#if lines.length > 0 && framed}
 	<section
 		class="bg-surface-50 border-surface-50-border overflow-hidden rounded-xl border-[0.5px]"
 		aria-label="Workstreams"
@@ -135,32 +164,8 @@
 				{merged} of {lines.length} merged
 			</span>
 		</h3>
-		<ul>
-			{#each lines as line (line.id)}
-				{@const accessibleName = `${line.fullName ?? line.name}, ${line.name}, ${line.label}`}
-				<li class="border-surface-50-border border-t-[0.5px]">
-					{#if line.open}
-						<Button
-							bare
-							href={workstreamHref(line.id)}
-							ariaLabel={accessibleName}
-							class="hover:bg-surface-50-hover flex h-10 w-full items-center gap-2.5 pr-2.5 pl-3.5 text-sm"
-							data-testid="started-workstream"
-						>
-							{@render content(line)}
-						</Button>
-					{:else}
-						<div
-							class="flex h-10 items-center gap-2.5 pr-2.5 pl-3.5 text-sm"
-							role="group"
-							aria-label={accessibleName}
-							data-testid="started-workstream"
-						>
-							{@render content(line)}
-						</div>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+		{@render list()}
 	</section>
+{:else if lines.length > 0}
+	{@render list()}
 {/if}

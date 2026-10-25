@@ -22,7 +22,7 @@
 		WORKSTREAM_BROWSER_RATIO_KEY,
 		WORKSTREAM_TRANSCRIPT_RATIO_KEY,
 	} from '$shared/storage/panel-storage-keys';
-	import StartedWorkstreamsCard from '../StartedWorkstreamsCard.svelte';
+	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 	import WorkstreamLineage from '../WorkstreamLineage.svelte';
 
 	interface Props {
@@ -81,7 +81,7 @@
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
 			{/snippet}
 			{#snippet workstreamsCard(workstreamIds: readonly string[])}
-				<StartedWorkstreamsCard {workstreamIds} />
+				<StartedWorkstreams {workstreamIds} />
 			{/snippet}
 		</ChatSurface>
 	{/snippet}

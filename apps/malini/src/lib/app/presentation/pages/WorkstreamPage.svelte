@@ -20,6 +20,7 @@
 	import { extensionWorkstreamQuery } from '$lib/extensions/application/queries/extension-workstream.query.svelte';
 	import { inspectorPanelsQuery } from '$lib/extensions/application/queries/inspector-panels.query.svelte';
 	import { WorkstreamInspector } from '$lib/extensions/extensions.api';
+	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
 	import { WorkstreamTopBarStatus } from '$lib/pull-requests/pull-requests.api';
 	import {
 		archiveWorkstreamCommand,
@@ -44,6 +45,7 @@
 	} from '$shared/repositories/repositories.api';
 	import { page } from '$shared/router/state';
 	import LeadTopBarStatus from '../LeadTopBarStatus.svelte';
+	import StartedWorkstreams from '../StartedWorkstreams.svelte';
 
 	const workstreamId = $derived(page.params.workstreamId ?? '');
 	const browserTabs = $derived(browserTabsQuery.data(workstreamId));
@@ -61,6 +63,9 @@
 	const agentSessionId = $derived(page.url.searchParams.get('agent'));
 	const repositoryScopeReady = $derived(workstreamsLoadedQuery.data);
 	const workstream = $derived(workstreamByIdQuery.data(workstreamId));
+	const startedWorkstreamIds = $derived(
+		workstream?.scope ? leadProgressQuery.startedIds(workstreamId) : [],
+	);
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
@@ -143,8 +148,13 @@
 	oncreationannounced={consumeWorkstreamCreationCommand}
 	onruntimeretry={retryRepositoryScope}
 	browserOnly={Boolean(workstream?.scope)}
+	dock={startedWorkstreamIds.length > 0 ? startedWorkstreamsDock : undefined}
 	{builtInPanels}
 	{panelActions}
 />
+
+{#snippet startedWorkstreamsDock()}
+	<StartedWorkstreams workstreamIds={startedWorkstreamIds} framed={false} />
+{/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />

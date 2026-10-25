@@ -12,8 +12,10 @@
 	import { needsYouJobCountQuery } from '$lib/jobs/application/queries/needs-you-job-count.query.svelte';
 	import { recentFinishedJobRunsQuery } from '$lib/jobs/application/queries/recent-finished-job-runs.query.svelte';
 	import { runningJobCountQuery } from '$lib/jobs/application/queries/running-job-count.query.svelte';
+	import { upcomingScheduledJobsQuery } from '$lib/jobs/application/queries/upcoming-scheduled-jobs.query.svelte';
 	import { jobCenterSummary } from './job-center-summary';
 	import JobRunList from './JobRunList.svelte';
+	import UpcomingJobs from './UpcomingJobs.svelte';
 
 	interface Props {
 		docked?: boolean;
@@ -24,6 +26,8 @@
 	const EDGE_PX = 12;
 	const HEADROOM_PX = 96;
 	const CLEARANCE_POLL_MS = 250;
+	const RUNS_TICK_MS = 1_000;
+	const UPCOMING_TICK_MS = 60_000;
 
 	let nowMs = $state(Date.now());
 	let bottom = $state(EDGE_PX);
@@ -32,14 +36,21 @@
 	const finished = $derived(recentFinishedJobRunsQuery.data(nowMs));
 	const running = $derived(runningJobCountQuery.data);
 	const needsYou = $derived(needsYouJobCountQuery.data);
+	const upcoming = $derived(upcomingScheduledJobsQuery.data(nowMs));
 	const hasRuns = $derived(active.length + finished.length > 0);
+	const hasUpcoming = $derived(upcoming.length > 0);
+	const tickMs = $derived(hasRuns ? RUNS_TICK_MS : hasUpcoming ? UPCOMING_TICK_MS : null);
 	const summary = $derived(
-		jobCenterSummary({
-			running,
-			needsYou,
-			queued: active.length - running - needsYou,
-			finished: finished.length,
-		}),
+		jobCenterSummary(
+			{
+				running,
+				needsYou,
+				queued: active.length - running - needsYou,
+				finished: finished.length,
+				nextAt: upcoming[0]?.nextAt ?? null,
+			},
+			nowMs,
+		),
 	);
 
 	onMount(() => {
@@ -48,8 +59,9 @@
 	});
 
 	$effect(() => {
-		if (!hasRuns) return;
-		const clock = setInterval(() => (nowMs = Date.now()), 1_000);
+		if (tickMs === null) return;
+		nowMs = Date.now();
+		const clock = setInterval(() => (nowMs = Date.now()), tickMs);
 		return () => clearInterval(clock);
 	});
 
@@ -69,7 +81,7 @@
 	};
 </script>
 
-{#if docked || hasRuns}
+{#if docked || hasRuns || hasUpcoming}
 	<section
 		class={[
 			'border-surface-50-border bg-surface-50 flex flex-col overflow-hidden rounded-3xl border-[0.5px] p-2',
@@ -110,6 +122,7 @@
 		</div>
 		<div class="min-h-0 overflow-y-auto">
 			<JobRunList {active} {finished} {nowMs} />
+			<UpcomingJobs jobs={upcoming} {nowMs} />
 		</div>
 	</section>
 {/if}

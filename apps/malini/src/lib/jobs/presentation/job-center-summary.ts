@@ -1,11 +1,14 @@
+import { upcomingTime } from './job-run-time';
+
 type JobCenterCounts = Readonly<{
 	running: number;
 	queued: number;
 	needsYou: number;
 	finished: number;
+	nextAt: number | null;
 }>;
 
-export function jobCenterSummary(counts: JobCenterCounts): string {
+export function jobCenterSummary(counts: JobCenterCounts, nowMs: number): string {
 	const parts = [
 		counts.running > 0 ? `${counts.running} running` : null,
 		counts.queued > 0 ? `${counts.queued} queued` : null,
@@ -14,6 +17,13 @@ export function jobCenterSummary(counts: JobCenterCounts): string {
 			: null,
 	].filter((part) => part !== null);
 	if (parts.length > 0) return parts.join(', ');
+	if (counts.nextAt !== null) return nextRun(counts.nextAt, nowMs);
 	if (counts.finished > 0) return `${counts.finished} finished recently`;
 	return 'ready when you are';
+}
+
+function nextRun(nextAt: number, nowMs: number): string {
+	const { day, time } = upcomingTime(nextAt, nowMs);
+	if (day === 'Today' || day === 'Tomorrow') return `next at ${time} ${day.toLowerCase()}`;
+	return `next ${day} at ${time}`;
 }

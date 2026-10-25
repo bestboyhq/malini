@@ -33,9 +33,7 @@
 		sidebarRepositoryIds,
 		sidebarTree,
 		sidebarWorkstreamIds,
-		type SidebarChild,
 		type SidebarOwner,
-		type SidebarRepository,
 	} from '$lib/app/domain/sidebar-tree';
 	import { WorkstreamRunningLine } from '$lib/stats/stats.api';
 	import { watchWorkstreamRunningHook } from '$lib/stats/application/hooks/watch-workstream-running.hook';
@@ -204,21 +202,18 @@
 			contexts,
 			leads,
 			hiddenRepositoryIds,
-			savedRepositoryIds,
 			focus,
-			openRepositoryId,
-			workstreamOrder: sidebarOrder.workstreamIds,
 		}),
 	);
 	const blockIds = $derived(tree.blocks.map((block) => block.id));
-	const homeLeadIds = $derived(tree.homeLeads.map((lead) => lead.workstream.id));
+	const homeLeadIds = $derived(tree.homeLeads.map((lead) => lead.id));
 	const repositoryIdsByEntry = $derived(
 		new Map(
 			tree.blocks.map((block) => [
 				block.id,
 				block.kind === 'owner'
-					? block.repositories.map(({ row }) => row.repo.id)
-					: [block.repository.row.repo.id],
+					? block.repositories.map(({ repo }) => repo.id)
+					: [block.repository.repo.id],
 			]),
 		),
 	);
@@ -473,12 +468,7 @@
 		onSaveWorkstreamForLater?.(workstream);
 	}
 
-	function rowEndPadding(hasChildren: boolean, saveable: boolean): string {
-		if (hasChildren) {
-			return saveable
-				? 'pr-8 group-hover/row:pr-20 group-has-focus-visible/row:pr-20'
-				: 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14';
-		}
+	function rowEndPadding(saveable: boolean): string {
 		return saveable
 			? 'pr-3 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
 			: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8';
@@ -898,64 +888,29 @@
 		};
 	}
 
-	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9', 'pl-12'] as const;
+	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9'] as const;
 	const MAX_PROGRESS_DOTS = 8;
 
 	function levelPadding(level: number): string {
-		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-12';
+		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-9';
 	}
 
 	type SidebarRow = Readonly<{
 		workstream: Workstream;
 		repositoryFullName: string | null;
-		children: readonly SidebarChild[];
 		label: string;
-		detail: string | null;
-		trail: 'changes' | 'owner';
-		owner: string | null;
 	}>;
 
-	function leadRow(workstream: Workstream, children: readonly SidebarChild[]): SidebarRow {
+	function leadRow(workstream: Workstream): SidebarRow {
+		return { workstream, repositoryFullName: null, label: displayWorkstreamName(workstream) };
+	}
+
+	function repositoryRow(workstream: Workstream, repositoryFullName: string): SidebarRow {
 		return {
 			workstream,
-			repositoryFullName: null,
-			children,
-			label: displayWorkstreamName(workstream),
-			detail: null,
-			trail: 'changes',
-			owner: null,
+			repositoryFullName,
+			label: workstreamLabel(workstream, repositoryFullName),
 		};
-	}
-
-	function childRow(
-		child: SidebarChild,
-		parent: Workstream | null,
-		siblings: readonly SidebarChild[],
-	): SidebarRow {
-		const fullName = child.repository.repo.fullName;
-		const name = workstreamLabel(child.workstream, fullName);
-		const byRepository =
-			parent?.scope !== null &&
-			parent?.scope !== undefined &&
-			siblings.filter((sibling) => sibling.repository.repo.id === child.repository.repo.id)
-				.length === 1;
-		return {
-			workstream: child.workstream,
-			repositoryFullName: fullName,
-			children: child.children,
-			label: byRepository ? child.repository.name : name,
-			detail: byRepository ? name : null,
-			trail: parent?.scope?.kind === 'home' ? 'owner' : 'changes',
-			owner: child.repository.owner,
-		};
-	}
-
-	function progressDots(row: SidebarRow): ProgressDot[] {
-		const merged = Array.from(
-			{ length: leadProgressQuery.merged.get(row.workstream.id) ?? 0 },
-			(): ProgressDot => 'merged',
-		);
-		return [...merged, ...row.children.map((child) => leadProgressQuery.dot(child.workstream))];
 	}
 
 	function focusOwners(
@@ -989,10 +944,7 @@
 			contexts,
 			leads,
 			hiddenRepositoryIds,
-			savedRepositoryIds,
 			focus: target,
-			openRepositoryId: null,
-			workstreamOrder: sidebarOrder.workstreamIds,
 		});
 		return sidebarWorkstreamIds(focused).some(
 			(workstreamId) => workstreamChatSummaryQuery.data(workstreamId).needsYou,
@@ -1022,8 +974,8 @@
 
 {#snippet ownerBlock(block: SidebarOwner, focused: boolean)}
 	{@const collapsed = !focused && collapsedGroupIds.has(block.id)}
-	{@const leadIds = block.leads.map((lead) => lead.workstream.id)}
-	{@const repositoryIds = block.repositories.map(({ row }) => row.repo.id)}
+	{@const leadIds = block.leads.map((lead) => lead.id)}
+	{@const repositoryIds = block.repositories.map(({ repo }) => repo.id)}
 	<li
 		class={['relative w-full min-w-0', reorderClass(block.id)]}
 		style:transform={reorderTransform(block.id)}
@@ -1099,14 +1051,14 @@
 		>
 			{#if block.leads.length > 0}
 				<ul class="flex w-full flex-col" aria-label={`Chats in ${block.owner}`}>
-					{#each block.leads as lead (lead.workstream.id)}
-						{@render workstreamItem(leadRow(lead.workstream, lead.children), 1, leadIds)}
+					{#each block.leads as lead (lead.id)}
+						{@render workstreamItem(leadRow(lead), 1, leadIds)}
 					{/each}
 				</ul>
 			{/if}
 			{#if block.repositories.length > 0}
 				<ul class="flex w-full flex-col gap-0.5">
-					{#each block.repositories as repository (repository.row.repo.id)}
+					{#each block.repositories as repository (repository.repo.id)}
 						{@render repositoryGroup(repository, 1, repositoryIds)}
 					{/each}
 				</ul>
@@ -1116,14 +1068,13 @@
 {/snippet}
 
 {#snippet repositoryGroup(
-	repository: SidebarRepository,
+	row: ConnectedRepositoryContext,
 	level: number,
 	siblingIds: readonly string[],
 )}
-	{@const row = repository.row}
 	{@const nested = level > 0}
 	{@const collapsed = collapsedGroupIds.has(row.repo.id)}
-	{@const workstreamIds = repository.workstreams.map((child) => child.workstream.id)}
+	{@const workstreamIds = row.workstreams.map((workstream) => workstream.id)}
 	{@const savedForLater = savedForLaterCounts.get(row.repo.id) ?? 0}
 	<li
 		class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
@@ -1251,9 +1202,9 @@
 			id={`repository-workstreams-${row.repo.id}`}
 			class={['flex w-full flex-col', collapsed && 'hidden']}
 		>
-			{#each repository.workstreams as child (child.workstream.id)}
+			{#each row.workstreams as workstream (workstream.id)}
 				{@render workstreamItem(
-					childRow(child, null, repository.workstreams),
+					repositoryRow(workstream, row.repo.fullName),
 					level + 1,
 					workstreamIds,
 				)}
@@ -1265,11 +1216,7 @@
 {#snippet workstreamItem(row: SidebarRow, level: number, siblingIds: readonly string[])}
 	{@const workstream = row.workstream}
 	{@const isLead = workstream.scope !== null}
-	{@const hasChildren = row.children.length > 0}
-	{@const dots =
-		hasChildren || leadProgressQuery.merged.has(workstream.id) ? progressDots(row) : []}
-	{@const folded = collapsedGroupIds.has(workstream.id)}
-	{@const childIds = row.children.map((child) => child.workstream.id)}
+	{@const dots = leadProgressQuery.dots(workstream.id)}
 	<li
 		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
@@ -1301,7 +1248,7 @@
 							aria-busy={workstream.id === pendingWorkstreamId || undefined}
 							class={[
 								'sidebar-row relative w-full flex-col items-stretch outline-none',
-								rowEndPadding(hasChildren, saveable),
+								rowEndPadding(saveable),
 								levelPadding(level),
 								compact && 'py-1 text-xs',
 								view.chat.attention !== null
@@ -1355,16 +1302,9 @@
 									{@render attentionDot(view.chat.attention, level === 0 ? '-left-2' : '-left-3.5')}
 								{/if}
 								<span class="sidebar-row-text gap-1.5">
-									{@render workstreamName(workstream, view, row.detail, 40)}
+									{@render workstreamName(workstream, view)}
 									{#if dots.length > 0}
 										{@render progress(dots)}
-									{:else if row.trail === 'owner' && row.owner !== null}
-										<span
-											class="text-2xs text-fg-tertiary shrink-0 group-hover/row:hidden group-has-focus-visible/row:hidden"
-											data-testid="sidebar-workstream-owner"
-										>
-											{row.owner}
-										</span>
 									{:else}
 										{@render workstreamTrail(view)}
 									{/if}
@@ -1376,16 +1316,13 @@
 								</span>
 							{/if}
 						</a>
-						{#if hasChildren}
-							{@render foldButton(row, folded)}
-						{/if}
 						{#if saveable}
 							{@render saveForLaterButton(
 								workstream,
 								view,
 								[
 									'absolute h-lh items-center leading-relaxed',
-									hasChildren ? 'right-13' : 'right-7',
+									'right-7',
 									compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 								].join(' '),
 							)}
@@ -1395,7 +1332,7 @@
 							view,
 							[
 								'absolute h-lh items-center leading-relaxed',
-								hasChildren ? 'right-7' : 'right-1',
+								'right-1',
 								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 							].join(' '),
 						)}
@@ -1403,17 +1340,6 @@
 				{/snippet}
 			</WorkstreamChatSummary>
 		</div>
-		{#if hasChildren}
-			<ul
-				id={`workstream-children-${workstream.id}`}
-				class={['flex w-full flex-col', folded && 'hidden']}
-				aria-label={`Started by ${row.label}`}
-			>
-				{#each row.children as child (child.workstream.id)}
-					{@render workstreamItem(childRow(child, workstream, row.children), level + 1, childIds)}
-				{/each}
-			</ul>
-		{/if}
 	</li>
 {/snippet}
 
@@ -1460,37 +1386,6 @@
 			</span>
 		{/if}
 	</span>
-{/snippet}
-
-{#snippet foldButton(row: SidebarRow, folded: boolean)}
-	<Tooltip
-		content={folded ? 'Show its workstreams' : 'Fold its workstreams'}
-		placement="right"
-		class={[
-			'absolute right-1 h-lh items-center leading-relaxed',
-			compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-		]}
-	>
-		<IconButton
-			variant="ghost"
-			size="sm"
-			ariaLabel={`${folded ? 'Show' : 'Fold'} the workstreams of ${row.label}`}
-			ariaExpanded={!folded}
-			ariaControls={`workstream-children-${row.workstream.id}`}
-			data-testid="sidebar-fold"
-			onclick={(event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				toggleGroupCollapsedCommand(row.workstream.id);
-			}}
-		>
-			<Icon
-				name="chevron-down"
-				class={`text-fg-tertiary transition-transform duration-100 ${folded ? '-rotate-90' : ''}`}
-				size={12}
-			/>
-		</IconButton>
-	</Tooltip>
 {/snippet}
 
 {#snippet newChatRow()}
@@ -1566,17 +1461,12 @@
 	></span>
 {/snippet}
 
-{#snippet workstreamName(
-	workstream: Workstream,
-	view: WorkstreamView,
-	detail: string | null,
-	offset: number,
-)}
+{#snippet workstreamName(workstream: Workstream, view: WorkstreamView)}
 	<Tooltip
-		content={detail === null ? view.label : `${view.label} · ${detail}`}
+		content={view.label}
 		placement="right"
-		{offset}
-		onlyWhenTruncated={detail === null}
+		offset={40}
+		onlyWhenTruncated
 		suppressed={view.running !== null}
 		class="min-w-0 flex-1 truncate"
 	>
@@ -1586,9 +1476,6 @@
 			class="block"
 			textClass="block truncate"
 		/>
-		{#if detail !== null}
-			<span class="sr-only">, {detail}</span>
-		{/if}
 	</Tooltip>
 {/snippet}
 
@@ -1825,12 +1712,8 @@
 						<li class="relative w-full min-w-0">
 							<ul class="flex w-full flex-col" aria-label="Home">
 								<li class="w-full min-w-0">{@render newChatRow()}</li>
-								{#each tree.homeLeads as homeLead (homeLead.workstream.id)}
-									{@render workstreamItem(
-										leadRow(homeLead.workstream, homeLead.children),
-										0,
-										homeLeadIds,
-									)}
+								{#each tree.homeLeads as homeLead (homeLead.id)}
+									{@render workstreamItem(leadRow(homeLead), 0, homeLeadIds)}
 								{/each}
 							</ul>
 						</li>
