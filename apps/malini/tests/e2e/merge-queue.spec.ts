@@ -127,9 +127,12 @@ test('a merged workstream a chat started opens its pull request from the number 
 			.filter({ has: page.getByRole('group', { name: /^e2e\/hutch, .*, Merged #7, / }) });
 		const openPullRequest = row.getByRole('button', { name: 'Open pull request #7 on GitHub' });
 		await expect(row).toBeVisible({ timeout: 20_000 });
+		const mergedAgo = row.getByText(/^(?:just now|\d+[mhd] ago)$/u);
 		await page.mouse.move(0, 0);
 		await expect(openPullRequest).toBeHidden();
+		await expect(mergedAgo).toBeVisible();
 		await clickRevealedOnHover(row, openPullRequest);
+		await expect(mergedAgo).toBeHidden();
 		await captureFlow(app, 'lead-workstream-pull-request-on-hover');
 		await expect.poll(() => openedUrls(app)).toEqual(['https://github.com/e2e/hutch/pull/7']);
 		expectCleanConsole(app);

@@ -134,6 +134,10 @@
 		return formatTimeAgo(Math.max(0, nowMs - archivedAt));
 	}
 
+	function swapsOnHover(line: Line): string | false {
+		return line.pullRequest !== null && 'group-focus-within/row:hidden group-hover/row:hidden';
+	}
+
 	function accessibleNameOf(line: Line): string {
 		const trail = line.trail;
 		const detail =
@@ -165,7 +169,10 @@
 {#snippet trail(line: Line)}
 	{#if line.trail?.kind === 'changes'}
 		<span
-			class="text-2xs flex shrink-0 gap-1 font-mono font-medium tabular-nums"
+			class={[
+				'text-2xs flex shrink-0 gap-1 font-mono font-medium tabular-nums',
+				swapsOnHover(line),
+			]}
 			aria-hidden="true"
 		>
 			{#if line.trail.additions > 0}<span class="text-success-content">
@@ -176,7 +183,10 @@
 				</span>{/if}
 		</span>
 	{:else if line.trail?.kind === 'archived'}
-		<span class="text-fg-tertiary text-2xs shrink-0 tabular-nums" aria-hidden="true">
+		<span
+			class={['text-fg-tertiary text-2xs shrink-0 tabular-nums', swapsOnHover(line)]}
+			aria-hidden="true"
+		>
 			{ageOf(line.trail.archivedAt)}
 		</span>
 	{/if}
