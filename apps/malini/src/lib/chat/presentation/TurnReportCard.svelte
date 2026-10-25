@@ -3,6 +3,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import {
 		isVideoPath,
+		mediaKind,
 		turnStatus,
 		type TurnNoteKind,
 		type TurnReport,
@@ -16,12 +17,12 @@
 	import MarkdownText from './MarkdownText.svelte';
 	import NextSteps from './NextSteps.svelte';
 	import PickStep from './PickStep.svelte';
+	import ReportMedia from './ReportMedia.svelte';
 	import ReportNotes from './ReportNotes.svelte';
 	import type { EarlierTurn } from './turn-result';
 	import VariantPicker from './VariantPicker.svelte';
 	import VariantPickForm from './VariantPickForm.svelte';
 	import VideoCompare from './VideoCompare.svelte';
-	import { reportMediaSource } from './workstream-images';
 
 	interface Props {
 		report: TurnReport;
@@ -209,12 +210,27 @@
 			<div class="grid">
 				{#each heroChoices as image (image.src)}
 					<div class={['turn-report-image col-start-1 row-start-1', { invisible: image !== hero }]}>
-						<MarkdownText
-							text={`![${image.alt}](${image.src})`}
-							mode="prose"
-							{imagesrc}
-							{onopenimage}
-						/>
+						{#if mediaKind(image.src) === 'image'}
+							<MarkdownText
+								text={`![${image.alt}](${image.src})`}
+								mode="prose"
+								{imagesrc}
+								{onopenimage}
+							/>
+						{:else}
+							<span
+								class="bg-surface-root outline-border-subtle block overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
+							>
+								<ReportMedia
+									src={image.src}
+									label={imageName(image)}
+									{workstreamId}
+									size="hero"
+									playing={image === hero}
+									{imagesrc}
+								/>
+							</span>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -231,11 +247,18 @@
 							{...more > 0 ? {} : { ariaPressed: image === hero }}
 							onclick={() => pickThumbnail(image, more)}
 						>
-							<img
-								src={reportMediaSource(image.src, imagesrc) ?? undefined}
-								alt=""
-								class="outline-border-subtle size-full rounded-[5px] object-cover object-top-left outline-[0.5px] -outline-offset-[0.5px]"
-							/>
+							<span
+								class="outline-border-subtle block size-full overflow-hidden rounded-[5px] outline-[0.5px] -outline-offset-[0.5px]"
+							>
+								<ReportMedia
+									src={image.src}
+									label={imageName(image)}
+									{workstreamId}
+									size="tile"
+									playing={false}
+									{imagesrc}
+								/>
+							</span>
 							{#if more > 0}
 								<span
 									class="bg-surface-50/70 text-fg-agent-message-strong absolute inset-0 grid place-items-center text-base font-medium"

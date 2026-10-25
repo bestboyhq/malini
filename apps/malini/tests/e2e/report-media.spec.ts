@@ -269,6 +269,45 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 	}
 });
 
+test('a lone prototype beside a before and after shows as its live page, not a broken picture', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-lone-page',
+			[
+				'![Before: pricing page](.context/before.png)',
+				'![After: pricing page](.context/after.png)',
+				'![Variant A: Live - the page itself](.context/variant-live.html)',
+				'',
+				'- Changed: the Pro button is solid.',
+				'',
+				'Outcome: The pricing hero has a live prototype.',
+				'Needs: your go-ahead to build the hero from this prototype',
+			].join('\n'),
+			['before.png', 'after.png', 'variant-live.html', 'variant-live.css'],
+		);
+		const card = page.getByRole('article', { name: 'Turn result' });
+		await expect(card.getByRole('group', { name: 'Before and after' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await untilStill(page);
+		await captureFlow(app, 'report-lone-page');
+		const live = card.locator('iframe[title="Variant A: Live - the page itself"]').contentFrame();
+		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect(card.getByRole('img', { name: /Variant A/u })).toHaveCount(0);
+		await expect(card.getByRole('radiogroup', { name: 'Variants' })).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a next step sends itself as the next prompt, or lands in the scratchpad', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

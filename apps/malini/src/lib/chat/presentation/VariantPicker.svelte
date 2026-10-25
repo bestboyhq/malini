@@ -3,7 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { mediaKind, type TurnVariant } from '$lib/chat/domain/turn-report';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
-	import VariantMedia from './VariantMedia.svelte';
+	import ReportMedia from './ReportMedia.svelte';
 	import { galleryImageId, galleryImageLabel } from './workstream-images';
 
 	interface Props {
@@ -37,8 +37,9 @@
 		>
 			{#each variants as variant (variant.id)}
 				<span class={['col-start-1 row-start-1 block', variant !== chosen && 'invisible']}>
-					<VariantMedia
-						{variant}
+					<ReportMedia
+						src={variant.src}
+						label={`Variant ${variantLabel(variant)}`}
 						{workstreamId}
 						size="hero"
 						playing={variant === chosen}
@@ -87,7 +88,13 @@
 							variant === chosen && 'ring-button-primary/60 ring-[1.5px]',
 						]}
 					>
-						<VariantMedia {variant} {workstreamId} size="tile" {imagesrc} />
+						<ReportMedia
+							src={variant.src}
+							label={`Variant ${variantLabel(variant)}`}
+							{workstreamId}
+							size="tile"
+							{imagesrc}
+						/>
 						{#if isPicked}
 							<span
 								class="bg-brand text-brand-content absolute top-1 right-1 grid size-4 place-items-center rounded-full shadow-sm"

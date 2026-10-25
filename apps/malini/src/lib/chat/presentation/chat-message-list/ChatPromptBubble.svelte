@@ -21,7 +21,7 @@
 	import { checkpointRestoreWarning } from './checkpoint-edit.svelte';
 	import { OPEN_RUN_BLOCKS_RESTORE } from './destructive-confirm.svelte';
 	import { clampPrompt } from './clamp-prompt';
-	import VariantMedia from '../VariantMedia.svelte';
+	import ReportMedia from '../ReportMedia.svelte';
 	import ChatPromptChips from './ChatPromptChips.svelte';
 	import { transcriptContext } from './transcript-context';
 
@@ -104,8 +104,9 @@
 				class="outline-border-subtle bg-surface-root block h-9 w-16 shrink-0 overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]"
 				aria-hidden="true"
 			>
-				<VariantMedia
-					variant={pick.picked}
+				<ReportMedia
+					src={pick.picked.src}
+					label={`Variant ${variantLabel(pick.picked)}`}
 					workstreamId={transcript.workstreamId}
 					size="mini"
 					imagesrc={transcript.markdownImageSource}

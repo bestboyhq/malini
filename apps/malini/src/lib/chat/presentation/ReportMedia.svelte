@@ -1,25 +1,24 @@
 <script lang="ts">
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { worktreePageUrl } from '$contract/browser';
-	import { mediaKind, mediaPath, type TurnVariant } from '$lib/chat/domain/turn-report';
-	import { variantLabel } from '$lib/chat/domain/variant-pick';
+	import { mediaKind, mediaPath } from '$lib/chat/domain/turn-report';
 	import { reportMediaSource } from './workstream-images';
 
 	interface Props {
-		variant: TurnVariant;
+		src: string;
+		label: string;
 		workstreamId: string;
 		size: 'hero' | 'tile' | 'mini';
 		playing?: boolean;
 		imagesrc?: ((path: string) => string | null) | undefined;
 	}
 
-	let { variant, workstreamId, size, playing = true, imagesrc }: Props = $props();
+	let { src, label, workstreamId, size, playing = true, imagesrc }: Props = $props();
 
 	const PAGE_WIDTH = 1280;
 	const PAGE_HEIGHT = 800;
 
-	const kind = $derived(mediaKind(variant.src));
-	const label = $derived(`Variant ${variantLabel(variant)}`);
+	const kind = $derived(mediaKind(src));
 	const hero = $derived(size === 'hero');
 	const fit = $derived(
 		hero ? 'mx-auto block max-h-[28rem] max-w-full' : 'size-full object-cover object-top-left',
@@ -41,7 +40,7 @@
 		bind:clientWidth={pageWidth}
 	>
 		<iframe
-			src={worktreePageUrl(workstreamId, variant.src)}
+			src={worktreePageUrl(workstreamId, src)}
 			title={label}
 			sandbox="allow-scripts allow-same-origin"
 			loading="lazy"
@@ -53,13 +52,13 @@
 		></iframe>
 	</span>
 {:else}
-	{@const src = reportMediaSource(mediaPath(variant.src), imagesrc)}
-	{#if !src}
+	{@const source = reportMediaSource(mediaPath(src), imagesrc)}
+	{#if !source}
 		<span class={['block', hero ? 'aspect-[16/10] w-full' : 'size-full']}></span>
 	{:else if kind === 'video'}
 		<video
 			bind:this={video}
-			{src}
+			src={source}
 			aria-label={hero ? label : undefined}
 			muted
 			loop
@@ -68,6 +67,6 @@
 			class={fit}
 		></video>
 	{:else}
-		<img {src} alt={hero ? label : ''} class={fit} />
+		<img src={source} alt={hero ? label : ''} class={fit} />
 	{/if}
 {/if}
