@@ -156,10 +156,17 @@ function reportMedia(
 	return {
 		comparison,
 		variants: picked ? variants : [],
-		images: images.filter(
-			(image) => !(comparison && (image === before || image === after)) && !picked?.has(image),
-		),
+		images: images
+			.filter(
+				(image) => !(comparison && (image === before || image === after)) && !picked?.has(image),
+			)
+			.map(withoutVariantLabel),
 	};
+}
+
+function withoutVariantLabel(image: TurnReportImage): TurnReportImage {
+	const match = VARIANT_LABEL.exec(image.alt);
+	return match ? { src: image.src, alt: (match[2] ?? '').trim() } : image;
 }
 
 function stateOf(image: TurnReportImage): 'before' | 'after' | null {

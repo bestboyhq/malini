@@ -352,11 +352,9 @@ test('a report puts every picture in one frame, and a lone prototype there shows
 			'true',
 		);
 		await expect(card.getByRole('group', { name: 'Before and after' })).toBeVisible();
-		await media.getByRole('tab', { name: 'Variant A: Live - the page itself' }).click();
+		await media.getByRole('tab', { name: 'Live - the page itself' }).click();
 		await expect(card.getByRole('group', { name: 'Before and after' })).toBeHidden();
-		const live = card
-			.locator('iframe[title="Variant A: Live - the page itself"]:not([inert])')
-			.contentFrame();
+		const live = card.locator('iframe[title="Live - the page itself"]:not([inert])').contentFrame();
 		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
 			timeout: 20_000,
 		});
