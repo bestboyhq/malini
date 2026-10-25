@@ -2,6 +2,10 @@ import type { AgentElementReference } from './agent';
 
 export const BROWSER_WORKTREE_SCHEME = 'malini-worktree';
 
+export function worktreePageUrl(workstreamId: string, path: string): string {
+	return new URL(path, `${BROWSER_WORKTREE_SCHEME}://${workstreamId.toLowerCase()}/`).href;
+}
+
 export type BrowserBounds = Readonly<{ x: number; y: number; width: number; height: number }>;
 
 export type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;

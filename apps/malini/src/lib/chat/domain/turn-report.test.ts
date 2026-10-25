@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	hasTurnReport,
 	isVideoPath,
+	mediaKind,
 	mediaMarker,
 	mediaPath,
 	parseTurnReport,
@@ -179,6 +180,11 @@ describe('turn report', () => {
 		expect(mediaPath('.context/after.mp4#t=0.45')).toBe('.context/after.mp4');
 		expect(mediaMarker('.context/after.mp4#t=0.45')).toBe(0.45);
 		expect(mediaMarker('.context/after.mp4')).toBeNull();
+		expect(mediaKind('.context/after.mp4#t=0.45')).toBe('video');
+		expect(mediaKind('.context/variant-a.PNG')).toBe('image');
+		expect(mediaKind('https://example.com/shot')).toBe('image');
+		expect(mediaKind('.context/variant-c.html')).toBe('page');
+		expect(mediaKind('.context/logo.svg')).toBe('page');
 	});
 
 	it('lifts the diagram that opens the body out of the notes', () => {

@@ -207,6 +207,68 @@ test('the user picks a variant with a reason, sees the pick in the chat, and the
 	}
 });
 
+test('variants preview as pictures, looping recordings and live HTML pages', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-live-variants',
+			[
+				'![Variant A: Still - one screenshot](.context/variant-a.png)',
+				'![Variant B: Motion - the toast entrance](.context/after.mp4)',
+				'![Variant C: Live - the page itself](.context/variant-live.html)',
+				'',
+				'Outcome: Three ways to show the pricing hero.',
+				'Needs: Pick a direction',
+			].join('\n'),
+			['variant-a.png', 'after.mp4', 'variant-live.html', 'variant-live.css'],
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' }).first();
+		const variants = offer.getByRole('radiogroup', { name: 'Variants' });
+		await expect(variants.getByRole('radio')).toHaveCount(3, { timeout: 30_000 });
+
+		await variants.getByRole('radio', { name: /^Variant B · Motion/u }).click();
+		const recording = offer.getByLabel('Variant B · Motion', { exact: true });
+		await expect
+			.poll(() => recording.evaluate((video) => Number(Reflect.get(video, 'currentTime'))), {
+				timeout: 20_000,
+			})
+			.toBeGreaterThan(0);
+		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).click();
+		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
+		await expect(
+			gallery.getByLabel('Variant B: Motion - the toast entrance', { exact: true }),
+		).toBeVisible();
+		await page.keyboard.press('Escape');
+		await expect(gallery).toBeHidden();
+
+		await variants.getByRole('radio', { name: /^Variant C · Live/u }).click();
+		const live = offer.locator('iframe[title="Variant C · Live"]:not([inert])').contentFrame();
+		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
+			timeout: 20_000,
+		});
+		await expect
+			.poll(() =>
+				live
+					.locator('.pulse')
+					.evaluate(
+						(pulse) => pulse.ownerDocument.defaultView?.getComputedStyle(pulse).animationName,
+					),
+			)
+			.toBe('pulse');
+		await expect(offer.getByRole('button', { name: /Variant C · Live in gallery/u })).toHaveCount(
+			0,
+		);
+		await captureFlow(app, 'report-live-variants');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a next step sends itself as the next prompt, or lands in the scratchpad', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

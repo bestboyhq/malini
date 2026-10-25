@@ -1,0 +1,24 @@
+body {
+	margin: 0;
+	display: grid;
+	place-items: center;
+	height: 100vh;
+	background: #1b1530;
+	color: #f4ecff;
+	font: 600 64px system-ui;
+}
+
+.pulse {
+	width: 160px;
+	height: 160px;
+	border-radius: 50%;
+	background: #b18cff;
+	animation: pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+	to {
+		transform: scale(1.4);
+		opacity: 0.4;
+	}
+}

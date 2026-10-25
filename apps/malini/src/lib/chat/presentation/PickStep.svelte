@@ -1,16 +1,19 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
+	import { mediaKind } from '$lib/chat/domain/turn-report';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
-	import { galleryImageId, galleryImageLabel, reportMediaSource } from './workstream-images';
+	import VariantMedia from './VariantMedia.svelte';
+	import { galleryImageId, galleryImageLabel } from './workstream-images';
 
 	interface Props {
 		pick: VariantPick;
+		workstreamId: string;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
 	}
 
-	let { pick, imagesrc, onopenimage }: Props = $props();
+	let { pick, workstreamId, imagesrc, onopenimage }: Props = $props();
 
 	const others = $derived(pick.options.filter((option) => option.id !== pick.picked.id));
 </script>
@@ -34,7 +37,6 @@
 			</span>
 			<span class="flex shrink-0 gap-1 pt-[3px] group-open/pick:invisible" aria-hidden="true">
 				{#each pick.options as option (option.id)}
-					{@const src = reportMediaSource(option.src, imagesrc)}
 					<span
 						class={[
 							'mini bg-surface-root block h-4 w-7 overflow-hidden rounded-[3px]',
@@ -43,27 +45,34 @@
 								: 'opacity-40',
 						]}
 					>
-						{#if src}<img {src} alt="" class="size-full object-cover object-top-left" />{/if}
+						<VariantMedia variant={option} {workstreamId} size="mini" {imagesrc} />
 					</span>
 				{/each}
 			</span>
 		</summary>
 		<div class="grid grid-cols-3 gap-1.5 pt-1 pb-2 pl-[22px]">
 			{#each pick.options as option (option.id)}
-				{@const src = reportMediaSource(option.src, imagesrc)}
+				{@const tile = [
+					'bg-surface-root outline-border-subtle relative block h-16 overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]',
+					option.id === pick.picked.id &&
+						'ring-brand-foreground/70 ring-offset-surface-50 ring-[1.5px] ring-offset-2',
+				]}
+				{@const kind = mediaKind(option.src)}
 				<figure class={['flex flex-col gap-1', option.id !== pick.picked.id && 'opacity-50']}>
-					<Button
-						bare
-						class={[
-							'bg-surface-root outline-border-subtle relative block h-16 cursor-zoom-in overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]',
-							option.id === pick.picked.id &&
-								'ring-brand-foreground/70 ring-offset-surface-50 ring-[1.5px] ring-offset-2',
-						]}
-						ariaLabel={galleryImageLabel(`Variant ${variantLabel(option)}`)}
-						onclick={() => onopenimage?.(galleryImageId(option.src))}
-					>
-						{#if src}<img {src} alt="" class="size-full object-cover object-top-left" />{/if}
-					</Button>
+					{#if kind === 'page'}
+						<span class={tile}>
+							<VariantMedia variant={option} {workstreamId} size="tile" {imagesrc} />
+						</span>
+					{:else}
+						<Button
+							bare
+							class={[tile, 'cursor-zoom-in']}
+							ariaLabel={galleryImageLabel(`Variant ${variantLabel(option)}`, kind)}
+							onclick={() => onopenimage?.(galleryImageId(option.src))}
+						>
+							<VariantMedia variant={option} {workstreamId} size="tile" {imagesrc} />
+						</Button>
+					{/if}
 					<figcaption class="text-2xs text-fg-tertiary">
 						<span class="text-fg-secondary font-medium">{option.id}</span>
 						{option.name}

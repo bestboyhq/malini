@@ -3,6 +3,7 @@ import {
 	isVideoAttachment,
 	type StagedAgentAttachment,
 } from '$lib/chat/domain/composer-actions';
+import { mediaKind } from '$lib/chat/domain/turn-report';
 import { renderSanitizedHtml } from './MarkdownText.svelte';
 import type { RenderItem, RunGroup } from './render-state';
 import { toolImageRead } from './tool-image-read';
@@ -69,8 +70,9 @@ function markdownImages(text: string): GalleryImage[] {
 	template.innerHTML = holdWorkstreamImages(renderSanitizedHtml(text, 'prose'));
 	return linklessImages(template.content).flatMap((image) => {
 		const id = markdownImageId(image);
-		if (id === null) return [];
+		const media = id === null ? 'page' : mediaKind(id);
+		if (id === null || media === 'page') return [];
 		const kind = image.hasAttribute(WORKSTREAM_IMAGE_ATTRIBUTE) ? 'workstream' : 'url';
-		return [{ id, name: markdownImageName(image, id), kind, media: 'image' }];
+		return [{ id, name: markdownImageName(image, id), kind, media }];
 	});
 }

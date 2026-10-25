@@ -17,16 +17,16 @@ export function declareWorktreeScheme(otherSchemes: readonly CustomScheme[] = []
 }
 
 export function serveWorktreeFiles(worktreeOf: (host: string) => string | null): void {
-	session
-		.fromPartition(BROWSER_PARTITION)
-		.protocol.handle(BROWSER_WORKTREE_SCHEME, async (request) => {
-			const url = new URL(request.url);
-			const worktree = worktreeOf(url.hostname);
-			const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
-			return file
-				? net.fetch(pathToFileURL(file).href)
-				: new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
-		});
+	const serve = async (request: Request): Promise<Response> => {
+		const url = new URL(request.url);
+		const worktree = worktreeOf(url.hostname);
+		const file = worktree ? await worktreeFile(worktree, decodeURIComponent(url.pathname)) : null;
+		return file
+			? net.fetch(pathToFileURL(file).href)
+			: new Response(`${url.pathname} is not a file in this worktree.`, { status: 404 });
+	};
+	session.fromPartition(BROWSER_PARTITION).protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
+	protocol.handle(BROWSER_WORKTREE_SCHEME, serve);
 }
 
 export async function worktreeFile(worktree: string, pathname: string): Promise<string | null> {
