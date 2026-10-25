@@ -21,7 +21,7 @@
 	const kind = $derived(mediaKind(src));
 	const hero = $derived(size === 'hero');
 	const fit = $derived(
-		hero ? 'mx-auto block max-h-[28rem] max-w-full' : 'size-full object-cover object-top-left',
+		hero ? 'block size-full object-contain' : 'size-full object-cover object-top-left',
 	);
 	let video = $state<HTMLVideoElement>();
 	let pageWidth = $state(0);
@@ -36,7 +36,10 @@
 
 {#if kind === 'page'}
 	<span
-		class={['relative block overflow-hidden', hero ? 'aspect-[16/10] w-full' : 'size-full']}
+		class={[
+			'relative block overflow-hidden',
+			hero ? 'mx-auto aspect-[16/10] w-full max-w-[32rem]' : 'size-full',
+		]}
 		bind:clientWidth={pageWidth}
 	>
 		<iframe
@@ -54,7 +57,7 @@
 {:else}
 	{@const source = reportMediaSource(mediaPath(src), imagesrc)}
 	{#if !source}
-		<span class={['block', hero ? 'aspect-[16/10] w-full' : 'size-full']}></span>
+		<span class="block size-full"></span>
 	{:else if kind === 'video'}
 		<video
 			bind:this={video}

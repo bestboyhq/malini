@@ -168,10 +168,10 @@ test('the user picks a variant with a reason, sees the pick in the chat, and the
 		);
 		const cards = page.getByRole('article', { name: 'Turn result' });
 		const offer = cards.first();
-		const variants = offer.getByRole('radiogroup', { name: 'Variants' });
-		await expect(variants.getByRole('radio')).toHaveCount(3, { timeout: 30_000 });
+		const variants = offer.getByRole('tablist', { name: 'Report media' });
+		await expect(variants.getByRole('tab')).toHaveCount(3, { timeout: 30_000 });
 		await expect(offer.getByText('Pick a direction')).toBeVisible();
-		await variants.getByRole('radio', { name: /^Variant B · Bold/u }).click();
+		await variants.getByRole('tab', { name: /^Variant B · Bold/u }).click();
 		await offer.getByRole('textbox', { name: 'Why this variant' }).fill('darker reads better');
 		await captureFlow(app, 'report-variants-offer');
 		await offer.getByRole('button', { name: 'Go with B' }).click();
@@ -207,6 +207,60 @@ test('the user picks a variant with a reason, sees the pick in the chat, and the
 	}
 });
 
+test('variants and the before and after share one frame, and the evidence keeps the chosen variant', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await seedReport(
+			page,
+			app.root,
+			'report-variants-evidence',
+			[
+				'![Variant A: Calm - serif headline, lots of air](.context/variant-a.png)',
+				'![Variant B: Bold - dark, high contrast](.context/variant-b.png)',
+				'![Variant C: Playful - warm and loud](.context/variant-c.png)',
+				'![Before: pricing page](.context/before.png)',
+				'![After: pricing page](.context/after.png)',
+				'',
+				'- Changed: the Pro button is solid and says Start free trial.',
+				'',
+				'Outcome: Three directions for the pricing hero.',
+				'Needs: Pick a direction',
+			].join('\n'),
+			['variant-a.png', 'variant-b.png', 'variant-c.png', 'before.png', 'after.png'],
+		);
+		const card = page.getByRole('article', { name: 'Turn result' });
+		const media = card.getByRole('tablist', { name: 'Report media' });
+		await expect(media.getByRole('tab')).toHaveCount(4, { timeout: 30_000 });
+		await expect(card.getByTestId('report-stage')).toHaveCount(1);
+		const compare = card.getByRole('group', { name: 'Before and after' });
+		await expect(compare).toBeHidden();
+
+		await media.getByRole('tab', { name: /^Variant B · Bold/u }).click();
+		const evidence = media.getByRole('tab', { name: 'Before and after' });
+		await evidence.click();
+		await expect(evidence).toHaveAttribute('aria-selected', 'true');
+		await expect(compare).toBeVisible();
+		await expect(
+			card.getByRole('button', { name: 'Open image Variant B · Bold in gallery' }),
+		).toBeHidden();
+		await expect(card.getByRole('button', { name: 'Go with B' })).toBeVisible();
+		await untilStill(page);
+		await captureFlow(app, 'report-variants-evidence');
+
+		await page.keyboard.press('ArrowLeft');
+		const playful = media.getByRole('tab', { name: /^Variant C · Playful/u });
+		await expect(playful).toBeFocused();
+		await expect(playful).toHaveAttribute('aria-selected', 'true');
+		await expect(compare).toBeHidden();
+		await expect(card.getByRole('button', { name: 'Go with C' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('variants preview as pictures, looping recordings and live HTML pages', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -227,10 +281,10 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 			['variant-a.png', 'after.mp4', 'variant-live.html', 'variant-live.css'],
 		);
 		const offer = page.getByRole('article', { name: 'Turn result' }).first();
-		const variants = offer.getByRole('radiogroup', { name: 'Variants' });
-		await expect(variants.getByRole('radio')).toHaveCount(3, { timeout: 30_000 });
+		const variants = offer.getByRole('tablist', { name: 'Report media' });
+		await expect(variants.getByRole('tab')).toHaveCount(3, { timeout: 30_000 });
 
-		await variants.getByRole('radio', { name: /^Variant B · Motion/u }).click();
+		await variants.getByRole('tab', { name: /^Variant B · Motion/u }).click();
 		const recording = offer.getByLabel('Variant B · Motion', { exact: true });
 		await expect
 			.poll(() => recording.evaluate((video) => Number(Reflect.get(video, 'currentTime'))), {
@@ -245,7 +299,7 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 		await page.keyboard.press('Escape');
 		await expect(gallery).toBeHidden();
 
-		await variants.getByRole('radio', { name: /^Variant C · Live/u }).click();
+		await variants.getByRole('tab', { name: /^Variant C · Live/u }).click();
 		const live = offer.locator('iframe[title="Variant C · Live"]:not([inert])').contentFrame();
 		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
 			timeout: 20_000,
@@ -269,7 +323,7 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 	}
 });
 
-test('a lone prototype beside a before and after shows as its live page, not a broken picture', async () => {
+test('a report puts every picture in one frame, and a lone prototype there shows as its live page', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -291,17 +345,24 @@ test('a lone prototype beside a before and after shows as its live page, not a b
 			['before.png', 'after.png', 'variant-live.html', 'variant-live.css'],
 		);
 		const card = page.getByRole('article', { name: 'Turn result' });
-		await expect(card.getByRole('group', { name: 'Before and after' })).toBeVisible({
-			timeout: 30_000,
-		});
-		await untilStill(page);
-		await captureFlow(app, 'report-lone-page');
-		const live = card.locator('iframe[title="Variant A: Live - the page itself"]').contentFrame();
+		const media = card.getByRole('tablist', { name: 'Report media' });
+		await expect(media.getByRole('tab')).toHaveCount(2, { timeout: 30_000 });
+		await expect(media.getByRole('tab', { name: 'Before and after' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		await expect(card.getByRole('group', { name: 'Before and after' })).toBeVisible();
+		await media.getByRole('tab', { name: 'Variant A: Live - the page itself' }).click();
+		await expect(card.getByRole('group', { name: 'Before and after' })).toBeHidden();
+		const live = card
+			.locator('iframe[title="Variant A: Live - the page itself"]:not([inert])')
+			.contentFrame();
 		await expect(live.getByRole('heading', { name: 'Pricing that moves' })).toBeVisible({
 			timeout: 20_000,
 		});
 		await expect(card.getByRole('img', { name: /Variant A/u })).toHaveCount(0);
-		await expect(card.getByRole('radiogroup', { name: 'Variants' })).toHaveCount(0);
+		await untilStill(page);
+		await captureFlow(app, 'report-lone-page');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
