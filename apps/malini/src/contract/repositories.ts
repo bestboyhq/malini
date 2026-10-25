@@ -43,6 +43,7 @@ export interface ArchivedWorkstreamDto {
 }
 
 export interface WorkstreamDto extends Workstream {
+	activeAt: string;
 	checkoutState: WorkstreamCheckoutState;
 	checkoutIssue: string | null;
 	resolvedPath: string | null;

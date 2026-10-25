@@ -16,6 +16,7 @@
 		align?: MenuAlign;
 		sideOffset?: number;
 		alignOffset?: number;
+		positionAnchor?: HTMLElement | null;
 		fullWidth?: boolean;
 		preventFlip?: boolean;
 		interactiveTrigger?: boolean;
@@ -37,6 +38,7 @@
 		align = 'start',
 		sideOffset = 8,
 		alignOffset = 0,
+		positionAnchor = null,
 		fullWidth = false,
 		preventFlip = false,
 		interactiveTrigger = true,
@@ -110,6 +112,7 @@
 <DropdownLayer
 	{open}
 	anchor={triggerWrapper}
+	{positionAnchor}
 	onclose={close}
 	{side}
 	{align}

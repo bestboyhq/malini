@@ -69,7 +69,7 @@ async function choose(page: Page, setting: string, choice: string): Promise<void
 		.getByRole('button', { name: new RegExp(`^${setting}: `, 'u') })
 		.click();
 	await page
-		.getByRole('menu', { name: setting })
+		.getByRole('menu', { name: setting, exact: true })
 		.getByRole('menuitemradio', { name: choice })
 		.click();
 	await expect(
@@ -283,7 +283,7 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 				.getByTestId('sidebar-connected-repository')
 				.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-full-name')));
 		await focus.getByRole('button', { name: 'Group and sort' }).click();
-		await choose(page, 'Group by', 'Repository');
+		await choose(page, 'Grouping', 'Repository');
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await expect(
 			sidebar(page)
@@ -291,9 +291,9 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 				.getByTestId('sidebar-chat')
 				.filter({ hasText: 'Unify footers' }),
 		).toBeVisible();
-		await choose(page, 'Sort by', 'Name');
+		await choose(page, 'Ordering', 'Name');
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
-		await expect(arrange).toContainText('Sort by Manual to drag rows into place.');
+		await expect(arrange).toContainText('Order manually to drag rows.');
 		await captureFlow(app, 'sidebar-group-and-sort');
 
 		await page.reload();
@@ -303,8 +303,8 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
 		await focus.getByRole('button', { name: 'Group and sort' }).click();
-		await choose(page, 'Group by', 'Organization');
-		await choose(page, 'Sort by', 'Manual');
+		await choose(page, 'Grouping', 'Organization');
+		await choose(page, 'Ordering', 'Manual');
 		await expect(
 			sidebar(page).getByRole('button', { name: 'acme, 1 chat, 2 repositories' }),
 		).toBeVisible();
