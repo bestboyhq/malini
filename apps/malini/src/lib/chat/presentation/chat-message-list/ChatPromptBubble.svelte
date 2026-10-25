@@ -21,7 +21,7 @@
 	import { checkpointRestoreWarning } from './checkpoint-edit.svelte';
 	import { OPEN_RUN_BLOCKS_RESTORE } from './destructive-confirm.svelte';
 	import { clampPrompt } from './clamp-prompt';
-	import { reportMediaSource } from '../workstream-images';
+	import VariantMedia from '../VariantMedia.svelte';
 	import ChatPromptChips from './ChatPromptChips.svelte';
 	import { transcriptContext } from './transcript-context';
 
@@ -40,9 +40,6 @@
 		item.key === transcript.firstUserKey(run)
 			? (transcript.promptPick(run.runId)?.pick ?? null)
 			: null,
-	);
-	const pickSrc = $derived(
-		pick ? reportMediaSource(pick.picked.src, transcript.markdownImageSource) : null,
 	);
 
 	const senderIsLead = $derived(
@@ -107,9 +104,12 @@
 				class="outline-border-subtle bg-surface-root block h-9 w-16 shrink-0 overflow-hidden rounded-[4px] outline-[0.5px] -outline-offset-[0.5px]"
 				aria-hidden="true"
 			>
-				{#if pickSrc}
-					<img src={pickSrc} alt="" class="size-full object-cover object-top-left" />
-				{/if}
+				<VariantMedia
+					variant={pick.picked}
+					workstreamId={transcript.workstreamId}
+					size="mini"
+					imagesrc={transcript.markdownImageSource}
+				/>
 			</span>
 			<span class="min-w-0">
 				<span class="block">

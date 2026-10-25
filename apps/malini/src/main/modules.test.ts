@@ -7,6 +7,7 @@ vi.mock('electron', () => ({
 	BrowserWindow: { getAllWindows: () => [] },
 	app: { getPath: () => '/tmp', getVersion: () => '0.0.0-test', isPackaged: false },
 	session: { fromPartition: () => ({ protocol: { handle: vi.fn() } }) },
+	protocol: { handle: vi.fn() },
 }));
 
 import { COMMAND_NAMES } from '../contract/commands';
