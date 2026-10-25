@@ -14,6 +14,8 @@ const SETTLED_ROW = '[data-row-settled]';
 
 const COVERED_FADE_PX = 12;
 
+const COVER_FADE = 'data-cover-fade';
+
 export type RowArrivalAction = (node: HTMLElement, key: string) => { destroy: () => void };
 
 export type PromptArrivalAction = (
@@ -141,13 +143,16 @@ export function createRowArrivals(input: {
 	function glideRowLayout(container: HTMLElement): () => void {
 		type Row = {
 			top: number;
+			bottom: number;
+			shown: number;
 			inFlow: boolean;
 			glide: GlideState;
 			translate: string;
 			clip: string;
-			mask: string;
+			fade: string;
 		};
 		const rows = new Map<HTMLElement, Row>();
+		const fades = new Map<HTMLElement, HTMLElement>();
 		let frame: number | null = null;
 		let previousFrameMs: number | null = null;
 		let width = container.clientWidth;
@@ -165,14 +170,32 @@ export function createRowArrivals(input: {
 				if (!element || !row || !(element instanceof HTMLElement)) continue;
 				const offset = row.glide.position;
 				const covered = !row.inFlow || below === null ? 0 : Math.ceil(offset - below);
-				const translate = Math.abs(offset) < 0.5 ? '' : `0 ${snapToDevicePixel(offset)}px`;
+				const shown = Math.abs(offset) < 0.5 ? 0 : snapToDevicePixel(offset);
+				const translate = shown === 0 ? '' : `0 ${shown}px`;
 				const clip = covered < 1 ? '' : `inset(-100vh -100vw ${covered}px -100vw)`;
-				const mask = covered < 1 ? '' : coveredFade(covered);
-				if (translate !== row.translate) element.style.translate = row.translate = translate;
+				const fade = covered < 1 ? '' : fadeTransform(row.bottom + shown - covered, covered);
+				row.shown = shown;
+				if (translate !== row.translate) {
+					element.style.translate = row.translate = translate;
+					element.style.willChange = translate === '' ? '' : 'translate';
+				}
 				if (clip !== row.clip) element.style.clipPath = row.clip = clip;
-				if (mask !== row.mask) element.style.mask = row.mask = mask;
+				if (fade !== row.fade) showFade(element, (row.fade = fade));
 				if (row.inFlow) below = offset;
 			}
+		}
+
+		function showFade(element: HTMLElement, transform: string): void {
+			const fade = fades.get(element) ?? (transform === '' ? null : createFade(container));
+			if (!fade) return;
+			fades.set(element, fade);
+			fade.hidden = transform === '';
+			fade.style.transform = transform;
+		}
+
+		function dropFade(element: HTMLElement): void {
+			fades.get(element)?.remove();
+			fades.delete(element);
 		}
 
 		function step(nowMs: number): void {
@@ -198,21 +221,26 @@ export function createRowArrivals(input: {
 				!rewrapped && !rebaseRequested && !opening() && !prefersReducedMotion() && !disclosing;
 			rebaseRequested = false;
 			const gone = new Set(rows.keys());
+			const origin = container.getBoundingClientRect().top + container.clientTop;
 			let moved = false;
 			for (const element of container.children) {
 				if (!(element instanceof HTMLElement) || element.hasAttribute('data-prompt-row')) continue;
+				if (element.hasAttribute(COVER_FADE)) continue;
 				gone.delete(element);
 				const top = element.offsetTop;
-				const inFlow = isInFlow(element);
 				const row = rows.get(element);
+				const bottom = element.getBoundingClientRect().bottom - origin - (row?.shown ?? 0);
+				const inFlow = isInFlow(element);
 				if (!row) {
 					resizeObserver.observe(element);
 					const glide = { position: 0, velocity: 0 };
-					rows.set(element, { top, inFlow, glide, translate: '', clip: '', mask: '' });
+					const settled = { translate: '', clip: '', fade: '' };
+					rows.set(element, { top, bottom, shown: 0, inFlow, glide, ...settled });
 					continue;
 				}
 				const shift = row.top - top;
 				row.top = top;
+				row.bottom = bottom;
 				row.inFlow = inFlow;
 				if (!inFlow) {
 					moved ||= row.glide.position !== 0;
@@ -225,6 +253,7 @@ export function createRowArrivals(input: {
 			for (const element of gone) {
 				resizeObserver.unobserve(element);
 				rows.delete(element);
+				dropFade(element);
 			}
 			if (!moved) return;
 			paint();
@@ -245,6 +274,7 @@ export function createRowArrivals(input: {
 			if (frame !== null) cancelAnimationFrame(frame);
 			for (const row of rows.values()) row.glide = { position: 0, velocity: 0 };
 			paint();
+			for (const element of fades.keys()) dropFade(element);
 			rows.clear();
 		};
 	}
@@ -264,10 +294,28 @@ export function createRowArrivals(input: {
 	};
 }
 
-function coveredFade(covered: number): string {
-	const opaque = covered + Math.min(COVERED_FADE_PX, covered);
-	const gradient = `linear-gradient(to top, transparent ${covered}px, black ${opaque}px)`;
-	return `${gradient} 0 -100vh / 100% calc(100% + 100vh) repeat-x border-box no-clip`;
+function fadeTransform(edge: number, covered: number): string {
+	const height = Math.min(COVERED_FADE_PX, covered);
+	return `translateY(${snapToDevicePixel(edge - height)}px) scaleY(${height / COVERED_FADE_PX})`;
+}
+
+function createFade(container: HTMLElement): HTMLElement {
+	const fade = document.createElement('div');
+	fade.setAttribute(COVER_FADE, '');
+	fade.setAttribute('aria-hidden', 'true');
+	Object.assign(fade.style, {
+		position: 'absolute',
+		top: '0',
+		left: '0',
+		right: '0',
+		height: `${COVERED_FADE_PX}px`,
+		pointerEvents: 'none',
+		transformOrigin: '0 0',
+		willChange: 'transform',
+		background: 'linear-gradient(to bottom, transparent, var(--color-surface-root))',
+	});
+	container.append(fade);
+	return fade;
 }
 
 function disclosureOf(target: EventTarget | null): HTMLElement | null {
