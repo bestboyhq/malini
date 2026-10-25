@@ -9,9 +9,18 @@ type ChatAttention = AgentAttention & Readonly<{ workstreamId: string }>;
 export class AgentActivity {
 	#attentionByChat: Record<string, ChatAttention> = $state({});
 	#contextByWorkstream: Record<string, AgentWorkstreamContext> = $state({});
+	#activeAtByChat: Record<string, number> = $state({});
 
 	attentionFor(workstreamId: string): AgentAttention | null {
 		return mostPressingAttention(this.#chatsIn(workstreamId));
+	}
+
+	activeAtForChat(sessionId: string): number | null {
+		return this.#activeAtByChat[sessionId] ?? null;
+	}
+
+	touchChat(sessionId: string, at: number): void {
+		this.#activeAtByChat = { ...this.#activeAtByChat, [sessionId]: at };
 	}
 
 	attentionForChat(sessionId: string): AgentAttention | null {
@@ -92,6 +101,7 @@ export class AgentActivity {
 
 	reset(): void {
 		this.#attentionByChat = {};
+		this.#activeAtByChat = {};
 		this.#contextByWorkstream = {};
 	}
 

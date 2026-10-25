@@ -3,8 +3,14 @@ import type { ConnectedRepositoryContext } from '$shared/repositories/domain/rep
 import type { Workstream } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import { ownerGroupId } from './repository-groups';
-import type { SidebarArrangement, SidebarOrdering } from './sidebar-arrangement';
+import {
+	sectionedGrouping,
+	type SidebarArrangement,
+	type SidebarOrdering,
+	type SidebarSubgrouping,
+} from './sidebar-arrangement';
 import type { SidebarFocus } from './sidebar-focus';
+import { SIDEBAR_SECTIONS, type SidebarSectionKey } from './sidebar-sections';
 
 export type SidebarOwner = Readonly<{
 	kind: 'owner';
@@ -22,10 +28,14 @@ export type SidebarRepositoryBlock = Readonly<{
 
 export type SidebarBlock = SidebarOwner | SidebarRepositoryBlock;
 
-export type SidebarTree = Readonly<{
+export type SidebarBranch = Readonly<{
 	chats: readonly Workstream[];
 	blocks: readonly SidebarBlock[];
 }>;
+
+export type SidebarSection = SidebarBranch & Readonly<{ key: SidebarSectionKey; label: string }>;
+
+export type SidebarTree = SidebarBranch & Readonly<{ sections: readonly SidebarSection[] }>;
 
 export type SidebarTreeInput = Readonly<{
 	contexts: readonly ConnectedRepositoryContext[];
@@ -33,47 +43,109 @@ export type SidebarTreeInput = Readonly<{
 	hiddenRepositoryIds: ReadonlySet<string>;
 	focus: SidebarFocus;
 	arrangement: SidebarArrangement;
+	activeAt: (workstream: Workstream) => number;
+	sectionOf: (workstream: Workstream) => SidebarSectionKey;
 }>;
 
 type OwnerContents = { leads: Workstream[]; repositories: ConnectedRepositoryContext[] };
 
-type SortKeys<T> = Readonly<{ name: (item: T) => string; newest: (item: T) => string }>;
+type SortKeys<T> = Readonly<{
+	name: (item: T) => string;
+	newest: (item: T) => string;
+	active: (item: T) => number;
+}>;
+
+type TreeKeys = Readonly<{
+	workstream: SortKeys<Workstream>;
+	repository: SortKeys<ConnectedRepositoryContext>;
+	block: SortKeys<SidebarBlock>;
+}>;
 
 const NAMES = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-export function sidebarTree({
-	contexts,
-	leads,
-	hiddenRepositoryIds,
-	focus,
-	arrangement,
-}: SidebarTreeInput): SidebarTree {
-	const { ordering } = arrangement;
-	const folders =
-		focus.kind === 'owner' || (focus.kind === 'all' && arrangement.grouping === 'owner');
-	const listedLeads = sorted(
-		leads.filter((lead) => leadIsListed(lead, focus)),
-		ordering,
-		WORKSTREAM_KEYS,
+export function sidebarTree(input: SidebarTreeInput): SidebarTree {
+	const { arrangement, focus } = input;
+	const { grouping, ordering } = arrangement;
+	const keys = treeKeys(input.activeAt);
+	const leads = input.leads.filter((lead) => leadIsListed(lead, focus));
+	const repositories = input.contexts.filter(
+		(repository) =>
+			!input.hiddenRepositoryIds.has(repository.repo.id) && repositoryInFocus(repository, focus),
 	);
-	const repositories = sorted(
-		contexts
-			.filter(
-				(repository) =>
-					!hiddenRepositoryIds.has(repository.repo.id) && repositoryInFocus(repository, focus),
-			)
+	if (!sectionedGrouping(grouping)) {
+		const folders = focus.kind === 'owner' || (focus.kind === 'all' && grouping === 'owner');
+		return { ...branch(repositories, leads, focus, ordering, folders, keys), sections: [] };
+	}
+	const subgrouping = sectionSubgrouping(arrangement.subgrouping, focus);
+	const sections = SIDEBAR_SECTIONS[grouping].flatMap(({ key, label }): SidebarSection[] => {
+		const inSection = (workstream: Workstream): boolean => input.sectionOf(workstream) === key;
+		const sectionRepositories = repositories
 			.map((repository) => ({
 				...repository,
-				workstreams: sorted(repository.workstreams, ordering, workstreamKeys(repository)),
-			})),
+				workstreams: repository.workstreams.filter(inSection),
+			}))
+			.filter((repository) => repository.workstreams.length > 0);
+		const sectionLeads = leads.filter(inSection);
+		const section =
+			subgrouping === 'none'
+				? flatBranch(sectionRepositories, sectionLeads, ordering, keys)
+				: branch(sectionRepositories, sectionLeads, focus, ordering, subgrouping === 'owner', keys);
+		return section.chats.length + section.blocks.length > 0 ? [{ key, label, ...section }] : [];
+	});
+	return { chats: [], blocks: [], sections };
+}
+
+export function sectionSubgrouping(
+	subgrouping: SidebarSubgrouping,
+	focus: SidebarFocus,
+): SidebarSubgrouping {
+	if (focus.kind === 'repository') return 'none';
+	if (focus.kind === 'owner' && subgrouping === 'owner') return 'repository';
+	return subgrouping;
+}
+
+function branch(
+	contexts: readonly ConnectedRepositoryContext[],
+	leads: readonly Workstream[],
+	focus: SidebarFocus,
+	ordering: SidebarOrdering,
+	folders: boolean,
+	keys: TreeKeys,
+): SidebarBranch {
+	const listedLeads = sorted(leads, ordering, keys.workstream);
+	const repositories = sorted(
+		contexts.map((repository) => ({
+			...repository,
+			workstreams: sorted(repository.workstreams, ordering, {
+				...keys.workstream,
+				name: (workstream) => displayWorkstreamName(workstream, repository.repo.fullName),
+			}),
+		})),
 		ordering,
-		REPOSITORY_KEYS,
+		keys.repository,
 	);
 	return {
-		chats: listedLeads.filter(
-			(workstream) => workstream.scope?.kind === 'home' || (!folders && focus.kind === 'all'),
-		),
-		blocks: sorted(sidebarBlocks(repositories, listedLeads, focus, folders), ordering, BLOCK_KEYS),
+		chats: listedLeads.filter((workstream) => workstream.scope?.kind === 'home' || !folders),
+		blocks: sorted(sidebarBlocks(repositories, listedLeads, focus, folders), ordering, keys.block),
+	};
+}
+
+function flatBranch(
+	contexts: readonly ConnectedRepositoryContext[],
+	leads: readonly Workstream[],
+	ordering: SidebarOrdering,
+	keys: TreeKeys,
+): SidebarBranch {
+	const fullNames = new Map(
+		contexts.flatMap(({ repo, workstreams }) => workstreams.map(({ id }) => [id, repo.fullName])),
+	);
+	const workstreams = [...leads, ...contexts.flatMap((repository) => repository.workstreams)];
+	return {
+		chats: sorted(workstreams, ordering, {
+			...keys.workstream,
+			name: (workstream) => displayWorkstreamName(workstream, fullNames.get(workstream.id)),
+		}),
+		blocks: [],
 	};
 }
 
@@ -94,7 +166,7 @@ function sidebarBlocks(
 		blocks.push({ kind: 'owner', id, owner, ...contents });
 		return contents;
 	};
-	if (focus.kind === 'owner') ownerBlock(focus.owner);
+	if (folders && focus.kind === 'owner') ownerBlock(focus.owner);
 	for (const repository of repositories) {
 		const { owner } = repository;
 		if (owner === null || !folders) {
@@ -118,6 +190,9 @@ function sorted<T>(items: readonly T[], ordering: SidebarOrdering, keys: SortKey
 	if (ordering === 'newest') {
 		return [...items].sort((left, right) => keys.newest(right).localeCompare(keys.newest(left)));
 	}
+	if (ordering === 'active') {
+		return [...items].sort((left, right) => keys.active(right) - keys.active(left));
+	}
 	return [...items];
 }
 
@@ -125,37 +200,33 @@ function newestOf(dates: readonly string[]): string {
 	return dates.reduce((newest, date) => (date > newest ? date : newest), '');
 }
 
-const WORKSTREAM_KEYS: SortKeys<Workstream> = {
-	name: (workstream) => displayWorkstreamName(workstream),
-	newest: (workstream) => workstream.createdAt,
-};
-
-function workstreamKeys(repository: ConnectedRepositoryContext): SortKeys<Workstream> {
-	return {
-		name: (workstream) => displayWorkstreamName(workstream, repository.repo.fullName),
-		newest: (workstream) => workstream.createdAt,
+function treeKeys(activeAt: (workstream: Workstream) => number): TreeKeys {
+	const workstream: SortKeys<Workstream> = {
+		name: (item) => displayWorkstreamName(item),
+		newest: (item) => item.createdAt,
+		active: activeAt,
 	};
+	const repository: SortKeys<ConnectedRepositoryContext> = {
+		name: (item) => item.name,
+		newest: (item) => newestOf([item.repo.createdAt, ...item.workstreams.map(workstream.newest)]),
+		active: (item) => Math.max(0, ...item.workstreams.map(activeAt)),
+	};
+	const block: SortKeys<SidebarBlock> = {
+		name: (item) => (item.kind === 'owner' ? item.owner : item.repository.name),
+		newest: (item) =>
+			item.kind === 'owner'
+				? newestOf([
+						...item.leads.map(workstream.newest),
+						...item.repositories.map(repository.newest),
+					])
+				: repository.newest(item.repository),
+		active: (item) =>
+			item.kind === 'owner'
+				? Math.max(0, ...item.leads.map(activeAt), ...item.repositories.map(repository.active))
+				: repository.active(item.repository),
+	};
+	return { workstream, repository, block };
 }
-
-const REPOSITORY_KEYS: SortKeys<ConnectedRepositoryContext> = {
-	name: (repository) => repository.name,
-	newest: (repository) =>
-		newestOf([
-			repository.repo.createdAt,
-			...repository.workstreams.map((workstream) => workstream.createdAt),
-		]),
-};
-
-const BLOCK_KEYS: SortKeys<SidebarBlock> = {
-	name: (block) => (block.kind === 'owner' ? block.owner : block.repository.name),
-	newest: (block) =>
-		block.kind === 'owner'
-			? newestOf([
-					...block.leads.map((lead) => lead.createdAt),
-					...block.repositories.map(REPOSITORY_KEYS.newest),
-				])
-			: REPOSITORY_KEYS.newest(block.repository),
-};
 
 function leadIsListed(lead: Workstream, focus: SidebarFocus): boolean {
 	if (lead.scope === null) return false;
@@ -172,11 +243,29 @@ function repositoryInFocus(repository: ConnectedRepositoryContext, focus: Sideba
 }
 
 export function sidebarWorkstreamIds(tree: SidebarTree): string[] {
+	return [tree, ...tree.sections].flatMap(branchWorkstreamIds);
+}
+
+export function sidebarRepositoryIds(tree: SidebarTree): string[] {
+	return [
+		...new Set(
+			[tree, ...tree.sections].flatMap(({ blocks }) =>
+				blocks.flatMap((block) =>
+					block.kind === 'owner'
+						? block.repositories.map(({ repo }) => repo.id)
+						: [block.repository.repo.id],
+				),
+			),
+		),
+	];
+}
+
+export function branchWorkstreamIds({ chats, blocks }: SidebarBranch): string[] {
 	const ids = (workstreams: readonly Workstream[]): string[] =>
 		workstreams.map((workstream) => workstream.id);
 	return [
-		...ids(tree.chats),
-		...tree.blocks.flatMap((block) =>
+		...ids(chats),
+		...blocks.flatMap((block) =>
 			block.kind === 'owner'
 				? [
 						...ids(block.leads),
@@ -185,12 +274,4 @@ export function sidebarWorkstreamIds(tree: SidebarTree): string[] {
 				: ids(block.repository.workstreams),
 		),
 	];
-}
-
-export function sidebarRepositoryIds(tree: SidebarTree): string[] {
-	return tree.blocks.flatMap((block) =>
-		block.kind === 'owner'
-			? block.repositories.map(({ repo }) => repo.id)
-			: [block.repository.repo.id],
-	);
 }

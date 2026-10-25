@@ -374,6 +374,7 @@ function repositoryWorkstreams(
 ): ConnectedRepositoryContext['workstreams'] {
 	const workstreams = [...listWorkstreams(db), ...listArchivedWorkstreams(db)].map((row) => ({
 		...row,
+		activeAt: row.createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 		scope: parseLeadScope(row.scope),
 	}));

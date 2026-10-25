@@ -134,10 +134,10 @@
 				alt=""
 				aria-hidden="true"
 				draggable="false"
-				class="invisible block max-h-[28rem] max-w-full"
+				class="invisible block max-h-[20rem] max-w-full"
 			/>
 		{:else}
-			<div class="aspect-[16/10] w-[40rem] max-w-full"></div>
+			<div class="aspect-[16/10] w-[32rem] max-w-full"></div>
 		{/if}
 
 		{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}

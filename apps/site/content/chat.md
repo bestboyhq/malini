@@ -93,6 +93,7 @@ A request takes the composer slot right away, even over a draft, which waits und
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
 What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under **Details**.
 Reports run from a screenshot and one line to the full write-up.
+Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
 A **Your turn** list, unread marks, a chime, and a notification tell you which workstream needs you.
 
@@ -112,7 +113,8 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 ### Variants
 
 When you ask for options, or the direction is open, the agent makes two to four variants.
-A large preview shows the one you select, and it stays after you pick; click it to open it in the gallery.
+Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
+Click a picture or recording in the frame to open it in the gallery.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.

@@ -3,7 +3,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import { mediaKind } from '$lib/chat/domain/turn-report';
 	import { variantLabel, type VariantPick } from '$lib/chat/domain/variant-pick';
-	import VariantMedia from './VariantMedia.svelte';
+	import ReportMedia from './ReportMedia.svelte';
 	import { galleryImageId, galleryImageLabel } from './workstream-images';
 
 	interface Props {
@@ -45,7 +45,13 @@
 								: 'opacity-40',
 						]}
 					>
-						<VariantMedia variant={option} {workstreamId} size="mini" {imagesrc} />
+						<ReportMedia
+							src={option.src}
+							label={`Variant ${variantLabel(option)}`}
+							{workstreamId}
+							size="mini"
+							{imagesrc}
+						/>
 					</span>
 				{/each}
 			</span>
@@ -61,7 +67,13 @@
 				<figure class={['flex flex-col gap-1', option.id !== pick.picked.id && 'opacity-50']}>
 					{#if kind === 'page'}
 						<span class={tile}>
-							<VariantMedia variant={option} {workstreamId} size="tile" {imagesrc} />
+							<ReportMedia
+								src={option.src}
+								label={`Variant ${variantLabel(option)}`}
+								{workstreamId}
+								size="tile"
+								{imagesrc}
+							/>
 						</span>
 					{:else}
 						<Button
@@ -70,7 +82,13 @@
 							ariaLabel={galleryImageLabel(`Variant ${variantLabel(option)}`, kind)}
 							onclick={() => onopenimage?.(galleryImageId(option.src))}
 						>
-							<VariantMedia variant={option} {workstreamId} size="tile" {imagesrc} />
+							<ReportMedia
+								src={option.src}
+								label={`Variant ${variantLabel(option)}`}
+								{workstreamId}
+								size="tile"
+								{imagesrc}
+							/>
 						</Button>
 					{/if}
 					<figcaption class="text-2xs text-fg-tertiary">

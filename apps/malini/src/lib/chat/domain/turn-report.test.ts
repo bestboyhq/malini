@@ -163,7 +163,7 @@ describe('turn report', () => {
 				'Needs: Pick a direction',
 			].join('\n'),
 		);
-		const single = parseTurnReport('![Variant A: Calm](a.png)\n\nOutcome: One.');
+		const single = parseTurnReport('![Variant A: Calm - lots of air](a.png)\n\nOutcome: One.');
 
 		expect(report.variants).toEqual([
 			{ id: 'A', name: 'Calm', note: 'serif headline, lots of air', src: '.context/a.png' },
@@ -171,7 +171,7 @@ describe('turn report', () => {
 		]);
 		expect(report.images).toEqual([]);
 		expect(single.variants).toEqual([]);
-		expect(single.images).toHaveLength(1);
+		expect(single.images).toEqual([{ src: 'a.png', alt: 'Calm - lots of air' }]);
 	});
 
 	it('tells a recording from a picture and reads the frame a recording marks', () => {

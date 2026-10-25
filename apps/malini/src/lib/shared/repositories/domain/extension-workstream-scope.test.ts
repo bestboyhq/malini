@@ -17,6 +17,7 @@ function workstream(overrides: Partial<Workstream>): Workstream {
 		baseBranch: 'main',
 		status: 'active',
 		createdAt: '2026-10-24T00:00:00.000Z',
+		activeAt: '2026-10-24T00:00:00.000Z',
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,

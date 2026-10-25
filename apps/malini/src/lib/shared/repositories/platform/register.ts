@@ -77,7 +77,7 @@ import {
 	type TeardownGuard,
 } from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
-import { getWorkstream, listWorkstreams } from './workstreams.repository';
+import { getWorkstream, listWorkstreams, workstreamActiveTimes } from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	archiveWorkstream,
@@ -172,9 +172,12 @@ export function registerRepositories(
 		guardTeardown,
 	};
 
-	commands.define('repositories.list-workstreams', () =>
-		listWorkstreams(db).map((row) => workstreamDto(appDataRoot, row)),
-	);
+	commands.define('repositories.list-workstreams', () => {
+		const activeAt = workstreamActiveTimes(db);
+		return listWorkstreams(db).map((row) =>
+			workstreamDto(appDataRoot, row, activeAt.get(row.id) ?? row.createdAt),
+		);
+	});
 
 	commands.define('repositories.list-archived-workstreams', () => listArchived(workstreams));
 
@@ -223,7 +226,7 @@ export function registerRepositories(
 			workstreamId: checkedWorkstreamId(args),
 			name: requireNonEmptyString(args, 'name'),
 		});
-		return workstreamDto(appDataRoot, lead);
+		return workstreamDto(appDataRoot, lead, lead.createdAt);
 	});
 
 	commands.define('repositories.sync-workstream-base', (args: unknown) =>
