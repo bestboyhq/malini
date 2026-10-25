@@ -804,6 +804,11 @@
 		return busy || state.tone === 'broken' ? state.icon : pullRequest.color;
 	}
 
+	function attentionColor(chat: ChatSummary): string | null {
+		if (!chat.attention || !chat.needsYou) return null;
+		return chat.attention.kind === 'failed' ? 'text-error-content' : 'text-warning-content';
+	}
+
 	function unknownPullRequestBadge(): PullRequestBadge {
 		return { phase: 'unknown', label: null };
 	}
@@ -1298,9 +1303,6 @@
 								{:else}
 									{@render statusIndicator(view)}
 								{/if}
-								{#if view.chat.attention && view.chat.needsYou}
-									{@render attentionDot(view.chat.attention, level === 0 ? '-left-2' : '-left-3.5')}
-								{/if}
 								<span class="sidebar-row-text gap-1.5">
 									{@render workstreamName(workstream, view)}
 									{#if dots.length > 0}
@@ -1351,11 +1353,17 @@
 		class="relative z-10 shrink-0"
 	>
 		<span
-			class={['grid shrink-0 place-items-center', level === 0 ? 'h-5 w-5' : 'h-4 w-4']}
+			class={[
+				'grid shrink-0 place-items-center',
+				level === 0 ? 'h-5 w-5' : 'h-4 w-4',
+				attentionColor(view.chat),
+			]}
 			role="status"
 			aria-label={`Chat status: ${visualStateTooltip(view.state, view.chat, view.pullRequest)}`}
+			style:--chat-tile-color={attentionColor(view.chat) ? 'currentColor' : undefined}
 			data-testid="sidebar-chat-status"
 			data-workstream-icon-state={view.state.tone}
+			data-attention-kind={view.chat.needsYou ? view.chat.attention?.kind : undefined}
 		>
 			{#if view.busy}
 				<BusyIcon size={14} background={view.state.tone === 'background'} />
@@ -1433,7 +1441,7 @@
 		<span
 			class={[
 				'grid h-4 w-4 place-items-center',
-				statusIconColor(view.state, view.busy, view.pullRequest),
+				attentionColor(view.chat) ?? statusIconColor(view.state, view.busy, view.pullRequest),
 			]}
 			role="status"
 			aria-label={`Workstream status: ${visualStateTooltip(view.state, view.chat, view.pullRequest)}`}
@@ -1442,23 +1450,11 @@
 				: 'sidebar-workstream-status'}
 			data-workstream-icon-state={view.state.tone}
 			data-workstream-pull-request-state={view.badge.phase}
+			data-attention-kind={view.chat.needsYou ? view.chat.attention?.kind : undefined}
 		>
 			{@render statusGlyph(view.loading, view.state.tone === 'background', view.pullRequest.glyph)}
 		</span>
 	</Tooltip>
-{/snippet}
-
-{#snippet attentionDot(attention: ChatAttention, offset: string)}
-	<span
-		class={[
-			'absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full',
-			offset,
-			attention.kind === 'failed' ? 'bg-error-content' : 'bg-warning-content',
-		]}
-		aria-hidden="true"
-		data-testid="sidebar-agent-attention"
-		data-attention-kind={attention.kind}
-	></span>
 {/snippet}
 
 {#snippet workstreamName(workstream: Workstream, view: WorkstreamView)}

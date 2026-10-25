@@ -36,6 +36,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 - A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting.
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
+  A row's icon turns amber when its agent waits on an answer or an approval, and red when its run failed.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.
