@@ -23,6 +23,7 @@
 	interface Props {
 		open: boolean;
 		anchor: HTMLElement | null;
+		positionAnchor?: HTMLElement | null;
 		onclose: () => void;
 		children: Snippet;
 		side?: MenuSide;
@@ -46,6 +47,7 @@
 	let {
 		open,
 		anchor,
+		positionAnchor = null,
 		onclose,
 		children,
 		side = 'bottom',
@@ -86,8 +88,12 @@
 		);
 	}
 
+	function placementElement(): HTMLElement | null {
+		return positionAnchor ?? triggerElement();
+	}
+
 	function positionCard(): void {
-		const trigger = triggerElement();
+		const trigger = placementElement();
 		if (!open || !trigger || !panelEl) return;
 		const triggerRect = anchorRect(trigger);
 		if (matchAnchorWidth) {
@@ -165,7 +171,7 @@
 				triggerFollowRaf = null;
 				return;
 			}
-			const trigger = triggerElement();
+			const trigger = placementElement();
 			if (!trigger) {
 				triggerFollowRaf = null;
 				return;

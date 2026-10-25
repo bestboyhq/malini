@@ -88,6 +88,20 @@ export function listWorkstreams(db: MaliniDatabase): Workstream[] {
 	).map(workstreamFromRow);
 }
 
+export function workstreamActiveTimes(db: MaliniDatabase): Map<string, string> {
+	return new Map(
+		all<{ workstream_id: string; active_at: string }>(
+			db,
+			`SELECT s.workstream_id,
+			   MAX(MAX(s.started_at), COALESCE(MAX(r.started_at), ''), COALESCE(MAX(r.completed_at), '')) AS active_at
+			 FROM agent_sessions s
+			 LEFT JOIN agent_runs r ON r.session_id = s.id AND r.automated = 0
+			 WHERE s.origin = 'user'
+			 GROUP BY s.workstream_id`,
+		).map((row) => [row.workstream_id, row.active_at]),
+	);
+}
+
 interface ArchivedWorkstreamRow extends WorkstreamRow {
 	archived_at: string | null;
 	archived_ref: string | null;

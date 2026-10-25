@@ -177,6 +177,7 @@ export function provisioningWorkstreamRow(
 		baseBranch: plan.baseBranch,
 		status: 'active',
 		createdAt,
+		activeAt: createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 		scope: plan.scope,
 		startedBy: null,

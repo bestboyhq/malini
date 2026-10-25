@@ -231,14 +231,18 @@ const THOUGHTS = [
 	],
 	['The hover card opens on any focus. ', 'I will gate it on keyboard focus.\n\n'],
 ];
-const thinkRun = (sessionId, runId) => {
+const THOUGHT_RELEASE = 'release-thought';
+const thinkRun = (sessionId, runId, releasePath) => {
 	pendingRuns.set(runId, sessionId);
 	const steps = [];
 	THOUGHTS.forEach((chunks, index) => {
 		const contentId = 'thought-' + index;
+		const gated = index === 0;
 		steps.push(() => event({ type: 'thinking.delta', runId, contentId, text: '' }));
 		for (const text of chunks) {
-			steps.push(() => event({ type: 'thinking.delta', runId, contentId, text }));
+			steps.push(
+				Object.assign(() => event({ type: 'thinking.delta', runId, contentId, text }), { gated }),
+			);
 		}
 		steps.push(() => event({ type: 'thinking.message', runId, contentId, text: chunks.join('') }));
 		for (const file of ['src/a.ts', 'src/b.ts']) {
@@ -257,6 +261,10 @@ const thinkRun = (sessionId, runId) => {
 	});
 	const timer = setInterval(() => {
 		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (steps[0]?.gated) {
+			if (!fs.existsSync(releasePath)) return;
+			fs.rmSync(releasePath);
+		}
 		const next = steps.shift();
 		if (next) return next();
 		clearInterval(timer);
@@ -871,7 +879,9 @@ const respond = async (sessionId, runId, prompt) => {
 	if (heavy) return heavyRun(sessionId, runId, Number(heavy[1]));
 	const bigBash = /BIG_BASH:(\d+)/.exec(prompt);
 	if (bigBash) return bigBashRun(sessionId, runId, Number(bigBash[1]));
-	if (prompt.includes('THINK')) return thinkRun(sessionId, runId);
+	if (prompt.includes('THINK')) {
+		return thinkRun(sessionId, runId, nodePath.join(env.HOME, THOUGHT_RELEASE));
+	}
 	if (prompt.includes('EDIT_TOOL')) {
 		const input = {
 			file_path: 'notes.md',

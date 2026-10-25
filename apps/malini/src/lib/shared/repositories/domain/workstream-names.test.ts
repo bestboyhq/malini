@@ -22,6 +22,7 @@ function workstreamNamed(name: string, status: Workstream['status']): Workstream
 		baseBranch: 'main',
 		status,
 		createdAt: '2026-10-24T00:00:00.000Z',
+		activeAt: '2026-10-24T00:00:00.000Z',
 		checkoutState: 'healthy',
 		checkoutIssue: null,
 		resolvedPath: null,

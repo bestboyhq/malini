@@ -25,9 +25,17 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Click a pin to see only its chats and workstreams, and right-click it to unpin it.
   A dot on a pin means something in it needs you.
 - The sliders button beside it groups and sorts the sidebar, and Malini remembers.
-  **Group by** picks **Organization**, an owner row above its repositories, or **Repository**, every repository on its own with every chat above them.
-  **Sort by** picks **Manual**, the order you drag, **Newest**, newest first, or **Name**.
+  Its panel opens beside the sidebar, so the rows stay in view while you change them.
+  **Grouping** picks **Organization**, an owner row above its repositories, **Repository**, every repository on its own with every chat above them, **Status** or **Day**.
+  **Status** splits your work into **Needs you**, **In progress**, **In review**, **Idle**, **Stale** and **Merged**.
+  Stale work has had no agent run for a week.
+  **Day** splits it into **Today**, **Yesterday** and **Older**, by when an agent last ran in it or you started a chat there.
+  Under Status or Day, **Sub-grouping** lists each section by **Repository**, by **Organization**, or flat with **No grouping**, where each row names its repository.
+  Click a section to fold it.
+  **Ordering** picks **Manual**, the order you drag, **Last active**, **Created**, newest first, or **Name**.
   A repository or an owner sorts by the newest work in it.
+  Rows drag only in Manual order, grouped by organization or repository.
+  **Reset** goes back to Organization and Manual.
 - **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
   The **+** on an owner's row starts one for that organization.
 - By organization, every repository sits under a row named for its owner, below that owner's chats.
