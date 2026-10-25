@@ -63,6 +63,22 @@ async function startChat(page: Page, scope: 'home' | string, title: string): Pro
 	});
 }
 
+async function choose(page: Page, setting: string, choice: string): Promise<void> {
+	await page
+		.getByRole('group', { name: 'Group and sort' })
+		.getByRole('button', { name: new RegExp(`^${setting}: `, 'u') })
+		.click();
+	await page
+		.getByRole('menu', { name: setting })
+		.getByRole('menuitemradio', { name: choice })
+		.click();
+	await expect(
+		page
+			.getByRole('group', { name: 'Group and sort' })
+			.getByRole('button', { name: `${setting}: ${choice}` }),
+	).toBeVisible();
+}
+
 async function lastReply(page: Page, text: string): Promise<void> {
 	await expect(transcript(page).getByText(text, { exact: true }).last()).toBeVisible({
 		timeout: 30_000,
@@ -185,6 +201,7 @@ test('a Home chat starts workstreams in two organizations, each listed under its
 			)
 			.toMatch(/^(merged|needs|failed|running|idle) archived$/u);
 		await lead.hover();
+		await expect(progress).toBeVisible();
 		const started = page
 			.getByTestId('sidebar-started-card')
 			.getByRole('list', { name: 'Started by Move apps to Logdash' });
@@ -266,7 +283,7 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 				.getByTestId('sidebar-connected-repository')
 				.evaluateAll((rows) => rows.map((row) => row.getAttribute('data-full-name')));
 		await focus.getByRole('button', { name: 'Group and sort' }).click();
-		await arrange.getByRole('combobox', { name: 'Group by' }).selectOption('Repository');
+		await choose(page, 'Group by', 'Repository');
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await expect(
 			sidebar(page)
@@ -274,7 +291,7 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 				.getByTestId('sidebar-chat')
 				.filter({ hasText: 'Unify footers' }),
 		).toBeVisible();
-		await arrange.getByRole('combobox', { name: 'Sort by' }).selectOption('Name');
+		await choose(page, 'Sort by', 'Name');
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
 		await expect(arrange).toContainText('Sort by Manual to drag rows into place.');
 		await captureFlow(app, 'sidebar-group-and-sort');
@@ -286,8 +303,8 @@ test('an organization chat sits in its owner block, and focus narrows the sideba
 		await expect(sidebar(page).getByTestId('sidebar-owner-folder')).toHaveCount(0);
 		await expect.poll(repositoryOrder).toEqual(['acme/api', 'solo/site', 'acme/web']);
 		await focus.getByRole('button', { name: 'Group and sort' }).click();
-		await arrange.getByRole('combobox', { name: 'Group by' }).selectOption('Organization');
-		await arrange.getByRole('combobox', { name: 'Sort by' }).selectOption('Manual');
+		await choose(page, 'Group by', 'Organization');
+		await choose(page, 'Sort by', 'Manual');
 		await expect(
 			sidebar(page).getByRole('button', { name: 'acme, 1 chat, 2 repositories' }),
 		).toBeVisible();

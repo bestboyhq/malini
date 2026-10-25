@@ -1406,7 +1406,7 @@
 {#snippet progress(dots: readonly ProgressDot[])}
 	{@const shown = dots.slice(0, MAX_PROGRESS_DOTS)}
 	<span
-		class="flex shrink-0 items-center gap-[3px] group-hover/row:hidden group-has-focus-visible/row:hidden"
+		class="flex shrink-0 items-center gap-[3px]"
 		role="img"
 		aria-label={progressLabel(dots)}
 		data-testid="sidebar-progress"

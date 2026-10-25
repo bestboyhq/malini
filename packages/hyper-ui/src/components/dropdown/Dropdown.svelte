@@ -28,6 +28,7 @@
 		testId?: string;
 		owner?: string;
 		role?: AriaRole | null;
+		nested?: boolean;
 	}
 
 	let {
@@ -48,6 +49,7 @@
 		testId,
 		owner,
 		role = 'menu',
+		nested = false,
 	}: Props = $props();
 
 	let triggerWrapper: HTMLDivElement | null = $state(null);
@@ -123,6 +125,7 @@
 	{testId}
 	{owner}
 	{role}
+	{nested}
 >
 	<div class={contentClass} data-hyper-dropdown-content>
 		{@render content()}

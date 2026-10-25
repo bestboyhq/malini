@@ -33,14 +33,6 @@ export function readSidebarArrangement(raw: unknown): SidebarArrangement {
 	};
 }
 
-export function groupingOf(raw: string): SidebarGrouping {
-	return choiceOf(SIDEBAR_GROUPINGS, raw, DEFAULT_SIDEBAR_ARRANGEMENT.grouping);
-}
-
-export function orderingOf(raw: string): SidebarOrdering {
-	return choiceOf(SIDEBAR_ORDERINGS, raw, DEFAULT_SIDEBAR_ARRANGEMENT.ordering);
-}
-
 function choiceOf<T extends string>(choices: readonly Choice<T>[], raw: unknown, fallback: T): T {
 	return choices.find((choice) => choice.value === raw)?.value ?? fallback;
 }

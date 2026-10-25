@@ -24,7 +24,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   **All** shows everything, and **+** pins an organization or a repository beside it.
   Click a pin to see only its chats and workstreams, and right-click it to unpin it.
   A dot on a pin means something in it needs you.
-- The sort button beside it groups and sorts the sidebar, and Malini remembers.
+- The sliders button beside it groups and sorts the sidebar, and Malini remembers.
   **Group by** picks **Organization**, an owner row above its repositories, or **Repository**, every repository on its own with every chat above them.
   **Sort by** picks **Manual**, the order you drag, **Newest**, newest first, or **Name**.
   A repository or an owner sorts by the newest work in it.
