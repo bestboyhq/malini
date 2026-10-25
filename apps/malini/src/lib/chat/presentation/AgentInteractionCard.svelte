@@ -26,9 +26,10 @@
 
 	interface Props {
 		item: Extract<RenderItem, { kind: 'approval' }>;
+		bare?: boolean;
 	}
 
-	let { item }: Props = $props();
+	let { item, bare = false }: Props = $props();
 
 	const reducedMotion = (): boolean =>
 		window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -81,7 +82,7 @@
 		interactionState.status === 'resolved' || interactionState.status === 'stale',
 	);
 	const submitting = $derived(interactionState.status === 'submitting');
-	const headingId = $derived(`agent-interaction-${item.kind}-${item.seq}`);
+	const headingId = $derived(`agent-interaction-${item.kind}-${item.sessionId}-${item.seq}`);
 	const canOfferPersistentScope = $derived(canPersistAgentApproval(item.permission));
 	const maliniTool = $derived(
 		maliniToolApproval(
@@ -162,7 +163,10 @@
 {:else}
 	<section
 		out:collapseAway
-		class="bg-surface-50 border-surface-50-border w-full rounded-xl border px-3.5 py-3"
+		class={[
+			'w-full px-3.5 py-3',
+			!bare && 'bg-surface-50 border-surface-50-border rounded-xl border',
+		]}
 		data-message-kind={item.kind}
 		data-testid={`agent-${item.kind}-card`}
 		data-interaction-state={interactionState.status}

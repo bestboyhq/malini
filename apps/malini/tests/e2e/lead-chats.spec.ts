@@ -90,7 +90,7 @@ function gateLeadCheckouts(app: LaunchedApp): Readonly<{ held: string; failing: 
 	return { held, failing };
 }
 
-test('a Home chat starts workstreams in two organizations, and they fold under it', async () => {
+test('a Home chat starts workstreams in two organizations, each listed under its repository and beside the chat', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -121,18 +121,19 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 		});
 		await allowOnce(page, 'Start a workstream in ‘solo/site’');
 
-		const started = sidebar(page).getByRole('list', { name: 'Started by Move apps to Logdash' });
-		const children = started.getByTestId('sidebar-workstream');
-		await expect(children).toHaveCount(2, { timeout: 30_000 });
-		await expect(children.filter({ hasText: 'site' })).toContainText('solo');
+		const startedIn = (repository: string) =>
+			sidebar(page).locator(
+				`[data-testid="sidebar-workstream"][data-repository-full-name="${repository}"]`,
+			);
+		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3, {
+			timeout: 30_000,
+		});
+		await expect(startedIn('solo/site')).toHaveCount(1);
+		await expect(startedIn('acme/api')).toHaveCount(2);
+		await expect(sidebar(page).getByRole('list', { name: /^Started by / })).toHaveCount(0);
+		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
+		await expect(sidebar(page).getByRole('link', { name: 'Open acme/api' })).toBeVisible();
 		await expect(lead.getByTestId('sidebar-progress')).toHaveAccessibleName(/^2 workstreams/u);
-		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toHaveCount(0);
-		await expect(
-			sidebar(page)
-				.locator('[data-testid="sidebar-connected-repository"][data-full-name="acme/api"]')
-				.getByText('api', { exact: true }),
-		).toBeVisible();
-		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3);
 		await expect(transcript(page).getByTestId('started-workstreams')).toHaveCount(2);
 		await expect(transcript(page).getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(transcript(page).getByRole('link', { name: /^solo\/site, / })).toBeVisible();
@@ -140,11 +141,16 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 			/^0 of 2 merged/u,
 			{ timeout: 20_000 },
 		);
+		const workstreams = page.getByRole('list', { name: 'Workstreams' });
+		await expect(workstreams.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
+		await expect(workstreams.getByRole('link', { name: /^solo\/site, / })).toBeVisible();
 		await expect(page).toHaveTitle('Malini · Home');
 		await expect(inspector(page)).toHaveCount(0);
 		await captureFlow(app, 'lead-chat-home-sidebar');
 
-		await children.filter({ hasText: 'site' }).click();
+		await workstreams.getByRole('link', { name: /^solo\/site, / }).click();
+		await expect(workstreams).toHaveCount(0);
+		await expect(startedIn('solo/site')).toHaveAttribute('aria-current', 'page');
 		await lastReply(page, 'Started by: Move apps to Logdash');
 		await lastReply(page, 'Siblings: acme/api');
 		const lineage = page.getByTestId('workstream-lineage');
@@ -159,11 +165,6 @@ test('a Home chat starts workstreams in two organizations, and they fold under i
 		await captureFlow(app, 'lead-chat-started-workstream');
 		await lineage.getByTestId('workstream-lineage-starter').click();
 		await expect(lead).toHaveAttribute('aria-current', 'page');
-
-		await sidebar(page)
-			.getByRole('button', { name: 'Fold the workstreams of Move apps to Logdash' })
-			.click();
-		await expect(children.first()).toBeHidden();
 		await page.mouse.move(0, 0);
 		await expect(lead.getByTestId('sidebar-progress')).toBeVisible();
 		expectCleanConsole(app);

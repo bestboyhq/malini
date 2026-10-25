@@ -1,3 +1,4 @@
+import { scheduleTime } from '$contract/automation-trigger';
 import type { JobRunRecord } from '$contract/jobs';
 import { jobRunLastActivityAt } from '$lib/jobs/domain/job-run';
 
@@ -5,6 +6,8 @@ const SECOND_MS = 1_000;
 const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
+
+const WEEKDAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 
 export function jobRunTime(run: JobRunRecord, nowMs: number): string {
 	if (run.status === 'running') {
@@ -19,6 +22,21 @@ export function activityTime(
 ): string {
 	if (entry.status === 'running') return elapsed(nowMs - Date.parse(entry.startedAt));
 	return ago(nowMs - Date.parse(entry.finishedAt ?? entry.startedAt));
+}
+
+export function upcomingTime(
+	slotMs: number,
+	nowMs: number,
+): Readonly<{ day: string; time: string }> {
+	const slot = new Date(slotMs);
+	const daysAhead = Math.round((startOfDay(slot) - startOfDay(new Date(nowMs))) / DAY_MS);
+	const day =
+		daysAhead === 0 ? 'Today' : daysAhead === 1 ? 'Tomorrow' : WEEKDAY_FORMAT.format(slot);
+	return { day, time: scheduleTime({ hour: slot.getHours(), minute: slot.getMinutes() }) };
+}
+
+function startOfDay(date: Date): number {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 function elapsed(ms: number): string {

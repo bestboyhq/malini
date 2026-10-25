@@ -104,6 +104,7 @@ While the job's last run waits for you, is queued, or still runs, it skips its t
 A scheduled run tells you with a notification when it waits for your yes, when it needs you, when it fails, and when it finishes, with its result.
 A run that needs your approval waits for it, so always allow a command it needs, and later runs go on without asking.
 A scheduled run gets its schedule and the time it was due as context.
+The [Job center](#run-a-job) lists each scheduled job under **Upcoming** with the time it runs next.
 
 A schedule in a repository or an organization Malini does not have is refused when you save the job.
 **Update from main**, **Open draft**, and **Merge** take no schedule, since they work on the changes of a workstream.
@@ -154,6 +155,9 @@ A workstream an agent just started counts as busy until the turn of its first pr
   Its edit to a job that runs without asking waits for your [review](/malini/docs/agent-tools.md#edits-you-review), change by change.
 
 The **Job center** shows what is running and what just finished.
+Under **Upcoming**, it lists every scheduled job that is not off, soonest first, with when it runs next, where it runs, and whether it asks you first (**Asks first**).
+Click one to open its job.
+With nothing running or waiting, the Job center says when the next one runs, such as "next at 09:00 today".
 Settings decides how many jobs run at once.
 It also picks when **Update from main** runs: as main moves, when you open the workstream, or only when you merge.
 With many workstreams open, the last two keep Malini from starting an update in every one of them at once.

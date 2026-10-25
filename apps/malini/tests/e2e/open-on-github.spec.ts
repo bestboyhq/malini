@@ -4,28 +4,12 @@ import {
 	clickRevealedOnHover,
 	expectCleanConsole,
 	launchMalini,
-	type LaunchedApp,
+	openedUrls,
+	recordBrowser,
 } from './harness';
 import { seedWorkstreamOnFakeGithub } from './fake-github';
 
 const HOME_PAGE = 'https://github.com/e2e/hutch';
-
-async function recordBrowser(app: LaunchedApp): Promise<void> {
-	await app.electronApp.evaluate(({ shell }) => {
-		const opened: string[] = [];
-		Reflect.set(globalThis, '__openedUrls', opened);
-		shell.openExternal = async (url) => {
-			opened.push(url);
-		};
-	});
-}
-
-function openedUrls(app: LaunchedApp): Promise<string[]> {
-	return app.electronApp.evaluate(() => {
-		const opened: unknown = Reflect.get(globalThis, '__openedUrls');
-		return Array.isArray(opened) ? opened.map(String) : [];
-	});
-}
 
 test('a GitHub repository opens its home page from its sidebar menu, the list and its page', async () => {
 	test.setTimeout(120_000);

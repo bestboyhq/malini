@@ -4,6 +4,13 @@ import {
 	type ScheduleCadence,
 	type ScheduleTrigger,
 } from '$contract/automation-trigger';
+import type { JobDefinitionRecord, JobRunMode } from '$contract/jobs';
+
+export type ScheduledJob = Readonly<{
+	definition: JobDefinitionRecord;
+	mode: Exclude<JobRunMode, 'off'>;
+	schedule: ScheduleTrigger;
+}>;
 
 const DAYS_OF_THE_WEEK: readonly ScheduleCadence[] = [
 	'sunday',
@@ -26,21 +33,43 @@ export function scheduleOf(when: string | null | undefined): ScheduleTrigger | n
 }
 
 export function latestScheduleSlot(
-	{ cadence, hour, minute }: Pick<Schedule, 'cadence' | 'hour' | 'minute'>,
+	schedule: Pick<Schedule, 'cadence' | 'hour' | 'minute'>,
 	nowMs: number,
 ): number {
+	return firstScheduleSlot(schedule, nowMs, -1);
+}
+
+export function nextScheduleSlot(
+	schedule: Pick<Schedule, 'cadence' | 'hour' | 'minute'>,
+	nowMs: number,
+): number {
+	return firstScheduleSlot(schedule, nowMs, 1);
+}
+
+export function scheduledJobOf(definition: JobDefinitionRecord): ScheduledJob | null {
+	const mode = definition.trigger?.mode ?? 'off';
+	const schedule = scheduleOf(definition.trigger?.when);
+	return mode !== 'off' && schedule ? { definition, mode, schedule } : null;
+}
+
+function firstScheduleSlot(
+	{ cadence, hour, minute }: Pick<Schedule, 'cadence' | 'hour' | 'minute'>,
+	nowMs: number,
+	direction: 1 | -1,
+): number {
 	const now = new Date(nowMs);
-	for (let daysBack = 0; daysBack <= DAYS_OF_THE_WEEK.length; daysBack += 1) {
+	for (let days = 0; days <= DAYS_OF_THE_WEEK.length; days += 1) {
 		const slot = new Date(
 			now.getFullYear(),
 			now.getMonth(),
-			now.getDate() - daysBack,
+			now.getDate() + direction * days,
 			hour,
 			minute,
 		);
-		if (slot.getTime() <= nowMs && runsOn(cadence, slot.getDay())) return slot.getTime();
+		const onTime = direction > 0 ? slot.getTime() > nowMs : slot.getTime() <= nowMs;
+		if (onTime && runsOn(cadence, slot.getDay())) return slot.getTime();
 	}
-	return Number.NEGATIVE_INFINITY;
+	return direction * Number.POSITIVE_INFINITY;
 }
 
 function runsOn(cadence: ScheduleCadence, day: number): boolean {

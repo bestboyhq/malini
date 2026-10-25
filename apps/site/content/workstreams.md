@@ -30,19 +30,17 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.
   A search opens every owner it matches.
-- A repository shows while it has workstreams of its own or saved for later, and while you have it open.
+- Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
-  Open any other from the repository list to start its first workstream.
-- Every workstream has its own row.
-  A workstream a chat started sits under that chat, wherever its repository is, and under its repository while a focus leaves that chat out.
-- A row with workstreams under it shows a dot for each: merged, needs you, failed, working, or waiting.
-  Fold it to keep only the dots.
+- Every workstream has its own row, under its repository, whichever chat started it.
+- A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting.
+  On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.
-- Hide a repository and keep its workstreams.
-  Clone or open it again and it comes back.
+- **Hide** in a repository's right-click menu takes it out of the sidebar and keeps its workstreams.
+  **Unhide** brings it back from **Hidden** in the repository list, and so does cloning or opening it again.
 - **Recently archived**, at the bottom of the sidebar, lists archived workstreams, newest first.
   Drag its top edge to make it taller, or click **Show all**.
   Click one to restore it, or open the pull request it merged.

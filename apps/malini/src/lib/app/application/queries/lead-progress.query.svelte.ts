@@ -43,6 +43,12 @@ class LeadProgressQuery {
 			.filter((workstream) => workstream.startedBy === parentId && workstream.scope === null)
 			.map((workstream) => this.dot(workstream)),
 	]);
+
+	public readonly startedIds: (parentId: string) => string[] = $derived((parentId: string) =>
+		[...activeWorkstreamsQuery.data, ...archivedWorkstreamsQuery.data]
+			.filter((workstream) => workstream.startedBy === parentId && workstream.scope === null)
+			.map((workstream) => workstream.id),
+	);
 }
 
 export const leadProgressQuery = new LeadProgressQuery();

@@ -1,13 +1,6 @@
-import type { SchedulePlace, ScheduleTrigger } from '$contract/automation-trigger';
+import type { SchedulePlace } from '$contract/automation-trigger';
 import { JOBS_DEFINITION_CHANGED_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
-import type {
-	JobDefinitionRecord,
-	JobRunChangedEvent,
-	JobRunMode,
-	JobRunRecord,
-	JobRunStatus,
-	RunJobArgs,
-} from '$contract/jobs';
+import type { JobRunChangedEvent, JobRunRecord, JobRunStatus, RunJobArgs } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
@@ -17,7 +10,7 @@ import {
 	listWorkstreams,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
-import { latestScheduleSlot, scheduleOf } from '../domain/schedule';
+import { latestScheduleSlot, scheduledJobOf, type ScheduledJob } from '../domain/schedule';
 import { listJobDefinitions } from './job-definitions.repository';
 import {
 	countUnfinishedJobRuns,
@@ -42,12 +35,6 @@ const NOTIFIED_STATUSES: ReadonlySet<JobRunStatus> = new Set([
 	'succeeded',
 	'failed',
 ]);
-
-type ScheduledJob = Readonly<{
-	definition: JobDefinitionRecord;
-	mode: Exclude<JobRunMode, 'off'>;
-	schedule: ScheduleTrigger;
-}>;
 
 export function startJobSchedules(
 	context: MainContext,
@@ -116,11 +103,7 @@ export function startJobSchedules(
 	};
 
 	const sync = (): void => {
-		scheduled = listJobDefinitions(db).flatMap((definition) => {
-			const mode = definition.trigger?.mode ?? 'off';
-			const schedule = mode === 'off' ? null : scheduleOf(definition.trigger?.when);
-			return mode !== 'off' && schedule ? [{ definition, mode, schedule }] : [];
-		});
+		scheduled = listJobDefinitions(db).flatMap((definition) => scheduledJobOf(definition) ?? []);
 		check();
 	};
 

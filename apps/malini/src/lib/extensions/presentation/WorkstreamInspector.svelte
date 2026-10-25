@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import type { ExtensionPanelRegistration, ExtensionWorkstream } from '@malini/extension-api';
 	import type { WorkstreamChangeTotals } from '$shared/repositories/repositories.api';
 	import { goto } from '$shared/router/navigation';
@@ -31,6 +31,7 @@
 		oncreationannounced: (workstreamId: string) => void;
 		onruntimeretry: () => void;
 		browserOnly?: boolean;
+		dock?: Snippet | undefined;
 		builtInPanels?: readonly ExtensionPanelRegistration[];
 		panelActions?: readonly InspectorPanelAction[];
 	}
@@ -46,6 +47,7 @@
 		oncreationannounced,
 		onruntimeretry,
 		browserOnly = false,
+		dock,
 		builtInPanels = [],
 		panelActions = [],
 	}: Props = $props();
@@ -159,6 +161,14 @@
 		onpanelselect={closeDirectory}
 		requestedPanelId={routePanelId}
 	/>
+{:else if dock}
+	<div
+		class="bg-surface-50 border-surface-50-border relative z-10 mt-1 mr-3 mb-3 min-h-0 w-72 shrink overflow-y-auto rounded-3xl border-[0.5px] p-2 [-webkit-app-region:no-drag] [html[data-native-shell=true]_&]:z-[51] [html[data-native-shell=true]_&]:mt-7"
+		{@attach dockInspector(true)}
+		data-testid="inspector-dock-content"
+	>
+		{@render dock()}
+	</div>
 {:else}
 	<div class="mr-3 w-72 shrink-0" {@attach dockInspector(true, true)}></div>
 {/if}

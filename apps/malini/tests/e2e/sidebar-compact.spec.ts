@@ -148,7 +148,7 @@ test('every repository sits under its owner, which folds, and every workstream h
 	}
 });
 
-test('a repository without open work leaves the sidebar, and shows while you have it open', async () => {
+test('a repository without open work stays in the sidebar until you hide it', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -180,15 +180,17 @@ test('a repository without open work leaves the sidebar, and shows while you hav
 		await expect(alphaWork).toBeVisible({ timeout: 20_000 });
 		await alphaWork.click();
 		await expect(alphaWork).toHaveAttribute('aria-current', 'page');
-		await expect(hutch).toHaveCount(0);
+		await expect(hutch).toBeVisible();
+		await expect(hutch).not.toHaveAttribute('aria-current', 'page');
 		await captureFlow(app, 'sidebar-repository-without-work');
 
-		await page.getByRole('link', { name: 'Connect repository' }).click({ force: true });
+		await hutch.click({ button: 'right' });
 		await page
-			.getByTestId('repository-list')
-			.getByRole('link', { name: /^Open .*\/hutch$/u })
+			.getByRole('menu', { name: 'Repository actions' })
+			.getByRole('menuitem', { name: /^Hide .*hutch$/u })
 			.click();
-		await expect(hutch).toHaveAttribute('aria-current', 'page');
+		await expect(hutch).toHaveCount(0);
+		await expect(alphaWork).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

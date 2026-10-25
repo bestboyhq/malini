@@ -1,41 +1,27 @@
 import { leadScopeOwns } from '$shared/repositories/domain/lead-scope';
 import type { ConnectedRepositoryContext } from '$shared/repositories/domain/repository-context';
-import { inSidebarOrder } from '$shared/repositories/domain/sidebar-order';
 import type { Workstream } from '$shared/repositories/domain/workstream';
 import { ownerGroupId } from './repository-groups';
 import type { SidebarFocus } from './sidebar-focus';
-
-export type SidebarChild = Readonly<{
-	workstream: Workstream;
-	repository: ConnectedRepositoryContext;
-	children: readonly SidebarChild[];
-}>;
-
-export type SidebarLead = Readonly<{ workstream: Workstream; children: readonly SidebarChild[] }>;
-
-export type SidebarRepository = Readonly<{
-	row: ConnectedRepositoryContext;
-	workstreams: readonly SidebarChild[];
-}>;
 
 export type SidebarOwner = Readonly<{
 	kind: 'owner';
 	id: string;
 	owner: string;
-	leads: readonly SidebarLead[];
-	repositories: readonly SidebarRepository[];
+	leads: readonly Workstream[];
+	repositories: readonly ConnectedRepositoryContext[];
 }>;
 
 export type SidebarRepositoryBlock = Readonly<{
 	kind: 'repository';
 	id: string;
-	repository: SidebarRepository;
+	repository: ConnectedRepositoryContext;
 }>;
 
 export type SidebarBlock = SidebarOwner | SidebarRepositoryBlock;
 
 export type SidebarTree = Readonly<{
-	homeLeads: readonly SidebarLead[];
+	homeLeads: readonly Workstream[];
 	blocks: readonly SidebarBlock[];
 }>;
 
@@ -43,102 +29,32 @@ export type SidebarTreeInput = Readonly<{
 	contexts: readonly ConnectedRepositoryContext[];
 	leads: readonly Workstream[];
 	hiddenRepositoryIds: ReadonlySet<string>;
-	savedRepositoryIds: ReadonlySet<string>;
 	focus: SidebarFocus;
-	openRepositoryId: string | null;
-	workstreamOrder: readonly string[];
 }>;
 
-type Placed = Readonly<{ workstream: Workstream; repository: ConnectedRepositoryContext }>;
+type OwnerContents = { leads: Workstream[]; repositories: ConnectedRepositoryContext[] };
 
-type OwnerContents = { leads: SidebarLead[]; repositories: SidebarRepository[] };
-
-type Anchor = Readonly<{ parentId: string }> | 'repository' | null;
-
-export function sidebarTree(input: SidebarTreeInput): SidebarTree {
-	const { contexts, focus, hiddenRepositoryIds } = input;
-	const listedLeads = input.leads.filter((lead) => leadIsListed(lead, focus));
-	const listedLeadIds = new Set(listedLeads.map((lead) => lead.id));
-	const placed = inSidebarOrder(
-		contexts.flatMap((repository) =>
-			repository.workstreams.map((workstream) => ({ id: workstream.id, workstream, repository })),
-		),
-		input.workstreamOrder,
+export function sidebarTree({
+	contexts,
+	leads,
+	hiddenRepositoryIds,
+	focus,
+}: SidebarTreeInput): SidebarTree {
+	const listedLeads = leads.filter((lead) => leadIsListed(lead, focus));
+	const repositories = contexts.filter(
+		(repository) =>
+			!hiddenRepositoryIds.has(repository.repo.id) && repositoryInFocus(repository, focus),
 	);
-	const byId = new Map(placed.map((entry) => [entry.workstream.id, entry]));
-	const repositoryListed = (repository: ConnectedRepositoryContext): boolean =>
-		!hiddenRepositoryIds.has(repository.repo.id) && repositoryInFocus(repository, focus);
-	const anchors = new Map<string, Anchor>();
-
-	function anchorOf(entry: Placed, visiting: ReadonlySet<string> = new Set()): Anchor {
-		const known = anchors.get(entry.workstream.id);
-		if (known !== undefined) return known;
-		const anchor = resolveAnchor(entry, new Set([...visiting, entry.workstream.id]));
-		anchors.set(entry.workstream.id, anchor);
-		return anchor;
-	}
-
-	function resolveAnchor(entry: Placed, visiting: ReadonlySet<string>): Anchor {
-		const parentId = entry.workstream.startedBy;
-		if (parentId !== null && !visiting.has(parentId)) {
-			if (listedLeadIds.has(parentId)) return { parentId };
-			const parent = byId.get(parentId);
-			if (parent && anchorOf(parent, visiting) !== null) return { parentId };
-		}
-		return repositoryListed(entry.repository) ? 'repository' : null;
-	}
-
-	const childrenByParent = new Map<string, Placed[]>();
-	const topLevelByRepository = new Map<string, Placed[]>();
-	for (const entry of placed) {
-		const anchor = anchorOf(entry);
-		if (anchor === null) continue;
-		const key = anchor === 'repository' ? entry.repository.repo.id : anchor.parentId;
-		const bucket = anchor === 'repository' ? topLevelByRepository : childrenByParent;
-		bucket.set(key, [...(bucket.get(key) ?? []), entry]);
-	}
-
-	const childrenOf = (parentId: string): SidebarChild[] =>
-		(childrenByParent.get(parentId) ?? []).map(({ workstream, repository }) => ({
-			workstream,
-			repository,
-			children: childrenOf(workstream.id),
-		}));
-
-	const lead = (workstream: Workstream): SidebarLead => ({
-		workstream,
-		children: childrenOf(workstream.id),
-	});
-
-	const repositories = contexts
-		.filter(
-			(repository) =>
-				repositoryListed(repository) &&
-				((topLevelByRepository.get(repository.repo.id)?.length ?? 0) > 0 ||
-					repository.repo.id === input.openRepositoryId ||
-					input.savedRepositoryIds.has(repository.repo.id) ||
-					(focus.kind === 'repository' && focus.repositoryId === repository.repo.id)),
-		)
-		.map((row) => ({
-			row,
-			workstreams: (topLevelByRepository.get(row.repo.id) ?? []).map(({ workstream }) => ({
-				workstream,
-				repository: row,
-				children: childrenOf(workstream.id),
-			})),
-		}));
-
 	return {
-		homeLeads: listedLeads.filter((workstream) => workstream.scope?.kind === 'home').map(lead),
-		blocks: sidebarBlocks(repositories, listedLeads, focus, lead),
+		homeLeads: listedLeads.filter((workstream) => workstream.scope?.kind === 'home'),
+		blocks: sidebarBlocks(repositories, listedLeads, focus),
 	};
 }
 
 function sidebarBlocks(
-	repositories: readonly SidebarRepository[],
+	repositories: readonly ConnectedRepositoryContext[],
 	listedLeads: readonly Workstream[],
 	focus: SidebarFocus,
-	lead: (workstream: Workstream) => SidebarLead,
 ): SidebarBlock[] {
 	const blocks: SidebarBlock[] = [];
 	const owners = new Map<string, OwnerContents>();
@@ -153,16 +69,16 @@ function sidebarBlocks(
 	};
 	if (focus.kind === 'owner') ownerBlock(focus.owner);
 	for (const repository of repositories) {
-		const { owner } = repository.row;
+		const { owner } = repository;
 		if (owner === null || focus.kind === 'repository') {
-			blocks.push({ kind: 'repository', id: repository.row.repo.id, repository });
+			blocks.push({ kind: 'repository', id: repository.repo.id, repository });
 			continue;
 		}
 		ownerBlock(owner).repositories.push(repository);
 	}
 	for (const workstream of listedLeads) {
 		const scope = workstream.scope;
-		if (scope?.kind === 'owner') ownerBlock(scope.owner).leads.push(lead(workstream));
+		if (scope?.kind === 'owner') ownerBlock(scope.owner).leads.push(workstream);
 	}
 	return blocks;
 }
@@ -182,19 +98,17 @@ function repositoryInFocus(repository: ConnectedRepositoryContext, focus: Sideba
 }
 
 export function sidebarWorkstreamIds(tree: SidebarTree): string[] {
-	const walk = (children: readonly SidebarChild[]): string[] =>
-		children.flatMap((child) => [child.workstream.id, ...walk(child.children)]);
-	const leads = (items: readonly SidebarLead[]): string[] =>
-		items.flatMap((item) => [item.workstream.id, ...walk(item.children)]);
+	const ids = (workstreams: readonly Workstream[]): string[] =>
+		workstreams.map((workstream) => workstream.id);
 	return [
-		...leads(tree.homeLeads),
+		...ids(tree.homeLeads),
 		...tree.blocks.flatMap((block) =>
 			block.kind === 'owner'
 				? [
-						...leads(block.leads),
-						...block.repositories.flatMap((repository) => walk(repository.workstreams)),
+						...ids(block.leads),
+						...block.repositories.flatMap((repository) => ids(repository.workstreams)),
 					]
-				: walk(block.repository.workstreams),
+				: ids(block.repository.workstreams),
 		),
 	];
 }
@@ -202,7 +116,7 @@ export function sidebarWorkstreamIds(tree: SidebarTree): string[] {
 export function sidebarRepositoryIds(tree: SidebarTree): string[] {
 	return tree.blocks.flatMap((block) =>
 		block.kind === 'owner'
-			? block.repositories.map(({ row }) => row.repo.id)
-			: [block.repository.row.repo.id],
+			? block.repositories.map(({ repo }) => repo.id)
+			: [block.repository.repo.id],
 	);
 }

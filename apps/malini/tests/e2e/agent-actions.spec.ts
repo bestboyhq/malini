@@ -240,7 +240,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 				{ timeout: 20_000 },
 			)
 			.toContain(kennelName);
-		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toBeVisible();
 
 		agentCalls(app, {
 			tool: 'workstreams_create',
@@ -251,8 +251,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
 		);
 		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
-		await expect(sidebar.getByRole('list', { name: /^Started by / })).toContainText('Fetch');
-		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
+		await expect(sidebar.getByRole('list', { name: /^Started by / })).toHaveCount(0);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
@@ -269,7 +268,8 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 				timeout: 20_000,
 			})
 			.toBe(1);
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
+		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
+		await expect(fetchRow).toHaveCount(0);
 
 		await openJobs(page, '#/jobs/activity');
 		const activity = page.getByTestId('automations-activity');
