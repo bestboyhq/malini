@@ -33,6 +33,7 @@ To move to a newer `gh`, change `GH_VERSION` and `GH_SHA256` together, taking th
 Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of every npm package whose code or assets it contains, generated at build time by `scripts/third-party-notices.mjs`.
 The build fails when a bundled package declares no license.
 The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh` its MIT `LICENSE` inside `vendor/gh`.
+The sounds in `src/renderer/public/sounds` ship with their `LICENSE.md`, which credits each file and links its license, and the Apache 2.0 text beside it.
 
 ## Releases
 
@@ -42,6 +43,7 @@ The first release is `0.1.0`, and `package.json`'s version is a placeholder CI o
 `.github/workflows/pr-title.yml` keeps PR titles in that shape, since a squash merge makes the title the subject.
 
 The `release` job signs with the Developer ID certificate and notarizes the app and the disk image, while the tests still run.
+The hardened runtime gets `build/entitlements.mac.plist`: electron-builder's defaults plus `com.apple.security.device.audio-input`, so recording a sound can ask for the microphone, and `NSMicrophoneUsageDescription` says why.
 The `update` job runs `pnpm --filter malini test:update` on its own runner at the same time.
 Once both pass and every check and test of the push passed too, the `publish` job runs `gh release create` with the dmg, the zip and `latest-mac.yml`.
 They need the repository secrets `CSC_LINK` (the base64 `.p12`), `CSC_KEY_PASSWORD`, `APPLE_ID` and `APPLE_APP_SPECIFIC_PASSWORD`.

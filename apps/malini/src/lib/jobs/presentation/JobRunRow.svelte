@@ -3,9 +3,8 @@
 	import type { JobRunRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import {
 		leadScopeLabel,
 		parseLeadScope,
@@ -95,7 +94,7 @@
 {#snippet summary()}
 	<span class={['grid size-4 shrink-0 place-items-center', look.tone]} aria-hidden="true">
 		{#if run.status === 'running'}
-			<LoadingCircle size={12} />
+			<BusyIcon size={12} />
 		{:else}
 			<Icon name={look.icon} size={13} />
 		{/if}

@@ -26,6 +26,10 @@ nodeGypRebuild: false
 mac:
   category: public.app-category.developer-tools
   icon: build/Malini.icon
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: Malini records the sound you choose for when an agent finishes or needs you, and lets a page in its browser use the microphone when you allow it.
   artifactName: malini-${version}-${arch}-mac.${ext}
   target:
     - target: dmg

@@ -30,6 +30,7 @@ apps/malini/src/
     shared/                                                                         alias $shared
       repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle
       providers/       SHARED DOMAIN: model catalog, model ids, provider auth, capabilities
+      sounds/          SHARED DOMAIN: the sounds Malini plays, your picks, your own recordings
       port/            typed invoke(), onPlatformEvent()
       router/          hash router, current page, last route, history ledger, hrefs
       extensions/      the extension seams other domains touch

@@ -2,9 +2,8 @@
 	import type { JobExperimentRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 
 	interface Props {
 		experiment: JobExperimentRecord;
@@ -83,7 +82,7 @@
 		<span class="text-fg-tertiary line-clamp-2 text-xs">{setup}</span>
 		{#if experiment.running}
 			<span class="text-fg-tertiary flex items-center gap-1.5 text-xs">
-				<LoadingCircle size={11} />
+				<BusyIcon size={11} />
 				Running on {sampleSize}
 				{sampleSize === 1 ? 'run' : 'runs'}…
 			</span>

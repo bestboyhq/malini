@@ -24,7 +24,7 @@
 		display: inline-grid;
 		flex: none;
 		place-items: center;
-		color: var(--color-fg-default);
+		color: var(--chat-tile-color, var(--color-fg-default));
 		background: linear-gradient(
 			180deg,
 			color-mix(in oklab, var(--color-fg-default) 20%, var(--color-surface-150)),

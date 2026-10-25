@@ -27,6 +27,8 @@ test('opening a folder lands on its scratchpad and clones it in the background',
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
+		await setup.getByRole('button', { name: 'Continue' }).click();
 
 		await pickFolder(app, await createSourceRepo(app.root, 'meadow'));
 		await recordBusyLabels(page);
@@ -59,6 +61,8 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 		const setup = page.getByTestId('onboarding');
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 
 		const thicket = await createSourceRepo(app.root, 'thicket');
@@ -94,6 +98,8 @@ test('a repository cannot be removed while it clones, and can once the clone fai
 		const setup = page.getByTestId('onboarding');
 		await setup.getByRole('button', { name: 'Continue' }).click();
 		await expect(setup.getByRole('heading', { name: 'Meet your jobs' })).toBeVisible();
+		await setup.getByRole('button', { name: 'Continue' }).click();
+		await expect(setup.getByRole('heading', { name: 'Hear your afternoon' })).toBeVisible();
 		await setup.getByRole('button', { name: 'Continue' }).click();
 
 		const grove = await createSourceRepo(app.root, 'grove');

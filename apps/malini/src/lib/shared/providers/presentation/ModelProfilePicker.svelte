@@ -2,9 +2,8 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { ClaudeIcon, Icon } from '$hyper-ui/icons';
+	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import { catalogModelLabel, pickerModels } from '$shared/providers/domain/model-catalog';
 	import type { AgentModel } from '$shared/providers/domain/model-id';
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
@@ -131,7 +130,7 @@
 					data-testid="chat-model-sign-in"
 				>
 					<p class="text-2xs text-fg-tertiary flex items-center gap-2 leading-4">
-						<LoadingCircle size={12} />
+						<BusyIcon size={12} />
 						{#if signIn === 'switching'}
 							Switching accounts…
 						{:else if signIn === 'waiting-for-browser'}

@@ -19,7 +19,7 @@ function monitorHarness() {
 		sessionId: string;
 	}> = [];
 	const unlisten = vi.fn();
-	const chime = vi.fn();
+	const sound = vi.fn();
 	let subscribeCount = 0;
 
 	const monitor = new AgentLifecycleMonitor({
@@ -55,7 +55,7 @@ function monitorHarness() {
 			return true;
 		},
 		touchChat: () => {},
-		chime,
+		sound,
 		notify: (title, body, workstreamId, sessionId) => {
 			notifications.push({ title, body, workstreamId, sessionId });
 		},
@@ -67,7 +67,7 @@ function monitorHarness() {
 		contexts,
 		attentions,
 		notifications,
-		chime,
+		sound,
 		unlisten,
 		subscribeCount: () => subscribeCount,
 		emit(payload: LiveEventEnvelope) {
@@ -154,7 +154,7 @@ describe('AgentLifecycleMonitor', () => {
 				sessionId: 'session-a',
 			},
 		]);
-		expect(harness.chime).toHaveBeenCalledOnce();
+		expect(harness.sound).toHaveBeenCalledExactlyOnceWith('finished');
 	});
 
 	it('names a turn that ended over background commands and needs the user as needing them', () => {
@@ -166,6 +166,7 @@ describe('AgentLifecycleMonitor', () => {
 
 		expect(harness.attentions.get('session-a')?.kind).toBe('input');
 		expect(harness.notifications[0]?.title).toBe('stream-a label needs you');
+		expect(harness.sound).toHaveBeenCalledExactlyOnceWith('needs-you');
 	});
 
 	it('announces the turn Claude Code runs once its background command ends', () => {
@@ -184,7 +185,7 @@ describe('AgentLifecycleMonitor', () => {
 			'Suite started.',
 			'214 passed.',
 		]);
-		expect(harness.chime).toHaveBeenCalledTimes(2);
+		expect(harness.sound).toHaveBeenCalledTimes(2);
 	});
 
 	it('stays quiet while a background agent works or the wait carries no turn summary', () => {
@@ -197,7 +198,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('session-a')?.status).toBe('running');
 		expect(harness.attentions.has('session-a')).toBe(false);
 		expect(harness.notifications).toEqual([]);
-		expect(harness.chime).not.toHaveBeenCalled();
+		expect(harness.sound).not.toHaveBeenCalled();
 	});
 
 	it('keeps inactive workstreams truthful while active work remains notification-free', () => {
@@ -237,7 +238,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('session-a')?.status).toBe('completed');
 		expect(harness.attentions.has('session-a')).toBe(false);
 		expect(harness.notifications).toHaveLength(1);
-		expect(harness.chime).toHaveBeenCalledTimes(2);
+		expect(harness.sound).toHaveBeenCalledTimes(2);
 	});
 
 	it('marks a background chat of the workstream on screen unread without notifying', () => {
@@ -305,7 +306,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.sessions.get('job-session')?.status).toBe('completed');
 		expect(harness.attentions.get('user-session')?.runId).toBe('user-run');
 		expect(harness.notifications).toEqual([]);
-		expect(harness.chime).not.toHaveBeenCalled();
+		expect(harness.sound).not.toHaveBeenCalled();
 	});
 
 	it('clears old terminal attention when a new background run starts', () => {
@@ -354,7 +355,7 @@ describe('AgentLifecycleMonitor', () => {
 			},
 		]);
 		expect(harness.attentions.get('session-a')?.kind).toBe('completed');
-		expect(harness.chime).toHaveBeenCalledOnce();
+		expect(harness.sound).toHaveBeenCalledOnce();
 	});
 
 	it('retires approval attention when that run is explicitly cancelled', () => {

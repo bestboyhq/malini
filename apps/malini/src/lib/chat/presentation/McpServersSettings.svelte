@@ -21,11 +21,10 @@
 	import { turnedOffMcpServersQuery } from '$lib/chat/application/queries/turned-off-mcp-servers.query.svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { IconButton } from '$hyper-ui/components/icon-button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { Skeleton } from '$hyper-ui/components/skeleton';
 	import { Switch } from '$hyper-ui/components/switch';
 	import { TextInput } from '$hyper-ui/components/text-input';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 
@@ -160,7 +159,7 @@
 			onclick={() => watchMcpServersCommand(workstreamId, true)}
 		>
 			{#if refreshing}
-				<LoadingCircle size={14} />
+				<BusyIcon size={14} />
 			{:else}
 				<Icon name="refresh" size={14} />
 			{/if}
@@ -262,7 +261,7 @@
 							{:else if server.status === 'connected'}
 								<Icon name="check" size={14} class="text-success-content" />
 							{:else if server.status === 'pending'}
-								<LoadingCircle size={14} />
+								<BusyIcon size={14} />
 							{:else if fix === 'duplicate'}
 								<Icon name="copy" size={14} class="text-warning-content" />
 							{:else}

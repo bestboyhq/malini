@@ -6,8 +6,7 @@
 	import { switchMcpServerCommand } from '$lib/chat/application/commands/switch-mcp-server.command';
 	import { mcpServerBusyQuery } from '$lib/chat/application/queries/mcp-server-busy.query.svelte';
 	import { Button } from '$hyper-ui/components/button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { sanitizeFailureDetail } from '$shared/errors/failure-copy';
 
 	interface Props {
@@ -69,7 +68,7 @@
 	{:else if server.status === 'connected'}
 		<Icon name="check" size={14} class="text-success-content shrink-0" />
 	{:else if server.status === 'pending'}
-		<LoadingCircle size={14} />
+		<BusyIcon size={14} />
 	{:else}
 		<Icon name="circle" size={14} class="text-fg-tertiary shrink-0" />
 	{/if}

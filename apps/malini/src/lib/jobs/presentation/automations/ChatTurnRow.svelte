@@ -2,9 +2,8 @@
 	import type { Snippet } from 'svelte';
 	import type { ChatTurnRecord } from '$contract/jobs';
 	import { Button } from '$hyper-ui/components/button';
-	import { LoadingCircle } from '$hyper-ui/components/loading-circle';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
-	import { Icon } from '$hyper-ui/icons';
+	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
 	import { JOB_RUN_STATUS } from '../job-run-status';
@@ -43,7 +42,7 @@
 	>
 		<span class={['grid size-4 shrink-0 place-items-center', look.tone]} aria-hidden="true">
 			{#if turn.status === 'running'}
-				<LoadingCircle size={12} />
+				<BusyIcon size={12} />
 			{:else}
 				<Icon name={look.icon} size={13} />
 			{/if}

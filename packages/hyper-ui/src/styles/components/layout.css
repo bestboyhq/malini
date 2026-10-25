@@ -238,53 +238,6 @@
 	}
 }
 
-@keyframes spin-step-clockwise-normal {
-	0% {
-		transform: rotate(0deg);
-	}
-	100% {
-		transform: rotate(360deg);
-	}
-}
-
-@keyframes spin-step-clockwise-faster {
-	0% {
-		transform: rotate(0deg);
-	}
-	100% {
-		transform: rotate(480deg);
-	}
-}
-
-@keyframes spin-step-clockwise-fastest {
-	0% {
-		transform: rotate(0deg);
-	}
-	100% {
-		transform: rotate(720deg);
-	}
-}
-
-@layer utilities {
-	.spin-step-clockwise-normal {
-		transform-origin: center;
-		transform-box: fill-box;
-		animation: spin-step-clockwise-normal 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
-	}
-
-	.spin-step-clockwise-faster {
-		transform-origin: center;
-		transform-box: fill-box;
-		animation: spin-step-clockwise-faster 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
-	}
-
-	.spin-step-clockwise-fastest {
-		transform-origin: center;
-		transform-box: fill-box;
-		animation: spin-step-clockwise-fastest 2.5s cubic-bezier(0.2, 0.88, 0.72, 0.12) infinite;
-	}
-}
-
 @layer utilities {
 	@media (prefers-reduced-motion: reduce) {
 		.animate-fadeIn,
@@ -298,10 +251,7 @@
 		.animate-slideDownAndFade,
 		.animate-slideLeftAndFade,
 		.animate-slideRightAndFade,
-		.animate-fadeOut,
-		.spin-step-clockwise-normal,
-		.spin-step-clockwise-faster,
-		.spin-step-clockwise-fastest {
+		.animate-fadeOut {
 			animation: none;
 		}
 	}
