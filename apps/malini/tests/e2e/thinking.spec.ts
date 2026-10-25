@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
 	captureFlow,
@@ -37,18 +39,26 @@ test('a thinking agent narrates each step live, keeps an opened thought open as 
 
 		const live = page.getByTestId('thinking-live');
 		await expect(live).toContainText('Thinking');
+		const releaseThought = (): void => writeFileSync(join(app.home, 'release-thought'), '');
+		const sentences = [
+			'The user wants the preview fixed.',
+			'It stays open after the gallery closes.',
+			'Focus returns to the chip that opened it.',
+			'I should read the hover card first.',
+		];
+		for (const shown of sentences) {
+			releaseThought();
+			await expect
+				.poll(() => page.evaluate((line) => globalThis.tickerLines.includes(line), shown))
+				.toBe(true);
+		}
 		await expect
 			.poll(() =>
 				page.evaluate(() =>
 					globalThis.tickerLines.filter((line) => /[.!?]$/u.test(line)).slice(0, 4),
 				),
 			)
-			.toEqual([
-				'The user wants the preview fixed.',
-				'It stays open after the gallery closes.',
-				'Focus returns to the chip that opened it.',
-				'I should read the hover card first.',
-			]);
+			.toEqual(sentences);
 		const sentence = 'The user wants the preview fixed.';
 		const lines = await page.evaluate(() => globalThis.tickerLines);
 		const narrated = lines.slice(0, lines.indexOf(sentence) + 1);
