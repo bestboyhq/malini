@@ -164,7 +164,10 @@ export function planLeadChatProvisioning(
 	};
 }
 
-export function provisioningWorkstreamRow(plan: WorkstreamProvisioningPlan): Workstream {
+export function provisioningWorkstreamRow(
+	plan: WorkstreamProvisioningPlan,
+	createdAt: string,
+): Workstream {
 	return {
 		id: plan.workstreamId,
 		projectId: plan.projectId,
@@ -173,6 +176,7 @@ export function provisioningWorkstreamRow(plan: WorkstreamProvisioningPlan): Wor
 		branch: plan.branch,
 		baseBranch: plan.baseBranch,
 		status: 'active',
+		createdAt,
 		...UNOBSERVED_WORKSTREAM_CHECKOUT,
 		scope: plan.scope,
 		startedBy: null,
