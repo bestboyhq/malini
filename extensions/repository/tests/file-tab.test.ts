@@ -258,7 +258,7 @@ test('a line asked for before the tab mounts is the line it shows once mounted',
 	});
 });
 
-test('a markdown file opens Rich, and a line asked for opens it Raw', async () => {
+test('a markdown file opens Raw until Rich is picked, and a line asked for opens it Raw', async () => {
 	await withDom(async (window) => {
 		const host = await createHost({
 			manifest,
@@ -271,6 +271,11 @@ test('a markdown file opens Rich, and a line asked for opens it Raw', async () =
 			await host.activate(extension);
 			const notes = await mountFileTab(host, window, 'NOTES.md');
 			try {
+				assert.equal(pressedView(notes.root), 'Raw');
+				assert.equal(notes.editor.dom.closest('[hidden]'), null);
+				assert.equal(notes.root.querySelector('h1'), null);
+
+				viewButton(notes.root, 'Rich').click();
 				assert.equal(pressedView(notes.root), 'Rich');
 				assert.equal(notes.root.querySelector('h1')?.textContent, 'Notes');
 				assert.notEqual(notes.editor.dom.closest('[hidden]'), null);
@@ -278,7 +283,9 @@ test('a markdown file opens Rich, and a line asked for opens it Raw', async () =
 				await notes.instance.dispose();
 			}
 
-			const guide = await mountFileTab(host, window, 'GUIDE.md', 4);
+			const guide = await mountFileTab(host, window, 'GUIDE.md');
+			viewButton(guide.root, 'Rich').click();
+			await host.invokeCommand('malini.repository.open-file', { path: 'GUIDE.md', line: 4 });
 			try {
 				assert.equal(pressedView(guide.root), 'Raw');
 				assert.equal(guide.editor.dom.closest('[hidden]'), null);
@@ -298,13 +305,13 @@ test('a markdown tab opens again in the view it was left in, and other files hav
 		try {
 			await host.activate(extension);
 			const readme = await mountFileTab(host, window, 'README.md', null, false);
-			viewButton(readme.root, 'Raw').click();
+			viewButton(readme.root, 'Rich').click();
 			await readme.instance.dispose();
 
 			const again = await mountFileTab(host, window, 'README.md', null, false);
 			try {
-				assert.equal(pressedView(again.root), 'Raw');
-				assert.equal(again.editor.dom.closest('[hidden]'), null);
+				assert.equal(pressedView(again.root), 'Rich');
+				assert.notEqual(again.editor.dom.closest('[hidden]'), null);
 			} finally {
 				await again.instance.dispose();
 			}
@@ -432,6 +439,27 @@ test('an open tab follows the file when the tree reads a new change to it', asyn
 					'',
 				]);
 				assert.deepEqual(savedFiles(host), [{ path: 'src/app.ts', contents: 'const b = 3;\n' }]);
+			} finally {
+				await tab.instance.dispose();
+			}
+		} finally {
+			await host.cleanup();
+		}
+	});
+});
+
+test('opening a file whose tab is open reads it again, so keys an agent asked for show up', async () => {
+	await withDom(async (window) => {
+		const host = await hostWithRepository();
+		try {
+			await host.activate(extension);
+			const tab = await mountFileTab(host, window, 'src/app.ts');
+			try {
+				await host.api.workstream.writeFile('src/app.ts', 'export const answer = 42;\nAPI_KEY=\n');
+				await host.invokeCommand('malini.repository.open-file', { path: 'src/app.ts' });
+
+				await eventually(() => (tab.editor.state.doc.lines === 3 ? true : null));
+				assert.equal(tab.editor.state.doc.toString(), 'export const answer = 42;\nAPI_KEY=\n');
 			} finally {
 				await tab.instance.dispose();
 			}
