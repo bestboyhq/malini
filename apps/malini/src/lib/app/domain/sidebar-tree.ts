@@ -1,5 +1,6 @@
 import { leadScopeOwns } from '$shared/repositories/domain/lead-scope';
 import type { ConnectedRepositoryContext } from '$shared/repositories/domain/repository-context';
+import { inSidebarOrder } from '$shared/repositories/domain/sidebar-order';
 import type { Workstream } from '$shared/repositories/domain/workstream';
 import { displayWorkstreamName } from '$shared/repositories/domain/workstream-names';
 import { ownerGroupId } from './repository-groups';
@@ -31,6 +32,7 @@ export type SidebarBlock = SidebarOwner | SidebarRepositoryBlock;
 export type SidebarBranch = Readonly<{
 	chats: readonly Workstream[];
 	blocks: readonly SidebarBlock[];
+	started: ReadonlyMap<string, readonly Workstream[]>;
 }>;
 
 export type SidebarSection = SidebarBranch & Readonly<{ key: SidebarSectionKey; label: string }>;
@@ -43,11 +45,19 @@ export type SidebarTreeInput = Readonly<{
 	hiddenRepositoryIds: ReadonlySet<string>;
 	focus: SidebarFocus;
 	arrangement: SidebarArrangement;
+	workstreamOrder: readonly string[];
 	activeAt: (workstream: Workstream) => number;
 	sectionOf: (workstream: Workstream) => SidebarSectionKey;
 }>;
 
 type OwnerContents = { leads: Workstream[]; repositories: ConnectedRepositoryContext[] };
+
+type Listed = Readonly<{
+	contexts: readonly ConnectedRepositoryContext[];
+	leads: readonly Workstream[];
+}>;
+
+type Nested = Listed & Readonly<{ started: ReadonlyMap<string, readonly Workstream[]> }>;
 
 type SortKeys<T> = Readonly<{
 	name: (item: T) => string;
@@ -66,33 +76,89 @@ const NAMES = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' 
 export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 	const { arrangement, focus } = input;
 	const { grouping, ordering } = arrangement;
-	const keys = treeKeys(input.activeAt);
+	const keys = treeKeys(input.activeAt, input.contexts);
 	const leads = input.leads.filter((lead) => leadIsListed(lead, focus));
 	const repositories = input.contexts.filter(
 		(repository) =>
 			!input.hiddenRepositoryIds.has(repository.repo.id) && repositoryInFocus(repository, focus),
 	);
+	const startedOrder = (workstreams: readonly Workstream[]): Workstream[] =>
+		sorted(inSidebarOrder(workstreams, input.workstreamOrder), ordering, keys.workstream);
 	if (!sectionedGrouping(grouping)) {
 		const folders = focus.kind === 'owner' || (focus.kind === 'all' && grouping === 'owner');
-		return { ...branch(repositories, leads, focus, ordering, folders, keys), sections: [] };
+		const {
+			contexts,
+			leads: topLeads,
+			started,
+		} = nestStarted({ contexts: repositories, leads }, startedOrder);
+		return {
+			...branch(contexts, topLeads, focus, ordering, folders, keys),
+			started,
+			sections: [],
+		};
 	}
 	const subgrouping = sectionSubgrouping(arrangement.subgrouping, focus);
 	const sections = SIDEBAR_SECTIONS[grouping].flatMap(({ key, label }): SidebarSection[] => {
 		const inSection = (workstream: Workstream): boolean => input.sectionOf(workstream) === key;
-		const sectionRepositories = repositories
-			.map((repository) => ({
-				...repository,
-				workstreams: repository.workstreams.filter(inSection),
-			}))
-			.filter((repository) => repository.workstreams.length > 0);
-		const sectionLeads = leads.filter(inSection);
+		const nested = nestStarted(
+			{
+				contexts: repositories.map((repository) => ({
+					...repository,
+					workstreams: repository.workstreams.filter(inSection),
+				})),
+				leads: leads.filter(inSection),
+			},
+			startedOrder,
+		);
+		const contexts = nested.contexts.filter((repository) => repository.workstreams.length > 0);
 		const section =
 			subgrouping === 'none'
-				? flatBranch(sectionRepositories, sectionLeads, ordering, keys)
-				: branch(sectionRepositories, sectionLeads, focus, ordering, subgrouping === 'owner', keys);
-		return section.chats.length + section.blocks.length > 0 ? [{ key, label, ...section }] : [];
+				? flatBranch(contexts, nested.leads, ordering, keys)
+				: branch(contexts, nested.leads, focus, ordering, subgrouping === 'owner', keys);
+		return section.chats.length + section.blocks.length > 0
+			? [{ key, label, ...section, started: nested.started }]
+			: [];
 	});
-	return { chats: [], blocks: [], sections };
+	return { chats: [], blocks: [], started: new Map(), sections };
+}
+
+function nestStarted(
+	{ contexts, leads }: Listed,
+	order: (workstreams: readonly Workstream[]) => Workstream[],
+): Nested {
+	const listed = new Map(
+		[...leads, ...contexts.flatMap((repository) => repository.workstreams)].map((workstream) => [
+			workstream.id,
+			workstream,
+		]),
+	);
+	const parentOf = (workstream: Workstream): Workstream | undefined =>
+		workstream.startedBy === null ? undefined : listed.get(workstream.startedBy);
+	const rooted = (workstream: Workstream): boolean => {
+		const seen = new Set([workstream.id]);
+		for (let parent = parentOf(workstream); parent; parent = parentOf(parent)) {
+			if (seen.has(parent.id)) return false;
+			seen.add(parent.id);
+		}
+		return true;
+	};
+	const started = new Map<string, Workstream[]>();
+	for (const workstream of order([...listed.values()])) {
+		const parent = parentOf(workstream);
+		if (!parent || !rooted(workstream)) continue;
+		started.set(parent.id, [...(started.get(parent.id) ?? []), workstream]);
+	}
+	const nestedIds = new Set([...started.values()].flat().map((workstream) => workstream.id));
+	const topLevel = (workstreams: readonly Workstream[]): Workstream[] =>
+		workstreams.filter((workstream) => !nestedIds.has(workstream.id));
+	return {
+		contexts: contexts.map((repository) => ({
+			...repository,
+			workstreams: topLevel(repository.workstreams),
+		})),
+		leads: topLevel(leads),
+		started,
+	};
 }
 
 export function sectionSubgrouping(
@@ -111,15 +177,12 @@ function branch(
 	ordering: SidebarOrdering,
 	folders: boolean,
 	keys: TreeKeys,
-): SidebarBranch {
+): Omit<SidebarBranch, 'started'> {
 	const listedLeads = sorted(leads, ordering, keys.workstream);
 	const repositories = sorted(
 		contexts.map((repository) => ({
 			...repository,
-			workstreams: sorted(repository.workstreams, ordering, {
-				...keys.workstream,
-				name: (workstream) => displayWorkstreamName(workstream, repository.repo.fullName),
-			}),
+			workstreams: sorted(repository.workstreams, ordering, keys.workstream),
 		})),
 		ordering,
 		keys.repository,
@@ -135,18 +198,9 @@ function flatBranch(
 	leads: readonly Workstream[],
 	ordering: SidebarOrdering,
 	keys: TreeKeys,
-): SidebarBranch {
-	const fullNames = new Map(
-		contexts.flatMap(({ repo, workstreams }) => workstreams.map(({ id }) => [id, repo.fullName])),
-	);
+): Omit<SidebarBranch, 'started'> {
 	const workstreams = [...leads, ...contexts.flatMap((repository) => repository.workstreams)];
-	return {
-		chats: sorted(workstreams, ordering, {
-			...keys.workstream,
-			name: (workstream) => displayWorkstreamName(workstream, fullNames.get(workstream.id)),
-		}),
-		blocks: [],
-	};
+	return { chats: sorted(workstreams, ordering, keys.workstream), blocks: [] };
 }
 
 function sidebarBlocks(
@@ -200,9 +254,15 @@ function newestOf(dates: readonly string[]): string {
 	return dates.reduce((newest, date) => (date > newest ? date : newest), '');
 }
 
-function treeKeys(activeAt: (workstream: Workstream) => number): TreeKeys {
+function treeKeys(
+	activeAt: (workstream: Workstream) => number,
+	contexts: readonly ConnectedRepositoryContext[],
+): TreeKeys {
+	const fullNames = new Map(
+		contexts.flatMap(({ repo, workstreams }) => workstreams.map(({ id }) => [id, repo.fullName])),
+	);
 	const workstream: SortKeys<Workstream> = {
-		name: (item) => displayWorkstreamName(item),
+		name: (item) => displayWorkstreamName(item, fullNames.get(item.id)),
 		newest: (item) => item.createdAt,
 		active: activeAt,
 	};
@@ -260,9 +320,9 @@ export function sidebarRepositoryIds(tree: SidebarTree): string[] {
 	];
 }
 
-export function branchWorkstreamIds({ chats, blocks }: SidebarBranch): string[] {
+export function branchWorkstreamIds({ chats, blocks, started }: SidebarBranch): string[] {
 	const ids = (workstreams: readonly Workstream[]): string[] =>
-		workstreams.map((workstream) => workstream.id);
+		workstreams.flatMap((workstream) => [workstream.id, ...ids(started.get(workstream.id) ?? [])]);
 	return [
 		...ids(chats),
 		...blocks.flatMap((block) =>
