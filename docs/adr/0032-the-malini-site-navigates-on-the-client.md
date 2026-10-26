@@ -1,6 +1,6 @@
 # 0032 - The Malini site navigates on the client
 
-Status: accepted
+Status: superseded by 0087
 
 ## Context
 

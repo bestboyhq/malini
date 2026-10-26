@@ -9,6 +9,7 @@ minimumReleaseAge: 2880
 
 catalog:
   svelte: ^5.57.0
+  electron: ^44.4.0
   # Held at 6.x: 7.x requires vite 8, and electron-vite 5 (latest stable)
   # supports vite 5 to 7. Move both together when electron-vite 6 ships.
   '@sveltejs/vite-plugin-svelte': ^6.2.4
