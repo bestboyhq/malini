@@ -2,6 +2,9 @@ import type { AdoptedAttachment, StagedAgentAttachment } from '$lib/chat/domain/
 import type { ImageBytes } from '$lib/chat/domain/image-bytes';
 import type { SessionId } from '$lib/chat/domain/session';
 import { invoke } from '$shared/port/invoke';
+import { workstreamNativeExistenceQuery } from '$shared/repositories/repositories.api';
+
+const NO_WORKTREE = 'This workstream has no worktree yet: retry its setup to attach files';
 
 class ComposerAttachmentsService {
 	async stageFile(
@@ -12,28 +15,35 @@ class ComposerAttachmentsService {
 		return await this.stageBytes(workstreamId, fileName, await fileToBase64(file));
 	}
 
-	stageBytes(
+	async stageBytes(
 		workstreamId: string,
 		fileName: string,
 		base64: string,
 	): Promise<StagedAgentAttachment> {
-		return invoke('chat.stage-attachment-bytes', { workstreamId, fileName, base64 });
+		await untilWorktreeExists(workstreamId);
+		return await invoke('chat.stage-attachment-bytes', { workstreamId, fileName, base64 });
 	}
 
-	stageForkTranscript(
+	async stageForkTranscript(
 		workstreamId: string,
 		sessionId: SessionId,
 		atSeq: number,
 	): Promise<StagedAgentAttachment> {
-		return invoke('chat.stage-fork-transcript', { workstreamId, sessionId, atSeq });
+		await untilWorktreeExists(workstreamId);
+		return await invoke('chat.stage-fork-transcript', { workstreamId, sessionId, atSeq });
 	}
 
-	adopt(workstreamId: string, attachmentIds: readonly string[]): Promise<AdoptedAttachment[]> {
-		return invoke('chat.adopt-attachments', { workstreamId, attachmentIds });
+	async adopt(
+		workstreamId: string,
+		attachmentIds: readonly string[],
+	): Promise<AdoptedAttachment[]> {
+		await untilWorktreeExists(workstreamId);
+		return await invoke('chat.adopt-attachments', { workstreamId, attachmentIds });
 	}
 
-	pickAndStage(workstreamId: string): Promise<StagedAgentAttachment[]> {
-		return invoke('chat.pick-and-stage-attachments', { workstreamId });
+	async pickAndStage(workstreamId: string): Promise<StagedAgentAttachment[]> {
+		await untilWorktreeExists(workstreamId);
+		return await invoke('chat.pick-and-stage-attachments', { workstreamId });
 	}
 
 	renew(workstreamId: string, attachmentIds: readonly string[]): void {
@@ -49,6 +59,20 @@ class ComposerAttachmentsService {
 	readImage(workstreamId: string, attachmentId: string): Promise<ImageBytes> {
 		return invoke('chat.read-staged-attachment', { workstreamId, attachmentId });
 	}
+}
+
+async function untilWorktreeExists(workstreamId: string): Promise<void> {
+	const existence = await new Promise<string>((resolve) => {
+		const stop = $effect.root(() => {
+			$effect(() => {
+				const current = workstreamNativeExistenceQuery.data(workstreamId);
+				if (current === 'in-flight') return;
+				resolve(current);
+				queueMicrotask(stop);
+			});
+		});
+	});
+	if (existence === 'absent') throw new Error(NO_WORKTREE);
 }
 
 function fileToBase64(file: File): Promise<string> {

@@ -7,7 +7,7 @@ import {
 } from '$lib/chat/domain/composer-actions';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
 
 export { stageClipboardAttachmentsCommand };

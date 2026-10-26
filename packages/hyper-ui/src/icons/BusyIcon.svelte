@@ -87,12 +87,17 @@
 
 	function waveStyles(wave: Wave): { icon: string; frames: string } {
 		const count = Math.round(wave.durationMs / FRAME_MS);
-		const frames = Array.from({ length: count }, (_, frame) =>
-			wave.dots.map(([x, y, delayMs]) => {
-				const elapsedMs = ((frame + 0.5) * wave.durationMs) / count - delayMs + wave.durationMs;
-				return circle(x, y + frame * VIEW_BOX, opacityAt(wave, elapsedMs));
-			}),
+		const opacities = Array.from({ length: count }, (_, frame) =>
+			wave.dots.map(([, , delayMs]) =>
+				opacityAt(wave, ((frame + 0.5) * wave.durationMs) / count - delayMs + wave.durationMs),
+			),
 		);
+		const brightest = opacities.map((frame) => Math.max(...frame));
+		const dimmest = brightest.indexOf(Math.min(...brightest));
+		const frames = opacities.map((_, position) => {
+			const shown = opacities[(dimmest + position) % count] ?? [];
+			return wave.dots.map(([x, y], dot) => circle(x, y + position * VIEW_BOX, shown[dot] ?? 0));
+		});
 		const still = wave.dots.map(([x, y]) => circle(x, y, STILL_OPACITY));
 		return {
 			icon: `--busy-still: ${svgUrl(VIEW_BOX, still.join(''))}`,
@@ -110,7 +115,7 @@
 	}
 
 	function svgUrl(height: number, content: string): string {
-		const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${VIEW_BOX} ${height}'>${content}</svg>`;
+		const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${VIEW_BOX} ${height}' preserveAspectRatio='none'>${content}</svg>`;
 		return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 	}
 </script>
