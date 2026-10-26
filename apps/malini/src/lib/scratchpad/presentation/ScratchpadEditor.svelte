@@ -9,7 +9,10 @@
 	import { Icon } from '$hyper-ui/icons';
 	import type { ScratchpadStart } from '$lib/scratchpad/domain/scratchpad';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
-	import { readScratchpadDocument } from './scratchpad-editor/scratchpad-document';
+	import {
+		isBlankScratchpad,
+		readScratchpadDocument,
+	} from './scratchpad-editor/scratchpad-document';
 	import { scratchpadExtensions } from './scratchpad-editor/scratchpad-extensions';
 	import {
 		noteAt,
@@ -60,9 +63,9 @@
 				},
 				handleKeyDown: (view, event) => isStartShortcut(event) && startAtCaret(view),
 			},
-			onCreate: ({ editor: created }) => (empty = created.isEmpty),
+			onCreate: ({ editor: created }) => (empty = isBlankScratchpad(created.state.doc)),
 			onUpdate: ({ editor: updated }) => {
-				empty = updated.isEmpty;
+				empty = isBlankScratchpad(updated.state.doc);
 				onchange(JSON.stringify(updated.getJSON()));
 			},
 			onTransaction: ({ transaction }) => {

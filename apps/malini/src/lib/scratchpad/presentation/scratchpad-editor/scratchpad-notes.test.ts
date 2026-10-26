@@ -2,7 +2,7 @@ import type { JSONContent } from '@tiptap/core';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Transform } from '@tiptap/pm/transform';
 import { describe, expect, it } from 'vitest';
-import { readScratchpadDocument } from './scratchpad-document';
+import { isBlankScratchpad, readScratchpadDocument } from './scratchpad-document';
 import { scratchpadSchema } from './scratchpad-extensions';
 import { scratchpadNotes } from './scratchpad-notes';
 
@@ -96,5 +96,15 @@ describe('scratchpad notes', () => {
 		expect(
 			readScratchpadDocument(JSON.stringify({ type: 'doc', content: [{ type: 'kanban' }] })),
 		).toEqual({ kind: 'unreadable' });
+	});
+
+	it('is blank only while it holds one empty paragraph, not an empty list, heading or quote', () => {
+		expect(isBlankScratchpad(open([{ type: 'paragraph' }]))).toBe(true);
+		expect(isBlankScratchpad(open([list('bulletList', [[{ type: 'paragraph' }]])]))).toBe(false);
+		expect(isBlankScratchpad(open([{ type: 'heading', attrs: { level: 1 } }]))).toBe(false);
+		expect(
+			isBlankScratchpad(open([{ type: 'blockquote', content: [{ type: 'paragraph' }] }])),
+		).toBe(false);
+		expect(isBlankScratchpad(open([paragraph('An idea')]))).toBe(false);
 	});
 });
