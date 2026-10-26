@@ -9,6 +9,7 @@ import {
 	selectChat,
 	sendPrompt,
 	startFreshChat,
+	typeDraft,
 	untilStill,
 } from './harness';
 
@@ -27,14 +28,6 @@ async function transcriptBottom(page: Page): Promise<TranscriptBottom> {
 		distanceFromBottom,
 		lastRowAboveComposer: lastRow.y + lastRow.height <= composer.y + 1,
 	};
-}
-
-async function typeDraft(page: Page, lines: readonly string[]): Promise<void> {
-	await page.getByTestId('chat-composer-input').click();
-	for (const [index, line] of lines.entries()) {
-		if (index > 0) await page.keyboard.press('Shift+Enter');
-		await page.keyboard.type(line, { delay: 5 });
-	}
 }
 
 test('a pinned chat keeps its last reply above a composer that grows, and reopens that way', async () => {

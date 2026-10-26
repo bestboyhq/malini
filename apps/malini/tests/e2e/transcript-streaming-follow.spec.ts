@@ -14,6 +14,7 @@ import {
 	sendPrompt,
 	startFreshChat,
 	type LaunchedApp,
+	typeDraft,
 	untilStill,
 } from './harness';
 
@@ -31,6 +32,7 @@ const COMPOSER = '[data-testid="chat-composer"]';
 const STILL_PX = 1;
 const BLANK_PX = 32;
 const SCROLL_TOP = 0;
+const WHEEL_TICK_PX = 20;
 const softly = expect.configure({ soft: true });
 
 async function longChat(app: LaunchedApp, workstreamId: string): Promise<string> {
@@ -116,6 +118,10 @@ function blankAboveComposer(samples: readonly number[][]): number {
 	return Math.round(Math.max(...samples.map((sample) => sample.at(-1) ?? Number.NaN)));
 }
 
+function blankClosed(samples: readonly number[][]): number {
+	return (samples[0]?.at(-1) ?? Number.NaN) - (samples.at(-1)?.at(-1) ?? Number.NaN);
+}
+
 function climb(samples: readonly number[][], column: number): number {
 	let climbed = 0;
 	for (let index = 1; index < samples.length; index += 1) {
@@ -154,6 +160,20 @@ async function visibleBox(
 	const bottom = Math.min(box.y + box.height, scroller.y + scroller.height);
 	expect(bottom - top, `px of ${selector} in view`).toBeGreaterThan(8);
 	return { x: box.x, y: top, width: box.width, height: bottom - top };
+}
+
+async function wheel(page: Page, ticks: number, tickPx = WHEEL_TICK_PX): Promise<void> {
+	const scroller = page.getByTestId('chat-message-scroller');
+	const box = await scroller.boundingBox();
+	if (!box) throw new Error('the transcript is not laid out');
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	for (let tick = 0; tick < ticks; tick += 1) {
+		await page.mouse.wheel(0, tickPx);
+		await scroller.evaluate(
+			(element) =>
+				new Promise((resolve) => element.ownerDocument.defaultView?.requestAnimationFrame(resolve)),
+		);
+	}
 }
 
 async function distanceFromBottom(page: Page): Promise<number> {
@@ -313,7 +333,7 @@ test('pointing into an expanded tool call holds the transcript still, and a coll
 	}
 });
 
-test('collapsing a command output in the latest run leaves the rows above it in place', async () => {
+test('collapsing a command output in the latest run leaves the rows above it in place, and the space it leaves neither stretches under the wheel nor snaps shut', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -340,6 +360,42 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 			'the command row moved when its output collapsed',
 		).toBeLessThanOrEqual(STILL_PX);
 		await captureFlow(app, 'transcript-streaming-follow-collapsed');
+
+		await page.getByRole('button', { name: 'Expand output for List files' }).click();
+		await expect(page.getByTestId('command-output-scroll')).toBeVisible();
+		await untilStill(page);
+		await wheel(page, 2);
+		await untilStill(page);
+		await page.getByRole('button', { name: 'Collapse output for List files' }).click();
+		await expect(page.getByTestId('command-output-scroll')).toHaveCount(0);
+		await untilStill(page);
+		await wheel(page, 1, -WHEEL_TICK_PX);
+		await untilStill(page);
+
+		const scrollRange = (): Promise<number> =>
+			page.getByTestId('chat-message-scroller').evaluate((scroller) => scroller.scrollHeight);
+		const rangeBeforeWheel = await scrollRange();
+		await startSampling(page, []);
+		await wheel(page, 60);
+		await untilStill(page);
+		const wheeled = await stopSampling(page);
+		expect(
+			(await scrollRange()) - rangeBeforeWheel,
+			'px the wheel stretched the transcript past the space the output left',
+		).toBeLessThanOrEqual(STILL_PX);
+		expect(
+			climb(wheeled, SCROLL_TOP),
+			'px the transcript jumped back up while the wheel scrolled down',
+		).toBeLessThanOrEqual(STILL_PX);
+
+		await startSampling(page, []);
+		await typeDraft(page, ['Next', 'steps', 'for', 'this']);
+		await untilStill(page);
+		const typed = await stopSampling(page);
+		expect(
+			blankClosed(typed),
+			'px of the space the output left that snapped shut while the draft grew',
+		).toBeLessThanOrEqual(STILL_PX);
 
 		expectCleanConsole(app);
 	} finally {
