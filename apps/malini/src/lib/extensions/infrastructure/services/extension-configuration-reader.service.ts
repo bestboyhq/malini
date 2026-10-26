@@ -28,6 +28,7 @@ class ExtensionConfigurationReaderService {
 		} catch (error) {
 			throw new Error(
 				`Could not inspect ${WORKSTREAM_EXTENSION_CONFIGURATION_PATH} for workstream ${workstreamId}: ${errorMessage(error)}`,
+				{ cause: error },
 			);
 		}
 		if (stat === null) {
@@ -47,6 +48,7 @@ class ExtensionConfigurationReaderService {
 		} catch (error) {
 			throw new Error(
 				`Could not read ${WORKSTREAM_EXTENSION_CONFIGURATION_PATH} for workstream ${workstreamId}: ${errorMessage(error)}`,
+				{ cause: error },
 			);
 		}
 		return Object.freeze({

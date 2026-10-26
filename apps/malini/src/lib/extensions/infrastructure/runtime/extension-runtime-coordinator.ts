@@ -7,7 +7,10 @@ import {
 
 import { extensionBindings } from '$shared/extensions/bindings';
 
-import { extensionRuntimeFailureDiagnostic } from '../../domain/extension-runtime-failure';
+import {
+	extensionRuntimeFailureDiagnostic,
+	failedOnRetiredWorkstream,
+} from '../../domain/extension-runtime-failure';
 import type { WorkstreamCreatedAutomationContext } from '../../domain/workstream-created-automation-context';
 import { InspectorPanelRegistry } from '../stores/inspector-panel-registry.store.svelte';
 import { WorkstreamExtensions } from './workstream-extensions';
@@ -129,6 +132,7 @@ export class ExtensionRuntimeCoordinator {
 					}),
 			)
 			.catch((error) => {
+				if (failedOnRetiredWorkstream(error)) throw error;
 				console.error(
 					'[malini extensions] runtime activation failed',
 					extensionRuntimeFailureDiagnostic({

@@ -72,6 +72,13 @@ export function extensionWorkstreamPostCommitFailureDiagnostic(input: {
 	};
 }
 
+export function failedOnRetiredWorkstream(error: unknown): boolean {
+	return errorLeaves(error).some(
+		(leaf) =>
+			typeof leaf === 'object' && leaf !== null && (leaf as { kind?: unknown }).kind === 'retired',
+	);
+}
+
 function firstLeafError(error: unknown): unknown {
 	return errorLeaves(error)[0] ?? error;
 }

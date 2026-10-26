@@ -489,7 +489,13 @@ export function registerRepositories(
 		args: unknown,
 		read: (worktree: string) => Promise<T>,
 	): Promise<T> {
-		const workstreamId = checkedWorkstreamId(args);
+		return readWorkstreamCheckout(checkedWorkstreamId(args), read);
+	}
+
+	async function readWorkstreamCheckout<T>(
+		workstreamId: string,
+		read: (worktree: string) => Promise<T>,
+	): Promise<T> {
 		const torndown = teardowns.watch(workstreamId);
 		try {
 			return await read(await checkouts.resolveCheckout(workstreamId));
@@ -524,6 +530,7 @@ export function registerRepositories(
 		appInstanceId: ownership.appInstanceId,
 		containerCount: () => ownership.ownedContainerCount(),
 		listOwnedContainers: () => ownership.reconcile(),
+		readCheckout: readWorkstreamCheckout,
 		provisionDependencies,
 		abortInstall: (workstreamId) => installs.abortAndWait(workstreamId),
 		cancelGitHubSignIn: () => githubSignIn.cancel(),
