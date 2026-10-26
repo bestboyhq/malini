@@ -6,6 +6,7 @@
 	const TITLES = {
 		overview: 'Automations',
 		activity: 'Activity',
+		explorer: 'Explorer',
 		recipes: 'Recipes',
 	} as const;
 

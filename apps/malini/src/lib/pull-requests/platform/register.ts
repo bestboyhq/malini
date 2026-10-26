@@ -2,7 +2,7 @@ import type { LocalBaseSyncedPayload } from '$contract/events';
 import type { AddressedReviewThreadsDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
-import type { MergeQueueOptions } from './merge-queue.service';
+import type { ShippingOptions } from './shipping.service';
 import { registerShip } from './ship.register';
 import { failureOutput } from '$main/errors';
 import { noPromptCredentialEnv } from '$main/git/credentials';
@@ -22,7 +22,7 @@ import {
 	resolveRepositoryCheckout,
 	type ConnectedRepository,
 } from '$shared/repositories/repositories.platform';
-import { scaledShipDelays } from '../domain/merge-queue';
+import { scaledShipDelays } from '../domain/shipping';
 import { addressedReviewThreadIds } from '../domain/pull-request-fix-prompt';
 import {
 	optionalBoolean,
@@ -62,20 +62,19 @@ export const PULL_REQUEST_COMMAND_NAMES = [
 	'pull-requests.check-diagnostics',
 	'pull-requests.review-feedback',
 	'pull-requests.resolve-addressed-review-threads',
+	'pull-requests.button-clicked',
 	'pull-requests.open-draft',
 	'pull-requests.queue-merge',
-	'pull-requests.cancel-merge',
-	'pull-requests.retry-merge',
 	'pull-requests.ship-states',
 	'pull-requests.workstream-opened',
 ] as const;
 
 export interface PullRequestsDeps {
 	runner?: GhRunner;
-	ship?: MergeQueueOptions;
+	ship?: ShippingOptions;
 }
 
-function testShipOptions(context: MainContext): MergeQueueOptions {
+function testShipOptions(context: MainContext): ShippingOptions {
 	const scale = context.isDev ? Number(process.env['MALINI_SHIP_DELAY_SCALE']) : Number.NaN;
 	return Number.isFinite(scale) && scale > 0 ? { delays: scaledShipDelays(scale) } : {};
 }
@@ -301,7 +300,7 @@ export function registerPullRequests(
 	commands.define('pull-requests.status', async (args: unknown) => {
 		const read = await status(args);
 		const workstreamId = optionalString(args, 'workstreamId');
-		if (workstreamId) ship.pullRequestRead(workstreamId, read);
+		if (workstreamId) ship.report(workstreamId, read);
 		return read;
 	});
 	return ship;

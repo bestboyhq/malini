@@ -7,6 +7,7 @@ export interface AppPlatform {
 	windowStateSaved(): Promise<void>;
 	exit(): void;
 	announceUpdate(): void;
+	announceStart(): void;
 	readonly streaming: { start(): void; stop(): void };
 }
 

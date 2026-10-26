@@ -1,9 +1,14 @@
 import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
-import { CHAT_AGENT_EVENT_CHANNEL, CHAT_MCP_SERVER_CHANGED_CHANNEL } from '$contract/events';
+import {
+	CHAT_AGENT_EVENT_CHANNEL,
+	CHAT_MCP_SERVER_CHANGED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
+} from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
+import { FinishedTurns } from '../finished-turns';
 import { replyOverCommands, resumesTurn } from '../../domain/background-work';
 import { hasTurnReport } from '../../domain/turn-report';
 import {
@@ -483,10 +488,12 @@ export class BridgeRuntime {
 	private readonly pumps = new Map<number, Promise<void>>();
 	private readonly terminalCaptures = new Set<Promise<void>>();
 	private readonly pausing = new Set<string>();
+	private readonly finishedTurns: FinishedTurns;
 	private stopped = false;
 
 	constructor(deps: BridgeRuntimeDeps) {
 		this.db = deps.db;
+		this.finishedTurns = new FinishedTurns(deps.db);
 		this.events = deps.events;
 		this.appDataRoot = deps.appDataRoot;
 		this.supervisorConfig = deps.supervisorConfig;
@@ -693,7 +700,13 @@ export class BridgeRuntime {
 	}
 
 	emitSynthetic(envelope: SyntheticEventEnvelope, seq: number): void {
-		this.events.emit(CHAT_AGENT_EVENT_CHANNEL, camelEnvelopeJson(envelope, seq));
+		this.emitAgentEvent(camelEnvelopeJson(envelope, seq));
+	}
+
+	private emitAgentEvent(envelope: AgentEventEnvelope): void {
+		this.events.emit(CHAT_AGENT_EVENT_CHANNEL, envelope);
+		const finished = this.finishedTurns.after(envelope);
+		if (finished) this.events.emit(CHAT_TURN_FINISHED_CHANNEL, finished);
 	}
 
 	async notifyRunFinished(runId: string, reason: RunFinishedReason): Promise<void> {
@@ -794,7 +807,7 @@ export class BridgeRuntime {
 			capture?.lease.release();
 			return;
 		}
-		this.events.emit(CHAT_AGENT_EVENT_CHANNEL, withToolOutputPreview(envelope));
+		this.emitAgentEvent(withToolOutputPreview(envelope));
 		if (capture) {
 			const hook = this.hooks.onRunFinished;
 			const captured = (async () => {

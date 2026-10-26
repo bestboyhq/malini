@@ -66,7 +66,7 @@ export const TRIGGERS: readonly Trigger[] = [
 		when: 'on pull-requests:ship-changed where state.phase is needs-you',
 		group: 'Shipping',
 		label: 'Shipping needs you',
-		detail: 'The merge queue stops and waits for you',
+		detail: 'Shipping stops and waits for you',
 		icon: 'shield-alert',
 	},
 	{
@@ -151,6 +151,7 @@ const BUILTIN_TRIGGER_ICONS: Readonly<Partial<Record<JobBuiltin, IconName>>> = {
 	'resolve-conflicts': 'swap',
 	'address-review': 'pr-open',
 	'check-compatibility': 'sparkles',
+	reconcile: 'route',
 };
 
 export const RUN_MODES: readonly Readonly<{

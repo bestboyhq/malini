@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHAT_AGENT_EVENT_CHANNEL } from '$contract/events';
+import { CHAT_AGENT_EVENT_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
 import type { JobDefinitionRecord, JobRunRecord, JobTrigger } from '$contract/jobs';
 import type { WorkstreamDto, WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import {
@@ -198,6 +199,41 @@ describe('job schedules', () => {
 		);
 
 		await passTo(at(MONDAY, 12));
+		expect(await runs()).toHaveLength(1);
+	});
+
+	it('starts a run on the Time reached it logs, names it as the cause, and never twice for one time', async () => {
+		const job = await schedule('every weekday at 09:00');
+		await passTo(at(MONDAY, 9));
+		await vi.waitFor(async () => expect(await runs()).toHaveLength(1));
+		const [reached] = all<{ id: number; payload: string }>(
+			db,
+			'SELECT id, payload FROM event_log WHERE channel = ?',
+			JOBS_TIME_REACHED_CHANNEL,
+		);
+		expect(JSON.parse(reached?.payload ?? 'null')).toEqual({
+			definitionId: job.id,
+			name: 'Triage',
+			when: 'every weekday at 09:00',
+			due: at(MONDAY, 9).toISOString(),
+		});
+		const [run] = await runs();
+		expect(
+			all<{ event_id: number }>(
+				db,
+				'SELECT event_id FROM job_run_events WHERE job_run_id = ?',
+				run?.id ?? '',
+			),
+		).toEqual([{ event_id: reached?.id }]);
+
+		finish(run);
+		context.events.emit(JOBS_TIME_REACHED_CHANNEL, JSON.parse(reached?.payload ?? 'null'));
+		await vi.waitFor(() =>
+			expect(
+				all(db, 'SELECT id FROM event_log WHERE channel = ?', JOBS_TIME_REACHED_CHANNEL),
+			).toHaveLength(2),
+		);
+		await vi.advanceTimersByTimeAsync(SCHEDULE_CHECK_INTERVAL_MS);
 		expect(await runs()).toHaveLength(1);
 	});
 

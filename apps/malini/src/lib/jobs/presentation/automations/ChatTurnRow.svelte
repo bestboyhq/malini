@@ -6,7 +6,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import { workstreamHref } from '$shared/router/routes-hrefs';
-	import { JOB_RUN_STATUS } from '../job-run-status';
+	import { CHAT_TURN_STATUS } from '../job-run-status';
 	import { activityTime } from '../job-run-time';
 	import ActivityKind from './ActivityKind.svelte';
 
@@ -18,7 +18,7 @@
 
 	let { turn, nowMs, trailing }: Props = $props();
 
-	const look = $derived(JOB_RUN_STATUS[turn.status]);
+	const look = $derived(CHAT_TURN_STATUS[turn.status]);
 	const place = $derived(workstreamNameQuery.data(turn.workstreamId));
 	const prompt = $derived(turn.prompt || turn.chatName || 'Chat turn');
 	const href = $derived(

@@ -12,12 +12,15 @@ export type EventListener<Channel extends EventChannel = EventChannel> = {
 	bivarianceHack(payload: ContractEvents[Channel]): void;
 }['bivarianceHack'];
 
+export type EventObserver = (channel: EventChannel, payload: unknown) => void;
+
 export interface EventBus {
 	emit<Channel extends EventChannel>(channel: Channel, payload: ContractEvents[Channel]): void;
 	subscribe<Channel extends EventChannel>(
 		channel: Channel,
 		listener: EventListener<Channel>,
 	): () => void;
+	observe(observer: EventObserver): () => void;
 }
 
 function isEphemeralFrame(frame: EventFrame): boolean {
@@ -64,9 +67,11 @@ function createWindowForwarder(): (frame: EventFrame) => void {
 export function createEventBus(options: { forwardToWindows?: boolean } = {}): EventBus {
 	const forward = options.forwardToWindows === false ? null : createWindowForwarder();
 	const listeners = new Map<EventChannel, Set<EventListener>>();
+	const observers = new Set<EventObserver>();
 	return {
 		emit(channel, payload) {
 			forward?.({ channel, payload });
+			for (const observer of [...observers]) observer(channel, payload);
 			const set = listeners.get(channel);
 			if (!set) return;
 			for (const listener of [...set]) listener(payload);
@@ -80,6 +85,12 @@ export function createEventBus(options: { forwardToWindows?: boolean } = {}): Ev
 			set.add(listener);
 			return () => {
 				set.delete(listener);
+			};
+		},
+		observe(observer) {
+			observers.add(observer);
+			return () => {
+				observers.delete(observer);
 			};
 		},
 	};

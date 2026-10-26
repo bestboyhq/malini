@@ -25,22 +25,26 @@ const ALL_TABLES = [
 	'agent_session_changes',
 	'agent_sessions',
 	'agent_user_baselines',
+	'alarms',
 	'connected_repositories',
 	'custom_sounds',
 	'deleted_workstreams',
 	'docker_containers',
+	'event_log',
 	'hidden_repositories',
 	'job_definitions',
 	'job_experiment_results',
 	'job_experiment_samples',
 	'job_experiments',
 	'job_outputs',
+	'job_run_events',
 	'job_runs',
 	'job_setups',
 	'job_suggestions',
 	'mcp_server_folder_offs',
 	'mcp_server_listings',
 	'projects',
+	'reconciler_decisions',
 	'scratchpads',
 	'settings',
 	'skill_choices',
@@ -65,15 +69,23 @@ const ALL_INDEXES = [
 	'idx_agent_permission_rules_active_workstream',
 	'idx_agent_permission_rules_effective',
 	'idx_agent_run_changes_captured',
+	'idx_agent_runs_chain',
 	'idx_agent_runs_session_first_seq',
 	'idx_agent_runs_session_obsoleted',
 	'idx_agent_sessions_workstream_archived_started',
 	'idx_agent_user_baselines_run',
 	'idx_agent_user_baselines_workstream_created',
+	'idx_alarms_due',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
+	'idx_event_log_chain',
+	'idx_event_log_digest',
+	'idx_event_log_emitted',
+	'idx_event_log_unhandled',
 	'idx_job_experiments_definition',
 	'idx_job_outputs_definition_created',
+	'idx_job_run_events_event',
+	'idx_job_runs_chain',
 	'idx_job_runs_chat_session',
 	'idx_job_runs_definition_origin',
 	'idx_job_runs_parent',
@@ -81,6 +93,10 @@ const ALL_INDEXES = [
 	'idx_job_runs_status_created',
 	'idx_job_setups_definition_created',
 	'idx_job_suggestions_cluster',
+	'idx_reconciler_decisions_chain',
+	'idx_reconciler_decisions_created',
+	'idx_reconciler_decisions_event',
+	'idx_reconciler_decisions_open',
 	'idx_workstreams_started_by',
 ];
 
@@ -258,8 +274,13 @@ describe('migrate', () => {
 	it('keeps every job run, and lets a run come from a schedule and name the lead it starts', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
-		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		const chains = MIGRATIONS.reduce(
+			(found, migration, index) =>
+				migration.includes('CREATE TABLE job_runs_next') ? index : found,
+			-1,
+		);
+		for (const migration of MIGRATIONS.slice(0, chains)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + chains};`);
 		db.exec(`
 			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
 			  VALUES ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z');
@@ -272,14 +293,33 @@ describe('migrate', () => {
 		migrate(db);
 
 		expect(
-			all(db, 'SELECT id, origin, context, parent_run_id, scope FROM job_runs ORDER BY id'),
+			all(
+				db,
+				'SELECT id, origin, context, parent_run_id, scope, chain_id, requests FROM job_runs ORDER BY id',
+			),
 		).toEqual([
-			{ id: 'first', origin: 'trigger', context: '{}', parent_run_id: null, scope: null },
-			{ id: 'next', origin: 'then', context: null, parent_run_id: 'first', scope: null },
+			{
+				id: 'first',
+				origin: 'trigger',
+				context: '{}',
+				parent_run_id: null,
+				scope: null,
+				chain_id: 'first',
+				requests: 1,
+			},
+			{
+				id: 'next',
+				origin: 'then',
+				context: null,
+				parent_run_id: 'first',
+				scope: null,
+				chain_id: 'first',
+				requests: 1,
+			},
 		]);
 		const scheduled = (id: string, scope: string) =>
-			`INSERT INTO job_runs (id, definition_id, title, origin, status, scope, created_at)
-			 VALUES ('${id}', 'job', 'Triage', 'schedule', 'waiting', '${scope}', '2026-10-21T00:00:00Z')`;
+			`INSERT INTO job_runs (id, definition_id, title, origin, status, scope, chain_id, created_at)
+			 VALUES ('${id}', 'job', 'Triage', 'schedule', 'waiting', '${scope}', '${id}', '2026-10-21T00:00:00Z')`;
 		db.exec(scheduled('home', 'home'));
 		db.exec(scheduled('owner', 'owner:bestboyhq'));
 		expect(() => db.exec(scheduled('nowhere', 'owner:'))).toThrow();

@@ -1,7 +1,7 @@
 // Generated from packages/agent-bridge/protocol/bridge-protocol.json. Do not edit.
 
 export const BRIDGE_CONTRACT_NAME = 'malini.agent-bridge' as const;
-export const BRIDGE_PROTOCOL_VERSION = 40 as const;
+export const BRIDGE_PROTOCOL_VERSION = 41 as const;
 export const BRIDGE_READY_TIMEOUT_MS = 10000 as const;
 export const BRIDGE_HEARTBEAT_INTERVAL_MS = 1000 as const;
 export const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5000 as const;
@@ -29,6 +29,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'cancel_mcp_authorization',
 	'stop_task',
 	'suggest_title',
+	'choose',
 	'list_skills',
 	'browser_result',
 	'platform_result',
@@ -64,6 +65,7 @@ export const BRIDGE_CONTROL_TYPES = [
 	'bridge.command_ack',
 	'bridge.protocol_error',
 	'bridge.title',
+	'bridge.choice',
 	'bridge.skills',
 	'bridge.mcp_authorization',
 	'bridge.mcp_servers',
@@ -82,6 +84,7 @@ export const BRIDGE_PLATFORM_TOOLS = [
 	'repositories_hide',
 	'workstreams_list',
 	'workstreams_create',
+	'workstreams_send',
 	'workstreams_archive',
 	'files_open',
 ] as const;

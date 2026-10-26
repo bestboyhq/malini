@@ -11,6 +11,17 @@ export const JOB_CONTEXT_MAX_BYTES = 64 * 1024;
 
 export const JOB_CHAIN_MAX_DEPTH = 32;
 
+export const JOB_CHAIN_REPEAT_LIMIT = 3;
+
+export function chainBudgetDetail(runs: number): string {
+	return `It already ran ${runs} times in one chain of events, so Malini asks before it runs again.`;
+}
+
+export function foldedJobContext(existing: string | null, added: string | null): string | null {
+	if (added === null) return existing;
+	return truncateJobContext(existing === null ? added : `${existing}\n\n${added}`);
+}
+
 export function isFinishedJobRunStatus(status: JobRunStatus): boolean {
 	return status === 'succeeded' || status === 'failed' || status === 'cancelled';
 }
@@ -27,7 +38,8 @@ export function isJobRunOrigin(value: unknown): value is JobRunOrigin {
 		value === 'manual' ||
 		value === 'trigger' ||
 		value === 'then' ||
-		value === 'schedule'
+		value === 'schedule' ||
+		value === 'reconciler'
 	);
 }
 

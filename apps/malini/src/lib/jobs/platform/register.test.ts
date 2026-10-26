@@ -6,6 +6,8 @@ import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
 	JOBS_SUGGESTED_CHANNEL,
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
@@ -39,9 +41,10 @@ import {
 import type { JobsPlatform } from '../jobs.platform';
 import { BUILTIN_JOBS } from '../domain/builtin-jobs';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
+import { insertLoggedEvent, jobRunEventIds } from './event-log.repository';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { BUSY_RETRY_MS } from './job-runner.service';
-import { getJobRun, insertJobRun } from './job-runs.repository';
+import { getJobRun, getJobRunContext, insertJobRun } from './job-runs.repository';
 import { insertSuggestionIfAbsent } from './job-suggestions.repository';
 import { registerJobs } from './register';
 import { skillsForRun } from '$lib/skills/skills.platform';
@@ -322,6 +325,7 @@ describe('job definitions', () => {
 			},
 			'open-draft': defaults('Open draft', 'low'),
 			merge: defaults('Merge', 'low'),
+			reconcile: defaults('Reconcile events', 'low', 'haiku'),
 		});
 	});
 
@@ -409,7 +413,7 @@ describe('job definitions', () => {
 		);
 	});
 
-	it('tells the review job to list resolved threads the way the merge queue reads them', async () => {
+	it('tells the review job to list resolved threads the way shipping reads them', async () => {
 		const { instructions } = await builtin('address-review');
 		const template = /`(Resolved: <thread id>)`/u.exec(instructions)?.[1];
 		if (!template) throw new Error('the address-review job no longer names the resolved format');
@@ -641,6 +645,7 @@ describe('scheduling', () => {
 			prompt: instructions,
 			profile: { effort: 'high', mode: 'agent', access: 'auto' },
 			automated: true,
+			chainId: first.chainId,
 		});
 
 		agentEvent(firstSession, 'agent-run-1', { type: 'run.completed', summary: 'Fixed the lint.' });
@@ -649,6 +654,29 @@ describe('scheduling', () => {
 		await until(second.id, 'running');
 		await settle();
 		expect((await jobRun(fourth.id)).status).toBe('queued');
+	});
+
+	it('says once that a run started and once that it finished, however often it changes', async () => {
+		const facts: string[] = [];
+		context.events.subscribe(JOBS_RUN_STARTED_CHANNEL, ({ run }) =>
+			facts.push(`${run.id} started`),
+		);
+		context.events.subscribe(JOBS_RUN_FINISHED_CHANNEL, ({ run }) =>
+			facts.push(`${run.id} ${run.status}`),
+		);
+		const queued = await runFixChecks('ws-a');
+		const jobSession = await session(queued.id);
+		agentEvent(jobSession, 'agent-run-1', { type: 'run.completed', summary: 'Fixed the lint.' });
+		await until(queued.id, 'succeeded');
+		const waiting = await runOf(await saveDefinition(), { waitForYou: true });
+		await context.commands.call('jobs.cancel-run', { jobRunId: waiting.id });
+		await settle();
+
+		expect(facts).toEqual([
+			`${queued.id} started`,
+			`${queued.id} succeeded`,
+			`${waiting.id} cancelled`,
+		]);
 	});
 
 	it('finishes a job whose turn ends with only a background command left running', async () => {
@@ -1097,6 +1125,8 @@ describe('restart', () => {
 				parentRunId: null,
 				chatSessionId: null,
 				chatAfterRunId: null,
+				chainId: id,
+				requests: 1,
 				createdAt: `2026-10-10T00:00:0${id.length}.000Z`,
 				startedAt: status === 'queued' ? null : NOW,
 				finishedAt: null,
@@ -1493,5 +1523,104 @@ describe('suggestions from repeated prompts', () => {
 			createdAt: NOW,
 		});
 		expect(await context.commands.call('jobs.list-suggestions', undefined)).toEqual([]);
+	});
+});
+
+describe('repeat runs', () => {
+	function chatTurn(sessionId: string, runId: string, workstreamId: string): void {
+		insertSession(db, {
+			id: sessionId,
+			workstreamId,
+			model: null,
+			providerSessionId: null,
+			status: 'running',
+			startedAt: NOW,
+		});
+		insertRun(db, {
+			id: runId,
+			sessionId,
+			prompt: 'Ship every workstream',
+			startedAt: NOW,
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+	}
+
+	it('folds a request for a job already queued in that workstream into that run', async () => {
+		openRuns.add('ws-a');
+		const definition = await saveDefinition();
+		const first = await runOf(definition, { context: 'Version 2.1' });
+		const second = await runOf(definition, { context: 'Version 2.2' });
+		const elsewhere = await runOf(definition, { workstreamId: 'ws-b' });
+
+		expect(second).toMatchObject({ id: first.id, status: 'queued', requests: 2 });
+		expect(getJobRunContext(db, first.id)).toBe('Version 2.1\n\nVersion 2.2');
+		expect(elsewhere.id).not.toBe(first.id);
+	});
+
+	it('starts a run that waits for you once you ask for that job again by hand', async () => {
+		openRuns.add('ws-a');
+		const definition = await saveDefinition();
+		const waiting = await runOf(definition, { waitForYou: true, origin: 'trigger' });
+		const asked = await runOf(definition);
+
+		expect(waiting.status).toBe('waiting');
+		expect(asked).toMatchObject({ id: waiting.id, status: 'queued', requests: 2 });
+	});
+
+	it('holds the fourth run of a job in one workstream from one chain of events until you confirm it', async () => {
+		openRuns.add('ws-a');
+		openRuns.add('ws-b');
+		chatTurn('lead-chat', 'lead-turn', 'ws-c');
+		const definition = await saveDefinition();
+		const fromTurn = (workstreamId: string) =>
+			runOf(definition, { workstreamId, chatSessionId: 'lead-chat', chatAfterRunId: 'lead-turn' });
+
+		const runs = [
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+		];
+		const other = await fromTurn('ws-b');
+
+		expect(runs.map((run) => [run.status, run.chainId])).toEqual([
+			['queued', 'lead-turn'],
+			['queued', 'lead-turn'],
+			['queued', 'lead-turn'],
+			['waiting', 'lead-turn'],
+		]);
+		expect(runs[3]?.detail).toBe(
+			'It already ran 3 times in one chain of events, so Malini asks before it runs again.',
+		);
+		expect(other).toMatchObject({ status: 'queued', chainId: 'lead-turn' });
+	});
+
+	it('runs shipping jobs in the chain of the read that caused it, outside the budget of that chain', async () => {
+		openRuns.add('ws-a');
+		const fixChecks = await builtin('fix-checks');
+		const read = insertLoggedEvent(db, {
+			channel: 'pull-requests:pull-request-changed',
+			payload: '{}',
+			digest: 'read',
+			workstreamId: 'ws-a',
+			cause: null,
+			chainId: 'chain-of-read',
+			emittedAt: NOW,
+		});
+		const fromQueue = () => runOf(fixChecks, { origin: 'merge-queue', causeEventId: read });
+
+		const runs = [await fromQueue(), await fromQueue(), await fromQueue(), await fromQueue()];
+		const triggered = await runOf(fixChecks, { origin: 'trigger', causeEventId: read });
+
+		expect(runs.map((run) => [run.status, run.chainId])).toEqual([
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+		]);
+		expect(triggered).toMatchObject({ status: 'queued', chainId: 'chain-of-read' });
+		expect(jobRunEventIds(db, [runs[0]?.id ?? ''])).toEqual(new Map([[runs[0]?.id, [read]]]));
 	});
 });

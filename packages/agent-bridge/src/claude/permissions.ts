@@ -252,6 +252,7 @@ const MALINI_WRITE_TOOLS: Readonly<
 	mcp__malini__repositories_clone: ['write', 'Clone repository', 'repository'],
 	mcp__malini__repositories_hide: ['write', 'Hide repository', 'repository'],
 	mcp__malini__workstreams_create: ['write', 'Start a workstream in', 'repository'],
+	mcp__malini__workstreams_send: ['write', 'Send a prompt to', 'workstream'],
 	mcp__malini__workstreams_archive: ['write', 'Archive workstream', 'workstream'],
 };
 

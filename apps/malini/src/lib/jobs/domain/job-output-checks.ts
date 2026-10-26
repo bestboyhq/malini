@@ -1,4 +1,5 @@
 import type { AutomaticJobBuiltin } from '$contract/jobs';
+import { outputPick } from './reconciler';
 
 // ponytail: a fixed verb list misses verbs it does not name; let a job declare its own checks when one needs more
 const NAME_VERBS = new Set([
@@ -74,11 +75,14 @@ const TASK_PREFIX = /^task:\s*/iu;
 
 export const JOB_OUTPUT_FAILED = 'No name';
 
+export const JOB_OUTPUT_NO_PICK = 'No pick';
+
 export function jobOutputIssues(
 	builtin: AutomaticJobBuiltin,
 	output: string | null,
 ): readonly string[] {
 	const text = output?.trim() ?? '';
+	if (builtin === 'reconcile') return outputPick(text) === null ? [JOB_OUTPUT_NO_PICK] : [];
 	if (text.length === 0) return [JOB_OUTPUT_FAILED];
 	return builtin === 'name-chats' ? chatNameIssues(text) : serviceNameIssues(text);
 }

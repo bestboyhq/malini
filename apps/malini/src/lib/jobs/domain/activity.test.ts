@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentActionRecord, ChatTurnRecord, JobRunRecord } from '$contract/jobs';
+import type {
+	AgentActionRecord,
+	ChatTurnRecord,
+	JobRunRecord,
+	ReconcilerCandidate,
+	ReconcilerDecisionRecord,
+} from '$contract/jobs';
 import { activityEntries } from './activity';
 
 function action(id: string, fields: Partial<AgentActionRecord>): AgentActionRecord {
@@ -26,6 +32,8 @@ const turn: ChatTurnRecord = {
 	chatName: 'Ship it',
 	prompt: 'Merge this workstream',
 	status: 'succeeded',
+	chainId: 'turn-1',
+	causeEventId: null,
 	startedAt: '2026-10-23T09:59:00.000Z',
 	finishedAt: '2026-10-23T10:02:00.000Z',
 };
@@ -45,6 +53,8 @@ const merge: JobRunRecord = {
 	parentRunId: null,
 	chatSessionId: 'chat-session',
 	chatAfterRunId: 'turn-1',
+	chainId: 'turn-1',
+	requests: 1,
 	createdAt: '2026-10-23T10:01:00.000Z',
 	startedAt: '2026-10-23T10:03:00.000Z',
 	finishedAt: '2026-10-23T10:04:00.000Z',
@@ -89,5 +99,57 @@ describe('activityEntries', () => {
 			'a-run',
 		]);
 		expect(fixEntry?.kind === 'job' && fixEntry.calls.map(({ id }) => id)).toEqual(['a-job']);
+	});
+
+	it('lists what the event reconciler did, never the times it did nothing or what it still asks you', () => {
+		const candidates: ReconcilerCandidate[] = [
+			{ kind: 'nothing', label: 'Do nothing' },
+			{
+				kind: 'wake-chat',
+				label: 'Wake “Ship it” with this report',
+				sessionId: 'chat-session',
+				workstreamId: 'ws-1',
+				from: 'ws-2',
+				report: 'Done.',
+			},
+			{ kind: 'ask-you', label: 'Ask you', reason: 'It needs you.' },
+		];
+		const decision = (
+			id: string,
+			chosen: number,
+			fields: Partial<ReconcilerDecisionRecord> = {},
+		): ReconcilerDecisionRecord => ({
+			id,
+			eventId: 1,
+			channel: 'chat:turn-finished',
+			chainId: 'turn-1',
+			workstreamId: 'ws-2',
+			facts: [],
+			candidates,
+			pick: chosen,
+			chosen,
+			decidedBy: 'model',
+			status: 'done',
+			detail: null,
+			jobRunId: null,
+			createdAt: '2026-10-23T10:05:00.000Z',
+			finishedAt: '2026-10-23T10:05:01.000Z',
+			...fields,
+		});
+
+		const entries = activityEntries(
+			[],
+			[],
+			[],
+			[
+				decision('woke', 1),
+				decision('quiet', 0),
+				decision('dismissed', 0, { decidedBy: 'you', status: 'dismissed' }),
+				decision('failed', 0, { status: 'failed' }),
+				decision('asking', 2, { status: 'asking', finishedAt: null }),
+			],
+		);
+
+		expect(entries.map((entry) => entry.id)).toEqual(['woke', 'dismissed', 'failed']);
 	});
 });

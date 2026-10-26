@@ -20,6 +20,8 @@ function run(patch: Partial<JobRunRecord>): JobRunRecord {
 		parentRunId: null,
 		chatSessionId: null,
 		chatAfterRunId: null,
+		chainId: 'run-1',
+		requests: 1,
 		createdAt: '2026-10-11T11:00:00.000Z',
 		startedAt: null,
 		finishedAt: null,

@@ -8,12 +8,19 @@ import type {
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, nowIso8601, run, type BindValue } from '$main/db/rows';
 
+export type ShipRequest = 'push' | 'update' | 'review';
+
+export type ShipRequests = Readonly<Record<ShipRequest, number>>;
+
 export type ShipRow = ShipStateRecord &
 	Readonly<{
 		failureSignature: string | null;
 		generatedTitle: string | null;
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
+		requests: ShipRequests;
+		failures: number;
+		settledJobRunId: string | null;
 	}>;
 
 export type ShipPatch = Partial<
@@ -32,6 +39,8 @@ export type ShipPatch = Partial<
 		generatedTitle: string | null;
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
+		failures: number;
+		settledJobRunId: string | null;
 	}>
 >;
 
@@ -53,6 +62,11 @@ interface ShipDbRow {
 	generated_title: string | null;
 	generated_body: string | null;
 	addressed_reviews: string;
+	push_requests: number;
+	update_requests: number;
+	review_requests: number;
+	failures: number;
+	settled_job_run_id: string | null;
 	updated_at: string;
 }
 
@@ -84,7 +98,14 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 
 const COLUMNS = `workstream_id, phase, step, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
-	last_error, next_attempt_at, generated_title, generated_body, addressed_reviews, updated_at`;
+	last_error, next_attempt_at, generated_title, generated_body, addressed_reviews, push_requests,
+	update_requests, review_requests, failures, settled_job_run_id, updated_at`;
+
+const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
+	push: 'push_requests',
+	update: 'update_requests',
+	review: 'review_requests',
+};
 
 function member<T extends string>(values: readonly T[], value: string | null): T | null {
 	return values.find((candidate) => candidate === value) ?? null;
@@ -116,6 +137,13 @@ function fromRow(row: ShipDbRow): ShipRow {
 		generatedTitle: row.generated_title,
 		generatedBody: row.generated_body,
 		addressedReviews: reviewIds(row.addressed_reviews),
+		requests: {
+			push: row.push_requests,
+			update: row.update_requests,
+			review: row.review_requests,
+		},
+		failures: row.failures,
+		settledJobRunId: row.settled_job_run_id,
 	};
 }
 
@@ -204,6 +232,8 @@ export function updateShip(
 	if (patch.addressedReviews !== undefined) {
 		set('addressed_reviews', JSON.stringify(patch.addressedReviews));
 	}
+	if (patch.failures !== undefined) set('failures', patch.failures);
+	if (patch.settledJobRunId !== undefined) set('settled_job_run_id', patch.settledJobRunId);
 	set('updated_at', nowIso8601());
 	const phaseGuard = onlyInPhase === undefined ? '' : ' AND phase = ?';
 	const { changes } = run(
@@ -218,4 +248,38 @@ export function updateShip(
 
 export function deleteShip(db: MaliniDatabase, workstreamId: string): boolean {
 	return run(db, 'DELETE FROM workstream_ship WHERE workstream_id = ?', workstreamId).changes > 0;
+}
+
+export function requestShip(db: MaliniDatabase, workstreamId: string, request: ShipRequest): void {
+	const column = REQUEST_COLUMNS[request];
+	run(
+		db,
+		`UPDATE workstream_ship SET ${column} = ${column} + 1 WHERE workstream_id = ?`,
+		workstreamId,
+	);
+}
+
+export function settleShipRequest(
+	db: MaliniDatabase,
+	workstreamId: string,
+	request: ShipRequest,
+	seen: number,
+): void {
+	if (seen === 0) return;
+	const column = REQUEST_COLUMNS[request];
+	run(
+		db,
+		`UPDATE workstream_ship SET ${column} = 0 WHERE workstream_id = ? AND ${column} = ?`,
+		workstreamId,
+		seen,
+	);
+}
+
+export function clearShipRequests(db: MaliniDatabase, workstreamId: string): void {
+	run(
+		db,
+		`UPDATE workstream_ship SET push_requests = 0, update_requests = 0, review_requests = 0
+		 WHERE workstream_id = ?`,
+		workstreamId,
+	);
 }

@@ -1,4 +1,4 @@
-# 0085 - The Open Graph image is rendered from the hero
+# 0087 - The Open Graph image is rendered from the hero
 
 Status: accepted
 

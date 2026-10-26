@@ -8,7 +8,8 @@ import { getSession } from '../sessions.repository';
 import { workstreamShipContext } from '../ship-context.repository';
 import { rememberPermissionRule } from '../permissions.repository';
 import { normalizeRememberablePermission } from '../permissions.service';
-import { AgentRunLeases, BRIDGE_INTERRUPTED_ERROR } from './lifecycle';
+import { BRIDGE_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
+import { AgentRunLeases } from './lifecycle';
 import type { BridgeEvent } from './protocol';
 import { BridgeRuntime, pumpStep, SessionCorrelator, type RunFinishedInput } from './runtime';
 import {
