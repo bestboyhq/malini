@@ -38,6 +38,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   **Reset** goes back to Organization and Manual.
 - **New chat** starts a [chat above your repositories](/malini/docs/chat.md#chats-above-repositories), at Home.
   The **+** on an owner's row starts one for that organization.
+  Grouped by Status or Day with a pin open, **New chat** stays on top: on an organization's pin it starts a chat for that organization, and on a repository's pin a workstream in that repository.
 - By organization, every repository sits under a row named for its owner, below that owner's chats.
   Click the owner to fold or unfold it, and Malini remembers.
   The repository list groups them the same way, one line per repository, and folding an owner in either place folds it in both.

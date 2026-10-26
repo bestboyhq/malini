@@ -101,6 +101,24 @@ test('the sidebar groups by status or by day, sub-groups each section or lists i
 		await expect(panel.getByRole('button', { name: 'Reset' })).toHaveCount(0);
 		await expect(sidebar(page).getByRole('button', { name: 'acme, 1 repository' })).toBeVisible();
 		await expect(sidebar(page).getByTestId('sidebar-section')).toHaveCount(0);
+
+		await choose(page, 'Grouping', 'Day');
+		await page.keyboard.press('Escape');
+		await expect(
+			sidebar(page).getByRole('button', { name: 'New chat', exact: true }),
+		).toBeVisible();
+		await focus.getByRole('button', { name: 'Pin an organization or repository' }).click();
+		await page.getByRole('menuitemcheckbox', { name: 'acme', exact: true }).click();
+		await page.getByRole('menuitemcheckbox', { name: 'api', exact: true }).click();
+		await page.keyboard.press('Escape');
+		await focus.getByRole('button', { name: 'acme', exact: true }).click();
+		await expect(sidebar(page).getByRole('button', { name: 'New chat in acme' })).toBeVisible();
+		await focus.getByRole('button', { name: 'api', exact: true }).click();
+		await expect(sidebar(page).getByRole('button', { name: 'Today, 2 workstreams' })).toBeVisible();
+		await sidebar(page).getByRole('button', { name: 'New chat in api' }).click();
+		await expect(sidebar(page).getByRole('button', { name: 'Today, 3 workstreams' })).toBeVisible({
+			timeout: 20_000,
+		});
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
