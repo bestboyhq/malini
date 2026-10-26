@@ -12,7 +12,7 @@ export const JOBS_ACTIVITY_HREF = '/jobs/activity';
 
 export const JOBS_RECIPES_HREF = '/jobs/recipes';
 
-export const JOBS_TIMELINE_HREF = '/jobs/timeline';
+export const JOBS_EXPLORER_HREF = '/jobs/explorer';
 
 export const SETTINGS_HREF = '/settings';
 

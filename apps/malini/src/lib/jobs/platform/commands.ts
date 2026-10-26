@@ -58,6 +58,7 @@ import {
 import { listAgentActions } from './agent-actions.repository';
 import type { AutomaticJob } from './automatic-jobs.service';
 import {
+	countLoggedEventsSince,
 	eventChainId,
 	jobRunEventIds,
 	linkJobRunEvent,
@@ -483,6 +484,7 @@ async function timeline(db: MaliniDatabase, since: string): Promise<TimelineReco
 		since,
 		until: nowIso8601(),
 		events,
+		channelCounts: countLoggedEventsSince(db, since),
 		runs: runs.map((run) => ({ ...run, eventIds: links.get(run.id) ?? [] })),
 		turns,
 		decisions,

@@ -17,11 +17,10 @@ import {
 	CHAT_SESSION_RENAMED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_RENAMED_CHANNEL,
 } from '$contract/events';
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { CONTINUE_AFTER_PAUSE_PROMPT, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { CommandRegistry } from '$main/ipc/registry';
 import {
 	BRIDGE_COMMAND_NAMES,
-	CONTINUE_AFTER_PAUSE_PROMPT,
 	promptWithElementReferences,
 	promptWithWorkstreamContext,
 	type CheckpointCaptureInput,

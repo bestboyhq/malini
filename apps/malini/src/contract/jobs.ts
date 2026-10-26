@@ -244,7 +244,7 @@ export type AgentActionRecord = Readonly<{
 
 export type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 
-export type ChatTurnStatus = 'running' | 'succeeded' | 'failed';
+export type ChatTurnStatus = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
 
 export type ChatTurnRecord = Readonly<{
 	runId: string;
@@ -333,7 +333,7 @@ export type ListTimelineArgs = Readonly<{ since: string }>;
 
 export type TimelineJobRun = JobRunRecord & Readonly<{ eventIds: readonly number[] }>;
 
-export type TimelineChatTurn = ChatTurnRecord & Readonly<{ from: string | null }>;
+export type TimelineChatTurn = ChatTurnRecord & Readonly<{ from: string | null; resumed: boolean }>;
 
 export type TimelineWorkstream = Readonly<{
 	id: string;
@@ -346,6 +346,7 @@ export type TimelineRecord = Readonly<{
 	since: string;
 	until: string;
 	events: readonly LoggedEventRecord[];
+	channelCounts: Readonly<Record<string, number>>;
 	runs: readonly TimelineJobRun[];
 	turns: readonly TimelineChatTurn[];
 	decisions: readonly ReconcilerDecisionRecord[];

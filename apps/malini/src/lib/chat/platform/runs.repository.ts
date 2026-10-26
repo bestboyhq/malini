@@ -1,6 +1,9 @@
 import type { AgentRunProfile } from '$contract/agent';
-import type { ChatTurnRecord, TimelineChatTurn } from '$contract/jobs';
+import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/jobs';
 import {
+	CONTINUE_AFTER_PAUSE_PROMPT,
+	isCancellationError,
+	isInterruptionError,
 	nextSessionStatus,
 	PAUSED_FOR_EXIT_ERROR,
 	type SessionStatus,
@@ -357,7 +360,7 @@ function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
 		workstreamId: row.workstream_id,
 		chatName: row.display_name,
 		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
-		status: row.completed_at === null ? 'running' : row.error === null ? 'succeeded' : 'failed',
+		status: chatTurnStatus(row.completed_at, row.error),
 		chainId: row.chain_id || row.id,
 		causeEventId: row.cause_event_id,
 		startedAt: row.started_at,
@@ -388,10 +391,11 @@ export function listChatTurns(
 }
 
 export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineChatTurn[] {
-	return all<ChatTurnRow & { sender: string | null }>(
+	return all<ChatTurnRow & { sender: string | null; resumed: number }>(
 		db,
 		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
 		        r.cause_event_id, r.started_at, r.completed_at, r.error,
+		        (r.automated = 1 AND r.prompt = ?) AS resumed,
 		        (SELECT CASE WHEN json_valid(substr(e.event, instr(e.event, char(10)) + 1))
 		                THEN json_extract(substr(e.event, instr(e.event, char(10)) + 1), '$.from') END
 		         FROM agent_events e
@@ -401,9 +405,17 @@ export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineC
 		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
 		   AND (r.started_at >= ? OR r.completed_at IS NULL OR r.completed_at >= ?)
 		 ORDER BY r.started_at`,
+		CONTINUE_AFTER_PAUSE_PROMPT,
 		since,
 		since,
-	).map((row) => ({ ...chatTurnFromRow(row), from: row.sender }));
+	).map((row) => ({ ...chatTurnFromRow(row), from: row.sender, resumed: row.resumed === 1 }));
+}
+
+function chatTurnStatus(completedAt: string | null, error: string | null): ChatTurnStatus {
+	if (completedAt === null) return 'running';
+	if (error === null) return 'succeeded';
+	if (isInterruptionError(error)) return 'interrupted';
+	return isCancellationError(error) ? 'cancelled' : 'failed';
 }
 
 export type ChatTurnWork = Readonly<{ runId: string; sessionId: string; chainId: string }>;

@@ -97,7 +97,7 @@ function wokenBy(page: Page, from: string) {
 		.filter({ hasText: `Prompt from ${from}` });
 }
 
-test('a lead chat hears back once a workstream it started ends a turn, and Activity and the Timeline say why', async () => {
+test('a lead chat hears back once a workstream it started ends a turn, and Activity and the Explorer say why', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -134,29 +134,27 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 		).toContainText(WAKE);
 		await captureFlow(app, 'reconciler-activity');
 
-		await openJobs(page, '#/jobs/timeline');
-		const timeline = page.getByTestId('automations-timeline');
-		await expect(timeline.getByRole('listitem', { name: CHILD })).toBeVisible({ timeout: 20_000 });
-		await timeline
-			.getByRole('button', { name: /^Event: Turn ended: The analytics endpoint answers, / })
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		await map.getByRole('button', { name: 'Reconcile events: 1 decision' }).click();
+		await explorer
+			.getByRole('list', { name: 'Reconcile events' })
+			.getByRole('button', { name: new RegExp(`^${WAKE}, Api analytics, `, 'u') })
 			.click();
-		const detail = page.getByTestId('timeline-detail');
+		const chain = explorer.getByRole('list', { name: 'One chain' });
 		await expect(
-			detail.getByRole('list', { name: 'Caused by' }).getByRole('button', { name: /^Chat turn: / }),
+			chain.getByRole('button', {
+				name: /^Turn ended: The analytics endpoint answers, Api analytics, /u,
+			}),
 		).toBeVisible();
 		await expect(
-			detail
-				.getByRole('list', { name: 'Led to' })
-				.getByRole('button', { name: `Reconciler: ${WAKE}` }),
+			chain.getByRole('button', { name: /^Malini woke you: work you started moved on/u }),
 		).toBeVisible();
-		await detail
-			.getByRole('list', { name: 'Led to' })
-			.getByRole('button', { name: `Reconciler: ${WAKE}` })
-			.click();
 		await expect(
-			detail.getByRole('list', { name: 'Led to' }).getByRole('button', { name: /^Chat turn: / }),
-		).toBeVisible();
-		await captureFlow(app, 'reconciler-timeline');
+			chain.getByRole('listitem').filter({ hasText: 'Reconcile events woke it' }),
+		).toHaveCount(1);
+		await captureFlow(app, 'reconciler-explorer');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

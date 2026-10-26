@@ -1,4 +1,5 @@
 import { isAbsolute, normalize } from 'node:path';
+import { CONTINUE_AFTER_PAUSE_PROMPT } from '$contract/agent-state-machine';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { AgentEventPage } from '$contract/commands';
 import type { CommandRegistry } from '$main/ipc/registry';
@@ -121,9 +122,6 @@ const MAX_PROMPT_ELEMENT_URL_BYTES = 4 * 2_048;
 const MAX_PROMPT_ELEMENT_DOM_PATH_BYTES = 4 * 4_096;
 const MAX_PROMPT_ELEMENT_HTML_BYTES = 4 * 4_096;
 const MAX_SESSION_DISPLAY_NAME_CHARS = 80;
-
-export const CONTINUE_AFTER_PAUSE_PROMPT =
-	'Malini restarted while you were working and cut your last step short. Nobody rejected it: re-run whatever was interrupted and continue where you left off.';
 
 const CANCEL_TERMINAL_PERSIST_TIMEOUT_MS = 5_000;
 const CANCEL_TERMINAL_POLL_INTERVAL_MS = 10;

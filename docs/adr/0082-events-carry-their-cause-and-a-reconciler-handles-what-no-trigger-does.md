@@ -40,16 +40,17 @@ The user settled on "rules first, the agent second": a small model that only cho
   Settings, Jobs, **Reconcile events** (`jobs.reconciler`, on by default) turns it off.
 - **Replies and standing.** `workstreams_send` (protocol 41) sends a prompt into the chat of a workstream this chat started, only while that chat is idle, and asks like every write (0053).
   `workstreams_list` returns each workstream's `working`, `outcome` and `needs`, and the agent instructions say that started work reports back and how to answer it.
-- **The timeline.** Jobs, **Timeline** (`jobs.list-timeline`) lays out the last hour, 6 hours or 24 hours as one lane per workstream, under the one that started it: chat turns and job runs as bars, facts as dots, the reconciler's picks as diamonds.
-  **Replay** plays the window back, the playhead scrubs it, and a selected item shows what caused it, what it led to and its chain; **Every event** shows the events it otherwise leaves out.
+- **The explorer.** Jobs, **Explorer** (`jobs.list-timeline`) draws the system as one loop: where events come from, the event log by kind, the listeners, and the chats and jobs they start, with a timeline of events under it.
+  **Play** sends a dot along each event's route, a selected event lights up its chain, and **Every event** shows the events it otherwise leaves out.
+  `channelCounts` keeps the event log's counts exact past the 2,000 events the window lists, and chat turns carry `resumed` and an `interrupted` or `cancelled` status, so a restart never reads as a failure.
   The scrubber is hyper-ui's `Playhead`, moved there from the chat's video compare.
 
 ## Consequences
 
-- "Why did this run?" has an answer in data: follow the cause and the chain back, in the Timeline or in `event_log`.
+- "Why did this run?" has an answer in data: follow the cause and the chain back, in the Explorer or in `event_log`.
   A loop stops itself after three runs, or three wakes, and asks the user instead of running on.
 - Malini reacts the same way to a commit, a push or a conflict whoever made it, which is what a later decision needs before agents may run more of git themselves (0006 still holds).
 - Every logged event costs a SQLite write on the emit path, and every event the reconciler takes on costs a Haiku call; folding per subject and the switch in Settings bound both.
 - The model only picks: a new kind of action needs a new candidate in `src/lib/jobs/domain/reconciler.ts` and its carrying out in the service, never free text from the model.
 - Not built yet: the classifier trained on the decision log, a local model (Apple's on-device model or a bundled open one) behind `choose`, a Then on failure, and a wait for a group of runs.
-- Enforced by `src/lib/jobs/platform/event-log.service.test.ts` (causes, chains, replay at boot, pruning), `reconciler.service.test.ts` (wakes, held wakes sent as one prompt, asks, the wake budget, retries, conflicts, the Off switch, the timeline), `register.test.ts` (folding and the chain budget), `src/lib/jobs/domain/reconciler.test.ts` and `timeline.test.ts`, `src/lib/chat/platform/finished-turns.test.ts`, `src/lib/shared/repositories/platform/watcher.test.ts` (git facts), `src/main/db/migrations.test.ts` (migration 67), the bridge's `protocol.test.ts`, `cli.test.ts` and `choices.test.ts`, and `tests/e2e/event-reconciler.spec.ts`, `job-runs.spec.ts`, `jobs-page.spec.ts` and `settings.spec.ts`.
+- Enforced by `src/lib/jobs/platform/event-log.service.test.ts` (causes, chains, replay at boot, pruning), `reconciler.service.test.ts` (wakes, held wakes sent as one prompt, asks, the wake budget, retries, conflicts, the Off switch, the timeline), `register.test.ts` (folding and the chain budget), `src/lib/jobs/domain/reconciler.test.ts` and `explorer.test.ts`, `src/lib/chat/platform/runs-events.repository.test.ts` (turn statuses, resumed turns), `src/lib/chat/platform/finished-turns.test.ts`, `src/lib/shared/repositories/platform/watcher.test.ts` (git facts), `src/main/db/migrations.test.ts` (migration 67), the bridge's `protocol.test.ts`, `cli.test.ts` and `choices.test.ts`, and `tests/e2e/event-reconciler.spec.ts`, `job-runs.spec.ts`, `jobs-page.spec.ts` and `settings.spec.ts`.

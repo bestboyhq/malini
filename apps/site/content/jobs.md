@@ -32,7 +32,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
 - **Activity**: what waits for you, what is running, and every run by day, job runs and chat turns alike, each holding the calls its agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
   **Waiting for you** holds the runs that ask you first, the runs that need you, and what [Reconcile events](#reconcile-events) asks you.
   Each thing Reconcile events did shows as an **Event** row, which opens to what Malini saw and what it could have done.
-- **Timeline**: the last hour or day [played back](#timeline), lane by lane, with what caused what.
+- **Explorer**: a [map of Malini](#explorer) and a timeline of events, to replay the last hour or day and follow what caused what.
 - **Recipes**: ready-made jobs to start from.
 
 Click a job to open its own page: its When and how it runs, where it runs, its Then, its recent runs, and its instructions, model, effort and skills.
@@ -192,19 +192,27 @@ The model only picks one of them, by number, and Malini checks the pick before i
 - **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification.
 - **Run again** asks first, unless the job runs on its own.
 
-Every pick shows in Activity and in the [Timeline](#timeline), with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.
+Every pick shows in Activity, with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.
+The [Explorer](#explorer) shows where each pick came from and what it started.
 Reconcile events runs on Haiku at low effort by default; edit its model and instructions on its page, and [Improve](#improve-name-chats-and-name-services) replays its recent decisions on another one.
 Turn it off in Settings, Jobs, **Reconcile events**.
 
-## Timeline
+## Explorer
 
-**Timeline** lays out the last hour, 6 hours or 24 hours, one lane per workstream, each under the chat that started it.
-Chat turns and job runs are bars, facts such as a turn ending, a commit, a push or a conflict are dots, and the picks of Reconcile events are diamonds.
+**Explorer** draws Malini as one loop: work in chats and jobs makes events, the event log keeps them, listeners react, and what they start runs as new work.
+**You**, **Git**, **GitHub** and **Malini** sit where events come from.
+Each kind of event has a row in the event log with how many happened, and each listener shows what it started: Reconcile events, your triggers, Thens, the merge queue, schedules, and **Resume**, which picks up the turns a restart cut short.
+The merge queue's wire comes straight from GitHub, because it polls pull requests instead of waiting for an event.
+
+**Play** replays the last hour, 6 hours or 24 hours: a dot travels along the wires for each event, and **Chats** and **Jobs** show what was working at that moment.
+The timeline of events under the map scrubs to any moment.
+Click an event to follow its chain: its route lights up on the map, and its steps list in order, each with why it happened.
+Click a part of the map to list what passed through it.
 **Every event** adds the rest, such as file changes and each status a run moves through.
-
-**Replay** plays the window back, and the playhead scrubs it to any moment.
-Click anything to see when it happened, how many things share its chain, what caused it and what it led to; click those to follow the chain.
 A chat turn or a job run opens its transcript.
+
+Only words carry color: failed is red, needs you is amber, merged is purple.
+Blue marks what moves and what you picked.
 
 ## Built-in jobs
 

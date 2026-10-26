@@ -55,7 +55,7 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 
 		for (const [name, title] of [
 			['Activity', 'Activity'],
-			['Timeline', 'Timeline'],
+			['Explorer', 'Explorer'],
 			['Recipes', 'Recipes'],
 		] as const) {
 			await sections.getByRole('link', { name: new RegExp(`^${name}`, 'u') }).click();

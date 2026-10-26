@@ -17,6 +17,7 @@ import {
 	updateEventPayload,
 	workstreamHasWorkingRun,
 } from './events.repository';
+import { CONTINUE_AFTER_PAUSE_PROMPT } from '$contract/agent-state-machine';
 import { openMigratedDatabase } from '$main/db/open';
 import { listAgentEventPage } from './agent/commands';
 import { getInteraction, recordPendingInteraction } from './interactions.repository';
@@ -580,6 +581,9 @@ describe('chat turns', () => {
 then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('failed', 'chat', 'Try again', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', 'boom', NULL),
 			  ('running', 'chat', 'Keep going', '2026-10-23T12:00:00Z', NULL, NULL, NULL),
+			  ('paused', 'chat', 'Mid way', '2026-10-23T14:00:00Z', '2026-10-23T14:01:00Z', 'paused: malini closed mid-run', NULL),
+			  ('reaped', 'chat', 'Mid way', '2026-10-23T15:00:00Z', '2026-10-23T15:01:00Z', 'interrupted: agent bridge restarted', NULL),
+			  ('stopped', 'chat', 'Stop', '2026-10-23T16:00:00Z', '2026-10-23T16:01:00Z', 'cancelled', NULL),
 			  ('edited', 'chat', 'Old prompt', '2026-10-23T09:00:00Z', '2026-10-23T09:01:00Z', NULL, '2026-10-23T09:02:00Z'),
 			  ('in-job', 'job', 'Fix the checks', '2026-10-23T13:00:00Z', NULL, NULL, NULL);
 		`);
@@ -598,7 +602,10 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 				finishedAt: '2026-10-23T10:01:00Z',
 			},
 		]);
-		expect(listChatTurns(db, ['called'], 2).map(({ runId, status }) => [runId, status])).toEqual([
+		expect(listChatTurns(db, ['called'], 5).map(({ runId, status }) => [runId, status])).toEqual([
+			['stopped', 'cancelled'],
+			['reaped', 'interrupted'],
+			['paused', 'interrupted'],
 			['running', 'running'],
 			['failed', 'failed'],
 			['called', 'succeeded'],
@@ -606,7 +613,7 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 		db.close();
 	});
 
-	it('lists the chat turns of a window with the workstream whose chat sent each prompt', () => {
+	it('lists the chat turns of a window with the workstream whose chat sent each prompt, and the ones Malini resumed', () => {
 		const db = openMigratedDatabase(':memory:');
 		db.exec(`
 			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
@@ -618,18 +625,29 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('typed', 'chat', 'Ship it', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', ''),
 			  ('old', 'chat', 'Earlier', '2026-10-22T10:00:00Z', '2026-10-22T10:01:00Z', '');
 		`);
+		run(
+			db,
+			`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id, automated)
+			 VALUES ('resumed', 'chat', ?, '2026-10-23T12:00:00Z', NULL, '', 1),
+			        ('copied', 'chat', ?, '2026-10-23T13:00:00Z', NULL, '', 0)`,
+			CONTINUE_AFTER_PAUSE_PROMPT,
+			CONTINUE_AFTER_PAUSE_PROMPT,
+		);
 		appendEvent(db, 'chat', 'woken', 'user.message', { text: 'Malini woke you', from: 'child' });
 		appendEvent(db, 'chat', 'typed', 'user.message', { text: 'Ship it' });
 
 		expect(
-			listChatTurnsSince(db, '2026-10-23T00:00:00Z').map(({ runId, chainId, from }) => [
+			listChatTurnsSince(db, '2026-10-23T00:00:00Z').map(({ runId, chainId, from, resumed }) => [
 				runId,
 				chainId,
 				from,
+				resumed,
 			]),
 		).toEqual([
-			['woken', 'lead-turn', 'child'],
-			['typed', 'typed', null],
+			['woken', 'lead-turn', 'child', false],
+			['typed', 'typed', null, false],
+			['resumed', 'resumed', null, true],
+			['copied', 'copied', null, false],
 		]);
 		db.close();
 	});

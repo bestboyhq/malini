@@ -123,6 +123,19 @@ export function listLoggedEventsSince(
 	).map((row) => fromRow(row, payloadLimit));
 }
 
+export function countLoggedEventsSince(
+	db: MaliniDatabase,
+	since: string,
+): Readonly<Record<string, number>> {
+	return Object.fromEntries(
+		all<{ channel: string; total: number }>(
+			db,
+			'SELECT channel, COUNT(*) AS total FROM event_log WHERE emitted_at >= ? GROUP BY channel',
+			since,
+		).map((row) => [row.channel, row.total]),
+	);
+}
+
 export function triggeredBefore(
 	db: MaliniDatabase,
 	definitionId: string,
