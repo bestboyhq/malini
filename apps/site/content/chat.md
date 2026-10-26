@@ -143,10 +143,10 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
 - Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers, read live from the chat's Claude Code.
 
-## Undo, edit, fork
+## Undo, edit, slice and fork
 
 Every run can be undone.
-Edit an earlier message to resend from there, or fork to a new chat while the agent is still busy.
+Edit an earlier message to resend from there, or slice and fork: a new chat starts from the chat as it stood at that run, even while the agent is still busy.
 Runs that a restart cut short pick up where they left off the next time Malini opens.
 
 ## Skills

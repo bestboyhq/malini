@@ -47,7 +47,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 		const transcriptName = `Transcript of ${parentName}.md`;
 		const parentEvents = conversation(await listEvents(page, parent));
 
-		const fork = page.getByRole('button', { name: 'Fork to new chat' });
+		const fork = page.getByRole('button', { name: 'Slice and fork' });
 		await fork.hover();
 		await captureFlow(app, 'flow-4-fork-source');
 		await fork.click();
@@ -99,7 +99,7 @@ test('forking a run opens a new chat with its transcript attached and leaves the
 				?.displayName,
 		).toBe(forkedName);
 
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const nested = composer.getByLabel(`Attached file: Transcript of ${forkedName}.md`);
 		await expect(nested).toBeVisible({ timeout: 20_000 });
 		const nestedId = await nested.getAttribute('data-inline-attachment');
@@ -141,7 +141,7 @@ test('forking with an unsent message puts the transcript first and the message a
 		await composer.click();
 		await page.keyboard.type('now refactor it');
 
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const transcriptChip = composer.getByLabel(
 			'Attached file: Transcript of Explain the login flow.md',
 		);
@@ -183,7 +183,7 @@ test('forking twice opens a new chat for each fork, right after the chat it came
 			'Attached file: Transcript of Explain the login flow.md',
 		);
 
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		await expect(transcriptChip).toBeVisible({ timeout: 20_000 });
 		await expect(composer).toBeFocused();
 		await page.keyboard.type('first fork draft');
@@ -192,7 +192,7 @@ test('forking twice opens a new chat for each fork, right after the chat it came
 
 		await parentTab.click();
 		await expect(parentTab).toHaveAttribute('aria-selected', 'true');
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		await expect(transcriptChip).toBeVisible({ timeout: 20_000 });
 		await expect(composer.locator('[data-prompt-chip]')).toHaveCount(1);
 		await expect(composer).not.toContainText('first fork draft');
@@ -231,7 +231,7 @@ test('hovering the wide transcript chip shows its preview centered over the chip
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'Explain the login flow');
 		await expectAssistantReply(page);
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const chip = page
 			.getByTestId('chat-composer-input')
 			.getByLabel('Attached file: Transcript of Explain the login flow.md');
@@ -284,7 +284,7 @@ test('forking a run stages the transcript in the fork only, never in the chat it
 		});
 		const anyChip = composer.getByRole('button', { name: /^Remove /u });
 
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		await expect(transcriptChip).toHaveCount(1, { timeout: 20_000 });
 		const forkName = (await strip.getByRole('tab', { selected: true }).textContent())?.trim();
 
@@ -322,7 +322,7 @@ test('removing a chip between two words sends the prompt with one space between 
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'Explain the login flow');
 		await expectAssistantReply(page);
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const composer = page.getByTestId('chat-composer-input');
 		const chip = composer.getByLabel('Attached file: Transcript of Explain the login flow.md');
 		await expect(chip).toBeVisible({ timeout: 20_000 });
@@ -366,7 +366,7 @@ test('removing the only chip from a composer leaves it empty, with no draft behi
 		await openWorkstream(page, workstreamId);
 		await sendPrompt(page, 'Explain the login flow');
 		await expectAssistantReply(page);
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		const composer = page.getByTestId('chat-composer-input');
 		const chip = composer.getByLabel('Attached file: Transcript of Explain the login flow.md');
 		await expect(chip).toBeVisible({ timeout: 20_000 });
@@ -420,7 +420,7 @@ test('a new fork is named New chat again once the earlier fork tab is closed', a
 		for (let fork = 0; fork < 2; fork += 1) {
 			await parentTab.click();
 			await expect(parentTab).toHaveAttribute('aria-selected', 'true');
-			await page.getByRole('button', { name: 'Fork to new chat' }).click();
+			await page.getByRole('button', { name: 'Slice and fork' }).click();
 			await expect(newChatTab).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
 			await newChatTab.hover();
 			await page.getByRole('button', { name: 'Close New chat', exact: true }).click();
@@ -453,7 +453,7 @@ test('a finished chat forks while another chat in its workstream is still runnin
 			.toContain('running');
 		await selectChat(page, finished);
 
-		const fork = page.getByRole('button', { name: 'Fork to new chat' });
+		const fork = page.getByRole('button', { name: 'Slice and fork' });
 		await expect(fork).toBeEnabled();
 		await fork.click();
 		await expect.poll(() => currentSessionId(page), { timeout: 20_000 }).not.toBe(finished);
