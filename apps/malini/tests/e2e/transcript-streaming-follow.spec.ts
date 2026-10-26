@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { holdAgentRuns } from './fake-github';
 import {
 	captureFlow,
@@ -176,6 +176,10 @@ async function wheel(page: Page, ticks: number, tickPx = WHEEL_TICK_PX): Promise
 	}
 }
 
+async function scrollRange(page: Page): Promise<number> {
+	return page.getByTestId('chat-message-scroller').evaluate((scroller) => scroller.scrollHeight);
+}
+
 async function distanceFromBottom(page: Page): Promise<number> {
 	return page
 		.getByTestId('chat-message-scroller')
@@ -210,6 +214,33 @@ async function untilLatestRunShows(page: Page, line: string, timeout = 10_000): 
 				LATEST_RUN,
 			);
 	await expect.poll(latestRunText, { intervals: [50], timeout }).toContain(line);
+}
+
+async function chatWithJobInTray(
+	app: LaunchedApp,
+	workstreamId: string,
+): Promise<Readonly<{ jobs: Locator; jobRunId: string }>> {
+	const { page } = app;
+	await longChat(app, workstreamId);
+	const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
+		name: 'Watch the deploy',
+		instructions: 'HANG',
+		model: 'opus',
+		effort: 'medium',
+		runsIn: 'workstream',
+	});
+	holdAgentRuns(app, true);
+	await sendPrompt(page, 'Wait for the deploy job');
+	const jobRun = await invoke<{ id: string }>(page, 'jobs.run', {
+		definitionId: job.id,
+		workstreamId,
+	});
+	const jobs = page.getByRole('region', { name: 'Jobs (1)', exact: true });
+	await expect(jobs).toContainText('Watch the deploy', { timeout: 20_000 });
+	holdAgentRuns(app, false);
+	await expectRunFinished(page, 'Hello from the fake bridge');
+	await untilStill(page);
+	return { jobs, jobRunId: jobRun.id };
 }
 
 test('a prompt sent into a long chat lands right above the composer, then the transcript follows its reply down', async () => {
@@ -372,15 +403,13 @@ test('collapsing a command output in the latest run leaves the rows above it in 
 		await wheel(page, 1, -WHEEL_TICK_PX);
 		await untilStill(page);
 
-		const scrollRange = (): Promise<number> =>
-			page.getByTestId('chat-message-scroller').evaluate((scroller) => scroller.scrollHeight);
-		const rangeBeforeWheel = await scrollRange();
+		const rangeBeforeWheel = await scrollRange(page);
 		await startSampling(page, []);
 		await wheel(page, 60);
 		await untilStill(page);
 		const wheeled = await stopSampling(page);
 		expect(
-			(await scrollRange()) - rangeBeforeWheel,
+			(await scrollRange(page)) - rangeBeforeWheel,
 			'px the wheel stretched the transcript past the space the output left',
 		).toBeLessThanOrEqual(STILL_PX);
 		expect(
@@ -408,29 +437,10 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const workstreamId = 'e2e-streaming-follow-tray-ws';
-		await longChat(app, workstreamId);
-		const job = await invoke<{ id: string }>(page, 'jobs.save-definition', {
-			name: 'Watch the deploy',
-			instructions: 'HANG',
-			model: 'opus',
-			effort: 'medium',
-			runsIn: 'workstream',
-		});
-		holdAgentRuns(app, true);
-		await sendPrompt(page, 'Wait for the deploy job');
-		const jobRun = await invoke<{ id: string }>(page, 'jobs.run', {
-			definitionId: job.id,
-			workstreamId,
-		});
-		const jobs = page.getByRole('region', { name: 'Jobs (1)', exact: true });
-		await expect(jobs).toContainText('Watch the deploy', { timeout: 20_000 });
-		holdAgentRuns(app, false);
-		await expectRunFinished(page, 'Hello from the fake bridge');
-		await untilStill(page);
+		const { jobs, jobRunId } = await chatWithJobInTray(app, 'e2e-streaming-follow-tray-ws');
 
 		await startSampling(page, [LATEST_PROMPT]);
-		await invoke(page, 'jobs.cancel-run', { jobRunId: jobRun.id });
+		await invoke(page, 'jobs.cancel-run', { jobRunId });
 		await expect(jobs).toHaveCount(0, { timeout: 20_000 });
 		await untilStill(page);
 		const samples = await stopSampling(page);
@@ -450,6 +460,36 @@ test('a job leaving the composer tray leaves the transcript where it is', async 
 			blankAboveComposer(await stopSampling(page)),
 			'px of blank space between the next reply and the composer',
 		).toBeLessThanOrEqual(BLANK_PX);
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a job leaving the composer tray while the wheel scrolls at the end neither moves the transcript nor stretches it', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { jobs, jobRunId } = await chatWithJobInTray(app, 'e2e-streaming-follow-tray-wheel-ws');
+		const rangeWithJob = await scrollRange(page);
+
+		await startSampling(page, [LATEST_PROMPT]);
+		await invoke(page, 'jobs.cancel-run', { jobRunId });
+		await wheel(page, 40);
+		await expect(jobs).toHaveCount(0);
+		await untilStill(page);
+		const samples = await stopSampling(page);
+
+		expect(
+			drift(samples, 1),
+			'px the transcript moved while the job left the tray under the wheel',
+		).toBeLessThanOrEqual(STILL_PX);
+		expect(
+			(await scrollRange(page)) - rangeWithJob,
+			'px the wheel stretched the transcript past the space the job left',
+		).toBeLessThanOrEqual(STILL_PX);
 
 		expectCleanConsole(app);
 	} finally {

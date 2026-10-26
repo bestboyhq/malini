@@ -935,7 +935,7 @@
 				<ol
 					bind:this={messageListEl}
 					class="chat-column flex flex-col gap-8 px-7 pt-2 select-none"
-					style:padding-bottom="calc(1.25rem + {spaceBelow}px + var(--chat-hold-space))"
+					style:padding-bottom="calc(1.25rem + var(--chat-space-below) + var(--chat-hold-space))"
 					data-testid="chat-message-list"
 					data-transcript-presentation="windowed-runs"
 					data-transcript-total-runs={runs.length}
@@ -976,6 +976,12 @@
 
 <style>
 	@property --chat-hold-space {
+		syntax: '<length>';
+		inherits: false;
+		initial-value: 0px;
+	}
+
+	@property --chat-space-below {
 		syntax: '<length>';
 		inherits: false;
 		initial-value: 0px;

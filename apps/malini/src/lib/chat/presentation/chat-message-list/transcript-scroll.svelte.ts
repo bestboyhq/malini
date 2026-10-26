@@ -514,6 +514,7 @@ export function createTranscriptScroll(
 			holdSpacePx = 0;
 			latestRun = null;
 			messageList.style.setProperty('--chat-hold-space', '0px');
+			messageList.style.setProperty('--chat-space-below', `${spaceBelowPx}px`);
 			const sizeObserver = new ResizeObserver((entries) => {
 				if (entries.some((entry) => entry.target === viewport)) reconcile('frame');
 				if (entries.some((entry) => entry.target === messageList)) revealContentChange();
@@ -582,9 +583,12 @@ export function createTranscriptScroll(
 		followSpaceBelowChange(px: number, overlayPx: number): void {
 			const covered = coversWithOverlay() ? coveredPx + overlayPx - overlayBelowPx : 0;
 			const moved = px - spaceBelowPx - (covered - coveredPx);
+			const blankGrowth = Math.min(0, coveredPx) - Math.min(0, covered);
 			spaceBelowPx = px;
 			overlayBelowPx = overlayPx;
 			coveredPx = covered;
+			messageListEl?.style.setProperty('--chat-space-below', `${px}px`);
+			if (blankGrowth > 0) setHoldSpace(holdSpacePx + Math.ceil(blankGrowth));
 			if (!glides()) {
 				reconcile('frame');
 				return;
