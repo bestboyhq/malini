@@ -3,80 +3,8 @@ const TRAILING_COMMIT_LINE =
 const TRAILING_PULL_REQUEST_LINE =
 	/^[\s\S]*(?:^|\s)Pull request:\s*(.+?)(?:\s+(?:Commit|Resolved):.*)?\s*$/u;
 
-export function commitLineOrSummary(summary: string): string {
-	const commitLine = TRAILING_COMMIT_LINE.exec(summary)?.[1];
-	if (commitLine) return commitLine;
-	const trimmed = summary.trim();
-	return describesTheChange(trimmed) ? trimmed : '';
-}
-
-const DESCRIPTIVE_SUMMARY_MIN_WORDS = 3;
-
-// ponytail: fixed English acknowledgement list; extend it when a bare reply slips through.
-const ACKNOWLEDGEMENT_WORDS = new Set([
-	'a',
-	'all',
-	'an',
-	'and',
-	'as',
-	'asked',
-	'been',
-	'change',
-	'changes',
-	'complete',
-	'completed',
-	'done',
-	'everything',
-	'finished',
-	'fixed',
-	'for',
-	'good',
-	'great',
-	'has',
-	'have',
-	'here',
-	'i',
-	"i'm",
-	"i've",
-	'is',
-	'it',
-	"it's",
-	'job',
-	'made',
-	'now',
-	'ok',
-	'okay',
-	'ready',
-	'request',
-	'requested',
-	'set',
-	'so',
-	'success',
-	'successfully',
-	'sure',
-	'task',
-	'that',
-	"that's",
-	'the',
-	'this',
-	'we',
-	"we've",
-	'work',
-	'yes',
-	'you',
-]);
-
-function describesTheChange(summary: string): boolean {
-	const firstSentence = summary.split(/(?<=[.!?])\s+/u)[0] ?? '';
-	const words =
-		firstSentence
-			.toLocaleLowerCase()
-			.replaceAll('’', "'")
-			.match(/[\p{L}\p{N}]+(?:'[\p{L}]+)?/gu) ?? [];
-	return (
-		words.length >= DESCRIPTIVE_SUMMARY_MIN_WORDS &&
-		words.some((word) => !ACKNOWLEDGEMENT_WORDS.has(word))
-	);
+export function commitLine(summary: string): string {
+	return TRAILING_COMMIT_LINE.exec(summary)?.[1] ?? '';
 }
 
 const COMMAND_SEPARATOR = /\s*(?:&&|\|\||[;|\n])\s*/u;

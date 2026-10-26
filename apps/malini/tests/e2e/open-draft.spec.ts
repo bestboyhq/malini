@@ -56,7 +56,7 @@ test('Open draft commits and pushes the work under its generated title, and ever
 		await sendPrompt(page, 'EDIT:beta.txt');
 		await expect
 			.poll(() => github.pushedSubjects(), { timeout: 30_000 })
-			.toEqual(['EDIT:beta.txt', 'feat: add alpha', 'seed']);
+			.toEqual(['Update beta.txt', 'feat: add alpha', 'seed']);
 		expect(github.pushedHead()).toBe(headOf(worktree));
 		expect(pullRequestCreations(github)).toHaveLength(1);
 		await expect(page.getByRole('button', { name: QUEUE_MERGE })).toBeEnabled();
@@ -92,7 +92,7 @@ test('Open draft clicked while the agent runs waits for the run to end, then ope
 		});
 		await expect(waiting).toHaveCount(0);
 		expect(github.pullRequest()).toMatchObject({ isDraft: true });
-		expect(github.pushedSubjects()).toEqual(['EDIT:a.txt HANG', 'seed']);
+		expect(github.pushedSubjects()).toEqual(['Update a.txt', 'seed']);
 		const sessionId = currentSessionId(page);
 		if (!sessionId) throw new Error('the chat did not commit a session id');
 		await expectStoppedChatIsNeutral(page, sessionId);
