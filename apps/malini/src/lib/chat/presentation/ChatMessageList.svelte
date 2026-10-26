@@ -6,6 +6,7 @@
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
 	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
+	import { shipInForkCommand } from '$lib/chat/application/commands/ship-in-fork.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
 	import { syncInteractionsCommand } from '$lib/chat/application/commands/sync-interactions.command';
@@ -473,6 +474,10 @@
 		sendCommandPromptCommand({ workstreamId, sessionId, prompt, subject });
 	}
 
+	function shipInFork(prompt: string, subject: string, atSeq: number): void {
+		shipInForkCommand({ workstreamId, sessionId, atSeq, prompt, subject });
+	}
+
 	function promptPick(runId: string): RunPick | null {
 		for (const pick of renderState.variantPicks.values()) {
 			if (pick.promptRunId === runId) return pick;
@@ -612,6 +617,7 @@
 		variantPick: (runId) => renderState.variantPicks.get(runId) ?? null,
 		promptPick,
 		sendFollowUp,
+		shipInFork,
 		get saveToScratchpad() {
 			return onsavetoscratchpad;
 		},

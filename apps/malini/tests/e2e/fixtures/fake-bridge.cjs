@@ -1030,14 +1030,15 @@ const respond = async (sessionId, runId, prompt) => {
 		return;
 	}
 	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
-	if (replyFile && worktree) {
+	const replyPath = replyFile && worktree ? nodePath.join(worktree, replyFile[1]) : null;
+	if (replyPath && fs.existsSync(replyPath)) {
 		return completeRun(
 			sessionId,
 			runId,
 			'done',
 			[],
 			[],
-			'\n\n' + fs.readFileSync(nodePath.join(worktree, replyFile[1]), 'utf8'),
+			'\n\n' + fs.readFileSync(replyPath, 'utf8'),
 		);
 	}
 	const pick = /Go with variant ([A-Z\d]+)/.exec(prompt);

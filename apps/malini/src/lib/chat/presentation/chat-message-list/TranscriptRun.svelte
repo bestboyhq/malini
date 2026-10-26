@@ -16,7 +16,7 @@
 	import { Icon } from '$hyper-ui/icons';
 	import type { GroupedRunTimelineItem } from '../activity-group';
 	import BufferedStreamingMarkdown from '../BufferedStreamingMarkdown.svelte';
-	import type { RunGroup } from '../render-state';
+	import { runLastSeq, type RunGroup } from '../render-state';
 	import RunStatusLine from '../RunStatusLine.svelte';
 	import ChatActivityGroup from './ChatActivityGroup.svelte';
 	import ChatTimelineRow from './ChatTimelineRow.svelte';
@@ -72,7 +72,7 @@
 	const undoTarget = $derived(
 		!run.superseded && !run.obsoleted ? transcript.undoTarget(run.runId) : null,
 	);
-	const forkSeq = $derived(forkAtSeq(run));
+	const forkSeq = $derived(runLastSeq(run));
 	const forkAvailable = $derived(
 		run.terminal !== null && !run.superseded && !run.obsoleted && forkSeq !== null,
 	);
@@ -124,14 +124,6 @@
 		const drawn = new Set(rows.map((row) => row.key));
 		const fresh = pending.filter((row) => !drawn.has(row.key));
 		return fresh.length > 0 ? [...rows, ...fresh] : rows;
-	}
-
-	function forkAtSeq(group: RunGroup): number | null {
-		let max: number | null = null;
-		for (const item of group.items) {
-			if (max === null || item.seq > max) max = item.seq;
-		}
-		return max;
 	}
 
 	function onShowOlder(event: MouseEvent): void {

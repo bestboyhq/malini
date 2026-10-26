@@ -148,6 +148,14 @@ export type RunGroup = {
 	obsoleted: boolean;
 };
 
+export function runLastSeq(group: RunGroup): number | null {
+	let max: number | null = null;
+	for (const item of group.items) {
+		if (max === null || item.seq > max) max = item.seq;
+	}
+	return max;
+}
+
 export type RenderState = {
 	runs: RunGroup[];
 	terminal: 'completed' | 'failed' | null;

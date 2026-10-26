@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
-	import type { RunGroup } from '../render-state';
+	import { runLastSeq, type RunGroup } from '../render-state';
 	import type { RunTimelineItem } from '../run-timeline';
 	import BashToolCall from '../BashToolCall.svelte';
 	import EditDiffPreview from '../EditDiffPreview.svelte';
@@ -35,6 +35,7 @@
 		item.kind === 'assistant' ? finalTurnReport(run, item.key, item.text) : null,
 	);
 	const earlierTurns = $derived(turnReport ? transcript.earlierTurns(run.runId) : []);
+	const reportSeq = $derived(turnReport ? runLastSeq(run) : null);
 	const variantPick = $derived(
 		turnReport ? (transcript.variantPick(run.runId)?.pick ?? null) : null,
 	);
@@ -108,6 +109,9 @@
 					transcript.sendFollowUp(variantPickPrompt(variant, reason), 'Pick')}
 				onnonefit={(reason) => transcript.sendFollowUp(noVariantFitsPrompt(reason), 'Request')}
 				onsendnext={(step) => transcript.sendFollowUp(step, 'Next step')}
+				onforknext={reportSeq === null
+					? undefined
+					: (step) => transcript.shipInFork(step, 'Next step', reportSeq)}
 				onscratchpad={transcript.saveToScratchpad}
 			/>
 		{:else}
