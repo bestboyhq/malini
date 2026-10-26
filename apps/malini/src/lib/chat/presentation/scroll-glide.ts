@@ -6,7 +6,11 @@ export const SCROLL_GLIDE_SETTLE_VELOCITY = 8;
 
 const DEVICE_PIXEL_SNAP_PX = 1;
 
-const MAX_SUBSTEP_MS = 1000 / 240;
+export const GLIDE_SAMPLE_MS = 1000 / 240;
+
+export const GLIDE_KEYFRAMES_PER_SAMPLE = 4;
+
+const GLIDE_KEYFRAME_MS = GLIDE_SAMPLE_MS / GLIDE_KEYFRAMES_PER_SAMPLE;
 
 const OCCLUDED_FRAME_MS = 1000;
 
@@ -50,7 +54,7 @@ export function stepGlideSpring(
 	let { position, velocity } = state;
 	let remainingMs = elapsedMs;
 	while (remainingMs > 0) {
-		const stepMs = Math.min(MAX_SUBSTEP_MS, remainingMs);
+		const stepMs = Math.min(GLIDE_SAMPLE_MS, remainingMs);
 		remainingMs -= stepMs;
 		const stepSeconds = stepMs / 1000;
 		const acceleration = -stiffness * (position - target) - damping * velocity;
@@ -66,6 +70,41 @@ export function stepGlideSpring(
 		return settled;
 	}
 	return { position, velocity };
+}
+
+export function glideKeyframe(elapsedMs: number): number {
+	return Math.max(0, Math.round(elapsedMs / GLIDE_KEYFRAME_MS));
+}
+
+export function glideOrigin(frameMs: number): number {
+	return Math.floor(frameMs / GLIDE_SAMPLE_MS) * GLIDE_SAMPLE_MS;
+}
+
+export function glideSamples(state: GlideState, target: number, stiffness: number): GlideState[] {
+	const samples = [state];
+	for (let sample = state; sample.position !== target || sample.velocity !== 0;) {
+		sample = stepGlideSpring(sample, target, GLIDE_SAMPLE_MS, stiffness);
+		samples.push(sample);
+	}
+	return samples;
+}
+
+export function glideSampleAt(samples: readonly GlideState[], elapsedMs: number): GlideState {
+	const index = Math.min(samples.length - 1, Math.max(0, Math.round(elapsedMs / GLIDE_SAMPLE_MS)));
+	return samples[index] ?? { position: 0, velocity: 0 };
+}
+
+export function glideKeyframeCount(samples: readonly GlideState[]): number {
+	return (samples.length - 1) * GLIDE_KEYFRAMES_PER_SAMPLE + 1;
+}
+
+export function glidePosition(samples: readonly GlideState[], keyframe: number): number {
+	const last = samples.length - 1;
+	const index = Math.min(last, Math.floor(keyframe / GLIDE_KEYFRAMES_PER_SAMPLE));
+	const from = samples[index]?.position ?? 0;
+	const to = samples[Math.min(last, index + 1)]?.position ?? from;
+	const step = keyframe - index * GLIDE_KEYFRAMES_PER_SAMPLE;
+	return from + ((to - from) * step) / GLIDE_KEYFRAMES_PER_SAMPLE;
 }
 
 type FrameScheduler = {
@@ -97,76 +136,104 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 	let element: ScrollGlideTarget | null = null;
 	let target = 0;
 	let frame: number | null = null;
-	let previousTimestampMs: number | null = null;
+	let originMs: number | null = null;
+	let steppedAtMs: number | null = null;
+	let stiffness = readStiffness();
+	let samples: GlideState[] = [{ position: 0, velocity: 0 }];
+	let shown = 0;
 
-	let state: GlideState = { position: 0, velocity: 0 };
+	function current(): GlideState {
+		if (originMs === null || steppedAtMs === null)
+			return samples[0] ?? { position: 0, velocity: 0 };
+		return glideSampleAt(samples, glideOrigin(steppedAtMs) - originMs);
+	}
+
+	function replan(from: GlideState): void {
+		stiffness = readStiffness();
+		samples = glideSamples(from, target, stiffness);
+		originMs = steppedAtMs === null ? null : glideOrigin(steppedAtMs);
+	}
 
 	function stop(): void {
 		if (frame !== null) cancelFrame(frame);
 		frame = null;
 		element = null;
-		previousTimestampMs = null;
+		originMs = null;
+		steppedAtMs = null;
+	}
+
+	function settle(node: ScrollGlideTarget): void {
+		node.scrollTop = shown = target;
+		samples = [{ position: target, velocity: 0 }];
+		stop();
+		onSettle?.();
 	}
 
 	function step(timestampMs: number): void {
 		frame = null;
 		const node = element;
 		if (!node) return;
-		const elapsedMs = previousTimestampMs === null ? 0 : timestampMs - previousTimestampMs;
-		previousTimestampMs = timestampMs;
-
-		if (elapsedMs <= 0) {
-			frame = requestFrame(step);
+		if (steppedAtMs !== null && timestampMs - steppedAtMs >= OCCLUDED_FRAME_MS) {
+			settle(node);
 			return;
 		}
-		state = stepGlideSpring(state, target, elapsedMs, readStiffness());
-		node.scrollTop = state.position;
-		if (state.position === target && state.velocity === 0) {
-			stop();
-			onSettle?.();
+		if (originMs !== null && readStiffness() !== stiffness) {
+			steppedAtMs = timestampMs;
+			replan(current());
+		}
+		steppedAtMs = timestampMs;
+		originMs ??= glideOrigin(timestampMs);
+		const keyframe = glideKeyframe(timestampMs - originMs);
+		if (keyframe >= glideKeyframeCount(samples) - 1) {
+			settle(node);
 			return;
 		}
+		node.scrollTop = shown = glidePosition(samples, keyframe);
 		frame = requestFrame(step);
 	}
 
 	return {
 		glide(node: ScrollGlideTarget, nextTarget: number): void {
 			if (!Number.isFinite(nextTarget)) return;
-			target = nextTarget;
-
-			const shown = node.scrollTop;
 			const inFlight = element === node && frame !== null;
-			state = {
-				position: inFlight ? unsnapped(shown, state.position) : shown,
-				velocity: state.velocity,
+			const now = inFlight ? current() : (samples[0] ?? { position: 0, velocity: 0 });
+			const scrollTop = node.scrollTop;
+			const from = {
+				position: inFlight && unmoved(scrollTop, shown) ? now.position : scrollTop,
+				velocity: now.velocity,
 			};
+			shown = scrollTop;
+			target = nextTarget;
 			if (
-				Math.abs(state.position - target) <= SCROLL_GLIDE_SETTLE_PX &&
-				Math.abs(state.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
+				Math.abs(from.position - target) <= SCROLL_GLIDE_SETTLE_PX &&
+				Math.abs(from.velocity) <= SCROLL_GLIDE_SETTLE_VELOCITY
 			) {
-				node.scrollTop = target;
-				state = { position: target, velocity: 0 };
+				node.scrollTop = shown = target;
+				samples = [{ position: target, velocity: 0 }];
 				stop();
 				return;
 			}
-
-			if (element === node && frame !== null) return;
+			if (!inFlight) steppedAtMs = null;
+			replan(from);
+			if (inFlight) return;
 			element = node;
-			previousTimestampMs = null;
 			if (frame === null) frame = requestFrame(step);
 		},
 		resync(node: ScrollGlideTarget): void {
-			state = { position: node.scrollTop, velocity: state.velocity };
+			const from = { position: node.scrollTop, velocity: current().velocity };
+			shown = from.position;
+			replan(from);
 		},
 		jump(node: ScrollGlideTarget, nextTarget: number): void {
 			if (!Number.isFinite(nextTarget)) return;
 			stop();
-			node.scrollTop = nextTarget;
-			state = { position: nextTarget, velocity: 0 };
+			node.scrollTop = shown = nextTarget;
+			samples = [{ position: nextTarget, velocity: 0 }];
 		},
 		cancel(): void {
+			const at = current();
 			stop();
-			state = { position: state.position, velocity: 0 };
+			samples = [{ position: at.position, velocity: 0 }];
 		},
 		get isGliding(): boolean {
 			return frame !== null;
@@ -174,6 +241,6 @@ export function createScrollGlide(options: GlideOptions = {}): ScrollGlide {
 	};
 }
 
-function unsnapped(scrollTop: number, position: number): number {
-	return Math.abs(scrollTop - position) < DEVICE_PIXEL_SNAP_PX ? position : scrollTop;
+function unmoved(scrollTop: number, shown: number): boolean {
+	return Math.abs(scrollTop - shown) < DEVICE_PIXEL_SNAP_PX;
 }

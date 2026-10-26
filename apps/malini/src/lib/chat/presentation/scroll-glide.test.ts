@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	createScrollGlide,
+	glideKeyframe,
+	glideOrigin,
+	glidePosition,
+	glideSampleAt,
+	glideSamples,
 	SCROLL_GLIDE_SETTLE_PX,
 	SCROLL_SPRING_STIFFNESS,
 	stepGlideSpring,
@@ -400,6 +405,39 @@ describe('glide driver', () => {
 			scheduler.advance(FRAME_MS);
 			expect(Math.abs(ideal.element.scrollTop - snappedTop)).toBeLessThan(1);
 		}
+	});
+
+	it('stays the exact complement of a row gliding on the same grid while a stream retargets both', () => {
+		const scheduler = testScheduler();
+		const glide = createScrollGlide(scheduler);
+		const element = { scrollTop: 0 };
+		const frames = [16.2, 17.1, 16.6, 16.9, 15.8];
+		let target = 0;
+		let now = 0;
+		let row = { samples: [AT_REST], startMs: 0 };
+		const advance = (ms: number): void => {
+			now += ms;
+			scheduler.advance(ms);
+			const offset = glidePosition(row.samples, glideKeyframe(now - row.startMs));
+			expect(element.scrollTop - target - offset).toBeCloseTo(0, 6);
+		};
+
+		for (let frame = 0; frame < 120; frame += 1) {
+			const frameMs = frames[frame % frames.length] ?? FRAME_MS;
+			if (frame < 40 && frame % 2 === 0) {
+				const inFlight = row.samples.length > 1;
+				const originMs = glideOrigin(inFlight ? now : now + frameMs);
+				const state = glideSampleAt(row.samples, originMs - row.startMs);
+				const shifted = { position: state.position - 35, velocity: state.velocity };
+				row = { samples: glideSamples(shifted, 0, SCROLL_SPRING_STIFFNESS), startMs: originMs };
+				target += 35;
+				glide.glide(element, target);
+			}
+			if (frame % 3 === 0) glide.glide(element, target);
+			advance(frameMs);
+		}
+
+		expect(element.scrollTop).toBe(target);
 	});
 
 	it('exposes the constant the transcript is tuned against', () => {

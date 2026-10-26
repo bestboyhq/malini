@@ -101,8 +101,10 @@ function openUnit(units: OpenUnit[], unit: OpenUnit): OpenUnit {
 	return unit;
 }
 
-export function childrenByParent(rows: readonly ProcessRow[]): Map<number, ProcessRow[]> {
-	const children = new Map<number, ProcessRow[]>();
+export function childrenByParent<Row extends { readonly ppid: number }>(
+	rows: readonly Row[],
+): Map<number, Row[]> {
+	const children = new Map<number, Row[]>();
 	for (const row of rows) {
 		const siblings = children.get(row.ppid);
 		if (siblings) siblings.push(row);
