@@ -17,7 +17,16 @@ function sendQueuedPromptCommand(id: string): void {
 
 async function sendQueuedPrompt(id: string): Promise<void> {
 	const workstreamId = chatRoute.workstreamId;
-	if (!workstreamId || queueSendingStore.idFor(workstreamId) !== null) return;
+	if (!workstreamId) return;
+	const sending = queueSendingStore.idFor(workstreamId);
+	if (
+		sending !== null &&
+		sending !== id &&
+		promptDelivery.isRecoveringEntry(workstreamId, sending)
+	) {
+		promptDelivery.disarmInterruptRecovery(workstreamId);
+	}
+	if (queueSendingStore.idFor(workstreamId) !== null) return;
 	if (!agentPromptQueue.promote(workstreamId, id)) return;
 	const entry = agentPromptQueue.entriesFor(workstreamId).find((queued) => queued.id === id);
 	if (!entry) return;

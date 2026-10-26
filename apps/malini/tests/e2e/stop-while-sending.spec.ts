@@ -66,9 +66,14 @@ test('a prompt typed during a run queues on Enter and steers past the queue on â
 		const { page } = app;
 		const sessionId = await chatWithOneReply(app, 'e2e-steer-ws');
 
+		const userMessages = async (): Promise<string[]> =>
+			(await listEvents(page, sessionId)).flatMap(({ event }) =>
+				event.type === 'user.message' ? [String(event['text'])] : [],
+			);
 		await sendPrompt(page, 'EDIT:b.txt HANG');
 		const submit = page.getByTestId('chat-composer-submit');
 		await expect(submit).toHaveAccessibleName('Stop current run');
+		await expect.poll(userMessages, { timeout: 20_000 }).toEqual(['EDIT:a.txt', 'EDIT:b.txt HANG']);
 
 		await page.keyboard.type('Queued later', { delay: 10 });
 		await expect(submit).toHaveAccessibleName('Queue prompt');
@@ -79,10 +84,6 @@ test('a prompt typed during a run queues on Enter and steers past the queue on â
 		await page.keyboard.type('Steer now', { delay: 10 });
 		await page.keyboard.press('Meta+Enter');
 
-		const userMessages = async (): Promise<string[]> =>
-			(await listEvents(page, sessionId)).flatMap(({ event }) =>
-				event.type === 'user.message' ? [String(event['text'])] : [],
-			);
 		await expect
 			.poll(userMessages, { timeout: 20_000 })
 			.toEqual(['EDIT:a.txt', 'EDIT:b.txt HANG', 'Steer now', 'Queued later']);
