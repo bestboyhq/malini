@@ -5,8 +5,11 @@ import {
 	APP_ROOT,
 	captureFlow,
 	createSourceRepo,
+	currentSessionId,
 	expectCleanConsole,
 	launchMalini,
+	listEvents,
+	listSessions,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -21,7 +24,7 @@ async function seedReport(
 	name: string,
 	report: string,
 	media: readonly string[],
-): Promise<void> {
+): Promise<string> {
 	const source = await createSourceRepo(root, name);
 	const seeded = await seedWorkstream(page, source, `e2e-${name}`, name);
 	mkdirSync(join(seeded.worktree, '.context'), { recursive: true });
@@ -30,6 +33,7 @@ async function seedReport(
 	writeFileSync(join(seeded.worktree, 'report.md'), report);
 	await openWorkstream(page, seeded.workstreamId);
 	await sendPrompt(page, 'Show me REPLY_FILE:report.md');
+	return seeded.workstreamId;
 }
 
 async function frameHeight(frame: Locator): Promise<number> {
@@ -367,12 +371,12 @@ test('a report puts every picture in one frame, and a lone prototype there shows
 	}
 });
 
-test('a next step sends itself as the next prompt, or lands in the scratchpad', async () => {
+test('a next step ships as the next prompt, ships in a forked chat with ⌘, or is noted', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await seedReport(
+		const workstreamId = await seedReport(
 			page,
 			app.root,
 			'report-next',
@@ -380,6 +384,7 @@ test('a next step sends itself as the next prompt, or lands in the scratchpad', 
 				'- Changed: the dark mode toggle lives in Settings.',
 				'- Next: Refresh the screenshot on the Appearance docs page',
 				'- Next: Add the toggle to the onboarding tour',
+				'- Next: Mention the toggle in the changelog',
 				'',
 				'Outcome: The dark mode toggle lives in Settings.',
 				'Needs: nothing',
@@ -390,9 +395,40 @@ test('a next step sends itself as the next prompt, or lands in the scratchpad', 
 		const steps = card.getByRole('region', { name: 'Next steps' });
 		await expect(steps).toBeVisible({ timeout: 30_000 });
 		await expect(card.getByRole('img', { name: 'Done' })).toBeVisible();
+		await expect(steps.getByRole('button', { name: 'Ship it' })).toHaveCount(3);
 		await captureFlow(app, 'report-next-steps');
+		const parent = currentSessionId(page);
+		if (!parent) throw new Error('the report chat did not commit a session id');
 
-		await steps.getByRole('button', { name: 'Scratchpad' }).last().click();
+		await page.keyboard.down('Meta');
+		const forks = steps.getByRole('button', { name: 'Slice, fork, ship' });
+		await expect(forks).toHaveCount(3);
+		await captureFlow(app, 'report-next-steps-command');
+		await forks.last().click({ modifiers: ['Meta'] });
+		await page.keyboard.up('Meta');
+		await expect(steps).toContainText('Shipped in a new chat');
+		await expect(steps.getByRole('button', { name: 'Ship it' })).toHaveCount(2);
+		expect(currentSessionId(page)).toBe(parent);
+		const forkedPrompt = async (): Promise<Record<string, unknown> | null> => {
+			for (const session of await listSessions(page, workstreamId)) {
+				if (session.id === parent) continue;
+				const prompt = (await listEvents(page, session.id)).find(
+					(entry) => entry.event.type === 'user.message',
+				)?.event;
+				if (prompt) return prompt;
+			}
+			return null;
+		};
+		await expect.poll(forkedPrompt, { timeout: 30_000 }).toEqual(
+			expect.objectContaining({
+				text: expect.stringContaining('Mention the toggle in the changelog'),
+				attachments: [
+					expect.objectContaining({ displayName: expect.stringMatching(/^Transcript of /u) }),
+				],
+			}),
+		);
+
+		await steps.getByRole('button', { name: 'Note it' }).last().click();
 		await expect(steps).toContainText('In the scratchpad');
 		await expect(page.getByText('Added to the scratchpad')).toBeVisible();
 		const repository = page
@@ -400,7 +436,7 @@ test('a next step sends itself as the next prompt, or lands in the scratchpad', 
 			.getByRole('link', { name: 'Open report-next' });
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
 
-		await steps.getByRole('button', { name: 'Do it now' }).first().click();
+		await steps.getByRole('button', { name: 'Ship it' }).first().click();
 		await expect(steps).toContainText('Sent');
 		await expect(
 			page
