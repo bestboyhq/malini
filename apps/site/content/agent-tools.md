@@ -69,7 +69,7 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                                                                                                                  |
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
 | `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in. It adds the archived ones this chat started, with whether they merged. |
-| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it.                                                              |
+| `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it. Only a chat at Home or in an organization has it.            |
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
@@ -79,14 +79,17 @@ The approval card shows that prompt before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 Malini remembers which chat started each workstream.
-The sidebar lists the workstream under the chat at Home or in an organization that started it, directly or through other workstreams, or else under its repository, and the row of the chat that started it shows a dot for it; its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
+The sidebar lists the workstream under that chat's row, with a dot for it on the row; its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
 A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) works through these tools alone: it reads the repositories in its scope and starts a workstream for each change.
 
-To change code in another repository, such as your fork, the agent clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
+A workstream never starts another, so work stays one level under the chat that planned it.
+The agent in a workstream has no `workstreams_create`: it names the repository and the change in its report, for you to start from a chat at Home or in an organization.
+
+To change code in another repository, such as your fork, a chat at Home or in an organization clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
 The workstream starts from the default branch, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.
 Malini fetches that from the repository's origin, and the workstream's pull request still targets the default branch.
-When it reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools.
-A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any.
+When an agent reaches for `git checkout` or `git worktree` instead, Malini refuses the command and names those tools, or, in a workstream, tells it to hand that work to you.
+A `git clone` still runs, for reading code, and Malini reminds the agent to start a workstream before it changes any, or, in a workstream, to hand that change to you.
 
 ## Jobs and events
 
@@ -121,7 +124,7 @@ A failure shows in the top bar, where pull request problems always do.
 
 ### Workstreams it starts
 
-When the agent hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
+When a chat at Home or in an organization hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
 Right after it starts a workstream, it runs **Open draft** or **Merge** there with `jobs_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
 Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
 So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.

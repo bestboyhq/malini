@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobRunRecord, JobRunStatus } from '$contract/jobs';
-import { askingChildren, descendantWorkstreamIds } from './child-requests';
+import { askingChildren } from './child-requests';
 import type { SessionRecord, SessionState } from './session-record';
 
 function run(sessionId: string | null, status: JobRunStatus): JobRunRecord {
@@ -58,17 +58,5 @@ describe('askingChildren', () => {
 			{ sessionId: 'docs-chat', workstreamId: 'docs', job: null },
 			{ sessionId: 'fix-chat', workstreamId: 'docs', job: 'Fix checks' },
 		]);
-	});
-
-	it('reaches every workstream started down the tree, and stops at a loop', () => {
-		expect(
-			descendantWorkstreamIds('lead', [
-				{ id: 'lead', startedBy: 'grandchild' },
-				{ id: 'child', startedBy: 'lead' },
-				{ id: 'grandchild', startedBy: 'child' },
-				{ id: 'great-grandchild', startedBy: 'grandchild' },
-				{ id: 'sibling', startedBy: null },
-			]),
-		).toEqual(new Set(['child', 'grandchild', 'great-grandchild']));
 	});
 });

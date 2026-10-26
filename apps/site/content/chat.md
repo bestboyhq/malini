@@ -21,10 +21,11 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
-- A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
+- A workstream the chat starts sits under the chat's row in the sidebar, and the chat's row shows a dot for each, archived ones last.
   Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
 - The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
+  It starts no workstream of its own: only a chat at Home or in an organization does, so work never nests deeper than one level.
 
 ## Queue or steer
 
@@ -82,7 +83,7 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Keep blocked** leaves the block in place, and the agent carries on without it.
 
 A chat also answers for the work it started.
-When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
+When a job it ran in another workstream or a workstream it started asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
 **Open transcript** goes to the asking chat when you want its context.
 **Later**, or Escape, folds the queue into a **requests need you** row above the composer, so you can write to this chat, and **Answer** brings it back.

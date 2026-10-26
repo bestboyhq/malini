@@ -618,7 +618,11 @@ export class ClaudeSession implements ProviderHandle {
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
 			},
-			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
+			...maliniTools(
+				this.#context.requestBrowser,
+				(call) => this.#requestPlatform(call),
+				lineage?.lead != null,
+			),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),

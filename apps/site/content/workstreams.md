@@ -45,8 +45,8 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   A search opens every owner it matches.
 - Every repository you connect shows, with or without workstreams, until you hide it.
   A clock and a count on its row say how many wait saved for later.
-- A workstream a chat at Home or in an organization started sits under that chat's row, with the name of its repository, and so does every workstream those workstreams start, one level deep: a workstream never holds another.
-  A workstream started from a workstream of a repository, with no such chat above it, sits under its repository.
+- A workstream a chat at Home or in an organization started sits under that chat's row, with the name of its repository.
+  A workstream never starts another, so it never holds one.
   The chevron on the chat's row folds them, and Malini remembers.
   Under a pin that leaves the chat out, or in a Status or Day section the chat is not in, the workstream sits under its repository.
 - A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.

@@ -73,13 +73,6 @@ describe('run profile mapping', () => {
 		expect(sandboxFor(profile('agent', 'sandboxed')).network?.allowLocalBinding).toBe(true);
 	});
 
-	it('offers workstreams_create to a lead chat only', () => {
-		expect(disallowedTools()).toContain('mcp__malini__workstreams_create');
-		expect(
-			disallowedTools({ lead: { owner: null, repositories: [] }, startedBy: null, siblings: [] }),
-		).not.toContain('mcp__malini__workstreams_create');
-	});
-
 	it('refuses the git and pull request commands malini owns', () => {
 		expect(disallowedTools()).toEqual(
 			expect.arrayContaining([

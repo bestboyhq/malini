@@ -13,7 +13,6 @@ import {
 	invoke,
 	launchMalini,
 	openWorkstream,
-	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
 } from './harness';
@@ -46,24 +45,29 @@ async function commitManifest(repo: string): Promise<void> {
 	await git(repo, [...AUTHOR, 'commit', '-m', 'add manifest']);
 }
 
-async function otherWorkstream(page: Page, workstreamId: string): Promise<string> {
-	let other: string | undefined;
+async function startedWorkstream(page: Page, chatWorkstreamId: string): Promise<string> {
+	let started: string | undefined;
 	await expect
 		.poll(
 			async () => {
-				const workstreams = await invoke<{ id: string }[]>(
+				const workstreams = await invoke<{ id: string; startedBy: string | null }[]>(
 					page,
 					'repositories.list-workstreams',
 					undefined,
 				);
-				other = workstreams.find(({ id }) => id !== workstreamId)?.id;
-				return other;
+				started = workstreams.find(({ startedBy }) => startedBy === chatWorkstreamId)?.id;
+				return started;
 			},
 			{ timeout: 20_000 },
 		)
 		.toBeDefined();
-	if (!other) throw new Error('the agent did not start a workstream');
-	return other;
+	if (!started) throw new Error('the agent did not start a workstream');
+	return started;
+}
+
+async function seedPlanner(page: Page, workstreamId: string): Promise<string> {
+	await invoke(page, 'repositories.create-lead', { scope: 'home', workstreamId, name: 'Planner' });
+	return workstreamId;
 }
 
 function holdNpmInstall(app: LaunchedApp): string {
@@ -82,12 +86,7 @@ test('a workstream an agent starts opens on a chat that gets its prompt once it 
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch command' } });
 	try {
 		const { page } = app;
-		const { workstreamId } = await seedWorkstream(
-			page,
-			await createSourceRepo(app.root),
-			'e2e-agent-starts-workstream',
-			'Planner',
-		);
+		const workstreamId = await seedPlanner(page, 'e2e-agent-starts-workstream');
 		const kennel = await createSourceRepo(app.root, 'kennel');
 		await commitManifest(kennel);
 		const kennelName = `${basename(app.root)}/kennel`;
@@ -166,12 +165,7 @@ test('a workstream an agent starts from a release tag stays on that release once
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const { workstreamId } = await seedWorkstream(
-			page,
-			await createSourceRepo(app.root),
-			'e2e-agent-starts-from-tag',
-			'Planner',
-		);
+		const workstreamId = await seedPlanner(page, 'e2e-agent-starts-from-tag');
 		const kennel = await createSourceRepo(app.root, 'kennel');
 		await git(kennel, ['tag', '-a', 'v0.17.5', '-m', 'release']);
 		const release = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: kennel }).toString().trim();
@@ -237,14 +231,15 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			value: 'merging',
 		});
 		const release = holdNpmInstall(app);
-		await openWorkstream(page, 'e2e-agent-merges-workstream');
+		const planner = await seedPlanner(page, 'e2e-agent-merge-planner');
+		await openWorkstream(page, planner);
 
 		agentCalls(app, {
 			tool: 'workstreams_create',
 			input: { repository: 'e2e/hutch', prompt: 'EDIT:fetch.txt COMMIT=feat: add a fetch command' },
 		});
 		await allowOnce(page, 'Start a workstream in ‘e2e/hutch’');
-		const startedId = await otherWorkstream(page, 'e2e-agent-merges-workstream');
+		const startedId = await startedWorkstream(page, planner);
 		const started = page.locator(
 			`[data-testid="sidebar-workstream"][data-workstream-id="${startedId}"]`,
 		);

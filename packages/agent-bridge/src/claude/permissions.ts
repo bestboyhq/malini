@@ -58,7 +58,6 @@ const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
 
 const NO_WORKAROUND =
 	'Do not work around this with another clone, git worktree, gh api or a script.';
-const START_WORKSTREAM_TOOL = 'mcp__malini__workstreams_create';
 
 export function workElsewhere(lead: boolean): string {
 	return lead
@@ -166,7 +165,7 @@ export function disallowedTools(lineage?: AgentLineage): string[] {
 		'Bash(git stash)',
 		'Bash(git stash -*)',
 		...STASH_WRITES.map((write) => `Bash(git stash ${write}:*)`),
-		...(lineage?.lead ? LEAD_EDIT_TOOLS : [START_WORKSTREAM_TOOL]),
+		...(lineage?.lead ? LEAD_EDIT_TOOLS : []),
 	];
 }
 
