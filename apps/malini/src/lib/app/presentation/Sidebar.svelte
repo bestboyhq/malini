@@ -227,9 +227,13 @@
 			hiddenRepositoryIds,
 			focus,
 			arrangement,
+			workstreamOrder: sidebarOrder.workstreamIds,
 			activeAt: sidebarSectionsQuery.activeAt,
 			sectionOf,
 		}),
+	);
+	const started = $derived(
+		new Map([tree, ...tree.sections].flatMap((branch) => [...branch.started])),
 	);
 	const flatSections = $derived(
 		sectioned &&
@@ -242,6 +246,9 @@
 				context.workstreams.map((workstream) => [workstream.id, context]),
 			),
 		),
+	);
+	const contextOfRepository = $derived(
+		new Map(contexts.map((context) => [context.repo.id, context])),
 	);
 	const blockIds = $derived(tree.blocks.map((block) => block.id));
 	const chatIds = $derived(tree.chats.map((chat) => chat.id));
@@ -482,6 +489,15 @@
 		return inside ? { x: event.clientX, y: event.clientY } : null;
 	}
 
+	function clearRowEnd(event: Event): void {
+		const row = event.currentTarget;
+		if (!(row instanceof HTMLElement)) return;
+		const name = row.querySelector('[data-sidebar-name]');
+		if (!name) return;
+		nameTooltipOffset =
+			row.getBoundingClientRect().right - name.getBoundingClientRect().right + NAME_TOOLTIP_GAP_PX;
+	}
+
 	function closeContextMenu(): void {
 		contextMenu = null;
 		repositoryMenu = null;
@@ -515,7 +531,12 @@
 		onSaveWorkstreamForLater?.(workstream);
 	}
 
-	function rowEndPadding(saveable: boolean): string {
+	function rowEndPadding(hasChildren: boolean, saveable: boolean): string {
+		if (hasChildren) {
+			return saveable
+				? 'pr-8 group-hover/row:pr-20 group-has-focus-visible/row:pr-20'
+				: 'pr-8 group-hover/row:pr-14 group-has-focus-visible/row:pr-14';
+		}
 		return saveable
 			? 'pr-3 group-hover/row:pr-14 group-has-focus-visible/row:pr-14'
 			: 'pr-3 group-hover/row:pr-8 group-has-focus-visible/row:pr-8';
@@ -574,7 +595,9 @@
 		easing: quartOut,
 	});
 
+	const NAME_TOOLTIP_GAP_PX = 8;
 	const REORDER_THRESHOLD_PX = 4;
+	let nameTooltipOffset = $state(NAME_TOOLTIP_GAP_PX);
 	const SECTION_CLOCK_MS = 60_000;
 	const SETTLE_MS = 150;
 
@@ -941,7 +964,7 @@
 		};
 	}
 
-	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9'] as const;
+	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9', 'pl-12', 'pl-15'] as const;
 	const MAX_PROGRESS_DOTS = 8;
 
 	function moveShortcuts(...more: readonly string[]): string {
@@ -949,7 +972,7 @@
 	}
 
 	function levelPadding(level: number): string {
-		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-9';
+		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-15';
 	}
 
 	type SidebarRow = Readonly<{
@@ -977,12 +1000,14 @@
 		};
 	}
 
-	function sectionRow(workstream: Workstream): SidebarRow {
+	function placedRow(workstream: Workstream, parent: SidebarRow | null = null): SidebarRow {
 		const repository = repositoryOfWorkstream.get(workstream.id);
 		if (workstream.scope !== null || !repository) return leadRow(workstream);
+		const { fullName } = repository.repo;
+		const named = parent === null ? flatSections : fullName !== parent.repositoryFullName;
 		return {
-			...repositoryRow(workstream, repository.repo.fullName),
-			repositoryName: flatSections ? repository.name : null,
+			...repositoryRow(workstream, fullName),
+			repositoryName: named ? repository.name : null,
 		};
 	}
 
@@ -1023,6 +1048,7 @@
 			hiddenRepositoryIds,
 			focus: target,
 			arrangement: DEFAULT_SIDEBAR_ARRANGEMENT,
+			workstreamOrder: sidebarOrder.workstreamIds,
 			activeAt: sidebarSectionsQuery.activeAt,
 			sectionOf,
 		});
@@ -1093,7 +1119,7 @@
 			{#if section.chats.length > 0}
 				<ul class="flex w-full flex-col" aria-label={section.label}>
 					{#each section.chats as chat (chat.id)}
-						{@render workstreamItem(sectionRow(chat), 0, chatIds)}
+						{@render workstreamItem(placedRow(chat), 0, chatIds)}
 					{/each}
 				</ul>
 			{/if}
@@ -1218,6 +1244,7 @@
 	{@const collapseId = scoped(scope, row.repo.id)}
 	{@const collapsed = collapsedGroupIds.has(collapseId)}
 	{@const workstreamIds = row.workstreams.map((workstream) => workstream.id)}
+	{@const everyWorkstream = contextOfRepository.get(row.repo.id)?.workstreams ?? row.workstreams}
 	{@const savedForLater = savedForLaterCounts.get(row.repo.id) ?? 0}
 	<li
 		class={['relative w-full min-w-0', reorderClass(row.repo.id)]}
@@ -1296,12 +1323,12 @@
 						aria-keyshortcuts={moveShortcuts('Shift+F10')}
 						onkeydown={(event) => {
 							if (opensMenu(event)) {
-								openRepositoryMenu(event, row.repo, row.workstreams);
+								openRepositoryMenu(event, row.repo, everyWorkstream);
 								return;
 							}
 							void onMoveKey(event, 'repository', row.repo.id, siblingIds);
 						}}
-						oncontextmenu={(event) => openRepositoryMenu(event, row.repo, row.workstreams)}
+						oncontextmenu={(event) => openRepositoryMenu(event, row.repo, everyWorkstream)}
 						draggable="false"
 					>
 						<span
@@ -1338,7 +1365,7 @@
 				</div>
 			{/snippet}
 			{#snippet content()}
-				{@render repositoryCard(row)}
+				{@render repositoryCard(row.repo, everyWorkstream.length)}
 			{/snippet}
 		</HoverCard>
 		<ul
@@ -1360,6 +1387,10 @@
 	{@const workstream = row.workstream}
 	{@const isLead = workstream.scope !== null}
 	{@const dots = leadProgressQuery.dots(workstream.id)}
+	{@const children = started.get(workstream.id) ?? []}
+	{@const hasChildren = children.length > 0}
+	{@const folded = collapsedGroupIds.has(workstream.id)}
+	{@const childIds = children.map((child) => child.id)}
 	<li
 		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
@@ -1392,7 +1423,7 @@
 								aria-busy={workstream.id === pendingWorkstreamId || undefined}
 								class={[
 									'sidebar-row relative w-full flex-col items-stretch outline-none',
-									rowEndPadding(saveable),
+									rowEndPadding(hasChildren, saveable),
 									levelPadding(level),
 									compact && 'py-1 text-xs',
 									view.chat.attention !== null
@@ -1414,6 +1445,8 @@
 									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
 								onpointerleave={() =>
 									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+								onpointerenter={clearRowEnd}
+								onfocus={clearRowEnd}
 								aria-keyshortcuts={moveShortcuts('Shift+F10')}
 								onkeydown={(event) => {
 									if (opensMenu(event)) {
@@ -1446,7 +1479,7 @@
 										{@render workstreamName(workstream, view)}
 										{#if row.repositoryName}
 											<span
-												class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate"
+												class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate group-hover/row:hidden group-has-focus-visible/row:hidden"
 												data-testid="sidebar-row-repository"
 											>
 												{row.repositoryName}
@@ -1465,13 +1498,16 @@
 									</span>
 								{/if}
 							</a>
+							{#if hasChildren}
+								{@render foldButton(row, folded)}
+							{/if}
 							{#if saveable}
 								{@render saveForLaterButton(
 									workstream,
 									view,
 									[
 										'absolute h-lh items-center leading-relaxed',
-										'right-7',
+										hasChildren ? 'right-13' : 'right-7',
 										compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 									].join(' '),
 								)}
@@ -1481,7 +1517,7 @@
 								view,
 								[
 									'absolute h-lh items-center leading-relaxed',
-									'right-1',
+									hasChildren ? 'right-7' : 'right-1',
 									compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
 								].join(' '),
 							)}
@@ -1511,7 +1547,49 @@
 				{/snippet}
 			</WorkstreamChatSummary>
 		</div>
+		{#if hasChildren}
+			<ul
+				id={`workstream-children-${workstream.id}`}
+				class={['flex w-full flex-col', folded && 'hidden']}
+				aria-label={`Started by ${row.label}`}
+			>
+				{#each children as child (child.id)}
+					{@render workstreamItem(placedRow(child, row), level + 1, childIds)}
+				{/each}
+			</ul>
+		{/if}
 	</li>
+{/snippet}
+
+{#snippet foldButton(row: SidebarRow, folded: boolean)}
+	<Tooltip
+		content={folded ? 'Show its workstreams' : 'Fold its workstreams'}
+		placement="right"
+		class={[
+			'absolute right-1 h-lh items-center leading-relaxed',
+			compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+		]}
+	>
+		<IconButton
+			variant="ghost"
+			size="sm"
+			ariaLabel={`${folded ? 'Show' : 'Fold'} the workstreams of ${row.label}`}
+			ariaExpanded={!folded}
+			ariaControls={`workstream-children-${row.workstream.id}`}
+			data-testid="sidebar-fold"
+			onclick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				toggleGroupCollapsedCommand(row.workstream.id);
+			}}
+		>
+			<Icon
+				name="chevron-down"
+				class={`text-fg-tertiary transition-transform duration-100 ${folded ? '-rotate-90' : ''}`}
+				size={12}
+			/>
+		</IconButton>
+	</Tooltip>
 {/snippet}
 
 {#snippet chatGlyph(view: WorkstreamView, level: number)}
@@ -1631,7 +1709,7 @@
 	<Tooltip
 		content={view.label}
 		placement="right"
-		offset={40}
+		offset={nameTooltipOffset}
 		onlyWhenTruncated
 		suppressed={view.running !== null}
 		class="min-w-0 flex-1 truncate"
@@ -1641,6 +1719,7 @@
 			shimmer={namedWorkstreamsQuery.data(workstream.id)}
 			class="block"
 			textClass="block truncate"
+			data-sidebar-name=""
 		/>
 	</Tooltip>
 {/snippet}
@@ -1815,21 +1894,21 @@
 	</div>
 {/snippet}
 
-{#snippet repositoryCard(row: ConnectedRepositoryContext)}
+{#snippet repositoryCard(repository: Repository, workstreamTotal: number)}
 	<div class="flex flex-col gap-3">
 		<div class="flex min-w-0 items-center gap-2.5">
-			<RepositoryAvatar fullName={row.repo.fullName} size={36} />
+			<RepositoryAvatar fullName={repository.fullName} size={36} />
 			<div class="flex min-w-0 flex-col">
 				<span class="text-fg-default truncate text-sm leading-5 font-medium">
-					{row.repo.fullName}
+					{repository.fullName}
 				</span>
 				<span class="text-fg-tertiary text-xs leading-4">
-					{workstreamCountLabel(row.workstreams.length)}
+					{workstreamCountLabel(workstreamTotal)}
 				</span>
 			</div>
 		</div>
 		<div class="border-surface-elevated-border border-t pt-3">
-			<ScratchpadIdeasPreview repositoryFullName={row.repo.fullName} />
+			<ScratchpadIdeasPreview repositoryFullName={repository.fullName} />
 		</div>
 	</div>
 {/snippet}

@@ -1,10 +1,10 @@
-# 0084 - Shipping is events and handlers, not a merge queue
+# 0086 - Shipping is events and handlers, not a merge queue
 
 Status: accepted
 
 ## Context
 
-0023 had the merge queue start Update from main and Address review from every pull request read the pull request bar made, and 0083 kept its own polls of GitHub and its reactions to reads that changed nothing, so the queue still decided from data the event log never saw: a second "changes requested" review with the same thread count started Address review with no event of its own.
+0023 had the merge queue start Update from main and Address review from every pull request read the pull request bar made, and 0085 kept its own polls of GitHub and its reactions to reads that changed nothing, so the queue still decided from data the event log never saw: a second "changes requested" review with the same thread count started Address review with no event of its own.
 The merge queue was a loop of its own: timers per workstream polled GitHub every 15 seconds, retried, waited for agents and jobs, and it listened to agent and job updates the event log does not keep.
 It also logged Malini's own intents as events: queueing a merge emitted `pull-requests:merge-requested`, which the reconciler handed straight back to the merge queue, and the click that started it was never logged.
 The user: "we should almost never have something requested events, cause when i click a btn - a btn got clicked, not merge requested", and "Merge queue shouldnt be fetching events on its own. I dont even know if we should have a merge queue. System is just events and handlers".

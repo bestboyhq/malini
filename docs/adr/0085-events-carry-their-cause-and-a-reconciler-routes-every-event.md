@@ -1,4 +1,4 @@
-# 0083 - Events carry their cause, and a reconciler routes every event
+# 0085 - Events carry their cause, and a reconciler routes every event
 
 Status: accepted
 
@@ -30,9 +30,9 @@ The user rejected that anything starts on its own: "everything comes from an eve
 - **Chains.** Every `job_runs` and `agent_runs` row has a `chain_id`.
   A run takes its parent run's chain, else its cause event's, else the chain of the chat turn it was asked from; a prompt the user types starts a new chain (`agent_runs_own_chain` trigger).
   `chat.send-prompt` takes `chainId` and `causeEventId`, and the job runner, `workstreams_create`, `workstreams_send` and the reconciler's wakes pass them on.
-  The Shipping rule (0084) passes `jobs.run` the read of GitHub or the click that made it start the job.
+  The Shipping rule (0086) passes `jobs.run` the read of GitHub or the click that made it start the job.
 - **The reconciler routes.** `Reconciler.handle` (`src/lib/jobs/platform/reconciler.service.ts`) is the one middleman between an event and what reacts to it: the log's dispatcher hands it every event, and it hands each to the rules first, then to the model.
-  The rules (`ReconcilerRules`) are the triggers (`job-triggers.service.ts`), the Thens (`JobRunner.startThen`), Shipping (`Shipping.handle`, 0084), Resume (`ChatPlatform.resume`) and the schedules (`createJobSchedules`); `src/main/modules.ts` hands `registerJobs` the Shipping rule and the chat's rule.
+  The rules (`ReconcilerRules`) are the triggers (`job-triggers.service.ts`), the Thens (`JobRunner.startThen`), Shipping (`Shipping.handle`, 0086), Resume (`ChatPlatform.resume`) and the schedules (`createJobSchedules`); `src/main/modules.ts` hands `registerJobs` the Shipping rule and the chat's rule.
   A Then starts from the `jobs:run-finished` of a run that succeeded, with that event as its cause, instead of the runner starting it.
   Each rule settles on its own (`Promise.allSettled`), so a rule that throws is logged and the others and the model still run.
   The model takes what no trigger matched; a Then never stops it, so the chat that ran a job still hears back.
@@ -44,7 +44,7 @@ The user rejected that anything starts on its own: "everything comes from an eve
     Resume continues the turns a quit paused (`continuePausedRuns`) on the first one it hears, each in the chain of the turn it continues, with the event as its `cause_event_id`, and Shipping picks up every workstream it was shipping; the agent service and `pullRequests.start()` no longer do either at boot.
   - `jobs:time-reached` (**Time reached**) fires from the schedules' clock once per due time, with the job, its schedule and the time it was due.
     The Schedules rule starts the job with the event as its cause, skips a time while the last run is unfinished, and `triggeredBefore` keeps a replayed event from starting it twice.
-  - `pull-requests:button-clicked` (**Button clicked**) fires when you click Draft, Merge, Retry or Cancel, and `pull-requests:workstream-opened` (**Workstream opened**) when you open a workstream; the Shipping rule takes the workstream from there (0084).
+  - `pull-requests:button-clicked` (**Button clicked**) fires when you click Draft, Merge, Retry or Cancel, and `pull-requests:workstream-opened` (**Workstream opened**) when you open a workstream; the Shipping rule takes the workstream from there (0086).
 - **Repeat runs fold.** `jobs.run` folds a request into a waiting or queued run of the same job for the same workstream, repository and scope, unless it comes from Shipping, a schedule or a chat: `requests` counts the asks, the contexts append, and a request made by hand starts a waiting run.
   Activity shows **Asked N times**.
 - **A budget per chain.** The fourth run of a job for the same target in one chain waits for the user: "It already ran 3 times in one chain of events, so Malini asks before it runs again." (`JOB_CHAIN_REPEAT_LIMIT`).
@@ -52,7 +52,7 @@ The user rejected that anything starts on its own: "everything comes from an eve
   Malini wakes a chat at most 3 times about the same work in one chain (`RECONCILER_WAKE_LIMIT`); past that it asks the user instead.
 - **Facts.** The workstream watcher reads `HEAD`, the branch, `origin`'s branch and `MERGE_HEAD` after git moves, and emits `repositories:workstream-head-moved`, `repositories:workstream-pushed` and `repositories:workstream-merge-conflicted` whoever moved it, each conflicted `MERGE_HEAD` once, shared with Malini's own pull (`reportMergeConflict`).
   The chat runtime emits `chat:turn-finished` when a turn of a user's chat ends, with its status and the `Outcome:` and `Needs:` it stated (`FinishedTurns`).
-  The GitHub reader (0084) emits `pull-requests:pull-request-changed` when a read of a workstream's pull request, its own or the top bar's, differs from the last one logged there (`pullRequestChange`, `latestLoggedEvent`), and names the latest one about the same pull request as the `causeEventId` of each job it starts.
+  The GitHub reader (0086) emits `pull-requests:pull-request-changed` when a read of a workstream's pull request, its own or the top bar's, differs from the last one logged there (`pullRequestChange`, `latestLoggedEvent`), and names the latest one about the same pull request as the `causeEventId` of each job it starts.
 - **The model.** The reconciler takes the logged events no trigger matched to the model one at a time, keeping only the newest per subject.
   For a turn that ends in a workstream a chat started, a job a chat ran that finishes or fails, and a merge that stops on conflicts nobody in Malini is resolving, code in `src/lib/jobs/domain/reconciler.ts` writes the facts as short lines and the candidates: Do nothing, Wake that chat, Run the job again, Run Resolve conflicts, Ask you.
   The built-in job **Reconcile events** (Haiku, low effort, editable and resettable on the Jobs page, 0011) picks one through the bridge's `choose` command (protocol 41), whose `outputFormat` JSON schema admits only `{ "pick": 1..N }`.

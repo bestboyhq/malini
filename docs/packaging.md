@@ -29,11 +29,14 @@ To move to a newer `gh`, change `GH_VERSION` and `GH_SHA256` together, taking th
 
 ## Licenses
 
-`extraResources` ships Malini's `LICENSE`.
+`extraResources` ships Malini's `LICENSE` and the root `NOTICE`, which names every third-party component with its license and copyright line.
 Each bundle in `out/` carries a `THIRD_PARTY_NOTICES.txt` with the license of every npm package whose code or assets it contains, generated at build time by `scripts/third-party-notices.mjs`.
-The build fails when a bundled package declares no license.
+The build fails when a bundled package declares no license, or when `NOTICE` has no line starting with its name: add the package there with its license and copyright line.
+electron-builder moves Electron's `LICENSE.electron.txt` and Chromium's `LICENSES.chromium.html` into `Contents/Resources`.
+The About panel shows the copyright, the AGPL notice, the source link, and these credits, from `aboutPanel` in `src/lib/app/platform/menu.ts`.
 The SDK carries its own `LICENSE.md` inside `agent-bridge/node_modules`, and `gh` its MIT `LICENSE` inside `vendor/gh`.
 The sounds in `src/renderer/public/sounds` ship with their `LICENSE.md`, which credits each file and links its license, and the Apache 2.0 text beside it.
+`pnpm licenses list -r` lists every dependency in the workspace with its license; anything copyleft, non-commercial, or unlicensed needs a decision before it ships.
 
 ## Releases
 

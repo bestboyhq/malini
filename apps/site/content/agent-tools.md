@@ -81,7 +81,7 @@ The approval card shows that prompt before you allow it.
 The agent cannot archive the workstream its own chat runs in, and no tool removes a repository or deletes a workstream.
 
 Malini remembers which chat started each workstream.
-The sidebar lists the workstream under its repository with a dot on that chat's row, its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
+The sidebar lists the workstream under that chat's row, with a dot for it on the row, its first prompt says **Prompt from** and names the chat, and its agent learns which chat started it and which workstreams that chat started besides, whose checkouts it may read.
 A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) works through these tools alone: it reads the repositories in its scope and starts a workstream for each change.
 
 ### Work it started reports back

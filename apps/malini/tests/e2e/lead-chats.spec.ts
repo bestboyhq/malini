@@ -106,7 +106,7 @@ function gateLeadCheckouts(app: LaunchedApp): Readonly<{ held: string; failing: 
 	return { held, failing };
 }
 
-test('a Home chat starts workstreams in two organizations, each listed under its repository and beside the chat', async () => {
+test('a Home chat starts workstreams in two organizations, which fold under it and list beside the chat', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -146,7 +146,18 @@ test('a Home chat starts workstreams in two organizations, each listed under its
 		});
 		await expect(startedIn('solo/site')).toHaveCount(1);
 		await expect(startedIn('acme/api')).toHaveCount(2);
-		await expect(sidebar(page).getByRole('list', { name: /^Started by / })).toHaveCount(0);
+		const nested = sidebar(page).getByRole('list', { name: 'Started by Move apps to Logdash' });
+		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
+		await expect(
+			nested
+				.locator('[data-repository-full-name="solo/site"]')
+				.getByTestId('sidebar-row-repository'),
+		).toHaveText('site');
+		await expect(
+			nested
+				.locator('[data-repository-full-name="acme/api"]')
+				.getByTestId('sidebar-row-repository'),
+		).toHaveText('api');
 		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
 		await expect(sidebar(page).getByRole('link', { name: 'Open acme/api' })).toBeVisible();
 		await expect(lead.getByTestId('sidebar-progress')).toHaveAccessibleName(/^2 workstreams/u);
@@ -163,6 +174,18 @@ test('a Home chat starts workstreams in two organizations, each listed under its
 		await expect(page).toHaveTitle('Malini · Home');
 		await expect(inspector(page)).toHaveCount(0);
 		await captureFlow(app, 'lead-chat-home-sidebar');
+
+		await sidebar(page)
+			.getByRole('button', { name: 'Fold the workstreams of Move apps to Logdash' })
+			.click();
+		await expect(nested).toBeHidden();
+		await page.reload();
+		await expect(lead).toBeVisible({ timeout: 20_000 });
+		await expect(nested).toBeHidden();
+		await sidebar(page)
+			.getByRole('button', { name: 'Show the workstreams of Move apps to Logdash' })
+			.click();
+		await expect(nested.getByTestId('sidebar-workstream')).toHaveCount(2);
 
 		await workstreams.getByRole('link', { name: /^solo\/site, / }).click();
 		await expect(workstreams).toHaveCount(0);

@@ -1,0 +1,141 @@
+Malini
+Copyright (C) 2026 Szymon Grącki and Malini contributors
+
+Malini is licensed under the GNU Affero General Public License, version 3 only, in LICENSE.
+Malini and Best Boy are trademarks of Szymon Grącki, as TRADEMARKS.md describes.
+Malini includes the third-party components below, each under its own license.
+Each line names a component, its license, and the copyright notice its license requires us to keep.
+
+Where the full texts are
+------------------------
+
+In the app, Malini.app/Contents/Resources holds LICENSE, this NOTICE,
+LICENSE.electron.txt (Electron) and LICENSES.chromium.html (Chromium, Node.js
+and every library they include).
+Each bundle in app.asar (out/main, out/renderer) carries THIRD_PARTY_NOTICES.txt
+with the full license text of every npm package in that bundle, generated at
+build time by apps/malini/scripts/third-party-notices.mjs.
+The agent bridge in Resources/agent-bridge/node_modules keeps each package's own
+license file, and Resources/vendor/gh keeps the GitHub CLI's LICENSE.
+In the source, the sounds' licenses are in apps/malini/src/renderer/public/sounds
+and the file icons' license is in apps/malini/src/renderer/public/file-icons/LICENSE.
+The standard license texts named below are at https://spdx.org/licenses/.
+
+Application runtime
+-------------------
+
+electron (MIT): Copyright (c) Electron contributors
+Chromium (BSD-3-Clause and others): Copyright The Chromium Authors; see LICENSES.chromium.html
+Node.js (MIT and others): Copyright Node.js contributors; see LICENSES.chromium.html
+@anthropic-ai/claude-agent-sdk (Anthropic's proprietary license): © Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance. Malini conveys it under the additional permission in README.md.
+zod (MIT): Copyright (c) 2025 Colin McDonnell
+GitHub CLI (MIT): Copyright (c) 2019 GitHub Inc.
+
+Main process bundle
+-------------------
+
+builder-util-runtime (MIT): Copyright (c) 2015 Loopline Systems
+debug (MIT): Copyright (c) 2014-2017 TJ Holowaychuk <tj@vision-media.ca>
+electron-updater (MIT): Copyright (c) 2015 Loopline Systems
+fs-extra (MIT): Copyright (c) 2011-2017 JP Richardson
+graceful-fs (ISC): Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
+has-flag (MIT): Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+js-yaml (MIT): Copyright (C) 2011-2015 by Vitaly Puzrin
+jsonfile (MIT): Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com>
+lazy-val (MIT): Copyright (c) Vladimir Krivosheev
+lodash.escaperegexp (MIT): Copyright jQuery Foundation and other contributors <https://jquery.org/>
+lodash.isequal (MIT): Copyright JS Foundation and other contributors <https://js.foundation/>
+ms (MIT): Copyright (c) 2020 Vercel, Inc.
+sax (BlueOak-1.0.0): Copyright (c) Isaac Z. Schlueter and Contributors
+semver (ISC): Copyright (c) Isaac Z. Schlueter and Contributors
+supports-color (MIT): Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+universalify (MIT): Copyright (c) 2017, Ryan Zimmerman <opensrc@ryanzim.com>
+
+Renderer bundle
+---------------
+
+@codemirror/commands (MIT): Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@codemirror/language (MIT): Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@codemirror/merge (MIT): Copyright (C) 2018-2022 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@codemirror/state (MIT): Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@codemirror/streamparser (MIT): Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@codemirror/view (MIT): Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@fontsource-variable/geist (OFL-1.1): Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+@fontsource-variable/geist-mono (OFL-1.1): Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)
+@fontsource-variable/inter (OFL-1.1): Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+@fontsource-variable/stix-two-text (OFL-1.1): Copyright 2001-2021 The STIX Fonts Project Authors (https://github.com/stipub/stixfonts)
+@lezer/common (MIT): Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@lezer/highlight (MIT): Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+@marijn/find-cluster-break (MIT): Copyright (C) 2024 by Marijn Haverbeke <marijn@haverbeke.berlin>
+@tiptap/core (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-blockquote (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-bold (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-code (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-code-block (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-document (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-hard-break (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-heading (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-horizontal-rule (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-italic (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-list (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-paragraph (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-strike (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extension-text (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/extensions (MIT): Copyright (c) 2025, Tiptap GmbH
+@tiptap/pm (MIT): Copyright (c) 2025, Tiptap GmbH
+clsx (MIT): Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
+crelt (MIT): Copyright (C) 2020 by Marijn Haverbeke <marijn@haverbeke.berlin>
+daisyui (MIT): Copyright (c) 2020 Pouya Saadeghi
+dompurify (Apache-2.0, chosen from MPL-2.0 OR Apache-2.0): Copyright (c) Cure53 and other contributors
+entities (BSD-2-Clause): Copyright (c) Felix Böhm
+esm-env (MIT): Copyright 2022 Benjamin McCann
+linkify-it (MIT): Copyright (c) 2015 Vitaly Puzrin.
+markdown-it (MIT): Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.
+marked (MIT): Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/); Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+mdurl (MIT): Copyright (c) 2015 Vitaly Puzrin, Alex Kocharin; Copyright Joyent, Inc. and other Node contributors.
+orderedmap (MIT): Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-commands (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-dropcursor (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-gapcursor (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-history (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-keymap (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-markdown (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-model (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-schema-list (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-state (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-transform (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+prosemirror-view (MIT): Copyright (C) 2015-2017 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+punycode.js (MIT): Copyright Mathias Bynens <https://mathiasbynens.be/>
+rope-sequence (MIT): Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
+runed (MIT): Copyright (c) 2024 Hunter Johnston <https://github.com/huntabyte>
+style-mod (MIT): Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+svelte (MIT): Copyright (c) 2016-2025 Svelte Contributors (https://github.com/sveltejs/svelte/graphs/contributors)
+svelte-sonner (MIT): Copyright (c) 2024 Robert Soriano
+tailwindcss (MIT): Copyright (c) Tailwind Labs, Inc.
+uc.micro (MIT): Copyright Mathias Bynens <https://mathiasbynens.be/>
+w3c-keyname (MIT): Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
+
+Assets
+------
+
+material-icon-theme (MIT): Copyright (c) 2025 Material Extensions
+The file icons in apps/malini/src/renderer/public/file-icons and apps/site/static/file-icons.
+
+Android Open Source Project sounds (Apache-2.0): Copyright (C) The Android Open Source Project.
+Fourteen notification sounds in apps/malini/src/renderer/public/sounds, from frameworks/base/data/sounds.
+Malini changed each file: it leveled the loudness and converted it to FLAC.
+The Apache License 2.0 is in apps/malini/src/renderer/public/sounds/LICENSE-APACHE-2.0.txt.
+
+KDE Ocean sound theme (CC-BY-SA-4.0): Copyright (C) 2023 Guilherme Marçal Silva.
+device-added.flac and service-login.flac in apps/malini/src/renderer/public/sounds, from https://invent.kde.org/plasma/ocean-sound-theme.
+Malini changed each file: it leveled the loudness and converted it to FLAC.
+The changed files are licensed under CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/.
+
+Website
+-------
+
+The site at bestboy.dev/malini, built from apps/site, also serves:
+
+@sveltejs/kit (MIT): Copyright (c) 2020 SvelteKit contributors (https://github.com/sveltejs/kit/graphs/contributors)
+JetBrains Mono (OFL-1.1): Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+The font is in apps/site/src/lib/fonts, beside its license.
