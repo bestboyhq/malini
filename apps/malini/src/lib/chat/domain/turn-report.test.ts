@@ -7,6 +7,7 @@ import {
 	mediaPath,
 	parseTurnReport,
 	turnStatus,
+	workstreamImagePath,
 } from './turn-report';
 
 describe('turn report', () => {
@@ -180,6 +181,7 @@ describe('turn report', () => {
 		expect(mediaPath('.context/after.mp4#t=0.45')).toBe('.context/after.mp4');
 		expect(mediaMarker('.context/after.mp4#t=0.45')).toBe(0.45);
 		expect(mediaMarker('.context/after.mp4')).toBeNull();
+		expect(workstreamImagePath('.context/after.mp4#t=0.45')).toBe('.context/after.mp4');
 		expect(mediaKind('.context/after.mp4#t=0.45')).toBe('video');
 		expect(mediaKind('.context/variant-a.PNG')).toBe('image');
 		expect(mediaKind('https://example.com/shot')).toBe('image');
