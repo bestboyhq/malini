@@ -132,13 +132,13 @@
 				bare
 				class="text-2xs text-fg-tertiary hover:text-fg-secondary focus-visible:ring-border-default/50 inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
 				data-testid="chat-run-fork"
-				ariaLabel="Fork to new chat"
+				ariaLabel="Slice and fork"
 				ariaBusy={forking}
 				disabled={forking || forkBlocked}
 				onclick={forkToNewChat}
 			>
 				<Icon name="branch" size={14} />
-				Fork to new chat
+				Slice and fork
 			</Button>
 		</Tooltip>
 	{/if}

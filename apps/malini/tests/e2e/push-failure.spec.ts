@@ -52,7 +52,7 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 		github.setOffline(false);
 
 		await expectMergedAndArchived(page, 'e2e-offline', name);
-		expect(github.pushedSubjects()[0]).toBe('EDIT:a.txt');
+		expect(github.pushedSubjects()[0]).toBe('Update a.txt');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -85,7 +85,7 @@ test('Open draft without network says github.com is unreachable in its tooltip a
 			timeout: 90_000,
 		});
 		expect(github.pullRequest()).toMatchObject({ isDraft: true });
-		expect(github.pushedSubjects()[0]).toBe('EDIT:a.txt');
+		expect(github.pushedSubjects()[0]).toBe('Update a.txt');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

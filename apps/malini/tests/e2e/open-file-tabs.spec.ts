@@ -466,7 +466,7 @@ test('new chats open last, forks and files directly after the current tab', asyn
 		await expectStrip(page, ['tab /One/', 'tab "alpha.ts"', 'tab /Two/', 'tab /Three$/']);
 
 		await chatTab(page, /Two/u).click();
-		await page.getByRole('button', { name: 'Fork to new chat' }).click();
+		await page.getByRole('button', { name: 'Slice and fork' }).click();
 		await expect(chatTab(page, /New chat$/u)).toHaveAttribute('aria-selected', 'true', {
 			timeout: 30_000,
 		});

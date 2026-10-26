@@ -665,7 +665,7 @@ describe('opening a draft', () => {
 	it('commits, pushes and opens a draft pull request with generated text', async () => {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 
 		const record = await invoke<ShipStateRecord>('pull-requests.open-draft', {
 			workstreamId: 'ws-1',
@@ -675,7 +675,7 @@ describe('opening a draft', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 		expect(commits).toMatchObject([{ workstreamId: 'ws-1', runId: 'user-run-1' }]);
 		expect(pushes).toEqual(['ws-1']);
-		expect(github.only()).toMatchObject({ isDraft: true, title: 'Added search to the header' });
+		expect(github.only()).toMatchObject({ isDraft: true, title: 'Add search to the header' });
 		expect(ship('ws-1')?.pullRequestUrl).toBe('https://github.com/acme/app/pull/40');
 	});
 
@@ -723,7 +723,7 @@ describe('pushing automatically', () => {
 	async function openDraft(): Promise<void> {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
@@ -731,17 +731,17 @@ describe('pushing automatically', () => {
 	it('pushes once the agent goes idle and retitles a title the user left alone', async () => {
 		await openDraft();
 		openRuns.add('ws-1');
-		finishUserRun('ws-1', 'Added fuzzy matching to search', ['src/fuzzy.ts']);
+		finishUserRun('ws-1', 'Commit: Add fuzzy matching to search', ['src/fuzzy.ts']);
 		openRuns.add('ws-1');
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 2));
 		expect(pushes).toEqual(['ws-1']);
 
 		openRuns.delete('ws-1');
-		finishUserRun('ws-1', 'Ranked exact matches first', []);
+		finishUserRun('ws-1', 'Commit: Rank exact matches first', []);
 
 		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
 		expect(commits).toHaveLength(2);
-		await until(() => expect(github.only().title).toBe('Ranked exact matches first'));
+		await until(() => expect(github.only().title).toBe('Rank exact matches first'));
 		await until(() => expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: null }));
 	});
 
@@ -749,7 +749,7 @@ describe('pushing automatically', () => {
 		await openDraft();
 		github.only().title = 'My own title';
 
-		finishUserRun('ws-1', 'Added fuzzy matching to search', ['src/fuzzy.ts']);
+		finishUserRun('ws-1', 'Commit: Add fuzzy matching to search', ['src/fuzzy.ts']);
 
 		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
 		await until(() => expect(ship('ws-1')?.step).toBeNull());
@@ -759,10 +759,10 @@ describe('pushing automatically', () => {
 	it('commits each finished run locally and never pushes before a pull request exists', async () => {
 		seedWorkstream('ws-1');
 		start();
-		const runId = finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		const runId = finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 
 		await until(() =>
-			expect(commits).toMatchObject([{ message: 'Added search to the header', runId }]),
+			expect(commits).toMatchObject([{ message: 'Add search to the header', runId }]),
 		);
 		await new Promise((resolve) => setTimeout(resolve, DELAYS.idleDebounceMs * 3));
 		expect(pushes).toEqual([]);
@@ -775,7 +775,7 @@ describe('keeping a workstream current with main', () => {
 	async function openDraft(): Promise<void> {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
@@ -871,7 +871,7 @@ describe('keeping a workstream current with main', () => {
 	it('opens a draft asked for while Update from main runs, once the update lands', async () => {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 		await until(() => expect(commits).toHaveLength(1));
 		behind.set('ws-1', 2);
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
@@ -1056,7 +1056,7 @@ describe('the merge queue', () => {
 	async function queueWithDraft(): Promise<void> {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Added search to the header', ['src/search.ts']);
+		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
