@@ -11,6 +11,7 @@ Git facts were invisible unless Malini acted: `repositories:workstream-merge-con
 The merge queue polled GitHub on timers, so the 61 jobs it started in one day of the user's history came from nothing in the log, each in a chain of its own.
 A chat that started workstreams never heard back from them; one lead, wanting to send its child a follow-up, found no tool for it and saved a job instead.
 The user settled on "rules first, the agent second": a small model that only chooses among options code built, every decision logged so it can be replayed on other models later, "something like a system visualization or like a timeline" to replay the last day, and Haiku first, the way the Name chats job runs.
+A first map drew the system as a loop, with GitHub between the work and the event log and a wire back from the listeners to the jobs, and the user found it unclear: "all events should go from left to right always", with GitHub, the user and every other source on the left.
 
 ## Decision
 
@@ -45,9 +46,10 @@ The user settled on "rules first, the agent second": a small model that only cho
   Settings, Jobs, **Reconcile events** (`jobs.reconciler`, on by default) turns it off.
 - **Replies and standing.** `workstreams_send` (protocol 41) sends a prompt into the chat of a workstream this chat started, only while that chat is idle, and asks like every write (0053).
   `workstreams_list` returns each workstream's `working`, `outcome` and `needs`, and the agent instructions say that started work reports back and how to answer it.
-- **The explorer.** Jobs, **Explorer** (`jobs.list-timeline`) draws the system as one loop: where events come from, the event log by kind, the listeners, and the chats and jobs they start, with a timeline of events under it.
+- **The explorer.** Jobs, **Explorer** (`jobs.list-timeline`) draws the system from left to right, the way events flow: their sources (You, Agents, Git, GitHub, Malini and the Clock), the event log by kind, the listeners, and the chats and jobs they start, with a timeline of events under it.
+  Every wire points right: an event leaves its source once, and what an agent does enters again as an event from **Agents** instead of on a wire back from its work.
   **Play** sends a dot along each event's route, a selected event lights up its chain, and **Every event** shows the events it otherwise leaves out.
-  A merge queue run comes from its read in the **Pull request** row; one without a read keeps the wire straight from GitHub.
+  A merge queue run comes from its read in the **Pull request** row; one without a read comes from GitHub under the event log, as a resumed turn comes from Malini and a scheduled run from the Clock.
   `channelCounts` keeps the event log's counts exact past the 2,000 events the window lists, and chat turns carry `resumed` and an `interrupted` or `cancelled` status, so a restart never reads as a failure.
   The scrubber is hyper-ui's `Playhead`, moved there from the chat's video compare.
 

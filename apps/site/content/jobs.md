@@ -201,11 +201,14 @@ Turn it off in Settings, Jobs, **Reconcile events**.
 
 ## Explorer
 
-**Explorer** draws Malini as one loop: work in chats and jobs makes events, the event log keeps them, listeners react, and what they start runs as new work.
-**You**, **Git**, **GitHub** and **Malini** sit where events come from.
-Each kind of event has a row in the event log with how many happened, and each listener shows what it started: Reconcile events, your triggers, Thens, the merge queue, schedules, and **Resume**, which picks up the turns a restart cut short.
+**Explorer** draws Malini from left to right, the way events flow: the sources they come from, the event log that keeps them, the listeners that react, and the chats and jobs they start.
+Every wire points right, so nothing flows back.
+The event sources are **You**, with your prompts and clicks, the **Agents** in your chats and jobs, **Git**, **GitHub**, **Malini** itself, and the **Clock** that runs schedules.
+What an agent does, such as ending a turn, enters again on the left as an event from **Agents**, so the work a listener starts can set off the next step.
+Each kind of event has a row in the event log with how many happened, and each listener shows what it started: Reconcile events, your triggers, Thens, the merge queue, **Resume**, which picks up the turns a restart cut short, and schedules.
+Your prompts reach your chats and jobs straight along the top, and what reaches a listener without an event, a restart or the clock, passes under the event log.
 The merge queue polls pull requests on GitHub, and each read that finds something new becomes a **Pull request** event, so every job the queue starts comes from that event, on the map and in its chain.
-A wire straight from GitHub to the merge queue marks a job it started without one, such as **Update from main** in a workstream with no pull request.
+A wire from GitHub under the event log marks a job it started without one, such as **Update from main** in a workstream with no pull request.
 
 **Play** replays the last hour, 6 hours or 24 hours: a dot travels along the wires for each event, and **Chats** and **Jobs** show what was working at that moment.
 The timeline of events under the map scrubs to any moment.

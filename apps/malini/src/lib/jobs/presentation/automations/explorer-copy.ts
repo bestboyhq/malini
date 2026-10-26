@@ -5,6 +5,7 @@ import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
 	LISTENERS,
+	SOURCES,
 	type EventRow,
 	type Explorer,
 	type ExplorerItem,
@@ -43,9 +44,11 @@ export const LISTENER_LABELS: Readonly<Record<Listener, string>> = {
 export const SOURCE_LOOKS: Readonly<Record<SourceNode, Readonly<{ label: string; note: string }>>> =
 	{
 		you: { label: 'You', note: 'prompts and clicks' },
+		agents: { label: 'Agents', note: 'in your chats and jobs' },
 		git: { label: 'Git', note: 'commits, pushes, conflicts' },
 		github: { label: 'GitHub', note: 'pull requests' },
 		malini: { label: 'Malini', note: 'workstreams, restarts' },
+		clock: { label: 'Clock', note: 'schedules' },
 	};
 
 const MERGED: Mark = { label: 'merged', tone: 'text-merged-content' };
@@ -125,10 +128,7 @@ const RUN_VERBS: Readonly<Record<string, string>> = {
 };
 
 const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
-	['you', SOURCE_LOOKS.you.label],
-	['git', SOURCE_LOOKS.git.label],
-	['github', SOURCE_LOOKS.github.label],
-	['malini', SOURCE_LOOKS.malini.label],
+	...SOURCES.map((source) => [source, SOURCE_LOOKS[source].label] as const),
 	['chats', 'Chats'],
 	['jobs', 'Jobs'],
 	...EVENT_ROWS.map((row) => [`event:${row}`, ROW_LOOKS[row].label] as const),

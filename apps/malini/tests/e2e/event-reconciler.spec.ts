@@ -155,6 +155,13 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 			chain.getByRole('listitem').filter({ hasText: 'Reconcile events woke it' }),
 		).toHaveCount(1);
 		await captureFlow(app, 'reconciler-explorer');
+		await explorer.getByRole('button', { name: 'Show all' }).click();
+		await map.getByRole('button', { name: /^Agents: \d+ events?$/u }).click();
+		await expect(
+			explorer.getByRole('list', { name: 'Agents' }).getByRole('button', {
+				name: /^Turn ended: The analytics endpoint answers, Api analytics, /u,
+			}),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -11,6 +11,7 @@
 	import {
 		EVENT_ROWS,
 		LISTENERS,
+		SOURCES,
 		wireKey,
 		type Explorer,
 		type MapNode,
@@ -48,7 +49,6 @@
 	const FLASH_MS = 480;
 	const WORKING_ROWS = 4;
 	const BUSY_WIRE = 40;
-	const SOURCES: readonly SourceNode[] = ['you', 'git', 'github', 'malini'];
 	const WORK: readonly WorkNode[] = ['chats', 'jobs'];
 
 	let width = $state(0);
@@ -63,19 +63,22 @@
 					hop,
 				]),
 			).entries(),
-		].flatMap(([key, hop]) => {
-			const d = layout.route(hop);
-			return d === null ? [] : [{ key, d, traffic: explorer.wires.get(key) ?? 0 }];
-		}),
+		]
+			.flatMap(([key, hop]) => {
+				const route = layout.route(hop);
+				return route === null ? [] : [{ key, ...route, traffic: explorer.wires.get(key) ?? 0 }];
+			})
+			.sort((left, right) => Number(isLit(left.key)) - Number(isLit(right.key))),
 	);
 	const domains = $derived([
-		{ key: 'work', box: layout.domains.work, label: 'work · chats and jobs' },
+		{ key: 'sources', box: layout.domains.sources, label: 'event sources' },
 		{
 			key: 'log',
 			box: layout.domains.log,
 			label: `event log · ${count(totalEvents(), 'event')}`,
 		},
 		{ key: 'listeners', box: layout.domains.listeners, label: 'listeners · who reacts' },
+		{ key: 'work', box: layout.domains.work, label: 'work · what runs' },
 	]);
 
 	function totalEvents(): number {
@@ -111,10 +114,10 @@
 			let stopped = false;
 			const travel = async (): Promise<void> => {
 				for (const hop of flight.hops) {
-					const d = layout.route(hop);
-					if (stopped || d === null) continue;
+					const route = layout.route(hop);
+					if (stopped || route === null) continue;
 					if (hop === flight.hops[0]) flash(hop[0]);
-					dot.style.offsetPath = `path('${d}')`;
+					dot.style.offsetPath = `path('${route.d}')`;
 					current = dot.animate([{ offsetDistance: '0%' }, { offsetDistance: '100%' }], {
 						duration: prefersReducedMotion.current ? 0 : HOP_MS,
 						easing: 'ease-in-out',
@@ -139,8 +142,12 @@
 		};
 	}
 
+	function isLit(key: string): boolean {
+		return lit?.wires.has(key) ?? false;
+	}
+
 	function wireTone(key: string, traffic: number): ClassValue {
-		const on = lit?.wires.has(key) ?? false;
+		const on = isLit(key);
 		return [
 			'fill-none transition-[opacity] duration-200 motion-reduce:transition-none',
 			on
@@ -154,7 +161,7 @@
 
 	function sourceCount(node: SourceNode): string {
 		const value = explorer.counts.get(node) ?? 0;
-		return node === 'you' ? count(value, 'start') : count(value, 'event');
+		return node === 'you' || node === 'clock' ? count(value, 'start') : count(value, 'event');
 	}
 
 	function listenerCount(node: MapNode): string {
@@ -211,8 +218,15 @@
 					d={wire.d}
 					class={wireTone(wire.key, wire.traffic)}
 					stroke-width={wire.traffic > BUSY_WIRE ? 1.75 : 1.25}
-					stroke-dasharray={lit?.wires.has(wire.key) ? undefined : wire.traffic > 0 ? '3 4' : '2 5'}
+					stroke-dasharray={isLit(wire.key) ? undefined : wire.traffic > 0 ? '3 4' : '2 5'}
 					stroke-linecap="round"
+				/>
+				<path
+					d={wire.tip}
+					class={wireTone(wire.key, wire.traffic)}
+					stroke-width={1.25}
+					stroke-linecap="round"
+					stroke-linejoin="round"
 				/>
 			{/each}
 		</svg>

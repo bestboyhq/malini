@@ -7,16 +7,20 @@ import type {
 	TimelineWorkstream,
 } from '$contract/jobs';
 
+export const SOURCES = ['you', 'agents', 'git', 'github', 'malini', 'clock'] as const;
+
+export type SourceNode = (typeof SOURCES)[number];
+
 export const EVENT_ROWS = [
 	'turn-ended',
 	'tool-called',
+	'job-run',
 	'committed',
 	'pushed',
 	'conflicted',
 	'pull-request',
 	'workstream-started',
 	'workstream-archived',
-	'job-run',
 	'other',
 ] as const;
 
@@ -27,15 +31,13 @@ export const LISTENERS = [
 	'triggers',
 	'thens',
 	'merge-queue',
-	'schedules',
 	'resume',
+	'schedules',
 ] as const;
 
 export type Listener = (typeof LISTENERS)[number];
 
 export type WorkNode = 'chats' | 'jobs';
-
-export type SourceNode = 'you' | 'git' | 'github' | 'malini';
 
 export type MapNode = SourceNode | WorkNode | `event:${EventRow}` | `listener:${Listener}`;
 
@@ -86,6 +88,11 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'jobs:agent-action-changed': 'tool-called',
 };
 
+const AGENT_CHANNELS: ReadonlySet<string> = new Set([
+	'jobs:run-changed',
+	'jobs:agent-action-changed',
+]);
+
 const GIT_CHANNELS: ReadonlySet<string> = new Set([
 	'repositories:workstream-head-moved',
 	'repositories:workstream-pushed',
@@ -98,6 +105,8 @@ const GITHUB_CHANNELS: ReadonlySet<string> = new Set([
 	'pull-requests:ship-changed',
 	'pull-requests:pull-request-changed',
 ]);
+
+const STARTERS: ReadonlySet<MapNode> = new Set<MapNode>(['you', 'clock']);
 
 const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'chat:turn-finished',
@@ -185,17 +194,6 @@ export function workingAt(explorer: Explorer, at: number): Working {
 
 function eventItem(event: LoggedEventRecord): ExplorerItem {
 	const row = eventRow(event.channel);
-	const work: WorkNode | null =
-		event.cause === null ? null : event.cause.kind === 'job-run' ? 'jobs' : 'chats';
-	const emitter = emitterOf(event.channel, work);
-	const target: MapNode = `event:${row}`;
-	const hops: Hop[] =
-		emitter === 'chats' || emitter === 'jobs' || work === null
-			? [[emitter, target]]
-			: [
-					[work, emitter],
-					[emitter, target],
-				];
 	return {
 		id: eventId(event.id),
 		kind: 'event',
@@ -211,15 +209,12 @@ function eventItem(event: LoggedEventRecord): ExplorerItem {
 					? runId(event.cause.id)
 					: turnId(event.cause.id),
 		workstreamId: event.workstreamId,
-		hops,
+		hops: [[emitterOf(event.channel), `event:${row}`]],
 	};
 }
 
-function emitterOf(channel: string, work: WorkNode | null): MapNode {
-	if (channel === 'jobs:run-changed') return 'jobs';
-	if (channel.startsWith('chat:') || channel === 'jobs:agent-action-changed') {
-		return work ?? 'chats';
-	}
+function emitterOf(channel: string): SourceNode {
+	if (channel.startsWith('chat:') || AGENT_CHANNELS.has(channel)) return 'agents';
 	if (GIT_CHANNELS.has(channel)) return 'git';
 	if (GITHUB_CHANNELS.has(channel)) return 'github';
 	return 'malini';
@@ -265,7 +260,7 @@ function runHops(run: TimelineJobRun, trigger: LoggedEventRecord | null): Hop[] 
 			];
 		case 'schedule':
 			return [
-				['malini', 'listener:schedules'],
+				['clock', 'listener:schedules'],
 				['listener:schedules', 'jobs'],
 			];
 		case 'merge-queue':
@@ -362,15 +357,14 @@ function countNodes(
 	};
 	for (const [channel, total] of Object.entries(channelCounts)) {
 		add(`event:${eventRow(channel)}`, total);
-		const emitter = emitterOf(channel, null);
-		if (emitter !== 'chats' && emitter !== 'jobs') add(emitter, total);
+		add(emitterOf(channel), total);
 	}
 	for (const item of items) {
 		if (item.kind === 'turn') add('chats');
 		if (item.kind === 'run') add('jobs');
 		if (item.kind === 'decision') add('listener:reconciler');
 		for (const [from] of item.hops) {
-			if (from === 'you' || (from.startsWith('listener:') && from !== 'listener:reconciler')) {
+			if (STARTERS.has(from) || (from.startsWith('listener:') && from !== 'listener:reconciler')) {
 				add(from);
 			}
 		}
