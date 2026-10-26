@@ -207,6 +207,11 @@
 	const focus = $derived(
 		focusStillExists(focusState.active, presentFocuses) ? focusState.active : ALL_FOCUS,
 	);
+	const focusedRepository = $derived(
+		focus.kind === 'repository'
+			? unhiddenRows.find((row) => row.repo.id === focus.repositoryId)
+			: undefined,
+	);
 	const pinnedChoices = $derived(
 		focusState.pinned.flatMap((pinned) => {
 			const choice = [...ownerChoices, ...repositoryChoices].find(
@@ -1560,16 +1565,16 @@
 	</span>
 {/snippet}
 
-{#snippet newChatRow()}
+{#snippet newChatRow(name: string, start: () => void)}
 	<Button
 		bare
 		class={[
 			'text-fg-secondary hover:bg-surface-50-hover hover:text-fg-default focus-visible:bg-surface-50-hover focus-visible:text-fg-default flex w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 outline-none',
 			compact ? 'h-7 text-xs' : 'h-8 text-sm',
 		]}
-		ariaLabel="New chat"
-		data-testid="sidebar-new-home-chat"
-		onclick={() => startLeadChatCommand(HOME_SCOPE)}
+		ariaLabel={name}
+		data-testid="sidebar-new-chat-row"
+		onclick={start}
 	>
 		<span class="grid h-5 w-5 shrink-0 place-items-center" aria-hidden="true">
 			<Icon name="plus" size={15} />
@@ -1899,11 +1904,25 @@
 					{#if focus.kind === 'all'}
 						<li class="relative w-full min-w-0">
 							<ul class="flex w-full flex-col" aria-label="Chats">
-								<li class="w-full min-w-0">{@render newChatRow()}</li>
+								<li class="w-full min-w-0">
+									{@render newChatRow('New chat', () => startLeadChatCommand(HOME_SCOPE))}
+								</li>
 								{#each tree.chats as chat (chat.id)}
 									{@render workstreamItem(leadRow(chat), 0, chatIds)}
 								{/each}
 							</ul>
+						</li>
+					{:else if sectioned && focus.kind === 'owner'}
+						<li class="w-full min-w-0">
+							{@render newChatRow(`New chat in ${focus.owner}`, () =>
+								startLeadChatCommand({ kind: 'owner', owner: focus.owner }),
+							)}
+						</li>
+					{:else if sectioned && focusedRepository}
+						<li class="w-full min-w-0">
+							{@render newChatRow(`New chat in ${focusedRepository.name}`, () =>
+								openNewWorkstream(focusedRepository.repo),
+							)}
 						</li>
 					{/if}
 					{#each tree.blocks as block (block.id)}
