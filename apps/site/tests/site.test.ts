@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
+import { COMMAND, IMAGE, readOgView, SOURCE } from '../scripts/og-image.ts';
 import { LOGDASH_SITE } from '../src/lib/logdash.ts';
 import worker, { type Env } from '../worker/index.ts';
 
@@ -149,15 +150,43 @@ test('pages ship the client router and preload links on hover', () => {
 	}
 });
 
-test('every page shares the generated Open Graph image', () => {
-	assert.ok(existsSync(join(build, 'og.png')));
-	for (const path of htmlPaths) {
-		assert.match(
-			read(htmlFile(path)),
-			/<meta property="og:image" content="https:\/\/bestboy\.dev\/malini\/og\.png"/u,
-			path,
-		);
+test('the Open Graph image shows the hero as it is now', () => {
+	assert.equal(
+		readOgView().source,
+		readFileSync(SOURCE, 'utf8').trim(),
+		`The hero changed since src/lib/og.png was rendered. Run ${COMMAND}, then check that og:image:alt in src/lib/Head.svelte still describes it.`,
+	);
+});
+
+test('every page shares the Open Graph image under a URL that changes with its content', () => {
+	const pages = htmlPaths.map((path) => read(htmlFile(path)));
+	const urls = new Set(
+		pages.map((html) => html.match(/<meta property="og:image" content="([^"]+)"/u)?.[1]),
+	);
+	assert.equal(urls.size, 1);
+	const [url = ''] = urls;
+	assert.match(
+		url,
+		/^https:\/\/bestboy\.dev\/malini\/_app\/immutable\/assets\/og\.[\w-]{8}\.png$/u,
+	);
+	const image = readFileSync(IMAGE);
+	assert.ok(readFileSync(join(build, url.slice(SITE.length))).equals(image));
+	assert.deepEqual([image.readUInt32BE(16), image.readUInt32BE(20)], [1200, 630]);
+	const tags = [
+		/<meta property="og:image:width" content="1200"/u,
+		/<meta property="og:image:height" content="630"/u,
+		/<meta property="og:image:alt" content="[^"]+"/u,
+		/<meta name="twitter:card" content="summary_large_image"/u,
+	];
+	for (const [index, html] of pages.entries()) {
+		for (const tag of tags) assert.match(html, tag, htmlPaths[index]);
 	}
+});
+
+test('the Open Graph view stays out of search', () => {
+	const html = read('og.html');
+	assert.match(html, /<meta name="robots" content="noindex"/u);
+	assert.doesNotMatch(html, /rel="canonical"/u);
 });
 
 test('the hero is the only README image the site uses', () => {

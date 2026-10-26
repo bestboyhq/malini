@@ -18,6 +18,7 @@
 		"src/**/*.svelte",
 		"worker/**/*.ts",
 		"tests/**/*.ts",
+		"scripts/**/*.ts",
 		"*.config.{js,ts}"
 	]
 }
