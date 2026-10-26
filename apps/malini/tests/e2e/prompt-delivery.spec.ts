@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
@@ -36,6 +39,46 @@ test('a queued prompt sent ahead interrupts the running reply, and the rest of t
 			timeout: 20_000,
 		});
 		await captureFlow(app, 'prompt-queue-send-ahead');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('⌘↵ sends a prompt ahead of one still waiting for the last turn to finish saving its changes', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const sessionId = await chatWithOneReply(app, 'e2e-steer-waiting-ws');
+		const heldRuns = join(app.home, 'hold-agent-runs');
+		writeFileSync(heldRuns, '');
+		await sendPrompt(page, 'EDIT:c.txt');
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Stop current run');
+		const releaseSnapshots = holdRunSnapshots(app);
+		rmSync(heldRuns);
+		await expect
+			.poll(async () =>
+				(await listEvents(page, sessionId)).filter(({ event }) => event.type === 'run.completed'),
+			)
+			.toHaveLength(2);
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName('Send prompt');
+		await sendPrompt(page, 'Waiting for the chat');
+		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
+		await page.waitForTimeout(1_000);
+		expect(await userMessages(page, sessionId)).toEqual(['EDIT:a.txt', 'EDIT:c.txt']);
+
+		await page.getByTestId('chat-composer-input').click();
+		await page.keyboard.type('Steer now', { delay: 10 });
+		await page.keyboard.press('Meta+Enter');
+		await expect(page.getByTestId('chat-composer-input')).toHaveText('');
+		releaseSnapshots();
+
+		await expect
+			.poll(() => userMessages(page, sessionId), { timeout: 30_000 })
+			.toEqual(['EDIT:a.txt', 'EDIT:c.txt', 'Steer now', 'Waiting for the chat']);
+		await expect(page.getByTestId('prompt-queue')).toBeHidden();
 
 		expectCleanConsole(app);
 	} finally {
@@ -185,4 +228,20 @@ async function userMessages(page: Page, sessionId: string): Promise<string[]> {
 	return (await listEvents(page, sessionId)).flatMap(({ event }) =>
 		event.type === 'user.message' ? [String(event['text'])] : [],
 	);
+}
+
+function holdRunSnapshots(app: LaunchedApp): () => void {
+	const gate = join(app.root, 'hold-run-snapshots');
+	const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
+	const stub = join(app.bin, 'git');
+	writeFileSync(gate, '');
+	writeFileSync(
+		stub,
+		`#!/bin/sh
+case "$*" in *commit-tree*"malini run snapshot"*) while [ -e '${gate}' ]; do sleep 0.05; done ;; esac
+exec '${realGit}' "$@"
+`,
+	);
+	chmodSync(stub, 0o755);
+	return () => rmSync(gate, { force: true });
 }
