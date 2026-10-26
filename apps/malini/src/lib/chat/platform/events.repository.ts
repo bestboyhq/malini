@@ -218,25 +218,57 @@ export type ProviderResumePoint =
 	{ readonly resumeAt: string } | { readonly freshConversation: true } | Record<string, never>;
 
 export function providerResumePoint(db: MaliniDatabase, sessionId: string): ProviderResumePoint {
-	const resumePoints = all<{ event: string; obsoleted: number }>(
+	const cursors = providerCursors(db, sessionId);
+	const resumeAt = cursors.find(({ obsoleted }) => !obsoleted)?.cursor;
+	if (resumeAt !== undefined) return { resumeAt };
+	return cursors.length > 0 ? { freshConversation: true } : {};
+}
+
+export function runAdvancedResumePoint(
+	db: MaliniDatabase,
+	sessionId: string,
+	runId: string,
+): boolean {
+	const cursors = providerCursors(db, sessionId);
+	return cursors.some(
+		(point, index) =>
+			point.runId === runId &&
+			cursors.slice(index + 1).every((earlier) => earlier.cursor !== point.cursor),
+	);
+}
+
+function providerCursors(
+	db: MaliniDatabase,
+	sessionId: string,
+): Array<{ runId: string; cursor: string; obsoleted: boolean }> {
+	return all<{ run_id: string; event: string; obsoleted: number }>(
 		db,
-		`SELECT e.event, r.obsoleted_at IS NOT NULL AS obsoleted FROM agent_events e
+		`SELECT e.run_id, e.event, r.obsoleted_at IS NOT NULL AS obsoleted FROM agent_events e
 		 JOIN agent_runs r ON r.id = e.run_id AND r.session_id = e.session_id
 		 WHERE e.session_id = ?
 		   AND (e.event LIKE 'run.completed' || char(10) || '%' OR e.event LIKE 'run.failed' || char(10) || '%'
 		     OR e.event LIKE 'background.updated' || char(10) || '%')
 		 ORDER BY e.seq DESC`,
 		sessionId,
-	);
-	let undoneCursor = false;
-	for (const row of resumePoints) {
+	).flatMap((row) => {
 		const { payload } = eventFromBlob(row.event);
 		const cursor = isRecord(payload) ? payload['providerCursor'] : undefined;
-		if (typeof cursor !== 'string' || cursor.length === 0) continue;
-		if (!row.obsoleted) return { resumeAt: cursor };
-		undoneCursor = true;
-	}
-	return undoneCursor ? { freshConversation: true } : {};
+		return typeof cursor === 'string' && cursor.length > 0
+			? [{ runId: row.run_id, cursor, obsoleted: row.obsoleted === 1 }]
+			: [];
+	});
+}
+
+export function runUserMessage(db: MaliniDatabase, runId: string): Record<string, unknown> {
+	const row = get<{ event: string }>(
+		db,
+		`SELECT event FROM agent_events
+		 WHERE run_id = ? AND event LIKE 'user.message' || char(10) || '%'
+		 ORDER BY seq LIMIT 1`,
+		runId,
+	);
+	const payload = row ? eventFromBlob(row.event).payload : null;
+	return isRecord(payload) ? payload : {};
 }
 
 export function runIsWaitingOnBackgroundWork(db: MaliniDatabase, runId: string): boolean {

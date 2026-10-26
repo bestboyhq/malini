@@ -1,5 +1,5 @@
 import { isAbsolute, normalize } from 'node:path';
-import { CONTINUE_AFTER_PAUSE_PROMPT } from '$contract/agent-state-machine';
+import { CONTINUE_AFTER_PAUSE_PROMPT, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { AgentEventPage } from '$contract/commands';
 import type { CommandRegistry } from '$main/ipc/registry';
@@ -21,6 +21,8 @@ import {
 	providerResumePoint,
 	toolCallOutput,
 	listOpenBackgroundCommands,
+	runAdvancedResumePoint,
+	runUserMessage,
 	updateEventPayload,
 	withToolOutputPreview,
 	workstreamHasWorkingRun,
@@ -94,6 +96,7 @@ import type {
 	AgentQuestionAnswer,
 	AgentRunProfile,
 	AgentTheme,
+	BridgeCommand,
 	ProviderCapability,
 } from './protocol';
 import type { BridgeRuntime } from './runtime';
@@ -161,6 +164,7 @@ export interface CheckpointCaptureInput {
 export interface SendPromptHooks {
 	readonly captureCheckpoint: (input: CheckpointCaptureInput) => Promise<string>;
 	readonly captureRunFinish: (runId: string) => Promise<void>;
+	readonly closing: () => boolean;
 	readonly verifyAttachment?: (stored: StoredAttachment, worktree: string) => void;
 	readonly collectAttachmentGarbage?: (workstreamId: string, worktree: string, now: string) => void;
 	readonly prepareAttachments?: (
@@ -696,25 +700,24 @@ async function sendAgentPromptLeased(
 	const skills = skillsForRun(db, sessionId);
 	const lineage = await lineageForRun(db, workstreamId, log);
 	lease.release();
-	try {
-		await supervisor.sendCommand({
-			cmd: 'send_prompt',
-			id: supervisor.nextCommandId(),
-			sessionId,
-			runId,
-			prompt: bridgePrompt,
-			...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
-			...resumePoint,
-			...(skills === null ? {} : { skills }),
-			...(input.steer === true ? { steer: true } : {}),
-			...(hooks.theme ? { theme: hooks.theme() } : {}),
-			...(lineage === null ? {} : { lineage }),
-		});
-	} catch (error) {
-		const errorMessage = `agent bridge send failed: ${describe(error)}`;
-		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
+	const undelivered = await handPromptToBridge(supervisor, hooks.closing, {
+		cmd: 'send_prompt',
+		id: supervisor.nextCommandId(),
+		sessionId,
+		runId,
+		prompt: bridgePrompt,
+		...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
+		...resumePoint,
+		...(skills === null ? {} : { skills }),
+		...(input.steer === true ? { steer: true } : {}),
+		...(hooks.theme ? { theme: hooks.theme() } : {}),
+		...(lineage === null ? {} : { lineage }),
+	});
+	if (undelivered !== null) {
+		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
 		await hooks.captureRunFinish(runId);
-		throw new LifecycleError('bridge_unavailable', errorMessage);
+		if (undelivered === PAUSED_FOR_EXIT_ERROR) return runId;
+		throw new LifecycleError('bridge_unavailable', undelivered);
 	}
 
 	const clientRequestId = input.clientRequestId?.trim() ?? '';
@@ -731,6 +734,20 @@ async function sendAgentPromptLeased(
 		}
 	}
 	return runId;
+}
+
+async function handPromptToBridge(
+	supervisor: BridgeSupervisor,
+	closing: () => boolean,
+	command: BridgeCommand,
+): Promise<string | null> {
+	if (closing()) return PAUSED_FOR_EXIT_ERROR;
+	try {
+		await supervisor.sendCommand(command);
+		return null;
+	} catch (error) {
+		return closing() ? PAUSED_FOR_EXIT_ERROR : `agent bridge send failed: ${describe(error)}`;
+	}
 }
 
 async function lineageForRun(
@@ -808,18 +825,21 @@ export function handleSendPromptHandoffFailure(
 ): void {
 	const completedAt = nowIso8601();
 	const retryExpiresAt = stagedAttachmentExpiryFrom();
-	db.transaction(() => {
-		run(
+	const closed = db.transaction(() => {
+		const changes = run(
 			db,
-			'UPDATE agent_runs SET completed_at = ?, error = ? WHERE id = ?',
+			'UPDATE agent_runs SET completed_at = ?, error = ? WHERE id = ? AND completed_at IS NULL',
 			completedAt,
 			errorMessage,
 			runId,
-		);
+		).changes;
+		if (changes === 0) return false;
 		closeTerminalInteractions(db, sessionId, runId, completedAt);
 		run(db, "UPDATE agent_sessions SET status = 'idle' WHERE id = ?", sessionId);
 		releaseRunAttachmentsForRetry(db, runId, retryExpiresAt);
+		return true;
 	});
+	if (!closed) return;
 	try {
 		emitPersisted(
 			db,
@@ -1286,33 +1306,45 @@ export interface BridgeCommandDeps {
 }
 
 export async function continuePausedRuns(
-	deps: BridgeCommandDeps,
+	db: MaliniDatabase,
+	sendPrompt: SendPrompt,
 	causeEventId: number | null,
+	log: (line: string) => void = defaultLog,
 ): Promise<void> {
-	const { db, runtime, appDataRoot, hooks, ids, leases } = deps;
-	const log = deps.log ?? defaultLog;
-	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
 	await Promise.all(
 		listPausedRuns(db).map(async (paused) => {
 			try {
-				const supervisor = await runtime.ensureSessionReady(paused.sessionId);
-				const input: SendPromptInput = {
+				await sendPrompt({
+					...(runAdvancedResumePoint(db, paused.sessionId, paused.runId)
+						? { prompt: CONTINUE_AFTER_PAUSE_PROMPT }
+						: promptToResend(runUserMessage(db, paused.runId))),
 					sessionId: paused.sessionId,
-					workstreamId: paused.workstreamId,
-					prompt: CONTINUE_AFTER_PAUSE_PROMPT,
-					profile: parseRunProfile(paused.profile),
+					profile: paused.profile,
 					automated: true,
 					chainId: paused.chainId,
 					causeEventId,
-					worktree: resolvePromptWorktree(db, appDataRoot, paused.workstreamId, [], hooks),
-				};
-				await sendAgentPrompt(db, supervisor, input, hooks, emit, ids, leases, log);
+				});
 			} catch (error) {
 				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
 			}
 		}),
 	);
 }
+
+function promptToResend(message: Record<string, unknown>): Record<string, unknown> {
+	return {
+		prompt: message['text'],
+		contextFiles: message['contextFiles'],
+		attachmentIds: optionalArray(message, 'attachments').map((attachment) =>
+			field(attachment, 'id'),
+		),
+		transcriptReferences: message['transcriptReferences'],
+		elementReferences: message['elementReferences'],
+		from: message['from'],
+	};
+}
+
+export type SendPrompt = (args: unknown) => Promise<string>;
 
 export const BRIDGE_COMMAND_NAMES = [
 	'chat.activate-session',
@@ -1394,7 +1426,10 @@ export async function stopWorkstreamBackgroundCommands(
 	await waitUntil(() => !workstreamHasOpenRun(db, workstreamId), BACKGROUND_STOP_BUDGET_MS);
 }
 
-export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeCommandDeps): void {
+export function defineBridgeCommands(
+	commands: CommandRegistry,
+	deps: BridgeCommandDeps,
+): SendPrompt {
 	const { db, runtime, appDataRoot, ids, leases, sending } = deps;
 	const log = deps.log ?? defaultLog;
 	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
@@ -1450,7 +1485,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		activateAgentSession(db, runtime, appDataRoot, requireString(args, 'sessionId')),
 	);
 
-	commands.define('chat.send-prompt', (args: unknown) => {
+	const sendPrompt: SendPrompt = async (args) => {
 		const sessionId = requireString(args, 'sessionId');
 		const row = get<{ workstream_id: string }>(
 			db,
@@ -1460,7 +1495,8 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 		if (!row) throw new Error(`session \`${sessionId}\` not found`);
 		const workstreamId = row.workstream_id;
 		return sending.during(workstreamId, () => sendPromptCommand(args, sessionId, workstreamId));
-	});
+	};
+	commands.define('chat.send-prompt', sendPrompt);
 
 	async function sendPromptCommand(
 		args: unknown,
@@ -1660,6 +1696,7 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 			return supervisor.providerCapabilities();
 		},
 	);
+	return sendPrompt;
 }
 
 function resolvePromptWorktree(

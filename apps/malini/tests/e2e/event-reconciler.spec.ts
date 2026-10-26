@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
@@ -22,6 +23,8 @@ const LEAD = 'Move apps to Logdash';
 const CHILD = 'Api analytics';
 const WAKE = `Wake “${LEAD}” with this report`;
 const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
+const RESENT = 'Rename the settings button';
+const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
 type Decision = Readonly<{ id: string; status: string; decidedBy: string; channel: string }>;
 
@@ -35,6 +38,23 @@ function transcript(page: Page) {
 
 function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
+}
+
+function holdCheckpointsUntilTheBridgeStops(app: LaunchedApp): void {
+	const shim = join(app.bin, 'git');
+	writeFileSync(
+		shim,
+		`#!/bin/sh
+if [ -f "$HOME/hold-checkpoints" ]; then
+  case "$*" in *refs/malini/checkpoints/*)
+    i=0
+    while [ $i -lt 300 ] && pgrep -f '${app.bridgeScript}' >/dev/null; do sleep 0.05; i=$((i + 1)); done ;;
+  esac
+fi
+exec '${GIT}' "$@"
+`,
+	);
+	chmodSync(shim, 0o755);
 }
 
 function reconcilerPicks(app: LaunchedApp, choice: string): void {
@@ -334,3 +354,81 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 		await app.close();
 	}
 });
+
+for (const cut of ['before Claude Code got it', 'before Claude replied'] as const) {
+	test(`a prompt a quit cut ${cut} is sent again once the Resume rule hears Malini started`, async () => {
+		test.setTimeout(240_000);
+		const first = await launchMalini();
+		const hold = join(
+			first.home,
+			cut === 'before Claude Code got it' ? 'hold-checkpoints' : 'hold-agent-runs',
+		);
+		try {
+			const { page } = first;
+			holdCheckpointsUntilTheBridgeStops(first);
+			const source = await createSourceRepo(first.root, 'acme/resend');
+			await seedWorkstream(page, `file://${source}`, 'e2e-resend-ws', 'Resend work');
+			await openWorkstream(page, 'e2e-resend-ws');
+			writeFileSync(hold, '');
+			await sendPrompt(page, RESENT);
+			await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
+				'Stop current run',
+				{ timeout: 20_000 },
+			);
+			if (cut === 'before Claude replied') {
+				await expect
+					.poll(
+						async () =>
+							(await listEvents(page, currentSessionId(page) ?? '')).some(
+								({ event }) => event.type === 'run.started',
+							),
+						{ timeout: 20_000 },
+					)
+					.toBe(true);
+			}
+			await first.quit();
+		} catch (error) {
+			await first.close();
+			throw error;
+		}
+		rmSync(hold);
+
+		const app = await launchMalini({ profile: first.root });
+		try {
+			const { page } = app;
+			await openWorkstream(page, 'e2e-resend-ws');
+			await expectAssistantReply(page);
+			await expect(
+				page.getByTestId('chat-message-bubble-user').filter({ hasText: RESENT }),
+			).toHaveCount(2);
+			await expect(transcript(page).getByText('Run paused')).toBeVisible();
+			await expect(page.getByTestId('chat-run-error')).toHaveCount(0);
+			await expect(
+				transcript(page).getByText(/^Malini restarted while you were working/u),
+			).toHaveCount(0);
+			await captureFlow(
+				app,
+				cut === 'before Claude Code got it'
+					? 'resume-resends-undelivered'
+					: 'resume-resends-unanswered',
+			);
+
+			await openJobs(page, '#/jobs/explorer');
+			const explorer = page.getByTestId('automations-explorer');
+			await explorer
+				.getByRole('region', { name: 'System map' })
+				.getByRole('button', { name: 'Resume: 1 started' })
+				.click();
+			await expect(
+				explorer
+					.getByRole('list', { name: 'Resume' })
+					.getByRole('listitem')
+					.filter({ hasText: 'Malini resumed it' })
+					.filter({ hasText: RESENT }),
+			).toHaveCount(1);
+			expectCleanConsole(app);
+		} finally {
+			await app.close();
+		}
+	});
+}

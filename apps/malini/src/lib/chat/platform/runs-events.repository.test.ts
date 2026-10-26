@@ -12,12 +12,13 @@ import {
 	listEventsForSession,
 	listOpenBackgroundCommands,
 	providerResumePoint,
+	runAdvancedResumePoint,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	updateEventPayload,
 	workstreamHasWorkingRun,
 } from './events.repository';
-import { CONTINUE_AFTER_PAUSE_PROMPT } from '$contract/agent-state-machine';
+import { CONTINUE_AFTER_PAUSE_PROMPT, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { openMigratedDatabase } from '$main/db/open';
 import { listAgentEventPage } from './agent/commands';
 import { getInteraction, recordPendingInteraction } from './interactions.repository';
@@ -149,6 +150,38 @@ describe('events', () => {
 		run(db, "UPDATE agent_runs SET obsoleted_at = 'undone' WHERE id = 'run-1'");
 		expect(providerResumePoint(db, 'sess-cursor')).toEqual({ freshConversation: true });
 		expect(providerResumePoint(db, 'sess-never-ran')).toEqual({});
+		db.close();
+	});
+
+	it('tells a run Claude replied in by a resume point no earlier run left', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedInteractionContext(db, 'ws-reply', 'sess-reply', 'replied');
+		for (const id of ['carried-over', 'unanswered']) {
+			insertRun(db, {
+				id,
+				sessionId: 'sess-reply',
+				prompt: id,
+				startedAt: '2026-07-22T00:00:02Z',
+				completedAt: null,
+				summary: null,
+				error: null,
+			});
+		}
+		appendEvent(db, 'sess-reply', 'replied', 'run.completed', {
+			summary: 'a',
+			providerCursor: 'c1',
+		});
+		appendEvent(db, 'sess-reply', 'carried-over', 'run.failed', {
+			error: 'paused',
+			providerCursor: 'c1',
+		});
+		appendEvent(db, 'sess-reply', 'unanswered', 'run.failed', { error: 'paused' });
+
+		expect(
+			['replied', 'carried-over', 'unanswered'].map((runId) =>
+				runAdvancedResumePoint(db, 'sess-reply', runId),
+			),
+		).toEqual([true, false, false]);
 		db.close();
 	});
 
@@ -621,16 +654,16 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			INSERT INTO agent_sessions (id, workstream_id, status, started_at, display_name, origin) VALUES
 			  ('chat', 'w', 'idle', '2026-10-23T00:00:00Z', 'Ship it', 'user');
 			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id) VALUES
-			  ('woken', 'chat', 'Malini woke you', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', 'lead-turn'),
-			  ('typed', 'chat', 'Ship it', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', ''),
-			  ('old', 'chat', 'Earlier', '2026-10-22T10:00:00Z', '2026-10-22T10:01:00Z', '');
+			  ('old', 'chat', 'Earlier', '2026-10-22T10:00:00Z', '2026-10-22T10:01:00Z', ''),
+			  ('woken', 'chat', 'Malini woke you', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', 'lead-turn');
 		`);
 		run(
 			db,
-			`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id, automated)
-			 VALUES ('resumed', 'chat', ?, '2026-10-23T12:00:00Z', NULL, '', 1),
-			        ('copied', 'chat', ?, '2026-10-23T13:00:00Z', NULL, '', 0)`,
-			CONTINUE_AFTER_PAUSE_PROMPT,
+			`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id, error, automated, cause_event_id)
+			 VALUES ('typed', 'chat', 'Ship it', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', '', ?, 0, NULL),
+			        ('resumed', 'chat', 'Ship it', '2026-10-23T12:00:00Z', NULL, '', NULL, 1, 7),
+			        ('copied', 'chat', ?, '2026-10-23T13:00:00Z', NULL, '', NULL, 0, NULL)`,
+			PAUSED_FOR_EXIT_ERROR,
 			CONTINUE_AFTER_PAUSE_PROMPT,
 		);
 		appendEvent(db, 'chat', 'woken', 'user.message', { text: 'Malini woke you', from: 'child' });

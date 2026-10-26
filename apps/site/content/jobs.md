@@ -192,7 +192,7 @@ It hands each event to the rules first:
   On **Workstream opened**, it runs **Update from main** when the workstream is behind, unless Settings say to update only when you merge.
   A chat or a job ships with the **Open draft** or **Merge** job, whose **Job finished** moves the workstream on.
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, and **Checks rerun**, the minute a fix gives its failing checks to run again.
-- **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to.
+- **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
 - **Schedules** start a job on the **Time reached** its schedule names.
 
 After the rules, the job **Reconcile events** looks at what no trigger handled and may need a hand:

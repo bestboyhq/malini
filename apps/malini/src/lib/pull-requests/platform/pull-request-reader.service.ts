@@ -70,8 +70,9 @@ export class PullRequestReader {
 
 	watch(workstreamId: string): void {
 		this.#clear(workstreamId);
+		if (this.#disposed) return;
 		const row = getShip(this.#context.db, workstreamId);
-		const every = row === null || this.#disposed ? null : pullRequestReadEvery(row, this.#delays);
+		const every = row === null ? null : pullRequestReadEvery(row, this.#delays);
 		if (every === null) return;
 		const timer = setTimeout(() => {
 			this.#timers.delete(workstreamId);

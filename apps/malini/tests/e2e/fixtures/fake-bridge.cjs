@@ -93,6 +93,7 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const repliedRuns = new Set();
 const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
@@ -740,6 +741,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('HANG')) {
 		pendingRuns.set(runId, sessionId);
+		repliedRuns.add(runId);
 		return;
 	}
 	if (prompt.includes('AUTO_MODE_BLOCK')) {
@@ -1209,7 +1211,12 @@ const handle = (command) => {
 		case 'cancel_run': {
 			backgroundCommands.delete(command.sessionId);
 			settleStreamedText(command.runId);
-			event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
+			event({
+				type: 'run.failed',
+				runId: command.runId,
+				error: 'cancelled',
+				...(repliedRuns.delete(command.runId) ? { providerCursor: 'cursor-' + command.runId } : {}),
+			});
 			pendingRuns.delete(command.runId);
 			return ack(command.id);
 		}

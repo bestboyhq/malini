@@ -305,6 +305,7 @@ export async function startAgentService(
 			...(deps.theme ? { theme: deps.theme } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
+			closing: () => runtime.wasStopped,
 			notifySessionRenamed(workstreamId, sessionId, name) {
 				const payload: SessionRenamedPayload = { workstreamId, sessionId, name };
 				context.events.emit(CHAT_SESSION_RENAMED_CHANNEL, payload);
@@ -316,7 +317,7 @@ export async function startAgentService(
 		},
 		log,
 	};
-	defineBridgeCommands(context.commands, commandDeps);
+	const sendPrompt = defineBridgeCommands(context.commands, commandDeps);
 	const stopRecordingDenials = context.commands.observe((outcome) =>
 		recordDeniedMaliniCall(context, outcome),
 	);
@@ -331,7 +332,7 @@ export async function startAgentService(
 		ensureReady: () => runtime.ensureReady(),
 		closeOpenRunsForExit,
 		continuePausedRuns: (causeEventId) =>
-			started ? continuePausedRuns(commandDeps, causeEventId) : Promise.resolve(),
+			started ? continuePausedRuns(db, sendPrompt, causeEventId, log) : Promise.resolve(),
 		async stop() {
 			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);

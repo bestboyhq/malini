@@ -640,7 +640,36 @@ describe('prompt round trips', () => {
 		expect(finished).toHaveLength(1);
 	});
 
-	it('continues a paused run once Malini started reaches it, from where it paused, with its profile and in its chain', async () => {
+	async function bootAfterRestart(): Promise<void> {
+		service = await startAgentService(
+			{ ...test.context, commands: new CommandRegistry() },
+			{
+				processFactory: fake.supervisorConfig().processFactory,
+				bridgeScriptPath: fake.scriptPath,
+				spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin' }),
+				leases: new AgentRunLeases(),
+				hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
+				log: () => {},
+			},
+		);
+	}
+
+	function latestRun(sessionId: string) {
+		return get<{
+			prompt: string;
+			summary: string | null;
+			profile: string;
+			automated: number;
+			chain_id: string;
+			cause_event_id: number | null;
+		}>(
+			test.db,
+			'SELECT prompt, summary, profile, automated, chain_id, cause_event_id FROM agent_runs WHERE session_id = ? ORDER BY rowid DESC LIMIT 1',
+			sessionId,
+		);
+	}
+
+	it('continues a paused run Claude had replied in once Malini started reaches it, from where it paused, with its profile and in its chain', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
@@ -653,37 +682,14 @@ describe('prompt round trips', () => {
 			'Malini is closing',
 		);
 
-		service = await startAgentService(
-			{ ...test.context, commands: new CommandRegistry() },
-			{
-				processFactory: fake.supervisorConfig().processFactory,
-				bridgeScriptPath: fake.scriptPath,
-				spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin' }),
-				leases: new AgentRunLeases(),
-				hooks: { captureCheckpoint: (input) => Promise.resolve(recordCheckpoint(input)) },
-				log: () => {},
-			},
-		);
-		const latestRun = () =>
-			get<{
-				prompt: string;
-				summary: string | null;
-				profile: string;
-				automated: number;
-				chain_id: string;
-				cause_event_id: number | null;
-			}>(
-				test.db,
-				'SELECT prompt, summary, profile, automated, chain_id, cause_event_id FROM agent_runs WHERE session_id = ? ORDER BY rowid DESC LIMIT 1',
-				sessionId,
-			);
-		const pausedChain = latestRun()?.chain_id;
-		expect(latestRun()?.prompt).toBe('HANG');
+		await bootAfterRestart();
+		const pausedChain = latestRun(sessionId)?.chain_id;
+		expect(latestRun(sessionId)?.prompt).toBe('HANG');
 
 		await service.continuePausedRuns(7);
 
-		await waitFor(() => latestRun()?.summary != null, 2_000, 'the paused run to continue');
-		expect(latestRun()).toEqual({
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the paused run to continue');
+		expect(latestRun(sessionId)).toEqual({
 			prompt: CONTINUE_AFTER_PAUSE_PROMPT,
 			summary: `done after cursor-${runId}`,
 			profile: JSON.stringify(profile),
@@ -691,6 +697,76 @@ describe('prompt round trips', () => {
 			chain_id: pausedChain,
 			cause_event_id: 7,
 		});
+	});
+
+	it('pauses a prompt a quit cut before it reached the agent, and sends it again once Malini started', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		let capturing = false;
+		let finishCapture = (): void => {};
+		const captured = new Promise<void>((resolve) => {
+			finishCapture = resolve;
+		});
+		await boot(
+			{},
+			{
+				hooks: {
+					captureCheckpoint: async (input) => {
+						capturing = true;
+						await captured;
+						return recordCheckpoint(input);
+					},
+				},
+			},
+		);
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const profile = { effort: 'high', mode: 'agent', access: 'full', report: 'low' };
+		const sending = invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'Ship the fix',
+			profile,
+		});
+		await waitFor(() => capturing, 2_000, 'the checkpoint before the prompt');
+
+		await service.stop();
+		finishCapture();
+		const runId = await sending;
+		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
+		expect(
+			listEventRowsForSession(test.db, sessionId, 0)
+				.filter((row) => row.runId === runId)
+				.map((row) => row.kind),
+		).toEqual(['user.message', 'run.failed']);
+
+		await bootAfterRestart();
+		const pausedChain = latestRun(sessionId)?.chain_id;
+		await service.continuePausedRuns(7);
+
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the cut prompt to be sent');
+		expect(latestRun(sessionId)).toEqual({
+			prompt: 'Ship the fix',
+			summary: 'done',
+			profile: JSON.stringify(profile),
+			automated: 1,
+			chain_id: pausedChain,
+			cause_event_id: 7,
+		});
+	});
+
+	it('sends a prompt again once Malini started when Claude had not replied to it before the quit', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'UNANSWERED' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'running');
+
+		await service.stop();
+		expect(getRun(test.db, runId)).toMatchObject({ error: PAUSED_FOR_EXIT_ERROR });
+
+		await bootAfterRestart();
+		await service.continuePausedRuns(7);
+
+		await waitFor(() => latestRun(sessionId)?.automated === 1, 2_000, 'the prompt to be sent');
+		expect(latestRun(sessionId)).toMatchObject({ prompt: 'UNANSWERED', cause_event_id: 7 });
 	});
 
 	it('refuses a prompt whose profile names an unknown report', async () => {

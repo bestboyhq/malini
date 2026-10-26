@@ -1,7 +1,6 @@
 import type { AgentRunProfile } from '$contract/agent';
 import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/jobs';
 import {
-	CONTINUE_AFTER_PAUSE_PROMPT,
 	isCancellationError,
 	isInterruptionError,
 	nextSessionStatus,
@@ -403,7 +402,10 @@ export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineC
 		db,
 		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
 		        r.cause_event_id, r.started_at, r.completed_at, r.error,
-		        (r.automated = 1 AND r.prompt = ?) AS resumed,
+		        (r.automated = 1 AND r.cause_event_id IS NOT NULL
+		         AND (SELECT previous.error FROM agent_runs previous
+		              WHERE previous.session_id = r.session_id AND previous.rowid < r.rowid
+		              ORDER BY previous.rowid DESC LIMIT 1) = ?) AS resumed,
 		        (SELECT CASE WHEN json_valid(substr(e.event, instr(e.event, char(10)) + 1))
 		                THEN json_extract(substr(e.event, instr(e.event, char(10)) + 1), '$.from') END
 		         FROM agent_events e
@@ -413,7 +415,7 @@ export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineC
 		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
 		   AND (r.started_at >= ? OR r.completed_at IS NULL OR r.completed_at >= ?)
 		 ORDER BY r.started_at`,
-		CONTINUE_AFTER_PAUSE_PROMPT,
+		PAUSED_FOR_EXIT_ERROR,
 		since,
 		since,
 	).map((row) => ({ ...chatTurnFromRow(row), from: row.sender, resumed: row.resumed === 1 }));
