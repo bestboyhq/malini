@@ -24,7 +24,7 @@ There is no Malini account, no subscription, and no Malini server.
 
 ## What is in the box
 
-- [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, and a merge queue that takes it to merged.
+- [Workstreams](/malini/docs/workstreams.md): one git worktree and branch per task, which Malini takes from Draft to merged.
 - [Chat](/malini/docs/chat.md): chats at Home or for an organization that start workstreams across repositories, queue or steer prompts, plan mode, model and effort per prompt, undo, edit, and fork.
 - [Jobs](/malini/docs/jobs.md): work you reuse by name, that runs when you run it or when something happens, with a Then that runs next.
 - [Agent tools](/malini/docs/agent-tools.md): the browser, jobs, and events, as tools the agent can call.

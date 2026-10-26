@@ -32,7 +32,6 @@
 			></span>
 		{/if}
 	</div>
-	<!-- eslint-disable-next-line @malini/desktop/no-raw-form-control -- a playhead is a range slider; hyper-ui has no slider primitive, and TextInput, Checkbox and Switch cannot seek. -->
 	<input
 		type="range"
 		class="playhead absolute inset-0 h-7 w-full"

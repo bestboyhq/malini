@@ -6,9 +6,16 @@ import type {
 	JobExperimentChangedEvent,
 	JobRunChangedEvent,
 	JobSuggestedEvent,
+	ReconcilerDecisionChangedEvent,
+	TimeReachedEvent,
 } from './jobs';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
-import type { ShipChangedEvent } from './pull-requests';
+import type {
+	PullRequestChangedEvent,
+	ShipButtonClickedEvent,
+	ShipChangedEvent,
+	WorkstreamOpenedEvent,
+} from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
@@ -45,6 +52,17 @@ export interface WorkstreamFilesChangedPayload {
 	paths: string[] | null;
 }
 
+export type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';
+
+export interface ChatTurnFinishedPayload {
+	workstreamId: string;
+	sessionId: string;
+	runId: string;
+	status: ChatTurnFinishedStatus;
+	outcome: string | null;
+	needs: string | null;
+}
+
 export interface SessionRenamedPayload {
 	workstreamId: string;
 	sessionId: string;
@@ -76,6 +94,19 @@ export interface WorkstreamMergeConflictedPayload {
 	workstreamId: string;
 	baseBranch: string;
 	conflictedPaths: string[];
+}
+
+export interface WorkstreamHeadMovedPayload {
+	workstreamId: string;
+	branch: string | null;
+	head: string;
+	previousHead: string | null;
+}
+
+export interface WorkstreamPushedPayload {
+	workstreamId: string;
+	branch: string;
+	head: string;
 }
 
 export interface CloneProgressPayload {
@@ -122,6 +153,8 @@ export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: Co
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
 
+export type AppStartedPayload = Readonly<{ version: string }>;
+
 export type FileOpenRequestedPayload = Readonly<{
 	workstreamId: string;
 	path: string;
@@ -133,6 +166,7 @@ export interface ContractEvents {
 	'chat:run-changes-captured': RunChangesCapturedPayload;
 	'chat:checkpoint-restored': CheckpointRestoredPayload;
 	'chat:session-renamed': SessionRenamedPayload;
+	'chat:turn-finished': ChatTurnFinishedPayload;
 	'chat:mcp-server-changed': McpServerReport;
 	'chat:mcp-servers-listed': McpServerListing;
 	'repositories:workstream-created': WorktreeAddedPayload;
@@ -142,15 +176,26 @@ export interface ContractEvents {
 	'repositories:workstream-install-status': WorkstreamInstallStatusPayload;
 	'repositories:workstream-setup-status': WorkstreamSetupStatusPayload;
 	'repositories:workstream-merge-conflicted': WorkstreamMergeConflictedPayload;
+	'repositories:workstream-head-moved': WorkstreamHeadMovedPayload;
+	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'repositories:changed': EmptyEventPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
+	'pull-requests:pull-request-changed': PullRequestChangedEvent;
+	'pull-requests:button-clicked': ShipButtonClickedEvent;
+	'pull-requests:workstream-opened': WorkstreamOpenedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
+	'jobs:run-started': JobRunChangedEvent;
+	'jobs:run-finished': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'jobs:suggested': JobSuggestedEvent;
 	'jobs:experiment-changed': JobExperimentChangedEvent;
 	'jobs:agent-action-changed': AgentActionChangedEvent;
+	'jobs:tool-called': AgentActionChangedEvent;
+	'jobs:decision-changed': ReconcilerDecisionChangedEvent;
+	'jobs:time-reached': TimeReachedEvent;
+	'app:started': AppStartedPayload;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
@@ -173,6 +218,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:run-changes-captured': null,
 	'chat:checkpoint-restored': null,
 	'chat:session-renamed': null,
+	'chat:turn-finished': null,
 	'chat:mcp-server-changed': null,
 	'chat:mcp-servers-listed': null,
 	'repositories:workstream-created': null,
@@ -182,15 +228,26 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-install-status': null,
 	'repositories:workstream-setup-status': null,
 	'repositories:workstream-merge-conflicted': null,
+	'repositories:workstream-head-moved': null,
+	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
 	'repositories:changed': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
+	'pull-requests:pull-request-changed': null,
+	'pull-requests:button-clicked': null,
+	'pull-requests:workstream-opened': null,
 	'jobs:run-changed': null,
+	'jobs:run-started': null,
+	'jobs:run-finished': null,
 	'jobs:definition-changed': null,
 	'jobs:suggested': null,
 	'jobs:experiment-changed': null,
 	'jobs:agent-action-changed': null,
+	'jobs:tool-called': null,
+	'jobs:decision-changed': null,
+	'jobs:time-reached': null,
+	'app:started': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
@@ -221,6 +278,8 @@ export const CHAT_CHECKPOINT_RESTORED_CHANNEL = 'chat:checkpoint-restored' satis
 
 export const CHAT_SESSION_RENAMED_CHANNEL = 'chat:session-renamed' satisfies EventChannel;
 
+export const CHAT_TURN_FINISHED_CHANNEL = 'chat:turn-finished' satisfies EventChannel;
+
 export const CHAT_MCP_SERVER_CHANGED_CHANNEL = 'chat:mcp-server-changed' satisfies EventChannel;
 
 export const CHAT_MCP_SERVERS_LISTED_CHANNEL = 'chat:mcp-servers-listed' satisfies EventChannel;
@@ -246,8 +305,16 @@ export const REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL =
 export const REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL =
 	'repositories:workstream-merge-conflicted' satisfies EventChannel;
 
+export const REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL =
+	'repositories:workstream-head-moved' satisfies EventChannel;
+
+export const REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL =
+	'repositories:workstream-pushed' satisfies EventChannel;
+
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
+
+export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
 
 export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies EventChannel;
 
@@ -280,7 +347,20 @@ export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;
 
+export const PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL =
+	'pull-requests:pull-request-changed' satisfies EventChannel;
+
+export const PULL_REQUESTS_BUTTON_CLICKED_CHANNEL =
+	'pull-requests:button-clicked' satisfies EventChannel;
+
+export const PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL =
+	'pull-requests:workstream-opened' satisfies EventChannel;
+
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
+
+export const JOBS_RUN_STARTED_CHANNEL = 'jobs:run-started' satisfies EventChannel;
+
+export const JOBS_RUN_FINISHED_CHANNEL = 'jobs:run-finished' satisfies EventChannel;
 
 export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;
 
@@ -289,5 +369,11 @@ export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
 export const JOBS_EXPERIMENT_CHANGED_CHANNEL = 'jobs:experiment-changed' satisfies EventChannel;
 
 export const JOBS_AGENT_ACTION_CHANGED_CHANNEL = 'jobs:agent-action-changed' satisfies EventChannel;
+
+export const JOBS_TOOL_CALLED_CHANNEL = 'jobs:tool-called' satisfies EventChannel;
+
+export const JOBS_DECISION_CHANGED_CHANNEL = 'jobs:decision-changed' satisfies EventChannel;
+
+export const JOBS_TIME_REACHED_CHANNEL = 'jobs:time-reached' satisfies EventChannel;
 
 export const REPOSITORIES_CHANGED_CHANNEL = 'repositories:changed' satisfies EventChannel;

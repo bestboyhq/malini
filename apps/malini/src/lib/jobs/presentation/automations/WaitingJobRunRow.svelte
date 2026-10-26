@@ -35,7 +35,8 @@
 	const parent = $derived(jobRunByIdQuery.data(run.parentRunId));
 	const trigger = $derived(jobDefinitionByIdQuery.data(run.definitionId)?.trigger ?? null);
 	const reason = $derived(
-		parent ? `After ${parent.title}` : trigger ? whenClause(triggerFor(trigger.when)) : null,
+		run.detail ??
+			(parent ? `After ${parent.title}` : trigger ? whenClause(triggerFor(trigger.when)) : null),
 	);
 </script>
 

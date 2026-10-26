@@ -1,3 +1,4 @@
+import { BRIDGE_INTERRUPTED_ERROR, ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import { closeTerminalInteractions } from '../interactions.repository';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
@@ -313,10 +314,6 @@ export class AgentRunLeases {
 		);
 	}
 }
-
-export const ORPHAN_INTERRUPTED_ERROR = 'interrupted: app closed mid-run';
-
-export const BRIDGE_INTERRUPTED_ERROR = 'interrupted: agent bridge restarted';
 
 export const RESET_BY_USER_ERROR = 'reset by user';
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { JOBS_AGENT_ACTION_CHANGED_CHANNEL } from '$contract/events';
+import { JOBS_AGENT_ACTION_CHANGED_CHANNEL, JOBS_TOOL_CALLED_CHANNEL } from '$contract/events';
 import type { AgentActionChangedEvent, AgentActionRecord, AgentActionStatus } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
@@ -22,6 +22,7 @@ export function recordAgentAction(
 	};
 	insertAgentAction(db, action);
 	changed(events, action);
+	events.emit(JOBS_TOOL_CALLED_CHANNEL, { action });
 	return action;
 }
 

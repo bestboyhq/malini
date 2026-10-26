@@ -15,6 +15,7 @@ import type {
 	ThemeMode,
 } from '$contract/commands';
 import { CONTRACT_REFERENCE } from '$contract/contract-reference.generated';
+import { APP_STARTED_CHANNEL } from '$contract/events';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { readDiagnostics } from '$main/diagnostics/diagnostics-files';
@@ -68,6 +69,7 @@ export function registerApp(context: MainContext, deps: AppDeps): AppPlatform {
 		windowStateSaved: () => window.windowStateSaved(),
 		exit: () => updates.exit(),
 		announceUpdate: () => announceUpdate(context, CONTRACT_REFERENCE),
+		announceStart: () => context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion }),
 		streaming: new StreamingDetector(context, deps.runner ?? createNodeProcessRunner()),
 	};
 }

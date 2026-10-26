@@ -31,9 +31,15 @@ import {
 	prepareStartedWorkstream,
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
+import {
+	latestWorkstreamTurn,
+	sessionHasWorkingRun,
+	workstreamHasWorkingRun,
+} from '../events.repository';
 import { answeredApprovalsInRun } from '../interactions.repository';
 import { MALINI_TOOL_PREFIX } from '../permissions.service';
-import { storedRunProfile } from '../runs.repository';
+import { chatTurnChainId, storedRunProfile } from '../runs.repository';
+import { latestSessionForWorkstream } from '../sessions.repository';
 import { parseRunProfile, type PromptsInFlight } from './commands';
 import { jobsNamed } from './malini-approvals.service';
 import type { BridgePlatformRequest, PlatformAnswer } from './protocol';
@@ -158,6 +164,7 @@ async function runPlatformTool(
 				.map((workstream) => ({
 					...workstreamSummary(workstream, catalog),
 					current: workstream.id === workstreamId,
+					...workstreamStanding(db, workstream.id),
 				}));
 			const finished = listArchivedWorkstreams(db)
 				.filter((workstream) => workstream.startedBy === workstreamId && listed(workstream))
@@ -170,6 +177,8 @@ async function runPlatformTool(
 		}
 		case 'workstreams_create':
 			return createWorkstream(deps, request);
+		case 'workstreams_send':
+			return sendToWorkstream(deps, request);
 		case 'workstreams_archive': {
 			const { workstreamId } = requestSession(db, request);
 			const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
@@ -255,6 +264,7 @@ async function createWorkstream(
 		);
 	}
 	const profile = parseRunProfile(storedRunProfile(db, request.runId));
+	const chainId = chatTurnChainId(db, request.runId);
 	const sessionId = chat;
 	void sending.during(workstreamId, async () => {
 		await settingUp;
@@ -264,6 +274,7 @@ async function createWorkstream(
 				prompt,
 				from: source.workstreamId,
 				...(profile === null ? {} : { profile }),
+				...(chainId === null ? {} : { chainId }),
 			});
 		} catch (error) {
 			log(`agent: could not send the first prompt in \`${workstreamId}\`: ${describeError(error)}`);
@@ -277,6 +288,48 @@ async function createWorkstream(
 		baseBranch: plan.baseBranch,
 		...(base === null ? {} : { base }),
 		chat,
+	};
+}
+
+async function sendToWorkstream(
+	{ db, commands }: PlatformRequestDeps,
+	request: BridgePlatformRequest,
+): Promise<unknown> {
+	const { input } = request;
+	const prompt = requiredText(input, 'prompt');
+	const source = requestSession(db, request);
+	const workstream = findWorkstream(listWorkstreams(db), requiredText(input, 'workstream'));
+	if (workstream.startedBy !== source.workstreamId) {
+		throw new Error(
+			`This chat did not start “${workstream.name}”, so it sends no prompt there. Send prompts only to the workstreams this chat started, as workstreams_list shows in startedBy.`,
+		);
+	}
+	const chat = latestSessionForWorkstream(db, workstream.id);
+	if (!chat) throw new Error(`“${workstream.name}” has no chat to send the prompt to.`);
+	if (sessionHasWorkingRun(db, chat.id)) {
+		throw new Error(
+			`The chat in “${workstream.name}” is on a turn now, so Malini did not send the prompt. Send it once that turn ends.`,
+		);
+	}
+	const chainId = chatTurnChainId(db, request.runId);
+	await commands.call('chat.send-prompt', {
+		sessionId: chat.id,
+		prompt,
+		from: source.workstreamId,
+		...(chainId === null ? {} : { chainId }),
+	});
+	return { id: workstream.id, name: workstream.name, chat: chat.id };
+}
+
+function workstreamStanding(
+	db: MaliniDatabase,
+	workstreamId: string,
+): Readonly<{ working: boolean; outcome: string | null; needs: string | null }> {
+	const turn = latestWorkstreamTurn(db, workstreamId);
+	return {
+		working: workstreamHasWorkingRun(db, workstreamId),
+		outcome: turn?.outcome ?? null,
+		needs: turn?.need ?? null,
 	};
 }
 

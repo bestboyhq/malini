@@ -2,8 +2,10 @@ export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
 export {
 	agentHasReadFile,
 	backgroundCommandSource,
+	latestSessionReport,
 	latestWorkstreamTurn,
 	listOpenBackgroundCommands,
+	sessionHasWorkingRun,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	type BackgroundCommandSource,
@@ -14,11 +16,21 @@ export {
 	type WorkstreamSnapshotRefs,
 } from './platform/checkpoints.repository';
 export {
+	chatTurnChainId,
+	chatTurnSessionId,
 	getRunWorkstreamId,
 	getWorkstreamRun,
 	listChatTurns,
+	listChatTurnsSince,
 	listOpenRuns,
 	listRunActivity,
+	workChatTurnInWorkstream,
+	type ChatTurnWork,
 	type RunActivity,
 } from './platform/runs.repository';
+export {
+	getSession,
+	latestSessionForWorkstream,
+	userSessionWorkstreamId,
+} from './platform/sessions.repository';
 export { workstreamShipContext } from './platform/ship-context.repository';

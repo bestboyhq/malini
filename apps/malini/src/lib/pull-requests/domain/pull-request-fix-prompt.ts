@@ -13,9 +13,14 @@ type RemoteDiagnostics = Readonly<{
 	checkDiagnostics: CheckDiagnosticsDto | null;
 }>;
 
+export type CheckSummary = Pick<
+	PullRequestCheckDto,
+	'name' | 'appId' | 'conclusion' | 'state' | 'required'
+>;
+
 export type CheckFixInput = Readonly<{
 	pullRequestNumber: number;
-	failingChecks: readonly PullRequestCheckDto[];
+	failingChecks: readonly CheckSummary[];
 	checkDiagnostics: CheckDiagnosticsDto | null;
 }>;
 
@@ -94,7 +99,7 @@ function withRemoteDiagnostics(prefix: string, diagnostics: RemoteDiagnostics | 
 	return `${prefix}\n\n${buildUntrustedRemoteDiagnostics(diagnostics, remoteBudget)}`;
 }
 
-function checkDetails(checks: readonly PullRequestCheckDto[]): string {
+function checkDetails(checks: readonly CheckSummary[]): string {
 	if (checks.length === 0) return 'none reported';
 	return checks
 		.slice(0, 12)

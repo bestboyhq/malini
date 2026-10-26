@@ -8,6 +8,7 @@
 	import { BusyIcon, Icon, type IconName } from '$hyper-ui/icons';
 	import {
 		JOBS_ACTIVITY_HREF,
+		JOBS_EXPLORER_HREF,
 		JOBS_HREF,
 		JOBS_RECIPES_HREF,
 		jobHref,
@@ -36,6 +37,7 @@
 	}>[] = [
 		{ value: 'overview', label: 'Overview', icon: 'sparkles', href: JOBS_HREF },
 		{ value: 'activity', label: 'Activity', icon: 'clock', href: JOBS_ACTIVITY_HREF },
+		{ value: 'explorer', label: 'Explorer', icon: 'workflow', href: JOBS_EXPLORER_HREF },
 		{ value: 'recipes', label: 'Recipes', icon: 'gift', href: JOBS_RECIPES_HREF },
 	];
 

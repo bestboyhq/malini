@@ -38,4 +38,4 @@ class AutomationsState {
 
 export const automationsState = new AutomationsState();
 
-export type AutomationsView = 'overview' | 'activity' | 'recipes';
+export type AutomationsView = 'overview' | 'activity' | 'explorer' | 'recipes';

@@ -10,13 +10,17 @@ import {
 	addressedChangeRequests,
 	clampedFixAttempts,
 	needsReviewFeedback,
-	nextMergeQueueMove,
+	nextShippingMove,
+	pullRequestChange,
+	pullRequestFacts,
+	pullRequestReadEvery,
 	reviewFeedbackToAddress,
 	reviewSignature,
 	reviewToAddress,
 	shipBackoffMs,
-	type MergeQueueSnapshot,
-} from './merge-queue';
+	type PullRequestFacts,
+	type ShippingSnapshot,
+} from './shipping';
 
 function check(name: string, conclusion: string | null, state = 'COMPLETED'): PullRequestCheckDto {
 	return {
@@ -101,7 +105,23 @@ function feedback(
 	};
 }
 
-function queued(overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot {
+type Fixture = Omit<Partial<ShippingSnapshot>, 'pullRequest'> &
+	Readonly<{
+		pullRequest?: PullRequestStatusDto | null;
+		reviewFeedback?: ReviewFeedbackDto | null;
+	}>;
+
+function facts(
+	read: PullRequestStatusDto,
+	review: ReviewFeedbackDto | null = null,
+): PullRequestFacts {
+	const change = pullRequestChange('ws-1', read, review);
+	if (change === null) throw new Error('expected a pull request GitHub reports');
+	return change;
+}
+
+function queued(overrides: Fixture = {}): ShippingSnapshot {
+	const { pullRequest: read = pullRequest(), reviewFeedback = null, ...rest } = overrides;
 	return {
 		phase: 'queued',
 		pushRequested: false,
@@ -130,56 +150,54 @@ function queued(overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot
 		fixAttemptLimit: 3,
 		backoffUntil: null,
 		now: 1_000,
-		pullRequest: pullRequest(),
-		reviewFeedback: null,
-		...overrides,
+		read: read !== null,
+		pullRequest: read === null ? null : pullRequestChange('ws-1', read, reviewFeedback),
+		...rest,
 	};
 }
 
 const worktree = queued().worktree;
 
 describe('a draft workstream', () => {
-	const draft = (overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot =>
+	const draft = (overrides: Fixture = {}): ShippingSnapshot =>
 		queued({ phase: 'draft', pushRequested: true, pullRequest: null, ...overrides });
 
 	it('does nothing until an agent run or the user asks for a push', () => {
-		expect(nextMergeQueueMove(draft({ pushRequested: false }))).toEqual({
+		expect(nextShippingMove(draft({ pushRequested: false }))).toEqual({
 			kind: 'idle',
 			problem: null,
 		});
 	});
 
 	it('waits for the agent, then opens the draft pull request when none exists', () => {
-		expect(nextMergeQueueMove(draft({ idle: false, pullRequestNumber: null }))).toEqual({
+		expect(nextShippingMove(draft({ idle: false, pullRequestNumber: null }))).toEqual({
 			kind: 'wait',
 			step: 'waiting-for-agent',
 		});
-		expect(nextMergeQueueMove(draft({ pullRequestNumber: null }))).toEqual({
+		expect(nextShippingMove(draft({ pullRequestNumber: null }))).toEqual({
 			kind: 'open-draft',
 		});
 	});
 
 	it('pushes unpushed work to an existing pull request, and settles when there is none', () => {
-		expect(nextMergeQueueMove(draft({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } }))).toEqual({
+		expect(nextShippingMove(draft({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } }))).toEqual({
 			kind: 'push',
 		});
-		expect(nextMergeQueueMove(draft({ worktree: { ...worktree, ahead: 2 } }))).toEqual({
+		expect(nextShippingMove(draft({ worktree: { ...worktree, ahead: 2 } }))).toEqual({
 			kind: 'push',
 		});
-		expect(nextMergeQueueMove(draft())).toEqual({ kind: 'idle', problem: null });
+		expect(nextShippingMove(draft())).toEqual({ kind: 'idle', problem: null });
 	});
 
 	it('never fixes anything: a failing pull request in a draft only gets pushes', () => {
 		expect(
-			nextMergeQueueMove(
-				draft({ pullRequest: pullRequest({ checks: [check('test', 'FAILURE')] }) }),
-			),
+			nextShippingMove(draft({ pullRequest: pullRequest({ checks: [check('test', 'FAILURE')] }) })),
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
 	it('refuses to push in the middle of a rebase and says why', () => {
 		expect(
-			nextMergeQueueMove(draft({ worktree: { ...worktree, operationInProgress: 'rebase' } })),
+			nextShippingMove(draft({ worktree: { ...worktree, operationInProgress: 'rebase' } })),
 		).toEqual({
 			kind: 'idle',
 			problem: 'A rebase is in progress in this workstream. Finish or abort it, then try again.',
@@ -188,7 +206,7 @@ describe('a draft workstream', () => {
 });
 
 describe('keeping a local or draft workstream current', () => {
-	const local = (overrides: Partial<MergeQueueSnapshot> = {}): MergeQueueSnapshot =>
+	const local = (overrides: Fixture = {}): ShippingSnapshot =>
 		queued({
 			phase: 'local',
 			pullRequestNumber: null,
@@ -203,18 +221,18 @@ describe('keeping a local or draft workstream current', () => {
 
 	it('commits finished work locally and never pushes before a pull request exists', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({ pushRequested: true, worktree: { ...worktree, dirtyPaths: ['a.ts'] } }),
 			),
 		).toEqual({ kind: 'commit' });
 		expect(
-			nextMergeQueueMove(local({ pushRequested: true, worktree: { ...worktree, ahead: 3 } })),
+			nextShippingMove(local({ pushRequested: true, worktree: { ...worktree, ahead: 3 } })),
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
 	it('reads how far main moved, then commits leftover local work and updates only a workstream that is behind', () => {
-		expect(nextMergeQueueMove(local({ updateRequested: true }))).toEqual({ kind: 'read-base' });
-		expect(nextMergeQueueMove(local({ updateRequested: true, behindBase: 0 }))).toEqual({
+		expect(nextShippingMove(local({ updateRequested: true }))).toEqual({ kind: 'read-base' });
+		expect(nextShippingMove(local({ updateRequested: true, behindBase: 0 }))).toEqual({
 			kind: 'idle',
 			problem: null,
 		});
@@ -224,12 +242,12 @@ describe('keeping a local or draft workstream current', () => {
 			signature: 'update',
 			attempt: 1,
 		};
-		expect(nextMergeQueueMove(local({ updateRequested: true, behindBase: 4 }))).toEqual(update);
+		expect(nextShippingMove(local({ updateRequested: true, behindBase: 4 }))).toEqual(update);
 		expect(
-			nextMergeQueueMove(queued({ phase: 'draft', updateRequested: true, behindBase: 4 })),
+			nextShippingMove(queued({ phase: 'draft', updateRequested: true, behindBase: 4 })),
 		).toEqual(update);
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({
 					updateRequested: true,
 					behindBase: 4,
@@ -238,7 +256,7 @@ describe('keeping a local or draft workstream current', () => {
 			),
 		).toEqual({ kind: 'commit' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({
 					updateRequested: true,
 					behindBase: 0,
@@ -247,7 +265,7 @@ describe('keeping a local or draft workstream current', () => {
 			),
 		).toEqual({ kind: 'idle', problem: null });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					phase: 'draft',
 					updateRequested: true,
@@ -259,7 +277,7 @@ describe('keeping a local or draft workstream current', () => {
 	});
 
 	it('addresses a change request on its own while you work, once per review', () => {
-		const requested = (overrides: Partial<MergeQueueSnapshot> = {}) =>
+		const requested = (overrides: Fixture = {}) =>
 			queued({
 				phase: 'draft',
 				reviewRequested: true,
@@ -270,60 +288,60 @@ describe('keeping a local or draft workstream current', () => {
 				),
 				...overrides,
 			});
-		expect(nextMergeQueueMove(requested())).toEqual({
+		expect(nextShippingMove(requested())).toEqual({
 			kind: 'run-job',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_2"],"threads":["PRRT_human"]}',
 			attempt: 1,
 		});
-		expect(nextMergeQueueMove(requested({ addressedReviews: ['PRR_2'] }))).toEqual({
+		expect(nextShippingMove(requested({ addressedReviews: ['PRR_2'] }))).toEqual({
 			kind: 'idle',
 			problem: null,
 		});
-		expect(nextMergeQueueMove(requested({ pullRequest: null }))).toEqual({
+		expect(nextShippingMove(requested({ pullRequest: null }))).toEqual({
 			kind: 'read-pull-request',
 		});
 		expect(
-			nextMergeQueueMove(requested({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } })),
+			nextShippingMove(requested({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } })),
 		).toEqual({ kind: 'idle', problem: null });
-		expect(nextMergeQueueMove(requested({ idle: false }))).toEqual({
+		expect(nextShippingMove(requested({ idle: false }))).toEqual({
 			kind: 'wait',
 			step: 'waiting-for-agent',
 		});
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				requested({ threadResolutionRunId: 'run-fix', addressedReviews: ['PRR_2'] }),
 			),
 		).toEqual({ kind: 'resolve-threads', agentRunId: 'run-fix' });
 	});
 
 	it('reads the pull request after main moved and never updates one that merged or closed', () => {
-		const draft = (overrides: Partial<MergeQueueSnapshot>) =>
+		const draft = (overrides: Fixture) =>
 			queued({ phase: 'draft', updateRequested: true, behindBase: 4, ...overrides });
-		expect(nextMergeQueueMove(draft({ pullRequest: null }))).toEqual({ kind: 'read-pull-request' });
+		expect(nextShippingMove(draft({ pullRequest: null }))).toEqual({ kind: 'read-pull-request' });
 		expect(
-			nextMergeQueueMove(local({ updateRequested: true, behindBase: 4, pullRequest: null })),
+			nextShippingMove(local({ updateRequested: true, behindBase: 4, pullRequest: null })),
 		).toEqual({ kind: 'read-pull-request' });
 		for (const state of ['merged', 'closed'] as const) {
-			expect(nextMergeQueueMove(draft({ pullRequest: pullRequest({ state }) }))).toEqual({
+			expect(nextShippingMove(draft({ pullRequest: pullRequest({ state }) }))).toEqual({
 				kind: 'idle',
 				problem: null,
 			});
 			expect(
-				nextMergeQueueMove(
+				nextShippingMove(
 					local({ updateRequested: true, behindBase: 4, pullRequest: pullRequest({ state }) }),
 				),
 			).toEqual({ kind: 'idle', problem: null });
 		}
-		expect(nextMergeQueueMove(draft({}))).toMatchObject({ kind: 'run-job' });
+		expect(nextShippingMove(draft({}))).toMatchObject({ kind: 'run-job' });
 	});
 
 	it('shows the update and conflict jobs while they run', () => {
 		expect(
-			nextMergeQueueMove(local({ job: { builtin: 'update-from-main', status: 'running' } })),
+			nextShippingMove(local({ job: { builtin: 'update-from-main', status: 'running' } })),
 		).toEqual({ kind: 'wait', step: 'updating-from-main' });
 		expect(
-			nextMergeQueueMove(local({ job: { builtin: 'resolve-conflicts', status: 'queued' } })),
+			nextShippingMove(local({ job: { builtin: 'resolve-conflicts', status: 'queued' } })),
 		).toEqual({ kind: 'wait', step: 'resolving-conflicts' });
 	});
 
@@ -346,21 +364,21 @@ describe('keeping a local or draft workstream current', () => {
 			signature: 'conflicts:["a.ts"]',
 			attempt: 1,
 		};
-		expect(nextMergeQueueMove(local({ ...afterUpdate, worktree: conflicted }))).toEqual(resolve);
-		expect(nextMergeQueueMove(local({ ...afterUpdate, worktree: unstaged }))).toEqual(resolve);
-		expect(nextMergeQueueMove(local({ ...afterResolve, worktree: unstaged }))).toEqual({
+		expect(nextShippingMove(local({ ...afterUpdate, worktree: conflicted }))).toEqual(resolve);
+		expect(nextShippingMove(local({ ...afterUpdate, worktree: unstaged }))).toEqual(resolve);
+		expect(nextShippingMove(local({ ...afterResolve, worktree: unstaged }))).toEqual({
 			kind: 'commit',
 		});
 		expect(
-			nextMergeQueueMove(queued({ phase: 'draft', ...afterResolve, worktree: unstaged })),
+			nextShippingMove(queued({ phase: 'draft', ...afterResolve, worktree: unstaged })),
 		).toEqual({ kind: 'push' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({ ...afterResolve, failureSignature: 'update', attempts: 1, worktree: conflicted }),
 			),
 		).toEqual(resolve);
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({
 					...afterResolve,
 					failureSignature: 'conflicts:["a.ts"]',
@@ -370,7 +388,7 @@ describe('keeping a local or draft workstream current', () => {
 			),
 		).toEqual({ ...resolve, attempt: 2 });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({
 					...afterResolve,
 					failureSignature: 'conflicts:["a.ts"]',
@@ -383,7 +401,7 @@ describe('keeping a local or draft workstream current', () => {
 
 	it('leaves a merge the user started alone', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				local({ pushRequested: true, worktree: merging({ conflictedPaths: ['a.ts'] }) }),
 			),
 		).toEqual({
@@ -395,26 +413,26 @@ describe('keeping a local or draft workstream current', () => {
 
 describe('a queued workstream', () => {
 	it('stays put while backing off from an error', () => {
-		expect(nextMergeQueueMove(queued({ backoffUntil: 5_000 }))).toEqual({ kind: 'backoff' });
-		expect(nextMergeQueueMove(queued({ backoffUntil: 500 }))).toMatchObject({ kind: 'merge' });
+		expect(nextShippingMove(queued({ backoffUntil: 5_000 }))).toEqual({ kind: 'backoff' });
+		expect(nextShippingMove(queued({ backoffUntil: 500 }))).toMatchObject({ kind: 'merge' });
 	});
 
 	it('waits while the agent or its own job is busy, showing the job step', () => {
-		expect(nextMergeQueueMove(queued({ idle: false }))).toEqual({
+		expect(nextShippingMove(queued({ idle: false }))).toEqual({
 			kind: 'wait',
 			step: 'waiting-for-agent',
 		});
+		expect(nextShippingMove(queued({ job: { builtin: 'fix-checks', status: 'running' } }))).toEqual(
+			{ kind: 'wait', step: 'fixing-checks' },
+		);
 		expect(
-			nextMergeQueueMove(queued({ job: { builtin: 'fix-checks', status: 'running' } })),
-		).toEqual({ kind: 'wait', step: 'fixing-checks' });
-		expect(
-			nextMergeQueueMove(queued({ job: { builtin: 'address-review', status: 'needs-you' } })),
+			nextShippingMove(queued({ job: { builtin: 'address-review', status: 'needs-you' } })),
 		).toEqual({ kind: 'wait', step: 'addressing-review' });
 	});
 
 	it('asks the user to finish a rebase or cherry-pick they started', () => {
 		expect(
-			nextMergeQueueMove(queued({ worktree: { ...worktree, operationInProgress: 'cherry-pick' } })),
+			nextShippingMove(queued({ worktree: { ...worktree, operationInProgress: 'cherry-pick' } })),
 		).toEqual({
 			kind: 'needs-you',
 			reason: 'operation-in-progress',
@@ -426,14 +444,14 @@ describe('a queued workstream', () => {
 	it('resolves conflicts a branch update left behind, then commits the merge', () => {
 		const merging = { ...worktree, operationInProgress: 'merge' as const };
 		expect(
-			nextMergeQueueMove(queued({ worktree: { ...merging, conflictedPaths: ['b.ts', 'a.ts'] } })),
+			nextShippingMove(queued({ worktree: { ...merging, conflictedPaths: ['b.ts', 'a.ts'] } })),
 		).toEqual({
 			kind: 'run-job',
 			builtin: 'resolve-conflicts',
 			signature: 'conflicts:["a.ts","b.ts"]',
 			attempt: 1,
 		});
-		expect(nextMergeQueueMove(queued({ worktree: merging }))).toEqual({ kind: 'push' });
+		expect(nextShippingMove(queued({ worktree: merging }))).toEqual({ kind: 'push' });
 	});
 
 	it('commits conflicts a resolve-conflicts job cleared of markers, even when it left them unstaged', () => {
@@ -443,13 +461,13 @@ describe('a queued workstream', () => {
 			conflictedPaths: ['a.ts'],
 		};
 		expect(
-			nextMergeQueueMove(queued({ settledJob: 'resolve-conflicts', worktree: unstaged })),
+			nextShippingMove(queued({ settledJob: 'resolve-conflicts', worktree: unstaged })),
 		).toEqual({ kind: 'push' });
 		expect(
-			nextMergeQueueMove(queued({ settledJob: 'update-from-main', worktree: unstaged })),
+			nextShippingMove(queued({ settledJob: 'update-from-main', worktree: unstaged })),
 		).toMatchObject({ kind: 'run-job', builtin: 'resolve-conflicts' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					settledJob: 'resolve-conflicts',
 					failureSignature: 'conflicts:["a.ts"]',
@@ -466,48 +484,48 @@ describe('a queued workstream', () => {
 	});
 
 	it('opens the pull request first, then pushes pending work', () => {
-		expect(nextMergeQueueMove(queued({ pullRequestNumber: null }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequestNumber: null }))).toEqual({
 			kind: 'open-draft',
 		});
-		expect(nextMergeQueueMove(queued({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } }))).toEqual(
-			{ kind: 'push' },
-		);
-		expect(nextMergeQueueMove(queued({ worktree: { ...worktree, hasUpstream: false } }))).toEqual({
+		expect(nextShippingMove(queued({ worktree: { ...worktree, dirtyPaths: ['a.ts'] } }))).toEqual({
+			kind: 'push',
+		});
+		expect(nextShippingMove(queued({ worktree: { ...worktree, hasUpstream: false } }))).toEqual({
 			kind: 'push',
 		});
 	});
 
 	it('resolves the threads an address-review job fixed once its work is pushed', () => {
-		expect(nextMergeQueueMove(queued({ threadResolutionRunId: 'run-9' }))).toEqual({
+		expect(nextShippingMove(queued({ threadResolutionRunId: 'run-9' }))).toEqual({
 			kind: 'resolve-threads',
 			agentRunId: 'run-9',
 		});
 	});
 
 	it('reads the pull request only once everything local is settled', () => {
-		expect(nextMergeQueueMove(queued({ pullRequest: null }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: null }))).toEqual({
 			kind: 'read-pull-request',
 		});
 	});
 
 	it('archives a pull request merged anywhere, and stops at one closed without merging', () => {
-		expect(nextMergeQueueMove(queued({ pullRequest: pullRequest({ state: 'merged' }) }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'merged' }) }))).toEqual({
 			kind: 'archive',
 		});
-		expect(nextMergeQueueMove(queued({ pullRequest: pullRequest({ state: 'closed' }) }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'closed' }) }))).toEqual({
 			kind: 'needs-you',
 			reason: 'pull-request-closed',
 			detail: 'Pull request #7 was closed without merging.',
 			jobRunId: null,
 		});
-		expect(nextMergeQueueMove(queued({ pullRequest: pullRequest({ state: 'not_open' }) }))).toEqual(
-			{ kind: 'open-draft' },
-		);
+		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'not_open' }) }))).toEqual({
+			kind: 'open-draft',
+		});
 	});
 
 	it('marks a draft ready before anything else on GitHub', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({ draft: true, checks: [check('test', 'FAILURE')] }),
 				}),
@@ -518,10 +536,10 @@ describe('a queued workstream', () => {
 	it('updates a conflicting or behind branch', () => {
 		const conflicting = pullRequest({ mergeable: false, mergeableState: 'DIRTY' });
 		const behind = pullRequest({ mergeableState: 'BEHIND' });
-		expect(nextMergeQueueMove(queued({ pullRequest: conflicting }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: conflicting }))).toEqual({
 			kind: 'update-branch',
 		});
-		expect(nextMergeQueueMove(queued({ pullRequest: behind }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: behind }))).toEqual({
 			kind: 'update-branch',
 		});
 	});
@@ -538,7 +556,7 @@ describe('a queued workstream', () => {
 				check('build', 'SUCCESS'),
 			],
 		});
-		expect(nextMergeQueueMove(queued({ pullRequest: failing }))).toEqual({
+		expect(nextShippingMove(queued({ pullRequest: failing }))).toEqual({
 			kind: 'run-job',
 			builtin: 'fix-checks',
 			signature: 'checks:["lint","test"]',
@@ -550,15 +568,15 @@ describe('a queued workstream', () => {
 		const failing = pullRequest({ checksState: 'failed', checks: [check('lint', 'FAILURE')] });
 		const same = 'checks:["lint"]';
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: failing, failureSignature: same, attempts: 2 })),
+			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 2 })),
 		).toMatchObject({ kind: 'run-job', attempt: 3 });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({ pullRequest: failing, failureSignature: 'checks:["test"]', attempts: 3 }),
 			),
 		).toMatchObject({ kind: 'run-job', attempt: 1 });
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: failing, failureSignature: same, attempts: 3 })),
+			nextShippingMove(queued({ pullRequest: failing, failureSignature: same, attempts: 3 })),
 		).toEqual({
 			kind: 'needs-you',
 			reason: 'fix-gave-up',
@@ -566,7 +584,7 @@ describe('a queued workstream', () => {
 			jobRunId: 'job-last',
 		});
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({ pullRequest: failing, failureSignature: same, attempts: 1, fixAttemptLimit: 1 }),
 			),
 		).toMatchObject({ reason: 'fix-gave-up', detail: expect.stringContaining('tried once') });
@@ -578,7 +596,7 @@ describe('a queued workstream', () => {
 			...check('conventional', 'FAILURE'),
 			completedAt: at,
 		});
-		const after = (checks: PullRequestCheckDto[], now: number): MergeQueueSnapshot =>
+		const after = (checks: PullRequestCheckDto[], now: number): ShippingSnapshot =>
 			queued({
 				pullRequest: pullRequest({ checksState: 'failed', checks }),
 				failureSignature: 'checks:["conventional"]',
@@ -587,20 +605,21 @@ describe('a queued workstream', () => {
 				now,
 			});
 
-		expect(nextMergeQueueMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 1_000))).toEqual({
+		expect(nextShippingMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 1_000))).toEqual({
 			kind: 'wait',
 			step: 'waiting-for-checks',
+			until: fixedAt + 60_000,
 		});
-		expect(nextMergeQueueMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 60_000))).toEqual({
+		expect(nextShippingMove(after([ranAt('2026-10-12T11:04:00Z')], fixedAt + 60_000))).toEqual({
 			kind: 'needs-you',
 			reason: 'fix-gave-up',
 			detail: 'The failing checks did not run again after the last fix.',
 			jobRunId: 'job-last',
 		});
 		expect(
-			nextMergeQueueMove(after([ranAt('2026-10-12T11:06:00Z')], fixedAt + 60_000)),
+			nextShippingMove(after([ranAt('2026-10-12T11:06:00Z')], fixedAt + 60_000)),
 		).toMatchObject({ kind: 'run-job', attempt: 2 });
-		expect(nextMergeQueueMove(after([check('conventional', 'FAILURE')], fixedAt))).toMatchObject({
+		expect(nextShippingMove(after([check('conventional', 'FAILURE')], fixedAt))).toMatchObject({
 			kind: 'run-job',
 			attempt: 2,
 		});
@@ -608,7 +627,7 @@ describe('a queued workstream', () => {
 
 	it('waits for running checks', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({
 						checksState: 'pending',
@@ -618,7 +637,7 @@ describe('a queued workstream', () => {
 			),
 		).toEqual({ kind: 'wait', step: 'waiting-for-checks' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({
 						checksState: 'failed',
@@ -637,7 +656,7 @@ describe('a queued workstream', () => {
 			pullRequest: pullRequest({ unresolvedReviewThreadCount: 2 }),
 			reviewFeedback: feedback([thread('PRRT_human', false), thread('PRRT_bot', true)]),
 		});
-		expect(nextMergeQueueMove(withThreads)).toEqual({
+		expect(nextShippingMove(withThreads)).toEqual({
 			kind: 'run-job',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":[],"threads":["PRRT_bot"]}',
@@ -647,7 +666,7 @@ describe('a queued workstream', () => {
 			pullRequest: pullRequest({ reviewDecision: 'changes_requested', mergeableState: 'BLOCKED' }),
 			reviewFeedback: feedback([], [{ id: 'PRR_1', login: 'linter[bot]', bot: true }]),
 		});
-		expect(nextMergeQueueMove(botRequest)).toMatchObject({
+		expect(nextShippingMove(botRequest)).toMatchObject({
 			kind: 'run-job',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_1"],"threads":[]}',
@@ -659,7 +678,7 @@ describe('a queued workstream', () => {
 				[{ id: 'PRR_2', login: 'alice', bot: false }],
 			),
 		});
-		expect(nextMergeQueueMove(humanRequest)).toMatchObject({
+		expect(nextShippingMove(humanRequest)).toMatchObject({
 			kind: 'run-job',
 			builtin: 'address-review',
 			signature: 'review:{"changeRequests":["PRR_2"],"threads":["PRRT_human"]}',
@@ -677,11 +696,11 @@ describe('a queued workstream', () => {
 				[{ id: 'PRR_2', login: 'alice', bot: false }],
 			),
 		};
-		expect(nextMergeQueueMove(queued(requested))).toMatchObject({
+		expect(nextShippingMove(queued(requested))).toMatchObject({
 			kind: 'run-job',
 			builtin: 'address-review',
 		});
-		expect(nextMergeQueueMove(queued({ ...requested, addressedReviews: ['PRR_2'] }))).toEqual({
+		expect(nextShippingMove(queued({ ...requested, addressedReviews: ['PRR_2'] }))).toEqual({
 			kind: 'merge',
 			method: 'squash',
 			headSha: 'a'.repeat(40),
@@ -694,7 +713,7 @@ describe('a queued workstream', () => {
 			addressedReviews: ['PRR_2'],
 		};
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					...addressed,
 					reviewFeedback: feedback([], [{ id: 'PRR_2', login: 'alice', bot: false }]),
@@ -702,7 +721,7 @@ describe('a queued workstream', () => {
 			),
 		).toEqual({ kind: 'wait', step: 'waiting-for-review' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					...addressed,
 					reviewFeedback: feedback(
@@ -718,7 +737,7 @@ describe('a queued workstream', () => {
 			jobRunId: null,
 		});
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({ mergeableState: 'BLOCKED', unresolvedReviewThreadCount: 1 }),
 					reviewFeedback: feedback([thread('PRRT_human', false)]),
@@ -729,7 +748,7 @@ describe('a queued workstream', () => {
 
 	it('waits for a required approval: that is a reviewer turn, not the user', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({
 						reviewDecision: 'review_required',
@@ -742,13 +761,13 @@ describe('a queued workstream', () => {
 
 	it('stops when the user may not merge or GitHub blocks for another reason', () => {
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: pullRequest({ viewerCanMerge: false }) })),
+			nextShippingMove(queued({ pullRequest: pullRequest({ viewerCanMerge: false }) })),
 		).toMatchObject({ kind: 'needs-you', reason: 'merge-not-permitted' });
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: pullRequest({ allowedMergeMethods: [] }) })),
+			nextShippingMove(queued({ pullRequest: pullRequest({ allowedMergeMethods: [] }) })),
 		).toMatchObject({ kind: 'needs-you', reason: 'merge-not-permitted' });
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: pullRequest({ mergeableState: 'BLOCKED' }) })),
+			nextShippingMove(queued({ pullRequest: pullRequest({ mergeableState: 'BLOCKED' }) })),
 		).toEqual({
 			kind: 'needs-you',
 			reason: 'merge-not-permitted',
@@ -759,12 +778,12 @@ describe('a queued workstream', () => {
 
 	it('waits while GitHub computes mergeability or the merge settings are unreadable', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({ pullRequest: pullRequest({ mergeable: null, mergeableState: 'UNKNOWN' }) }),
 			),
 		).toEqual({ kind: 'wait', step: 'waiting-for-github' });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({ pullRequest: pullRequest({ viewerCanMerge: null, allowedMergeMethods: [] }) }),
 			),
 		).toEqual({ kind: 'wait', step: 'waiting-for-github' });
@@ -772,10 +791,10 @@ describe('a queued workstream', () => {
 
 	it('merges with the default method as soon as the pull request is ready', () => {
 		expect(
-			nextMergeQueueMove(queued({ pullRequest: pullRequest({ mergeableState: 'UNSTABLE' }) })),
+			nextShippingMove(queued({ pullRequest: pullRequest({ mergeableState: 'UNSTABLE' }) })),
 		).toEqual({ kind: 'merge', method: 'squash', headSha: 'a'.repeat(40) });
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({
 					pullRequest: pullRequest({ defaultMergeMethod: null, allowedMergeMethods: ['rebase'] }),
 				}),
@@ -785,14 +804,14 @@ describe('a queued workstream', () => {
 
 	it('does nothing while it needs the user', () => {
 		expect(
-			nextMergeQueueMove(
+			nextShippingMove(
 				queued({ phase: 'needs-you', worktree: { ...worktree, dirtyPaths: ['a.ts'] } }),
 			),
 		).toEqual({ kind: 'idle', problem: null });
 	});
 });
 
-describe('merge queue helpers', () => {
+describe('shipping helpers', () => {
 	it('backs off from 30 seconds, doubling up to 10 minutes', () => {
 		expect([1, 2, 3, 5, 6, 40].map((n) => shipBackoffMs(n, DEFAULT_SHIP_DELAYS))).toEqual([
 			30_000, 60_000, 120_000, 480_000, 600_000, 600_000,
@@ -822,28 +841,167 @@ describe('merge queue helpers', () => {
 				{ id: 'PRR_b', login: 'linter[bot]', bot: true },
 			],
 		);
-		const requested = pullRequest({ reviewDecision: 'changes_requested' });
-		const forAgent = reviewFeedbackToAddress(review, reviewToAddress(review, requested, []));
-		expect(forAgent.unresolvedThreads?.map((entry) => entry.id)).toEqual([
+		const requested = facts(pullRequest({ reviewDecision: 'changes_requested' }), review);
+		const forAgent = reviewFeedbackToAddress(review, reviewToAddress(requested, []));
+		expect(forAgent.unresolvedThreads?.map((entry) => entry.id).sort()).toEqual([
 			'PRRT_bot',
 			'PRRT_human',
 		]);
 		expect(forAgent.requestedChangeReviews?.map((entry) => entry.id)).toEqual(['PRR_h', 'PRR_b']);
-		const handled = reviewToAddress(review, requested, ['PRR_h', 'PRR_b']);
+		const handled = reviewToAddress(requested, ['PRR_h', 'PRR_b']);
 		expect(handled.changeRequests).toEqual([]);
 		expect(handled.threads.map((entry) => entry.id)).toEqual(['PRRT_bot']);
-		expect(reviewToAddress(review, pullRequest(), []).changeRequests).toEqual([]);
+		expect(reviewToAddress(facts(pullRequest(), review), []).changeRequests).toEqual([]);
 	});
 
 	it('reads back the change requests a review job addressed from its signature', () => {
 		const review = reviewToAddress(
-			feedback([thread('PRRT_bot', true)], [{ id: 'PRR_1', login: 'alice', bot: false }]),
-			pullRequest({ reviewDecision: 'changes_requested' }),
+			facts(
+				pullRequest({ reviewDecision: 'changes_requested' }),
+				feedback([thread('PRRT_bot', true)], [{ id: 'PRR_1', login: 'alice', bot: false }]),
+			),
 			[],
 		);
 		expect(addressedChangeRequests(reviewSignature(review))).toEqual(['PRR_1']);
 		expect(addressedChangeRequests('checks:["lint"]')).toEqual([]);
 		expect(addressedChangeRequests('review:["PRRT_bot"]')).toEqual([]);
 		expect(addressedChangeRequests(null)).toEqual([]);
+	});
+});
+
+describe('what a read of the pull request reports', () => {
+	it('names what GitHub shows, with the failing checks by name', () => {
+		const read = pullRequest({
+			draft: true,
+			mergeable: false,
+			behindBase: 2,
+			checksState: 'failed',
+			checks: [
+				check('test', 'FAILURE'),
+				check('lint', 'SUCCESS'),
+				check('e2e', 'TIMED_OUT'),
+				check('test', 'FAILURE'),
+			],
+			reviewDecision: 'changes_requested',
+			unresolvedReviewThreadCount: 3,
+		});
+
+		const failed = (name: string, state: string) => ({
+			name,
+			state,
+			required: null,
+			appId: null,
+			completedAt: null,
+		});
+		expect(pullRequestChange('ws-1', read, null)).toEqual({
+			workstreamId: 'ws-1',
+			pullRequestNumber: 7,
+			pullRequestUrl: 'https://github.com/acme/app/pull/7',
+			state: 'draft',
+			baseBranch: 'main',
+			headSha: 'a'.repeat(40),
+			checks: 'failed',
+			checksPending: false,
+			failingChecks: ['e2e', 'test'],
+			blockingChecks: [failed('e2e', 'TIMED_OUT'), failed('test', 'FAILURE')],
+			reviewDecision: 'changes_requested',
+			unresolvedThreads: 3,
+			changeRequests: null,
+			threads: null,
+			behindBase: 2,
+			conflicts: true,
+			mergeability: 'conflicts',
+			viewerCanMerge: true,
+			mergeMethod: 'squash',
+		});
+	});
+
+	it('tells a new review from the last one even when its counts match', () => {
+		const read = pullRequest({
+			reviewDecision: 'changes_requested',
+			unresolvedReviewThreadCount: 1,
+		});
+		const first = pullRequestChange(
+			'ws-1',
+			read,
+			feedback([thread('PRRT_1', false)], [{ id: 'PRR_1', login: 'alice', bot: false }]),
+		);
+		const second = pullRequestChange(
+			'ws-1',
+			read,
+			feedback([thread('PRRT_1', false)], [{ id: 'PRR_2', login: 'alice', bot: false }]),
+		);
+		expect(first).toMatchObject({ unresolvedThreads: 1, reviewDecision: 'changes_requested' });
+		expect(second).toMatchObject({ unresolvedThreads: 1, reviewDecision: 'changes_requested' });
+		expect(first?.changeRequests).toEqual([{ id: 'PRR_1', by: 'alice', bot: false }]);
+		expect(second?.changeRequests).toEqual([{ id: 'PRR_2', by: 'alice', bot: false }]);
+		expect(second).not.toEqual(first);
+	});
+
+	it('tells a check that ran again from the run before it', () => {
+		const ran = (completedAt: string) =>
+			pullRequestChange(
+				'ws-1',
+				pullRequest({
+					checksState: 'failed',
+					checks: [{ ...check('test', 'FAILURE'), completedAt }],
+				}),
+				null,
+			);
+		expect(ran('2026-10-12T11:04:00Z')).not.toEqual(ran('2026-10-12T11:06:00Z'));
+	});
+
+	it('reads back the facts it logged, and nothing from an older payload', () => {
+		const logged = pullRequestChange(
+			'ws-1',
+			pullRequest({ reviewDecision: 'changes_requested' }),
+			feedback([], [{ id: 'PRR_1', login: 'alice', bot: false }]),
+		);
+		expect(pullRequestFacts(JSON.parse(JSON.stringify(logged)))).toEqual(logged);
+		expect(
+			pullRequestFacts({
+				workstreamId: 'ws-1',
+				pullRequestNumber: 7,
+				state: 'open',
+				checks: 'success',
+				failingChecks: [],
+				conflicts: false,
+			}),
+		).toBeNull();
+		expect(pullRequestFacts(null)).toBeNull();
+	});
+
+	it('reports nothing without a pull request, or while GitHub has not seen the latest push', () => {
+		expect(
+			pullRequestChange('ws-1', pullRequest({ state: 'not_open', number: null }), null),
+		).toBeNull();
+		expect(pullRequestChange('ws-1', pullRequest({ includesLocalHead: false }), null)).toBeNull();
+		expect(
+			pullRequestChange('ws-1', pullRequest({ state: 'merged', includesLocalHead: false }), null),
+		).toMatchObject({ state: 'merged', conflicts: false, failingChecks: [] });
+	});
+});
+
+describe('when Malini reads GitHub on its own', () => {
+	const ship = (
+		phase: 'local' | 'draft' | 'queued' | 'needs-you',
+		step: Parameters<typeof pullRequestReadEvery>[0]['step'] = null,
+		activeJobRunId: string | null = null,
+	) => pullRequestReadEvery({ phase, step, activeJobRunId }, DEFAULT_SHIP_DELAYS);
+
+	it('reads only while shipping waits on GitHub, as often as the wait needs', () => {
+		expect(ship('local')).toBeNull();
+		expect(ship('draft')).toBeNull();
+		expect(ship('draft', 'waiting-for-github')).toBe(15_000);
+		expect(ship('queued')).toBe(15_000);
+		expect(ship('queued', 'waiting-for-checks')).toBe(45_000);
+		expect(ship('queued', 'waiting-for-review')).toBe(120_000);
+		expect(ship('needs-you')).toBe(120_000);
+	});
+
+	it('never reads while an agent or a job works: their own events say when they finish', () => {
+		expect(ship('queued', 'waiting-for-agent')).toBeNull();
+		expect(ship('queued', 'fixing-checks')).toBeNull();
+		expect(ship('queued', null, 'job-1')).toBeNull();
 	});
 });

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { Playhead } from '$hyper-ui/components/playhead';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { mediaMarker, mediaPath, type TurnComparison } from '$lib/chat/domain/turn-report';
-	import MediaScrubber from './MediaScrubber.svelte';
 	import MediaToolbarButton from './MediaToolbarButton.svelte';
 	import { reportMediaSource } from './workstream-images';
 
@@ -174,7 +174,7 @@
 			</MediaToolbarButton>
 		</span>
 		<span class="mx-2 flex min-w-0 flex-1">
-			<MediaScrubber
+			<Playhead
 				value={time}
 				max={duration}
 				step={1 / FPS}

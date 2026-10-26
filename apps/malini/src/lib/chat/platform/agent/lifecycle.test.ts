@@ -4,15 +4,14 @@ import { getInteraction, recordPendingInteraction } from '../interactions.reposi
 import { get, run, scalar } from '$main/db/rows';
 import { getRun, recordOpenTurnReply } from '../runs.repository';
 import { getSession } from '../sessions.repository';
+import { BRIDGE_INTERRUPTED_ERROR, ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import {
-	BRIDGE_INTERRUPTED_ERROR,
 	camelEnvelopeJson,
 	AgentRunLeases,
 	emitPersisted,
 	hasActiveRun,
 	LifecycleError,
 	listActiveRunIdsForSession,
-	ORPHAN_INTERRUPTED_ERROR,
 	reapOrphansOnExit,
 	reapOrphansOnStartup,
 	resetWorkstreamRuns,

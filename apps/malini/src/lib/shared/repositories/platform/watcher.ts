@@ -1,7 +1,8 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
-import { listWorkstreams } from './workstreams.repository';
+import { getWorkstream, listWorkstreams } from './workstreams.repository';
+import { GitError } from '$main/errors';
 import type { EventBus } from '$main/events';
 import { SKIPPED_DIRECTORIES } from '$main/fs/paths';
 import { isAppManagedGitPath } from '$main/git/paths';
@@ -9,8 +10,12 @@ import { runGit } from '$main/git/run';
 import {
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 	type WorkstreamFilesChangedPayload,
+	type WorkstreamMergeConflictedPayload,
 } from '$contract/events';
 
 export type { WorkstreamFilesChangedPayload };
@@ -30,12 +35,22 @@ export interface WorkstreamWatchersDeps {
 	readonly log?: (line: string) => void;
 }
 
+export type MergeConflict = WorkstreamMergeConflictedPayload & Readonly<{ mergeHead: string }>;
+
 export interface WorkstreamWatchers {
 	start(): Promise<void>;
 	watch(workstreamId: string): Promise<void>;
 	unwatch(workstreamId: string): void;
 	isWatching(workstreamId: string): boolean;
+	reportMergeConflict(conflict: MergeConflict): void;
 	dispose(): void;
+}
+
+interface GitFacts {
+	readonly head: string | null;
+	readonly branch: string | null;
+	readonly remoteHead: string | null;
+	readonly mergeHead: string | null;
 }
 
 interface WatcherSet {
@@ -45,6 +60,10 @@ interface WatcherSet {
 	burstStartedAt: number | null;
 	changedPaths: Set<string> | null;
 	closing: boolean;
+	worktreePath: string | null;
+	facts: GitFacts | null;
+	gitMoved: boolean;
+	reading: Promise<void>;
 }
 
 interface GitDirectories {
@@ -76,6 +95,38 @@ function firstSegment(relativePath: string): string {
 	return relativePath.split(/[\\/]/u)[0] ?? relativePath;
 }
 
+async function gitOrAbsent(worktreePath: string, args: readonly string[]): Promise<string | null> {
+	try {
+		return (await runGit(['-C', worktreePath, ...args])).trim() || null;
+	} catch (error) {
+		if (error instanceof GitError && error.exitCode === 1) return null;
+		throw error;
+	}
+}
+
+async function readGitFacts(worktreePath: string): Promise<GitFacts> {
+	const [head, branch, mergeHead] = await Promise.all([
+		gitOrAbsent(worktreePath, ['rev-parse', '-q', '--verify', 'HEAD']),
+		gitOrAbsent(worktreePath, ['symbolic-ref', '-q', '--short', 'HEAD']),
+		gitOrAbsent(worktreePath, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']),
+	]);
+	const remoteHead =
+		branch === null
+			? null
+			: await gitOrAbsent(worktreePath, [
+					'rev-parse',
+					'-q',
+					'--verify',
+					`refs/remotes/origin/${branch}`,
+				]);
+	return { head, branch, remoteHead, mergeHead };
+}
+
+async function unmergedPaths(worktreePath: string): Promise<string[]> {
+	const output = await runGit(['-C', worktreePath, 'diff', '--name-only', '--diff-filter=U', '-z']);
+	return output.split('\0').filter((path) => path.length > 0 && !isAppManagedGitPath(path));
+}
+
 async function gitDirectories(worktreePath: string): Promise<GitDirectories> {
 	const output = await runGit(['-C', worktreePath, 'rev-parse', '--git-dir', '--git-common-dir']);
 	const [gitDir, commonDir] = output.split('\n').map((line) => line.trim());
@@ -89,6 +140,50 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 	const log = deps.log ?? ((line: string) => console.error(line));
 	const sets = new Map<string, WatcherSet>();
 	const unsubscribes: Array<() => void> = [];
+	const reportedConflicts = new Map<string, string>();
+
+	const reportMergeConflict = ({ mergeHead, ...conflict }: MergeConflict): void => {
+		if (reportedConflicts.get(conflict.workstreamId) === mergeHead) return;
+		reportedConflicts.set(conflict.workstreamId, mergeHead);
+		deps.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, conflict);
+	};
+
+	const reportFacts = async (set: WatcherSet): Promise<void> => {
+		const { workstreamId, worktreePath, facts: previous } = set;
+		if (set.closing || worktreePath === null || previous === null) return;
+		const next = await readGitFacts(worktreePath);
+		if (set.closing) return;
+		set.facts = next;
+		if (next.head !== null && next.head !== previous.head) {
+			deps.events.emit(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL, {
+				workstreamId,
+				branch: next.branch,
+				head: next.head,
+				previousHead: previous.head,
+			});
+		}
+		if (
+			next.branch !== null &&
+			next.branch === previous.branch &&
+			next.remoteHead !== null &&
+			next.remoteHead !== previous.remoteHead
+		) {
+			deps.events.emit(REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL, {
+				workstreamId,
+				branch: next.branch,
+				head: next.remoteHead,
+			});
+		}
+		if (next.mergeHead === null) {
+			reportedConflicts.delete(workstreamId);
+			return;
+		}
+		if (reportedConflicts.get(workstreamId) === next.mergeHead) return;
+		const conflictedPaths = await unmergedPaths(worktreePath);
+		const baseBranch = getWorkstream(deps.db, workstreamId)?.baseBranch;
+		if (set.closing || conflictedPaths.length === 0 || baseBranch === undefined) return;
+		reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead: next.mergeHead });
+	};
 
 	const flush = (set: WatcherSet): void => {
 		set.timer = null;
@@ -100,6 +195,18 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		};
 		set.changedPaths = new Set();
 		deps.events.emit(REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL, payload);
+		if (!set.gitMoved) return;
+		set.gitMoved = false;
+		set.reading = reportFactsAfter(set, set.reading);
+	};
+
+	const reportFactsAfter = async (set: WatcherSet, previous: Promise<void>): Promise<void> => {
+		await previous;
+		try {
+			await reportFacts(set);
+		} catch (error) {
+			log(`malini: could not read git in workstream \`${set.workstreamId}\`: ${describe(error)}`);
+		}
 	};
 
 	const schedule = (set: WatcherSet): void => {
@@ -130,12 +237,13 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		path: string,
 		recursive: boolean,
 		accept: (name: string | null) => boolean,
-		recordsPaths = false,
+		watched: 'files' | 'git',
 	): void => {
 		const watcher = watch(path, { recursive, persistent: false }, (_eventType, filename) => {
 			const name = fileName(filename);
 			if (!accept(name)) return;
-			if (recordsPaths) set.changedPaths = recordChangedPath(set.changedPaths, name);
+			if (watched === 'files') set.changedPaths = recordChangedPath(set.changedPaths, name);
+			else set.gitMoved = true;
 			schedule(set);
 		});
 		watcher.on('error', (error) => drop(set, describe(error)));
@@ -152,6 +260,10 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			burstStartedAt: null,
 			changedPaths: new Set(),
 			closing: false,
+			worktreePath: null,
+			facts: null,
+			gitMoved: false,
+			reading: Promise.resolve(),
 		};
 		sets.set(workstreamId, set);
 		let worktreePath: string;
@@ -166,6 +278,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		let git: GitDirectories | null = null;
 		try {
 			git = await gitDirectories(worktreePath);
+			set.facts = await readGitFacts(worktreePath);
 		} catch (error) {
 			if (set.closing) return;
 			log(
@@ -173,6 +286,8 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			);
 		}
 		if (set.closing) return;
+		set.worktreePath = worktreePath;
+		if (set.facts?.mergeHead) reportedConflicts.set(workstreamId, set.facts.mergeHead);
 		try {
 			attach(
 				set,
@@ -182,11 +297,11 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 					if (name === null) return true;
 					return !SKIPPED_DIRECTORIES.has(firstSegment(name)) && !isAppManagedGitPath(name);
 				},
-				true,
+				'files',
 			);
 			if (git) {
-				attach(set, git.gitDir, false, (name) => name !== null && GIT_DIR_HEADS.has(name));
-				attach(set, join(git.commonDir, 'refs'), true, (name) => !name?.endsWith('.lock'));
+				attach(set, git.gitDir, false, (name) => name !== null && GIT_DIR_HEADS.has(name), 'git');
+				attach(set, join(git.commonDir, 'refs'), true, (name) => !name?.endsWith('.lock'), 'git');
 			}
 		} catch (error) {
 			close(set);
@@ -219,6 +334,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			const set = sets.get(workstreamId);
 			return set !== undefined && set.watchers.length > 0;
 		},
+		reportMergeConflict,
 		dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
 			for (const set of [...sets.values()]) close(set);

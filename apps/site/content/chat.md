@@ -149,7 +149,8 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 Every run can be undone.
 Edit an earlier message to resend from there, or slice and fork: a new chat starts from the chat as it stood at that run, even while the agent is still busy.
-Runs that a restart cut short pick up where they left off the next time Malini opens.
+Runs that a restart cut short pick up where they left off the next time Malini opens: Malini logs **Malini started**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s Resume rule continues them.
+A prompt Claude had not replied to yet is sent again instead, because Claude Code keeps only a prompt it answered.
 
 ## Skills
 

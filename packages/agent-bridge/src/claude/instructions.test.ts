@@ -35,6 +35,7 @@ describe('systemPromptAppend', () => {
 			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
 		);
 		expect(prompt).toContain("Malini holds the job until that workstream's chat ends its turn");
+		expect(prompt).toContain('Answer what your plan covers with `workstreams_send`');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');

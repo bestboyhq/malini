@@ -1,9 +1,12 @@
 import type { EventChannel } from './events';
 
-export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description: string }>>> = {
+export type EventCatalogEntry = Readonly<{ description: string; logged?: false }>;
+
+export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = {
 	'chat:agent-event': {
 		description:
-			'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order.',
+			'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'chat:run-changes-captured': {
 		description:
@@ -16,13 +19,18 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	'chat:session-renamed': {
 		description: 'Fires when a chat gets a new name, from the user or from the Name chats job.',
 	},
+	'chat:turn-finished': {
+		description:
+			"Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
+	},
 	'chat:mcp-server-changed': {
 		description:
 			'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',
 	},
 	'chat:mcp-servers-listed': {
 		description:
-			'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.',
+			'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'repositories:workstream-created': {
 		description:
@@ -49,11 +57,20 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'repositories:workstream-merge-conflicted': {
 		description:
-			"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",
+			"Fires when a merge in a workstream stops on conflicts, whoever started it, with the workstream's base branch and the conflicted files.",
+	},
+	'repositories:workstream-head-moved': {
+		description:
+			"Fires when the commit a workstream's checkout points to changes, whoever moved it: a commit, a merge, a pull or a reset, with the branch, or `null` when the checkout is detached, and the commits before and after; `previousHead` is `null` for the first commit of a new branch.",
+	},
+	'repositories:workstream-pushed': {
+		description:
+			"Fires when a workstream's branch on `origin` moves, after a push or a fetch that brings in someone else's push, with the commit it points to now.",
 	},
 	'repositories:clone-progress': {
 		description:
-			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.',
+			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'repositories:changed': {
 		description:
@@ -65,15 +82,50 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'pull-requests:ship-changed': {
 		description:
-			"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you.",
+			"Fires whenever a workstream's shipping state changes: its pull request phase, the step Malini is on, or a reason it needs you. A click on the pull request bar's Draft, Merge, Retry or Cancel fires `pull-requests:button-clicked` instead, with the new state.",
+	},
+	'pull-requests:pull-request-changed': {
+		description:
+			"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every job the Shipping rule starts for that pull request names the latest one as its cause.",
+	},
+	'pull-requests:button-clicked': {
+		description:
+			"Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there.",
+	},
+	'pull-requests:workstream-opened': {
+		description:
+			'Fires when you open a workstream; unless Settings say to update from main only while merging, the Shipping rule runs **Update from main** when the workstream is behind its base branch.',
 	},
 	'jobs:run-changed': {
 		description:
-			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
+			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled. Malini does not keep it in its event log: it keeps `jobs:run-started` and `jobs:run-finished`.',
+		logged: false,
+	},
+	'jobs:run-started': {
+		description:
+			'Fires when a job run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
+	},
+	'jobs:run-finished': {
+		description:
+			'Fires once when a job run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. A job runs after another on it, such as `on jobs:run-finished where run.status is failed`.',
 	},
 	'jobs:agent-action-changed': {
 		description:
-			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.",
+			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `jobs:tool-called`.",
+		logged: false,
+	},
+	'jobs:tool-called': {
+		description:
+			"Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.",
+	},
+	'jobs:time-reached': {
+		description:
+			"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.",
+	},
+	'jobs:decision-changed': {
+		description:
+			'Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
+		logged: false,
 	},
 	'jobs:definition-changed': {
 		description:
@@ -87,13 +139,18 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
 	},
+	'app:started': {
+		description:
+			"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and its Shipping rule picks up every workstream it was shipping.",
+	},
 	'app:close-requested': {
 		description:
 			'Fires when you close the Malini window, so Malini can show what is still running and ask before it quits.',
 	},
 	'app:scale-changed': {
 		description:
-			'Fires when the interface scale or the display the window sits on changes, so layouts can measure again.',
+			'Fires when the interface scale or the display the window sits on changes, so layouts can measure again. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
@@ -116,7 +173,8 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'browser:state-changed': {
 		description:
-			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.",
+			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure. Malini does not keep it in its event log.",
+		logged: false,
 	},
 	'browser:tab-opened': {
 		description:
@@ -132,10 +190,12 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'stats:resources-sampled': {
 		description:
-			'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.',
+			'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'stats:workstream-running-changed': {
 		description:
-			'Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers.',
+			'Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers. Malini does not keep it in its event log.',
+		logged: false,
 	},
 };

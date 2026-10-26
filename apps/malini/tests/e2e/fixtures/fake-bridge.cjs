@@ -93,6 +93,7 @@ const conflictedFiles = (prompt) => {
 };
 const finalUsage = env.FAKE_BRIDGE_USAGE ? JSON.parse(env.FAKE_BRIDGE_USAGE) : {};
 const pendingRuns = new Map();
+const repliedRuns = new Set();
 const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
@@ -587,6 +588,21 @@ const stopBackgroundCommand = (sessionId) => {
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
+const CHOICE_FILE = nodePath.join(env.HOME || '/tmp', 'malini-choice.txt');
+
+function fakePick(prompt, choices) {
+	let wanted = '';
+	try {
+		wanted = fs.readFileSync(CHOICE_FILE, 'utf8').trim();
+	} catch {
+		return 1;
+	}
+	if (/^\d+$/.test(wanted)) return Math.min(Math.max(Number(wanted), 1), choices);
+	const lines = String(prompt).split('\n');
+	const candidates = lines.slice(lines.lastIndexOf('Candidates:') + 1);
+	const index = candidates.findIndex((line) => /^\d+\. /.test(line) && line.includes(wanted));
+	return index === -1 ? 1 : Math.min(index + 1, choices);
+}
 const FIXTURE_SKILLS = [
 	{
 		name: 'animate',
@@ -725,6 +741,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('HANG')) {
 		pendingRuns.set(runId, sessionId);
+		repliedRuns.add(runId);
 		return;
 	}
 	if (prompt.includes('AUTO_MODE_BLOCK')) {
@@ -1041,6 +1058,15 @@ const respond = async (sessionId, runId, prompt) => {
 				' is built.\nNeeds: nothing',
 		);
 	}
+	const turnOutcome = /TURN_OUTCOME="([^"]+)"/.exec(prompt);
+	if (turnOutcome) {
+		const report =
+			'Outcome: ' +
+			turnOutcome[1] +
+			'\nNeeds: ' +
+			(/TURN_NEEDS="([^"]+)"/.exec(prompt)?.[1] ?? 'nothing');
+		return completeRun(sessionId, runId, report, [], [], '\n\n' + report);
+	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
 		return completeRun(
 			sessionId,
@@ -1185,7 +1211,12 @@ const handle = (command) => {
 		case 'cancel_run': {
 			backgroundCommands.delete(command.sessionId);
 			settleStreamedText(command.runId);
-			event({ type: 'run.failed', runId: command.runId, error: 'cancelled' });
+			event({
+				type: 'run.failed',
+				runId: command.runId,
+				error: 'cancelled',
+				...(repliedRuns.delete(command.runId) ? { providerCursor: 'cursor-' + command.runId } : {}),
+			});
 			pendingRuns.delete(command.runId);
 			return ack(command.id);
 		}
@@ -1377,6 +1408,15 @@ const handle = (command) => {
 				id: command.id,
 				title,
 			});
+			return ack(command.id);
+		}
+		case 'choose': {
+			const pick = fakePick(command.prompt, command.choices);
+			fs.appendFileSync(
+				nodePath.join(env.HOME || '/tmp', 'malini-choices.jsonl'),
+				JSON.stringify({ prompt: command.prompt, choices: command.choices, pick }) + '\n',
+			);
+			write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick });
 			return ack(command.id);
 		}
 		case 'browser_result': {

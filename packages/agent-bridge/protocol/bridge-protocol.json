@@ -1,6 +1,6 @@
 {
 	"contractName": "malini.agent-bridge",
-	"protocolVersion": 40,
+	"protocolVersion": 41,
 	"readyTimeoutMs": 10000,
 	"heartbeatIntervalMs": 1000,
 	"heartbeatTimeoutMs": 5000,
@@ -28,6 +28,7 @@
 		"cancel_mcp_authorization",
 		"stop_task",
 		"suggest_title",
+		"choose",
 		"list_skills",
 		"browser_result",
 		"platform_result"
@@ -63,6 +64,7 @@
 		"bridge.command_ack",
 		"bridge.protocol_error",
 		"bridge.title",
+		"bridge.choice",
 		"bridge.skills",
 		"bridge.mcp_authorization",
 		"bridge.mcp_servers",
@@ -81,6 +83,7 @@
 		"repositories_hide",
 		"workstreams_list",
 		"workstreams_create",
+		"workstreams_send",
 		"workstreams_archive",
 		"files_open"
 	]

@@ -3,6 +3,7 @@
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon } from '$hyper-ui/icons';
 	import { jobOutputIssues } from '$lib/jobs/domain/job-output-checks';
+	import { JOB_OUTPUT_NOUN } from './job-insights-copy';
 
 	interface Props {
 		builtin: AutomaticJobBuiltin;
@@ -20,7 +21,7 @@
 		const result = experiment.results.find((entry) => entry.outputId === outputId);
 		if (!result) return null;
 		return {
-			text: result.output ?? 'No name',
+			text: result.output ?? `No ${JOB_OUTPUT_NOUN[builtin].one}`,
 			issues: jobOutputIssues(builtin, result.output),
 			error: result.error,
 		};

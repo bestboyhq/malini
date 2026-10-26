@@ -1,6 +1,8 @@
 import type { AgentRunProfile } from '$contract/agent';
-import type { ChatTurnRecord } from '$contract/jobs';
+import type { ChatTurnRecord, ChatTurnStatus, TimelineChatTurn } from '$contract/jobs';
 import {
+	isCancellationError,
+	isInterruptionError,
 	nextSessionStatus,
 	PAUSED_FOR_EXIT_ERROR,
 	type SessionStatus,
@@ -20,6 +22,8 @@ export interface AgentRun {
 	error: string | null;
 	automated?: boolean;
 	profile?: AgentRunProfile;
+	chainId?: string;
+	causeEventId?: number;
 }
 
 export type TerminalRunStatus = 'completed' | 'failed';
@@ -49,8 +53,8 @@ function runFromRow(row: RunRow): AgentRun {
 export function insertRun(db: MaliniDatabase, agentRun: AgentRun): void {
 	const { changes } = run(
 		db,
-		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile, chain_id, cause_event_id)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (SELECT 1 FROM agent_sessions WHERE id = ? AND archived_at IS NULL)`,
 		agentRun.id,
 		agentRun.sessionId,
@@ -61,6 +65,8 @@ export function insertRun(db: MaliniDatabase, agentRun: AgentRun): void {
 		agentRun.error,
 		agentRun.automated === true ? 1 : 0,
 		agentRun.profile ? JSON.stringify(agentRun.profile) : null,
+		agentRun.chainId ?? '',
+		agentRun.causeEventId ?? null,
 		agentRun.sessionId,
 	);
 	if (changes !== 1) {
@@ -77,8 +83,8 @@ export function insertRunForWorkstream(
 ): void {
 	const { changes } = run(
 		db,
-		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile)
-		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+		`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, summary, error, automated, profile, chain_id, cause_event_id)
+		 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		 WHERE EXISTS (
 		   SELECT 1 FROM agent_sessions
 		   WHERE id = ? AND workstream_id = ? AND archived_at IS NULL
@@ -92,6 +98,8 @@ export function insertRunForWorkstream(
 		agentRun.error,
 		agentRun.automated === true ? 1 : 0,
 		agentRun.profile ? JSON.stringify(agentRun.profile) : null,
+		agentRun.chainId ?? '',
+		agentRun.causeEventId ?? null,
 		agentRun.sessionId,
 		workstreamId,
 	);
@@ -249,13 +257,20 @@ export interface PausedRun {
 	runId: string;
 	sessionId: string;
 	workstreamId: string;
+	chainId: string;
 	profile: unknown;
 }
 
 export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
-	return all<{ id: string; session_id: string; workstream_id: string; profile: string | null }>(
+	return all<{
+		id: string;
+		session_id: string;
+		workstream_id: string;
+		chain_id: string;
+		profile: string | null;
+	}>(
 		db,
-		`SELECT r.id, r.session_id, s.workstream_id, r.profile FROM agent_runs r
+		`SELECT r.id, r.session_id, s.workstream_id, r.chain_id, r.profile FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
 		 WHERE r.error = ? AND r.obsoleted_at IS NULL AND s.archived_at IS NULL
 		   AND r.rowid = (SELECT MAX(rowid) FROM agent_runs WHERE session_id = r.session_id)
@@ -265,6 +280,7 @@ export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
 		runId: row.id,
 		sessionId: row.session_id,
 		workstreamId: row.workstream_id,
+		chainId: row.chain_id,
 		profile: row.profile === null ? null : JSON.parse(row.profile),
 	}));
 }
@@ -337,9 +353,26 @@ interface ChatTurnRow {
 	workstream_id: string;
 	display_name: string;
 	prompt: string;
+	chain_id: string;
+	cause_event_id: number | null;
 	started_at: string;
 	completed_at: string | null;
 	error: string | null;
+}
+
+function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
+	return {
+		runId: row.id,
+		sessionId: row.session_id,
+		workstreamId: row.workstream_id,
+		chatName: row.display_name,
+		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
+		status: chatTurnStatus(row.completed_at, row.error),
+		chainId: row.chain_id || row.id,
+		causeEventId: row.cause_event_id,
+		startedAt: row.started_at,
+		finishedAt: row.completed_at,
+	};
 }
 
 export function listChatTurns(
@@ -349,8 +382,8 @@ export function listChatTurns(
 ): ChatTurnRecord[] {
 	return all<ChatTurnRow>(
 		db,
-		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.started_at,
-		        r.completed_at, r.error
+		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
+		        r.cause_event_id, r.started_at, r.completed_at, r.error
 		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
 		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
 		   AND (r.id IN (SELECT value FROM json_each(?))
@@ -361,16 +394,75 @@ export function listChatTurns(
 		 ORDER BY r.started_at DESC`,
 		JSON.stringify(runIds),
 		latest,
-	).map((row) => ({
-		runId: row.id,
-		sessionId: row.session_id,
-		workstreamId: row.workstream_id,
-		chatName: row.display_name,
-		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
-		status: row.completed_at === null ? 'running' : row.error === null ? 'succeeded' : 'failed',
-		startedAt: row.started_at,
-		finishedAt: row.completed_at,
-	}));
+	).map(chatTurnFromRow);
+}
+
+export function listChatTurnsSince(db: MaliniDatabase, since: string): TimelineChatTurn[] {
+	return all<ChatTurnRow & { sender: string | null; resumed: number }>(
+		db,
+		`SELECT r.id, r.session_id, s.workstream_id, s.display_name, r.prompt, r.chain_id,
+		        r.cause_event_id, r.started_at, r.completed_at, r.error,
+		        (r.automated = 1 AND r.cause_event_id IS NOT NULL
+		         AND (SELECT previous.error FROM agent_runs previous
+		              WHERE previous.session_id = r.session_id AND previous.rowid < r.rowid
+		              ORDER BY previous.rowid DESC LIMIT 1) = ?) AS resumed,
+		        (SELECT CASE WHEN json_valid(substr(e.event, instr(e.event, char(10)) + 1))
+		                THEN json_extract(substr(e.event, instr(e.event, char(10)) + 1), '$.from') END
+		         FROM agent_events e
+		         WHERE e.run_id = r.id AND e.event LIKE 'user.message' || char(10) || '%'
+		         ORDER BY e.seq LIMIT 1) AS sender
+		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+		 WHERE s.origin = 'user' AND r.obsoleted_at IS NULL
+		   AND (r.started_at >= ? OR r.completed_at IS NULL OR r.completed_at >= ?)
+		 ORDER BY r.started_at`,
+		PAUSED_FOR_EXIT_ERROR,
+		since,
+		since,
+	).map((row) => ({ ...chatTurnFromRow(row), from: row.sender, resumed: row.resumed === 1 }));
+}
+
+function chatTurnStatus(completedAt: string | null, error: string | null): ChatTurnStatus {
+	if (completedAt === null) return 'running';
+	if (error === null) return 'succeeded';
+	if (isInterruptionError(error)) return 'interrupted';
+	return isCancellationError(error) ? 'cancelled' : 'failed';
+}
+
+export type ChatTurnWork = Readonly<{ runId: string; sessionId: string; chainId: string }>;
+
+export function workChatTurnInWorkstream(
+	db: MaliniDatabase,
+	workstreamId: string,
+	finishedSince: string,
+): ChatTurnWork | null {
+	const row = get<{ id: string; session_id: string; chain_id: string }>(
+		db,
+		`SELECT r.id, r.session_id, r.chain_id
+		 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+		 WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL
+		   AND (r.completed_at IS NULL OR r.completed_at >= ?)
+		 ORDER BY r.completed_at IS NULL DESC, COALESCE(r.completed_at, r.started_at) DESC
+		 LIMIT 1`,
+		workstreamId,
+		finishedSince,
+	);
+	return row ? { runId: row.id, sessionId: row.session_id, chainId: row.chain_id || row.id } : null;
+}
+
+export function chatTurnChainId(db: MaliniDatabase, runId: string): string | null {
+	const row = get<{ id: string; chain_id: string }>(
+		db,
+		'SELECT id, chain_id FROM agent_runs WHERE id = ?',
+		runId,
+	);
+	return row ? row.chain_id || row.id : null;
+}
+
+export function chatTurnSessionId(db: MaliniDatabase, runId: string): string | null {
+	return (
+		get<{ session_id: string }>(db, 'SELECT session_id FROM agent_runs WHERE id = ?', runId)
+			?.session_id ?? null
+	);
 }
 
 function firstLine(text: string): string {

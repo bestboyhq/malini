@@ -12,6 +12,9 @@ import { createEventBus, type EventBus } from '$main/events';
 import {
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
 import {
@@ -32,6 +35,7 @@ let db: MaliniDatabase;
 let events: EventBus;
 let watchers: WorkstreamWatchers;
 let emitted: WorkstreamFilesChangedPayload[];
+let facts: Array<Readonly<{ channel: string; payload: unknown }>>;
 let logged: string[];
 const worktrees = new Map<string, string>();
 
@@ -39,6 +43,35 @@ async function initRepo(path: string): Promise<void> {
 	mkdirSync(path, { recursive: true });
 	await execFileAsync('git', ['init', '-q', '-b', 'main'], { cwd: path });
 	writeFileSync(join(path, 'seed.txt'), 'seed\n');
+}
+
+async function git(path: string, ...args: string[]): Promise<string> {
+	const { stdout } = await execFileAsync(
+		'git',
+		['-c', 'user.name=Malini', '-c', 'user.email=malini-test', ...args],
+		{ cwd: path },
+	);
+	return stdout.trim();
+}
+
+async function commitAll(path: string, message: string): Promise<string> {
+	await git(path, 'add', '-A');
+	await git(path, 'commit', '-q', '-m', message);
+	return git(path, 'rev-parse', 'HEAD');
+}
+
+async function divergedOnSeed(path: string): Promise<void> {
+	await commitAll(path, 'Seed');
+	await git(path, 'checkout', '-q', '-b', 'topic');
+	writeFileSync(join(path, 'seed.txt'), 'topic\n');
+	await commitAll(path, 'Topic');
+	await git(path, 'checkout', '-q', 'main');
+	writeFileSync(join(path, 'seed.txt'), 'main\n');
+	await commitAll(path, 'Main');
+}
+
+function factsOn(channel: string): unknown[] {
+	return facts.filter((fact) => fact.channel === channel).map((fact) => fact.payload);
 }
 
 function seedRow(id: string, path: string, status: WorkstreamStatus): void {
@@ -104,11 +137,19 @@ beforeEach(() => {
 	db = openMigratedDatabase(':memory:');
 	events = createEventBus({ forwardToWindows: false });
 	emitted = [];
+	facts = [];
 	logged = [];
 	worktrees.clear();
 	events.subscribe(REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL, (payload) => {
 		emitted.push(filesChangedPayload(payload));
 	});
+	for (const channel of [
+		REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	] as const) {
+		events.subscribe(channel, (payload: unknown) => facts.push({ channel, payload }));
+	}
 	watchers = createWorkstreamWatchers({
 		db,
 		events,
@@ -351,5 +392,110 @@ describe('createWorkstreamWatchers', () => {
 
 		expect(watchers.isWatching('ws-plain')).toBe(false);
 		expect(logged).toEqual([]);
+	});
+
+	it('reports a commit as the head moving, whoever made it', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		const first = await commitAll(path, 'Seed');
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, 'seed.txt'), 'second\n');
+		const second = await commitAll(path, 'Second');
+		await waitFor(() => factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL).length === 1);
+		await sleep(SETTLE_MS);
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', branch: 'main', head: second, previousHead: first },
+		]);
+		expect(factsOn(REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL)).toEqual([]);
+	});
+
+	it('reports the first commit of a branch with no previous head', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		const head = await commitAll(path, 'Seed');
+		await waitFor(() => factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL).length === 1);
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', branch: 'main', head, previousHead: null },
+		]);
+	});
+
+	it('reports a push once origin holds the new commit of the branch', async () => {
+		const origin = join(root, 'origin.git');
+		const path = join(root, 'ws-1');
+		await execFileAsync('git', ['init', '-q', '--bare', '-b', 'main', origin]);
+		await initRepo(path);
+		await git(path, 'remote', 'add', 'origin', origin);
+		await commitAll(path, 'Seed');
+		await git(path, 'push', '-q', '-u', 'origin', 'main');
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, 'seed.txt'), 'pushed\n');
+		const head = await commitAll(path, 'Pushed');
+		await git(path, 'push', '-q', 'origin', 'main');
+		await waitFor(() => factsOn(REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL).length === 1);
+		await sleep(SETTLE_MS);
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', branch: 'main', head },
+		]);
+	});
+
+	it('reports a merge that stops on conflicts once, though Malini did not start it', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		await divergedOnSeed(path);
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		await expect(git(path, 'merge', 'topic')).rejects.toThrow();
+		await waitFor(() => factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL).length === 1);
+		writeFileSync(join(path, 'notes.txt'), 'still merging\n');
+		await sleep(SETTLE_MS);
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toEqual([
+			{ workstreamId: 'ws-1', baseBranch: 'main', conflictedPaths: ['seed.txt'] },
+		]);
+	});
+
+	it('reports a conflict Malini saw in its own pull only once', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		await divergedOnSeed(path);
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		await expect(git(path, 'merge', 'topic')).rejects.toThrow();
+		watchers.reportMergeConflict({
+			workstreamId: 'ws-1',
+			baseBranch: 'main',
+			conflictedPaths: ['seed.txt'],
+			mergeHead: await git(path, 'rev-parse', 'MERGE_HEAD'),
+		});
+		await sleep(SETTLE_MS);
+
+		expect(factsOn(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toHaveLength(1);
+	});
+
+	it('reports no git facts for a workstream it stopped watching', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		await commitAll(path, 'Seed');
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		watchers.unwatch('ws-1');
+		writeFileSync(join(path, 'seed.txt'), 'later\n');
+		await commitAll(path, 'Later');
+		await sleep(SETTLE_MS);
+
+		expect(facts).toEqual([]);
 	});
 });

@@ -143,6 +143,7 @@ export function recordingBus(): EventBus & { frames: RecordedFrame[] } {
 				set.delete(listener);
 			};
 		},
+		observe: () => () => undefined,
 	};
 }
 

@@ -1,107 +1,94 @@
-import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
+import {
+	APP_STARTED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
+} from '$contract/events';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	isShippingJobBuiltin,
-	type JobDefinitionRecord,
 	type JobRunRecord,
 	type ShippingJobBuiltin,
+	type ShippingWait,
 } from '$contract/jobs';
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	UPDATE_FROM_MAIN_TRIGGER_SETTING,
 	updateFromMainTrigger,
+	type ShipButton,
 	type ShipPhase,
 	type ShipStateRecord,
-	type ShipStep,
 	type UpdateFromMainTrigger,
 } from '$contract/pull-requests';
-import type {
-	PullRequestStatusDto,
-	ReviewFeedbackDto,
-	Workstream,
-	WorktreeStatus,
-} from '$contract/repositories';
+import type { PullRequestStatusDto, WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
+import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError } from '$main/errors';
-import { getRunWorkstreamId, workstreamShipContext } from '$lib/chat/chat.platform';
+import { workstreamShipContext } from '$lib/chat/chat.platform';
+import {
+	activeThenJobRun,
+	clearAlarm,
+	jobDefinition,
+	jobDefinitions,
+	jobRun,
+	latestJobRunInWorkstream,
+	latestLoggedEvent,
+	setAlarm,
+	type DispatchedEvent,
+} from '$lib/jobs/jobs.platform';
 import {
 	automatedPullRequestMetadata,
 	getWorkstream,
-	githubFullNameFromRemote,
 	recordMergedPullRequest,
-	resolveConnectedRepository,
 	type AutomatedPullRequestMetadata,
-	type ConnectedRepository,
 	type PullRequestAutomationContext,
 } from '$shared/repositories/repositories.platform';
+import { checkFixJobContext, reviewFixJobContext } from '../domain/pull-request-fix-prompt';
 import {
 	DEFAULT_SHIP_DELAYS,
 	addressedChangeRequests,
-	blockingFailedChecks,
 	clampedFixAttempts,
 	isUpdateJob,
 	jobIsActive,
 	jobStep,
-	needsReviewFeedback,
-	nextMergeQueueMove,
+	nextShippingMove,
+	pullRequestFacts,
+	readsBehindBase,
 	reviewFeedbackToAddress,
 	reviewToAddress,
 	shipBackoffMs,
-	type MergeQueueMove,
-	type MergeQueueSnapshot,
 	type ShipDelays,
-} from '../domain/merge-queue';
-import { checkFixJobContext, reviewFixJobContext } from '../domain/pull-request-fix-prompt';
+	type ShippingMove,
+	type ShippingSnapshot,
+} from '../domain/shipping';
+import type { PullRequestOperations } from './pull-request-operations';
+import { PullRequestReader } from './pull-request-reader.service';
 import {
+	clearShipRequests,
 	deleteShip,
 	getShip,
 	insertShip,
 	listShips,
+	requestShip,
+	settleShipRequest,
 	shipRecord,
 	updateShip,
 	type ShipPatch,
+	type ShipRequest,
 	type ShipRow,
 } from './ship.repository';
+import { ShipError, shipTarget, type ShipTarget } from './ship-target';
 
-type Operation<Name extends CommandName> = (
-	args: CommandArgs<Name>,
-) => Promise<CommandResult<Name>>;
-
-export type PullRequestOperations = Readonly<{
-	status: Operation<'pull-requests.status'>;
-	create: Operation<'pull-requests.create'>;
-	markReady: Operation<'pull-requests.mark-ready'>;
-	merge: Operation<'pull-requests.merge'>;
-	updateMetadata: Operation<'pull-requests.update-metadata'>;
-	checkDiagnostics: Operation<'pull-requests.check-diagnostics'>;
-	reviewFeedback: Operation<'pull-requests.review-feedback'>;
-	resolveAddressedReviewThreads: Operation<'pull-requests.resolve-addressed-review-threads'>;
-}>;
-
-export interface MergeQueueOptions {
+export interface ShippingOptions {
 	delays?: Partial<ShipDelays>;
 	now?: () => number;
 }
-
-export type ShipErrorKind = 'nothing-to-ship' | 'not-github' | 'unknown-workstream' | 'not-queued';
-
-export class ShipError extends Error {
-	readonly kind: ShipErrorKind;
-
-	constructor(kind: ShipErrorKind, message: string) {
-		super(message);
-		this.name = 'ShipError';
-		this.kind = kind;
-	}
-}
-
-type ShipTarget = Readonly<{
-	workstream: Workstream;
-	repository: ConnectedRepository;
-	repoId: string;
-	base: string;
-}>;
 
 type SettledJob = Readonly<{ builtin: ShippingJobBuiltin | null; agentRunId: string | null }>;
 
@@ -111,92 +98,136 @@ type MoveContext = Readonly<{
 	row: ShipRow;
 	target: ShipTarget;
 	worktree: WorktreeStatus;
-	snapshot: MergeQueueSnapshot;
+	snapshot: ShippingSnapshot;
 	idleness: Idleness;
-	pushGeneration: number | null;
-	updateGeneration: number | null;
-	reviewGeneration: number | null;
+	wokenBy: number | null;
 }>;
 
 const MAX_MOVES_PER_WAKE = 10;
 
-const EMPTY_REVIEW_FEEDBACK: ReviewFeedbackDto = {
-	unresolvedThreads: [],
-	unresolvedThreadsComplete: true,
-	requestedChangeReviews: [],
-	requestedChangeReviewsComplete: true,
-	truncated: false,
-};
+const FRESH_READ_MS = 2_000;
 
-export class MergeQueue {
+export class Shipping {
 	readonly #context: MainContext;
 	readonly #ops: PullRequestOperations;
 	readonly #delays: ShipDelays;
 	readonly #now: () => number;
+	readonly #reader: PullRequestReader;
 	readonly #running = new Map<string, Promise<void>>();
 	readonly #again = new Set<string>();
-	readonly #timers = new Map<string, ReturnType<typeof setTimeout>>();
-	readonly #pushRequests = new Map<string, number>();
-	readonly #updateRequests = new Map<string, number>();
-	readonly #updateRequestedAt = new Map<string, number>();
-	readonly #reviewRequests = new Map<string, number>();
-	readonly #reviewRequestedAt = new Map<string, number>();
 	readonly #runEndedAt = new Map<string, number>();
-	readonly #settled = new Map<string, SettledJob>();
-	readonly #failures = new Map<string, number>();
-	readonly #jobs = new Map<string, JobRunRecord>();
-	readonly #builtins = new Map<string, ShippingJobBuiltin>();
+	readonly #openedAt = new Map<string, number>();
+	readonly #wokenBy = new Map<string, number>();
 	#disposed = false;
 
 	constructor(
 		context: MainContext,
 		operations: PullRequestOperations,
-		options: MergeQueueOptions = {},
+		options: ShippingOptions = {},
 	) {
 		this.#context = context;
 		this.#ops = operations;
 		this.#delays = { ...DEFAULT_SHIP_DELAYS, ...options.delays };
 		this.#now = options.now ?? Date.now;
+		this.#reader = new PullRequestReader(context, operations, this.#delays, this.#now, (id) =>
+			this.#pullRequestGone(id),
+		);
 	}
 
-	start(): void {
-		void this.#resume();
+	async handle(event: DispatchedEvent): Promise<void> {
+		const { channel, payload } = event;
+		if (channel === APP_STARTED_CHANNEL) {
+			this.#resume(event);
+			return;
+		}
+		if (channel === JOBS_RUN_FINISHED_CHANNEL) {
+			await this.#runFinished(payload, event);
+			return;
+		}
+		const workstreamId = stringField(payload, 'workstreamId');
+		if (workstreamId === null) return;
+		switch (channel) {
+			case PULL_REQUESTS_BUTTON_CLICKED_CHANNEL:
+			case JOBS_TIME_REACHED_CHANNEL:
+				this.#wake(workstreamId, event);
+				return;
+			case PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL:
+				await this.#opened(workstreamId, event);
+				return;
+			case PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL:
+				await this.#pullRequestChanged(workstreamId, payload, event);
+				return;
+			case CHAT_TURN_FINISHED_CHANNEL:
+				await this.#workEnded(workstreamId, event);
+				return;
+			case REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL:
+				if (getShip(this.#context.db, workstreamId)?.phase === 'needs-you') {
+					this.#wake(workstreamId, event);
+				}
+				return;
+			case REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL:
+				this.workstreamRemoved(workstreamId);
+				return;
+			default:
+				return;
+		}
+	}
+
+	report(workstreamId: string, pullRequest: PullRequestStatusDto): void {
+		this.#reader.report(workstreamId, pullRequest);
 	}
 
 	dispose(): void {
 		this.#disposed = true;
-		for (const timer of this.#timers.values()) clearTimeout(timer);
-		this.#timers.clear();
+		this.#reader.dispose();
 	}
 
 	states(): ShipStateRecord[] {
 		return listShips(this.#context.db).map(shipRecord);
 	}
 
-	async openDraft(workstreamId: string): Promise<ShipStateRecord> {
-		const target = await this.#target(workstreamId);
+	async clicked(workstreamId: string, button: ShipButton): Promise<ShipStateRecord | null> {
+		this.#reader.forget(workstreamId);
+		switch (button) {
+			case 'draft':
+				return this.openDraft(workstreamId, button);
+			case 'merge':
+				return this.queueMerge(workstreamId, button);
+			case 'retry':
+				return this.#retryMerge(workstreamId);
+			case 'cancel':
+				return this.#cancelMerge(workstreamId);
+		}
+	}
+
+	async openDraft(workstreamId: string, click: ShipButton | null = null): Promise<ShipStateRecord> {
+		const target = await shipTarget(this.#context.db, workstreamId);
 		const row = getShip(this.#context.db, workstreamId);
-		if (row && row.phase !== 'draft' && row.phase !== 'local') return shipRecord(row);
+		if (row && row.phase !== 'draft' && row.phase !== 'local') {
+			return this.#unchanged(row, click);
+		}
 		if (row?.pullRequestNumber == null) await this.#refuseNothingToShip(target);
-		this.#failures.delete(workstreamId);
-		this.#requestPush(workstreamId);
-		const saved = this.#upsert(workstreamId, 'draft', {
+		insertShip(this.#context.db, workstreamId, 'draft');
+		requestShip(this.#context.db, workstreamId, 'push');
+		return this.#upsert(workstreamId, click, {
 			phase: 'draft',
 			step: row?.pullRequestNumber == null ? 'opening-draft' : 'pushing',
 			lastError: null,
 			nextAttemptAt: null,
+			failures: 0,
 		});
-		this.wake(workstreamId);
-		return saved;
 	}
 
-	async queueMerge(workstreamId: string): Promise<ShipStateRecord> {
-		const target = await this.#target(workstreamId);
+	async queueMerge(
+		workstreamId: string,
+		click: ShipButton | null = null,
+	): Promise<ShipStateRecord> {
+		const target = await shipTarget(this.#context.db, workstreamId);
 		const row = getShip(this.#context.db, workstreamId);
-		if (row?.phase === 'queued') return shipRecord(row);
+		if (row?.phase === 'queued') return this.#unchanged(row, click);
 		if (row?.pullRequestNumber == null) await this.#refuseNothingToShip(target);
-		this.#failures.delete(workstreamId);
-		const saved = this.#upsert(workstreamId, 'queued', {
+		insertShip(this.#context.db, workstreamId, 'queued');
+		return this.#upsert(workstreamId, click, {
 			phase: 'queued',
 			step: null,
 			queuedAt: new Date(this.#now()).toISOString(),
@@ -205,30 +236,66 @@ export class MergeQueue {
 			needsYou: null,
 			lastError: null,
 			nextAttemptAt: null,
+			failures: 0,
 		});
-		this.wake(workstreamId);
-		return saved;
 	}
 
-	async cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
+	workstreamRemoved(workstreamId: string): void {
+		deleteShip(this.#context.db, workstreamId);
+		this.#forget(workstreamId);
+	}
+
+	async #retryMerge(workstreamId: string): Promise<ShipStateRecord> {
 		const row = getShip(this.#context.db, workstreamId);
-		if (!row) return null;
-		if (row.phase === 'draft' || row.phase === 'local') return shipRecord(row);
-		const saved = this.#save(workstreamId, {
-			phase: row.pullRequestNumber === null ? 'local' : 'draft',
-			step: null,
-			needsYou: null,
-			queuedAt: null,
-			attempts: 0,
-			failureSignature: null,
-			activeJobRunId: null,
-			lastError: null,
-			nextAttemptAt: null,
-		});
-		this.#clearTimer(workstreamId);
-		this.#pushRequests.delete(workstreamId);
-		this.#settled.delete(workstreamId);
-		this.#failures.delete(workstreamId);
+		if (!row) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
+		if (row.phase !== 'needs-you') return this.#unchanged(row, 'retry');
+		const saved = this.#save(
+			workstreamId,
+			{
+				phase: 'queued',
+				step: null,
+				needsYou: null,
+				queuedAt: row.queuedAt ?? new Date(this.#now()).toISOString(),
+				attempts: 0,
+				failureSignature: null,
+				lastError: null,
+				nextAttemptAt: null,
+				failures: 0,
+			},
+			undefined,
+			'retry',
+		);
+		if (!saved) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
+		return shipRecord(saved);
+	}
+
+	async #cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
+		const row = getShip(this.#context.db, workstreamId);
+		if (!row) {
+			this.#clicked(workstreamId, 'cancel', null);
+			return null;
+		}
+		if (row.phase === 'draft' || row.phase === 'local') return this.#unchanged(row, 'cancel');
+		const saved = this.#save(
+			workstreamId,
+			{
+				phase: row.pullRequestNumber === null ? 'local' : 'draft',
+				step: null,
+				needsYou: null,
+				queuedAt: null,
+				attempts: 0,
+				failureSignature: null,
+				activeJobRunId: null,
+				lastError: null,
+				nextAttemptAt: null,
+				failures: 0,
+			},
+			undefined,
+			'cancel',
+		);
+		clearShipRequests(this.#context.db, workstreamId);
+		clearAlarm(this.#context.db, alarmKey(workstreamId));
+		this.#reader.watch(workstreamId);
 		if (row.activeJobRunId) {
 			await this.#context.commands
 				.call('jobs.cancel-run', { jobRunId: row.activeJobRunId })
@@ -237,105 +304,84 @@ export class MergeQueue {
 		return saved ? shipRecord(saved) : null;
 	}
 
-	async retryMerge(workstreamId: string): Promise<ShipStateRecord> {
-		const row = getShip(this.#context.db, workstreamId);
-		if (!row) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
-		if (row.phase !== 'needs-you') return shipRecord(row);
-		this.#failures.delete(workstreamId);
-		const saved = this.#save(workstreamId, {
-			phase: 'queued',
-			step: null,
-			needsYou: null,
-			queuedAt: row.queuedAt ?? new Date(this.#now()).toISOString(),
-			attempts: 0,
-			failureSignature: null,
-			lastError: null,
-			nextAttemptAt: null,
-		});
-		if (!saved) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
-		this.wake(workstreamId);
-		return shipRecord(saved);
+	#resume(event: DispatchedEvent): void {
+		for (const row of listShips(this.#context.db)) {
+			if (row.phase === 'draft' && row.step !== null) {
+				requestShip(this.#context.db, row.workstreamId, 'push');
+			}
+			const pending =
+				row.phase === 'queued' ||
+				row.phase === 'needs-you' ||
+				row.activeJobRunId !== null ||
+				(row.phase === 'draft' && row.step !== null) ||
+				row.requests.push + row.requests.update + row.requests.review > 0;
+			if (pending) this.#wake(row.workstreamId, event);
+		}
 	}
 
-	async agentTurnEnded(runId: string): Promise<void> {
-		const workstreamId = getRunWorkstreamId(this.#context.db, runId);
-		if (workstreamId === null) return;
+	async #opened(workstreamId: string, event: DispatchedEvent): Promise<void> {
+		const last = this.#openedAt.get(workstreamId);
+		if (last !== undefined && this.#now() - last < this.#delays.openedCheckMs) return;
+		if ((await this.#updateTrigger()) === 'merging') return;
+		this.#openedAt.set(workstreamId, this.#now());
+		await this.#request(workstreamId, 'update', event);
+	}
+
+	async #pullRequestChanged(
+		workstreamId: string,
+		payload: unknown,
+		event: DispatchedEvent,
+	): Promise<void> {
+		const facts = pullRequestFacts(payload);
+		if (facts === null) return;
+		if (readsBehindBase(facts) && (await this.#updateTrigger()) === 'main-moves') {
+			await this.#request(workstreamId, 'update', event);
+		}
+		const open = facts.state === 'open' || facts.state === 'draft';
+		if (open && facts.reviewDecision === 'changes_requested') {
+			await this.#request(workstreamId, 'review', event);
+		}
+		if (getShip(this.#context.db, workstreamId)) this.#wake(workstreamId, event);
+	}
+
+	async #workEnded(workstreamId: string, event: DispatchedEvent): Promise<void> {
+		this.#runEndedAt.set(workstreamId, this.#now());
 		const row = await this.#tracked(workstreamId);
 		if (!row) return;
-		this.#runEndedAt.set(workstreamId, this.#now());
-		if (row.phase === 'local' || row.phase === 'draft') this.#requestPush(workstreamId);
-		this.wake(workstreamId);
-	}
-
-	async workstreamOpened(workstreamId: string): Promise<void> {
-		if ((await this.#updateTrigger()) === 'merging') return;
-		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
-	}
-
-	pullRequestRead(workstreamId: string, pullRequest: PullRequestStatusDto): void {
-		if (pullRequest.state === 'not_open') this.#forgetPullRequestBranchLeft(workstreamId);
-		if (pullRequest.state !== 'open') return;
-		if ((pullRequest.behindBase ?? 0) > 0 || pullRequest.mergeable === false) {
-			void this.#requestUpdateAsMainMoves(workstreamId);
+		if (row.phase === 'local' || row.phase === 'draft') {
+			requestShip(this.#context.db, workstreamId, 'push');
 		}
-		if (pullRequest.reviewDecision === 'changes_requested') {
-			void this.#requestWork(workstreamId, this.#reviewRequests, this.#reviewRequestedAt);
-		}
+		this.#wake(workstreamId, event);
 	}
 
-	async #requestUpdateAsMainMoves(workstreamId: string): Promise<void> {
-		if ((await this.#updateTrigger()) !== 'main-moves') return;
-		await this.#requestWork(workstreamId, this.#updateRequests, this.#updateRequestedAt);
-	}
-
-	async #updateTrigger(): Promise<UpdateFromMainTrigger> {
-		const settings = await this.#context.commands
-			.call('app.list-settings', undefined)
-			.catch((): Record<string, string> => ({}));
-		return updateFromMainTrigger(settings[UPDATE_FROM_MAIN_TRIGGER_SETTING]);
-	}
-
-	async #requestWork(
-		workstreamId: string,
-		requests: Map<string, number>,
-		requestedAt: Map<string, number>,
-	): Promise<void> {
-		const last = requestedAt.get(workstreamId);
-		if (last !== undefined && this.#now() - last < this.#delays.baseCheckMs) return;
-		const row = await this.#tracked(workstreamId);
-		if (!row || (row.phase !== 'local' && row.phase !== 'draft')) return;
-		requestedAt.set(workstreamId, this.#now());
-		requests.set(workstreamId, (requests.get(workstreamId) ?? 0) + 1);
-		this.wake(workstreamId);
-	}
-
-	jobChanged(run: JobRunRecord): void {
-		this.#jobs.set(run.id, run);
-		if (run.workstreamId === null) return;
+	async #runFinished(payload: unknown, event: DispatchedEvent): Promise<void> {
+		const runId = isRecord(payload) ? stringField(payload['run'], 'id') : null;
+		const run = runId === null ? null : jobRun(this.#context.db, runId);
+		if (!run || run.workstreamId === null) return;
 		const row = getShip(this.#context.db, run.workstreamId);
-		if (row?.activeJobRunId === run.id) {
-			this.wake(run.workstreamId);
+		if (row?.activeJobRunId === run.id || run.origin === 'merge-queue') {
+			this.#wake(run.workstreamId, event);
 			return;
 		}
-		if (row && this.#takesOver(row, run)) {
-			this.#save(row.workstreamId, {
-				activeJobRunId: run.id,
-				step: jobStep(this.#builtins.get(run.definitionId) ?? null),
-			});
-			this.wake(row.workstreamId);
+		if (run.agentRunId !== null) {
+			await this.#workEnded(run.workstreamId, event);
+			return;
 		}
+		if (row) this.#wake(run.workstreamId, event);
 	}
 
-	#takesOver(row: ShipRow, run: JobRunRecord): boolean {
-		return (
-			run.origin === 'then' &&
-			row.activeJobRunId !== null &&
-			run.parentRunId === row.activeJobRunId &&
-			jobIsActive({ builtin: null, status: run.status })
-		);
+	async #request(
+		workstreamId: string,
+		request: ShipRequest,
+		event: DispatchedEvent,
+	): Promise<void> {
+		const row = await this.#tracked(workstreamId);
+		if (!row || (row.phase !== 'local' && row.phase !== 'draft')) return;
+		requestShip(this.#context.db, workstreamId, request);
+		this.#wake(workstreamId, event);
 	}
 
-	#forgetPullRequestBranchLeft(workstreamId: string): void {
+	#pullRequestGone(workstreamId: string): void {
 		const row = getShip(this.#context.db, workstreamId);
 		if (row?.phase !== 'draft' || row.step !== null || row.pullRequestNumber === null) return;
 		deleteShip(this.#context.db, workstreamId);
@@ -343,70 +389,43 @@ export class MergeQueue {
 		this.#context.events.emit('pull-requests:ship-changed', { workstreamId, state: null });
 	}
 
-	workstreamRemoved(workstreamId: string): void {
-		deleteShip(this.#context.db, workstreamId);
-		this.#forget(workstreamId);
-	}
-
-	wake(workstreamId: string): void {
+	#wake(workstreamId: string, event: DispatchedEvent): void {
 		if (this.#disposed) return;
-		this.#clearTimer(workstreamId);
+		if (event.id !== null) this.#wokenBy.set(workstreamId, event.id);
 		if (this.#running.has(workstreamId)) {
 			this.#again.add(workstreamId);
 			return;
 		}
-		const drain = this.#drain(workstreamId).finally(() => this.#running.delete(workstreamId));
+		const drain = this.#drain(workstreamId).finally(() => {
+			this.#running.delete(workstreamId);
+			this.#reader.watch(workstreamId);
+		});
 		this.#running.set(workstreamId, drain);
-	}
-
-	async #resume(): Promise<void> {
-		await this.#loadJobs();
-		for (const row of listShips(this.#context.db)) {
-			if (row.phase === 'draft' && row.step !== null) this.#requestPush(row.workstreamId);
-			if (
-				row.phase === 'queued' ||
-				row.phase === 'needs-you' ||
-				row.activeJobRunId !== null ||
-				this.#pushRequests.has(row.workstreamId)
-			) {
-				this.wake(row.workstreamId);
-			}
-		}
-	}
-
-	async #loadJobs(): Promise<void> {
-		const { commands } = this.#context;
-		const [runs, definitions] = await Promise.all([
-			commands.call('jobs.list-runs', undefined).catch(() => []),
-			commands.call('jobs.list-definitions', undefined).catch(() => []),
-		]);
-		for (const run of runs) if (!this.#jobs.has(run.id)) this.#jobs.set(run.id, run);
-		this.#rememberBuiltins(definitions);
 	}
 
 	async #drain(workstreamId: string): Promise<void> {
 		do {
 			this.#again.delete(workstreamId);
-			await this.#advance(workstreamId);
+			await this.#advance(workstreamId, this.#wokenBy.get(workstreamId) ?? null);
 		} while (this.#again.has(workstreamId) && !this.#disposed);
 	}
 
-	async #advance(workstreamId: string): Promise<void> {
+	async #advance(workstreamId: string, wokenBy: number | null): Promise<void> {
 		for (let moves = 0; moves < MAX_MOVES_PER_WAKE; moves += 1) {
 			if (this.#disposed) return;
 			let progressed: boolean;
 			try {
-				progressed = await this.#step(workstreamId);
+				progressed = await this.#step(workstreamId, wokenBy);
 			} catch (error) {
 				progressed = false;
 				this.#failed(workstreamId, error);
 			}
 			if (!progressed) return;
 		}
-		this.#schedule(workstreamId, this.#delays.githubPollMs);
+		this.#alarm(workstreamId, 'retry', this.#now() + this.#delays.githubPollMs);
 	}
 
-	async #step(workstreamId: string): Promise<boolean> {
+	async #step(workstreamId: string, wokenBy: number | null): Promise<boolean> {
 		const { db, commands } = this.#context;
 		const found = getShip(db, workstreamId);
 		if (!found) return false;
@@ -415,41 +434,37 @@ export class MergeQueue {
 			return false;
 		}
 		const row = await this.#reconcileJob(found);
-		const pushGeneration = this.#pushRequests.get(workstreamId) ?? null;
-		const updateGeneration = this.#updateRequests.get(workstreamId) ?? null;
-		const reviewGeneration = this.#reviewRequests.get(workstreamId) ?? null;
+		const { requests } = row;
 		const working = row.phase === 'local' || row.phase === 'draft';
 		if (
 			working &&
-			pushGeneration === null &&
-			updateGeneration === null &&
-			reviewGeneration === null &&
+			requests.push === 0 &&
+			requests.update === 0 &&
+			requests.review === 0 &&
 			row.activeJobRunId === null
 		) {
 			this.#save(workstreamId, { step: null });
 			return false;
 		}
-		const target = await this.#target(workstreamId);
+		const target = await shipTarget(db, workstreamId);
 		const idleness = await this.#idleness(workstreamId);
 		const worktree = await commands.call('repositories.workstream-status', { workstreamId });
-		const settled = this.#settledFor(workstreamId, worktree);
+		const settled = this.#settledFor(row, worktree);
 		const job = this.#activeJob(row);
-		const lastJob = this.#lastJob(workstreamId);
+		const lastJob = latestJobRunInWorkstream(db, workstreamId, 'merge-queue');
 		const recheck = row.phase === 'needs-you';
-		let snapshot: MergeQueueSnapshot = {
+		let snapshot: ShippingSnapshot = {
 			phase: recheck ? 'queued' : row.phase,
-			pushRequested: pushGeneration !== null,
-			updateRequested: updateGeneration !== null,
-			reviewRequested: reviewGeneration !== null,
+			pushRequested: requests.push > 0,
+			updateRequested: requests.update > 0,
+			reviewRequested: requests.review > 0,
 			addressedReviews: row.addressedReviews,
 			behindBase: null,
 			pullRequestNumber: row.pullRequestNumber,
 			idle: idleness.idle,
-			job: job
-				? { builtin: this.#builtins.get(job.definitionId) ?? null, status: job.status }
-				: null,
+			job: job ? { builtin: this.#builtin(job), status: job.status } : null,
 			lastJobRunId: lastJob?.id ?? null,
-			lastJobBuiltin: lastJob ? (this.#builtins.get(lastJob.definitionId) ?? null) : null,
+			lastJobBuiltin: lastJob ? this.#builtin(lastJob) : null,
 			settledJob: settled?.builtin ?? null,
 			worktree,
 			threadResolutionRunId: settled?.builtin === 'address-review' ? settled.agentRunId : null,
@@ -462,98 +477,79 @@ export class MergeQueue {
 			fixAttemptLimit: working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await this.#fixAttemptLimit(),
 			backoffUntil: row.nextAttemptAt === null ? null : Date.parse(row.nextAttemptAt),
 			now: this.#now(),
+			read: false,
 			pullRequest: null,
-			reviewFeedback: null,
 		};
-		if (recheck) snapshot = await this.#withPullRequest(snapshot, target, row);
 		if (this.#jobMovedOn(row)) return true;
-		let move = nextMergeQueueMove(snapshot);
+		if (recheck) {
+			const read = await this.#reader.read(workstreamId, FRESH_READ_MS);
+			if (!read.read) return false;
+			snapshot = { ...snapshot, read: true, pullRequest: read.pullRequest };
+		}
+		let move = nextShippingMove(snapshot);
 		if (move.kind === 'read-base') {
-			const behindBase = await commands.call('repositories.count-behind-base', {
-				workstreamId,
-				baseBranch: target.base,
-			});
-			snapshot = { ...snapshot, behindBase };
-			move = nextMergeQueueMove(snapshot);
+			snapshot = { ...snapshot, behindBase: await this.#behindBase(workstreamId, target) };
+			move = nextShippingMove(snapshot);
 		}
 		if (move.kind === 'read-pull-request') {
-			snapshot = await this.#withPullRequest(snapshot, target, row);
-			move = nextMergeQueueMove(snapshot);
+			const read = await this.#reader.read(workstreamId, FRESH_READ_MS);
+			if (!read.read) {
+				this.#save(workstreamId, {
+					step: row.phase === 'queued' ? 'waiting-for-checks' : 'waiting-for-github',
+				});
+				return false;
+			}
+			snapshot = { ...snapshot, read: true, pullRequest: read.pullRequest };
+			move = nextShippingMove(snapshot);
 		}
-		if (recheck) return this.#recheck(row, move);
-		return this.#apply(
-			{
-				row,
-				target,
-				worktree,
-				snapshot,
-				idleness,
-				pushGeneration,
-				updateGeneration,
-				reviewGeneration,
-			},
-			move,
-		);
+		const context: MoveContext = { row, target, worktree, snapshot, idleness, wokenBy };
+		if (recheck) return this.#recheck(context, move);
+		return this.#apply(context, move);
 	}
 
-	#recheck(row: ShipRow, move: MergeQueueMove): boolean {
-		const workstreamId = row.workstreamId;
+	async #behindBase(workstreamId: string, target: ShipTarget): Promise<number> {
+		return this.#context.commands.call('repositories.count-behind-base', {
+			workstreamId,
+			baseBranch: target.base,
+		});
+	}
+
+	#recheck(context: MoveContext, move: ShippingMove): boolean {
+		const { row } = context;
 		const unchanged =
 			(move.kind === 'needs-you' && move.reason === row.needsYou?.reason) ||
 			(move.kind === 'wait' && move.step === 'waiting-for-agent') ||
 			move.kind === 'backoff';
-		if (unchanged) {
-			this.#schedule(workstreamId, this.#delays.reviewPollMs);
-			return false;
-		}
+		if (unchanged) return false;
 		const resumed = this.#save(
-			workstreamId,
+			row.workstreamId,
 			{ phase: 'queued', step: null, needsYou: null, lastError: null, nextAttemptAt: null },
 			'needs-you',
 		);
 		return resumed !== null;
 	}
 
-	async #withPullRequest(
-		snapshot: MergeQueueSnapshot,
-		target: ShipTarget,
-		row: ShipRow,
-	): Promise<MergeQueueSnapshot> {
-		const pullRequest = await this.#ops.status({
-			repoId: target.repoId,
-			workstreamId: row.workstreamId,
-			head: target.workstream.branch,
-			base: target.base,
-			pullRequestNumber: row.pullRequestNumber,
-		});
-		const reviewFeedback =
-			needsReviewFeedback(pullRequest) && pullRequest.number !== null
-				? await this.#ops.reviewFeedback({
-						repoId: target.repoId,
-						workstreamId: row.workstreamId,
-						pullRequestNumber: pullRequest.number,
-					})
-				: null;
-		return { ...snapshot, pullRequest, reviewFeedback };
-	}
-
-	async #apply(context: MoveContext, move: MergeQueueMove): Promise<boolean> {
+	async #apply(context: MoveContext, move: ShippingMove): Promise<boolean> {
 		const workstreamId = context.row.workstreamId;
 		switch (move.kind) {
 			case 'idle':
-				this.#settleRequests(context);
+				this.#settleRequests(context.row);
 				this.#save(workstreamId, { step: null, lastError: move.problem, nextAttemptAt: null });
 				return false;
 			case 'wait':
 				this.#save(workstreamId, { step: move.step });
-				this.#schedule(workstreamId, this.#waitMs(move.step, context.idleness));
+				if (move.until !== undefined) this.#alarm(workstreamId, 'checks', move.until);
+				if (move.step === 'waiting-for-agent' && context.idleness.settlesInMs !== null) {
+					await sleep(context.idleness.settlesInMs);
+					return !this.#disposed;
+				}
 				return false;
 			case 'backoff':
-				this.#schedule(workstreamId, (context.snapshot.backoffUntil ?? 0) - this.#now());
+				this.#alarm(workstreamId, 'retry', context.snapshot.backoffUntil ?? this.#now());
 				return false;
 			case 'read-pull-request':
 			case 'read-base':
-				this.#schedule(workstreamId, this.#delays.githubPollMs);
+				this.#save(workstreamId, { step: 'waiting-for-github' });
 				return false;
 			case 'needs-you':
 				this.#save(
@@ -565,15 +561,14 @@ export class MergeQueue {
 					},
 					'queued',
 				);
-				this.#schedule(workstreamId, this.#delays.reviewPollMs);
 				return false;
 			case 'run-job':
 				await this.#runJob(context, move.builtin, move.signature, move.attempt);
 				if (move.builtin === 'update-from-main') {
-					this.#settleUpdateRequest(workstreamId, context.updateGeneration);
+					settleShipRequest(this.#context.db, workstreamId, 'update', context.row.requests.update);
 				}
 				if (move.builtin === 'address-review') {
-					this.#settleRequest(this.#reviewRequests, workstreamId, context.reviewGeneration);
+					settleShipRequest(this.#context.db, workstreamId, 'review', context.row.requests.review);
 				}
 				return false;
 			case 'archive':
@@ -585,14 +580,14 @@ export class MergeQueue {
 		}
 	}
 
-	async #act(context: MoveContext, move: MergeQueueMove): Promise<boolean> {
+	async #act(context: MoveContext, move: ShippingMove): Promise<boolean> {
 		const { row, target } = context;
 		const workstreamId = row.workstreamId;
 		const pullRequestNumber = row.pullRequestNumber ?? 0;
 		switch (move.kind) {
 			case 'commit':
 				await this.#commit(context);
-				this.#settlePushRequest(workstreamId, context.pushGeneration);
+				settleShipRequest(this.#context.db, workstreamId, 'push', row.requests.push);
 				break;
 			case 'push':
 				this.#save(workstreamId, { step: 'pushing' });
@@ -617,15 +612,15 @@ export class MergeQueue {
 				});
 				if (updated.ahead === 0 && updated.operationInProgress === null) {
 					this.#recovered(workstreamId);
+					this.#reader.forget(workstreamId);
 					this.#save(workstreamId, { step: 'waiting-for-github' });
-					this.#schedule(workstreamId, this.#delays.githubPollMs);
 					return false;
 				}
 				break;
 			}
 			case 'resolve-threads':
 				await this.#ops.resolveAddressedReviewThreads({ workstreamId, runId: move.agentRunId });
-				this.#settled.delete(workstreamId);
+				this.#save(workstreamId, { settledJobRunId: null });
 				break;
 			case 'merge': {
 				this.#save(workstreamId, { step: 'merging' });
@@ -646,6 +641,7 @@ export class MergeQueue {
 			default:
 				return false;
 		}
+		this.#reader.forget(workstreamId);
 		this.#recovered(workstreamId);
 		return true;
 	}
@@ -655,8 +651,8 @@ export class MergeQueue {
 		const workstreamId = row.workstreamId;
 		const shipContext = workstreamShipContext(this.#context.db, workstreamId);
 		const metadata = this.#metadata(target, worktree.dirtyPaths, shipContext);
+		const settled = this.#settled(row);
 		if (worktree.dirtyPaths.length > 0 || worktree.operationInProgress === 'merge') {
-			const settled = this.#settled.get(workstreamId) ?? null;
 			const message = commitMessage(worktree, settled, metadata, target);
 			const run = settled
 				? settled.agentRunId === null
@@ -669,8 +665,8 @@ export class MergeQueue {
 				...(run ? { run } : {}),
 			});
 		}
-		if (this.#settled.get(workstreamId)?.builtin !== 'address-review') {
-			this.#settled.delete(workstreamId);
+		if (settled !== null && settled.builtin !== 'address-review') {
+			this.#save(workstreamId, { settledJobRunId: null });
 		}
 		return metadata;
 	}
@@ -763,7 +759,7 @@ export class MergeQueue {
 	}
 
 	async #retitleAfterJob(workstreamId: string): Promise<void> {
-		const target = await this.#target(workstreamId);
+		const target = await shipTarget(this.#context.db, workstreamId);
 		const shipContext = workstreamShipContext(this.#context.db, workstreamId);
 		await this.#retitle(target, workstreamId, this.#metadata(target, [], shipContext).title, null);
 	}
@@ -774,21 +770,26 @@ export class MergeQueue {
 		signature: string,
 		attempt: number,
 	): Promise<void> {
-		const { commands } = this.#context;
+		const { db, commands } = this.#context;
 		const workstreamId = context.row.workstreamId;
-		const definitions = await commands.call('jobs.list-definitions', undefined);
-		this.#rememberBuiltins(definitions);
-		const definition = definitions.find((candidate) => candidate.builtin === builtin);
+		const definition = jobDefinitions(db).find((candidate) => candidate.builtin === builtin);
 		if (!definition) throw new Error(`The built-in ${builtin} job is missing`);
 		const jobContext = await this.#jobContext(context, builtin);
+		const causeEventId =
+			builtin === 'update-from-main'
+				? context.wokenBy
+				: this.#cause(
+						workstreamId,
+						context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber,
+						context.wokenBy,
+					);
 		const run = await commands.call('jobs.run', {
 			definitionId: definition.id,
 			workstreamId,
 			...(jobContext === null ? {} : { context: jobContext }),
 			origin: 'merge-queue',
+			...(causeEventId === null ? {} : { causeEventId }),
 		});
-		if (!this.#jobs.has(run.id)) this.#jobs.set(run.id, run);
-		this.#settled.delete(workstreamId);
 		const started: ShipPatch = {
 			activeJobRunId: run.id,
 			attempts: attempt,
@@ -796,25 +797,37 @@ export class MergeQueue {
 			step: jobStep(builtin),
 			lastError: null,
 			nextAttemptAt: null,
+			failures: 0,
+			settledJobRunId: null,
 		};
 		const saved =
 			this.#save(workstreamId, started, context.row.phase) ??
 			(context.row.phase === 'queued' ? null : this.#save(workstreamId, started, 'queued'));
-		this.#failures.delete(workstreamId);
-		if (!saved) {
-			await commands.call('jobs.cancel-run', { jobRunId: run.id }).catch(() => undefined);
-			return;
+		if (!saved) await commands.call('jobs.cancel-run', { jobRunId: run.id }).catch(() => undefined);
+	}
+
+	#cause(
+		workstreamId: string,
+		pullRequestNumber: number | null,
+		wokenBy: number | null,
+	): number | null {
+		const { db } = this.#context;
+		const read = latestLoggedEvent(db, PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, workstreamId);
+		const payload = read?.payload;
+		if (
+			read &&
+			pullRequestNumber !== null &&
+			isRecord(payload) &&
+			payload['pullRequestNumber'] === pullRequestNumber
+		) {
+			return read.id;
 		}
-		const current = this.#jobs.get(run.id) ?? run;
-		this.#schedule(
-			workstreamId,
-			jobIsActive({ builtin, status: current.status }) ? this.#delays.agentPollMs : 0,
-		);
+		return wokenBy;
 	}
 
 	async #jobContext(context: MoveContext, builtin: ShippingJobBuiltin): Promise<string | null> {
 		const { target, snapshot, row } = context;
-		const pullRequestNumber = snapshot.pullRequest?.number ?? row.pullRequestNumber ?? 0;
+		const pullRequestNumber = snapshot.pullRequest?.pullRequestNumber ?? row.pullRequestNumber ?? 0;
 		switch (builtin) {
 			case 'update-from-main':
 			case 'resolve-conflicts':
@@ -822,7 +835,13 @@ export class MergeQueue {
 			case 'fix-checks':
 				return checkFixJobContext({
 					pullRequestNumber,
-					failingChecks: snapshot.pullRequest ? blockingFailedChecks(snapshot.pullRequest) : [],
+					failingChecks: (snapshot.pullRequest?.blockingChecks ?? []).map((check) => ({
+						name: check.name,
+						appId: check.appId,
+						conclusion: check.state,
+						state: check.state,
+						required: check.required,
+					})),
 					checkDiagnostics: await this.#ops.checkDiagnostics({
 						repoId: target.repoId,
 						workstreamId: row.workstreamId,
@@ -830,13 +849,17 @@ export class MergeQueue {
 					}),
 				});
 			case 'address-review': {
-				const feedback = snapshot.reviewFeedback ?? EMPTY_REVIEW_FEEDBACK;
+				const feedback = await this.#ops.reviewFeedback({
+					repoId: target.repoId,
+					workstreamId: row.workstreamId,
+					pullRequestNumber,
+				});
 				return reviewFixJobContext({
 					pullRequestNumber,
 					reviewFeedback: snapshot.pullRequest
 						? reviewFeedbackToAddress(
 								feedback,
-								reviewToAddress(feedback, snapshot.pullRequest, snapshot.addressedReviews),
+								reviewToAddress(snapshot.pullRequest, snapshot.addressedReviews),
 							)
 						: feedback,
 				});
@@ -846,8 +869,10 @@ export class MergeQueue {
 
 	async #archive(context: MoveContext): Promise<void> {
 		const workstreamId = context.row.workstreamId;
-		const pullRequestNumber = context.snapshot.pullRequest?.number ?? context.row.pullRequestNumber;
-		const pullRequestUrl = context.snapshot.pullRequest?.url ?? context.row.pullRequestUrl;
+		const pullRequestNumber =
+			context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber;
+		const pullRequestUrl =
+			context.snapshot.pullRequest?.pullRequestUrl ?? context.row.pullRequestUrl;
 		if (pullRequestNumber !== null) {
 			recordMergedPullRequest(this.#context.db, workstreamId, {
 				number: pullRequestNumber,
@@ -866,11 +891,15 @@ export class MergeQueue {
 
 	#failed(workstreamId: string, error: unknown): void {
 		if (this.#disposed) return;
+		this.#reader.forget(workstreamId);
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row) return;
 		const detail = describeError(error);
+		const failures = row.failures + 1;
+		const due = this.#now() + shipBackoffMs(failures, this.#delays);
 		if (row.phase === 'needs-you') {
-			this.#schedule(workstreamId, this.#delays.reviewPollMs);
+			this.#save(workstreamId, { failures });
+			this.#alarm(workstreamId, 'retry', due);
 			return;
 		}
 		if (githubAuthRejected(error)) {
@@ -881,54 +910,59 @@ export class MergeQueue {
 						phase: 'needs-you',
 						step: null,
 						needsYou: { reason: 'github-reconnect', detail, jobRunId: null },
+						failures,
 					},
 					'queued',
 				);
+				this.#alarm(workstreamId, 'retry', due);
 				return;
 			}
-			this.#pushRequests.delete(workstreamId);
+			settleShipRequest(this.#context.db, workstreamId, 'push', row.requests.push);
 			this.#save(workstreamId, { step: null, lastError: detail });
 			return;
 		}
 		if (row.phase === 'local') {
-			this.#pushRequests.delete(workstreamId);
-			this.#updateRequests.delete(workstreamId);
-			this.#reviewRequests.delete(workstreamId);
+			clearShipRequests(this.#context.db, workstreamId);
 			this.#save(workstreamId, { step: null, lastError: detail });
 			return;
 		}
-		const failures = (this.#failures.get(workstreamId) ?? 0) + 1;
-		this.#failures.set(workstreamId, failures);
-		const delay = shipBackoffMs(failures, this.#delays);
 		this.#save(workstreamId, {
 			lastError: detail,
-			nextAttemptAt: new Date(this.#now() + delay).toISOString(),
+			nextAttemptAt: new Date(due).toISOString(),
+			failures,
 		});
-		this.#schedule(workstreamId, delay);
+		this.#alarm(workstreamId, 'retry', due);
 	}
 
 	#recovered(workstreamId: string): void {
-		this.#failures.delete(workstreamId);
 		const row = getShip(this.#context.db, workstreamId);
-		if (row && (row.lastError !== null || row.nextAttemptAt !== null)) {
-			this.#save(workstreamId, { lastError: null, nextAttemptAt: null });
+		if (row && (row.lastError !== null || row.nextAttemptAt !== null || row.failures > 0)) {
+			this.#save(workstreamId, { lastError: null, nextAttemptAt: null, failures: 0 });
 		}
 	}
 
 	async #reconcileJob(row: ShipRow): Promise<ShipRow> {
 		const jobRunId = row.activeJobRunId;
 		if (jobRunId === null) return row;
-		if (!this.#jobs.has(jobRunId)) await this.#loadJobs();
-		const job = this.#jobs.get(jobRunId);
+		const { db } = this.#context;
+		const job = jobRun(db, jobRunId);
 		if (job && jobIsActive({ builtin: null, status: job.status })) return row;
-		const builtin = job ? (this.#builtins.get(job.definitionId) ?? null) : null;
+		const child = job ? activeThenJobRun(db, job.id) : null;
+		if (child) {
+			return (
+				this.#save(row.workstreamId, {
+					activeJobRunId: child.id,
+					step: jobStep(this.#builtin(child)),
+				}) ?? row
+			);
+		}
+		const builtin = job ? this.#builtin(job) : null;
 		const addressed =
 			job?.status === 'succeeded' && builtin === 'address-review'
 				? addressedChangeRequests(row.failureSignature)
 				: [];
 		if (job?.status === 'succeeded') {
-			this.#settled.set(row.workstreamId, { builtin, agentRunId: job.agentRunId });
-			if (row.phase === 'draft') this.#requestPush(row.workstreamId);
+			if (row.phase === 'draft') requestShip(db, row.workstreamId, 'push');
 			if (row.pullRequestNumber !== null) await this.#retitleAfterJob(row.workstreamId);
 		}
 		const interrupted = job?.status === 'failed' && job.detail === JOB_INTERRUPTED_DETAIL;
@@ -936,6 +970,7 @@ export class MergeQueue {
 		return (
 			this.#save(row.workstreamId, {
 				activeJobRunId: null,
+				settledJobRunId: job?.status === 'succeeded' ? job.id : row.settledJobRunId,
 				...(addressed.length > 0
 					? { addressedReviews: [...new Set([...row.addressedReviews, ...addressed])] }
 					: {}),
@@ -954,42 +989,52 @@ export class MergeQueue {
 	}
 
 	#activeJob(row: ShipRow): JobRunRecord | null {
-		const job = row.activeJobRunId === null ? null : this.#jobs.get(row.activeJobRunId);
+		const job = row.activeJobRunId === null ? null : jobRun(this.#context.db, row.activeJobRunId);
 		return job && jobIsActive({ builtin: null, status: job.status }) ? job : null;
 	}
 
-	#settledFor(workstreamId: string, worktree: WorktreeStatus): SettledJob | null {
-		const settled = this.#settled.get(workstreamId) ?? null;
+	#settled(row: ShipRow): SettledJob | null {
+		const current = getShip(this.#context.db, row.workstreamId) ?? row;
+		const job =
+			current.settledJobRunId === null ? null : jobRun(this.#context.db, current.settledJobRunId);
+		return job ? { builtin: this.#builtin(job), agentRunId: job.agentRunId } : null;
+	}
+
+	#settledFor(row: ShipRow, worktree: WorktreeStatus): SettledJob | null {
+		const settled = this.#settled(row);
 		const clean =
 			worktree.dirtyPaths.length === 0 &&
 			worktree.ahead === 0 &&
 			worktree.operationInProgress === null;
 		if (settled && settled.builtin !== 'address-review' && clean) {
-			this.#settled.delete(workstreamId);
+			this.#save(row.workstreamId, { settledJobRunId: null });
 			return null;
 		}
 		return settled;
 	}
 
-	#lastJob(workstreamId: string): JobRunRecord | null {
-		let last: JobRunRecord | null = null;
-		for (const job of this.#jobs.values()) {
-			if (job.workstreamId !== workstreamId || job.origin !== 'merge-queue') continue;
-			if (last === null || job.createdAt >= last.createdAt) last = job;
-		}
-		return last;
+	#builtin(run: JobRunRecord): ShippingJobBuiltin | null {
+		const builtin = jobDefinition(this.#context.db, run.definitionId)?.builtin ?? null;
+		return isShippingJobBuiltin(builtin) ? builtin : null;
 	}
 
 	async #fixAttemptLimit(): Promise<number> {
-		try {
-			const settings = await this.#context.commands.call('app.list-settings', undefined);
-			return clampedFixAttempts(
-				settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING],
-				DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
-			);
-		} catch {
-			return DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS;
-		}
+		const settings = await this.#settings();
+		return clampedFixAttempts(
+			settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING],
+			DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
+		);
+	}
+
+	async #updateTrigger(): Promise<UpdateFromMainTrigger> {
+		const settings = await this.#settings();
+		return updateFromMainTrigger(settings[UPDATE_FROM_MAIN_TRIGGER_SETTING]);
+	}
+
+	#settings(): Promise<Record<string, string>> {
+		return this.#context.commands
+			.call('app.list-settings', undefined)
+			.catch((): Record<string, string> => ({}));
 	}
 
 	// ponytail: main cannot see the renderer prompt queue, so idle waits idleDebounceMs after the last turn ends; a main-side prompt queue would make this exact
@@ -1002,26 +1047,6 @@ export class MergeQueue {
 		return remaining > 0
 			? { idle: false, settlesInMs: remaining }
 			: { idle: true, settlesInMs: null };
-	}
-
-	async #target(workstreamId: string): Promise<ShipTarget> {
-		const workstream = getWorkstream(this.#context.db, workstreamId);
-		if (!workstream) {
-			throw new ShipError('unknown-workstream', `Unknown workstream: ${workstreamId}`);
-		}
-		const repository = await resolveConnectedRepository(this.#context.db, workstream.projectId);
-		if (!repository || githubFullNameFromRemote(repository.remoteUrl ?? '') === null) {
-			throw new ShipError(
-				'not-github',
-				'Connect this workstream to a GitHub repository to open a pull request.',
-			);
-		}
-		return {
-			workstream,
-			repository,
-			repoId: workstream.projectId,
-			base: workstream.baseBranch || repository.defaultBranch,
-		};
 	}
 
 	async #refuseNothingToShip(target: ShipTarget): Promise<void> {
@@ -1055,56 +1080,63 @@ export class MergeQueue {
 		});
 	}
 
-	#upsert(workstreamId: string, phase: ShipPhase, patch: ShipPatch): ShipStateRecord {
-		insertShip(this.#context.db, workstreamId, phase);
+	#upsert(workstreamId: string, click: ShipButton | null, patch: ShipPatch): ShipStateRecord {
 		const saved = updateShip(this.#context.db, workstreamId, patch);
 		if (!saved) throw new ShipError('unknown-workstream', `Unknown workstream: ${workstreamId}`);
 		const state = shipRecord(saved);
-		this.#context.events.emit('pull-requests:ship-changed', { workstreamId, state });
+		if (click === null)
+			this.#context.events.emit('pull-requests:ship-changed', { workstreamId, state });
+		else this.#clicked(workstreamId, click, state);
 		return state;
 	}
 
-	#save(workstreamId: string, patch: ShipPatch, onlyInPhase?: ShipPhase): ShipRow | null {
+	#unchanged(row: ShipRow, click: ShipButton | null): ShipStateRecord {
+		const state = shipRecord(row);
+		if (click !== null) this.#clicked(row.workstreamId, click, state);
+		return state;
+	}
+
+	#clicked(workstreamId: string, button: ShipButton, state: ShipStateRecord | null): void {
+		this.#context.events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, {
+			workstreamId,
+			button,
+			state,
+		});
+	}
+
+	#save(
+		workstreamId: string,
+		patch: ShipPatch,
+		onlyInPhase?: ShipPhase,
+		click?: ShipButton,
+	): ShipRow | null {
 		const { db, events } = this.#context;
 		if (this.#disposed) return null;
 		const before = getShip(db, workstreamId);
 		const after = updateShip(db, workstreamId, patch, onlyInPhase);
 		if (!after) return null;
 		const state = shipRecord(after);
-		if (!before || !sameRecord(shipRecord(before), state)) {
+		if (click) this.#clicked(workstreamId, click, state);
+		else if (!before || !sameRecord(shipRecord(before), state)) {
 			events.emit('pull-requests:ship-changed', { workstreamId, state });
 		}
 		return after;
 	}
 
-	#requestPush(workstreamId: string): void {
-		this.#pushRequests.set(workstreamId, (this.#pushRequests.get(workstreamId) ?? 0) + 1);
+	#alarm(workstreamId: string, wait: ShippingWait, due: number): void {
+		if (this.#disposed) return;
+		setAlarm(this.#context.db, alarmKey(workstreamId), {
+			workstreamId,
+			wait,
+			due: new Date(Math.max(due, this.#now())).toISOString(),
+		});
 	}
 
-	#settlePushRequest(workstreamId: string, generation: number | null): void {
-		if (generation !== null && this.#pushRequests.get(workstreamId) === generation) {
-			this.#pushRequests.delete(workstreamId);
-		}
-	}
-
-	#settleUpdateRequest(workstreamId: string, generation: number | null): void {
-		this.#settleRequest(this.#updateRequests, workstreamId, generation);
-	}
-
-	#settleRequest(
-		requests: Map<string, number>,
-		workstreamId: string,
-		generation: number | null,
-	): void {
-		if (generation !== null && requests.get(workstreamId) === generation) {
-			requests.delete(workstreamId);
-		}
-	}
-
-	#settleRequests(context: MoveContext): void {
-		this.#settlePushRequest(context.row.workstreamId, context.pushGeneration);
-		this.#settleUpdateRequest(context.row.workstreamId, context.updateGeneration);
-		this.#settleRequest(this.#reviewRequests, context.row.workstreamId, context.reviewGeneration);
+	#settleRequests(row: ShipRow): void {
+		const { db } = this.#context;
+		settleShipRequest(db, row.workstreamId, 'push', row.requests.push);
+		settleShipRequest(db, row.workstreamId, 'update', row.requests.update);
+		settleShipRequest(db, row.workstreamId, 'review', row.requests.review);
 	}
 
 	async #tracked(workstreamId: string): Promise<ShipRow | null> {
@@ -1113,7 +1145,7 @@ export class MergeQueue {
 		if (existing) return existing;
 		if (getWorkstream(db, workstreamId)?.status !== 'active') return null;
 		try {
-			await this.#target(workstreamId);
+			await shipTarget(db, workstreamId);
 		} catch {
 			return null;
 		}
@@ -1128,63 +1160,30 @@ export class MergeQueue {
 		return tracked;
 	}
 
-	#rememberBuiltins(definitions: readonly JobDefinitionRecord[]): void {
-		for (const definition of definitions) {
-			if (isShippingJobBuiltin(definition.builtin))
-				this.#builtins.set(definition.id, definition.builtin);
-		}
-	}
-
-	#waitMs(step: ShipStep, idleness: Idleness): number {
-		switch (step) {
-			case 'waiting-for-agent':
-				return idleness.settlesInMs ?? this.#delays.agentPollMs;
-			case 'waiting-for-checks':
-				return this.#delays.checksPollMs;
-			case 'waiting-for-review':
-				return this.#delays.reviewPollMs;
-			case 'fixing-checks':
-			case 'updating-from-main':
-			case 'resolving-conflicts':
-			case 'addressing-review':
-				return this.#delays.agentPollMs;
-			default:
-				return this.#delays.githubPollMs;
-		}
-	}
-
-	#schedule(workstreamId: string, delayMs: number): void {
-		if (this.#disposed) return;
-		this.#clearTimer(workstreamId);
-		const timer = setTimeout(
-			() => {
-				this.#timers.delete(workstreamId);
-				this.wake(workstreamId);
-			},
-			Math.max(0, delayMs),
-		);
-		timer.unref();
-		this.#timers.set(workstreamId, timer);
-	}
-
-	#clearTimer(workstreamId: string): void {
-		const timer = this.#timers.get(workstreamId);
-		if (timer === undefined) return;
-		clearTimeout(timer);
-		this.#timers.delete(workstreamId);
-	}
-
 	#forget(workstreamId: string): void {
-		this.#clearTimer(workstreamId);
-		this.#pushRequests.delete(workstreamId);
-		this.#updateRequests.delete(workstreamId);
-		this.#updateRequestedAt.delete(workstreamId);
-		this.#reviewRequests.delete(workstreamId);
-		this.#reviewRequestedAt.delete(workstreamId);
 		this.#runEndedAt.delete(workstreamId);
-		this.#settled.delete(workstreamId);
-		this.#failures.delete(workstreamId);
+		this.#openedAt.delete(workstreamId);
+		this.#wokenBy.delete(workstreamId);
+		this.#reader.forget(workstreamId);
+		this.#reader.watch(workstreamId);
+		clearAlarm(this.#context.db, alarmKey(workstreamId));
 	}
+}
+
+function alarmKey(workstreamId: string): string {
+	return `shipping:${workstreamId}`;
+}
+
+function stringField(payload: unknown, key: string): string | null {
+	if (!isRecord(payload)) return null;
+	const value = payload[key];
+	return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, Math.max(0, ms)).unref();
+	});
 }
 
 function commitMessage(
