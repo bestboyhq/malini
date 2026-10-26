@@ -100,8 +100,8 @@ A **Your turn** list, unread marks, a sound, and a notification tell you which w
 ### Next steps
 
 What the agent left for later, or would do next, sits at the bottom of the report.
-**Ship it** sends it back to the chat as the next prompt, and **Note it** saves it as an idea in the repository's scratchpad.
-Hold ⌘ and the button turns into **Slice, fork, ship**: it forks the chat into a new one with the transcript so far and sends the step there, while you stay where you are.
+**Ship** sends it back to the chat as the next prompt, and **Note it** saves it as an idea in the repository's scratchpad.
+Hold ⌘ and **Ship** turns into **Slice, fork, ship**: it forks the chat into a new one with the transcript so far and sends the step there, while you stay where you are.
 Ship several steps that way and each one runs in a chat of its own.
 
 ### Before and after

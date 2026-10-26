@@ -112,7 +112,7 @@
 							<Button
 								variant={quiet ? 'secondary' : 'primary'}
 								size="sm"
-								ariaLabel={forking ? 'Slice, fork, ship' : 'Ship it'}
+								ariaLabel={forking ? 'Slice, fork, ship' : 'Ship'}
 								onclick={(event) => ship(index, step, event)}
 							>
 								{#snippet leading()}
@@ -126,9 +126,7 @@
 									style:width={labelWidth > 0 ? `${labelWidth}px` : undefined}
 									aria-hidden="true"
 								>
-									<span class="face" data-shown={!forking} bind:offsetWidth={shipWidth}>
-										Ship it
-									</span>
+									<span class="face" data-shown={!forking} bind:offsetWidth={shipWidth}>Ship</span>
 									<span class="face" data-shown={forking} bind:offsetWidth={forkWidth}>
 										Slice, fork, ship
 									</span>

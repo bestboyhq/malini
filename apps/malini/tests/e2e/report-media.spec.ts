@@ -395,7 +395,7 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 		const steps = card.getByRole('region', { name: 'Next steps' });
 		await expect(steps).toBeVisible({ timeout: 30_000 });
 		await expect(card.getByRole('img', { name: 'Done' })).toBeVisible();
-		await expect(steps.getByRole('button', { name: 'Ship it' })).toHaveCount(3);
+		await expect(steps.getByRole('button', { name: 'Ship', exact: true })).toHaveCount(3);
 		await captureFlow(app, 'report-next-steps');
 		const parent = currentSessionId(page);
 		if (!parent) throw new Error('the report chat did not commit a session id');
@@ -407,7 +407,7 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 		await forks.last().click({ modifiers: ['Meta'] });
 		await page.keyboard.up('Meta');
 		await expect(steps).toContainText('Shipped in a new chat');
-		await expect(steps.getByRole('button', { name: 'Ship it' })).toHaveCount(2);
+		await expect(steps.getByRole('button', { name: 'Ship', exact: true })).toHaveCount(2);
 		expect(currentSessionId(page)).toBe(parent);
 		const forkedPrompt = async (): Promise<Record<string, unknown> | null> => {
 			for (const session of await listSessions(page, workstreamId)) {
@@ -436,7 +436,7 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 			.getByRole('link', { name: 'Open report-next' });
 		await expect(repository).toHaveAccessibleDescription('1 idea in the scratchpad');
 
-		await steps.getByRole('button', { name: 'Ship it' }).first().click();
+		await steps.getByRole('button', { name: 'Ship', exact: true }).first().click();
 		await expect(steps).toContainText('Sent');
 		await expect(
 			page
