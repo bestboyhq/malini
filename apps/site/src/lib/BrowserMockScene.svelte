@@ -404,7 +404,7 @@
 													class="text-2xs text-fg-tertiary inline-flex h-5 shrink-0 items-center gap-1 rounded px-1"
 												>
 													<Icon name="branch" size={14} />
-													Fork to new chat
+													Slice and fork
 												</span>
 											</span>
 										</div>

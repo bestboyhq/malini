@@ -316,11 +316,11 @@
 			<Button
 				bare
 				class="text-2xs text-fg-tertiary hover:text-fg-secondary inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 transition-[color,border-color] disabled:cursor-not-allowed disabled:opacity-40"
-				ariaLabel="Fork to new chat"
+				ariaLabel="Slice and fork"
 				disabled={isRunning}
 			>
 				<Icon name="branch" size={14} />
-				Fork to new chat
+				Slice and fork
 			</Button>
 		</div>
 		<span class="flex">
