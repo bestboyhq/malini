@@ -6,7 +6,7 @@ export type TranscriptFollow = 'bottom' | 'reader';
 
 type LayoutCause = 'content' | 'frame';
 
-const ANCHOR_ROWS = ':scope > :not([data-prompt-row])';
+const ANCHOR_ROWS = ':scope > :not([data-prompt-row], [data-cover-fade])';
 
 const RUNS = ':scope > [data-run-id]';
 
