@@ -31,6 +31,7 @@
 		onpick?: ((variant: TurnVariant, reason: string) => void) | undefined;
 		onnonefit?: ((reason: string) => void) | undefined;
 		onsendnext?: ((step: string) => void) | undefined;
+		onforknext?: ((step: string) => void) | undefined;
 		onscratchpad?: ((step: string) => void) | undefined;
 	}
 
@@ -48,6 +49,7 @@
 		onpick,
 		onnonefit,
 		onsendnext,
+		onforknext,
 		onscratchpad,
 	}: Props = $props();
 
@@ -210,6 +212,7 @@
 		<NextSteps
 			steps={nextSteps}
 			onsend={onsendnext}
+			onfork={onforknext}
 			{onscratchpad}
 			{onopenfile}
 			{canopenfile}
