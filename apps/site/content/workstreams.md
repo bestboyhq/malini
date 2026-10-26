@@ -98,6 +98,7 @@ Settings → Jobs picks when that happens: as main moves, when you open the work
 
 - **Draft** opens a draft pull request.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
+  A turn without a commit subject commits under the pull request title or the files it changed, never under your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
 - **A dev server doesn't hold it.** The queue merges past a command the agent left running in the background, and archiving stops it.

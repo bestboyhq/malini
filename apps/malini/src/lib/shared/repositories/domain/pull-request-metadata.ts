@@ -127,18 +127,6 @@ export function automatedPullRequestMetadata(
 	};
 }
 
-export type DerivedCommitMessageInput = Readonly<{
-	changedPaths: readonly string[];
-	context?: PullRequestAutomationContext;
-}>;
-
-export function derivedCommitMessage(input: DerivedCommitMessageInput): string {
-	return commitSubject(
-		normalizedChangedPaths(input.changedPaths),
-		normalizedContext(input.context),
-	);
-}
-
 function workstreamTitle(
 	branch: string,
 	changedPaths: readonly string[],
@@ -164,8 +152,8 @@ function commitSubject(
 ): string {
 	return boundedTitle(
 		firstUseful([
-			firstSentence(context.runSummaries.at(-1) ?? ''),
-			firstSentence(context.lastUserIntent),
+			context.runSummaries.at(-1) ?? '',
+			context.pullRequestTitle,
 			changedPathTitle(changedPaths),
 			'Update workstream',
 		]),
@@ -418,13 +406,7 @@ function changedPathTitle(paths: readonly string[]): string {
 }
 
 function friendlyPath(path: string): string {
-	const name = path.split('/').filter(Boolean).at(-1) ?? path;
-	return (
-		name
-			.replace(/\.[^.]+$/u, '')
-			.replace(/[-_.]+/gu, ' ')
-			.trim() || 'repository changes'
-	);
+	return path.split('/').filter(Boolean).at(-1) || 'repository changes';
 }
 
 function titleText(value: string): string {

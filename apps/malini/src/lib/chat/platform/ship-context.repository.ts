@@ -1,5 +1,5 @@
 import {
-	commitLineOrSummary,
+	commitLine,
 	pullRequestTitleLine,
 	takeLastUnique,
 	validationLabel,
@@ -50,7 +50,7 @@ export function workstreamShipContext(
 		workstreamId,
 	);
 	const described = replied
-		.map(({ id, summary }) => ({ id, summary: commitLineOrSummary(summary) }))
+		.map(({ id, summary }) => ({ id, summary: commitLine(summary) }))
 		.filter(({ summary }) => summary);
 	const runSummaries = takeLastUnique(
 		described.map(({ summary }) => summary),

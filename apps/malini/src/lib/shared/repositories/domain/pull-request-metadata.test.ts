@@ -108,6 +108,23 @@ test('titles the pull request after the whole branch and commits under the lates
 	);
 });
 
+test('never commits under the chat: without a Commit line the subject is the pull request title or the paths', () => {
+	const input = {
+		branch: 'malini/01ABC',
+		baseBranch: 'main',
+		changedPaths: ['src/search.ts'],
+		context: { lastUserIntent: "it's confusing that the commit says sorry" },
+	} as const;
+
+	expect(automatedPullRequestMetadata(input).commitMessage).toBe('Update search.ts');
+	expect(
+		automatedPullRequestMetadata({
+			...input,
+			context: { ...input.context, pullRequestTitle: 'fix(chat): commit under the Commit line' },
+		}).commitMessage,
+	).toBe('fix(chat): commit under the Commit line');
+});
+
 test('falls back deterministically from generic chat context to the branch and changed paths', () => {
 	const input = {
 		branch: 'feature/keyboard-navigation',

@@ -62,7 +62,7 @@ describe('workstreamShipContext', () => {
 			'run-health',
 			'chat-old',
 			'Add a health endpoint',
-			'Added the /health endpoint',
+			'Added the /health endpoint.\n\nCommit: Add the /health endpoint',
 		);
 		appendEvent(db, 'chat-old', 'run-health', 'command.completed', {
 			runId: 'run-health',
@@ -94,26 +94,24 @@ describe('workstreamShipContext', () => {
 		expect(workstreamShipContext(db, WORKSTREAM)).toEqual({
 			sessionTitle: 'Readiness probe',
 			lastUserIntent: 'Wire into the readiness probe',
-			runSummaries: [
-				'Added the /health endpoint',
-				'Wired the readiness probe. Pull request: Add health and readiness probes',
-			],
-			latestRunId: 'run-probe',
+			runSummaries: ['Add the /health endpoint'],
+			latestRunId: 'run-health',
 			pullRequestTitle: 'Add health and readiness probes',
 			events: [{ kind: 'validation', label: 'pnpm test', status: 'passed' }],
 		});
 		db.close();
 	});
 
-	it('names the run the commit subject comes from, never a later run without a useful summary', () => {
+	it('names the run the commit subject comes from, never a later reply without a Commit line', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, WORKSTREAM);
 		session(db, 'chat', 'user', 'Alpha');
 		completedRun(db, 'run-alpha', 'chat', 'Add alpha', 'Commit: feat: add alpha');
 		completedRun(db, 'run-beta', 'chat', 'EDIT:beta.txt', 'done');
+		completedRun(db, 'run-sorry', 'chat', 'why so slow?', 'Sorry, this took far too long');
 
 		expect(workstreamShipContext(db, WORKSTREAM)).toMatchObject({
-			lastUserIntent: 'EDIT:beta.txt',
+			lastUserIntent: 'why so slow?',
 			runSummaries: ['feat: add alpha'],
 			latestRunId: 'run-alpha',
 		});
