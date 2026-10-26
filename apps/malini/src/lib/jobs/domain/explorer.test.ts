@@ -193,6 +193,37 @@ describe('explorer', () => {
 		]);
 	});
 
+	it('takes a merge queue run from the read of GitHub that caused it, a fact from the work it reads', () => {
+		const map = explorer({
+			...RECORD,
+			events: [
+				event(5, 'pull-requests:pull-request-changed', 16, {
+					cause: { kind: 'chat-turn', id: 'api-turn' },
+					payload: { workstreamId: 'api', pullRequestNumber: 7, state: 'open', checks: 'failed' },
+				}),
+			],
+			channelCounts: { 'pull-requests:pull-request-changed': 1 },
+			runs: [run('fix', 20, { origin: 'merge-queue', eventIds: [5] })],
+			decisions: [],
+		});
+
+		expect(map.byId.get('run:fix')).toMatchObject({
+			cause: 'event:5',
+			hops: [
+				['event:pull-request', 'listener:merge-queue'],
+				['listener:merge-queue', 'jobs'],
+			],
+		});
+		expect(map.byId.get('event:5')).toMatchObject({
+			cause: 'turn:api-turn',
+			hops: [
+				['chats', 'github'],
+				['github', 'event:pull-request'],
+			],
+		});
+		expect(listed(map, false).map((item) => item.id)).toContain('event:5');
+	});
+
 	it('counts every event of the window, and what each part started', () => {
 		const map = explorer(RECORD);
 

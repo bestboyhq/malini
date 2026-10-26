@@ -143,12 +143,14 @@ A run never starts a job that already ran earlier in its own chain, so a trigger
 ### Chains and repeats
 
 Every event keeps what caused it: the job run or the chat turn at work in its workstream.
+What the merge queue reports about a workstream, a read of its pull request on GitHub or a step of the queue, is caused by the work last done there, however long ago that ended.
 A **chain** is everything that traces back to one thing you did, such as a prompt you sent, through the events, runs and turns it set off.
 
 - A job asked for again while it still waits or is queued for the same workstream runs once.
   Its row says how often it was asked, such as **Asked 3 times**, and its context gathers every ask.
 - The fourth run of the same job for the same workstream in one chain waits for you under **Waiting for you**: "It already ran 3 times in one chain of events, so Malini asks before it runs again."
   Retries are fine, so Malini stops a loop without forbidding them.
+  The merge queue's jobs stay out of that count: **Fix attempts before asking you** in Settings bounds them.
 
 ## Run a job
 
@@ -202,7 +204,8 @@ Turn it off in Settings, Jobs, **Reconcile events**.
 **Explorer** draws Malini as one loop: work in chats and jobs makes events, the event log keeps them, listeners react, and what they start runs as new work.
 **You**, **Git**, **GitHub** and **Malini** sit where events come from.
 Each kind of event has a row in the event log with how many happened, and each listener shows what it started: Reconcile events, your triggers, Thens, the merge queue, schedules, and **Resume**, which picks up the turns a restart cut short.
-The merge queue's wire comes straight from GitHub, because it polls pull requests instead of waiting for an event.
+The merge queue polls pull requests on GitHub, and each read that finds something new becomes a **Pull request** event, so every job the queue starts comes from that event, on the map and in its chain.
+A wire straight from GitHub to the merge queue marks a job it started without one, such as **Update from main** in a workstream with no pull request.
 
 **Play** replays the last hour, 6 hours or 24 hours: a dot travels along the wires for each event, and **Chats** and **Jobs** show what was working at that moment.
 The timeline of events under the map scrubs to any moment.

@@ -1,5 +1,10 @@
 import type { JobRunStatus, ShippingJobBuiltin } from '$contract/jobs';
-import type { ShipNeedsYouReason, ShipPhase, ShipStep } from '$contract/pull-requests';
+import type {
+	PullRequestChangedEvent,
+	ShipNeedsYouReason,
+	ShipPhase,
+	ShipStep,
+} from '$contract/pull-requests';
 import type {
 	PullRequestCheckDto,
 	PullRequestStatusDto,
@@ -169,6 +174,30 @@ export function blockingFailedChecks(
 			check.notStartedReason === null &&
 			FAILED_CHECK_STATES.has(checkState(check)),
 	);
+}
+
+export function pullRequestChange(
+	workstreamId: string,
+	pullRequest: PullRequestStatusDto,
+): PullRequestChangedEvent | null {
+	const { state, number } = pullRequest;
+	if (state === 'not_open' || number === null) return null;
+	if (state === 'open' && pullRequest.includesLocalHead === false) return null;
+	const failing = pullRequest.checks.filter((check) => FAILED_CHECK_STATES.has(checkState(check)));
+	return {
+		workstreamId,
+		pullRequestNumber: number,
+		pullRequestUrl: pullRequest.url,
+		state: state === 'open' && pullRequest.draft === true ? 'draft' : state,
+		baseBranch: pullRequest.baseRef,
+		headSha: pullRequest.headSha,
+		checks: pullRequest.checksState,
+		failingChecks: [...new Set(failing.map((check) => check.name))].sort(),
+		reviewDecision: pullRequest.reviewDecision,
+		unresolvedThreads: pullRequest.unresolvedReviewThreadCount,
+		behindBase: pullRequest.behindBase,
+		conflicts: mergeability(pullRequest) === 'conflicts',
+	};
 }
 
 export function reviewRouting(feedback: ReviewFeedbackDto | null): ReviewRouting {

@@ -160,6 +160,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
 		},
 		{
+			channel: 'pull-requests:pull-request-changed',
+			description:
+				"Fires when Malini reads a workstream's pull request on GitHub and it changed since the last read Malini logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks` and the `failingChecks` by name, its `reviewDecision` and `unresolvedThreads`, how many commits it is `behindBase`, and whether it `conflicts` with its base branch. Every job the merge queue starts for that pull request names the latest one as its cause.",
+			payloadType: 'PullRequestChangedEvent',
+			payload:
+				"type PullRequestChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tpullRequestNumber: number;\n\tpullRequestUrl: string | null;\n\tstate: 'open' | 'draft' | 'closed' | 'merged';\n\tbaseBranch: string;\n\theadSha: string | null;\n\tchecks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';\n\tfailingChecks: readonly string[];\n\treviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;\n\tunresolvedThreads: number | null;\n\tbehindBase: number | null;\n\tconflicts: boolean;\n}>;",
+		},
+		{
 			channel: 'jobs:run-changed',
 			description:
 				'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',

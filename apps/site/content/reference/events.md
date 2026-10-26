@@ -384,6 +384,29 @@ type ShipChangedEvent = Readonly<{
 }>;
 ```
 
+## `pull-requests:pull-request-changed`
+
+Fires when Malini reads a workstream's pull request on GitHub and it changed since the last read Malini logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks` and the `failingChecks` by name, its `reviewDecision` and `unresolvedThreads`, how many commits it is `behindBase`, and whether it `conflicts` with its base branch. Every job the merge queue starts for that pull request names the latest one as its cause.
+
+Payload: `PullRequestChangedEvent`
+
+```ts
+type PullRequestChangedEvent = Readonly<{
+	workstreamId: string;
+	pullRequestNumber: number;
+	pullRequestUrl: string | null;
+	state: 'open' | 'draft' | 'closed' | 'merged';
+	baseBranch: string;
+	headSha: string | null;
+	checks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';
+	failingChecks: readonly string[];
+	reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
+	unresolvedThreads: number | null;
+	behindBase: number | null;
+	conflicts: boolean;
+}>;
+```
+
 ## `jobs:run-changed`
 
 Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.

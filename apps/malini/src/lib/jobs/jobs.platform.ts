@@ -4,6 +4,7 @@ import { listJobDefinitions } from './platform/job-definitions.repository';
 import { findActiveJobRunForSession } from './platform/job-runs.repository';
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
+export { latestLoggedEvent } from './platform/event-log.repository';
 export {
 	finishAgentAction,
 	recordAgentAction,

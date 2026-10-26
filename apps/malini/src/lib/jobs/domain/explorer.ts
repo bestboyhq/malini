@@ -79,6 +79,7 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'repositories:workstream-pushed': 'pushed',
 	'repositories:workstream-merge-conflicted': 'conflicted',
 	'pull-requests:ship-changed': 'pull-request',
+	'pull-requests:pull-request-changed': 'pull-request',
 	'repositories:workstream-created': 'workstream-started',
 	'repositories:workstream-removed': 'workstream-archived',
 	'jobs:run-changed': 'job-run',
@@ -93,6 +94,11 @@ const GIT_CHANNELS: ReadonlySet<string> = new Set([
 	'pull-requests:local-base-synced',
 ]);
 
+const GITHUB_CHANNELS: ReadonlySet<string> = new Set([
+	'pull-requests:ship-changed',
+	'pull-requests:pull-request-changed',
+]);
+
 const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'chat:turn-finished',
 	'repositories:workstream-created',
@@ -101,6 +107,7 @@ const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'repositories:workstream-pushed',
 	'repositories:workstream-merge-conflicted',
 	'pull-requests:local-base-synced',
+	'pull-requests:pull-request-changed',
 	'app:updated',
 ]);
 
@@ -214,7 +221,7 @@ function emitterOf(channel: string, work: WorkNode | null): MapNode {
 		return work ?? 'chats';
 	}
 	if (GIT_CHANNELS.has(channel)) return 'git';
-	if (channel === 'pull-requests:ship-changed') return 'github';
+	if (GITHUB_CHANNELS.has(channel)) return 'github';
 	return 'malini';
 }
 
@@ -263,7 +270,10 @@ function runHops(run: TimelineJobRun, trigger: LoggedEventRecord | null): Hop[] 
 			];
 		case 'merge-queue':
 			return [
-				['github', 'listener:merge-queue'],
+				[
+					trigger === null ? 'github' : `event:${eventRow(trigger.channel)}`,
+					'listener:merge-queue',
+				],
 				['listener:merge-queue', 'jobs'],
 			];
 		case 'reconciler':

@@ -1,4 +1,5 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
+import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	isShippingJobBuiltin,
@@ -23,8 +24,10 @@ import type {
 	WorktreeStatus,
 } from '$contract/repositories';
 import type { MainContext } from '$main/context';
+import { isRecord, jsonEqual } from '$main/db/rows';
 import { describeError, isGhError, isGitError } from '$main/errors';
 import { getRunWorkstreamId, workstreamShipContext } from '$lib/chat/chat.platform';
+import { latestLoggedEvent } from '$lib/jobs/jobs.platform';
 import {
 	automatedPullRequestMetadata,
 	getWorkstream,
@@ -45,6 +48,7 @@ import {
 	jobStep,
 	needsReviewFeedback,
 	nextMergeQueueMove,
+	pullRequestChange,
 	reviewFeedbackToAddress,
 	reviewToAddress,
 	shipBackoffMs,
@@ -273,6 +277,7 @@ export class MergeQueue {
 	}
 
 	pullRequestRead(workstreamId: string, pullRequest: PullRequestStatusDto): void {
+		this.#report(workstreamId, pullRequest);
 		if (pullRequest.state === 'not_open') this.#forgetPullRequestBranchLeft(workstreamId);
 		if (pullRequest.state !== 'open') return;
 		if ((pullRequest.behindBase ?? 0) > 0 || pullRequest.mergeable === false) {
@@ -526,6 +531,7 @@ export class MergeQueue {
 			base: target.base,
 			pullRequestNumber: row.pullRequestNumber,
 		});
+		this.#report(row.workstreamId, pullRequest);
 		const reviewFeedback =
 			needsReviewFeedback(pullRequest) && pullRequest.number !== null
 				? await this.#ops.reviewFeedback({
@@ -781,11 +787,16 @@ export class MergeQueue {
 		const definition = definitions.find((candidate) => candidate.builtin === builtin);
 		if (!definition) throw new Error(`The built-in ${builtin} job is missing`);
 		const jobContext = await this.#jobContext(context, builtin);
+		const causeEventId = this.#cause(
+			workstreamId,
+			context.snapshot.pullRequest?.number ?? context.row.pullRequestNumber,
+		);
 		const run = await commands.call('jobs.run', {
 			definitionId: definition.id,
 			workstreamId,
 			...(jobContext === null ? {} : { context: jobContext }),
 			origin: 'merge-queue',
+			...(causeEventId === null ? {} : { causeEventId }),
 		});
 		if (!this.#jobs.has(run.id)) this.#jobs.set(run.id, run);
 		this.#settled.delete(workstreamId);
@@ -810,6 +821,29 @@ export class MergeQueue {
 			workstreamId,
 			jobIsActive({ builtin, status: current.status }) ? this.#delays.agentPollMs : 0,
 		);
+	}
+
+	#report(workstreamId: string, pullRequest: PullRequestStatusDto): void {
+		const change = pullRequestChange(workstreamId, pullRequest);
+		if (change === null || this.#disposed) return;
+		const { db, events } = this.#context;
+		const last = latestLoggedEvent(db, PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, workstreamId);
+		if (last === null || !jsonEqual(last.payload, change)) {
+			events.emit(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, change);
+		}
+	}
+
+	#cause(workstreamId: string, pullRequestNumber: number | null): number | null {
+		if (pullRequestNumber === null) return null;
+		const last = latestLoggedEvent(
+			this.#context.db,
+			PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+			workstreamId,
+		);
+		const payload = last?.payload;
+		return last && isRecord(payload) && payload['pullRequestNumber'] === pullRequestNumber
+			? last.id
+			: null;
 	}
 
 	async #jobContext(context: MoveContext, builtin: ShippingJobBuiltin): Promise<string | null> {

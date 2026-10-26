@@ -57,6 +57,21 @@ export type ShipChangedEvent = Readonly<{
 	merged?: ShipMerged;
 }>;
 
+export type PullRequestChangedEvent = Readonly<{
+	workstreamId: string;
+	pullRequestNumber: number;
+	pullRequestUrl: string | null;
+	state: 'open' | 'draft' | 'closed' | 'merged';
+	baseBranch: string;
+	headSha: string | null;
+	checks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';
+	failingChecks: readonly string[];
+	reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
+	unresolvedThreads: number | null;
+	behindBase: number | null;
+	conflicts: boolean;
+}>;
+
 export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';
 
 export const DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS = 3;

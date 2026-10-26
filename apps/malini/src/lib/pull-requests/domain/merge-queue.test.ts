@@ -11,6 +11,7 @@ import {
 	clampedFixAttempts,
 	needsReviewFeedback,
 	nextMergeQueueMove,
+	pullRequestChange,
 	reviewFeedbackToAddress,
 	reviewSignature,
 	reviewToAddress,
@@ -845,5 +846,47 @@ describe('merge queue helpers', () => {
 		expect(addressedChangeRequests('checks:["lint"]')).toEqual([]);
 		expect(addressedChangeRequests('review:["PRRT_bot"]')).toEqual([]);
 		expect(addressedChangeRequests(null)).toEqual([]);
+	});
+});
+
+describe('what a read of the pull request reports', () => {
+	it('names what GitHub shows, with the failing checks by name', () => {
+		const read = pullRequest({
+			draft: true,
+			mergeable: false,
+			behindBase: 2,
+			checksState: 'failed',
+			checks: [
+				check('test', 'FAILURE'),
+				check('lint', 'SUCCESS'),
+				check('e2e', 'TIMED_OUT'),
+				check('test', 'FAILURE'),
+			],
+			reviewDecision: 'changes_requested',
+			unresolvedReviewThreadCount: 3,
+		});
+
+		expect(pullRequestChange('ws-1', read)).toEqual({
+			workstreamId: 'ws-1',
+			pullRequestNumber: 7,
+			pullRequestUrl: 'https://github.com/acme/app/pull/7',
+			state: 'draft',
+			baseBranch: 'main',
+			headSha: 'a'.repeat(40),
+			checks: 'failed',
+			failingChecks: ['e2e', 'test'],
+			reviewDecision: 'changes_requested',
+			unresolvedThreads: 3,
+			behindBase: 2,
+			conflicts: true,
+		});
+	});
+
+	it('reports nothing without a pull request, or while GitHub has not seen the latest push', () => {
+		expect(pullRequestChange('ws-1', pullRequest({ state: 'not_open', number: null }))).toBeNull();
+		expect(pullRequestChange('ws-1', pullRequest({ includesLocalHead: false }))).toBeNull();
+		expect(
+			pullRequestChange('ws-1', pullRequest({ state: 'merged', includesLocalHead: false })),
+		).toMatchObject({ state: 'merged', conflicts: false, failingChecks: [] });
 	});
 });

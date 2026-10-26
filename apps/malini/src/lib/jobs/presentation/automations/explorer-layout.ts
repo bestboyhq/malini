@@ -25,7 +25,7 @@ export const STRUCTURE: readonly Hop[] = [
 	['event:conflicted', 'listener:reconciler'],
 	['event:job-run', 'listener:reconciler'],
 	['event:job-run', 'listener:thens'],
-	['github', 'listener:merge-queue'],
+	['event:pull-request', 'listener:merge-queue'],
 	['malini', 'listener:schedules'],
 	['malini', 'listener:resume'],
 	['listener:reconciler', 'chats'],

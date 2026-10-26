@@ -6,6 +6,8 @@ import {
 	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_AGENT_ACTION_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 	REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL,
@@ -49,6 +51,13 @@ const SETUP_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL,
 	REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 ]);
+
+const SHIPPING_CHANNELS: ReadonlySet<EventChannel> = new Set([
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+]);
+
+const ANY_TIME = new Date(0).toISOString();
 
 export type DispatchedEvent = Readonly<{
 	id: number | null;
@@ -172,7 +181,9 @@ function causeOf(
 	if (channel === CHAT_TURN_FINISHED_CHANNEL || channel === CHAT_RUN_CHANGES_CAPTURED_CHANNEL) {
 		return turnCause(db, findString(payload, 'sessionId'), findString(payload, 'runId'));
 	}
-	const since = new Date(Date.parse(emittedAt) - WORK_GRACE_MS).toISOString();
+	const since = SHIPPING_CHANNELS.has(channel)
+		? ANY_TIME
+		: new Date(Date.parse(emittedAt) - WORK_GRACE_MS).toISOString();
 	return (
 		(workstreamId === null ? null : workIn(db, workstreamId, since)) ??
 		(SETUP_CHANNELS.has(channel) ? starterWork(db, payload, since) : null)
@@ -196,7 +207,9 @@ function workIn(db: MaliniDatabase, workstreamId: string, since: string): EventC
 		return { kind: 'job-run', id: jobRun.id };
 	}
 	const turn = workChatTurnInWorkstream(db, workstreamId, since);
-	if (jobRun && !turn) return { kind: 'job-run', id: jobRun.id };
+	if (jobRun && (!turn || turn.sessionId === jobRun.sessionId)) {
+		return { kind: 'job-run', id: jobRun.id };
+	}
 	return turn ? { kind: 'chat-turn', id: turn.runId } : null;
 }
 

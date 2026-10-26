@@ -152,6 +152,7 @@ export function countChainJobRuns(
 		db,
 		`SELECT COUNT(*) FROM job_runs
 		 WHERE chain_id = ? AND definition_id = ? AND status != 'cancelled'
+		   AND origin != 'merge-queue'
 		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?`,
 		chainId,
 		definitionId,

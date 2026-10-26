@@ -39,6 +39,7 @@ import {
 import type { JobsPlatform } from '../jobs.platform';
 import { BUILTIN_JOBS } from '../domain/builtin-jobs';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
+import { insertLoggedEvent, jobRunEventIds } from './event-log.repository';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { BUSY_RETRY_MS } from './job-runner.service';
 import { getJobRun, getJobRunContext, insertJobRun } from './job-runs.repository';
@@ -1569,5 +1570,32 @@ describe('repeat runs', () => {
 			'It already ran 3 times in one chain of events, so Malini asks before it runs again.',
 		);
 		expect(other).toMatchObject({ status: 'queued', chainId: 'lead-turn' });
+	});
+
+	it('runs the merge queue in the chain of the read that caused it, outside the budget of that chain', async () => {
+		openRuns.add('ws-a');
+		const fixChecks = await builtin('fix-checks');
+		const read = insertLoggedEvent(db, {
+			channel: 'pull-requests:pull-request-changed',
+			payload: '{}',
+			digest: 'read',
+			workstreamId: 'ws-a',
+			cause: null,
+			chainId: 'chain-of-read',
+			emittedAt: NOW,
+		});
+		const fromQueue = () => runOf(fixChecks, { origin: 'merge-queue', causeEventId: read });
+
+		const runs = [await fromQueue(), await fromQueue(), await fromQueue(), await fromQueue()];
+		const triggered = await runOf(fixChecks, { origin: 'trigger', causeEventId: read });
+
+		expect(runs.map((run) => [run.status, run.chainId])).toEqual([
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+			['queued', 'chain-of-read'],
+		]);
+		expect(triggered).toMatchObject({ status: 'queued', chainId: 'chain-of-read' });
+		expect(jobRunEventIds(db, [runs[0]?.id ?? ''])).toEqual(new Map([[runs[0]?.id, [read]]]));
 	});
 });

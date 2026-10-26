@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	APP_SCALE_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 } from '$contract/events';
@@ -18,7 +19,7 @@ import { upsertProject, upsertWorkstream } from '$shared/repositories/repositori
 import type { JobsPlatform } from '../jobs.platform';
 import { insertLoggedEvent, linkJobRunEvent } from './event-log.repository';
 import { eventDigest, pruneEvents } from './event-log.service';
-import { insertJobRun } from './job-runs.repository';
+import { insertJobRun, saveJobRun } from './job-runs.repository';
 import { registerJobs } from './register';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -194,6 +195,104 @@ describe('the event log', () => {
 			expect.objectContaining({
 				cause: { kind: 'chat-turn', id: 'turn-1' },
 				chainId: 'chain-of-turn',
+			}),
+		]);
+	});
+
+	it('names the work last done in a workstream as the cause of what the merge queue reports there', async () => {
+		start();
+		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString();
+		insertSession(
+			db,
+			{
+				id: 'chat-1',
+				workstreamId: 'ws-1',
+				model: null,
+				providerSessionId: null,
+				status: 'idle',
+				startedAt: twoHoursAgo,
+			},
+			{ origin: 'user', displayName: 'Ship it' },
+		);
+		insertRun(db, {
+			id: 'turn-1',
+			sessionId: 'chat-1',
+			prompt: 'Ship it',
+			startedAt: twoHoursAgo,
+			completedAt: twoHoursAgo,
+			summary: 'Shipped.',
+			error: null,
+			chainId: 'chain-of-turn',
+		});
+		context.events.emit(PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, {
+			workstreamId: 'ws-1',
+			pullRequestNumber: 7,
+			pullRequestUrl: null,
+			state: 'open',
+			baseBranch: 'main',
+			headSha: null,
+			checks: 'failed',
+			failingChecks: ['test'],
+			reviewDecision: null,
+			unresolvedThreads: 0,
+			behindBase: 0,
+			conflicts: false,
+		});
+		context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId: 'ws-1', state: null });
+		filesChanged();
+
+		expect(await logged()).toEqual([
+			expect.objectContaining({
+				channel: PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+				cause: { kind: 'chat-turn', id: 'turn-1' },
+				chainId: 'chain-of-turn',
+			}),
+			expect.objectContaining({
+				channel: PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+				cause: { kind: 'chat-turn', id: 'turn-1' },
+				chainId: 'chain-of-turn',
+			}),
+			expect.objectContaining({
+				channel: REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
+				cause: null,
+			}),
+		]);
+	});
+
+	it('names a job, not the turn it ran in, as the cause of what follows it', async () => {
+		start();
+		const fix = await fixChecksRun('fix-1', 'chain-of-fix');
+		const now = new Date().toISOString();
+		insertSession(
+			db,
+			{
+				id: 'job-chat',
+				workstreamId: 'ws-1',
+				model: null,
+				providerSessionId: null,
+				status: 'idle',
+				startedAt: now,
+			},
+			{ origin: 'job', displayName: 'Fix checks' },
+		);
+		insertRun(db, {
+			id: 'job-turn',
+			sessionId: 'job-chat',
+			prompt: 'Fix the checks',
+			startedAt: now,
+			completedAt: now,
+			summary: 'Fixed.',
+			error: null,
+			chainId: 'chain-of-fix',
+		});
+		saveJobRun(db, { ...fix, sessionId: 'job-chat', status: 'succeeded', finishedAt: now });
+		filesChanged();
+
+		expect(await logged()).toEqual([
+			expect.objectContaining({
+				channel: REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
+				cause: { kind: 'job-run', id: 'fix-1' },
+				chainId: 'chain-of-fix',
 			}),
 		]);
 	});

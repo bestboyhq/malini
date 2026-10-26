@@ -101,6 +101,7 @@ const EVENT_TITLES: Readonly<Record<string, EventTitle>> = {
 	'repositories:workstream-install-status': () => 'Dependencies install moved on',
 	'repositories:changed': () => 'Repositories changed',
 	'pull-requests:ship-changed': shipTitle,
+	'pull-requests:pull-request-changed': pullRequestTitle,
 	'pull-requests:local-base-synced': () => 'Local base branch synced',
 	'jobs:run-changed': (payload) => {
 		const run = record(payload['run']);
@@ -185,9 +186,7 @@ export function itemTitle(item: ExplorerItem): string {
 export function itemIcon(item: ExplorerItem): IconName {
 	switch (item.kind) {
 		case 'event':
-			return item.event.channel === 'pull-requests:ship-changed' && isMerge(item.event)
-				? 'pr-merged'
-				: ROW_LOOKS[item.row].icon;
+			return isMerge(item.event) ? 'pr-merged' : ROW_LOOKS[item.row].icon;
 		case 'run':
 			return 'wrench';
 		case 'turn':
@@ -262,7 +261,9 @@ function runWhy(
 ): string {
 	switch (item.run.origin) {
 		case 'merge-queue':
-			return 'The merge queue ran it';
+			return cause?.kind === 'event'
+				? `${pullRequestName(record(cause.event.payload))} changed on GitHub`
+				: 'The merge queue ran it';
 		case 'trigger':
 			return cause === null ? 'Its trigger ran it' : `Its trigger heard ${shortTitle(cause)}`;
 		case 'then':
@@ -297,7 +298,10 @@ function eventTitle(event: LoggedEventRecord): string {
 
 function eventMark(event: LoggedEventRecord): Mark | null {
 	const payload = record(event.payload);
-	if (event.channel === 'pull-requests:ship-changed') return isMerge(event) ? MERGED : null;
+	if (isMerge(event)) return MERGED;
+	if (event.channel === 'pull-requests:pull-request-changed') {
+		return payload['checks'] === 'failed' ? FAILED : null;
+	}
 	if (event.channel === 'chat:turn-finished') {
 		if (payload['status'] === 'failed') return FAILED;
 		return text(payload['needs']) ? NEEDS_YOU : null;
@@ -323,8 +327,49 @@ function shipTitle(payload: Readonly<Record<string, unknown>>): string {
 	return state['phase'] === 'draft' ? 'Draft pull request open' : 'Shipping changed';
 }
 
+function pullRequestTitle(payload: Readonly<Record<string, unknown>>): string {
+	const name = pullRequestName(payload);
+	if (payload['state'] === 'merged') return `${name} merged on GitHub`;
+	if (payload['state'] === 'closed') return `${name} closed on GitHub`;
+	const shown = payload['state'] === 'draft' ? `Draft ${name}` : name;
+	const facts = pullRequestFacts(payload);
+	return facts.length === 0 ? `${shown} open on GitHub` : `${shown}: ${facts.join(', ')}`;
+}
+
+function pullRequestFacts(payload: Readonly<Record<string, unknown>>): string[] {
+	const base = text(payload['baseBranch']) ?? 'its base';
+	const behind = whole(payload['behindBase']);
+	const threads = whole(payload['unresolvedThreads']);
+	const facts = [
+		payload['conflicts'] === true ? `conflicts with ${base}` : null,
+		payload['checks'] === 'failed' ? failedChecks(strings(payload['failingChecks'])) : null,
+		payload['reviewDecision'] === 'changes_requested' ? 'changes requested' : null,
+		threads > 0 ? count(threads, 'open review thread') : null,
+		behind > 0 ? `${count(behind, 'commit')} behind ${base}` : null,
+		payload['checks'] === 'pending' ? 'checks running' : null,
+		payload['checks'] === 'success' ? 'checks passed' : null,
+		payload['reviewDecision'] === 'approved' ? 'approved' : null,
+	];
+	return facts.filter((fact) => fact !== null).slice(0, 3);
+}
+
+function failedChecks(names: readonly string[]): string {
+	if (names.length === 1) return `${names[0]} failed`;
+	return names.length === 0 ? 'checks failed' : `${count(names.length, 'check')} failed`;
+}
+
+function pullRequestName(payload: Readonly<Record<string, unknown>>): string {
+	const number = payload['pullRequestNumber'];
+	return typeof number === 'number' ? `#${number}` : 'the pull request';
+}
+
 function isMerge(event: LoggedEventRecord): boolean {
-	return typeof record(record(event.payload)['merged'])['pullRequestNumber'] === 'number';
+	const payload = record(event.payload);
+	if (event.channel === 'pull-requests:pull-request-changed') return payload['state'] === 'merged';
+	return (
+		event.channel === 'pull-requests:ship-changed' &&
+		typeof record(payload['merged'])['pullRequestNumber'] === 'number'
+	);
 }
 
 function runVerb(status: string | null): string {
@@ -343,4 +388,14 @@ function text(value: unknown): string | null {
 
 function sha(value: unknown): string {
 	return text(value)?.slice(0, SHORT_SHA) ?? 'a commit';
+}
+
+function whole(value: unknown): number {
+	return typeof value === 'number' ? value : 0;
+}
+
+function strings(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === 'string')
+		: [];
 }

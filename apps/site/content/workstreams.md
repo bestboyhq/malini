@@ -106,6 +106,8 @@ Settings → Jobs picks when that happens: as main moves, when you open the work
   The workstream archives itself when it lands and moves to **Recently archived**.
 - **A dev server doesn't hold it.** The queue merges past a command the agent left running in the background, and archiving stops it.
 - **While it waits, it works.** The queue runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
+- **What GitHub says is on the record.** Each time Malini reads the pull request on GitHub and finds it changed, the change is a `pull-requests:pull-request-changed` event: its checks, its review, how far it is behind its base, and whether it conflicts.
+  Every job the queue starts names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.

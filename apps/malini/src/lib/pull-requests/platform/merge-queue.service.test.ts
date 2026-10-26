@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	type JobDefinitionRecord,
@@ -20,10 +21,12 @@ import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
+import { startEventLog } from '$lib/jobs/platform/event-log.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
@@ -317,6 +320,7 @@ let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
 let jobRuns: Map<string, JobRunRecord>;
 let jobContexts: Map<string, string>;
+let jobCauses: Map<string, number | undefined>;
 let jobStarting: (() => Promise<void>) | null;
 let settings: Record<string, string>;
 let shipEvents: ShipChangedEvent[];
@@ -569,6 +573,7 @@ function defineFakes(): void {
 		};
 		jobRuns.set(run.id, run);
 		jobContexts.set(run.id, args.context ?? '');
+		jobCauses.set(run.id, args.causeEventId);
 		events.emit('jobs:run-changed', { run });
 		return run;
 	});
@@ -608,6 +613,14 @@ async function until(assertion: () => void): Promise<void> {
 	await vi.waitFor(assertion, WAIT);
 }
 
+function readsLogged(): { id: number; payload: Record<string, unknown> }[] {
+	return all<{ id: number; payload: string }>(
+		db,
+		'SELECT id, payload FROM event_log WHERE channel = ? ORDER BY id',
+		PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	).map((row) => ({ id: row.id, payload: JSON.parse(row.payload) }));
+}
+
 function activeJob(): JobRunRecord {
 	const running = [...jobRuns.values()].filter((run) => run.status === 'running');
 	const [job] = running;
@@ -641,6 +654,7 @@ beforeEach(() => {
 	openRuns = new Set();
 	jobRuns = new Map();
 	jobContexts = new Map();
+	jobCauses = new Map();
 	jobStarting = null;
 	settings = {};
 	shipEvents = [];
@@ -1094,6 +1108,52 @@ describe('the merge queue', () => {
 			merged: { pullRequestNumber: 40, pullRequestUrl: 'https://github.com/acme/app/pull/40' },
 		});
 		expect(await invoke('pull-requests.ship-states')).toEqual([]);
+	});
+
+	it('logs each new read of the pull request once and names it as the cause of its jobs', async () => {
+		const eventLog = startEventLog(
+			context,
+			() => {},
+			async () => {},
+		);
+		try {
+			await queueWithDraft();
+			github.ciOutcomes = ['SUCCESS'];
+			github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+
+			await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+
+			await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
+			const job = activeJob();
+			const failing = readsLogged().at(-1);
+			expect(failing?.payload).toMatchObject({
+				workstreamId: 'ws-1',
+				pullRequestNumber: 40,
+				state: 'open',
+				checks: 'failed',
+				failingChecks: ['test'],
+			});
+			expect(jobCauses.get(job.id)).toBe(failing?.id);
+			await invoke('pull-requests.status', {
+				repoId: 'p-1',
+				workstreamId: 'ws-1',
+				head: 'malini/ws-1',
+				base: 'main',
+			});
+			expect(readsLogged().at(-1)?.id).toBe(failing?.id);
+
+			finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+			await until(() => expect(archived).toEqual(['ws-1']));
+			expect(readsLogged().map(({ payload }) => [payload['state'], payload['checks']])).toEqual([
+				['draft', 'failed'],
+				['open', 'failed'],
+				['open', 'success'],
+				['merged', 'success'],
+			]);
+		} finally {
+			eventLog.dispose();
+		}
 	});
 
 	it('opens the pull request first when merge is queued without one', async () => {

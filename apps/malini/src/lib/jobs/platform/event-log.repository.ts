@@ -1,3 +1,4 @@
+import type { EventChannel } from '$contract/events';
 import type { EventCause, EventCauseKind, LoggedEventRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, run } from '$main/db/rows';
@@ -104,6 +105,21 @@ export function eventChainId(db: MaliniDatabase, id: number): string | null {
 
 export function getLoggedEvent(db: MaliniDatabase, id: number): LoggedEventRecord | null {
 	const row = get<LoggedEventRow>(db, `SELECT ${COLUMNS} FROM event_log WHERE id = ?`, id);
+	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;
+}
+
+export function latestLoggedEvent(
+	db: MaliniDatabase,
+	channel: EventChannel,
+	workstreamId: string,
+): LoggedEventRecord | null {
+	const row = get<LoggedEventRow>(
+		db,
+		`SELECT ${COLUMNS} FROM event_log WHERE channel = ? AND workstream_id = ?
+		 ORDER BY id DESC LIMIT 1`,
+		channel,
+		workstreamId,
+	);
 	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;
 }
 

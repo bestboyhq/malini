@@ -9,7 +9,7 @@ import type {
 	ReconcilerDecisionChangedEvent,
 } from './jobs';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
-import type { ShipChangedEvent } from './pull-requests';
+import type { PullRequestChangedEvent, ShipChangedEvent } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
@@ -174,6 +174,7 @@ export interface ContractEvents {
 	'repositories:changed': EmptyEventPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
+	'pull-requests:pull-request-changed': PullRequestChangedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'jobs:suggested': JobSuggestedEvent;
@@ -218,6 +219,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:changed': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
+	'pull-requests:pull-request-changed': null,
 	'jobs:run-changed': null,
 	'jobs:definition-changed': null,
 	'jobs:suggested': null,
@@ -320,6 +322,9 @@ export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;
+
+export const PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL =
+	'pull-requests:pull-request-changed' satisfies EventChannel;
 
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
 
