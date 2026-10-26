@@ -98,3 +98,16 @@ export function settleInterruptedAgentActions(db: MaliniDatabase, finishedAt: st
 		finishedAt,
 	);
 }
+
+export function startingSessionId(db: MaliniDatabase, workstreamId: string): string | null {
+	return (
+		get<{ session_id: string }>(
+			db,
+			`SELECT session_id FROM agent_actions
+			 WHERE tool = 'workstreams_create' AND status = 'succeeded'
+			   AND json_valid(output) AND json_extract(output, '$.id') = ?
+			 ORDER BY started_at DESC LIMIT 1`,
+			workstreamId,
+		)?.session_id ?? null
+	);
+}

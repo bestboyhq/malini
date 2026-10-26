@@ -1,6 +1,6 @@
 # 0023 - Merge blockers clear themselves
 
-Status: accepted
+Status: superseded by 0086
 
 ## Context
 

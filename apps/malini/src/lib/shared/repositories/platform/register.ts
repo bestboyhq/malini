@@ -1,9 +1,6 @@
 import type { BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
-import {
-	REPOSITORIES_CHANGED_CHANNEL,
-	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
-} from '$contract/events';
+import { REPOSITORIES_CHANGED_CHANNEL } from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
 import type { MainContext } from '$main/context';
 import { DEVELOPMENT_BUNDLE_IDENTIFIER, PRODUCTION_BUNDLE_IDENTIFIER } from '$main/docker/labels';
@@ -36,6 +33,7 @@ import {
 	pushWorkstreamBranch,
 	restartWorkstreamOnBase,
 } from '$main/git/remote';
+import { runGit } from '$main/git/run';
 import { statusCollector } from '$main/git/status';
 import { createNodeProcessRunner, processIsAlive, type ProcessRunner } from '$main/process/runner';
 import type { RepositoriesPlatform } from '../repositories.platform';
@@ -374,12 +372,12 @@ export function registerRepositories(
 			(move) => guardCheckoutMove(workstreamId, move),
 		);
 		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
-		if (operationInProgress === 'merge' && conflictedPaths.length > 0) {
-			events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
-				workstreamId,
-				baseBranch,
-				conflictedPaths,
-			});
+		const mergeHead =
+			operationInProgress === 'merge' && conflictedPaths.length > 0
+				? await readMergeHead(worktree)
+				: null;
+		if (mergeHead !== null) {
+			watchers.reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead });
 		}
 		return head;
 	});
@@ -603,4 +601,12 @@ function commitRunArg(args: unknown): CommitWorkstreamRun | null {
 		id: requireNonEmptyString(value, 'id'),
 		messageIfAlreadyCommitted: requireString(value, 'messageIfAlreadyCommitted'),
 	};
+}
+
+async function readMergeHead(worktree: string): Promise<string | null> {
+	try {
+		return (await runGit(['-C', worktree, 'rev-parse', '--verify', 'MERGE_HEAD'])).trim() || null;
+	} catch {
+		return null;
+	}
 }

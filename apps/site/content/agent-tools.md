@@ -70,8 +70,10 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
 | `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in. It adds the archived ones this chat started, with whether they merged. |
 | `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it. Only a chat at Home or in an organization has it.            |
+| `workstreams_send`    | Sends a prompt into the chat of a workstream this chat started, while that chat is idle, as a prompt from this chat. Only a chat at Home or in an organization has it.                                    |
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
 
+`workstreams_list` also says whether a chat in each workstream is on a turn, and the `Outcome:` and `Needs:` its last turn stated, so a chat sees where the work it started stands without reading its code.
 A clone that takes longer than 40 seconds keeps going in the background, and the agent waits for it by calling `repositories_clone` again.
 A workstream the agent starts opens on its new chat, and the sidebar shows it **Setting up** while Malini updates its branch and installs its dependencies.
 Once it is set up, Malini sends the agent's prompt as that chat's first message, with the model and settings of the chat that asked, and **Name chats** names the chat and the workstream from it.
@@ -84,6 +86,13 @@ A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) 
 
 A workstream never starts another, so work stays one level under the chat that planned it.
 The agent in a workstream has no `workstreams_create`: it names the repository and the change in its report, for you to start from a chat at Home or in an organization.
+
+### Work it started reports back
+
+When a workstream a chat started ends a turn that failed or needs something, Malini's [reconciler](/malini/docs/jobs.md#reconciler) can wake that chat with the turn's `Outcome:` and `Needs:`, as a prompt from that workstream.
+The agent answers what its plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and leaves in its own `Needs:` only what you must decide.
+`workstreams_send` reaches only the workstreams the chat started, and only while their chat is idle: a chat on a turn refuses it, and the agent sends it once that turn ends.
+Other Malini chats are reachable only through these tools, since Claude Code's own `ListAgents` and `SendMessage` see only its own agents.
 
 To change code in another repository, such as your fork, a chat at Home or in an organization clones it with `repositories_clone` and starts a workstream there with `workstreams_create`.
 The workstream starts from the default branch, or from the tag, branch or commit the agent names in `base`, such as the release you run, `v0.17.5`.
@@ -136,7 +145,7 @@ Merge still waits for checks, fixes what fails and resolves conflicts first, and
 
 - The read tools, `jobs_list`, `events_list`, `repositories_list` and `workstreams_list`, run without asking, and so does `files_open`, which only opens a file for you.
 - Every other Malini tool asks in the chat the first time: **Deny**, **Allow once**, or **Always allow** for this chat, this workstream, or everywhere.
-- **Always allow** remembers one action: cloning repositories, hiding them, starting workstreams, archiving them, saving jobs, or running one job.
+- **Always allow** remembers one action: cloning repositories, hiding them, starting workstreams, sending prompts to the ones a chat started, archiving them, saving jobs, or running one job.
   Always allowing **Release notes** to run never lets the agent run any other job.
 - **Settings > Agent access > Always allowed** lists everything you always allow, and **Revoke** takes it back.
 - A trigger the agent adds starts **Off**: the job never runs on its own until you turn it on from the [Jobs page](/malini/docs/jobs.md).

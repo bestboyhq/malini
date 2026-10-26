@@ -16,9 +16,10 @@ export type JobBuiltin =
 	| 'check-compatibility'
 	| 'update-docs'
 	| 'open-draft'
-	| 'merge';
+	| 'merge'
+	| 'reconcile';
 
-export type AutomaticJobBuiltin = 'name-chats' | 'name-services';
+export type AutomaticJobBuiltin = 'name-chats' | 'name-services' | 'reconcile';
 
 export type ShippingJobBuiltin =
 	'fix-checks' | 'update-from-main' | 'resolve-conflicts' | 'address-review';
@@ -26,7 +27,7 @@ export type ShippingJobBuiltin =
 export type AgentlessJobBuiltin = 'update-from-main' | 'open-draft' | 'merge';
 
 export function isAutomaticJobBuiltin(builtin: JobBuiltin | null): builtin is AutomaticJobBuiltin {
-	return builtin === 'name-chats' || builtin === 'name-services';
+	return builtin === 'name-chats' || builtin === 'name-services' || builtin === 'reconcile';
 }
 
 export function isShippingJobBuiltin(builtin: JobBuiltin | null): builtin is ShippingJobBuiltin {
@@ -60,7 +61,8 @@ export type JobDefinitionRecord = Readonly<{
 export type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
 
-export type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule';
+export type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
 
 export type JobRunRecord = Readonly<{
 	id: string;
@@ -77,6 +79,8 @@ export type JobRunRecord = Readonly<{
 	parentRunId: string | null;
 	chatSessionId: string | null;
 	chatAfterRunId: string | null;
+	chainId: string;
+	requests: number;
 	createdAt: string;
 	startedAt: string | null;
 	finishedAt: string | null;
@@ -107,6 +111,7 @@ export type RunJobArgs = Readonly<{
 	waitForYou?: boolean;
 	chatSessionId?: string;
 	chatAfterRunId?: string;
+	causeEventId?: number;
 }>;
 
 export type JobRunIdArgs = Readonly<{ jobRunId: string }>;
@@ -204,16 +209,40 @@ export type JobCommandName =
 	| 'jobs.run-experiment'
 	| 'jobs.use-experiment'
 	| 'jobs.list-agent-actions'
-	| 'jobs.list-chat-turns';
+	| 'jobs.list-chat-turns'
+	| 'jobs.list-decisions'
+	| 'jobs.decide'
+	| 'jobs.list-timeline';
 
 export type JobEventChannel =
 	| 'jobs:run-changed'
+	| 'jobs:run-started'
+	| 'jobs:run-finished'
 	| 'jobs:definition-changed'
 	| 'jobs:suggested'
 	| 'jobs:experiment-changed'
-	| 'jobs:agent-action-changed';
+	| 'jobs:agent-action-changed'
+	| 'jobs:tool-called'
+	| 'jobs:decision-changed';
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
+
+export type ScheduleTimeReached = Readonly<{
+	definitionId: string;
+	name: string;
+	when: string;
+	due: string;
+}>;
+
+export type ShippingWait = 'retry' | 'checks';
+
+export type ShippingTimeReached = Readonly<{
+	workstreamId: string;
+	wait: ShippingWait;
+	due: string;
+}>;
+
+export type TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;
 
 export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
 
@@ -235,7 +264,7 @@ export type AgentActionRecord = Readonly<{
 
 export type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 
-export type ChatTurnStatus = 'running' | 'succeeded' | 'failed';
+export type ChatTurnStatus = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
 
 export type ChatTurnRecord = Readonly<{
 	runId: string;
@@ -244,6 +273,8 @@ export type ChatTurnRecord = Readonly<{
 	chatName: string;
 	prompt: string;
 	status: ChatTurnStatus;
+	chainId: string;
+	causeEventId: number | null;
 	startedAt: string;
 	finishedAt: string | null;
 }>;
@@ -259,7 +290,98 @@ export type JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;
 
 export type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
 
+export type EventCauseKind = 'job-run' | 'chat-turn';
+
+export type EventCause = Readonly<{ kind: EventCauseKind; id: string }>;
+
+export type LoggedEventRecord = Readonly<{
+	id: number;
+	channel: string;
+	payload: unknown;
+	workstreamId: string | null;
+	cause: EventCause | null;
+	chainId: string;
+	emittedAt: string;
+}>;
+
+export type ReconcilerCandidate =
+	| Readonly<{ kind: 'nothing'; label: string }>
+	| Readonly<{
+			kind: 'wake-chat';
+			label: string;
+			sessionId: string;
+			workstreamId: string;
+			from: string;
+			report: string;
+	  }>
+	| Readonly<{
+			kind: 'run-job';
+			label: string;
+			definitionId: string;
+			workstreamId: string;
+			context: string;
+	  }>
+	| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;
+
+export type ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';
+
+export type ReconcilerDecider = 'model' | 'rules' | 'you';
+
+export type ReconcilerDecisionRecord = Readonly<{
+	id: string;
+	eventId: number;
+	channel: string;
+	chainId: string;
+	workstreamId: string | null;
+	facts: readonly string[];
+	candidates: readonly ReconcilerCandidate[];
+	pick: number | null;
+	chosen: number;
+	decidedBy: ReconcilerDecider;
+	status: ReconcilerDecisionStatus;
+	detail: string | null;
+	jobRunId: string | null;
+	createdAt: string;
+	finishedAt: string | null;
+}>;
+
+export type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;
+
+export type DecideArgs = Readonly<{ decisionId: string; candidate: number }>;
+
+export type ListTimelineArgs = Readonly<{ since: string }>;
+
+export type TimelineJobRun = JobRunRecord & Readonly<{ eventIds: readonly number[] }>;
+
+export type TimelineChatTurn = ChatTurnRecord & Readonly<{ from: string | null; resumed: boolean }>;
+
+export type TimelineWorkstream = Readonly<{
+	id: string;
+	name: string;
+	repository: string | null;
+	startedBy: string | null;
+}>;
+
+export type TimelineRecord = Readonly<{
+	since: string;
+	until: string;
+	events: readonly LoggedEventRecord[];
+	channelCounts: Readonly<Record<string, number>>;
+	runs: readonly TimelineJobRun[];
+	turns: readonly TimelineChatTurn[];
+	decisions: readonly ReconcilerDecisionRecord[];
+	workstreams: readonly TimelineWorkstream[];
+}>;
+
 export const JOB_INTERRUPTED_DETAIL = 'Interrupted when Malini closed';
+
+export const JOBS_RECONCILER_SETTING = 'jobs.reconciler';
+
+export type ReconcilerMode = 'on' | 'off';
+
+export function reconcilerMode(stored: string | null | undefined): ReconcilerMode {
+	return stored === 'off' ? 'off' : 'on';
+}
 
 export const JOBS_MAX_CONCURRENT_SETTING = 'jobs.max-concurrent';
 

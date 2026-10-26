@@ -2,6 +2,9 @@ import {
 	DEFAULT_JOBS_MAX_CONCURRENT,
 	JOBS_MAX_CONCURRENT_RANGE,
 	JOBS_MAX_CONCURRENT_SETTING,
+	JOBS_RECONCILER_SETTING,
+	reconcilerMode,
+	type ReconcilerMode,
 } from '$contract/jobs';
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
@@ -19,7 +22,8 @@ export type JobSettingBounds = Readonly<{ min: number; max: number; fallback: nu
 
 export type JobSettings = Readonly<
 	Record<JobSettingKey, number> &
-		Record<typeof UPDATE_FROM_MAIN_TRIGGER_SETTING, UpdateFromMainTrigger>
+		Record<typeof UPDATE_FROM_MAIN_TRIGGER_SETTING, UpdateFromMainTrigger> &
+		Record<typeof JOBS_RECONCILER_SETTING, ReconcilerMode>
 >;
 
 export const JOB_SETTING_BOUNDS: Readonly<Record<JobSettingKey, JobSettingBounds>> = {
@@ -46,6 +50,7 @@ export function jobSettingsFromStored(stored: Readonly<Record<string, string>>):
 		[UPDATE_FROM_MAIN_TRIGGER_SETTING]: updateFromMainTrigger(
 			stored[UPDATE_FROM_MAIN_TRIGGER_SETTING],
 		),
+		[JOBS_RECONCILER_SETTING]: reconcilerMode(stored[JOBS_RECONCILER_SETTING]),
 	};
 }
 

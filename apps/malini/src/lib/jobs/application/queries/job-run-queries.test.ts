@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { JobRunRecord } from '$contract/jobs';
+import type { JobRunRecord, ReconcilerDecisionRecord } from '$contract/jobs';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
+import { reconcilerDecisionsAggregate } from '$lib/jobs/infrastructure/aggregates/reconciler-decisions.aggregate.svelte';
 import { activeJobRunsQuery } from './active-job-runs.query.svelte';
 import { jobRunsForDefinitionQuery } from './job-runs-for-definition.query.svelte';
 import { needsYouJobCountQuery } from './needs-you-job-count.query.svelte';
@@ -28,10 +29,35 @@ function run(id: string, patch: Partial<JobRunRecord>): JobRunRecord {
 		parentRunId: null,
 		chatSessionId: null,
 		chatAfterRunId: null,
+		chainId: id,
+		requests: 1,
 		createdAt: '2026-10-11T11:00:00.000Z',
 		startedAt: null,
 		finishedAt: null,
 		...patch,
+	};
+}
+
+function decision(
+	id: string,
+	status: ReconcilerDecisionRecord['status'],
+): ReconcilerDecisionRecord {
+	return {
+		id,
+		eventId: 1,
+		channel: 'chat:turn-finished',
+		chainId: 'chain',
+		workstreamId: 'ws-1',
+		facts: [],
+		candidates: [{ kind: 'nothing', label: 'Do nothing' }],
+		pick: 0,
+		chosen: 0,
+		decidedBy: 'model',
+		status,
+		detail: null,
+		jobRunId: null,
+		createdAt: '2026-10-11T11:00:00.000Z',
+		finishedAt: null,
 	};
 }
 
@@ -43,7 +69,10 @@ function ids(runs: readonly JobRunRecord[]): string[] {
 	return runs.map((entry) => entry.id);
 }
 
-afterEach(() => jobRunsAggregate.reset());
+afterEach(() => {
+	jobRunsAggregate.reset();
+	reconcilerDecisionsAggregate.decisions = [];
+});
 
 describe('the jobs in progress', () => {
 	it('put the ones that need you first, then running, then queued in queue order', () => {
@@ -74,6 +103,17 @@ describe('the jobs in progress', () => {
 
 		expect(ids(activeJobRunsQuery.data)).toEqual(['needs-you', 'running']);
 		expect(runningJobCountQuery.data).toBe(1);
+		expect(waitingForYouJobCountQuery.data).toBe(2);
+	});
+
+	it('count what the event reconciler asks you as waiting for you too', () => {
+		jobRunsAggregate.runs = [run('waiting', { status: 'waiting' })];
+		reconcilerDecisionsAggregate.decisions = [
+			decision('asking', 'asking'),
+			decision('done', 'done'),
+			decision('pending', 'pending'),
+		];
+
 		expect(waitingForYouJobCountQuery.data).toBe(2);
 	});
 });

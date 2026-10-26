@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { JOBS_MAX_CONCURRENT_SETTING } from '../../src/contract/jobs';
+import { JOBS_MAX_CONCURRENT_SETTING, JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	UPDATE_FROM_MAIN_TRIGGER_SETTING,
@@ -74,9 +74,17 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 			timeout: 20_000,
 		});
 		const updates = page.getByRole('combobox', { name: 'Update from main' });
+		const reconcile = page.getByRole('switch', { name: 'Reconcile events' });
 		await expect(running).toHaveValue('3');
 		await expect(attempts).toHaveValue('7');
 		await expect(updates).toHaveValue('main-moves');
+		await expect(reconcile).toHaveAttribute('aria-checked', 'true');
+
+		await reconcile.click();
+		await expect(reconcile).toHaveAttribute('aria-checked', 'false');
+		await expect
+			.poll(async () => (await storedSettings(page))[JOBS_RECONCILER_SETTING])
+			.toBe('off');
 
 		await updates.selectOption({ label: 'Only when merging' });
 		await expect
@@ -111,6 +119,7 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 		await expect(running).toHaveValue('10', { timeout: 20_000 });
 		await expect(attempts).toHaveValue('1');
 		await expect(updates).toHaveValue('merging');
+		await expect(reconcile).toHaveAttribute('aria-checked', 'false');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

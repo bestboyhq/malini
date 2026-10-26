@@ -10,6 +10,7 @@ import {
 	invoke,
 	launchMalini,
 	openedUrls,
+	openJobs,
 	openWorkstream,
 	recordBrowser,
 	sendPrompt,
@@ -174,7 +175,7 @@ test('a command the agent left running in the background does not hold the merge
 	}
 });
 
-test('a failing check starts a Fix checks job whose transcript opens from the Job center, then the queue merges the fix', async () => {
+test('a failing check starts a Fix checks job whose transcript opens from the Job center, the queue merges the fix, and the Explorer chains them from the read of GitHub', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -226,6 +227,37 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await finishedJobs.getByRole('button', { name: 'Recent 1' }).click();
 		await expect(
 			finishedJobs.getByRole('link', { name: /^Open transcript: Fix checks.*, Done$/u }),
+		).toBeVisible();
+
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		await explorer
+			.getByRole('region', { name: 'System map' })
+			.getByRole('button', { name: /^Shipping: \d+ started$/u })
+			.click();
+		await explorer
+			.getByRole('list', { name: 'Shipping' })
+			.getByRole('button', { name: /^Fix checks, /u })
+			.click();
+		const chain = explorer.getByRole('list', { name: 'One chain' });
+		await expect(
+			chain.getByRole('button', { name: /^Pull request changed: #7, test failed, /u }),
+		).toBeVisible();
+		await expect(
+			chain.getByRole('listitem').filter({ hasText: '#7 changed on GitHub' }),
+		).toHaveCount(1);
+		await expect(
+			chain.getByRole('button', { name: /^Pull request changed: #7 merged, /u }),
+		).toBeVisible();
+		await captureFlow(app, 'merge-queue-explorer-chain');
+		await explorer
+			.getByRole('region', { name: 'System map' })
+			.getByRole('button', { name: 'Button clicked: 1 event' })
+			.click();
+		await expect(
+			explorer
+				.getByRole('list', { name: 'Button clicked' })
+				.getByRole('button', { name: /^Button clicked: Merge, Pull request workstream, /u }),
 		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

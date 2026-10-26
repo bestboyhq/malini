@@ -142,6 +142,11 @@ export function maliniToolApproval(
 					['Prompt', field('prompt')],
 				]),
 			};
+		case 'mcp__malini__workstreams_send':
+			return {
+				headline: named('Send a prompt to', workstream && names.workstream(workstream)),
+				details: present([['Prompt', field('prompt')]]),
+			};
 		case 'mcp__malini__workstreams_archive':
 			return {
 				headline: named('Archive', workstream && names.workstream(workstream)),

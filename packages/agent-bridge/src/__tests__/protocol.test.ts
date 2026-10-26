@@ -476,6 +476,40 @@ describe('protocol: parseCommandLine', () => {
 			).toBe(false);
 		});
 
+		it('parses choose with the job and how many candidates it picks from, and rejects any other count', () => {
+			expect(
+				parseCommandLine(
+					'{"cmd":"choose","id":"c1","prompt":"Candidates:\\n1. Do nothing\\n2. Ask you","instructions":"Pick one.","model":"haiku","choices":2}',
+				),
+			).toEqual({
+				ok: true,
+				command: {
+					cmd: 'choose',
+					id: 'c1',
+					prompt: 'Candidates:\n1. Do nothing\n2. Ask you',
+					instructions: 'Pick one.',
+					model: 'haiku',
+					choices: 2,
+				},
+			});
+			const choose = (fields: string) =>
+				parseCommandLine(`{"cmd":"choose","id":"c2",${fields}}`).ok;
+			expect(choose('"prompt":"x","instructions":"Pick one.","model":"haiku","choices":1')).toBe(
+				false,
+			);
+			expect(choose('"prompt":"x","instructions":"Pick one.","model":"haiku","choices":21')).toBe(
+				false,
+			);
+			expect(choose('"prompt":"x","instructions":"Pick one.","model":"haiku","choices":2.5')).toBe(
+				false,
+			);
+			expect(choose('"prompt":" ","instructions":"Pick one.","model":"haiku","choices":2')).toBe(
+				false,
+			);
+			expect(choose('"prompt":"x","model":"haiku","choices":2')).toBe(false);
+			expect(choose('"prompt":"x","instructions":"Pick one.","choices":2')).toBe(false);
+		});
+
 		it('parses list_skills for an absolute folder and rejects any other', () => {
 			expect(parseCommandLine('{"cmd":"list_skills","id":"k1","cwd":"/repo"}')).toEqual({
 				ok: true,
@@ -595,6 +629,7 @@ describe('protocol: parseCommandLine', () => {
 				'cancel_mcp_authorization',
 				'stop_task',
 				'suggest_title',
+				'choose',
 				'list_skills',
 				'browser_result',
 				'platform_result',
@@ -607,6 +642,7 @@ describe('protocol: parseCommandLine', () => {
 				'bridge.command_ack',
 				'bridge.protocol_error',
 				'bridge.title',
+				'bridge.choice',
 				'bridge.skills',
 				'bridge.mcp_authorization',
 				'bridge.mcp_servers',
@@ -625,6 +661,7 @@ describe('protocol: parseCommandLine', () => {
 				'repositories_hide',
 				'workstreams_list',
 				'workstreams_create',
+				'workstreams_send',
 				'workstreams_archive',
 				'files_open',
 			]);

@@ -1,5 +1,8 @@
-import { PULL_REQUESTS_SHIP_CHANGED_CHANNEL } from '$contract/events';
-import type { ShipStateRecord } from '$contract/pull-requests';
+import {
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+} from '$contract/events';
+import type { ShipButton, ShipChangedEvent } from '$contract/pull-requests';
 import type {
 	PullRequestShip,
 	PullRequestShipChange,
@@ -9,13 +12,23 @@ import { PullRequestShipMapper } from '$lib/pull-requests/infrastructure/mappers
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
+const BUTTONS: Readonly<Record<PullRequestShipIntent, ShipButton>> = {
+	'open-draft': 'draft',
+	'queue-merge': 'merge',
+	'retry-merge': 'retry',
+	'cancel-merge': 'cancel',
+};
+
 class PullRequestShipService {
 	async list(): Promise<readonly PullRequestShip[]> {
 		return PullRequestShipMapper.fromRawList(await invoke('pull-requests.ship-states', undefined));
 	}
 
 	async send(intent: PullRequestShipIntent, workstreamId: string): Promise<PullRequestShip | null> {
-		const raw = await this.#invoke(intent, workstreamId);
+		const raw = await invoke('pull-requests.button-clicked', {
+			workstreamId,
+			button: BUTTONS[intent],
+		});
 		return raw === null ? null : PullRequestShipMapper.fromRaw(raw);
 	}
 
@@ -28,17 +41,15 @@ class PullRequestShipService {
 	}
 
 	onChanged(listener: (change: PullRequestShipChange) => void): () => void {
-		return onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (raw) =>
-			listener(PullRequestShipMapper.changeFromRaw(raw)),
-		);
-	}
-
-	#invoke(intent: PullRequestShipIntent, workstreamId: string): Promise<ShipStateRecord | null> {
-		const args = { workstreamId };
-		if (intent === 'open-draft') return invoke('pull-requests.open-draft', args);
-		if (intent === 'queue-merge') return invoke('pull-requests.queue-merge', args);
-		if (intent === 'retry-merge') return invoke('pull-requests.retry-merge', args);
-		return invoke('pull-requests.cancel-merge', args);
+		const changed = (raw: ShipChangedEvent): void =>
+			listener(PullRequestShipMapper.changeFromRaw(raw));
+		const stops = [
+			onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, changed),
+			onPlatformEvent(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, changed),
+		];
+		return () => {
+			for (const stop of stops) stop();
+		};
 	}
 }
 

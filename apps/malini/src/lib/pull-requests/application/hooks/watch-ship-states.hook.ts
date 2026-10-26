@@ -25,7 +25,7 @@ export function watchShipStatesHook(
 			pullRequestShipAggregate.finishLoad(ships);
 		} catch (error) {
 			toast.error(
-				`Merge queue status is unavailable · ${pullRequestActionFailureDetail(error, 'It could not be read')}`,
+				`Shipping status is unavailable · ${pullRequestActionFailureDetail(error, 'It could not be read')}`,
 			);
 		}
 	})();

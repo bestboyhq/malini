@@ -35,6 +35,7 @@ export type AgentCommand =
 	| CancelMcpAuthorizationCommand
 	| StopTaskCommand
 	| SuggestTitleCommand
+	| ChooseCommand
 	| ListSkillsCommand
 	| BrowserResultCommand
 	| PlatformResultCommand;
@@ -163,6 +164,19 @@ export interface SuggestTitleCommand {
 	readonly instructions: string;
 	readonly model: string;
 }
+
+export interface ChooseCommand {
+	readonly cmd: 'choose';
+	readonly id: string;
+	readonly prompt: string;
+	readonly instructions: string;
+	readonly model: string;
+	readonly choices: number;
+}
+
+export const MIN_CHOICES = 2;
+
+export const MAX_CHOICES = 20;
 
 export interface ListSkillsCommand {
 	readonly cmd: 'list_skills';
@@ -320,6 +334,13 @@ export interface BridgeTitleFrame {
 	readonly title: string;
 }
 
+export interface BridgeChoiceFrame {
+	readonly type: 'bridge.choice';
+	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
+	readonly id: string;
+	readonly pick: number;
+}
+
 export interface BridgeSkillsFrame {
 	readonly type: 'bridge.skills';
 	readonly protocolVersion: typeof BRIDGE_PROTOCOL_VERSION;
@@ -377,6 +398,7 @@ export type BridgeControlFrame =
 	| BridgeCommandAckFrame
 	| BridgeProtocolErrorFrame
 	| BridgeTitleFrame
+	| BridgeChoiceFrame
 	| BridgeSkillsFrame
 	| BridgeMcpAuthorizationFrame
 	| BridgeMcpServersFrame
@@ -412,6 +434,10 @@ export function bridgeCapabilitiesFrame(
 
 export function bridgeTitleFrame(id: string, title: string): BridgeTitleFrame {
 	return { type: 'bridge.title', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, title };
+}
+
+export function bridgeChoiceFrame(id: string, pick: number): BridgeChoiceFrame {
+	return { type: 'bridge.choice', protocolVersion: BRIDGE_PROTOCOL_VERSION, id, pick };
 }
 
 export function bridgeSkillsFrame(id: string, skills: readonly AgentSkill[]): BridgeSkillsFrame {
@@ -584,6 +610,8 @@ export function parseCommandLine(raw: string): ParseResult {
 			return validateStopTask(obj);
 		case 'suggest_title':
 			return validateSuggestTitle(obj);
+		case 'choose':
+			return validateChoose(obj);
 		case 'list_skills':
 			return validateListSkills(obj);
 		case 'browser_result':
@@ -1061,6 +1089,37 @@ function validateSuggestTitle(obj: Record<string, unknown>): ParseResult {
 	return {
 		ok: true,
 		command: { cmd: 'suggest_title', id: id.value, prompt, instructions, model },
+	};
+}
+
+function validateChoose(obj: Record<string, unknown>): ParseResult {
+	const id = commandId(obj, 'choose');
+	if (!id.ok) return id;
+	const { prompt, instructions, model, choices } = obj;
+	if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'choose: prompt required (non-empty string)', obj);
+	}
+	if (typeof instructions !== 'string' || instructions.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'choose: instructions required (non-empty string)', obj);
+	}
+	if (typeof model !== 'string' || model.trim().length === 0) {
+		return err('INVALID_PAYLOAD', 'choose: model required (non-empty string)', obj);
+	}
+	if (
+		typeof choices !== 'number' ||
+		!Number.isSafeInteger(choices) ||
+		choices < MIN_CHOICES ||
+		choices > MAX_CHOICES
+	) {
+		return err(
+			'INVALID_PAYLOAD',
+			`choose: choices required (an integer from ${MIN_CHOICES} to ${MAX_CHOICES})`,
+			obj,
+		);
+	}
+	return {
+		ok: true,
+		command: { cmd: 'choose', id: id.value, prompt, instructions, model, choices },
 	};
 }
 

@@ -34,7 +34,7 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 		const { page } = app;
 		await openJobs(page);
 		const cards = page.getByRole('region', { name: 'Your jobs' }).getByRole('article');
-		await expect(cards).toHaveCount(10);
+		await expect(cards).toHaveCount(11);
 		for (const [index, name] of [
 			'Name chats',
 			'Name services',
@@ -46,9 +46,14 @@ test('the Jobs page lists your jobs then the built-in ones, drafts, edits, reset
 			'Update docs',
 			'Open draft',
 			'Merge',
+			'Reconcile events',
 		].entries()) {
 			await expect(cards.nth(index)).toHaveAccessibleName(name);
 		}
+		await expect(jobCard(page, 'Reconcile events')).toContainText(
+			'When an event no trigger handles',
+		);
+		await expect(jobCard(page, 'Reconcile events')).toContainText('Runs on its own');
 		await expect(jobCard(page, 'Name chats')).toContainText('When you start a chat');
 		await expect(jobCard(page, 'Name chats')).toContainText('Runs on its own');
 		await expect(jobCard(page, 'Name chats').getByRole('switch')).toHaveCount(0);

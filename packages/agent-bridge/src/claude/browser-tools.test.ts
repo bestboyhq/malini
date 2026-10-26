@@ -124,6 +124,7 @@ describe('malini MCP server', () => {
 					{ name: 'repositories_hide' },
 					{ name: 'workstreams_list' },
 					{ name: 'workstreams_create' },
+					{ name: 'workstreams_send' },
 					{ name: 'workstreams_archive' },
 					{ name: 'files_open' },
 				],
@@ -294,6 +295,13 @@ describe('malini MCP server', () => {
 				prompt: { type: 'string', description: expect.any(String) },
 			},
 			required: ['repository', 'prompt'],
+		});
+		expect(schemaOf('workstreams_send')).toMatchObject({
+			properties: {
+				workstream: { type: 'string', description: expect.any(String) },
+				prompt: { type: 'string', description: expect.any(String) },
+			},
+			required: ['workstream', 'prompt'],
 		});
 		expect(schemaOf('workstreams_archive')).toMatchObject({ required: ['workstream'] });
 		expect(schemaOf('repositories_clone')).toMatchObject({ required: ['repository'] });

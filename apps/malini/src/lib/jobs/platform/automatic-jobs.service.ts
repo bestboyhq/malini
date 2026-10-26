@@ -13,6 +13,8 @@ export type AutomaticJob = Readonly<{ instructions: string; model: string }>;
 
 export type SuggestWithJob = (task: string, job: AutomaticJob) => Promise<string>;
 
+export type ChooseWithJob = (task: string, job: AutomaticJob, choices: number) => Promise<number>;
+
 type OutputResult = Readonly<{ output: string; error: null } | { output: null; error: string }>;
 
 export async function runAutomaticJob(

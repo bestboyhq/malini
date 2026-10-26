@@ -34,6 +34,7 @@ export const routes: RouteNode = {
 					page: jobsPage,
 					children: [
 						{ segment: 'activity', page: jobsPage },
+						{ segment: 'explorer', page: jobsPage },
 						{ segment: 'recipes', page: jobsPage },
 						{ segment: 'routines', redirect: '/jobs' },
 						{

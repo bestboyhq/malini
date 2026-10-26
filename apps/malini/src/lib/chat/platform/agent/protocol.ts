@@ -151,6 +151,14 @@ export type BridgeCommand =
 	| { cmd: 'cancel_mcp_authorization'; id: string; serverName: string }
 	| { cmd: 'stop_task'; id: string; sessionId: string; runId: string; taskId: string }
 	| { cmd: 'suggest_title'; id: string; prompt: string; instructions: string; model: string }
+	| {
+			cmd: 'choose';
+			id: string;
+			prompt: string;
+			instructions: string;
+			model: string;
+			choices: number;
+	  }
 	| { cmd: 'list_skills'; id: string; cwd: string; turnedOff: TurnedOffSkills }
 	| ({ cmd: 'browser_result'; id: string; sessionId: string; requestId: string } & BrowserAnswer)
 	| ({ cmd: 'platform_result'; id: string; sessionId: string; requestId: string } & PlatformAnswer);
@@ -194,7 +202,9 @@ export function platformResultCommand(
 
 export function commandAcknowledgementTimeoutMs(command: BridgeCommand): number {
 	if (command.cmd === 'start_session') return BRIDGE_START_SESSION_ACK_TIMEOUT_MS;
-	if (command.cmd === 'suggest_title') return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
+	if (command.cmd === 'suggest_title' || command.cmd === 'choose') {
+		return BRIDGE_SUGGEST_TITLE_ACK_TIMEOUT_MS;
+	}
 	if (command.cmd === 'list_skills') return BRIDGE_LIST_SKILLS_ACK_TIMEOUT_MS;
 	if (command.cmd === 'authorize_mcp_server' || command.cmd === 'reconnect_mcp_server') {
 		return BRIDGE_MCP_SERVER_ACK_TIMEOUT_MS;
@@ -348,6 +358,7 @@ export type BridgeControlFrame =
 			message: string;
 	  }
 	| { type: 'bridge.title'; protocolVersion: number; id: string; title: string }
+	| { type: 'bridge.choice'; protocolVersion: number; id: string; pick: number }
 	| { type: 'bridge.skills'; protocolVersion: number; id: string; skills: SkillRecord[] }
 	| { type: 'bridge.mcp_authorization'; protocolVersion: number; id: string; authUrl?: string }
 	| {
@@ -876,6 +887,16 @@ export function decodeControlFrame(value: unknown): Decoded<BridgeControlFrame> 
 						protocolVersion: f.number('protocolVersion'),
 						id: f.string('id'),
 						title: f.string('title'),
+					},
+				};
+			case 'bridge.choice':
+				return {
+					ok: true,
+					value: {
+						type,
+						protocolVersion: f.number('protocolVersion'),
+						id: f.string('id'),
+						pick: f.number('pick'),
 					},
 				};
 			case 'bridge.skills':

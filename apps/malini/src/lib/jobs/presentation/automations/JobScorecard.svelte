@@ -3,7 +3,7 @@
 	import { Well } from '$hyper-ui/components/well';
 	import { catalogModelLabel, modelCatalogQuery } from '$shared/providers/providers.api';
 	import type { JobScorecard, ScorecardBand } from '$lib/jobs/domain/job-scorecard';
-	import { instructionsLabel, percent, weekdayTime } from './job-insights-copy';
+	import { JOB_OUTPUT_NOUN, instructionsLabel, percent, weekdayTime } from './job-insights-copy';
 	import ScorecardChart from './ScorecardChart.svelte';
 
 	interface Props {
@@ -19,6 +19,7 @@
 	const FLAGGED_SHOWN = 8;
 
 	const catalog = $derived(modelCatalogQuery.data);
+	const noun = $derived(JOB_OUTPUT_NOUN[builtin]);
 	const delta = $derived(
 		card.weekRate === null || card.previousWeekRate === null
 			? null
@@ -43,7 +44,7 @@
 	<div class={ROWS}>
 		{#if card.bands.length === 0}
 			<p class="text-fg-tertiary px-4 py-3 text-xs">
-				No names yet. {jobName} records every name it gives from now on, and they show up here.
+				No {noun.many} yet. {jobName} records {noun.gives} from now on, and they show up here.
 			</p>
 		{:else}
 			<div class="divide-surface-50-border grid grid-cols-3 divide-x-[0.5px]">
@@ -52,7 +53,7 @@
 						{card.total}
 					</span>
 					<span class="text-fg-tertiary text-xs">
-						{card.total === 1 ? 'name' : 'names'} in 2 weeks
+						{card.total === 1 ? noun.one : noun.many} in 2 weeks
 					</span>
 				</div>
 				<div class="flex flex-col gap-0.5 px-4 py-3">
@@ -88,11 +89,16 @@
 </Well>
 
 {#if card.flagged.length > 0}
-	<Well title="Names that broke a rule this week" note={`${card.flagged.length}`}>
+	<Well
+		title={`${noun.many.charAt(0).toUpperCase()}${noun.many.slice(1)} that broke a rule this week`}
+		note={`${card.flagged.length}`}
+	>
 		<ul class={[ROWS, 'flex flex-col']}>
 			{#each card.flagged.slice(0, FLAGGED_SHOWN) as { output, issues } (output.id)}
 				<li class="flex h-10 min-w-0 items-center gap-2.5 px-4 text-xs">
-					<span class="text-fg-default shrink-0 font-medium">{output.output ?? 'No name'}</span>
+					<span class="text-fg-default shrink-0 font-medium">
+						{output.output ?? `No ${noun.one}`}
+					</span>
 					{#each issues as issue (issue)}
 						<span class="bg-warning text-warning-content text-2xs shrink-0 rounded-md px-1.5 py-px">
 							{issue}

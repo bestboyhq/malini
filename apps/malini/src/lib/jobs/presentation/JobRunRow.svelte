@@ -114,6 +114,9 @@
 		{#if followed}
 			<span class="text-fg-tertiary">· {followed}</span>
 		{/if}
+		{#if run.requests > 1}
+			<span class="text-fg-tertiary">· Asked {run.requests} times</span>
+		{/if}
 	</span>
 {/snippet}
 

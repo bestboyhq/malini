@@ -63,6 +63,7 @@ const ack = (id, error) => {
   if (ackDelay > 0) setTimeout(() => write(frame), ackDelay); else write(frame);
 };
 const pendingRuns = new Map();
+const unanswered = new Set();
 const lastRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
@@ -102,6 +103,7 @@ const handle = (command) => {
           event({ type: 'file.changed', runId, path: edit[1] });
         }
       }
+      if (prompt.includes('UNANSWERED')) { pendingRuns.set(runId, sessionId); unanswered.add(runId); return; }
       if (prompt.includes('HANG')) { pendingRuns.set(runId, sessionId); return; }
       if (prompt.includes('AUTO_MODE_BLOCK')) {
         pendingRuns.set(runId, sessionId);
@@ -133,7 +135,8 @@ const handle = (command) => {
       return completeRun(sessionId, runId, command.resumeAt ? 'done after ' + command.resumeAt : 'done');
     }
     case 'cancel_run': {
-      event({ type: 'run.failed', runId: command.runId, error: 'cancelled', providerCursor: 'cursor-' + command.runId });
+      const cursor = unanswered.delete(command.runId) ? {} : { providerCursor: 'cursor-' + command.runId };
+      event({ type: 'run.failed', runId: command.runId, error: 'cancelled', ...cursor });
       pendingRuns.delete(command.runId);
       return ack(command.id);
     }
@@ -176,6 +179,11 @@ const handle = (command) => {
     case 'suggest_title': {
       if (!env.FAKE_BRIDGE_TITLE) return ack(command.id, 'TITLE_FAILED: no title');
       write({ type: 'bridge.title', protocolVersion: version, id: command.id, title: env.FAKE_BRIDGE_TITLE });
+      return ack(command.id);
+    }
+    case 'choose': {
+      if (!env.FAKE_BRIDGE_CHOICE) return ack(command.id, 'CHOICE_FAILED: no choice');
+      write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick: Number(env.FAKE_BRIDGE_CHOICE) });
       return ack(command.id);
     }
     default:
@@ -251,6 +259,7 @@ export function recordingEventBus(): EventBus & {
 			bus.emit(channel, payload);
 		},
 		subscribe: (channel, listener) => bus.subscribe(channel, listener),
+		observe: (observer) => bus.observe(observer),
 	};
 }
 

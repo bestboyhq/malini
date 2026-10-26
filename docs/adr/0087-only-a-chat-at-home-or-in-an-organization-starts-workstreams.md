@@ -1,4 +1,4 @@
-# 0085 - Only a chat at Home or in an organization starts workstreams
+# 0087 - Only a chat at Home or in an organization starts workstreams
 
 Status: accepted
 
@@ -12,9 +12,9 @@ This changes 0061's offer of `workstreams_create` to every chat, 0083's nesting 
 
 ## Decision
 
-- The bridge's `malini` MCP server holds `workstreams_create` for a lead chat only: `maliniTools` builds it for each run, and `platformTools(request, lead)` in `packages/agent-bridge/src/claude/platform-tools.ts` leaves the tool out, and every other tool's mention of it, when the run's lineage has no `lead`.
+- The bridge's `malini` MCP server holds `workstreams_create`, and `workstreams_send` to the workstreams it started (0085), for a lead chat only: `maliniTools` builds it for each run, and `platformTools(request, lead)` in `packages/agent-bridge/src/claude/platform-tools.ts` leaves the tool out, and every other tool's mention of it, when the run's lineage has no `lead`.
   A first try only disallowed the tool, and the agent in a workstream still read `workstreams_create` in `repositories_clone`, `workstreams_list` and `jobs_run` and weighed using it.
-- `maliniInstructions` in `packages/agent-bridge/src/claude/instructions.ts` keeps the "Workstreams you start" bullet, and "start or archive a workstream", for a lead chat only.
+- `maliniInstructions` in `packages/agent-bridge/src/claude/instructions.ts` keeps the "Workstreams you start" and "Work you start reports back" bullets, and "start or archive a workstream", for a lead chat only.
   `workElsewhere` tells a workstream's agent to name the repository in its report, for the user to start that work from a chat at Home or in its organization.
 - `steerToMalini(lead)` points a refused branch or worktree command (`BRANCH_COMMANDS`), and the hint after a `git clone`, at `workstreams_create` in a lead chat and at the user in a workstream.
 - `createWorkstream` in `src/lib/chat/platform/agent/platform-tools.ts` refuses a request from a session whose workstream has no `scope`, so nothing past the bridge records a workstream as started by another.

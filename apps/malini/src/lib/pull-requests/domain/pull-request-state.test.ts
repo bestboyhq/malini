@@ -17,7 +17,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 }
 
 describe('pullRequestBadge', () => {
-	it('reads the pull request alone when the merge queue holds no row', () => {
+	it('reads the pull request alone when shipping holds no row', () => {
 		const badges = (['none', 'closed', 'draft', 'open', 'merged', 'unknown'] as const).map(
 			(state: PullRequestState) => pullRequestBadge(null, state),
 		);
@@ -31,7 +31,7 @@ describe('pullRequestBadge', () => {
 		]);
 	});
 
-	it('lets the merge queue speak for a queued or stuck workstream, whatever the read says', () => {
+	it('lets shipping speak for a queued or stuck workstream, whatever the read says', () => {
 		for (const state of ['none', 'draft', 'open', 'unknown'] as const) {
 			expect(pullRequestBadge(ship({ phase: 'queued' }), state)).toEqual({
 				phase: 'queued',

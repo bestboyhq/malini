@@ -36,6 +36,7 @@ import type { MenuCommandChosen, NotificationTarget } from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
+	DecideArgs,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
 	JobExperimentIdArgs,
@@ -49,11 +50,19 @@ import type {
 	JobSuggestionIdArgs,
 	JobSuggestionRecord,
 	ListChatTurnsArgs,
+	ListTimelineArgs,
+	ReconcilerDecisionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 	SaveJobExperimentArgs,
+	TimelineRecord,
 } from './jobs';
-import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
+import type {
+	ReopenPullRequestArgs,
+	ShipButtonArgs,
+	ShipStateRecord,
+	ShipWorkstreamArgs,
+} from './pull-requests';
 import type {
 	McpAuthorization,
 	McpServerArgs,
@@ -165,6 +174,8 @@ export type SendAgentPromptArgs = Readonly<{
 	automated?: boolean;
 	steer?: boolean;
 	from?: string;
+	chainId?: string;
+	causeEventId?: number;
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -499,8 +510,7 @@ export interface ContractCommands {
 	'pull-requests.status': { args: PullRequestStatusArgs; result: PullRequestStatusDto };
 	'pull-requests.open-draft': { args: ShipWorkstreamArgs; result: ShipStateRecord };
 	'pull-requests.queue-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
-	'pull-requests.cancel-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord | null };
-	'pull-requests.retry-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.button-clicked': { args: ShipButtonArgs; result: ShipStateRecord | null };
 	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
 	'pull-requests.workstream-opened': { args: ShipWorkstreamArgs; result: null };
 	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
@@ -523,6 +533,9 @@ export interface ContractCommands {
 	'jobs.list-agent-actions': { args: undefined; result: AgentActionRecord[] };
 	'jobs.list-chat-turns': { args: ListChatTurnsArgs; result: ChatTurnRecord[] };
 	'jobs.use-experiment': { args: JobExperimentIdArgs; result: JobDefinitionRecord };
+	'jobs.list-decisions': { args: undefined; result: ReconcilerDecisionRecord[] };
+	'jobs.decide': { args: DecideArgs; result: ReconcilerDecisionRecord };
+	'jobs.list-timeline': { args: ListTimelineArgs; result: TimelineRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
@@ -758,8 +771,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.status',
 	'pull-requests.open-draft',
 	'pull-requests.queue-merge',
-	'pull-requests.cancel-merge',
-	'pull-requests.retry-merge',
+	'pull-requests.button-clicked',
 	'pull-requests.ship-states',
 	'pull-requests.workstream-opened',
 	'jobs.list-definitions',
@@ -782,6 +794,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.use-experiment',
 	'jobs.list-agent-actions',
 	'jobs.list-chat-turns',
+	'jobs.list-decisions',
+	'jobs.decide',
+	'jobs.list-timeline',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',

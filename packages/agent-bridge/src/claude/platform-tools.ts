@@ -155,7 +155,7 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 		),
 		tool(
 			'workstreams_list',
-			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it, or null) and current (whether it is this chat's workstream). The ones this chat's workstream started and that were archived since come last, with archived and merged (the pull request it merged, or null).",
+			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), and outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived and merged (the pull request it merged, or null).",
 			{
 				repository: z
 					.string()
@@ -190,6 +190,25 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 								),
 						},
 						(input) => call('workstreams_create', input),
+					),
+					tool(
+						'workstreams_send',
+						`Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini sends it only while that chat is idle: when it is on a turn, the call fails, so send it once that turn ends. ${ASKS} Returns the workstream and the chat it reached as JSON.`,
+						{
+							workstream: z
+								.string()
+								.min(1)
+								.describe(
+									'Id or exact name of a workstream this chat started, from workstreams_list or the id workstreams_create returned',
+								),
+							prompt: z
+								.string()
+								.min(1)
+								.describe(
+									'The prompt, written to the agent there. It does not see this chat, so give it everything it needs.',
+								),
+						},
+						(input) => call('workstreams_send', input),
 					),
 				]
 			: []),

@@ -85,6 +85,7 @@ describe('systemPromptAppend', () => {
 			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
 		);
 		expect(lead).toContain("Malini holds the job until that workstream's chat ends its turn");
+		expect(lead).toContain('Answer what your plan covers with `workstreams_send`');
 		expect(lead).not.toContain('a workstream never starts another workstream');
 
 		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {

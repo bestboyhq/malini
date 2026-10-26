@@ -6,16 +6,19 @@ import {
 	envelopeJson,
 	eventJsonFromKindPayload,
 	latestEventId,
+	latestSessionReport,
 	latestWorkstreamTurn,
 	listEventRowsForSession,
 	listEventsForSession,
 	listOpenBackgroundCommands,
 	providerResumePoint,
+	runAdvancedResumePoint,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	updateEventPayload,
 	workstreamHasWorkingRun,
 } from './events.repository';
+import { CONTINUE_AFTER_PAUSE_PROMPT, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import { openMigratedDatabase } from '$main/db/open';
 import { listAgentEventPage } from './agent/commands';
 import { getInteraction, recordPendingInteraction } from './interactions.repository';
@@ -26,6 +29,7 @@ import {
 	getRun,
 	insertRun,
 	listChatTurns,
+	listChatTurnsSince,
 	listOpenRunIds,
 	listOpenRuns,
 	workstreamHasOpenRun,
@@ -146,6 +150,38 @@ describe('events', () => {
 		run(db, "UPDATE agent_runs SET obsoleted_at = 'undone' WHERE id = 'run-1'");
 		expect(providerResumePoint(db, 'sess-cursor')).toEqual({ freshConversation: true });
 		expect(providerResumePoint(db, 'sess-never-ran')).toEqual({});
+		db.close();
+	});
+
+	it('tells a run Claude replied in by a resume point no earlier run left', () => {
+		const db = openMigratedDatabase(':memory:');
+		seedInteractionContext(db, 'ws-reply', 'sess-reply', 'replied');
+		for (const id of ['carried-over', 'unanswered']) {
+			insertRun(db, {
+				id,
+				sessionId: 'sess-reply',
+				prompt: id,
+				startedAt: '2026-07-22T00:00:02Z',
+				completedAt: null,
+				summary: null,
+				error: null,
+			});
+		}
+		appendEvent(db, 'sess-reply', 'replied', 'run.completed', {
+			summary: 'a',
+			providerCursor: 'c1',
+		});
+		appendEvent(db, 'sess-reply', 'carried-over', 'run.failed', {
+			error: 'paused',
+			providerCursor: 'c1',
+		});
+		appendEvent(db, 'sess-reply', 'unanswered', 'run.failed', { error: 'paused' });
+
+		expect(
+			['replied', 'carried-over', 'unanswered'].map((runId) =>
+				runAdvancedResumePoint(db, 'sess-reply', runId),
+			),
+		).toEqual([true, false, false]);
 		db.close();
 	});
 
@@ -578,6 +614,9 @@ describe('chat turns', () => {
 then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('failed', 'chat', 'Try again', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', 'boom', NULL),
 			  ('running', 'chat', 'Keep going', '2026-10-23T12:00:00Z', NULL, NULL, NULL),
+			  ('paused', 'chat', 'Mid way', '2026-10-23T14:00:00Z', '2026-10-23T14:01:00Z', 'paused: malini closed mid-run', NULL),
+			  ('reaped', 'chat', 'Mid way', '2026-10-23T15:00:00Z', '2026-10-23T15:01:00Z', 'interrupted: agent bridge restarted', NULL),
+			  ('stopped', 'chat', 'Stop', '2026-10-23T16:00:00Z', '2026-10-23T16:01:00Z', 'cancelled', NULL),
 			  ('edited', 'chat', 'Old prompt', '2026-10-23T09:00:00Z', '2026-10-23T09:01:00Z', NULL, '2026-10-23T09:02:00Z'),
 			  ('in-job', 'job', 'Fix the checks', '2026-10-23T13:00:00Z', NULL, NULL, NULL);
 		`);
@@ -590,15 +629,87 @@ then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 				chatName: 'Ship it',
 				prompt: 'Clone acme/site',
 				status: 'succeeded',
+				chainId: 'called',
+				causeEventId: null,
 				startedAt: '2026-10-23T10:00:00Z',
 				finishedAt: '2026-10-23T10:01:00Z',
 			},
 		]);
-		expect(listChatTurns(db, ['called'], 2).map(({ runId, status }) => [runId, status])).toEqual([
+		expect(listChatTurns(db, ['called'], 5).map(({ runId, status }) => [runId, status])).toEqual([
+			['stopped', 'cancelled'],
+			['reaped', 'interrupted'],
+			['paused', 'interrupted'],
 			['running', 'running'],
 			['failed', 'failed'],
 			['called', 'succeeded'],
 		]);
+		db.close();
+	});
+
+	it('lists the chat turns of a window with the workstream whose chat sent each prompt, and the ones Malini resumed', () => {
+		const db = openMigratedDatabase(':memory:');
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES ('w', 'p', 'w', '/tmp/w', 'malini/w', 'main', 'active', '2026-10-23T00:00:00Z');
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at, display_name, origin) VALUES
+			  ('chat', 'w', 'idle', '2026-10-23T00:00:00Z', 'Ship it', 'user');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id) VALUES
+			  ('old', 'chat', 'Earlier', '2026-10-22T10:00:00Z', '2026-10-22T10:01:00Z', ''),
+			  ('woken', 'chat', 'Malini woke you', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', 'lead-turn');
+		`);
+		run(
+			db,
+			`INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, chain_id, error, automated, cause_event_id)
+			 VALUES ('typed', 'chat', 'Ship it', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', '', ?, 0, NULL),
+			        ('resumed', 'chat', 'Ship it', '2026-10-23T12:00:00Z', NULL, '', NULL, 1, 7),
+			        ('copied', 'chat', ?, '2026-10-23T13:00:00Z', NULL, '', NULL, 0, NULL)`,
+			PAUSED_FOR_EXIT_ERROR,
+			CONTINUE_AFTER_PAUSE_PROMPT,
+		);
+		appendEvent(db, 'chat', 'woken', 'user.message', { text: 'Malini woke you', from: 'child' });
+		appendEvent(db, 'chat', 'typed', 'user.message', { text: 'Ship it' });
+
+		expect(
+			listChatTurnsSince(db, '2026-10-23T00:00:00Z').map(({ runId, chainId, from, resumed }) => [
+				runId,
+				chainId,
+				from,
+				resumed,
+			]),
+		).toEqual([
+			['woken', 'lead-turn', 'child', false],
+			['typed', 'typed', null, false],
+			['resumed', 'resumed', null, true],
+			['copied', 'copied', null, false],
+		]);
+		db.close();
+	});
+});
+
+describe('latestSessionReport', () => {
+	it("reads the Outcome and Needs a chat's last turn stated, and nothing from a turn that stated none", () => {
+		const db = openMigratedDatabase(':memory:');
+		db.exec(`
+			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
+			INSERT INTO workstreams (id, project_id, name, path, branch, base_branch, status, created_at) VALUES ('w', 'p', 'w', '/tmp/w', 'malini/w', 'main', 'active', '2026-10-23T00:00:00Z');
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at, display_name, origin) VALUES
+			  ('stated', 'w', 'idle', '2026-10-23T00:00:00Z', 'Stated', 'user'),
+			  ('silent', 'w', 'idle', '2026-10-23T00:00:00Z', 'Silent', 'user');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at) VALUES
+			  ('first', 'stated', 'Go', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z'),
+			  ('quiet', 'silent', 'Go', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z');
+		`);
+		appendEvent(db, 'stated', 'first', 'run.completed', {
+			summary: 'Done.\n\nOutcome: The endpoint answers\nNeeds: A key; A project',
+		});
+		appendEvent(db, 'silent', 'quiet', 'run.completed', { summary: 'malini:{"id":"ws-1"}' });
+
+		expect(latestSessionReport(db, 'stated')).toEqual({
+			outcome: 'The endpoint answers',
+			needs: 'A key; A project',
+		});
+		expect(latestSessionReport(db, 'silent')).toEqual({ outcome: null, needs: null });
+		expect(latestSessionReport(db, 'nobody')).toBeNull();
 		db.close();
 	});
 });

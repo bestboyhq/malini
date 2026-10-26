@@ -27,6 +27,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme, lead
 		...(lead
 			? [
 					"- Workstreams you start: when the user asked you to ship or merge work you hand to a workstream with `workstreams_create`, ship it from this chat. Right after you start it, run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`, and leave shipping out of its `prompt`. Malini holds the job until that workstream's chat ends its turn, then ships it the way the button in its top bar does, and the user approves the call here, where they are.",
+					"- Work you start reports back: when a workstream you started ends a turn that failed or needs something, Malini can wake this chat with that turn's `Outcome:` and `Needs:` as a prompt from that workstream. Answer what your plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and pass up in `Needs:` only what the user must decide. `workstreams_list` shows where each one stands. Other Malini chats are reachable only through these tools: `ListAgents` and `SendMessage` see only Claude Code's own agents.",
 				]
 			: []),
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user. "The PermissionDenied hook indicated you may retry this tool call" means the user approved that exact call in Malini: make the same call again, unchanged. Without that line the block stands.',

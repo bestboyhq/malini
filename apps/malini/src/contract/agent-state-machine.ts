@@ -87,8 +87,23 @@ export function nextSessionStatus(
 
 export const PAUSED_FOR_EXIT_ERROR = 'paused: malini closed mid-run';
 
+export const ORPHAN_INTERRUPTED_ERROR = 'interrupted: app closed mid-run';
+
+export const BRIDGE_INTERRUPTED_ERROR = 'interrupted: agent bridge restarted';
+
+export const CONTINUE_AFTER_PAUSE_PROMPT =
+	'Malini restarted while you were working and cut your last step short. Nobody rejected it: re-run whatever was interrupted and continue where you left off.';
+
 export function isCancellationError(error: string): boolean {
 	return /\bcancell?ed\b/iu.test(error) || error === PAUSED_FOR_EXIT_ERROR;
+}
+
+export function isInterruptionError(error: string): boolean {
+	return (
+		error === PAUSED_FOR_EXIT_ERROR ||
+		error === ORPHAN_INTERRUPTED_ERROR ||
+		error === BRIDGE_INTERRUPTED_ERROR
+	);
 }
 
 function extractError(event: LifecycleEnvelope['event']): string {

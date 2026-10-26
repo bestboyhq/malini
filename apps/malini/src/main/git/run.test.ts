@@ -1,4 +1,5 @@
 import { readFile, utimes } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initRealRepo, removeDir, tempDir } from './fixtures.test-support';
@@ -118,9 +119,21 @@ describe('runGit', () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		await initRealRepo(dir);
+		const remote = createServer((_request, response) => {
+			response.writeHead(401, { 'WWW-Authenticate': 'Basic realm="GitHub"' }).end();
+		});
+		await new Promise<void>((resolve) => remote.listen(0, '127.0.0.1', resolve));
+		cleanups.push(() => new Promise((resolve) => remote.close(() => resolve())));
+		const address = remote.address();
+		if (address === null || typeof address === 'string') throw new Error('the remote has no port');
 		await expect(
 			runGit(
-				['-C', dir, 'ls-remote', 'https://github.com/malini-does-not-exist/private-repo.git'],
+				[
+					'-C',
+					dir,
+					'ls-remote',
+					`http://127.0.0.1:${address.port}/malini-does-not-exist/private-repo.git`,
+				],
 				{
 					GIT_TERMINAL_PROMPT: '0',
 					GIT_ASKPASS: '',

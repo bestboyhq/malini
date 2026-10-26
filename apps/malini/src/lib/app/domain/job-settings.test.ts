@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JOBS_MAX_CONCURRENT_SETTING } from '$contract/jobs';
+import { JOBS_MAX_CONCURRENT_SETTING, JOBS_RECONCILER_SETTING } from '$contract/jobs';
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	UPDATE_FROM_MAIN_TRIGGER_SETTING,
@@ -12,17 +12,20 @@ describe('the job settings', () => {
 			[JOBS_MAX_CONCURRENT_SETTING]: 3,
 			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 3,
 			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'main-moves',
+			[JOBS_RECONCILER_SETTING]: 'on',
 		});
 		expect(
 			jobSettingsFromStored({
 				[JOBS_MAX_CONCURRENT_SETTING]: '5',
 				[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: '12',
 				[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'merging',
+				[JOBS_RECONCILER_SETTING]: 'off',
 			}),
 		).toEqual({
 			[JOBS_MAX_CONCURRENT_SETTING]: 5,
 			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 12,
 			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'merging',
+			[JOBS_RECONCILER_SETTING]: 'off',
 		});
 	});
 
@@ -37,6 +40,7 @@ describe('the job settings', () => {
 			[JOBS_MAX_CONCURRENT_SETTING]: 10,
 			[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: 3,
 			[UPDATE_FROM_MAIN_TRIGGER_SETTING]: 'main-moves',
+			[JOBS_RECONCILER_SETTING]: 'on',
 		});
 	});
 
