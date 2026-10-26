@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { SITE_URL } from '$lib/links';
+	import { BESTBOY_URL, SITE_URL } from '$lib/links';
+	import og from '$lib/og.png';
 
 	type Props = { title: string; description: string; path: string; noindex?: boolean };
 
@@ -21,12 +22,12 @@
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
 	<meta property="og:url" content={canonical} />
-	<meta property="og:image" content="{SITE_URL}/og.png" />
+	<meta property="og:image" content="{BESTBOY_URL}{og}" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
 	<meta
 		property="og:image:alt"
-		content="The Malini window with demo workstreams running side by side."
+		content="Malini's page: An agentic development environment for builders moving fast, over the Malini window with workstreams in its sidebar, a chat, and Draft and Merge above 2 changed files."
 	/>
 	<meta name="twitter:card" content="summary_large_image" />
 	<link rel="alternate" type="text/plain" title="llms.txt" href="{SITE_URL}/llms.txt" />

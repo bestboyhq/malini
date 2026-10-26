@@ -191,6 +191,9 @@ catalogs:
     daisyui:
       specifier: ^5.5.0
       version: 5.7.38
+    electron:
+      specifier: ^44.4.0
+      version: 44.4.0
     eslint:
       specifier: ^10.10.0
       version: 10.10.0
@@ -345,7 +348,7 @@ importers:
         specifier: ^3.4.15
         version: 3.4.15
       electron:
-        specifier: ^44.4.0
+        specifier: 'catalog:'
         version: 44.4.0(supports-color@7.2.0)
       electron-builder:
         specifier: ^26.16.1
@@ -431,6 +434,9 @@ importers:
       daisyui:
         specifier: 'catalog:'
         version: 5.7.38
+      electron:
+        specifier: 'catalog:'
+        version: 44.4.0(supports-color@7.2.0)
       eslint:
         specifier: 'catalog:'
         version: 10.10.0(jiti@2.7.0)(supports-color@7.2.0)

@@ -101,6 +101,7 @@ pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed
 pnpm --filter @malini/site build   # the static site under apps/site/build/malini
+pnpm --filter @malini/site generate:og-image   # re-renders the site's Open Graph image from its hero
 ```
 
 Commit subjects and PR titles are Conventional Commits.
