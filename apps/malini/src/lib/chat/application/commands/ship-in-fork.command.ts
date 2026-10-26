@@ -3,7 +3,7 @@ import { submitPromptCommand } from '$lib/chat/application/commands/submit-promp
 import { newChatRequestId } from '$lib/chat/domain/chat-request';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import type { SessionId } from '$lib/chat/domain/session';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';

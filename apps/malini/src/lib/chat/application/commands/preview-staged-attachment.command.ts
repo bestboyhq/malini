@@ -1,7 +1,7 @@
 import { isImageAttachment, type StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { imagePreviewKey } from '$lib/chat/domain/image-preview';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 import { imagePreviewsStore } from '$lib/chat/infrastructure/stores/image-previews.store.svelte';
 
 export { previewStagedAttachmentCommand };

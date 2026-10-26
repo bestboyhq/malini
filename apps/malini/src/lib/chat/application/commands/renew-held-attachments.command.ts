@@ -1,6 +1,6 @@
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
 import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-queue.aggregate.svelte';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 
 export { renewHeldAttachmentsCommand };
 
