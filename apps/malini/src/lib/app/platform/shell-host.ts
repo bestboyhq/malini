@@ -16,6 +16,7 @@ import {
 import type { AgentTheme } from '$contract/agent';
 import type { ThemeMode } from '$contract/commands';
 import { BACKGROUND_WINDOW, createMainWindow } from '$main/window';
+import { aboutPanel } from './menu';
 
 const LIVE_NOTIFICATION_LIMIT = 32;
 
@@ -97,6 +98,7 @@ export function createElectronShellHost(): ShellHost {
 			tray.setContextMenu(Menu.buildFromTemplate([...items]));
 		},
 		showApplicationMenu: (template) => {
+			app.setAboutPanelOptions(aboutPanel(app.getName(), app.getVersion()));
 			Menu.setApplicationMenu(Menu.buildFromTemplate([...template]));
 		},
 		onWindowCreated: (listener) => {

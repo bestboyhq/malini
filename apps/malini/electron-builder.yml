@@ -16,6 +16,8 @@ extraResources:
     to: agent-bridge/package.json
   - from: ../../LICENSE
     to: LICENSE
+  - from: ../../NOTICE
+    to: NOTICE
   - from: vendor/gh
     to: vendor/gh
   - from: build/tray
