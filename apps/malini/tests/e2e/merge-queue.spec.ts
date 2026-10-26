@@ -250,6 +250,15 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 			chain.getByRole('button', { name: /^Pull request changed: #7 merged, /u }),
 		).toBeVisible();
 		await captureFlow(app, 'merge-queue-explorer-chain');
+		await explorer
+			.getByRole('region', { name: 'System map' })
+			.getByRole('button', { name: 'Merge requested: 1 event' })
+			.click();
+		await expect(
+			explorer
+				.getByRole('list', { name: 'Merge requested' })
+				.getByRole('button', { name: /^Merge requested, Pull request workstream, /u }),
+		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

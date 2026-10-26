@@ -61,7 +61,7 @@ export function registerShip(
 
 	return {
 		pullRequestRead: (id, pullRequest) => queue.pullRequestRead(id, pullRequest),
-		start: () => queue.start(),
+		handle: (event) => queue.handle(event),
 		dispose: () => {
 			for (const unsubscribe of subscriptions.splice(0)) unsubscribe();
 			queue.dispose();

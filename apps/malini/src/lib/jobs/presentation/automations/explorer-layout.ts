@@ -3,6 +3,7 @@ import {
 	LISTENERS,
 	type EventRow,
 	type Hop,
+	type Listener,
 	type MapNode,
 } from '$lib/jobs/domain/explorer';
 
@@ -14,41 +15,34 @@ export type Lit = Readonly<{ wires: ReadonlySet<string>; nodes: ReadonlySet<MapN
 
 export type Route = Readonly<{ d: string; tip: string }>;
 
+export type Segment = Readonly<{ id: string; d: string; tip: string | null }>;
+
 export const STRUCTURE: readonly Hop[] = [
 	['you', 'chats'],
 	['you', 'jobs'],
-	['agents', 'event:turn-finished'],
-	['agents', 'event:tool-called'],
-	['agents', 'event:job-started'],
-	['agents', 'event:job-finished'],
-	['git', 'event:head-moved'],
-	['git', 'event:branch-pushed'],
-	['git', 'event:merge-conflicted'],
-	['github', 'event:pull-request-changed'],
-	['malini', 'event:workstream-created'],
-	['malini', 'event:workstream-archived'],
 	...EVENT_ROWS.map((row): Hop => [`event:${row}`, 'reconciler']),
-	['reconciler', 'listener:triggers'],
-	['reconciler', 'listener:thens'],
-	['reconciler', 'listener:model'],
-	['github', 'listener:merge-queue'],
-	['malini', 'listener:resume'],
-	['clock', 'listener:schedules'],
+	...LISTENERS.map((listener): Hop => ['reconciler', `listener:${listener}`]),
 	['listener:triggers', 'jobs'],
 	['listener:thens', 'jobs'],
-	['listener:model', 'chats'],
-	['listener:model', 'jobs'],
 	['listener:merge-queue', 'jobs'],
 	['listener:resume', 'chats'],
 	['listener:schedules', 'jobs'],
+	['listener:model', 'chats'],
+	['listener:model', 'jobs'],
+	['chats', 'chats'],
+	['chats', 'jobs'],
+	['jobs', 'jobs'],
 ];
 
 export type MapLayout = Readonly<{
 	width: number;
 	height: number;
 	boxes: ReadonlyMap<MapNode, Box>;
-	domains: Readonly<{ sources: Box; log: Box; listeners: Box; work: Box }>;
+	domains: Readonly<{ events: Box; work: Box }>;
+	segments: readonly Segment[];
+	loopLabel: Readonly<{ x: number; y: number }>;
 	route: (hop: Hop) => Route | null;
+	segmentsOf: (hop: Hop) => readonly string[];
 }>;
 
 type Point = readonly [number, number];
@@ -58,174 +52,226 @@ const PAD = 12;
 const TOP = 28;
 const INSET = 20;
 const YOU_H = 36;
-const ROW_H = 28;
-const ROW_PITCH = 34;
-const LISTENER_H = 44;
-const LISTENER_PITCH = 52;
-const ON_THEIR_OWN = LISTENERS.indexOf('merge-queue');
-const GROUP_GAP = 16;
-const BAR = 36;
-const BAR_GAP = 16;
-const LOG_TOP = TOP + INSET + YOU_H + 16;
-const LOG_H = INSET + EVENT_ROWS.length * ROW_PITCH + PAD - (ROW_PITCH - ROW_H);
-const LANE = 14;
-const CHATS_H = 196;
+const YOU_GAP = 20;
+const ROW_H = 26;
+const ROW_PITCH = 30;
+const REC_PAD = 10;
+const REC_HEAD = 44;
+const RULE_H = 38;
+const RULE_PITCH = 44;
+const THEN_H = 22;
+const CHATS_H = 190;
 const WORK_GAP = 18;
-const LOOP = 12;
+const ASK = 12;
+const LOOP_DROP = 26;
+const LOOP_INSET = 40;
 const RADIUS = 7;
 const TIP = 6;
-const BASE = { sources: 126, log: 216, listeners: 228, work: 196 } as const;
-const BASE_TOTAL = BASE.sources + BASE.log + BASE.listeners + BASE.work;
-const IDEAL_GAP = 38;
-const MIN_SCALE = 0.82;
+const BASE = { events: 220, reconciler: 270, work: 190 } as const;
+const BASE_TOTAL = BASE.events + BASE.reconciler + BASE.work;
+const IDEAL_GAP = 56;
+const MIN_SCALE = 0.85;
 const MAX_SCALE = 1.3;
+const LOG_TOP = TOP + INSET + YOU_H + YOU_GAP;
+const ROWS_TOP = LOG_TOP + INSET;
+const ROWS_SPAN = EVENT_ROWS.length * ROW_PITCH - (ROW_PITCH - ROW_H);
+const MODEL = LISTENERS.indexOf('model');
+const RECONCILER_H = REC_PAD * 2 + REC_HEAD + LISTENERS.length * RULE_PITCH + THEN_H - 6;
 
 export const MAP_MIN_WIDTH = 880;
 
 export function mapLayout(available: number): MapLayout {
 	const width = Math.max(MAP_MIN_WIDTH, available);
-	const inner = width - SIDE * 2 - 4 * PAD * 2 - BAR - 2 * BAR_GAP;
-	const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (inner - 2 * IDEAL_GAP) / BASE_TOTAL));
-	const sources = Math.round(BASE.sources * scale);
-	const log = Math.round(BASE.log * scale);
-	const listeners = Math.round(BASE.listeners * scale);
-	const work = Math.round(BASE.work * scale);
-	const gap = (inner - sources - log - listeners - work) / 2;
+	const scale = Math.min(
+		MAX_SCALE,
+		Math.max(MIN_SCALE, (width - SIDE * 2 - PAD * 4 - IDEAL_GAP * 2) / BASE_TOTAL),
+	);
+	const rowW = Math.round(BASE.events * scale);
+	const recW = Math.round(BASE.reconciler * scale);
+	const workW = Math.round(BASE.work * scale);
+	const gap = (width - SIDE * 2 - PAD * 4 - rowW - recW - workW) / 2;
+	const bottom = Math.max(ROWS_TOP + ROWS_SPAN + PAD, ROWS_TOP + RECONCILER_H + PAD);
+	const loopY = bottom + LOOP_DROP;
 
-	const bottom = LOG_TOP + LOG_H;
-	const lane = bottom + LANE;
-	const height = lane + LANE;
-
-	const sourcesDomain: Box = { x: SIDE, y: TOP, w: sources + PAD * 2, h: bottom - TOP };
-	const logDomain: Box = {
-		x: sourcesDomain.x + sourcesDomain.w + gap,
-		y: LOG_TOP,
-		w: log + PAD * 2,
-		h: LOG_H,
-	};
-	const bar: Box = {
-		x: logDomain.x + logDomain.w + BAR_GAP,
-		y: LOG_TOP + INSET,
-		w: BAR,
-		h: EVENT_ROWS.length * ROW_PITCH - (ROW_PITCH - ROW_H),
-	};
-	const listenersDomain: Box = {
-		x: bar.x + bar.w + BAR_GAP,
-		y: LOG_TOP,
-		w: listeners + PAD * 2,
-		h: LOG_H,
-	};
-	const workDomain: Box = {
-		x: listenersDomain.x + listenersDomain.w + gap,
+	const events: Box = { x: SIDE, y: LOG_TOP, w: rowW + PAD * 2, h: bottom - LOG_TOP };
+	const reconciler: Box = { x: events.x + events.w + gap, y: ROWS_TOP, w: recW, h: RECONCILER_H };
+	const work: Box = {
+		x: reconciler.x + reconciler.w + gap,
 		y: TOP,
-		w: work + PAD * 2,
+		w: workW + PAD * 2,
 		h: bottom - TOP,
 	};
-	const rowY = (row: EventRow): number => LOG_TOP + INSET + EVENT_ROWS.indexOf(row) * ROW_PITCH;
-	const rowsSpan = (first: EventRow, last: EventRow): Readonly<{ y: number; h: number }> => ({
-		y: rowY(first),
-		h: rowY(last) + ROW_H - rowY(first),
-	});
-
-	const boxes = new Map<MapNode, Box>();
-	const sourceX = sourcesDomain.x + PAD;
-	boxes.set('you', { x: sourceX, y: TOP + INSET, w: sources, h: YOU_H });
-	boxes.set('agents', { x: sourceX, w: sources, ...rowsSpan('turn-finished', 'job-finished') });
-	boxes.set('git', { x: sourceX, w: sources, ...rowsSpan('head-moved', 'merge-conflicted') });
-	boxes.set('github', {
-		x: sourceX,
-		w: sources,
-		...rowsSpan('pull-request-changed', 'pull-request-changed'),
-	});
-	boxes.set('malini', {
-		x: sourceX,
-		w: sources,
-		...rowsSpan('workstream-created', 'workstream-archived'),
-	});
-	boxes.set('clock', { x: sourceX, w: sources, ...rowsSpan('other', 'other') });
-	EVENT_ROWS.forEach((row) => {
-		boxes.set(`event:${row}`, { x: logDomain.x + PAD, y: rowY(row), w: log, h: ROW_H });
-	});
-	boxes.set('reconciler', bar);
-	LISTENERS.forEach((listener, index) => {
-		boxes.set(`listener:${listener}`, {
-			x: listenersDomain.x + PAD,
-			y: LOG_TOP + INSET + index * LISTENER_PITCH + (index >= ON_THEIR_OWN ? GROUP_GAP : 0),
-			w: listeners,
-			h: LISTENER_H,
-		});
-	});
-	const chats: Box = { x: workDomain.x + PAD, y: TOP + INSET, w: work, h: CHATS_H };
+	const you: Box = { x: SIDE + PAD, y: TOP + INSET, w: rowW, h: YOU_H };
+	const chats: Box = { x: work.x + PAD, y: TOP + INSET, w: workW, h: CHATS_H };
 	const jobsY = chats.y + CHATS_H + WORK_GAP;
-	boxes.set('chats', chats);
-	boxes.set('jobs', { x: chats.x, y: jobsY, w: work, h: bottom - PAD - jobsY });
+	const jobs: Box = { x: chats.x, y: jobsY, w: workW, h: bottom - PAD - jobsY };
+	const rows = new Map<EventRow, Box>(
+		EVENT_ROWS.map((row, index) => [
+			row,
+			{ x: SIDE + PAD, y: ROWS_TOP + index * ROW_PITCH, w: rowW, h: ROW_H },
+		]),
+	);
+	const rules = new Map<Listener, Box>(
+		LISTENERS.map((listener, index) => [
+			listener,
+			{
+				x: reconciler.x + REC_PAD,
+				y: reconciler.y + REC_PAD + REC_HEAD + index * RULE_PITCH + (index >= MODEL ? THEN_H : 0),
+				w: reconciler.w - REC_PAD * 2,
+				h: RULE_H,
+			},
+		]),
+	);
 
-	const sourcesGap = sourcesDomain.x + sourcesDomain.w + gap / 2;
-	const riseX = bar.x + bar.w + BAR_GAP / 2;
-	const workGap = listenersDomain.x + listenersDomain.w + gap / 2;
-	const box = (node: MapNode): Box | null => boxes.get(node) ?? null;
-	const midY = (target: Box): number => target.y + target.h / 2;
+	const boxes = new Map<MapNode, Box>([
+		['you', you],
+		['reconciler', reconciler],
+		['chats', chats],
+		['jobs', jobs],
+		...[...rows].map(([row, box]): [MapNode, Box] => [`event:${row}`, box]),
+		...[...rules].map(([listener, box]): [MapNode, Box] => [`listener:${listener}`, box]),
+	]);
 
-	const points = ([from, to]: Hop, a: Box, b: Box): readonly Point[] => {
-		if (from === to) {
-			const x = a.x + a.w - 46;
-			const edge = from === 'chats' ? a.y : a.y + a.h;
-			const out = from === 'chats' ? edge - LOOP : edge + LOOP;
+	const mid = (box: Box): number => box.y + box.h / 2;
+	const right = (box: Box): number => box.x + box.w;
+	const busX = reconciler.x - gap / 2;
+	const decided = work.x - Math.min(16, gap / 3);
+	const asked = work.x - gap * 0.62;
+	const first = rows.get(EVENT_ROWS[0] ?? 'turn-finished') ?? you;
+	const last = rows.get(EVENT_ROWS.at(-1) ?? 'other') ?? you;
+	const flowY = mid(first);
+	const youY = mid(you);
+	const decidedJobsY = jobs.y + 24;
+	const askedJobsY = jobs.y + 40;
+	const askX = right(chats) - 46;
+	const handX = right(chats) - 30;
+	const loopX = work.x + work.w / 2;
+	const loopEnd = events.x + LOOP_INSET;
+
+	const lines = {
+		trunk: [
+			[right(first), flowY],
+			[reconciler.x, flowY],
+		],
+		bus: [
+			[right(last), mid(last)],
+			[busX, mid(last)],
+			[busX, flowY],
+		],
+		decidedChats: [
+			[right(reconciler), flowY],
+			[chats.x, flowY],
+		],
+		decidedJobs: [
+			[right(reconciler), flowY],
+			[decided, flowY],
+			[decided, decidedJobsY],
+			[jobs.x, decidedJobsY],
+		],
+		youChats: [
+			[right(you), youY],
+			[chats.x, youY],
+		],
+		youJobs: [
+			[right(you), youY],
+			[asked, youY],
+			[asked, askedJobsY],
+			[jobs.x, askedJobsY],
+		],
+		askChats: [
+			[askX, chats.y],
+			[askX, chats.y - ASK],
+			[askX + 24, chats.y - ASK],
+			[askX + 24, chats.y],
+		],
+		askJobs: [
+			[handX, chats.y + chats.h],
+			[handX, jobs.y],
+		],
+		askJob: [
+			[askX, jobs.y + jobs.h],
+			[askX, jobs.y + jobs.h + ASK],
+			[askX + 24, jobs.y + jobs.h + ASK],
+			[askX + 24, jobs.y + jobs.h],
+		],
+		loop: [
+			[loopX, bottom],
+			[loopX, loopY],
+			[loopEnd, loopY],
+			[loopEnd, bottom],
+		],
+	} satisfies Record<string, readonly Point[]>;
+
+	const stub = (row: EventRow): readonly Point[] => {
+		const box = rows.get(row) ?? first;
+		return [
+			[right(box), mid(box)],
+			[busX, mid(box)],
+		];
+	};
+
+	const segments: Segment[] = [
+		{ id: 'trunk', d: path(lines.trunk), tip: tip(lines.trunk) },
+		{ id: 'bus', d: path(lines.bus), tip: null },
+		...EVENT_ROWS.slice(1, -1).map((row) => ({ id: `stub:${row}`, d: path(stub(row)), tip: null })),
+		{ id: 'decided:chats', d: path(lines.decidedChats), tip: tip(lines.decidedChats) },
+		{ id: 'decided:jobs', d: path(lines.decidedJobs), tip: tip(lines.decidedJobs) },
+		{ id: 'you:chats', d: path(lines.youChats), tip: tip(lines.youChats) },
+		{ id: 'you:jobs', d: path(lines.youJobs), tip: tip(lines.youJobs) },
+		{ id: 'ask:chats', d: path(lines.askChats), tip: tip(lines.askChats) },
+		{ id: 'ask:jobs', d: path(lines.askJobs), tip: tip(lines.askJobs) },
+		{ id: 'ask:job', d: path(lines.askJob), tip: tip(lines.askJob) },
+		{ id: 'loop', d: path(lines.loop), tip: tip(lines.loop) },
+	];
+
+	const points = ([from, to]: Hop): readonly Point[] | null => {
+		if (from.startsWith('event:') && to === 'reconciler') {
+			const box = boxes.get(from) ?? first;
+			if (box === first) return lines.trunk;
 			return [
-				[x, edge],
-				[x, out],
-				[x + 24, out],
-				[x + 24, edge],
+				[right(box), mid(box)],
+				[busX, mid(box)],
+				[busX, flowY],
+				[reconciler.x, flowY],
 			];
 		}
-		if (from === 'chats' && to === 'jobs') {
-			const x = a.x + a.w - 30;
-			return [
-				[x, a.y + a.h],
-				[x, b.y],
-			];
+		if (from.startsWith('listener:')) {
+			if (to === 'chats') return lines.decidedChats;
+			if (to === 'jobs') return lines.decidedJobs;
 		}
-		const start: Point = [a.x + a.w, midY(a)];
-		const end: Point = [b.x, midY(b)];
-		if (to === 'reconciler') return [start, [b.x, start[1]]];
-		if (from === 'reconciler') return [[a.x + a.w, end[1]], end];
-		if (from === 'you') {
-			if (to === 'chats') return [start, [b.x, start[1]]];
-			return [start, [workGap, start[1]], [workGap, end[1]], end];
-		}
-		if (to.startsWith('listener:')) {
-			const under: readonly Point[] =
-				from === 'clock'
-					? [
-							[a.x + a.w - 24, a.y + a.h],
-							[a.x + a.w - 24, lane],
-						]
-					: [start, [sourcesGap, start[1]], [sourcesGap, lane]];
-			return [...under, [riseX, lane], [riseX, end[1]], end];
-		}
-		const mid = from.startsWith('listener:') ? workGap : sourcesGap;
-		return [start, [mid, start[1]], [mid, end[1]], end];
+		if (from === 'you') return to === 'chats' ? lines.youChats : lines.youJobs;
+		if (from === 'chats') return to === 'chats' ? lines.askChats : lines.askJobs;
+		if (from === 'jobs' && to === 'jobs') return lines.askJob;
+		return null;
 	};
 
 	const route = (hop: Hop): Route | null => {
-		const a = box(hop[0]);
-		const b = box(hop[1]);
-		if (a === null || b === null) return null;
-		const line = points(hop, a, b);
-		return { d: path(line), tip: tip(line) };
+		const line = points(hop);
+		return line === null ? null : { d: path(line), tip: tip(line) };
+	};
+
+	const segmentsOf = ([from, to]: Hop): readonly string[] => {
+		if (from.startsWith('event:') && to === 'reconciler') {
+			const row = from.slice('event:'.length);
+			if (row === EVENT_ROWS[0]) return ['trunk'];
+			return [`stub:${row}`, 'bus', 'trunk'];
+		}
+		if (from.startsWith('listener:')) return to === 'chats' ? ['decided:chats'] : ['decided:jobs'];
+		if (from === 'you') return [to === 'chats' ? 'you:chats' : 'you:jobs'];
+		if (from === 'chats') return [to === 'chats' ? 'ask:chats' : 'ask:jobs'];
+		if (from === 'jobs' && to === 'jobs') return ['ask:job'];
+		return [];
 	};
 
 	return {
 		width,
-		height,
+		height: loopY + 18,
 		boxes,
-		domains: {
-			sources: sourcesDomain,
-			log: logDomain,
-			listeners: listenersDomain,
-			work: workDomain,
-		},
+		domains: { events, work },
+		segments,
+		loopLabel: { x: (loopX + loopEnd) / 2, y: loopY },
 		route,
+		segmentsOf,
 	};
 }
 

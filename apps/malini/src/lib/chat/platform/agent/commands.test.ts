@@ -640,7 +640,7 @@ describe('prompt round trips', () => {
 		expect(finished).toHaveLength(1);
 	});
 
-	it('continues a paused run on the next launch, from where it paused and with its profile', async () => {
+	it('continues a paused run once Malini started reaches it, from where it paused, with its profile and in its chain', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
@@ -665,17 +665,31 @@ describe('prompt round trips', () => {
 			},
 		);
 		const latestRun = () =>
-			get<{ prompt: string; summary: string | null; profile: string; automated: number }>(
+			get<{
+				prompt: string;
+				summary: string | null;
+				profile: string;
+				automated: number;
+				chain_id: string;
+				cause_event_id: number | null;
+			}>(
 				test.db,
-				'SELECT prompt, summary, profile, automated FROM agent_runs WHERE session_id = ? ORDER BY rowid DESC LIMIT 1',
+				'SELECT prompt, summary, profile, automated, chain_id, cause_event_id FROM agent_runs WHERE session_id = ? ORDER BY rowid DESC LIMIT 1',
 				sessionId,
 			);
+		const pausedChain = latestRun()?.chain_id;
+		expect(latestRun()?.prompt).toBe('HANG');
+
+		await service.continuePausedRuns(7);
+
 		await waitFor(() => latestRun()?.summary != null, 2_000, 'the paused run to continue');
 		expect(latestRun()).toEqual({
 			prompt: CONTINUE_AFTER_PAUSE_PROMPT,
 			summary: `done after cursor-${runId}`,
 			profile: JSON.stringify(profile),
 			automated: 1,
+			chain_id: pausedChain,
+			cause_event_id: 7,
 		});
 	});
 

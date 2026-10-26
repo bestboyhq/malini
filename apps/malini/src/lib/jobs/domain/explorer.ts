@@ -7,9 +7,7 @@ import type {
 	TimelineWorkstream,
 } from '$contract/jobs';
 
-export const SOURCES = ['you', 'agents', 'git', 'github', 'malini', 'clock'] as const;
-
-export type SourceNode = (typeof SOURCES)[number];
+export type Source = 'agent' | 'git' | 'github' | 'malini' | 'clock';
 
 export const EVENT_ROWS = [
 	'turn-finished',
@@ -20,20 +18,42 @@ export const EVENT_ROWS = [
 	'branch-pushed',
 	'merge-conflicted',
 	'pull-request-changed',
+	'draft-requested',
+	'merge-requested',
 	'workstream-created',
 	'workstream-archived',
+	'malini-started',
+	'time-reached',
 	'other',
 ] as const;
 
 export type EventRow = (typeof EVENT_ROWS)[number];
 
+export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
+	'turn-finished': 'agent',
+	'tool-called': 'agent',
+	'job-started': 'agent',
+	'job-finished': 'agent',
+	'head-moved': 'git',
+	'branch-pushed': 'git',
+	'merge-conflicted': 'git',
+	'pull-request-changed': 'github',
+	'draft-requested': 'malini',
+	'merge-requested': 'malini',
+	'workstream-created': 'malini',
+	'workstream-archived': 'malini',
+	'malini-started': 'malini',
+	'time-reached': 'clock',
+	other: null,
+};
+
 export const LISTENERS = [
 	'triggers',
 	'thens',
-	'model',
 	'merge-queue',
 	'resume',
 	'schedules',
+	'model',
 ] as const;
 
 export type Listener = (typeof LISTENERS)[number];
@@ -41,7 +61,7 @@ export type Listener = (typeof LISTENERS)[number];
 export type WorkNode = 'chats' | 'jobs';
 
 export type MapNode =
-	SourceNode | WorkNode | 'reconciler' | `event:${EventRow}` | `listener:${Listener}`;
+	'you' | WorkNode | 'reconciler' | `event:${EventRow}` | `listener:${Listener}`;
 
 export type Hop = readonly [MapNode, MapNode];
 
@@ -86,27 +106,13 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'repositories:workstream-pushed': 'branch-pushed',
 	'repositories:workstream-merge-conflicted': 'merge-conflicted',
 	'pull-requests:pull-request-changed': 'pull-request-changed',
+	'pull-requests:draft-requested': 'draft-requested',
+	'pull-requests:merge-requested': 'merge-requested',
 	'repositories:workstream-created': 'workstream-created',
 	'repositories:workstream-removed': 'workstream-archived',
+	'app:started': 'malini-started',
+	'jobs:time-reached': 'time-reached',
 };
-
-const AGENT_CHANNELS: ReadonlySet<string> = new Set([
-	'jobs:tool-called',
-	'jobs:run-started',
-	'jobs:run-finished',
-]);
-
-const GIT_CHANNELS: ReadonlySet<string> = new Set([
-	'repositories:workstream-head-moved',
-	'repositories:workstream-pushed',
-	'repositories:workstream-merge-conflicted',
-	'repositories:workstream-files-changed',
-	'pull-requests:local-base-synced',
-]);
-
-const GITHUB_CHANNELS: ReadonlySet<string> = new Set(['pull-requests:pull-request-changed']);
-
-const STARTERS: ReadonlySet<MapNode> = new Set<MapNode>(['you', 'clock']);
 
 const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'chat:turn-finished',
@@ -117,7 +123,11 @@ const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'repositories:workstream-merge-conflicted',
 	'pull-requests:local-base-synced',
 	'pull-requests:pull-request-changed',
+	'pull-requests:draft-requested',
+	'pull-requests:merge-requested',
+	'app:started',
 	'app:updated',
+	'jobs:time-reached',
 ]);
 
 export function eventRow(channel: string): EventRow {
@@ -167,7 +177,14 @@ export function listed(explorer: Explorer, everyEvent: boolean): readonly Explor
 }
 
 export function chainItems(explorer: Explorer, chainId: string): readonly ExplorerItem[] {
-	return explorer.items.filter((item) => item.chainId === chainId);
+	const steps = explorer.items.filter((item) => item.chainId === chainId);
+	const causes = steps.flatMap((item) => {
+		const cause = item.cause === null ? undefined : explorer.byId.get(item.cause);
+		return cause === undefined || cause.chainId === chainId ? [] : [cause];
+	});
+	return [...new Map([...causes, ...steps].map((item) => [item.id, item])).values()].sort(
+		(left, right) => left.at - right.at,
+	);
 }
 
 export function through(explorer: Explorer, node: MapNode): readonly ExplorerItem[] {
@@ -209,18 +226,8 @@ function eventItem(event: LoggedEventRecord): ExplorerItem {
 					? runId(event.cause.id)
 					: turnId(event.cause.id),
 		workstreamId: event.workstreamId,
-		hops: [
-			[emitterOf(event.channel), `event:${row}`],
-			[`event:${row}`, 'reconciler'],
-		],
+		hops: [[`event:${row}`, 'reconciler']],
 	};
-}
-
-function emitterOf(channel: string): SourceNode {
-	if (channel.startsWith('chat:') || AGENT_CHANNELS.has(channel)) return 'agents';
-	if (GIT_CHANNELS.has(channel)) return 'git';
-	if (GITHUB_CHANNELS.has(channel)) return 'github';
-	return 'malini';
 }
 
 function runItem(
@@ -262,12 +269,12 @@ function runHops(run: TimelineJobRun): Hop[] {
 			];
 		case 'schedule':
 			return [
-				['clock', 'listener:schedules'],
+				['reconciler', 'listener:schedules'],
 				['listener:schedules', 'jobs'],
 			];
 		case 'merge-queue':
 			return [
-				['github', 'listener:merge-queue'],
+				['reconciler', 'listener:merge-queue'],
 				['listener:merge-queue', 'jobs'],
 			];
 		case 'reconciler':
@@ -320,7 +327,7 @@ function turnCause(
 function turnHops(turn: TimelineChatTurn): Hop[] {
 	if (turn.resumed) {
 		return [
-			['malini', 'listener:resume'],
+			['reconciler', 'listener:resume'],
 			['listener:resume', 'chats'],
 		];
 	}
@@ -352,7 +359,6 @@ function countNodes(
 	};
 	for (const [channel, total] of Object.entries(channelCounts)) {
 		add(`event:${eventRow(channel)}`, total);
-		add(emitterOf(channel), total);
 		add('reconciler', total);
 	}
 	for (const item of items) {
@@ -360,7 +366,7 @@ function countNodes(
 		if (item.kind === 'run') add('jobs');
 		if (item.kind === 'decision') add('listener:model');
 		for (const [from] of item.hops) {
-			if (STARTERS.has(from) || (from.startsWith('listener:') && from !== 'listener:model')) {
+			if (from === 'you' || (from.startsWith('listener:') && from !== 'listener:model')) {
 				add(from);
 			}
 		}

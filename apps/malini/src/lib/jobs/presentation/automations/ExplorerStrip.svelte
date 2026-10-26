@@ -63,8 +63,8 @@
 
 <div class="flex flex-col gap-2 px-4 pt-3 pb-2" data-testid="explorer-strip">
 	<div class="flex items-center gap-3">
-		<h2 class="text-fg-default text-xs font-medium">Timeline of events</h2>
-		<span class="text-fg-tertiary text-2xs tabular-nums">{count(items.length, 'event')}</span>
+		<h2 class="text-fg-default text-xs font-medium">Timeline</h2>
+		<span class="text-fg-tertiary text-2xs tabular-nums">{count(items.length, 'step')}</span>
 		<span class="text-fg-tertiary text-2xs ml-auto flex items-center gap-3">
 			<span class="flex items-center gap-1">
 				<Icon name="pr-merged" size={12} class="text-merged-content" />

@@ -172,6 +172,7 @@ export interface AgentService {
 	ensureReady(): Promise<BridgeSupervisor>;
 	stop(): Promise<void>;
 	closeOpenRunsForExit(): Promise<number>;
+	continuePausedRuns(causeEventId: number | null): Promise<void>;
 }
 
 export function selectBridgeScriptPath(resourcesRoot: string, isDev: boolean): string {
@@ -319,7 +320,6 @@ export async function startAgentService(
 	const stopRecordingDenials = context.commands.observe((outcome) =>
 		recordDeniedMaliniCall(context, outcome),
 	);
-	if (started) await continuePausedRuns(commandDeps);
 
 	return {
 		runtime,
@@ -330,6 +330,8 @@ export async function startAgentService(
 		},
 		ensureReady: () => runtime.ensureReady(),
 		closeOpenRunsForExit,
+		continuePausedRuns: (causeEventId) =>
+			started ? continuePausedRuns(commandDeps, causeEventId) : Promise.resolve(),
 		async stop() {
 			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);

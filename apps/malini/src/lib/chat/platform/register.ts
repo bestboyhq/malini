@@ -1,8 +1,14 @@
 import type { AgentTheme } from '$contract/agent';
+import { APP_STARTED_CHANNEL } from '$contract/events';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
-import { runAutomaticJob, type ChooseWithJob, type SuggestWithJob } from '$lib/jobs/jobs.platform';
+import {
+	runAutomaticJob,
+	type ChooseWithJob,
+	type DispatchedEvent,
+	type SuggestWithJob,
+} from '$lib/jobs/jobs.platform';
 import { stopBackgroundTask, stopWorkstreamBackgroundCommands } from './agent/commands';
 import type { AgentRunLeases } from './agent/lifecycle';
 import type { BridgeProcessFactory } from './agent/process';
@@ -46,6 +52,7 @@ export interface ChatPlatform {
 	nameWorkstream(task: string): Promise<string>;
 	suggestTitle: SuggestWithJob;
 	choose: ChooseWithJob;
+	resume(event: DispatchedEvent): Promise<void>;
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -108,6 +115,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 	const suggestTitle: SuggestWithJob = async (task, job) =>
 		(await agent.ensureReady()).suggestTitle(task, job);
+	let resumed = false;
 
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
@@ -128,5 +136,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
 		suggestTitle,
 		choose: async (task, job, choices) => (await agent.ensureReady()).choose(task, job, choices),
+		resume: async (event) => {
+			if (event.channel !== APP_STARTED_CHANNEL || resumed) return;
+			resumed = true;
+			await agent.continuePausedRuns(event.id);
+		},
 	};
 }

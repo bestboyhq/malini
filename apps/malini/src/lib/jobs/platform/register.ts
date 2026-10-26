@@ -8,10 +8,10 @@ import { defineJobCommands, seedBuiltinJobs } from './commands';
 import { settleInterruptedAgentActions } from './agent-actions.repository';
 import type { AutomaticJob, ChooseWithJob, SuggestWithJob } from './automatic-jobs.service';
 import { checkCompatibilityAfterUpdates } from './compatibility-check';
-import { pruneEvents, startEventLog } from './event-log.service';
+import { pruneEvents, startEventLog, type DispatchedEvent } from './event-log.service';
 import { JobExperiments } from './job-experiments.service';
 import { JobRunner } from './job-runner.service';
-import { startJobSchedules } from './job-schedules.service';
+import { createJobSchedules } from './job-schedules.service';
 import { startJobTriggers } from './job-triggers.service';
 import { pruneDecisions } from './reconciler-decisions.repository';
 import { Reconciler } from './reconciler.service';
@@ -25,7 +25,11 @@ export interface JobsOptions {
 	readonly log?: (line: string) => void;
 	readonly suggestTitle?: SuggestWithJob;
 	readonly choose?: ChooseWithJob;
+	readonly mergeQueue?: (event: DispatchedEvent) => Promise<void>;
+	readonly resume?: (event: DispatchedEvent) => Promise<void>;
 }
+
+const NO_RULE = (): Promise<void> => Promise.resolve();
 
 export function registerJobs(context: MainContext, options: JobsOptions = {}): JobsPlatform {
 	const log = options.log ?? ((line: string) => console.error(line));
@@ -44,9 +48,13 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	seedBuiltinJobs(context.db);
 	settleInterruptedAgentActions(context.db, nowIso8601());
 	const triggers = startJobTriggers(context, log);
+	const schedules = createJobSchedules(context, log);
 	const reconciler = new Reconciler(context, log, choose, {
 		triggers: (event) => triggers.handle(event),
 		thens: (event) => runner.startThen(event),
+		mergeQueue: options.mergeQueue ?? NO_RULE,
+		resume: options.resume ?? NO_RULE,
+		schedules: (event) => schedules.handle(event),
 	});
 	defineJobCommands(context, runner, experiments, reconciler);
 	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
@@ -60,13 +68,12 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 			log(`jobs: could not prune the event log: ${describeError(error)}`);
 		}
 	};
-	let schedules: { dispose(): void } | null = null;
 	let housekeeping: NodeJS.Timeout | null = null;
 	return {
 		start: () => {
 			runner.start();
 			reconciler.start();
-			schedules ??= startJobSchedules(context, log);
+			schedules.start();
 			prune();
 			housekeeping ??= setInterval(prune, HOUSEKEEPING_MS).unref();
 		},
@@ -74,7 +81,7 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 			if (housekeeping) clearInterval(housekeeping);
 			eventLog.dispose();
 			stopSuggesting();
-			schedules?.dispose();
+			schedules.dispose();
 			triggers.dispose();
 			reconciler.dispose();
 			stopCompatibilityChecks();

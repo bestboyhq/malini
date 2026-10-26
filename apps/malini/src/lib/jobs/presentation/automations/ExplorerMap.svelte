@@ -11,18 +11,18 @@
 	import {
 		EVENT_ROWS,
 		LISTENERS,
-		SOURCES,
+		ROW_SOURCES,
 		wireKey,
 		type Explorer,
+		type Hop,
 		type MapNode,
-		type SourceNode,
 		type WorkNode,
 		type Working,
 	} from '$lib/jobs/domain/explorer';
 	import {
 		LISTENER_LABELS,
 		ROW_LOOKS,
-		SOURCE_LOOKS,
+		SOURCE_LABELS,
 		count,
 		explorerClock,
 		listenerNote,
@@ -55,35 +55,53 @@
 	const flashes = new SvelteMap<MapNode, number>();
 
 	const layout = $derived(mapLayout(width));
-	const bar = $derived(place('reconciler'));
-	const wires = $derived(
-		[
-			...new Map(
-				[...STRUCTURE, ...explorer.items.flatMap((item) => item.hops)].map((hop) => [
-					wireKey(hop),
-					hop,
-				]),
-			).entries(),
-		]
-			.flatMap(([key, hop]) => {
-				const route = layout.route(hop);
-				return route === null ? [] : [{ key, ...route, traffic: explorer.wires.get(key) ?? 0 }];
-			})
-			.sort((left, right) => Number(isLit(left.key)) - Number(isLit(right.key))),
-	);
+	const totalEvents = $derived(explorer.counts.get('reconciler') ?? 0);
+	const you = $derived(place('you'));
+	const reconciler = $derived(place('reconciler'));
 	const domains = $derived([
-		{ key: 'sources', box: layout.domains.sources, label: 'event sources' },
 		{
-			key: 'log',
-			box: layout.domains.log,
-			label: `event log · ${count(totalEvents(), 'event')}`,
+			key: 'events',
+			box: layout.domains.events,
+			label: `event log · ${count(totalEvents, 'event')}`,
 		},
-		{ key: 'listeners', box: layout.domains.listeners, label: 'handlers · who reacts' },
 		{ key: 'work', box: layout.domains.work, label: 'work · what runs' },
 	]);
+	const traffic = $derived(trafficOf());
+	const litRoutes = $derived(
+		[...hopsByKey().entries()].flatMap(([key, hop]) => {
+			const route = lit?.wires.has(key) ? layout.route(hop) : null;
+			return route === null ? [] : [{ key, ...route }];
+		}),
+	);
 
-	function totalEvents(): number {
-		return EVENT_ROWS.reduce((sum, row) => sum + (explorer.counts.get(`event:${row}`) ?? 0), 0);
+	function hopsByKey(): Map<string, Hop> {
+		return new Map(
+			[...STRUCTURE, ...explorer.items.flatMap((item) => item.hops)].map((hop) => [
+				wireKey(hop),
+				hop,
+			]),
+		);
+	}
+
+	function trafficOf(): Readonly<Record<string, number>> {
+		const totals: Record<string, number> = {};
+		const add = (id: string, amount: number): void => {
+			totals[id] = (totals[id] ?? 0) + amount;
+		};
+		EVENT_ROWS.forEach((row, index) => {
+			const events = explorer.counts.get(`event:${row}`) ?? 0;
+			add(`stub:${row}`, events);
+			if (index > 0) add('bus', events);
+		});
+		add('trunk', totalEvents);
+		for (const item of explorer.items) {
+			if (item.kind === 'event' && item.cause !== null) add('loop', 1);
+			for (const hop of item.hops) {
+				if (hop[0].startsWith('event:')) continue;
+				for (const id of layout.segmentsOf(hop)) add(id, 1);
+			}
+		}
+		return totals;
 	}
 
 	function place(node: MapNode): Box {
@@ -94,6 +112,16 @@
 		const flashing = (flashes.get(node) ?? 0) > 0;
 		return [
 			'bg-surface-100 border-surface-100-border hover:bg-surface-100-hover flex size-full rounded-[10px] border-[0.5px] text-left transition-[box-shadow,opacity] duration-200 motion-reduce:transition-none',
+			flashing ? 'ring-brand ring-2' : lit?.nodes.has(node) && 'ring-brand-icon ring-1',
+			lit !== null && !lit.nodes.has(node) && 'opacity-40',
+			selectedNode === node && 'ring-brand-icon ring-1',
+		];
+	}
+
+	function ruleTone(node: MapNode): ClassValue {
+		const flashing = (flashes.get(node) ?? 0) > 0;
+		return [
+			'bg-surface-50 border-surface-50-border hover:bg-surface-50-hover flex size-full flex-col justify-center rounded-lg border-[0.5px] px-2.5 text-left transition-[box-shadow,opacity] duration-200 motion-reduce:transition-none',
 			flashing ? 'ring-brand ring-2' : lit?.nodes.has(node) && 'ring-brand-icon ring-1',
 			lit !== null && !lit.nodes.has(node) && 'opacity-40',
 			selectedNode === node && 'ring-brand-icon ring-1',
@@ -115,9 +143,13 @@
 			let stopped = false;
 			const travel = async (): Promise<void> => {
 				for (const hop of flight.hops) {
-					const route = layout.route(hop);
-					if (stopped || route === null) continue;
+					if (stopped) return;
 					if (hop === flight.hops[0]) flash(hop[0]);
+					const route = layout.route(hop);
+					if (route === null) {
+						flash(hop[1]);
+						continue;
+					}
 					dot.style.offsetPath = `path('${route.d}')`;
 					current = dot.animate([{ offsetDistance: '0%' }, { offsetDistance: '100%' }], {
 						duration: prefersReducedMotion.current ? 0 : HOP_MS,
@@ -143,29 +175,15 @@
 		};
 	}
 
-	function isLit(key: string): boolean {
-		return lit?.wires.has(key) ?? false;
-	}
-
-	function wireTone(key: string, traffic: number): ClassValue {
-		const on = isLit(key);
+	function wireTone(amount: number): ClassValue {
 		return [
 			'fill-none transition-[opacity] duration-200 motion-reduce:transition-none',
-			on
-				? 'stroke-brand-icon'
-				: traffic > 0
-					? 'stroke-surface-elevated-border'
-					: 'stroke-surface-50-border',
-			lit !== null && !on && 'opacity-30',
+			amount > 0 ? 'stroke-surface-elevated-border' : 'stroke-surface-50-border',
+			lit !== null && 'opacity-30',
 		];
 	}
 
-	function sourceCount(node: SourceNode): string {
-		const value = explorer.counts.get(node) ?? 0;
-		return node === 'you' || node === 'clock' ? count(value, 'start') : count(value, 'event');
-	}
-
-	function listenerCount(node: MapNode): string {
+	function ruleCount(node: MapNode): string {
 		const value = explorer.counts.get(node) ?? 0;
 		return node === 'listener:model' ? count(value, 'decision') : `${value} started`;
 	}
@@ -214,17 +232,30 @@
 			height={layout.height}
 			aria-hidden="true"
 		>
-			{#each wires as wire (wire.key)}
+			{#each layout.segments as segment (segment.id)}
+				{@const amount = traffic[segment.id] ?? 0}
 				<path
-					d={wire.d}
-					class={wireTone(wire.key, wire.traffic)}
-					stroke-width={wire.traffic > BUSY_WIRE ? 1.75 : 1.25}
-					stroke-dasharray={isLit(wire.key) ? undefined : wire.traffic > 0 ? '3 4' : '2 5'}
+					d={segment.d}
+					class={wireTone(amount)}
+					stroke-width={amount > BUSY_WIRE ? 1.75 : 1.25}
+					stroke-dasharray={amount > 0 ? '3 4' : '2 5'}
 					stroke-linecap="round"
 				/>
+				{#if segment.tip !== null}
+					<path
+						d={segment.tip}
+						class={wireTone(amount)}
+						stroke-width={1.25}
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				{/if}
+			{/each}
+			{#each litRoutes as route (route.key)}
+				<path d={route.d} class="stroke-brand-icon fill-none" stroke-width={1.5} />
 				<path
-					d={wire.tip}
-					class={wireTone(wire.key, wire.traffic)}
+					d={route.tip}
+					class="stroke-brand-icon fill-none"
 					stroke-width={1.25}
 					stroke-linecap="round"
 					stroke-linejoin="round"
@@ -232,8 +263,47 @@
 			{/each}
 		</svg>
 
-		{#each SOURCES as node (node)}
+		<span
+			class="bg-surface-50 text-fg-tertiary text-3xs pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 px-1.5 font-mono whitespace-nowrap"
+			style:left="{layout.loopLabel.x}px"
+			style:top="{layout.loopLabel.y}px"
+			aria-hidden="true"
+		>
+			chats and jobs emit most of these events
+		</span>
+
+		<div
+			class="absolute"
+			style:left="{you.x}px"
+			style:top="{you.y}px"
+			style:width="{you.w}px"
+			style:height="{you.h}px"
+		>
+			<Button
+				bare
+				pressable={false}
+				ariaLabel={`You: ${count(explorer.counts.get('you') ?? 0, 'start')}`}
+				ariaPressed={selectedNode === 'you'}
+				class={[tone('you'), 'flex-col justify-center px-3']}
+				onclick={() => onselectnode('you')}
+				data-testid="explorer-node"
+			>
+				<span class="flex items-baseline justify-between gap-2">
+					<span class="text-fg-default text-xs font-medium">You</span>
+					<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
+						{count(explorer.counts.get('you') ?? 0, 'start')}
+					</span>
+				</span>
+				<span class="text-fg-tertiary text-2xs truncate leading-4">
+					prompts and clicks go straight to work
+				</span>
+			</Button>
+		</div>
+
+		{#each EVENT_ROWS as row (row)}
+			{@const node = `event:${row}` as const}
 			{@const box = place(node)}
+			{@const source = ROW_SOURCES[row]}
 			<div
 				class="absolute"
 				style:left="{box.x}px"
@@ -244,21 +314,107 @@
 				<Button
 					bare
 					pressable={false}
-					ariaLabel={`${SOURCE_LOOKS[node].label}: ${sourceCount(node)}`}
+					ariaLabel={`${ROW_LOOKS[row].label}: ${count(explorer.counts.get(node) ?? 0, 'event')}`}
 					ariaPressed={selectedNode === node}
-					class={[tone(node), 'flex-col justify-center px-3']}
+					class={[tone(node), 'items-center justify-between gap-2 px-2.5']}
 					onclick={() => onselectnode(node)}
 					data-testid="explorer-node"
 				>
-					<span class="flex items-baseline justify-between gap-2">
-						<span class="text-fg-default text-xs font-medium">{SOURCE_LOOKS[node].label}</span>
+					<span class="flex min-w-0 items-center gap-1.5">
+						<Icon name={ROW_LOOKS[row].icon} size={13} class="text-fg-tertiary shrink-0" />
+						<span class="text-fg-default text-2xs truncate">{ROW_LOOKS[row].label}</span>
+					</span>
+					<span class="flex shrink-0 items-center gap-2">
+						{#if source !== null}
+							<span
+								class="bg-surface-50 text-fg-tertiary text-3xs rounded px-1 font-mono leading-4"
+							>
+								{SOURCE_LABELS[source]}
+							</span>
+						{/if}
 						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
 							{explorer.counts.get(node) ?? 0}
 						</span>
 					</span>
-					{#if box.h > 40}
-						<span class="text-fg-tertiary text-2xs leading-4">{SOURCE_LOOKS[node].note}</span>
-					{/if}
+				</Button>
+			</div>
+		{/each}
+
+		<div
+			class={[
+				'bg-surface-100 border-surface-100-border absolute flex flex-col rounded-xl border-[0.5px] p-2.5 transition-[box-shadow,opacity] duration-200 motion-reduce:transition-none',
+				(flashes.get('reconciler') ?? 0) > 0
+					? 'ring-brand ring-2'
+					: (lit?.nodes.has('reconciler') || selectedNode === 'reconciler') &&
+						'ring-brand-icon ring-1',
+				lit !== null && !lit.nodes.has('reconciler') && 'opacity-40',
+			]}
+			style:left="{reconciler.x}px"
+			style:top="{reconciler.y}px"
+			style:width="{reconciler.w}px"
+			style:height="{reconciler.h}px"
+		>
+			<Button
+				bare
+				pressable={false}
+				ariaLabel={`Reconciler: ${count(totalEvents, 'event')}`}
+				ariaPressed={selectedNode === 'reconciler'}
+				class="hover:bg-surface-100-hover flex flex-col rounded-lg px-1 pb-1 text-left"
+				onclick={() => onselectnode('reconciler')}
+				data-testid="explorer-node"
+			>
+				<span class="flex items-baseline justify-between gap-2">
+					<span class="text-fg-default text-xs font-medium">{nodeLabel('reconciler')}</span>
+					<span class="text-fg-tertiary text-3xs font-mono tabular-nums">{totalEvents}</span>
+				</span>
+				<span class="text-fg-tertiary text-2xs truncate">
+					every event: rules first, then the model
+				</span>
+			</Button>
+		</div>
+
+		{#each LISTENERS as listener (listener)}
+			{@const node = `listener:${listener}` as const}
+			{@const box = place(node)}
+			{@const idle = (explorer.counts.get(node) ?? 0) === 0}
+			{#if listener === 'model'}
+				<span
+					class="text-fg-quaternary text-3xs pointer-events-none absolute flex items-center gap-2 font-mono"
+					style:left="{box.x}px"
+					style:top="{box.y - 18}px"
+					style:width="{box.w}px"
+					aria-hidden="true"
+				>
+					<span class="border-surface-100-border flex-1 border-t-[0.5px]"></span>
+					then
+					<span class="border-surface-100-border flex-1 border-t-[0.5px]"></span>
+				</span>
+			{/if}
+			<div
+				class="absolute"
+				style:left="{box.x}px"
+				style:top="{box.y}px"
+				style:width="{box.w}px"
+				style:height="{box.h}px"
+			>
+				<Button
+					bare
+					pressable={false}
+					ariaLabel={`${LISTENER_LABELS[listener]}: ${ruleCount(node)}`}
+					ariaPressed={selectedNode === node}
+					class={ruleTone(node)}
+					onclick={() => onselectnode(node)}
+					data-testid="explorer-node"
+				>
+					<span class="flex items-baseline justify-between gap-2">
+						<span class={['text-xs font-medium', idle ? 'text-fg-tertiary' : 'text-fg-default']}>
+							{LISTENER_LABELS[listener]}
+						</span>
+						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
+							{explorer.counts.get(node) ?? 0}
+						</span>
+					</span>
+					<span class="text-fg-tertiary text-2xs truncate">{listenerNote(listener, jobs)}</span>
 				</Button>
 			</div>
 		{/each}
@@ -288,8 +444,8 @@
 						</span>
 					</span>
 					{#if node === 'chats'}
-						<span class="text-fg-tertiary text-2xs leading-4">
-							you, a chat or Malini starts them
+						<span class="text-fg-tertiary text-2xs leading-4 text-balance">
+							a new chat, or an existing one woken or resumed
 						</span>
 						{@render workingList(
 							working.turns.map(
@@ -297,8 +453,8 @@
 							),
 						)}
 					{:else}
-						<span class="text-fg-tertiary text-2xs leading-4">
-							runner: one per workstream, never beside a working chat
+						<span class="text-fg-tertiary text-2xs leading-4 text-balance">
+							a new run, in its workstream or a new one
 						</span>
 						<span class="text-fg-secondary text-2xs mt-1 tabular-nums">
 							{working.runs.length} running · {working.waiting} waiting
@@ -311,97 +467,6 @@
 							),
 						)}
 					{/if}
-				</Button>
-			</div>
-		{/each}
-
-		{#each EVENT_ROWS as row (row)}
-			{@const node = `event:${row}` as const}
-			{@const box = place(node)}
-			<div
-				class="absolute"
-				style:left="{box.x}px"
-				style:top="{box.y}px"
-				style:width="{box.w}px"
-				style:height="{box.h}px"
-			>
-				<Button
-					bare
-					pressable={false}
-					ariaLabel={`${ROW_LOOKS[row].label}: ${count(explorer.counts.get(node) ?? 0, 'event')}`}
-					ariaPressed={selectedNode === node}
-					class={[tone(node), 'items-center justify-between gap-2 px-2.5']}
-					onclick={() => onselectnode(node)}
-					data-testid="explorer-node"
-				>
-					<span class="flex min-w-0 items-center gap-1.5">
-						<Icon name={ROW_LOOKS[row].icon} size={13} class="text-fg-tertiary shrink-0" />
-						<span class="text-fg-default text-2xs truncate">{ROW_LOOKS[row].label}</span>
-					</span>
-					<span class="text-fg-tertiary text-3xs shrink-0 font-mono tabular-nums">
-						{explorer.counts.get(node) ?? 0}
-					</span>
-				</Button>
-			</div>
-		{/each}
-
-		<div
-			class="absolute"
-			style:left="{bar.x}px"
-			style:top="{bar.y}px"
-			style:width="{bar.w}px"
-			style:height="{bar.h}px"
-		>
-			<Button
-				bare
-				pressable={false}
-				ariaLabel={`Reconciler: ${count(explorer.counts.get('reconciler') ?? 0, 'event')}`}
-				ariaPressed={selectedNode === 'reconciler'}
-				class={[tone('reconciler'), 'items-center justify-center']}
-				onclick={() => onselectnode('reconciler')}
-				data-testid="explorer-node"
-			>
-				<span class="flex rotate-180 flex-col gap-1 [writing-mode:vertical-rl]">
-					<span class="flex items-center gap-2">
-						<span class="text-fg-default text-xs font-medium">Reconciler</span>
-						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
-							{explorer.counts.get('reconciler') ?? 0}
-						</span>
-					</span>
-					<span class="text-fg-tertiary text-2xs">rules first, then the model</span>
-				</span>
-			</Button>
-		</div>
-
-		{#each LISTENERS as listener (listener)}
-			{@const node = `listener:${listener}` as const}
-			{@const box = place(node)}
-			{@const idle = (explorer.counts.get(node) ?? 0) === 0}
-			<div
-				class="absolute"
-				style:left="{box.x}px"
-				style:top="{box.y}px"
-				style:width="{box.w}px"
-				style:height="{box.h}px"
-			>
-				<Button
-					bare
-					pressable={false}
-					ariaLabel={`${LISTENER_LABELS[listener]}: ${listenerCount(node)}`}
-					ariaPressed={selectedNode === node}
-					class={[tone(node), 'flex-col justify-center px-3']}
-					onclick={() => onselectnode(node)}
-					data-testid="explorer-node"
-				>
-					<span class="flex items-baseline justify-between gap-2">
-						<span class={['text-xs font-medium', idle ? 'text-fg-tertiary' : 'text-fg-default']}>
-							{LISTENER_LABELS[listener]}
-						</span>
-						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
-							{explorer.counts.get(node) ?? 0}
-						</span>
-					</span>
-					<span class="text-fg-tertiary text-2xs truncate">{listenerNote(listener, jobs)}</span>
 				</Button>
 			</div>
 		{/each}

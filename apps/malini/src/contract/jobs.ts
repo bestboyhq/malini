@@ -227,6 +227,13 @@ export type JobEventChannel =
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
 
+export type TimeReachedEvent = Readonly<{
+	definitionId: string;
+	name: string;
+	when: string;
+	due: string;
+}>;
+
 export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
 
 export type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';

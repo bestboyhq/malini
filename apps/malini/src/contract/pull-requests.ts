@@ -57,6 +57,8 @@ export type ShipChangedEvent = Readonly<{
 	merged?: ShipMerged;
 }>;
 
+export type ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;
+
 export type PullRequestChangedEvent = Readonly<{
 	workstreamId: string;
 	pullRequestNumber: number;

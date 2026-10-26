@@ -141,7 +141,11 @@
 				note:
 					first === undefined || last === undefined
 						? ''
-						: `${count(steps.length, 'step')} · ${clockSpan(first.at, last.end ?? last.at)} · ${count(places.size, 'workstream')}`,
+						: [
+								count(steps.length, 'step'),
+								clockSpan(first.at, last.end ?? last.at),
+								...(places.size === 0 ? [] : [count(places.size, 'workstream')]),
+							].join(' · '),
 				items: steps,
 			};
 		}

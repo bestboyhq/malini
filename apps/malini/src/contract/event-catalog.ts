@@ -82,11 +82,19 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'pull-requests:ship-changed': {
 		description:
-			"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you.",
+			"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you. A request to open a draft or to merge fires `pull-requests:draft-requested` or `pull-requests:merge-requested` instead, with the new state.",
 	},
 	'pull-requests:pull-request-changed': {
 		description:
 			"Fires when Malini reads a workstream's pull request on GitHub and it changed since the last read Malini logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks` and the `failingChecks` by name, its `reviewDecision` and `unresolvedThreads`, how many commits it is `behindBase`, and whether it `conflicts` with its base branch. Every job the merge queue starts for that pull request names the latest one as its cause.",
+	},
+	'pull-requests:draft-requested': {
+		description:
+			"Fires when you, a chat or the Open draft job ask to open a draft pull request for a workstream, with the workstream's new shipping state; the reconciler hands it to the merge queue, which commits, pushes and opens the draft.",
+	},
+	'pull-requests:merge-requested': {
+		description:
+			"Fires when you, a chat or the Merge job queue a workstream to merge, or try a merge that needs you again, with the workstream's new shipping state; the reconciler hands it to the merge queue, which takes the pull request from there to merged.",
 	},
 	'jobs:run-changed': {
 		description:
@@ -110,6 +118,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			"Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.",
 	},
+	'jobs:time-reached': {
+		description:
+			"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished.",
+	},
 	'jobs:decision-changed': {
 		description:
 			'Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
@@ -126,6 +138,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	'jobs:experiment-changed': {
 		description:
 			"Fires when an experiment on a job's Improve page finishes replaying the job's recent tasks, with every result.",
+	},
+	'app:started': {
+		description:
+			"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and the merge queue picks its queue up again.",
 	},
 	'app:close-requested': {
 		description:

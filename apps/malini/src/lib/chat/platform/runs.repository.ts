@@ -258,13 +258,20 @@ export interface PausedRun {
 	runId: string;
 	sessionId: string;
 	workstreamId: string;
+	chainId: string;
 	profile: unknown;
 }
 
 export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
-	return all<{ id: string; session_id: string; workstream_id: string; profile: string | null }>(
+	return all<{
+		id: string;
+		session_id: string;
+		workstream_id: string;
+		chain_id: string;
+		profile: string | null;
+	}>(
 		db,
-		`SELECT r.id, r.session_id, s.workstream_id, r.profile FROM agent_runs r
+		`SELECT r.id, r.session_id, s.workstream_id, r.chain_id, r.profile FROM agent_runs r
 		 JOIN agent_sessions s ON s.id = r.session_id
 		 WHERE r.error = ? AND r.obsoleted_at IS NULL AND s.archived_at IS NULL
 		   AND r.rowid = (SELECT MAX(rowid) FROM agent_runs WHERE session_id = r.session_id)
@@ -274,6 +281,7 @@ export function listPausedRuns(db: MaliniDatabase): PausedRun[] {
 		runId: row.id,
 		sessionId: row.session_id,
 		workstreamId: row.workstream_id,
+		chainId: row.chain_id,
 		profile: row.profile === null ? null : JSON.parse(row.profile),
 	}));
 }

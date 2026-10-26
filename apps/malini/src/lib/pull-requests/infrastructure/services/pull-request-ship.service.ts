@@ -1,5 +1,9 @@
-import { PULL_REQUESTS_SHIP_CHANGED_CHANNEL } from '$contract/events';
-import type { ShipStateRecord } from '$contract/pull-requests';
+import {
+	PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL,
+	PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+} from '$contract/events';
+import type { ShipChangedEvent, ShipStateRecord } from '$contract/pull-requests';
 import type {
 	PullRequestShip,
 	PullRequestShipChange,
@@ -28,9 +32,16 @@ class PullRequestShipService {
 	}
 
 	onChanged(listener: (change: PullRequestShipChange) => void): () => void {
-		return onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (raw) =>
-			listener(PullRequestShipMapper.changeFromRaw(raw)),
-		);
+		const changed = (raw: ShipChangedEvent): void =>
+			listener(PullRequestShipMapper.changeFromRaw(raw));
+		const stops = [
+			onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, changed),
+			onPlatformEvent(PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL, changed),
+			onPlatformEvent(PULL_REQUESTS_MERGE_REQUESTED_CHANNEL, changed),
+		];
+		return () => {
+			for (const stop of stops) stop();
+		};
 	}
 
 	#invoke(intent: PullRequestShipIntent, workstreamId: string): Promise<ShipStateRecord | null> {

@@ -1,5 +1,10 @@
 import type { CommandArgs, CommandName, CommandResult } from '$contract/commands';
-import { PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL } from '$contract/events';
+import {
+	APP_STARTED_CHANNEL,
+	PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL,
+	PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+} from '$contract/events';
 import {
 	JOB_INTERRUPTED_DETAIL,
 	isShippingJobBuiltin,
@@ -27,7 +32,7 @@ import type { MainContext } from '$main/context';
 import { isRecord, jsonEqual } from '$main/db/rows';
 import { describeError, isGhError, isGitError } from '$main/errors';
 import { getRunWorkstreamId, workstreamShipContext } from '$lib/chat/chat.platform';
-import { latestLoggedEvent } from '$lib/jobs/jobs.platform';
+import { latestLoggedEvent, type DispatchedEvent } from '$lib/jobs/jobs.platform';
 import {
 	automatedPullRequestMetadata,
 	getWorkstream,
@@ -124,6 +129,14 @@ type MoveContext = Readonly<{
 
 const MAX_MOVES_PER_WAKE = 10;
 
+type ShipRequestChannel =
+	typeof PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL | typeof PULL_REQUESTS_MERGE_REQUESTED_CHANNEL;
+
+const SHIP_REQUESTS: readonly ShipRequestChannel[] = [
+	PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+	PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL,
+];
+
 const EMPTY_REVIEW_FEEDBACK: ReviewFeedbackDto = {
 	unresolvedThreads: [],
 	unresolvedThreadsComplete: true,
@@ -163,8 +176,27 @@ export class MergeQueue {
 		this.#now = options.now ?? Date.now;
 	}
 
-	start(): void {
-		void this.#resume();
+	async handle(event: DispatchedEvent): Promise<void> {
+		if (event.channel === APP_STARTED_CHANNEL) {
+			await this.#resume();
+			return;
+		}
+		const workstreamId = isRecord(event.payload) ? event.payload['workstreamId'] : null;
+		if (typeof workstreamId !== 'string') return;
+		if (
+			event.channel === PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL ||
+			event.channel === PULL_REQUESTS_MERGE_REQUESTED_CHANNEL
+		) {
+			this.wake(workstreamId);
+			return;
+		}
+		if (
+			event.channel === PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL &&
+			!this.#running.has(workstreamId) &&
+			getShip(this.#context.db, workstreamId)
+		) {
+			this.wake(workstreamId);
+		}
 	}
 
 	dispose(): void {
@@ -184,14 +216,12 @@ export class MergeQueue {
 		if (row?.pullRequestNumber == null) await this.#refuseNothingToShip(target);
 		this.#failures.delete(workstreamId);
 		this.#requestPush(workstreamId);
-		const saved = this.#upsert(workstreamId, 'draft', {
+		return this.#upsert(workstreamId, 'draft', PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL, {
 			phase: 'draft',
 			step: row?.pullRequestNumber == null ? 'opening-draft' : 'pushing',
 			lastError: null,
 			nextAttemptAt: null,
 		});
-		this.wake(workstreamId);
-		return saved;
 	}
 
 	async queueMerge(workstreamId: string): Promise<ShipStateRecord> {
@@ -200,7 +230,7 @@ export class MergeQueue {
 		if (row?.phase === 'queued') return shipRecord(row);
 		if (row?.pullRequestNumber == null) await this.#refuseNothingToShip(target);
 		this.#failures.delete(workstreamId);
-		const saved = this.#upsert(workstreamId, 'queued', {
+		return this.#upsert(workstreamId, 'queued', PULL_REQUESTS_MERGE_REQUESTED_CHANNEL, {
 			phase: 'queued',
 			step: null,
 			queuedAt: new Date(this.#now()).toISOString(),
@@ -210,8 +240,6 @@ export class MergeQueue {
 			lastError: null,
 			nextAttemptAt: null,
 		});
-		this.wake(workstreamId);
-		return saved;
 	}
 
 	async cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
@@ -246,18 +274,22 @@ export class MergeQueue {
 		if (!row) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
 		if (row.phase !== 'needs-you') return shipRecord(row);
 		this.#failures.delete(workstreamId);
-		const saved = this.#save(workstreamId, {
-			phase: 'queued',
-			step: null,
-			needsYou: null,
-			queuedAt: row.queuedAt ?? new Date(this.#now()).toISOString(),
-			attempts: 0,
-			failureSignature: null,
-			lastError: null,
-			nextAttemptAt: null,
-		});
+		const saved = this.#save(
+			workstreamId,
+			{
+				phase: 'queued',
+				step: null,
+				needsYou: null,
+				queuedAt: row.queuedAt ?? new Date(this.#now()).toISOString(),
+				attempts: 0,
+				failureSignature: null,
+				lastError: null,
+				nextAttemptAt: null,
+			},
+			undefined,
+			PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+		);
 		if (!saved) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
-		this.wake(workstreamId);
 		return shipRecord(saved);
 	}
 
@@ -834,16 +866,21 @@ export class MergeQueue {
 	}
 
 	#cause(workstreamId: string, pullRequestNumber: number | null): number | null {
-		if (pullRequestNumber === null) return null;
-		const last = latestLoggedEvent(
-			this.#context.db,
-			PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
-			workstreamId,
+		const { db } = this.#context;
+		const read = latestLoggedEvent(db, PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL, workstreamId);
+		const payload = read?.payload;
+		if (
+			read &&
+			pullRequestNumber !== null &&
+			isRecord(payload) &&
+			payload['pullRequestNumber'] === pullRequestNumber
+		) {
+			return read.id;
+		}
+		const requests = SHIP_REQUESTS.flatMap(
+			(channel) => latestLoggedEvent(db, channel, workstreamId)?.id ?? [],
 		);
-		const payload = last?.payload;
-		return last && isRecord(payload) && payload['pullRequestNumber'] === pullRequestNumber
-			? last.id
-			: null;
+		return requests.length === 0 ? null : Math.max(...requests);
 	}
 
 	async #jobContext(context: MoveContext, builtin: ShippingJobBuiltin): Promise<string | null> {
@@ -1089,23 +1126,34 @@ export class MergeQueue {
 		});
 	}
 
-	#upsert(workstreamId: string, phase: ShipPhase, patch: ShipPatch): ShipStateRecord {
+	#upsert(
+		workstreamId: string,
+		phase: ShipPhase,
+		request: ShipRequestChannel,
+		patch: ShipPatch,
+	): ShipStateRecord {
 		insertShip(this.#context.db, workstreamId, phase);
 		const saved = updateShip(this.#context.db, workstreamId, patch);
 		if (!saved) throw new ShipError('unknown-workstream', `Unknown workstream: ${workstreamId}`);
 		const state = shipRecord(saved);
-		this.#context.events.emit('pull-requests:ship-changed', { workstreamId, state });
+		this.#context.events.emit(request, { workstreamId, state });
 		return state;
 	}
 
-	#save(workstreamId: string, patch: ShipPatch, onlyInPhase?: ShipPhase): ShipRow | null {
+	#save(
+		workstreamId: string,
+		patch: ShipPatch,
+		onlyInPhase?: ShipPhase,
+		request?: ShipRequestChannel,
+	): ShipRow | null {
 		const { db, events } = this.#context;
 		if (this.#disposed) return null;
 		const before = getShip(db, workstreamId);
 		const after = updateShip(db, workstreamId, patch, onlyInPhase);
 		if (!after) return null;
 		const state = shipRecord(after);
-		if (!before || !sameRecord(shipRecord(before), state)) {
+		if (request) events.emit(request, { workstreamId, state });
+		else if (!before || !sameRecord(shipRecord(before), state)) {
 			events.emit('pull-requests:ship-changed', { workstreamId, state });
 		}
 		return after;

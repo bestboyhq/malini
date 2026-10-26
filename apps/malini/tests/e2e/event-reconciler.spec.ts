@@ -10,6 +10,7 @@ import {
 	invoke,
 	launchMalini,
 	openJobs,
+	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
 	type LaunchedApp,
@@ -156,9 +157,9 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 		).toHaveCount(1);
 		await captureFlow(app, 'reconciler-explorer');
 		await explorer.getByRole('button', { name: 'Show all' }).click();
-		await map.getByRole('button', { name: /^Agents: \d+ events?$/u }).click();
+		await map.getByRole('button', { name: /^Turn finished: \d+ events?$/u }).click();
 		await expect(
-			explorer.getByRole('list', { name: 'Agents' }).getByRole('button', {
+			explorer.getByRole('list', { name: 'Turn finished' }).getByRole('button', {
 				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
 			}),
 		).toBeVisible();
@@ -266,6 +267,57 @@ test('with Reconcile events off, Malini leaves events no trigger handles alone',
 		await page.waitForTimeout(3_000);
 		expect(askedChoices(app)).toEqual([]);
 		expect(await decisions(page)).toEqual([]);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a turn a restart cut short goes on once the Resume rule hears Malini started, and the Explorer says why', async () => {
+	test.setTimeout(240_000);
+	const first = await launchMalini();
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root, 'acme/resume');
+		await seedWorkstream(page, `file://${source}`, 'e2e-resume-ws', 'Resume work');
+		await openWorkstream(page, 'e2e-resume-ws');
+		await sendPrompt(page, 'HANG until Malini restarts');
+		await expect(page.getByTestId('chat-composer-submit')).toHaveAccessibleName(
+			'Stop current run',
+			{ timeout: 20_000 },
+		);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await openWorkstream(page, 'e2e-resume-ws');
+		await expect(
+			transcript(page).getByText(/^Malini restarted while you were working/u),
+		).toBeVisible({ timeout: 30_000 });
+		await expectAssistantReply(page);
+
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		await expect(map.getByRole('button', { name: 'Malini started: 2 events' })).toBeVisible();
+		await map.getByRole('button', { name: 'Resume: 1 started' }).click();
+		const resumed = explorer
+			.getByRole('list', { name: 'Resume' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Malini resumed it' });
+		await expect(resumed).toHaveCount(1);
+		await resumed.getByRole('button').first().click();
+		await expect(
+			explorer
+				.getByRole('list', { name: 'One chain' })
+				.getByRole('button', { name: /^HANG until Malini restarts, Resume work, /u }),
+		).toBeVisible();
+		await captureFlow(app, 'malini-started-resume');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

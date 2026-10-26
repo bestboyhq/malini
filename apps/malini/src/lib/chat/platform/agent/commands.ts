@@ -1285,7 +1285,10 @@ export interface BridgeCommandDeps {
 	readonly log?: (line: string) => void;
 }
 
-export async function continuePausedRuns(deps: BridgeCommandDeps): Promise<void> {
+export async function continuePausedRuns(
+	deps: BridgeCommandDeps,
+	causeEventId: number | null,
+): Promise<void> {
 	const { db, runtime, appDataRoot, hooks, ids, leases } = deps;
 	const log = deps.log ?? defaultLog;
 	const emit: EmitEnvelope = (envelope, seq) => runtime.emitSynthetic(envelope, seq);
@@ -1299,6 +1302,8 @@ export async function continuePausedRuns(deps: BridgeCommandDeps): Promise<void>
 					prompt: CONTINUE_AFTER_PAUSE_PROMPT,
 					profile: parseRunProfile(paused.profile),
 					automated: true,
+					chainId: paused.chainId,
+					causeEventId,
 					worktree: resolvePromptWorktree(db, appDataRoot, paused.workstreamId, [], hooks),
 				};
 				await sendAgentPrompt(db, supervisor, input, hooks, emit, ids, leases, log);

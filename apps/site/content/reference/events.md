@@ -323,7 +323,7 @@ interface LocalBaseSyncedPayload {
 
 ## `pull-requests:ship-changed`
 
-Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you.
+Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you. A request to open a draft or to merge fires `pull-requests:draft-requested` or `pull-requests:merge-requested` instead, with the new state.
 
 Payload: `ShipChangedEvent`
 
@@ -405,6 +405,120 @@ type PullRequestChangedEvent = Readonly<{
 	behindBase: number | null;
 	conflicts: boolean;
 }>;
+```
+
+## `pull-requests:draft-requested`
+
+Fires when you, a chat or the Open draft job ask to open a draft pull request for a workstream, with the workstream's new shipping state; the reconciler hands it to the merge queue, which commits, pushes and opens the draft.
+
+Payload: `ShipRequestedEvent`
+
+```ts
+type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';
+
+type ShipStep =
+	| 'waiting-for-agent'
+	| 'opening-draft'
+	| 'pushing'
+	| 'marking-ready'
+	| 'updating-branch'
+	| 'updating-from-main'
+	| 'resolving-conflicts'
+	| 'fixing-checks'
+	| 'addressing-review'
+	| 'waiting-for-checks'
+	| 'waiting-for-review'
+	| 'waiting-for-github'
+	| 'merging'
+	| 'archiving';
+
+type ShipNeedsYouReason =
+	| 'reply-to-reviewer'
+	| 'fix-gave-up'
+	| 'merge-not-permitted'
+	| 'pull-request-closed'
+	| 'github-reconnect'
+	| 'operation-in-progress';
+
+type ShipNeedsYou = Readonly<{
+	reason: ShipNeedsYouReason;
+	detail: string;
+	jobRunId: string | null;
+}>;
+
+type ShipStateRecord = Readonly<{
+	workstreamId: string;
+	phase: ShipPhase;
+	step: ShipStep | null;
+	pullRequestNumber: number | null;
+	pullRequestUrl: string | null;
+	needsYou: ShipNeedsYou | null;
+	queuedAt: string | null;
+	attempts: number;
+	activeJobRunId: string | null;
+	lastError: string | null;
+	nextAttemptAt: string | null;
+	updatedAt: string;
+}>;
+
+type ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;
+```
+
+## `pull-requests:merge-requested`
+
+Fires when you, a chat or the Merge job queue a workstream to merge, or try a merge that needs you again, with the workstream's new shipping state; the reconciler hands it to the merge queue, which takes the pull request from there to merged.
+
+Payload: `ShipRequestedEvent`
+
+```ts
+type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';
+
+type ShipStep =
+	| 'waiting-for-agent'
+	| 'opening-draft'
+	| 'pushing'
+	| 'marking-ready'
+	| 'updating-branch'
+	| 'updating-from-main'
+	| 'resolving-conflicts'
+	| 'fixing-checks'
+	| 'addressing-review'
+	| 'waiting-for-checks'
+	| 'waiting-for-review'
+	| 'waiting-for-github'
+	| 'merging'
+	| 'archiving';
+
+type ShipNeedsYouReason =
+	| 'reply-to-reviewer'
+	| 'fix-gave-up'
+	| 'merge-not-permitted'
+	| 'pull-request-closed'
+	| 'github-reconnect'
+	| 'operation-in-progress';
+
+type ShipNeedsYou = Readonly<{
+	reason: ShipNeedsYouReason;
+	detail: string;
+	jobRunId: string | null;
+}>;
+
+type ShipStateRecord = Readonly<{
+	workstreamId: string;
+	phase: ShipPhase;
+	step: ShipStep | null;
+	pullRequestNumber: number | null;
+	pullRequestUrl: string | null;
+	needsYou: ShipNeedsYou | null;
+	queuedAt: string | null;
+	attempts: number;
+	activeJobRunId: string | null;
+	lastError: string | null;
+	nextAttemptAt: string | null;
+	updatedAt: string;
+}>;
+
+type ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;
 ```
 
 ## `jobs:run-changed`
@@ -729,6 +843,31 @@ type ReconcilerDecisionRecord = Readonly<{
 }>;
 
 type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;
+```
+
+## `jobs:time-reached`
+
+Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished.
+
+Payload: `TimeReachedEvent`
+
+```ts
+type TimeReachedEvent = Readonly<{
+	definitionId: string;
+	name: string;
+	when: string;
+	due: string;
+}>;
+```
+
+## `app:started`
+
+Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and the merge queue picks its queue up again.
+
+Payload: `AppStartedPayload`
+
+```ts
+type AppStartedPayload = Readonly<{ version: string }>;
 ```
 
 ## `app:close-requested`

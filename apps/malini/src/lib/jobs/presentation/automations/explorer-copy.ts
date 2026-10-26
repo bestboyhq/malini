@@ -5,14 +5,13 @@ import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
 	LISTENERS,
-	SOURCES,
 	eventRow,
 	type EventRow,
 	type Explorer,
 	type ExplorerItem,
 	type Listener,
 	type MapNode,
-	type SourceNode,
+	type Source,
 } from '$lib/jobs/domain/explorer';
 import { DECIDERS, decisionAction, decisionQuestion } from './decision-copy';
 
@@ -29,29 +28,31 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
 	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
 	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
+	'draft-requested': { label: 'Draft requested', icon: 'pr-draft' },
+	'merge-requested': { label: 'Merge requested', icon: 'pr-merged' },
 	'workstream-created': { label: 'Workstream created', icon: 'folder-plus' },
 	'workstream-archived': { label: 'Workstream archived', icon: 'archive' },
+	'malini-started': { label: 'Malini started', icon: 'refresh' },
+	'time-reached': { label: 'Time reached', icon: 'clock' },
 	other: { label: 'Other', icon: 'more' },
 };
 
 export const LISTENER_LABELS: Readonly<Record<Listener, string>> = {
 	triggers: 'Your triggers',
 	thens: 'Thens',
-	model: 'Reconcile events',
 	'merge-queue': 'Merge queue',
-	schedules: 'Schedules',
 	resume: 'Resume',
+	schedules: 'Schedules',
+	model: 'Reconcile events',
 };
 
-export const SOURCE_LOOKS: Readonly<Record<SourceNode, Readonly<{ label: string; note: string }>>> =
-	{
-		you: { label: 'You', note: 'prompts and clicks' },
-		agents: { label: 'Agents', note: 'in your chats and jobs' },
-		git: { label: 'Git', note: 'commits, pushes, conflicts' },
-		github: { label: 'GitHub', note: 'pull requests' },
-		malini: { label: 'Malini', note: 'workstreams, restarts' },
-		clock: { label: 'Clock', note: 'schedules' },
-	};
+export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
+	agent: 'agent',
+	git: 'git',
+	github: 'GitHub',
+	malini: 'Malini',
+	clock: 'clock',
+};
 
 const MERGED: Mark = { label: 'merged', tone: 'text-merged-content' };
 const FAILED: Mark = { label: 'failed', tone: 'text-error-content' };
@@ -123,12 +124,14 @@ const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null
 	'jobs:run-started': (payload) => text(record(payload['run'])['title']),
 	'jobs:run-finished': (payload) => text(record(payload['run'])['title']),
 	'jobs:tool-called': (payload) => text(record(payload['action'])['tool']),
+	'jobs:time-reached': (payload) => text(payload['name']),
+	'app:started': (payload) => text(payload['version']),
 	'app:updated': (payload) => text(payload['to']),
 	'app:update-staged': (payload) => text(payload['version']),
 };
 
 const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
-	...SOURCES.map((source) => [source, SOURCE_LOOKS[source].label] as const),
+	['you', 'You'],
 	['reconciler', 'Reconciler'],
 	['chats', 'Chats'],
 	['jobs', 'Jobs'],
@@ -151,19 +154,15 @@ export function listenerNote(listener: Listener, jobs: readonly JobDefinitionRec
 				: `${count(listening, 'job')} listen`;
 		}
 		case 'thens':
-			return jobs.some((job) => job.thenJobId !== null)
-				? 'runs a job after another'
-				: 'no job runs another after it';
-		case 'schedules': {
-			const timed = jobs.filter((job) => triggerKind(job) === 'schedule').length;
-			return timed === 0 ? 'no job runs on a schedule' : `${count(timed, 'job')} on a clock`;
-		}
+			return 'on Job finished';
 		case 'merge-queue':
-			return 'polls GitHub until it merges';
+			return 'on Merge requested, Pull request changed';
+		case 'resume':
+			return 'on Malini started';
+		case 'schedules':
+			return 'on Time reached';
 		case 'model':
 			return 'decides what no rule matched';
-		case 'resume':
-			return 'turns a restart cut short';
 	}
 }
 
@@ -263,9 +262,10 @@ function runWhy(
 ): string {
 	switch (item.run.origin) {
 		case 'merge-queue':
-			return cause?.kind === 'event'
+			if (cause?.kind !== 'event') return 'The merge queue ran it';
+			return cause.row === 'pull-request-changed'
 				? `${pullRequestName(record(cause.event.payload))} changed on GitHub`
-				: 'The merge queue ran it';
+				: `The merge queue heard ${shortTitle(cause)}`;
 		case 'trigger':
 			return cause === null ? 'Its trigger ran it' : `Its trigger heard ${shortTitle(cause)}`;
 		case 'then':

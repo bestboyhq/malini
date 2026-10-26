@@ -7,9 +7,14 @@ import type {
 	JobRunChangedEvent,
 	JobSuggestedEvent,
 	ReconcilerDecisionChangedEvent,
+	TimeReachedEvent,
 } from './jobs';
 import type { McpServerListing, McpServerReport } from './mcp-servers';
-import type { PullRequestChangedEvent, ShipChangedEvent } from './pull-requests';
+import type {
+	PullRequestChangedEvent,
+	ShipChangedEvent,
+	ShipRequestedEvent,
+} from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
@@ -147,6 +152,8 @@ export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: Co
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
 
+export type AppStartedPayload = Readonly<{ version: string }>;
+
 export type FileOpenRequestedPayload = Readonly<{
 	workstreamId: string;
 	path: string;
@@ -175,6 +182,8 @@ export interface ContractEvents {
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
+	'pull-requests:draft-requested': ShipRequestedEvent;
+	'pull-requests:merge-requested': ShipRequestedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:run-started': JobRunChangedEvent;
 	'jobs:run-finished': JobRunChangedEvent;
@@ -184,6 +193,8 @@ export interface ContractEvents {
 	'jobs:agent-action-changed': AgentActionChangedEvent;
 	'jobs:tool-called': AgentActionChangedEvent;
 	'jobs:decision-changed': ReconcilerDecisionChangedEvent;
+	'jobs:time-reached': TimeReachedEvent;
+	'app:started': AppStartedPayload;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
 	'app:notification-opened': NotificationTarget;
@@ -223,6 +234,8 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
+	'pull-requests:draft-requested': null,
+	'pull-requests:merge-requested': null,
 	'jobs:run-changed': null,
 	'jobs:run-started': null,
 	'jobs:run-finished': null,
@@ -232,6 +245,8 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'jobs:agent-action-changed': null,
 	'jobs:tool-called': null,
 	'jobs:decision-changed': null,
+	'jobs:time-reached': null,
+	'app:started': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
 	'app:notification-opened': null,
@@ -298,6 +313,8 @@ export const REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL =
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
 
+export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
+
 export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies EventChannel;
 
 export const APP_SCALE_CHANGED_CHANNEL = 'app:scale-changed' satisfies EventChannel;
@@ -332,6 +349,12 @@ export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 export const PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL =
 	'pull-requests:pull-request-changed' satisfies EventChannel;
 
+export const PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL =
+	'pull-requests:draft-requested' satisfies EventChannel;
+
+export const PULL_REQUESTS_MERGE_REQUESTED_CHANNEL =
+	'pull-requests:merge-requested' satisfies EventChannel;
+
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
 
 export const JOBS_RUN_STARTED_CHANNEL = 'jobs:run-started' satisfies EventChannel;
@@ -349,5 +372,7 @@ export const JOBS_AGENT_ACTION_CHANGED_CHANNEL = 'jobs:agent-action-changed' sat
 export const JOBS_TOOL_CALLED_CHANNEL = 'jobs:tool-called' satisfies EventChannel;
 
 export const JOBS_DECISION_CHANGED_CHANNEL = 'jobs:decision-changed' satisfies EventChannel;
+
+export const JOBS_TIME_REACHED_CHANNEL = 'jobs:time-reached' satisfies EventChannel;
 
 export const REPOSITORIES_CHANGED_CHANNEL = 'repositories:changed' satisfies EventChannel;

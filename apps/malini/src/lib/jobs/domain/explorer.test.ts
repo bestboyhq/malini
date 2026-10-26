@@ -165,29 +165,17 @@ describe('explorer', () => {
 		);
 	});
 
-	it('routes each thing from its source through the parts of Malini it passed, never back', () => {
+	it('routes every event through the Reconciler and its rules into work, never back', () => {
 		const map = explorer(RECORD);
 		const hops = (id: string): readonly (readonly [string, string])[] | undefined =>
 			map.byId.get(id)?.hops;
 
 		expect(hops('turn:lead-turn')).toEqual([['you', 'chats']]);
 		expect(hops('turn:api-turn')).toEqual([['chats', 'chats']]);
-		expect(hops('event:1')).toEqual([
-			['agents', 'event:turn-finished'],
-			['event:turn-finished', 'reconciler'],
-		]);
-		expect(hops('event:2')).toEqual([
-			['agents', 'event:job-finished'],
-			['event:job-finished', 'reconciler'],
-		]);
-		expect(hops('event:3')).toEqual([
-			['git', 'event:other'],
-			['event:other', 'reconciler'],
-		]);
-		expect(hops('event:4')).toEqual([
-			['malini', 'event:other'],
-			['event:other', 'reconciler'],
-		]);
+		expect(hops('event:1')).toEqual([['event:turn-finished', 'reconciler']]);
+		expect(hops('event:2')).toEqual([['event:job-finished', 'reconciler']]);
+		expect(hops('event:3')).toEqual([['event:other', 'reconciler']]);
+		expect(hops('event:4')).toEqual([['event:other', 'reconciler']]);
 		expect(hops('decision:wake')).toEqual([['reconciler', 'listener:model']]);
 		expect(hops('turn:lead-wake')).toEqual([['listener:model', 'chats']]);
 		expect(hops('run:announce')).toEqual([
@@ -200,16 +188,16 @@ describe('explorer', () => {
 		]);
 		expect(hops('run:orphan')).toEqual([['jobs', 'jobs']]);
 		expect(hops('run:fix')).toEqual([
-			['github', 'listener:merge-queue'],
+			['reconciler', 'listener:merge-queue'],
 			['listener:merge-queue', 'jobs'],
 		]);
 		expect(hops('run:asked')).toEqual([['chats', 'jobs']]);
 		expect(hops('turn:resumed')).toEqual([
-			['malini', 'listener:resume'],
+			['reconciler', 'listener:resume'],
 			['listener:resume', 'chats'],
 		]);
 		expect(hops('run:nightly')).toEqual([
-			['clock', 'listener:schedules'],
+			['reconciler', 'listener:schedules'],
 			['listener:schedules', 'jobs'],
 		]);
 		const column = (node: string): number => {
@@ -223,7 +211,7 @@ describe('explorer', () => {
 		).toEqual([]);
 	});
 
-	it('takes a merge queue run from its own read of GitHub, and logs the read for the work it is about', () => {
+	it('takes a merge queue run from the read of GitHub it heard, and logs the read for the work it is about', () => {
 		const map = explorer({
 			...RECORD,
 			events: [
@@ -240,16 +228,13 @@ describe('explorer', () => {
 		expect(map.byId.get('run:fix')).toMatchObject({
 			cause: 'event:5',
 			hops: [
-				['github', 'listener:merge-queue'],
+				['reconciler', 'listener:merge-queue'],
 				['listener:merge-queue', 'jobs'],
 			],
 		});
 		expect(map.byId.get('event:5')).toMatchObject({
 			cause: 'turn:api-turn',
-			hops: [
-				['github', 'event:pull-request-changed'],
-				['event:pull-request-changed', 'reconciler'],
-			],
+			hops: [['event:pull-request-changed', 'reconciler']],
 		});
 		expect(listed(map, false).map((item) => item.id)).toContain('event:5');
 	});
@@ -260,22 +245,61 @@ describe('explorer', () => {
 		expect(map.counts.get('event:turn-finished')).toBe(5);
 		expect(map.counts.get('event:job-finished')).toBe(1);
 		expect(map.counts.get('event:other')).toBe(10);
-		expect(map.counts.get('agents')).toBe(6);
-		expect(map.counts.get('git')).toBe(9);
-		expect(map.counts.get('malini')).toBe(1);
 		expect(map.counts.get('reconciler')).toBe(16);
 		expect(map.counts.get('chats')).toBe(4);
 		expect(map.counts.get('jobs')).toBe(6);
 		expect(map.counts.get('you')).toBe(1);
-		expect(map.counts.get('clock')).toBe(1);
 		expect(map.counts.get('listener:model')).toBe(1);
 		expect(map.counts.get('listener:triggers')).toBe(1);
 		expect(map.counts.get('listener:thens')).toBe(1);
 		expect(map.counts.get('listener:merge-queue')).toBe(1);
 		expect(map.counts.get('listener:resume')).toBe(1);
-		expect(map.wires.get('agents>event:turn-finished')).toBe(1);
+		expect(map.counts.get('listener:schedules')).toBe(1);
 		expect(map.wires.get('event:turn-finished>reconciler')).toBe(1);
 		expect(map.wires.get('reconciler>listener:thens')).toBe(1);
+	});
+
+	it('names the start of Malini, the time a schedule reached and a merge request as the events their rules heard', () => {
+		const map = explorer({
+			...RECORD,
+			events: [
+				event(6, 'app:started', 1, { workstreamId: null, chainId: 'boot' }),
+				event(7, 'jobs:time-reached', 2, { workstreamId: null, chainId: 'nine' }),
+				event(8, 'pull-requests:merge-requested', 3),
+				event(9, 'pull-requests:draft-requested', 4),
+			],
+			channelCounts: {
+				'app:started': 1,
+				'jobs:time-reached': 1,
+				'pull-requests:merge-requested': 1,
+				'pull-requests:draft-requested': 1,
+			},
+			runs: [
+				run('nine', 2, { origin: 'schedule', chainId: 'nine', eventIds: [7] }),
+				run('update', 5, { origin: 'merge-queue', eventIds: [8] }),
+			],
+			turns: [turn('resumed', 'site', 1, { resumed: true, causeEventId: 6 })],
+			decisions: [],
+		});
+
+		expect(map.byId.get('event:6')).toMatchObject({ row: 'malini-started' });
+		expect(map.byId.get('event:7')).toMatchObject({ row: 'time-reached' });
+		expect(map.byId.get('event:8')).toMatchObject({ row: 'merge-requested' });
+		expect(map.byId.get('event:9')).toMatchObject({ row: 'draft-requested' });
+		expect(map.byId.get('turn:resumed')?.cause).toBe('event:6');
+		expect(map.byId.get('run:nine')?.cause).toBe('event:7');
+		expect(map.byId.get('run:update')?.cause).toBe('event:8');
+		expect(listed(map, false).map((item) => item.id)).toEqual(
+			expect.arrayContaining(['event:6', 'event:7', 'event:8', 'event:9']),
+		);
+		expect(map.counts.get('reconciler')).toBe(4);
+		expect(chainItems(map, 'chain').map((item) => item.id)).toEqual([
+			'event:6',
+			'turn:resumed',
+			'event:8',
+			'event:9',
+			'run:update',
+		]);
 	});
 
 	it('lists the facts unless asked for every event, and follows a chain or a part', () => {
@@ -292,10 +316,13 @@ describe('explorer', () => {
 			'event:3',
 			'event:1',
 			'decision:wake',
+			'run:fix',
 			'event:2',
 			'run:announce',
 			'run:notes',
 			'event:4',
+			'run:nightly',
+			'turn:resumed',
 		]);
 	});
 

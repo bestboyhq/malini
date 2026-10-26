@@ -81,6 +81,9 @@ type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 export type ReconcilerRules = Readonly<{
 	triggers: (event: DispatchedEvent) => Promise<boolean>;
 	thens: (event: DispatchedEvent) => Promise<void>;
+	mergeQueue: (event: DispatchedEvent) => Promise<void>;
+	resume: (event: DispatchedEvent) => Promise<void>;
+	schedules: (event: DispatchedEvent) => Promise<void>;
 }>;
 
 export class Reconciler {
@@ -140,8 +143,22 @@ export class Reconciler {
 	}
 
 	async handle(event: DispatchedEvent): Promise<void> {
-		const [triggered] = await Promise.all([this.#rules.triggers(event), this.#rules.thens(event)]);
-		await this.#consider(event, triggered);
+		const { triggers, thens, mergeQueue, resume, schedules } = this.#rules;
+		const [triggered, ...others] = await Promise.allSettled([
+			triggers(event),
+			thens(event),
+			mergeQueue(event),
+			resume(event),
+			schedules(event),
+		]);
+		for (const result of [triggered, ...others]) {
+			if (result.status === 'rejected') {
+				this.#log(
+					`jobs: a rule could not handle ${event.channel}: ${describeError(result.reason)}`,
+				);
+			}
+		}
+		await this.#consider(event, triggered.status === 'fulfilled' && triggered.value);
 	}
 
 	#consider(event: DispatchedEvent, matched: boolean): Promise<void> {

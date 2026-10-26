@@ -5,6 +5,7 @@ import { findActiveJobRunForSession } from './platform/job-runs.repository';
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
 export { latestLoggedEvent } from './platform/event-log.repository';
+export type { DispatchedEvent } from './platform/event-log.service';
 export {
 	finishAgentAction,
 	recordAgentAction,

@@ -1,3 +1,5 @@
+import type { DispatchedEvent } from '$lib/jobs/jobs.platform';
+
 export type {
 	CheckAnnotationDto,
 	CheckDiagnosticsDto,
@@ -19,6 +21,6 @@ export {
 } from './platform/pull-requests.service';
 
 export interface PullRequestsPlatform {
-	start(): void;
+	handle(event: DispatchedEvent): Promise<void>;
 	dispose(): void;
 }

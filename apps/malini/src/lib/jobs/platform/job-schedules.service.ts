@@ -1,6 +1,16 @@
 import type { SchedulePlace } from '$contract/automation-trigger';
-import { JOBS_DEFINITION_CHANGED_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
-import type { JobRunChangedEvent, JobRunRecord, JobRunStatus, RunJobArgs } from '$contract/jobs';
+import {
+	JOBS_DEFINITION_CHANGED_CHANNEL,
+	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+} from '$contract/events';
+import type {
+	JobRunChangedEvent,
+	JobRunRecord,
+	JobRunStatus,
+	RunJobArgs,
+	TimeReachedEvent,
+} from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { describeError } from '$main/errors';
@@ -11,7 +21,9 @@ import {
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { latestScheduleSlot, scheduledJobOf, type ScheduledJob } from '../domain/schedule';
-import { listJobDefinitions } from './job-definitions.repository';
+import { triggeredBefore } from './event-log.repository';
+import { findString, type DispatchedEvent } from './event-log.service';
+import { getJobDefinition, listJobDefinitions } from './job-definitions.repository';
 import {
 	countUnfinishedJobRuns,
 	latestScheduledJobRun,
@@ -36,20 +48,27 @@ const NOTIFIED_STATUSES: ReadonlySet<JobRunStatus> = new Set([
 	'failed',
 ]);
 
-export function startJobSchedules(
+export type JobSchedules = Readonly<{
+	handle(event: DispatchedEvent): Promise<void>;
+	start(): void;
+	dispose(): void;
+}>;
+
+export function createJobSchedules(
 	context: MainContext,
 	log: (line: string) => void,
-): { dispose(): void } {
+): JobSchedules {
 	const { db, events, commands } = context;
 	const attempted = new Map<string, number>();
 	const notified = new Map<string, JobRunStatus>();
+	const unsubscribes: Array<() => void> = [];
+	let clock: ReturnType<typeof setInterval> | null = null;
 	let scheduled: readonly ScheduledJob[] = [];
 
 	const check = (): void => {
 		const now = Date.now();
-		for (const job of scheduled) {
-			const { definition } = job;
-			const due = latestScheduleSlot(job.schedule, now);
+		for (const { definition, schedule } of scheduled) {
+			const due = latestScheduleSlot(schedule, now);
 			const since = Math.max(
 				...[definition.updatedAt, latestScheduledJobRun(db, definition.id)?.createdAt]
 					.map((time) => Date.parse(time ?? ''))
@@ -58,28 +77,39 @@ export function startJobSchedules(
 			);
 			if (due <= since) continue;
 			attempted.set(definition.id, due);
-			if (countUnfinishedJobRuns(db, definition.id) > 0) {
-				log(`jobs: ${definition.name} skips a run on its schedule, its last run has not finished`);
-				continue;
-			}
-			void start(job, due);
+			const reached: TimeReachedEvent = {
+				definitionId: definition.id,
+				name: definition.name,
+				when: definition.trigger?.when ?? '',
+				due: new Date(due).toISOString(),
+			};
+			events.emit(JOBS_TIME_REACHED_CHANNEL, reached);
 		}
 	};
 
-	const start = async (
-		{ definition, mode, schedule }: ScheduledJob,
-		due: number,
-	): Promise<void> => {
+	const handle = async (event: DispatchedEvent): Promise<void> => {
+		if (event.channel !== JOBS_TIME_REACHED_CHANNEL) return;
+		const definition = getJobDefinition(db, findString(event.payload, 'definitionId') ?? '');
+		const job = definition === null ? null : scheduledJobOf(definition);
+		const due = Date.parse(findString(event.payload, 'due') ?? '');
+		if (job === null || !Number.isFinite(due)) return;
+		const { id, name, trigger } = job.definition;
+		if (event.digest !== null && triggeredBefore(db, id, event.channel, event.digest)) return;
+		if (countUnfinishedJobRuns(db, id) > 0) {
+			log(`jobs: ${name} skips a run on its schedule, its last run has not finished`);
+			return;
+		}
 		try {
 			await commands.call('jobs.run', {
-				definitionId: definition.id,
+				definitionId: id,
 				origin: 'schedule',
-				context: `Malini started this run on its schedule, ${definition.trigger?.when ?? ''}, due ${DUE_FORMAT.format(due)}.`,
-				waitForYou: mode === 'ask',
-				...(await placeTarget(db, definition.id, schedule.place)),
+				context: `Malini started this run on its schedule, ${trigger?.when ?? ''}, due ${DUE_FORMAT.format(due)}.`,
+				waitForYou: job.mode === 'ask',
+				...(event.id === null ? {} : { causeEventId: event.id }),
+				...(await placeTarget(db, id, job.schedule.place)),
 			});
 		} catch (error) {
-			log(`jobs: ${definition.name} did not start on its schedule: ${describeError(error)}`);
+			log(`jobs: ${name} did not start on its schedule: ${describeError(error)}`);
 		}
 	};
 
@@ -107,19 +137,23 @@ export function startJobSchedules(
 		check();
 	};
 
-	const unsubscribes = [
-		events.subscribe(JOBS_DEFINITION_CHANGED_CHANNEL, sync),
-		events.subscribe(JOBS_RUN_CHANGED_CHANNEL, ({ run }: JobRunChangedEvent) => {
-			void notify(run);
-		}),
-	];
-	const clock = setInterval(check, SCHEDULE_CHECK_INTERVAL_MS);
-	sync();
-
 	return {
+		handle,
+		start() {
+			if (clock !== null) return;
+			unsubscribes.push(
+				events.subscribe(JOBS_DEFINITION_CHANGED_CHANNEL, sync),
+				events.subscribe(JOBS_RUN_CHANGED_CHANNEL, ({ run }: JobRunChangedEvent) => {
+					void notify(run);
+				}),
+			);
+			clock = setInterval(check, SCHEDULE_CHECK_INTERVAL_MS);
+			sync();
+		},
 		dispose() {
-			for (const unsubscribe of unsubscribes) unsubscribe();
-			clearInterval(clock);
+			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
+			if (clock !== null) clearInterval(clock);
+			clock = null;
 		},
 	};
 }

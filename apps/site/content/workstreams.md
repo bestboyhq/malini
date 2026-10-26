@@ -104,6 +104,7 @@ Settings → Jobs picks when that happens: as main moves, when you open the work
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
+- **It starts from an event.** **Draft** and **Merge** each log one, **Draft requested** or **Merge requested**, and the [Reconciler](/malini/docs/jobs.md#reconciler) hands it to the merge queue, as it does every **Pull request changed**.
 - **A dev server doesn't hold it.** The queue merges past a command the agent left running in the background, and archiving stops it.
 - **While it waits, it works.** The queue runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
 - **What GitHub says is on the record.** Each time Malini reads the pull request on GitHub and finds it changed, the change is a `pull-requests:pull-request-changed` event: its checks, its review, how far it is behind its base, and whether it conflicts.
