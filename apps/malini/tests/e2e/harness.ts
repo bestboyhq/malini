@@ -577,6 +577,14 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
 	await submit.click();
 }
 
+export async function typeDraft(page: Page, lines: readonly string[]): Promise<void> {
+	await page.getByTestId('chat-composer-input').click();
+	for (const [index, line] of lines.entries()) {
+		if (index > 0) await page.keyboard.press('Shift+Enter');
+		await page.keyboard.type(line, { delay: 5 });
+	}
+}
+
 export async function clickRevealedOnHover(row: Locator, button: Locator): Promise<void> {
 	await expect(async () => {
 		await row.hover();

@@ -122,11 +122,17 @@ export function createTranscriptScroll(
 		if (viewportEl && viewportEl.scrollTop !== value) viewportEl.scrollTop = value;
 	}
 
-	function setHoldSpace(px: number): void {
+	function holdSpaceFor(viewport: HTMLElement, reach: number): void {
+		const px = reach - naturalMaxTop(viewport);
 		const next = px > 0 ? Math.ceil(px) + ROUNDED_SCROLL_HEIGHT_PX : 0;
 		if (next === holdSpacePx || (next > 0 && holdsWithHeadroom(px))) return;
-		holdSpacePx = next;
-		messageListEl?.style.setProperty('--chat-hold-space', `${next}px`);
+		if (next > holdSpacePx && reach <= viewport.scrollTop) return;
+		setHoldSpace(next);
+	}
+
+	function setHoldSpace(px: number): void {
+		holdSpacePx = px;
+		messageListEl?.style.setProperty('--chat-hold-space', `${px}px`);
 	}
 
 	function holdsWithHeadroom(px: number): boolean {
@@ -262,8 +268,7 @@ export function createTranscriptScroll(
 		const target = targetTop(viewport, list);
 		const animate = glides() && cause === 'content';
 		const holdShown = animate && (scrollGlide.isGliding || shrunkUnderView || shift !== 0);
-		const reach = holdShown ? Math.max(target, shownTop) : target;
-		setHoldSpace(reach - naturalMaxTop(viewport));
+		holdSpaceFor(viewport, holdShown ? Math.max(target, shownTop) : target);
 		heldTop = target;
 		if (animate) {
 			if (shrunkUnderView || shift !== 0) scrollTo(shownTop);
@@ -374,10 +379,10 @@ export function createTranscriptScroll(
 		const naturalMax = naturalMaxTop(viewport);
 		const scrolledUp = byUser && top < shownTop;
 		follow = !scrolledUp && top >= naturalMax - coveredPx - AT_BOTTOM_PX ? 'bottom' : 'reader';
-		coveredPx = follow === 'bottom' ? Math.min(coveredPx, Math.max(0, naturalMax - top)) : 0;
+		coveredPx = follow === 'bottom' ? Math.min(coveredPx, naturalMax - top) : 0;
 		heldTop = top;
 		shownTop = top;
-		setHoldSpace(top - naturalMax);
+		holdSpaceFor(viewport, top);
 		if (messageListEl) trackLatestRun(viewport, messageListEl);
 		rememberAnchor();
 		updateContentBelow();
