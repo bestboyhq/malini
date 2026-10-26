@@ -91,7 +91,7 @@ A request takes the composer slot right away, even over a draft, which waits und
 ## Reports
 
 Every turn ends with a report: **Done** or **Waiting on you**, with the commit and pull request titles.
-What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under **Details**.
+What changed and what was verified read as one line each, with an icon for each, and a longer write-up waits under the **Details** row, which says how many words it holds.
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.

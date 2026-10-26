@@ -1,4 +1,7 @@
-import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
+import type {
+	CheckoutResolver,
+	RepositoriesPlatform,
+} from '$shared/repositories/repositories.platform';
 
 import type { ExtensionPackages, ExtensionPackagePaths } from './platform/packages';
 
@@ -8,6 +11,7 @@ export { openFileForUser, type OpenedFile } from './platform/opened-files';
 
 export type ExtensionsPlatformDeps = Readonly<{
 	resolver: CheckoutResolver;
+	readCheckout: RepositoriesPlatform['readCheckout'];
 	packages?: Partial<ExtensionPackagePaths>;
 }>;
 

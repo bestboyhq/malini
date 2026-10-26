@@ -93,6 +93,31 @@ test('an archived workstream comes back from its repository in the sidebar with 
 	}
 });
 
+test('a read that reaches a workstream after its archive says it was retired and logs no error', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const seeded = await seedWorkstream(page, source, 'e2e-archived-then-read', 'Archived late');
+		await invoke(page, 'repositories.archive-workstream', { workstreamId: seeded.workstreamId });
+		await expect.poll(() => existsSync(seeded.worktree), { timeout: 30_000 }).toBe(false);
+
+		for (const command of [
+			'repositories.workstream-diff',
+			'repositories.workstream-status',
+			'repositories.workstream-files',
+		]) {
+			await expect(invoke(page, command, { workstreamId: seeded.workstreamId })).rejects.toThrow(
+				/archived or deleted/u,
+			);
+		}
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('archiving a workstream stops the command its agent left running in the background', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();

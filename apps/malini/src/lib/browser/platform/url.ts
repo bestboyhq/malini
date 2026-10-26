@@ -9,6 +9,7 @@ const SCHEME = /^[a-z][a-z\d+.-]*:(?!\d)/i;
 const PORT = /:\d+$/;
 const LOCAL_HOST = /^(?:localhost|.+\.localhost|\[[\da-f:.]+\]|\d{1,3}(?:\.\d{1,3}){3})$/i;
 const FILE_ADDRESS = /^(?:file:|\.{0,2}\/)/i;
+const PATH_QUERY_HASH = /^([^?#]*)(\?[^#]*)?(#.*)?$/su;
 const WORKTREE_PROTOCOL = `${BROWSER_WORKTREE_SCHEME}:`;
 const PAGE_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:', WORKTREE_PROTOCOL]);
 
@@ -53,7 +54,8 @@ export function normalizeBrowserUrl(input: string): string {
 export function worktreeFileUrl(input: string, workstreamId: string, worktree: string): string {
 	const text = input.trim();
 	const fileUrl = /^file:/i.test(text) ? new URL(text) : null;
-	const path = fileUrl ? fileURLToPath(fileUrl) : resolve(worktree, text);
+	const [, filePath = '', search = '', hash = ''] = PATH_QUERY_HASH.exec(text) ?? [];
+	const path = fileUrl ? fileURLToPath(fileUrl) : resolve(worktree, filePath);
 	if (!isAtOrInsideDirectory(worktree, path)) {
 		throw new Error(
 			`\`${text}\` is outside the worktree; only files inside it open in the browser.`,
@@ -61,8 +63,8 @@ export function worktreeFileUrl(input: string, workstreamId: string, worktree: s
 	}
 	const url = new URL(`${WORKTREE_PROTOCOL}//${workstreamId.toLowerCase()}/`);
 	url.pathname = `/${relative(worktree, path).split(sep).map(encodeURIComponent).join('/')}`;
-	url.search = fileUrl?.search ?? '';
-	url.hash = fileUrl?.hash ?? '';
+	url.search = fileUrl?.search ?? search;
+	url.hash = fileUrl?.hash ?? hash;
 	return url.href;
 }
 
