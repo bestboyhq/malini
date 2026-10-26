@@ -911,11 +911,11 @@
 								<Button
 									variant="ghost"
 									size="sm"
-									ariaLabel="Fork to new chat"
+									ariaLabel="Slice and fork"
 									data-testid="chat-redo-fork"
 									onclick={forkInsteadOfRedo}
 								>
-									Fork to new chat
+									Slice and fork
 								</Button>
 							{/if}
 						</div>
