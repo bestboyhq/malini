@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -87,6 +88,16 @@ async function commitFiles(repo: string, files: Readonly<Record<string, string>>
 	await git(repo, ['commit', '-m', 'add files']);
 }
 
+function slowWorktreeAdd(app: LaunchedApp): void {
+	const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+	const stub = join(app.bin, 'git');
+	writeFileSync(
+		stub,
+		`#!/bin/sh\ncase " $* " in *" worktree add "*) sleep 4 ;; esac\nexec "${git}" "$@"\n`,
+	);
+	chmodSync(stub, 0o755);
+}
+
 function installNpmStub(app: LaunchedApp): string {
 	const succeeds = join(app.home, 'npm-succeeds');
 	const stub = join(app.bin, 'npm');
@@ -117,6 +128,37 @@ test('a new workstream opens at once, sets itself up, and every new workstream j
 		await expect(sidebar(page).getByTestId('sidebar-workstream')).toHaveCount(3);
 		await expect(workstreamRow(page, created)).toHaveAttribute('aria-current', 'page');
 		await captureFlow(app, 'workstream-setup-ready');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a file pasted into a new workstream before its worktree exists attaches once it does', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root, 'alpha');
+		await seedWorkstream(page, source, 'e2e-setup-paste-seed', 'Seed work');
+		await page.reload();
+		await expect(workstreamRow(page, 'e2e-setup-paste-seed')).toBeVisible({ timeout: 20_000 });
+		slowWorktreeAdd(app);
+
+		await newWorkstream(page, 'alpha');
+		const input = page.getByTestId('chat-composer-input');
+		await input.click();
+		await page.evaluate(`(() => {
+			const data = new DataTransfer();
+			data.items.add(new File(['early notes\\n'], 'early.txt', { type: 'text/plain' }));
+			document
+				.querySelector('[data-testid="chat-composer-input"]')
+				.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+		})()`);
+
+		await expect(input.getByLabel('Attached file: early.txt')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('chat-attachment-error')).toHaveCount(0);
+		await captureFlow(app, 'workstream-setup-early-paste');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

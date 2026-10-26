@@ -4,7 +4,7 @@ import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 import { promptChipMarker } from '$lib/chat/domain/prompt-chip';
 import { errorMessage } from '$lib/chat/domain/error-message';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
 import { chatModelStore } from '$lib/chat/infrastructure/stores/chat-model.store.svelte';
 import { chatRequestsStore } from '$lib/chat/infrastructure/stores/chat-requests.store.svelte';
