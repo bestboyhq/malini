@@ -16,6 +16,14 @@ const COVERED_FADE_PX = 12;
 
 const COVER_FADE = 'data-cover-fade';
 
+const FADE_BACKGROUND = 'linear-gradient(to bottom, transparent, var(--color-surface-root))';
+
+const GLIDE_FRAME_MS = 1000 / 120;
+
+const STALE_FRAME_MS = 2 * GLIDE_FRAME_MS;
+
+const SETTLED: GlideState = { position: 0, velocity: 0 };
+
 export type RowArrivalAction = (node: HTMLElement, key: string) => { destroy: () => void };
 
 export type PromptArrivalAction = (
@@ -144,17 +152,16 @@ export function createRowArrivals(input: {
 		type Row = {
 			top: number;
 			bottom: number;
-			shown: number;
 			inFlow: boolean;
-			glide: GlideState;
-			translate: string;
-			clip: string;
-			fade: string;
+			startMs: number;
+			samples: GlideState[];
+			animation: Animation | null;
 		};
+		type Cover = { lower: HTMLElement; fade: HTMLElement; block: HTMLElement };
 		const rows = new Map<HTMLElement, Row>();
-		const fades = new Map<HTMLElement, HTMLElement>();
-		let frame: number | null = null;
-		let previousFrameMs: number | null = null;
+		const covers = new Map<HTMLElement, Cover>();
+		let unstarted: Animation[] = [];
+		let startFrame: number | null = null;
 		let width = container.clientWidth;
 		let disclosedAtMs = Number.NEGATIVE_INFINITY;
 
@@ -162,102 +169,198 @@ export function createRowArrivals(input: {
 			if (disclosureOf(event.target)) disclosedAtMs = performance.now();
 		}
 
-		function paint(): void {
-			let below: number | null = null;
+		function stateAt(row: Row, nowMs: number): GlideState {
+			const elapsedMs = Math.max(0, nowMs - Number(row.animation?.startTime ?? row.startMs));
+			const index = Math.min(row.samples.length - 1, Math.floor(elapsedMs / GLIDE_FRAME_MS));
+			const sample = row.samples[index] ?? SETTLED;
+			const sinceSampleMs = elapsedMs - index * GLIDE_FRAME_MS;
+			return stepGlideSpring(sample, 0, sinceSampleMs, arrivalMotion().glideStiffness);
+		}
+
+		function shownNow(row: Row): number {
+			const animation = row.animation;
+			if (animation?.playState !== 'running') return 0;
+			const index = shownSample(Number(animation.currentTime ?? 0), row.samples.length);
+			return shownOffset(row.samples[index]?.position ?? 0);
+		}
+
+		function gliding(row: Row): boolean {
+			return row.animation?.playState === 'running';
+		}
+
+		function begin(animation: Animation, originMs: number | null): Animation {
+			if (originMs !== null) {
+				animation.startTime = originMs;
+				return animation;
+			}
+			unstarted.push(animation);
+			startFrame ??= requestAnimationFrame((frameMs) => {
+				startFrame = null;
+				for (const pending of unstarted) {
+					if (pending.playState !== 'idle') pending.startTime = frameMs;
+				}
+				unstarted = [];
+			});
+			return animation;
+		}
+
+		function play(element: HTMLElement, row: Row, originMs: number | null): void {
+			row.animation?.cancel();
+			row.animation = null;
+			if (row.samples.length < 2) return;
+			const offsets = row.samples.map(({ position }) => `0 ${shownOffset(position)}px`);
+			row.animation = begin(animateFrames(element, 'translate', offsets), originMs);
+		}
+
+		function removeCover(upper: HTMLElement): void {
+			const cover = covers.get(upper);
+			if (!cover) return;
+			covers.delete(upper);
+			for (const part of [cover.fade, cover.block]) {
+				for (const animation of part.getAnimations()) animation.cancel();
+				part.remove();
+			}
+			cover.lower.style.isolation = '';
+		}
+
+		function coverFrames(upper: Row, below: Row): { fade: string[]; block: string[] } | null {
+			const offsetAt = (row: Row, index: number): number => row.samples[index]?.position ?? 0;
+			const length = Math.max(upper.samples.length, below.samples.length);
+			const depths = Array.from({ length }, (_, index) =>
+				Math.ceil(offsetAt(upper, index) - offsetAt(below, index)),
+			);
+			let lastCovered = depths.length - 1;
+			while (lastCovered >= 0 && (depths[lastCovered] ?? 0) < 1) lastCovered -= 1;
+			if (lastCovered < 0) return null;
+			const steps = depths.slice(0, lastCovered + 2).map((depth) => (depth < 1 ? 0 : depth));
+			const edges = steps.map(
+				(depth, index) => upper.bottom + shownOffset(offsetAt(upper, index)) - depth,
+			);
+			return {
+				fade: steps.map((depth, index) => {
+					const height = Math.min(COVERED_FADE_PX, depth);
+					const top = snapToDevicePixel((edges[index] ?? 0) - height);
+					return `translateY(${top}px) scaleY(${height / COVERED_FADE_PX})`;
+				}),
+				block: steps.map((depth, index) => `translateY(${edges[index] ?? 0}px) scaleY(${depth})`),
+			};
+		}
+
+		function cover(
+			upperElement: HTMLElement,
+			upper: Row,
+			lower: HTMLElement,
+			below: Row,
+			originMs: number | null,
+		): boolean {
+			const frames = coverFrames(upper, below);
+			if (!frames) return false;
+			if (covers.get(upperElement)?.lower !== lower) removeCover(upperElement);
+			const entry = covers.get(upperElement) ?? {
+				lower,
+				fade: coverPart('fade', COVERED_FADE_PX),
+				block: coverPart('block', 1),
+			};
+			if (!covers.has(upperElement)) {
+				covers.set(upperElement, entry);
+				lower.style.isolation = 'isolate';
+			}
+			if (
+				upperElement.nextElementSibling !== entry.fade ||
+				entry.fade.nextElementSibling !== entry.block
+			) {
+				upperElement.after(entry.fade, entry.block);
+			}
+			for (const part of [entry.fade, entry.block]) {
+				for (const animation of part.getAnimations()) animation.cancel();
+			}
+			begin(animateFrames(entry.fade, 'transform', frames.fade), originMs);
+			const blockAnimation = begin(animateFrames(entry.block, 'transform', frames.block), originMs);
+			blockAnimation.onfinish = () => {
+				if (covers.get(upperElement) === entry) removeCover(upperElement);
+			};
+			return true;
+		}
+
+		function replan(shifts: Map<Row, number>, resets: Set<Row>, inFlight: boolean): void {
+			const nowMs = performance.now();
+			const frameMs = Number(document.timeline.currentTime ?? nowMs);
+			const fresh = nowMs - frameMs <= STALE_FRAME_MS;
+			const originMs = inFlight ? (fresh ? frameMs : nowMs) : null;
+			for (const [element, row] of rows) {
+				const current = resets.has(row) ? SETTLED : stateAt(row, originMs ?? nowMs);
+				const shift = shifts.get(row) ?? 0;
+				const state = { position: current.position + shift, velocity: current.velocity };
+				row.samples = glideSamples(state, arrivalMotion().glideStiffness);
+				row.startMs = originMs ?? nowMs;
+				play(element, row, originMs);
+			}
+			const covered = new Set<HTMLElement>();
+			let lower: HTMLElement | null = null;
 			for (let index = container.children.length - 1; index >= 0; index -= 1) {
 				const element = container.children[index];
 				const row = element instanceof HTMLElement ? rows.get(element) : undefined;
-				if (!element || !row || !(element instanceof HTMLElement)) continue;
-				const offset = row.glide.position;
-				const covered = !row.inFlow || below === null ? 0 : Math.ceil(offset - below);
-				const shown = Math.abs(offset) < 0.5 ? 0 : snapToDevicePixel(offset);
-				const translate = shown === 0 ? '' : `0 ${shown}px`;
-				const clip = covered < 1 ? '' : `inset(-100vh -100vw ${covered}px -100vw)`;
-				const fade = covered < 1 ? '' : fadeTransform(row.bottom + shown - covered, covered);
-				row.shown = shown;
-				if (translate !== row.translate) {
-					element.style.translate = row.translate = translate;
-					element.style.willChange = translate === '' ? '' : 'translate';
-				}
-				if (clip !== row.clip) element.style.clipPath = row.clip = clip;
-				if (fade !== row.fade) showFade(element, (row.fade = fade));
-				if (row.inFlow) below = offset;
+				if (!(element instanceof HTMLElement) || !row?.inFlow) continue;
+				const below = lower ? rows.get(lower) : undefined;
+				if (lower && below && cover(element, row, lower, below, originMs)) covered.add(element);
+				lower = element;
 			}
-		}
-
-		function showFade(element: HTMLElement, transform: string): void {
-			const fade = fades.get(element) ?? (transform === '' ? null : createFade(container));
-			if (!fade) return;
-			fades.set(element, fade);
-			fade.hidden = transform === '';
-			fade.style.transform = transform;
-		}
-
-		function dropFade(element: HTMLElement): void {
-			fades.get(element)?.remove();
-			fades.delete(element);
-		}
-
-		function step(nowMs: number): void {
-			frame = null;
-			const elapsedMs = previousFrameMs === null ? 0 : nowMs - previousFrameMs;
-			previousFrameMs = nowMs;
-			let moving = false;
-			for (const row of rows.values()) {
-				if (row.glide.position === 0 && row.glide.velocity === 0) continue;
-				row.glide = stepGlideSpring(row.glide, 0, elapsedMs, arrivalMotion().glideStiffness);
-				moving ||= row.glide.position !== 0 || row.glide.velocity !== 0;
-			}
-			paint();
-			if (moving) frame = requestAnimationFrame(step);
-			else previousFrameMs = null;
+			for (const upper of [...covers.keys()]) if (!covered.has(upper)) removeCover(upper);
 		}
 
 		function measure(): void {
+			const nowMs = performance.now();
 			const rewrapped = container.clientWidth !== width;
 			width = container.clientWidth;
-			const disclosing = performance.now() - disclosedAtMs < DISCLOSURE_SETTLE_MS;
+			const disclosing = nowMs - disclosedAtMs < DISCLOSURE_SETTLE_MS;
 			const animate =
 				!rewrapped && !rebaseRequested && !opening() && !prefersReducedMotion() && !disclosing;
 			rebaseRequested = false;
 			const gone = new Set(rows.keys());
 			const origin = container.getBoundingClientRect().top + container.clientTop;
-			let moved = false;
+			const shifts = new Map<Row, number>();
+			const resets = new Set<Row>();
+			let changed = false;
 			for (const element of container.children) {
 				if (!(element instanceof HTMLElement) || element.hasAttribute('data-prompt-row')) continue;
 				if (element.hasAttribute(COVER_FADE)) continue;
 				gone.delete(element);
 				const top = element.offsetTop;
 				const row = rows.get(element);
-				const bottom = element.getBoundingClientRect().bottom - origin - (row?.shown ?? 0);
+				const bottom = element.getBoundingClientRect().bottom - origin - (row ? shownNow(row) : 0);
 				const inFlow = isInFlow(element);
 				if (!row) {
 					resizeObserver.observe(element);
-					const glide = { position: 0, velocity: 0 };
-					const settled = { translate: '', clip: '', fade: '' };
-					rows.set(element, { top, bottom, shown: 0, inFlow, glide, ...settled });
+					rows.set(element, {
+						top,
+						bottom,
+						inFlow,
+						startMs: nowMs,
+						samples: [SETTLED],
+						animation: null,
+					});
+					changed = true;
 					continue;
 				}
 				const shift = row.top - top;
+				changed ||=
+					Math.abs(shift) >= 0.5 || Math.abs(row.bottom - bottom) >= 0.5 || row.inFlow !== inFlow;
 				row.top = top;
 				row.bottom = bottom;
 				row.inFlow = inFlow;
-				if (!inFlow) {
-					moved ||= row.glide.position !== 0;
-					row.glide = { position: 0, velocity: 0 };
-				} else if (animate && Math.abs(shift) >= 0.5) {
-					row.glide = { position: row.glide.position + shift, velocity: row.glide.velocity };
-					moved = true;
-				}
+				if (!inFlow && gliding(row)) resets.add(row);
+				else if (inFlow && animate && Math.abs(shift) >= 0.5) shifts.set(row, shift);
 			}
 			for (const element of gone) {
 				resizeObserver.unobserve(element);
+				rows.get(element)?.animation?.cancel();
 				rows.delete(element);
-				dropFade(element);
+				changed = true;
 			}
-			if (!moved) return;
-			paint();
-			frame ??= requestAnimationFrame(step);
+			const inFlight = [...rows.values()].some(gliding);
+			if (shifts.size > 0 || resets.size > 0 || (changed && inFlight)) {
+				replan(shifts, resets, inFlight);
+			}
 		}
 
 		const resizeObserver = new ResizeObserver(measure);
@@ -271,10 +374,9 @@ export function createRowArrivals(input: {
 			container.removeEventListener('toggle', trackDisclosure, true);
 			resizeObserver.disconnect();
 			mutationObserver.disconnect();
-			if (frame !== null) cancelAnimationFrame(frame);
-			for (const row of rows.values()) row.glide = { position: 0, velocity: 0 };
-			paint();
-			for (const element of fades.keys()) dropFade(element);
+			if (startFrame !== null) cancelAnimationFrame(startFrame);
+			for (const row of rows.values()) row.animation?.cancel();
+			for (const upper of [...covers.keys()]) removeCover(upper);
 			rows.clear();
 		};
 	}
@@ -294,28 +396,53 @@ export function createRowArrivals(input: {
 	};
 }
 
-function fadeTransform(edge: number, covered: number): string {
-	const height = Math.min(COVERED_FADE_PX, covered);
-	return `translateY(${snapToDevicePixel(edge - height)}px) scaleY(${height / COVERED_FADE_PX})`;
+function glideSamples(state: GlideState, stiffness: number): GlideState[] {
+	const samples = [state];
+	for (let sample = state; sample.position !== 0 || sample.velocity !== 0;) {
+		sample = stepGlideSpring(sample, 0, GLIDE_FRAME_MS, stiffness);
+		samples.push(sample);
+	}
+	return samples;
 }
 
-function createFade(container: HTMLElement): HTMLElement {
-	const fade = document.createElement('div');
-	fade.setAttribute(COVER_FADE, '');
-	fade.setAttribute('aria-hidden', 'true');
-	Object.assign(fade.style, {
+function shownOffset(position: number): number {
+	return Math.abs(position) < 0.5 ? 0 : snapToDevicePixel(position);
+}
+
+function shownSample(elapsedMs: number, count: number): number {
+	return Math.min(count - 1, Math.max(0, Math.round(elapsedMs / GLIDE_FRAME_MS)));
+}
+
+function animateFrames(
+	element: HTMLElement,
+	property: 'translate' | 'transform',
+	frames: readonly string[],
+): Animation {
+	const span = frames.length - 1.5;
+	const keyframes = frames.flatMap((value, index) =>
+		index > 0 && index < frames.length - 1 && value === frames[index - 1]
+			? []
+			: [{ [property]: value, offset: index === 0 ? 0 : (index - 0.5) / span, easing: 'step-end' }],
+	);
+	return element.animate(keyframes, { duration: span * GLIDE_FRAME_MS, fill: 'backwards' });
+}
+
+function coverPart(kind: 'fade' | 'block', height: number): HTMLElement {
+	const part = document.createElement('div');
+	part.setAttribute(COVER_FADE, kind);
+	part.setAttribute('aria-hidden', 'true');
+	Object.assign(part.style, {
 		position: 'absolute',
 		top: '0',
 		left: '0',
 		right: '0',
-		height: `${COVERED_FADE_PX}px`,
+		height: `${height}px`,
 		pointerEvents: 'none',
 		transformOrigin: '0 0',
-		willChange: 'transform',
-		background: 'linear-gradient(to bottom, transparent, var(--color-surface-root))',
+		transform: 'scaleY(0)',
+		background: kind === 'fade' ? FADE_BACKGROUND : 'var(--color-surface-root)',
 	});
-	container.append(fade);
-	return fade;
+	return part;
 }
 
 function disclosureOf(target: EventTarget | null): HTMLElement | null {
