@@ -6,7 +6,6 @@ import type { WorkstreamTurn } from '$contract/stats';
 import {
 	hasTurnReport,
 	markdownImages,
-	mediaPath,
 	parseTurnReport,
 	workstreamImagePath,
 } from '../domain/turn-report';
@@ -477,7 +476,7 @@ export function shownMediaPaths(event: Record<string, unknown>): string[] {
 	}
 	if (event['type'] !== 'assistant.message' || typeof event['text'] !== 'string') return [];
 	return markdownImages(event['text']).flatMap(({ src }) => {
-		const path = workstreamImagePath(mediaPath(src));
+		const path = workstreamImagePath(src);
 		return path !== null && SHOWN_MEDIA.test(path) ? [path] : [];
 	});
 }

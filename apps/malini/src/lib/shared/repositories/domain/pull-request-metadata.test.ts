@@ -53,7 +53,6 @@ test('derives useful PR and commit metadata from session, repository, and valida
 		changedPaths: ['src/workflow.ts', 'README.md', 'src/workflow.ts'],
 		context: {
 			sessionTitle: 'Automate the pull request workflow',
-			lastUserIntent: 'Please remove every metadata form.',
 			runSummaries: ['Create pull requests in one click and keep review status inside malini.'],
 			events: [
 				{ kind: 'validation', label: 'Repository unit tests', status: 'passed' },
@@ -108,6 +107,27 @@ test('titles the pull request after the whole branch and commits under the lates
 	);
 });
 
+test('without authored lines, commits under the changed files and titles after the chat', () => {
+	const input = {
+		branch: 'malini/01J2D8F8AC634774504B54E93A',
+		baseBranch: 'main',
+		changedPaths: ['src/search.ts'],
+		context: { sessionTitle: 'Search in the header' },
+	} as const;
+	const metadata = automatedPullRequestMetadata(input);
+
+	expect(metadata.commitMessage).toBe('Update search.ts');
+	expect(metadata.title).toBe('Search in the header');
+	expect(metadata.body).toMatch(/## Summary\n\nSearch in the header\n/u);
+	expect(
+		automatedPullRequestMetadata({
+			...input,
+			context: { ...input.context, pullRequestTitle: 'fix(chat): commit under the Commit line' },
+		}).commitMessage,
+	).toBe('fix(chat): commit under the Commit line');
+	expect(automatedPullRequestMetadata({ ...input, context: {} }).title).toBe('Update search.ts');
+});
+
 test('falls back deterministically from generic chat context to the branch and changed paths', () => {
 	const input = {
 		branch: 'feature/keyboard-navigation',
@@ -115,7 +135,6 @@ test('falls back deterministically from generic chat context to the branch and c
 		changedPaths: ['src/z.ts', 'src/a.ts'],
 		context: {
 			sessionTitle: 'New chat',
-			lastUserIntent: 'Untitled',
 		},
 	} as const;
 	const first = automatedPullRequestMetadata(input);
@@ -136,8 +155,9 @@ test('removes terminal controls, bidi overrides, markdown injection, credentials
 		changedPaths: ['src/`unsafe`.ts'],
 		context: {
 			sessionTitle: '# Please ship\u001b[31m this\u202e now\nsecret=visible',
-			lastUserIntent:
+			runSummaries: [
 				'Use **safe** output with Bearer private-token and https://user:pass@example.test/path',
+			],
 			events: [
 				{
 					kind: 'terminal',
@@ -163,7 +183,6 @@ test('bounds every field and limits untrusted context fan-out', () => {
 		changedPaths: Array.from({ length: 80 }, (_, index) => `src/${index}-${'p'.repeat(500)}.ts`),
 		context: {
 			sessionTitle: '😀'.repeat(500),
-			lastUserIntent: 'intent '.repeat(1_000),
 			runSummaries: Array.from({ length: 50 }, (_, index) => `summary ${index} ${'x'.repeat(500)}`),
 			events: Array.from({ length: 50 }, (_, index) => ({
 				kind: 'validation' as const,
@@ -201,7 +220,6 @@ test('states what the run did instead of echoing a truncated, counted chat title
 		changedPaths: ['PARITY-CHECK.md', 'README.md'],
 		context: {
 			sessionTitle: PARITY_RUN.sessionTitle,
-			lastUserIntent: PARITY_RUN.prompt,
 			runSummaries: [PARITY_RUN.summary],
 		},
 	});
@@ -222,7 +240,6 @@ test('gives two commits in one chat session subjects that describe their own wor
 		changedPaths: ['PARITY-CHECK.md', 'README.md'],
 		context: {
 			sessionTitle: PARITY_RUN.sessionTitle,
-			lastUserIntent: PARITY_RUN.prompt,
 			runSummaries: [firstSummary],
 		},
 	});
@@ -231,8 +248,6 @@ test('gives two commits in one chat session subjects that describe their own wor
 		changedPaths: ['PARITY-CHECK.md'],
 		context: {
 			sessionTitle: PARITY_RUN.sessionTitle,
-			lastUserIntent:
-				'Append a second line to PARITY-CHECK.md that reads: second pass. Change nothing else.',
 			runSummaries: [
 				firstSummary,
 				'Appended a second line reading second pass to PARITY-CHECK.md.',

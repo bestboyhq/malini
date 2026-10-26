@@ -8,7 +8,7 @@ alwaysApply: false
 
 The main process pushes events through `context.events` (`EventBus` in `$main/events`).
 It fans a frame out to every live window and to in-process subscribers.
-The jobs domain observes every emit (`EventBus.observe`) and keeps each event whose catalog entry is not `logged: false` in its event log, with the work that caused it (0082); job triggers and the reconciler read events from there, never through their own subscriptions.
+The jobs domain observes every emit (`EventBus.observe`) and keeps each event whose catalog entry is not `logged: false` in its event log, with the work that caused it (0083); job triggers and the reconciler read events from there, never through their own subscriptions.
 The renderer subscribes through `onPlatformEvent(channel, listener)` from `$shared/port/events`, called only from infrastructure services.
 Every channel and its payload type is declared in `ContractEvents` in `$contract/events`.
 

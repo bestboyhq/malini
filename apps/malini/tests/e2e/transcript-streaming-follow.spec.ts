@@ -634,6 +634,11 @@ test('a tool row in a run past two hundred steps stays in place while later step
 				const row = [...doc.querySelectorAll('[data-transcript-row]')].find((candidate) =>
 					candidate.textContent?.includes('row-225.txt'),
 				);
+				let cover = row?.nextElementSibling;
+				while (cover?.getAttribute('data-cover-fade') === 'fade') cover = cover.nextElementSibling;
+				const covered =
+					cover?.getAttribute('data-cover-fade') === 'block' &&
+					cover.getBoundingClientRect().height >= 1;
 				const view = scroller.getBoundingClientRect();
 				const blank = [...doc.querySelectorAll('[data-transcript-placeholder]')].filter(
 					(placeholder) => {
@@ -644,7 +649,7 @@ test('a tool row in a run past two hundred steps stays in place while later step
 				state.samples.push([
 					scroller.scrollTop,
 					row?.getBoundingClientRect().top ?? Number.NaN,
-					row?.getAttribute('style')?.includes('clip-path') ? 1 : 0,
+					covered ? 1 : 0,
 					blank.length,
 				]);
 				doc.defaultView?.requestAnimationFrame(sample);

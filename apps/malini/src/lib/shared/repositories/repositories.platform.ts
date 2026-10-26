@@ -73,7 +73,6 @@ export {
 } from './platform/repository.service';
 export {
 	automatedPullRequestMetadata,
-	derivedCommitMessage,
 	type AutomatedPullRequestMetadata,
 	type PullRequestAutomationContext,
 	type PullRequestAutomationEvent,
