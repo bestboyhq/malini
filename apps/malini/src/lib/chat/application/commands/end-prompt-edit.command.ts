@@ -1,6 +1,6 @@
 import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
 import { agentDrafts } from '$lib/chat/infrastructure/aggregates/agent-drafts.aggregate.svelte';
-import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service';
+import { composerAttachments } from '$lib/chat/infrastructure/services/composer-attachments.service.svelte';
 
 export { endPromptEditCommand };
 
