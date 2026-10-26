@@ -115,7 +115,7 @@ pnpm dev               # the app, with hot reload
 ```
 
 Read [AGENTS.md](AGENTS.md) for the layout and the conventions.
-Issues and pull requests are welcome.
+Issues and pull requests are welcome; your first pull request asks you to sign the [CLA](CLA.md).
 Pull request titles follow [Conventional Commits](https://www.conventionalcommits.org), and every merged `feat`, `fix`, or `perf` ships to users as an in-app update.
 
 Malini is a sibling of [Grip](https://bestboy.dev/grip), the free and open source screen recorder, and [Tony](https://bestboy.dev/tony), free and open source dictation for the Mac.
@@ -124,10 +124,16 @@ Malini is a sibling of [Grip](https://bestboy.dev/grip), the free and open sourc
 
 Copyright (C) 2026 Szymon Grącki and Malini contributors
 
-Malini is licensed under [AGPL-3.0-only](LICENSE).
+Licensed under [AGPL-3.0-only](LICENSE).
 `packages/extension-api` is licensed under [MIT](packages/extension-api/LICENSE), so an extension can use any license.
 
 Additional permission under GNU AGPL version 3 section 7: if you modify this program, or any covered work, by linking or combining it with the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`, or a modified version of that library), containing parts covered by the terms of Anthropic's license for that SDK, the licensors of this program grant you additional permission to convey the resulting work.
+
+Additional term under GNU AGPL version 3 section 7(e): the license grants no rights to the Malini and Best Boy names and logos, which [TRADEMARKS.md](TRADEMARKS.md) covers.
+
+Third-party components and their notices are listed in [NOTICE](NOTICE).
+
+Contributions require signing the [Contributor License Agreement](CLA.md); the CLA bot asks on your first pull request.
 
 Claude, Claude Code and the Claude logo are trademarks of Anthropic, PBC.
 Third-party names and logos are not covered by this license and appear only to identify those products.

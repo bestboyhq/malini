@@ -1,9 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const NODE_MODULES = '/node_modules/';
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)\b/iu;
 const SEPARATOR = `\n\n${'-'.repeat(80)}\n\n`;
+const NOTICE = fileURLToPath(new URL('../../../NOTICE', import.meta.url));
 
 /**
  * @typedef {object} PackageManifest
@@ -27,7 +29,12 @@ export function thirdPartyNotices() {
 			const assets = Object.values(bundle).flatMap((file) =>
 				file.type === 'asset' ? file.originalFileNames.map((name) => resolve(root, name)) : [],
 			);
-			const notices = noticesFor([...this.getModuleIds(), ...assets]);
+			const moduleIds = [...this.getModuleIds(), ...assets];
+			const unlisted = unlistedIn(readFileSync(NOTICE, 'utf8'), moduleIds);
+			if (unlisted.length > 0) {
+				throw new Error(`NOTICE does not list ${unlisted.join(', ')}; add each with its license`);
+			}
+			const notices = noticesFor(moduleIds);
 			if (!notices) return;
 			this.emitFile({ type: 'asset', fileName: 'THIRD_PARTY_NOTICES.txt', source: notices });
 		},
@@ -41,6 +48,17 @@ export function thirdPartyNotices() {
 export function noticesFor(moduleIds) {
 	const roots = new Set(moduleIds.flatMap((id) => packageRoot(id) ?? []));
 	return [...roots].map(notice).sort().join(SEPARATOR);
+}
+
+/**
+ * @param {string} notice
+ * @param {readonly string[]} moduleIds
+ * @returns {string[]}
+ */
+export function unlistedIn(notice, moduleIds) {
+	const listed = new Set(notice.split('\n').map((line) => line.split(' ')[0]));
+	const roots = new Set(moduleIds.flatMap((id) => packageRoot(id) ?? []));
+	return [...roots].map((root) => manifestOf(root).name).filter((name) => !listed.has(name));
 }
 
 /**
@@ -63,9 +81,7 @@ function packageRoot(id) {
  * @returns {string}
  */
 function notice(root) {
-	const manifest = /** @type {PackageManifest} */ (
-		JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-	);
+	const manifest = manifestOf(root);
 	const license = typeof manifest.license === 'string' ? manifest.license : manifest.license?.type;
 	if (!license) throw new Error(`${manifest.name} declares no license; decide before bundling it`);
 	const texts = readdirSync(root, { withFileTypes: true })
@@ -74,4 +90,14 @@ function notice(root) {
 		.sort()
 		.map((file) => readFileSync(join(root, file), 'utf8').trim());
 	return [`${manifest.name}@${manifest.version}`, `License: ${license}`, ...texts].join('\n\n');
+}
+
+/**
+ * @param {string} root
+ * @returns {PackageManifest}
+ */
+function manifestOf(root) {
+	return /** @type {PackageManifest} */ (
+		JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+	);
 }

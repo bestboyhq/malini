@@ -1,9 +1,28 @@
-import type { MenuItemConstructorOptions } from 'electron';
+import type { AboutPanelOptionsOptions, MenuItemConstructorOptions } from 'electron';
 import type { MenuCommand } from '$contract/events';
 
 type Choose = (command: MenuCommand) => void;
 
 const SEPARATOR: MenuItemConstructorOptions = { type: 'separator' };
+
+const SOURCE_URL = 'https://github.com/bestboyhq/malini';
+
+const CREDITS = [
+	'Malini is free software: you may convey and modify it under the GNU Affero General Public License, version 3 only. It comes with no warranty.',
+	`Source code and license: ${SOURCE_URL}`,
+	'The Malini and Best Boy names and logos are trademarks of Szymon Grącki, and the license grants no rights to them.',
+	'Built on Electron, Chromium and Node.js. Includes the Claude Agent SDK by Anthropic, GitHub CLI, Material Icon Theme, sounds from the Android Open Source Project and the KDE Ocean sound theme, and the Geist, Geist Mono, Inter and STIX Two Text fonts. Their notices are in NOTICE and THIRD_PARTY_NOTICES.txt inside the app.',
+].join('\n\n');
+
+export function aboutPanel(appName: string, version: string): AboutPanelOptionsOptions {
+	return {
+		applicationName: appName,
+		applicationVersion: version,
+		version,
+		copyright: 'Copyright (C) 2026 Szymon Grącki and Malini contributors',
+		credits: CREDITS,
+	};
+}
 
 function command(
 	choose: Choose,
