@@ -5,7 +5,7 @@ import {
 	BRIDGE_AGENT_ATTACHMENTS_PATH,
 	BRIDGE_AGENT_CONTEXT_PATH,
 } from '../generated/protocol-contract.js';
-import { MALINI_OWNED_GIT_COMMANDS } from './permissions.js';
+import { MALINI_OWNED_GIT_COMMANDS, workElsewhere } from './permissions.js';
 
 const MAX_AGENTS_MD_BYTES = 64 * 1024;
 
@@ -16,7 +16,7 @@ const REPORT_BODIES: Record<AgentReport, string> = {
 	high: 'the screenshot or diagram, then one-line bullets starting with `Changed:` or `Verified:`, then the full write-up: how it works, what you tested, what you found. Malini folds the write-up under Details.',
 };
 
-export function maliniInstructions(report: AgentReport, theme?: AgentTheme): string {
+export function maliniInstructions(report: AgentReport, theme?: AgentTheme, lead = false): string {
 	return [
 		'<malini>',
 		'You are running inside Malini, a desktop app that gives each workstream its own git worktree.',
@@ -24,7 +24,11 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		`- Files the user attaches live under ${BRIDGE_AGENT_ATTACHMENTS_PATH}. Read images with the Read tool, and a video through frames you extract with ffmpeg.`,
 		`- Malini owns commits, pushes, branches, worktrees, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')}, every git worktree but list, and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset. When the user asks you to ship, open a pull request or a draft, run the Open draft job with \`jobs_run\` from the \`malini\` MCP server instead of writing a script: Malini opens the draft once your turn ends.`,
 		"- Shipping is the user's call. Run Open draft or Merge, or make either a job's `then`, only when the user explicitly asked in this chat to open a pull request or to merge. Finished work, passing tests and green checks are never a reason to ship on your own.",
-		"- Workstreams you start: when the user asked you to ship or merge work you hand to a workstream with `workstreams_create`, ship it from this chat. Right after you start it, run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`, and leave shipping out of its `prompt`. Malini holds the job until that workstream's chat ends its turn, then ships it the way the button in its top bar does, and the user approves the call here, where they are.",
+		...(lead
+			? [
+					"- Workstreams you start: when the user asked you to ship or merge work you hand to a workstream with `workstreams_create`, ship it from this chat. Right after you start it, run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`, and leave shipping out of its `prompt`. Malini holds the job until that workstream's chat ends its turn, then ships it the way the button in its top bar does, and the user approves the call here, where they are.",
+				]
+			: []),
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user. "The PermissionDenied hook indicated you may retry this tool call" means the user approved that exact call in Malini: make the same call again, unchanged. Without that line the block stands.',
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
@@ -36,7 +40,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		`- Screenshots: for UI work, open the page with \`browser_open\` and capture it with \`browser_screenshot\` from the \`malini\` MCP server, then embed the path it returns as \`![what it shows](path)\`. Save every other screenshot, recording or image you make under \`${BRIDGE_AGENT_CONTEXT_PATH}/\` in the worktree, never under /tmp, each under a new name, and embed it by that relative path; Malini shows no image from outside the worktree. The chat keeps showing those files, so never delete, move or overwrite one, and keep scratch work such as builds, logs and copies of the repository in a \`mktemp -d\` folder outside the worktree. Work with no UI gets a small diagram in a fenced code block instead.`,
 		...(theme ? [themeInstruction(theme)] : []),
 		'- Automation: when the user asks Malini to do something after something happens, every time, or on a schedule such as every morning, set it up yourself with the `malini` MCP server: find or create a job with `jobs_list` and `jobs_save`, give it a `when` trigger written from `events_list` or a schedule such as `every weekday at 09:00 in <owner>/<repository>`, and a `then` such as Open draft or Merge when the user wants its work shipped. A trigger you add starts Off until the user turns it on in the Jobs page, so say so. Use `jobs_run` to run a job now.',
-		"- Malini itself: to clone a repository, start or archive a workstream, or hide a repository, use the `malini` MCP server's tools, never git or a script. To change code in another repository, such as a fork, or apart from this workstream's branch, start a workstream there with `workstreams_create`, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit such as a release to start there, and hand its chat the task in `prompt`; a clone made with git is only for reading code. A tool does one thing at once; a process with steps, such as merging a pull request, is a job you run with `jobs_run`.",
+		`- Malini itself: to clone a repository, ${lead ? 'start or archive a workstream' : 'archive a workstream'}, or hide a repository, use the \`malini\` MCP server's tools, never git or a script. To change code in another repository, such as a fork, or apart from this workstream's branch, ${workElsewhere(lead)}; a clone made with git is only for reading code. A tool does one thing at once; a process with steps, such as merging a pull request, is a job you run with \`jobs_run\`.`,
 		'- Files the user fills in: when the user has to write something you must not read or write, such as a secret in `~/.secrets/<repo>.env` or another secrets file, open that file for them with `files_open` from the `malini` MCP server, with the name of every secret you need in `keys`, and say in `Needs:` what goes in each. Malini shows it beside the chat with a `KEY=` line for each one, where they fill it in; never ask them to paste a secret into the chat.',
 		'- The `Needs:` footer line is for a blocker only the user can clear: a decision, a secret, access. Never ask the user to test, try or review your work; verify it yourself, and write "nothing" when you are not blocked.',
 		'- Footer: these lines, each on its own line, in this order:',
@@ -59,7 +63,10 @@ export function systemPromptAppend(
 	theme?: AgentTheme,
 	lineage?: AgentLineage,
 ): string {
-	const instructions = [maliniInstructions(report, theme), lineage && lineageInstructions(lineage)]
+	const instructions = [
+		maliniInstructions(report, theme, lineage?.lead != null),
+		lineage && lineageInstructions(lineage),
+	]
 		.filter(Boolean)
 		.join('\n\n');
 	const agentsMd = projectAgentsMd(cwd);

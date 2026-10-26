@@ -611,7 +611,7 @@ export class ClaudeSession implements ProviderHandle {
 			...(directories.length > 0 ? { additionalDirectories: directories } : {}),
 			hooks: {
 				PreToolUse: [
-					{ matcher: 'Bash', hooks: [steerToMalini] },
+					{ matcher: 'Bash', hooks: [steerToMalini(lineage?.lead != null)] },
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
 				PermissionDenied: [

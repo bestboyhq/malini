@@ -73,6 +73,13 @@ describe('run profile mapping', () => {
 		expect(sandboxFor(profile('agent', 'sandboxed')).network?.allowLocalBinding).toBe(true);
 	});
 
+	it('offers workstreams_create to a lead chat only', () => {
+		expect(disallowedTools()).toContain('mcp__malini__workstreams_create');
+		expect(
+			disallowedTools({ lead: { owner: null, repositories: [] }, startedBy: null, siblings: [] }),
+		).not.toContain('mcp__malini__workstreams_create');
+	});
+
 	it('refuses the git and pull request commands malini owns', () => {
 		expect(disallowedTools()).toEqual(
 			expect.arrayContaining([
@@ -361,8 +368,8 @@ describe('maliniOwnedCommand', () => {
 });
 
 describe('steerToMalini', () => {
-	async function steer(command: string) {
-		const output = await steerToMalini(
+	async function steer(command: string, lead = true) {
+		const output = await steerToMalini(lead)(
 			{
 				hook_event_name: 'PreToolUse',
 				session_id: 'session',
@@ -378,7 +385,7 @@ describe('steerToMalini', () => {
 		return 'hookSpecificOutput' in output ? output.hookSpecificOutput : undefined;
 	}
 
-	it('points a refused branch or worktree change at a new workstream', async () => {
+	it("points a chat's refused branch or worktree change at a new workstream, and a workstream's at the user", async () => {
 		for (const command of [
 			'git checkout -q -b fix/language v0.17.5',
 			'git worktree add ../fork v0.17.5',
@@ -386,6 +393,12 @@ describe('steerToMalini', () => {
 			expect(await steer(command)).toMatchObject({
 				permissionDecision: 'deny',
 				permissionDecisionReason: expect.stringContaining('`workstreams_create`'),
+			});
+			expect(await steer(command, false)).toMatchObject({
+				permissionDecision: 'deny',
+				permissionDecisionReason: expect.stringContaining(
+					'a workstream never starts another workstream',
+				),
 			});
 		}
 	});

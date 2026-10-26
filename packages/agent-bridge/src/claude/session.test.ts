@@ -285,6 +285,9 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[0]?.options.disallowedTools).toEqual(
 			expect.arrayContaining(['Edit', 'Write', 'NotebookEdit']),
 		);
+		expect(claude.runs[0]?.options.disallowedTools).not.toContain(
+			'mcp__malini__workstreams_create',
+		);
 		expect(claude.runs[0]?.options.additionalDirectories).toEqual(['/clones/acme-api']);
 		expect(claude.runs[0]?.options.systemPrompt).toEqual(
 			expect.objectContaining({
@@ -292,6 +295,7 @@ describe('ClaudeSession', () => {
 			}),
 		);
 		expect(claude.runs[1]?.options.disallowedTools).not.toContain('Edit');
+		expect(claude.runs[1]?.options.disallowedTools).toContain('mcp__malini__workstreams_create');
 		expect(claude.runs[1]?.options.additionalDirectories).toEqual(['/workstreams/w2']);
 		expect(claude.runs[1]?.options.systemPrompt).toEqual(
 			expect.objectContaining({
