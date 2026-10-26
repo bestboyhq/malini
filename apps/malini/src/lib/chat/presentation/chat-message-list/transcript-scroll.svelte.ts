@@ -37,6 +37,7 @@ const OPEN_SETTLE_MS = 1_000;
 const RESTORE_WAIT_MS = 1_500;
 const AT_BOTTOM_PX = 2;
 const SUBPIXEL_SLACK_PX = 1;
+const ROUNDED_SCROLL_HEIGHT_PX = 1;
 
 export type TranscriptScroll = {
 	readonly follow: TranscriptFollow;
@@ -122,11 +123,15 @@ export function createTranscriptScroll(
 	}
 
 	function setHoldSpace(px: number): void {
-		const next = Math.max(0, Math.round(px));
-		if (next === holdSpacePx) return;
-		if (next > 0 && Math.abs(px - holdSpacePx) < SUBPIXEL_SLACK_PX) return;
+		const next = px > 0 ? Math.ceil(px) + ROUNDED_SCROLL_HEIGHT_PX : 0;
+		if (next === holdSpacePx || (next > 0 && holdsWithHeadroom(px))) return;
 		holdSpacePx = next;
 		messageListEl?.style.setProperty('--chat-hold-space', `${next}px`);
+	}
+
+	function holdsWithHeadroom(px: number): boolean {
+		const headroom = holdSpacePx - px;
+		return headroom >= ROUNDED_SCROLL_HEIGHT_PX && headroom <= 2 * ROUNDED_SCROLL_HEIGHT_PX;
 	}
 
 	function naturalMaxTop(viewport: HTMLElement): number {

@@ -27,21 +27,20 @@ export function registerExtensions(
 	deps: ExtensionsPlatformDeps,
 ): ExtensionsPlatform {
 	const { commands, db } = context;
-	const resolver = deps.resolver;
+	const { resolver, readCheckout } = deps;
 
 	commands.define(
 		'extensions.list-workstream-files',
 		async (args: ListExtensionWorkstreamFilesArgs) => {
 			const workstreamId = ownerArgs(args);
-			const root = await resolver.resolveCheckout(workstreamId);
-			return listFiles(root, args.glob);
+			return readCheckout(workstreamId, (root) => listFiles(root, args.glob));
 		},
 	);
 	commands.define('extensions.read-workstream-file', async (args: ExtensionFileArgs) => {
 		const workstreamId = ownerArgs(args);
 		const path = stringArg(args, 'path');
 		if (isAbsolute(path)) return readOpenedFile(db, workstreamId, path);
-		return readFile(await resolver.resolveCheckout(workstreamId), path);
+		return readCheckout(workstreamId, (root) => readFile(root, path));
 	});
 	commands.define('extensions.read-repository-file', async (args: ExtensionFileArgs) => {
 		const workstreamId = ownerArgs(args);
@@ -54,14 +53,14 @@ export function registerExtensions(
 			const path = stringArg(args, 'path');
 			const contents = stringArg(args, 'contents');
 			if (isAbsolute(path)) await writeOpenedFile(db, workstreamId, path, contents);
-			else await writeFile(await resolver.resolveCheckout(workstreamId), path, contents);
+			else await readCheckout(workstreamId, (root) => writeFile(root, path, contents));
 		},
 	);
 	commands.define('extensions.stat-workstream-file', async (args: ExtensionFileArgs) => {
 		const workstreamId = ownerArgs(args);
 		const path = stringArg(args, 'path');
 		if (isAbsolute(path)) return statOpenedFile(db, workstreamId, path);
-		return statFile(await resolver.resolveCheckout(workstreamId), path);
+		return readCheckout(workstreamId, (root) => statFile(root, path));
 	});
 
 	return { packages: registerExtensionPackages(context, deps.packages ?? {}) };

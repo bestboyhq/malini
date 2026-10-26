@@ -43,6 +43,7 @@ function boot(): { context: MainContext; runtime: ExtensionsPlatform; root: stri
 			resolveCheckout: () => Promise.resolve(root),
 			resolveRepositoryRoot: () => Promise.resolve(root),
 		},
+		readCheckout: (_id, read) => read(root),
 	});
 	cleanups.push(() => {
 		db.close();

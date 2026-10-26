@@ -15,6 +15,7 @@ export interface RepositoriesPlatform {
 	readonly appInstanceId: string;
 	containerCount(): number;
 	listOwnedContainers(): Promise<OwnedContainer[]>;
+	readCheckout<T>(workstreamId: string, read: (worktree: string) => Promise<T>): Promise<T>;
 	provisionDependencies(workstreamId: string): Promise<InstallOutcome>;
 	abortInstall(workstreamId: string): Promise<void>;
 	cancelGitHubSignIn(): void;

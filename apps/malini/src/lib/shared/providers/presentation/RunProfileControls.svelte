@@ -156,7 +156,9 @@
 				onclick={toggleEffort}
 			>
 				<Icon name="signal" size={15} />
-				<span>{effortSupported ? effortLabel(profile.effort) : 'None'}</span>
+				<span class="@max-md/composer:hidden">
+					{effortSupported ? effortLabel(profile.effort) : 'None'}
+				</span>
 			</Button>
 		</Tooltip>
 
