@@ -57,7 +57,31 @@ export type ShipChangedEvent = Readonly<{
 	merged?: ShipMerged;
 }>;
 
-export type ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;
+export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';
+
+export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel'];
+
+export type ShipButtonArgs = Readonly<{ workstreamId: string; button: ShipButton }>;
+
+export type ShipButtonClickedEvent = Readonly<{
+	workstreamId: string;
+	button: ShipButton;
+	state: ShipStateRecord | null;
+}>;
+
+export type WorkstreamOpenedEvent = Readonly<{ workstreamId: string }>;
+
+export type PullRequestMergeability = 'ready' | 'conflicts' | 'behind' | 'blocked' | 'unknown';
+
+export type PullRequestFailedCheck = Readonly<{
+	name: string;
+	state: string;
+	required: boolean | null;
+	appId: number | null;
+	completedAt: string | null;
+}>;
+
+export type PullRequestReviewItem = Readonly<{ id: string; by: string | null; bot: boolean }>;
 
 export type PullRequestChangedEvent = Readonly<{
 	workstreamId: string;
@@ -67,11 +91,18 @@ export type PullRequestChangedEvent = Readonly<{
 	baseBranch: string;
 	headSha: string | null;
 	checks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';
+	checksPending: boolean;
 	failingChecks: readonly string[];
+	blockingChecks: readonly PullRequestFailedCheck[];
 	reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
 	unresolvedThreads: number | null;
+	changeRequests: readonly PullRequestReviewItem[] | null;
+	threads: readonly PullRequestReviewItem[] | null;
 	behindBase: number | null;
 	conflicts: boolean;
+	mergeability: PullRequestMergeability;
+	viewerCanMerge: boolean | null;
+	mergeMethod: string | null;
 }>;
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';

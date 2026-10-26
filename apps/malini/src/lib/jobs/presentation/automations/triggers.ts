@@ -66,7 +66,7 @@ export const TRIGGERS: readonly Trigger[] = [
 		when: 'on pull-requests:ship-changed where state.phase is needs-you',
 		group: 'Shipping',
 		label: 'Shipping needs you',
-		detail: 'The merge queue stops and waits for you',
+		detail: 'Shipping stops and waits for you',
 		icon: 'shield-alert',
 	},
 	{

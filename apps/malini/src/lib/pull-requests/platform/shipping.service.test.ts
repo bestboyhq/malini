@@ -5,8 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	APP_STARTED_CHANNEL,
-	PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL,
-	PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 } from '$contract/events';
@@ -20,6 +19,7 @@ import {
 import {
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	UPDATE_FROM_MAIN_TRIGGER_SETTING,
+	type ShipButton,
 	type ShipChangedEvent,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
@@ -33,6 +33,12 @@ import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
 import type { GhResult } from '$main/process/gh';
 import { startEventLog } from '$lib/jobs/platform/event-log.service';
+import {
+	getBuiltinJobDefinition,
+	insertJobDefinition,
+} from '$lib/jobs/platform/job-definitions.repository';
+import { insertJobRun, saveJobRun } from '$lib/jobs/platform/job-runs.repository';
+import { createJobSchedules, type JobSchedules } from '$lib/jobs/platform/job-schedules.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
@@ -40,13 +46,15 @@ import { getShip } from './ship.repository';
 
 const DELAYS = {
 	idleDebounceMs: 40,
-	agentPollMs: 60,
 	checksPollMs: 20,
 	reviewPollMs: 20,
 	githubPollMs: 20,
+	openedCheckMs: 60_000,
 	backoffBaseMs: 40,
 	backoffCapMs: 160,
 };
+
+const SETTLE_MS = 150;
 
 const WAIT = { timeout: 8_000, interval: 15 };
 
@@ -323,6 +331,7 @@ let context: MainContext;
 let github: FakeGithub;
 let platform: PullRequestsPlatform;
 let eventLog: { dispose(): void } | null;
+let clock: JobSchedules | null;
 let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
 let jobRuns: Map<string, JobRunRecord>;
@@ -408,11 +417,13 @@ function finishUserRun(workstreamId: string, summary: string, dirtyPaths: string
 	const current = worktree(workstreamId);
 	worktrees.set(workstreamId, { ...current, dirtyPaths: [...current.dirtyPaths, ...dirtyPaths] });
 	openRuns.delete(workstreamId);
-	context.events.emit('chat:agent-event', {
+	context.events.emit('chat:turn-finished', {
+		workstreamId,
 		sessionId: `session-${workstreamId}`,
 		runId,
-		seq: runCounter,
-		event: { type: 'run.completed', summary },
+		status: 'succeeded',
+		outcome: null,
+		needs: null,
 	});
 	return runId;
 }
@@ -441,8 +452,14 @@ function finishJob(
 		detail: options.summary ?? null,
 		finishedAt: new Date().toISOString(),
 	};
-	jobRuns.set(jobRunId, finished);
-	context.events.emit('jobs:run-changed', { run: finished });
+	ended(finished);
+}
+
+function ended(run: JobRunRecord): void {
+	jobRuns.set(run.id, run);
+	saveJobRun(db, run);
+	context.events.emit('jobs:run-changed', { run });
+	context.events.emit('jobs:run-finished', { run });
 }
 
 function defineFakes(): void {
@@ -540,8 +557,6 @@ function defineFakes(): void {
 		openRuns.has(String(Reflect.get(Object(args), 'workstreamId'))),
 	);
 	commands.define('app.list-settings', () => ({ ...settings }));
-	commands.define('jobs.list-definitions', () => DEFINITIONS);
-	commands.define('jobs.list-runs', () => [...jobRuns.values()]);
 	commands.define('jobs.run', async (args: RunJobArgs) => {
 		await jobStarting?.();
 		const index = jobRuns.size + 1;
@@ -579,9 +594,11 @@ function defineFakes(): void {
 			finishedAt: null,
 		};
 		jobRuns.set(run.id, run);
+		insertJobRun(db, run, args.context ?? null);
 		jobContexts.set(run.id, args.context ?? '');
 		jobCauses.set(run.id, args.causeEventId);
 		events.emit('jobs:run-changed', { run });
+		events.emit('jobs:run-started', { run });
 		return run;
 	});
 	commands.define('jobs.cancel-run', (args: unknown) => {
@@ -589,8 +606,7 @@ function defineFakes(): void {
 		const run = jobRuns.get(id);
 		if (!run) throw new Error('not found');
 		const cancelled: JobRunRecord = { ...run, status: 'cancelled' };
-		jobRuns.set(id, cancelled);
-		events.emit('jobs:run-changed', { run: cancelled });
+		ended(cancelled);
 		return cancelled;
 	});
 }
@@ -598,25 +614,56 @@ function defineFakes(): void {
 function recordShipEvents(): void {
 	for (const channel of [
 		PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
-		PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL,
-		PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
+		PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	] as const) {
 		context.events.subscribe(channel, (event) => shipEvents.push(event));
 	}
 }
 
+function seedDefinitions(): void {
+	for (const definition of DEFINITIONS) insertJobDefinition(db, definition);
+}
+
 function start(delays: typeof DELAYS = DELAYS): void {
-	const queue = registerPullRequests(context, {
+	const now = (): number => Date.now() + clockOffsetMs;
+	const shipping = registerPullRequests(context, {
 		runner: github.run,
-		ship: { delays, now: () => Date.now() + clockOffsetMs },
+		ship: { delays, now },
 	});
-	platform = queue;
+	platform = shipping;
 	eventLog = startEventLog(
 		context,
 		() => {},
-		(event) => queue.handle(event),
+		(event) => shipping.handle(event),
 	);
+	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
+	clock.start();
 	context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion });
+}
+
+function stop(): void {
+	clock?.dispose();
+	clock = null;
+	eventLog?.dispose();
+	eventLog = null;
+	platform.dispose();
+}
+
+function click(workstreamId: string, button: ShipButton): Promise<ShipStateRecord | null> {
+	return invoke<ShipStateRecord | null>('pull-requests.button-clicked', { workstreamId, button });
+}
+
+function readPullRequest(): Promise<unknown> {
+	return invoke('pull-requests.status', {
+		repoId: 'p-1',
+		workstreamId: 'ws-1',
+		head: 'malini/ws-1',
+		base: 'main',
+	});
+}
+
+function settle(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
 async function invoke<T>(command: string, args?: unknown): Promise<T>;
@@ -689,13 +736,16 @@ beforeEach(() => {
 	behind = new Map();
 	shaCounter = 0;
 	eventLog = null;
+	clock = null;
 	clockOffsetMs = 0;
 	runCounter = 0;
+	seedDefinitions();
 	recordShipEvents();
 	defineFakes();
 });
 
 afterEach(() => {
+	clock?.dispose();
 	eventLog?.dispose();
 	platform?.dispose();
 	db.close();
@@ -708,9 +758,7 @@ describe('opening a draft', () => {
 		start();
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
 
-		const record = await invoke<ShipStateRecord>('pull-requests.open-draft', {
-			workstreamId: 'ws-1',
-		});
+		const record = await click('ws-1', 'draft');
 
 		expect(record).toMatchObject({ phase: 'draft', step: 'opening-draft' });
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
@@ -724,6 +772,10 @@ describe('opening a draft', () => {
 		seedWorkstream('ws-1', { hasUpstream: true });
 		start();
 
+		await expect(click('ws-1', 'draft')).rejects.toMatchObject({
+			name: 'ShipError',
+			kind: 'nothing-to-ship',
+		});
 		await expect(
 			invoke('pull-requests.open-draft', { workstreamId: 'ws-1' }),
 		).rejects.toMatchObject({ name: 'ShipError', kind: 'nothing-to-ship' });
@@ -752,7 +804,7 @@ describe('opening a draft', () => {
 		});
 		start();
 
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 12, step: null }));
 		expect(github.count(['pr', 'create'])).toBe(0);
@@ -765,7 +817,7 @@ describe('pushing automatically', () => {
 		seedWorkstream('ws-1');
 		start();
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
 
@@ -817,7 +869,7 @@ describe('keeping a workstream current with main', () => {
 		seedWorkstream('ws-1');
 		start();
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
 
@@ -860,6 +912,12 @@ describe('keeping a workstream current with main', () => {
 		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
 		const job = activeJob();
 		expect(job).toMatchObject({ definitionId: 'def-update-from-main', origin: 'merge-queue' });
+		const [opened] = all<{ id: number }>(
+			db,
+			'SELECT id FROM event_log WHERE channel = ? ORDER BY id DESC LIMIT 1',
+			'pull-requests:workstream-opened',
+		);
+		expect(jobCauses.get(job.id)).toBe(opened?.id);
 		mergeMain('ws-1');
 		finishJob(job.id, 'succeeded', { summary: 'Merged 3 commits from main' });
 
@@ -875,7 +933,7 @@ describe('keeping a workstream current with main', () => {
 		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
 		const job = activeJob();
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({ phase: 'queued', step: 'updating-from-main' }),
@@ -893,7 +951,7 @@ describe('keeping a workstream current with main', () => {
 		behind.set('ws-1', 3);
 		jobStarting = async () => {
 			jobStarting = null;
-			await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+			await click('ws-1', 'merge');
 		};
 
 		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
@@ -919,7 +977,7 @@ describe('keeping a workstream current with main', () => {
 		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
 		const job = activeJob();
 
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({ phase: 'draft', step: 'updating-from-main' }),
@@ -949,7 +1007,7 @@ describe('keeping a workstream current with main', () => {
 
 		const handedOff = { step: 'resolving-conflicts', activeJobRunId: resolve.id };
 		await until(() => expect(ship('ws-1')).toMatchObject(handedOff));
-		await new Promise((resolve) => setTimeout(resolve, DELAYS.agentPollMs * 2));
+		await settle();
 		expect(ship('ws-1')).toMatchObject(handedOff);
 		expect(jobRuns.size).toBe(2);
 		finishJob(resolve.id, 'succeeded', { resolveConflicts: true });
@@ -996,15 +1054,6 @@ describe('keeping a workstream current with main', () => {
 		expect(pushes).toEqual([]);
 	});
 
-	function readPullRequest(): Promise<unknown> {
-		return invoke('pull-requests.status', {
-			repoId: 'p-1',
-			workstreamId: 'ws-1',
-			head: 'malini/ws-1',
-			base: 'main',
-		});
-	}
-
 	it('runs Update from main when a pull request read shows main moved', async () => {
 		await openDraft();
 		behind.set('ws-1', 3);
@@ -1046,7 +1095,7 @@ describe('keeping a workstream current with main', () => {
 		expect(jobRuns.size).toBe(0);
 		expect(pulls).toEqual([]);
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(pulls).toEqual(['ws-1']);
 	});
@@ -1093,12 +1142,12 @@ describe('keeping a workstream current with main', () => {
 	});
 });
 
-describe('the merge queue', () => {
+describe('shipping a queued merge', () => {
 	async function queueWithDraft(): Promise<void> {
 		seedWorkstream('ws-1');
 		start();
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
 
@@ -1107,7 +1156,7 @@ describe('the merge queue', () => {
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 		expect(github.only().isDraft).toBe(false);
@@ -1140,7 +1189,7 @@ describe('the merge queue', () => {
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
 		const job = activeJob();
@@ -1172,25 +1221,29 @@ describe('the merge queue', () => {
 		]);
 	});
 
-	it('moves a queued merge only once it hears the Merge requested event it logs', async () => {
+	it('logs your click on Merge and moves the merge only once it hears that click', async () => {
 		await queueWithDraft();
 		eventLog?.dispose();
-		const requested: unknown[] = [];
-		context.events.subscribe(PULL_REQUESTS_MERGE_REQUESTED_CHANNEL, (payload) =>
-			requested.push(payload),
+		const clicks: unknown[] = [];
+		context.events.subscribe(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, (payload) =>
+			clicks.push(payload),
 		);
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
-		await new Promise((resolve) => setTimeout(resolve, DELAYS.githubPollMs * 5));
+		await click('ws-1', 'merge');
+		await settle();
 
-		expect(requested).toEqual([
-			{ workstreamId: 'ws-1', state: expect.objectContaining({ phase: 'queued', step: null }) },
+		expect(clicks).toEqual([
+			{
+				workstreamId: 'ws-1',
+				button: 'merge',
+				state: expect.objectContaining({ phase: 'queued', step: null }),
+			},
 		]);
 		expect(github.only().isDraft).toBe(true);
 		await platform.handle({
 			id: null,
-			channel: PULL_REQUESTS_MERGE_REQUESTED_CHANNEL,
-			payload: requested[0],
+			channel: PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+			payload: clicks[0],
 			digest: null,
 			chainId: null,
 			cause: null,
@@ -1198,17 +1251,110 @@ describe('the merge queue', () => {
 		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
+	it('merges what the Merge job queued once that job finishes, without a click', async () => {
+		await queueWithDraft();
+		const before = shipEvents.length;
+
+		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await settle();
+
+		expect(shipEvents.slice(before)).toEqual([
+			{ workstreamId: 'ws-1', state: expect.objectContaining({ phase: 'queued', step: null }) },
+		]);
+		expect(github.only().isDraft).toBe(true);
+		const definition = getBuiltinJobDefinition(db, 'merge');
+		if (!definition) throw new Error('the Merge job is missing');
+		const merge: JobRunRecord = {
+			id: 'merge-run',
+			definitionId: definition.id,
+			title: 'Merge',
+			workstreamId: 'ws-1',
+			repositoryId: null,
+			scope: null,
+			sessionId: null,
+			agentRunId: null,
+			origin: 'then',
+			status: 'succeeded',
+			detail: 'Queued to merge: https://github.com/acme/app/pull/40',
+			parentRunId: null,
+			chatSessionId: null,
+			chatAfterRunId: null,
+			chainId: 'merge-run',
+			requests: 1,
+			createdAt: new Date().toISOString(),
+			startedAt: new Date().toISOString(),
+			finishedAt: new Date().toISOString(),
+		};
+		insertJobRun(db, merge, null);
+		context.events.emit('jobs:run-finished', { run: merge });
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+	});
+
+	it('starts nothing from a read that changed nothing', async () => {
+		await queueWithDraft();
+		Object.assign(github.only(), {
+			mergeStateStatus: 'BLOCKED',
+			reviewDecision: 'REVIEW_REQUIRED',
+		});
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-review'));
+		const logged = readsLogged().length;
+		const reads = github.count(['pr', 'view']);
+
+		await until(() => expect(github.count(['pr', 'view'])).toBeGreaterThan(reads + 3));
+
+		expect(readsLogged()).toHaveLength(logged);
+		expect(jobRuns.size).toBe(0);
+		expect(ship('ws-1')?.step).toBe('waiting-for-review');
+	});
+
+	it('answers a second change request whose counts match the first, naming its own read', async () => {
+		await queueWithDraft();
+		const pull = github.only();
+		Object.assign(pull, {
+			reviewDecision: 'CHANGES_REQUESTED',
+			changeRequests: [{ id: 'PRR_1', login: 'alice', bot: false }],
+			threads: [{ id: 'PRRT_1', bot: false, resolved: false }],
+		});
+		await readPullRequest();
+		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
+		const first = activeJob();
+		finishJob(first.id, 'succeeded', {
+			summary: 'Done.\nResolved: PRRT_1',
+			dirtyPaths: ['src/search.ts'],
+		});
+		await until(() => expect(getShip(db, 'ws-1')?.addressedReviews).toEqual(['PRR_1']));
+		await until(() => expect(ship('ws-1')?.step).toBeNull());
+		Object.assign(pull, {
+			changeRequests: [{ id: 'PRR_2', login: 'alice', bot: false }],
+			threads: [{ id: 'PRRT_2', bot: false, resolved: false }],
+		});
+
+		await readPullRequest();
+
+		await until(() => expect(jobRuns.size).toBe(2));
+		const second = activeJob();
+		const read = readsLogged().at(-1);
+		expect(read?.payload).toMatchObject({
+			unresolvedThreads: 1,
+			changeRequests: [{ id: 'PRR_2', by: 'alice', bot: false }],
+		});
+		expect(jobCauses.get(second.id)).toBe(read?.id);
+		expect(jobContexts.get(second.id)).toContain('"id":"PRR_2"');
+	});
+
 	it('merges as soon as a read of the pull request shows its checks passed', async () => {
 		seedWorkstream('ws-1');
 		start({ ...DELAYS, checksPollMs: 60_000 });
 		finishUserRun('ws-1', 'Commit: Add search to the header', ['src/search.ts']);
-		await invoke('pull-requests.open-draft', { workstreamId: 'ws-1' });
+		await click('ws-1', 'draft');
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 		Object.assign(github.only(), {
 			checks: [{ name: 'test', status: 'IN_PROGRESS', conclusion: '' }],
 			mergeStateStatus: 'BLOCKED',
 		});
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
 
 		Object.assign(github.only(), {
@@ -1229,12 +1375,10 @@ describe('the merge queue', () => {
 		seedWorkstream('ws-1', { dirtyPaths: ['src/search.ts'] });
 		start();
 
-		const record = await invoke<ShipStateRecord>('pull-requests.queue-merge', {
-			workstreamId: 'ws-1',
-		});
+		const record = await click('ws-1', 'merge');
 
 		expect(record).toMatchObject({ phase: 'queued', attempts: 0 });
-		expect(record.queuedAt).not.toBeNull();
+		expect(record?.queuedAt).not.toBeNull();
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(github.count(['pr', 'create'])).toBe(1);
 		expect(github.count(['pr', 'ready'])).toBe(0);
@@ -1244,7 +1388,7 @@ describe('the merge queue', () => {
 	it('waits for the agent to go idle and ships the new work in the same pull request', async () => {
 		await queueWithDraft();
 		openRuns.add('ws-1');
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-agent'));
 		expect(github.count(['pr', 'ready'])).toBe(0);
 
@@ -1263,7 +1407,7 @@ describe('the merge queue', () => {
 			reviewDecision: 'REVIEW_REQUIRED',
 		});
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-checks'));
 		const reads = github.count(['pr', 'view']);
@@ -1287,7 +1431,7 @@ describe('the merge queue', () => {
 		});
 		pullConflicts = ['src/search.ts'];
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
 		expect(pulls).toEqual(['ws-1']);
@@ -1312,7 +1456,7 @@ describe('the merge queue', () => {
 			{ id: 'PRRT_human', bot: false, resolved: false },
 		];
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
 		const job = activeJob();
@@ -1345,7 +1489,7 @@ describe('the merge queue', () => {
 		});
 		pull.mergeStateStatus = 'BLOCKED';
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.step).toBe('addressing-review'));
 		const job = activeJob();
@@ -1366,7 +1510,7 @@ describe('the merge queue', () => {
 		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: false }];
 		pull.mergeStateStatus = 'BLOCKED';
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({
@@ -1387,7 +1531,7 @@ describe('the merge queue', () => {
 		const pull = github.only();
 		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: false }];
 		pull.mergeStateStatus = 'BLOCKED';
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.phase).toBe('needs-you'));
 
 		pull.state = 'MERGED';
@@ -1402,7 +1546,7 @@ describe('the merge queue', () => {
 		github.ciOutcomes = ['FAILURE', 'FAILURE'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 		finishJob(activeJob().id, 'succeeded', { dirtyPaths: ['a.ts'] });
@@ -1426,7 +1570,7 @@ describe('the merge queue', () => {
 		github.only().checks = [
 			{ name: 'conventional', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: failedAt },
 		];
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
 
 		finishJob(activeJob().id, 'succeeded', {
@@ -1454,7 +1598,7 @@ describe('the merge queue', () => {
 		github.only().checks = [
 			{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE', completedAt: failedAt },
 		];
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
 		const job = activeJob();
 
@@ -1479,7 +1623,7 @@ describe('the merge queue', () => {
 		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
 
 		finishJob(activeJob().id, 'failed', { summary: JOB_INTERRUPTED_DETAIL });
@@ -1494,7 +1638,7 @@ describe('the merge queue', () => {
 		await queueWithDraft();
 		github.outage = 3;
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() => expect(ship('ws-1')?.lastError).toMatch(/Couldn't reach GitHub/u));
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
@@ -1511,7 +1655,7 @@ describe('the merge queue', () => {
 		await queueWithDraft();
 		github.authRejected = true;
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 
 		await until(() =>
 			expect(ship('ws-1')).toMatchObject({
@@ -1524,13 +1668,11 @@ describe('the merge queue', () => {
 	it('cancels back to draft, stopping the running job, and retries from needs-you', async () => {
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
 		const job = activeJob();
 
-		const cancelled = await invoke<ShipStateRecord>('pull-requests.cancel-merge', {
-			workstreamId: 'ws-1',
-		});
+		const cancelled = await click('ws-1', 'cancel');
 
 		expect(cancelled).toMatchObject({
 			phase: 'draft',
@@ -1540,18 +1682,16 @@ describe('the merge queue', () => {
 		});
 		expect(jobRuns.get(job.id)?.status).toBe('cancelled');
 		expect(github.only().state).toBe('OPEN');
-		expect(await invoke('pull-requests.cancel-merge', { workstreamId: 'ws-2' })).toBeNull();
+		expect(await click('ws-2', 'cancel')).toBeNull();
 
 		github.authRejected = true;
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.phase).toBe('needs-you'));
 		github.authRejected = false;
 		github.ciOutcomes = ['SUCCESS'];
 		github.pushed('malini/ws-1', github.only().headRefOid);
 
-		const retried = await invoke<ShipStateRecord>('pull-requests.retry-merge', {
-			workstreamId: 'ws-1',
-		});
+		const retried = await click('ws-1', 'retry');
 
 		expect(retried).toMatchObject({ phase: 'queued', needsYou: null, attempts: 0 });
 		await until(() => expect(archived).toEqual(['ws-1']));
@@ -1560,11 +1700,10 @@ describe('the merge queue', () => {
 	it('resumes a queued merge after a restart without dispatching a second job', async () => {
 		await queueWithDraft();
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('fixing-checks'));
 		const job = activeJob();
-		eventLog?.dispose();
-		platform.dispose();
+		stop();
 
 		context = {
 			...context,
@@ -1574,7 +1713,7 @@ describe('the merge queue', () => {
 		recordShipEvents();
 		defineFakes();
 		start();
-		await new Promise((resolve) => setTimeout(resolve, DELAYS.agentPollMs * 2));
+		await settle();
 		expect(jobRuns.size).toBe(1);
 
 		github.ciOutcomes = ['SUCCESS'];
@@ -1590,9 +1729,9 @@ describe('the merge queue', () => {
 		start();
 		openRuns.add('ws-1');
 
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await new Promise((resolve) => setTimeout(resolve, 5));
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-2' });
+		await click('ws-2', 'merge');
 
 		await until(() => expect(archived).toEqual(['ws-2']));
 		expect(ship('ws-1')?.step).toBe('waiting-for-agent');
@@ -1605,7 +1744,7 @@ describe('the merge queue', () => {
 	it('drops the queue state of a workstream removed elsewhere', async () => {
 		await queueWithDraft();
 		openRuns.add('ws-1');
-		await invoke('pull-requests.queue-merge', { workstreamId: 'ws-1' });
+		await click('ws-1', 'merge');
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-agent'));
 
 		context.events.emit('repositories:workstream-removed', {
@@ -1614,6 +1753,6 @@ describe('the merge queue', () => {
 			deleted: true,
 		});
 
-		expect(await invoke('pull-requests.ship-states')).toEqual([]);
+		await until(async () => expect(await invoke('pull-requests.ship-states')).toEqual([]));
 	});
 });

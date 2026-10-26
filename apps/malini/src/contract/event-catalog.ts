@@ -82,19 +82,19 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'pull-requests:ship-changed': {
 		description:
-			"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you. A request to open a draft or to merge fires `pull-requests:draft-requested` or `pull-requests:merge-requested` instead, with the new state.",
+			"Fires whenever a workstream's shipping state changes: its pull request phase, the step Malini is on, or a reason it needs you. A click on the pull request bar's Draft, Merge, Retry or Cancel fires `pull-requests:button-clicked` instead, with the new state.",
 	},
 	'pull-requests:pull-request-changed': {
 		description:
-			"Fires when Malini reads a workstream's pull request on GitHub and it changed since the last read Malini logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks` and the `failingChecks` by name, its `reviewDecision` and `unresolvedThreads`, how many commits it is `behindBase`, and whether it `conflicts` with its base branch. Every job the merge queue starts for that pull request names the latest one as its cause.",
+			"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every job the Shipping rule starts for that pull request names the latest one as its cause.",
 	},
-	'pull-requests:draft-requested': {
+	'pull-requests:button-clicked': {
 		description:
-			"Fires when you, a chat or the Open draft job ask to open a draft pull request for a workstream, with the workstream's new shipping state; the reconciler hands it to the merge queue, which commits, pushes and opens the draft.",
+			"Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there.",
 	},
-	'pull-requests:merge-requested': {
+	'pull-requests:workstream-opened': {
 		description:
-			"Fires when you, a chat or the Merge job queue a workstream to merge, or try a merge that needs you again, with the workstream's new shipping state; the reconciler hands it to the merge queue, which takes the pull request from there to merged.",
+			'Fires when you open a workstream; unless Settings say to update from main only while merging, the Shipping rule runs **Update from main** when the workstream is behind its base branch.',
 	},
 	'jobs:run-changed': {
 		description:
@@ -120,7 +120,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'jobs:time-reached': {
 		description:
-			"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished.",
+			"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.",
 	},
 	'jobs:decision-changed': {
 		description:
@@ -141,7 +141,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'app:started': {
 		description:
-			"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and the merge queue picks its queue up again.",
+			"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and its Shipping rule picks up every workstream it was shipping.",
 	},
 	'app:close-requested': {
 		description:

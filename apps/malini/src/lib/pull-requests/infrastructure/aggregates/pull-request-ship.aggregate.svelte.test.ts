@@ -18,7 +18,7 @@ function ship(workstreamId: string, overrides: Partial<PullRequestShip> = {}): P
 	};
 }
 
-describe('the merge queue aggregate', () => {
+describe('the shipping aggregate', () => {
 	it('keeps every change that arrived while the list was loading', () => {
 		pullRequestShipAggregate.accept('stale', ship('stale'));
 		pullRequestShipAggregate.beginLoad();

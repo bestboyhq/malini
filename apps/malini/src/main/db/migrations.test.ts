@@ -25,6 +25,7 @@ const ALL_TABLES = [
 	'agent_session_changes',
 	'agent_sessions',
 	'agent_user_baselines',
+	'alarms',
 	'connected_repositories',
 	'custom_sounds',
 	'deleted_workstreams',
@@ -74,6 +75,7 @@ const ALL_INDEXES = [
 	'idx_agent_sessions_workstream_archived_started',
 	'idx_agent_user_baselines_run',
 	'idx_agent_user_baselines_workstream_created',
+	'idx_alarms_due',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
 	'idx_event_log_chain',
@@ -272,8 +274,13 @@ describe('migrate', () => {
 	it('keeps every job run, and lets a run come from a schedule and name the lead it starts', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		for (const migration of MIGRATIONS.slice(0, -1)) db.exec(migration);
-		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION - 1};`);
+		const chains = MIGRATIONS.reduce(
+			(found, migration, index) =>
+				migration.includes('CREATE TABLE job_runs_next') ? index : found,
+			-1,
+		);
+		for (const migration of MIGRATIONS.slice(0, chains)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + chains};`);
 		db.exec(`
 			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, created_at, updated_at)
 			  VALUES ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z');

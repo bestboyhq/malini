@@ -26,13 +26,13 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	'name-services':
 		'Runs on its own when an agent leaves a command running in the background. It names what keeps running in the sidebar.',
 	'fix-checks':
-		'The merge queue runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
+		'Malini runs it when checks fail on a pull request it is shipping. Run it yourself from any chat with /.',
 	'update-from-main':
-		'The merge queue runs it when a branch it is shipping falls behind its base. Pick when it does in Settings, Jobs. Run it yourself from any chat with /.',
+		'Malini runs it when a branch it is shipping falls behind its base. Pick when it does in Settings, Jobs. Run it yourself from any chat with /.',
 	'resolve-conflicts':
-		'The merge queue runs it when merging the base branch into a workstream it is shipping stops on conflicts, and so does Update from main. Run it yourself from any chat with /.',
+		'Malini runs it when merging the base branch into a workstream it is shipping stops on conflicts, and so does Update from main. Run it yourself from any chat with /.',
 	'address-review':
-		'The merge queue runs it when a bot reviews a pull request it is shipping. Run it yourself from any chat with /.',
+		'Malini runs it when a bot reviews a pull request it is shipping. Run it yourself from any chat with /.',
 	'check-compatibility':
 		'Runs on its own after Malini updates and its events change, to repair the jobs that rely on them. Run it yourself from any chat with / to check them all.',
 	'update-docs':

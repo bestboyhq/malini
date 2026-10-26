@@ -1,70 +1,49 @@
+import { PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL } from '$contract/events';
+import { SHIP_BUTTONS, type ShipButton } from '$contract/pull-requests';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
-import { turnEndedOverBackgroundCommands } from '$lib/chat/chat.platform';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import { requireString } from './args';
-import {
-	MergeQueue,
-	type MergeQueueOptions,
-	type PullRequestOperations,
-} from './merge-queue.service';
-
-const TERMINAL_RUN_EVENTS = new Set(['run.completed', 'run.failed']);
+import type { PullRequestOperations } from './pull-request-operations';
+import { Shipping, type ShippingOptions } from './shipping.service';
 
 export type ShipPlatform = PullRequestsPlatform &
-	Readonly<{ pullRequestRead(workstreamId: string, pullRequest: PullRequestStatusDto): void }>;
+	Readonly<{ report(workstreamId: string, pullRequest: PullRequestStatusDto): void }>;
 
 export function registerShip(
 	context: MainContext,
 	operations: PullRequestOperations,
-	options: MergeQueueOptions = {},
+	options: ShippingOptions = {},
 ): ShipPlatform {
 	const { commands, events } = context;
-	const queue = new MergeQueue(context, operations, options);
+	const shipping = new Shipping(context, operations, options);
 	const workstreamId = (args: unknown): string => requireString(args, 'workstreamId');
 
+	commands.define('pull-requests.button-clicked', (args: unknown) =>
+		shipping.clicked(workstreamId(args), button(args)),
+	);
 	commands.define('pull-requests.open-draft', (args: unknown) =>
-		queue.openDraft(workstreamId(args)),
+		shipping.openDraft(workstreamId(args)),
 	);
 	commands.define('pull-requests.queue-merge', (args: unknown) =>
-		queue.queueMerge(workstreamId(args)),
+		shipping.queueMerge(workstreamId(args)),
 	);
-	commands.define('pull-requests.cancel-merge', (args: unknown) =>
-		queue.cancelMerge(workstreamId(args)),
-	);
-	commands.define('pull-requests.retry-merge', (args: unknown) =>
-		queue.retryMerge(workstreamId(args)),
-	);
-	commands.define('pull-requests.ship-states', () => queue.states());
-	commands.define('pull-requests.workstream-opened', async (args: unknown) => {
-		await queue.workstreamOpened(workstreamId(args));
+	commands.define('pull-requests.ship-states', () => shipping.states());
+	commands.define('pull-requests.workstream-opened', (args: unknown) => {
+		events.emit(PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL, { workstreamId: workstreamId(args) });
 		return null;
 	});
 
-	const subscriptions = [
-		events.subscribe('chat:agent-event', (envelope) => {
-			if (envelope.ephemeral) return;
-			const { event } = envelope;
-			if (
-				!TERMINAL_RUN_EVENTS.has(String(event['type'])) &&
-				!turnEndedOverBackgroundCommands(event)
-			) {
-				return;
-			}
-			void queue.agentTurnEnded(envelope.runId);
-		}),
-		events.subscribe('jobs:run-changed', ({ run }) => queue.jobChanged(run)),
-		events.subscribe('repositories:workstream-removed', (removed) =>
-			queue.workstreamRemoved(removed.workstreamId),
-		),
-	];
-
 	return {
-		pullRequestRead: (id, pullRequest) => queue.pullRequestRead(id, pullRequest),
-		handle: (event) => queue.handle(event),
-		dispose: () => {
-			for (const unsubscribe of subscriptions.splice(0)) unsubscribe();
-			queue.dispose();
-		},
+		report: (id, pullRequest) => shipping.report(id, pullRequest),
+		handle: (event) => shipping.handle(event),
+		dispose: () => shipping.dispose(),
 	};
+}
+
+function button(args: unknown): ShipButton {
+	const value = requireString(args, 'button');
+	const known = SHIP_BUTTONS.find((candidate) => candidate === value);
+	if (!known) throw new Error(`Unknown button: ${value}`);
+	return known;
 }

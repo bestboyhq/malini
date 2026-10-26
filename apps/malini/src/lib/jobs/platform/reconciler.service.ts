@@ -81,7 +81,7 @@ type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 export type ReconcilerRules = Readonly<{
 	triggers: (event: DispatchedEvent) => Promise<boolean>;
 	thens: (event: DispatchedEvent) => Promise<void>;
-	mergeQueue: (event: DispatchedEvent) => Promise<void>;
+	shipping: (event: DispatchedEvent) => Promise<void>;
 	resume: (event: DispatchedEvent) => Promise<void>;
 	schedules: (event: DispatchedEvent) => Promise<void>;
 }>;
@@ -143,11 +143,11 @@ export class Reconciler {
 	}
 
 	async handle(event: DispatchedEvent): Promise<void> {
-		const { triggers, thens, mergeQueue, resume, schedules } = this.#rules;
+		const { triggers, thens, shipping, resume, schedules } = this.#rules;
 		const [triggered, ...others] = await Promise.allSettled([
 			triggers(event),
 			thens(event),
-			mergeQueue(event),
+			shipping(event),
 			resume(event),
 			schedules(event),
 		]);

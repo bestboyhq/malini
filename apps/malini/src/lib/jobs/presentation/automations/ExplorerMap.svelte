@@ -295,7 +295,7 @@
 					</span>
 				</span>
 				<span class="text-fg-tertiary text-2xs truncate leading-4">
-					prompts and clicks go straight to work
+					prompts and runs go straight to work
 				</span>
 			</Button>
 		</div>

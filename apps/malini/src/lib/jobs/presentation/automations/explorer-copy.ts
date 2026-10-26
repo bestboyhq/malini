@@ -1,6 +1,7 @@
 import { parseAutomationTrigger } from '$contract/automation-trigger';
-import type { JobDefinitionRecord, LoggedEventRecord } from '$contract/jobs';
-import type { ShipStep } from '$contract/pull-requests';
+import type { EventChannel } from '$contract/events';
+import type { JobDefinitionRecord, LoggedEventRecord, ShippingWait } from '$contract/jobs';
+import type { ShipButton, ShipStep } from '$contract/pull-requests';
 import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
@@ -20,6 +21,8 @@ export type Look = Readonly<{ label: string; icon: IconName }>;
 export type Mark = Readonly<{ label: string; tone: string }>;
 
 export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
+	'button-clicked': { label: 'Button clicked', icon: 'pick-element' },
+	'workstream-opened': { label: 'Workstream opened', icon: 'folder-open' },
 	'turn-finished': { label: 'Turn finished', icon: 'chat' },
 	'tool-called': { label: 'Tool called', icon: 'plug' },
 	'job-started': { label: 'Job started', icon: 'play' },
@@ -28,8 +31,6 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
 	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
 	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
-	'draft-requested': { label: 'Draft requested', icon: 'pr-draft' },
-	'merge-requested': { label: 'Merge requested', icon: 'pr-merged' },
 	'workstream-created': { label: 'Workstream created', icon: 'folder-plus' },
 	'workstream-archived': { label: 'Workstream archived', icon: 'archive' },
 	'malini-started': { label: 'Malini started', icon: 'refresh' },
@@ -40,13 +41,14 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 export const LISTENER_LABELS: Readonly<Record<Listener, string>> = {
 	triggers: 'Your triggers',
 	thens: 'Thens',
-	'merge-queue': 'Merge queue',
+	shipping: 'Shipping',
 	resume: 'Resume',
 	schedules: 'Schedules',
 	model: 'Reconcile events',
 };
 
 export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
+	you: 'You',
 	agent: 'agent',
 	git: 'git',
 	github: 'GitHub',
@@ -60,21 +62,41 @@ const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-warning-content' };
 const SHORT_SHA = 7;
 const HOUR_FORMAT = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 
-const SHIP_STEPS: Readonly<Record<ShipStep, string>> = {
-	'waiting-for-agent': 'waits for the chat to finish',
-	'opening-draft': 'opens a draft pull request',
-	pushing: 'pushes',
-	'marking-ready': 'marks the pull request ready',
-	'updating-branch': 'updates the branch',
-	'updating-from-main': 'updates from main',
-	'resolving-conflicts': 'resolves conflicts',
-	'fixing-checks': 'fixes checks',
-	'addressing-review': 'addresses review',
-	'waiting-for-checks': 'waits for checks',
-	'waiting-for-review': 'waits for review',
-	'waiting-for-github': 'waits for GitHub',
-	merging: 'merges',
-	archiving: 'archives the workstream',
+const SHIP_STEPS: ReadonlyMap<string, string> = new Map(
+	Object.entries({
+		'waiting-for-agent': 'waiting for the chat to finish',
+		'opening-draft': 'opening a draft pull request',
+		pushing: 'pushing',
+		'marking-ready': 'marking the pull request ready',
+		'updating-branch': 'updating the branch',
+		'updating-from-main': 'updating from main',
+		'resolving-conflicts': 'resolving conflicts',
+		'fixing-checks': 'fixing checks',
+		'addressing-review': 'addressing review',
+		'waiting-for-checks': 'waiting for checks',
+		'waiting-for-review': 'waiting for review',
+		'waiting-for-github': 'waiting for GitHub',
+		merging: 'merging',
+		archiving: 'archiving the workstream',
+	} satisfies Record<ShipStep, string>),
+);
+
+const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
+	Object.entries({
+		draft: 'Draft',
+		merge: 'Merge',
+		retry: 'Retry',
+		cancel: 'Cancel',
+	} satisfies Record<ShipButton, string>),
+);
+
+const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(
+	Object.entries({ retry: 'Retry', checks: 'Checks rerun' } satisfies Record<ShippingWait, string>),
+);
+
+const YOU_DID: Readonly<Partial<Record<EventRow, string>>> = {
+	'button-clicked': 'You clicked it',
+	'workstream-opened': 'You opened it',
 };
 
 type Payload = Readonly<Record<string, unknown>>;
@@ -105,7 +127,7 @@ const EVENT_NAMES: Readonly<Record<string, (payload: Payload) => string>> = {
 	'jobs:suggested': () => 'Job suggested',
 	'app:updated': () => 'Malini updated',
 	'app:update-staged': () => 'Update downloaded',
-};
+} satisfies Partial<Record<EventChannel, (payload: Payload) => string>>;
 
 const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null>> = {
 	'chat:turn-finished': (payload) => text(payload['outcome']),
@@ -121,14 +143,17 @@ const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null
 	},
 	'pull-requests:pull-request-changed': pullRequestDetails,
 	'pull-requests:ship-changed': shipDetails,
+	'pull-requests:button-clicked': (payload) =>
+		SHIP_BUTTONS.get(text(payload['button']) ?? '') ?? null,
 	'jobs:run-started': (payload) => text(record(payload['run'])['title']),
 	'jobs:run-finished': (payload) => text(record(payload['run'])['title']),
 	'jobs:tool-called': (payload) => text(record(payload['action'])['tool']),
-	'jobs:time-reached': (payload) => text(payload['name']),
+	'jobs:time-reached': (payload) =>
+		text(payload['name']) ?? SHIPPING_WAITS.get(text(payload['wait']) ?? '') ?? null,
 	'app:started': (payload) => text(payload['version']),
 	'app:updated': (payload) => text(payload['to']),
 	'app:update-staged': (payload) => text(payload['version']),
-};
+} satisfies Partial<Record<EventChannel, (payload: Payload) => string | null>>;
 
 const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
 	['you', 'You'],
@@ -138,8 +163,6 @@ const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
 	...EVENT_ROWS.map((row) => [`event:${row}`, ROW_LOOKS[row].label] as const),
 	...LISTENERS.map((listener) => [`listener:${listener}`, LISTENER_LABELS[listener]] as const),
 ]);
-
-const SHIP_STEP_PHRASES: ReadonlyMap<string, string> = new Map(Object.entries(SHIP_STEPS));
 
 export function nodeLabel(node: MapNode): string {
 	return NODE_LABELS.get(node) ?? node;
@@ -155,8 +178,8 @@ export function listenerNote(listener: Listener, jobs: readonly JobDefinitionRec
 		}
 		case 'thens':
 			return 'on Job finished';
-		case 'merge-queue':
-			return 'on Merge requested, Pull request changed';
+		case 'shipping':
+			return 'from your click to merged';
 		case 'resume':
 			return 'on Malini started';
 		case 'schedules':
@@ -211,7 +234,9 @@ export function itemWhy(item: ExplorerItem, explorer: Explorer): string {
 		case 'decision':
 			return DECIDERS[item.decision.decidedBy];
 		case 'event':
-			return cause === null ? 'Malini noticed it' : `from ${shortTitle(cause)}`;
+			return (
+				YOU_DID[item.row] ?? (cause === null ? 'Malini noticed it' : `from ${shortTitle(cause)}`)
+			);
 	}
 }
 
@@ -262,10 +287,10 @@ function runWhy(
 ): string {
 	switch (item.run.origin) {
 		case 'merge-queue':
-			if (cause?.kind !== 'event') return 'The merge queue ran it';
+			if (cause?.kind !== 'event') return 'Shipping ran it';
 			return cause.row === 'pull-request-changed'
 				? `${pullRequestName(record(cause.event.payload))} changed on GitHub`
-				: `The merge queue heard ${shortTitle(cause)}`;
+				: `Shipping heard ${shortTitle(cause)}`;
 		case 'trigger':
 			return cause === null ? 'Its trigger ran it' : `Its trigger heard ${shortTitle(cause)}`;
 		case 'then':
@@ -336,10 +361,9 @@ function shipDetails(payload: Payload): string | null {
 		return `#${merged['pullRequestNumber']} merged`;
 	}
 	const state = record(payload['state']);
-	if (payload['state'] === null) return 'left the merge queue';
-	const step = text(state['step']);
-	const phrase = step === null ? undefined : SHIP_STEP_PHRASES.get(step);
-	if (phrase !== undefined) return `the merge queue ${phrase}`;
+	if (payload['state'] === null) return 'stopped';
+	const step = SHIP_STEPS.get(text(state['step']) ?? '');
+	if (step !== undefined) return step;
 	if (state['phase'] === 'needs-you') return 'needs you';
 	if (state['phase'] === 'queued') return 'queued to merge';
 	return state['phase'] === 'draft' ? 'draft pull request open' : null;

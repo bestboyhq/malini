@@ -1,3 +1,4 @@
+import type { EventChannel } from '$contract/events';
 import type {
 	LoggedEventRecord,
 	ReconcilerDecisionRecord,
@@ -7,9 +8,11 @@ import type {
 	TimelineWorkstream,
 } from '$contract/jobs';
 
-export type Source = 'agent' | 'git' | 'github' | 'malini' | 'clock';
+export type Source = 'you' | 'agent' | 'git' | 'github' | 'malini' | 'clock';
 
 export const EVENT_ROWS = [
+	'button-clicked',
+	'workstream-opened',
 	'turn-finished',
 	'tool-called',
 	'job-started',
@@ -18,8 +21,6 @@ export const EVENT_ROWS = [
 	'branch-pushed',
 	'merge-conflicted',
 	'pull-request-changed',
-	'draft-requested',
-	'merge-requested',
 	'workstream-created',
 	'workstream-archived',
 	'malini-started',
@@ -30,6 +31,8 @@ export const EVENT_ROWS = [
 export type EventRow = (typeof EVENT_ROWS)[number];
 
 export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
+	'button-clicked': 'you',
+	'workstream-opened': 'you',
 	'turn-finished': 'agent',
 	'tool-called': 'agent',
 	'job-started': 'agent',
@@ -38,8 +41,6 @@ export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
 	'branch-pushed': 'git',
 	'merge-conflicted': 'git',
 	'pull-request-changed': 'github',
-	'draft-requested': 'malini',
-	'merge-requested': 'malini',
 	'workstream-created': 'malini',
 	'workstream-archived': 'malini',
 	'malini-started': 'malini',
@@ -47,14 +48,7 @@ export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
 	other: null,
 };
 
-export const LISTENERS = [
-	'triggers',
-	'thens',
-	'merge-queue',
-	'resume',
-	'schedules',
-	'model',
-] as const;
+export const LISTENERS = ['triggers', 'thens', 'shipping', 'resume', 'schedules', 'model'] as const;
 
 export type Listener = (typeof LISTENERS)[number];
 
@@ -98,6 +92,8 @@ export type Working = Readonly<{
 }>;
 
 const ROWS: Readonly<Record<string, EventRow>> = {
+	'pull-requests:button-clicked': 'button-clicked',
+	'pull-requests:workstream-opened': 'workstream-opened',
 	'chat:turn-finished': 'turn-finished',
 	'jobs:tool-called': 'tool-called',
 	'jobs:run-started': 'job-started',
@@ -106,15 +102,15 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'repositories:workstream-pushed': 'branch-pushed',
 	'repositories:workstream-merge-conflicted': 'merge-conflicted',
 	'pull-requests:pull-request-changed': 'pull-request-changed',
-	'pull-requests:draft-requested': 'draft-requested',
-	'pull-requests:merge-requested': 'merge-requested',
 	'repositories:workstream-created': 'workstream-created',
 	'repositories:workstream-removed': 'workstream-archived',
 	'app:started': 'malini-started',
 	'jobs:time-reached': 'time-reached',
-};
+} satisfies Partial<Record<EventChannel, EventRow>>;
 
-const FACT_CHANNELS: ReadonlySet<string> = new Set([
+const FACT_CHANNELS: ReadonlySet<string> = new Set<EventChannel>([
+	'pull-requests:button-clicked',
+	'pull-requests:workstream-opened',
 	'chat:turn-finished',
 	'repositories:workstream-created',
 	'repositories:workstream-removed',
@@ -123,8 +119,6 @@ const FACT_CHANNELS: ReadonlySet<string> = new Set([
 	'repositories:workstream-merge-conflicted',
 	'pull-requests:local-base-synced',
 	'pull-requests:pull-request-changed',
-	'pull-requests:draft-requested',
-	'pull-requests:merge-requested',
 	'app:started',
 	'app:updated',
 	'jobs:time-reached',
@@ -274,8 +268,8 @@ function runHops(run: TimelineJobRun): Hop[] {
 			];
 		case 'merge-queue':
 			return [
-				['reconciler', 'listener:merge-queue'],
-				['listener:merge-queue', 'jobs'],
+				['reconciler', 'listener:shipping'],
+				['listener:shipping', 'jobs'],
 			];
 		case 'reconciler':
 			return [['listener:model', 'jobs']];

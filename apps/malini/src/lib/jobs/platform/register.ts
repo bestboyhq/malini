@@ -25,7 +25,7 @@ export interface JobsOptions {
 	readonly log?: (line: string) => void;
 	readonly suggestTitle?: SuggestWithJob;
 	readonly choose?: ChooseWithJob;
-	readonly mergeQueue?: (event: DispatchedEvent) => Promise<void>;
+	readonly shipping?: (event: DispatchedEvent) => Promise<void>;
 	readonly resume?: (event: DispatchedEvent) => Promise<void>;
 }
 
@@ -52,7 +52,7 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	const reconciler = new Reconciler(context, log, choose, {
 		triggers: (event) => triggers.handle(event),
 		thens: (event) => runner.startThen(event),
-		mergeQueue: options.mergeQueue ?? NO_RULE,
+		shipping: options.shipping ?? NO_RULE,
 		resume: options.resume ?? NO_RULE,
 		schedules: (event) => schedules.handle(event),
 	});

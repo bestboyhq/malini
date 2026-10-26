@@ -1005,6 +1005,20 @@ CREATE INDEX idx_reconciler_decisions_event ON reconciler_decisions(event_id);
 CREATE INDEX idx_reconciler_decisions_open ON reconciler_decisions(status)
   WHERE status IN ('pending','asking');
 `,
+	`
+ALTER TABLE workstream_ship ADD COLUMN push_requests INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workstream_ship ADD COLUMN update_requests INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workstream_ship ADD COLUMN review_requests INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workstream_ship ADD COLUMN failures INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workstream_ship ADD COLUMN settled_job_run_id TEXT;
+
+CREATE TABLE alarms (
+  key TEXT PRIMARY KEY,
+  due_at TEXT NOT NULL,
+  payload TEXT NOT NULL
+);
+CREATE INDEX idx_alarms_due ON alarms(due_at);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

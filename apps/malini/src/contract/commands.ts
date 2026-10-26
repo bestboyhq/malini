@@ -57,7 +57,12 @@ import type {
 	SaveJobExperimentArgs,
 	TimelineRecord,
 } from './jobs';
-import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
+import type {
+	ReopenPullRequestArgs,
+	ShipButtonArgs,
+	ShipStateRecord,
+	ShipWorkstreamArgs,
+} from './pull-requests';
 import type {
 	McpAuthorization,
 	McpServerArgs,
@@ -505,8 +510,7 @@ export interface ContractCommands {
 	'pull-requests.status': { args: PullRequestStatusArgs; result: PullRequestStatusDto };
 	'pull-requests.open-draft': { args: ShipWorkstreamArgs; result: ShipStateRecord };
 	'pull-requests.queue-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
-	'pull-requests.cancel-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord | null };
-	'pull-requests.retry-merge': { args: ShipWorkstreamArgs; result: ShipStateRecord };
+	'pull-requests.button-clicked': { args: ShipButtonArgs; result: ShipStateRecord | null };
 	'pull-requests.ship-states': { args: undefined; result: ShipStateRecord[] };
 	'pull-requests.workstream-opened': { args: ShipWorkstreamArgs; result: null };
 	'jobs.list-definitions': { args: undefined; result: JobDefinitionRecord[] };
@@ -767,8 +771,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'pull-requests.status',
 	'pull-requests.open-draft',
 	'pull-requests.queue-merge',
-	'pull-requests.cancel-merge',
-	'pull-requests.retry-merge',
+	'pull-requests.button-clicked',
 	'pull-requests.ship-states',
 	'pull-requests.workstream-opened',
 	'jobs.list-definitions',

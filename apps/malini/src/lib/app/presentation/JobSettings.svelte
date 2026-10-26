@@ -45,7 +45,7 @@
 	<JobSettingRow
 		key={MERGE_QUEUE_FIX_ATTEMPTS_SETTING}
 		label="Fix attempts before asking you"
-		description="How often the merge queue retries the same failure before it stops and waits for you."
+		description="How often Malini retries the same failure while it ships before it stops and waits for you."
 		value={settings?.[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] ?? null}
 	/>
 	<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-3">

@@ -6,9 +6,37 @@ import type {
 	TimelineJobRun,
 	TimelineRecord,
 } from '$contract/jobs';
-import { chainItems, explorer, listed, through, workingAt } from './explorer';
+import {
+	EVENT_ROWS,
+	ROW_SOURCES,
+	chainItems,
+	explorer,
+	listed,
+	through,
+	workingAt,
+	type Explorer,
+	type Hop,
+} from './explorer';
 
 const at = (minute: number): string => new Date(Date.UTC(2026, 9, 26, 9, minute)).toISOString();
+
+function column(node: string): number {
+	if (node.startsWith('event:')) return 1;
+	if (node === 'reconciler') return 2;
+	if (node.startsWith('listener:')) return 3;
+	return node === 'chats' || node === 'jobs' ? 4 : 0;
+}
+
+function offRoute(map: Explorer): readonly Hop[] {
+	return map.items
+		.flatMap((item) => item.hops)
+		.filter(
+			([from, to]) =>
+				from !== 'you' &&
+				column(to) !== column(from) + 1 &&
+				!(column(from) === 4 && column(to) === 4),
+		);
+}
 
 function event(
 	id: number,
@@ -188,8 +216,8 @@ describe('explorer', () => {
 		]);
 		expect(hops('run:orphan')).toEqual([['jobs', 'jobs']]);
 		expect(hops('run:fix')).toEqual([
-			['reconciler', 'listener:merge-queue'],
-			['listener:merge-queue', 'jobs'],
+			['reconciler', 'listener:shipping'],
+			['listener:shipping', 'jobs'],
 		]);
 		expect(hops('run:asked')).toEqual([['chats', 'jobs']]);
 		expect(hops('turn:resumed')).toEqual([
@@ -200,18 +228,10 @@ describe('explorer', () => {
 			['reconciler', 'listener:schedules'],
 			['listener:schedules', 'jobs'],
 		]);
-		const column = (node: string): number => {
-			if (node.startsWith('event:')) return 1;
-			if (node === 'reconciler') return 2;
-			if (node.startsWith('listener:')) return 3;
-			return node === 'chats' || node === 'jobs' ? 4 : 0;
-		};
-		expect(
-			map.items.flatMap((item) => item.hops).filter(([from, to]) => column(from) > column(to)),
-		).toEqual([]);
+		expect(offRoute(map)).toEqual([]);
 	});
 
-	it('takes a merge queue run from the read of GitHub it heard, and logs the read for the work it is about', () => {
+	it('takes a Shipping run from the read of GitHub it heard, and logs the read for the work it is about', () => {
 		const map = explorer({
 			...RECORD,
 			events: [
@@ -228,8 +248,8 @@ describe('explorer', () => {
 		expect(map.byId.get('run:fix')).toMatchObject({
 			cause: 'event:5',
 			hops: [
-				['reconciler', 'listener:merge-queue'],
-				['listener:merge-queue', 'jobs'],
+				['reconciler', 'listener:shipping'],
+				['listener:shipping', 'jobs'],
 			],
 		});
 		expect(map.byId.get('event:5')).toMatchObject({
@@ -252,53 +272,78 @@ describe('explorer', () => {
 		expect(map.counts.get('listener:model')).toBe(1);
 		expect(map.counts.get('listener:triggers')).toBe(1);
 		expect(map.counts.get('listener:thens')).toBe(1);
-		expect(map.counts.get('listener:merge-queue')).toBe(1);
+		expect(map.counts.get('listener:shipping')).toBe(1);
 		expect(map.counts.get('listener:resume')).toBe(1);
 		expect(map.counts.get('listener:schedules')).toBe(1);
 		expect(map.wires.get('event:turn-finished>reconciler')).toBe(1);
 		expect(map.wires.get('reconciler>listener:thens')).toBe(1);
 	});
 
-	it('names the start of Malini, the time a schedule reached and a merge request as the events their rules heard', () => {
+	it('names what you click and open, the start of Malini and the times reached as the events their rules heard through the Reconciler', () => {
 		const map = explorer({
 			...RECORD,
 			events: [
 				event(6, 'app:started', 1, { workstreamId: null, chainId: 'boot' }),
 				event(7, 'jobs:time-reached', 2, { workstreamId: null, chainId: 'nine' }),
-				event(8, 'pull-requests:merge-requested', 3),
-				event(9, 'pull-requests:draft-requested', 4),
+				event(8, 'pull-requests:workstream-opened', 3),
+				event(9, 'pull-requests:button-clicked', 4),
+				event(10, 'jobs:time-reached', 6),
 			],
 			channelCounts: {
 				'app:started': 1,
-				'jobs:time-reached': 1,
-				'pull-requests:merge-requested': 1,
-				'pull-requests:draft-requested': 1,
+				'jobs:time-reached': 2,
+				'pull-requests:workstream-opened': 1,
+				'pull-requests:button-clicked': 1,
 			},
 			runs: [
 				run('nine', 2, { origin: 'schedule', chainId: 'nine', eventIds: [7] }),
-				run('update', 5, { origin: 'merge-queue', eventIds: [8] }),
+				run('update', 5, { origin: 'merge-queue', eventIds: [9] }),
+				run('retry', 7, { origin: 'merge-queue', eventIds: [10] }),
 			],
 			turns: [turn('resumed', 'site', 1, { resumed: true, causeEventId: 6 })],
 			decisions: [],
 		});
+		const shipping: readonly Hop[] = [
+			['reconciler', 'listener:shipping'],
+			['listener:shipping', 'jobs'],
+		];
 
+		expect(EVENT_ROWS.filter((row) => ROW_SOURCES[row] === 'you')).toEqual([
+			'button-clicked',
+			'workstream-opened',
+		]);
 		expect(map.byId.get('event:6')).toMatchObject({ row: 'malini-started' });
 		expect(map.byId.get('event:7')).toMatchObject({ row: 'time-reached' });
-		expect(map.byId.get('event:8')).toMatchObject({ row: 'merge-requested' });
-		expect(map.byId.get('event:9')).toMatchObject({ row: 'draft-requested' });
+		expect(map.byId.get('event:8')).toMatchObject({
+			row: 'workstream-opened',
+			hops: [['event:workstream-opened', 'reconciler']],
+		});
+		expect(map.byId.get('event:9')).toMatchObject({
+			row: 'button-clicked',
+			hops: [['event:button-clicked', 'reconciler']],
+		});
+		expect(map.byId.get('event:10')).toMatchObject({ row: 'time-reached' });
 		expect(map.byId.get('turn:resumed')?.cause).toBe('event:6');
 		expect(map.byId.get('run:nine')?.cause).toBe('event:7');
-		expect(map.byId.get('run:update')?.cause).toBe('event:8');
+		expect(map.byId.get('run:update')).toMatchObject({ cause: 'event:9', hops: shipping });
+		expect(map.byId.get('run:retry')).toMatchObject({ cause: 'event:10', hops: shipping });
 		expect(listed(map, false).map((item) => item.id)).toEqual(
-			expect.arrayContaining(['event:6', 'event:7', 'event:8', 'event:9']),
+			expect.arrayContaining(['event:6', 'event:7', 'event:8', 'event:9', 'event:10']),
 		);
-		expect(map.counts.get('reconciler')).toBe(4);
+		expect(map.counts.get('event:button-clicked')).toBe(1);
+		expect(map.counts.get('event:workstream-opened')).toBe(1);
+		expect(map.counts.get('reconciler')).toBe(5);
+		expect(map.counts.get('listener:shipping')).toBe(2);
+		expect(map.counts.get('you')).toBeUndefined();
+		expect(offRoute(map)).toEqual([]);
 		expect(chainItems(map, 'chain').map((item) => item.id)).toEqual([
 			'event:6',
 			'turn:resumed',
 			'event:8',
 			'event:9',
 			'run:update',
+			'event:10',
+			'run:retry',
 		]);
 	});
 

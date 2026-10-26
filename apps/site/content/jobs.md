@@ -146,14 +146,14 @@ A run never starts a job that already ran earlier in its own chain, so a trigger
 ### Chains and repeats
 
 Every event keeps what caused it: the job run or the chat turn at work in its workstream.
-What the merge queue hears and reports about a workstream, a request to open a draft or to merge, a read of its pull request on GitHub or a step of the queue, is caused by the work last done there, however long ago that ended.
+A click on a workstream's pull request bar, a read of its pull request on GitHub, a step of [shipping](#reconciler) it and the end of a wait while shipping are caused by the work last done there, however long ago that ended, since the pull request shows what that work pushed.
 A **chain** is everything that traces back to one thing you did, such as a prompt you sent, through the events, runs and turns it set off.
 
 - A job asked for again while it still waits or is queued for the same workstream runs once.
   Its row says how often it was asked, such as **Asked 3 times**, and its context gathers every ask.
 - The fourth run of the same job for the same workstream in one chain waits for you under **Waiting for you**: "It already ran 3 times in one chain of events, so Malini asks before it runs again."
   Retries are fine, so Malini stops a loop without forbidding them.
-  The merge queue's jobs stay out of that count: **Fix attempts before asking you** in Settings bounds them.
+  The Shipping rule's jobs stay out of that count: **Fix attempts before asking you** in Settings bounds them.
 
 ## Run a job
 
@@ -182,12 +182,16 @@ With many workstreams open, the last two keep Malini from starting an update in 
 ## Reconciler
 
 The **Reconciler** is the middleman between an event and what reacts to it: every event Malini logs passes through it.
-Nothing in Malini starts work on its own: each start is an event the Reconciler hands to a rule, and only what you do yourself, a prompt or a click, goes straight to your chats and jobs.
+Nothing in Malini starts work on its own: each start is an event the Reconciler hands to a rule, and only what you do yourself, a prompt or a job you run, goes straight to your chats and jobs.
 It hands each event to the rules first:
 
 - **Your triggers** handle the events they name.
 - **Thens** start the next job on the **Job finished** of a run that succeeded.
-- **Merge queue** starts on **Merge requested** and **Draft requested**, logged when you, a chat or the Merge and Open draft jobs ask, and moves on when GitHub reports a **Pull request changed**.
+- **Shipping** takes a workstream from your click to merged: it commits and pushes its work, opens the draft, marks it ready, runs **Fix checks**, **Update from main**, **Resolve conflicts** or **Address review** when something blocks the merge, merges, and archives the workstream.
+  It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Retry** or **Cancel** in the pull request bar), **Turn finished**, **Job finished**, **Pull request changed**, **Time reached**, **Head moved** while it needs you, **Workstream opened**, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
+  On **Workstream opened**, it runs **Update from main** when the workstream is behind, unless Settings say to update only when you merge.
+  A chat or a job ships with the **Open draft** or **Merge** job, whose **Job finished** moves the workstream on.
+  A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, and **Checks rerun**, the minute a fix gives its failing checks to run again.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to.
 - **Schedules** start a job on the **Time reached** its schedule names.
 
@@ -215,14 +219,16 @@ Turn it off in Settings, Jobs, **Reconcile events**.
 
 **Explorer** draws Malini as one pipeline from left to right: the event log, the [Reconciler](#reconciler) every logged event passes through, and the chats and jobs its rules start.
 A wire runs back from that work to the event log, since what chats and jobs do sets off most of the next events.
-Your prompts and clicks reach your chats and jobs straight along the top, and so do the workstreams and jobs an agent starts with its tools.
+**You** sits above the log, and your prompts and the jobs you run reach your chats and jobs straight along the top.
+The workstreams and jobs an agent starts with its tools start from its chat, inside the work column.
 
-Every event has one row, named for what it is about and what happened to it, with a label for where it comes from: an agent, git, GitHub, Malini or the clock.
-**Turn finished**, **Tool called**, **Job started**, **Job finished**, **Head moved**, **Branch pushed**, **Merge conflicted**, **Pull request changed**, **Draft requested**, **Merge requested**, **Workstream created**, **Workstream archived**, **Malini started** and **Time reached** each show how many happened, and **Other** holds the rest.
+Every event has one row, named for what it is about and what happened to it, with a label for where it comes from: you, an agent, git, GitHub, Malini or the clock.
+**Button clicked**, **Workstream opened**, **Turn finished**, **Tool called**, **Job started**, **Job finished**, **Head moved**, **Branch pushed**, **Merge conflicted**, **Pull request changed**, **Workstream created**, **Workstream archived**, **Malini started** and **Time reached** each show how many happened, and **Other** holds the rest.
+**Button clicked** is your click on **Draft**, **Merge**, **Retry** or **Cancel** in the pull request bar, and **Workstream opened** is you opening a workstream.
 In a list, an event starts with that name, such as "Job finished: Fix checks".
 
 Inside the Reconciler, each rule names the events it hears and counts what it started, and **Reconcile events** counts its decisions.
-Each read of GitHub that finds something new becomes a **Pull request changed** event, and every job the merge queue starts names the latest one as its cause, or the latest **Merge requested** or **Draft requested** when no read names that pull request.
+Each read of GitHub that finds something new becomes a **Pull request changed** event, and every job the **Shipping** rule starts names the event behind it as its cause, such as the latest read of that pull request, or your **Button clicked** when no read names it yet.
 
 **Play** replays the last hour, 6 hours or 24 hours: a dot travels along the wires for each event, and **Chats** and **Jobs** show what was working at that moment.
 The timeline under the map scrubs to any moment.
@@ -236,19 +242,19 @@ Blue marks what moves and what you picked.
 
 ## Built-in jobs
 
-| Job                     | What it does                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Name chats**          | Names a chat from its first message.                                                                                                                                                       |
-| **Name services**       | Names the commands an agent leaves running, such as a dev server, for the sidebar.                                                                                                         |
-| **Fix checks**          | Fixes a pull request's failing checks. The merge queue runs it.                                                                                                                            |
-| **Update from main**    | Merges the base branch into the workstream, without an agent. When the merge stops on conflicts, it hands them to **Resolve conflicts**. The merge queue and Settings decide when it runs. |
-| **Resolve conflicts**   | Resolves the conflicts of a merge with the base branch. The merge queue and **Update from main** run it, and with nothing to resolve it finishes without an agent.                         |
-| **Address review**      | Answers review comments. The merge queue runs it.                                                                                                                                          |
-| **Check compatibility** | After an update, fixes jobs that rely on changed events. See [Updates](/malini/docs/updates.md).                                                                                           |
-| **Update docs**         | Brings a repository's user-facing docs up to date with its code, in a new workstream. Its Then is **Open draft**.                                                                          |
-| **Open draft**          | Commits the workstream's changes, pushes its branch, and opens a draft pull request, without an agent. With a pull request already open, it pushes to it.                                  |
-| **Merge**               | Queues the workstream's pull request to merge, without an agent, the same way **Merge** in the top bar does.                                                                               |
-| **Reconcile events**    | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconciler](#reconciler).                                                                       |
+| Job                     | What it does                                                                                                                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Name chats**          | Names a chat from its first message.                                                                                                                                                         |
+| **Name services**       | Names the commands an agent leaves running, such as a dev server, for the sidebar.                                                                                                           |
+| **Fix checks**          | Fixes a pull request's failing checks. The [Shipping](#reconciler) rule runs it.                                                                                                             |
+| **Update from main**    | Merges the base branch into the workstream, without an agent. When the merge stops on conflicts, it hands them to **Resolve conflicts**. The Shipping rule and Settings decide when it runs. |
+| **Resolve conflicts**   | Resolves the conflicts of a merge with the base branch. The Shipping rule and **Update from main** run it, and with nothing to resolve it finishes without an agent.                         |
+| **Address review**      | Answers review comments. The Shipping rule runs it.                                                                                                                                          |
+| **Check compatibility** | After an update, fixes jobs that rely on changed events. See [Updates](/malini/docs/updates.md).                                                                                             |
+| **Update docs**         | Brings a repository's user-facing docs up to date with its code, in a new workstream. Its Then is **Open draft**.                                                                            |
+| **Open draft**          | Commits the workstream's changes, pushes its branch, and opens a draft pull request, without an agent. With a pull request already open, it pushes to it.                                    |
+| **Merge**               | Queues the workstream's pull request to merge, without an agent, the same way **Merge** in the top bar does.                                                                                 |
+| **Reconcile events**    | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconciler](#reconciler).                                                                         |
 
 **Update docs**, **Open draft**, and **Merge** take a When and a Then like your own jobs.
 Malini decides when the others run, and their Then stays as it is.

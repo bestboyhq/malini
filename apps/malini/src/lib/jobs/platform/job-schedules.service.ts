@@ -21,6 +21,7 @@ import {
 	type CatalogRepository,
 } from '$shared/repositories/repositories.platform';
 import { latestScheduleSlot, scheduledJobOf, type ScheduledJob } from '../domain/schedule';
+import { takeDueAlarms } from './alarms.repository';
 import { triggeredBefore } from './event-log.repository';
 import { findString, type DispatchedEvent } from './event-log.service';
 import { getJobDefinition, listJobDefinitions } from './job-definitions.repository';
@@ -31,6 +32,8 @@ import {
 } from './job-runs.repository';
 
 export const SCHEDULE_CHECK_INTERVAL_MS = 30_000;
+
+export const ALARM_CHECK_INTERVAL_MS = 1_000;
 
 const DUE_FORMAT = new Intl.DateTimeFormat('en-US', {
 	weekday: 'long',
@@ -54,16 +57,27 @@ export type JobSchedules = Readonly<{
 	dispose(): void;
 }>;
 
+export type JobSchedulesOptions = Readonly<{ alarmCheckMs?: number; now?: () => number }>;
+
 export function createJobSchedules(
 	context: MainContext,
 	log: (line: string) => void,
+	options: JobSchedulesOptions = {},
 ): JobSchedules {
 	const { db, events, commands } = context;
 	const attempted = new Map<string, number>();
 	const notified = new Map<string, JobRunStatus>();
 	const unsubscribes: Array<() => void> = [];
 	let clock: ReturnType<typeof setInterval> | null = null;
+	let alarms: ReturnType<typeof setInterval> | null = null;
 	let scheduled: readonly ScheduledJob[] = [];
+
+	const ring = (): void => {
+		const now = options.now?.() ?? Date.now();
+		for (const reached of takeDueAlarms(db, new Date(now).toISOString())) {
+			events.emit(JOBS_TIME_REACHED_CHANNEL, reached);
+		}
+	};
 
 	const check = (): void => {
 		const now = Date.now();
@@ -148,12 +162,16 @@ export function createJobSchedules(
 				}),
 			);
 			clock = setInterval(check, SCHEDULE_CHECK_INTERVAL_MS);
+			alarms = setInterval(ring, options.alarmCheckMs ?? ALARM_CHECK_INTERVAL_MS);
 			sync();
+			ring();
 		},
 		dispose() {
 			for (const unsubscribe of unsubscribes.splice(0)) unsubscribe();
 			if (clock !== null) clearInterval(clock);
+			if (alarms !== null) clearInterval(alarms);
 			clock = null;
+			alarms = null;
 		},
 	};
 }

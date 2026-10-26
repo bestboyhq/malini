@@ -227,12 +227,22 @@ export type JobEventChannel =
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
 
-export type TimeReachedEvent = Readonly<{
+export type ScheduleTimeReached = Readonly<{
 	definitionId: string;
 	name: string;
 	when: string;
 	due: string;
 }>;
+
+export type ShippingWait = 'retry' | 'checks';
+
+export type ShippingTimeReached = Readonly<{
+	workstreamId: string;
+	wait: ShippingWait;
+	due: string;
+}>;
+
+export type TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;
 
 export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
 

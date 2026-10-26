@@ -80,7 +80,7 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 			'page',
 		);
 		const detail = page.getByRole('region', { name: 'Update from main', exact: true });
-		await expect(detail).toContainText('The merge queue runs it when a branch it is shipping');
+		await expect(detail).toContainText('Malini runs it when a branch it is shipping');
 		await expect(detail).toContainText('Resolve conflicts, when the merge stops on conflicts');
 		await expect(detail.getByRole('textbox', { name: 'Instructions' })).toHaveCount(0);
 

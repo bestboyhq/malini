@@ -154,7 +154,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'pull-requests:ship-changed',
 			description:
-				"Fires whenever a workstream's shipping state changes: its pull request phase, the merge queue step, or a reason it needs you. A request to open a draft or to merge fires `pull-requests:draft-requested` or `pull-requests:merge-requested` instead, with the new state.",
+				"Fires whenever a workstream's shipping state changes: its pull request phase, the step Malini is on, or a reason it needs you. A click on the pull request bar's Draft, Merge, Retry or Cancel fires `pull-requests:button-clicked` instead, with the new state.",
 			payloadType: 'ShipChangedEvent',
 			payload:
 				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipMerged = Readonly<{ pullRequestNumber: number; pullRequestUrl: string | null }>;\n\ntype ShipChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tstate: ShipStateRecord | null;\n\tmerged?: ShipMerged;\n}>;",
@@ -162,26 +162,25 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'pull-requests:pull-request-changed',
 			description:
-				"Fires when Malini reads a workstream's pull request on GitHub and it changed since the last read Malini logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks` and the `failingChecks` by name, its `reviewDecision` and `unresolvedThreads`, how many commits it is `behindBase`, and whether it `conflicts` with its base branch. Every job the merge queue starts for that pull request names the latest one as its cause.",
+				"Fires when Malini reads a workstream's pull request on GitHub and something the Shipping rule decides on changed since the last read it logged: its `state` (`open`, `draft`, `closed` or `merged`), its `checks`, whether any is `checksPending`, the `failingChecks` by name and the `blockingChecks` with when each finished, its `reviewDecision`, the unresolved `threads` and the `changeRequests` of each review with who left it, how many commits it is `behindBase`, its `mergeability`, whether you may merge it and how. Malini reads it every time the pull request bar does, and on its own only while shipping waits on GitHub. Every job the Shipping rule starts for that pull request names the latest one as its cause.",
 			payloadType: 'PullRequestChangedEvent',
 			payload:
-				"type PullRequestChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tpullRequestNumber: number;\n\tpullRequestUrl: string | null;\n\tstate: 'open' | 'draft' | 'closed' | 'merged';\n\tbaseBranch: string;\n\theadSha: string | null;\n\tchecks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';\n\tfailingChecks: readonly string[];\n\treviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;\n\tunresolvedThreads: number | null;\n\tbehindBase: number | null;\n\tconflicts: boolean;\n}>;",
+				"type PullRequestFailedCheck = Readonly<{\n\tname: string;\n\tstate: string;\n\trequired: boolean | null;\n\tappId: number | null;\n\tcompletedAt: string | null;\n}>;\n\ntype PullRequestReviewItem = Readonly<{ id: string; by: string | null; bot: boolean }>;\n\ntype PullRequestMergeability = 'ready' | 'conflicts' | 'behind' | 'blocked' | 'unknown';\n\ntype PullRequestChangedEvent = Readonly<{\n\tworkstreamId: string;\n\tpullRequestNumber: number;\n\tpullRequestUrl: string | null;\n\tstate: 'open' | 'draft' | 'closed' | 'merged';\n\tbaseBranch: string;\n\theadSha: string | null;\n\tchecks: 'none' | 'success' | 'pending' | 'failed' | 'unknown';\n\tchecksPending: boolean;\n\tfailingChecks: readonly string[];\n\tblockingChecks: readonly PullRequestFailedCheck[];\n\treviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;\n\tunresolvedThreads: number | null;\n\tchangeRequests: readonly PullRequestReviewItem[] | null;\n\tthreads: readonly PullRequestReviewItem[] | null;\n\tbehindBase: number | null;\n\tconflicts: boolean;\n\tmergeability: PullRequestMergeability;\n\tviewerCanMerge: boolean | null;\n\tmergeMethod: string | null;\n}>;",
 		},
 		{
-			channel: 'pull-requests:draft-requested',
+			channel: 'pull-requests:button-clicked',
 			description:
-				"Fires when you, a chat or the Open draft job ask to open a draft pull request for a workstream, with the workstream's new shipping state; the reconciler hands it to the merge queue, which commits, pushes and opens the draft.",
-			payloadType: 'ShipRequestedEvent',
+				"Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there.",
+			payloadType: 'ShipButtonClickedEvent',
 			payload:
-				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;",
+				"type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';\n\ntype ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipButtonClickedEvent = Readonly<{\n\tworkstreamId: string;\n\tbutton: ShipButton;\n\tstate: ShipStateRecord | null;\n}>;",
 		},
 		{
-			channel: 'pull-requests:merge-requested',
+			channel: 'pull-requests:workstream-opened',
 			description:
-				"Fires when you, a chat or the Merge job queue a workstream to merge, or try a merge that needs you again, with the workstream's new shipping state; the reconciler hands it to the merge queue, which takes the pull request from there to merged.",
-			payloadType: 'ShipRequestedEvent',
-			payload:
-				"type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';\n\ntype ShipStep =\n\t| 'waiting-for-agent'\n\t| 'opening-draft'\n\t| 'pushing'\n\t| 'marking-ready'\n\t| 'updating-branch'\n\t| 'updating-from-main'\n\t| 'resolving-conflicts'\n\t| 'fixing-checks'\n\t| 'addressing-review'\n\t| 'waiting-for-checks'\n\t| 'waiting-for-review'\n\t| 'waiting-for-github'\n\t| 'merging'\n\t| 'archiving';\n\ntype ShipNeedsYouReason =\n\t| 'reply-to-reviewer'\n\t| 'fix-gave-up'\n\t| 'merge-not-permitted'\n\t| 'pull-request-closed'\n\t| 'github-reconnect'\n\t| 'operation-in-progress';\n\ntype ShipNeedsYou = Readonly<{\n\treason: ShipNeedsYouReason;\n\tdetail: string;\n\tjobRunId: string | null;\n}>;\n\ntype ShipStateRecord = Readonly<{\n\tworkstreamId: string;\n\tphase: ShipPhase;\n\tstep: ShipStep | null;\n\tpullRequestNumber: number | null;\n\tpullRequestUrl: string | null;\n\tneedsYou: ShipNeedsYou | null;\n\tqueuedAt: string | null;\n\tattempts: number;\n\tactiveJobRunId: string | null;\n\tlastError: string | null;\n\tnextAttemptAt: string | null;\n\tupdatedAt: string;\n}>;\n\ntype ShipRequestedEvent = Readonly<{ workstreamId: string; state: ShipStateRecord }>;",
+				'Fires when you open a workstream; unless Settings say to update from main only while merging, the Shipping rule runs **Update from main** when the workstream is behind its base branch.',
+			payloadType: 'WorkstreamOpenedEvent',
+			payload: 'type WorkstreamOpenedEvent = Readonly<{ workstreamId: string }>;',
 		},
 		{
 			channel: 'jobs:run-changed',
@@ -258,15 +257,15 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'jobs:time-reached',
 			description:
-				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished.",
+				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.",
 			payloadType: 'TimeReachedEvent',
 			payload:
-				'type TimeReachedEvent = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;',
+				"type ScheduleTimeReached = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;\n\ntype ShippingWait = 'retry' | 'checks';\n\ntype ShippingTimeReached = Readonly<{\n\tworkstreamId: string;\n\twait: ShippingWait;\n\tdue: string;\n}>;\n\ntype TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;",
 		},
 		{
 			channel: 'app:started',
 			description:
-				"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and the merge queue picks its queue up again.",
+				"Fires once each time Malini starts, as soon as its event log listens, with the version that started. The reconciler's Resume rule continues the chat turns a restart cut short on it, and its Shipping rule picks up every workstream it was shipping.",
 			payloadType: 'AppStartedPayload',
 			payload: 'type AppStartedPayload = Readonly<{ version: string }>;',
 		},

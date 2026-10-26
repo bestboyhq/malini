@@ -24,7 +24,7 @@ export const STRUCTURE: readonly Hop[] = [
 	...LISTENERS.map((listener): Hop => ['reconciler', `listener:${listener}`]),
 	['listener:triggers', 'jobs'],
 	['listener:thens', 'jobs'],
-	['listener:merge-queue', 'jobs'],
+	['listener:shipping', 'jobs'],
 	['listener:resume', 'chats'],
 	['listener:schedules', 'jobs'],
 	['listener:model', 'chats'],

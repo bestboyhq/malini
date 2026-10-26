@@ -413,7 +413,7 @@ describe('job definitions', () => {
 		);
 	});
 
-	it('tells the review job to list resolved threads the way the merge queue reads them', async () => {
+	it('tells the review job to list resolved threads the way shipping reads them', async () => {
 		const { instructions } = await builtin('address-review');
 		const template = /`(Resolved: <thread id>)`/u.exec(instructions)?.[1];
 		if (!template) throw new Error('the address-review job no longer names the resolved format');
@@ -1597,7 +1597,7 @@ describe('repeat runs', () => {
 		expect(other).toMatchObject({ status: 'queued', chainId: 'lead-turn' });
 	});
 
-	it('runs the merge queue in the chain of the read that caused it, outside the budget of that chain', async () => {
+	it('runs shipping jobs in the chain of the read that caused it, outside the budget of that chain', async () => {
 		openRuns.add('ws-a');
 		const fixChecks = await builtin('fix-checks');
 		const read = insertLoggedEvent(db, {

@@ -5,10 +5,12 @@ import { JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
 import {
 	captureFlow,
 	createSourceRepo,
+	currentSessionId,
 	expectAssistantReply,
 	expectCleanConsole,
 	invoke,
 	launchMalini,
+	listEvents,
 	openJobs,
 	openWorkstream,
 	seedWorkstream,
@@ -286,6 +288,15 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 			'Stop current run',
 			{ timeout: 20_000 },
 		);
+		await expect
+			.poll(
+				async () =>
+					(await listEvents(page, currentSessionId(page) ?? '')).some(
+						({ event }) => event.type === 'run.started',
+					),
+				{ timeout: 20_000 },
+			)
+			.toBe(true);
 		await first.quit();
 	} catch (error) {
 		await first.close();

@@ -12,8 +12,9 @@ import type {
 import type { McpServerListing, McpServerReport } from './mcp-servers';
 import type {
 	PullRequestChangedEvent,
+	ShipButtonClickedEvent,
 	ShipChangedEvent,
-	ShipRequestedEvent,
+	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
 import type { ResourceSample, WorkstreamRunning } from './stats';
@@ -182,8 +183,8 @@ export interface ContractEvents {
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
-	'pull-requests:draft-requested': ShipRequestedEvent;
-	'pull-requests:merge-requested': ShipRequestedEvent;
+	'pull-requests:button-clicked': ShipButtonClickedEvent;
+	'pull-requests:workstream-opened': WorkstreamOpenedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
 	'jobs:run-started': JobRunChangedEvent;
 	'jobs:run-finished': JobRunChangedEvent;
@@ -234,8 +235,8 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
-	'pull-requests:draft-requested': null,
-	'pull-requests:merge-requested': null,
+	'pull-requests:button-clicked': null,
+	'pull-requests:workstream-opened': null,
 	'jobs:run-changed': null,
 	'jobs:run-started': null,
 	'jobs:run-finished': null,
@@ -349,11 +350,11 @@ export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 export const PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL =
 	'pull-requests:pull-request-changed' satisfies EventChannel;
 
-export const PULL_REQUESTS_DRAFT_REQUESTED_CHANNEL =
-	'pull-requests:draft-requested' satisfies EventChannel;
+export const PULL_REQUESTS_BUTTON_CLICKED_CHANNEL =
+	'pull-requests:button-clicked' satisfies EventChannel;
 
-export const PULL_REQUESTS_MERGE_REQUESTED_CHANNEL =
-	'pull-requests:merge-requested' satisfies EventChannel;
+export const PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL =
+	'pull-requests:workstream-opened' satisfies EventChannel;
 
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
 

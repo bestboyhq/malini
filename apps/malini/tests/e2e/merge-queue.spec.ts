@@ -233,10 +233,10 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		const explorer = page.getByTestId('automations-explorer');
 		await explorer
 			.getByRole('region', { name: 'System map' })
-			.getByRole('button', { name: /^Merge queue: \d+ started$/u })
+			.getByRole('button', { name: /^Shipping: \d+ started$/u })
 			.click();
 		await explorer
-			.getByRole('list', { name: 'Merge queue' })
+			.getByRole('list', { name: 'Shipping' })
 			.getByRole('button', { name: /^Fix checks, /u })
 			.click();
 		const chain = explorer.getByRole('list', { name: 'One chain' });
@@ -252,12 +252,12 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await captureFlow(app, 'merge-queue-explorer-chain');
 		await explorer
 			.getByRole('region', { name: 'System map' })
-			.getByRole('button', { name: 'Merge requested: 1 event' })
+			.getByRole('button', { name: 'Button clicked: 1 event' })
 			.click();
 		await expect(
 			explorer
-				.getByRole('list', { name: 'Merge requested' })
-				.getByRole('button', { name: /^Merge requested, Pull request workstream, /u }),
+				.getByRole('list', { name: 'Button clicked' })
+				.getByRole('button', { name: /^Button clicked: Merge, Pull request workstream, /u }),
 		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

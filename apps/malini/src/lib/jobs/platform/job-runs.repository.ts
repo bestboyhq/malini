@@ -237,6 +237,34 @@ export function countStartedOrQueuedJobRuns(db: MaliniDatabase, definitionId: st
 	);
 }
 
+export function findActiveChildJobRun(
+	db: MaliniDatabase,
+	parentRunId: string,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE parent_run_id = ? AND origin = 'then' AND ${STARTED_OR_QUEUED}
+		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		parentRunId,
+	);
+	return row ? fromRow(row) : null;
+}
+
+export function latestWorkstreamJobRun(
+	db: MaliniDatabase,
+	workstreamId: string,
+	origin: JobRunOrigin,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs WHERE workstream_id = ? AND origin = ?
+		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		workstreamId,
+		origin,
+	);
+	return row ? fromRow(row) : null;
+}
+
 export function latestScheduledJobRun(
 	db: MaliniDatabase,
 	definitionId: string,

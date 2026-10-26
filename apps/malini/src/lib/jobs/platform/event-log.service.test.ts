@@ -212,7 +212,7 @@ describe('the event log', () => {
 		]);
 	});
 
-	it('names the work last done in a workstream as the cause of what the merge queue reports there', async () => {
+	it('names the work last done in a workstream as the cause of what shipping reports there', async () => {
 		start();
 		const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString();
 		insertSession(
@@ -245,11 +245,20 @@ describe('the event log', () => {
 			baseBranch: 'main',
 			headSha: null,
 			checks: 'failed',
+			checksPending: false,
 			failingChecks: ['test'],
+			blockingChecks: [
+				{ name: 'test', state: 'FAILURE', required: null, appId: null, completedAt: null },
+			],
 			reviewDecision: null,
 			unresolvedThreads: 0,
+			changeRequests: [],
+			threads: [],
 			behindBase: 0,
 			conflicts: false,
+			mergeability: 'blocked',
+			viewerCanMerge: true,
+			mergeMethod: 'squash',
 		});
 		context.events.emit(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, { workstreamId: 'ws-1', state: null });
 		filesChanged();

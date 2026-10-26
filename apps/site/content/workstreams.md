@@ -1,6 +1,6 @@
 ---
 title: Workstreams
-description: A workstream is one task in Malini - its own git worktree, branch, and chats - and the merge queue that takes it from Draft to a merged pull request.
+description: A workstream is one task in Malini - its own git worktree, branch, and chats - that Malini takes from Draft to a merged pull request.
 ---
 
 ## One worktree per task
@@ -96,6 +96,7 @@ Malini checks again every 5 minutes, on every Mac you use, and skips pull reques
 A workstream you delete stays deleted.
 Like every workstream, each one is kept current: a pull request that falls behind its base or conflicts gets **Update from main**.
 Settings → Jobs picks when that happens: as main moves, when you open the workstream, or only when you merge.
+Malini sees main move when it reads the pull request on GitHub, and checks a workstream you open at most once a minute.
 
 ## From prompt to merged
 
@@ -104,15 +105,19 @@ Settings → Jobs picks when that happens: as main moves, when you open the work
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
-- **It starts from an event.** **Draft** and **Merge** each log one, **Draft requested** or **Merge requested**, and the [Reconciler](/malini/docs/jobs.md#reconciler) hands it to the merge queue, as it does every **Pull request changed**.
-- **A dev server doesn't hold it.** The queue merges past a command the agent left running in the background, and archiving stops it.
-- **While it waits, it works.** The queue runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
-- **What GitHub says is on the record.** Each time Malini reads the pull request on GitHub and finds it changed, the change is a `pull-requests:pull-request-changed` event: its checks, its review, how far it is behind its base, and whether it conflicts.
-  Every job the queue starts names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
+- **It runs on events.** **Draft**, **Merge**, **Retry** and **Cancel** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
+  It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
+  A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
+- **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
+- **While it waits, it works.** Malini runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
+- **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or a job works.
+  Each read that finds something new is a `pull-requests:pull-request-changed` event: its checks, its review with each change request and open thread, how far it is behind its base, whether it conflicts, and whether you may merge it.
+  Every job Malini starts for it names that read as its cause, so the [Explorer](/malini/docs/jobs.md#explorer) traces a **Fix checks** back to the prompt behind the change it fixes.
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own, and the top bar says **Clearing blockers**.
-  Each review is addressed once, then Malini waits for the reviewer.
+  Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
+- **Errors are retried.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes, and the top bar says **Retrying after an error**.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.
-  The top bar names the reason, and the merge picks up again on its own once it is resolved.
+  The top bar names the reason, and once it is resolved, the merge picks up again on its own the next time GitHub shows a change, its branch moves or a retry comes due, or at once when you click **Retry**.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
 

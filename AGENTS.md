@@ -58,7 +58,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | ---------------------- | ----------------------------------------------------------------------------------- |
 | `app`                  | shell, sidebar, layouts, pages, routes; may use every other domain                  |
 | `chat`                 | transcript, composer, prompt queue, sessions and runs, checkpoints                  |
-| `pull-requests`        | pull request state, open draft, merge queue, top-bar status                         |
+| `pull-requests`        | pull request state, shipping and its GitHub reader, top-bar status                  |
 | `jobs`                 | jobs, triggers and Thens, runs and their runner, event log, reconciler, Jobs page   |
 | `skills`               | skill usage and on/off switches in Claude settings, a job's skills                  |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration, opened files |
