@@ -35,14 +35,6 @@ export function workstreamShipContext(
 		 ORDER BY s.rowid DESC LIMIT 1`,
 		workstreamId,
 	)?.display_name;
-	const lastPrompt = get<{ prompt: string }>(
-		db,
-		`SELECT r.prompt FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND r.automated = 0
-		 ORDER BY r.rowid DESC LIMIT 1`,
-		workstreamId,
-	)?.prompt;
-	const lastUserIntent =
-		lastPrompt === undefined ? '' : promptPlainText(lastPrompt).replace(/\s+/gu, ' ').trim();
 	const replied = all<{ id: string; summary: string }>(
 		db,
 		`SELECT r.id, r.summary FROM ${WORKSTREAM_RUNS} AND s.origin = 'user' AND ${REPLIED}
@@ -79,7 +71,6 @@ export function workstreamShipContext(
 	);
 	return {
 		...(sessionTitle ? { sessionTitle } : {}),
-		...(lastUserIntent ? { lastUserIntent } : {}),
 		...(runSummaries.length > 0 ? { runSummaries } : {}),
 		...(latestRunId ? { latestRunId } : {}),
 		...(pullRequestTitle ? { pullRequestTitle } : {}),

@@ -26,7 +26,6 @@ export type PullRequestAutomationEvent = Readonly<{
 
 export type PullRequestAutomationContext = Readonly<{
 	sessionTitle?: string;
-	lastUserIntent?: string;
 	runSummaries?: readonly string[];
 	latestRunId?: string;
 	pullRequestTitle?: string;
@@ -96,6 +95,8 @@ const TRAILING_TITLE_NOISE = /[.!?:;,\-\s]+$/u;
 
 const CONVENTIONAL_COMMIT_SUBJECT = /^[a-z]+(?:\([^)]*\))?!?: \S/u;
 
+const WORKSTREAM_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/iu;
+
 const DUPLICATE_NAME_COUNTER = /\s+(?:[2-9]|[1-9][0-9]+)$/u;
 
 export function automatedPullRequestMetadata(
@@ -136,7 +137,6 @@ function workstreamTitle(
 		firstUseful([
 			firstSentence(context.pullRequestTitle),
 			...context.runSummaries.map(firstSentence).reverse(),
-			firstSentence(context.lastUserIntent),
 			context.sessionTitle,
 			branchTitle(branch),
 			changedPathTitle(changedPaths),
@@ -196,7 +196,6 @@ function normalizedContext(
 	if (!context) {
 		return {
 			sessionTitle: '',
-			lastUserIntent: '',
 			runSummaries: [],
 			latestRunId: '',
 			pullRequestTitle: '',
@@ -207,10 +206,6 @@ function normalizedContext(
 	return {
 		sessionTitle: withoutDuplicateNameCounter(
 			proseLine(context.sessionTitle ?? '', AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem),
-		),
-		lastUserIntent: proseLine(
-			context.lastUserIntent ?? '',
-			AUTOMATED_PULL_REQUEST_METADATA_LIMITS.contextItem,
 		),
 		runSummaries: uniqueInOrder(
 			(context.runSummaries ?? [])
@@ -245,7 +240,6 @@ function localContext(
 	return {
 		...context,
 		...(context.sessionTitle ? { sessionTitle: local(context.sessionTitle) } : {}),
-		...(context.lastUserIntent ? { lastUserIntent: local(context.lastUserIntent) } : {}),
 		...(context.pullRequestTitle ? { pullRequestTitle: local(context.pullRequestTitle) } : {}),
 		...(context.runSummaries ? { runSummaries: context.runSummaries.map(local) } : {}),
 		...(context.decisions ? { decisions: context.decisions.map(local) } : {}),
@@ -284,10 +278,7 @@ function buildBody(
 ): string {
 	const sections: string[] = [];
 	const summary =
-		input.context.pullRequestTitle ||
-		input.context.runSummaries.at(-1) ||
-		input.context.lastUserIntent ||
-		input.title;
+		input.context.pullRequestTitle || input.context.runSummaries.at(-1) || input.title;
 	sections.push('## Summary', '', markdownProse(summary));
 
 	const branch = markdownCode(input.branch || 'current workstream');
@@ -390,6 +381,7 @@ function boundedBody(value: string): string {
 
 function branchTitle(branch: string): string {
 	const leaf = branch.split('/').filter(Boolean).at(-1) ?? '';
+	if (WORKSTREAM_ID.test(leaf)) return '';
 	const words = leaf.replace(/[-_.]+/gu, ' ').trim();
 	if (!words || /^(?:main|master|develop|development)$/iu.test(words)) return '';
 	return words;
