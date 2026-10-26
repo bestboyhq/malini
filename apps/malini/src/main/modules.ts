@@ -138,7 +138,10 @@ export async function registerModules(
 		containerCount: () => repositories.containerCount(),
 	});
 
-	const extensions = registerExtensions(context, { resolver: repositories.checkouts });
+	const extensions = registerExtensions(context, {
+		resolver: repositories.checkouts,
+		readCheckout: repositories.readCheckout,
+	});
 
 	const jobs = registerJobs(context, {
 		suggestTitle: (task, job) => chat.suggestTitle(task, job),

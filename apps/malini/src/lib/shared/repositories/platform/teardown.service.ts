@@ -77,7 +77,7 @@ export class WorkstreamRetiredError extends Error {
 	readonly kind = 'retired';
 
 	constructor(workstreamId: string, cause: unknown) {
-		super(`Workstream \`${workstreamId}\` was archived or deleted while it was read`, { cause });
+		super(`Workstream \`${workstreamId}\` was archived or deleted`, { cause });
 	}
 }
 

@@ -42,7 +42,10 @@ beforeEach(async () => {
 		isDev: true,
 		appVersion: '0.0.0-test',
 	};
-	registerExtensions(context, { resolver });
+	registerExtensions(context, {
+		resolver,
+		readCheckout: async (id, read) => read(await resolver.resolveCheckout(id)),
+	});
 });
 
 afterEach(async () => {

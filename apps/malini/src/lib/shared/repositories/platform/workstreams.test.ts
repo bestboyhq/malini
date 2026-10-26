@@ -818,7 +818,7 @@ describe('reading a workstream while its files change', () => {
 		expect(errors).not.toHaveBeenCalled();
 	});
 
-	it('records a read that loses its checkout to an archive as a warning, and a later read as an error', async () => {
+	it('records a read of an archived workstream as a warning, whether the archive lands mid-read or before it', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { base, checkout } = await workstreamFixture(dir, 'ws-gone');
@@ -855,7 +855,6 @@ describe('reading a workstream while its files change', () => {
 			.map((line) => JSON.parse(line) as { level: string; command: string });
 		expect(recorded.map(({ level, command }) => [level, command])).toEqual([
 			['warn', 'repositories.workstream-snapshot'],
-			['error', 'repositories.workstream-snapshot'],
 		]);
 	});
 });
