@@ -61,6 +61,7 @@ export type TranscriptContext = {
 	variantPick(runId: string): RunPick | null;
 	promptPick(runId: string): RunPick | null;
 	sendFollowUp(prompt: string, subject: string): void;
+	shipInFork(prompt: string, subject: string, atSeq: number): void;
 	readonly saveToScratchpad: ((idea: string) => void) | undefined;
 	undoTarget(runId: string): RunUndoTarget | null;
 	readonly window: TranscriptWindow;
