@@ -90,11 +90,25 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'jobs:run-changed': {
 		description:
-			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.',
+			'Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled. Malini does not keep it in its event log: it keeps `jobs:run-started` and `jobs:run-finished`.',
+		logged: false,
+	},
+	'jobs:run-started': {
+		description:
+			'Fires when a job run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.',
+	},
+	'jobs:run-finished': {
+		description:
+			'Fires once when a job run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. A job runs after another on it, such as `on jobs:run-finished where run.status is failed`.',
 	},
 	'jobs:agent-action-changed': {
 		description:
-			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.",
+			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `jobs:tool-called`.",
+		logged: false,
+	},
+	'jobs:tool-called': {
+		description:
+			"Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.",
 	},
 	'jobs:decision-changed': {
 		description:

@@ -240,11 +240,15 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 			.getByRole('button', { name: /^Fix checks, /u })
 			.click();
 		const chain = explorer.getByRole('list', { name: 'One chain' });
-		await expect(chain.getByRole('button', { name: /^#7: test failed, /u })).toBeVisible();
+		await expect(
+			chain.getByRole('button', { name: /^Pull request changed: #7, test failed, /u }),
+		).toBeVisible();
 		await expect(
 			chain.getByRole('listitem').filter({ hasText: '#7 changed on GitHub' }),
 		).toHaveCount(1);
-		await expect(chain.getByRole('button', { name: /^#7 merged on GitHub, /u })).toBeVisible();
+		await expect(
+			chain.getByRole('button', { name: /^Pull request changed: #7 merged, /u }),
+		).toBeVisible();
 		await captureFlow(app, 'merge-queue-explorer-chain');
 		expectCleanConsole(app);
 	} finally {

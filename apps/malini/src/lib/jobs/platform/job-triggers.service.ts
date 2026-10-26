@@ -3,7 +3,13 @@ import {
 	type AutomationEventCondition,
 	type AutomationTrigger,
 } from '$contract/automation-trigger';
-import { JOBS_DEFINITION_CHANGED_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
+import {
+	JOBS_DEFINITION_CHANGED_CHANNEL,
+	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
+	type EventChannel,
+} from '$contract/events';
 import type { JobDefinitionRecord, JobRunMode } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
@@ -25,6 +31,12 @@ type ArmedJob = Readonly<{
 
 // ponytail: forgets which events already started a job past 5 000, leaving only the event log's check; key the guard on the event id if a burst ever outruns it
 const FIRED_LIMIT = 5_000;
+
+const RUN_CHANNELS: ReadonlySet<EventChannel> = new Set([
+	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+]);
 
 export type JobTriggers = Readonly<{
 	handle(event: DispatchedEvent): Promise<boolean>;
@@ -80,7 +92,7 @@ export function startJobTriggers(context: MainContext, log: (line: string) => vo
 		const { channel } = event;
 		const workstreamId = findString(payload, 'workstreamId');
 		const repositoryId = findString(payload, 'repositoryId');
-		const parentRunId = channel === JOBS_RUN_CHANGED_CHANNEL ? runIdOf(payload) : null;
+		const parentRunId = RUN_CHANNELS.has(channel) ? runIdOf(payload) : null;
 		if (parentRunId !== null && inChain(definition.id, parentRunId)) return;
 		await commands
 			.call('jobs.run', {

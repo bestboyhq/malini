@@ -6,7 +6,12 @@ import {
 	type LifecycleEnvelope,
 	type SessionStatus,
 } from '$contract/agent-state-machine';
-import { CHAT_AGENT_EVENT_CHANNEL, JOBS_RUN_CHANGED_CHANNEL } from '$contract/events';
+import {
+	CHAT_AGENT_EVENT_CHANNEL,
+	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
+} from '$contract/events';
 import type { Workstream, WorktreeStatus } from '$contract/repositories';
 import {
 	JOB_INTERRUPTED_DETAIL,
@@ -39,6 +44,8 @@ import {
 	workstreamWasBusy,
 } from '../domain/job-run';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
+import { triggeredBefore } from './event-log.repository';
+import { findString, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
 import {
 	appendJobRunContext,
@@ -112,7 +119,7 @@ export class JobRunner {
 
 	enqueue(jobRun: JobRunRecord, context: string | null): JobRunRecord {
 		insertJobRun(this.#context.db, jobRun, context);
-		this.#emit(jobRun);
+		this.#emit(jobRun, null);
 		if (jobRun.status === 'queued') this.kick();
 		return jobRun;
 	}
@@ -576,14 +583,17 @@ export class JobRunner {
 	}
 
 	#succeed(jobRunId: string, summary: string | null): void {
-		const succeeded = this.#finish(jobRunId, 'succeeded', summary);
-		if (succeeded) this.#background(this.#then(succeeded));
+		this.#finish(jobRunId, 'succeeded', summary);
 	}
 
-	async #then(jobRun: JobRunRecord): Promise<void> {
+	async startThen(event: DispatchedEvent): Promise<void> {
 		const { db, commands } = this.#context;
+		if (event.channel !== JOBS_RUN_FINISHED_CHANNEL || event.digest === null) return;
+		const runId = findString(isRecord(event.payload) ? event.payload['run'] : null, 'id');
+		const jobRun = runId === null ? null : getJobRun(db, runId);
+		if (jobRun?.status !== 'succeeded' || jobRun.workstreamId === null) return;
 		const thenJobId = getJobDefinition(db, jobRun.definitionId)?.thenJobId ?? null;
-		if (thenJobId === null || jobRun.workstreamId === null) return;
+		if (thenJobId === null || triggeredBefore(db, thenJobId, event.channel, event.digest)) return;
 		try {
 			await commands.call('jobs.run', {
 				definitionId: thenJobId,
@@ -591,6 +601,7 @@ export class JobRunner {
 				origin: 'then',
 				parentRunId: jobRun.id,
 				context: truncateJobContext(thenContext(jobRun)),
+				...(event.id === null ? {} : { causeEventId: event.id }),
 			});
 		} catch (error) {
 			const next = getJobDefinition(db, thenJobId)?.name ?? 'the next job';
@@ -671,16 +682,23 @@ export class JobRunner {
 	): JobRunRecord | null {
 		const current = getJobRun(this.#context.db, jobRunId);
 		const next = current ? change(current) : null;
-		if (!next) return null;
+		if (!current || !next) return null;
 		saveJobRun(this.#context.db, next);
-		this.#emit(next);
+		this.#emit(next, current.status);
 		this.kick();
 		return next;
 	}
 
-	#emit(jobRun: JobRunRecord): void {
+	#emit(jobRun: JobRunRecord, was: JobRunStatus | null): void {
+		const { events } = this.#context;
 		const payload: JobRunChangedEvent = { run: jobRun };
-		this.#context.events.emit(JOBS_RUN_CHANGED_CHANNEL, payload);
+		events.emit(JOBS_RUN_CHANGED_CHANNEL, payload);
+		if (jobRun.status === 'running' && was === 'queued') {
+			events.emit(JOBS_RUN_STARTED_CHANNEL, payload);
+		}
+		if (isFinishedJobRunStatus(jobRun.status) && was !== null && !isFinishedJobRunStatus(was)) {
+			events.emit(JOBS_RUN_FINISHED_CHANNEL, payload);
+		}
 	}
 
 	#armSafety(): void {

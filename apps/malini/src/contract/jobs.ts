@@ -216,10 +216,13 @@ export type JobCommandName =
 
 export type JobEventChannel =
 	| 'jobs:run-changed'
+	| 'jobs:run-started'
+	| 'jobs:run-finished'
 	| 'jobs:definition-changed'
 	| 'jobs:suggested'
 	| 'jobs:experiment-changed'
 	| 'jobs:agent-action-changed'
+	| 'jobs:tool-called'
 	| 'jobs:decision-changed';
 
 export type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;

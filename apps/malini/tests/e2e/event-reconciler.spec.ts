@@ -145,7 +145,7 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 		const chain = explorer.getByRole('list', { name: 'One chain' });
 		await expect(
 			chain.getByRole('button', {
-				name: /^Turn ended: The analytics endpoint answers, Api analytics, /u,
+				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
 			}),
 		).toBeVisible();
 		await expect(
@@ -159,8 +159,18 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 		await map.getByRole('button', { name: /^Agents: \d+ events?$/u }).click();
 		await expect(
 			explorer.getByRole('list', { name: 'Agents' }).getByRole('button', {
-				name: /^Turn ended: The analytics endpoint answers, Api analytics, /u,
+				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
 			}),
+		).toBeVisible();
+		await map.getByRole('button', { name: /^Reconciler: \d+ events?$/u }).click();
+		const reconciled = explorer.getByRole('list', { name: 'Reconciler' });
+		await expect(
+			reconciled.getByRole('button', {
+				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
+			}),
+		).toBeVisible();
+		await expect(
+			reconciled.getByRole('button', { name: new RegExp(`^${WAKE}, `, 'u') }),
 		).toBeVisible();
 		expectCleanConsole(app);
 	} finally {

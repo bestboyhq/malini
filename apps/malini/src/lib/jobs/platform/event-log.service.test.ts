@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	APP_SCALE_CHANGED_CHANNEL,
+	CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
@@ -10,7 +13,7 @@ import type { JobRunRecord, LoggedEventRecord } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
-import { all } from '$main/db/rows';
+import { all, run } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
@@ -149,6 +152,7 @@ describe('the event log', () => {
 		await fixChecksRun('fix-1', 'chain-of-fix');
 		filesChanged();
 		context.events.emit(JOBS_RUN_CHANGED_CHANNEL, { run: jobRun('fix-1', 'running', 'x') });
+		context.events.emit(JOBS_RUN_STARTED_CHANNEL, { run: jobRun('fix-1', 'running', 'x') });
 
 		expect(await logged()).toEqual([
 			expect.objectContaining({
@@ -157,7 +161,7 @@ describe('the event log', () => {
 				chainId: 'chain-of-fix',
 			}),
 			expect.objectContaining({
-				channel: JOBS_RUN_CHANGED_CHANNEL,
+				channel: JOBS_RUN_STARTED_CHANNEL,
 				cause: { kind: 'job-run', id: 'fix-1' },
 				chainId: 'chain-of-fix',
 			}),
@@ -190,11 +194,20 @@ describe('the event log', () => {
 			chainId: 'chain-of-turn',
 		});
 		filesChanged();
+		context.events.emit(CHAT_RUN_CHANGES_CAPTURED_CHANNEL, {
+			sessionId: 'chat-1',
+			runId: 'turn-1',
+		});
 
 		expect(await logged()).toEqual([
 			expect.objectContaining({
 				cause: { kind: 'chat-turn', id: 'turn-1' },
 				chainId: 'chain-of-turn',
+			}),
+			expect.objectContaining({
+				channel: CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
+				workstreamId: 'ws-1',
+				cause: { kind: 'chat-turn', id: 'turn-1' },
 			}),
 		]);
 	});
@@ -341,6 +354,56 @@ describe('the event log', () => {
 			all<{ id: number }>(db, 'SELECT id FROM event_log WHERE handled_at IS NULL ORDER BY id');
 		await vi.waitFor(() => expect(unhandledIds()).toEqual([{ id: stale }]));
 		expect(recent).toBeGreaterThan(stale);
+	});
+
+	it('starts a Then once from the job finished event it hears, even when it hears it again after a restart', async () => {
+		start();
+		const save = (name: string, thenJobId: string | null) =>
+			context.commands.call('jobs.save-definition', {
+				name,
+				instructions: 'Go.',
+				model: 'opus',
+				effort: 'low',
+				runsIn: 'workstream',
+				thenJobId,
+			});
+		const notes = await save('Write notes', null);
+		const fix = await save('Fix it', notes.id);
+		jobs?.dispose();
+		context = freshContext();
+		const finished = { ...jobRun('fix-1', 'succeeded', 'chain-of-fix'), definitionId: fix.id };
+		insertJobRun(db, finished, null);
+		const payload = { run: finished };
+		insertLoggedEvent(db, {
+			channel: JOBS_RUN_FINISHED_CHANNEL,
+			payload: JSON.stringify(payload),
+			digest: eventDigest(payload),
+			workstreamId: 'ws-1',
+			cause: { kind: 'job-run', id: 'fix-1' },
+			chainId: 'chain-of-fix',
+			emittedAt: new Date().toISOString(),
+		});
+		const thens = async () =>
+			(await context.commands.call('jobs.list-runs', undefined)).filter(
+				(run) => run.definitionId === notes.id,
+			);
+
+		start();
+		await vi.waitFor(async () =>
+			expect(await thens()).toEqual([
+				expect.objectContaining({ origin: 'then', parentRunId: 'fix-1', chainId: 'chain-of-fix' }),
+			]),
+		);
+		jobs?.dispose();
+		context = freshContext();
+		run(db, "UPDATE job_runs SET status = 'succeeded' WHERE definition_id = ?", notes.id);
+		run(db, 'UPDATE event_log SET handled_at = NULL');
+		start();
+
+		await vi.waitFor(() =>
+			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
+		);
+		expect(await thens()).toHaveLength(1);
 	});
 
 	it('forgets events older than a week, with their links to the runs they started', () => {

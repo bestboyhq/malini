@@ -176,10 +176,13 @@ export interface ContractEvents {
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
 	'jobs:run-changed': JobRunChangedEvent;
+	'jobs:run-started': JobRunChangedEvent;
+	'jobs:run-finished': JobRunChangedEvent;
 	'jobs:definition-changed': JobDefinitionChangedEvent;
 	'jobs:suggested': JobSuggestedEvent;
 	'jobs:experiment-changed': JobExperimentChangedEvent;
 	'jobs:agent-action-changed': AgentActionChangedEvent;
+	'jobs:tool-called': AgentActionChangedEvent;
 	'jobs:decision-changed': ReconcilerDecisionChangedEvent;
 	'app:close-requested': EmptyEventPayload;
 	'app:scale-changed': EmptyEventPayload;
@@ -221,10 +224,13 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
 	'jobs:run-changed': null,
+	'jobs:run-started': null,
+	'jobs:run-finished': null,
 	'jobs:definition-changed': null,
 	'jobs:suggested': null,
 	'jobs:experiment-changed': null,
 	'jobs:agent-action-changed': null,
+	'jobs:tool-called': null,
 	'jobs:decision-changed': null,
 	'app:close-requested': null,
 	'app:scale-changed': null,
@@ -328,6 +334,10 @@ export const PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL =
 
 export const JOBS_RUN_CHANGED_CHANNEL = 'jobs:run-changed' satisfies EventChannel;
 
+export const JOBS_RUN_STARTED_CHANNEL = 'jobs:run-started' satisfies EventChannel;
+
+export const JOBS_RUN_FINISHED_CHANNEL = 'jobs:run-finished' satisfies EventChannel;
+
 export const JOBS_DEFINITION_CHANGED_CHANNEL = 'jobs:definition-changed' satisfies EventChannel;
 
 export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
@@ -335,6 +345,8 @@ export const JOBS_SUGGESTED_CHANNEL = 'jobs:suggested' satisfies EventChannel;
 export const JOBS_EXPERIMENT_CHANGED_CHANNEL = 'jobs:experiment-changed' satisfies EventChannel;
 
 export const JOBS_AGENT_ACTION_CHANGED_CHANNEL = 'jobs:agent-action-changed' satisfies EventChannel;
+
+export const JOBS_TOOL_CALLED_CHANNEL = 'jobs:tool-called' satisfies EventChannel;
 
 export const JOBS_DECISION_CHANGED_CHANNEL = 'jobs:decision-changed' satisfies EventChannel;
 

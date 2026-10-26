@@ -4,8 +4,9 @@ import { EVENT_CATALOG } from '$contract/event-catalog';
 import {
 	CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
-	JOBS_AGENT_ACTION_CHANGED_CHANNEL,
-	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
+	JOBS_TOOL_CALLED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
@@ -22,6 +23,7 @@ import { describeError } from '$main/errors';
 import {
 	chatTurnChainId,
 	chatTurnSessionId,
+	getRunWorkstreamId,
 	workChatTurnInWorkstream,
 } from '$lib/chat/chat.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
@@ -33,6 +35,7 @@ import {
 } from './event-log.repository';
 import {
 	findActiveJobRunForSession,
+	getJobRun,
 	jobRunChainId,
 	workJobRunInWorkstream,
 } from './job-runs.repository';
@@ -55,6 +58,11 @@ const SETUP_CHANNELS: ReadonlySet<EventChannel> = new Set([
 const SHIPPING_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+]);
+
+const RUN_CHANNELS: ReadonlySet<EventChannel> = new Set([
+	JOBS_RUN_STARTED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
 ]);
 
 const ANY_TIME = new Date(0).toISOString();
@@ -147,15 +155,15 @@ function record(
 	digest: string,
 ): DispatchedEvent {
 	const emittedAt = nowIso8601();
-	const workstreamId = findString(payload, 'workstreamId');
-	const cause = causeOf(db, channel, payload, workstreamId, emittedAt);
+	const named = findString(payload, 'workstreamId');
+	const cause = causeOf(db, channel, payload, named, emittedAt);
 	const chainId = (cause === null ? null : chainOf(db, cause)) ?? randomUUID();
 	const text = JSON.stringify(payload) ?? 'null';
 	const id = insertLoggedEvent(db, {
 		channel,
 		payload: Buffer.byteLength(text, 'utf8') > STORED_PAYLOAD_MAX_BYTES ? 'null' : text,
 		digest,
-		workstreamId,
+		workstreamId: named ?? (cause === null ? null : workstreamOf(db, cause)),
 		cause,
 		chainId,
 		emittedAt,
@@ -170,11 +178,11 @@ function causeOf(
 	workstreamId: string | null,
 	emittedAt: string,
 ): EventCause | null {
-	if (channel === JOBS_RUN_CHANGED_CHANNEL) {
+	if (RUN_CHANNELS.has(channel)) {
 		const runId = findString(isRecord(payload) ? payload['run'] : null, 'id');
 		return runId === null ? null : { kind: 'job-run', id: runId };
 	}
-	if (channel === JOBS_AGENT_ACTION_CHANGED_CHANNEL) {
+	if (channel === JOBS_TOOL_CALLED_CHANNEL) {
 		const action = isRecord(payload) ? payload['action'] : null;
 		return turnCause(db, findString(action, 'sessionId'), findString(action, 'runId'));
 	}
@@ -224,6 +232,12 @@ function starterWork(db: MaliniDatabase, payload: unknown, since: string): Event
 
 function chainOf(db: MaliniDatabase, cause: EventCause): string | null {
 	return cause.kind === 'job-run' ? jobRunChainId(db, cause.id) : chatTurnChainId(db, cause.id);
+}
+
+function workstreamOf(db: MaliniDatabase, cause: EventCause): string | null {
+	return cause.kind === 'job-run'
+		? (getJobRun(db, cause.id)?.workstreamId ?? null)
+		: getRunWorkstreamId(db, cause.id);
 }
 
 export function findString(payload: unknown, key: string): string | null {

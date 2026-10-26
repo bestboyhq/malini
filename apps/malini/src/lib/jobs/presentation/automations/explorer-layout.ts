@@ -17,26 +17,27 @@ export type Route = Readonly<{ d: string; tip: string }>;
 export const STRUCTURE: readonly Hop[] = [
 	['you', 'chats'],
 	['you', 'jobs'],
-	['agents', 'event:turn-ended'],
+	['agents', 'event:turn-finished'],
 	['agents', 'event:tool-called'],
-	['agents', 'event:job-run'],
-	['git', 'event:committed'],
-	['git', 'event:pushed'],
-	['git', 'event:conflicted'],
-	['github', 'event:pull-request'],
-	['malini', 'event:workstream-started'],
+	['agents', 'event:job-started'],
+	['agents', 'event:job-finished'],
+	['git', 'event:head-moved'],
+	['git', 'event:branch-pushed'],
+	['git', 'event:merge-conflicted'],
+	['github', 'event:pull-request-changed'],
+	['malini', 'event:workstream-created'],
 	['malini', 'event:workstream-archived'],
+	...EVENT_ROWS.map((row): Hop => [`event:${row}`, 'reconciler']),
+	['reconciler', 'listener:triggers'],
+	['reconciler', 'listener:thens'],
+	['reconciler', 'listener:model'],
+	['github', 'listener:merge-queue'],
 	['malini', 'listener:resume'],
 	['clock', 'listener:schedules'],
-	['event:turn-ended', 'listener:reconciler'],
-	['event:conflicted', 'listener:reconciler'],
-	['event:job-run', 'listener:reconciler'],
-	['event:job-run', 'listener:thens'],
-	['event:pull-request', 'listener:merge-queue'],
-	['listener:reconciler', 'chats'],
-	['listener:reconciler', 'jobs'],
 	['listener:triggers', 'jobs'],
 	['listener:thens', 'jobs'],
+	['listener:model', 'chats'],
+	['listener:model', 'jobs'],
 	['listener:merge-queue', 'jobs'],
 	['listener:resume', 'chats'],
 	['listener:schedules', 'jobs'],
@@ -61,6 +62,10 @@ const ROW_H = 28;
 const ROW_PITCH = 34;
 const LISTENER_H = 44;
 const LISTENER_PITCH = 52;
+const ON_THEIR_OWN = LISTENERS.indexOf('merge-queue');
+const GROUP_GAP = 16;
+const BAR = 36;
+const BAR_GAP = 16;
 const LOG_TOP = TOP + INSET + YOU_H + 16;
 const LOG_H = INSET + EVENT_ROWS.length * ROW_PITCH + PAD - (ROW_PITCH - ROW_H);
 const LANE = 14;
@@ -69,9 +74,9 @@ const WORK_GAP = 18;
 const LOOP = 12;
 const RADIUS = 7;
 const TIP = 6;
-const BASE = { sources: 140, log: 200, listeners: 224, work: 190 } as const;
+const BASE = { sources: 126, log: 216, listeners: 228, work: 196 } as const;
 const BASE_TOTAL = BASE.sources + BASE.log + BASE.listeners + BASE.work;
-const IDEAL_GAP = 44;
+const IDEAL_GAP = 38;
 const MIN_SCALE = 0.82;
 const MAX_SCALE = 1.3;
 
@@ -79,13 +84,13 @@ export const MAP_MIN_WIDTH = 880;
 
 export function mapLayout(available: number): MapLayout {
 	const width = Math.max(MAP_MIN_WIDTH, available);
-	const inner = width - SIDE * 2 - 4 * PAD * 2;
-	const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (inner - 3 * IDEAL_GAP) / BASE_TOTAL));
+	const inner = width - SIDE * 2 - 4 * PAD * 2 - BAR - 2 * BAR_GAP;
+	const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, (inner - 2 * IDEAL_GAP) / BASE_TOTAL));
 	const sources = Math.round(BASE.sources * scale);
 	const log = Math.round(BASE.log * scale);
 	const listeners = Math.round(BASE.listeners * scale);
 	const work = Math.round(BASE.work * scale);
-	const gap = (inner - sources - log - listeners - work) / 3;
+	const gap = (inner - sources - log - listeners - work) / 2;
 
 	const bottom = LOG_TOP + LOG_H;
 	const lane = bottom + LANE;
@@ -98,8 +103,14 @@ export function mapLayout(available: number): MapLayout {
 		w: log + PAD * 2,
 		h: LOG_H,
 	};
+	const bar: Box = {
+		x: logDomain.x + logDomain.w + BAR_GAP,
+		y: LOG_TOP + INSET,
+		w: BAR,
+		h: EVENT_ROWS.length * ROW_PITCH - (ROW_PITCH - ROW_H),
+	};
 	const listenersDomain: Box = {
-		x: logDomain.x + logDomain.w + gap,
+		x: bar.x + bar.w + BAR_GAP,
 		y: LOG_TOP,
 		w: listeners + PAD * 2,
 		h: LOG_H,
@@ -119,22 +130,27 @@ export function mapLayout(available: number): MapLayout {
 	const boxes = new Map<MapNode, Box>();
 	const sourceX = sourcesDomain.x + PAD;
 	boxes.set('you', { x: sourceX, y: TOP + INSET, w: sources, h: YOU_H });
-	boxes.set('agents', { x: sourceX, w: sources, ...rowsSpan('turn-ended', 'job-run') });
-	boxes.set('git', { x: sourceX, w: sources, ...rowsSpan('committed', 'conflicted') });
-	boxes.set('github', { x: sourceX, w: sources, ...rowsSpan('pull-request', 'pull-request') });
+	boxes.set('agents', { x: sourceX, w: sources, ...rowsSpan('turn-finished', 'job-finished') });
+	boxes.set('git', { x: sourceX, w: sources, ...rowsSpan('head-moved', 'merge-conflicted') });
+	boxes.set('github', {
+		x: sourceX,
+		w: sources,
+		...rowsSpan('pull-request-changed', 'pull-request-changed'),
+	});
 	boxes.set('malini', {
 		x: sourceX,
 		w: sources,
-		...rowsSpan('workstream-started', 'workstream-archived'),
+		...rowsSpan('workstream-created', 'workstream-archived'),
 	});
 	boxes.set('clock', { x: sourceX, w: sources, ...rowsSpan('other', 'other') });
 	EVENT_ROWS.forEach((row) => {
 		boxes.set(`event:${row}`, { x: logDomain.x + PAD, y: rowY(row), w: log, h: ROW_H });
 	});
+	boxes.set('reconciler', bar);
 	LISTENERS.forEach((listener, index) => {
 		boxes.set(`listener:${listener}`, {
 			x: listenersDomain.x + PAD,
-			y: LOG_TOP + INSET + index * LISTENER_PITCH,
+			y: LOG_TOP + INSET + index * LISTENER_PITCH + (index >= ON_THEIR_OWN ? GROUP_GAP : 0),
 			w: listeners,
 			h: LISTENER_H,
 		});
@@ -144,17 +160,11 @@ export function mapLayout(available: number): MapLayout {
 	boxes.set('chats', chats);
 	boxes.set('jobs', { x: chats.x, y: jobsY, w: work, h: bottom - PAD - jobsY });
 
-	const gapMid = [
-		sourcesDomain.x + sourcesDomain.w + gap / 2,
-		logDomain.x + logDomain.w + gap / 2,
-		listenersDomain.x + listenersDomain.w + gap / 2,
-	] as const;
+	const sourcesGap = sourcesDomain.x + sourcesDomain.w + gap / 2;
+	const riseX = bar.x + bar.w + BAR_GAP / 2;
+	const workGap = listenersDomain.x + listenersDomain.w + gap / 2;
 	const box = (node: MapNode): Box | null => boxes.get(node) ?? null;
 	const midY = (target: Box): number => target.y + target.h / 2;
-	const columnOf = (node: MapNode): 0 | 1 | 2 => {
-		if (node.startsWith('event:')) return 1;
-		return node.startsWith('listener:') ? 2 : 0;
-	};
 
 	const points = ([from, to]: Hop, a: Box, b: Box): readonly Point[] => {
 		if (from === to) {
@@ -177,21 +187,23 @@ export function mapLayout(available: number): MapLayout {
 		}
 		const start: Point = [a.x + a.w, midY(a)];
 		const end: Point = [b.x, midY(b)];
+		if (to === 'reconciler') return [start, [b.x, start[1]]];
+		if (from === 'reconciler') return [[a.x + a.w, end[1]], end];
 		if (from === 'you') {
 			if (to === 'chats') return [start, [b.x, start[1]]];
-			return [start, [gapMid[2], start[1]], [gapMid[2], end[1]], end];
+			return [start, [workGap, start[1]], [workGap, end[1]], end];
 		}
-		if (columnOf(from) === 0 && columnOf(to) === 2) {
+		if (to.startsWith('listener:')) {
 			const under: readonly Point[] =
 				from === 'clock'
 					? [
 							[a.x + a.w - 24, a.y + a.h],
 							[a.x + a.w - 24, lane],
 						]
-					: [start, [gapMid[0], start[1]], [gapMid[0], lane]];
-			return [...under, [gapMid[1], lane], [gapMid[1], end[1]], end];
+					: [start, [sourcesGap, start[1]], [sourcesGap, lane]];
+			return [...under, [riseX, lane], [riseX, end[1]], end];
 		}
-		const mid = gapMid[columnOf(from)];
+		const mid = from.startsWith('listener:') ? workGap : sourcesGap;
 		return [start, [mid, start[1]], [mid, end[1]], end];
 	};
 

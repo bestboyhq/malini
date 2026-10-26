@@ -6,6 +6,8 @@ import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_RUN_STARTED_CHANNEL,
 	JOBS_SUGGESTED_CHANNEL,
 } from '$contract/events';
 import type { CommandFailure } from '$contract/ipc';
@@ -652,6 +654,29 @@ describe('scheduling', () => {
 		await until(second.id, 'running');
 		await settle();
 		expect((await jobRun(fourth.id)).status).toBe('queued');
+	});
+
+	it('says once that a run started and once that it finished, however often it changes', async () => {
+		const facts: string[] = [];
+		context.events.subscribe(JOBS_RUN_STARTED_CHANNEL, ({ run }) =>
+			facts.push(`${run.id} started`),
+		);
+		context.events.subscribe(JOBS_RUN_FINISHED_CHANNEL, ({ run }) =>
+			facts.push(`${run.id} ${run.status}`),
+		);
+		const queued = await runFixChecks('ws-a');
+		const jobSession = await session(queued.id);
+		agentEvent(jobSession, 'agent-run-1', { type: 'run.completed', summary: 'Fixed the lint.' });
+		await until(queued.id, 'succeeded');
+		const waiting = await runOf(await saveDefinition(), { waitForYou: true });
+		await context.commands.call('jobs.cancel-run', { jobRunId: waiting.id });
+		await settle();
+
+		expect(facts).toEqual([
+			`${queued.id} started`,
+			`${queued.id} succeeded`,
+			`${waiting.id} cancelled`,
+		]);
 	});
 
 	it('finishes a job whose turn ends with only a background command left running', async () => {

@@ -110,7 +110,7 @@ const RECORD: TimelineRecord = {
 	until: at(60),
 	events: [
 		event(1, 'chat:turn-finished', 12, { cause: { kind: 'chat-turn', id: 'api-turn' } }),
-		event(2, 'jobs:run-changed', 21, { cause: { kind: 'job-run', id: 'fix' } }),
+		event(2, 'jobs:run-finished', 21, { cause: { kind: 'job-run', id: 'fix' } }),
 		event(3, 'repositories:workstream-files-changed', 11, {
 			cause: { kind: 'chat-turn', id: 'api-turn' },
 		}),
@@ -121,13 +121,14 @@ const RECORD: TimelineRecord = {
 	],
 	channelCounts: {
 		'chat:turn-finished': 5,
-		'jobs:run-changed': 1,
+		'jobs:run-finished': 1,
 		'repositories:workstream-files-changed': 9,
 		'pull-requests:ship-changed': 1,
 	},
 	runs: [
 		run('fix', 20, { origin: 'merge-queue', createdAt: at(15) }),
 		run('announce', 22, { origin: 'trigger', eventIds: [2] }),
+		run('notes', 23, { origin: 'then', parentRunId: 'fix', eventIds: [2] }),
 		run('asked', 25, { chatAfterRunId: 'lead-wake' }),
 		run('orphan', 40, { origin: 'then', parentRunId: 'gone', chainId: 'other' }),
 		run('nightly', 45, { origin: 'schedule', chainId: 'nightly' }),
@@ -156,6 +157,7 @@ describe('explorer', () => {
 		expect(cause('decision:wake')).toBe('event:1');
 		expect(cause('turn:lead-wake')).toBe('decision:wake');
 		expect(cause('run:announce')).toBe('event:2');
+		expect(cause('run:notes')).toBe('run:fix');
 		expect(cause('run:asked')).toBe('turn:lead-wake');
 		expect(cause('run:orphan')).toBeNull();
 		expect(map.items.map((item) => item.at)).toEqual(
@@ -170,16 +172,33 @@ describe('explorer', () => {
 
 		expect(hops('turn:lead-turn')).toEqual([['you', 'chats']]);
 		expect(hops('turn:api-turn')).toEqual([['chats', 'chats']]);
-		expect(hops('event:1')).toEqual([['agents', 'event:turn-ended']]);
-		expect(hops('event:2')).toEqual([['agents', 'event:job-run']]);
-		expect(hops('event:3')).toEqual([['git', 'event:other']]);
-		expect(hops('event:4')).toEqual([['github', 'event:pull-request']]);
-		expect(hops('decision:wake')).toEqual([['event:turn-ended', 'listener:reconciler']]);
-		expect(hops('turn:lead-wake')).toEqual([['listener:reconciler', 'chats']]);
+		expect(hops('event:1')).toEqual([
+			['agents', 'event:turn-finished'],
+			['event:turn-finished', 'reconciler'],
+		]);
+		expect(hops('event:2')).toEqual([
+			['agents', 'event:job-finished'],
+			['event:job-finished', 'reconciler'],
+		]);
+		expect(hops('event:3')).toEqual([
+			['git', 'event:other'],
+			['event:other', 'reconciler'],
+		]);
+		expect(hops('event:4')).toEqual([
+			['malini', 'event:other'],
+			['event:other', 'reconciler'],
+		]);
+		expect(hops('decision:wake')).toEqual([['reconciler', 'listener:model']]);
+		expect(hops('turn:lead-wake')).toEqual([['listener:model', 'chats']]);
 		expect(hops('run:announce')).toEqual([
-			['event:job-run', 'listener:triggers'],
+			['reconciler', 'listener:triggers'],
 			['listener:triggers', 'jobs'],
 		]);
+		expect(hops('run:notes')).toEqual([
+			['reconciler', 'listener:thens'],
+			['listener:thens', 'jobs'],
+		]);
+		expect(hops('run:orphan')).toEqual([['jobs', 'jobs']]);
 		expect(hops('run:fix')).toEqual([
 			['github', 'listener:merge-queue'],
 			['listener:merge-queue', 'jobs'],
@@ -195,15 +214,16 @@ describe('explorer', () => {
 		]);
 		const column = (node: string): number => {
 			if (node.startsWith('event:')) return 1;
-			if (node.startsWith('listener:')) return 2;
-			return node === 'chats' || node === 'jobs' ? 3 : 0;
+			if (node === 'reconciler') return 2;
+			if (node.startsWith('listener:')) return 3;
+			return node === 'chats' || node === 'jobs' ? 4 : 0;
 		};
 		expect(
 			map.items.flatMap((item) => item.hops).filter(([from, to]) => column(from) > column(to)),
 		).toEqual([]);
 	});
 
-	it('takes a merge queue run from the read of GitHub that caused it, and the read from the work it is about', () => {
+	it('takes a merge queue run from its own read of GitHub, and logs the read for the work it is about', () => {
 		const map = explorer({
 			...RECORD,
 			events: [
@@ -220,34 +240,42 @@ describe('explorer', () => {
 		expect(map.byId.get('run:fix')).toMatchObject({
 			cause: 'event:5',
 			hops: [
-				['event:pull-request', 'listener:merge-queue'],
+				['github', 'listener:merge-queue'],
 				['listener:merge-queue', 'jobs'],
 			],
 		});
 		expect(map.byId.get('event:5')).toMatchObject({
 			cause: 'turn:api-turn',
-			hops: [['github', 'event:pull-request']],
+			hops: [
+				['github', 'event:pull-request-changed'],
+				['event:pull-request-changed', 'reconciler'],
+			],
 		});
 		expect(listed(map, false).map((item) => item.id)).toContain('event:5');
 	});
 
-	it('counts every event of the window, and what each part started', () => {
+	it('counts every event of the window, each one through the reconciler, and what each part started', () => {
 		const map = explorer(RECORD);
 
-		expect(map.counts.get('event:turn-ended')).toBe(5);
-		expect(map.counts.get('event:other')).toBe(9);
+		expect(map.counts.get('event:turn-finished')).toBe(5);
+		expect(map.counts.get('event:job-finished')).toBe(1);
+		expect(map.counts.get('event:other')).toBe(10);
 		expect(map.counts.get('agents')).toBe(6);
 		expect(map.counts.get('git')).toBe(9);
-		expect(map.counts.get('github')).toBe(1);
+		expect(map.counts.get('malini')).toBe(1);
+		expect(map.counts.get('reconciler')).toBe(16);
 		expect(map.counts.get('chats')).toBe(4);
-		expect(map.counts.get('jobs')).toBe(5);
+		expect(map.counts.get('jobs')).toBe(6);
 		expect(map.counts.get('you')).toBe(1);
 		expect(map.counts.get('clock')).toBe(1);
-		expect(map.counts.get('listener:reconciler')).toBe(1);
+		expect(map.counts.get('listener:model')).toBe(1);
+		expect(map.counts.get('listener:triggers')).toBe(1);
+		expect(map.counts.get('listener:thens')).toBe(1);
 		expect(map.counts.get('listener:merge-queue')).toBe(1);
 		expect(map.counts.get('listener:resume')).toBe(1);
-		expect(map.wires.get('agents>event:turn-ended')).toBe(1);
-		expect(map.wires.get('listener:thens>jobs')).toBe(1);
+		expect(map.wires.get('agents>event:turn-finished')).toBe(1);
+		expect(map.wires.get('event:turn-finished>reconciler')).toBe(1);
+		expect(map.wires.get('reconciler>listener:thens')).toBe(1);
 	});
 
 	it('lists the facts unless asked for every event, and follows a chain or a part', () => {
@@ -259,7 +287,16 @@ describe('explorer', () => {
 		expect(ids(listed(map, false))).toContain('event:4');
 		expect(ids(listed(map, true))).toHaveLength(map.items.length);
 		expect(ids(chainItems(map, 'other'))).toEqual(['event:4', 'run:orphan', 'turn:resumed']);
-		expect(ids(through(map, 'listener:reconciler'))).toEqual(['decision:wake', 'turn:lead-wake']);
+		expect(ids(through(map, 'listener:model'))).toEqual(['decision:wake', 'turn:lead-wake']);
+		expect(ids(through(map, 'reconciler'))).toEqual([
+			'event:3',
+			'event:1',
+			'decision:wake',
+			'event:2',
+			'run:announce',
+			'run:notes',
+			'event:4',
+		]);
 	});
 
 	it('knows what was working, and what waited, at any moment', () => {

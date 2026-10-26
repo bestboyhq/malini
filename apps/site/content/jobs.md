@@ -30,7 +30,7 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
   It also lists your jobs, each with its When, its last run, and a switch.
   The jobs Malini [suggests](#suggested-jobs) and a few recipes sit there too.
 - **Activity**: what waits for you, what is running, and every run by day, job runs and chat turns alike, each holding the calls its agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
-  **Waiting for you** holds the runs that ask you first, the runs that need you, and what [Reconcile events](#reconcile-events) asks you.
+  **Waiting for you** holds the runs that ask you first, the runs that need you, and what [Reconcile events](#reconciler) asks you.
   Each thing Reconcile events did shows as an **Event** row, which opens to what Malini saw and what it could have done.
 - **Explorer**: a [map of Malini](#explorer) and a timeline of events, to replay the last hour or day and follow what caused what.
 - **Recipes**: ready-made jobs to start from.
@@ -136,9 +136,10 @@ A Then runs through the queue like any other job, so the job that finished never
 
 ### Events or Then
 
-A job emits `jobs:run-changed` each time its run waits for you, is queued, starts, needs you, or finishes.
-Trigger other jobs on it, such as `on jobs:run-changed where run.status is failed`, or use Then for the planned next step.
-A run never starts a job that already ran earlier in its own chain, so a trigger on `jobs:run-changed` cannot loop.
+A job emits `jobs:run-started` when its run starts, and `jobs:run-finished` once when it ends, with its `status`: `succeeded`, `failed` or `cancelled`.
+Trigger other jobs on it, such as `on jobs:run-finished where run.status is failed`, or use Then for the planned next step.
+A run never starts a job that already ran earlier in its own chain, so a trigger on `jobs:run-finished` cannot loop.
+`jobs:run-changed` still fires for every status a run moves through, but the event log keeps only the start and the finish.
 
 ### Chains and repeats
 
@@ -176,10 +177,11 @@ Settings decides how many jobs run at once.
 It also picks when **Update from main** runs: as main moves, when you open the workstream, or only when you merge.
 With many workstreams open, the last two keep Malini from starting an update in every one of them at once.
 
-## Reconcile events
+## Reconciler
 
-A trigger is a rule you wrote, and it handles the events it names.
-**Reconcile events** looks at what no trigger handled and may need a hand:
+The **Reconciler** is the middleman between an event and what reacts to it: every event Malini logs passes through it.
+It hands each event to the rules first: your triggers, which handle the events they name, and the Then of a job that finished.
+After the rules, the job **Reconcile events** looks at what no trigger handled and may need a hand:
 
 - a turn ends in a workstream a chat started,
 - a job a chat ran finishes or fails,
@@ -201,20 +203,24 @@ Turn it off in Settings, Jobs, **Reconcile events**.
 
 ## Explorer
 
-**Explorer** draws Malini from left to right, the way events flow: the sources they come from, the event log that keeps them, the listeners that react, and the chats and jobs they start.
+**Explorer** draws Malini from left to right, the way events flow: the sources they come from, the event log that keeps them, the [Reconciler](#reconciler) every logged event passes through, the handlers that react, and the chats and jobs they start.
 Every wire points right, so nothing flows back.
 The event sources are **You**, with your prompts and clicks, the **Agents** in your chats and jobs, **Git**, **GitHub**, **Malini** itself, and the **Clock** that runs schedules.
-What an agent does, such as ending a turn, enters again on the left as an event from **Agents**, so the work a listener starts can set off the next step.
-Each kind of event has a row in the event log with how many happened, and each listener shows what it started: Reconcile events, your triggers, Thens, the merge queue, **Resume**, which picks up the turns a restart cut short, and schedules.
-Your prompts reach your chats and jobs straight along the top, and what reaches a listener without an event, a restart or the clock, passes under the event log.
-The merge queue polls pull requests on GitHub, and each read that finds something new becomes a **Pull request** event, so every job the queue starts comes from that event, on the map and in its chain.
-A wire from GitHub under the event log marks a job it started without one, such as **Update from main** in a workstream with no pull request.
+What an agent does, such as finishing a turn, enters again on the left as an event from **Agents**, so the work a handler starts can set off the next step.
+
+Every event is named for what it is about and what happened to it: **Turn finished**, **Tool called**, **Job started**, **Job finished**, **Head moved**, **Branch pushed**, **Merge conflicted**, **Pull request changed**, **Workstream created** and **Workstream archived** each have a row in the event log with how many happened, and **Other** holds the rest.
+In a list, an event starts with that name, such as "Job finished: Fix checks".
+
+From the Reconciler, events go to your triggers, Thens and **Reconcile events**, and each handler shows what it started.
+Three handlers act on their own, so their wires pass under the event log: the merge queue polls GitHub, **Resume** picks up the turns a restart cut short, and schedules follow the clock.
+Each read of GitHub that finds something new also becomes a **Pull request changed** event, and every job the merge queue starts names the latest one as its cause.
+Your prompts reach your chats and jobs straight along the top.
 
 **Play** replays the last hour, 6 hours or 24 hours: a dot travels along the wires for each event, and **Chats** and **Jobs** show what was working at that moment.
 The timeline of events under the map scrubs to any moment.
 Click an event to follow its chain: its route lights up on the map, and its steps list in order, each with why it happened.
 Click a part of the map to list what passed through it.
-**Every event** adds the rest, such as file changes and each status a run moves through.
+**Every event** adds the rest, such as file changes, tool calls, and jobs starting and finishing.
 A chat turn or a job run opens its transcript.
 
 Only words carry color: failed is red, needs you is amber, merged is purple.
@@ -234,7 +240,7 @@ Blue marks what moves and what you picked.
 | **Update docs**         | Brings a repository's user-facing docs up to date with its code, in a new workstream. Its Then is **Open draft**.                                                                          |
 | **Open draft**          | Commits the workstream's changes, pushes its branch, and opens a draft pull request, without an agent. With a pull request already open, it pushes to it.                                  |
 | **Merge**               | Queues the workstream's pull request to merge, without an agent, the same way **Merge** in the top bar does.                                                                               |
-| **Reconcile events**    | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconcile events](#reconcile-events).                                                           |
+| **Reconcile events**    | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconciler](#reconciler).                                                                       |
 
 **Update docs**, **Open draft**, and **Merge** take a When and a Then like your own jobs.
 Malini decides when the others run, and their Then stays as it is.

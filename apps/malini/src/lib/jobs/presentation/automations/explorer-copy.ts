@@ -6,6 +6,7 @@ import {
 	EVENT_ROWS,
 	LISTENERS,
 	SOURCES,
+	eventRow,
 	type EventRow,
 	type Explorer,
 	type ExplorerItem,
@@ -20,22 +21,23 @@ export type Look = Readonly<{ label: string; icon: IconName }>;
 export type Mark = Readonly<{ label: string; tone: string }>;
 
 export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
-	'turn-ended': { label: 'Turn ended', icon: 'chat' },
+	'turn-finished': { label: 'Turn finished', icon: 'chat' },
 	'tool-called': { label: 'Tool called', icon: 'plug' },
-	committed: { label: 'Committed', icon: 'commit' },
-	pushed: { label: 'Pushed', icon: 'arrow-up' },
-	conflicted: { label: 'Conflicts', icon: 'swap' },
-	'pull-request': { label: 'Pull request', icon: 'pr-open' },
-	'workstream-started': { label: 'New workstream', icon: 'folder-plus' },
-	'workstream-archived': { label: 'Archived', icon: 'archive' },
-	'job-run': { label: 'Job run', icon: 'wrench' },
+	'job-started': { label: 'Job started', icon: 'play' },
+	'job-finished': { label: 'Job finished', icon: 'check' },
+	'head-moved': { label: 'Head moved', icon: 'commit' },
+	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
+	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
+	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
+	'workstream-created': { label: 'Workstream created', icon: 'folder-plus' },
+	'workstream-archived': { label: 'Workstream archived', icon: 'archive' },
 	other: { label: 'Other', icon: 'more' },
 };
 
 export const LISTENER_LABELS: Readonly<Record<Listener, string>> = {
-	reconciler: 'Reconcile events',
 	triggers: 'Your triggers',
 	thens: 'Thens',
+	model: 'Reconcile events',
 	'merge-queue': 'Merge queue',
 	schedules: 'Schedules',
 	resume: 'Resume',
@@ -74,61 +76,60 @@ const SHIP_STEPS: Readonly<Record<ShipStep, string>> = {
 	archiving: 'archives the workstream',
 };
 
-type EventTitle = (payload: Readonly<Record<string, unknown>>) => string;
+type Payload = Readonly<Record<string, unknown>>;
 
-const EVENT_TITLES: Readonly<Record<string, EventTitle>> = {
-	'chat:turn-finished': (payload) => {
-		if (payload['status'] === 'failed') return 'Turn failed';
-		if (payload['status'] === 'cancelled') return 'Turn stopped';
-		const outcome = text(payload['outcome']);
-		return outcome ? `Turn ended: ${outcome}` : 'Turn ended';
-	},
-	'chat:session-renamed': (payload) => `Chat named “${text(payload['name']) ?? 'a chat'}”`,
-	'chat:run-changes-captured': () => 'Changes of a turn recorded',
-	'repositories:workstream-head-moved': (payload) => `Committed ${sha(payload['head'])}`,
-	'repositories:workstream-pushed': (payload) => `Pushed ${sha(payload['head'])} to origin`,
-	'repositories:workstream-merge-conflicted': (payload) => {
-		const paths = Array.isArray(payload['conflictedPaths']) ? payload['conflictedPaths'].length : 0;
-		return `Merge stopped on conflicts in ${paths} ${paths === 1 ? 'file' : 'files'}`;
-	},
-	'repositories:workstream-created': () => 'Workstream started',
+const INSTALL_VERBS: ReadonlyMap<string, string> = new Map([
+	['running', 'started'],
+	['succeeded', 'finished'],
+	['failed', 'failed'],
+	['skipped', 'skipped'],
+	['aborted', 'stopped'],
+]);
+
+const EVENT_NAMES: Readonly<Record<string, (payload: Payload) => string>> = {
+	'chat:session-renamed': () => 'Chat renamed',
+	'chat:run-changes-captured': () => 'Changes captured',
+	'chat:mcp-server-changed': () => 'MCP server changed',
 	'repositories:workstream-removed': (payload) =>
-		payload['archived'] === true ? 'Workstream archived' : 'Workstream removed',
-	'repositories:workstream-renamed': (payload) =>
-		`Workstream named “${text(payload['name']) ?? 'a workstream'}”`,
-	'repositories:workstream-files-changed': (payload) => {
-		const paths = Array.isArray(payload['paths']) ? payload['paths'].length : null;
-		return paths === null ? 'Files changed' : `${paths} ${paths === 1 ? 'file' : 'files'} changed`;
-	},
-	'repositories:workstream-setup-status': () => 'Workstream setup moved on',
-	'repositories:workstream-install-status': () => 'Dependencies install moved on',
+		payload['deleted'] === true ? 'Workstream deleted' : 'Workstream archived',
+	'repositories:workstream-files-changed': () => 'Files changed',
+	'repositories:workstream-setup-status': (payload) =>
+		payload['status'] === 'done' ? 'Setup finished' : 'Setup started',
+	'repositories:workstream-install-status': (payload) =>
+		`Install ${INSTALL_VERBS.get(text(payload['status']) ?? '') ?? 'changed'}`,
 	'repositories:changed': () => 'Repositories changed',
-	'pull-requests:ship-changed': shipTitle,
-	'pull-requests:pull-request-changed': pullRequestTitle,
-	'pull-requests:local-base-synced': () => 'Local base branch synced',
-	'jobs:run-changed': (payload) => {
-		const run = record(payload['run']);
-		return `${text(run['title']) ?? 'A job'} ${runVerb(text(run['status']))}`;
-	},
-	'jobs:agent-action-changed': (payload) => {
-		const action = record(payload['action']);
-		return `Called ${text(action['tool']) ?? 'a Malini tool'}`;
-	},
+	'pull-requests:ship-changed': () => 'Shipping changed',
+	'jobs:definition-changed': (payload) =>
+		payload['definition'] === null ? 'Job deleted' : 'Job saved',
+	'jobs:suggested': () => 'Job suggested',
 	'app:updated': () => 'Malini updated',
+	'app:update-staged': () => 'Update downloaded',
 };
 
-const RUN_VERBS: Readonly<Record<string, string>> = {
-	waiting: 'waits for you',
-	queued: 'is queued',
-	running: 'started',
-	'needs-you': 'needs you',
-	succeeded: 'finished',
-	failed: 'failed',
-	cancelled: 'was cancelled',
+const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null>> = {
+	'chat:turn-finished': (payload) => text(payload['outcome']),
+	'chat:session-renamed': (payload) => quoted(payload['name']),
+	'repositories:workstream-renamed': (payload) => quoted(payload['name']),
+	'repositories:workstream-head-moved': (payload) => sha(payload['head']),
+	'repositories:workstream-pushed': (payload) => sha(payload['head']),
+	'repositories:workstream-merge-conflicted': (payload) =>
+		count(strings(payload['conflictedPaths']).length, 'file'),
+	'repositories:workstream-files-changed': (payload) => {
+		const paths = strings(payload['paths']).length;
+		return paths === 0 ? null : count(paths, 'file');
+	},
+	'pull-requests:pull-request-changed': pullRequestDetails,
+	'pull-requests:ship-changed': shipDetails,
+	'jobs:run-started': (payload) => text(record(payload['run'])['title']),
+	'jobs:run-finished': (payload) => text(record(payload['run'])['title']),
+	'jobs:tool-called': (payload) => text(record(payload['action'])['tool']),
+	'app:updated': (payload) => text(payload['to']),
+	'app:update-staged': (payload) => text(payload['version']),
 };
 
 const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
 	...SOURCES.map((source) => [source, SOURCE_LOOKS[source].label] as const),
+	['reconciler', 'Reconciler'],
 	['chats', 'Chats'],
 	['jobs', 'Jobs'],
 	...EVENT_ROWS.map((row) => [`event:${row}`, ROW_LOOKS[row].label] as const),
@@ -159,7 +160,7 @@ export function listenerNote(listener: Listener, jobs: readonly JobDefinitionRec
 		}
 		case 'merge-queue':
 			return 'polls GitHub until it merges';
-		case 'reconciler':
+		case 'model':
 			return 'decides what no rule matched';
 		case 'resume':
 			return 'turns a restart cut short';
@@ -231,6 +232,7 @@ export function itemMark(item: ExplorerItem): Mark | null {
 }
 
 export function itemNote(item: ExplorerItem): string | null {
+	if (item.kind === 'event') return eventNote(item.event);
 	if (item.kind === 'turn') {
 		if (item.turn.status === 'running') return 'working';
 		if (item.turn.status === 'interrupted') return 'interrupted';
@@ -287,13 +289,29 @@ function shortTitle(item: ExplorerItem): string {
 		case 'decision':
 			return 'Reconcile events';
 		case 'event':
-			return ROW_LOOKS[item.row].label.toLocaleLowerCase();
+			return eventName(item.event).toLocaleLowerCase();
 	}
 }
 
 function eventTitle(event: LoggedEventRecord): string {
-	const title = EVENT_TITLES[event.channel];
-	return title ? title(record(event.payload)) : event.channel;
+	const details = EVENT_DETAILS[event.channel]?.(record(event.payload)) ?? null;
+	return details === null ? eventName(event) : `${eventName(event)}: ${details}`;
+}
+
+function eventName(event: LoggedEventRecord): string {
+	const named = EVENT_NAMES[event.channel];
+	if (named) return named(record(event.payload));
+	const row = eventRow(event.channel);
+	if (row !== 'other') return ROW_LOOKS[row].label;
+	const name = event.channel.slice(event.channel.indexOf(':') + 1).replaceAll('-', ' ');
+	return `${name.charAt(0).toLocaleUpperCase()}${name.slice(1)}`;
+}
+
+function eventNote(event: LoggedEventRecord): string | null {
+	const payload = record(event.payload);
+	if (event.channel === 'chat:turn-finished' && payload['status'] === 'cancelled') return 'stopped';
+	if (event.channel !== 'jobs:run-finished') return null;
+	return record(payload['run'])['status'] === 'cancelled' ? 'cancelled' : null;
 }
 
 function eventMark(event: LoggedEventRecord): Mark | null {
@@ -306,37 +324,37 @@ function eventMark(event: LoggedEventRecord): Mark | null {
 		if (payload['status'] === 'failed') return FAILED;
 		return text(payload['needs']) ? NEEDS_YOU : null;
 	}
-	if (event.channel === 'jobs:run-changed') {
+	if (event.channel === 'jobs:run-finished') {
 		return text(record(payload['run'])['status']) === 'failed' ? FAILED : null;
 	}
 	return null;
 }
 
-function shipTitle(payload: Readonly<Record<string, unknown>>): string {
+function shipDetails(payload: Payload): string | null {
 	const merged = record(payload['merged']);
 	if (typeof merged['pullRequestNumber'] === 'number') {
-		return `Pull request #${merged['pullRequestNumber']} merged`;
+		return `#${merged['pullRequestNumber']} merged`;
 	}
 	const state = record(payload['state']);
-	if (payload['state'] === null) return 'Left the merge queue';
+	if (payload['state'] === null) return 'left the merge queue';
 	const step = text(state['step']);
 	const phrase = step === null ? undefined : SHIP_STEP_PHRASES.get(step);
-	if (phrase !== undefined) return `Merge queue ${phrase}`;
-	if (state['phase'] === 'needs-you') return 'Pull request needs you';
-	if (state['phase'] === 'queued') return 'Queued to merge';
-	return state['phase'] === 'draft' ? 'Draft pull request open' : 'Shipping changed';
+	if (phrase !== undefined) return `the merge queue ${phrase}`;
+	if (state['phase'] === 'needs-you') return 'needs you';
+	if (state['phase'] === 'queued') return 'queued to merge';
+	return state['phase'] === 'draft' ? 'draft pull request open' : null;
 }
 
-function pullRequestTitle(payload: Readonly<Record<string, unknown>>): string {
+function pullRequestDetails(payload: Payload): string {
 	const name = pullRequestName(payload);
-	if (payload['state'] === 'merged') return `${name} merged on GitHub`;
-	if (payload['state'] === 'closed') return `${name} closed on GitHub`;
-	const shown = payload['state'] === 'draft' ? `Draft ${name}` : name;
+	if (payload['state'] === 'merged') return `${name} merged`;
+	if (payload['state'] === 'closed') return `${name} closed`;
+	const shown = payload['state'] === 'draft' ? `draft ${name}` : name;
 	const facts = pullRequestFacts(payload);
-	return facts.length === 0 ? `${shown} open on GitHub` : `${shown}: ${facts.join(', ')}`;
+	return facts.length === 0 ? `${shown} open` : `${shown}, ${facts.join(', ')}`;
 }
 
-function pullRequestFacts(payload: Readonly<Record<string, unknown>>): string[] {
+function pullRequestFacts(payload: Payload): string[] {
 	const base = text(payload['baseBranch']) ?? 'its base';
 	const behind = whole(payload['behindBase']);
 	const threads = whole(payload['unresolvedThreads']);
@@ -358,7 +376,7 @@ function failedChecks(names: readonly string[]): string {
 	return names.length === 0 ? 'checks failed' : `${count(names.length, 'check')} failed`;
 }
 
-function pullRequestName(payload: Readonly<Record<string, unknown>>): string {
+function pullRequestName(payload: Payload): string {
 	const number = payload['pullRequestNumber'];
 	return typeof number === 'number' ? `#${number}` : 'the pull request';
 }
@@ -372,11 +390,7 @@ function isMerge(event: LoggedEventRecord): boolean {
 	);
 }
 
-function runVerb(status: string | null): string {
-	return (status === null ? null : RUN_VERBS[status]) ?? 'changed';
-}
-
-function record(value: unknown): Readonly<Record<string, unknown>> {
+function record(value: unknown): Payload {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
 		? Object.fromEntries(Object.entries(value))
 		: {};
@@ -386,8 +400,13 @@ function text(value: unknown): string | null {
 	return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-function sha(value: unknown): string {
-	return text(value)?.slice(0, SHORT_SHA) ?? 'a commit';
+function sha(value: unknown): string | null {
+	return text(value)?.slice(0, SHORT_SHA) ?? null;
+}
+
+function quoted(value: unknown): string | null {
+	const name = text(value);
+	return name === null ? null : `“${name}”`;
 }
 
 function whole(value: unknown): number {

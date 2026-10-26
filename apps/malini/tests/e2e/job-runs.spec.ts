@@ -112,7 +112,7 @@ test('a trigger set to Ask me first leaves a waiting run that Run it starts and 
 			name: 'Note it',
 			instructions: 'Hello',
 			trigger: {
-				when: 'on jobs:run-changed where run.title is Poke and run.status is succeeded',
+				when: 'on jobs:run-finished where run.title is Poke and run.status is succeeded',
 				mode: 'ask',
 			},
 		});

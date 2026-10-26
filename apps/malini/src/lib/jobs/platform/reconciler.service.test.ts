@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	CHAT_TURN_FINISHED_CHANNEL,
-	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 	type ChatTurnFinishedPayload,
 } from '$contract/events';
@@ -362,7 +362,7 @@ describe('the event reconciler', () => {
 		};
 		insertJobRun(db, failed, 'Version 2.1');
 		picks.push(3);
-		context.events.emit(JOBS_RUN_CHANGED_CHANNEL, { run: failed });
+		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, { run: failed });
 
 		const [decision] = await decided(1);
 		expect(decision?.candidates.map((candidate) => candidate.label)).toEqual([

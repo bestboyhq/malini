@@ -41,15 +41,16 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 		(builtin, task, job) => replay(builtin, task, job, suggestTitle, choose),
 		log,
 	);
-	const reconciler = new Reconciler(context, log, choose);
 	seedBuiltinJobs(context.db);
 	settleInterruptedAgentActions(context.db, nowIso8601());
+	const triggers = startJobTriggers(context, log);
+	const reconciler = new Reconciler(context, log, choose, {
+		triggers: (event) => triggers.handle(event),
+		thens: (event) => runner.startThen(event),
+	});
 	defineJobCommands(context, runner, experiments, reconciler);
 	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
-	const triggers = startJobTriggers(context, log);
-	const eventLog = startEventLog(context, log, async (event) =>
-		reconciler.consider(event, await triggers.handle(event)),
-	);
+	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
 	const prune = (): void => {
 		try {

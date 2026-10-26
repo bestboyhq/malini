@@ -55,6 +55,7 @@
 	const flashes = new SvelteMap<MapNode, number>();
 
 	const layout = $derived(mapLayout(width));
+	const bar = $derived(place('reconciler'));
 	const wires = $derived(
 		[
 			...new Map(
@@ -77,7 +78,7 @@
 			box: layout.domains.log,
 			label: `event log · ${count(totalEvents(), 'event')}`,
 		},
-		{ key: 'listeners', box: layout.domains.listeners, label: 'listeners · who reacts' },
+		{ key: 'listeners', box: layout.domains.listeners, label: 'handlers · who reacts' },
 		{ key: 'work', box: layout.domains.work, label: 'work · what runs' },
 	]);
 
@@ -166,7 +167,7 @@
 
 	function listenerCount(node: MapNode): string {
 		const value = explorer.counts.get(node) ?? 0;
-		return node === 'listener:reconciler' ? count(value, 'decision') : `${value} started`;
+		return node === 'listener:model' ? count(value, 'decision') : `${value} started`;
 	}
 </script>
 
@@ -343,6 +344,34 @@
 				</Button>
 			</div>
 		{/each}
+
+		<div
+			class="absolute"
+			style:left="{bar.x}px"
+			style:top="{bar.y}px"
+			style:width="{bar.w}px"
+			style:height="{bar.h}px"
+		>
+			<Button
+				bare
+				pressable={false}
+				ariaLabel={`Reconciler: ${count(explorer.counts.get('reconciler') ?? 0, 'event')}`}
+				ariaPressed={selectedNode === 'reconciler'}
+				class={[tone('reconciler'), 'items-center justify-center']}
+				onclick={() => onselectnode('reconciler')}
+				data-testid="explorer-node"
+			>
+				<span class="flex rotate-180 flex-col gap-1 [writing-mode:vertical-rl]">
+					<span class="flex items-center gap-2">
+						<span class="text-fg-default text-xs font-medium">Reconciler</span>
+						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
+							{explorer.counts.get('reconciler') ?? 0}
+						</span>
+					</span>
+					<span class="text-fg-tertiary text-2xs">rules first, then the model</span>
+				</span>
+			</Button>
+		</div>
 
 		{#each LISTENERS as listener (listener)}
 			{@const node = `listener:${listener}` as const}

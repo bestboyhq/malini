@@ -12,14 +12,15 @@ export const SOURCES = ['you', 'agents', 'git', 'github', 'malini', 'clock'] as 
 export type SourceNode = (typeof SOURCES)[number];
 
 export const EVENT_ROWS = [
-	'turn-ended',
+	'turn-finished',
 	'tool-called',
-	'job-run',
-	'committed',
-	'pushed',
-	'conflicted',
-	'pull-request',
-	'workstream-started',
+	'job-started',
+	'job-finished',
+	'head-moved',
+	'branch-pushed',
+	'merge-conflicted',
+	'pull-request-changed',
+	'workstream-created',
 	'workstream-archived',
 	'other',
 ] as const;
@@ -27,9 +28,9 @@ export const EVENT_ROWS = [
 export type EventRow = (typeof EVENT_ROWS)[number];
 
 export const LISTENERS = [
-	'reconciler',
 	'triggers',
 	'thens',
+	'model',
 	'merge-queue',
 	'resume',
 	'schedules',
@@ -39,7 +40,8 @@ export type Listener = (typeof LISTENERS)[number];
 
 export type WorkNode = 'chats' | 'jobs';
 
-export type MapNode = SourceNode | WorkNode | `event:${EventRow}` | `listener:${Listener}`;
+export type MapNode =
+	SourceNode | WorkNode | 'reconciler' | `event:${EventRow}` | `listener:${Listener}`;
 
 export type Hop = readonly [MapNode, MapNode];
 
@@ -76,21 +78,22 @@ export type Working = Readonly<{
 }>;
 
 const ROWS: Readonly<Record<string, EventRow>> = {
-	'chat:turn-finished': 'turn-ended',
-	'repositories:workstream-head-moved': 'committed',
-	'repositories:workstream-pushed': 'pushed',
-	'repositories:workstream-merge-conflicted': 'conflicted',
-	'pull-requests:ship-changed': 'pull-request',
-	'pull-requests:pull-request-changed': 'pull-request',
-	'repositories:workstream-created': 'workstream-started',
+	'chat:turn-finished': 'turn-finished',
+	'jobs:tool-called': 'tool-called',
+	'jobs:run-started': 'job-started',
+	'jobs:run-finished': 'job-finished',
+	'repositories:workstream-head-moved': 'head-moved',
+	'repositories:workstream-pushed': 'branch-pushed',
+	'repositories:workstream-merge-conflicted': 'merge-conflicted',
+	'pull-requests:pull-request-changed': 'pull-request-changed',
+	'repositories:workstream-created': 'workstream-created',
 	'repositories:workstream-removed': 'workstream-archived',
-	'jobs:run-changed': 'job-run',
-	'jobs:agent-action-changed': 'tool-called',
 };
 
 const AGENT_CHANNELS: ReadonlySet<string> = new Set([
-	'jobs:run-changed',
-	'jobs:agent-action-changed',
+	'jobs:tool-called',
+	'jobs:run-started',
+	'jobs:run-finished',
 ]);
 
 const GIT_CHANNELS: ReadonlySet<string> = new Set([
@@ -101,10 +104,7 @@ const GIT_CHANNELS: ReadonlySet<string> = new Set([
 	'pull-requests:local-base-synced',
 ]);
 
-const GITHUB_CHANNELS: ReadonlySet<string> = new Set([
-	'pull-requests:ship-changed',
-	'pull-requests:pull-request-changed',
-]);
+const GITHUB_CHANNELS: ReadonlySet<string> = new Set(['pull-requests:pull-request-changed']);
 
 const STARTERS: ReadonlySet<MapNode> = new Set<MapNode>(['you', 'clock']);
 
@@ -139,7 +139,7 @@ export function explorer(record: TimelineRecord): Explorer {
 		...record.events.map(eventItem),
 		...record.runs.map((run) => runItem(run, record.decisions, events)),
 		...record.turns.map((turn) => turnItem(turn, record.turns, wakes)),
-		...record.decisions.map((decision) => decisionItem(decision, events)),
+		...record.decisions.map(decisionItem),
 	];
 	const known = new Set(drafts.map((item) => item.id));
 	const items = drafts
@@ -209,7 +209,10 @@ function eventItem(event: LoggedEventRecord): ExplorerItem {
 					? runId(event.cause.id)
 					: turnId(event.cause.id),
 		workstreamId: event.workstreamId,
-		hops: [[emitterOf(event.channel), `event:${row}`]],
+		hops: [
+			[emitterOf(event.channel), `event:${row}`],
+			[`event:${row}`, 'reconciler'],
+		],
 	};
 }
 
@@ -240,22 +243,21 @@ function runItem(
 			(trigger === undefined ? null : eventId(trigger.id)) ??
 			(run.chatAfterRunId === null ? null : turnId(run.chatAfterRunId)),
 		workstreamId: run.workstreamId,
-		hops: runHops(run, trigger ?? null),
+		hops: runHops(run),
 	};
 }
 
-function runHops(run: TimelineJobRun, trigger: LoggedEventRecord | null): Hop[] {
+function runHops(run: TimelineJobRun): Hop[] {
 	switch (run.origin) {
 		case 'trigger':
-			return trigger === null
-				? [['listener:triggers', 'jobs']]
-				: [
-						[`event:${eventRow(trigger.channel)}`, 'listener:triggers'],
-						['listener:triggers', 'jobs'],
-					];
-		case 'then':
 			return [
-				['event:job-run', 'listener:thens'],
+				['reconciler', 'listener:triggers'],
+				['listener:triggers', 'jobs'],
+			];
+		case 'then':
+			if (run.eventIds.length === 0) return [['jobs', 'jobs']];
+			return [
+				['reconciler', 'listener:thens'],
 				['listener:thens', 'jobs'],
 			];
 		case 'schedule':
@@ -265,14 +267,11 @@ function runHops(run: TimelineJobRun, trigger: LoggedEventRecord | null): Hop[] 
 			];
 		case 'merge-queue':
 			return [
-				[
-					trigger === null ? 'github' : `event:${eventRow(trigger.channel)}`,
-					'listener:merge-queue',
-				],
+				['github', 'listener:merge-queue'],
 				['listener:merge-queue', 'jobs'],
 			];
 		case 'reconciler':
-			return [['listener:reconciler', 'jobs']];
+			return [['listener:model', 'jobs']];
 		case 'manual':
 			if (run.chatAfterRunId !== null) return [['chats', 'jobs']];
 			return run.parentRunId === null ? [['you', 'jobs']] : [['jobs', 'jobs']];
@@ -325,15 +324,11 @@ function turnHops(turn: TimelineChatTurn): Hop[] {
 			['listener:resume', 'chats'],
 		];
 	}
-	if (turn.causeEventId !== null) return [['listener:reconciler', 'chats']];
+	if (turn.causeEventId !== null) return [['listener:model', 'chats']];
 	return turn.from === null ? [['you', 'chats']] : [['chats', 'chats']];
 }
 
-function decisionItem(
-	decision: ReconcilerDecisionRecord,
-	events: ReadonlyMap<number, LoggedEventRecord>,
-): ExplorerItem {
-	const event = events.get(decision.eventId);
+function decisionItem(decision: ReconcilerDecisionRecord): ExplorerItem {
 	return {
 		id: decisionId(decision.id),
 		kind: 'decision',
@@ -343,7 +338,7 @@ function decisionItem(
 		chainId: decision.chainId,
 		cause: eventId(decision.eventId),
 		workstreamId: decision.workstreamId,
-		hops: event === undefined ? [] : [[`event:${eventRow(event.channel)}`, 'listener:reconciler']],
+		hops: [['reconciler', 'listener:model']],
 	};
 }
 
@@ -358,13 +353,14 @@ function countNodes(
 	for (const [channel, total] of Object.entries(channelCounts)) {
 		add(`event:${eventRow(channel)}`, total);
 		add(emitterOf(channel), total);
+		add('reconciler', total);
 	}
 	for (const item of items) {
 		if (item.kind === 'turn') add('chats');
 		if (item.kind === 'run') add('jobs');
-		if (item.kind === 'decision') add('listener:reconciler');
+		if (item.kind === 'decision') add('listener:model');
 		for (const [from] of item.hops) {
-			if (STARTERS.has(from) || (from.startsWith('listener:') && from !== 'listener:reconciler')) {
+			if (STARTERS.has(from) || (from.startsWith('listener:') && from !== 'listener:model')) {
 				add(from);
 			}
 		}

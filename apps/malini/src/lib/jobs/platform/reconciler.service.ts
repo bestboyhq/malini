@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
 	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_DECISION_CHANGED_CHANNEL,
-	JOBS_RUN_CHANGED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 } from '$contract/events';
 import {
@@ -78,10 +78,16 @@ const WAKE_RETRIES = 20;
 
 type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 
+export type ReconcilerRules = Readonly<{
+	triggers: (event: DispatchedEvent) => Promise<boolean>;
+	thens: (event: DispatchedEvent) => Promise<void>;
+}>;
+
 export class Reconciler {
 	readonly #context: MainContext;
 	readonly #log: (line: string) => void;
 	readonly #choose: ChooseWithJob;
+	readonly #rules: ReconcilerRules;
 	readonly #queue = new Map<string, QueuedEvent>();
 	readonly #flushing = new Set<string>();
 	readonly #wakeRetries = new Map<string, number>();
@@ -90,10 +96,16 @@ export class Reconciler {
 	#unsubscribe: (() => void) | null = null;
 	#stopped = false;
 
-	constructor(context: MainContext, log: (line: string) => void, choose: ChooseWithJob) {
+	constructor(
+		context: MainContext,
+		log: (line: string) => void,
+		choose: ChooseWithJob,
+		rules: ReconcilerRules,
+	) {
 		this.#context = context;
 		this.#log = log;
 		this.#choose = choose;
+		this.#rules = rules;
 	}
 
 	start(): void {
@@ -127,7 +139,12 @@ export class Reconciler {
 		this.#timers.clear();
 	}
 
-	consider(event: DispatchedEvent, matched: boolean): Promise<void> {
+	async handle(event: DispatchedEvent): Promise<void> {
+		const [triggered] = await Promise.all([this.#rules.triggers(event), this.#rules.thens(event)]);
+		await this.#consider(event, triggered);
+	}
+
+	#consider(event: DispatchedEvent, matched: boolean): Promise<void> {
 		const key = matched || event.id === null || this.#stopped ? null : subjectKey(event);
 		if (key === null) return Promise.resolve();
 		return new Promise((done) => {
@@ -378,7 +395,7 @@ export class Reconciler {
 		switch (event.channel) {
 			case CHAT_TURN_FINISHED_CHANNEL:
 				return this.#turnSituation(event.payload, chainId);
-			case JOBS_RUN_CHANGED_CHANNEL:
+			case JOBS_RUN_FINISHED_CHANNEL:
 				return this.#jobRunSituation(event.payload, chainId);
 			case REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL:
 				return this.#conflictSituation(event, chainId);
@@ -571,7 +588,7 @@ function subjectKey(event: DispatchedEvent): string | null {
 		const sessionId = findString(payload, 'sessionId');
 		return sessionId === null ? null : `turn:${sessionId}`;
 	}
-	if (channel === JOBS_RUN_CHANGED_CHANNEL) {
+	if (channel === JOBS_RUN_FINISHED_CHANNEL) {
 		const run = isRecord(payload) ? payload['run'] : null;
 		const status = isRecord(run) ? run['status'] : null;
 		const origin = isRecord(run) ? run['origin'] : null;

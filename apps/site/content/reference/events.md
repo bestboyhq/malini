@@ -409,7 +409,81 @@ type PullRequestChangedEvent = Readonly<{
 
 ## `jobs:run-changed`
 
-Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled.
+Fires whenever a job run waits for you, is queued, starts, needs you, or finishes as succeeded, failed or cancelled. Malini does not keep it in its event log: it keeps `jobs:run-started` and `jobs:run-finished`.
+
+Payload: `JobRunChangedEvent`
+
+```ts
+type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+
+type JobRunStatus =
+	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+
+type JobRunRecord = Readonly<{
+	id: string;
+	definitionId: string;
+	title: string;
+	workstreamId: string | null;
+	repositoryId: string | null;
+	scope: string | null;
+	sessionId: string | null;
+	agentRunId: string | null;
+	origin: JobRunOrigin;
+	status: JobRunStatus;
+	detail: string | null;
+	parentRunId: string | null;
+	chatSessionId: string | null;
+	chatAfterRunId: string | null;
+	chainId: string;
+	requests: number;
+	createdAt: string;
+	startedAt: string | null;
+	finishedAt: string | null;
+}>;
+
+type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
+```
+
+## `jobs:run-started`
+
+Fires when a job run starts working, with the run; a run Malini puts back in the queue fires it again when it starts again.
+
+Payload: `JobRunChangedEvent`
+
+```ts
+type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+
+type JobRunStatus =
+	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
+
+type JobRunRecord = Readonly<{
+	id: string;
+	definitionId: string;
+	title: string;
+	workstreamId: string | null;
+	repositoryId: string | null;
+	scope: string | null;
+	sessionId: string | null;
+	agentRunId: string | null;
+	origin: JobRunOrigin;
+	status: JobRunStatus;
+	detail: string | null;
+	parentRunId: string | null;
+	chatSessionId: string | null;
+	chatAfterRunId: string | null;
+	chainId: string;
+	requests: number;
+	createdAt: string;
+	startedAt: string | null;
+	finishedAt: string | null;
+}>;
+
+type JobRunChangedEvent = Readonly<{ run: JobRunRecord }>;
+```
+
+## `jobs:run-finished`
+
+Fires once when a job run ends, with the run and its `status`: `succeeded`, `failed` or `cancelled`. A job runs after another on it, such as `on jobs:run-finished where run.status is failed`.
 
 Payload: `JobRunChangedEvent`
 
@@ -552,7 +626,35 @@ type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
 
 ## `jobs:agent-action-changed`
 
-Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.
+Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome. Malini does not keep it in its event log: it keeps `jobs:tool-called`.
+
+Payload: `AgentActionChangedEvent`
+
+```ts
+type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
+
+type AgentActionApproval = 'not-needed' | 'allowed' | 'always-allowed' | 'denied';
+
+type AgentActionRecord = Readonly<{
+	id: string;
+	sessionId: string;
+	runId: string;
+	workstreamId: string | null;
+	tool: string;
+	input: Readonly<Record<string, unknown>>;
+	status: AgentActionStatus;
+	approval: AgentActionApproval;
+	output: string | null;
+	startedAt: string;
+	finishedAt: string | null;
+}>;
+
+type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
+```
+
+## `jobs:tool-called`
+
+Fires once when an agent calls one of Malini's tools, with the tool, its input and whether the call needed your yes.
 
 Payload: `AgentActionChangedEvent`
 
