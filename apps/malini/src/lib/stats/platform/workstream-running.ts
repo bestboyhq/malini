@@ -24,6 +24,14 @@ import {
 	type OpenBackgroundCommand,
 } from '$lib/chat/chat.platform';
 import { listWorkstreams } from '$shared/repositories/repositories.platform';
+import {
+	leftoverContainers,
+	leftoverProcesses,
+	parseProcessList,
+	PROCESS_LIST_ARGS,
+	stopProcesses,
+	type LeftoverPlace,
+} from './leftovers';
 import { dockerRunning, parseDockerInspect, type DockerContainer } from './running-docker';
 import {
 	commandDetail,
@@ -164,6 +172,36 @@ export class WorkstreamRunningMonitor {
 		if (failed) {
 			const reason: unknown = failed.reason;
 			throw reason;
+		}
+	}
+
+	async stopLeftovers(place: LeftoverPlace): Promise<void> {
+		const [listed, containers] = await Promise.all([
+			this.#readTool('ps', PROCESS_LIST_ARGS),
+			this.#scanContainers(),
+		]);
+		const pids = leftoverProcesses(parseProcessList(listed), place, process.pid);
+		const containerIds = leftoverContainers(containers, place);
+		const [processes, ...stopped] = await Promise.all([
+			stopProcesses(pids, (pid) => this.#deps.runner.processIsAlive(pid)),
+			...containerIds.map((containerId) => this.#stopLeftoverContainer(containerId)),
+		]);
+		const containersStopped = stopped.filter(Boolean).length;
+		if (processes + containersStopped === 0) return;
+		const where = place.folders.map(({ path }) => path).join(', ');
+		console.warn(
+			`malini: stopped ${processes} processes and ${containersStopped} containers left running in ${where}`,
+		);
+		await this.refresh(containersStopped > 0);
+	}
+
+	async #stopLeftoverContainer(containerId: string): Promise<boolean> {
+		try {
+			await this.#stopTarget({ origin: 'docker', containerId });
+			return true;
+		} catch (error) {
+			console.warn(`malini: could not stop a leftover container: ${describeError(error)}`);
+			return false;
 		}
 	}
 

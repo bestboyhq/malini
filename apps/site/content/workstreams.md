@@ -58,7 +58,9 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 - **Recently archived**, at the bottom of the sidebar, lists archived workstreams, newest first.
   Drag its top edge to make it taller, or click **Show all**.
   Click one to restore it, or open the pull request it merged.
-  Archiving stops the commands its agents left running in the background.
+  Archiving stops everything still running from its folder: the commands its agents left in the background, what those commands started and let go, and its Docker Compose containers.
+  A command you run in your own terminal keeps running.
+  When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
 - The clock beside a workstream's archive button saves it for later.
   Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout.
   It waits in its repository's scratchpad instead of **Recently archived**.

@@ -76,16 +76,15 @@
 	let revealedLength = $state(initialPlayback.revealedLength);
 	let latestSource = '';
 	let draining = untrack(() => complete && initialPlayback.revealedLength < text.length);
-	let revealFrame: number | null = null;
-	let revealAt = 0;
+	let revealTimer: ReturnType<typeof setTimeout> | null = null;
 	let settleTimer: ReturnType<typeof setTimeout> | null = null;
 	let measuredWidth = 0;
 	let measureText: TextWidthMeasurer = (value) => value.length * FALLBACK_CHARACTER_WIDTH_PX;
 
 	function stopTimer(): void {
-		if (revealFrame !== null) cancelAnimationFrame(revealFrame);
+		if (revealTimer !== null) clearTimeout(revealTimer);
 		if (settleTimer !== null) clearTimeout(settleTimer);
-		revealFrame = null;
+		revealTimer = null;
 		settleTimer = null;
 	}
 
@@ -119,18 +118,11 @@
 	}
 
 	function scheduleNextLine(): void {
-		if (revealFrame !== null || settleTimer !== null) return;
-		revealAt = performance.now() + revealDelay();
-		revealFrame = requestAnimationFrame(revealWhenDue);
-	}
-
-	function revealWhenDue(now: number): void {
-		if (now < revealAt) {
-			revealFrame = requestAnimationFrame(revealWhenDue);
-			return;
-		}
-		revealFrame = null;
-		revealNextLine();
+		if (revealTimer !== null || settleTimer !== null) return;
+		revealTimer = setTimeout(() => {
+			revealTimer = null;
+			revealNextLine();
+		}, revealDelay());
 	}
 
 	function revealNextLine(): void {

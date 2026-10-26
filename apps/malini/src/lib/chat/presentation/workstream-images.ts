@@ -1,4 +1,4 @@
-import { workstreamImagePath } from '$lib/chat/domain/turn-report';
+import { mediaKind, workstreamImagePath } from '$lib/chat/domain/turn-report';
 
 export const WORKSTREAM_IMAGE_ATTRIBUTE = 'data-workstream-image';
 
@@ -17,7 +17,7 @@ export function holdWorkstreamImagesIn(root: ParentNode): boolean {
 		image.setAttribute('decoding', 'async');
 		const path = workstreamImagePath(image.getAttribute('src') ?? '');
 		if (path === null) continue;
-		image.setAttribute(WORKSTREAM_IMAGE_ATTRIBUTE, path);
+		if (mediaKind(path) !== 'page') image.setAttribute(WORKSTREAM_IMAGE_ATTRIBUTE, path);
 		image.removeAttribute('src');
 		held = true;
 	}
