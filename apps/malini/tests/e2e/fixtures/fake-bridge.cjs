@@ -586,6 +586,21 @@ const stopBackgroundCommand = (sessionId) => {
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
+const CHOICE_FILE = nodePath.join(env.HOME || '/tmp', 'malini-choice.txt');
+
+function fakePick(prompt, choices) {
+	let wanted = '';
+	try {
+		wanted = fs.readFileSync(CHOICE_FILE, 'utf8').trim();
+	} catch {
+		return 1;
+	}
+	if (/^\d+$/.test(wanted)) return Math.min(Math.max(Number(wanted), 1), choices);
+	const lines = String(prompt).split('\n');
+	const candidates = lines.slice(lines.lastIndexOf('Candidates:') + 1);
+	const index = candidates.findIndex((line) => /^\d+\. /.test(line) && line.includes(wanted));
+	return index === -1 ? 1 : Math.min(index + 1, choices);
+}
 const FIXTURE_SKILLS = [
 	{
 		name: 'animate',
@@ -1039,6 +1054,15 @@ const respond = async (sessionId, runId, prompt) => {
 				' is built.\nNeeds: nothing',
 		);
 	}
+	const turnOutcome = /TURN_OUTCOME="([^"]+)"/.exec(prompt);
+	if (turnOutcome) {
+		const report =
+			'Outcome: ' +
+			turnOutcome[1] +
+			'\nNeeds: ' +
+			(/TURN_NEEDS="([^"]+)"/.exec(prompt)?.[1] ?? 'nothing');
+		return completeRun(sessionId, runId, report, [], [], '\n\n' + report);
+	}
 	if (prompt.includes('CHAT_TURN_REPORT')) {
 		return completeRun(
 			sessionId,
@@ -1375,6 +1399,15 @@ const handle = (command) => {
 				id: command.id,
 				title,
 			});
+			return ack(command.id);
+		}
+		case 'choose': {
+			const pick = fakePick(command.prompt, command.choices);
+			fs.appendFileSync(
+				nodePath.join(env.HOME || '/tmp', 'malini-choices.jsonl'),
+				JSON.stringify({ prompt: command.prompt, choices: command.choices, pick }) + '\n',
+			);
+			write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick });
 			return ack(command.id);
 		}
 		case 'browser_result': {

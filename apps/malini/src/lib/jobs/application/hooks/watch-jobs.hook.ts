@@ -4,6 +4,7 @@ import { jobDefinitionsAggregate } from '$lib/jobs/infrastructure/aggregates/job
 import { jobExperimentsAggregate } from '$lib/jobs/infrastructure/aggregates/job-experiments.aggregate.svelte';
 import { jobRunsAggregate } from '$lib/jobs/infrastructure/aggregates/job-runs.aggregate.svelte';
 import { jobSuggestionsAggregate } from '$lib/jobs/infrastructure/aggregates/job-suggestions.aggregate.svelte';
+import { reconcilerDecisionsAggregate } from '$lib/jobs/infrastructure/aggregates/reconciler-decisions.aggregate.svelte';
 import { jobEventsService } from '$lib/jobs/infrastructure/services/job-events.service';
 
 let watchers = 0;
@@ -28,6 +29,7 @@ export function watchJobsHook(): () => void {
 			const inJob = jobRunsAggregate.runs.some((run) => run.sessionId === action.sessionId);
 			if (!inJob) chatTurnsAggregate.include(action.runId);
 		},
+		onDecisionChanged: (decision) => reconcilerDecisionsAggregate.apply(decision),
 		onChatRunChanged: (runId) => chatTurnsAggregate.refresh(runId),
 	});
 

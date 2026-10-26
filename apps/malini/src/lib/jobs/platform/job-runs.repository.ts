@@ -17,13 +17,15 @@ interface JobRunRow {
 	parent_run_id: string | null;
 	chat_session_id: string | null;
 	chat_after_run_id: string | null;
+	chain_id: string;
+	requests: number;
 	created_at: string;
 	started_at: string | null;
 	finished_at: string | null;
 }
 
 const COLUMNS =
-	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, created_at, started_at, finished_at';
+	'id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin, status, detail, parent_run_id, chat_session_id, chat_after_run_id, chain_id, requests, created_at, started_at, finished_at';
 
 const UNFINISHED = "status IN ('waiting', 'queued', 'running', 'needs-you')";
 
@@ -45,6 +47,8 @@ function fromRow(row: JobRunRow): JobRunRecord {
 		parentRunId: row.parent_run_id,
 		chatSessionId: row.chat_session_id,
 		chatAfterRunId: row.chat_after_run_id,
+		chainId: row.chain_id,
+		requests: row.requests,
 		createdAt: row.created_at,
 		startedAt: row.started_at,
 		finishedAt: row.finished_at,
@@ -59,7 +63,7 @@ export function insertJobRun(
 	run(
 		db,
 		`INSERT INTO job_runs (${COLUMNS}, context)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		jobRun.id,
 		jobRun.definitionId,
 		jobRun.title,
@@ -74,6 +78,8 @@ export function insertJobRun(
 		jobRun.parentRunId,
 		jobRun.chatSessionId,
 		jobRun.chatAfterRunId,
+		jobRun.chainId,
+		jobRun.requests,
 		jobRun.createdAt,
 		jobRun.startedAt,
 		jobRun.finishedAt,
@@ -98,17 +104,98 @@ export function saveJobRun(db: MaliniDatabase, jobRun: JobRunRecord): void {
 		db,
 		`UPDATE job_runs
 		 SET workstream_id = ?, session_id = ?, agent_run_id = ?, status = ?, detail = ?,
-		     started_at = ?, finished_at = ?
+		     requests = ?, started_at = ?, finished_at = ?
 		 WHERE id = ?`,
 		jobRun.workstreamId,
 		jobRun.sessionId,
 		jobRun.agentRunId,
 		jobRun.status,
 		jobRun.detail,
+		jobRun.requests,
 		jobRun.startedAt,
 		jobRun.finishedAt,
 		jobRun.id,
 	);
+}
+
+export function appendJobRunContext(db: MaliniDatabase, id: string, context: string): void {
+	run(db, 'UPDATE job_runs SET context = ? WHERE id = ?', context, id);
+}
+
+export function findPendingJobRun(
+	db: MaliniDatabase,
+	definitionId: string,
+	target: Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs
+		 WHERE definition_id = ? AND status IN ('waiting', 'queued')
+		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?
+		   AND chat_session_id IS NULL AND origin NOT IN ('merge-queue', 'schedule')
+		 ORDER BY created_at, rowid LIMIT 1`,
+		definitionId,
+		target.workstreamId,
+		target.repositoryId,
+		target.scope,
+	);
+	return row ? fromRow(row) : null;
+}
+
+export function countChainJobRuns(
+	db: MaliniDatabase,
+	chainId: string,
+	definitionId: string,
+	target: Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+): number {
+	return scalar(
+		db,
+		`SELECT COUNT(*) FROM job_runs
+		 WHERE chain_id = ? AND definition_id = ? AND status != 'cancelled'
+		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?`,
+		chainId,
+		definitionId,
+		target.workstreamId,
+		target.repositoryId,
+		target.scope,
+	);
+}
+
+export function jobRunChainId(db: MaliniDatabase, id: string): string | null {
+	return (
+		get<{ chain_id: string }>(db, 'SELECT chain_id FROM job_runs WHERE id = ?', id)?.chain_id ??
+		null
+	);
+}
+
+export function workJobRunInWorkstream(
+	db: MaliniDatabase,
+	workstreamId: string,
+	finishedSince: string,
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs
+		 WHERE workstream_id = ?
+		   AND (status IN ('running', 'needs-you') OR (finished_at IS NOT NULL AND finished_at >= ?
+		     AND started_at IS NOT NULL))
+		 ORDER BY status IN ('running', 'needs-you') DESC, COALESCE(finished_at, started_at) DESC
+		 LIMIT 1`,
+		workstreamId,
+		finishedSince,
+	);
+	return row ? fromRow(row) : null;
+}
+
+export function listJobRunsSince(db: MaliniDatabase, since: string): JobRunRecord[] {
+	return all<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs
+		 WHERE created_at >= ? OR finished_at IS NULL OR finished_at >= ?
+		 ORDER BY created_at, rowid`,
+		since,
+		since,
+	).map(fromRow);
 }
 
 export function listUnfinishedJobRuns(db: MaliniDatabase): JobRunRecord[] {

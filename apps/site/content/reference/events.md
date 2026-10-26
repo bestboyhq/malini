@@ -11,7 +11,7 @@ This page is generated from the contract in `apps/malini/src/contract/events.ts`
 
 ## `chat:agent-event`
 
-Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order.
+Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order. Malini does not keep it in its event log.
 
 Payload: `LiveEventEnvelope`
 
@@ -67,6 +67,25 @@ interface SessionRenamedPayload {
 }
 ```
 
+## `chat:turn-finished`
+
+Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
+
+Payload: `ChatTurnFinishedPayload`
+
+```ts
+type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';
+
+interface ChatTurnFinishedPayload {
+	workstreamId: string;
+	sessionId: string;
+	runId: string;
+	status: ChatTurnFinishedStatus;
+	outcome: string | null;
+	needs: string | null;
+}
+```
+
 ## `chat:mcp-server-changed`
 
 Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.
@@ -85,7 +104,7 @@ type McpServerReport = Readonly<{
 
 ## `chat:mcp-servers-listed`
 
-Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.
+Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting. Malini does not keep it in its event log.
 
 Payload: `McpServerListing`
 
@@ -221,7 +240,7 @@ interface WorkstreamSetupStatusPayload {
 
 ## `repositories:workstream-merge-conflicted`
 
-Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.
+Fires when a merge in a workstream stops on conflicts, whoever started it, with the workstream's base branch and the conflicted files.
 
 Payload: `WorkstreamMergeConflictedPayload`
 
@@ -233,9 +252,38 @@ interface WorkstreamMergeConflictedPayload {
 }
 ```
 
+## `repositories:workstream-head-moved`
+
+Fires when the commit a workstream's checkout points to changes, whoever moved it: a commit, a merge, a pull or a reset, with the branch, or `null` when the checkout is detached, and the commits before and after; `previousHead` is `null` for the first commit of a new branch.
+
+Payload: `WorkstreamHeadMovedPayload`
+
+```ts
+interface WorkstreamHeadMovedPayload {
+	workstreamId: string;
+	branch: string | null;
+	head: string;
+	previousHead: string | null;
+}
+```
+
+## `repositories:workstream-pushed`
+
+Fires when a workstream's branch on `origin` moves, after a push or a fetch that brings in someone else's push, with the commit it points to now.
+
+Payload: `WorkstreamPushedPayload`
+
+```ts
+interface WorkstreamPushedPayload {
+	workstreamId: string;
+	branch: string;
+	head: string;
+}
+```
+
 ## `repositories:clone-progress`
 
-Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.
+Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done. Malini does not keep it in its event log.
 
 Payload: `CloneProgressPayload`
 
@@ -343,7 +391,7 @@ Fires whenever a job run waits for you, is queued, starts, needs you, or finishe
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule';
+type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -363,6 +411,8 @@ type JobRunRecord = Readonly<{
 	parentRunId: string | null;
 	chatSessionId: string | null;
 	chatAfterRunId: string | null;
+	chainId: string;
+	requests: number;
 	createdAt: string;
 	startedAt: string | null;
 	finishedAt: string | null;
@@ -392,7 +442,8 @@ type JobBuiltin =
 	| 'check-compatibility'
 	| 'update-docs'
 	| 'open-draft'
-	| 'merge';
+	| 'merge'
+	| 'reconcile';
 
 type JobRunMode = 'off' | 'ask' | 'auto';
 
@@ -504,6 +555,57 @@ type AgentActionRecord = Readonly<{
 type AgentActionChangedEvent = Readonly<{ action: AgentActionRecord }>;
 ```
 
+## `jobs:decision-changed`
+
+Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.
+
+Payload: `ReconcilerDecisionChangedEvent`
+
+```ts
+type ReconcilerCandidate =
+	| Readonly<{ kind: 'nothing'; label: string }>
+	| Readonly<{
+			kind: 'wake-chat';
+			label: string;
+			sessionId: string;
+			workstreamId: string;
+			from: string;
+			report: string;
+	  }>
+	| Readonly<{
+			kind: 'run-job';
+			label: string;
+			definitionId: string;
+			workstreamId: string;
+			context: string;
+	  }>
+	| Readonly<{ kind: 'ask-you'; label: string; reason: string }>;
+
+type ReconcilerDecider = 'model' | 'rules' | 'you';
+
+type ReconcilerDecisionStatus = 'pending' | 'done' | 'asking' | 'dismissed' | 'failed';
+
+type ReconcilerDecisionRecord = Readonly<{
+	id: string;
+	eventId: number;
+	channel: string;
+	chainId: string;
+	workstreamId: string | null;
+	facts: readonly string[];
+	candidates: readonly ReconcilerCandidate[];
+	pick: number | null;
+	chosen: number;
+	decidedBy: ReconcilerDecider;
+	status: ReconcilerDecisionStatus;
+	detail: string | null;
+	jobRunId: string | null;
+	createdAt: string;
+	finishedAt: string | null;
+}>;
+
+type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRecord }>;
+```
+
 ## `app:close-requested`
 
 Fires when you close the Malini window, so Malini can show what is still running and ask before it quits.
@@ -516,7 +618,7 @@ type EmptyEventPayload = Readonly<Record<string, never>>;
 
 ## `app:scale-changed`
 
-Fires when the interface scale or the display the window sits on changes, so layouts can measure again.
+Fires when the interface scale or the display the window sits on changes, so layouts can measure again. Malini does not keep it in its event log.
 
 Payload: `EmptyEventPayload`
 
@@ -586,7 +688,7 @@ type UpdateStagedPayload = Readonly<{ version: string }>;
 
 ## `browser:state-changed`
 
-Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.
+Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure. Malini does not keep it in its event log.
 
 Payload: `BrowserState`
 
@@ -642,7 +744,7 @@ type FileOpenRequestedPayload = Readonly<{
 
 ## `stats:resources-sampled`
 
-Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.
+Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use. Malini does not keep it in its event log.
 
 Payload: `ResourceSample`
 
@@ -667,7 +769,7 @@ type ResourceSample = Readonly<{
 
 ## `stats:workstream-running-changed`
 
-Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers.
+Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers. Malini does not keep it in its event log.
 
 Payload: `readonly WorkstreamRunning[]`
 

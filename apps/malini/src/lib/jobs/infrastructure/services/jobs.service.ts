@@ -9,9 +9,11 @@ import type {
 	JobRunRecord,
 	JobSetupRecord,
 	JobSuggestionRecord,
+	ReconcilerDecisionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 	SaveJobExperimentArgs,
+	TimelineRecord,
 } from '$contract/jobs';
 import { invoke } from '$shared/port/invoke';
 import { JobFailureMapper } from '$lib/jobs/infrastructure/mappers/job-failure.mapper';
@@ -95,6 +97,18 @@ class JobsService {
 
 	useExperiment(experimentId: string): Promise<JobDefinitionRecord> {
 		return this.#invoke('jobs.use-experiment', { experimentId });
+	}
+
+	listDecisions(): Promise<ReconcilerDecisionRecord[]> {
+		return this.#invoke('jobs.list-decisions', undefined);
+	}
+
+	decide(decisionId: string, candidate: number): Promise<ReconcilerDecisionRecord> {
+		return this.#invoke('jobs.decide', { decisionId, candidate });
+	}
+
+	listTimeline(since: string): Promise<TimelineRecord> {
+		return this.#invoke('jobs.list-timeline', { since });
 	}
 
 	async #invoke<Name extends CommandName>(

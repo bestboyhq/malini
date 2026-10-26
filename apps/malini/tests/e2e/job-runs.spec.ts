@@ -207,3 +207,40 @@ test('a prompt sent three times becomes a suggested job on the Overview, and Mak
 		await app.close();
 	}
 });
+
+test('a job asked for twice before it starts runs once, and its row says how often it was asked', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { workstreamId } = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-asked-twice',
+			'Asked twice',
+		);
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'HANG');
+		const job = await saveJob(page, { name: 'Bump version', instructions: 'Hello' });
+		const ask = (context: string) =>
+			invoke<RunRow & Readonly<{ requests: number }>>(page, 'jobs.run', {
+				definitionId: job.id,
+				workstreamId,
+				context,
+			});
+
+		const first = await ask('Version 2.1');
+		const second = await ask('Version 2.2');
+
+		expect(second).toMatchObject({ id: first.id, status: 'queued', requests: 2 });
+		expect(await runsOf(page, 'Bump version')).toHaveLength(1);
+		await openJobs(page, '#/jobs/activity');
+		await expect(page.getByTestId('job-run-row').filter({ hasText: 'Bump version' })).toContainText(
+			'Asked 2 times',
+		);
+		await captureFlow(app, 'job-asked-twice');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

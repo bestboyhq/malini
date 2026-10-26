@@ -17,6 +17,7 @@ export const BUILTIN_WHEN: Readonly<Record<JobBuiltin, string>> = {
 	'update-docs': 'When you run it, in a new workstream',
 	'open-draft': 'When you run it, or after another job',
 	merge: 'When you run it, or after another job',
+	reconcile: 'An event no trigger handles',
 };
 
 const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
@@ -40,6 +41,8 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 		'Run it from any chat with /, give it a trigger, or make it the Then of another job. It commits the changes, pushes the branch and opens a draft PR.',
 	merge:
 		'Run it from any chat with /, give it a trigger, or make it the Then of another job. It queues the pull request to merge.',
+	reconcile:
+		"Runs on its own when an event no job's trigger handles may need a hand: a turn ends in a workstream a chat started, a job a chat ran finishes or fails, or a merge stops on conflicts. Malini lists what it could do, the model picks one, and Malini checks the pick before it acts.",
 };
 
 const RUNS_IN_WHEN: Readonly<Record<JobRunsIn, string>> = {

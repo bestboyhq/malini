@@ -13,6 +13,7 @@ export {
 export {
 	runAutomaticJob,
 	type AutomaticJob,
+	type ChooseWithJob,
 	type SuggestWithJob,
 } from './platform/automatic-jobs.service';
 

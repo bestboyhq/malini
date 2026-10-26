@@ -9,6 +9,7 @@
 	import { agentActionsQuery } from '$lib/jobs/application/queries/agent-actions.query.svelte';
 	import { chatTurnsQuery } from '$lib/jobs/application/queries/chat-turns.query.svelte';
 	import { jobRunsForDefinitionQuery } from '$lib/jobs/application/queries/job-runs-for-definition.query.svelte';
+	import { reconcilerDecisionsQuery } from '$lib/jobs/application/queries/reconciler-decisions.query.svelte';
 	import {
 		activityEntries,
 		activityEntryRunning,
@@ -18,8 +19,10 @@
 	import JobRunRow from '../JobRunRow.svelte';
 	import ActivityRun from './ActivityRun.svelte';
 	import AgentActionRow from './AgentActionRow.svelte';
+	import AskingDecisionRow from './AskingDecisionRow.svelte';
 	import AutomationsSection from './AutomationsSection.svelte';
 	import ChatTurnRow from './ChatTurnRow.svelte';
+	import DecisionRow from './DecisionRow.svelte';
 	import WaitingJobRunRow from './WaitingJobRunRow.svelte';
 
 	interface Props {
@@ -42,10 +45,14 @@
 			.flatMap((job) => runsFor(job.id))
 			.sort((left, right) => jobRunLastActivityAt(right).localeCompare(jobRunLastActivityAt(left))),
 	);
-	const entries = $derived(activityEntries(runs, chatTurnsQuery.data, agentActionsQuery.data));
+	const decisions = $derived(reconcilerDecisionsQuery.data);
+	const entries = $derived(
+		activityEntries(runs, chatTurnsQuery.data, agentActionsQuery.data, decisions),
+	);
 	const waiting = $derived(runs.filter((run) => run.status === 'waiting'));
 	const needsYou = $derived(runs.filter((run) => run.status === 'needs-you'));
-	const waitingForYou = $derived(waiting.length + needsYou.length);
+	const asking = $derived(decisions.filter((decision) => decision.status === 'asking'));
+	const waitingForYou = $derived(waiting.length + needsYou.length + asking.length);
 	const running = $derived(entries.filter(activityEntryRunning));
 	const days = $derived(groupByDay(entries.filter(finished).slice(0, RECENT_LIMIT)));
 
@@ -100,6 +107,7 @@
 			counted(of('job'), 'job run', 'job runs'),
 			counted(of('chat'), 'chat turn', 'chat turns'),
 			counted(of('call'), 'call', 'calls'),
+			counted(of('decision'), 'event', 'events'),
 		]
 			.filter(Boolean)
 			.join(' · ');
@@ -125,6 +133,8 @@
 				<ChatTurnRow turn={entry.turn} {nowMs} {trailing} />
 			{/snippet}
 		</ActivityRun>
+	{:else if entry.kind === 'decision'}
+		<DecisionRow decision={entry.decision} {nowMs} />
 	{:else}
 		<AgentActionRow action={entry.action} {nowMs} kind="Call" />
 	{/if}
@@ -151,6 +161,9 @@
 			{#if waitingForYou === 0}
 				<p class="text-fg-tertiary px-4 py-3 text-xs">Nothing waits for you.</p>
 			{/if}
+			{#each asking as decision (decision.id)}
+				<AskingDecisionRow {decision} {nowMs} />
+			{/each}
 			{#each waiting as run (run.id)}
 				<WaitingJobRunRow {run} {nowMs} />
 			{/each}

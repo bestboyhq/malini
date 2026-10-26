@@ -561,6 +561,8 @@ function defineFakes(): void {
 			parentRunId: args.parentRunId ?? null,
 			chatSessionId: null,
 			chatAfterRunId: null,
+			chainId: `job-${index}`,
+			requests: 1,
 			createdAt: new Date(Date.now() + index).toISOString(),
 			startedAt: null,
 			finishedAt: null,

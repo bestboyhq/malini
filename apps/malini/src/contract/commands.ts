@@ -36,6 +36,7 @@ import type { MenuCommandChosen, NotificationTarget } from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
+	DecideArgs,
 	JobDefinitionIdArgs,
 	JobDefinitionRecord,
 	JobExperimentIdArgs,
@@ -49,9 +50,12 @@ import type {
 	JobSuggestionIdArgs,
 	JobSuggestionRecord,
 	ListChatTurnsArgs,
+	ListTimelineArgs,
+	ReconcilerDecisionRecord,
 	RunJobArgs,
 	SaveJobDefinitionArgs,
 	SaveJobExperimentArgs,
+	TimelineRecord,
 } from './jobs';
 import type { ReopenPullRequestArgs, ShipStateRecord, ShipWorkstreamArgs } from './pull-requests';
 import type {
@@ -165,6 +169,8 @@ export type SendAgentPromptArgs = Readonly<{
 	automated?: boolean;
 	steer?: boolean;
 	from?: string;
+	chainId?: string;
+	causeEventId?: number;
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -523,6 +529,9 @@ export interface ContractCommands {
 	'jobs.list-agent-actions': { args: undefined; result: AgentActionRecord[] };
 	'jobs.list-chat-turns': { args: ListChatTurnsArgs; result: ChatTurnRecord[] };
 	'jobs.use-experiment': { args: JobExperimentIdArgs; result: JobDefinitionRecord };
+	'jobs.list-decisions': { args: undefined; result: ReconcilerDecisionRecord[] };
+	'jobs.decide': { args: DecideArgs; result: ReconcilerDecisionRecord };
+	'jobs.list-timeline': { args: ListTimelineArgs; result: TimelineRecord };
 	'skills.list': { args: ListSkillsArgs; result: SkillRecord[] };
 	'skills.usage': { args: undefined; result: SkillUsageReport };
 	'skills.switch': { args: SwitchSkillArgs; result: SkillUsageReport };
@@ -782,6 +791,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'jobs.use-experiment',
 	'jobs.list-agent-actions',
 	'jobs.list-chat-turns',
+	'jobs.list-decisions',
+	'jobs.decide',
+	'jobs.list-timeline',
 	'skills.list',
 	'skills.usage',
 	'skills.switch',

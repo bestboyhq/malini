@@ -16,9 +16,11 @@ import {
 	type JobRunRecord,
 	type JobSuggestionRecord,
 	type JobTrigger,
+	type TimelineRecord,
+	type TimelineWorkstream,
 } from '$contract/jobs';
 import { isSkillNameList } from '$contract/skills';
-import { listChatTurns } from '$lib/chat/chat.platform';
+import { chatTurnChainId, listChatTurns, listChatTurnsSince } from '$lib/chat/chat.platform';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
@@ -47,12 +49,21 @@ import {
 } from '../domain/job-definition';
 import {
 	JOB_CHAIN_MAX_DEPTH,
+	JOB_CHAIN_REPEAT_LIMIT,
 	JOB_CONTEXT_MAX_BYTES,
+	chainBudgetDetail,
 	isFinishedJobRunStatus,
 	isJobRunOrigin,
 } from '../domain/job-run';
 import { listAgentActions } from './agent-actions.repository';
 import type { AutomaticJob } from './automatic-jobs.service';
+import {
+	eventChainId,
+	jobRunEventIds,
+	linkJobRunEvent,
+	listLoggedEventsSince,
+} from './event-log.repository';
+import { EVENT_LOG_KEEP_MS } from './event-log.service';
 import {
 	isAutomaticJobDefinition,
 	type AutomaticJobDefinition,
@@ -69,9 +80,13 @@ import {
 	updateJobDefinition,
 } from './job-definitions.repository';
 import {
+	countChainJobRuns,
 	countStartedOrQueuedJobRuns,
+	findPendingJobRun,
 	getJobRun,
 	jobRunChainDefinitionIds,
+	jobRunChainId,
+	listJobRunsSince,
 	listRecentFinishedJobRuns,
 	listUnfinishedJobRuns,
 	listWaitingJobRuns,
@@ -79,8 +94,16 @@ import {
 import { getSuggestion, listSuggestions, setSuggestionStatus } from './job-suggestions.repository';
 import type { JobRunner } from './job-runner.service';
 import { PROMPT_CLUSTER_MIN_PROMPT_TOKENS, promptTokenSet } from './prompt-clustering.service';
+import { listDecisions, listDecisionsSince } from './reconciler-decisions.repository';
+import type { Reconciler } from './reconciler.service';
 
 const RECENT_FINISHED_RUNS = 30;
+
+const RECENT_DECISIONS = 60;
+
+const TIMELINE_EVENTS = 2_000;
+
+const TIMELINE_PAYLOAD_CHARS = 4_096;
 
 const TRIGGER_GRAMMAR = `on <channel>, optionally followed by where <path> is <value> or where <path> is set, joined with and; or ${SCHEDULE_GRAMMAR}`;
 
@@ -134,6 +157,7 @@ export function defineJobCommands(
 	context: MainContext,
 	runner: JobRunner,
 	experiments: JobExperiments,
+	reconciler: Reconciler,
 ): void {
 	const { db, commands, events } = context;
 
@@ -277,27 +301,71 @@ export function defineJobCommands(
 		const waitForYou = optionalFlag(args, 'waitForYou');
 		const chatSessionId = optionalString(args, 'chatSessionId');
 		const chatAfterRunId = chatSessionId === null ? null : optionalString(args, 'chatAfterRunId');
+		const causeEventId = optionalEventId(args);
 		if (parentRunId !== null) requireNoLoop(db, definition, parentRunId);
 		const target = await runTarget(db, definition, origin, { workstreamId, repositoryId, scope });
-		const requested: JobRunRecord = {
-			id: randomUUID(),
-			definitionId: definition.id,
-			title: definition.name,
-			...target,
-			sessionId: null,
-			agentRunId: null,
-			origin,
-			status: waitForYou ? 'waiting' : 'queued',
-			detail: null,
-			parentRunId,
-			chatSessionId,
-			chatAfterRunId,
-			createdAt: nowIso8601(),
-			startedAt: null,
-			finishedAt: null,
-		};
-		return runner.enqueue(requested, jobContext);
+		const folded =
+			chatSessionId === null && origin !== 'merge-queue' && origin !== 'schedule'
+				? foldIntoPending(definition, target, jobContext, origin === 'manual')
+				: null;
+		const asked =
+			folded ??
+			newRun(definition, target, origin, jobContext, waitForYou, {
+				parentRunId,
+				chatSessionId,
+				chatAfterRunId,
+				causeEventId,
+			});
+		if (causeEventId !== null) linkJobRunEvent(db, asked.id, causeEventId);
+		return asked;
 	});
+
+	const foldIntoPending = (
+		definition: JobDefinitionRecord,
+		target: Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+		jobContext: string | null,
+		promote: boolean,
+	): JobRunRecord | null => {
+		const pending = findPendingJobRun(db, definition.id, target);
+		return pending ? runner.fold(pending, jobContext, promote) : null;
+	};
+
+	const newRun = (
+		definition: JobDefinitionRecord,
+		target: Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+		origin: JobRunOrigin,
+		jobContext: string | null,
+		waitForYou: boolean,
+		links: Pick<JobRunRecord, 'parentRunId' | 'chatSessionId' | 'chatAfterRunId'> &
+			Readonly<{ causeEventId: number | null }>,
+	): JobRunRecord => {
+		const id = randomUUID();
+		const chainId = chainFor(db, links) ?? id;
+		const repeats = countChainJobRuns(db, chainId, definition.id, target);
+		const overBudget = repeats >= JOB_CHAIN_REPEAT_LIMIT;
+		return runner.enqueue(
+			{
+				id,
+				definitionId: definition.id,
+				title: definition.name,
+				...target,
+				sessionId: null,
+				agentRunId: null,
+				origin,
+				status: waitForYou || overBudget ? 'waiting' : 'queued',
+				detail: overBudget ? chainBudgetDetail(repeats) : null,
+				parentRunId: links.parentRunId,
+				chatSessionId: links.chatSessionId,
+				chatAfterRunId: links.chatAfterRunId,
+				chainId,
+				requests: 1,
+				createdAt: nowIso8601(),
+				startedAt: null,
+				finishedAt: null,
+			},
+			jobContext,
+		);
+	};
 
 	commands.define('jobs.confirm-run', (args: unknown) => runner.confirm(requireRun(db, args)));
 
@@ -384,6 +452,71 @@ export function defineJobCommands(
 		experiments.finishUse(definitionId, setup);
 		return saved;
 	});
+
+	commands.define('jobs.list-decisions', () => listDecisions(db, RECENT_DECISIONS));
+
+	commands.define('jobs.decide', (args: unknown) =>
+		reconciler.decide(requireString(args, 'decisionId'), requireIndex(args, 'candidate')),
+	);
+
+	commands.define('jobs.list-timeline', (args: unknown) => timeline(db, requireSince(args)));
+}
+
+async function timeline(db: MaliniDatabase, since: string): Promise<TimelineRecord> {
+	const runs = listJobRunsSince(db, since);
+	const links = jobRunEventIds(
+		db,
+		runs.map((run) => run.id),
+	);
+	const events = listLoggedEventsSince(db, since, TIMELINE_EVENTS, TIMELINE_PAYLOAD_CHARS);
+	const turns = listChatTurnsSince(db, since);
+	const decisions = listDecisionsSince(db, since);
+	const ids = new Set(
+		[
+			...events.map((event) => event.workstreamId),
+			...runs.map((run) => run.workstreamId),
+			...turns.map((turn) => turn.workstreamId),
+			...decisions.map((decision) => decision.workstreamId),
+		].filter((id): id is string => id !== null),
+	);
+	return {
+		since,
+		until: nowIso8601(),
+		events,
+		runs: runs.map((run) => ({ ...run, eventIds: links.get(run.id) ?? [] })),
+		turns,
+		decisions,
+		workstreams: await timelineWorkstreams(db, ids),
+	};
+}
+
+async function timelineWorkstreams(
+	db: MaliniDatabase,
+	ids: ReadonlySet<string>,
+): Promise<TimelineWorkstream[]> {
+	const repositories = new Map(
+		(await listRepositoryCatalog(db)).flatMap((repository) =>
+			repository.projectIds.map((projectId) => [projectId, repository.fullName] as const),
+		),
+	);
+	const seen = new Set<string>();
+	const found: TimelineWorkstream[] = [];
+	const visit = (id: string): void => {
+		if (seen.has(id)) return;
+		seen.add(id);
+		const workstream = getWorkstream(db, id);
+		if (!workstream) return;
+		found.push({
+			id: workstream.id,
+			name: workstream.name,
+			repository:
+				workstream.scope === null ? (repositories.get(workstream.projectId) ?? null) : null,
+			startedBy: workstream.startedBy,
+		});
+		if (workstream.startedBy !== null) visit(workstream.startedBy);
+	};
+	for (const id of ids) visit(id);
+	return found;
 }
 
 function builtinFields(builtin: JobBuiltin): BuiltinFields {
@@ -547,6 +680,18 @@ function requireNoLoop(
 	}
 }
 
+function chainFor(
+	db: MaliniDatabase,
+	links: Pick<JobRunRecord, 'parentRunId' | 'chatAfterRunId'> &
+		Readonly<{ causeEventId: number | null }>,
+): string | null {
+	return (
+		(links.parentRunId === null ? null : jobRunChainId(db, links.parentRunId)) ??
+		(links.causeEventId === null ? null : eventChainId(db, links.causeEventId)) ??
+		(links.chatAfterRunId === null ? null : chatTurnChainId(db, links.chatAfterRunId))
+	);
+}
+
 function isTaskSuggestion({ evidence }: JobSuggestionRecord): boolean {
 	return evidence.every(
 		({ text }) => promptTokenSet(text).size >= PROMPT_CLUSTER_MIN_PROMPT_TOKENS,
@@ -649,8 +794,32 @@ function optionalOrigin(args: unknown): JobRunOrigin {
 	const value = field(args, 'origin');
 	if (value === undefined || value === null) return 'manual';
 	if (!isJobRunOrigin(value))
-		throw invalid('`origin` must be merge-queue, manual, trigger, then or schedule');
+		throw invalid('`origin` must be merge-queue, manual, trigger, then, schedule or reconciler');
 	return value;
+}
+
+function optionalEventId(args: unknown): number | null {
+	const value = field(args, 'causeEventId');
+	if (value === undefined || value === null) return null;
+	if (!Number.isSafeInteger(value) || typeof value !== 'number' || value < 1) {
+		throw invalid('`causeEventId` must be the id of a logged event when present');
+	}
+	return value;
+}
+
+function requireIndex(args: unknown, key: string): number {
+	const value = field(args, key);
+	if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+		throw invalid(`\`${key}\` must be the index of a choice`);
+	}
+	return value;
+}
+
+function requireSince(args: unknown): string {
+	const since = requireString(args, 'since');
+	const at = Date.parse(since);
+	if (Number.isNaN(at)) throw invalid('`since` must be an ISO 8601 time');
+	return new Date(Math.max(at, Date.now() - EVENT_LOG_KEEP_MS)).toISOString();
 }
 
 function optionalFlag(args: unknown, key: string): boolean {

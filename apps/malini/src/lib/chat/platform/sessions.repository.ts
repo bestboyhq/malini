@@ -398,3 +398,13 @@ export function setSessionStatus(
 ): void {
 	run(db, 'UPDATE agent_sessions SET status = ? WHERE id = ?', status, sessionId);
 }
+
+export function userSessionWorkstreamId(db: MaliniDatabase, sessionId: string): string | null {
+	return (
+		get<{ workstream_id: string }>(
+			db,
+			"SELECT workstream_id FROM agent_sessions WHERE id = ? AND origin = 'user'",
+			sessionId,
+		)?.workstream_id ?? null
+	);
+}

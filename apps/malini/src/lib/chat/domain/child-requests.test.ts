@@ -19,6 +19,8 @@ function run(sessionId: string | null, status: JobRunStatus): JobRunRecord {
 		parentRunId: null,
 		chatSessionId: 'lead-chat',
 		chatAfterRunId: null,
+		chainId: `run-${sessionId}`,
+		requests: 1,
 		createdAt: '2026-10-25T10:00:00.000Z',
 		startedAt: null,
 		finishedAt: null,

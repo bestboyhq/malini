@@ -567,6 +567,8 @@ export interface SendPromptInput {
 	readonly automated?: boolean;
 	readonly steer?: boolean;
 	readonly from?: string | null;
+	readonly chainId?: string | null;
+	readonly causeEventId?: number | null;
 	readonly worktree: string;
 }
 
@@ -633,6 +635,8 @@ async function sendAgentPromptLeased(
 		error: null,
 		...(input.automated === true ? { automated: true } : {}),
 		...(input.profile ? { profile: input.profile } : {}),
+		...(input.chainId ? { chainId: input.chainId } : {}),
+		...(input.causeEventId ? { causeEventId: input.causeEventId } : {}),
 	};
 	if (input.automated !== true) nameFromFirstUserPrompt(db, supervisor, input, hooks, log);
 	const verifiedAttachments = insertRunAndBindAttachments(db, {
@@ -1504,6 +1508,8 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 				automated: field(args, 'automated') === true,
 				steer: field(args, 'steer') === true,
 				from: promptSender(args),
+				chainId: optionalString(args, 'chainId'),
+				causeEventId: optionalCauseEventId(args),
 				worktree,
 			},
 			deps.hooks,
@@ -1512,6 +1518,15 @@ export function defineBridgeCommands(commands: CommandRegistry, deps: BridgeComm
 			leases,
 			log,
 		);
+	}
+
+	function optionalCauseEventId(args: unknown): number | null {
+		const value = field(args, 'causeEventId');
+		if (value === undefined || value === null) return null;
+		if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+			throw new Error('invalid args: `causeEventId` must be the id of a logged event');
+		}
+		return value;
 	}
 
 	function promptSender(args: unknown): string | null {

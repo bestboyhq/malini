@@ -56,6 +56,8 @@ export function assessMaliniApproval(
 			return grant('repositories.hide');
 		case 'workstreams_create':
 			return grant('workstreams.create');
+		case 'workstreams_send':
+			return grant('workstreams.send');
 		case 'workstreams_archive':
 			return grant('workstreams.archive');
 		case 'jobs_run': {
@@ -91,6 +93,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
 	'repositories.clone': 'Clone repositories',
 	'repositories.hide': 'Hide repositories',
 	'workstreams.create': 'Start workstreams',
+	'workstreams.send': 'Send prompts to started workstreams',
 	'workstreams.archive': 'Archive workstreams',
 };
 

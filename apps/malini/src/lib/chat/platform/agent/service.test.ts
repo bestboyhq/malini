@@ -340,8 +340,8 @@ describe('platform requests from the agent', () => {
 		);
 		run(
 			test.db,
-			`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, created_at)
-			 VALUES ('job-run-0', 'job-0', 'Triage issues', 'ws-1', 'sess-1', 'trigger', 'running', ?)`,
+			`INSERT INTO job_runs (id, definition_id, title, workstream_id, session_id, origin, status, chain_id, created_at)
+			 VALUES ('job-run-0', 'job-0', 'Triage issues', 'ws-1', 'sess-1', 'trigger', 'running', 'job-run-0', ?)`,
 			'2026-10-19T00:00:00.000Z',
 		);
 		const calls: Array<readonly [string, unknown]> = [];
@@ -375,6 +375,8 @@ describe('platform requests from the agent', () => {
 				parentRunId: 'job-run-0',
 				chatSessionId: 'sess-1',
 				chatAfterRunId: 'run-9',
+				chainId: 'job-run-1',
+				requests: 1,
 				createdAt: '2026-10-19T00:00:00.000Z',
 				startedAt: null,
 				finishedAt: null,
@@ -571,6 +573,9 @@ describe('platform requests from the agent', () => {
 				baseBranch: 'main',
 				current: true,
 				startedBy: null,
+				working: false,
+				outcome: null,
+				needs: null,
 			},
 		]);
 		bridge.send(platformRequest('p-4', 'workstreams_archive', { workstream: 'ws-1' }));

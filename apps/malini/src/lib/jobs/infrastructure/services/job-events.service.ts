@@ -4,10 +4,12 @@ import type {
 	JobExperimentRecord,
 	JobRunRecord,
 	JobSuggestionRecord,
+	ReconcilerDecisionRecord,
 } from '$contract/jobs';
 import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	JOBS_AGENT_ACTION_CHANGED_CHANNEL,
+	JOBS_DECISION_CHANGED_CHANNEL,
 	JOBS_DEFINITION_CHANGED_CHANNEL,
 	JOBS_EXPERIMENT_CHANGED_CHANNEL,
 	JOBS_RUN_CHANGED_CHANNEL,
@@ -21,6 +23,7 @@ interface JobEventHandlers {
 	onSuggested(suggestion: JobSuggestionRecord): void;
 	onExperimentChanged(experiment: JobExperimentRecord): void;
 	onAgentActionChanged(action: AgentActionRecord): void;
+	onDecisionChanged(decision: ReconcilerDecisionRecord): void;
 	onChatRunChanged(runId: string): void;
 }
 
@@ -39,6 +42,9 @@ class JobEventsService {
 			),
 			onPlatformEvent(JOBS_AGENT_ACTION_CHANGED_CHANNEL, ({ action }) =>
 				handlers.onAgentActionChanged(action),
+			),
+			onPlatformEvent(JOBS_DECISION_CHANGED_CHANNEL, ({ decision }) =>
+				handlers.onDecisionChanged(decision),
 			),
 			onPlatformEvent(CHAT_AGENT_EVENT_CHANNEL, ({ runId, event }) => {
 				if (RUN_EVENTS.has(String(event['type']))) handlers.onChatRunChanged(runId);

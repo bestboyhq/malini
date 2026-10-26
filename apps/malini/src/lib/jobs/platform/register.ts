@@ -1,48 +1,96 @@
+import type { AutomaticJobBuiltin } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
+import { describeError } from '$main/errors';
 import type { JobsPlatform } from '../jobs.platform';
+import { pickOutput, promptCandidates } from '../domain/reconciler';
 import { defineJobCommands, seedBuiltinJobs } from './commands';
 import { settleInterruptedAgentActions } from './agent-actions.repository';
-import type { SuggestWithJob } from './automatic-jobs.service';
+import type { AutomaticJob, ChooseWithJob, SuggestWithJob } from './automatic-jobs.service';
 import { checkCompatibilityAfterUpdates } from './compatibility-check';
+import { pruneEvents, startEventLog } from './event-log.service';
 import { JobExperiments } from './job-experiments.service';
 import { JobRunner } from './job-runner.service';
 import { startJobSchedules } from './job-schedules.service';
 import { startJobTriggers } from './job-triggers.service';
+import { pruneDecisions } from './reconciler-decisions.repository';
+import { Reconciler } from './reconciler.service';
 import { suggestJobsFromPrompts } from './suggestions.service';
+
+const HOUSEKEEPING_MS = 60 * 60 * 1_000;
+
+const DECISIONS_KEEP_MS = 30 * 24 * 60 * 60 * 1_000;
 
 export interface JobsOptions {
 	readonly log?: (line: string) => void;
 	readonly suggestTitle?: SuggestWithJob;
+	readonly choose?: ChooseWithJob;
 }
 
 export function registerJobs(context: MainContext, options: JobsOptions = {}): JobsPlatform {
 	const log = options.log ?? ((line: string) => console.error(line));
+	const suggestTitle =
+		options.suggestTitle ??
+		(() => Promise.reject(new Error('Naming is not available in this Malini.')));
+	const choose =
+		options.choose ??
+		(() => Promise.reject(new Error('Choosing is not available in this Malini.')));
 	const runner = new JobRunner(context, log);
 	const experiments = new JobExperiments(
 		context,
-		options.suggestTitle ??
-			(() => Promise.reject(new Error('Naming is not available in this Malini.'))),
+		(builtin, task, job) => replay(builtin, task, job, suggestTitle, choose),
 		log,
 	);
+	const reconciler = new Reconciler(context, log, choose);
 	seedBuiltinJobs(context.db);
 	settleInterruptedAgentActions(context.db, nowIso8601());
-	defineJobCommands(context, runner, experiments);
+	defineJobCommands(context, runner, experiments, reconciler);
 	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
 	const triggers = startJobTriggers(context, log);
+	const eventLog = startEventLog(context, log, async (event) =>
+		reconciler.consider(event, await triggers.handle(event)),
+	);
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
+	const prune = (): void => {
+		try {
+			pruneEvents(context.db);
+			pruneDecisions(context.db, new Date(Date.now() - DECISIONS_KEEP_MS).toISOString());
+		} catch (error) {
+			log(`jobs: could not prune the event log: ${describeError(error)}`);
+		}
+	};
 	let schedules: { dispose(): void } | null = null;
+	let housekeeping: NodeJS.Timeout | null = null;
 	return {
 		start: () => {
 			runner.start();
+			reconciler.start();
 			schedules ??= startJobSchedules(context, log);
+			prune();
+			housekeeping ??= setInterval(prune, HOUSEKEEPING_MS).unref();
 		},
 		dispose: () => {
+			if (housekeeping) clearInterval(housekeeping);
+			eventLog.dispose();
 			stopSuggesting();
 			schedules?.dispose();
 			triggers.dispose();
+			reconciler.dispose();
 			stopCompatibilityChecks();
 			runner.dispose();
 		},
 	};
+}
+
+async function replay(
+	builtin: AutomaticJobBuiltin,
+	task: string,
+	job: AutomaticJob,
+	suggestTitle: SuggestWithJob,
+	choose: ChooseWithJob,
+): Promise<string> {
+	if (builtin !== 'reconcile') return suggestTitle(task, job);
+	const labels = promptCandidates(task);
+	if (labels.length < 2) throw new Error('This decision has no candidates to pick from.');
+	return pickOutput(labels, await choose(task, job, labels.length));
 }

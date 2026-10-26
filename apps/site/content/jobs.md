@@ -1,6 +1,6 @@
 ---
 title: Jobs
-description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it, when a Malini event fires, or on a schedule, with a Then that runs next, such as opening a draft pull request.
+description: A Malini job is work you reuse by name - instructions, a model, an effort, and skills - that runs when you run it, when a Malini event fires, or on a schedule, with a Then that runs next, such as opening a draft pull request. Every event keeps what caused it, and Reconcile events picks what to do about the ones no trigger handles.
 ---
 
 You never wanted skills.
@@ -30,7 +30,9 @@ The Jobs page swaps the sidebar for its own sections, and **Workstreams** at the
   It also lists your jobs, each with its When, its last run, and a switch.
   The jobs Malini [suggests](#suggested-jobs) and a few recipes sit there too.
 - **Activity**: what waits for you, what is running, and every run by day, job runs and chat turns alike, each holding the calls its agent made to [Malini's tools](/malini/docs/agent-tools.md#see-what-the-agent-did).
-  **Waiting for you** holds the runs that ask you first and the runs that need you.
+  **Waiting for you** holds the runs that ask you first, the runs that need you, and what [Reconcile events](#reconcile-events) asks you.
+  Each thing Reconcile events did shows as an **Event** row, which opens to what Malini saw and what it could have done.
+- **Timeline**: the last hour or day [played back](#timeline), lane by lane, with what caused what.
 - **Recipes**: ready-made jobs to start from.
 
 Click a job to open its own page: its When and how it runs, where it runs, its Then, its recent runs, and its instructions, model, effort and skills.
@@ -64,7 +66,7 @@ A job with this When runs when a pull request Malini ships is merged.
 The Jobs page offers the common triggers by name, such as **A pull request merges**, so you rarely write one by hand.
 
 A triggered run gets the event channel and its payload as context, and runs in the workstream the event names, or in a new one when the job runs in a new workstream.
-The same event starts a job once.
+The same event starts a job once, even across a restart: Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
 An unknown channel or a malformed condition is refused when you save the job, with the channels Malini knows.
 
 ### On a schedule
@@ -138,6 +140,16 @@ A job emits `jobs:run-changed` each time its run waits for you, is queued, start
 Trigger other jobs on it, such as `on jobs:run-changed where run.status is failed`, or use Then for the planned next step.
 A run never starts a job that already ran earlier in its own chain, so a trigger on `jobs:run-changed` cannot loop.
 
+### Chains and repeats
+
+Every event keeps what caused it: the job run or the chat turn at work in its workstream.
+A **chain** is everything that traces back to one thing you did, such as a prompt you sent, through the events, runs and turns it set off.
+
+- A job asked for again while it still waits or is queued for the same workstream runs once.
+  Its row says how often it was asked, such as **Asked 3 times**, and its context gathers every ask.
+- The fourth run of the same job for the same workstream in one chain waits for you under **Waiting for you**: "It already ran 3 times in one chain of events, so Malini asks before it runs again."
+  Retries are fine, so Malini stops a loop without forbidding them.
+
 ## Run a job
 
 Running a job is fire and forget.
@@ -162,6 +174,38 @@ Settings decides how many jobs run at once.
 It also picks when **Update from main** runs: as main moves, when you open the workstream, or only when you merge.
 With many workstreams open, the last two keep Malini from starting an update in every one of them at once.
 
+## Reconcile events
+
+A trigger is a rule you wrote, and it handles the events it names.
+**Reconcile events** looks at what no trigger handled and may need a hand:
+
+- a turn ends in a workstream a chat started,
+- a job a chat ran finishes or fails,
+- a merge stops on conflicts that nobody in Malini is resolving.
+
+Malini writes down what it sees, in short lines such as "“Api analytics” needs you: Pick the Logdash project" and "“Move apps to Logdash” is idle", and lists what it could do: do nothing, wake the chat that started the work with the turn's report, run the job again, run **Resolve conflicts**, or ask you.
+The model only picks one of them, by number, and Malini checks the pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
+
+- **Wake**: the report arrives in the chat that started the work as a prompt from that workstream, beginning "Malini woke you".
+  When that chat is on a turn, the report waits and arrives with any others when the turn ends.
+  The agent answers its workstreams with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back).
+- **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification.
+- **Run again** asks first, unless the job runs on its own.
+
+Every pick shows in Activity and in the [Timeline](#timeline), with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.
+Reconcile events runs on Haiku at low effort by default; edit its model and instructions on its page, and [Improve](#improve-name-chats-and-name-services) replays its recent decisions on another one.
+Turn it off in Settings, Jobs, **Reconcile events**.
+
+## Timeline
+
+**Timeline** lays out the last hour, 6 hours or 24 hours, one lane per workstream, each under the chat that started it.
+Chat turns and job runs are bars, facts such as a turn ending, a commit, a push or a conflict are dots, and the picks of Reconcile events are diamonds.
+**Every event** adds the rest, such as file changes and each status a run moves through.
+
+**Replay** plays the window back, and the playhead scrubs it to any moment.
+Click anything to see when it happened, how many things share its chain, what caused it and what it led to; click those to follow the chain.
+A chat turn or a job run opens its transcript.
+
 ## Built-in jobs
 
 | Job                     | What it does                                                                                                                                                                               |
@@ -176,6 +220,7 @@ With many workstreams open, the last two keep Malini from starting an update in 
 | **Update docs**         | Brings a repository's user-facing docs up to date with its code, in a new workstream. Its Then is **Open draft**.                                                                          |
 | **Open draft**          | Commits the workstream's changes, pushes its branch, and opens a draft pull request, without an agent. With a pull request already open, it pushes to it.                                  |
 | **Merge**               | Queues the workstream's pull request to merge, without an agent, the same way **Merge** in the top bar does.                                                                               |
+| **Reconcile events**    | Picks what Malini does about an event no trigger handles, among choices Malini lists. See [Reconcile events](#reconcile-events).                                                           |
 
 **Update docs**, **Open draft**, and **Merge** take a When and a Then like your own jobs.
 Malini decides when the others run, and their Then stays as it is.
@@ -203,6 +248,8 @@ Run an experiment again to see how much its names vary, and delete the ones you 
 **Use** makes an experiment what the job runs from now on, and the job's page marks that day with the share of names it expects to follow every rule.
 
 An experiment calls the model once per task, through your Claude login, the same way the job does.
+
+**Reconcile events** keeps its decisions the same way, so **Improve** replays its recent ones on another model or other instructions, and marks a reply that picks no choice.
 
 ## Suggested jobs
 

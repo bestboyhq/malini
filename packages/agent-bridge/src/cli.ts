@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
 	bridgeBrowserRequestFrame,
 	bridgeCapabilitiesFrame,
+	bridgeChoiceFrame,
 	bridgeCommandAckFrame,
 	bridgeHeartbeatFrame,
 	bridgeMcpAuthorizationFrame,
@@ -20,6 +21,7 @@ import {
 	type AgentSkill,
 	type BridgeControlFrame,
 	type CancelMcpAuthorizationCommand,
+	type ChooseCommand,
 	type ListSkillsCommand,
 	type McpServerCommand,
 	type SuggestTitleCommand,
@@ -33,6 +35,7 @@ import {
 	type WatchMcpServersCommand,
 } from './protocol.js';
 import { probeClaudeCode, unknownCapability } from './claude/capabilities.js';
+import { chooseClaudeCandidate } from './claude/choices.js';
 import { registerClaudeProvider } from './claude/index.js';
 import {
 	claudeMcpServers,
@@ -62,6 +65,7 @@ export interface RunOptions {
 	exit?: (code: number) => void;
 	capabilityProbe?: () => Promise<ProviderCapability>;
 	suggestTitle?: (task: string, job: TitleJob) => Promise<string>;
+	choose?: (task: string, job: TitleJob, choices: number) => Promise<number>;
 	listSkills?: (cwd: string, turnedOff?: TurnedOffSkills) => Promise<readonly AgentSkill[]>;
 	mcpServers?: McpServerProbes;
 	closeSessionTimeoutMs?: number;
@@ -271,6 +275,10 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 		}
 		if (cmd.cmd === 'suggest_title') {
 			trackInFlight(answerTitle(cmd));
+			return;
+		}
+		if (cmd.cmd === 'choose') {
+			trackInFlight(answerChoice(cmd));
 			return;
 		}
 		if (cmd.cmd === 'list_skills') {
@@ -581,6 +589,20 @@ export function createIpc(options: RunOptions = {}): IpcBundle {
 			emitControl(bridgeCommandAckFrame(cmd.id));
 		} catch (err) {
 			emitControl(bridgeCommandAckFrame(cmd.id, `TITLE_FAILED: ${errorMessage(err)}`));
+		}
+	}
+
+	async function answerChoice(cmd: ChooseCommand): Promise<void> {
+		try {
+			const pick = await (options.choose ?? chooseClaudeCandidate)(
+				cmd.prompt,
+				{ instructions: cmd.instructions, model: cmd.model },
+				cmd.choices,
+			);
+			emitControl(bridgeChoiceFrame(cmd.id, pick));
+			emitControl(bridgeCommandAckFrame(cmd.id));
+		} catch (err) {
+			emitControl(bridgeCommandAckFrame(cmd.id, `CHOICE_FAILED: ${errorMessage(err)}`));
 		}
 	}
 

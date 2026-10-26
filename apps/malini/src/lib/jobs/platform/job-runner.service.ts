@@ -31,6 +31,7 @@ import {
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
+	foldedJobContext,
 	isFinishedJobRunStatus,
 	jobPrompt,
 	jobsMaxConcurrent,
@@ -40,6 +41,7 @@ import {
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
 import {
+	appendJobRunContext,
 	findActiveJobRunForSession,
 	getJobRun,
 	getJobRunContext,
@@ -113,6 +115,26 @@ export class JobRunner {
 		this.#emit(jobRun);
 		if (jobRun.status === 'queued') this.kick();
 		return jobRun;
+	}
+
+	fold(jobRun: JobRunRecord, context: string | null, promote: boolean): JobRunRecord | null {
+		const { db } = this.#context;
+		const folded = this.#update(jobRun.id, (current) =>
+			current.status === 'waiting' || current.status === 'queued'
+				? {
+						...current,
+						requests: current.requests + 1,
+						...(promote && current.status === 'waiting'
+							? { status: 'queued' as const, detail: null }
+							: {}),
+					}
+				: null,
+		);
+		if (folded) {
+			const merged = foldedJobContext(getJobRunContext(db, folded.id), context);
+			if (merged !== null) appendJobRunContext(db, folded.id, merged);
+		}
+		return folded;
 	}
 
 	confirm(jobRun: JobRunRecord): JobRunRecord {
@@ -254,6 +276,7 @@ export class JobRunner {
 				),
 				profile: { effort: definition.effort, mode: 'agent', access: 'auto' },
 				automated: true,
+				chainId: jobRun.chainId,
 			});
 			this.#update(jobRun.id, (current) =>
 				isActive(current.status) && current.agentRunId !== agentRunId

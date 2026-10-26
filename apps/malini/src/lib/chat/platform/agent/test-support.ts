@@ -178,6 +178,11 @@ const handle = (command) => {
       write({ type: 'bridge.title', protocolVersion: version, id: command.id, title: env.FAKE_BRIDGE_TITLE });
       return ack(command.id);
     }
+    case 'choose': {
+      if (!env.FAKE_BRIDGE_CHOICE) return ack(command.id, 'CHOICE_FAILED: no choice');
+      write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick: Number(env.FAKE_BRIDGE_CHOICE) });
+      return ack(command.id);
+    }
     default:
       return ack(command.id, 'unknown command ' + command.cmd);
   }
@@ -251,6 +256,7 @@ export function recordingEventBus(): EventBus & {
 			bus.emit(channel, payload);
 		},
 		subscribe: (channel, listener) => bus.subscribe(channel, listener),
+		observe: (observer) => bus.observe(observer),
 	};
 }
 

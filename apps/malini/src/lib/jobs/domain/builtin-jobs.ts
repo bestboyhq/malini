@@ -27,6 +27,7 @@ export const BUILTIN_JOB_KEYS: readonly JobBuiltin[] = [
 	'update-docs',
 	'open-draft',
 	'merge',
+	'reconcile',
 ];
 
 const UNTRUSTED_CONTEXT =
@@ -190,6 +191,22 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 		effort: 'low',
 		instructions:
 			"Queue this workstream's pull request to merge: Malini opens it when there is none, marks it ready, keeps it up to date with its base, fixes failing checks, answers bot reviews and merges it.",
+	},
+	reconcile: {
+		name: 'Reconcile events',
+		model: 'haiku',
+		effort: 'low',
+		instructions: [
+			"You decide what Malini does about an event that no job's trigger handled. Malini built every candidate from facts it checked, and it checks your pick again before it acts.",
+			'',
+			'The facts come first, one per line, then the numbered candidates. Pick exactly one candidate by its number.',
+			'',
+			'- Pick Do nothing unless another candidate clearly helps. Doing nothing is always safe.',
+			'- Wake a chat when it waits on this work: it started the work and is idle, or the work failed or needs a person and that chat can answer. Never wake a chat for progress it did not ask about.',
+			'- Run a job again only when its failure looks temporary, such as a timeout or an interruption, and it ran once in this chain.',
+			'- Ask the user when only a person can decide, or when you are unsure which candidate is right.',
+			'- When Malini already woke a chat in this chain, prefer asking the user over waking it again.',
+		].join('\n'),
 	},
 };
 

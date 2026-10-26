@@ -660,6 +660,41 @@ describe('cli: programmatic IPC (createIpc + attachStdio)', () => {
 		]);
 	});
 
+	it('answers choose with a choice frame, and a failed pick with a rejected ack', async () => {
+		const writes: string[] = [];
+		const fakeStdout = createOutputSink();
+		fakeStdout.write = (chunk: string): boolean => {
+			writes.push(chunk);
+			return true;
+		};
+		const ipc = createIpc({
+			stdout: fakeStdout,
+			choose: async (task, job, choices) => {
+				if (task === 'unclear') throw new Error('Claude Code picked no candidate');
+				return job.model === 'haiku' && job.instructions === 'Pick one.' ? choices : 1;
+			},
+		});
+
+		await ipc.run(
+			'{"cmd":"choose","id":"choice-1","prompt":"Candidates:\\n1. Do nothing\\n2. Wake the lead\\n3. Ask you","instructions":"Pick one.","model":"haiku","choices":3}',
+		);
+		await ipc.run(
+			'{"cmd":"choose","id":"choice-2","prompt":"unclear","instructions":"Pick one.","model":"haiku","choices":2}',
+		);
+		await ipc.drain();
+
+		expect(parseFrames(writes.join(''))).toEqual([
+			expect.objectContaining({ type: 'bridge.choice', id: 'choice-1', pick: 3 }),
+			expect.objectContaining({ type: 'bridge.command_ack', id: 'choice-1', accepted: true }),
+			expect.objectContaining({
+				type: 'bridge.command_ack',
+				id: 'choice-2',
+				accepted: false,
+				error: 'CHOICE_FAILED: Claude Code picked no candidate',
+			}),
+		]);
+	});
+
 	it('names a chat without holding back the commands sent after it', async () => {
 		const writes: string[] = [];
 		const fakeStdout = createOutputSink();

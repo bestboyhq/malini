@@ -51,6 +51,7 @@ export function recordingEventBus(): EventBus & {
 			bus.emit(channel, payload);
 		},
 		subscribe: (channel, listener) => bus.subscribe(channel, listener),
+		observe: (observer) => bus.observe(observer),
 	};
 }
 

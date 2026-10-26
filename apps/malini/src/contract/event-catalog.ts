@@ -1,9 +1,12 @@
 import type { EventChannel } from './events';
 
-export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description: string }>>> = {
+export type EventCatalogEntry = Readonly<{ description: string; logged?: false }>;
+
+export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = {
 	'chat:agent-event': {
 		description:
-			'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order.',
+			'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'chat:run-changes-captured': {
 		description:
@@ -16,13 +19,18 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	'chat:session-renamed': {
 		description: 'Fires when a chat gets a new name, from the user or from the Name chats job.',
 	},
+	'chat:turn-finished': {
+		description:
+			"Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
+	},
 	'chat:mcp-server-changed': {
 		description:
 			'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',
 	},
 	'chat:mcp-servers-listed': {
 		description:
-			'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting.',
+			'Fires while the MCP servers page is open, each time the Claude Code that watches a folder sees a server connect, fail, or change, with every server of that folder and whether any is still connecting. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'repositories:workstream-created': {
 		description:
@@ -49,11 +57,20 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'repositories:workstream-merge-conflicted': {
 		description:
-			"Fires when merging a workstream's base branch into it stops on conflicts, with the base branch and the conflicted files.",
+			"Fires when a merge in a workstream stops on conflicts, whoever started it, with the workstream's base branch and the conflicted files.",
+	},
+	'repositories:workstream-head-moved': {
+		description:
+			"Fires when the commit a workstream's checkout points to changes, whoever moved it: a commit, a merge, a pull or a reset, with the branch, or `null` when the checkout is detached, and the commits before and after; `previousHead` is `null` for the first commit of a new branch.",
+	},
+	'repositories:workstream-pushed': {
+		description:
+			"Fires when a workstream's branch on `origin` moves, after a push or a fetch that brings in someone else's push, with the commit it points to now.",
 	},
 	'repositories:clone-progress': {
 		description:
-			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done.',
+			'Fires repeatedly while Malini clones a repository, with the stage and the fraction done, and once more when it is done. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'repositories:changed': {
 		description:
@@ -75,6 +92,11 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 		description:
 			"Fires when an agent calls one of Malini's tools, when the user denies the call, and when the call finishes, with the tool, its input, the approval and the outcome.",
 	},
+	'jobs:decision-changed': {
+		description:
+			'Fires when the event reconciler decides what to do about an event no trigger handled, waits to wake a busy chat, asks you, or carries out what you picked, with the facts it saw, the candidates and the pick. Malini keeps it in the decision log, not in its event log.',
+		logged: false,
+	},
 	'jobs:definition-changed': {
 		description:
 			'Fires when a job is created, edited, reset to its defaults or deleted; `definition` is `null` after a delete.',
@@ -93,7 +115,8 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'app:scale-changed': {
 		description:
-			'Fires when the interface scale or the display the window sits on changes, so layouts can measure again.',
+			'Fires when the interface scale or the display the window sits on changes, so layouts can measure again. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'app:notification-opened': {
 		description: 'Fires when you click a Malini notification, with the chat it points to.',
@@ -116,7 +139,8 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'browser:state-changed': {
 		description:
-			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure.",
+			"Fires whenever a workstream's browser tab changes its page, title, icon, loading state, history or load failure. Malini does not keep it in its event log.",
+		logged: false,
 	},
 	'browser:tab-opened': {
 		description:
@@ -132,10 +156,12 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, Readonly<{ description
 	},
 	'stats:resources-sampled': {
 		description:
-			'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use.',
+			'Fires every few seconds with a sample of the memory and CPU that Malini, its agents, browser tabs and containers use. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'stats:workstream-running-changed': {
 		description:
-			'Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers.',
+			'Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers. Malini does not keep it in its event log.',
+		logged: false,
 	},
 };

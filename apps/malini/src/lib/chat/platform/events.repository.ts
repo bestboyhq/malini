@@ -254,6 +254,14 @@ export function workstreamHasWorkingRun(db: MaliniDatabase, workstreamId: string
 	).some((runId) => !waitsOnlyOnBackgroundCommands(latestBackgroundWork(db, runId)));
 }
 
+export function sessionHasWorkingRun(db: MaliniDatabase, sessionId: string): boolean {
+	return column(
+		db,
+		'SELECT id FROM agent_runs WHERE session_id = ? AND completed_at IS NULL',
+		sessionId,
+	).some((runId) => !waitsOnlyOnBackgroundCommands(latestBackgroundWork(db, runId)));
+}
+
 export function turnEndedOverBackgroundCommands(event: Readonly<Record<string, unknown>>): boolean {
 	return event['type'] === 'background.updated' && waitsOnlyOnBackgroundCommands(event);
 }
@@ -402,6 +410,32 @@ export function latestWorkstreamTurn(
 				?.trim() ??
 			null,
 		need: report.needs[0] ?? null,
+	};
+}
+
+export type SessionReport = Readonly<{ outcome: string | null; needs: string | null }>;
+
+export function latestSessionReport(db: MaliniDatabase, sessionId: string): SessionReport | null {
+	const row = get<{ event: string }>(
+		db,
+		`SELECT e.event FROM agent_events e
+		 WHERE e.session_id = ?
+		   AND (e.event LIKE 'run.completed' || char(10) || '%'
+		     OR (e.event LIKE 'background.updated' || char(10) || '%' AND instr(e.event, '"summary":') > 0))
+		   AND NOT EXISTS (
+		     SELECT 1 FROM agent_runs r WHERE r.id = e.run_id AND r.obsoleted_at IS NOT NULL
+		   )
+		 ORDER BY e.seq DESC LIMIT 1`,
+		sessionId,
+	);
+	if (!row) return null;
+	const { payload } = eventFromBlob(row.event);
+	const report = parseTurnReport(
+		isRecord(payload) && typeof payload['summary'] === 'string' ? payload['summary'] : '',
+	);
+	return {
+		outcome: report.outcome,
+		needs: report.needs.length > 0 ? report.needs.join('; ') : null,
 	};
 }
 

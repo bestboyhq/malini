@@ -151,6 +151,7 @@ const BUILTIN_TRIGGER_ICONS: Readonly<Partial<Record<JobBuiltin, IconName>>> = {
 	'resolve-conflicts': 'swap',
 	'address-review': 'pr-open',
 	'check-compatibility': 'sparkles',
+	reconcile: 'route',
 };
 
 export const RUN_MODES: readonly Readonly<{

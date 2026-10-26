@@ -18,6 +18,7 @@
 	import AutomationsActivity from './AutomationsActivity.svelte';
 	import AutomationsOverview from './AutomationsOverview.svelte';
 	import AutomationsRecipes from './AutomationsRecipes.svelte';
+	import AutomationsTimeline from './AutomationsTimeline.svelte';
 	import JobDetail from './JobDetail.svelte';
 	import JobImprove from './JobImprove.svelte';
 
@@ -70,6 +71,8 @@
 {:else if selectedJobId === null || load.state === 'ready'}
 	{#if view === 'activity'}
 		<AutomationsActivity {jobs} />
+	{:else if view === 'timeline'}
+		<AutomationsTimeline />
 	{:else if view === 'recipes'}
 		<AutomationsRecipes />
 	{:else}

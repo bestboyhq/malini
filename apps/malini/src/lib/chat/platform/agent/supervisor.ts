@@ -191,6 +191,7 @@ export class BridgeSupervisor {
 	private stderrTail = '';
 	private readonly pendingAcks = new Map<string, PendingAck>();
 	private readonly suggestedTitles = new Map<string, string>();
+	private readonly chosenPicks = new Map<string, number>();
 	private readonly listedSkills = new Map<string, SkillRecord[]>();
 	private readonly mcpAuthorizations = new Map<string, string | null>();
 	private readonly mcpSwitches = new Map<string, string[]>();
@@ -449,6 +450,16 @@ export class BridgeSupervisor {
 				if (this.pendingAcks.has(control.id)) this.suggestedTitles.set(control.id, control.title);
 				return;
 			}
+			case 'bridge.choice': {
+				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
+					this.recordProtocolError(
+						`PROTOCOL_MISMATCH: choice v${control.protocolVersion}, expected v${BRIDGE_PROTOCOL_VERSION}`,
+					);
+					return;
+				}
+				if (this.pendingAcks.has(control.id)) this.chosenPicks.set(control.id, control.pick);
+				return;
+			}
 			case 'bridge.skills': {
 				if (control.protocolVersion !== BRIDGE_PROTOCOL_VERSION) {
 					this.recordProtocolError(
@@ -680,6 +691,23 @@ export class BridgeSupervisor {
 			return title;
 		} finally {
 			this.suggestedTitles.delete(id);
+		}
+	}
+
+	async choose(prompt: string, job: AutomaticJob, choices: number): Promise<number> {
+		const id = this.nextCommandId();
+		try {
+			await this.sendCommand({ cmd: 'choose', id, prompt, ...job, choices });
+			const pick = this.chosenPicks.get(id);
+			if (pick === undefined) {
+				throw new SupervisorError(
+					'protocol',
+					'choice was acknowledged without a bridge.choice frame',
+				);
+			}
+			return pick;
+		} finally {
+			this.chosenPicks.delete(id);
 		}
 	}
 

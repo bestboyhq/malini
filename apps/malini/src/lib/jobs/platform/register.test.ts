@@ -41,7 +41,7 @@ import { BUILTIN_JOBS } from '../domain/builtin-jobs';
 import { updateFromMainJobContext } from '../domain/update-from-main-context';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { BUSY_RETRY_MS } from './job-runner.service';
-import { getJobRun, insertJobRun } from './job-runs.repository';
+import { getJobRun, getJobRunContext, insertJobRun } from './job-runs.repository';
 import { insertSuggestionIfAbsent } from './job-suggestions.repository';
 import { registerJobs } from './register';
 import { skillsForRun } from '$lib/skills/skills.platform';
@@ -322,6 +322,7 @@ describe('job definitions', () => {
 			},
 			'open-draft': defaults('Open draft', 'low'),
 			merge: defaults('Merge', 'low'),
+			reconcile: defaults('Reconcile events', 'low', 'haiku'),
 		});
 	});
 
@@ -641,6 +642,7 @@ describe('scheduling', () => {
 			prompt: instructions,
 			profile: { effort: 'high', mode: 'agent', access: 'auto' },
 			automated: true,
+			chainId: first.chainId,
 		});
 
 		agentEvent(firstSession, 'agent-run-1', { type: 'run.completed', summary: 'Fixed the lint.' });
@@ -1097,6 +1099,8 @@ describe('restart', () => {
 				parentRunId: null,
 				chatSessionId: null,
 				chatAfterRunId: null,
+				chainId: id,
+				requests: 1,
 				createdAt: `2026-10-10T00:00:0${id.length}.000Z`,
 				startedAt: status === 'queued' ? null : NOW,
 				finishedAt: null,
@@ -1493,5 +1497,77 @@ describe('suggestions from repeated prompts', () => {
 			createdAt: NOW,
 		});
 		expect(await context.commands.call('jobs.list-suggestions', undefined)).toEqual([]);
+	});
+});
+
+describe('repeat runs', () => {
+	function chatTurn(sessionId: string, runId: string, workstreamId: string): void {
+		insertSession(db, {
+			id: sessionId,
+			workstreamId,
+			model: null,
+			providerSessionId: null,
+			status: 'running',
+			startedAt: NOW,
+		});
+		insertRun(db, {
+			id: runId,
+			sessionId,
+			prompt: 'Ship every workstream',
+			startedAt: NOW,
+			completedAt: null,
+			summary: null,
+			error: null,
+		});
+	}
+
+	it('folds a request for a job already queued in that workstream into that run', async () => {
+		openRuns.add('ws-a');
+		const definition = await saveDefinition();
+		const first = await runOf(definition, { context: 'Version 2.1' });
+		const second = await runOf(definition, { context: 'Version 2.2' });
+		const elsewhere = await runOf(definition, { workstreamId: 'ws-b' });
+
+		expect(second).toMatchObject({ id: first.id, status: 'queued', requests: 2 });
+		expect(getJobRunContext(db, first.id)).toBe('Version 2.1\n\nVersion 2.2');
+		expect(elsewhere.id).not.toBe(first.id);
+	});
+
+	it('starts a run that waits for you once you ask for that job again by hand', async () => {
+		openRuns.add('ws-a');
+		const definition = await saveDefinition();
+		const waiting = await runOf(definition, { waitForYou: true, origin: 'trigger' });
+		const asked = await runOf(definition);
+
+		expect(waiting.status).toBe('waiting');
+		expect(asked).toMatchObject({ id: waiting.id, status: 'queued', requests: 2 });
+	});
+
+	it('holds the fourth run of a job in one workstream from one chain of events until you confirm it', async () => {
+		openRuns.add('ws-a');
+		openRuns.add('ws-b');
+		chatTurn('lead-chat', 'lead-turn', 'ws-c');
+		const definition = await saveDefinition();
+		const fromTurn = (workstreamId: string) =>
+			runOf(definition, { workstreamId, chatSessionId: 'lead-chat', chatAfterRunId: 'lead-turn' });
+
+		const runs = [
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+			await fromTurn('ws-a'),
+		];
+		const other = await fromTurn('ws-b');
+
+		expect(runs.map((run) => [run.status, run.chainId])).toEqual([
+			['queued', 'lead-turn'],
+			['queued', 'lead-turn'],
+			['queued', 'lead-turn'],
+			['waiting', 'lead-turn'],
+		]);
+		expect(runs[3]?.detail).toBe(
+			'It already ran 3 times in one chain of events, so Malini asks before it runs again.',
+		);
+		expect(other).toMatchObject({ status: 'queued', chainId: 'lead-turn' });
 	});
 });

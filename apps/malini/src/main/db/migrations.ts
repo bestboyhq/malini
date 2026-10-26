@@ -802,6 +802,209 @@ CREATE TABLE custom_sounds (
   created_at TEXT NOT NULL
 );
 `,
+	`
+CREATE TABLE job_definitions_next (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  model TEXT NOT NULL,
+  effort TEXT NOT NULL CHECK (effort IN ('low','medium','high','xhigh','max')),
+  runs_in TEXT NOT NULL CHECK (runs_in IN ('workstream','new-workstream')),
+  builtin TEXT UNIQUE CHECK (builtin IS NULL OR builtin IN ('name-chats','name-services','fix-checks','update-from-main','resolve-conflicts','address-review','check-compatibility','update-docs','open-draft','merge','reconcile')),
+  skills TEXT NOT NULL DEFAULT '[]',
+  trigger_when TEXT,
+  trigger_mode TEXT CHECK (trigger_mode IN ('off','ask','auto')),
+  then_job_id TEXT REFERENCES job_definitions_next(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK ((trigger_when IS NULL) = (trigger_mode IS NULL)),
+  CHECK (then_job_id IS NULL OR then_job_id != id)
+);
+INSERT INTO job_definitions_next
+  (id, name, instructions, model, effort, runs_in, builtin, skills, trigger_when, trigger_mode,
+   then_job_id, created_at, updated_at)
+  SELECT id, name, instructions, model, effort, runs_in, builtin, skills, trigger_when,
+    trigger_mode, then_job_id, created_at, updated_at
+  FROM job_definitions;
+
+CREATE TABLE job_setups_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  model TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  expected_rate REAL CHECK (expected_rate IS NULL OR (expected_rate >= 0 AND expected_rate <= 1)),
+  created_at TEXT NOT NULL
+);
+INSERT INTO job_setups_next (id, definition_id, model, instructions, expected_rate, created_at)
+  SELECT id, definition_id, model, instructions, expected_rate, created_at FROM job_setups;
+
+CREATE TABLE job_outputs_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  setup_id TEXT NOT NULL REFERENCES job_setups_next(id) ON DELETE CASCADE,
+  input TEXT NOT NULL,
+  output TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  CHECK ((output IS NULL) <> (error IS NULL))
+);
+INSERT INTO job_outputs_next (id, definition_id, setup_id, input, output, error, created_at)
+  SELECT id, definition_id, setup_id, input, output, error, created_at FROM job_outputs;
+
+CREATE TABLE job_experiments_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  model TEXT NOT NULL,
+  instructions TEXT NOT NULL,
+  current INTEGER NOT NULL DEFAULT 0 CHECK (current IN (0, 1)),
+  created_at TEXT NOT NULL
+);
+INSERT INTO job_experiments_next (id, definition_id, name, model, instructions, current, created_at)
+  SELECT id, definition_id, name, model, instructions, current, created_at FROM job_experiments;
+
+CREATE TABLE job_experiment_samples_next (
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  output_id TEXT NOT NULL REFERENCES job_outputs_next(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (definition_id, output_id)
+);
+INSERT INTO job_experiment_samples_next (definition_id, output_id, position)
+  SELECT definition_id, output_id, position FROM job_experiment_samples;
+
+CREATE TABLE job_experiment_results_next (
+  experiment_id TEXT NOT NULL REFERENCES job_experiments_next(id) ON DELETE CASCADE,
+  output_id TEXT NOT NULL REFERENCES job_outputs_next(id) ON DELETE CASCADE,
+  output TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (experiment_id, output_id),
+  CHECK ((output IS NULL) <> (error IS NULL))
+);
+INSERT INTO job_experiment_results_next (experiment_id, output_id, output, error, created_at)
+  SELECT experiment_id, output_id, output, error, created_at FROM job_experiment_results;
+
+CREATE TABLE job_runs_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions_next(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  workstream_id TEXT,
+  repository_id TEXT,
+  scope TEXT CHECK (scope IS NULL OR scope = 'home' OR scope LIKE 'owner:_%'),
+  session_id TEXT,
+  agent_run_id TEXT,
+  origin TEXT NOT NULL CHECK (origin IN ('merge-queue','manual','trigger','then','schedule','reconciler')),
+  status TEXT NOT NULL CHECK (status IN ('waiting','queued','running','needs-you','succeeded','failed','cancelled')),
+  context TEXT,
+  detail TEXT,
+  parent_run_id TEXT REFERENCES job_runs_next(id) ON DELETE SET NULL,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  requests INTEGER NOT NULL DEFAULT 1 CHECK (requests >= 1),
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  chat_session_id TEXT,
+  chat_after_run_id TEXT
+);
+WITH RECURSIVE chains(id, chain_id, depth) AS (
+  SELECT id, id, 0 FROM job_runs
+  WHERE parent_run_id IS NULL OR parent_run_id NOT IN (SELECT id FROM job_runs)
+  UNION ALL
+  SELECT child.id, chains.chain_id, chains.depth + 1
+  FROM job_runs AS child JOIN chains ON child.parent_run_id = chains.id
+  WHERE chains.depth < 64
+)
+INSERT INTO job_runs_next
+  (id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin,
+   status, context, detail, parent_run_id, chain_id, created_at, started_at, finished_at,
+   chat_session_id, chat_after_run_id)
+  SELECT run.id, run.definition_id, run.title, run.workstream_id, run.repository_id, run.scope,
+    run.session_id, run.agent_run_id, run.origin, run.status, run.context, run.detail,
+    run.parent_run_id, COALESCE(chains.chain_id, run.id), run.created_at, run.started_at,
+    run.finished_at, run.chat_session_id, run.chat_after_run_id
+  FROM job_runs AS run LEFT JOIN chains ON chains.id = run.id;
+
+DROP TABLE job_experiment_results;
+DROP TABLE job_experiment_samples;
+DROP TABLE job_experiments;
+DROP TABLE job_outputs;
+DROP TABLE job_setups;
+DROP TABLE job_runs;
+DROP TABLE job_definitions;
+ALTER TABLE job_definitions_next RENAME TO job_definitions;
+ALTER TABLE job_setups_next RENAME TO job_setups;
+ALTER TABLE job_outputs_next RENAME TO job_outputs;
+ALTER TABLE job_experiments_next RENAME TO job_experiments;
+ALTER TABLE job_experiment_samples_next RENAME TO job_experiment_samples;
+ALTER TABLE job_experiment_results_next RENAME TO job_experiment_results;
+ALTER TABLE job_runs_next RENAME TO job_runs;
+CREATE INDEX idx_job_setups_definition_created ON job_setups(definition_id, created_at);
+CREATE INDEX idx_job_outputs_definition_created ON job_outputs(definition_id, created_at);
+CREATE INDEX idx_job_experiments_definition ON job_experiments(definition_id, created_at);
+CREATE INDEX idx_job_runs_status_created ON job_runs(status, created_at);
+CREATE INDEX idx_job_runs_session ON job_runs(session_id);
+CREATE INDEX idx_job_runs_chat_session ON job_runs(chat_session_id);
+CREATE INDEX idx_job_runs_parent ON job_runs(parent_run_id);
+CREATE INDEX idx_job_runs_definition_origin ON job_runs(definition_id, origin, created_at);
+CREATE INDEX idx_job_runs_chain ON job_runs(chain_id, definition_id);
+
+ALTER TABLE agent_runs ADD COLUMN chain_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE agent_runs ADD COLUMN cause_event_id INTEGER;
+UPDATE agent_runs SET chain_id = id;
+CREATE INDEX idx_agent_runs_chain ON agent_runs(chain_id);
+CREATE TRIGGER agent_runs_own_chain AFTER INSERT ON agent_runs WHEN NEW.chain_id = '' BEGIN
+  UPDATE agent_runs SET chain_id = NEW.id WHERE id = NEW.id;
+END;
+
+CREATE TABLE event_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  digest TEXT NOT NULL,
+  workstream_id TEXT,
+  cause_kind TEXT CHECK (cause_kind IS NULL OR cause_kind IN ('job-run','chat-turn')),
+  cause_id TEXT,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  emitted_at TEXT NOT NULL,
+  handled_at TEXT,
+  CHECK ((cause_kind IS NULL) = (cause_id IS NULL))
+);
+CREATE INDEX idx_event_log_emitted ON event_log(emitted_at);
+CREATE INDEX idx_event_log_chain ON event_log(chain_id);
+CREATE INDEX idx_event_log_digest ON event_log(channel, digest);
+CREATE INDEX idx_event_log_unhandled ON event_log(emitted_at) WHERE handled_at IS NULL;
+
+CREATE TABLE job_run_events (
+  job_run_id TEXT NOT NULL REFERENCES job_runs(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL,
+  PRIMARY KEY (job_run_id, event_id)
+);
+CREATE INDEX idx_job_run_events_event ON job_run_events(event_id);
+
+CREATE TABLE reconciler_decisions (
+  id TEXT PRIMARY KEY,
+  event_id INTEGER NOT NULL,
+  channel TEXT NOT NULL,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  workstream_id TEXT,
+  facts TEXT NOT NULL,
+  candidates TEXT NOT NULL,
+  pick INTEGER,
+  chosen INTEGER NOT NULL,
+  decided_by TEXT NOT NULL CHECK (decided_by IN ('model','rules','you')),
+  status TEXT NOT NULL CHECK (status IN ('pending','done','asking','dismissed','failed')),
+  detail TEXT,
+  job_run_id TEXT,
+  created_at TEXT NOT NULL,
+  finished_at TEXT,
+  CHECK ((status IN ('pending','asking')) = (finished_at IS NULL))
+);
+CREATE INDEX idx_reconciler_decisions_created ON reconciler_decisions(created_at);
+CREATE INDEX idx_reconciler_decisions_chain ON reconciler_decisions(chain_id);
+CREATE INDEX idx_reconciler_decisions_event ON reconciler_decisions(event_id);
+CREATE INDEX idx_reconciler_decisions_open ON reconciler_decisions(status)
+  WHERE status IN ('pending','asking');
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

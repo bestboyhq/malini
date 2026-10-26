@@ -13,7 +13,7 @@ import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { followsEveryRule } from '../domain/job-output-checks';
-import type { AutomaticJob, SuggestWithJob } from './automatic-jobs.service';
+import type { AutomaticJob } from './automatic-jobs.service';
 import {
 	clearJobExperimentResults,
 	clearJobExperiments,
@@ -42,6 +42,12 @@ export type AutomaticJobDefinition = JobDefinitionRecord &
 
 export type JobExperimentErrorKind = 'not-found' | 'locked' | 'busy' | 'not-ready';
 
+export type ReplayWithJob = (
+	builtin: AutomaticJobBuiltin,
+	task: string,
+	job: AutomaticJob,
+) => Promise<string>;
+
 export class JobExperimentError extends Error {
 	readonly kind: JobExperimentErrorKind;
 
@@ -60,15 +66,15 @@ export function isAutomaticJobDefinition(
 
 export class JobExperiments {
 	readonly #context: MainContext;
-	readonly #suggest: SuggestWithJob;
+	readonly #replay: ReplayWithJob;
 	readonly #log: (line: string) => void;
 	readonly #running = new Set<string>();
 	readonly #waiting: (() => void)[] = [];
 	#active = 0;
 
-	constructor(context: MainContext, suggest: SuggestWithJob, log: (line: string) => void) {
+	constructor(context: MainContext, replay: ReplayWithJob, log: (line: string) => void) {
 		this.#context = context;
-		this.#suggest = suggest;
+		this.#replay = replay;
 		this.#log = log;
 	}
 
@@ -143,7 +149,7 @@ export class JobExperiments {
 		if (!this.#running.has(experiment.id)) {
 			this.#running.add(experiment.id);
 			clearJobExperimentResults(this.#context.db, experiment.id);
-			void this.#replay(experiment);
+			void this.#replayAll(experiment);
 		}
 		return this.#record(experiment);
 	}
@@ -218,13 +224,16 @@ export class JobExperiments {
 		};
 	}
 
-	async #replay(experiment: StoredJobExperiment): Promise<void> {
+	async #replayAll(experiment: StoredJobExperiment): Promise<void> {
 		const { db, events } = this.#context;
 		const setup: AutomaticJob = { model: experiment.model, instructions: experiment.instructions };
 		try {
+			const builtin = automaticBuiltinOf(db, experiment.definitionId);
 			const sample = listJobExperimentSample(db, experiment.definitionId);
 			await Promise.all(
-				sample.map((output) => this.#slot(() => this.#replayOne(experiment.id, setup, output.id))),
+				sample.map((output) =>
+					this.#slot(() => this.#replayOne(builtin, experiment.id, setup, output.id)),
+				),
 			);
 		} catch (error) {
 			this.#log(`jobs: ${experiment.name} stopped replaying: ${describeError(error)}`);
@@ -237,13 +246,18 @@ export class JobExperiments {
 		}
 	}
 
-	async #replayOne(experimentId: string, setup: AutomaticJob, outputId: string): Promise<void> {
+	async #replayOne(
+		builtin: AutomaticJobBuiltin,
+		experimentId: string,
+		setup: AutomaticJob,
+		outputId: string,
+	): Promise<void> {
 		const { db } = this.#context;
 		const input = jobOutputInput(db, outputId);
 		if (input === null) return;
 		let result: JobExperimentResult;
 		try {
-			result = { outputId, output: await this.#suggest(input, setup), error: null };
+			result = { outputId, output: await this.#replay(builtin, input, setup), error: null };
 		} catch (error) {
 			result = { outputId, output: null, error: describeError(error) };
 		}

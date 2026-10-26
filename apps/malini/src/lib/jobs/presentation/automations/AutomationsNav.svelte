@@ -10,6 +10,7 @@
 		JOBS_ACTIVITY_HREF,
 		JOBS_HREF,
 		JOBS_RECIPES_HREF,
+		JOBS_TIMELINE_HREF,
 		jobHref,
 	} from '$shared/router/routes-hrefs';
 	import { builtinJobDefinitionsQuery } from '$lib/jobs/application/queries/builtin-job-definitions.query.svelte';
@@ -36,6 +37,7 @@
 	}>[] = [
 		{ value: 'overview', label: 'Overview', icon: 'sparkles', href: JOBS_HREF },
 		{ value: 'activity', label: 'Activity', icon: 'clock', href: JOBS_ACTIVITY_HREF },
+		{ value: 'timeline', label: 'Timeline', icon: 'timeline', href: JOBS_TIMELINE_HREF },
 		{ value: 'recipes', label: 'Recipes', icon: 'gift', href: JOBS_RECIPES_HREF },
 	];
 

@@ -1,4 +1,9 @@
-import type { AgentActionRecord, ChatTurnRecord, JobRunRecord } from '$contract/jobs';
+import type {
+	AgentActionRecord,
+	ChatTurnRecord,
+	JobRunRecord,
+	ReconcilerDecisionRecord,
+} from '$contract/jobs';
 import { jobRunLastActivityAt } from './job-run';
 
 export type ActivityEntry =
@@ -17,12 +22,14 @@ export type ActivityEntry =
 			turn: ChatTurnRecord;
 			calls: readonly AgentActionRecord[];
 	  }>
-	| Readonly<{ kind: 'call'; id: string; at: string; action: AgentActionRecord }>;
+	| Readonly<{ kind: 'call'; id: string; at: string; action: AgentActionRecord }>
+	| Readonly<{ kind: 'decision'; id: string; at: string; decision: ReconcilerDecisionRecord }>;
 
 export function activityEntries(
 	runs: readonly JobRunRecord[],
 	turns: readonly ChatTurnRecord[],
 	actions: readonly AgentActionRecord[],
+	decisions: readonly ReconcilerDecisionRecord[] = [],
 ): ActivityEntry[] {
 	const chronological = [...actions].sort((left, right) =>
 		left.startedAt.localeCompare(right.startedAt),
@@ -62,8 +69,20 @@ export function activityEntries(
 				at: action.finishedAt ?? action.startedAt,
 				action,
 			})),
+		...decisions.filter(decisionShown).map((decision): ActivityEntry => ({
+			kind: 'decision',
+			id: decision.id,
+			at: decision.finishedAt ?? decision.createdAt,
+			decision,
+		})),
 	];
 	return entries.sort((left, right) => right.at.localeCompare(left.at));
+}
+
+export function decisionShown(decision: ReconcilerDecisionRecord): boolean {
+	if (decision.status === 'asking') return false;
+	if (decision.status === 'failed' || decision.decidedBy === 'you') return true;
+	return decision.candidates[decision.chosen]?.kind !== 'nothing';
 }
 
 export function activityEntryRunning(entry: ActivityEntry): boolean {
@@ -74,6 +93,8 @@ export function activityEntryRunning(entry: ActivityEntry): boolean {
 			return entry.turn.status === 'running';
 		case 'call':
 			return entry.action.status === 'running';
+		case 'decision':
+			return entry.decision.status === 'pending';
 	}
 }
 

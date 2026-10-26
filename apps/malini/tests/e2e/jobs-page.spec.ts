@@ -50,11 +50,12 @@ test('the Jobs page slides the sidebar into its sections and opens the job its a
 		await expect(sections.getByRole('link', { name: /^Routines/u })).toHaveCount(0);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Automations');
 		await expect(page.getByRole('region', { name: 'Your jobs' }).getByRole('article')).toHaveCount(
-			10,
+			11,
 		);
 
 		for (const [name, title] of [
 			['Activity', 'Activity'],
+			['Timeline', 'Timeline'],
 			['Recipes', 'Recipes'],
 		] as const) {
 			await sections.getByRole('link', { name: new RegExp(`^${name}`, 'u') }).click();
