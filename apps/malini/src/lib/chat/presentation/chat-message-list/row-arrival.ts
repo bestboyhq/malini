@@ -1,5 +1,16 @@
 import { arrivalMotion } from '../arrival-motion';
-import { snapToDevicePixel, stepGlideSpring, type GlideState } from '../scroll-glide';
+import {
+	GLIDE_KEYFRAMES_PER_SAMPLE,
+	GLIDE_SAMPLE_MS,
+	glideKeyframe,
+	glideKeyframeCount,
+	glideOrigin,
+	glidePosition,
+	glideSampleAt,
+	glideSamples,
+	snapToDevicePixel,
+	type GlideState,
+} from '../scroll-glide';
 import type { TranscriptSettleGate } from './transcript-settle';
 
 const MAX_TRACKED_STAGED_BLOCKS = 512;
@@ -18,9 +29,7 @@ const COVER_FADE = 'data-cover-fade';
 
 const FADE_BACKGROUND = 'linear-gradient(to bottom, transparent, var(--color-surface-root))';
 
-const GLIDE_FRAME_MS = 1000 / 120;
-
-const STALE_FRAME_MS = 2 * GLIDE_FRAME_MS;
+const KEYFRAME_MS = GLIDE_SAMPLE_MS / GLIDE_KEYFRAMES_PER_SAMPLE;
 
 const SETTLED: GlideState = { position: 0, velocity: 0 };
 
@@ -155,6 +164,7 @@ export function createRowArrivals(input: {
 			inFlow: boolean;
 			startMs: number;
 			samples: GlideState[];
+			positions: number[];
 			animation: Animation | null;
 		};
 		type Cover = { lower: HTMLElement; fade: HTMLElement; block: HTMLElement };
@@ -169,19 +179,15 @@ export function createRowArrivals(input: {
 			if (disclosureOf(event.target)) disclosedAtMs = performance.now();
 		}
 
-		function stateAt(row: Row, nowMs: number): GlideState {
-			const elapsedMs = Math.max(0, nowMs - Number(row.animation?.startTime ?? row.startMs));
-			const index = Math.min(row.samples.length - 1, Math.floor(elapsedMs / GLIDE_FRAME_MS));
-			const sample = row.samples[index] ?? SETTLED;
-			const sinceSampleMs = elapsedMs - index * GLIDE_FRAME_MS;
-			return stepGlideSpring(sample, 0, sinceSampleMs, arrivalMotion().glideStiffness);
+		function stateAt(row: Row, originMs: number): GlideState {
+			return glideSampleAt(row.samples, originMs - Number(row.animation?.startTime ?? row.startMs));
 		}
 
 		function shownNow(row: Row): number {
 			const animation = row.animation;
 			if (animation?.playState !== 'running') return 0;
-			const index = shownSample(Number(animation.currentTime ?? 0), row.samples.length);
-			return shownOffset(row.samples[index]?.position ?? 0);
+			const index = shownSample(Number(animation.currentTime ?? 0), row.positions.length);
+			return shownOffset(row.positions[index] ?? 0);
 		}
 
 		function gliding(row: Row): boolean {
@@ -197,7 +203,7 @@ export function createRowArrivals(input: {
 			startFrame ??= requestAnimationFrame((frameMs) => {
 				startFrame = null;
 				for (const pending of unstarted) {
-					if (pending.playState !== 'idle') pending.startTime = frameMs;
+					if (pending.playState !== 'idle') pending.startTime = glideOrigin(frameMs);
 				}
 				unstarted = [];
 			});
@@ -207,8 +213,8 @@ export function createRowArrivals(input: {
 		function play(element: HTMLElement, row: Row, originMs: number | null): void {
 			row.animation?.cancel();
 			row.animation = null;
-			if (row.samples.length < 2) return;
-			const offsets = row.samples.map(({ position }) => `0 ${shownOffset(position)}px`);
+			if (row.positions.length < 2) return;
+			const offsets = row.positions.map((position) => `0 ${shownOffset(position)}px`);
 			row.animation = begin(animateFrames(element, 'translate', offsets), originMs);
 		}
 
@@ -224,8 +230,8 @@ export function createRowArrivals(input: {
 		}
 
 		function coverFrames(upper: Row, below: Row): { fade: string[]; block: string[] } | null {
-			const offsetAt = (row: Row, index: number): number => row.samples[index]?.position ?? 0;
-			const length = Math.max(upper.samples.length, below.samples.length);
+			const offsetAt = (row: Row, index: number): number => row.positions[index] ?? 0;
+			const length = Math.max(upper.positions.length, below.positions.length);
 			const depths = Array.from({ length }, (_, index) =>
 				Math.ceil(offsetAt(upper, index) - offsetAt(below, index)),
 			);
@@ -284,14 +290,15 @@ export function createRowArrivals(input: {
 
 		function replan(shifts: Map<Row, number>, resets: Set<Row>, inFlight: boolean): void {
 			const nowMs = performance.now();
-			const frameMs = Number(document.timeline.currentTime ?? nowMs);
-			const fresh = nowMs - frameMs <= STALE_FRAME_MS;
-			const originMs = inFlight ? (fresh ? frameMs : nowMs) : null;
+			const originMs = inFlight
+				? glideOrigin(Number(document.timeline.currentTime ?? nowMs))
+				: null;
 			for (const [element, row] of rows) {
-				const current = resets.has(row) ? SETTLED : stateAt(row, originMs ?? nowMs);
+				const current = resets.has(row) ? SETTLED : stateAt(row, originMs ?? glideOrigin(nowMs));
 				const shift = shifts.get(row) ?? 0;
 				const state = { position: current.position + shift, velocity: current.velocity };
-				row.samples = glideSamples(state, arrivalMotion().glideStiffness);
+				row.samples = glideSamples(state, 0, arrivalMotion().glideStiffness);
+				row.positions = keyframePositions(row.samples);
 				row.startMs = originMs ?? nowMs;
 				play(element, row, originMs);
 			}
@@ -337,6 +344,7 @@ export function createRowArrivals(input: {
 						inFlow,
 						startMs: nowMs,
 						samples: [SETTLED],
+						positions: [0],
 						animation: null,
 					});
 					changed = true;
@@ -396,13 +404,10 @@ export function createRowArrivals(input: {
 	};
 }
 
-function glideSamples(state: GlideState, stiffness: number): GlideState[] {
-	const samples = [state];
-	for (let sample = state; sample.position !== 0 || sample.velocity !== 0;) {
-		sample = stepGlideSpring(sample, 0, GLIDE_FRAME_MS, stiffness);
-		samples.push(sample);
-	}
-	return samples;
+function keyframePositions(samples: readonly GlideState[]): number[] {
+	return Array.from({ length: glideKeyframeCount(samples) }, (_, keyframe) =>
+		glidePosition(samples, keyframe),
+	);
 }
 
 function shownOffset(position: number): number {
@@ -410,7 +415,7 @@ function shownOffset(position: number): number {
 }
 
 function shownSample(elapsedMs: number, count: number): number {
-	return Math.min(count - 1, Math.max(0, Math.round(elapsedMs / GLIDE_FRAME_MS)));
+	return Math.min(count - 1, glideKeyframe(elapsedMs));
 }
 
 function animateFrames(
@@ -424,7 +429,7 @@ function animateFrames(
 			? []
 			: [{ [property]: value, offset: index === 0 ? 0 : (index - 0.5) / span, easing: 'step-end' }],
 	);
-	return element.animate(keyframes, { duration: span * GLIDE_FRAME_MS, fill: 'backwards' });
+	return element.animate(keyframes, { duration: span * KEYFRAME_MS, fill: 'backwards' });
 }
 
 function coverPart(kind: 'fade' | 'block', height: number): HTMLElement {
