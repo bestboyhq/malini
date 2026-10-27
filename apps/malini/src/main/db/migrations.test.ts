@@ -79,7 +79,6 @@ const ALL_INDEXES = [
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
 	'idx_event_log_chain',
-	'idx_event_log_digest',
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
 	'idx_job_experiments_definition',

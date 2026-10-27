@@ -64,46 +64,8 @@ function worktree(): WorktreeStatus {
 	};
 }
 
-beforeEach(() => {
-	vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
-	vi.setSystemTime(at(MONDAY, 8, 59));
-	db = openMigratedDatabase(':memory:');
-	notices = [];
-	prompts = [];
-	behind = 0;
-	pulls = 0;
+function harness(): MainContext {
 	const commands = new CommandRegistry();
-	context = {
-		db,
-		commands,
-		events: createEventBus({ forwardToWindows: false }),
-		appDataRoot: '/tmp/job-schedules-test',
-		resourcesRoot: '/tmp/job-schedules-test',
-		isDev: true,
-		appVersion: '0.0.0-test',
-	};
-	upsertProject(db, {
-		id: 'malini-lead-space',
-		name: 'malini-lead-space',
-		repoPath: '/tmp/lead-space',
-		defaultBranch: 'main',
-		createdAt: at(MONDAY, 0).toISOString(),
-	});
-	upsertProject(db, {
-		id: 'local__acme__app',
-		name: 'acme__app',
-		repoPath: '/tmp/acme-app',
-		defaultBranch: 'main',
-		createdAt: at(MONDAY, 0).toISOString(),
-	});
-	upsertConnectedRepository(db, {
-		id: 'repo-1',
-		fullName: 'acme/app',
-		defaultBranch: 'main',
-		localPath: null,
-		remoteUrl: 'https://github.com/acme/app.git',
-		createdAt: at(MONDAY, 0).toISOString(),
-	});
 	let sessions = 0;
 	commands.define('app.list-settings', () => ({}));
 	commands.define('app.notification-permission-granted', () => true);
@@ -141,8 +103,54 @@ beforeEach(() => {
 		pulls += 1;
 		return 'abc1234';
 	});
+	return {
+		db,
+		commands,
+		events: createEventBus({ forwardToWindows: false }),
+		appDataRoot: '/tmp/job-schedules-test',
+		resourcesRoot: '/tmp/job-schedules-test',
+		isDev: true,
+		appVersion: '0.0.0-test',
+	};
+}
+
+function start(): void {
+	context = harness();
 	jobs = registerJobs(context, { log: () => {} });
 	jobs.start();
+}
+
+beforeEach(() => {
+	vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+	vi.setSystemTime(at(MONDAY, 8, 59));
+	db = openMigratedDatabase(':memory:');
+	notices = [];
+	prompts = [];
+	behind = 0;
+	pulls = 0;
+	upsertProject(db, {
+		id: 'malini-lead-space',
+		name: 'malini-lead-space',
+		repoPath: '/tmp/lead-space',
+		defaultBranch: 'main',
+		createdAt: at(MONDAY, 0).toISOString(),
+	});
+	upsertProject(db, {
+		id: 'local__acme__app',
+		name: 'acme__app',
+		repoPath: '/tmp/acme-app',
+		defaultBranch: 'main',
+		createdAt: at(MONDAY, 0).toISOString(),
+	});
+	upsertConnectedRepository(db, {
+		id: 'repo-1',
+		fullName: 'acme/app',
+		defaultBranch: 'main',
+		localPath: null,
+		remoteUrl: 'https://github.com/acme/app.git',
+		createdAt: at(MONDAY, 0).toISOString(),
+	});
+	start();
 });
 
 afterEach(() => {
@@ -202,7 +210,7 @@ describe('job schedules', () => {
 		expect(await runs()).toHaveLength(1);
 	});
 
-	it('starts a run on the Time reached it logs, names it as the cause, and never twice for one time', async () => {
+	it('starts a run on the Time reached it logs, names it as the cause, and never again when it hears that time after a restart', async () => {
 		const job = await schedule('every weekday at 09:00');
 		await passTo(at(MONDAY, 9));
 		await vi.waitFor(async () => expect(await runs()).toHaveLength(1));
@@ -227,11 +235,12 @@ describe('job schedules', () => {
 		).toEqual([{ event_id: reached?.id }]);
 
 		finish(run);
-		context.events.emit(JOBS_TIME_REACHED_CHANNEL, JSON.parse(reached?.payload ?? 'null'));
+		await vi.waitFor(async () => expect((await runs())[0]?.status).toBe('succeeded'));
+		jobs.dispose();
+		db.exec('UPDATE event_log SET handled_at = NULL');
+		start();
 		await vi.waitFor(() =>
-			expect(
-				all(db, 'SELECT id FROM event_log WHERE channel = ?', JOBS_TIME_REACHED_CHANNEL),
-			).toHaveLength(2),
+			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
 		);
 		await vi.advanceTimersByTimeAsync(SCHEDULE_CHECK_INTERVAL_MS);
 		expect(await runs()).toHaveLength(1);

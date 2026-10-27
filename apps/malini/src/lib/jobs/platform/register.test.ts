@@ -28,6 +28,7 @@ import type { MainContext } from '$main/context';
 import { openDatabase, type MaliniDatabase } from '$main/db/driver';
 import { BASELINE_USER_VERSION, SCHEMA, migrate } from '$main/db/migrations';
 import { openMigratedDatabase } from '$main/db/open';
+import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
@@ -378,7 +379,7 @@ describe('job definitions', () => {
 		});
 	});
 
-	it('checks compatibility in the newest workstream once when malini updates, through its rule', async () => {
+	it('checks compatibility in the newest workstream once when malini updates, through its rule, even when it hears the update again after a restart', async () => {
 		const definition = await builtin('check-compatibility');
 		upsertWorkstream(db, {
 			id: 'ws-newest',
@@ -413,8 +414,14 @@ describe('job definitions', () => {
 			expect.objectContaining({ prompt: expect.stringContaining('"jobs:run-changed"') }),
 		);
 
-		context.events.emit(APP_UPDATED_CHANNEL, { from: '0.1.0', to: '0.2.0', changes });
-		await new Promise((resolve) => setTimeout(resolve, 30));
+		jobs.dispose();
+		db.exec(`UPDATE event_log SET handled_at = NULL WHERE channel = '${APP_UPDATED_CHANNEL}'`);
+		context = harness(db);
+		jobs = registerJobs(context, { log: () => {} });
+		jobs.start();
+		await vi.waitFor(() =>
+			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
+		);
 		const runs = await context.commands.call('jobs.list-runs', undefined);
 		expect(runs.filter((entry) => entry.definitionId === definition.id)).toEqual([
 			expect.objectContaining({ id: run.id, requests: 1 }),
@@ -1611,7 +1618,6 @@ describe('repeat runs', () => {
 		const read = insertLoggedEvent(db, {
 			channel: 'pull-requests:pull-request-changed',
 			payload: '{}',
-			digest: 'read',
 			workstreamId: 'ws-a',
 			cause: null,
 			chainId: 'chain-of-read',
