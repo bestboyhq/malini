@@ -141,7 +141,7 @@
 	];
 </script>
 
-<Head title="Malini: an agentic development environment" description={SITE_DESCRIPTION} path="" />
+<Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
 
 <Hero>
 	<p class="lede">
