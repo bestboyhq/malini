@@ -92,7 +92,7 @@ export function topBarStatus(page: Page, name: string | RegExp): Locator {
 }
 
 export function toastSaying(page: Page, text: string): Locator {
-	return page.getByRole('status').filter({ hasText: text });
+	return page.getByTestId('toast').filter({ hasText: text });
 }
 
 export async function queueMerge(page: Page): Promise<void> {

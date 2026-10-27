@@ -7,6 +7,7 @@ import {
 	type PullRequestShipChange,
 } from '$lib/pull-requests/domain/pull-request-ship';
 import { pullRequestShipAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-ship.aggregate.svelte';
+import { pullRequestStateAggregate } from '$lib/pull-requests/infrastructure/aggregates/pull-request-state.aggregate.svelte';
 
 export { acceptShipChangeCommand };
 
@@ -20,6 +21,9 @@ function acceptShipChangeCommand(
 	const { workstreamId } = change;
 	const previous = pullRequestShipAggregate.shipFor(workstreamId);
 	pullRequestShipAggregate.accept(workstreamId, change.ship);
+	if (change.mergedPullRequestNumber !== null) {
+		pullRequestStateAggregate.observe(workstreamId, 'merged');
+	}
 
 	const announcement = pullRequestNeedsYouAnnouncement(previous, change, workstreamName);
 	if (!announcement) return;

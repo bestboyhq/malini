@@ -15,13 +15,13 @@ The top bar already had a place for a workstream whose pull request merged: **Me
   `ShippingService` records the merged pull request on the workstream, emits `pull-requests:ship-changed` with `merged`, and deletes the ship row; it never calls `repositories.archive-workstream`.
 - The `archiving` ship step is gone from `$contract/pull-requests`.
 - The workstream stays open on **Merged**: **Archive** puts it away in **Recently archived**, with the pull request it merged, and **Continue** restarts it on the latest base.
-- `acceptShipChangeCommand` no longer navigates to Repositories when a merge lands.
+- `acceptShipChangeCommand` no longer navigates to Repositories when a merge lands, and marks the workstream's pull request state `merged` at once, so its sidebar badge and its lead's count show the merge without waiting for the next read of GitHub.
 - `workstreams_list` reports `merged` for open workstreams too, read from `merged_pull_request_number` and `merged_pull_request_url`; `repositories.restart-workstream-on-base` clears them, so a continued workstream stops reporting its old merge.
 - The agent's lineage instructions say merged workstreams carry `merged` instead of coming back archived.
 
 ## Consequences
 
 - Merged workstreams stay in the sidebar until you archive them, so their worktrees, chats and background commands live on until then.
-- A lead chat counts an open merged workstream as merged through its pull request badge, and an archived one through its recorded merge, as before.
+- A lead chat counts an open merged workstream as merged through its pull request badge, and an archived one through its recorded merge.
 - `shipping.service.test.ts` fails when shipping archives a workstream (its `repositories.archive-workstream` stub throws) or when a landed workstream is not left `active` with its merged pull request recorded.
 - `tests/e2e/merge-queue.spec.ts` and the specs that use `expectMerged` fail when a merge leaves the workstream page or drops its row, and `archiveMerged` checks that **Archive** then files it under **Recently archived** with its pull request.
