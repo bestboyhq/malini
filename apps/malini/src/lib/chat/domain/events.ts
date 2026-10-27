@@ -1,4 +1,4 @@
-import type { AgentBackgroundTask } from '$contract/agent';
+import type { AgentBackgroundTask, RunFailure } from '$contract/agent';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { McpServerReport } from '$contract/mcp-servers';
 import type { StagedAgentAttachment } from './composer-actions';
@@ -110,7 +110,14 @@ export type AgentEvent =
 			handedOff?: boolean;
 	  }
 	| { type: 'run.completed'; runId: string; summary: string; handedOff?: boolean }
-	| { type: 'run.failed'; runId: string; error: string; handedOff?: boolean }
+	| {
+			type: 'run.failed';
+			runId: string;
+			error: string;
+			failure?: RunFailure;
+			resumeAt?: string;
+			handedOff?: boolean;
+	  }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }
 	| { type: 'thinking.delta'; runId: string; contentId: string; text: string }
 	| {

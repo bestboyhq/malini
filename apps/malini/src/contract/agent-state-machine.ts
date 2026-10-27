@@ -28,6 +28,7 @@ export interface LifecycleEnvelope {
 	readonly event: {
 		readonly type: string;
 		readonly error?: unknown;
+		readonly resumeAt?: unknown;
 	};
 }
 
@@ -79,10 +80,16 @@ export function nextSessionStatus(
 	status: SessionStatus,
 	kind: LifecycleEventKind,
 	error: string | null = null,
+	paused = false,
 ): SessionStatus | 'invalid' {
 	const next = TRANSITIONS[status][kind];
 	if (next === undefined) return 'invalid';
-	return next === 'failed' && error !== null && isCancellationError(error) ? 'idle' : next;
+	const quiet = paused || (error !== null && isCancellationError(error));
+	return next === 'failed' && quiet ? 'idle' : next;
+}
+
+export function isPausedRunEvent(event: Readonly<{ type?: unknown; resumeAt?: unknown }>): boolean {
+	return event.type === 'run.failed' && typeof event.resumeAt === 'string';
 }
 
 export const PAUSED_FOR_EXIT_ERROR = 'paused: malini closed mid-run';
@@ -93,6 +100,9 @@ export const BRIDGE_INTERRUPTED_ERROR = 'interrupted: agent bridge restarted';
 
 export const CONTINUE_AFTER_PAUSE_PROMPT =
 	'Malini restarted while you were working and cut your last step short. Nobody rejected it: re-run whatever was interrupted and continue where you left off.';
+
+export const CONTINUE_AFTER_STOP_PROMPT =
+	"A usage limit or an error from Claude's API cut your last step short, and it is over now. Nobody rejected it: re-run whatever was interrupted and continue where you left off.";
 
 export function isCancellationError(error: string): boolean {
 	return /\bcancell?ed\b/iu.test(error) || error === PAUSED_FOR_EXIT_ERROR;
@@ -113,6 +123,7 @@ function extractError(event: LifecycleEnvelope['event']): string {
 function failedRun(
 	event: LifecycleEnvelope['event'],
 ): Pick<SessionStatusFold, 'status' | 'lastError'> {
+	if (isPausedRunEvent(event)) return { status: 'idle', lastError: null };
 	const error = extractError(event);
 	return isCancellationError(error)
 		? { status: 'idle', lastError: 'cancelled' }

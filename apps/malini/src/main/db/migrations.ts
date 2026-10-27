@@ -1074,6 +1074,10 @@ UPDATE job_definitions SET name = 'Choose a reaction'
   WHERE builtin = 'reconcile' AND name = 'Reconcile events';
 DELETE FROM settings WHERE key = 'jobs.reconciler';
 `,
+	`
+ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
+ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

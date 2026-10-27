@@ -11,6 +11,7 @@ class ChatSessionStore {
 	emptySessionMode: EmptySessionMode = $state('setup');
 	createFreshSessionOnNextPrompt: boolean = $state(false);
 	retryingSession: boolean = $state(false);
+	continuingRun: boolean = $state(false);
 	resettingRuns: boolean = $state(false);
 	bootingWorkstreamId: string | null = $state(null);
 	bootstrappedFor: string | null = $state(null);

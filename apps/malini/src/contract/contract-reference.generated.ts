@@ -257,10 +257,10 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'jobs:time-reached',
 			description:
-				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.",
+				"Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.",
 			payloadType: 'TimeReachedEvent',
 			payload:
-				"type ScheduleTimeReached = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;\n\ntype ShippingWait = 'retry' | 'checks';\n\ntype ShippingTimeReached = Readonly<{\n\tworkstreamId: string;\n\twait: ShippingWait;\n\tdue: string;\n}>;\n\ntype TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;",
+				"type ScheduleTimeReached = Readonly<{\n\tdefinitionId: string;\n\tname: string;\n\twhen: string;\n\tdue: string;\n}>;\n\ntype ShippingWait = 'retry' | 'checks';\n\ntype ShippingTimeReached = Readonly<{\n\tworkstreamId: string;\n\twait: ShippingWait;\n\tdue: string;\n}>;\n\ntype ResumeTimeReached = Readonly<{\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\twait: 'resume';\n\tdue: string;\n}>;\n\ntype AlarmTimeReached = ShippingTimeReached | ResumeTimeReached;\n\ntype TimeReachedEvent = ScheduleTimeReached | AlarmTimeReached;",
 		},
 		{
 			channel: 'app:started',

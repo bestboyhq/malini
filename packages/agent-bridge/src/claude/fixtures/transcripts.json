@@ -6287,5 +6287,1342 @@
 			"uuid": "5cec97fa-c9a2-44f6-8998-0b9d702eaa81",
 			"session_id": "4efd3cbb-54fb-4441-b020-662d430411ed"
 		}
+	],
+	"usageLimit": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "5fedaf98-11f3-4cd7-8be2-b1db0a4a6736",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "cd273e24-f20a-47c6-8139-979d05e92b79"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5",
+			"uuid": "d21b1a90-cf55-48f3-9842-4cd708144e85",
+			"user_message_uuids": ["5eaa8922-a096-4ffc-8a87-890adc7f019d"]
+		},
+		{
+			"type": "rate_limit_event",
+			"rate_limit_info": {
+				"status": "rejected",
+				"resetsAt": 1793111473,
+				"rateLimitType": "five_hour",
+				"isUsingOverage": false,
+				"unifiedWindows": {
+					"five_hour": {
+						"utilization": 1,
+						"resetsAt": 1793111473
+					}
+				}
+			},
+			"uuid": "dfdeb74f-7b83-4f38-b6eb-363b0d483b41",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "2b4240ed-3e70-4ec2-9070-f534e32e9d60",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "You've hit your session limit · resets 3:31pm (Europe/Warsaw)"
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5",
+			"uuid": "a48cf8e8-6920-49ef-8cda-7f7e87cf572f",
+			"timestamp": "2026-10-27T12:31:14.820Z",
+			"error": "rate_limit",
+			"is_api_error_message": true,
+			"api_error": "usage_limit_reached",
+			"api_error_params": {
+				"rate_limit_info": {
+					"status": "rejected",
+					"resetsAt": 1793111473,
+					"rateLimitType": "five_hour",
+					"isUsingOverage": false
+				}
+			},
+			"user_message_uuid": "5eaa8922-a096-4ffc-8a87-890adc7f019d",
+			"user_message_uuids": ["5eaa8922-a096-4ffc-8a87-890adc7f019d"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 429,
+			"api_error": "usage_limit_reached",
+			"result": "You've hit your session limit · resets 3:31pm (Europe/Warsaw)",
+			"type": "result",
+			"duration_ms": 51,
+			"uuid": "74d77401-0212-4c9c-acd3-7ee435dc8b81",
+			"user_message_uuid": "5eaa8922-a096-4ffc-8a87-890adc7f019d",
+			"user_message_uuids": ["5eaa8922-a096-4ffc-8a87-890adc7f019d"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "e7e0375c-1f42-4a1f-8e32-b523c04dc94b",
+			"session_id": "f272acb8-3f72-4d37-9db1-4dc3e4f33bf5"
+		}
+	],
+	"rateLimit": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "20991195-30eb-4564-aad8-0dab8603186f",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "66586e6f-fc25-4450-8e91-e8e6aa4c5dc1"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad",
+			"uuid": "82800136-2c3a-4b5c-a17a-5538488e6617",
+			"user_message_uuids": ["3a51e99a-251a-41ca-9835-c70f16575f1d"]
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 611,
+			"error_status": 429,
+			"error": "rate_limit",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad",
+			"uuid": "29852350-bee6-40f4-8d1b-96fa9c2e52bf"
+		},
+		{
+			"type": "rate_limit_event",
+			"rate_limit_info": {
+				"status": "rejected",
+				"isUsingOverage": false
+			},
+			"uuid": "85836fcb-f14c-447a-a108-d67ea5702288",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "dacd5a4b-6274-42dd-8a6e-ab0ffb9c1480",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "API Error: Server is temporarily limiting requests (not your usage limit) · Number of request tokens has exceeded your per-minute rate limit"
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad",
+			"uuid": "8174ff58-a2b8-4a18-a4bb-febd93462842",
+			"timestamp": "2026-10-27T12:31:57.877Z",
+			"error": "rate_limit",
+			"is_api_error_message": true,
+			"user_message_uuid": "3a51e99a-251a-41ca-9835-c70f16575f1d",
+			"user_message_uuids": ["3a51e99a-251a-41ca-9835-c70f16575f1d"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 429,
+			"result": "API Error: Server is temporarily limiting requests (not your usage limit) · Number of request tokens has exceeded your per-minute rate limit",
+			"type": "result",
+			"duration_ms": 718,
+			"uuid": "2e11ff99-d1bd-46ec-bf14-0fbf1b004193",
+			"user_message_uuid": "3a51e99a-251a-41ca-9835-c70f16575f1d",
+			"user_message_uuids": ["3a51e99a-251a-41ca-9835-c70f16575f1d"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "1250bffd-ec36-4476-9303-9b6b1511ade1",
+			"session_id": "f0d9cd2b-08f9-49ff-9669-40da3c559bad"
+		}
+	],
+	"overloaded": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "e5fa699c-e740-4954-bf43-c9b5925cc6e9",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "377e6732-bb07-4352-a99b-09960812e886"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451",
+			"uuid": "7a418ca4-0218-40da-817d-65397261b829",
+			"user_message_uuids": ["28dea20f-9580-434a-afab-96c6cf38f87e"]
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 616,
+			"error_status": 529,
+			"error": "overloaded",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451",
+			"uuid": "eb72f329-9888-46ab-af5a-f79911af9ab2"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "d17cf8f0-067a-4edd-aa4c-2ecdff7b852a",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:8792)."
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451",
+			"uuid": "aee4e07b-556a-4c53-9732-76ab965ef90b",
+			"timestamp": "2026-10-27T12:31:52.840Z",
+			"error": "server_error",
+			"is_api_error_message": true,
+			"user_message_uuid": "28dea20f-9580-434a-afab-96c6cf38f87e",
+			"user_message_uuids": ["28dea20f-9580-434a-afab-96c6cf38f87e"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 529,
+			"result": "API Error: 529 Overloaded. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:8792).",
+			"type": "result",
+			"duration_ms": 697,
+			"uuid": "9f7c9924-b056-4c14-8ed0-fdffaec4b688",
+			"user_message_uuid": "28dea20f-9580-434a-afab-96c6cf38f87e",
+			"user_message_uuids": ["28dea20f-9580-434a-afab-96c6cf38f87e"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "19d0116d-3073-4fca-907e-16962a37cb9a",
+			"session_id": "01341628-65db-4066-a3dc-18841e20f451"
+		}
+	],
+	"serverError": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "fede9d29-62f8-40dc-9054-042294fd618e",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "8f2b2a68-0122-41e9-a6cf-8a8516e094ea"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068",
+			"uuid": "942764b7-3b55-4a68-b666-628882aa7ccf",
+			"user_message_uuids": ["2714ed84-f0ac-48b3-8db5-328861519128"]
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 613,
+			"error_status": 500,
+			"error": "server_error",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068",
+			"uuid": "05879260-b199-4a58-9907-e655d752a710"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "2bcc0ea6-66b6-4be1-9eb6-194dba58b63c",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "API Error: 500 Internal server error. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:8793)."
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068",
+			"uuid": "e45e0dd3-d7bb-4b8f-85f5-5c11809d760f",
+			"timestamp": "2026-10-27T12:31:55.377Z",
+			"error": "server_error",
+			"is_api_error_message": true,
+			"user_message_uuid": "2714ed84-f0ac-48b3-8db5-328861519128",
+			"user_message_uuids": ["2714ed84-f0ac-48b3-8db5-328861519128"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 500,
+			"result": "API Error: 500 Internal server error. This is a server-side issue, usually temporary — try again in a moment. If it persists, check your inference gateway (127.0.0.1:8793).",
+			"type": "result",
+			"duration_ms": 706,
+			"uuid": "e9b452a2-2a5b-4a6b-b6fa-5697b8661309",
+			"user_message_uuid": "2714ed84-f0ac-48b3-8db5-328861519128",
+			"user_message_uuids": ["2714ed84-f0ac-48b3-8db5-328861519128"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "59b49d94-f2b9-4a52-bcf8-a9315e71f055",
+			"session_id": "8eeaa4c8-86bc-4e99-aacd-307bd6c1c068"
+		}
+	],
+	"network": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "9f7dd17e-b252-410d-9a9d-ee50eeaad009",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "c1bb68a4-0de7-4932-b7a6-c29c7ed726ab"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339",
+			"uuid": "0666160d-8315-4174-9bc9-153bc063a17b",
+			"user_message_uuids": ["a226d0b0-0187-4486-9e5f-f68397abf672"]
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 589,
+			"error_status": null,
+			"error": "unknown",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339",
+			"uuid": "b38cf20d-525a-4cf7-a184-35b5e72354a8"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "0a88ee0e-8e29-4181-99f8-7d021b5825a5",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "API Error: Connection dropped (ECONNRESET)"
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339",
+			"uuid": "3e187932-843d-4586-b2ba-c15ef14057e7",
+			"timestamp": "2026-10-27T12:32:08.524Z",
+			"error": "server_error",
+			"is_api_error_message": true,
+			"user_message_uuid": "a226d0b0-0187-4486-9e5f-f68397abf672",
+			"user_message_uuids": ["a226d0b0-0187-4486-9e5f-f68397abf672"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": null,
+			"result": "API Error: Connection dropped (ECONNRESET)",
+			"type": "result",
+			"duration_ms": 656,
+			"uuid": "eac3b72b-2ee7-48b1-830e-a33e2dc56cac",
+			"user_message_uuid": "a226d0b0-0187-4486-9e5f-f68397abf672",
+			"user_message_uuids": ["a226d0b0-0187-4486-9e5f-f68397abf672"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "ed28550b-c6d2-475b-97be-4b2f1f525384",
+			"session_id": "2df4b18c-e8ab-411b-9960-c2c410fa1339"
+		}
+	],
+	"signedOut": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "7fc07061-47fa-4cae-9ffa-5c49eb5c0cb9",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "941ee808-9df7-40bb-b8a6-8c285488f674"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"uuid": "ce21c980-120a-404b-963f-e5831ed71b9c",
+			"user_message_uuids": ["0439fd37-b427-4f0e-bbb8-8601835c7eaa"]
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 606,
+			"error_status": 401,
+			"error": "authentication_failed",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"uuid": "8976b73b-c1ef-4e87-986c-35ec51c221d6"
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 619,
+			"error_status": 401,
+			"error": "authentication_failed",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"uuid": "6963851b-b42c-482b-a929-c6ceb28f63ac"
+		},
+		{
+			"type": "system",
+			"subtype": "api_retry",
+			"attempt": 1,
+			"max_retries": 1,
+			"retry_delay_ms": 504,
+			"error_status": 401,
+			"error": "authentication_failed",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"uuid": "ed4a79fe-4893-49fc-978a-17d2f2f67918"
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "1b380c49-3220-4569-866c-63de55d292b3",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "Not logged in · Please run /login"
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"uuid": "267789e2-fe77-4efa-8b87-0af27e5fad1e",
+			"timestamp": "2026-10-27T12:32:02.850Z",
+			"error": "authentication_failed",
+			"is_api_error_message": true,
+			"user_message_uuid": "0439fd37-b427-4f0e-bbb8-8601835c7eaa",
+			"user_message_uuids": ["0439fd37-b427-4f0e-bbb8-8601835c7eaa"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 401,
+			"result": "Not logged in · Please run /login",
+			"type": "result",
+			"duration_ms": 3454,
+			"uuid": "ca898a95-6191-438f-a315-a8dd0efe1d90",
+			"user_message_uuid": "0439fd37-b427-4f0e-bbb8-8601835c7eaa",
+			"user_message_uuids": ["0439fd37-b427-4f0e-bbb8-8601835c7eaa"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "eb166b30-2d3b-4e93-9c9c-2b49436c5bc5",
+			"session_id": "c5e2e9bb-3b2c-4caa-96cd-8bb08048ae8c"
+		}
+	],
+	"billing": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "03af4543-e172-452b-885c-40379b9b56ea",
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "9e489e9d-3853-4350-b51e-f9aecc3be29f"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f",
+			"uuid": "3f2dbd07-d6e1-4cb1-812c-ae6a74b1c30d",
+			"user_message_uuids": ["4484f2a8-0744-4c5a-b71e-e08f4c763b2d"]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "42c116a8-a83d-4109-8596-07ec40a4a4f6",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "Credit balance is too low"
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f",
+			"uuid": "a51352b4-69a4-4ea3-bdfc-1bc620f035cc",
+			"timestamp": "2026-10-27T12:32:04.506Z",
+			"error": "billing_error",
+			"is_api_error_message": true,
+			"user_message_uuid": "4484f2a8-0744-4c5a-b71e-e08f4c763b2d",
+			"user_message_uuids": ["4484f2a8-0744-4c5a-b71e-e08f4c763b2d"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "api_error",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 400,
+			"result": "Credit balance is too low",
+			"type": "result",
+			"duration_ms": 128,
+			"uuid": "66f974e6-cb0c-4fda-aa1e-204b5df06e54",
+			"user_message_uuid": "4484f2a8-0744-4c5a-b71e-e08f4c763b2d",
+			"user_message_uuids": ["4484f2a8-0744-4c5a-b71e-e08f4c763b2d"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "315956c8-252d-4089-939a-308160b26135",
+			"session_id": "98678153-2809-4a27-a0da-24a44511b99f"
+		}
+	],
+	"promptTooLong": [
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "running",
+			"uuid": "5594b54c-0c7c-4300-b38e-692a85e414f5",
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480"
+		},
+		{
+			"type": "system",
+			"subtype": "init",
+			"cwd": "/work/repo",
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480",
+			"model": "claude-haiku-5-5",
+			"permissionMode": "default",
+			"mcp_servers": [],
+			"uuid": "1b8225b6-c2ff-4817-9eac-454f25e45c14"
+		},
+		{
+			"type": "system",
+			"subtype": "status",
+			"status": "requesting",
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480",
+			"uuid": "7a31d440-aebd-4106-92f8-302963a4d740",
+			"user_message_uuids": ["f25b65b9-3793-451a-b645-0b02178134f3"]
+		},
+		{
+			"type": "assistant",
+			"message": {
+				"diagnostics": null,
+				"id": "78c653b8-54ff-47c4-925c-92f3c58565be",
+				"container": null,
+				"model": "<synthetic>",
+				"role": "assistant",
+				"stop_details": null,
+				"stop_reason": "stop_sequence",
+				"stop_sequence": "",
+				"type": "message",
+				"usage": {
+					"output_tokens_details": null,
+					"input_tokens": 0,
+					"output_tokens": 0,
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 0,
+					"server_tool_use": {
+						"web_search_requests": 0,
+						"web_fetch_requests": 0
+					},
+					"service_tier": null,
+					"cache_creation": {
+						"ephemeral_1h_input_tokens": 0,
+						"ephemeral_5m_input_tokens": 0
+					},
+					"inference_geo": null,
+					"iterations": null,
+					"speed": null,
+					"fallback_credit": null
+				},
+				"content": [
+					{
+						"type": "text",
+						"text": "Prompt is too long · the request is ~250000 tokens (limit 200000) but this conversation is only ~2602 tokens — the rest is system prompt, tool definitions, and attachment content. A single-exchange conversation cannot be compacted; reduce attached files/tools or start with less context."
+					}
+				],
+				"context_management": null
+			},
+			"parent_tool_use_id": null,
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480",
+			"uuid": "309c942a-cb87-4b0e-a48b-1a1507cdf1cf",
+			"timestamp": "2026-10-27T12:32:06.175Z",
+			"error": "invalid_request",
+			"is_api_error_message": true,
+			"user_message_uuid": "f25b65b9-3793-451a-b645-0b02178134f3",
+			"user_message_uuids": ["f25b65b9-3793-451a-b645-0b02178134f3"]
+		},
+		{
+			"duration_api_ms": 0,
+			"stop_reason": "stop_sequence",
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480",
+			"total_cost_usd": 0,
+			"usage": {
+				"output_tokens_details": {
+					"thinking_tokens": 0
+				},
+				"input_tokens": 0,
+				"cache_creation_input_tokens": 0,
+				"cache_read_input_tokens": 0,
+				"output_tokens": 0,
+				"server_tool_use": {
+					"web_search_requests": 0,
+					"web_fetch_requests": 0
+				},
+				"service_tier": "standard",
+				"cache_creation": {
+					"ephemeral_1h_input_tokens": 0,
+					"ephemeral_5m_input_tokens": 0
+				},
+				"inference_geo": "",
+				"iterations": [],
+				"speed": "standard",
+				"fallback_credit": null
+			},
+			"modelUsage": {},
+			"permission_denials": [],
+			"terminal_reason": "prompt_too_long",
+			"fast_mode_state": "off",
+			"fast_mode_disabled_reason": "sdk_opt_in_required",
+			"subagent_stats": {
+				"spawned": 0,
+				"requested": {
+					"background": 0,
+					"foreground": 0,
+					"unset": 0
+				},
+				"started_in_background": 0,
+				"max_depth": 0,
+				"spawned_by_subagents": 0,
+				"completed": 0,
+				"failed": 0,
+				"killed": {
+					"parent": 0,
+					"user": 0,
+					"system": 0
+				},
+				"refused": {
+					"depth_limit": 0,
+					"concurrency_limit": 0,
+					"budget": 0
+				},
+				"by_type": {}
+			},
+			"safety_stops": 0,
+			"is_error": true,
+			"num_turns": 1,
+			"subtype": "success",
+			"api_error_status": 400,
+			"result": "Prompt is too long · the request is ~250000 tokens (limit 200000) but this conversation is only ~2602 tokens — the rest is system prompt, tool definitions, and attachment content. A single-exchange conversation cannot be compacted; reduce attached files/tools or start with less context.",
+			"type": "result",
+			"duration_ms": 64,
+			"uuid": "edc7c275-c048-4202-a2f8-e7ee81802726",
+			"user_message_uuid": "f25b65b9-3793-451a-b645-0b02178134f3",
+			"user_message_uuids": ["f25b65b9-3793-451a-b645-0b02178134f3"],
+			"queued_turn_count": 0,
+			"result_index": 0
+		},
+		{
+			"type": "system",
+			"subtype": "session_state_changed",
+			"state": "idle",
+			"uuid": "153ad549-f667-40d1-8c3f-ab598f69e03d",
+			"session_id": "0c1d9f80-de5a-4664-9db6-2a8275e88480"
+		}
 	]
 }

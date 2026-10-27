@@ -86,6 +86,7 @@
 		onsavetoscratchpad?: ((idea: string) => void) | undefined;
 		header: Snippet<[string]>;
 		workstreamsCard: Snippet<[readonly string[]]>;
+		notice?: Snippet | undefined;
 	}
 
 	let {
@@ -96,6 +97,7 @@
 		onsavetoscratchpad,
 		header,
 		workstreamsCard,
+		notice,
 	}: Props = $props();
 
 	const splitInset = resizableSplitInset();
@@ -469,12 +471,18 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if (showsSessionChanges && sessionChanges) || childRequestsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
 												data-testid="chat-composer-tray"
 											>
+												{#if notice}
+													<div transition:slide={foldMotion()}>
+														{@render notice()}
+													</div>
+												{/if}
+
 												{#if childRequestsWaiting}
 													<div transition:slide={foldMotion()}>
 														<ChildRequestsWaiting

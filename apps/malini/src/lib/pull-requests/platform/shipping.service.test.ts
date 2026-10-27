@@ -1595,6 +1595,40 @@ describe('shipping a queued merge', () => {
 		expect(github.only().state).toBe('OPEN');
 	});
 
+	it('picks a stopped merge up again once a chat turn fixes what stopped it', async () => {
+		settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING] = '1';
+		await queueWithDraft();
+		github.ciOutcomes = ['SUCCESS'];
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks', attempts: 1 }));
+		finishJob(activeJob().id, 'failed');
+		await until(() => expect(ship('ws-1')?.needsYou?.reason).toBe('fix-gave-up'));
+
+		finishUserRun('ws-1', 'Fixed the failing test.', ['src/search.ts']);
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(jobRuns.size).toBe(1);
+		expect(github.only().state).toBe('MERGED');
+	});
+
+	it('picks a merge a git operation stopped up again once the operation is aborted', async () => {
+		await queueWithDraft();
+		worktrees.set('ws-1', { ...worktree('ws-1'), operationInProgress: 'cherry-pick' });
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')?.needsYou?.reason).toBe('operation-in-progress'));
+
+		worktrees.set('ws-1', { ...worktree('ws-1'), operationInProgress: null });
+		context.events.emit('repositories:workstream-files-changed', {
+			workstreamId: 'ws-1',
+			changedAt: new Date().toISOString(),
+			paths: ['src/search.ts'],
+		});
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(github.only().state).toBe('MERGED');
+	});
+
 	it('retitles from a fix that changed no code and waits for the check the title reruns', async () => {
 		await queueWithDraft();
 		const failedAt = new Date(Date.now() - 60_000).toISOString();

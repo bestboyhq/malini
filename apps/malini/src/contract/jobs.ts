@@ -242,7 +242,17 @@ export type ShippingTimeReached = Readonly<{
 	due: string;
 }>;
 
-export type TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;
+export type ResumeTimeReached = Readonly<{
+	workstreamId: string;
+	sessionId: string;
+	runId: string;
+	wait: 'resume';
+	due: string;
+}>;
+
+export type AlarmTimeReached = ShippingTimeReached | ResumeTimeReached;
+
+export type TimeReachedEvent = ScheduleTimeReached | AlarmTimeReached;
 
 export type AgentActionStatus = 'running' | 'succeeded' | 'failed' | 'denied';
 

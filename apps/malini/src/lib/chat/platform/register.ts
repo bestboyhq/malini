@@ -1,5 +1,5 @@
 import type { AgentTheme } from '$contract/agent';
-import { APP_STARTED_CHANNEL } from '$contract/events';
+import { APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
@@ -15,6 +15,7 @@ import type { BridgeProcessFactory } from './agent/process';
 import { startAgentService, type AgentService, type BrowserAutomation } from './agent/service';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
+import { isRecord } from '$main/db/rows';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import { stagedAttachmentExpiryFrom } from './attachments.repository';
 import {
@@ -137,9 +138,22 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		suggestTitle,
 		choose: async (task, job, choices) => (await agent.ensureReady()).choose(task, job, choices),
 		resume: async (event) => {
+			if (event.channel === JOBS_TIME_REACHED_CHANNEL) {
+				const paused = pausedRunReached(event.payload);
+				if (paused) await agent.continuePausedRun(paused, event.id);
+				return;
+			}
 			if (event.channel !== APP_STARTED_CHANNEL || resumed) return;
 			resumed = true;
 			await agent.continuePausedRuns(event.id);
 		},
 	};
+}
+
+function pausedRunReached(payload: unknown): Readonly<{ sessionId: string; runId: string }> | null {
+	if (!isRecord(payload)) return null;
+	const { wait, sessionId, runId } = payload;
+	return wait === 'resume' && typeof sessionId === 'string' && typeof runId === 'string'
+		? { sessionId, runId }
+		: null;
 }

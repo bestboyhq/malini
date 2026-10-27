@@ -3,6 +3,7 @@ import {
 	PAUSED_FOR_EXIT_ERROR,
 	foldSessionStatus,
 	isCancellationError,
+	isPausedRunEvent,
 	type LifecycleEnvelope,
 	type SessionStatus,
 } from '$contract/agent-state-machine';
@@ -80,6 +81,7 @@ type SessionState = Readonly<{
 	status: SessionStatus;
 	runId: string | null;
 	summary: string | null;
+	paused: boolean;
 }>;
 
 export class JobRunner {
@@ -545,7 +547,7 @@ export class JobRunner {
 			return;
 		}
 		const error = text(envelope.event['error']) ?? 'The agent run failed.';
-		if (error === PAUSED_FOR_EXIT_ERROR) return;
+		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(envelope.event)) return;
 		this.#pendingRequests.delete(envelope.sessionId);
 		if (isCancellationError(error)) this.#finish(jobRun.id, 'cancelled', null);
 		else this.#finish(jobRun.id, 'failed', error);
@@ -628,6 +630,7 @@ export class JobRunner {
 
 	async #recoverRun(jobRun: JobRunRecord): Promise<void> {
 		const session = jobRun.sessionId === null ? null : await this.#sessionState(jobRun.sessionId);
+		if (session?.paused) return;
 		if (session === null || session.status === 'idle' || session.status === 'failed') {
 			this.#finish(jobRun.id, 'failed', JOB_INTERRUPTED_DETAIL);
 			return;
@@ -655,10 +658,14 @@ export class JobRunner {
 		const completed = envelopes
 			.filter((envelope) => envelope.event['type'] === 'run.completed')
 			.at(-1);
+		const ended = envelopes
+			.filter(({ event }) => event['type'] === 'run.completed' || event['type'] === 'run.failed')
+			.at(-1);
 		return {
 			status: fold.status,
 			runId: fold.currentRunId,
 			summary: text(completed?.event['summary']),
+			paused: fold.status === 'idle' && ended !== undefined && isPausedRunEvent(ended.event),
 		};
 	}
 
@@ -763,6 +770,11 @@ function stringField(value: unknown, key: string): string | null {
 function lifecycleEnvelope(envelope: AgentEventEnvelope): LifecycleEnvelope[] {
 	const type = envelope.event['type'] === 'user.message' ? 'run.started' : envelope.event['type'];
 	return typeof type === 'string'
-		? [{ runId: envelope.runId, event: { type, error: envelope.event['error'] } }]
+		? [
+				{
+					runId: envelope.runId,
+					event: { type, error: envelope.event['error'], resumeAt: envelope.event['resumeAt'] },
+				},
+			]
 		: [];
 }

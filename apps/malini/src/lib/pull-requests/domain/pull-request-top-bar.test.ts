@@ -709,6 +709,23 @@ describe('the workstream status', () => {
 		).toBe('Octo asked for tests. The merge picks up again on its own once this is resolved.');
 	});
 
+	it('sends a merge whose fix gave up to its job to retry', () => {
+		expect(
+			status(
+				ship({
+					phase: 'needs-you',
+					needsYou: needsYou('fix-gave-up', {
+						detail: 'Fixing the checks did not work. Malini tried 3 times.',
+						jobRunId: 'run-1',
+					}),
+				}),
+				null,
+			)?.tooltip,
+		).toBe(
+			'Fixing the checks did not work. Malini tried 3 times. Open the job to see why, and retry the merge from there.',
+		);
+	});
+
 	it('confirms Cancel and Abort before they run', () => {
 		expect(status(ship({ phase: 'queued' }), null)?.action).toMatchObject({
 			kind: 'cancel-merge',
@@ -906,13 +923,12 @@ describe('the workstream status', () => {
 });
 
 describe('the pull request detail menu', () => {
-	it('keeps Retry and Cancel merge beside a needs-you action', () => {
+	it('keeps Cancel merge beside a needs-you action, and never offers a blind Retry', () => {
 		const bar = topBar(
 			ship({ phase: 'needs-you', needsYou: needsYou('operation-in-progress') }),
 			surface({ operationInProgress: 'cherry-pick' }),
 		);
 		expect(bar.menu).toEqual([
-			{ id: 'retry-merge', label: 'Retry', confirmLabel: null },
 			{ id: 'cancel-merge', label: 'Cancel merge', confirmLabel: 'Confirm cancel' },
 			{ id: 'refresh', label: 'Refresh', confirmLabel: null },
 		]);

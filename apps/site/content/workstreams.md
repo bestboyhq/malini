@@ -109,7 +109,7 @@ Malini sees main move when it reads the pull request on GitHub, and checks a wor
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
-- **It runs on events.** **Draft**, **Merge**, **Retry** and **Cancel** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
+- **It runs on events.** **Draft**, **Merge** and **Cancel** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
   It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
 - **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
@@ -120,8 +120,11 @@ Malini sees main move when it reads the pull request on GitHub, and checks a wor
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Errors are retried.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes, and the top bar says **Retrying after an error**.
-- **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.
-  The top bar names the reason, and once it is resolved, the merge picks up again on its own the next time GitHub shows a change, its branch moves or a retry comes due, or at once when you click **Retry**.
+- **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, your GitHub sign-in expired, or a git operation stopped part-way.
+  The top bar names the reason, and once it is resolved, the merge picks up again on its own: when GitHub shows a change, its branch moves, a turn in the chat ends, a git operation you aborted or finished leaves the checkout, or a retry comes due.
+  There is no **Retry** in the top bar, because a retry without the details does nothing new.
+  When a fix gave up, **Open job** shows that job's chat and why the merge stopped, with **Retry merge**, which queues it again.
+- **A limit doesn't stop it.** A fix job whose turn hits a usage limit or an outage [pauses](/malini/docs/chat.md#limits-and-outages) and keeps the merge waiting, without spending an attempt.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
 

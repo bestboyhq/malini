@@ -190,7 +190,11 @@ function causeOf(
 		const action = isRecord(payload) ? payload['action'] : null;
 		return turnCause(db, findString(action, 'sessionId'), findString(action, 'runId'));
 	}
-	if (channel === CHAT_TURN_FINISHED_CHANNEL || channel === CHAT_RUN_CHANGES_CAPTURED_CHANNEL) {
+	if (
+		channel === CHAT_TURN_FINISHED_CHANNEL ||
+		channel === CHAT_RUN_CHANGES_CAPTURED_CHANNEL ||
+		(channel === JOBS_TIME_REACHED_CHANNEL && findString(payload, 'wait') === 'resume')
+	) {
 		return turnCause(db, findString(payload, 'sessionId'), findString(payload, 'runId'));
 	}
 	const since = SHIPPING_CHANNELS.has(channel)

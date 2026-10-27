@@ -6,6 +6,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
@@ -154,7 +155,7 @@ export class Shipping {
 				await this.#buttonClicked(workstreamId, event);
 				return;
 			case JOBS_TIME_REACHED_CHANNEL:
-				this.#wake(workstreamId, event);
+				if (stringField(payload, 'wait') !== 'resume') this.#wake(workstreamId, event);
 				return;
 			case PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL:
 				await this.#opened(workstreamId, event);
@@ -167,6 +168,11 @@ export class Shipping {
 				return;
 			case REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL:
 				if (getShip(this.#context.db, workstreamId)?.phase === 'needs-you') {
+					this.#wake(workstreamId, event);
+				}
+				return;
+			case REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL:
+				if (getShip(this.#context.db, workstreamId)?.needsYou?.reason === 'operation-in-progress') {
 					this.#wake(workstreamId, event);
 				}
 				return;
@@ -543,11 +549,13 @@ export class Shipping {
 		});
 	}
 
-	#recheck(context: MoveContext, move: ShippingMove): boolean {
+	async #recheck(context: MoveContext, move: ShippingMove): Promise<boolean> {
 		const { row } = context;
+		if (move.kind === 'wait' && move.step === 'waiting-for-agent') {
+			return this.#waitForIdle(context.idleness);
+		}
 		const unchanged =
 			(move.kind === 'needs-you' && move.reason === row.needsYou?.reason) ||
-			(move.kind === 'wait' && move.step === 'waiting-for-agent') ||
 			move.kind === 'backoff';
 		if (unchanged) return false;
 		const resumed = this.#save(
@@ -568,11 +576,8 @@ export class Shipping {
 			case 'wait':
 				this.#save(workstreamId, { step: move.step });
 				if (move.until !== undefined) this.#alarm(workstreamId, 'checks', move.until);
-				if (move.step === 'waiting-for-agent' && context.idleness.settlesInMs !== null) {
-					await sleep(context.idleness.settlesInMs);
-					return !this.#disposed;
-				}
-				return false;
+				if (move.step !== 'waiting-for-agent') return false;
+				return this.#waitForIdle(context.idleness);
 			case 'backoff':
 				this.#alarm(workstreamId, 'retry', context.snapshot.backoffUntil ?? this.#now());
 				return false;
@@ -1076,6 +1081,12 @@ export class Shipping {
 		return remaining > 0
 			? { idle: false, settlesInMs: remaining }
 			: { idle: true, settlesInMs: null };
+	}
+
+	async #waitForIdle(idleness: Idleness): Promise<boolean> {
+		if (idleness.settlesInMs === null) return false;
+		await sleep(idleness.settlesInMs);
+		return !this.#disposed;
 	}
 
 	async #refuseNothingToShip(target: ShipTarget): Promise<void> {

@@ -1078,6 +1078,30 @@ describe('tracking', () => {
 		expect(await until(queued.id, 'failed')).toMatchObject({ detail: 'tests still fail' });
 	});
 
+	it('keeps a job running while a limit pauses its turn, and finishes it with the turn that goes on', async () => {
+		const queued = await runFixChecks('ws-a');
+		const sessionId = await session(queued.id);
+
+		agentEvent(sessionId, 'agent-run-1', {
+			type: 'run.failed',
+			error: "You've hit your session limit",
+			failure: { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z' },
+			resumeAt: '2026-10-27T14:31:18.000Z',
+		});
+		await settle();
+		expect((await jobRun(queued.id)).status).toBe('running');
+
+		agentEvent(sessionId, 'agent-run-2', { type: 'run.started', sessionId });
+		agentEvent(sessionId, 'agent-run-2', {
+			type: 'run.completed',
+			summary: 'Fixed after the reset.',
+		});
+		expect(await until(queued.id, 'succeeded')).toMatchObject({
+			detail: 'Fixed after the reset.',
+			agentRunId: 'agent-run-2',
+		});
+	});
+
 	it('marks the job cancelled when its agent run is cancelled', async () => {
 		const queued = await runFixChecks('ws-a');
 		const sessionId = await session(queued.id);
@@ -1109,7 +1133,7 @@ describe('tracking', () => {
 });
 
 describe('restart', () => {
-	it('keeps tracking runs malini resumed and fails the ones it could not', async () => {
+	it('keeps tracking runs malini resumed or a limit paused, and fails the ones it could not', async () => {
 		jobs.dispose();
 		const definition = await builtin('fix-checks');
 		const left = (
@@ -1144,6 +1168,7 @@ describe('restart', () => {
 		};
 		left('resumed', 'ws-a', 's-resumed', 'running');
 		left('lost', 'ws-b', 's-lost', 'running');
+		left('paused', 'ws-c', 's-paused', 'running');
 		left('finished', 'ws-c', 's-finished', 'needs-you');
 		left('never', 'ws-d', null, 'running');
 		left('waiting-for-b', 'ws-b', null, 'queued');
@@ -1160,6 +1185,15 @@ describe('restart', () => {
 		sessionEvents.set('s-lost', [
 			envelope('s-lost', 'r3', { type: 'run.started' }),
 			envelope('s-lost', 'r3', { type: 'run.failed', error: PAUSED_FOR_EXIT_ERROR }),
+		]);
+		sessionEvents.set('s-paused', [
+			envelope('s-paused', 'r5', { type: 'run.started' }),
+			envelope('s-paused', 'r5', {
+				type: 'run.failed',
+				error: 'API Error: 529 Overloaded',
+				failure: { kind: 'overloaded', status: 529 },
+				resumeAt: '2026-10-10T00:05:00.000Z',
+			}),
 		]);
 		sessionEvents.set('s-finished', [
 			envelope('s-finished', 'r4', { type: 'run.started' }),
@@ -1180,6 +1214,7 @@ describe('restart', () => {
 		await until('waiting-for-b', 'running');
 		expect(await jobRun('resumed')).toMatchObject({ status: 'running', agentRunId: 'r2' });
 		expect((await jobRun('held')).status).toBe('waiting');
+		expect((await jobRun('paused')).status).toBe('running');
 
 		agentEvent('s-resumed', 'r2', { type: 'run.started', sessionId: 's-resumed' });
 		agentEvent('s-resumed', 'r2', { type: 'run.completed', summary: 'Picked up where it left.' });

@@ -430,6 +430,37 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.failed', error: 'model not found' });
 	});
 
+	it.each([
+		['usageLimit', { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z', status: 429 }],
+		['rateLimit', { kind: 'rate-limit', status: 429 }],
+		['overloaded', { kind: 'overloaded', status: 529 }],
+		['serverError', { kind: 'server-error', status: 500 }],
+		['network', { kind: 'network' }],
+		['signedOut', { kind: 'sign-in', status: 401 }],
+		['billing', { kind: 'billing', status: 400 }],
+		['promptTooLong', { kind: 'request', status: 400 }],
+	] as const)('says what failed when a turn ends on %s', async (scenario, failure) => {
+		const { session, events } = harness([recordedScript(scenario)]);
+
+		await session.sendPrompt('Say hi in one word.', 'run-1', profile());
+
+		const [failed] = ofType(events, 'run.failed');
+		expect(failed?.failure).toEqual(failure);
+		expect(events.at(-1)).toMatchObject({ type: 'run.failed', runId: 'run-1' });
+	});
+
+	it('reports the signed-out failure in words that say how to sign in', async () => {
+		const { session, events } = harness([recordedScript('signedOut')]);
+
+		await session.sendPrompt('Say hi in one word.', 'run-1', profile());
+
+		expect(events.at(-1)).toMatchObject({
+			type: 'run.failed',
+			error: expect.stringContaining('Claude Code is not signed in'),
+			failure: { kind: 'sign-in' },
+		});
+	});
+
 	it('carries restored history into the first prompt of a new Claude session only', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, claude } = harness([script, script], {
@@ -1450,9 +1481,10 @@ describe('ClaudeSession', () => {
 		[
 			'Invalid API key · Please run /login',
 			'Claude Code is not signed in. Run `claude auth login` in a terminal, then try again.',
+			{ kind: 'sign-in' },
 		],
-		['API Error: 529 Overloaded', 'API Error: 529 Overloaded'],
-	])('fails a turn Claude Code ended with "%s"', async (reason, error) => {
+		['API Error: 529 Overloaded', 'API Error: 529 Overloaded', { kind: 'overloaded', status: 529 }],
+	])('fails a turn Claude Code ended with "%s"', async (reason, error, reported) => {
 		const script = recordedScript('ask');
 		const failure: SDKResultSuccess = {
 			...recordedSuccess(script),
@@ -1463,7 +1495,12 @@ describe('ClaudeSession', () => {
 
 		await session.sendPrompt('Hello', 'run-1', profile());
 
-		expect(events.at(-1)).toEqual({ type: 'run.failed', runId: 'run-1', error });
+		expect(events.at(-1)).toEqual({
+			type: 'run.failed',
+			runId: 'run-1',
+			error,
+			failure: reported,
+		});
 	});
 
 	it('fails a turn that ends without a result', async () => {
@@ -1476,6 +1513,7 @@ describe('ClaudeSession', () => {
 			type: 'run.failed',
 			runId: 'run-1',
 			error: 'Claude Code stopped without finishing the turn.',
+			failure: { kind: 'unknown' },
 		});
 	});
 });

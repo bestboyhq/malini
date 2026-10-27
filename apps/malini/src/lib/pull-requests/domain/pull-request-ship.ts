@@ -78,6 +78,17 @@ export function needsYouReasonDescription(reason: ShipNeedsYouReason): string {
 	return REASON_DESCRIPTIONS[reason];
 }
 
+export type MergeStoppedOnJob = Readonly<{ jobRunId: string; detail: string }>;
+
+export function mergeStoppedOnJob(ship: PullRequestShip | null): MergeStoppedOnJob | null {
+	const stop = ship?.phase === 'needs-you' ? ship.needsYou : null;
+	if (stop?.reason !== 'fix-gave-up' || !stop.jobRunId) return null;
+	return {
+		jobRunId: stop.jobRunId,
+		detail: stop.detail.trim() || REASON_DESCRIPTIONS['fix-gave-up'],
+	};
+}
+
 export function needsYouDestination(needsYou: ShipNeedsYou): PullRequestNeedsYouDestination | null {
 	if (needsYou.reason === 'github-reconnect') return 'repositories';
 	if (needsYou.reason === 'operation-in-progress') return needsYou.jobRunId ? 'job' : null;

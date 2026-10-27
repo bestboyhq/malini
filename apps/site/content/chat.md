@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -46,6 +46,21 @@ A run stays open while its background commands and subagents run, and you can st
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
 Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
+
+## Limits and outages
+
+Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
+When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat says **Paused until** a time, with the reason.
+
+- A usage limit on your Claude plan waits until the limit resets.
+- A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
+- An error Malini does not recognize tries again once, after a minute.
+
+The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue.
+**Resume now** goes on at once, and a prompt you send replaces the pause.
+A job whose turn pauses keeps running, so a merge that waits on it loses no attempt.
+A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
 
 ## Run a command from the chat
 

@@ -204,7 +204,7 @@ describe('explorer', () => {
 		expect(hops('turn:api-turn')).toEqual([['chats', 'chats']]);
 		expect(hops('event:1')).toEqual([['event:turn-finished', 'reconciler']]);
 		expect(hops('event:2')).toEqual([['event:job-finished', 'reconciler']]);
-		expect(hops('event:3')).toEqual([['event:other', 'reconciler']]);
+		expect(hops('event:3')).toEqual([['event:files-changed', 'reconciler']]);
 		expect(hops('event:4')).toEqual([['event:other', 'reconciler']]);
 		expect(hops('decision:wake')).toEqual([['reconciler', 'rule:model']]);
 		expect(hops('turn:lead-wake')).toEqual([['rule:model', 'chats']]);
@@ -266,7 +266,8 @@ describe('explorer', () => {
 
 		expect(map.counts.get('event:turn-finished')).toBe(5);
 		expect(map.counts.get('event:job-finished')).toBe(1);
-		expect(map.counts.get('event:other')).toBe(10);
+		expect(map.counts.get('event:files-changed')).toBe(9);
+		expect(map.counts.get('event:other')).toBe(1);
 		expect(map.counts.get('reconciler')).toBe(16);
 		expect(map.counts.get('chats')).toBe(4);
 		expect(map.counts.get('jobs')).toBe(6);

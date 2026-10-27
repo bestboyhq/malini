@@ -55,6 +55,7 @@ import {
 	retryKey,
 	sandboxFor,
 } from './permissions.js';
+import { RunFailureSignals, SIGNED_OUT_TEXT, UNKNOWN_FAILURE } from './run-failure.js';
 import { lastOutputLine } from './task-output.js';
 import { ClaudeTranscript } from './transcript.js';
 import { anthropicSnapshot, type AnthropicSnapshot } from './usage.js';
@@ -136,6 +137,7 @@ interface ActiveRun {
 	readonly finished: Promise<void>;
 	readonly end: () => void;
 	transcript: ClaudeTranscript;
+	failureSignals: RunFailureSignals;
 	turnEnded: Promise<void>;
 	cancelled: boolean;
 	snapshot: AnthropicSnapshot | null;
@@ -285,6 +287,7 @@ export class ClaudeSession implements ProviderHandle {
 			finished,
 			end,
 			transcript: new ClaudeTranscript(runId, this.#emit),
+			failureSignals: new RunFailureSignals(),
 			turnEnded: finished,
 			cancelled: false,
 			snapshot: null,
@@ -329,6 +332,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.results = [];
 		active.snapshot = null;
 		active.transcript = new ClaudeTranscript(runId, this.#emit);
+		active.failureSignals = new RunFailureSignals();
 		const outcome = await this.#turn(active, prompt, profile, 'warm');
 		return outcome === 'process-ended' ? outcome : 'done';
 	}
@@ -369,7 +373,9 @@ export class ClaudeSession implements ProviderHandle {
 			this.#emit({
 				type: 'run.failed',
 				runId: active.runId,
-				error: active.cancelled ? 'cancelled' : describe(error),
+				...(active.cancelled
+					? { error: 'cancelled' }
+					: { error: describe(error), failure: UNKNOWN_FAILURE }),
 				...cursor(transcript),
 			});
 		} finally {
@@ -391,6 +397,7 @@ export class ClaudeSession implements ProviderHandle {
 			const message = next.value;
 			if (message.type === 'system' && message.subtype === 'init') this.#acceptInit(message);
 			active.transcript.accept(message);
+			active.failureSignals.accept(message);
 			if (message.type === 'system' && message.subtype === 'session_state_changed') {
 				reportsSessionState = true;
 				const settled = message.state === 'idle' && !active.transcript.hasBackgroundTasks;
@@ -458,6 +465,7 @@ export class ClaudeSession implements ProviderHandle {
 		active.results = [];
 		active.snapshot = null;
 		active.transcript.handOff(runId);
+		active.failureSignals = new RunFailureSignals();
 		await this.#applyEffort(active, profile);
 		if (interrupt) await active.query.interrupt().catch(() => undefined);
 		active.turns.push(userTurn(prompt, active.promptId));
@@ -560,6 +568,7 @@ export class ClaudeSession implements ProviderHandle {
 				type: 'run.failed',
 				runId,
 				error: 'Claude Code stopped without finishing the turn.',
+				failure: UNKNOWN_FAILURE,
 				...cursor(transcript),
 			});
 			return;
@@ -574,7 +583,13 @@ export class ClaudeSession implements ProviderHandle {
 			});
 			return;
 		}
-		this.#emit({ type: 'run.failed', runId, error: resultError(result), ...cursor(transcript) });
+		this.#emit({
+			type: 'run.failed',
+			runId,
+			error: resultError(result),
+			failure: active.failureSignals.failure(result),
+			...cursor(transcript),
+		});
 	}
 
 	#options(
@@ -977,7 +992,7 @@ function cursor(transcript: ClaudeTranscript): { providerCursor?: string } {
 function resultError(result: SDKResultMessage): string {
 	const text =
 		result.subtype === 'success' ? result.result : result.errors.join('\n') || result.subtype;
-	if (/not logged in|\/login|authentication|invalid api key|oauth/iu.test(text)) {
+	if (SIGNED_OUT_TEXT.test(text)) {
 		return `Claude Code is not signed in. Run \`${CLAUDE_LOGIN_COMMAND}\` in a terminal, then try again.`;
 	}
 	return text || 'Claude Code reported an error.';

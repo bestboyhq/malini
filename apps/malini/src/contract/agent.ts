@@ -78,6 +78,27 @@ export interface AgentQuestionAnswer {
 	values: readonly string[];
 }
 
+export const RUN_FAILURE_KINDS = [
+	'usage-limit',
+	'rate-limit',
+	'overloaded',
+	'server-error',
+	'network',
+	'sign-in',
+	'billing',
+	'model',
+	'request',
+	'unknown',
+] as const;
+
+export type RunFailureKind = (typeof RUN_FAILURE_KINDS)[number];
+
+export interface RunFailure {
+	kind: RunFailureKind;
+	resetsAt?: string;
+	status?: number;
+}
+
 export interface AgentEventEnvelope {
 	sessionId: string;
 	runId: string;

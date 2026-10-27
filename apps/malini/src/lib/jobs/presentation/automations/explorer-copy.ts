@@ -27,6 +27,7 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'job-started': { label: 'Job started', icon: 'play' },
 	'job-finished': { label: 'Job finished', icon: 'check' },
 	'head-moved': { label: 'Head moved', icon: 'commit' },
+	'files-changed': { label: 'Files changed', icon: 'files' },
 	'branch-pushed': { label: 'Branch pushed', icon: 'arrow-up' },
 	'merge-conflicted': { label: 'Merge conflicted', icon: 'swap' },
 	'pull-request-changed': { label: 'Pull request changed', icon: 'pr-open' },
