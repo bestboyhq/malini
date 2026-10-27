@@ -28,7 +28,7 @@ Malini ships the GitHub CLI, and setup installs Claude Code if you don't have it
 ## Updates
 
 Malini updates itself.
-Updates download in the background and install when you quit, or right away with **Restart to Update** in the app menu.
+Updates download in the background and install when you quit, or right away with **Restart to update** at the bottom of the sidebar.
 See [Updates and compatibility](/malini/docs/updates.md).
 
 ## Build from source

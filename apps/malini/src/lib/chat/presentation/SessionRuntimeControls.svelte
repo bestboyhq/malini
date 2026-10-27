@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
-	import { currentPlanLimits, planLimitAlert } from '$lib/chat/domain/plan-usage';
+	import { currentPlanLimits, lastRunAccount, planLimitAlert } from '$lib/chat/domain/plan-usage';
 	import { liveContextUsageQuery } from '$lib/chat/application/queries/live-context-usage.query.svelte';
 	import { planUsageQuery } from '$lib/chat/application/queries/plan-usage.query.svelte';
 	import { refreshSessionStatusCommand } from '$lib/chat/application/commands/refresh-session-status.command';
@@ -12,7 +12,11 @@
 	import { Button } from '$hyper-ui/components/button';
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
+	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
+	import { ClaudeAccountList, claudeCodeStatusQuery } from '$shared/providers/providers.api';
+	import { goto } from '$shared/router/navigation';
+	import { ACCOUNT_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		contextBreakdown,
 		contextPressure,
@@ -55,6 +59,15 @@
 	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
 	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
 	const planAlert = $derived(planLimitAlert(planLimits));
+	const claudeStatus = $derived(claudeCodeStatusQuery.data);
+	const signedIn = $derived(claudeStatus.kind === 'ready');
+	const chatAccount = $derived(lastRunAccount(envelopes));
+	const ranOnOtherAccount = $derived(
+		claudeStatus.kind === 'ready' &&
+			chatAccount !== null &&
+			claudeStatus.account?.email !== undefined &&
+			chatAccount !== claudeStatus.account.email,
+	);
 	const triggerLabel = $derived(
 		[
 			contextPercent === null
@@ -336,6 +349,30 @@
 								{/if}
 							</div>
 						{/each}
+					</section>
+				{/if}
+
+				{#if signedIn}
+					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Claude account">
+						<div class="flex items-center justify-between gap-3">
+							<h3 class="text-fg-default text-sm font-medium">Account</h3>
+							<IconButton
+								variant="ghost"
+								size="xs"
+								ariaLabel="Manage accounts"
+								class="text-fg-tertiary"
+								onclick={() => void goto(ACCOUNT_SETTINGS_HREF)}
+							>
+								<Icon name="settings" size={14} />
+							</IconButton>
+						</div>
+						{#if ranOnOtherAccount && chatAccount}
+							<p class="text-2xs text-fg-tertiary mt-1 leading-4">
+								This chat last ran on <SensitiveText text={chatAccount} />. Its next prompt uses the
+								checked account.
+							</p>
+						{/if}
+						<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5" />
 					</section>
 				{/if}
 			</div>

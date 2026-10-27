@@ -10,6 +10,12 @@ const OLD_NAME = NAME.toLowerCase();
 const ID = 'app.malini.updatetest';
 const PORT = 8765;
 const BACKGROUND = { MALINI_BACKGROUND_WINDOW: '1', MALINI_USAGE_DATA: 'off' };
+const THEME = process.env['MALINI_THEME'];
+const LAUNCH = {
+	args: [],
+	env: { ...process.env, ...BACKGROUND },
+	colorScheme: THEME === 'light' || THEME === 'dark' ? THEME : null,
+};
 const appRoot = resolve(import.meta.dirname, '..');
 const dir = join(tmpdir(), 'malini-update-e2e');
 const applications = join(dir, 'Applications');
@@ -114,33 +120,52 @@ async function cleanup() {
 	rmSync(applications, { recursive: true, force: true });
 }
 
+/** @param {import('@playwright/test').ElectronApplication} app */
+const updateStatus = async (app) =>
+	(await app.firstWindow()).evaluate(() =>
+		globalThis.malini.invoke('app.update-status', undefined),
+	);
+
+/** @param {import('@playwright/test').ElectronApplication} app */
+const appMenu = (app) =>
+	app.evaluate(
+		({ Menu }) =>
+			Menu.getApplicationMenu()
+				?.items[0]?.submenu?.items.map((item) => item.label)
+				.filter(Boolean) ?? [],
+	);
+
+/** @param {import('@playwright/test').ElectronApplication} app */
+const checkForUpdates = (app) =>
+	app.evaluate(({ Menu }) => {
+		const item = Menu.getApplicationMenu()?.items[0]?.submenu?.items.find(
+			({ label }) => label === 'Check for Updates…',
+		);
+		if (!item) throw new Error('the app menu has no Check for Updates…');
+		item.click();
+	});
+
 async function launchStagedUpdate() {
 	await cleanup();
 	published = '0.0.2';
 	mkdirSync(userData, { recursive: true });
 	writeFileSync(join(userData, '.update-e2e'), '');
 	sh('ditto', ['-x', '-k', join(dir, '0.0.1', 'malini-0.0.1-arm64-mac.zip'), applications]);
-	const app = await electron.launch({
-		executablePath: join(executables, OLD_NAME),
-		args: [],
-		env: { ...process.env, ...BACKGROUND },
-	});
-	const appMenu = () =>
-		app.evaluate(
-			({ Menu }) =>
-				Menu.getApplicationMenu()
-					?.items[0]?.submenu?.items.map((item) => item.label)
-					.filter(Boolean) ?? [],
-		);
-	await until('Restart to Update in the app menu', async () =>
-		(await appMenu()).includes('Restart to Update'),
+	const app = await electron.launch({ ...LAUNCH, executablePath: join(executables, OLD_NAME) });
+	await until(
+		'0.0.2 to be ready to install',
+		async () => (await updateStatus(app)).state === 'ready',
 	);
-	console.log(`menu: ${(await appMenu()).join(', ')}`);
+	const menu = await appMenu(app);
+	if (!menu.includes('Check for Updates…') || menu.includes('Restart to Update')) {
+		throw new Error(`the app menu shows update status: ${menu.join(', ')}`);
+	}
+	console.log(`menu: ${menu.join(', ')}`);
 	return app;
 }
 
 /** @param {import('@playwright/test').ElectronApplication} app */
-async function stagedUpdateButton(app) {
+async function openSidebar(app) {
 	const page = await app.firstWindow();
 	page.on('console', (message) => {
 		if (message.type() === 'error') throw new Error(`console error: ${message.text()}`);
@@ -152,19 +177,25 @@ async function stagedUpdateButton(app) {
 		}),
 	);
 	await page.reload();
-	const button = page.getByRole('button', { name: 'Restart to update to malini 0.0.2' });
-	await button.waitFor();
+	await page.getByTestId('sidebar-open-settings').waitFor();
+	return page;
+}
+
+/**
+ * @param {import('@playwright/test').ElectronApplication} app
+ * @param {string} name
+ */
+async function shot(app, name) {
 	const windowId = await app.evaluate(({ BrowserWindow }) => {
 		const [window] = BrowserWindow.getAllWindows();
 		window?.webContents.invalidate();
 		return window?.getMediaSourceId().split(':')[1];
 	});
 	await sleep(500);
-	const shot = join(appRoot, '../../.context/update-e2e-staged-update.png');
-	mkdirSync(join(shot, '..'), { recursive: true });
-	if (windowId) sh('screencapture', ['-o', '-x', '-l', windowId, shot]);
-	console.log(`staged update button: ${shot}`);
-	return button;
+	const path = join(appRoot, `../../.context/update-e2e-${name}.png`);
+	mkdirSync(join(path, '..'), { recursive: true });
+	if (windowId) sh('screencapture', ['-o', '-x', '-l', windowId, path]);
+	console.log(`${name}: ${path}`);
 }
 
 rmSync(dir, { recursive: true, force: true });
@@ -174,15 +205,20 @@ build('0.0.2', NAME);
 build('0.0.3', NAME);
 
 let published = '0.0.2';
-const feed = createServer((request, response) => {
-	const file = join(
-		dir,
-		published,
-		decodeURIComponent(new URL(request.url ?? '/', 'http://x').pathname),
-	);
-	if (!existsSync(file)) return void response.writeHead(404).end();
-	createReadStream(file).pipe(response);
-});
+let delay = 0;
+let failing = false;
+const feed = createServer((request, response) =>
+	setTimeout(() => {
+		if (failing) return void response.writeHead(500).end();
+		const file = join(
+			dir,
+			published,
+			decodeURIComponent(new URL(request.url ?? '/', 'http://x').pathname),
+		);
+		if (!existsSync(file)) return void response.writeHead(404).end();
+		createReadStream(file).pipe(response);
+	}, delay),
+);
 await new Promise((listening) => feed.listen(PORT, '127.0.0.1', () => listening(undefined)));
 
 try {
@@ -197,11 +233,7 @@ try {
 	if (installed('CFBundleName') !== NAME) throw new Error(`${bundle} does not hold ${NAME}`);
 	console.log(`ok: quitting 0.0.1 installed 0.0.2, ${NAME}, into ${bundle}`);
 
-	const renamed = await electron.launch({
-		executablePath: join(executables, NAME),
-		args: [],
-		env: { ...process.env, ...BACKGROUND },
-	});
+	const renamed = await electron.launch({ ...LAUNCH, executablePath: join(executables, NAME) });
 	const kept = await renamed.evaluate(
 		({ app, safeStorage }, sealed) => ({
 			name: app.getName(),
@@ -210,15 +242,48 @@ try {
 		}),
 		sealed,
 	);
-	await renamed.evaluate(({ app }) => app.quit());
-	await until('0.0.2 to quit', () => !running(), 15_000);
 	if (kept.name !== NAME || kept.userData !== userData || kept.secret !== 'sealed by 0.0.1') {
 		throw new Error(`0.0.2 lost the data of 0.0.1: ${JSON.stringify(kept)}`);
 	}
 	console.log(`ok: ${NAME} 0.0.2 kept ${userData} and decrypted the secret 0.0.1 sealed`);
 
+	const page = await openSidebar(renamed);
+	const status = (/** @type {RegExp} */ text) => page.getByRole('status').filter({ hasText: text });
+	delay = 2000;
+	await checkForUpdates(renamed);
+	await status(/Checking for updates…/u).waitFor();
+	await shot(renamed, 'checking');
+	await status(/Malini is up to date\s*0\.0\.2/u).waitFor();
+	await shot(renamed, 'up-to-date');
+	await status(/Malini is up to date/u).waitFor({ state: 'detached', timeout: 15_000 });
+	failing = true;
+	await checkForUpdates(renamed);
+	const retry = page.getByRole('button', { name: 'Update failed, check again' });
+	await retry.waitFor();
+	await shot(renamed, 'failed');
+	failing = false;
+	await retry.click();
+	await status(/Checking for updates…/u).waitFor();
+	await status(/Malini is up to date/u).waitFor();
+	published = '0.0.3';
+	await checkForUpdates(renamed);
+	await status(/Downloading update\s*0\.0\.3/u).waitFor();
+	await shot(renamed, 'downloading');
+	await page.getByRole('button', { name: 'Restart to update to malini 0.0.3' }).waitFor();
+	delay = 0;
+	console.log(
+		'ok: Check for Updates… showed checking, up to date, a failed check with Retry, and the download of 0.0.3 in the sidebar',
+	);
+	await renamed.evaluate(({ app }) => app.quit());
+	await until('0.0.3 to be installed on quit', () => installedVersion() === '0.0.3');
+	await until('0.0.2 to quit', () => !running(), 15_000);
+
 	const restarting = await launchStagedUpdate();
-	const restartButton = await stagedUpdateButton(restarting);
+	const restartButton = (await openSidebar(restarting)).getByRole('button', {
+		name: 'Restart to update to malini 0.0.2',
+	});
+	await restartButton.waitFor();
+	await shot(restarting, 'staged-update');
 	published = '0.0.3';
 	await restartButton.click();
 	await until('0.0.3 to be installed', () => installedVersion() === '0.0.3');

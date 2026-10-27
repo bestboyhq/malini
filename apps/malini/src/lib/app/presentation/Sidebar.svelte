@@ -54,7 +54,6 @@
 	import { stopRunningCommand } from '$lib/stats/application/commands/stop-running.command';
 	import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
 	import { DropdownItem } from '$hyper-ui/components/dropdown';
-	import StagedUpdateButton from './StagedUpdateButton.svelte';
 	import SidebarFocusStrip, { type FocusChoice } from './SidebarFocusStrip.svelte';
 	import { ScratchpadIdeasCount, ScratchpadIdeasPreview } from '$lib/scratchpad/scratchpad.api';
 	import {
@@ -2100,8 +2099,6 @@
 	/>
 
 	<ConnectRepositoryContextMenu target={connectMenu} onclose={closeContextMenu} />
-
-	<StagedUpdateButton />
 
 	<SidebarArchived />
 
