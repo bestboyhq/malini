@@ -3,7 +3,6 @@
 	import { Icon } from '$hyper-ui/icons';
 	import {
 		isVideoPath,
-		mediaKind,
 		type TurnComparison,
 		type TurnReport,
 		type TurnReportImage,
@@ -13,7 +12,7 @@
 	import ImageCompare from './ImageCompare.svelte';
 	import ReportMedia from './ReportMedia.svelte';
 	import VideoCompare from './VideoCompare.svelte';
-	import { galleryImageId, galleryImageLabel } from './workstream-images';
+	import { galleryImageId } from './workstream-images';
 
 	type Shot = Readonly<
 		{ key: string; label: string; thumb: string } & (
@@ -154,22 +153,21 @@
 {/snippet}
 
 {#snippet framed(src: string, label: string, playing: boolean)}
-	{@const kind = mediaKind(src)}
 	<div
 		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
 		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">
-			<ReportMedia {src} {label} {workstreamId} size="hero" {playing} {imagesrc} />
-		</div>
-		{#if kind !== 'page'}
-			<Button
-				bare
-				class="absolute inset-0 cursor-zoom-in"
-				ariaLabel={galleryImageLabel(label, kind)}
-				onclick={() => onopenimage?.(galleryImageId(src))}
+			<ReportMedia
+				{src}
+				{label}
+				{workstreamId}
+				size="hero"
+				{playing}
+				{imagesrc}
+				onopen={() => onopenimage?.(galleryImageId(src))}
 			/>
-		{/if}
+		</div>
 	</div>
 {/snippet}
 

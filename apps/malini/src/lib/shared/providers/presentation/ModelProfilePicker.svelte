@@ -89,7 +89,7 @@
 				{/if}
 				<Icon
 					name="chevron-down"
-					class={['shrink-0 transition-transform duration-150', open && 'rotate-180']}
+					class={['shrink-0 transition-transform duration-150', !open && 'rotate-180']}
 					size={12}
 				/>
 			</Button>

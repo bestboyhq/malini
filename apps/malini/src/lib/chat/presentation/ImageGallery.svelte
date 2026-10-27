@@ -19,6 +19,7 @@
 	import { BusyIcon, Icon } from '$hyper-ui/icons';
 	import { announceExclusiveOverlayOpen } from '$hyper-ui/overlay';
 	import type { GalleryImage } from './transcript-gallery';
+	import VideoPlayer from './VideoPlayer.svelte';
 
 	interface Props {
 		workstreamId: string;
@@ -63,6 +64,7 @@
 	let stage: HTMLDivElement | undefined = $state();
 	let picture: HTMLImageElement | undefined = $state();
 	let modal: FullPageModal | undefined = $state();
+	let player: VideoPlayer | undefined = $state();
 	let stripPlaced = false;
 	let stripShown = $state(false);
 	const previews = $derived(imagePreviewQuery.owned(owner));
@@ -227,8 +229,11 @@
 
 	function onKeydown(event: KeyboardEvent): void {
 		if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-		if (event.target instanceof HTMLMediaElement) return;
-		if (event.key === 'ArrowRight' && browsable) show(index + 1, 1);
+		if (event.target instanceof HTMLInputElement) return;
+		if (event.key === ' ' && image?.media === 'video') {
+			if (event.target instanceof HTMLButtonElement) return;
+			player?.toggle();
+		} else if (event.key === 'ArrowRight' && browsable) show(index + 1, 1);
 		else if (event.key === 'ArrowLeft' && browsable) show(index - 1, -1);
 		else if ((event.key === '+' || event.key === '=') && zoomable) glideTo(zoom * ZOOM_STEP);
 		else if (event.key === '-' && zoomable) glideTo(zoom / ZOOM_STEP);
@@ -270,18 +275,15 @@
 				{#key image?.id}
 					<div class="absolute inset-0" in:slideIn={{ x: direction * slideDistance }}>
 						{#if image?.media === 'video' && preview?.status === 'ready'}
-							<video
-								src={preview.src}
-								aria-label={image.name}
-								class="pointer-events-auto absolute inset-0 m-auto max-h-full max-w-full rounded-md object-contain"
-								controls
-								autoplay
-								loop
-								muted
-								playsinline
-								onerror={() => explainUnavailable(image)}
-								in:fade={{ duration: 150 }}
-							></video>
+							<div class="absolute inset-0" in:fade={{ duration: 150 }}>
+								<VideoPlayer
+									bind:this={player}
+									src={preview.src}
+									label={image.name}
+									autoplay={!prefersReducedMotion.current}
+									onerror={() => explainUnavailable(image)}
+								/>
+							</div>
 						{:else if image && preview?.status === 'ready'}
 							<img
 								bind:this={picture}

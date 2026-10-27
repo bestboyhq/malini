@@ -303,6 +303,9 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 				timeout: 20_000,
 			})
 			.toBeGreaterThan(0);
+		const controls = offer.getByRole('group', { name: 'Video controls' });
+		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
+		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).click();
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await expect(

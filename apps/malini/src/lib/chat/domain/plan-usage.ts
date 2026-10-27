@@ -1,4 +1,4 @@
-import type { AgentEvent } from './events';
+import type { AgentEvent, EventEnvelope } from './events';
 
 export type PlanLimit = {
 	readonly label: string;
@@ -45,6 +45,13 @@ export function planUsageFor(
 	account: string | null,
 ): PlanUsage | null {
 	return byAccount[account ?? ''] ?? null;
+}
+
+export function lastRunAccount(envelopes: readonly EventEnvelope[]): string | null {
+	return envelopes.reduce<string | null>(
+		(account, { event }) => planUsageOf(event)?.account ?? account,
+		null,
+	);
 }
 
 export function currentPlanLimits(usage: PlanUsage | null, nowMs: number): readonly PlanLimit[] {

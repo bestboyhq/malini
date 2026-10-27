@@ -44,7 +44,7 @@
 				<Icon
 					name="chevron-down"
 					size={12}
-					class={['shrink-0 transition-transform duration-150', open && 'rotate-180']}
+					class={['shrink-0 transition-transform duration-150', !open && 'rotate-180']}
 				/>
 			</Button>
 		{/snippet}

@@ -98,6 +98,9 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(usage).not.toHaveAccessibleName(PLAN_ALERT);
 		const switchToPrivate = accounts.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` });
 		await expect(switchToPrivate).toBeVisible();
+		await expect(account).toContainText(
+			`This chat last ran on ${PRIVATE_ACCOUNT}. Its next prompt uses the checked account.`,
+		);
 		await captureFlow(app, 'claude-account-switch-back');
 
 		rmSync(browserDone);
@@ -105,6 +108,7 @@ test('a Claude account added from the context card signs in through the browser 
 		await expect(current).toContainText(PRIVATE_ACCOUNT, { timeout: 20_000 });
 		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login with refresh-${PRIVATE_ACCOUNT}\n`);
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
+		await expect(account).not.toContainText('This chat last ran on');
 		await expect(accounts.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
 
 		await account.getByRole('button', { name: 'Add account' }).click();
