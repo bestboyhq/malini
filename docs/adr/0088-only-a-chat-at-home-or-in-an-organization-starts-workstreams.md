@@ -1,4 +1,4 @@
-# 0087 - Only a chat at Home or in an organization starts workstreams
+# 0088 - Only a chat at Home or in an organization starts workstreams
 
 Status: accepted
 

@@ -57,7 +57,7 @@
 		"@types/node": "catalog:",
 		"daisyui": "catalog:",
 		"dompurify": "^3.4.15",
-		"electron": "^44.4.0",
+		"electron": "catalog:",
 		"electron-builder": "^26.16.1",
 		"electron-updater": "^6.8.9",
 		"electron-vite": "^5.0.0",
