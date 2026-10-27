@@ -410,22 +410,28 @@ describe('registerApp', () => {
 		});
 	});
 
-	it('puts Open Folder and Clone Repository in the menu bar icon, each handed to the window once', async () => {
+	it('puts Open Folder, Clone Repository, Accounts and Settings in the menu bar icon, each handed to the window once', async () => {
 		boot(context);
 		expect(host.tray?.icon).toBe(join(context.resourcesRoot, 'build', 'tray', 'trayTemplate.png'));
-		expect(host.tray?.items.map((item) => item.label)).toEqual([
+		const items = host.tray?.items ?? [];
+		expect(items.map((item) => ('label' in item ? item.label : item.type))).toEqual([
 			'Open Folder…',
 			'Clone Repository…',
+			'separator',
+			'Accounts…',
+			'Settings…',
 		]);
 
-		host.tray?.items[1]?.click();
-
-		expect(host.openedWindows).toBe(1);
-		expect(await invoke('app.take-menu-command')).toEqual({
-			ok: true,
-			value: { command: 'clone-repository' },
-		});
-		expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
+		for (const [label, command] of [
+			['Clone Repository…', 'clone-repository'],
+			['Accounts…', 'accounts'],
+		] as const) {
+			const item = items.find((entry) => 'label' in entry && entry.label === label);
+			if (item && 'click' in item) item.click();
+			expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: { command } });
+			expect(await invoke('app.take-menu-command')).toEqual({ ok: true, value: null });
+		}
+		expect(host.openedWindows).toBe(2);
 	});
 
 	it('shows a File menu that starts workstreams and chats and adds repositories, outside a packaged build too', () => {

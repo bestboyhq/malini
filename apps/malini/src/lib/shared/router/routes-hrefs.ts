@@ -16,6 +16,8 @@ export const JOBS_EXPLORER_HREF = '/jobs/explorer';
 
 export const SETTINGS_HREF = '/settings';
 
+export const ACCOUNT_SETTINGS_HREF = '/settings/accounts';
+
 export const MODEL_SETTINGS_HREF = '/settings/models';
 
 export const SKILL_SETTINGS_HREF = '/settings/skills';

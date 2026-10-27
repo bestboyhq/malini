@@ -297,6 +297,23 @@ test('a screen recording sent in a chat plays in the gallery beside its images',
 			'true',
 		);
 
+		const recording = gallery.getByLabel('clip.mp4', { exact: true });
+		const controls = gallery.getByRole('group', { name: 'Video controls' });
+		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
+		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+		await gallery.focus();
+		await page.keyboard.press('Space');
+		await expect(controls.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+
+		await controls.getByRole('button', { name: 'Unmute' }).click();
+		await expect.poll(() => recording.evaluate((video) => Reflect.get(video, 'muted'))).toBe(false);
+		const volume = controls.getByRole('slider', { name: 'Volume' });
+		await volume.fill('0.5');
+		await expect.poll(() => recording.evaluate((video) => Reflect.get(video, 'volume'))).toBe(0.5);
+		await volume.fill('0');
+		await expect(controls.getByRole('button', { name: 'Unmute' })).toBeVisible();
+
+		await gallery.focus();
 		await page.keyboard.press('ArrowRight');
 		await expect(gallery.getByRole('img', { name: 'mockup.png' })).toBeVisible();
 		expectCleanConsole(app);
