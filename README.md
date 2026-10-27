@@ -5,7 +5,7 @@
 <h1 align="center">Malini</h1>
 
 <p align="center">
-  <b>An agentic development environment for builders moving fast.</b><br>
+  <b>Agentic development environment for builders moving fast.</b><br>
   Run as many agents as you want. Malini handles the chores, so you only review pull requests and the gains compound.<br>
   Free and open source macOS app.
 </p>
