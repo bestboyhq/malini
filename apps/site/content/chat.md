@@ -91,6 +91,13 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Always allow** also adds a permission rule for it to your Claude Code settings, so auto mode lets it through from then on.
 **Keep blocked** leaves the block in place, and the agent carries on without it.
 
+When auto mode cannot check a call because Anthropic's safety check is down, the chat does not ask you right away.
+Malini lets Claude retry the call up to three times over about a minute, so a short outage never reaches you, and each attempt shows as a **not checked** row.
+If the check stays down, the chat trusts edits the way **Sandboxed** does: edits inside the workstream go through, and everything else asks, saying auto mode couldn't check the call.
+Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
+**Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
+Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
+
 A chat also answers for the work it started.
 When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.

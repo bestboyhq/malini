@@ -310,6 +310,25 @@ describe('groupRunTimeline status', () => {
 		expect(group.failures).toEqual([]);
 	});
 
+	it('counts only the calls that ran, and calls a group of blocked calls tried', () => {
+		function unchecked(): RunTimelineItem {
+			const item = tool('Bash', { command: 'node -e 1' }, { status: 'failed' });
+			if (item.kind !== 'tool') throw new Error('expected a tool item');
+			item.tool.autoModeReason = 'Classifier unavailable';
+			return item;
+		}
+
+		expect(onlyGroup([unchecked(), tool('Bash', { command: 'node -e 1' })])).toMatchObject({
+			verb: 'Ran',
+			detail: '1 command',
+		});
+		expect(onlyGroup([unchecked(), unchecked()])).toMatchObject({
+			verb: 'Tried',
+			detail: '2 calls',
+			actionKinds: [],
+		});
+	});
+
 	it('keeps every non-zero exit visible on the collapsed group, and no zero exit', () => {
 		expect(onlyGroup([tool('Read'), command(0), command(127)]).exitCodes).toEqual([127]);
 	});

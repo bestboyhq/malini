@@ -127,6 +127,12 @@ export function toolFailureReason(error: string | null | undefined): string | nu
 		: firstLine;
 }
 
+export function blockedLabel(autoModeReason: string): string {
+	return autoModeReason === 'Classifier unavailable'
+		? 'not checked'
+		: `blocked · ${autoModeReason}`;
+}
+
 export function shellExitCode(error: string | null | undefined): number | null {
 	const code = error ? SHELL_EXIT_RE.exec(error)?.[1] : undefined;
 	return code === undefined ? null : Number(code);
