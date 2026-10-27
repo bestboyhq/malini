@@ -542,6 +542,7 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
+		console.log('CLIMB', climb(samples, SCROLL_TOP), JSON.stringify(samples.map((s, i) => [i, ...s.map((v) => Math.round(v))])));
 		await expect(steeredRun).toContainText('Streamed line 6 of 400.');
 		await expect(steeredRun.getByText('Run cancelled')).toBeVisible();
 		expect(
