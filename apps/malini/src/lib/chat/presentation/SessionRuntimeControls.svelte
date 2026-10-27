@@ -14,7 +14,11 @@
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { Icon } from '$hyper-ui/icons';
-	import { ClaudeAccountList, claudeCodeStatusQuery } from '$shared/providers/providers.api';
+	import {
+		ClaudeAccountList,
+		claudeCodeStatusQuery,
+		subscriptionBillingQuery,
+	} from '$shared/providers/providers.api';
 	import { goto } from '$shared/router/navigation';
 	import { ACCOUNT_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
@@ -25,6 +29,7 @@
 		contextUnavailableMessage,
 		contextUsagePercent,
 		contextWindowUnknownMessage,
+		formatRunUsage,
 		usagePressure,
 		withLiveContext,
 		type ContextPressure,
@@ -45,9 +50,9 @@
 	const liveContext = $derived(sessionId ? liveContextUsageQuery.data(sessionId) : null);
 	const planUsage = $derived(planUsageQuery.data);
 	const transcriptFactsProjector = new TranscriptFactsProjector();
-	const metadata = $derived(
-		withLiveContext(transcriptFactsProjector.project(envelopes).runtime, liveContext),
-	);
+	const transcriptFacts = $derived(transcriptFactsProjector.project(envelopes));
+	const metadata = $derived(withLiveContext(transcriptFacts.runtime, liveContext));
+	const runUsage = $derived(transcriptFacts.lastRunUsage);
 	const contextPercent = $derived(metadata.context ? contextUsagePercent(metadata.context) : null);
 	const pressure = $derived<ContextPressure>(
 		metadata.context ? contextPressure(metadata.context) : 'ok',
@@ -321,6 +326,19 @@
 					<p class="text-fg-tertiary mt-2 text-xs leading-5">
 						{contextUnavailableMessage()}
 					</p>
+				{/if}
+
+				{#if runUsage}
+					<section
+						class="border-border-subtle mt-3 flex items-baseline justify-between gap-3 border-t pt-3 text-xs"
+						aria-label="Last run"
+						data-testid="session-run-usage"
+					>
+						<h3 class="text-fg-default text-sm font-medium">Last run</h3>
+						<span class="text-fg-tertiary tabular-nums">
+							{formatRunUsage(runUsage, !subscriptionBillingQuery.data)}
+						</span>
+					</section>
 				{/if}
 
 				{#if planLimits.length > 0}

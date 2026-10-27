@@ -32,6 +32,9 @@
 	let videoHeight = $state(0);
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
+	let pendingSeek: number | null = null;
+	let loadedSrc: string | undefined;
+	let reloaded: { at: number; playing: boolean; speed: typeof speed } | null = null;
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -42,6 +45,21 @@
 	});
 
 	$effect(() => () => clearTimeout(restTimer));
+
+	$effect.pre(() => {
+		if (video && loadedSrc !== undefined && src !== loadedSrc) {
+			reloaded = { at: video.currentTime, playing: !video.paused, speed };
+		}
+		loadedSrc = src;
+	});
+
+	function resume(): void {
+		if (!video || !reloaded) return;
+		time = Math.min(reloaded.at, video.duration);
+		speed = reloaded.speed;
+		if (reloaded.playing) void video.play().catch(() => {});
+		reloaded = null;
+	}
 
 	function wake(): void {
 		resting = false;
@@ -58,6 +76,22 @@
 	function step(frames: number): void {
 		video?.pause();
 		time = Math.min(length, Math.max(0, time + frames / FPS));
+	}
+
+	function scrub(): void {
+		if (!video || video.paused) return;
+		video.pause();
+		addEventListener('pointerup', () => void video?.play().catch(() => {}), { once: true });
+	}
+
+	function seek(to: number): void {
+		if (video?.seeking) pendingSeek = to;
+		else time = to;
+	}
+
+	function seeked(): void {
+		if (pendingSeek !== null) time = pendingSeek;
+		pendingSeek = null;
 	}
 
 	function cycleSpeed(): void {
@@ -98,6 +132,8 @@
 			class="block size-full rounded-[inherit] object-contain"
 			onplay={wake}
 			onpause={wake}
+			onseeked={seeked}
+			onloadedmetadata={resume}
 			{onerror}
 		></video>
 		<Button
@@ -143,7 +179,8 @@
 					step={1 / FPS}
 					marker={null}
 					label="Scrub the recording"
-					onseek={(to) => (time = to)}
+					onseek={seek}
+					ongrab={scrub}
 				/>
 			</span>
 			<span class="text-fg-tertiary shrink-0 px-1 font-mono text-xs tabular-nums">

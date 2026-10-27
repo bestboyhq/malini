@@ -130,6 +130,7 @@
 			tone: action.tone,
 			icon: pullRequestActionIcon(action.kind),
 			confirmLabel: action.confirmLabel,
+			tooltip: action.tooltip ?? null,
 			disabled: false,
 			onInvoke: () =>
 				runPullRequestActionCommand(action.kind, {

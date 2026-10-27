@@ -21,6 +21,7 @@ export type PullRequestTopBarAction = Readonly<{
 	ariaLabel: string;
 	tone: 'primary' | 'secondary';
 	confirmLabel: string | null;
+	tooltip?: string;
 }>;
 
 export type WorkstreamStatusTone = 'idle' | 'ready' | 'queued' | 'needs-you' | 'merged';
