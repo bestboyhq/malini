@@ -79,7 +79,12 @@ import {
 	type TeardownGuard,
 } from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
-import { getWorkstream, listWorkstreams, workstreamActiveTimes } from './workstreams.repository';
+import {
+	getWorkstream,
+	listWorkstreams,
+	recordMergedPullRequest,
+	workstreamActiveTimes,
+} from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	archiveWorkstream,
@@ -407,7 +412,7 @@ export function registerRepositories(
 
 	commands.define('repositories.restart-workstream-on-base', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
-		return restartWorkstreamOnBase(
+		const restartedSha = await restartWorkstreamOnBase(
 			await checkout(args),
 			recordedBranch(workstreamId),
 			requireString(args, 'baseBranch'),
@@ -417,6 +422,8 @@ export function registerRepositories(
 			credentials,
 			(move) => guardCheckoutMove(workstreamId, move),
 		);
+		recordMergedPullRequest(db, workstreamId, null);
+		return restartedSha;
 	});
 
 	commands.define('repositories.abort-workstream-operation', async (args: unknown) =>

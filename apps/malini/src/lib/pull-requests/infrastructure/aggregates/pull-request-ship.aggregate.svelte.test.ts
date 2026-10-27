@@ -9,6 +9,7 @@ function ship(workstreamId: string, overrides: Partial<PullRequestShip> = {}): P
 		workstreamId,
 		phase: 'queued',
 		step: null,
+		keep: false,
 		pullRequestNumber: 1,
 		pullRequestUrl: null,
 		needsYou: null,

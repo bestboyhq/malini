@@ -155,7 +155,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_list',
-			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it with workstreams_create, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), and outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived and merged (the pull request it merged, or null).",
+			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it with workstreams_create, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), and merged (the pull request it merged, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived.",
 			{
 				repository: z
 					.string()
