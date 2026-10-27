@@ -24,7 +24,6 @@ import { DEFAULT_AGENT_MODEL } from '$shared/providers/providers.platform';
 import {
 	clonePlannedRepository,
 	createPlannedWorkstream,
-	getWorkstream,
 	listArchivedWorkstreams,
 	listRepositoryCatalog,
 	listWorkstreams,
@@ -234,11 +233,6 @@ async function createWorkstream(
 	const prompt = requiredText(input, 'prompt');
 	const base = text(input, 'base') ?? null;
 	const source = requestSession(db, request);
-	if (getWorkstream(db, source.workstreamId)?.scope == null) {
-		throw new Error(
-			'A workstream never starts another workstream: only a chat at Home or in an organization does. Say so in your report and name the repository, for the user to start that work from such a chat.',
-		);
-	}
 	const repository = findRepository(
 		await listRepositoryCatalog(db),
 		requiredText(input, 'repository'),

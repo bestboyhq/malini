@@ -56,43 +56,34 @@ const SHELL_TOKEN = /"[^"]*"|'[^']*'|&&|\|\||[;|&\n`(){}]|[^\s"';|&`(){}]+/gu;
 const SHELL_OPERATOR = /^(?:&&|\|\||[;|&\n`(){}])$/u;
 const BRANCH_COMMANDS = new Set(['git checkout', 'git switch', 'git worktree']);
 
+const START_A_WORKSTREAM =
+	'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`';
 const NO_WORKAROUND =
 	'Do not work around this with another clone, git worktree, gh api or a script.';
+const CLONE_HINT = `To change this repository's code, ${START_A_WORKSTREAM} instead: Malini commits, pushes and opens pull requests only from its workstreams. A clone made with git is only for reading code.`;
 
-export function workElsewhere(lead: boolean): string {
-	return lead
-		? 'start a workstream with `workstreams_create` from the `malini` MCP server, after `repositories_clone` when Malini lacks the repository, with `base` set to a tag, branch or commit to start there, and hand its chat the task in `prompt`'
-		: 'say so in your report and name the repository, for the user to start that work from a chat at Home or in its organization: a workstream never starts another workstream';
-}
-
-export function steerToMalini(lead: boolean): HookCallback {
-	return async (input) => {
-		if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
-		const command = input.tool_input['command'];
-		if (typeof command !== 'string') return {};
-		const owned = maliniOwnedCommand(command);
-		if (owned !== null) {
-			return {
-				hookSpecificOutput: {
-					hookEventName: 'PreToolUse',
-					permissionDecision: 'deny',
-					permissionDecisionReason: refusal(owned, lead),
-				},
-			};
-		}
-		if (!clonesRepository(command)) return {};
+export const steerToMalini: HookCallback = async (input) => {
+	if (input.hook_event_name !== 'PreToolUse' || !isRecord(input.tool_input)) return {};
+	const command = input.tool_input['command'];
+	if (typeof command !== 'string') return {};
+	const owned = maliniOwnedCommand(command);
+	if (owned !== null) {
 		return {
 			hookSpecificOutput: {
 				hookEventName: 'PreToolUse',
-				additionalContext: `To change that repository's code, ${workElsewhere(lead)}: Malini commits, pushes and opens pull requests only from its workstreams. A clone made with git is only for reading code.`,
+				permissionDecision: 'deny',
+				permissionDecisionReason: refusal(owned),
 			},
 		};
-	};
-}
+	}
+	return clonesRepository(command)
+		? { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: CLONE_HINT } }
+		: {};
+};
 
-function refusal(owned: string, lead: boolean): string {
+function refusal(owned: string): string {
 	return BRANCH_COMMANDS.has(owned)
-		? `Malini runs \`${owned}\` itself: it owns this workstream's branch and every worktree. To restore files, use git restore. To change code in another repository, such as a fork, or apart from this branch, ${workElsewhere(lead)}. ${NO_WORKAROUND}`
+		? `Malini runs \`${owned}\` itself: it owns this workstream's branch and every worktree. To restore files, use git restore. To change code in another repository, such as a fork, or apart from this branch, ${START_A_WORKSTREAM}. ${NO_WORKAROUND}`
 		: `Malini runs \`${owned}\` itself: leave your changes in the working tree, and Malini commits, pushes, opens and merges pull requests. When the user asks you to open a pull request or to merge, run the Open draft or Merge job with \`jobs_run\` from the \`malini\` MCP server. ${NO_WORKAROUND}`;
 }
 

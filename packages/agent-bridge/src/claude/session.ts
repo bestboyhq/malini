@@ -611,18 +611,14 @@ export class ClaudeSession implements ProviderHandle {
 			...(directories.length > 0 ? { additionalDirectories: directories } : {}),
 			hooks: {
 				PreToolUse: [
-					{ matcher: 'Bash', hooks: [steerToMalini(lineage?.lead != null)] },
+					{ matcher: 'Bash', hooks: [steerToMalini] },
 					{ hooks: [this.#allowApprovedRetry()] },
 				],
 				PermissionDenied: [
 					{ hooks: [this.#askAboutBlockedCall()], timeout: BLOCKED_CALL_DECISION_TIMEOUT_S },
 				],
 			},
-			...maliniTools(
-				this.#context.requestBrowser,
-				(call) => this.#requestPlatform(call),
-				lineage?.lead != null,
-			),
+			...maliniTools(this.#context.requestBrowser, (call) => this.#requestPlatform(call)),
 			canUseTool: this.#canUseTool(),
 			...(model ? { model } : {}),
 			...(profile ? { effort: profile.effort } : {}),

@@ -21,7 +21,6 @@ type ToolResult = Awaited<ReturnType<SdkMcpToolDefinition['handler']>>;
 export function maliniTools(
 	requestBrowser: BrowserRequester,
 	requestPlatform: PlatformToolRequester,
-	lead: boolean,
 ): Required<Pick<Options, 'mcpServers' | 'allowedTools'>> {
 	const run = (request: BrowserRequest): Promise<ToolResult> =>
 		browserToolResult(requestBrowser, request);
@@ -96,7 +95,7 @@ export function maliniTools(
 			[MALINI_MCP_SERVER]: createSdkMcpServer({
 				name: MALINI_MCP_SERVER,
 				alwaysLoad: true,
-				tools: [...browserTools, ...platformTools(requestPlatform, lead)],
+				tools: [...browserTools, ...platformTools(requestPlatform)],
 			}),
 		},
 		allowedTools: preApproved.map((name) => `mcp__${MALINI_MCP_SERVER}__${name}`),

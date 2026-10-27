@@ -24,7 +24,7 @@ const ASKS = 'The user approves it in the chat unless they always allow it.';
 const JOB_TRIGGER_GRAMMAR =
 	"An event trigger: `on <channel>` for any Malini event from events_list, optionally narrowed with `where <path> is <value>` or `where <path> is set`, several joined with `and`, for example `on pull-requests:ship-changed where merged is set`. Or a schedule on this Mac's clock: `every day`, `every weekday` or `every <day of the week>` `at <HH:MM>`, then `in <owner>` for an organization or `in <owner>/<repository>` for a repository, or nothing for Home, for example `every weekday at 09:00 in bestboyhq/malini`. A scheduled job keeps its own chat at Home or in the organization, or its own workstream in the repository, merges the base branch into that workstream before each run, skips a time while its last run is unfinished, and runs a time it missed while the Mac slept or Malini was closed once when it is back.";
 
-export function platformTools(request: PlatformToolRequester, lead: boolean) {
+export function platformTools(request: PlatformToolRequester) {
 	const call = (tool: PlatformTool, input: Record<string, unknown>): Promise<ToolResult> =>
 		platformToolResult(request, { tool, input });
 	return [
@@ -97,7 +97,7 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 		),
 		tool(
 			'jobs_run',
-			`Start a job now. A \`workstream\` job runs in this chat's workstream, or in \`workstream\` when you pass one${lead ? ', such as a workstream you started' : ''}; a \`new-workstream\` job gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle${lead ? ', so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does' : ''}. The run shows in this chat. Jobs are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} ${ASKS} Returns the queued run as JSON.`,
+			`Start a job now. A \`workstream\` job runs in this chat's workstream, or in \`workstream\` when you pass one, such as a workstream you started; a \`new-workstream\` job gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle, so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does. The run shows in this chat. Jobs are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} ${ASKS} Returns the queued run as JSON.`,
 			{
 				job: z.string().min(1).describe('Id or exact name of the job, from jobs_list'),
 				context: z
@@ -112,7 +112,7 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 					.min(1)
 					.optional()
 					.describe(
-						`Id or exact name of the workstream to run it in, from workstreams_list${lead ? ' or the id workstreams_create returned' : ''}. Leave out for this chat's workstream.`,
+						"Id or exact name of the workstream to run it in, from workstreams_list or the id workstreams_create returned. Leave out for this chat's workstream.",
 					),
 			},
 			(input) => call('jobs_run', input),
@@ -131,7 +131,7 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 		),
 		tool(
 			'repositories_clone',
-			`Add a repository to Malini and clone it on this machine, or show a hidden one again.${lead ? ' Use it instead of git clone or gh repo clone for a repository whose code you will change, then start a workstream in it with workstreams_create.' : ''} Malini clones in the background: the result's clone is \`cloned\`, or \`cloning\` when it takes longer, and repositories_list shows when it is done. ${ASKS} Returns the repository as JSON.`,
+			`Add a repository to Malini and clone it on this machine, or show a hidden one again. Use it instead of git clone or gh repo clone for a repository whose code you will change, then start a workstream in it with workstreams_create. Malini clones in the background: the result's clone is \`cloned\`, or \`cloning\` when it takes longer, and repositories_list shows when it is done. ${ASKS} Returns the repository as JSON.`,
 			{
 				repository: z
 					.string()
@@ -155,7 +155,7 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 		),
 		tool(
 			'workstreams_list',
-			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), and outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived and merged (the pull request it merged, or null).",
+			"List the workstreams in Malini. Returns JSON with each one's id, name, repository (owner/name), branch, base branch, startedBy (the id of the workstream whose chat started it with workstreams_create, or null), current (whether it is this chat's workstream), working (whether a chat in it is on a turn now), and outcome and needs (the `Outcome:` and `Needs:` lines its last finished turn ended with, or null), so you see where the work you started stands without reading its code. The ones this chat's workstream started and that were archived since come last, with archived and merged (the pull request it merged, or null).",
 			{
 				repository: z
 					.string()
@@ -165,53 +165,49 @@ export function platformTools(request: PlatformToolRequester, lead: boolean) {
 			},
 			(input) => call('workstreams_list', input),
 		),
-		...(lead
-			? [
-					tool(
-						'workstreams_create',
-						`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with jobs_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
-						{
-							repository: z
-								.string()
-								.min(1)
-								.describe('Id or owner/name of the repository, from repositories_list'),
-							prompt: z
-								.string()
-								.min(1)
-								.describe(
-									'The first message of the new chat, written as a prompt to the agent there. That agent does not see this chat, so give it the task and everything it needs.',
-								),
-							base: z
-								.string()
-								.min(1)
-								.optional()
-								.describe(
-									"A tag, branch or full commit hash on the repository's origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.",
-								),
-						},
-						(input) => call('workstreams_create', input),
+		tool(
+			'workstreams_create',
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with jobs_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
+			{
+				repository: z
+					.string()
+					.min(1)
+					.describe('Id or owner/name of the repository, from repositories_list'),
+				prompt: z
+					.string()
+					.min(1)
+					.describe(
+						'The first message of the new chat, written as a prompt to the agent there. That agent does not see this chat, so give it the task and everything it needs.',
 					),
-					tool(
-						'workstreams_send',
-						`Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini sends it only while that chat is idle: when it is on a turn, the call fails, so send it once that turn ends. ${ASKS} Returns the workstream and the chat it reached as JSON.`,
-						{
-							workstream: z
-								.string()
-								.min(1)
-								.describe(
-									'Id or exact name of a workstream this chat started, from workstreams_list or the id workstreams_create returned',
-								),
-							prompt: z
-								.string()
-								.min(1)
-								.describe(
-									'The prompt, written to the agent there. It does not see this chat, so give it everything it needs.',
-								),
-						},
-						(input) => call('workstreams_send', input),
+				base: z
+					.string()
+					.min(1)
+					.optional()
+					.describe(
+						"A tag, branch or full commit hash on the repository's origin to start from instead of the default branch, for example v0.17.5. Its pull request still targets the default branch.",
 					),
-				]
-			: []),
+			},
+			(input) => call('workstreams_create', input),
+		),
+		tool(
+			'workstreams_send',
+			`Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini sends it only while that chat is idle: when it is on a turn, the call fails, so send it once that turn ends. ${ASKS} Returns the workstream and the chat it reached as JSON.`,
+			{
+				workstream: z
+					.string()
+					.min(1)
+					.describe(
+						'Id or exact name of a workstream this chat started, from workstreams_list or the id workstreams_create returned',
+					),
+				prompt: z
+					.string()
+					.min(1)
+					.describe(
+						'The prompt, written to the agent there. It does not see this chat, so give it everything it needs.',
+					),
+			},
+			(input) => call('workstreams_send', input),
+		),
 		tool(
 			'workstreams_archive',
 			`Archive a workstream: Malini saves its uncommitted work and branch, removes its worktree, and lists it under Archived in the sidebar, where the user can restore it. You cannot archive this chat's own workstream, and no tool deletes one. ${ASKS}`,

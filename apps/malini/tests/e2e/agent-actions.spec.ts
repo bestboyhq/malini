@@ -206,59 +206,17 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 	}
 });
 
-test('a workstream of a repository never starts another workstream, and its agent learns to hand the work to the user', async () => {
-	test.setTimeout(120_000);
-	const app = await launchMalini();
+test('an agent clones a repository, starts a workstream in it and hides it, and Activity shows every call with its outcome', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch' } });
 	try {
 		const { page } = app;
 		const { workstreamId } = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
-			'e2e-agent-no-child',
+			'e2e-agent-repositories',
 			'Repository chores',
 		);
-		const kennel = await createSourceRepo(app.root, 'kennel');
-		await invoke(page, 'repositories.create-repository', { repoUrl: `file://${kennel}` });
-		await openWorkstream(page, workstreamId);
-
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: { repository: `${basename(app.root)}/kennel`, prompt: 'Add a fetch command' },
-		});
-		await sendPrompt(page, 'MALINI_UNASKED_TOOL');
-		await expect
-			.poll(
-				async () => {
-					const events = await listEvents(page, currentSessionId(page) ?? '');
-					const completed = events.find((entry) => entry.event.type === 'run.completed');
-					return completed?.event.type === 'run.completed' ? completed.event.summary : null;
-				},
-				{ timeout: 20_000 },
-			)
-			.toMatch(/^malini:A workstream never starts another workstream: /u);
-		const workstreams = await invoke<{ id: string }[]>(
-			page,
-			'repositories.list-workstreams',
-			undefined,
-		);
-		expect(workstreams.map(({ id }) => id)).toEqual([workstreamId]);
-		expectCleanConsole(app);
-	} finally {
-		await app.close();
-	}
-});
-
-test('a chat clones a repository, starts a workstream in it and hides it, and Activity shows every call with its outcome', async () => {
-	test.setTimeout(180_000);
-	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch' } });
-	try {
-		const { page } = app;
-		const workstreamId = 'e2e-agent-repositories';
-		await invoke(page, 'repositories.create-lead', {
-			scope: 'home',
-			workstreamId,
-			name: 'Repository chores',
-		});
 		const kennel = await createSourceRepo(app.root, 'kennel');
 		const kennelName = `${basename(app.root)}/kennel`;
 		const sidebar = page.getByRole('navigation', { name: 'Connected repositories' });
@@ -292,12 +250,8 @@ test('a chat clones a repository, starts a workstream in it and hides it, and Ac
 		const fetchRow = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
 		);
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch kennel$/u, { timeout: 20_000 });
-		await expect(
-			sidebar
-				.getByRole('list', { name: 'Started by Repository chores' })
-				.getByTestId('sidebar-workstream'),
-		).toHaveAccessibleName(/ Fetch kennel$/u);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
+		await expect(sidebar.getByRole('list', { name: /^Started by / })).toHaveCount(0);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
@@ -305,7 +259,7 @@ test('a chat clones a repository, starts a workstream in it and hides it, and Ac
 			timeout: 20_000,
 		});
 		await decision(page).getByRole('button', { name: 'Deny' }).click();
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch kennel$/u);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
 		await allowOnce(`Hide ‘${kennelName}’`);

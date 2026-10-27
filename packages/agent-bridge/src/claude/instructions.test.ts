@@ -31,8 +31,11 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`browser_open`');
 		expect(prompt).toContain('`browser_screenshot` from the `malini` MCP server');
 		expect(prompt).toContain('give it a `when` trigger written from `events_list`');
-		expect(prompt).not.toContain('`workstreams_create`');
-		expect(prompt).toContain('a workstream never starts another workstream');
+		expect(prompt).toContain(
+			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
+		);
+		expect(prompt).toContain("Malini holds the job until that workstream's chat ends its turn");
+		expect(prompt).toContain('Answer what your plan covers with `workstreams_send`');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
@@ -80,13 +83,6 @@ describe('systemPromptAppend', () => {
 		expect(lead).toContain('Malini turns off your file edit tools');
 		expect(lead).toContain('one repository and one prompt each');
 		expect(lead).toContain('- acme/api on main: /clones/acme-api');
-		expect(lead).toContain('start or archive a workstream');
-		expect(lead).toContain(
-			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
-		);
-		expect(lead).toContain("Malini holds the job until that workstream's chat ends its turn");
-		expect(lead).toContain('Answer what your plan covers with `workstreams_send`');
-		expect(lead).not.toContain('a workstream never starts another workstream');
 
 		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
 			lead: null,
@@ -94,7 +90,6 @@ describe('systemPromptAppend', () => {
 			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
 		});
 		expect(child).not.toContain('You are a lead chat');
-		expect(child).not.toContain('`workstreams_create`');
 		expect(child).toContain(
 			'The chat “Unify footers” started this workstream, as a lead chat that plans work across repositories, and sent its first prompt.',
 		);

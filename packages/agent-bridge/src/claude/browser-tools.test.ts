@@ -23,7 +23,6 @@ afterEach(() => {
 async function connect(
 	answer: (request: BrowserRequest) => Promise<BrowserResult>,
 	answerPlatform: (call: PlatformToolCall) => Promise<PlatformResult> = async () => ({ ok: true }),
-	lead = true,
 ): Promise<{
 	readonly requests: BrowserRequest[];
 	readonly platformCalls: PlatformToolCall[];
@@ -40,7 +39,6 @@ async function connect(
 			platformCalls.push(call);
 			return answerPlatform(call);
 		},
-		lead,
 	);
 	const server = mcpServers['malini'];
 	if (server?.type !== 'sdk') throw new Error('malini is not an in-process MCP server');
@@ -130,17 +128,6 @@ describe('malini MCP server', () => {
 				],
 			},
 		});
-	});
-
-	it('offers and names workstreams_create to a lead chat only', async () => {
-		const tools = async (lead: boolean): Promise<unknown> => {
-			const { call } = await connect(async () => ({ ok: true }), undefined, lead);
-			const listed = await call('tools/list', {});
-			return 'result' in listed ? listed.result['tools'] : [];
-		};
-
-		expect(JSON.stringify(await tools(true))).toContain('workstreams_create');
-		expect(JSON.stringify(await tools(false))).not.toContain('workstreams_create');
 	});
 
 	it('types into a field, submitting only when asked, steps through history and resizes the tab', async () => {
@@ -242,7 +229,6 @@ describe('malini MCP server', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
-			false,
 		);
 
 		expect(allowedTools.filter((name) => !name.startsWith('mcp__malini__browser_'))).toEqual([
