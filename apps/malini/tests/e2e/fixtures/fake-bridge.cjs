@@ -597,6 +597,7 @@ function fakePick(prompt, choices) {
 	} catch {
 		return 1;
 	}
+	if (wanted === 'FAIL') return null;
 	if (/^\d+$/.test(wanted)) return Math.min(Math.max(Number(wanted), 1), choices);
 	const lines = String(prompt).split('\n');
 	const candidates = lines.slice(lines.lastIndexOf('Candidates:') + 1);
@@ -1416,6 +1417,7 @@ const handle = (command) => {
 				nodePath.join(env.HOME || '/tmp', 'malini-choices.jsonl'),
 				JSON.stringify({ prompt: command.prompt, choices: command.choices, pick }) + '\n',
 			);
+			if (pick === null) return ack(command.id, 'CHOICE_FAILED: the model gave no answer');
 			write({ type: 'bridge.choice', protocolVersion: version, id: command.id, pick });
 			return ack(command.id);
 		}

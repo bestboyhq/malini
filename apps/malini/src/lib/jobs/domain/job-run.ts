@@ -39,7 +39,8 @@ export function isJobRunOrigin(value: unknown): value is JobRunOrigin {
 		value === 'trigger' ||
 		value === 'then' ||
 		value === 'schedule' ||
-		value === 'reconciler'
+		value === 'reconciler' ||
+		value === 'compatibility'
 	);
 }
 

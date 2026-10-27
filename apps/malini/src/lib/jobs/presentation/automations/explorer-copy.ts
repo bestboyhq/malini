@@ -1,19 +1,18 @@
 import { parseAutomationTrigger } from '$contract/automation-trigger';
 import type { EventChannel } from '$contract/events';
 import type { JobDefinitionRecord, LoggedEventRecord, ShippingWait } from '$contract/jobs';
-import type { ShipButton, ShipStep } from '$contract/pull-requests';
+import type { ShipAllButton, ShipButton, ShipStep } from '$contract/pull-requests';
 import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
-	LISTENERS,
 	eventRow,
 	type EventRow,
 	type Explorer,
 	type ExplorerItem,
-	type Listener,
 	type MapNode,
 	type Source,
 } from '$lib/jobs/domain/explorer';
+import { RECONCILER_RULES, RULE_EVENTS, type ReconcilerRule } from '$lib/jobs/domain/reconciler';
 import { DECIDERS, decisionAction, decisionQuestion } from './decision-copy';
 
 export type Look = Readonly<{ label: string; icon: IconName }>;
@@ -34,17 +33,19 @@ export const ROW_LOOKS: Readonly<Record<EventRow, Look>> = {
 	'workstream-created': { label: 'Workstream created', icon: 'folder-plus' },
 	'workstream-archived': { label: 'Workstream archived', icon: 'archive' },
 	'malini-started': { label: 'Malini started', icon: 'refresh' },
+	'malini-updated': { label: 'Malini updated', icon: 'cloud-download' },
 	'time-reached': { label: 'Time reached', icon: 'clock' },
 	other: { label: 'Other', icon: 'more' },
 };
 
-export const LISTENER_LABELS: Readonly<Record<Listener, string>> = {
+export const RULE_LABELS: Readonly<Record<ReconcilerRule, string>> = {
 	triggers: 'Your triggers',
 	thens: 'Thens',
 	shipping: 'Shipping',
 	resume: 'Resume',
 	schedules: 'Schedules',
-	model: 'Reconcile events',
+	compatibility: 'Compatibility',
+	model: 'Choose a reaction',
 };
 
 export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
@@ -61,6 +62,8 @@ const FAILED: Mark = { label: 'failed', tone: 'text-error-content' };
 const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-warning-content' };
 const SHORT_SHA = 7;
 const HOUR_FORMAT = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
+const LIST = new Intl.ListFormat('en', { type: 'conjunction' });
+const PROPER_NOUN = /^(?:Malini|MCP)\b/u;
 
 const SHIP_STEPS: ReadonlyMap<string, string> = new Map(
 	Object.entries({
@@ -87,7 +90,9 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 		merge: 'Merge',
 		retry: 'Retry',
 		cancel: 'Cancel',
-	} satisfies Record<ShipButton, string>),
+		'draft-all': 'Draft all',
+		'merge-all': 'Merge all',
+	} satisfies Record<ShipButton | ShipAllButton, string>),
 );
 
 const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(
@@ -161,32 +166,34 @@ const NODE_LABELS: ReadonlyMap<MapNode, string> = new Map<MapNode, string>([
 	['chats', 'Chats'],
 	['jobs', 'Jobs'],
 	...EVENT_ROWS.map((row) => [`event:${row}`, ROW_LOOKS[row].label] as const),
-	...LISTENERS.map((listener) => [`listener:${listener}`, LISTENER_LABELS[listener]] as const),
+	...RECONCILER_RULES.map((rule) => [`rule:${rule}`, RULE_LABELS[rule]] as const),
 ]);
 
 export function nodeLabel(node: MapNode): string {
 	return NODE_LABELS.get(node) ?? node;
 }
 
-export function listenerNote(listener: Listener, jobs: readonly JobDefinitionRecord[]): string {
-	switch (listener) {
-		case 'triggers': {
-			const listening = jobs.filter((job) => triggerKind(job) === 'event').length;
-			return listening === 0
-				? 'no job has an event trigger on'
-				: `${count(listening, 'job')} listen`;
-		}
-		case 'thens':
-			return 'on Job finished';
-		case 'shipping':
-			return 'from your click to merged';
-		case 'resume':
-			return 'on Malini started';
-		case 'schedules':
-			return 'on Time reached';
-		case 'model':
-			return 'decides what no rule matched';
+export function ruleNote(rule: ReconcilerRule, jobs: readonly JobDefinitionRecord[]): string {
+	const heard = RULE_EVENTS[rule];
+	if (heard === 'every') {
+		const listening = jobs.filter((job) => triggerKind(job) === 'event').length;
+		return listening === 0 ? 'no job has an event trigger on' : `${count(listening, 'job')} listen`;
 	}
+	const [first = '', ...rest] = heard.map(channelName);
+	return rest.length === 0 ? `on ${first}` : `on ${first} and ${rest.length} more`;
+}
+
+export function nodeNote(node: MapNode): string {
+	const rule = RECONCILER_RULES.find((candidate) => node === `rule:${candidate}`);
+	if (rule === undefined) return 'the latest that passed through it';
+	const heard = RULE_EVENTS[rule];
+	return heard === 'every'
+		? "hears every event a job's trigger names"
+		: `hears ${LIST.format(heard.map(channelName))}`;
+}
+
+function channelName(channel: EventChannel): string {
+	return ROW_LOOKS[eventRow(channel)].label;
 }
 
 export function itemTitle(item: ExplorerItem): string {
@@ -224,7 +231,7 @@ export function itemWhy(item: ExplorerItem, explorer: Explorer): string {
 	switch (item.kind) {
 		case 'turn':
 			if (item.turn.resumed) return 'Malini resumed it';
-			if (item.turn.causeEventId !== null) return 'Reconcile events woke it';
+			if (item.turn.causeEventId !== null) return 'Choose a reaction woke it';
 			if (item.turn.from !== null) {
 				return `Asked by ${explorer.workstreams.get(item.turn.from)?.name ?? 'a chat'}`;
 			}
@@ -297,8 +304,10 @@ function runWhy(
 			return cause?.kind === 'run' ? `Ran after ${cause.run.title}` : 'Ran after another job';
 		case 'schedule':
 			return 'Its schedule ran it';
+		case 'compatibility':
+			return cause === null ? 'Compatibility ran it' : `Compatibility heard ${shortTitle(cause)}`;
 		case 'reconciler':
-			return 'Reconcile events ran it';
+			return 'Choose a reaction ran it';
 		case 'manual':
 			if (item.run.chatAfterRunId !== null) return 'A chat ran it';
 			return item.run.parentRunId === null ? 'You ran it' : 'Another job ran it';
@@ -312,10 +321,14 @@ function shortTitle(item: ExplorerItem): string {
 		case 'turn':
 			return 'a chat turn';
 		case 'decision':
-			return 'Reconcile events';
+			return 'Choose a reaction';
 		case 'event':
-			return eventName(item.event).toLocaleLowerCase();
+			return inSentence(eventName(item.event));
 	}
+}
+
+function inSentence(name: string): string {
+	return PROPER_NOUN.test(name) ? name : `${name.charAt(0).toLocaleLowerCase()}${name.slice(1)}`;
 }
 
 function eventTitle(event: LoggedEventRecord): string {
