@@ -7,6 +7,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		workstreamId: 'ws-1',
 		phase: 'draft',
 		step: null,
+		keep: false,
 		pullRequestNumber: 42,
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,

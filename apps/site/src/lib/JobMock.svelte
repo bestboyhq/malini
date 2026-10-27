@@ -647,7 +647,7 @@
 								>
 									{#if waitingForUser}
 										<span class="text-fg-tertiary grid h-3.5 w-3.5 shrink-0 place-items-center">
-											<Icon name="pause" size={12} />
+											<Icon name="circle-pause" size={12} />
 										</span>
 										<span class="text-fg-tertiary min-w-0 truncate">Waiting for you</span>
 									{:else}

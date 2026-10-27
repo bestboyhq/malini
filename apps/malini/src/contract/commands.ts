@@ -32,7 +32,8 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
-import type { MenuCommandChosen, NotificationTarget } from './events';
+import type { GithubReach } from './github-failure';
+import type { MenuCommandChosen, NotificationTarget, UpdateStatus } from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
@@ -477,6 +478,7 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
@@ -675,7 +677,8 @@ export interface ContractCommands {
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
-	'app.staged-update': { args: undefined; result: string | null };
+	'app.update-status': { args: undefined; result: UpdateStatus };
+	'app.check-for-updates': { args: undefined; result: void };
 	'app.restart-to-update': { args: undefined; result: void };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
@@ -753,6 +756,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.github-reach',
 	'repositories.start-github-sign-in',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',
@@ -879,7 +883,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.theme-mode',
 	'app.runtime-info',
 	'app.streaming',
-	'app.staged-update',
+	'app.update-status',
+	'app.check-for-updates',
 	'app.restart-to-update',
 	'stats.activity',
 	'stats.resources',

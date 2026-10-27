@@ -109,7 +109,7 @@
 >
 	<header class="text-fg-secondary flex h-8 items-center gap-2 px-3 text-xs">
 		<span class="text-fg-tertiary grid w-4 shrink-0 place-items-center" aria-hidden="true">
-			<Icon name={paused ? 'pause' : 'clock'} size={12} />
+			<Icon name={paused ? 'circle-pause' : 'clock'} size={12} />
 		</span>
 		<span class="min-w-0 flex-1 truncate" data-testid="prompt-queue-count">
 			{items.length} queued {items.length === 1 ? 'prompt' : 'prompts'}

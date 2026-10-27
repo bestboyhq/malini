@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { on } from 'svelte/events';
 	import { Button } from '$hyper-ui/components/button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { Icon, type IconName } from '$hyper-ui/icons';
@@ -10,6 +11,7 @@
 	import { galleryImageId, reportMediaSource } from './workstream-images';
 
 	type Mode = 'wipe' | 'flip' | 'diff';
+	type View = Readonly<{ scale: number; x: number; y: number }>;
 
 	interface Props {
 		workstreamId: string;
@@ -30,8 +32,10 @@
 		flip: 'Click to flip',
 		diff: 'Changed pixels in pink',
 	};
-	const MAX_ZOOM = 4;
-	const ZOOM_FILL = 0.5;
+	const FOCUS_MAX_ZOOM = 4;
+	const MAX_ZOOM = 8;
+	const ZOOM_FILL = 0.8;
+	const FIT: View = { scale: 1, x: 0, y: 0 };
 
 	const beforePath = $derived(workstreamImagePath(comparison.before.src));
 	const afterPath = $derived(workstreamImagePath(comparison.after.src));
@@ -50,20 +54,12 @@
 	let position = $state(50);
 	let flipped = $state(false);
 	let selected = $state<number | null>(null);
+	let view = $state<View>(FIT);
+	let gliding = $state(false);
+	let frame = $state<HTMLDivElement>();
 
 	const areas = $derived(analysis.status === 'ready' ? analysis.areas : []);
-	const focus = $derived(selected === null ? null : (areas[selected] ?? null));
-	const scale = $derived(
-		focus ? Math.min(MAX_ZOOM, Math.max(1, Math.min(ZOOM_FILL / focus.w, ZOOM_FILL / focus.h))) : 1,
-	);
-	const offset = $derived.by((): Readonly<{ x: string; y: string }> => {
-		if (!focus) return { x: '0%', y: '0%' };
-		const clamp = (value: number): number => Math.min(0, Math.max(1 - scale, value));
-		return {
-			x: `${clamp(0.5 - (focus.x + focus.w / 2) * scale) * 100}%`,
-			y: `${clamp(0.5 - (focus.y + focus.h / 2) * scale) * 100}%`,
-		};
-	});
+	const zoomed = $derived(view.scale > 1);
 	const showsBefore = $derived(mode === 'flip' && flipped);
 	const shownSrc = $derived(showsBefore ? beforeSrc : afterSrc);
 
@@ -71,14 +67,64 @@
 		if (request) compareImagesCommand(request);
 	});
 
+	$effect(() => {
+		return frame ? on(frame, 'wheel', zoomOrPan, { passive: false }) : undefined;
+	});
+
 	function choose(next: Mode): void {
 		mode = next;
 		flipped = false;
 	}
 
-	function zoomOut(event: KeyboardEvent): void {
-		if (event.key !== 'Escape' || selected === null) return;
+	function within(value: number, low: number, high: number): number {
+		return Math.min(high, Math.max(low, value));
+	}
+
+	function inFrame(scale: number, x: number, y: number): View {
+		return { scale, x: within(x, 1 - scale, 0), y: within(y, 1 - scale, 0) };
+	}
+
+	function focusOn(index: number | null): void {
+		const area = index === null ? null : areas[index];
+		selected = area ? index : null;
+		gliding = true;
+		if (!area) {
+			view = FIT;
+			return;
+		}
+		const scale = within(Math.min(ZOOM_FILL / area.w, ZOOM_FILL / area.h), 1, FOCUS_MAX_ZOOM);
+		view = inFrame(scale, 0.5 - (area.x + area.w / 2) * scale, 0.5 - (area.y + area.h / 2) * scale);
+	}
+
+	function zoomAround(target: number, x: number, y: number): View {
+		const scale = within(target, 1, MAX_ZOOM);
+		const ratio = scale / view.scale;
+		return inFrame(scale, x - (x - view.x) * ratio, y - (y - view.y) * ratio);
+	}
+
+	function zoomOrPan(event: WheelEvent): void {
+		if (!frame || !afterSrc) return;
+		const box = frame.getBoundingClientRect();
+		const pinch = event.ctrlKey || event.metaKey;
+		if (!pinch && !zoomed) return;
+		const next = pinch
+			? zoomAround(
+					view.scale * Math.exp(-within(event.deltaY, -25, 25) / 100),
+					(event.clientX - box.left) / box.width,
+					(event.clientY - box.top) / box.height,
+				)
+			: inFrame(view.scale, view.x - event.deltaX / box.width, view.y - event.deltaY / box.height);
+		if (!pinch && next.x === view.x && next.y === view.y) return;
+		event.preventDefault();
+		event.stopPropagation();
 		selected = null;
+		gliding = false;
+		view = next;
+	}
+
+	function zoomOut(event: KeyboardEvent): void {
+		if (event.key !== 'Escape' || !zoomed) return;
+		focusOn(null);
 	}
 </script>
 
@@ -98,10 +144,10 @@
 
 {#snippet layer(src: string | null, dimmed: boolean)}
 	<div
-		class="zoom absolute inset-0"
-		style:--zoom-x={offset.x}
-		style:--zoom-y={offset.y}
-		style:--zoom={scale}
+		class={['zoom absolute inset-0', gliding && 'glide']}
+		style:--zoom-x="{view.x * 100}%"
+		style:--zoom-y="{view.y * 100}%"
+		style:--zoom={view.scale}
 	>
 		{#if src}
 			<img
@@ -125,6 +171,7 @@
 <div class="flex flex-col gap-1.5" data-testid="report-image-compare">
 	<div
 		class="media bg-surface-root relative mx-auto w-fit max-w-full overflow-hidden rounded-md select-none"
+		bind:this={frame}
 		role="group"
 		aria-label="Before and after"
 	>
@@ -134,10 +181,10 @@
 				alt=""
 				aria-hidden="true"
 				draggable="false"
-				class="invisible block max-h-[20rem] max-w-full"
+				class="invisible block max-h-[70vh] max-w-full"
 			/>
 		{:else}
-			<div class="aspect-[16/10] w-[32rem] max-w-full"></div>
+			<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
 		{/if}
 
 		{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}
@@ -168,10 +215,10 @@
 		{/if}
 
 		<div
-			class="zoom pointer-events-none absolute inset-0"
-			style:--zoom-x={offset.x}
-			style:--zoom-y={offset.y}
-			style:--zoom={scale}
+			class={['zoom pointer-events-none absolute inset-0', gliding && 'glide']}
+			style:--zoom-x="{view.x * 100}%"
+			style:--zoom-y="{view.y * 100}%"
+			style:--zoom={view.scale}
 		>
 			{#each areas as area, index (index)}
 				<span
@@ -180,7 +227,7 @@
 					style:top="{area.y * 100}%"
 					style:width="{area.w * 100}%"
 					style:height="{area.h * 100}%"
-					style:--stroke="{1.5 / scale}px"
+					style:--stroke="{1.5 / view.scale}px"
 				></span>
 			{/each}
 			{#each areas as area, index (index)}
@@ -198,7 +245,7 @@
 							class="bg-brand text-brand-content outline-surface-elevated-border grid size-4 cursor-pointer place-items-center rounded-full text-[10px] leading-none font-semibold shadow-sm outline-[1.5px]"
 							ariaLabel={`Change ${index + 1}`}
 							ariaPressed={selected === index}
-							onclick={() => (selected = selected === index ? null : index)}
+							onclick={() => focusOn(selected === index ? null : index)}
 						>
 							{index + 1}
 						</Button>
@@ -228,12 +275,12 @@
 			</span>
 		{/if}
 
-		{#if selected !== null}
+		{#if zoomed}
 			<Button
 				variant="secondary"
 				size="2xs"
 				class="absolute top-2 right-2"
-				onclick={() => (selected = null)}
+				onclick={() => focusOn(null)}
 			>
 				Show all
 			</Button>
@@ -258,7 +305,9 @@
 			{/each}
 		</div>
 		<div class="flex items-center gap-2">
-			<span class="text-2xs text-fg-tertiary">{HINTS[mode]}</span>
+			<span class="text-2xs text-fg-tertiary">
+				{zoomed ? `${Number(view.scale.toFixed(1))}× · scroll to pan` : HINTS[mode]}
+			</span>
 			<MediaToolbarButton
 				tooltip="Open in gallery"
 				label="Open in gallery"
@@ -281,6 +330,9 @@
 	.zoom {
 		transform: translate(var(--zoom-x), var(--zoom-y)) scale(var(--zoom));
 		transform-origin: 0 0;
+	}
+
+	.zoom.glide {
 		transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 
@@ -312,7 +364,7 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.zoom {
+		.zoom.glide {
 			transition: none;
 		}
 	}

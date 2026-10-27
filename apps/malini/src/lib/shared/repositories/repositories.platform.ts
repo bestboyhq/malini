@@ -1,6 +1,7 @@
 import type { DockerOwnership, OwnedContainer } from '$main/docker/ownership';
 import type { ContainerReclaim } from '$main/docker/reclaim';
 import type { CheckoutResolver } from './platform/checkout-resolver';
+import type { GhRunner } from './platform/github.service';
 import type { WorkstreamFileResolver } from './platform/image-protocol';
 import type { InstallOutcome, InstallRegistry } from './platform/provisioning.service';
 import type { WorkstreamWatchers } from './platform/watcher';
@@ -19,6 +20,7 @@ export interface RepositoriesPlatform {
 	provisionDependencies(workstreamId: string): Promise<InstallOutcome>;
 	abortInstall(workstreamId: string): Promise<void>;
 	cancelGitHubSignIn(): void;
+	readonly gh: GhRunner;
 	listLiveWorkstreamIds(): string[];
 	reclaimAbandonedContainers(budgetMs?: number): Promise<ContainerReclaim>;
 }
@@ -48,6 +50,7 @@ export {
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
+	mergedPullRequestOf,
 	recordMergedPullRequest,
 	renameWorkstream,
 	workstreamAwaitsName,

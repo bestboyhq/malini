@@ -24,7 +24,7 @@ const liveNotifications = new Set<Notification>();
 
 let tray: Tray | null = null;
 
-export type TrayItem = Readonly<{ label: string; click: () => void }>;
+export type TrayItem = Readonly<{ label: string; click: () => void } | { type: 'separator' }>;
 
 function holdUntilSettled(notification: Notification): void {
 	const release = (): void => {

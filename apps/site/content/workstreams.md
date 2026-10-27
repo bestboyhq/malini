@@ -124,7 +124,8 @@ Malini sees main move when it reads the pull request on GitHub, and checks a wor
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
-- **It runs on events.** **Draft**, **Merge**, **Retry** and **Cancel** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
+  **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive** and **Continue**.
+- **It runs on events.** **Draft**, **Merge**, **Retry**, **Cancel** and **Keep** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
   It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
 - **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
@@ -135,6 +136,9 @@ Malini sees main move when it reads the pull request on GitHub, and checks a wor
 - **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Errors are retried.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes, and the top bar says **Retrying after an error**.
+- **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
+  Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
+  It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own the next time GitHub shows a change, its branch moves or a retry comes due, or at once when you click **Retry**.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.

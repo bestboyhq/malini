@@ -1,10 +1,10 @@
-# 0095 - Archived chats pack their tool events, and the database gives freed pages back
+# 0097 - Archived chats pack their tool events, and the database gives freed pages back
 
 Status: accepted
 
 ## Context
 
-After 0094 slimmed the files of archived workstreams, chat history stayed the largest thing Malini keeps: the user's `malini.sqlite` reached 532 MB, 451 MB of it `agent_events`.
+After 0096 slimmed the files of archived workstreams, chat history stayed the largest thing Malini keeps: the user's `malini.sqlite` reached 532 MB, 451 MB of it `agent_events`.
 Archived chats held 347 of its 362 MB of event text, mostly `tool.completed` (182 MB), `tool.started` (73 MB), `thinking.message` (46 MB) and `command.completed` (42 MB), and agents still read old chats through transcript references and fork transcripts (`listEventRowsForSession`).
 On a copy of that database, compressing each row alone reached 2.2x, because most rows are under 1 KB, and left the file at 302 MB after `VACUUM`; one brotli pack per archived chat of its tool and thinking events took them to a fifth, about 330 MB to 66 MB at quality 6 in under 4 s, as small as zstd level 9 through a stable Node API, and left 141 MB.
 Many queries read events with SQL by their kind or a field of their JSON (`LIKE 'run.completed' || char(10) || '%'`, `instr`, `json_extract`), so a compressed row must not hide what those queries read.

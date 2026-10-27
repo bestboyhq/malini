@@ -1,6 +1,7 @@
 import { followSystemThemeCommand } from '$lib/app/application/commands/follow-system-theme.command';
 import { requestCloseCommand } from '$lib/app/application/commands/request-close.command';
 import { runMenuChoiceCommand } from '$lib/app/application/commands/run-menu-choice.command';
+import { showUpdateStatusCommand } from '$lib/app/application/commands/show-update-status.command';
 import { syncNativeThemeCommand } from '$lib/app/application/commands/sync-native-theme.command';
 import { appearanceDocumentService } from '$lib/app/infrastructure/services/appearance-document.service';
 import { menuCommandsService } from '$lib/app/infrastructure/services/menu-commands.service';
@@ -8,8 +9,8 @@ import { watchNativeChromeZoom } from '$lib/app/infrastructure/services/native-c
 import { streamingService } from '$lib/app/infrastructure/services/streaming.service';
 import { updatesService } from '$lib/app/infrastructure/services/updates.service';
 import { windowLifecycleService } from '$lib/app/infrastructure/services/window-lifecycle.service';
-import { stagedUpdateStore } from '$lib/app/infrastructure/stores/staged-update.store.svelte';
 import { streamerModeStore } from '$lib/app/infrastructure/stores/streamer-mode.store.svelte';
+import { updateStatusStore } from '$lib/app/infrastructure/stores/update-status.store.svelte';
 
 export function bootAppHook(): () => void {
 	const stopWatchingZoom = watchNativeChromeZoom();
@@ -17,7 +18,7 @@ export function bootAppHook(): () => void {
 		appearanceDocumentService.watchSystemTheme(followSystemThemeCommand);
 	syncNativeThemeCommand();
 	const stopWatchingStreaming = watchStreaming();
-	const stopWatchingUpdates = watchStagedUpdate();
+	const stopWatchingUpdates = watchUpdateStatus();
 	const stopAnsweringMenu = menuCommandsService.onCommand(runMenuChoiceCommand);
 	if (!windowLifecycleService.isNativeWindow()) {
 		return () => {
@@ -71,13 +72,13 @@ function watchStreaming(): () => void {
 	return stop;
 }
 
-function watchStagedUpdate(): () => void {
-	const stop = updatesService.onStaged((version) => stagedUpdateStore.stage(version));
+function watchUpdateStatus(): () => void {
+	const stop = updatesService.onStatus(showUpdateStatusCommand);
 	void (async () => {
 		try {
-			stagedUpdateStore.stage((await updatesService.staged()) ?? stagedUpdateStore.version);
+			updateStatusStore.observe(await updatesService.status());
 		} catch (error) {
-			console.error('[malini updates] could not tell whether an update is ready', error);
+			console.error('[malini updates] could not read the update status', error);
 		}
 	})();
 	return stop;

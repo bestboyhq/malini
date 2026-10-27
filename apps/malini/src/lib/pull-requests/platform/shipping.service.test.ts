@@ -1215,6 +1215,29 @@ describe('shipping a queued merge', () => {
 		expect(await invoke('pull-requests.ship-states')).toEqual([]);
 	});
 
+	it('merges a workstream you chose to keep without archiving it', async () => {
+		await queueWithDraft();
+		github.ciOutcomes = ['SUCCESS'];
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await expect(click('ws-1', 'keep')).rejects.toThrow('Nothing is queued to merge');
+
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
+		expect(await click('ws-1', 'keep')).toMatchObject({ phase: 'queued', keep: true });
+		finishJob(activeJob().id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+		await until(() => expect(github.only().state).toBe('MERGED'));
+		await until(async () => expect(await invoke('pull-requests.ship-states')).toEqual([]));
+		expect(archived).toEqual([]);
+		expect(shipEvents.at(-1)).toMatchObject({ workstreamId: 'ws-1', state: null, merged: {} });
+		expect(
+			all<{ status: string; merged_pull_request_number: number | null }>(
+				db,
+				"SELECT status, merged_pull_request_number FROM workstreams WHERE id = 'ws-1'",
+			),
+		).toEqual([{ status: 'active', merged_pull_request_number: 40 }]);
+	});
+
 	it('logs each new read of the pull request once and names it as the cause of its jobs', async () => {
 		await queueWithDraft();
 		github.ciOutcomes = ['SUCCESS'];
@@ -1670,7 +1693,7 @@ describe('shipping a queued merge', () => {
 
 		await click('ws-1', 'merge');
 
-		await until(() => expect(ship('ws-1')?.lastError).toMatch(/Couldn't reach GitHub/u));
+		await until(() => expect(ship('ws-1')?.lastError).toMatch(/GitHub is not responding/u));
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
 		await until(() => expect(archived).toEqual(['ws-1']));
 		const errors = shipEvents.flatMap((event) => (event.state?.lastError ? [event.state] : []));

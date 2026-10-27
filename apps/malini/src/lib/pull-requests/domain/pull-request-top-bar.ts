@@ -1,5 +1,7 @@
+import { githubFailure } from '$contract/github-failure';
 import type { ShipStep } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
+import { GITHUB_PROBLEM_LABELS } from '$shared/repositories/domain/connection';
 import {
 	type PullRequestAvailability,
 	type PullRequestMenuItem,
@@ -138,7 +140,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 	return {
 		tone: 'queued',
 		busy: true,
-		label: merging ? 'Merging' : 'Queued for merge',
+		label: merging ? 'Merging' : ship.keep ? 'Queued to merge and keep' : 'Queued for merge',
 		detail: ship.lastError
 			? 'Retrying after an error'
 			: ship.step === null
@@ -146,6 +148,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 				: shipStepDetail(ship.step),
 		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
+		...(merging || ship.keep ? {} : { secondaryAction: KEEP }),
 	};
 }
 
@@ -227,13 +230,15 @@ function connectionBlocker(
 	if (read?.github?.session === 'reconnect-required') {
 		return attention('GitHub sign-in expired', null, RECONNECT);
 	}
+	if (surface?.localError) {
+		return attention("Couldn't read the worktree", surface.localError, RETRY);
+	}
 	const failure = surface === null ? null : surfaceFailure(surface);
 	if (!failure) return null;
-	return attention(
-		surface?.localError ? "Couldn't read the worktree" : 'GitHub is unreachable',
-		failure,
-		RETRY,
-	);
+	const kind = githubFailure(failure);
+	return kind
+		? attention(GITHUB_PROBLEM_LABELS[kind], null, RETRY)
+		: attention("Couldn't check GitHub", failure, RETRY);
 }
 
 function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
@@ -469,6 +474,14 @@ const CANCEL_MERGE: PullRequestTopBarAction = {
 	ariaLabel: 'Cancel the queued merge',
 	tone: 'secondary',
 	confirmLabel: 'Confirm cancel',
+};
+
+const KEEP: PullRequestTopBarAction = {
+	kind: 'keep',
+	label: 'Keep',
+	ariaLabel: 'Keep this workstream after it merges',
+	tone: 'secondary',
+	confirmLabel: null,
 };
 
 const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
