@@ -454,9 +454,9 @@ describe('a queued workstream', () => {
 		});
 	});
 
-	it('archives a pull request merged anywhere, and stops at one closed without merging', () => {
+	it('lands a pull request merged anywhere, and stops at one closed without merging', () => {
 		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'merged' }) }))).toEqual({
-			kind: 'archive',
+			kind: 'land',
 		});
 		expect(nextShippingMove(queued({ pullRequest: pullRequest({ state: 'closed' }) }))).toEqual({
 			kind: 'needs-you',

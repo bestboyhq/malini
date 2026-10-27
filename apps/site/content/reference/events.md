@@ -378,6 +378,7 @@ type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
 	step: ShipStep | null;
+	keep: boolean;
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
@@ -447,7 +448,7 @@ Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull reques
 Payload: `ShipButtonClickedEvent`
 
 ```ts
-type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';
+type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';
 
 type ShipPhase = 'local' | 'draft' | 'queued' | 'needs-you';
 
@@ -485,6 +486,7 @@ type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
 	step: ShipStep | null;
+	keep: boolean;
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;

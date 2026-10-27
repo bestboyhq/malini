@@ -66,7 +66,7 @@ export type ShippingMove =
 	| Readonly<{ kind: 'run-job'; builtin: ShippingJobBuiltin; signature: string; attempt: number }>
 	| Readonly<{ kind: 'resolve-threads'; agentRunId: string }>
 	| Readonly<{ kind: 'merge'; method: string; headSha: string }>
-	| Readonly<{ kind: 'archive' }>
+	| Readonly<{ kind: 'land' }>
 	| Readonly<{
 			kind: 'needs-you';
 			reason: ShipNeedsYouReason;
@@ -487,7 +487,7 @@ function queuedMove(snapshot: ShippingSnapshot): ShippingMove {
 }
 
 function pullRequestMove(snapshot: ShippingSnapshot, pullRequest: PullRequestFacts): ShippingMove {
-	if (pullRequest.state === 'merged') return { kind: 'archive' };
+	if (pullRequest.state === 'merged') return { kind: 'land' };
 	if (pullRequest.state === 'closed') {
 		return needsYou(
 			snapshot,

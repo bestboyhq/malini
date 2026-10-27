@@ -140,7 +140,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 	return {
 		tone: 'queued',
 		busy: true,
-		label: merging ? 'Merging' : 'Queued for merge',
+		label: merging ? 'Merging' : ship.keep ? 'Queued to merge and keep' : 'Queued for merge',
 		detail: ship.lastError
 			? 'Retrying after an error'
 			: ship.step === null
@@ -148,6 +148,7 @@ function queued(ship: PullRequestShip): WorkstreamStatus {
 				: shipStepDetail(ship.step),
 		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
+		...(merging || ship.keep ? {} : { secondaryAction: KEEP }),
 	};
 }
 
@@ -473,6 +474,14 @@ const CANCEL_MERGE: PullRequestTopBarAction = {
 	ariaLabel: 'Cancel the queued merge',
 	tone: 'secondary',
 	confirmLabel: 'Confirm cancel',
+};
+
+const KEEP: PullRequestTopBarAction = {
+	kind: 'keep',
+	label: 'Keep',
+	ariaLabel: 'Keep this workstream after it merges',
+	tone: 'secondary',
+	confirmLabel: null,
 };
 
 const OPEN_PULL_REQUEST: PullRequestTopBarAction = {
