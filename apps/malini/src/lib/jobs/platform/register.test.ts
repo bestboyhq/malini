@@ -325,7 +325,7 @@ describe('job definitions', () => {
 			},
 			'open-draft': defaults('Open draft', 'low'),
 			merge: defaults('Merge', 'low'),
-			reconcile: defaults('Reconcile events', 'low', 'haiku'),
+			reconcile: defaults('Choose a reaction', 'low', 'haiku'),
 		});
 	});
 
@@ -378,7 +378,7 @@ describe('job definitions', () => {
 		});
 	});
 
-	it('checks compatibility in the newest workstream when malini updates', async () => {
+	it('checks compatibility in the newest workstream once when malini updates, through its rule', async () => {
 		const definition = await builtin('check-compatibility');
 		upsertWorkstream(db, {
 			id: 'ws-newest',
@@ -406,11 +406,19 @@ describe('job definitions', () => {
 			if (!found) throw new Error('no compatibility run yet');
 			return found;
 		});
-		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'trigger' });
+		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'compatibility' });
+		expect(jobRunEventIds(db, [run.id]).get(run.id)).toHaveLength(1);
 		await session(run.id);
 		expect(fakes.sendPrompt).toHaveBeenCalledWith(
 			expect.objectContaining({ prompt: expect.stringContaining('"jobs:run-changed"') }),
 		);
+
+		context.events.emit(APP_UPDATED_CHANNEL, { from: '0.1.0', to: '0.2.0', changes });
+		await new Promise((resolve) => setTimeout(resolve, 30));
+		const runs = await context.commands.call('jobs.list-runs', undefined);
+		expect(runs.filter((entry) => entry.definitionId === definition.id)).toEqual([
+			expect.objectContaining({ id: run.id, requests: 1 }),
+		]);
 	});
 
 	it('tells the review job to list resolved threads the way shipping reads them', async () => {

@@ -58,7 +58,7 @@
 	}
 </script>
 
-<div class="absolute inset-0 grid place-items-center [container-type:size]">
+<div class="[container-type:size] absolute inset-0 grid place-items-center">
 	<div
 		class="group/player @container/player pointer-events-auto relative rounded-md"
 		style:width="min(100cqw, 100cqh * {ratio})"

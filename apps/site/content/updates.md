@@ -22,7 +22,7 @@ An update can add, remove, or reshape an event.
 After an update, Malini compares its events with the ones the version before it had.
 When something changed, it emits `app:updated` with the old and new version and the change: the channels added, the channels removed, and each channel whose payload changed, with its payload type before and after.
 
-Then Malini runs the built-in **Check compatibility** job with that change as context.
+Then the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Compatibility** rule runs the built-in **Check compatibility** job with that change as context, once per update.
 The job:
 
 1. reads the current events with `events_list`, and your jobs and their triggers with `jobs_list`,

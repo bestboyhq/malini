@@ -61,13 +61,27 @@ export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';
 
 export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel'];
 
-export type ShipButtonArgs = Readonly<{ workstreamId: string; button: ShipButton }>;
+export type ShipAllButton = 'draft-all' | 'merge-all';
 
-export type ShipButtonClickedEvent = Readonly<{
+export const SHIP_ALL_BUTTONS: readonly ShipAllButton[] = ['draft-all', 'merge-all'];
+
+export type ShipAllClicked = Readonly<{
 	workstreamId: string;
-	button: ShipButton;
-	state: ShipStateRecord | null;
+	button: ShipAllButton;
+	workstreamIds: readonly string[];
+	chatSessionId: string | null;
 }>;
+
+export type ShipButtonArgs =
+	Readonly<{ workstreamId: string; button: ShipButton }> | ShipAllClicked;
+
+export type ShipButtonClickedEvent =
+	| Readonly<{
+			workstreamId: string;
+			button: ShipButton;
+			state: ShipStateRecord | null;
+	  }>
+	| ShipAllClicked;
 
 export type WorkstreamOpenedEvent = Readonly<{ workstreamId: string }>;
 

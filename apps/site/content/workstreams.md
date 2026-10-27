@@ -54,6 +54,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns amber when its agent waits on an answer or an approval, and red when its run failed.
+  A workstream a chat started stays calm, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up for it instead.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.

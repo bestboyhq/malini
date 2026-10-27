@@ -1,42 +1,34 @@
-import { APP_UPDATED_CHANNEL, type AppUpdatedPayload } from '$contract/events';
 import type { MainContext } from '$main/context';
-import { describeError } from '$main/errors';
+import { isRecord } from '$main/db/rows';
 import { listWorkstreams } from '$shared/repositories/repositories.platform';
+import { triggeredBefore } from './event-log.repository';
+import { findString, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 
-export function checkCompatibilityAfterUpdates(
-	context: MainContext,
-	log: (line: string) => void,
-): () => void {
-	return context.events.subscribe(APP_UPDATED_CHANNEL, (update) => {
-		void checkCompatibility(context, update, log);
-	});
-}
-
-async function checkCompatibility(
+export async function checkCompatibility(
 	{ db, commands }: MainContext,
-	{ from, to, changes }: AppUpdatedPayload,
+	event: DispatchedEvent,
 	log: (line: string) => void,
 ): Promise<void> {
+	const changes = isRecord(event.payload) ? event.payload['changes'] : null;
+	if (!isRecord(changes)) return;
 	const definition = getBuiltinJobDefinition(db, 'check-compatibility');
 	// ponytail: runs in the newest workstream of any repository; upgrade path: an app-level job target
 	const [workstream] = listWorkstreams(db);
 	if (!definition || !workstream) {
 		log(
-			`jobs: Malini updated from ${from} to ${to}, but there is no workstream to check compatibility in`,
+			`jobs: Malini updated from ${findString(event.payload, 'from')} to ${findString(event.payload, 'to')}, but there is no workstream to check compatibility in`,
 		);
 		return;
 	}
-	try {
-		await commands.call('jobs.run', {
-			definitionId: definition.id,
-			workstreamId: workstream.id,
-			context: JSON.stringify(changes, null, 2),
-			origin: 'trigger',
-		});
-	} catch (error) {
-		log(
-			`jobs: could not start ${definition.name} after the update to ${to}: ${describeError(error)}`,
-		);
+	if (event.digest !== null && triggeredBefore(db, definition.id, event.channel, event.digest)) {
+		return;
 	}
+	await commands.call('jobs.run', {
+		definitionId: definition.id,
+		workstreamId: workstream.id,
+		context: JSON.stringify(changes, null, 2),
+		origin: 'compatibility',
+		...(event.id === null ? {} : { causeEventId: event.id }),
+	});
 }

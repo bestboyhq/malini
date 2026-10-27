@@ -88,6 +88,7 @@ export {
 	prepareStartedWorkstream,
 } from './platform/workstream-start.service';
 export { displayWorkstreamName } from './domain/workstream-names';
+export { workstreamLeads } from './domain/workstream-leads';
 export { nextWorkstreamId } from './domain/project-identity';
 export { leadScopeKey, parseLeadScope, type LeadScope } from './domain/lead-scope';
 export {

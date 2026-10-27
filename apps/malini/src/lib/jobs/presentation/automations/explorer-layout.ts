@@ -1,11 +1,5 @@
-import {
-	EVENT_ROWS,
-	LISTENERS,
-	type EventRow,
-	type Hop,
-	type Listener,
-	type MapNode,
-} from '$lib/jobs/domain/explorer';
+import { EVENT_ROWS, type EventRow, type Hop, type MapNode } from '$lib/jobs/domain/explorer';
+import { RECONCILER_RULES, type ReconcilerRule } from '$lib/jobs/domain/reconciler';
 
 export type Box = Readonly<{ x: number; y: number; w: number; h: number }>;
 
@@ -21,14 +15,15 @@ export const STRUCTURE: readonly Hop[] = [
 	['you', 'chats'],
 	['you', 'jobs'],
 	...EVENT_ROWS.map((row): Hop => [`event:${row}`, 'reconciler']),
-	...LISTENERS.map((listener): Hop => ['reconciler', `listener:${listener}`]),
-	['listener:triggers', 'jobs'],
-	['listener:thens', 'jobs'],
-	['listener:shipping', 'jobs'],
-	['listener:resume', 'chats'],
-	['listener:schedules', 'jobs'],
-	['listener:model', 'chats'],
-	['listener:model', 'jobs'],
+	...RECONCILER_RULES.map((rule): Hop => ['reconciler', `rule:${rule}`]),
+	['rule:triggers', 'jobs'],
+	['rule:thens', 'jobs'],
+	['rule:shipping', 'jobs'],
+	['rule:resume', 'chats'],
+	['rule:schedules', 'jobs'],
+	['rule:compatibility', 'jobs'],
+	['rule:model', 'chats'],
+	['rule:model', 'jobs'],
 	['chats', 'chats'],
 	['chats', 'jobs'],
 	['jobs', 'jobs'],
@@ -75,8 +70,8 @@ const MAX_SCALE = 1.3;
 const LOG_TOP = TOP + INSET + YOU_H + YOU_GAP;
 const ROWS_TOP = LOG_TOP + INSET;
 const ROWS_SPAN = EVENT_ROWS.length * ROW_PITCH - (ROW_PITCH - ROW_H);
-const MODEL = LISTENERS.indexOf('model');
-const RECONCILER_H = REC_PAD * 2 + REC_HEAD + LISTENERS.length * RULE_PITCH + THEN_H - 6;
+const MODEL = RECONCILER_RULES.indexOf('model');
+const RECONCILER_H = REC_PAD * 2 + REC_HEAD + RECONCILER_RULES.length * RULE_PITCH + THEN_H - 6;
 
 export const MAP_MIN_WIDTH = 880;
 
@@ -111,9 +106,9 @@ export function mapLayout(available: number): MapLayout {
 			{ x: SIDE + PAD, y: ROWS_TOP + index * ROW_PITCH, w: rowW, h: ROW_H },
 		]),
 	);
-	const rules = new Map<Listener, Box>(
-		LISTENERS.map((listener, index) => [
-			listener,
+	const rules = new Map<ReconcilerRule, Box>(
+		RECONCILER_RULES.map((rule, index) => [
+			rule,
 			{
 				x: reconciler.x + REC_PAD,
 				y: reconciler.y + REC_PAD + REC_HEAD + index * RULE_PITCH + (index >= MODEL ? THEN_H : 0),
@@ -129,7 +124,7 @@ export function mapLayout(available: number): MapLayout {
 		['chats', chats],
 		['jobs', jobs],
 		...[...rows].map(([row, box]): [MapNode, Box] => [`event:${row}`, box]),
-		...[...rules].map(([listener, box]): [MapNode, Box] => [`listener:${listener}`, box]),
+		...[...rules].map(([rule, box]): [MapNode, Box] => [`rule:${rule}`, box]),
 	]);
 
 	const mid = (box: Box): number => box.y + box.h / 2;
@@ -235,7 +230,7 @@ export function mapLayout(available: number): MapLayout {
 				[reconciler.x, flowY],
 			];
 		}
-		if (from.startsWith('listener:')) {
+		if (from.startsWith('rule:')) {
 			if (to === 'chats') return lines.decidedChats;
 			if (to === 'jobs') return lines.decidedJobs;
 		}
@@ -256,7 +251,7 @@ export function mapLayout(available: number): MapLayout {
 			if (row === EVENT_ROWS[0]) return ['trunk'];
 			return [`stub:${row}`, 'bus', 'trunk'];
 		}
-		if (from.startsWith('listener:')) return to === 'chats' ? ['decided:chats'] : ['decided:jobs'];
+		if (from.startsWith('rule:')) return to === 'chats' ? ['decided:chats'] : ['decided:jobs'];
 		if (from === 'you') return [to === 'chats' ? 'you:chats' : 'you:jobs'];
 		if (from === 'chats') return [to === 'chats' ? 'ask:chats' : 'ask:jobs'];
 		if (from === 'jobs' && to === 'jobs') return ['ask:job'];

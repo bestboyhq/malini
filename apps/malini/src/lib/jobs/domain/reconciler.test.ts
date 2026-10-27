@@ -184,7 +184,23 @@ describe('validatePick', () => {
 			decidedBy: 'model',
 			detail: null,
 		});
-		expect(validatePick(candidates, 7, () => 0)).toMatchObject({ chosen: 0, decidedBy: 'model' });
+		expect(validatePick(candidates, 0, () => 0)).toMatchObject({ chosen: 0, decidedBy: 'model' });
+	});
+
+	it('wakes the chat waiting on the work, else asks you, when the model gives no pick', () => {
+		expect(validatePick(candidates, null, () => 0)).toEqual({
+			candidates,
+			chosen: 1,
+			decidedBy: 'rules',
+			detail: null,
+		});
+		expect(validatePick(candidates, 7, () => 0)).toMatchObject({ chosen: 1, decidedBy: 'rules' });
+		const unstarted =
+			reconcilerQuestion(finishedTurn({ starter: null, status: 'failed' }))?.candidates ?? [];
+		const asked = validatePick(unstarted, null, () => 0);
+
+		expect(unstarted[asked.chosen]).toMatchObject({ kind: 'ask-you' });
+		expect(asked.decidedBy).toBe('rules');
 	});
 
 	it('asks the user instead of waking a chat that used up its wakes', () => {

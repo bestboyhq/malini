@@ -585,7 +585,7 @@ function defineFakes(): void {
 			status: 'running',
 			detail: null,
 			parentRunId: args.parentRunId ?? null,
-			chatSessionId: null,
+			chatSessionId: args.chatSessionId ?? null,
 			chatAfterRunId: null,
 			chainId: `job-${index}`,
 			requests: 1,
@@ -612,12 +612,10 @@ function defineFakes(): void {
 }
 
 function recordShipEvents(): void {
-	for (const channel of [
-		PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
-		PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
-	] as const) {
-		context.events.subscribe(channel, (event) => shipEvents.push(event));
-	}
+	context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (event) => shipEvents.push(event));
+	context.events.subscribe(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, (event) => {
+		if ('state' in event) shipEvents.push(event);
+	});
 }
 
 function seedDefinitions(): void {
@@ -1040,6 +1038,39 @@ describe('keeping a workstream current with main', () => {
 
 		await until(() => expect(pushes).toEqual(['ws-1', 'ws-1']));
 		expect(commits.at(-1)).toMatchObject({ message: 'Merge main into malini/ws-1' });
+	});
+
+	it('resolves the conflicts its update left behind while a Merge waits for a chat', async () => {
+		await openDraft();
+		behind.set('ws-1', 2);
+		await invoke('pull-requests.workstream-opened', { workstreamId: 'ws-1' });
+		await until(() => expect(ship('ws-1')?.step).toBe('updating-from-main'));
+		const update = activeJob();
+		const merge = getBuiltinJobDefinition(db, 'merge');
+		if (!merge) throw new Error('the Merge job is missing');
+		insertJobRun(
+			db,
+			{
+				...update,
+				id: 'merge-for-chat',
+				definitionId: merge.id,
+				title: 'Merge',
+				sessionId: null,
+				agentRunId: null,
+				status: 'queued',
+				chatSessionId: 'session-lead',
+				createdAt: new Date(Date.now() + 60_000).toISOString(),
+			},
+			null,
+		);
+		mergeMain('ws-1', ['src/search.ts']);
+		finishJob(update.id, 'succeeded');
+
+		await until(() => expect(jobRuns.size).toBe(2));
+		expect(activeJob()).toMatchObject({
+			definitionId: 'def-resolve-conflicts',
+			origin: 'merge-queue',
+		});
 	});
 
 	it('commits leftover work when a local workstream opens, then updates it from main', async () => {
@@ -1754,5 +1785,62 @@ describe('shipping a queued merge', () => {
 		});
 
 		await until(async () => expect(await invoke('pull-requests.ship-states')).toEqual([]));
+	});
+});
+
+describe('Draft all and Merge all', () => {
+	it('logs the click on the chat and runs Merge in each workstream it names, for that chat', async () => {
+		seedWorkstream('lead');
+		seedWorkstream('ws-1');
+		seedWorkstream('ws-2');
+		start();
+		const merge = getBuiltinJobDefinition(db, 'merge');
+
+		await expect(
+			invoke('pull-requests.button-clicked', {
+				workstreamId: 'lead',
+				button: 'merge-all',
+				workstreamIds: ['ws-1', 'ws-2'],
+				chatSessionId: 'session-lead',
+			}),
+		).resolves.toBeNull();
+		await until(() => expect(jobRuns.size).toBe(2));
+
+		const clicks = all<{ id: number; workstream_id: string }>(
+			db,
+			'SELECT id, workstream_id FROM event_log WHERE channel = ?',
+			PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+		);
+		expect(clicks).toEqual([{ id: expect.any(Number), workstream_id: 'lead' }]);
+		expect(
+			[...jobRuns.values()]
+				.map((run) => [
+					run.workstreamId,
+					run.definitionId,
+					run.origin,
+					run.chatSessionId,
+					jobCauses.get(run.id),
+				])
+				.sort(),
+		).toEqual([
+			['ws-1', merge?.id, 'merge-queue', 'session-lead', clicks[0]?.id],
+			['ws-2', merge?.id, 'merge-queue', 'session-lead', clicks[0]?.id],
+		]);
+		expect(getShip(db, 'lead')).toBeNull();
+	});
+
+	it('refuses a Draft all that names no workstream', async () => {
+		start();
+
+		await expect(
+			invoke('pull-requests.button-clicked', {
+				workstreamId: 'lead',
+				button: 'draft-all',
+				workstreamIds: [],
+				chatSessionId: null,
+			}),
+		).rejects.toThrow('`workstreamIds` must be a non-empty list of non-empty strings');
+		await settle();
+		expect(jobRuns.size).toBe(0);
 	});
 });

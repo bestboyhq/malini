@@ -142,6 +142,128 @@ test('a merged workstream a chat started opens its pull request from the number 
 	}
 });
 
+test('Draft all and Merge all on a chat ship the workstreams it started once their agents finish', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		await invoke(app.page, 'repositories.create-lead', {
+			scope: 'home',
+			workstreamId: 'e2e-lead-merges-all',
+			name: 'Ship hutch',
+		});
+		const { page, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-lead-merges-child',
+			null,
+			undefined,
+			'e2e-lead-merges-all',
+		);
+		await openWorkstream(page, 'e2e-lead-merges-all');
+		await sendPrompt(page, 'Plan it');
+		await expectAssistantReply(page);
+
+		await openWorkstream(page, 'e2e-lead-merges-child');
+		holdAgentRuns(app, true);
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		const name = await workstreamName(page, 'e2e-lead-merges-child');
+
+		await openWorkstream(page, 'e2e-lead-merges-all');
+		await expect(topBarStatus(page, /^0 of 1 merged · 1 working/u)).toBeVisible({
+			timeout: 20_000,
+		});
+		const topBar = page.getByRole('navigation', { name: 'Global actions' });
+		const draftAll = topBar.getByRole('button', {
+			name: 'Open draft pull requests in 1 workstream',
+		});
+		const mergeAll = topBar.getByRole('button', { name: 'Merge 1 workstream' });
+		await expect(draftAll).toBeEnabled();
+		await expect(mergeAll).toBeEnabled();
+		await captureFlow(app, 'lead-merge-all-offered');
+
+		await draftAll.click();
+		const tray = page.getByRole('region', { name: 'Jobs (1)', exact: true });
+		const drafting = tray.getByRole('button', {
+			name: `Open draft job in ${name}, Queued. The transcript opens once the job starts`,
+		});
+		await expect(drafting).toBeVisible({ timeout: 20_000 });
+		await expect(mergeAll).toHaveCount(0);
+		await expect(draftAll).toHaveCount(0);
+		await page.waitForTimeout(2_000);
+		await expect(drafting).toBeVisible();
+		await captureFlow(app, 'lead-draft-all-queued');
+
+		holdAgentRuns(app, false);
+		await expect.poll(() => github.pullRequest(), { timeout: 60_000 }).not.toBeNull();
+		expect(github.pullRequest()).toMatchObject({ isDraft: true, title: 'feat: add alpha' });
+
+		await page
+			.getByRole('navigation', { name: 'Connected repositories' })
+			.getByTestId('sidebar-chat')
+			.filter({ hasText: 'Ship hutch' })
+			.hover();
+		const card = page.getByTestId('sidebar-started-card');
+		const mergeFromCard = card.getByRole('button', { name: 'Merge 1 workstream' });
+		await expect(mergeFromCard).toBeVisible({ timeout: 30_000 });
+		await expect(
+			card.getByRole('button', { name: 'Open draft pull requests in 1 workstream' }),
+		).toHaveCount(0);
+		await captureFlow(app, 'lead-merge-all-card');
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: PASSED,
+		});
+		await mergeFromCard.click();
+
+		await expect(topBarStatus(page, /^1 of 1 merged/u)).toBeVisible({ timeout: 90_000 });
+		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', isDraft: false });
+		await expect(mergeAll).toHaveCount(0);
+		const jobs = await invoke<
+			{ title: string; status: string; chatSessionId: string | null; origin: string }[]
+		>(page, 'jobs.list-runs', undefined);
+		const sessions = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
+			workstreamId: 'e2e-lead-merges-all',
+		});
+		expect(
+			jobs
+				.filter(({ title }) => title === 'Open draft' || title === 'Merge')
+				.map(({ title, status, chatSessionId, origin }) => [title, status, chatSessionId, origin])
+				.sort(),
+		).toEqual([
+			['Merge', 'succeeded', sessions[0]?.id, 'merge-queue'],
+			['Open draft', 'succeeded', sessions[0]?.id, 'merge-queue'],
+		]);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-merge-all-merged');
+
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		const shipping = map.getByRole('button', { name: /^Shipping: \d+ started$/u });
+		await expect(shipping).toBeVisible();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-ship-all-explorer');
+		await map.getByRole('button', { name: 'Button clicked: 2 events' }).click();
+		const clicks = explorer.getByRole('list', { name: 'Button clicked' });
+		await expect(
+			clicks.getByRole('button', { name: /^Button clicked: Draft all, Ship hutch, /u }),
+		).toHaveCount(1);
+		await expect(
+			clicks.getByRole('button', { name: /^Button clicked: Merge all, Ship hutch, /u }),
+		).toHaveCount(1);
+		await shipping.click();
+		const started = explorer
+			.getByRole('list', { name: 'Shipping' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Shipping heard button clicked' });
+		await expect(started.getByRole('button', { name: /^Open draft, /u })).toHaveCount(1);
+		await expect(started.getByRole('button', { name: /^Merge, /u })).toHaveCount(1);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a command the agent left running in the background does not hold the merge, and archiving stops it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();

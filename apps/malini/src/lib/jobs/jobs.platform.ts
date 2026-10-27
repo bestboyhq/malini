@@ -1,4 +1,4 @@
-import type { JobDefinitionRecord, JobRunOrigin, JobRunRecord } from '$contract/jobs';
+import { isShippingJobBuiltin, type JobDefinitionRecord, type JobRunRecord } from '$contract/jobs';
 import type { MaliniDatabase } from '$main/db/driver';
 import { getJobDefinition, listJobDefinitions } from './platform/job-definitions.repository';
 import {
@@ -46,12 +46,14 @@ export function jobRun(db: MaliniDatabase, id: string): JobRunRecord | null {
 	return getJobRun(db, id);
 }
 
-export function latestJobRunInWorkstream(
+export function latestShippingJobRun(
 	db: MaliniDatabase,
 	workstreamId: string,
-	origin: JobRunOrigin,
 ): JobRunRecord | null {
-	return latestWorkstreamJobRun(db, workstreamId, origin);
+	const shippingJobs = listJobDefinitions(db)
+		.filter(({ builtin }) => isShippingJobBuiltin(builtin))
+		.map(({ id }) => id);
+	return latestWorkstreamJobRun(db, workstreamId, 'merge-queue', shippingJobs);
 }
 
 export function activeThenJobRun(db: MaliniDatabase, parentRunId: string): JobRunRecord | null {

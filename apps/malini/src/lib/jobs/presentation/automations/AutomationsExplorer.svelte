@@ -27,7 +27,7 @@
 	import ExplorerEvents from './ExplorerEvents.svelte';
 	import ExplorerMap from './ExplorerMap.svelte';
 	import ExplorerStrip from './ExplorerStrip.svelte';
-	import { count, explorerClock, nodeLabel } from './explorer-copy';
+	import { count, explorerClock, nodeLabel, nodeNote } from './explorer-copy';
 	import { STRUCTURE, type Flight, type Lit } from './explorer-layout';
 
 	interface Props {
@@ -154,7 +154,7 @@
 			const passing = new Set(through(map, selectedNode).map((item) => item.id));
 			return {
 				title: nodeLabel(selectedNode),
-				note: 'the latest that passed through it',
+				note: nodeNote(selectedNode),
 				items: visible.filter((item) => passing.has(item.id)).slice(-LATEST),
 			};
 		}

@@ -7,6 +7,7 @@ import type {
 	TimelineRecord,
 	TimelineWorkstream,
 } from '$contract/jobs';
+import type { ReconcilerRule } from './reconciler';
 
 export type Source = 'you' | 'agent' | 'git' | 'github' | 'malini' | 'clock';
 
@@ -24,6 +25,7 @@ export const EVENT_ROWS = [
 	'workstream-created',
 	'workstream-archived',
 	'malini-started',
+	'malini-updated',
 	'time-reached',
 	'other',
 ] as const;
@@ -44,18 +46,15 @@ export const ROW_SOURCES: Readonly<Record<EventRow, Source | null>> = {
 	'workstream-created': 'malini',
 	'workstream-archived': 'malini',
 	'malini-started': 'malini',
+	'malini-updated': 'malini',
 	'time-reached': 'clock',
 	other: null,
 };
 
-export const LISTENERS = ['triggers', 'thens', 'shipping', 'resume', 'schedules', 'model'] as const;
-
-export type Listener = (typeof LISTENERS)[number];
-
 export type WorkNode = 'chats' | 'jobs';
 
 export type MapNode =
-	'you' | WorkNode | 'reconciler' | `event:${EventRow}` | `listener:${Listener}`;
+	'you' | WorkNode | 'reconciler' | `event:${EventRow}` | `rule:${ReconcilerRule}`;
 
 export type Hop = readonly [MapNode, MapNode];
 
@@ -105,6 +104,7 @@ const ROWS: Readonly<Record<string, EventRow>> = {
 	'repositories:workstream-created': 'workstream-created',
 	'repositories:workstream-removed': 'workstream-archived',
 	'app:started': 'malini-started',
+	'app:updated': 'malini-updated',
 	'jobs:time-reached': 'time-reached',
 } satisfies Partial<Record<EventChannel, EventRow>>;
 
@@ -252,27 +252,32 @@ function runHops(run: TimelineJobRun): Hop[] {
 	switch (run.origin) {
 		case 'trigger':
 			return [
-				['reconciler', 'listener:triggers'],
-				['listener:triggers', 'jobs'],
+				['reconciler', 'rule:triggers'],
+				['rule:triggers', 'jobs'],
 			];
 		case 'then':
 			if (run.eventIds.length === 0) return [['jobs', 'jobs']];
 			return [
-				['reconciler', 'listener:thens'],
-				['listener:thens', 'jobs'],
+				['reconciler', 'rule:thens'],
+				['rule:thens', 'jobs'],
 			];
 		case 'schedule':
 			return [
-				['reconciler', 'listener:schedules'],
-				['listener:schedules', 'jobs'],
+				['reconciler', 'rule:schedules'],
+				['rule:schedules', 'jobs'],
 			];
 		case 'merge-queue':
 			return [
-				['reconciler', 'listener:shipping'],
-				['listener:shipping', 'jobs'],
+				['reconciler', 'rule:shipping'],
+				['rule:shipping', 'jobs'],
+			];
+		case 'compatibility':
+			return [
+				['reconciler', 'rule:compatibility'],
+				['rule:compatibility', 'jobs'],
 			];
 		case 'reconciler':
-			return [['listener:model', 'jobs']];
+			return [['rule:model', 'jobs']];
 		case 'manual':
 			if (run.chatAfterRunId !== null) return [['chats', 'jobs']];
 			return run.parentRunId === null ? [['you', 'jobs']] : [['jobs', 'jobs']];
@@ -321,11 +326,11 @@ function turnCause(
 function turnHops(turn: TimelineChatTurn): Hop[] {
 	if (turn.resumed) {
 		return [
-			['reconciler', 'listener:resume'],
-			['listener:resume', 'chats'],
+			['reconciler', 'rule:resume'],
+			['rule:resume', 'chats'],
 		];
 	}
-	if (turn.causeEventId !== null) return [['listener:model', 'chats']];
+	if (turn.causeEventId !== null) return [['rule:model', 'chats']];
 	return turn.from === null ? [['you', 'chats']] : [['chats', 'chats']];
 }
 
@@ -339,7 +344,7 @@ function decisionItem(decision: ReconcilerDecisionRecord): ExplorerItem {
 		chainId: decision.chainId,
 		cause: eventId(decision.eventId),
 		workstreamId: decision.workstreamId,
-		hops: [['reconciler', 'listener:model']],
+		hops: [['reconciler', 'rule:model']],
 	};
 }
 
@@ -358,9 +363,9 @@ function countNodes(
 	for (const item of items) {
 		if (item.kind === 'turn') add('chats');
 		if (item.kind === 'run') add('jobs');
-		if (item.kind === 'decision') add('listener:model');
+		if (item.kind === 'decision') add('rule:model');
 		for (const [from] of item.hops) {
-			if (from === 'you' || (from.startsWith('listener:') && from !== 'listener:model')) {
+			if (from === 'you' || (from.startsWith('rule:') && from !== 'rule:model')) {
 				add(from);
 			}
 		}

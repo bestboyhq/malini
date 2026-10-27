@@ -1,9 +1,16 @@
-import { progressDot, type ProgressDot } from '$lib/app/domain/lead-progress';
+import {
+	progressDot,
+	shipTargets,
+	type ProgressDot,
+	type ShipTargets,
+} from '$lib/app/domain/lead-progress';
 import { workstreamChatSummaryQuery } from '$lib/chat/application/queries/workstream-chat-summary.query.svelte';
+import { shippingJobRunsQuery } from '$lib/jobs/application/queries/shipping-job-runs.query.svelte';
 import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
 import {
 	activeWorkstreamsQuery,
 	archivedWorkstreamsQuery,
+	changeTotalsQuery,
 	isWorkstreamCheckoutUsable,
 	provisioningRecordQuery,
 	workstreamSettingUpQuery,
@@ -38,6 +45,18 @@ class LeadProgressQuery {
 			.filter(startedBy(parentId))
 			.map((workstream): ProgressDot => (workstream.mergedPullRequest ? 'merged' : 'archived')),
 	]);
+
+	public readonly shipTargets: (parentId: string) => ShipTargets = $derived((parentId: string) =>
+		shipTargets(
+			activeWorkstreamsQuery.data.filter(startedBy(parentId)).map((workstream) => ({
+				id: workstream.id,
+				pullRequest: pullRequestBadgesQuery.data(workstream.id).phase,
+				changed: (changeTotalsQuery.data[workstream.id]?.files ?? 0) > 0,
+				working: this.dot(workstream) === 'running',
+				shipping: shippingJobRunsQuery.workstreamIds.has(workstream.id),
+			})),
+		),
+	);
 
 	public readonly startedIds: (parentId: string) => string[] = $derived((parentId: string) =>
 		[...activeWorkstreamsQuery.data, ...archivedWorkstreamsQuery.data]

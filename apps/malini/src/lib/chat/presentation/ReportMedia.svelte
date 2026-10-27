@@ -33,8 +33,7 @@
 
 	$effect(() => {
 		if (!video) return;
-		if (moving && size === 'tile')
-			void video.play().catch(() => {});
+		if (moving && size === 'tile') void video.play().catch(() => {});
 		else video.pause();
 	});
 </script>
