@@ -34,7 +34,13 @@ import {
 	removeCheckoutDirResilient,
 } from '$main/git/worktrees';
 import { recordedBaseRepository, recordedCheckoutPath } from './checkout-resolver';
-import { dropKeptFolders, keepFolders, sweepKeptFolders } from './kept-folders';
+import {
+	dropKeptFolders,
+	keepFolders,
+	keptContextPruned,
+	pruneKeptContext,
+	sweepKeptFolders,
+} from './kept-folders';
 import { listProjects } from './projects.repository';
 import {
 	archiveWorkstreamRecord,
@@ -203,7 +209,18 @@ async function retireCheckout(
 	if (retirement !== 'deleted' && !(await keptFoldersFrom(appDataRoot, workstreamId, trash))) {
 		return { ...leftovers, trash: null };
 	}
+	if (retirement === 'archived') await slimKeptContext(appDataRoot, workstreamId);
 	return { ...leftovers, trash };
+}
+
+export async function slimKeptContext(appDataRoot: string, workstreamId: string): Promise<void> {
+	try {
+		await pruneKeptContext(appDataRoot, workstreamId);
+	} catch (error) {
+		console.error(
+			`malini: could not slim the context folder archived workstream \`${workstreamId}\` keeps; the next start retries: ${errorWithStack(error)}`,
+		);
+	}
 }
 
 async function keptFoldersFrom(
@@ -416,9 +433,8 @@ async function sweepLeftovers(db: MaliniDatabase, appDataRoot: string): Promise<
 	try {
 		const projects = listProjects(db);
 		const liveWorkstreamIds = new Set(listWorkstreams(db).map((workstream) => workstream.id));
-		const archivedWorkstreamIds = new Set(
-			listArchivedWorkstreams(db).map((workstream) => workstream.id),
-		);
+		const archived = listArchivedWorkstreams(db);
+		const archivedWorkstreamIds = new Set(archived.map((workstream) => workstream.id));
 		for (const project of projects) {
 			if (!existsSync(join(project.repoPath, '.git'))) continue;
 			await pruneWorktreeAdministration(project.repoPath);
@@ -430,6 +446,10 @@ async function sweepLeftovers(db: MaliniDatabase, appDataRoot: string): Promise<
 			archivedWorkstreamIds,
 		);
 		await sweepKeptFolders(appDataRoot, (workstreamId) => getWorkstream(db, workstreamId) !== null);
+		for (const { id, savedForLater } of archived) {
+			if (savedForLater || (await keptContextPruned(appDataRoot, id))) continue;
+			await slimKeptContext(appDataRoot, id);
+		}
 		return remaining;
 	} catch (error) {
 		console.error(`malini: the sweep of archived leftovers stopped: ${errorWithStack(error)}`);

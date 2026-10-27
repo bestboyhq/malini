@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { cloneInto } from '$main/fs/copy-on-write';
 import { isDirectory, isFile } from '$main/fs/stat';
 import type { EventBus } from '$main/events';
 import { SANDBOX_SCRATCH_PATH } from '$main/git/paths';
+import { runGit } from '$main/git/run';
 import { buildSpawnEnvironment, resolveToolPath } from '$main/process/environment';
 import type { ProcessExit, ProcessHandle, ProcessRunner } from '$main/process/runner';
 import type { InstallSkipReason, InstallStatus } from '$contract/system';
@@ -24,6 +27,9 @@ export type PackageManager = (typeof KNOWN_PACKAGE_MANAGERS)[number];
 export const IGNORE_SCRIPTS_FLAG = '--ignore-scripts';
 
 export const INSTALL_COMPLETION_PATH = join(SANDBOX_SCRATCH_PATH, 'install-complete');
+
+const COPIED_INSTALL_MANAGERS: ReadonlySet<string> = new Set<PackageManager>(['npm', 'yarn']);
+const NODE_MODULES_CACHES = ['.cache', '.vite'] as const;
 
 export const ABORT_GRACE_MS = 2_000;
 export const ABORT_DEADLINE_MS = 30_000;
@@ -295,6 +301,7 @@ export interface InstallDeps {
 	readonly registry: InstallRegistry;
 	readonly timeoutMs?: number;
 	readonly env?: Readonly<Record<string, string>>;
+	readonly siblings?: (workstreamId: string) => readonly string[];
 }
 
 export async function installDependencies(
@@ -314,10 +321,78 @@ export async function installDependencies(
 			emit(deps.events, workstreamId, 'skipped', { reason: skipped });
 			return { status: 'skipped', reason: skipped };
 		}
+		const started = Date.now();
+		if (await sharedNodeModules(worktree, plan.argv, deps.siblings?.(workstreamId) ?? [])) {
+			recordCompletion(worktree, plan.argv);
+			const command = plan.argv.join(' ');
+			emit(deps.events, workstreamId, 'succeeded', { command, durationMs: Date.now() - started });
+			return { status: 'succeeded' };
+		}
 		return await installWithArgv(deps, slot, workstreamId, worktree, plan.argv);
 	} finally {
 		slot.dispose();
 	}
+}
+
+export async function sharedNodeModules(
+	worktree: string,
+	argv: readonly string[],
+	siblings: readonly string[],
+): Promise<boolean> {
+	if (!COPIED_INSTALL_MANAGERS.has(argv[0] ?? '') || existsSync(join(worktree, 'node_modules'))) {
+		return false;
+	}
+	const fingerprint = installFingerprint(worktree, argv);
+	const donor = siblings.find(
+		(sibling) =>
+			fingerprint !== null &&
+			isDirectory(join(sibling, 'node_modules')) &&
+			recordedFingerprint(sibling) === fingerprint &&
+			installFingerprint(sibling, argv) === fingerprint,
+	);
+	const folders = donor === undefined ? [] : await packageFolders(worktree).catch(() => []);
+	if (donor === undefined || folders.length === 0) return false;
+	try {
+		for (const folder of folders) {
+			const source = join(donor, folder, 'node_modules');
+			const target = join(worktree, folder, 'node_modules');
+			if (!isDirectory(source) || existsSync(target)) continue;
+			await cloneInto([source], join(worktree, folder));
+			for (const cache of NODE_MODULES_CACHES) {
+				await rm(join(target, cache), { recursive: true, force: true });
+			}
+		}
+		return true;
+	} catch (error) {
+		console.warn(
+			`environment: could not copy node_modules from \`${donor}\` into \`${worktree}\`, so it installs them: ${error instanceof Error ? error.message : String(error)}`,
+		);
+		for (const folder of folders) {
+			await rm(join(worktree, folder, 'node_modules'), { recursive: true, force: true });
+		}
+		return false;
+	}
+}
+
+function installFingerprint(worktree: string, argv: readonly string[]): string | null {
+	const source = installSource(worktree, join(worktree, 'package.json'));
+	return source ? sourceFingerprint(source, argv) : null;
+}
+
+function recordedFingerprint(worktree: string): string | null {
+	try {
+		return readFileSync(join(worktree, INSTALL_COMPLETION_PATH), 'utf8').trim();
+	} catch {
+		return null;
+	}
+}
+
+async function packageFolders(worktree: string): Promise<string[]> {
+	const listed = await runGit(['-C', worktree, 'ls-files', '-z', '--', ':(glob)**/package.json']);
+	return listed
+		.split('\0')
+		.filter((path) => path.length > 0)
+		.map((path) => dirname(path));
 }
 
 type ChildEnd =

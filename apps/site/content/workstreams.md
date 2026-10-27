@@ -12,6 +12,19 @@ Malini installs dependencies for you from the lockfile: pnpm, npm, yarn, or bun.
 
 Two agents never edit one checkout, so they never clobber each other.
 
+## Disk space
+
+Workstreams share disk space, so you can keep as many as you like.
+
+- **Checkouts are copy-on-write.** A new or restored workstream clones its files from the repository's clone, so a file takes no extra space until an agent changes it.
+- **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
+  pnpm and bun share packages through their own store.
+- **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
+  A GitHub repository over 1 GB is cloned without the history of its files, and git fetches an old version of a file the first time something reads it.
+- **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
+  It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
+- **Malini checks first.** It starts no workstream, clone or restore when the disk has less than 2 GB free, and says how much is free.
+
 ## Malini owns git
 
 The agent bridge refuses to commit, push, rebase, reset, or run `gh pr create`.
@@ -66,7 +79,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   A command you run in your own terminal keeps running.
   When Malini starts, it stops whatever is still running from the folder of a workstream that is no longer live.
 - The clock beside a workstream's archive button saves it for later.
-  Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout.
+  Like archiving, it keeps its commits, uncommitted changes and chats, and frees its checkout, but it keeps all of `.context` until you archive it.
   It waits in its repository's scratchpad instead of **Recently archived**.
 - Connect another repository from the button at the bottom of the sidebar, by right-clicking an empty part of the sidebar, from the **File** menu, or from Malini's icon in the menu bar.
   **Open folder…** connects a folder on your Mac, and **Clone repository…** clones one from GitHub.

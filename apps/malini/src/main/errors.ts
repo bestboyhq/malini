@@ -181,6 +181,7 @@ const MERGE_CONFLICT = /^CONFLICT \(/mu;
 const MERGE_CONFLICT_PATH = /^CONFLICT \([^)]*\): Merge conflict in (.+)$/gmu;
 const INDEX_LOCKED = /index\.lock'?: File exists/u;
 const FOLDER_GONE = /cannot change to '([^']+)': No such file or directory/u;
+const GENERIC_REMOTE_FAILURE = /could not read from remote repository/iu;
 const LISTED_CONFLICT_PATHS = 3;
 
 function folderMissing(folder: string): GitFailureVerdict {
@@ -266,7 +267,11 @@ function gitVerdictLine(output: string): string {
 		.split('\n')
 		.map((line) => line.trim())
 		.filter((line) => line.length > 0 && !/^hint:/iu.test(line));
-	const verdict = lines.filter((line) => /^(?:fatal|error):/iu.test(line)).at(-1) ?? lines.at(-1);
+	const verdicts = lines.filter((line) => /^(?:fatal|error):/iu.test(line));
+	const verdict =
+		verdicts.filter((line) => !GENERIC_REMOTE_FAILURE.test(line)).at(-1) ??
+		verdicts.at(-1) ??
+		lines.at(-1);
 	const cleaned = withoutAbsolutePaths(verdict?.replace(/^(?:fatal|error):\s*/iu, '') ?? '');
 	return cleaned.length > 0 ? cleaned : 'Git stopped without giving a reason.';
 }

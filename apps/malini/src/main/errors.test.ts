@@ -150,6 +150,17 @@ describe('gitFailureVerdict', () => {
 		);
 	});
 
+	it('names the remote git could not read rather than the generic line after it', () => {
+		expect(
+			gitFailureVerdict(
+				"fatal: '/private/var/folders/x/T/upstream' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.\n",
+			).message,
+		).toBe("'upstream' does not appear to be a git repository");
+		expect(gitFailureVerdict('fatal: Could not read from remote repository.\n').message).toBe(
+			'Could not read from remote repository.',
+		);
+	});
+
 	it('falls back to the last line when git printed no verdict, and admits silence', () => {
 		expect(
 			gitFailureVerdict('On branch main\nnothing to commit, working tree clean\n').message,
