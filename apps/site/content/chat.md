@@ -118,6 +118,7 @@ When you ask for options, or the direction is open, the agent makes two to four 
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
