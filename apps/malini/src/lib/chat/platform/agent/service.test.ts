@@ -576,6 +576,7 @@ describe('platform requests from the agent', () => {
 				working: false,
 				outcome: null,
 				needs: null,
+				merged: null,
 			},
 		]);
 		bridge.send(platformRequest('p-4', 'workstreams_archive', { workstream: 'ws-1' }));

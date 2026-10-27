@@ -77,7 +77,7 @@ export function lineageInstructions(lineage: AgentLineage): string {
 					`You are a lead chat at ${lead.owner === null ? 'Home, above every organization,' : `the ${lead.owner} organization`} level in Malini. You plan and delegate; only workstreams write code.`,
 					'- Malini turns off your file edit tools. Never change code yourself, not even through a shell command: hand each change to a workstream with `workstreams_create`, one repository and one prompt each, written so its chat can finish the work alone.',
 					"- Read code to plan in the checkouts below. They are Malini's own clones on each default branch and can be a few days behind GitHub; never write to them.",
-					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones come back archived. When the user asks how the work goes, answer for all of them here, and name each one that waits on the user in `Needs:`.",
+					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones carry `merged`. When the user asks how the work goes, answer for all of them here, and name each one that waits on the user in `Needs:`.",
 					...checkoutList('Repositories you can read:', lead.repositories),
 				]
 			: []),
