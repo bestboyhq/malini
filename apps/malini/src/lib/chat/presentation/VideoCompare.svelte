@@ -58,9 +58,10 @@
 
 	function follow(): void {
 		if (!before || !after || !playing) return;
+		requestAnimationFrame(follow);
+		if (after.readyState === HTMLMediaElement.HAVE_NOTHING) return;
 		time = after.currentTime;
 		if (Math.abs(before.currentTime - after.currentTime) > 2 / FPS) before.currentTime = time;
-		requestAnimationFrame(follow);
 	}
 
 	function toggle(): void {
@@ -88,6 +89,8 @@
 		}
 		if (marker !== null && time === 0) time = Math.min(marker, duration);
 		video.currentTime = time;
+		video.playbackRate = speed;
+		if (playing) void video.play();
 	}
 
 	function onkeydown(event: KeyboardEvent): void {

@@ -24,7 +24,7 @@ async function seedReport(
 	name: string,
 	report: string,
 	media: readonly string[],
-): Promise<string> {
+): Promise<Readonly<{ workstreamId: string; worktree: string }>> {
 	const source = await createSourceRepo(root, name);
 	const seeded = await seedWorkstream(page, source, `e2e-${name}`, name);
 	mkdirSync(join(seeded.worktree, '.context'), { recursive: true });
@@ -33,7 +33,14 @@ async function seedReport(
 	writeFileSync(join(seeded.worktree, 'report.md'), report);
 	await openWorkstream(page, seeded.workstreamId);
 	await sendPrompt(page, 'Show me REPLY_FILE:report.md');
-	return seeded.workstreamId;
+	return seeded;
+}
+
+async function playbackOf(recording: Locator): Promise<Readonly<{ src: string; at: number }>> {
+	return recording.evaluate((video) => ({
+		src: String(Reflect.get(video, 'currentSrc')),
+		at: Number(Reflect.get(video, 'currentTime')),
+	}));
 }
 
 async function frameHeight(frame: Locator): Promise<number> {
@@ -122,7 +129,7 @@ test('two recordings play on one timeline, step a frame at a time and jump to th
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		await seedReport(
+		const { worktree } = await seedReport(
 			page,
 			app.root,
 			'report-motion',
@@ -152,6 +159,27 @@ test('two recordings play on one timeline, step a frame at a time and jump to th
 		await expect(speed).toHaveText('1×');
 		await speed.click();
 		await expect(speed).toHaveText('0.5×');
+		const after = player.locator('video').nth(1);
+		const rewrite = () =>
+			copyFileSync(join(MEDIA, 'after.mp4'), join(worktree, '.context', 'after.mp4'));
+		const pausedSrc = (await playbackOf(after)).src;
+		rewrite();
+		await expect.poll(async () => (await playbackOf(after)).src).not.toBe(pausedSrc);
+		await expect.poll(async () => (await playbackOf(after)).at).toBeCloseTo(1.2, 2);
+		await expect(marked).toContainText('f72');
+		await player.getByRole('button', { name: 'Play both' }).click();
+		const playingSrc = (await playbackOf(after)).src;
+		rewrite();
+		await expect.poll(async () => (await playbackOf(after)).src).not.toBe(playingSrc);
+		await expect
+			.poll(() =>
+				after.evaluate((video) => [
+					Reflect.get(video, 'paused'),
+					Reflect.get(video, 'playbackRate'),
+				]),
+			)
+			.toEqual([false, 0.5]);
+		await player.getByRole('button', { name: 'Pause' }).click();
 		await captureFlow(app, 'report-motion-compare');
 		expectCleanConsole(app);
 	} finally {
@@ -355,6 +383,63 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 	}
 });
 
+test('a recording keeps its place and keeps playing or paused when its file changes', async () => {
+	test.setTimeout(120_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const { worktree } = await seedReport(
+			page,
+			app.root,
+			'report-rewritten-recording',
+			[
+				'![Variant A: Still - one screenshot](.context/variant-a.png)',
+				'![Variant B: Motion - the toast entrance](.context/after.mp4)',
+				'',
+				'Outcome: Two ways to show the toast.',
+				'Needs: Pick a direction',
+			].join('\n'),
+			['variant-a.png', 'after.mp4'],
+		);
+		const offer = page.getByRole('article', { name: 'Turn result' }).first();
+		await offer.getByRole('tab', { name: /^Variant B · Motion/u }).click({ timeout: 30_000 });
+		const recording = offer.getByLabel('Variant B · Motion', { exact: true });
+		const controls = offer.getByRole('group', { name: 'Video controls' });
+		const rewrite = () =>
+			copyFileSync(join(MEDIA, 'after.mp4'), join(worktree, '.context', 'after.mp4'));
+		await expect
+			.poll(async () => (await playbackOf(recording)).at, { timeout: 20_000 })
+			.toBeGreaterThan(0);
+
+		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
+		await controls.getByRole('slider', { name: 'Scrub the recording' }).fill('0.8');
+		await expect.poll(async () => (await playbackOf(recording)).at).toBeCloseTo(0.8, 2);
+		const paused = await playbackOf(recording);
+		rewrite();
+		await expect
+			.poll(async () => (await playbackOf(recording)).src, { timeout: 20_000 })
+			.not.toBe(paused.src);
+		await expect.poll(async () => (await playbackOf(recording)).at).toBeCloseTo(0.8, 2);
+		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+
+		await controls.getByRole('button', { name: /^Playback speed/u }).click();
+		await controls.getByRole('button', { name: 'Play', exact: true }).click();
+		const playing = await playbackOf(recording);
+		rewrite();
+		await expect
+			.poll(async () => (await playbackOf(recording)).src, { timeout: 20_000 })
+			.not.toBe(playing.src);
+		await expect(controls.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+		await expect(controls.getByRole('button', { name: /^Playback speed/u })).toHaveText('0.5×');
+		await expect
+			.poll(() => recording.evaluate((video) => Reflect.get(video, 'playbackRate')))
+			.toBe(0.5);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a report puts every picture in one frame, and a lone prototype there shows as its live page', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
@@ -404,7 +489,7 @@ test('a next step ships as the next prompt, ships in a forked chat with ⌘, or 
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		const workstreamId = await seedReport(
+		const { workstreamId } = await seedReport(
 			page,
 			app.root,
 			'report-next',
