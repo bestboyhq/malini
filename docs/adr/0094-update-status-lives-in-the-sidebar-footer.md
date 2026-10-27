@@ -1,4 +1,4 @@
-# 0093 - Update status lives in the sidebar footer
+# 0094 - Update status lives in the sidebar footer
 
 Status: accepted
 
