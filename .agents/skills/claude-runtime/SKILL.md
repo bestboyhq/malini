@@ -34,7 +34,7 @@ Malini owns the rest, and the adapter enforces it:
   A plan's usage limit is a rejected `rate_limit_event` with `resetsAt` and a synthetic assistant message with `error: 'rate_limit'` and `api_error: 'usage_limit_reached'`; a 429 without a reset also sends a rejected event, so only `resetsAt` makes it `usage-limit`.
   An overload reports `error: 'server_error'` with `api_error_status: 529`, and a dropped connection `server_error` with no status, which is `network`.
   That synthetic assistant message carries `is_api_error_message: true`, and the transcript does not emit it as a reply: the `run.failed` already carries its text.
-  Older Claude Code versions report only text, so `API Error: 529` and the signed-out wording still classify; the app decides from `kind` whether the turn pauses (`docs/adr/0098-a-limit-or-an-outage-pauses-a-run-and-malini-continues-it.md`).
+  Older Claude Code versions report only text, so `API Error: 529` and the signed-out wording still classify; the app decides from `kind` whether the turn pauses (`docs/adr/0100-a-limit-or-an-outage-pauses-a-run-and-malini-continues-it.md`).
 - Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with Malini's own history.

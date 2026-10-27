@@ -16,6 +16,7 @@ const ALL_TABLES = [
 	'agent_actions',
 	'agent_attachments',
 	'agent_checkpoints',
+	'agent_event_packs',
 	'agent_events',
 	'agent_interactions',
 	'agent_permission_rules',

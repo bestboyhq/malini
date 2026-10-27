@@ -155,6 +155,8 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [],
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const STREAM_LINE_MS = 100;
+const LATE_CANCEL_MS = 500;
+const lateCancelRuns = new Set();
 const streamedText = new Map();
 const settleStreamedText = (runId) => {
 	const text = streamedText.get(runId);
@@ -1006,6 +1008,7 @@ const respond = async (sessionId, runId, prompt) => {
 		return toolStreamRun(sessionId, runId, Number(toolStream[1]), Number(toolStream[2] ?? 0));
 	}
 	if (stream) {
+		if (prompt.includes('LATE_CANCEL')) lateCancelRuns.add(runId);
 		const report = prompt.includes('CHAT_TURN_REPORT') ? CHAT_TURN_REPORT : '';
 		return streamRun(sessionId, runId, Number(stream[1]), report);
 	}
@@ -1256,8 +1259,12 @@ const handle = (command) => {
 			for (const [steered, owner] of pendingRuns) {
 				if (!command.steer || owner !== sessionId) continue;
 				pendingRuns.delete(steered);
-				settleStreamedText(steered);
-				event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				const cancel = () => {
+					settleStreamedText(steered);
+					event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				};
+				if (lateCancelRuns.delete(steered)) setTimeout(cancel, LATE_CANCEL_MS);
+				else cancel();
 			}
 			const start = () => {
 				event({ type: 'run.started', runId, sessionId });

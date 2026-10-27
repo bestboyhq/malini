@@ -51,7 +51,7 @@ import { parseLeadScope } from '../domain/lead-scope';
 import { createAvatarStore, validateOwner, type AvatarStoreOptions } from './avatars.service';
 import { listBaseFiles } from './base-files.service';
 import { WorkstreamBaseSync, type CheckoutMoveGuard } from './base-sync.service';
-import { createCheckoutResolver } from './checkout-resolver';
+import { createCheckoutResolver, recordedCheckoutPath } from './checkout-resolver';
 import { defaultCheckoutShell, type CheckoutShell } from './checkout-shell.service';
 import { commitRunConsumed, recordCommitRun } from './commit-runs.repository';
 import { createLeadSpace } from './lead-space.service';
@@ -60,6 +60,7 @@ import {
 	connectRepository,
 	defaultGhRunner,
 	githubAuthStatus,
+	githubRepositorySize,
 	listClones,
 	listGithubRepositories,
 	parseImportSource,
@@ -71,6 +72,7 @@ import { workstreamMedia } from './image-protocol';
 import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
 import { syncOwnPullRequests } from './own-pull-requests.service';
+import { cloneSeedFolder } from './repository.service';
 import { InstallRegistry, installDependencies } from './provisioning.service';
 import {
 	WorkstreamRetiredError,
@@ -203,10 +205,14 @@ export function registerRepositories(
 	commands.define('repositories.create-repository', async (args: unknown) => {
 		const defaultBranch = optionalString(args, 'defaultBranch');
 		if (defaultBranch !== null) validateBaseBranch(defaultBranch);
+		const repoUrl = requireString(args, 'repoUrl');
+		const seedFolder = cloneSeedFolder(db, repoUrl);
 		const repoPath = await createRepository(workstreams, {
-			repoUrl: requireString(args, 'repoUrl'),
+			repoUrl,
 			githubToken: optionalString(args, 'githubToken'),
 			defaultBranch,
+			seedFolder,
+			sizeBytes: seedFolder === null ? await githubRepositorySize(gh, repoUrl) : null,
 		});
 		repositoriesChanged();
 		return repoPath;
@@ -533,7 +539,25 @@ export function registerRepositories(
 
 	async function provisionDependencies(workstreamId: string) {
 		const worktree = await checkouts.resolveCheckout(workstreamId);
-		return installDependencies({ runner, events, registry: installs }, workstreamId, worktree);
+		return installDependencies(
+			{ runner, events, registry: installs, siblings: siblingCheckouts },
+			workstreamId,
+			worktree,
+		);
+	}
+
+	function siblingCheckouts(workstreamId: string): string[] {
+		const projectId = getWorkstream(db, workstreamId)?.projectId;
+		return listWorkstreams(db).flatMap((row) => {
+			if (row.status !== 'active' || row.id === workstreamId || row.projectId !== projectId) {
+				return [];
+			}
+			try {
+				return [recordedCheckoutPath(db, appDataRoot, row.id)];
+			} catch {
+				return [];
+			}
+		});
 	}
 
 	const platform: RepositoriesPlatform = {

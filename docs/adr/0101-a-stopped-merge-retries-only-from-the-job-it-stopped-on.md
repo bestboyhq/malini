@@ -1,4 +1,4 @@
-# 0099 - A stopped merge retries only from the job it stopped on
+# 0101 - A stopped merge retries only from the job it stopped on
 
 Status: accepted
 

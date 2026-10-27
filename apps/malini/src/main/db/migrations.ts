@@ -1084,6 +1084,12 @@ DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
 ALTER TABLE workstream_ship DROP COLUMN update_requests;
 `,
 	`
+CREATE TABLE agent_event_packs (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  events BLOB NOT NULL
+);
+`,
+	`
 ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
 ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
 `,

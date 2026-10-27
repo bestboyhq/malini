@@ -1,6 +1,16 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, realpath, stat, symlink, writeFile } from 'node:fs/promises';
+import {
+	chmod,
+	mkdir,
+	readdir,
+	readFile,
+	realpath,
+	stat,
+	symlink,
+	utimes,
+	writeFile,
+} from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -22,6 +32,7 @@ import {
 	deleteWorkstreamBranch,
 	listWorktrees,
 	parseWorktreeListPorcelain,
+	populateCheckout,
 	removeCheckoutDirResilient,
 	removeWorktree,
 	withProjectLock,
@@ -147,6 +158,76 @@ describe('addWorktree', () => {
 			kind: 'git',
 			message: expect.stringContaining('ws-collide'),
 		});
+	});
+
+	it('clones what the base checkout shares with the new commit and writes only the rest', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const base = join(dir, 'base');
+		await initRealRepo(base);
+		const trunk = (await realGit(base, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+		await mkdir(join(base, 'src'), { recursive: true });
+		await writeFile(join(base, '.gitignore'), 'node_modules/\njunk/\n');
+		await writeFile(join(base, 'src', 'kept.txt'), 'kept\n');
+		await writeFile(join(base, 'src', 'changed.txt'), 'old\n');
+		await realGit(base, ['add', '.']);
+		await realGit(base, ['commit', '-q', '-m', 'files']);
+		await realGit(base, ['checkout', '-q', '-b', 'next']);
+		await writeFile(join(base, 'src', 'changed.txt'), 'new\n');
+		await realGit(base, ['commit', '-q', '-am', 'next']);
+		await realGit(base, ['checkout', '-q', trunk]);
+		const longAgo = new Date('2001-01-01T00:00:00Z');
+		await utimes(join(base, 'src', 'kept.txt'), longAgo, longAgo);
+		await writeFile(join(base, 'seed.txt'), 'edited in the base\n');
+		await writeFile(join(base, 'src', 'untracked.txt'), 'untracked\n');
+		await mkdir(join(base, 'src', 'node_modules', 'pkg'), { recursive: true });
+		await writeFile(join(base, 'src', 'node_modules', 'pkg', 'index.js'), 'ignored\n');
+		await mkdir(join(base, 'junk'), { recursive: true });
+		await writeFile(join(base, 'junk', 'big.bin'), 'ignored\n');
+
+		const wt = join(dir, 'workstreams', 'ws-cow');
+		await mkdir(join(dir, 'workstreams'), { recursive: true });
+		await addWorktree(base, wt, workstreamBranchName('ws-cow'), 'next');
+
+		expect((await stat(join(wt, 'src', 'kept.txt'))).mtime).toEqual(longAgo);
+		expect(await readFile(join(wt, 'src', 'changed.txt'), 'utf8')).toBe('new\n');
+		expect(await readFile(join(wt, 'seed.txt'), 'utf8')).toBe('seed\n');
+		expect(existsSync(join(wt, 'src', 'untracked.txt'))).toBe(false);
+		expect(existsSync(join(wt, 'src', 'node_modules'))).toBe(false);
+		expect(existsSync(join(wt, 'junk'))).toBe(false);
+		expect(await realGit(wt, ['status', '--porcelain', '--ignored'])).toBe('');
+	});
+
+	it('leaves a submodule folder empty even when the base checked it out', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const base = join(dir, 'base');
+		await initRealRepo(base);
+		const trunk = (await realGit(base, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim();
+		const commit = (await realGit(base, ['rev-parse', 'HEAD'])).trim();
+		await writeFile(join(base, '.gitmodules'), '[submodule "lib"]\n\tpath = lib\n\turl = ../lib\n');
+		await realGit(base, ['update-index', '--add', '--cacheinfo', `160000,${commit},lib`]);
+		await realGit(base, ['add', '.gitmodules']);
+		await realGit(base, ['commit', '-q', '-m', 'submodule']);
+		await mkdir(join(base, 'lib', '.git'), { recursive: true });
+		await writeFile(join(base, 'lib', 'file.txt'), 'submodule content\n');
+
+		const wt = join(dir, 'workstreams', 'ws-sub');
+		await mkdir(join(dir, 'workstreams'), { recursive: true });
+		await addWorktree(base, wt, workstreamBranchName('ws-sub'), trunk);
+
+		expect(await readdir(join(wt, 'lib'))).toEqual([]);
+		expect(await realGit(wt, ['status', '--porcelain'])).toBe('');
+	});
+
+	it('refuses to fill a folder that is not a linked worktree', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const base = join(dir, 'base');
+		await initRealRepo(base);
+		await writeFile(join(base, 'untracked.txt'), 'stays\n');
+		await expect(populateCheckout(base, base)).rejects.toMatchObject({ kind: 'unsafe-path' });
+		expect(existsSync(join(base, 'untracked.txt'))).toBe(true);
 	});
 });
 
