@@ -83,6 +83,13 @@ export function isGitCheckout(path: string): boolean {
 	return existsSync(join(path, '.git'));
 }
 
+export function cloneSeedFolder(db: MaliniDatabase, repoUrl: string): string | null {
+	const folder = listConnectedRepositories(db).find(
+		({ localPath, remoteUrl }) => localPath !== null && (remoteUrl ?? localPath) === repoUrl,
+	)?.localPath;
+	return folder && isGitCheckout(folder) ? folder : null;
+}
+
 export function resolveRepositoryCheckout(
 	db: MaliniDatabase,
 	appDataRoot: string,

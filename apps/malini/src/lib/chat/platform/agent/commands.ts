@@ -12,6 +12,7 @@ import {
 	type StoredAttachment,
 } from '../attachments.repository';
 import { bindCheckpointToUserMessage } from '../checkpoints.repository';
+import { packSessionEvents } from '../event-packs.repository';
 import {
 	appendEvent,
 	envelopeJson,
@@ -1500,6 +1501,13 @@ export function defineBridgeCommands(
 			await cancelAgentRun(db, supervisor, leases, { sessionId, pendingRunId: null });
 		}
 		archiveSession(db, sessionId, nowIso8601());
+		try {
+			packSessionEvents(db, sessionId);
+		} catch (error) {
+			log(
+				`agent: could not pack closed chat \`${sessionId}\`; the next start retries: ${describe(error)}`,
+			);
+		}
 	});
 
 	commands.define('chat.activate-session', (args: unknown) =>

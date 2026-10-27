@@ -1083,6 +1083,12 @@ ALTER TABLE event_log DROP COLUMN digest;
 DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
 ALTER TABLE workstream_ship DROP COLUMN update_requests;
 `,
+	`
+CREATE TABLE agent_event_packs (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  events BLOB NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

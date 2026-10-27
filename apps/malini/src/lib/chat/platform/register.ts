@@ -24,6 +24,7 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 
@@ -66,6 +67,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	const packing = packArchivedChats(context);
 	let mcpServers: McpServerListings | null = null;
 
 	const agent: AgentService = await startAgentService(context, {
@@ -119,9 +121,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
-		stop: () => {
+		stop: async () => {
 			stopGrants();
-			return agent.stop();
+			await Promise.all([packing.stop(), agent.stop()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {

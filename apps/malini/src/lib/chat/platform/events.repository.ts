@@ -9,6 +9,7 @@ import {
 	parseTurnReport,
 	workstreamImagePath,
 } from '../domain/turn-report';
+import { packedEvents, type PackedEvent } from './event-packs.repository';
 
 export type { AgentEventEnvelope };
 
@@ -46,6 +47,25 @@ function parsePayload(payloadJson: string): unknown {
 function eventFromBlob(blob: string): AgentEvent {
 	const { kind, payloadJson } = decodeEvent(blob);
 	return { kind, payload: parsePayload(payloadJson) };
+}
+
+function rowFromStored(row: { seq: number; run_id: string; event: string }): AgentEventRow {
+	return { seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) };
+}
+
+function withPackedRows(
+	rows: AgentEventRow[],
+	packed: readonly PackedEvent[],
+	includes: (event: PackedEvent) => boolean,
+	toRow: (event: PackedEvent) => AgentEventRow = rowFromPacked,
+): AgentEventRow[] {
+	const unpacked = packed.filter(includes).map(toRow);
+	if (unpacked.length === 0) return rows;
+	return [...rows, ...unpacked].sort((left, right) => left.seq - right.seq);
+}
+
+function rowFromPacked({ seq, runId, event }: PackedEvent): AgentEventRow {
+	return { seq, runId, ...eventFromBlob(event) };
 }
 
 export function appendEvent(
@@ -93,12 +113,10 @@ export function listEventsForSession(
 	sessionId: string,
 	sinceEventId: number,
 ): AgentEvent[] {
-	return all<{ event: string }>(
-		db,
-		'SELECT event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
-		sessionId,
-		sinceEventId,
-	).map((row) => eventFromBlob(row.event));
+	return listEventRowsForSession(db, sessionId, sinceEventId).map(({ kind, payload }) => ({
+		kind,
+		payload,
+	}));
 }
 
 export function listEventRowsForSession(
@@ -106,12 +124,16 @@ export function listEventRowsForSession(
 	sessionId: string,
 	afterSeq: number,
 ): AgentEventRow[] {
-	return all<{ seq: number; run_id: string; event: string }>(
-		db,
-		'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
-		sessionId,
-		afterSeq,
-	).map((row) => ({ seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) }));
+	return withPackedRows(
+		all<{ seq: number; run_id: string; event: string }>(
+			db,
+			'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC',
+			sessionId,
+			afterSeq,
+		).map(rowFromStored),
+		packedEvents(db, sessionId),
+		({ seq }) => seq > afterSeq,
+	);
 }
 
 export interface AgentEventRowPage {
@@ -150,13 +172,18 @@ export function listEventRowPage(
 		budget,
 	);
 	const start = picked?.start ?? afterSeq + 1;
-	const rows = all<{ seq: number; run_id: string; event: string }>(
-		db,
-		'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq >= ? AND seq < ? ORDER BY seq ASC',
-		sessionId,
-		start,
-		beforeSeq,
-	).map((row) => ({ seq: row.seq, runId: row.run_id, ...eventFromBlob(row.event) }));
+	const packed = packedEvents(db, sessionId);
+	const rows = withPackedRows(
+		all<{ seq: number; run_id: string; event: string }>(
+			db,
+			'SELECT seq, run_id, event FROM agent_events WHERE session_id = ? AND seq >= ? AND seq < ? ORDER BY seq ASC',
+			sessionId,
+			start,
+			beforeSeq,
+		).map(rowFromStored),
+		packed,
+		({ seq }) => seq >= start && seq < beforeSeq,
+	);
 	const earlier = get<{ seq: number }>(
 		db,
 		'SELECT seq FROM agent_events WHERE session_id = ? AND seq > ? AND seq < ? LIMIT 1',
@@ -167,7 +194,7 @@ export function listEventRowPage(
 	return {
 		rows,
 		startSeq: start,
-		complete: earlier === null,
+		complete: earlier === null && !packed.some(({ seq }) => seq > afterSeq && seq < start),
 		overBudget: picked?.over_budget === 1,
 	};
 }
@@ -179,20 +206,34 @@ export function listEventRowsOfKinds(
 	kindsWithPayload: readonly string[],
 ): AgentEventRow[] {
 	const marks = (list: readonly string[]): string => list.map(() => '?').join(', ') || 'NULL';
-	return all<{ seq: number; run_id: string; kind: string; event: string | null }>(
-		db,
-		`SELECT seq, run_id, kind, CASE WHEN kind IN (${marks(kindsWithPayload)}) THEN event END AS event
-		 FROM (SELECT seq, run_id, event, substr(event, 1, instr(event, char(10)) - 1) AS kind
-		       FROM agent_events WHERE session_id = ?)
-		 WHERE kind IN (${marks(kinds)}) ORDER BY seq ASC`,
-		...kindsWithPayload,
-		sessionId,
-		...kinds,
-	).map((row) => ({
-		seq: row.seq,
-		runId: row.run_id,
-		...(row.event === null ? { kind: row.kind, payload: null } : eventFromBlob(row.event)),
-	}));
+	const rowOf = (
+		seq: number,
+		runId: string,
+		kind: string,
+		event: string | null,
+	): AgentEventRow => ({
+		seq,
+		runId,
+		...(event === null ? { kind, payload: null } : eventFromBlob(event)),
+	});
+	return withPackedRows(
+		all<{ seq: number; run_id: string; kind: string; event: string | null }>(
+			db,
+			`SELECT seq, run_id, kind, CASE WHEN kind IN (${marks(kindsWithPayload)}) THEN event END AS event
+			 FROM (SELECT seq, run_id, event, substr(event, 1, instr(event, char(10)) - 1) AS kind
+			       FROM agent_events WHERE session_id = ?)
+			 WHERE kind IN (${marks(kinds)}) ORDER BY seq ASC`,
+			...kindsWithPayload,
+			sessionId,
+			...kinds,
+		).map((row) => rowOf(row.seq, row.run_id, row.kind, row.event)),
+		packedEvents(db, sessionId),
+		({ event }) => kinds.includes(decodeEvent(event).kind),
+		({ seq, runId, event }) => {
+			const { kind } = decodeEvent(event);
+			return rowOf(seq, runId, kind, kindsWithPayload.includes(kind) ? event : null);
+		},
+	);
 }
 
 export function toolCallOutput(
@@ -200,15 +241,22 @@ export function toolCallOutput(
 	sessionId: string,
 	toolCallId: string,
 ): string | null {
-	const match = all<{ event: string }>(
-		db,
-		`SELECT event FROM agent_events
-		 WHERE session_id = ? AND event LIKE 'tool.completed' || char(10) || '%' AND instr(event, ?) > 0
-		 ORDER BY seq DESC`,
-		sessionId,
-		`"toolCallId":${JSON.stringify(toolCallId)}`,
-	)
-		.map((row) => eventFromBlob(row.event).payload)
+	const mention = `"toolCallId":${JSON.stringify(toolCallId)}`;
+	const match = [
+		...column(
+			db,
+			`SELECT event FROM agent_events
+			 WHERE session_id = ? AND event LIKE 'tool.completed' || char(10) || '%' AND instr(event, ?) > 0
+			 ORDER BY seq DESC`,
+			sessionId,
+			mention,
+		),
+		...packedEvents(db, sessionId)
+			.map(({ event }) => event)
+			.filter((event) => event.startsWith('tool.completed\n') && event.includes(mention))
+			.reverse(),
+	]
+		.map((event) => eventFromBlob(event).payload)
 		.find((payload) => isRecord(payload) && payload['toolCallId'] === toolCallId);
 	const output = isRecord(match) ? match['output'] : null;
 	return typeof output === 'string' ? output : null;

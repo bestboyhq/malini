@@ -175,6 +175,26 @@ async function resolveIdentity(source: ImportSource, run: GhRunner): Promise<Rep
 	};
 }
 
+export async function githubRepositorySize(run: GhRunner, repoUrl: string): Promise<number | null> {
+	const fullName = githubFullNameFromRemote(repoUrl);
+	if (fullName === null) return null;
+	try {
+		const result = await run([
+			'repo',
+			'view',
+			fullName,
+			'--json',
+			'diskUsage',
+			'--jq',
+			'.diskUsage',
+		]);
+		const kibibytes = Number(result.stdout.trim());
+		return result.code === 0 && kibibytes > 0 ? kibibytes * 1024 : null;
+	} catch {
+		return null;
+	}
+}
+
 async function remoteDefaultBranch(run: GhRunner, fullName: string): Promise<string> {
 	try {
 		const result = await run([
