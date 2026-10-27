@@ -33,10 +33,8 @@ export type ShippingWorktree = Pick<
 export type ShippingSnapshot = Readonly<{
 	phase: ShipPhase;
 	pushRequested: boolean;
-	updateRequested: boolean;
 	reviewRequested: boolean;
 	addressedReviews: readonly string[];
-	behindBase: number | null;
 	pullRequestNumber: number | null;
 	idle: boolean;
 	job: ShippingJob | null;
@@ -60,7 +58,6 @@ export type ShippingMove =
 	| Readonly<{ kind: 'wait'; step: ShipStep; until?: number }>
 	| Readonly<{ kind: 'backoff' }>
 	| Readonly<{ kind: 'read-pull-request' }>
-	| Readonly<{ kind: 'read-base' }>
 	| Readonly<{ kind: 'commit' }>
 	| Readonly<{ kind: 'push' }>
 	| Readonly<{ kind: 'open-draft' }>
@@ -69,7 +66,7 @@ export type ShippingMove =
 	| Readonly<{ kind: 'run-job'; builtin: ShippingJobBuiltin; signature: string; attempt: number }>
 	| Readonly<{ kind: 'resolve-threads'; agentRunId: string }>
 	| Readonly<{ kind: 'merge'; method: string; headSha: string }>
-	| Readonly<{ kind: 'archive' }>
+	| Readonly<{ kind: 'land' }>
 	| Readonly<{
 			kind: 'needs-you';
 			reason: ShipNeedsYouReason;
@@ -94,7 +91,6 @@ export const DEFAULT_SHIP_DELAYS = Object.freeze({
 	checksPollMs: 45_000,
 	reviewPollMs: 120_000,
 	githubPollMs: 15_000,
-	openedCheckMs: 60_000,
 	backoffBaseMs: 30_000,
 	backoffCapMs: 600_000,
 });
@@ -109,7 +105,6 @@ export function scaledShipDelays(scale: number): ShipDelays {
 		checksPollMs: scaled(delays.checksPollMs),
 		reviewPollMs: scaled(delays.reviewPollMs),
 		githubPollMs: scaled(delays.githubPollMs),
-		openedCheckMs: scaled(delays.openedCheckMs),
 		backoffBaseMs: scaled(delays.backoffBaseMs),
 		backoffCapMs: scaled(delays.backoffCapMs),
 	};
@@ -403,20 +398,12 @@ export function pullRequestReadEvery(
 	}
 }
 
-export function readsBehindBase(pullRequest: PullRequestFacts): boolean {
-	return (
-		pullRequest.state !== 'closed' &&
-		pullRequest.state !== 'merged' &&
-		((pullRequest.behindBase ?? 0) > 0 || pullRequest.conflicts)
-	);
-}
-
 function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 	const { worktree } = snapshot;
 	if (jobIsActive(snapshot.job)) {
 		return { kind: 'wait', step: jobStep(snapshot.job?.builtin ?? null) };
 	}
-	if (!snapshot.pushRequested && !snapshot.updateRequested && !snapshot.reviewRequested) {
+	if (!snapshot.pushRequested && !snapshot.reviewRequested) {
 		return { kind: 'idle', problem: null };
 	}
 	if (!snapshot.idle) return { kind: 'wait', step: 'waiting-for-agent' };
@@ -437,11 +424,7 @@ function workingMove(snapshot: ShippingSnapshot): ShippingMove {
 	if (snapshot.threadResolutionRunId !== null && snapshot.pullRequestNumber !== null) {
 		return { kind: 'resolve-threads', agentRunId: snapshot.threadResolutionRunId };
 	}
-	const update: ShippingMove = snapshot.updateRequested
-		? updateMove(snapshot)
-		: { kind: 'idle', problem: null };
-	if (update.kind !== 'idle' || !snapshot.reviewRequested) return update;
-	return reviewMove(snapshot);
+	return snapshot.reviewRequested ? reviewMove(snapshot) : { kind: 'idle', problem: null };
 }
 
 function reviewMove(snapshot: ShippingSnapshot): ShippingMove {
@@ -454,19 +437,6 @@ function reviewMove(snapshot: ShippingSnapshot): ShippingMove {
 	const review = reviewToAddress(pullRequest, snapshot.addressedReviews);
 	if (review.changeRequests.length === 0) return { kind: 'idle', problem: null };
 	return withoutNeedsYou(fixJob(snapshot, 'address-review', reviewSignature(review)));
-}
-
-function updateMove(snapshot: ShippingSnapshot): ShippingMove {
-	const dirty = snapshot.worktree.dirtyPaths.length > 0;
-	if (dirty && snapshot.phase !== 'local') return { kind: 'idle', problem: null };
-	if (snapshot.behindBase === null) return { kind: 'read-base' };
-	if (snapshot.behindBase === 0) return { kind: 'idle', problem: null };
-	if (!snapshot.read) return { kind: 'read-pull-request' };
-	const finished =
-		snapshot.pullRequest?.state === 'merged' || snapshot.pullRequest?.state === 'closed';
-	if (finished) return { kind: 'idle', problem: null };
-	if (dirty) return { kind: 'commit' };
-	return { kind: 'run-job', builtin: 'update-from-main', signature: 'update', attempt: 1 };
 }
 
 function hasUnsavedWork(snapshot: ShippingSnapshot): boolean {
@@ -517,7 +487,7 @@ function queuedMove(snapshot: ShippingSnapshot): ShippingMove {
 }
 
 function pullRequestMove(snapshot: ShippingSnapshot, pullRequest: PullRequestFacts): ShippingMove {
-	if (pullRequest.state === 'merged') return { kind: 'archive' };
+	if (pullRequest.state === 'merged') return { kind: 'land' };
 	if (pullRequest.state === 'closed') {
 		return needsYou(
 			snapshot,

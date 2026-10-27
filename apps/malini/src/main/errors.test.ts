@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { githubFailure } from '$contract/github-failure';
 import {
 	attributeCredentials,
 	GhError,
@@ -234,29 +235,75 @@ describe('GhError.fromStderr', () => {
 		[
 			'exhausted ports',
 			'Post "https://api.github.com/graphql": dial tcp 140.82.121.5:443: connect: can\'t assign requested address\n',
+			'the connection failed',
 		],
 		[
 			'an unreachable proxy',
 			'Post "https://api.github.com/graphql": proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused\n',
+			'the connection was refused',
 		],
 		[
 			'a DNS failure',
 			'Get "https://api.github.com/user": dial tcp: lookup api.github.com: no such host\n',
+			"its address didn't resolve",
 		],
 		[
 			'a timeout',
 			'Post "https://api.github.com/graphql": dial tcp 140.82.121.6:443: i/o timeout\n',
+			'the connection timed out',
 		],
-		['gh naming the host', 'error connecting to api.github.com\ncheck your internet connection\n'],
-	])('says GitHub is unreachable for %s and keeps the raw line as its cause', (_, stderr) => {
+		[
+			'gh naming the host',
+			'error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n',
+			"its address didn't resolve",
+		],
+	])(
+		'says why GitHub is not responding for %s and keeps the raw line as its cause',
+		(_, stderr, why) => {
+			const error = GhError.fromStderr(stderr, 1);
+
+			expect(error).toMatchObject({
+				kind: 'unreachable',
+				message: `GitHub is not responding: ${why}. Check your internet connection, VPN or proxy.`,
+				stderr,
+			});
+			expect(error.cause).toBeInstanceOf(Error);
+			expect(githubFailure(error.message)).toBe('unreachable');
+		},
+	);
+
+	it.each([
+		[
+			'HTTP 503: No server is currently available to service your request. Sorry about that. (https://api.github.com/graphql)\n',
+			'HTTP 503',
+		],
+		['non-200 OK status code: 502 Bad Gateway body: "<html>"\n', 'HTTP 502'],
+		[
+			'GraphQL: Something went wrong while executing your query. This may be the result of a timeout, or it could be a GitHub bug.\n',
+			'with an internal error',
+		],
+	])('says GitHub is down when it answers %s', (stderr, answer) => {
 		const error = GhError.fromStderr(stderr, 1);
 
 		expect(error).toMatchObject({
-			kind: 'unreachable',
-			message: "Couldn't reach GitHub. Check your connection and try again.",
-			stderr,
+			kind: 'down',
+			message: `GitHub is down: it answered ${answer}. Your connection works; the problem is on GitHub's side.`,
 		});
-		expect(error.cause).toBeInstanceOf(Error);
+		expect(githubFailure(error.message)).toBe('down');
+	});
+
+	it('says GitHub hit its rate limit', () => {
+		const error = GhError.fromStderr(
+			'GraphQL: API rate limit exceeded for user ID 1234. (https://api.github.com/graphql)\n',
+			1,
+		);
+
+		expect(error).toMatchObject({
+			kind: 'rate-limited',
+			message:
+				'GitHub hit its rate limit for this account. Malini reads GitHub again once the limit resets.',
+		});
+		expect(githubFailure(error.message)).toBe('rate-limited');
 	});
 
 	it('keeps any other gh failure as gh wrote it', () => {

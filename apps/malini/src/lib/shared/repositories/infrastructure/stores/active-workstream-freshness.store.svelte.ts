@@ -348,9 +348,11 @@ function defaultIsForeground(): boolean {
 function defaultSubscribeForeground(listener: () => void): () => void {
 	if (typeof document === 'undefined' || typeof window === 'undefined') return () => undefined;
 	window.addEventListener('focus', listener);
+	window.addEventListener('online', listener);
 	document.addEventListener('visibilitychange', listener);
 	return () => {
 		window.removeEventListener('focus', listener);
+		window.removeEventListener('online', listener);
 		document.removeEventListener('visibilitychange', listener);
 	};
 }

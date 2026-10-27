@@ -45,6 +45,10 @@ function runPullRequestActionCommand(
 		sendShipIntentCommand(kind, workstreamId);
 		return;
 	}
+	if (kind === 'keep') {
+		sendShipIntentCommand('keep-workstream', workstreamId);
+		return;
+	}
 	if (kind === 'reconnect') {
 		void goto(REPOSITORIES_HREF);
 		return;

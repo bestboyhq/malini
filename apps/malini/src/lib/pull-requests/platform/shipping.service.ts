@@ -5,7 +5,6 @@ import {
 	JOBS_TIME_REACHED_CHANNEL,
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
-	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 } from '$contract/events';
@@ -20,13 +19,10 @@ import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 	SHIP_ALL_BUTTONS,
-	UPDATE_FROM_MAIN_TRIGGER_SETTING,
-	updateFromMainTrigger,
 	type ShipAllClicked,
 	type ShipButton,
 	type ShipPhase,
 	type ShipStateRecord,
-	type UpdateFromMainTrigger,
 } from '$contract/pull-requests';
 import type { PullRequestStatusDto, WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
@@ -34,7 +30,6 @@ import { isRecord } from '$main/db/rows';
 import { describeError, isGhError, isGitError } from '$main/errors';
 import { workstreamShipContext } from '$lib/chat/chat.platform';
 import {
-	activeThenJobRun,
 	clearAlarm,
 	jobDefinition,
 	jobDefinitions,
@@ -61,7 +56,6 @@ import {
 	jobStep,
 	nextShippingMove,
 	pullRequestFacts,
-	readsBehindBase,
 	reviewFeedbackToAddress,
 	reviewToAddress,
 	shipBackoffMs,
@@ -119,7 +113,6 @@ export class Shipping {
 	readonly #running = new Map<string, Promise<void>>();
 	readonly #again = new Set<string>();
 	readonly #runEndedAt = new Map<string, number>();
-	readonly #openedAt = new Map<string, number>();
 	readonly #wokenBy = new Map<string, number>();
 	#disposed = false;
 
@@ -155,9 +148,6 @@ export class Shipping {
 				return;
 			case JOBS_TIME_REACHED_CHANNEL:
 				this.#wake(workstreamId, event);
-				return;
-			case PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL:
-				await this.#opened(workstreamId, event);
 				return;
 			case PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL:
 				await this.#pullRequestChanged(workstreamId, payload, event);
@@ -202,6 +192,8 @@ export class Shipping {
 				return this.#retryMerge(workstreamId);
 			case 'cancel':
 				return this.#cancelMerge(workstreamId);
+			case 'keep':
+				return this.#keepWorkstream(workstreamId);
 		}
 	}
 
@@ -235,6 +227,7 @@ export class Shipping {
 		return this.#upsert(workstreamId, click, {
 			phase: 'queued',
 			step: null,
+			keep: false,
 			queuedAt: new Date(this.#now()).toISOString(),
 			attempts: 0,
 			failureSignature: null,
@@ -274,6 +267,15 @@ export class Shipping {
 		return shipRecord(saved);
 	}
 
+	#keepWorkstream(workstreamId: string): ShipStateRecord {
+		const row = getShip(this.#context.db, workstreamId);
+		if (!row || (row.phase !== 'queued' && row.phase !== 'needs-you')) {
+			throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
+		}
+		if (row.keep) return this.#unchanged(row, 'keep');
+		return this.#upsert(workstreamId, 'keep', { keep: true });
+	}
+
 	async #cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row) {
@@ -286,6 +288,7 @@ export class Shipping {
 			{
 				phase: row.pullRequestNumber === null ? 'local' : 'draft',
 				step: null,
+				keep: false,
 				needsYou: null,
 				queuedAt: null,
 				attempts: 0,
@@ -319,7 +322,7 @@ export class Shipping {
 				row.phase === 'needs-you' ||
 				row.activeJobRunId !== null ||
 				(row.phase === 'draft' && row.step !== null) ||
-				row.requests.push + row.requests.update + row.requests.review > 0;
+				row.requests.push + row.requests.review > 0;
 			if (pending) this.#wake(row.workstreamId, event);
 		}
 	}
@@ -348,14 +351,6 @@ export class Shipping {
 		);
 	}
 
-	async #opened(workstreamId: string, event: DispatchedEvent): Promise<void> {
-		const last = this.#openedAt.get(workstreamId);
-		if (last !== undefined && this.#now() - last < this.#delays.openedCheckMs) return;
-		if ((await this.#updateTrigger()) === 'merging') return;
-		this.#openedAt.set(workstreamId, this.#now());
-		await this.#request(workstreamId, 'update', event);
-	}
-
 	async #pullRequestChanged(
 		workstreamId: string,
 		payload: unknown,
@@ -363,9 +358,6 @@ export class Shipping {
 	): Promise<void> {
 		const facts = pullRequestFacts(payload);
 		if (facts === null) return;
-		if (readsBehindBase(facts) && (await this.#updateTrigger()) === 'main-moves') {
-			await this.#request(workstreamId, 'update', event);
-		}
 		const open = facts.state === 'open' || facts.state === 'draft';
 		if (open && facts.reviewDecision === 'changes_requested') {
 			await this.#request(workstreamId, 'review', event);
@@ -465,13 +457,7 @@ export class Shipping {
 		const row = await this.#reconcileJob(found);
 		const { requests } = row;
 		const working = row.phase === 'local' || row.phase === 'draft';
-		if (
-			working &&
-			requests.push === 0 &&
-			requests.update === 0 &&
-			requests.review === 0 &&
-			row.activeJobRunId === null
-		) {
+		if (working && requests.push === 0 && requests.review === 0 && row.activeJobRunId === null) {
 			this.#save(workstreamId, { step: null });
 			return false;
 		}
@@ -485,10 +471,8 @@ export class Shipping {
 		let snapshot: ShippingSnapshot = {
 			phase: recheck ? 'queued' : row.phase,
 			pushRequested: requests.push > 0,
-			updateRequested: requests.update > 0,
 			reviewRequested: requests.review > 0,
 			addressedReviews: row.addressedReviews,
-			behindBase: null,
 			pullRequestNumber: row.pullRequestNumber,
 			idle: idleness.idle,
 			job: job ? { builtin: this.#builtin(job), status: job.status } : null,
@@ -516,10 +500,6 @@ export class Shipping {
 			snapshot = { ...snapshot, read: true, pullRequest: read.pullRequest };
 		}
 		let move = nextShippingMove(snapshot);
-		if (move.kind === 'read-base') {
-			snapshot = { ...snapshot, behindBase: await this.#behindBase(workstreamId, target) };
-			move = nextShippingMove(snapshot);
-		}
 		if (move.kind === 'read-pull-request') {
 			const read = await this.#reader.read(workstreamId, FRESH_READ_MS);
 			if (!read.read) {
@@ -534,13 +514,6 @@ export class Shipping {
 		const context: MoveContext = { row, target, worktree, snapshot, idleness, wokenBy };
 		if (recheck) return this.#recheck(context, move);
 		return this.#apply(context, move);
-	}
-
-	async #behindBase(workstreamId: string, target: ShipTarget): Promise<number> {
-		return this.#context.commands.call('repositories.count-behind-base', {
-			workstreamId,
-			baseBranch: target.base,
-		});
 	}
 
 	#recheck(context: MoveContext, move: ShippingMove): boolean {
@@ -577,7 +550,6 @@ export class Shipping {
 				this.#alarm(workstreamId, 'retry', context.snapshot.backoffUntil ?? this.#now());
 				return false;
 			case 'read-pull-request':
-			case 'read-base':
 				this.#save(workstreamId, { step: 'waiting-for-github' });
 				return false;
 			case 'needs-you':
@@ -593,16 +565,13 @@ export class Shipping {
 				return false;
 			case 'run-job':
 				await this.#runJob(context, move.builtin, move.signature, move.attempt);
-				if (move.builtin === 'update-from-main') {
-					settleShipRequest(this.#context.db, workstreamId, 'update', context.row.requests.update);
-				}
 				if (move.builtin === 'address-review') {
 					settleShipRequest(this.#context.db, workstreamId, 'review', context.row.requests.review);
 				}
 				return false;
-			case 'archive':
-				this.#save(workstreamId, { step: 'archiving' });
-				await this.#archive(context);
+			case 'land':
+				if (!context.row.keep) this.#save(workstreamId, { step: 'archiving' });
+				await this.#land(context);
 				return false;
 			default:
 				return this.#act(context, move);
@@ -804,14 +773,11 @@ export class Shipping {
 		const definition = jobDefinitions(db).find((candidate) => candidate.builtin === builtin);
 		if (!definition) throw new Error(`The built-in ${builtin} job is missing`);
 		const jobContext = await this.#jobContext(context, builtin);
-		const causeEventId =
-			builtin === 'update-from-main'
-				? context.wokenBy
-				: this.#cause(
-						workstreamId,
-						context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber,
-						context.wokenBy,
-					);
+		const causeEventId = this.#cause(
+			workstreamId,
+			context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber,
+			context.wokenBy,
+		);
 		const run = await commands.call('jobs.run', {
 			definitionId: definition.id,
 			workstreamId,
@@ -896,7 +862,7 @@ export class Shipping {
 		}
 	}
 
-	async #archive(context: MoveContext): Promise<void> {
+	async #land(context: MoveContext): Promise<void> {
 		const workstreamId = context.row.workstreamId;
 		const pullRequestNumber =
 			context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber;
@@ -913,7 +879,9 @@ export class Shipping {
 			state: null,
 			...(pullRequestNumber === null ? {} : { merged: { pullRequestNumber, pullRequestUrl } }),
 		});
-		await this.#context.commands.call('repositories.archive-workstream', { workstreamId });
+		if (!context.row.keep) {
+			await this.#context.commands.call('repositories.archive-workstream', { workstreamId });
+		}
 		deleteShip(this.#context.db, workstreamId);
 		this.#forget(workstreamId);
 	}
@@ -976,15 +944,6 @@ export class Shipping {
 		const { db } = this.#context;
 		const job = jobRun(db, jobRunId);
 		if (job && jobIsActive({ builtin: null, status: job.status })) return row;
-		const child = job ? activeThenJobRun(db, job.id) : null;
-		if (child) {
-			return (
-				this.#save(row.workstreamId, {
-					activeJobRunId: child.id,
-					step: jobStep(this.#builtin(child)),
-				}) ?? row
-			);
-		}
 		const builtin = job ? this.#builtin(job) : null;
 		const addressed =
 			job?.status === 'succeeded' && builtin === 'address-review'
@@ -1053,11 +1012,6 @@ export class Shipping {
 			settings[MERGE_QUEUE_FIX_ATTEMPTS_SETTING],
 			DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 		);
-	}
-
-	async #updateTrigger(): Promise<UpdateFromMainTrigger> {
-		const settings = await this.#settings();
-		return updateFromMainTrigger(settings[UPDATE_FROM_MAIN_TRIGGER_SETTING]);
 	}
 
 	#settings(): Promise<Record<string, string>> {
@@ -1164,7 +1118,6 @@ export class Shipping {
 	#settleRequests(row: ShipRow): void {
 		const { db } = this.#context;
 		settleShipRequest(db, row.workstreamId, 'push', row.requests.push);
-		settleShipRequest(db, row.workstreamId, 'update', row.requests.update);
 		settleShipRequest(db, row.workstreamId, 'review', row.requests.review);
 	}
 
@@ -1191,7 +1144,6 @@ export class Shipping {
 
 	#forget(workstreamId: string): void {
 		this.#runEndedAt.delete(workstreamId);
-		this.#openedAt.delete(workstreamId);
 		this.#wokenBy.delete(workstreamId);
 		this.#reader.forget(workstreamId);
 		this.#reader.watch(workstreamId);

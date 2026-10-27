@@ -74,6 +74,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		workstreamId: 'ws-1',
 		phase: 'draft',
 		step: null,
+		keep: false,
 		pullRequestNumber: 42,
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
@@ -589,14 +590,14 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'needs you when GitHub is unreachable, never green',
+			'needs you when GitHub is down, never green',
 			null,
 			open({ checkItems: [passed] }, { pullRequestError: 'HTTP 502' }),
 			'ready',
 			{
 				tone: 'needs-you',
 				busy: false,
-				label: 'GitHub is unreachable',
+				label: 'GitHub is down',
 				detail: null,
 				action: 'Retry',
 			},
@@ -744,6 +745,23 @@ describe('the workstream status', () => {
 			{ kind: 'archive', label: 'Archive', tone: 'secondary' },
 			{ kind: 'reopen', label: 'Reopen', ariaLabel: 'Reopen pull request #42', tone: 'primary' },
 		]);
+	});
+
+	it('offers Keep beside Cancel on a queued merge until you keep it', () => {
+		const queued = status(ship({ phase: 'queued', step: 'waiting-for-checks' }), open());
+		expect([queued?.secondaryAction, queued?.action]).toMatchObject([
+			{ kind: 'keep', label: 'Keep', ariaLabel: 'Keep this workstream after it merges' },
+			{ kind: 'cancel-merge', label: 'Cancel' },
+		]);
+		const kept = status(ship({ phase: 'queued', step: 'waiting-for-checks', keep: true }), open());
+		expect(kept).toMatchObject({
+			label: 'Queued to merge and keep',
+			action: { kind: 'cancel-merge' },
+		});
+		expect(kept?.secondaryAction).toBeUndefined();
+		expect(
+			status(ship({ phase: 'queued', step: 'merging' }), open())?.secondaryAction,
+		).toBeUndefined();
 	});
 
 	it('shows Merged over a stopped queue once the pull request merged on GitHub', () => {
@@ -896,6 +914,36 @@ describe('the workstream status', () => {
 				open({ checks: 'failed', checkItems: [{ ...failing, notStartedReason: 'billing' }] }),
 			),
 		).toMatchObject({ label: "CI didn't start", detail: 'Billing', tooltip: null });
+	});
+
+	it.each([
+		[
+			'GitHub is not responding: the connection timed out. Check your internet connection, VPN or proxy.',
+			'GitHub is not responding',
+			null,
+		],
+		[
+			"GitHub is down: it answered HTTP 503. Your connection works; the problem is on GitHub's side.",
+			'GitHub is down',
+			null,
+		],
+		[
+			'GitHub hit its rate limit for this account. Malini reads GitHub again once the limit resets.',
+			'GitHub rate limit reached',
+			null,
+		],
+		[
+			'gh pr view: gh returned a body that is not JSON',
+			"Couldn't check GitHub",
+			'gh pr view: gh returned a body that is not JSON',
+		],
+	])('names the GitHub failure "%s" as %s', (failure, label, tooltip) => {
+		expect(status(null, open({}, { pullRequestError: failure }))).toMatchObject({
+			tone: 'needs-you',
+			label,
+			tooltip,
+			action: { kind: 'refresh' },
+		});
 	});
 
 	it('ships a merge whose conflicts are resolved', () => {

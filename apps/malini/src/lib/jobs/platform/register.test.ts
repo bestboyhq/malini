@@ -150,6 +150,7 @@ function shipState(): ShipStateRecord {
 		workstreamId: 'ws-a',
 		phase: 'draft',
 		step: null,
+		keep: false,
 		pullRequestNumber: null,
 		pullRequestUrl: null,
 		needsYou: null,

@@ -90,6 +90,7 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 		merge: 'Merge',
 		retry: 'Retry',
 		cancel: 'Cancel',
+		keep: 'Keep',
 		'draft-all': 'Draft all',
 		'merge-all': 'Merge all',
 	} satisfies Record<ShipButton | ShipAllButton, string>),
