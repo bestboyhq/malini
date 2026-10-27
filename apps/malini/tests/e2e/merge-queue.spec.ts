@@ -33,6 +33,7 @@ import {
 
 const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
+const KEEP_EXPLAINER = 'Skip archiving after the merge';
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
 test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
@@ -114,6 +115,9 @@ test('Keep on a queued merge leaves the workstream open on Merged once it lands'
 		});
 		await captureFlow(app, 'merge-queue-keep-offered');
 
+		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).hover();
+		await expect(page.getByRole('tooltip')).toHaveText(KEEP_EXPLAINER);
+		await captureFlow(app, 'merge-queue-keep-tooltip');
 		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).click();
 
 		await expect(topBarStatus(page, 'Queued to merge and keep · Waiting for checks')).toBeVisible();
