@@ -1,3 +1,4 @@
+import type { RunFailure } from '$contract/agent';
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentQuestion } from '$lib/chat/domain/agent-interaction';
@@ -6,7 +7,7 @@ import {
 	sanitizeAgentElementReferences,
 	type AgentElementReference,
 } from '$lib/chat/domain/element-reference';
-import type { EventEnvelope } from '$lib/chat/domain/events';
+import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
 import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import {
@@ -142,12 +143,27 @@ export type RenderItem =
 export type RunGroup = {
 	runId: string;
 	items: RenderItem[];
-	terminal: 'completed' | 'failed' | 'cancelled' | null;
+	terminal: 'completed' | 'failed' | 'cancelled' | 'paused' | null;
 	terminalText: string;
+	failure: RunFailure | null;
+	resumeAt: string | null;
 	turnEnded: boolean;
 	superseded: boolean;
 	obsoleted: boolean;
 };
+
+export function failedRunState(
+	event: Extract<AgentEvent, { type: 'run.failed' }>,
+): Pick<RunGroup, 'terminal' | 'terminalText' | 'failure' | 'resumeAt'> {
+	const resumeAt = event.resumeAt ?? null;
+	const cancelled = isCancellationError(event.error);
+	return {
+		terminal: resumeAt !== null ? 'paused' : cancelled ? 'cancelled' : 'failed',
+		terminalText: event.error,
+		failure: event.failure ?? null,
+		resumeAt,
+	};
+}
 
 export function runLastSeq(group: RunGroup): number | null {
 	let max: number | null = null;
@@ -453,6 +469,8 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				items: [],
 				terminal: null,
 				terminalText: '',
+				failure: null,
+				resumeAt: null,
 				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
@@ -722,9 +740,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 				}
 				discardOpenToolsForRun(runId);
 				terminal = 'failed';
-				const cancelled = isCancellationError(event.error);
-				group.terminal = cancelled ? 'cancelled' : 'failed';
-				group.terminalText = event.error;
+				Object.assign(group, failedRunState(event));
 				push(runId, {
 					kind: 'terminal',
 					key,

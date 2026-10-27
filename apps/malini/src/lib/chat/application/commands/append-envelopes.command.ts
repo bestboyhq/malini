@@ -50,7 +50,7 @@ function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 		pendingPromptStore.clearOnEnvelope(envelope);
 		if (
 			envelope.event.type === 'run.completed' ||
-			envelope.event.type === 'run.failed' ||
+			(envelope.event.type === 'run.failed' && envelope.event.resumeAt === undefined) ||
 			(envelope.event.type === 'background.updated' && envelope.event.waiting)
 		) {
 			const workstreamId = ownerOf(envelope.sessionId);

@@ -154,6 +154,8 @@
 				items: [opening],
 				terminal: null,
 				terminalText: '',
+				failure: null,
+				resumeAt: null,
 				turnEnded: false,
 				superseded: false,
 				obsoleted: false,

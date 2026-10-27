@@ -1,4 +1,5 @@
 import type {
+	SDKAssistantMessage,
 	SDKBackgroundTasksChangedMessage,
 	SDKCompactBoundaryMessage,
 	SDKMessage,
@@ -140,6 +141,7 @@ export class ClaudeTranscript {
 				return;
 			case 'assistant':
 				if (message.parent_tool_use_id === null) this.#cursor = message.uuid;
+				if (isApiErrorMessage(message)) return;
 				this.#acceptAssistant(message.message, message.parent_tool_use_id);
 				return;
 			case 'user':
@@ -611,4 +613,8 @@ function editedPath(name: string, input: unknown): string | null {
 	if (!FILE_EDIT_TOOLS.has(name) || !isRecord(input)) return null;
 	const path = input['file_path'] ?? input['notebook_path'];
 	return typeof path === 'string' && path ? path : null;
+}
+
+function isApiErrorMessage(message: SDKAssistantMessage): boolean {
+	return message.error !== undefined && Reflect.get(message, 'is_api_error_message') === true;
 }

@@ -58,7 +58,15 @@ export type RecordedScenario =
 	| 'blockedRetry'
 	| 'classifierBlip'
 	| 'classifierOutage'
-	| 'compact';
+	| 'compact'
+	| 'usageLimit'
+	| 'rateLimit'
+	| 'overloaded'
+	| 'serverError'
+	| 'network'
+	| 'signedOut'
+	| 'billing'
+	| 'promptTooLong';
 
 export interface FakeRun {
 	readonly options: Options;

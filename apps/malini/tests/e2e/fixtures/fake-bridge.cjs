@@ -657,6 +657,25 @@ const maliniCalls = new Map();
 const themeOfRun = new Map();
 
 const lineageOfRun = new Map();
+const stoppedSessions = new Set();
+const STOPS = {
+	LIMIT_PAUSE: (seconds) => ({
+		error: "You've hit your session limit · resets 3pm",
+		failure: {
+			kind: 'usage-limit',
+			resetsAt: new Date(Date.now() + seconds * 1000).toISOString(),
+			status: 429,
+		},
+	}),
+	OVERLOADED_PAUSE: () => ({
+		error: 'API Error: 529 Overloaded',
+		failure: { kind: 'overloaded', status: 529 },
+	}),
+	SIGNIN_FAIL: () => ({
+		error: 'Claude Code is not signed in. Run `claude auth login` in a terminal, then try again.',
+		failure: { kind: 'sign-in', status: 401 },
+	}),
+};
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_THEME')) {
@@ -1020,6 +1039,12 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			text: '1. Add the health route\n2. Cover it with a test',
 		});
+	}
+	const stop = /(LIMIT_PAUSE|OVERLOADED_PAUSE|SIGNIN_FAIL)(?::(\d+))?/.exec(prompt);
+	if (stop && !stoppedSessions.has(sessionId)) {
+		stoppedSessions.add(sessionId);
+		event({ type: 'run.failed', runId, ...STOPS[stop[1]](Number(stop[2] ?? 4)) });
+		return;
 	}
 	if (prompt.includes('ROUTINE_RUN_FAIL')) {
 		event({ type: 'run.failed', runId, error: 'the tests are still red' });

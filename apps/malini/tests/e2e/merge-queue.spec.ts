@@ -482,7 +482,7 @@ test('Cancel takes a confirming click in the bar and hands the pull request back
 	}
 });
 
-test('a merge GitHub blocks needs you once in a toast, and Retry in the detail queues it again', async () => {
+test('a merge GitHub blocks needs you once in a toast, offers no blind Retry, and picks up on its own once GitHub unblocks it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -508,9 +508,11 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 		expect(new URL(page.url()).hash).toMatch(/^#\/workstreams\/e2e-merge-blocked\b/u);
 
-		github.setPullRequest({ mergeStateStatus: 'CLEAN' });
 		const detail = await openPullRequestDetail(page);
-		await detail.getByRole('button', { name: 'Retry', exact: true }).click();
+		await expect(detail.getByRole('button', { name: 'Cancel merge' })).toBeVisible();
+		await expect(detail.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		github.setPullRequest({ mergeStateStatus: 'CLEAN' });
 
 		await expectMergedAndArchived(page, 'e2e-merge-blocked');
 		expect(mergeCalls(github)).toHaveLength(1);
@@ -520,7 +522,7 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 	}
 });
 
-test('a Fix checks job that keeps failing gives up, says so once, and Open job shows its transcript', async () => {
+test('a Fix checks job that keeps failing gives up, says so once, and Retry merge in the transcript Open job shows queues it again', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -546,6 +548,20 @@ test('a Fix checks job that keeps failing gives up, says so once, and Open job s
 			'page',
 			{ timeout: 20_000 },
 		);
+		const stopped = page.getByRole('region', { name: 'Merge stopped on this job' });
+		await expect(stopped).toContainText('Malini tried 3 times');
+		await captureFlow(app, 'merge-queue-retry-merge-in-job');
+
+		github.setPullRequest({
+			checksHead: github.pushedHead(),
+			statusCheckRollup: FAILED,
+			nextChecks: PASSED,
+		});
+		await stopped.getByRole('button', { name: 'Retry merge' }).click();
+		await expect(stopped).toHaveCount(0, { timeout: 20_000 });
+
+		await expectMergedAndArchived(page, 'e2e-fix-gave-up');
+		expect(mergeCalls(github)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

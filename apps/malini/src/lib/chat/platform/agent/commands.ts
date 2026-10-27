@@ -1,5 +1,9 @@
 import { isAbsolute, normalize } from 'node:path';
-import { CONTINUE_AFTER_PAUSE_PROMPT, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import {
+	CONTINUE_AFTER_PAUSE_PROMPT,
+	CONTINUE_AFTER_STOP_PROMPT,
+	PAUSED_FOR_EXIT_ERROR,
+} from '$contract/agent-state-machine';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { AgentEventPage } from '$contract/commands';
 import type { CommandRegistry } from '$main/ipc/registry';
@@ -40,9 +44,11 @@ import {
 import { get, isRecord, jsonEqual, nowIso8601, run } from '$main/db/rows';
 import {
 	activeRunWorkstreamIdentity,
+	continuableRun,
 	listPausedRuns,
 	workstreamHasOpenRun,
 	type AgentRun,
+	type PausedRun,
 } from '../runs.repository';
 import {
 	archiveSession,
@@ -57,6 +63,7 @@ import {
 	repairSessionStatusesWithoutOpenRuns,
 	sessionAwaitsTitle,
 	sessionContextIdentity,
+	userSessionWorkstreamId,
 	type AgentSessionSummary,
 	type SessionIdentity,
 } from '../sessions.repository';
@@ -67,7 +74,8 @@ import {
 	workstreamLineage,
 } from '$shared/repositories/repositories.platform';
 import { resolveWorkstreamCheckoutCanonicalRecorded } from '$main/git/paths';
-import { runAutomaticJob } from '$lib/jobs/jobs.platform';
+import { activeJobRunForSession, clearAlarm, runAutomaticJob } from '$lib/jobs/jobs.platform';
+import { resumeAlarmKey } from '$lib/chat/domain/run-recovery';
 import { skillsForRun } from '$lib/skills/skills.platform';
 import { promptChipIds } from '$lib/chat/domain/prompt-chip';
 import { userPromptText } from '../fork-transcript';
@@ -1336,21 +1344,56 @@ export async function continuePausedRuns(
 	await Promise.all(
 		listPausedRuns(db).map(async (paused) => {
 			try {
-				await sendPrompt({
-					...(runAdvancedResumePoint(db, paused.sessionId, paused.runId)
-						? { prompt: CONTINUE_AFTER_PAUSE_PROMPT }
-						: promptToResend(runUserMessage(db, paused.runId))),
-					sessionId: paused.sessionId,
-					profile: paused.profile,
-					automated: true,
-					chainId: paused.chainId,
-					causeEventId,
-				});
+				await sendContinuation(db, sendPrompt, paused, causeEventId, CONTINUE_AFTER_PAUSE_PROMPT);
 			} catch (error) {
 				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
 			}
 		}),
 	);
+}
+
+export async function continuePausedRun(
+	db: MaliniDatabase,
+	sendPrompt: SendPrompt,
+	paused: Readonly<{ sessionId: string; runId: string }>,
+	causeEventId: number | null,
+): Promise<boolean> {
+	const stopped = continuableRun(db, paused.sessionId);
+	if (stopped?.runId !== paused.runId || stopped.resumeAt === null) return false;
+	const job = userSessionWorkstreamId(db, paused.sessionId) === null;
+	if (job && activeJobRunForSession(db, paused.sessionId) === null) return false;
+	await sendContinuation(db, sendPrompt, stopped, causeEventId, CONTINUE_AFTER_STOP_PROMPT);
+	return true;
+}
+
+export async function continueStoppedRun(
+	db: MaliniDatabase,
+	sendPrompt: SendPrompt,
+	sessionId: string,
+): Promise<void> {
+	const stopped = continuableRun(db, sessionId);
+	if (stopped === null) throw new LifecycleError('nothing_to_continue', sessionId);
+	clearAlarm(db, resumeAlarmKey(sessionId));
+	await sendContinuation(db, sendPrompt, stopped, null, CONTINUE_AFTER_STOP_PROMPT);
+}
+
+async function sendContinuation(
+	db: MaliniDatabase,
+	sendPrompt: SendPrompt,
+	stopped: PausedRun,
+	causeEventId: number | null,
+	prompt: string,
+): Promise<void> {
+	await sendPrompt({
+		...(runAdvancedResumePoint(db, stopped.sessionId, stopped.runId)
+			? { prompt }
+			: promptToResend(runUserMessage(db, stopped.runId))),
+		sessionId: stopped.sessionId,
+		profile: stopped.profile,
+		automated: true,
+		chainId: stopped.chainId,
+		causeEventId,
+	});
 }
 
 function promptToResend(message: Record<string, unknown>): Record<string, unknown> {
@@ -1377,6 +1420,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	'chat.answer-question',
 	'chat.archive-session',
 	'chat.cancel-run',
+	'chat.continue-run',
 	'chat.decide-approval',
 	'chat.get-or-create-session',
 	'chat.list-events',
@@ -1612,6 +1656,10 @@ export function defineBridgeCommands(
 		const supervisor = await runtime.ensureSessionReady(sessionId);
 		await cancelAgentRun(db, supervisor, leases, { sessionId, pendingRunId });
 	});
+
+	commands.define('chat.continue-run', (args: unknown) =>
+		continueStoppedRun(db, sendPrompt, requireString(args, 'sessionId')),
+	);
 
 	commands.define('chat.answer-question', (args: unknown) => {
 		const sessionId = requireString(args, 'sessionId');

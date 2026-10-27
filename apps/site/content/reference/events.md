@@ -855,7 +855,7 @@ type ReconcilerDecisionChangedEvent = Readonly<{ decision: ReconcilerDecisionRec
 
 ## `jobs:time-reached`
 
-Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again.
+Fires when the time a job's schedule names comes, with the job, its schedule and the time it was due, once per time, and once on return for the latest time Malini missed while the Mac slept or Malini was closed. The reconciler's Schedules rule starts the job on it, unless the job's last run has not finished. It also fires with a `workstreamId` and a `wait` when a wait the Shipping rule set for that workstream ends: `retry` after a step failed, `checks` once a fix had a minute for its failing checks to run again. With `wait` set to `resume`, it names the `sessionId` and `runId` of a turn a usage limit or an outage paused, and the Resume rule continues that turn.
 
 Payload: `TimeReachedEvent`
 
@@ -875,7 +875,17 @@ type ShippingTimeReached = Readonly<{
 	due: string;
 }>;
 
-type TimeReachedEvent = ScheduleTimeReached | ShippingTimeReached;
+type ResumeTimeReached = Readonly<{
+	workstreamId: string;
+	sessionId: string;
+	runId: string;
+	wait: 'resume';
+	due: string;
+}>;
+
+type AlarmTimeReached = ShippingTimeReached | ResumeTimeReached;
+
+type TimeReachedEvent = ScheduleTimeReached | AlarmTimeReached;
 ```
 
 ## `app:started`

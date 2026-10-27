@@ -42,6 +42,8 @@ function run(
 		items,
 		terminal,
 		terminalText: '',
+		failure: null,
+		resumeAt: null,
 		turnEnded: terminal === 'completed',
 		superseded: false,
 		obsoleted: false,

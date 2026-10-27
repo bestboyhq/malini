@@ -1,5 +1,9 @@
 import type { AgentEventEnvelope } from '$contract/agent';
-import { PAUSED_FOR_EXIT_ERROR, isCancellationError } from '$contract/agent-state-machine';
+import {
+	PAUSED_FOR_EXIT_ERROR,
+	isCancellationError,
+	isPausedRunEvent,
+} from '$contract/agent-state-machine';
 import type { ChatTurnFinishedPayload } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import { parseTurnReport } from '../domain/turn-report';
@@ -27,7 +31,9 @@ export class FinishedTurns {
 			return null;
 		}
 		const error = typeof event['error'] === 'string' ? event['error'] : null;
-		if (error === PAUSED_FOR_EXIT_ERROR || this.#announced.has(runId)) return null;
+		if (error === PAUSED_FOR_EXIT_ERROR || isPausedRunEvent(event) || this.#announced.has(runId)) {
+			return null;
+		}
 		const workstreamId = userSessionWorkstreamId(this.#db, sessionId);
 		if (workstreamId === null) return null;
 		if (this.#announced.size >= ANNOUNCED_LIMIT) this.#announced.clear();

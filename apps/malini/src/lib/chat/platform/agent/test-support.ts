@@ -64,6 +64,7 @@ const ack = (id, error) => {
 };
 const pendingRuns = new Map();
 const unanswered = new Set();
+const limited = new Set();
 const lastRuns = new Map();
 const worktrees = new Map();
 const event = (frame) => write(frame);
@@ -102,6 +103,15 @@ const handle = (command) => {
           fs.writeFileSync(nodePath.join(worktree, edit[1]), 'agent edit ' + runId + '\\n');
           event({ type: 'file.changed', runId, path: edit[1] });
         }
+      }
+      const limit = /LIMIT:([a-z-]+)/.exec(prompt);
+      if (limit && !limited.has(sessionId)) {
+        limited.add(sessionId);
+        const failure = limit[1] === 'usage-limit'
+          ? { kind: 'usage-limit', resetsAt: new Date(Date.now() + 3600000).toISOString(), status: 429 }
+          : { kind: limit[1] };
+        event({ type: 'run.failed', runId, error: 'stopped on ' + limit[1], failure });
+        return;
       }
       if (prompt.includes('UNANSWERED')) { pendingRuns.set(runId, sessionId); unanswered.add(runId); return; }
       if (prompt.includes('HANG')) { pendingRuns.set(runId, sessionId); return; }

@@ -1089,6 +1089,10 @@ CREATE TABLE agent_event_packs (
   events BLOB NOT NULL
 );
 `,
+	`
+ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
+ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

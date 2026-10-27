@@ -36,7 +36,7 @@ export type WorkstreamStatus = Readonly<{
 	secondaryAction?: PullRequestTopBarAction;
 }>;
 
-export type PullRequestMenuItemId = 'retry-merge' | 'cancel-merge' | 'abort-operation' | 'refresh';
+export type PullRequestMenuItemId = 'cancel-merge' | 'abort-operation' | 'refresh';
 
 export type PullRequestMenuItem = Readonly<{
 	id: PullRequestMenuItemId;

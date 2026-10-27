@@ -188,12 +188,13 @@ It hands each event to the rules first:
 - **Your triggers** handle the events they name.
 - **Thens** start the next job on the **Job finished** of a run that succeeded.
 - **Shipping** takes a workstream from your click to merged: it commits and pushes its work, opens the draft, marks it ready, merges main into the branch when GitHub says it is behind or conflicts, runs **Fix checks**, **Resolve conflicts** or **Address review** when something blocks the merge, merges, and archives the workstream unless you clicked **Keep**.
-  It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Retry**, **Cancel** or **Keep** in the pull request bar, or **Draft all** or **Merge all** on a chat), **Turn finished**, **Job finished**, **Pull request changed**, **Time reached**, **Head moved** while it needs you, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
+  It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, **Retry merge** in the chat of the job a merge stopped on, or **Draft all** or **Merge all** on a chat), **Turn finished**, **Job finished**, **Pull request changed**, **Time reached**, **Head moved** while it needs you, **Files changed** while a git operation stopped it, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
   It merges main into a workstream only while it merges that workstream: one behind main stays as it is until you merge it.
   A chat or a job ships with the **Open draft** or **Merge** job, whose **Job finished** moves the workstream on.
   On **Draft all** or **Merge all**, Shipping runs that job in each workstream the click names, for the chat you clicked on, which hears when a run finishes or fails.
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, and **Checks rerun**, the minute a fix gives its failing checks to run again.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
+  It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
 - **Schedules** start a job on the **Time reached** its schedule names.
 - **Compatibility** runs **Check compatibility** on **Malini updated**, once per update. See [Updates](/malini/docs/updates.md#compatibility).
 
@@ -225,8 +226,8 @@ A wire runs back from that work to the event log, since what chats and jobs do s
 The workstreams and jobs an agent starts with its tools start from its chat, inside the work column.
 
 Every event has one row, named for what it is about and what happened to it, with a label for where it comes from: you, an agent, git, GitHub, Malini or the clock.
-**Button clicked**, **Workstream opened**, **Turn finished**, **Tool called**, **Job started**, **Job finished**, **Head moved**, **Branch pushed**, **Merge conflicted**, **Pull request changed**, **Workstream created**, **Workstream archived**, **Malini started**, **Malini updated** and **Time reached** each show how many happened, and **Other** holds the rest.
-**Button clicked** is your click on **Draft**, **Merge**, **Retry**, **Cancel** or **Keep** in the pull request bar, or on **Draft all** or **Merge all** on a chat, and **Workstream opened** is you opening a workstream.
+**Button clicked**, **Workstream opened**, **Turn finished**, **Tool called**, **Job started**, **Job finished**, **Head moved**, **Files changed**, **Branch pushed**, **Merge conflicted**, **Pull request changed**, **Workstream created**, **Workstream archived**, **Malini started**, **Malini updated** and **Time reached** each show how many happened, and **Other** holds the rest.
+**Button clicked** is your click on **Draft**, **Merge**, **Cancel** or **Keep** in the pull request bar, on **Retry merge** in the chat of the job a merge stopped on, or on **Draft all** or **Merge all** on a chat, and **Workstream opened** is you opening a workstream.
 In a list, an event starts with that name, such as "Job finished: Fix checks".
 
 Inside the Reconciler, each rule names the events it hears and counts what it started, and **Choose a reaction** counts its decisions.

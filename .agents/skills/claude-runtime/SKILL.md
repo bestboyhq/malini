@@ -30,6 +30,11 @@ Malini owns the rest, and the adapter enforces it:
   `watch_mcp_servers` keeps one Claude Code per folder open for the Settings page, 90 s past its last watch, polls its `mcpServerStatus()` and sends `bridge.mcp_servers` on every change; it restarts when the MCP part of the configuration or the signed-in Claude account changes (`mcpConfigSnapshot`).
   Turn on and off write `deniedMcpServers` in user settings for every new Claude Code, then `switch_mcp_server` calls `toggleMcpServer` in every chat's running one; a Turn on retries while Claude Code still reads the old deny, and toggles the server back on in the folders a Turn off reached, since `toggleMcpServer` also writes the folder's `disabledMcpServers` (`mcp-servers.ts`, `docs/adr/0062-mcp-servers-stay-live-everywhere.md`).
 - Plans: `ExitPlanMode` is denied with a hand-off message, and the plan goes to Malini's UI, which starts the implementation.
+- Failures: every `run.failed` of a turn carries `failure: { kind, resetsAt?, status? }` (`run-failure.ts`), read from what Claude Code reported, never from Malini's own guess.
+  A plan's usage limit is a rejected `rate_limit_event` with `resetsAt` and a synthetic assistant message with `error: 'rate_limit'` and `api_error: 'usage_limit_reached'`; a 429 without a reset also sends a rejected event, so only `resetsAt` makes it `usage-limit`.
+  An overload reports `error: 'server_error'` with `api_error_status: 529`, and a dropped connection `server_error` with no status, which is `network`.
+  That synthetic assistant message carries `is_api_error_message: true`, and the transcript does not emit it as a reply: the `run.failed` already carries its text.
+  Older Claude Code versions report only text, so `API Error: 529` and the signed-out wording still classify; the app decides from `kind` whether the turn pauses (`docs/adr/0100-a-limit-or-an-outage-pauses-a-run-and-malini-continues-it.md`).
 - Theme: `send_prompt` carries the user's theme, `light` or `dark`; the session tells the agent to capture screenshots in it and sets `MALINI_THEME`, the one `MALINI_*` variable the agent sees, since `claudeEnvironment` strips the rest (`docs/adr/0039-screenshots-follow-the-users-theme.md`).
 - Conversation: Claude's session id is Malini's provider session id.
   Undo resumes with `resumeSessionAt`; a missing transcript falls back to a fresh conversation seeded with Malini's own history.
@@ -72,6 +77,9 @@ ANTHROPIC_BASE_URL=http://127.0.0.1:8787 MODEL=opus node "$W/.agents/skills/clau
 
 `retriedStream` is a thought cut by an overload, which Claude Code retries after `system/api_retry`; `nonStreamingFallback` is a tool input cut with `FAULT_KIND=input_json_delta FAULT_AFTER_DELTAS=3`, which Claude Code finishes with a non-streaming request.
 `FAULT_MODE=drop` drops the connection instead of sending an overload error.
+`FAULT_MODE=respond` answers every `/v1/messages` request itself, without reaching the API, with `FAULT_STATUS`, the JSON `FAULT_BODY` and the headers in the JSON object `FAULT_HEADERS`, and forwards everything else; `FAULT_COUNT` limits it to the first requests, and `FAULT_MODE=refuse` closes those connections instead.
+A plan's usage limit is a 429 with `anthropic-ratelimit-unified-status: rejected`, `anthropic-ratelimit-unified-reset` in epoch seconds and `anthropic-ratelimit-unified-representative-claim: five_hour`; `CLAUDE_CODE_MAX_RETRIES=1` makes Claude Code give up on an overload, a 5xx or a refused connection after one retry.
+`usageLimit`, `rateLimit`, `overloaded`, `serverError`, `network`, `signedOut`, `billing` and `promptTooLong` were recorded this way.
 
 `FAULT_KIND=verdict` keeps every stream and drops auto mode's verdict instead: it rewrites each call in `message_delta`'s `safeguard_results` to `{ "type": "unavailable", "reason": "error" }` for the first `FAULT_RESPONSES` responses that carry calls, or for `all`.
 Run the recorder in `auto` mode with `_CLAUDE_CODE_ASSUME_FIRST_PARTY_BASE_URL=1` beside `ANTHROPIC_BASE_URL`, since a custom base URL otherwise makes Claude Code fall back to its local classifier, and give it a call the classifier must judge, such as `node -e`, since read-only commands and writes inside the folder skip it.

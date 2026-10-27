@@ -1,9 +1,9 @@
-import { isCancellationError } from '$contract/agent-state-machine';
 import { replyOverCommands, resumesTurn } from '$lib/chat/domain/background-work';
 import { sanitizeAgentElementReferences } from '$lib/chat/domain/element-reference';
 import type { EventEnvelope } from '$lib/chat/domain/events';
 import {
 	answerOutput,
+	failedRunState,
 	firstPromptKey,
 	isContextHandoffContentId,
 	renderInteractionItem,
@@ -328,6 +328,8 @@ export class IncrementalRenderProjector {
 				items: [],
 				terminal: null,
 				terminalText: '',
+				failure: null,
+				resumeAt: null,
 				turnEnded: false,
 				superseded: false,
 				obsoleted: false,
@@ -341,7 +343,9 @@ export class IncrementalRenderProjector {
 
 	#withState(
 		group: RunGroup,
-		state: Partial<Pick<RunGroup, 'terminal' | 'terminalText' | 'turnEnded'>>,
+		state: Partial<
+			Pick<RunGroup, 'terminal' | 'terminalText' | 'failure' | 'resumeAt' | 'turnEnded'>
+		>,
 	): void {
 		const next = { ...group, items: [...group.items], ...state };
 		const index = this.#runs.indexOf(group);
@@ -599,11 +603,7 @@ export class IncrementalRenderProjector {
 					});
 				} else {
 					this.#terminal = 'failed';
-					const cancelled = isCancellationError(event.error);
-					this.#withState(group, {
-						terminal: cancelled ? 'cancelled' : 'failed',
-						terminalText: event.error,
-					});
+					this.#withState(group, failedRunState(event));
 					this.#push(runId, {
 						kind: 'terminal',
 						key,

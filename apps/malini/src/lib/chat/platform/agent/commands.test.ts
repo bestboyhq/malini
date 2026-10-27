@@ -769,6 +769,86 @@ describe('prompt round trips', () => {
 		expect(latestRun(sessionId)).toMatchObject({ prompt: 'UNANSWERED', cause_event_id: 7 });
 	});
 
+	function resumeAlarm(sessionId: string): Record<string, unknown> | null {
+		const row = get<{ payload: string }>(
+			test.db,
+			'SELECT payload FROM alarms WHERE key = ?',
+			`resume:${sessionId}`,
+		);
+		return row ? JSON.parse(row.payload) : null;
+	}
+
+	it('pauses a turn a usage limit stopped, and goes on with it when its resume alarm rings', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'LIMIT:usage-limit Ship it',
+		});
+		await waitFor(() => getRun(test.db, runId)?.completedAt != null, 2_000, 'the limit');
+
+		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(await invokeRecords('chat.list-sessions', { workstreamId: 'ws-1' })).toMatchObject([
+			{ id: sessionId, status: 'idle' },
+		]);
+		expect(resumeAlarm(sessionId)).toMatchObject({ sessionId, runId, wait: 'resume' });
+		const pausedChain = latestRun(sessionId)?.chain_id;
+
+		await service.continuePausedRun({ sessionId, runId }, 9);
+
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the turn to go on');
+		expect(latestRun(sessionId)).toMatchObject({
+			prompt: 'LIMIT:usage-limit Ship it',
+			automated: 1,
+			chain_id: pausedChain,
+			cause_event_id: 9,
+		});
+		expect(resumeAlarm(sessionId)).toBeNull();
+	});
+
+	it('leaves a paused turn alone once a newer prompt replaced it', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', {
+			sessionId,
+			prompt: 'LIMIT:overloaded Ship it',
+		});
+		await waitFor(() => resumeAlarm(sessionId) !== null, 2_000, 'the pause');
+
+		await invokeString('chat.send-prompt', { sessionId, prompt: 'Do something else' });
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the new prompt');
+		expect(resumeAlarm(sessionId)).toBeNull();
+
+		await service.continuePausedRun({ sessionId, runId }, 9);
+
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
+			2,
+		);
+	});
+
+	it('fails a turn only you can fix, and Try again goes on with it now', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		await boot();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const runId = await invokeString('chat.send-prompt', { sessionId, prompt: 'LIMIT:sign-in hi' });
+		await waitFor(() => getSession(test.db, sessionId)?.status === 'failed', 2_000, 'the failure');
+		expect(getRun(test.db, runId)).toMatchObject({ error: 'stopped on sign-in' });
+		expect(resumeAlarm(sessionId)).toBeNull();
+
+		await invoke('chat.continue-run', { sessionId });
+
+		await waitFor(() => latestRun(sessionId)?.summary != null, 2_000, 'the retried turn');
+		expect(latestRun(sessionId)).toMatchObject({
+			prompt: 'LIMIT:sign-in hi',
+			cause_event_id: null,
+		});
+		expect(await invokeError('chat.continue-run', { sessionId })).toBe(
+			'This chat has no stopped turn to continue.',
+		);
+	});
+
 	it('refuses a prompt whose profile names an unknown report', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();

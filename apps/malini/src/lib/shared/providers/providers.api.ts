@@ -53,9 +53,11 @@ export { loadModelDefaultsCommand } from './application/commands/load-model-defa
 export { loadProviderCapabilitiesCommand } from './application/commands/load-provider-capabilities.command';
 export { saveAgentAccessDefaultCommand } from './application/commands/save-agent-access-default.command';
 export { saveModelDefaultsCommand } from './application/commands/save-model-defaults.command';
+export { signInToClaudeCommand } from './application/commands/sign-in-to-claude.command';
 
 export { agentAccessDefaultQuery } from './application/queries/agent-access-default.query.svelte';
 export { claudeCodeStatusQuery } from './application/queries/claude-code-status.query.svelte';
+export { claudeSignInQuery } from './application/queries/claude-sign-in.query.svelte';
 export { modelCatalogQuery } from './application/queries/model-catalog.query.svelte';
 export { modelDefaultsQuery } from './application/queries/model-defaults.query.svelte';
 export { subscriptionBillingQuery } from './application/queries/subscription-billing.query.svelte';

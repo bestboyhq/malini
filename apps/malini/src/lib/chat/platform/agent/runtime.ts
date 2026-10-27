@@ -1,4 +1,4 @@
-import { PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
+import { isCancellationError, PAUSED_FOR_EXIT_ERROR } from '$contract/agent-state-machine';
 import {
 	CHAT_AGENT_EVENT_CHANNEL,
 	CHAT_MCP_SERVER_CHANGED_CHANNEL,
@@ -6,10 +6,12 @@ import {
 } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
 import type { EventBus } from '$main/events';
+import { clearAlarm, setAlarm } from '$lib/jobs/jobs.platform';
 import { getCheckpointForRun } from '../checkpoints.repository';
 import { getRunChange } from '../changes.repository';
 import { FinishedTurns } from '../finished-turns';
 import { replyOverCommands, resumesTurn } from '../../domain/background-work';
+import { resumeAlarmKey, runResumeAt } from '../../domain/run-recovery';
 import { hasTurnReport } from '../../domain/turn-report';
 import {
 	appendEvent,
@@ -27,7 +29,9 @@ import {
 import { matchPermissionRule } from '../permissions.repository';
 import {
 	activeRunWorkstreamIdentity,
+	automaticRetriesBefore,
 	finalizeRunLifecycle,
+	getRunWorkstreamId,
 	listOpenRunIds,
 	listOpenRuns,
 	openTurnReply,
@@ -319,7 +323,11 @@ export function pumpStep(
 ): LiveEventEnvelope | null {
 	const correlated = correlator.resolve(event);
 	if (correlated === null) return null;
-	const resolved = summarizedByReport(db, completedOnceTurnEnded(db, correlated, log), log);
+	const resolved = pausedOnFailure(
+		db,
+		summarizedByReport(db, completedOnceTurnEnded(db, correlated, log), log),
+		log,
+	);
 
 	try {
 		const recorded = recordBridgeInteractionRequest(db, resolved.event);
@@ -368,6 +376,7 @@ export function pumpStep(
 					now,
 				);
 			} else {
+				const { failure, resumeAt } = resolved.event;
 				finalizeRunLifecycle(
 					db,
 					resolved.sessionId,
@@ -376,7 +385,9 @@ export function pumpStep(
 					null,
 					resolved.event.error,
 					now,
+					failure ? { kind: failure.kind, resumeAt: resumeAt ?? null } : null,
 				);
+				if (resumeAt !== undefined) scheduleResume(db, resolved, resumeAt);
 			}
 		} catch (error) {
 			log(
@@ -384,6 +395,7 @@ export function pumpStep(
 			);
 		}
 	} else {
+		if (resolved.event.type === 'run.started') clearAlarm(db, resumeAlarmKey(resolved.sessionId));
 		const status = durableSessionStatus(resolved.event);
 		if (status !== null) {
 			try {
@@ -399,6 +411,38 @@ export function pumpStep(
 		}
 	}
 	return envelopeWithSeq(resolved, persistedSeq);
+}
+
+function pausedOnFailure(
+	db: MaliniDatabase,
+	resolved: ResolvedEnvelope,
+	log: (line: string) => void,
+): ResolvedEnvelope {
+	const { event } = resolved;
+	if (event.type !== 'run.failed' || !event.failure || isCancellationError(event.error)) {
+		return resolved;
+	}
+	let retries: number;
+	try {
+		retries = automaticRetriesBefore(db, resolved.sessionId, resolved.runId);
+	} catch (error) {
+		log(`agent: could not count the retries before run \`${resolved.runId}\`: ${describe(error)}`);
+		return resolved;
+	}
+	const resumeAt = runResumeAt(event.failure, retries, Date.now());
+	return resumeAt === null ? resolved : { ...resolved, event: { ...event, resumeAt } };
+}
+
+function scheduleResume(db: MaliniDatabase, resolved: ResolvedEnvelope, due: string): void {
+	const workstreamId = getRunWorkstreamId(db, resolved.runId);
+	if (workstreamId === null) return;
+	setAlarm(db, resumeAlarmKey(resolved.sessionId), {
+		workstreamId,
+		sessionId: resolved.sessionId,
+		runId: resolved.runId,
+		wait: 'resume',
+		due,
+	});
 }
 
 function recordTurnReply(db: MaliniDatabase, runId: string, event: BridgeEvent): void {
