@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -572,9 +573,9 @@ test('a Fix checks job that keeps failing gives up, says so once, and Retry merg
 	}
 });
 
-test('a pull request merged on GitHub offers Continue, which starts over on the latest main and drafts the next change', async () => {
+test('a prompt in a workstream whose pull request merged on GitHub first starts it over on the latest main, and keeps the prompt when it cannot', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini();
+	const app = await launchMalini({ allowedDiagnostics: [/Couldn't reach github\.com/u] });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -591,19 +592,26 @@ test('a pull request merged on GitHub offers Continue, which starts over on the 
 
 		github.setPullRequest({ state: 'MERGED' });
 		await expect(topBarStatus(page, 'Merged')).toBeVisible({ timeout: 45_000 });
-		await page.getByRole('button', { name: 'Continue on top of the latest main' }).click();
+		await expect(page.getByRole('button', { name: /^Continue/u })).toHaveCount(0);
 
-		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
-		await expect(page.getByRole('button', { name: 'Archive this workstream' })).toHaveCount(0);
-		await expect(
-			page.getByRole('button', { name: 'Continue on top of the latest main' }),
-		).toHaveCount(0);
+		github.setOffline(true);
+		await sendPrompt(page, 'EDIT:beta.txt COMMIT=feat: add beta');
+		await expect(toastSaying(page, 'Continue failed')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('chat-composer-input')).toContainText(
+			'EDIT:beta.txt COMMIT=feat: add beta',
+		);
+		await expect(topBarStatus(page, 'Merged')).toBeVisible();
+		expect(existsSync(join(worktree, 'beta.txt'))).toBe(false);
 
-		writeFileSync(join(worktree, 'beta.txt'), 'the next change\n');
-		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled({
-			timeout: 30_000,
-		});
-		await expect(topBarStatus(page, '1 file changed')).toBeVisible();
+		github.setOffline(false);
+		await page.getByTestId('chat-composer-submit').click();
+		await expect(topBarStatus(page, '1 file changed')).toBeVisible({ timeout: 60_000 });
+		expect(readFileSync(join(worktree, 'beta.txt'), 'utf8')).not.toBe('');
+		const latestMain = revParse(github.remote, 'refs/heads/main');
+		expect(revParse(worktree, 'HEAD')).toBe(latestMain);
+		const branch = revParse(worktree, '--abbrev-ref', 'HEAD');
+		expect(() => revParse(github.remote, '--verify', `refs/heads/${branch}`)).toThrow();
+		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled();
 		await captureFlow(app, 'merge-queue-continue-next-change');
 		expectCleanConsole(app);
 	} finally {
@@ -613,4 +621,11 @@ test('a pull request merged on GitHub offers Continue, which starts over on the 
 
 function mergeCalls(github: FakeGithub): string[][] {
 	return github.calls().filter(([command, sub]) => command === 'pr' && sub === 'merge');
+}
+
+function revParse(repo: string, ...args: string[]): string {
+	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'ignore'],
+	}).trim();
 }

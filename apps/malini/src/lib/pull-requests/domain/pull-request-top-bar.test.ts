@@ -793,13 +793,16 @@ describe('the workstream status', () => {
 		).toMatchObject({ tone: 'needs-you', label: 'GitHub blocks the merge' });
 	});
 
-	it('offers Continue beside Archive once the pull request merged', () => {
+	it('offers only Archive once the pull request merged, and says the next prompt continues on main', () => {
 		const shown = status(null, open({ state: 'merged' }));
-		expect([shown?.secondaryAction, shown?.action]).toMatchObject([
-			{ kind: 'continue', label: 'Continue' },
-			{ kind: 'archive', label: 'Archive' },
-		]);
-		expect(status(null, open({ state: 'merged', headSha: null }))?.secondaryAction).toBeUndefined();
+		expect(shown).toMatchObject({
+			tone: 'merged',
+			label: 'Merged',
+			tooltip: 'Your next prompt continues on top of the latest main',
+			action: { kind: 'archive', label: 'Archive' },
+		});
+		expect(shown?.secondaryAction).toBeUndefined();
+		expect(status(null, open({ state: 'merged', headSha: null }))?.tooltip).toBeNull();
 	});
 
 	it('shows a running agent instead of a settled or checks status, with neutral actions', () => {

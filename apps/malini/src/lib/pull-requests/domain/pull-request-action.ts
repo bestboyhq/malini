@@ -3,7 +3,6 @@ import type { WorktreeOperation } from '$contract/repositories';
 export type PullRequestActionKind =
 	| 'open-draft'
 	| 'queue-merge'
-	| 'continue'
 	| 'archive'
 	| 'reopen'
 	| 'cancel-merge'
