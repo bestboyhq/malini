@@ -1275,7 +1275,6 @@ describe('shipping a queued merge', () => {
 			id: null,
 			channel: PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 			payload: clicks[0],
-			digest: null,
 			chainId: null,
 			cause: null,
 		});

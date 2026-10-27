@@ -17,7 +17,7 @@ import { describeError } from '$main/errors';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import { JOB_CHAIN_MAX_DEPTH, truncateJobContext } from '../domain/job-run';
 import { triggeredBefore } from './event-log.repository';
-import { eventDigest, findString, type DispatchedEvent } from './event-log.service';
+import { findString, type DispatchedEvent } from './event-log.service';
 import { listJobDefinitions } from './job-definitions.repository';
 import { jobRunChainDefinitionIds } from './job-runs.repository';
 
@@ -28,9 +28,6 @@ type ArmedJob = Readonly<{
 	mode: Exclude<JobRunMode, 'off'>;
 	trigger: EventTrigger;
 }>;
-
-// ponytail: forgets which events already started a job past 5 000, leaving only the event log's check; key the guard on the event id if a burst ever outruns it
-const FIRED_LIMIT = 5_000;
 
 const RUN_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	JOBS_RUN_CHANGED_CHANNEL,
@@ -45,7 +42,6 @@ export type JobTriggers = Readonly<{
 
 export function startJobTriggers(context: MainContext, log: (line: string) => void): JobTriggers {
 	const { db, events, commands } = context;
-	const fired = new Set<string>();
 	let armed: readonly ArmedJob[] = [];
 
 	const sync = (): void => {
@@ -60,19 +56,12 @@ export function startJobTriggers(context: MainContext, log: (line: string) => vo
 		const listening = armed.filter(({ trigger }) => trigger.channel === event.channel);
 		if (listening.length === 0) return false;
 		const enriched = enrich(event.payload);
-		const digest = event.digest ?? eventDigest(event.payload);
 		const matching = listening.filter((job) =>
 			job.trigger.where.every((condition) => holds(enriched, condition)),
 		);
-		const runs = matching.flatMap((job) => {
-			const { definition } = job;
-			const firedKey = JSON.stringify([definition.id, event.channel, digest]);
-			if (fired.has(firedKey)) return [];
-			if (fired.size >= FIRED_LIMIT) fired.clear();
-			fired.add(firedKey);
-			if (triggeredBefore(db, definition.id, event.channel, digest)) return [];
-			return [run(job, event, enriched)];
-		});
+		const runs = matching
+			.filter((job) => !triggeredBefore(db, job.definition.id, event.id))
+			.map((job) => run(job, event, enriched));
 		await Promise.all(runs);
 		return matching.length > 0;
 	};

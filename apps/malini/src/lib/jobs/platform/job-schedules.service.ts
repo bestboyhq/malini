@@ -108,7 +108,7 @@ export function createJobSchedules(
 		const due = Date.parse(findString(event.payload, 'due') ?? '');
 		if (job === null || !Number.isFinite(due)) return;
 		const { id, name, trigger } = job.definition;
-		if (event.digest !== null && triggeredBefore(db, id, event.channel, event.digest)) return;
+		if (triggeredBefore(db, id, event.id)) return;
 		if (countUnfinishedJobRuns(db, id) > 0) {
 			log(`jobs: ${name} skips a run on its schedule, its last run has not finished`);
 			return;

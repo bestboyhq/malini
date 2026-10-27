@@ -66,7 +66,8 @@ A job with this When runs when a pull request Malini ships is merged.
 The Jobs page offers the common triggers by name, such as **A pull request merges**, so you rarely write one by hand.
 
 A triggered run gets the event channel and its payload as context, and runs in the workstream the event names, or in a new one when the job runs in a new workstream.
-The same event starts a job once, even across a restart: Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
+Every event counts, even when its payload repeats an earlier one: open the same workstream twice, and a job on `pull-requests:workstream-opened` runs for each opening.
+The same event starts a job once, even across a restart: each event Malini logs has its own id, Malini keeps every event for a week, and hands the ones it had not finished with to the triggers again when it starts.
 An unknown channel or a malformed condition is refused when you save the job, with the channels Malini knows.
 
 ### On a schedule
