@@ -3,8 +3,10 @@ import {
 	leadHeadline,
 	progressDot,
 	progressLabel,
+	shipTargets,
 	standingLabel,
 	type ProgressInput,
+	type ShipCandidate,
 } from './lead-progress';
 
 const idle: ProgressInput = {
@@ -84,5 +86,29 @@ describe('lead progress', () => {
 			standingLabel('idle', 'draft'),
 			standingLabel('idle', 'none'),
 		]).toEqual(['Merged', 'Merging', 'Working', 'In review', 'Draft', 'Waiting']);
+	});
+
+	it('drafts and merges only the workstreams that have work and are not shipping yet', () => {
+		const candidate = (id: string, overrides: Partial<ShipCandidate>): ShipCandidate => ({
+			id,
+			pullRequest: 'none',
+			changed: false,
+			working: false,
+			shipping: false,
+			...overrides,
+		});
+		expect(
+			shipTargets([
+				candidate('changed', { changed: true }),
+				candidate('working', { working: true, pullRequest: 'unknown' }),
+				candidate('empty', {}),
+				candidate('draft', { pullRequest: 'draft' }),
+				candidate('open', { pullRequest: 'open' }),
+				candidate('queued', { pullRequest: 'queued', changed: true }),
+				candidate('needs', { pullRequest: 'needs-you', changed: true }),
+				candidate('merged', { pullRequest: 'merged' }),
+				candidate('shipping', { changed: true, shipping: true }),
+			]),
+		).toEqual({ draft: ['changed', 'working'], merge: ['changed', 'working', 'draft', 'open'] });
 	});
 });

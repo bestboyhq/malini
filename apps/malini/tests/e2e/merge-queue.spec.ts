@@ -142,6 +142,70 @@ test('a merged workstream a chat started opens its pull request from the number 
 	}
 });
 
+test('Merge all on a chat queues Merge in the workstreams it started, which merge once their agents finish', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		await invoke(app.page, 'repositories.create-lead', {
+			scope: 'home',
+			workstreamId: 'e2e-lead-merges-all',
+			name: 'Ship hutch',
+		});
+		const { page, github } = await seedWorkstreamOnFakeGithub(
+			app,
+			'e2e-lead-merges-child',
+			null,
+			undefined,
+			'e2e-lead-merges-all',
+		);
+		await openWorkstream(page, 'e2e-lead-merges-all');
+		await sendPrompt(page, 'Plan it');
+		await expectAssistantReply(page);
+
+		await openWorkstream(page, 'e2e-lead-merges-child');
+		holdAgentRuns(app, true);
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		const name = await workstreamName(page, 'e2e-lead-merges-child');
+
+		await openWorkstream(page, 'e2e-lead-merges-all');
+		await expect(topBarStatus(page, /^0 of 1 merged · 1 working/u)).toBeVisible({
+			timeout: 20_000,
+		});
+		const draftAll = page.getByRole('button', { name: 'Open draft pull requests in 1 workstream' });
+		const mergeAll = page.getByRole('button', { name: 'Merge 1 workstream' });
+		await expect(draftAll).toBeEnabled();
+		await expect(mergeAll).toBeEnabled();
+		await captureFlow(app, 'lead-merge-all-offered');
+
+		await mergeAll.click();
+		const queued = page.getByRole('region', { name: 'Jobs (1)', exact: true }).getByRole('button', {
+			name: `Merge job in ${name}, Queued. The transcript opens once the job starts`,
+		});
+		await expect(queued).toBeVisible({ timeout: 20_000 });
+		await expect(mergeAll).toHaveCount(0);
+		await expect(draftAll).toHaveCount(0);
+		await page.waitForTimeout(2_000);
+		await expect(queued).toBeVisible();
+		await captureFlow(app, 'lead-merge-all-queued');
+
+		holdAgentRuns(app, false);
+		await expect.poll(() => github.pullRequest(), { timeout: 60_000 }).not.toBeNull();
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: PASSED,
+		});
+		await expect(topBarStatus(page, /^1 of 1 merged/u)).toBeVisible({ timeout: 90_000 });
+		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', title: 'feat: add alpha' });
+		await expect(mergeAll).toHaveCount(0);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-merge-all-merged');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('a command the agent left running in the background does not hold the merge, and archiving stops it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
