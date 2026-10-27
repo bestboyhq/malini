@@ -80,7 +80,6 @@ const SHIP_STEPS: ReadonlyMap<string, string> = new Map(
 		'waiting-for-review': 'waiting for review',
 		'waiting-for-github': 'waiting for GitHub',
 		merging: 'merging',
-		archiving: 'archiving the workstream',
 	} satisfies Record<ShipStep, string>),
 );
 

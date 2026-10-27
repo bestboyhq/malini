@@ -134,7 +134,7 @@ function needsYouAction(
 }
 
 function queued(ship: PullRequestShip): WorkstreamStatus {
-	const merging = ship.step === 'merging' || ship.step === 'archiving';
+	const merging = ship.step === 'merging';
 	return {
 		tone: 'queued',
 		busy: true,

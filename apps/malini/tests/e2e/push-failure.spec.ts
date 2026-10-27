@@ -8,9 +8,8 @@ import {
 	sendPrompt,
 } from './harness';
 import {
-	expectMergedAndArchived,
+	expectMerged,
 	queueMerge,
-	workstreamName,
 	seedWorkstreamOnFakeGithub,
 	toastSaying,
 	topBarStatus,
@@ -33,7 +32,6 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 		await expectAssistantReply(page);
 		github.setOffline(true);
 
-		const name = await workstreamName(page, 'e2e-offline');
 		await queueMerge(page);
 
 		const queued = topBarStatus(page, 'Queued for merge · Retrying after an error');
@@ -51,7 +49,7 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 
 		github.setOffline(false);
 
-		await expectMergedAndArchived(page, 'e2e-offline', name);
+		await expectMerged(page, 'e2e-offline');
 		expect(github.pushedSubjects()[0]).toBe('Update a.txt');
 		expectCleanConsole(app);
 	} finally {

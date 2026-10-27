@@ -343,8 +343,7 @@ type ShipStep =
 	| 'waiting-for-checks'
 	| 'waiting-for-review'
 	| 'waiting-for-github'
-	| 'merging'
-	| 'archiving';
+	| 'merging';
 
 type ShipNeedsYouReason =
 	| 'reply-to-reviewer'
@@ -450,8 +449,7 @@ type ShipStep =
 	| 'waiting-for-checks'
 	| 'waiting-for-review'
 	| 'waiting-for-github'
-	| 'merging'
-	| 'archiving';
+	| 'merging';
 
 type ShipNeedsYouReason =
 	| 'reply-to-reviewer'

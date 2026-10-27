@@ -1,8 +1,7 @@
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { goto } from '$shared/router/navigation';
-import { REPOSITORIES_HREF, workstreamHref } from '$shared/router/routes-hrefs';
-import { page } from '$shared/router/state';
+import { workstreamHref } from '$shared/router/routes-hrefs';
 import {
 	pullRequestNeedsYouAnnouncement,
 	type PullRequestShipChange,
@@ -21,9 +20,6 @@ function acceptShipChangeCommand(
 	const { workstreamId } = change;
 	const previous = pullRequestShipAggregate.shipFor(workstreamId);
 	pullRequestShipAggregate.accept(workstreamId, change.ship);
-	if (change.mergedPullRequestNumber !== null && page.params.workstreamId === workstreamId) {
-		void goto(REPOSITORIES_HREF);
-	}
 
 	const announcement = pullRequestNeedsYouAnnouncement(previous, change, workstreamName);
 	if (!announcement) return;

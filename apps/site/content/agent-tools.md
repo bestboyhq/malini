@@ -68,7 +68,7 @@ The agent can do in Malini what you do from the sidebar, short of removing anyth
 | `repositories_list`   | Lists your repositories: id, `owner/name`, default branch, whether Malini has cloned it, and whether it is hidden.                                                                                        |
 | `repositories_clone`  | Adds a repository by `owner/name` or git URL and clones it, or shows a hidden one again.                                                                                                                  |
 | `repositories_hide`   | Hides a repository from the sidebar. Its clone and workstreams stay, under **Hidden**.                                                                                                                    |
-| `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in. It adds the archived ones this chat started, with whether they merged. |
+| `workstreams_list`    | Lists your workstreams: id, name, repository, branch, base branch, the chat that started each one, and which one the chat runs in, with whether each merged. It adds the archived ones this chat started. |
 | `workstreams_create`  | Starts a workstream of a repository, cloning it first when needed, with a chat that gets the agent's prompt and knows which chat started it.                                                              |
 | `workstreams_send`    | Sends a prompt into the chat of a workstream this chat started, while that chat is idle, as a prompt from this chat.                                                                                      |
 | `workstreams_archive` | Archives a workstream, keeping its branch and uncommitted work under **Recently archived**, where you can restore it.                                                                                     |
@@ -133,7 +133,7 @@ A failure shows in the top bar, where pull request problems always do.
 When the agent hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
 Right after it starts a workstream, it runs **Open draft** or **Merge** there with `jobs_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
 Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
-So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.
+So a chat that starts five workstreams and merges them leaves you five merged pull requests, each workstream waiting on **Merged** for you to archive, not five drafts to click through.
 
 Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Job in Fetch command**.
 Merge still waits for checks, fixes what fails and resolves conflicts first, and a problem shows in that workstream's top bar.

@@ -85,7 +85,6 @@ const STEPS: readonly ShipStep[] = [
 	'waiting-for-review',
 	'waiting-for-github',
 	'merging',
-	'archiving',
 ];
 const REASONS: readonly ShipNeedsYouReason[] = [
 	'reply-to-reviewer',

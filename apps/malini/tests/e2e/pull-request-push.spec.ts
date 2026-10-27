@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
 import {
 	commitByHand,
-	expectMergedAndArchived,
+	expectMerged,
 	headOf,
 	queueMerge,
 	seedWorkstreamOnFakeGithub,
@@ -24,7 +24,7 @@ test('Merge pushes commits that are already made as they are, then merges them',
 
 		await queueMerge(page);
 
-		await expectMergedAndArchived(page, 'e2e-push-only');
+		await expectMerged(page, 'e2e-push-only');
 		expect(github.pushedHead()).toBe(committed);
 		expect(github.pushedSubjects()).toEqual(['Commit by-hand.txt by hand', 'seed']);
 		expect(github.calls().find(([command, sub]) => command === 'pr' && sub === 'merge')).toContain(

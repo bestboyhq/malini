@@ -16,7 +16,8 @@ import {
 	sendPrompt,
 } from './harness';
 import {
-	expectMergedAndArchived,
+	archiveMerged,
+	expectMerged,
 	holdAgentRuns,
 	openPullRequestDetail,
 	queueMerge,
@@ -33,7 +34,7 @@ const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
+test('Merge marks the draft ready, waits for the checks, merges, and leaves archiving to you', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -67,7 +68,7 @@ test('Merge marks the draft ready, waits for the checks, merges and archives the
 
 		github.setPullRequest({ statusCheckRollup: PASSED });
 
-		await expectMergedAndArchived(page, 'e2e-queue-merge', name);
+		await expectMerged(page, 'e2e-queue-merge');
 		expect(mergeCalls(github)).toEqual([
 			[
 				'pr',
@@ -82,6 +83,7 @@ test('Merge marks the draft ready, waits for the checks, merges and archives the
 		]);
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
 		await captureFlow(app, 'merge-queue-merged');
+		await archiveMerged(page, 'e2e-queue-merge', name);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -118,7 +120,8 @@ test('a merged workstream a chat started opens its pull request from the number 
 		});
 		const name = await workstreamName(page, 'e2e-lead-merged');
 		await queueMerge(page);
-		await expectMergedAndArchived(page, 'e2e-lead-merged', name);
+		await expectMerged(page, 'e2e-lead-merged');
+		await archiveMerged(page, 'e2e-lead-merged', name);
 
 		await recordBrowser(app);
 		await openWorkstream(page, 'e2e-lead-ships');
@@ -284,13 +287,14 @@ test('a command the agent left running in the background does not hold the merge
 		const name = await workstreamName(page, 'e2e-merge-dev-server');
 		await queueMerge(page);
 
-		await expectMergedAndArchived(page, 'e2e-merge-dev-server', name);
+		await expectMerged(page, 'e2e-merge-dev-server');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'merge-queue-background-command-merged');
 		expect(mergeCalls(github)).toHaveLength(1);
 		expect(
 			await invoke(page, 'chat.workstream-has-open-run', { workstreamId: 'e2e-merge-dev-server' }),
 		).toBe(false);
+		await archiveMerged(page, 'e2e-merge-dev-server', name);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -342,7 +346,7 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await expectAssistantReply(page);
 		await captureFlow(app, 'merge-queue-job-transcript');
 
-		await expectMergedAndArchived(page, 'e2e-fix-checks');
+		await expectMerged(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
 		const finishedJobs = page.getByRole('region', { name: 'Jobs: 1 finished recently' });
@@ -462,7 +466,7 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 		const detail = await openPullRequestDetail(page);
 		await detail.getByRole('button', { name: 'Retry', exact: true }).click();
 
-		await expectMergedAndArchived(page, 'e2e-merge-blocked');
+		await expectMerged(page, 'e2e-merge-blocked');
 		expect(mergeCalls(github)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {

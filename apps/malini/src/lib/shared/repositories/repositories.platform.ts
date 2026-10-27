@@ -48,6 +48,7 @@ export {
 	getWorkstream,
 	listArchivedWorkstreams,
 	listWorkstreams,
+	mergedPullRequestOf,
 	recordMergedPullRequest,
 	renameWorkstream,
 	workstreamAwaitsName,

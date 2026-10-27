@@ -14,7 +14,7 @@ import {
 	type SeededWorkstream,
 } from './harness';
 import {
-	expectMergedAndArchived,
+	expectMerged,
 	queueMerge,
 	seedWorkstreamOnFakeGithub,
 	topBarStatus,
@@ -40,7 +40,7 @@ test('a queued merge updates a conflicting branch from main, hands the conflicts
 
 		await queueMerge(page);
 
-		await expectMergedAndArchived(page, 'e2e-conflict');
+		await expectMerged(page, 'e2e-conflict');
 		const merge = github.pushedHead();
 		const parents = (
 			await output(github.remote, ['rev-list', '--parents', '-n', '1', merge])

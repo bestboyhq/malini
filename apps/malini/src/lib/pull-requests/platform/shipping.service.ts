@@ -600,9 +600,8 @@ export class Shipping {
 					settleShipRequest(this.#context.db, workstreamId, 'review', context.row.requests.review);
 				}
 				return false;
-			case 'archive':
-				this.#save(workstreamId, { step: 'archiving' });
-				await this.#archive(context);
+			case 'land':
+				this.#land(context);
 				return false;
 			default:
 				return this.#act(context, move);
@@ -896,7 +895,7 @@ export class Shipping {
 		}
 	}
 
-	async #archive(context: MoveContext): Promise<void> {
+	#land(context: MoveContext): void {
 		const workstreamId = context.row.workstreamId;
 		const pullRequestNumber =
 			context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber;
@@ -913,7 +912,6 @@ export class Shipping {
 			state: null,
 			...(pullRequestNumber === null ? {} : { merged: { pullRequestNumber, pullRequestUrl } }),
 		});
-		await this.#context.commands.call('repositories.archive-workstream', { workstreamId });
 		deleteShip(this.#context.db, workstreamId);
 		this.#forget(workstreamId);
 	}

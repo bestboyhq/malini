@@ -37,7 +37,7 @@ describe('pullRequestNeedsYouAnnouncement', () => {
 	it('leaves a merge to the sidebar', () => {
 		expect(
 			pullRequestNeedsYouAnnouncement(
-				ship({ step: 'archiving' }),
+				ship({ step: 'merging' }),
 				{ workstreamId: 'ws-1', ship: null, mergedPullRequestNumber: 42 },
 				'Signal Arc',
 			),

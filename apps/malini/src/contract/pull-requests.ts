@@ -13,8 +13,7 @@ export type ShipStep =
 	| 'waiting-for-checks'
 	| 'waiting-for-review'
 	| 'waiting-for-github'
-	| 'merging'
-	| 'archiving';
+	| 'merging';
 
 export type ShipNeedsYouReason =
 	| 'reply-to-reviewer'

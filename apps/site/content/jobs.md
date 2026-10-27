@@ -188,7 +188,7 @@ It hands each event to the rules first:
 
 - **Your triggers** handle the events they name.
 - **Thens** start the next job on the **Job finished** of a run that succeeded.
-- **Shipping** takes a workstream from your click to merged: it commits and pushes its work, opens the draft, marks it ready, runs **Fix checks**, **Update from main**, **Resolve conflicts** or **Address review** when something blocks the merge, merges, and archives the workstream.
+- **Shipping** takes a workstream from your click to merged: it commits and pushes its work, opens the draft, marks it ready, runs **Fix checks**, **Update from main**, **Resolve conflicts** or **Address review** when something blocks the merge, and merges, leaving the workstream open on **Merged** for you to archive.
   It hears only logged events: **Button clicked** (your **Draft**, **Merge**, **Retry** or **Cancel** in the pull request bar, or **Draft all** or **Merge all** on a chat), **Turn finished**, **Job finished**, **Pull request changed**, **Time reached**, **Head moved** while it needs you, **Workstream opened**, **Workstream archived**, and **Malini started**, on which it picks up every workstream it was shipping.
   On **Workstream opened**, it runs **Update from main** when the workstream is behind, unless Settings say to update only when you merge.
   A chat or a job ships with the **Open draft** or **Merge** job, whose **Job finished** moves the workstream on.

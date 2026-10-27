@@ -3,7 +3,7 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { UPDATE_FROM_MAIN_TRIGGER_SETTING } from '../../src/contract/pull-requests';
-import { holdAgentRuns, seedWorkstreamOnFakeGithub } from './fake-github';
+import { holdAgentRuns, seedWorkstreamOnFakeGithub, sidebarStatus } from './fake-github';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -222,7 +222,7 @@ test('a workstream an agent starts from a release tag stays on that release once
 	}
 });
 
-test('Merge from the chat that started a workstream waits for its first turn, then merges and archives it', async () => {
+test('Merge from the chat that started a workstream waits for its first turn, then merges it and keeps it open', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch command' } });
 	try {
@@ -303,12 +303,12 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			mergeStateStatus: 'CLEAN',
 			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
 		});
-		await expect(
-			page
-				.getByRole('list', { name: 'Recently archived' })
-				.locator(`[data-testid="sidebar-archived-workstream"][data-workstream-id="${startedId}"]`),
-		).toContainText('Fetch command', { timeout: 90_000 });
-		await expect(started).toHaveCount(0);
+		await expect(sidebarStatus(page, startedId)).toHaveAttribute(
+			'data-workstream-pull-request-state',
+			'merged',
+			{ timeout: 90_000 },
+		);
+		await expect(started).toContainText('Fetch command');
 		expect(github.pullRequest()).toMatchObject({
 			state: 'MERGED',
 			isDraft: false,

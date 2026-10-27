@@ -114,20 +114,30 @@ export async function workstreamName(page: Page, workstreamId: string): Promise<
 	return name;
 }
 
-export async function expectMergedAndArchived(
+export async function expectMerged(page: Page, workstreamId: string): Promise<void> {
+	await expect(topBarStatus(page, /^Merged/u)).toBeVisible({ timeout: 90_000 });
+	await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: /^Continue on top of the latest / })).toBeEnabled();
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(1);
+	await expect(page.getByRole('heading', { name: 'Repositories' })).toHaveCount(0);
+	await expect(toastSaying(page, 'Merged')).toHaveCount(0);
+}
+
+export async function archiveMerged(
 	page: Page,
 	workstreamId: string,
 	name = WORKSTREAM_NAME,
 ): Promise<void> {
+	await page.getByRole('button', { name: 'Archive this workstream' }).click();
 	const row = page
 		.getByRole('list', { name: 'Recently archived' })
 		.locator(`[data-testid="sidebar-archived-workstream"][data-workstream-id="${workstreamId}"]`);
-	await expect(row).toBeVisible({ timeout: 90_000 });
+	await expect(row).toBeVisible({ timeout: 30_000 });
 	await expect(
 		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
 	).toHaveCount(0);
-	await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
-	await expect(toastSaying(page, 'Merged')).toHaveCount(0);
 	await expect(row).toContainText(name);
 	await row.hover();
 	await expect(

@@ -108,11 +108,11 @@ Malini sees main move when it reads the pull request on GitHub, and checks a wor
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
-  The workstream archives itself when it lands and moves to **Recently archived**.
+  Once it lands, the workstream stays open on **Merged**: **Archive** puts it away in **Recently archived**, and **Continue** starts it again on top of the latest main.
 - **It runs on events.** **Draft**, **Merge**, **Retry** and **Cancel** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
   It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.
-- **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving stops it.
+- **A dev server doesn't hold it.** Malini merges past a command the agent left running in the background, and archiving the workstream stops it.
 - **While it waits, it works.** Malini runs the **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** [jobs](/malini/docs/jobs.md) as needed, then replies to and resolves the review threads it fixed.
 - **What GitHub says is on the record.** Malini reads the pull request on GitHub each time the pull request bar does, and on its own only while shipping waits on GitHub: every 15 seconds for a queued merge, every 45 seconds while its checks run, and every 2 minutes while it waits for a review or for you, never while an agent or a job works.
   Each read that finds something new is a `pull-requests:pull-request-changed` event: its checks, its review with each change request and open thread, how far it is behind its base, whether it conflicts, and whether you may merge it.
