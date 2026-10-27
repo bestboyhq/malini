@@ -304,6 +304,23 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 			})
 			.toBeGreaterThan(0);
 		const controls = offer.getByRole('group', { name: 'Video controls' });
+		const slider = controls.getByRole('slider', { name: 'Scrub the recording' });
+		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).hover();
+		const scrubber = await slider.boundingBox();
+		if (!scrubber) throw new Error('the scrubber is not on screen');
+		await page.mouse.move(scrubber.x + scrubber.width / 2, scrubber.y + scrubber.height / 2);
+		await page.mouse.down();
+		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+		await page.mouse.move(scrubber.x + scrubber.width / 4, scrubber.y + scrubber.height / 2);
+		await expect
+			.poll(async () =>
+				Math.abs(
+					(await recording.evaluate((video) => Number(Reflect.get(video, 'currentTime')))) -
+						Number(await slider.inputValue()),
+				),
+			)
+			.toBeLessThan(0.001);
+		await page.mouse.up();
 		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
 		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).click();
