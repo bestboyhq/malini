@@ -24,7 +24,7 @@ test('appearance settings tune the greys and the theme, close back to the workst
 
 		await page.getByTestId('sidebar-open-settings').click();
 		const sections = page.getByRole('navigation', { name: 'Settings' });
-		await expect(sections.getByRole('link', { name: 'Agent', exact: true })).toHaveAttribute(
+		await expect(sections.getByRole('link', { name: 'Accounts', exact: true })).toHaveAttribute(
 			'aria-current',
 			'page',
 		);

@@ -6,6 +6,7 @@
 	import { Icon, type IconName } from '$hyper-ui/icons';
 	import type { PageState } from '$shared/router/hash-router.svelte';
 	import {
+		ACCOUNT_SETTINGS_HREF,
 		MCP_SETTINGS_HREF,
 		MODEL_SETTINGS_HREF,
 		SKILL_SETTINGS_HREF,
@@ -13,8 +14,8 @@
 	import { page } from '$shared/router/state';
 	import { loadRuntimeInfoCommand } from '$lib/app/application/commands/load-runtime-info.command';
 	import { runtimeInfoQuery } from '$lib/app/application/queries/runtime-info.query.svelte';
+	import AccountsSection from './AccountsSection.svelte';
 	import AgentAccessSection from './AgentAccessSection.svelte';
-	import AgentSection from './AgentSection.svelte';
 	import AppearanceSection from './AppearanceSection.svelte';
 	import JobsSection from './JobsSection.svelte';
 	import McpServersSection from './McpServersSection.svelte';
@@ -25,11 +26,11 @@
 
 	type Section = Readonly<{ href: string; label: string; icon: IconName; content: Component }>;
 
-	const AGENT: Section = {
-		href: '/settings',
-		label: 'Agent',
-		icon: 'sparkles',
-		content: AgentSection,
+	const ACCOUNTS: Section = {
+		href: ACCOUNT_SETTINGS_HREF,
+		label: 'Accounts',
+		icon: 'users',
+		content: AccountsSection,
 	};
 	const APPEARANCE: Section = {
 		href: '/settings/appearance',
@@ -38,7 +39,7 @@
 		content: AppearanceSection,
 	};
 	const SECTIONS: readonly Section[] = [
-		AGENT,
+		ACCOUNTS,
 		{ href: MODEL_SETTINGS_HREF, label: 'Models', icon: 'brain', content: ModelsSection },
 		{
 			href: '/settings/agent-access',
@@ -56,7 +57,7 @@
 
 	let closedEntry: PageState | null = $state.raw(null);
 	const href = $derived(page.state === closedEntry ? undefined : page.state.settings);
-	const current = $derived(SECTIONS.find((section) => section.href === href) ?? AGENT);
+	const current = $derived(SECTIONS.find((section) => section.href === href) ?? ACCOUNTS);
 	const previewing = $derived(current === APPEARANCE);
 	const runtime = $derived(runtimeInfoQuery.data);
 

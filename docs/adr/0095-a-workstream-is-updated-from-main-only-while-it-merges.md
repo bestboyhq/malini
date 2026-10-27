@@ -1,4 +1,4 @@
-# 0094 - A workstream is updated from main only while it merges
+# 0095 - A workstream is updated from main only while it merges
 
 Status: accepted
 

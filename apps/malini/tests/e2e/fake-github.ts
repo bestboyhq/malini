@@ -43,6 +43,7 @@ export interface FakeGithub {
 	pushedHead(): string;
 	pushedSubjects(): string[];
 	setOffline(offline: boolean): void;
+	answerWith(stderr: string | null): void;
 }
 
 export interface PullRequestWorkstream {
@@ -170,6 +171,7 @@ async function fakeGithubFor(
 	const pullRequestFile = join(state, 'pull-request.json');
 	const callsFile = join(state, 'gh-calls.log');
 	const offline = join(state, 'offline');
+	const failure = join(state, 'github-failure');
 	mkdirSync(state, { recursive: true });
 	await git(state, ['init', '-q', '--bare', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
@@ -271,6 +273,8 @@ async function fakeGithubFor(
 				.split('\n')
 				.filter(Boolean),
 		setOffline: (next) => (next ? writeFileSync(offline, '') : rmSync(offline, { force: true })),
+		answerWith: (stderr) =>
+			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
 	};
 }
 
@@ -352,6 +356,11 @@ const flag = (name) => {
 const out = (value) =>
 	process.stdout.write(typeof value === 'string' ? value : JSON.stringify(value));
 const [command, sub, third] = args;
+const failure = path.join(state, 'github-failure');
+if (command !== 'auth' && fs.existsSync(failure)) {
+	process.stderr.write(fs.readFileSync(failure, 'utf8'));
+	process.exit(1);
+}
 if (command === 'auth' && sub === 'status') {
 	out('github.com\\n  Logged in to github.com account e2e-user (keyring)\\n');
 } else if (command === 'api' && sub === 'user') {

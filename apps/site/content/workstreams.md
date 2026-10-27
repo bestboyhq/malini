@@ -119,6 +119,9 @@ Like every workstream, each one stays on its own commits while main moves, and m
   Each review is addressed once, then Malini waits for the reviewer, and a new review that requests changes again is addressed in turn.
 - **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
 - **Errors are retried.** After a step fails, Malini tries again in 30 seconds, then waits twice as long each time, up to 10 minutes, and the top bar says **Retrying after an error**.
+- **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
+  Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
+  It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired.
   The top bar names the reason, and once it is resolved, the merge picks up again on its own the next time GitHub shows a change, its branch moves or a retry comes due, or at once when you click **Retry**.
 - **Exactly the commit that passed.** Malini merges with `--match-head-commit`.

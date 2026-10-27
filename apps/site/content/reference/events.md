@@ -305,6 +305,20 @@ Payload: `EmptyEventPayload`
 type EmptyEventPayload = Readonly<Record<string, never>>;
 ```
 
+## `repositories:github-reach-changed`
+
+Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.
+
+Payload: `GithubReachChangedPayload`
+
+```ts
+type GithubFailure = 'unreachable' | 'down' | 'rate-limited';
+
+type GithubReach = 'ok' | GithubFailure;
+
+type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
+```
+
 ## `pull-requests:local-base-synced`
 
 Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.
@@ -904,12 +918,13 @@ type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 ## `app:menu-command-chosen`
 
-Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
+Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.
 
 Payload: `MenuCommandChosen`
 
 ```ts
-type MenuCommand = 'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+type MenuCommand =
+	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';
 
 type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 ```
@@ -950,6 +965,23 @@ Payload: `UpdateStagedPayload`
 
 ```ts
 type UpdateStagedPayload = Readonly<{ version: string }>;
+```
+
+## `app:update-status-changed`
+
+Fires when the update status in the sidebar changes: checking or downloading after you chose Check for Updates…, up to date, failed, a version ready to install, or nothing to show. Malini does not keep it in its event log.
+
+Payload: `UpdateStatus`
+
+```ts
+type UpdateStatus = Readonly<
+	| { state: 'idle' }
+	| { state: 'checking' }
+	| { state: 'downloading'; version: string }
+	| { state: 'up-to-date'; version: string }
+	| { state: 'failed'; error: string }
+	| { state: 'ready'; version: string }
+>;
 ```
 
 ## `browser:state-changed`

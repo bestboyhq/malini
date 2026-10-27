@@ -77,6 +77,8 @@ export {
 
 export { type WorkstreamCreationContext } from './domain/workstream-creation-context';
 
+export { type ConnectionProblem } from './domain/connection';
+
 export { type PullRequestActivity } from './domain/workstream-freshness';
 
 export {
@@ -184,6 +186,7 @@ export { keepActiveWorkstreamFreshHook } from './application/hooks/keep-active-w
 export { resumeProvisioningOnGithubCredentialHook } from './application/hooks/resume-provisioning-on-github-credential.hook';
 export { syncWorkstreamsHook } from './application/hooks/sync-workstreams.hook';
 export { trackWorkstreamChangeTotalsHook } from './application/hooks/track-workstream-change-totals.hook';
+export { watchGithubReachHook } from './application/hooks/watch-github-reach.hook';
 export { watchWorkstreamFilesChangedHook } from './application/hooks/watch-workstream-files-changed.hook';
 export { workstreamSnapshotsHook } from './application/hooks/workstream-snapshots.hook';
 
@@ -199,6 +202,7 @@ export { dependencyInstallQuery } from './application/queries/dependency-install
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
+export { connectionProblemQuery } from './application/queries/connection-problem.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
 export { workstreamSettingUpQuery } from './application/queries/workstream-setting-up.query.svelte';

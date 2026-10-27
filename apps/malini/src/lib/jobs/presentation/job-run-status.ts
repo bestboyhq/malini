@@ -25,5 +25,5 @@ export const CHAT_TURN_STATUS: Readonly<Record<ChatTurnStatus, JobRunStatusLook>
 	succeeded: JOB_RUN_STATUS.succeeded,
 	failed: JOB_RUN_STATUS.failed,
 	cancelled: JOB_RUN_STATUS.cancelled,
-	interrupted: { label: 'Interrupted', icon: 'pause', tone: 'text-fg-tertiary' },
+	interrupted: { label: 'Interrupted', icon: 'circle-pause', tone: 'text-fg-tertiary' },
 };
