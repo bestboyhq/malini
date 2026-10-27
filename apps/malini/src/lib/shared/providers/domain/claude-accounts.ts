@@ -22,3 +22,16 @@ export function normalizeRememberedClaudeAccounts(raw: unknown): string[] {
 		.filter((email): email is string => typeof email === 'string' && email.includes('@'))
 		.reduceRight<string[]>((remembered, email) => rememberClaudeAccount(remembered, email), []);
 }
+
+export function claudeSignInProgress(state: ClaudeSignInState): string | null {
+	switch (state) {
+		case 'switching':
+			return 'Switching accounts…';
+		case 'waiting-for-browser':
+			return 'Continue in your browser.';
+		case 'confirming':
+			return 'Checking the new sign-in…';
+		case 'idle':
+			return null;
+	}
+}

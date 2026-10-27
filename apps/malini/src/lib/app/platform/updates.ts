@@ -8,20 +8,18 @@ import {
 	type MenuItemConstructorOptions,
 } from 'electron';
 import electronUpdater from 'electron-updater';
-import { APP_UPDATE_STAGED_CHANNEL } from '$contract/events';
+import {
+	APP_UPDATE_STAGED_CHANNEL,
+	APP_UPDATE_STATUS_CHANGED_CHANNEL,
+	type UpdateStatus,
+} from '$contract/events';
 import type { MainContext } from '$main/context';
 import { describeError } from '$main/errors';
 import { BACKGROUND_WINDOW } from '$main/window';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
-
-type UpdateState = 'idle' | 'checking' | 'downloading' | 'ready';
-
-const MENU_LABELS: Record<Exclude<UpdateState, 'ready'>, string> = {
-	idle: 'Check for Updates…',
-	checking: 'Checking for Updates…',
-	downloading: 'Downloading Update…',
-};
+const UP_TO_DATE_SHOWN_MS = 8_000;
+const IDLE: UpdateStatus = { state: 'idle' };
 
 export interface Updates {
 	exit(): void;
@@ -32,11 +30,15 @@ export function startUpdates(
 	showUpdateItem: (item: MenuItemConstructorOptions) => void,
 ): Updates {
 	const exitNow = (): void => app.exit(0);
-	let staged = '';
+	let shown = IDLE;
+	let checkNow = (): void => {
+		throw new Error('this build does not update itself');
+	};
 	let restartToLatest = (): void => {
 		throw new Error('no update is ready to install');
 	};
-	commands.define('app.staged-update', () => staged || null);
+	commands.define('app.update-status', () => shown);
+	commands.define('app.check-for-updates', () => checkNow());
 	commands.define('app.restart-to-update', () => restartToLatest());
 	if (!app.isPackaged || !existsSync(join(process.resourcesPath, 'app-update.yml'))) {
 		return { exit: exitNow };
@@ -48,99 +50,85 @@ export function startUpdates(
 	const { autoUpdater } = electronUpdater;
 	autoUpdater.logger = null;
 	autoUpdater.autoDownload = false;
-	let state: UpdateState = 'idle';
-	let downloading = '';
+	let activity: UpdateStatus | null = null;
+	let outcome: UpdateStatus | null = null;
+	let staged = '';
 	let asked = false;
 	let restartOnceLatest = false;
 	let restartRequested = false;
 
-	const say = (message: string, detail: string): void => {
-		if (!BACKGROUND_WINDOW) void dialog.showMessageBox({ message, detail });
+	const show = (): void => {
+		const next =
+			(asked && activity) ||
+			(staged ? { state: 'ready' as const, version: staged } : (outcome ?? IDLE));
+		if (JSON.stringify(next) === JSON.stringify(shown)) return;
+		shown = next;
+		events.emit(APP_UPDATE_STATUS_CHANGED_CHANNEL, next);
 	};
 	const restart = (): void => {
 		restartRequested = true;
 		app.quit();
 	};
+	checkNow = (): void => {
+		asked = true;
+		show();
+		void check();
+	};
 	restartToLatest = (): void => {
 		restartOnceLatest = true;
 		void check();
 	};
-	const menuItem = (): MenuItemConstructorOptions =>
-		state === 'ready'
-			? { label: 'Restart to Update', click: restartToLatest }
-			: {
-					label: MENU_LABELS[state],
-					enabled: state === 'idle',
-					click: () => {
-						asked = true;
-						void check();
-					},
-				};
-	const set = (next: UpdateState): void => {
-		state = next;
-		showUpdateItem(menuItem());
-	};
-	const settle = (): void => {
-		set(staged ? 'ready' : 'idle');
+	const settle = (result: UpdateStatus | null): void => {
+		activity = null;
+		outcome = asked ? result : null;
+		asked = false;
+		show();
+		if (result?.state === 'up-to-date') {
+			setTimeout(() => {
+				if (outcome !== result) return;
+				outcome = null;
+				show();
+			}, UP_TO_DATE_SHOWN_MS);
+		}
 		if (restartOnceLatest) restart();
 	};
 
 	const check = async (): Promise<void> => {
-		if (state === 'checking' || state === 'downloading') return;
-		set('checking');
+		if (activity) return;
+		activity = { state: 'checking' };
+		show();
 		try {
 			const result = await autoUpdater.checkForUpdates();
 			const latest = result?.isUpdateAvailable ? result.updateInfo.version : staged;
-			if (latest === staged) {
-				settle();
-				if (asked) say('Malini is up to date.', `Version ${app.getVersion()} is the latest.`);
-				asked = false;
-				return;
-			}
-			downloading = latest;
-			set('downloading');
+			if (latest === staged) return settle({ state: 'up-to-date', version: app.getVersion() });
+			activity = { state: 'downloading', version: latest };
+			show();
 			autoUpdater.downloadUpdate().catch(() => {});
 		} catch (error) {
-			settle();
-			if (asked) say('Malini could not check for updates.', describeError(error));
-			asked = false;
+			settle({ state: 'failed', error: describeError(error) });
 		}
 	};
 
 	autoUpdater.on('error', (error) => {
 		console.warn('malini: update failed', error);
-		if (state !== 'downloading') return;
-		settle();
-		if (asked) say('Malini could not download the update.', describeError(error));
-		asked = false;
+		if (activity?.state !== 'downloading') return;
+		settle({ state: 'failed', error: describeError(error) });
 	});
-	const offerRestart = async (): Promise<void> => {
-		const { response } = await dialog.showMessageBox({
-			message: `Malini ${staged} is ready to install.`,
-			detail: 'Restart now, or it installs the next time you quit Malini.',
-			buttons: ['Restart to Update', 'Later'],
-			defaultId: 0,
-			cancelId: 1,
-		});
-		if (response === 0) restart();
-	};
 	squirrel.on('update-downloaded', () => {
-		staged = downloading;
-		settle();
+		if (activity?.state !== 'downloading') return;
+		staged = activity.version;
 		events.emit(APP_UPDATE_STAGED_CHANNEL, { version: staged });
-		if (!asked || restartOnceLatest || BACKGROUND_WINDOW) return;
-		asked = false;
-		void offerRestart();
+		settle(null);
 	});
 
-	set('idle');
+	showUpdateItem({ label: 'Check for Updates…', click: checkNow });
 	void check();
 	setInterval(() => void check(), CHECK_INTERVAL_MS);
 	powerMonitor.on('resume', () => void check());
 
 	return {
 		exit: () => {
-			if (!restartRequested || state !== 'ready') return exitNow();
+			if (!restartRequested || !staged || activity) return exitNow();
 			autoUpdater.once('error', exitNow);
 			autoUpdater.quitAndInstall();
 		},

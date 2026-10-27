@@ -1,5 +1,7 @@
+import { githubFailure } from '$contract/github-failure';
 import type { ShipStep } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
+import { GITHUB_PROBLEM_LABELS } from '$shared/repositories/domain/connection';
 import {
 	type PullRequestAvailability,
 	type PullRequestMenuItem,
@@ -228,13 +230,15 @@ function connectionBlocker(
 	if (read?.github?.session === 'reconnect-required') {
 		return attention('GitHub sign-in expired', null, RECONNECT);
 	}
+	if (surface?.localError) {
+		return attention("Couldn't read the worktree", surface.localError, RETRY);
+	}
 	const failure = surface === null ? null : surfaceFailure(surface);
 	if (!failure) return null;
-	return attention(
-		surface?.localError ? "Couldn't read the worktree" : 'GitHub is unreachable',
-		failure,
-		RETRY,
-	);
+	const kind = githubFailure(failure);
+	return kind
+		? attention(GITHUB_PROBLEM_LABELS[kind], null, RETRY)
+		: attention("Couldn't check GitHub", failure, RETRY);
 }
 
 function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {

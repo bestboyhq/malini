@@ -1,4 +1,4 @@
-# 0094 - Keep on a queued merge leaves the workstream open
+# 0095 - Keep on a queued merge leaves the workstream open
 
 Status: accepted
 
