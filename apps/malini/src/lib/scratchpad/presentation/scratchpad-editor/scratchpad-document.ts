@@ -15,6 +15,11 @@ export function readScratchpadDocument(content: string | null): ScratchpadDocume
 	}
 }
 
+export function isBlankScratchpad(doc: ProseMirrorNode): boolean {
+	const blank = doc.type.createAndFill();
+	return blank !== null && doc.eq(blank);
+}
+
 export type ScratchpadIdea = Readonly<{ title: string; detail: string }>;
 
 export function scratchpadIdeas(content: string | null): ScratchpadIdea[] {

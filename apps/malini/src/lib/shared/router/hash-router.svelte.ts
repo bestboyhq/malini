@@ -514,7 +514,11 @@ export class HashRouter {
 			navigationUrlOf(url),
 			input.type,
 		);
-		this.page = pageOf(url, match, input.state);
+		const state =
+			input.history === 'none'
+				? (readCoordinates(win.history.state)?.state ?? input.state)
+				: input.state;
+		this.page = pageOf(url, match, state);
 		this.view = { match, components };
 		this.navigating = null;
 		settle();
