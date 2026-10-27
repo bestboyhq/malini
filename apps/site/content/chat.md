@@ -147,7 +147,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
-- Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, and Space plays or pauses them; every image and video of the chat sits in its strip.
+- Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
   Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.

@@ -281,6 +281,7 @@
 									src={preview.src}
 									label={image.name}
 									autoplay={!prefersReducedMotion.current}
+									autohide
 									onerror={() => explainUnavailable(image)}
 								/>
 							</div>

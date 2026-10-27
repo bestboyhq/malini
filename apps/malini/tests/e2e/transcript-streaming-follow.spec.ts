@@ -55,9 +55,13 @@ async function longChat(app: LaunchedApp, workstreamId: string): Promise<string>
 	return sessionId;
 }
 
-async function startSampling(page: Page, rows: readonly string[]): Promise<void> {
+async function startSampling(
+	page: Page,
+	rows: readonly string[],
+	{ painted = false }: { painted?: boolean } = {},
+): Promise<void> {
 	await page.getByTestId('chat-message-scroller').evaluate(
-		(first, { scroller, rows, latestRun, composer }) => {
+		(first, { scroller, rows, latestRun, composer, painted }) => {
 			const doc = first.ownerDocument;
 			const state = { samples: [] as number[][], sampling: true };
 			globalThis.transcriptFrames = state;
@@ -73,7 +77,10 @@ async function startSampling(page: Page, rows: readonly string[]): Promise<void>
 				);
 				return composerTop - Math.max(...bottoms);
 			};
-			const sample = (frameMs: number): void => {
+			const view = doc.defaultView;
+			if (!view) throw new Error('the app page has no window');
+			let frameMs = performance.now();
+			const sample = (): void => {
 				if (!state.sampling) return;
 				state.samples.push([
 					doc.querySelector(scroller)?.scrollTop ?? Number.NaN,
@@ -81,11 +88,24 @@ async function startSampling(page: Page, rows: readonly string[]): Promise<void>
 					frameMs,
 					blankAboveComposer(),
 				]);
-				doc.defaultView?.requestAnimationFrame(sample);
 			};
-			sample(performance.now());
+			const sampleAfterEveryObserverBeforePaint = (): void => {
+				const lastObserver = new view.ResizeObserver(() => {
+					lastObserver.disconnect();
+					sample();
+				});
+				lastObserver.observe(doc.body);
+			};
+			const sampleEveryFrame = (timestampMs: number): void => {
+				if (!state.sampling) return;
+				frameMs = timestampMs;
+				if (painted) sampleAfterEveryObserverBeforePaint();
+				else sample();
+				view.requestAnimationFrame(sampleEveryFrame);
+			};
+			sampleEveryFrame(frameMs);
 		},
-		{ scroller: SCROLLER, rows, latestRun: LATEST_RUN, composer: COMPOSER },
+		{ scroller: SCROLLER, rows, latestRun: LATEST_RUN, composer: COMPOSER, painted },
 	);
 }
 
@@ -304,7 +324,7 @@ test('the working status holds still above the composer while the reply streams 
 		const reply = page.getByTestId('chat-message-bubble-live');
 		await expect(reply).toContainText('Streamed line 3 of 80.', { timeout: 10_000 });
 
-		await startSampling(page, [LATEST_STATUS]);
+		await startSampling(page, [LATEST_STATUS], { painted: true });
 		await expect(reply).toContainText('Streamed line 20 of 80.', { timeout: 10_000 });
 		const streaming = await stopSampling(page);
 
