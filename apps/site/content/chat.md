@@ -106,6 +106,13 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Always allow** also adds a permission rule for it to your Claude Code settings, so auto mode lets it through from then on.
 **Keep blocked** leaves the block in place, and the agent carries on without it.
 
+When auto mode cannot check a call because Anthropic's safety check is down, the chat does not ask you right away.
+Malini lets Claude retry the call up to three times over about a minute, so a short outage never reaches you, and each attempt shows as a **not checked** row.
+If the check stays down, the chat trusts edits the way **Sandboxed** does: edits inside the workstream go through, and everything else asks, saying auto mode couldn't check the call.
+Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
+**Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
+Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
+
 A chat also answers for the work it started.
 When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
 Several requests wait in one queue and show one at a time, with **‹ 1 of 3 ›** to move between them.
@@ -144,6 +151,7 @@ Each variant is a tab under the report's frame, and the before and after sits pa
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.

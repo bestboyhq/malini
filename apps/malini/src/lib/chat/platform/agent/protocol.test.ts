@@ -193,6 +193,18 @@ describe('event frames', () => {
 		});
 	});
 
+	it('keeps that auto mode could not check a call it asks about', () => {
+		const unchecked = {
+			type: 'approval.requested',
+			sessionId: 's',
+			runId: 'r',
+			approvalId: 'a',
+			reason: "Auto mode couldn't check this call: Anthropic's safety check is down.",
+			autoModeUnavailable: true,
+		};
+		expect(decode(unchecked)).toEqual(unchecked);
+	});
+
 	it('drops optional fields that arrive as null, like serde Option', () => {
 		const event = decode({
 			type: 'tool.started',

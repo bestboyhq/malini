@@ -48,6 +48,8 @@
 	import { sessionChangesTargetQuery } from '$lib/chat/application/queries/session-changes-target.query.svelte';
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
+	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
+	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
 	import type { AgentElementReference } from '$lib/chat/domain/element-reference';
 	import type { AgentTranscriptReference } from '$lib/chat/domain/transcript-reference';
@@ -71,10 +73,10 @@
 	import ChatSessionError from './ChatSessionError.svelte';
 	import ChatTabs from './ChatTabs.svelte';
 	import ChildRequestQueue from './ChildRequestQueue.svelte';
-	import ChildRequestsWaiting from './ChildRequestsWaiting.svelte';
 	import { childRequestSteps } from './child-request-steps';
 	import FreshChatSuggestions from './FreshChatSuggestions.svelte';
 	import QueuedPromptList from './QueuedPromptList.svelte';
+	import RequestsWaiting from './RequestsWaiting.svelte';
 	import type { TranscriptComposerControls } from './chat-message-list/transcript-context';
 	import { chatStage } from './chat-stage';
 
@@ -107,7 +109,7 @@
 	const releaseSessionChanges = watchSessionChangesHook();
 	const releaseAgentLifecycle = watchAgentLifecycleHook();
 	const releaseChildRequests = followChildRequestsHook(() =>
-		askingChildren.map((child) => child.sessionId),
+		[...askingChildren, ...waitingElsewhere].map((child) => child.sessionId),
 	);
 
 	onMount(() => {
@@ -154,6 +156,15 @@
 	const askingChildren = $derived(askingChildrenQuery.data(workstreamId, sessionId, jobRuns));
 	const childSteps = $derived(
 		childRequestSteps(askingChildren, childRequestsQuery.approvals, childRequestsQuery.questions),
+	);
+	const waitingElsewhere = $derived(waitingElsewhereQuery.data(sessionId, askingChildren));
+	const uncheckedSteps = $derived(
+		childRequestSteps(
+			waitingElsewhere,
+			(waitingSessionId) =>
+				childRequestsQuery.approvals(waitingSessionId).filter(isUncheckedApproval),
+			() => [],
+		),
 	);
 	const draftScope = $derived(agentDraftScopeKey(workstreamId, sessionId));
 	const scopedDraft = $derived(composerDraftQuery.data(draftScope));
@@ -221,8 +232,17 @@
 		childSteps.length > 0 && childSteps.every((step) => answerLaterKeys.has(step.key)),
 	);
 	const answeringChildren = $derived(childSteps.length > 0 && !childRequestsAside && !asking);
-	const composerHidden = $derived(asking || answeringChildren);
+	let answeringUnchecked = $state(false);
+	const showsUncheckedQueue = $derived(
+		answeringUnchecked && uncheckedSteps.length > 0 && !asking && !answeringChildren,
+	);
+	const composerHidden = $derived(asking || answeringChildren || showsUncheckedQueue);
 	const childRequestsWaiting = $derived(childRequestsAside && !asking);
+	const uncheckedCallsWaiting = $derived(uncheckedSteps.length > 0 && !showsUncheckedQueue);
+
+	$effect(() => {
+		if (uncheckedSteps.length === 0) answeringUnchecked = false;
+	});
 	let composerSlot: HTMLElement | null = $state(null);
 	let wasHidden = false;
 
@@ -471,7 +491,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -485,9 +505,19 @@
 
 												{#if childRequestsWaiting}
 													<div transition:slide={foldMotion()}>
-														<ChildRequestsWaiting
+														<RequestsWaiting
 															count={childSteps.length}
 															onanswer={() => (answerLaterKeys = new Set())}
+														/>
+													</div>
+												{/if}
+
+												{#if uncheckedCallsWaiting}
+													<div transition:slide={foldMotion()}>
+														<RequestsWaiting
+															count={uncheckedSteps.length}
+															unchecked
+															onanswer={() => (answeringUnchecked = true)}
 														/>
 													</div>
 												{/if}
@@ -544,6 +574,11 @@
 									<ChildRequestQueue
 										steps={childSteps}
 										onlater={() => (answerLaterKeys = new Set(childSteps.map(({ key }) => key)))}
+									/>
+								{:else if showsUncheckedQueue}
+									<ChildRequestQueue
+										steps={uncheckedSteps}
+										onlater={() => (answeringUnchecked = false)}
 									/>
 								{/if}
 								<div bind:this={composerSlot} class={[composerHidden && 'hidden']}>

@@ -86,6 +86,7 @@ export type AgentEvent =
 			input?: unknown;
 			permission?: ProviderPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: true;
 	  }
 	| {
 			type: 'question.requested';

@@ -1093,6 +1093,7 @@ export async function decideAgentApproval(
 	input: DecideApprovalInput,
 	resolveSupervisor: () => Promise<BridgeSupervisor>,
 	ids: IdSequence,
+	emit: EmitEnvelope,
 ): Promise<AgentApprovalDecisionResult> {
 	const { sessionId, runId, approvalId } = input;
 	const { decision, scope } = checkedDecision(input.decision, input.scope);
@@ -1205,6 +1206,26 @@ export async function decideAgentApproval(
 						permission: remembered.permission,
 					},
 	});
+	try {
+		emitPersisted(
+			db,
+			{
+				sessionId,
+				runId,
+				seq: 0,
+				eventKind: 'approval.decided',
+				eventPayload: {
+					approvalId,
+					decision,
+					scope,
+					remembered: ruleId !== null,
+					...(alwaysAllow ? { alwaysAllow } : {}),
+					...(updatedInput ? { reviewed: true } : {}),
+				},
+			},
+			emit,
+		);
+	} catch {}
 	return approvalDecisionResult(decision, scope, ruleId);
 }
 
@@ -1662,6 +1683,7 @@ export function defineBridgeCommands(
 			},
 			() => runtime.ensureSessionReady(sessionId),
 			ids,
+			emit,
 		);
 	});
 

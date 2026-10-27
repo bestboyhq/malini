@@ -83,6 +83,7 @@ export class ProviderInteractionBroker implements ProviderInteractionRequester {
 			...(request.input !== undefined ? { input: request.input } : {}),
 			...(request.permission ? { permission: request.permission } : {}),
 			...(request.autoModeRule ? { autoModeRule: request.autoModeRule } : {}),
+			...(request.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
 		});
 		return pending.promise;
 	}

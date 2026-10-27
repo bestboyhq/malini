@@ -123,6 +123,7 @@ export type RenderItem =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: true;
 			review?: MaliniEditReview;
 	  }
 	| {
@@ -374,6 +375,7 @@ export function renderInteractionItem(
 					}
 				: {}),
 			...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
+			...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
 		};
 	}
 	if (event.type === 'question.requested') {

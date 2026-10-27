@@ -56,6 +56,8 @@ export type RecordedScenario =
 	| 'nonStreamingFallback'
 	| 'autoModeBlock'
 	| 'blockedRetry'
+	| 'classifierBlip'
+	| 'classifierOutage'
 	| 'compact'
 	| 'usageLimit'
 	| 'rateLimit'

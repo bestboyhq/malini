@@ -97,6 +97,8 @@ const repliedRuns = new Set();
 const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
+const uncheckedRuns = new Set();
+const UNCHECKED_INPUT = { command: 'node -e "console.log(6*7)"', description: 'Print 6*7' };
 const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
@@ -790,6 +792,48 @@ const respond = async (sessionId, runId, prompt) => {
 		});
 		return;
 	}
+	if (prompt.includes('AUTO_MODE_DOWN')) {
+		pendingRuns.set(runId, sessionId);
+		uncheckedRuns.add(runId);
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			error:
+				'The server-side auto mode classifier gave no verdict (error), so auto mode cannot determine the safety of Bash.',
+			autoModeReason: 'Classifier unavailable',
+		});
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-2',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-unchecked-1',
+			reason: "Auto mode couldn't check this call: Anthropic's safety check is down.",
+			toolName: 'Bash',
+			input: UNCHECKED_INPUT,
+			permission: {
+				capability: 'execute',
+				resources: [{ kind: 'command', value: UNCHECKED_INPUT.command, boundary: 'unknown' }],
+			},
+			autoModeUnavailable: true,
+		});
+		return;
+	}
 	if (prompt.includes('MALINI_UNASKED_TOOL')) {
 		const call = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'malini-tool.json'), 'utf8'));
 		pendingRuns.set(runId, sessionId);
@@ -1250,6 +1294,34 @@ const handle = (command) => {
 			return ack(command.id);
 		case 'approve': {
 			ack(command.id);
+			if (uncheckedRuns.delete(command.runId)) {
+				event(
+					command.decision === 'allow'
+						? {
+								type: 'tool.completed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								output: '42',
+							}
+						: {
+								type: 'tool.failed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								error:
+									'The user kept this call blocked. Carry on with the rest of the task without it.',
+								autoModeReason: 'Classifier unavailable',
+							},
+				);
+				completeRun(
+					command.sessionId,
+					command.runId,
+					['unchecked', command.decision, command.scope].join(':'),
+				);
+				pendingRuns.delete(command.runId);
+				return;
+			}
 			if (blockedRuns.delete(command.runId)) {
 				event({
 					type: 'tool.failed',

@@ -228,7 +228,7 @@
 					disabled={submitting}
 					onclick={() => decideApproval(item, 'deny', 'once')}
 				>
-					{item.autoModeRule ? 'Keep blocked' : 'Deny'}
+					{item.autoModeRule || item.autoModeUnavailable ? 'Keep blocked' : 'Deny'}
 				</Button>
 				{#if item.autoModeRule}
 					{@const rule = item.autoModeRule}

@@ -40,7 +40,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).not.toContain('routine');
 		expect(prompt).toContain('.malini/agent-attachments');
 		expect(prompt).toContain('git commit');
-		expect(prompt).toContain('the user approved that exact call in Malini');
+		expect(prompt).toContain('means Malini lets you try that exact call again');
 		expect(prompt).toContain('Never ask the user to test, try or review your work');
 		expect(prompt).toContain('open that file for them with `files_open`');
 		expect(prompt).toContain('with the name of every secret you need in `keys`');
@@ -52,6 +52,7 @@ describe('systemPromptAppend', () => {
 		expect(prompt).toContain('`#t=<seconds>` to the After path');
 		expect(prompt).toContain('`![Variant A: Name - one-line note](path)`');
 		expect(prompt).toContain('`Go with variant B (Name).`');
+		expect(prompt).toContain('switcher, fixed at the bottom center of the page');
 		expect(prompt).toContain('every picture you embed as a tab of one frame in the report');
 		expect(prompt).toContain('never label a lone option a variant');
 		expect(prompt).toContain('every other prototype only under `.context/`');
