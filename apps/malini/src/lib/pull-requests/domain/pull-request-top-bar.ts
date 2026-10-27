@@ -483,6 +483,7 @@ const KEEP: PullRequestTopBarAction = {
 	ariaLabel: 'Keep this workstream after it merges',
 	tone: 'secondary',
 	confirmLabel: null,
+	tooltip: 'Skip archiving after the merge',
 };
 
 const OPEN_PULL_REQUEST: PullRequestTopBarAction = {

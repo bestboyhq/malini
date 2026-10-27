@@ -252,7 +252,8 @@
 {#snippet statusAction(action: GlobalTopBarStatusAction, armId: string, testId: string)}
 	{@const armed = armedDetailId === armId}
 	{@const iconOnly = dockCompact && !armed}
-	<Tooltip content={action.label} placement="bottom" suppressed={!iconOnly}>
+	{@const tooltip = iconOnly ? action.label : action.tooltip}
+	<Tooltip content={tooltip ?? ''} placement="bottom" suppressed={!tooltip}>
 		<!-- eslint-disable-next-line @malini/desktop/no-raw-button -- the top bar draws `topbar-action` and `github-panel__link` from this component's own scoped style block, and Svelte scoping does not reach a child component's element, so a Button here would render unstyled. -->
 		<button
 			type="button"
