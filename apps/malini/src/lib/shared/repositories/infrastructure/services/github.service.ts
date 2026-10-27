@@ -1,3 +1,6 @@
+import { REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL } from '$contract/events';
+import type { GithubReach } from '$contract/github-failure';
+import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 import {
 	GitHubAuthRequiredError,
@@ -17,6 +20,16 @@ import { RepositoryMapper } from '$shared/repositories/infrastructure/mappers/re
 class GithubService {
 	authStatus(): Promise<GitHubAuthStatus> {
 		return withGitHubAuth(() => invoke('repositories.github-auth-status', undefined));
+	}
+
+	reach(): Promise<GithubReach> {
+		return invoke('repositories.github-reach', undefined);
+	}
+
+	onReachChanged(listener: (reach: GithubReach) => void): () => void {
+		return onPlatformEvent(REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL, ({ reach }) =>
+			listener(reach),
+		);
 	}
 
 	startSignIn(): Promise<GitHubDeviceCode> {

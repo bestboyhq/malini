@@ -1,14 +1,18 @@
-import { APP_UPDATE_STAGED_CHANNEL } from '$contract/events';
+import { APP_UPDATE_STATUS_CHANGED_CHANNEL, type UpdateStatus } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
 
 class UpdatesService {
-	staged(): Promise<string | null> {
-		return invoke('app.staged-update', undefined);
+	status(): Promise<UpdateStatus> {
+		return invoke('app.update-status', undefined);
 	}
 
-	onStaged(listener: (version: string) => void): () => void {
-		return onPlatformEvent(APP_UPDATE_STAGED_CHANNEL, ({ version }) => listener(version));
+	onStatus(listener: (status: UpdateStatus) => void): () => void {
+		return onPlatformEvent(APP_UPDATE_STATUS_CHANGED_CHANNEL, listener);
+	}
+
+	check(): Promise<void> {
+		return invoke('app.check-for-updates', undefined);
 	}
 
 	restart(): Promise<void> {
