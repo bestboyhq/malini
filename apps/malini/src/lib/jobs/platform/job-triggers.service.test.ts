@@ -1,9 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JOBS_RUN_CHANGED_CHANNEL, PULL_REQUESTS_SHIP_CHANGED_CHANNEL } from '$contract/events';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+	JOBS_RUN_CHANGED_CHANNEL,
+	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+} from '$contract/events';
 import type { JobDefinitionRecord, JobRunRecord, JobTrigger } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
@@ -18,8 +23,7 @@ let context: MainContext;
 let jobs: JobsPlatform;
 let logged: string[];
 
-beforeEach(() => {
-	db = openMigratedDatabase(':memory:');
+function start(): void {
 	context = {
 		db,
 		commands: new CommandRegistry(),
@@ -31,6 +35,11 @@ beforeEach(() => {
 	};
 	context.commands.define('app.list-settings', () => ({}));
 	context.commands.define('chat.workstream-has-working-run', () => true);
+	jobs = registerJobs(context, { log: (line) => logged.push(line) });
+}
+
+beforeEach(() => {
+	db = openMigratedDatabase(':memory:');
 	upsertProject(db, {
 		id: 'repo-1',
 		name: 'repo-1',
@@ -51,7 +60,7 @@ beforeEach(() => {
 		startedBy: null,
 	});
 	logged = [];
-	jobs = registerJobs(context, { log: (line) => logged.push(line) });
+	start();
 });
 
 afterEach(() => {
@@ -86,7 +95,7 @@ function shipMerged(): void {
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
 
 describe('job triggers', () => {
-	it('asks for a run on a matching event, waiting for you when the trigger asks first', async () => {
+	it('asks for a run on each matching event, waiting for you when the trigger asks first', async () => {
 		const auto = await job('Clean up', { when: SHIP_MERGED, mode: 'auto' });
 		const ask = await job('Write notes', { when: SHIP_MERGED, mode: 'ask' });
 		const off = await job('Never', { when: SHIP_MERGED, mode: 'off' });
@@ -102,11 +111,42 @@ describe('job triggers', () => {
 			origin: 'trigger',
 			workstreamId: 'ws-1',
 			parentRunId: null,
+			requests: 2,
 		});
 		expect(await runsOf(ask)).toEqual([
-			expect.objectContaining({ status: 'waiting', origin: 'trigger', workstreamId: 'ws-1' }),
+			expect.objectContaining({
+				status: 'waiting',
+				origin: 'trigger',
+				workstreamId: 'ws-1',
+				requests: 2,
+			}),
 		]);
 		expect(await runsOf(off)).toEqual([]);
+	});
+
+	it('starts a job again on an event that repeats an earlier payload, but never twice on one event across a restart', async () => {
+		const greet = await job('Greet', { when: 'on pull-requests:workstream-opened', mode: 'ask' });
+		const open = (): void =>
+			context.events.emit(PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL, { workstreamId: 'ws-1' });
+		const statuses = async () => (await runsOf(greet)).map(({ status }) => status);
+
+		open();
+		await settle();
+		const [first] = await runsOf(greet);
+		await context.commands.call('jobs.cancel-run', { jobRunId: first?.id ?? '' });
+		open();
+		await settle();
+		expect(await statuses()).toEqual(['waiting', 'cancelled']);
+
+		jobs.dispose();
+		db.exec(
+			`UPDATE event_log SET handled_at = NULL WHERE channel = '${PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL}'`,
+		);
+		start();
+		await vi.waitFor(() =>
+			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
+		);
+		expect(await statuses()).toEqual(['waiting', 'cancelled']);
 	});
 
 	it('ignores an event whose payload misses a condition', async () => {
