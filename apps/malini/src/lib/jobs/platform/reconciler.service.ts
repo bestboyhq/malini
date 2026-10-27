@@ -27,7 +27,11 @@ import {
 	userSessionWorkstreamId,
 	workChatTurnInWorkstream,
 } from '$lib/chat/chat.platform';
-import { getWorkstream, listWorkstreams } from '$shared/repositories/repositories.platform';
+import {
+	getWorkstream,
+	listWorkstreams,
+	workstreamLeads,
+} from '$shared/repositories/repositories.platform';
 import { isRunnableJob } from '../domain/builtin-jobs';
 import { workstreamWasBusy } from '../domain/job-run';
 import {
@@ -570,7 +574,11 @@ export class Reconciler {
 		const { commands, db } = this.#context;
 		try {
 			if ((await commands.call('app.notification-permission-granted', undefined)) !== true) return;
-			const workstreamId = decision.workstreamId;
+			const workstreamId =
+				decision.workstreamId === null
+					? null
+					: (workstreamLeads(listWorkstreams(db)).get(decision.workstreamId) ??
+						decision.workstreamId);
 			const session = workstreamId === null ? null : latestSessionForWorkstream(db, workstreamId);
 			await commands.call('app.notify', {
 				options: {

@@ -56,6 +56,7 @@ export {
 } from './domain/repository-context';
 
 export { displayWorkstreamName, generatedWorkstreamName } from './domain/workstream-names';
+export { workstreamLeads } from './domain/workstream-leads';
 
 export {
 	HOME_SCOPE,

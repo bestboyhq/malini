@@ -4,6 +4,7 @@ import {
 	progressDot,
 	progressLabel,
 	shipTargets,
+	treeDot,
 	standingLabel,
 	type ProgressInput,
 	type ShipCandidate,
@@ -110,5 +111,13 @@ describe('lead progress', () => {
 				candidate('shipping', { changed: true, shipping: true }),
 			]),
 		).toEqual({ draft: ['changed', 'working'], merge: ['changed', 'working', 'draft', 'open'] });
+	});
+
+	it('files a chat by the most pressing state of the work it started', () => {
+		expect(treeDot('idle', ['merged', 'needs', 'running'])).toBe('needs');
+		expect(treeDot('running', ['failed'])).toBe('failed');
+		expect(treeDot('idle', ['running', 'merged'])).toBe('running');
+		expect(treeDot('merged', ['idle'])).toBe('merged');
+		expect(treeDot('idle', [])).toBe('idle');
 	});
 });

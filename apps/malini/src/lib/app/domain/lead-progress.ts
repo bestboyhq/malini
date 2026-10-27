@@ -22,6 +22,12 @@ export function progressDot(input: ProgressInput): ProgressDot {
 	return 'idle';
 }
 
+const PRESSING_DOTS: readonly ProgressDot[] = ['needs', 'failed', 'running'];
+
+export function treeDot(lead: ProgressDot, started: readonly ProgressDot[]): ProgressDot {
+	return PRESSING_DOTS.find((dot) => dot === lead || started.includes(dot)) ?? lead;
+}
+
 export function progressOf(dots: readonly ProgressDot[]): Progress {
 	const count = (dot: ProgressDot): number => dots.filter((entry) => entry === dot).length;
 	return {

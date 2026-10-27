@@ -142,7 +142,7 @@ test('a merged workstream a chat started opens its pull request from the number 
 	}
 });
 
-test('Merge all on a chat queues Merge in the workstreams it started, which merge once their agents finish', async () => {
+test('Draft all and Merge all on a chat ship the workstreams it started once their agents finish', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -171,33 +171,70 @@ test('Merge all on a chat queues Merge in the workstreams it started, which merg
 		await expect(topBarStatus(page, /^0 of 1 merged · 1 working/u)).toBeVisible({
 			timeout: 20_000,
 		});
-		const draftAll = page.getByRole('button', { name: 'Open draft pull requests in 1 workstream' });
-		const mergeAll = page.getByRole('button', { name: 'Merge 1 workstream' });
+		const topBar = page.getByRole('navigation', { name: 'Global actions' });
+		const draftAll = topBar.getByRole('button', {
+			name: 'Open draft pull requests in 1 workstream',
+		});
+		const mergeAll = topBar.getByRole('button', { name: 'Merge 1 workstream' });
 		await expect(draftAll).toBeEnabled();
 		await expect(mergeAll).toBeEnabled();
 		await captureFlow(app, 'lead-merge-all-offered');
 
-		await mergeAll.click();
-		const queued = page.getByRole('region', { name: 'Jobs (1)', exact: true }).getByRole('button', {
-			name: `Merge job in ${name}, Queued. The transcript opens once the job starts`,
+		await draftAll.click();
+		const tray = page.getByRole('region', { name: 'Jobs (1)', exact: true });
+		const drafting = tray.getByRole('button', {
+			name: `Open draft job in ${name}, Queued. The transcript opens once the job starts`,
 		});
-		await expect(queued).toBeVisible({ timeout: 20_000 });
+		await expect(drafting).toBeVisible({ timeout: 20_000 });
 		await expect(mergeAll).toHaveCount(0);
 		await expect(draftAll).toHaveCount(0);
 		await page.waitForTimeout(2_000);
-		await expect(queued).toBeVisible();
-		await captureFlow(app, 'lead-merge-all-queued');
+		await expect(drafting).toBeVisible();
+		await captureFlow(app, 'lead-draft-all-queued');
 
 		holdAgentRuns(app, false);
 		await expect.poll(() => github.pullRequest(), { timeout: 60_000 }).not.toBeNull();
+		expect(github.pullRequest()).toMatchObject({ isDraft: true, title: 'feat: add alpha' });
+
+		await page
+			.getByRole('navigation', { name: 'Connected repositories' })
+			.getByTestId('sidebar-chat')
+			.filter({ hasText: 'Ship hutch' })
+			.hover();
+		const card = page.getByTestId('sidebar-started-card');
+		const mergeFromCard = card.getByRole('button', { name: 'Merge 1 workstream' });
+		await expect(mergeFromCard).toBeVisible({ timeout: 30_000 });
+		await expect(
+			card.getByRole('button', { name: 'Open draft pull requests in 1 workstream' }),
+		).toHaveCount(0);
+		await captureFlow(app, 'lead-merge-all-card');
 		github.setPullRequest({
 			mergeable: 'MERGEABLE',
 			mergeStateStatus: 'CLEAN',
 			statusCheckRollup: PASSED,
 		});
+		await mergeFromCard.click();
+
 		await expect(topBarStatus(page, /^1 of 1 merged/u)).toBeVisible({ timeout: 90_000 });
-		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', title: 'feat: add alpha' });
+		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', isDraft: false });
 		await expect(mergeAll).toHaveCount(0);
+		const jobs = await invoke<{ title: string; status: string; chatSessionId: string | null }[]>(
+			page,
+			'jobs.list-runs',
+			undefined,
+		);
+		const sessions = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
+			workstreamId: 'e2e-lead-merges-all',
+		});
+		expect(
+			jobs
+				.filter(({ title }) => title === 'Open draft' || title === 'Merge')
+				.map(({ title, status, chatSessionId }) => [title, status, chatSessionId])
+				.sort(),
+		).toEqual([
+			['Merge', 'succeeded', sessions[0]?.id],
+			['Open draft', 'succeeded', sessions[0]?.id],
+		]);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'lead-merge-all-merged');
 		expectCleanConsole(app);

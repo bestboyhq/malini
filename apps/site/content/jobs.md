@@ -207,7 +207,7 @@ The model only picks one of them, by number, and Malini checks the pick before i
 - **Wake**: the report arrives in the chat that started the work as a prompt from that workstream, beginning "Malini woke you".
   When that chat is on a turn, the report waits and arrives with any others when the turn ends.
   The agent answers its workstreams with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back).
-- **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification.
+- **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification, which opens the work, or the top-most chat that started it.
 - **Run again** asks first, unless the job runs on its own.
 
 Every pick shows in Activity, with what Malini saw, every choice it had, and who picked: the model, Malini's rules, or you.

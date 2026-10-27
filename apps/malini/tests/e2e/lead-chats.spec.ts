@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -231,6 +232,66 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 		await expect(started.getByRole('link', { name: /^acme\/api, / })).toBeVisible();
 		await expect(started.getByRole('group', { name: /^solo\/site, .*, Archived, / })).toBeVisible();
 		await captureFlow(app, 'lead-chat-started-card');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a workstream a chat started stays quiet in the sidebar, and the chat says what it needs', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-quiet-api', 'Api work');
+		await invoke(page, 'app.set-setting', { key: JOBS_RECONCILER_SETTING, value: 'off' });
+		await page.reload();
+		await startChat(page, 'home', 'Ship analytics');
+		agentCalls(app, {
+			tool: 'workstreams_create',
+			input: {
+				repository: 'acme/api',
+				prompt:
+					'TITLE="Api analytics" TURN_OUTCOME="The endpoint answers" TURN_NEEDS="Pick the Logdash project"',
+			},
+		});
+		await allowOnce(page, 'Start a workstream in ‘acme/api’');
+
+		const lead = sidebar(page).getByTestId('sidebar-chat').filter({ hasText: 'Ship analytics' });
+		const child = sidebar(page)
+			.getByTestId('sidebar-workstream')
+			.filter({ hasText: 'Api analytics' });
+		await expect(child.getByRole('status', { name: /^Workstream status: Needs you/u })).toBeVisible(
+			{ timeout: 60_000 },
+		);
+		await expect(child.getByRole('status', { name: /needs your input/u })).toHaveCount(0);
+		await expect(
+			lead.getByRole('status', { name: /· A workstream it started needs your input$/u }),
+		).toBeVisible();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-quiet-children');
+
+		await page
+			.getByRole('group', { name: 'Focus' })
+			.getByRole('button', { name: 'Group and sort' })
+			.click();
+		await choose(page, 'Grouping', 'Status');
+		await page.keyboard.press('Escape');
+		const needsYou = sidebar(page)
+			.getByTestId('sidebar-section')
+			.filter({ has: page.getByRole('button', { name: /^Needs you, /u }) });
+		await expect(
+			needsYou.getByTestId('sidebar-chat').filter({ hasText: 'Ship analytics' }),
+		).toBeVisible();
+		await expect(
+			needsYou
+				.getByRole('list', { name: 'Started by Ship analytics' })
+				.getByTestId('sidebar-workstream')
+				.filter({ hasText: 'Api analytics' }),
+		).toBeVisible();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-quiet-children-status');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

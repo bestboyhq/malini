@@ -33,6 +33,7 @@ let picks: number[];
 let asked: string[];
 let sent: Array<Readonly<Record<string, unknown>>>;
 let busyWakes: number;
+let notified: unknown[];
 
 beforeEach(() => {
 	db = openMigratedDatabase(':memory:');
@@ -41,6 +42,7 @@ beforeEach(() => {
 	asked = [];
 	sent = [];
 	busyWakes = 0;
+	notified = [];
 	seed();
 	boot();
 });
@@ -61,7 +63,10 @@ function boot(): void {
 		appVersion: '0.0.0-test',
 	};
 	context.commands.define('app.list-settings', () => settings);
-	context.commands.define('app.notification-permission-granted', () => false);
+	context.commands.define('app.notification-permission-granted', () => true);
+	context.commands.define('app.notify', (args: unknown) => {
+		notified.push(args);
+	});
 	context.commands.define('chat.workstream-has-working-run', () => true);
 	context.commands.define('chat.send-prompt', (args: unknown) => {
 		if (busyWakes > 0) {
@@ -234,6 +239,15 @@ describe('the event reconciler', () => {
 			label: 'Ask you',
 			reason: '“Api analytics” needs you: Which Logdash project?',
 		});
+		expect(notified).toEqual([
+			{
+				options: {
+					title: 'Malini asks you',
+					body: '“Api analytics” needs you: Which Logdash project?',
+					opens: { workstreamId: 'lead', sessionId: 'lead-chat' },
+				},
+			},
+		]);
 
 		const done = await context.commands.call('jobs.decide', {
 			decisionId: asking?.id ?? '',
