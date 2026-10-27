@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { captureFlow, expectCleanConsole, launchMalini, openWorkstream } from './harness';
 import {
 	WORKSTREAM_NAME,
-	expectMerged,
+	expectMergedAndArchived,
 	queueMerge,
 	reviewThread,
 	seedWorkstreamOnFakeGithub,
@@ -98,7 +98,7 @@ test('bot review threads the branch already addresses are resolved without a pus
 
 		await queueMerge(page);
 
-		await expectMerged(page, 'e2e-addressed');
+		await expectMergedAndArchived(page, 'e2e-addressed');
 		expect(threadStates(github)).toEqual([
 			['PRRT_rename', true],
 			['PRRT_tests', true],

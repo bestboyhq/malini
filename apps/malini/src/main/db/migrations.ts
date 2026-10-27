@@ -1074,6 +1074,7 @@ UPDATE job_definitions SET name = 'Choose a reaction'
   WHERE builtin = 'reconcile' AND name = 'Reconcile events';
 DELETE FROM settings WHERE key = 'jobs.reconciler';
 `,
+	`ALTER TABLE workstream_ship ADD COLUMN keep_workstream INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

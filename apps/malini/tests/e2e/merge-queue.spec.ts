@@ -18,6 +18,7 @@ import {
 import {
 	archiveMerged,
 	expectMerged,
+	expectMergedAndArchived,
 	holdAgentRuns,
 	openPullRequestDetail,
 	queueMerge,
@@ -34,7 +35,7 @@ const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
-test('Merge marks the draft ready, waits for the checks, merges, and leaves archiving to you', async () => {
+test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -68,7 +69,7 @@ test('Merge marks the draft ready, waits for the checks, merges, and leaves arch
 
 		github.setPullRequest({ statusCheckRollup: PASSED });
 
-		await expectMerged(page, 'e2e-queue-merge');
+		await expectMergedAndArchived(page, 'e2e-queue-merge', name);
 		expect(mergeCalls(github)).toEqual([
 			[
 				'pr',
@@ -83,7 +84,54 @@ test('Merge marks the draft ready, waits for the checks, merges, and leaves arch
 		]);
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
 		await captureFlow(app, 'merge-queue-merged');
-		await archiveMerged(page, 'e2e-queue-merge', name);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Keep on a queued merge leaves the workstream open on Merged once it lands', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-merge-keep', null);
+		await openWorkstream(page, 'e2e-merge-keep');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: RUNNING,
+		});
+		const name = await workstreamName(page, 'e2e-merge-keep');
+		await queueMerge(page);
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		await captureFlow(app, 'merge-queue-keep-offered');
+
+		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).click();
+
+		await expect(topBarStatus(page, 'Queued to merge and keep · Waiting for checks')).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Keep this workstream after it merges' }),
+		).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Cancel the queued merge' })).toBeEnabled();
+		github.setPullRequest({ statusCheckRollup: PASSED });
+
+		await expectMerged(page, 'e2e-merge-keep');
+		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
+		await expect(sidebarStatus(page, 'e2e-merge-keep')).toHaveAttribute(
+			'data-workstream-pull-request-state',
+			'merged',
+		);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'merge-queue-kept-merged');
+		await archiveMerged(page, 'e2e-merge-keep', name);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -120,8 +168,7 @@ test('a merged workstream a chat started opens its pull request from the number 
 		});
 		const name = await workstreamName(page, 'e2e-lead-merged');
 		await queueMerge(page);
-		await expectMerged(page, 'e2e-lead-merged');
-		await archiveMerged(page, 'e2e-lead-merged', name);
+		await expectMergedAndArchived(page, 'e2e-lead-merged', name);
 
 		await recordBrowser(app);
 		await openWorkstream(page, 'e2e-lead-ships');
@@ -287,14 +334,13 @@ test('a command the agent left running in the background does not hold the merge
 		const name = await workstreamName(page, 'e2e-merge-dev-server');
 		await queueMerge(page);
 
-		await expectMerged(page, 'e2e-merge-dev-server');
+		await expectMergedAndArchived(page, 'e2e-merge-dev-server', name);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'merge-queue-background-command-merged');
 		expect(mergeCalls(github)).toHaveLength(1);
 		expect(
 			await invoke(page, 'chat.workstream-has-open-run', { workstreamId: 'e2e-merge-dev-server' }),
 		).toBe(false);
-		await archiveMerged(page, 'e2e-merge-dev-server', name);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -346,7 +392,7 @@ test('a failing check starts a Fix checks job whose transcript opens from the Jo
 		await expectAssistantReply(page);
 		await captureFlow(app, 'merge-queue-job-transcript');
 
-		await expectMerged(page, 'e2e-fix-checks');
+		await expectMergedAndArchived(page, 'e2e-fix-checks');
 		expect(github.pushedSubjects()[0]).toBe('Fix failing checks');
 		expect(mergeCalls(github)).toHaveLength(1);
 		const finishedJobs = page.getByRole('region', { name: 'Jobs: 1 finished recently' });
@@ -466,7 +512,7 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 		const detail = await openPullRequestDetail(page);
 		await detail.getByRole('button', { name: 'Retry', exact: true }).click();
 
-		await expectMerged(page, 'e2e-merge-blocked');
+		await expectMergedAndArchived(page, 'e2e-merge-blocked');
 		expect(mergeCalls(github)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {

@@ -13,7 +13,8 @@ export type ShipStep =
 	| 'waiting-for-checks'
 	| 'waiting-for-review'
 	| 'waiting-for-github'
-	| 'merging';
+	| 'merging'
+	| 'archiving';
 
 export type ShipNeedsYouReason =
 	| 'reply-to-reviewer'
@@ -33,6 +34,7 @@ export type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
 	step: ShipStep | null;
+	keep: boolean;
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
@@ -56,9 +58,9 @@ export type ShipChangedEvent = Readonly<{
 	merged?: ShipMerged;
 }>;
 
-export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';
+export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';
 
-export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel'];
+export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel', 'keep'];
 
 export type ShipAllButton = 'draft-all' | 'merge-all';
 

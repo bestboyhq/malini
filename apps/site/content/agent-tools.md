@@ -133,7 +133,7 @@ A failure shows in the top bar, where pull request problems always do.
 When the agent hands work to workstreams it starts with `workstreams_create`, and you asked it to ship or merge that work, it ships each one from your chat instead of asking that workstream's chat to.
 Right after it starts a workstream, it runs **Open draft** or **Merge** there with `jobs_run`, so you approve it in the chat you are in, and **Always allow** for that chat covers the rest.
 Malini holds each run while that workstream sets up and its chat works, then does what **Draft** or **Merge** in its top bar does once the chat ends its turn.
-So a chat that starts five workstreams and merges them leaves you five merged pull requests, each workstream waiting on **Merged** for you to archive, not five drafts to click through.
+So a chat that starts five workstreams and merges them leaves you five merged pull requests and five archived workstreams, not five drafts to click through.
 
 Until it finishes, the run waits in your chat's composer tray as a row that names the workstream it runs in, such as **Merge · Job in Fetch command**.
 Merge still waits for checks, fixes what fails and resolves conflicts first, and a problem shows in that workstream's top bar.

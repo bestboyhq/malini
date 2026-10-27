@@ -11,6 +11,7 @@ export type PullRequestShip = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
 	step: ShipStep | null;
+	keep: boolean;
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
@@ -24,7 +25,8 @@ export type PullRequestShipChange = Readonly<{
 	mergedPullRequestNumber: number | null;
 }>;
 
-export type PullRequestShipIntent = 'open-draft' | 'queue-merge' | 'cancel-merge' | 'retry-merge';
+export type PullRequestShipIntent =
+	'open-draft' | 'queue-merge' | 'cancel-merge' | 'retry-merge' | 'keep-workstream';
 
 export type PullRequestNeedsYouDestination = 'pull-request' | 'job' | 'repositories';
 

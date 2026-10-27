@@ -74,6 +74,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		workstreamId: 'ws-1',
 		phase: 'draft',
 		step: null,
+		keep: false,
 		pullRequestNumber: 42,
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
@@ -744,6 +745,23 @@ describe('the workstream status', () => {
 			{ kind: 'archive', label: 'Archive', tone: 'secondary' },
 			{ kind: 'reopen', label: 'Reopen', ariaLabel: 'Reopen pull request #42', tone: 'primary' },
 		]);
+	});
+
+	it('offers Keep beside Cancel on a queued merge until you keep it', () => {
+		const queued = status(ship({ phase: 'queued', step: 'waiting-for-checks' }), open());
+		expect([queued?.secondaryAction, queued?.action]).toMatchObject([
+			{ kind: 'keep', label: 'Keep', ariaLabel: 'Keep this workstream after it merges' },
+			{ kind: 'cancel-merge', label: 'Cancel' },
+		]);
+		const kept = status(ship({ phase: 'queued', step: 'waiting-for-checks', keep: true }), open());
+		expect(kept).toMatchObject({
+			label: 'Queued to merge and keep',
+			action: { kind: 'cancel-merge' },
+		});
+		expect(kept?.secondaryAction).toBeUndefined();
+		expect(
+			status(ship({ phase: 'queued', step: 'merging' }), open())?.secondaryAction,
+		).toBeUndefined();
 	});
 
 	it('shows Merged over a stopped queue once the pull request merged on GitHub', () => {

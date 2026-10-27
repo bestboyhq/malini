@@ -10,6 +10,7 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		workstreamId: 'ws-1',
 		phase: 'queued',
 		step: 'fixing-checks',
+		keep: false,
 		pullRequestNumber: 42,
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
@@ -37,7 +38,7 @@ describe('pullRequestNeedsYouAnnouncement', () => {
 	it('leaves a merge to the sidebar', () => {
 		expect(
 			pullRequestNeedsYouAnnouncement(
-				ship({ step: 'merging' }),
+				ship({ step: 'archiving' }),
 				{ workstreamId: 'ws-1', ship: null, mergedPullRequestNumber: 42 },
 				'Signal Arc',
 			),

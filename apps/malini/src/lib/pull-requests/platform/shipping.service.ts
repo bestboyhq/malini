@@ -202,6 +202,8 @@ export class Shipping {
 				return this.#retryMerge(workstreamId);
 			case 'cancel':
 				return this.#cancelMerge(workstreamId);
+			case 'keep':
+				return this.#keepWorkstream(workstreamId);
 		}
 	}
 
@@ -235,6 +237,7 @@ export class Shipping {
 		return this.#upsert(workstreamId, click, {
 			phase: 'queued',
 			step: null,
+			keep: false,
 			queuedAt: new Date(this.#now()).toISOString(),
 			attempts: 0,
 			failureSignature: null,
@@ -274,6 +277,15 @@ export class Shipping {
 		return shipRecord(saved);
 	}
 
+	#keepWorkstream(workstreamId: string): ShipStateRecord {
+		const row = getShip(this.#context.db, workstreamId);
+		if (!row || (row.phase !== 'queued' && row.phase !== 'needs-you')) {
+			throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
+		}
+		if (row.keep) return this.#unchanged(row, 'keep');
+		return this.#upsert(workstreamId, 'keep', { keep: true });
+	}
+
 	async #cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row) {
@@ -286,6 +298,7 @@ export class Shipping {
 			{
 				phase: row.pullRequestNumber === null ? 'local' : 'draft',
 				step: null,
+				keep: false,
 				needsYou: null,
 				queuedAt: null,
 				attempts: 0,
@@ -601,7 +614,8 @@ export class Shipping {
 				}
 				return false;
 			case 'land':
-				this.#land(context);
+				if (!context.row.keep) this.#save(workstreamId, { step: 'archiving' });
+				await this.#land(context);
 				return false;
 			default:
 				return this.#act(context, move);
@@ -895,7 +909,7 @@ export class Shipping {
 		}
 	}
 
-	#land(context: MoveContext): void {
+	async #land(context: MoveContext): Promise<void> {
 		const workstreamId = context.row.workstreamId;
 		const pullRequestNumber =
 			context.snapshot.pullRequest?.pullRequestNumber ?? context.row.pullRequestNumber;
@@ -912,6 +926,9 @@ export class Shipping {
 			state: null,
 			...(pullRequestNumber === null ? {} : { merged: { pullRequestNumber, pullRequestUrl } }),
 		});
+		if (!context.row.keep) {
+			await this.#context.commands.call('repositories.archive-workstream', { workstreamId });
+		}
 		deleteShip(this.#context.db, workstreamId);
 		this.#forget(workstreamId);
 	}

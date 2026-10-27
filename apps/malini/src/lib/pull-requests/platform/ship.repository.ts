@@ -27,6 +27,7 @@ export type ShipPatch = Partial<
 	Readonly<{
 		phase: ShipPhase;
 		step: ShipStep | null;
+		keep: boolean;
 		pullRequestNumber: number | null;
 		pullRequestUrl: string | null;
 		needsYou: ShipNeedsYou | null;
@@ -48,6 +49,7 @@ interface ShipDbRow {
 	workstream_id: string;
 	phase: string;
 	step: string | null;
+	keep_workstream: number;
 	pull_request_number: number | null;
 	pull_request_url: string | null;
 	needs_you_reason: string | null;
@@ -85,6 +87,7 @@ const STEPS: readonly ShipStep[] = [
 	'waiting-for-review',
 	'waiting-for-github',
 	'merging',
+	'archiving',
 ];
 const REASONS: readonly ShipNeedsYouReason[] = [
 	'reply-to-reviewer',
@@ -95,7 +98,7 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 	'operation-in-progress',
 ];
 
-const COLUMNS = `workstream_id, phase, step, pull_request_number, pull_request_url, needs_you_reason,
+const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
 	last_error, next_attempt_at, generated_title, generated_body, addressed_reviews, push_requests,
 	update_requests, review_requests, failures, settled_job_run_id, updated_at`;
@@ -116,6 +119,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 		workstreamId: row.workstream_id,
 		phase: member(PHASES, row.phase) ?? 'local',
 		step: member(STEPS, row.step),
+		keep: row.keep_workstream === 1,
 		pullRequestNumber: row.pull_request_number,
 		pullRequestUrl: row.pull_request_url,
 		needsYou:
@@ -160,6 +164,7 @@ export function shipRecord(row: ShipRow): ShipStateRecord {
 		workstreamId: row.workstreamId,
 		phase: row.phase,
 		step: row.step,
+		keep: row.keep,
 		pullRequestNumber: row.pullRequestNumber,
 		pullRequestUrl: row.pullRequestUrl,
 		needsYou: row.needsYou,
@@ -213,6 +218,7 @@ export function updateShip(
 	};
 	if (patch.phase !== undefined) set('phase', patch.phase);
 	if (patch.step !== undefined) set('step', patch.step);
+	if (patch.keep !== undefined) set('keep_workstream', patch.keep ? 1 : 0);
 	if (patch.pullRequestNumber !== undefined) set('pull_request_number', patch.pullRequestNumber);
 	if (patch.pullRequestUrl !== undefined) set('pull_request_url', patch.pullRequestUrl);
 	if (patch.needsYou !== undefined) {

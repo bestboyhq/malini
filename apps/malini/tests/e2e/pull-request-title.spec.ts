@@ -8,8 +8,9 @@ import {
 	sendPrompt,
 } from './harness';
 import {
-	expectMerged,
+	expectMergedAndArchived,
 	queueMerge,
+	workstreamName,
 	seedWorkstreamOnFakeGithub,
 	type FakeGithub,
 } from './fake-github';
@@ -59,8 +60,9 @@ test('every idle push retitles the draft malini opened after the whole branch un
 			mergeStateStatus: 'CLEAN',
 			statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }],
 		});
+		const name = await workstreamName(page, 'e2e-title');
 		await queueMerge(page);
-		await expectMerged(page, 'e2e-title');
+		await expectMergedAndArchived(page, 'e2e-title', name);
 		expect(github.calls().find(([command, sub]) => command === 'pr' && sub === 'merge')).toEqual([
 			'pr',
 			'merge',

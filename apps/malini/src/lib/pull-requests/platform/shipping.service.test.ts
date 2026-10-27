@@ -343,7 +343,7 @@ let shipEvents: ShipChangedEvent[];
 let commits: { workstreamId: string; message: string; runId: string | null; sha: string }[];
 let pushes: string[];
 let pulls: string[];
-let landed: string[];
+let archived: string[];
 let pullConflicts: string[];
 let behind: Map<string, number>;
 let shaCounter: number;
@@ -530,8 +530,22 @@ function defineFakes(): void {
 		'repositories.count-behind-base',
 		(args: unknown) => behind.get(String(Reflect.get(Object(args), 'workstreamId'))) ?? 0,
 	);
-	commands.define('repositories.archive-workstream', () => {
-		throw new Error('shipping archived a workstream');
+	commands.define('repositories.archive-workstream', (args: unknown) => {
+		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
+		expect(shipEvents.at(-1)).toMatchObject({ workstreamId, state: null, merged: {} });
+		archived.push(workstreamId);
+		db.prepare(
+			'DELETE FROM agent_runs WHERE session_id IN (SELECT id FROM agent_sessions WHERE workstream_id = ?)',
+		).run(workstreamId);
+		db.prepare('DELETE FROM agent_sessions WHERE workstream_id = ?').run(workstreamId);
+		db.prepare('DELETE FROM workstream_commit_runs WHERE workstream_id = ?').run(workstreamId);
+		db.prepare('DELETE FROM workstreams WHERE id = ?').run(workstreamId);
+		events.emit('repositories:workstream-removed', {
+			workstreamId,
+			worktreePath: '',
+			archived: true,
+		});
+		return { savedWork: null };
 	});
 	commands.define('repositories.workstream-change-totals', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
@@ -598,10 +612,7 @@ function defineFakes(): void {
 }
 
 function recordShipEvents(): void {
-	context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (event) => {
-		shipEvents.push(event);
-		if (event.merged) landed.push(event.workstreamId);
-	});
+	context.events.subscribe(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, (event) => shipEvents.push(event));
 	context.events.subscribe(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, (event) => {
 		if ('state' in event) shipEvents.push(event);
 	});
@@ -718,7 +729,7 @@ beforeEach(() => {
 	commits = [];
 	pushes = [];
 	pulls = [];
-	landed = [];
+	archived = [];
 	pullConflicts = [];
 	behind = new Map();
 	shaCounter = 0;
@@ -929,7 +940,7 @@ describe('keeping a workstream current with main', () => {
 		mergeMain('ws-1');
 		finishJob(job.id, 'succeeded', { summary: 'Merged 3 commits from main' });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(jobRuns.size).toBe(1);
 	});
 
@@ -950,7 +961,7 @@ describe('keeping a workstream current with main', () => {
 		mergeMain('ws-1');
 		finishJob(job.id, 'succeeded', { summary: 'Merged 3 commits from main' });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect([...jobRuns.values()].map((run) => run.status)).toEqual(['succeeded']);
 	});
 
@@ -1116,7 +1127,7 @@ describe('keeping a workstream current with main', () => {
 		expect(pulls).toEqual([]);
 
 		await click('ws-1', 'merge');
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(pulls).toEqual(['ws-1']);
 	});
 
@@ -1171,7 +1182,7 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, step: null }));
 	}
 
-	it('marks ready, fixes failing checks with a job, merges once green and keeps the workstream', async () => {
+	it('marks ready, fixes failing checks with a job, merges once green and archives', async () => {
 		await queueWithDraft();
 		github.ciOutcomes = ['SUCCESS'];
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
@@ -1188,7 +1199,7 @@ describe('shipping a queued merge', () => {
 
 		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			workstreamId: 'ws-1',
 			message: 'Fix failing checks',
@@ -1202,6 +1213,23 @@ describe('shipping a queued merge', () => {
 			merged: { pullRequestNumber: 40, pullRequestUrl: 'https://github.com/acme/app/pull/40' },
 		});
 		expect(await invoke('pull-requests.ship-states')).toEqual([]);
+	});
+
+	it('merges a workstream you chose to keep without archiving it', async () => {
+		await queueWithDraft();
+		github.ciOutcomes = ['SUCCESS'];
+		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
+		await expect(click('ws-1', 'keep')).rejects.toThrow('Nothing is queued to merge');
+
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')).toMatchObject({ step: 'fixing-checks' }));
+		expect(await click('ws-1', 'keep')).toMatchObject({ phase: 'queued', keep: true });
+		finishJob(activeJob().id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
+
+		await until(() => expect(github.only().state).toBe('MERGED'));
+		await until(async () => expect(await invoke('pull-requests.ship-states')).toEqual([]));
+		expect(archived).toEqual([]);
+		expect(shipEvents.at(-1)).toMatchObject({ workstreamId: 'ws-1', state: null, merged: {} });
 		expect(
 			all<{ status: string; merged_pull_request_number: number | null }>(
 				db,
@@ -1238,7 +1266,7 @@ describe('shipping a queued merge', () => {
 
 		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(readsLogged().map(({ payload }) => [payload['state'], payload['checks']])).toEqual([
 			['draft', 'failed'],
 			['open', 'failed'],
@@ -1274,7 +1302,7 @@ describe('shipping a queued merge', () => {
 			chainId: null,
 			cause: null,
 		});
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
 	it('merges what the Merge job queued once that job finishes, without a click', async () => {
@@ -1314,7 +1342,7 @@ describe('shipping a queued merge', () => {
 		insertJobRun(db, merge, null);
 		context.events.emit('jobs:run-finished', { run: merge });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
 	it('starts nothing from a read that changed nothing', async () => {
@@ -1394,7 +1422,7 @@ describe('shipping a queued merge', () => {
 			base: 'main',
 		});
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
 	it('opens the pull request first when merge is queued without one', async () => {
@@ -1405,7 +1433,7 @@ describe('shipping a queued merge', () => {
 
 		expect(record).toMatchObject({ phase: 'queued', attempts: 0 });
 		expect(record?.queuedAt).not.toBeNull();
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(github.count(['pr', 'create'])).toBe(1);
 		expect(github.count(['pr', 'ready'])).toBe(0);
 		expect(github.only()).toMatchObject({ isDraft: false });
@@ -1420,7 +1448,7 @@ describe('shipping a queued merge', () => {
 
 		finishUserRun('ws-1', 'Polished the search box', ['src/box.ts']);
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(pushes).toEqual(['ws-1', 'ws-1']);
 		expect(github.pulls).toHaveLength(1);
 	});
@@ -1440,11 +1468,11 @@ describe('shipping a queued merge', () => {
 		await until(() => expect(github.count(['pr', 'view'])).toBeGreaterThan(reads + 1));
 		github.only().checks = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 		await until(() => expect(ship('ws-1')?.step).toBe('waiting-for-review'));
-		expect(landed).toEqual([]);
+		expect(archived).toEqual([]);
 
 		Object.assign(github.only(), { reviewDecision: 'APPROVED', mergeStateStatus: 'CLEAN' });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect([...jobRuns.values()]).toEqual([]);
 	});
 
@@ -1467,7 +1495,7 @@ describe('shipping a queued merge', () => {
 		pullConflicts = [];
 		finishJob(job.id, 'succeeded', { resolveConflicts: true });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(commits.at(-1)).toMatchObject({
 			message: 'Merge main into malini/ws-1',
 			runId: job.agentRunId,
@@ -1495,7 +1523,7 @@ describe('shipping a queued merge', () => {
 			dirtyPaths: ['src/search.ts'],
 		});
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		const fix = commits.find((commit) => commit.runId === job.agentRunId);
 		expect(fix?.message).toBe('Address review feedback');
 		expect(github.replies).toEqual([`PRRT_bot: Addressed in ${fix?.sha.slice(0, 7)}.`]);
@@ -1525,7 +1553,7 @@ describe('shipping a queued merge', () => {
 			dirtyPaths: ['src/search.ts'],
 		});
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(jobRuns.size).toBe(1);
 		expect(pull.threads[0]?.resolved).toBe(true);
 	});
@@ -1548,11 +1576,11 @@ describe('shipping a queued merge', () => {
 		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: true }];
 		pull.mergeStateStatus = 'CLEAN';
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(github.only().state).toBe('MERGED');
 	});
 
-	it('lands a stopped merge once the pull request merged on GitHub', async () => {
+	it('archives a stopped merge once the pull request merged on GitHub', async () => {
 		await queueWithDraft();
 		const pull = github.only();
 		pull.threads = [{ id: 'PRRT_question', bot: false, resolved: false }];
@@ -1562,7 +1590,7 @@ describe('shipping a queued merge', () => {
 
 		pull.state = 'MERGED';
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(github.count(['pr', 'merge'])).toBe(0);
 	});
 
@@ -1613,7 +1641,7 @@ describe('shipping a queued merge', () => {
 				completedAt: new Date().toISOString(),
 			},
 		];
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(jobRuns.size).toBe(1);
 		expect(pushes).toEqual(['ws-1']);
 	});
@@ -1668,7 +1696,7 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(ship('ws-1')?.lastError).toMatch(/Couldn't reach GitHub/u));
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		const errors = shipEvents.flatMap((event) => (event.state?.lastError ? [event.state] : []));
 		const delays = errors.map(
 			(state) => Date.parse(state.nextAttemptAt ?? '') - Date.parse(state.updatedAt),
@@ -1720,7 +1748,7 @@ describe('shipping a queued merge', () => {
 		const retried = await click('ws-1', 'retry');
 
 		expect(retried).toMatchObject({ phase: 'queued', needsYou: null, attempts: 0 });
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 	});
 
 	it('resumes a queued merge after a restart without dispatching a second job', async () => {
@@ -1745,7 +1773,7 @@ describe('shipping a queued merge', () => {
 		github.ciOutcomes = ['SUCCESS'];
 		finishJob(job.id, 'succeeded', { dirtyPaths: ['src/search.ts'] });
 
-		await until(() => expect(landed).toEqual(['ws-1']));
+		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(jobRuns.size).toBe(1);
 	});
 
@@ -1759,12 +1787,12 @@ describe('shipping a queued merge', () => {
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		await click('ws-2', 'merge');
 
-		await until(() => expect(landed).toEqual(['ws-2']));
+		await until(() => expect(archived).toEqual(['ws-2']));
 		expect(ship('ws-1')?.step).toBe('waiting-for-agent');
 
 		finishUserRun('ws-1', 'Done', []);
 
-		await until(() => expect(landed).toEqual(['ws-2', 'ws-1']));
+		await until(() => expect(archived).toEqual(['ws-2', 'ws-1']));
 	});
 
 	it('drops the queue state of a workstream removed elsewhere', async () => {

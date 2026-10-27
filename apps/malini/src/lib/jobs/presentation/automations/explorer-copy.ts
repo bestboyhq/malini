@@ -80,6 +80,7 @@ const SHIP_STEPS: ReadonlyMap<string, string> = new Map(
 		'waiting-for-review': 'waiting for review',
 		'waiting-for-github': 'waiting for GitHub',
 		merging: 'merging',
+		archiving: 'archiving the workstream',
 	} satisfies Record<ShipStep, string>),
 );
 
@@ -89,6 +90,7 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 		merge: 'Merge',
 		retry: 'Retry',
 		cancel: 'Cancel',
+		keep: 'Keep',
 		'draft-all': 'Draft all',
 		'merge-all': 'Merge all',
 	} satisfies Record<ShipButton | ShipAllButton, string>),
