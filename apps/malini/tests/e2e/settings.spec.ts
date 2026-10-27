@@ -60,6 +60,21 @@ test('Settings open over the current page, take focus, and close on Escape', asy
 	}
 });
 
+test('Settings opened while the app still loads its first page stay open', async () => {
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		await page.evaluate(() => {
+			location.hash = '#/settings/privacy';
+		});
+		await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+		await expect(page.getByRole('group', { name: 'Streamer mode' })).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
 test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a cleared one, and saves', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
