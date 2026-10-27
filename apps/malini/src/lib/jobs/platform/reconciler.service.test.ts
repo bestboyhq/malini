@@ -1,15 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_RUN_FINISHED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 	type ChatTurnFinishedPayload,
 } from '$contract/events';
-import {
-	JOBS_RECONCILER_SETTING,
-	type JobRunRecord,
-	type ReconcilerDecisionRecord,
-} from '$contract/jobs';
+import type { JobRunRecord, ReconcilerDecisionRecord } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -21,14 +19,13 @@ import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import type { JobsPlatform } from '../jobs.platform';
 import { insertJobRun } from './job-runs.repository';
-import { registerJobs } from './register';
+import { registerJobs, type JobsOptions } from './register';
 
 const NOW = '2026-10-26T09:00:00.000Z';
 
 let db: MaliniDatabase;
 let context: MainContext;
 let jobs: JobsPlatform;
-let settings: Record<string, string>;
 let picks: number[];
 let asked: string[];
 let sent: Array<Readonly<Record<string, unknown>>>;
@@ -37,7 +34,6 @@ let notified: unknown[];
 
 beforeEach(() => {
 	db = openMigratedDatabase(':memory:');
-	settings = {};
 	picks = [];
 	asked = [];
 	sent = [];
@@ -52,7 +48,7 @@ afterEach(() => {
 	db.close();
 });
 
-function boot(): void {
+function boot(rules: Pick<JobsOptions, 'shipping' | 'resume'> = {}): void {
 	context = {
 		db,
 		commands: new CommandRegistry(),
@@ -62,7 +58,7 @@ function boot(): void {
 		isDev: true,
 		appVersion: '0.0.0-test',
 	};
-	context.commands.define('app.list-settings', () => settings);
+	context.commands.define('app.list-settings', () => ({}));
 	context.commands.define('app.notification-permission-granted', () => true);
 	context.commands.define('app.notify', (args: unknown) => {
 		notified.push(args);
@@ -84,6 +80,7 @@ function boot(): void {
 			if (pick === undefined) throw new Error('Claude Code is not installed');
 			return pick;
 		},
+		...rules,
 	});
 	jobs.start();
 }
@@ -317,16 +314,46 @@ describe('the event reconciler', () => {
 		expect(sent.map((prompt) => prompt['from'])).toEqual(['api', 'site']);
 	});
 
-	it('records a decision it could not ask the model for, and does nothing', async () => {
-		finish('api-chat', childTurn('api-turn'));
+	it('wakes the chat that started the work by its own rules when it cannot ask the model', async () => {
+		finish('api-chat', childTurn('api-turn'), { needs: 'Which Logdash project?' });
 
-		const [failed] = await decided(1);
-		expect(failed).toMatchObject({ status: 'failed', pick: null, chosen: 0 });
-		expect(failed?.detail).toBe('Malini could not ask the model: Claude Code is not installed');
-		expect(sent).toEqual([]);
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		const [decision] = await decided(1);
+		expect(decision).toMatchObject({ status: 'done', pick: null, chosen: 1, decidedBy: 'rules' });
+		expect(decision?.detail).toBe('Malini could not ask the model: Claude Code is not installed');
+		expect(sent[0]).toMatchObject({
+			sessionId: 'lead-chat',
+			prompt: expect.stringContaining('Needs: Which Logdash project?'),
+		});
 	});
 
-	it('stays out of events a trigger handles, and out of everything when it is off', async () => {
+	it('hands each event only to the rules that hear it', async () => {
+		const heard: string[] = [];
+		jobs.dispose();
+		boot({
+			resume: async ({ channel }) => {
+				heard.push(`resume ${channel}`);
+			},
+			shipping: async ({ channel }) => {
+				heard.push(`shipping ${channel}`);
+			},
+		});
+
+		context.events.emit(APP_STARTED_CHANNEL, { version: '0.0.0-test' });
+		context.events.emit(PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL, { workstreamId: 'api' });
+		finish('lead-chat', 'lead-turn');
+
+		await vi.waitFor(() => expect(heard).toHaveLength(4));
+		await settle();
+		expect([...heard].sort()).toEqual([
+			'resume app:started',
+			'shipping app:started',
+			'shipping chat:turn-finished',
+			'shipping pull-requests:workstream-opened',
+		]);
+	});
+
+	it('stays out of events a trigger handles', async () => {
 		await context.commands.call('jobs.save-definition', {
 			name: 'Review the site',
 			instructions: 'Review it.',
@@ -335,10 +362,8 @@ describe('the event reconciler', () => {
 			runsIn: 'workstream',
 			trigger: { when: 'on chat:turn-finished where workstreamId is site', mode: 'ask' },
 		});
-		picks.push(2, 2);
+		picks.push(2);
 		finish('site-chat', childTurn('site-turn', 'site-chat'));
-		settings[JOBS_RECONCILER_SETTING] = 'off';
-		finish('api-chat', childTurn('api-turn'));
 		await settle();
 
 		expect(asked).toEqual([]);

@@ -7,10 +7,8 @@ import {
 } from '$contract/events';
 import {
 	JOB_INTERRUPTED_DETAIL,
-	JOBS_RECONCILER_SETTING,
 	isAgentlessJobBuiltin,
 	isAutomaticJobBuiltin,
-	reconcilerMode,
 	type JobRunRecord,
 	type ReconcilerCandidate,
 	type ReconcilerDecisionRecord,
@@ -35,14 +33,18 @@ import {
 import { isRunnableJob } from '../domain/builtin-jobs';
 import { workstreamWasBusy } from '../domain/job-run';
 import {
+	RECONCILER_RULES,
 	outputPick,
 	pickOutput,
 	reconcilerPrompt,
 	reconcilerQuestion,
+	ruleHears,
 	validatePick,
 	wakePrompt,
 	wakesInChain,
 	type ReconcilerChat,
+	type ReconcilerQuestion,
+	type ReconcilerRule,
 	type ReconcilerSituation,
 } from '../domain/reconciler';
 import { startingSessionId } from './agent-actions.repository';
@@ -82,13 +84,15 @@ const WAKE_RETRIES = 20;
 
 type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 
-export type ReconcilerRules = Readonly<{
-	triggers: (event: DispatchedEvent) => Promise<boolean>;
-	thens: (event: DispatchedEvent) => Promise<void>;
-	shipping: (event: DispatchedEvent) => Promise<void>;
-	resume: (event: DispatchedEvent) => Promise<void>;
-	schedules: (event: DispatchedEvent) => Promise<void>;
-}>;
+type Rule = Exclude<ReconcilerRule, 'model'>;
+
+const RULES = RECONCILER_RULES.filter((rule): rule is Rule => rule !== 'model');
+
+export type ReconcilerRules = Readonly<
+	Record<Exclude<Rule, 'triggers'>, (event: DispatchedEvent) => Promise<void>> & {
+		triggers: (event: DispatchedEvent) => Promise<boolean>;
+	}
+>;
 
 export class Reconciler {
 	readonly #context: MainContext;
@@ -147,22 +151,21 @@ export class Reconciler {
 	}
 
 	async handle(event: DispatchedEvent): Promise<void> {
-		const { triggers, thens, shipping, resume, schedules } = this.#rules;
-		const [triggered, ...others] = await Promise.allSettled([
-			triggers(event),
-			thens(event),
-			shipping(event),
-			resume(event),
-			schedules(event),
-		]);
-		for (const result of [triggered, ...others]) {
-			if (result.status === 'rejected') {
-				this.#log(
-					`jobs: a rule could not handle ${event.channel}: ${describeError(result.reason)}`,
-				);
-			}
+		const heard = RULES.filter((rule) => ruleHears(rule, event.channel));
+		const handled = await Promise.all(heard.map((rule) => this.#apply(rule, event)));
+		if (!ruleHears('model', event.channel)) return;
+		await this.#consider(event, handled[heard.indexOf('triggers')] === true);
+	}
+
+	async #apply(rule: Rule, event: DispatchedEvent): Promise<unknown> {
+		try {
+			return await this.#rules[rule](event);
+		} catch (error) {
+			this.#log(
+				`jobs: the ${rule} rule could not handle ${event.channel}: ${describeError(error)}`,
+			);
+			return false;
 		}
-		await this.#consider(event, triggered.status === 'fulfilled' && triggered.value);
 	}
 
 	#consider(event: DispatchedEvent, matched: boolean): Promise<void> {
@@ -229,60 +232,53 @@ export class Reconciler {
 
 	async #reconcile(event: DispatchedEvent): Promise<void> {
 		const { db } = this.#context;
-		if (event.id === null || event.chainId === null) return;
-		if (!(await this.#enabled()) || decidedEvent(db, event.id)) return;
+		if (event.id === null || event.chainId === null || decidedEvent(db, event.id)) return;
 		const situation = this.#situation(event, event.chainId);
 		const question = situation === null ? null : reconcilerQuestion(situation);
 		if (question === null) return;
-		const prompt = reconcilerPrompt(question);
-		const labels = question.candidates.map((candidate) => candidate.label);
-		const base = {
+		const { pick, failure } = await this.#ask(question);
+		const workstreamId = findString(event.payload, 'workstreamId');
+		const chainDecisions = listChainDecisions(db, event.chainId);
+		const validated = validatePick(question.candidates, pick, (sessionId) =>
+			wakesInChain(chainDecisions, sessionId, workstreamId),
+		);
+		const decision: ReconcilerDecisionRecord = {
 			id: randomUUID(),
 			eventId: event.id,
 			channel: event.channel,
 			chainId: event.chainId,
-			workstreamId: findString(event.payload, 'workstreamId'),
+			workstreamId,
 			facts: question.facts,
-			jobRunId: null,
-			createdAt: nowIso8601(),
-		};
-		let pick: number;
-		try {
-			const output = await runAutomaticJob(db, 'reconcile', prompt, async (task, job) =>
-				pickOutput(labels, await this.#choose(task, job, labels.length)),
-			);
-			pick = (outputPick(output) ?? 1) - 1;
-		} catch (error) {
-			const failed: ReconcilerDecisionRecord = {
-				...base,
-				candidates: question.candidates,
-				pick: null,
-				chosen: 0,
-				decidedBy: 'rules',
-				status: 'failed',
-				detail: `Malini could not ask the model: ${describeError(error)}`,
-				finishedAt: nowIso8601(),
-			};
-			insertDecision(db, failed);
-			this.#emit(failed);
-			return;
-		}
-		const chainDecisions = listChainDecisions(db, event.chainId);
-		const validated = validatePick(question.candidates, pick, (sessionId) =>
-			wakesInChain(chainDecisions, sessionId, base.workstreamId),
-		);
-		const decision: ReconcilerDecisionRecord = {
-			...base,
 			candidates: validated.candidates,
 			pick,
 			chosen: validated.chosen,
 			decidedBy: validated.decidedBy,
 			status: 'pending',
-			detail: validated.detail,
+			detail: validated.detail ?? failure,
+			jobRunId: null,
+			createdAt: nowIso8601(),
 			finishedAt: null,
 		};
 		insertDecision(db, decision);
 		await this.#carryOut(decision);
+	}
+
+	async #ask(
+		question: ReconcilerQuestion,
+	): Promise<Readonly<{ pick: number | null; failure: string | null }>> {
+		const labels = question.candidates.map((candidate) => candidate.label);
+		try {
+			const output = await runAutomaticJob(
+				this.#context.db,
+				'reconcile',
+				reconcilerPrompt(question),
+				async (task, job) => pickOutput(labels, await this.#choose(task, job, labels.length)),
+			);
+			const picked = outputPick(output);
+			return { pick: picked === null ? null : picked - 1, failure: null };
+		} catch (error) {
+			return { pick: null, failure: `Malini could not ask the model: ${describeError(error)}` };
+		}
 	}
 
 	async #carryOut(decision: ReconcilerDecisionRecord): Promise<ReconcilerDecisionRecord> {
@@ -558,16 +554,6 @@ export class Reconciler {
 			lastOutcome: latest?.outcome ?? null,
 			lastNeeds: latest?.needs ?? null,
 		};
-	}
-
-	async #enabled(): Promise<boolean> {
-		try {
-			const settings = await this.#context.commands.call('app.list-settings', undefined);
-			return reconcilerMode(settings[JOBS_RECONCILER_SETTING]) === 'on';
-		} catch (error) {
-			this.#log(`jobs: could not read the reconciler setting: ${describeError(error)}`);
-			return false;
-		}
 	}
 
 	async #notify(decision: ReconcilerDecisionRecord, reason: string): Promise<void> {

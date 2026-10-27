@@ -7,7 +7,7 @@ import { pickOutput, promptCandidates } from '../domain/reconciler';
 import { defineJobCommands, seedBuiltinJobs } from './commands';
 import { settleInterruptedAgentActions } from './agent-actions.repository';
 import type { AutomaticJob, ChooseWithJob, SuggestWithJob } from './automatic-jobs.service';
-import { checkCompatibilityAfterUpdates } from './compatibility-check';
+import { checkCompatibility } from './compatibility-check';
 import { pruneEvents, startEventLog, type DispatchedEvent } from './event-log.service';
 import { JobExperiments } from './job-experiments.service';
 import { JobRunner } from './job-runner.service';
@@ -55,9 +55,9 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 		shipping: options.shipping ?? NO_RULE,
 		resume: options.resume ?? NO_RULE,
 		schedules: (event) => schedules.handle(event),
+		compatibility: (event) => checkCompatibility(context, event, log),
 	});
 	defineJobCommands(context, runner, experiments, reconciler);
-	const stopCompatibilityChecks = checkCompatibilityAfterUpdates(context, log);
 	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
 	const prune = (): void => {
@@ -84,7 +84,6 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 			schedules.dispose();
 			triggers.dispose();
 			reconciler.dispose();
-			stopCompatibilityChecks();
 			runner.dispose();
 		},
 	};

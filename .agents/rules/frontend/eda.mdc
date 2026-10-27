@@ -10,6 +10,7 @@ The main process pushes events through `context.events` (`EventBus` in `$main/ev
 It fans a frame out to every live window and to in-process subscribers.
 The jobs domain observes every emit (`EventBus.observe`) and keeps each event whose catalog entry is not `logged: false` in its event log, with the work that caused it (0085); job triggers and the reconciler read events from there, never through their own subscriptions.
 Whatever starts or moves work is a reconciler rule that hears logged events (0086): nothing starts from a rule's own timer or poll, and a wait with an end is an alarm the clock fires as `jobs:time-reached`.
+Each rule names the events it hears in `RULE_EVENTS` (`src/lib/jobs/domain/reconciler.ts`), and the reconciler hands an event only to the rules that hear it (0091): a rule that reacts to a new event adds it there.
 The renderer subscribes through `onPlatformEvent(channel, listener)` from `$shared/port/events`, called only from infrastructure services.
 Every channel and its payload type is declared in `ContractEvents` in `$contract/events`.
 

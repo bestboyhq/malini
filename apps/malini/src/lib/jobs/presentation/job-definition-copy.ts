@@ -42,7 +42,7 @@ const BUILTIN_WHEN_DETAIL: Readonly<Record<JobBuiltin, string>> = {
 	merge:
 		'Run it from any chat with /, give it a trigger, or make it the Then of another job. It queues the pull request to merge.',
 	reconcile:
-		"Runs on its own when an event no job's trigger handles may need a hand: a turn ends in a workstream a chat started, a job a chat ran finishes or fails, or a merge stops on conflicts. Malini lists what it could do, the model picks one, and Malini checks the pick before it acts.",
+		"Runs on its own when an event no job's trigger handles may need a hand: a turn ends in a workstream a chat started, a job a chat ran finishes or fails, or a merge stops on conflicts. Malini lists what it could do, the model picks one, and Malini checks the pick before it acts. When the model cannot answer, Malini wakes the chat waiting on the work, or asks you.",
 };
 
 const RUNS_IN_WHEN: Readonly<Record<JobRunsIn, string>> = {

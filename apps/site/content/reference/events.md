@@ -506,7 +506,8 @@ Fires whenever a job run waits for you, is queued, starts, needs you, or finishe
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -543,7 +544,8 @@ Fires when a job run starts working, with the run; a run Malini puts back in the
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -580,7 +582,8 @@ Fires once when a job run ends, with the run and its `status`: `succeeded`, `fai
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -912,7 +915,7 @@ type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
 
 ## `app:updated`
 
-Fires once at startup after Malini updated to a new version whose events changed, with the old and new version and the events added, removed or whose payload changed.
+Fires once at startup after Malini updated to a new version whose events changed, with the old and new version and the events added, removed or whose payload changed. The reconciler's Compatibility rule runs Check compatibility on it.
 
 Payload: `AppUpdatedPayload`
 

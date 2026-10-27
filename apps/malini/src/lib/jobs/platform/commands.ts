@@ -797,7 +797,9 @@ function optionalOrigin(args: unknown): JobRunOrigin {
 	const value = field(args, 'origin');
 	if (value === undefined || value === null) return 'manual';
 	if (!isJobRunOrigin(value))
-		throw invalid('`origin` must be merge-queue, manual, trigger, then, schedule or reconciler');
+		throw invalid(
+			'`origin` must be merge-queue, manual, trigger, then, schedule, reconciler or compatibility',
+		);
 	return value;
 }
 

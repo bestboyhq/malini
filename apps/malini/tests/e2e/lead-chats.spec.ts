@@ -4,7 +4,6 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -245,7 +244,6 @@ test('a workstream a chat started stays quiet in the sidebar, and the chat says 
 		const { page } = app;
 		const api = await createSourceRepo(app.root, 'acme/api');
 		await seedWorkstream(page, `file://${api}`, 'e2e-quiet-api', 'Api work');
-		await invoke(page, 'app.set-setting', { key: JOBS_RECONCILER_SETTING, value: 'off' });
 		await page.reload();
 		await startChat(page, 'home', 'Ship analytics');
 		agentCalls(app, {

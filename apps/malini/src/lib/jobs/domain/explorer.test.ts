@@ -10,6 +10,7 @@ import {
 	EVENT_ROWS,
 	ROW_SOURCES,
 	chainItems,
+	eventRow,
 	explorer,
 	listed,
 	through,
@@ -17,13 +18,14 @@ import {
 	type Explorer,
 	type Hop,
 } from './explorer';
+import { RECONCILER_RULES, RULE_EVENTS } from './reconciler';
 
 const at = (minute: number): string => new Date(Date.UTC(2026, 9, 26, 9, minute)).toISOString();
 
 function column(node: string): number {
 	if (node.startsWith('event:')) return 1;
 	if (node === 'reconciler') return 2;
-	if (node.startsWith('listener:')) return 3;
+	if (node.startsWith('rule:')) return 3;
 	return node === 'chats' || node === 'jobs' ? 4 : 0;
 }
 
@@ -204,29 +206,29 @@ describe('explorer', () => {
 		expect(hops('event:2')).toEqual([['event:job-finished', 'reconciler']]);
 		expect(hops('event:3')).toEqual([['event:other', 'reconciler']]);
 		expect(hops('event:4')).toEqual([['event:other', 'reconciler']]);
-		expect(hops('decision:wake')).toEqual([['reconciler', 'listener:model']]);
-		expect(hops('turn:lead-wake')).toEqual([['listener:model', 'chats']]);
+		expect(hops('decision:wake')).toEqual([['reconciler', 'rule:model']]);
+		expect(hops('turn:lead-wake')).toEqual([['rule:model', 'chats']]);
 		expect(hops('run:announce')).toEqual([
-			['reconciler', 'listener:triggers'],
-			['listener:triggers', 'jobs'],
+			['reconciler', 'rule:triggers'],
+			['rule:triggers', 'jobs'],
 		]);
 		expect(hops('run:notes')).toEqual([
-			['reconciler', 'listener:thens'],
-			['listener:thens', 'jobs'],
+			['reconciler', 'rule:thens'],
+			['rule:thens', 'jobs'],
 		]);
 		expect(hops('run:orphan')).toEqual([['jobs', 'jobs']]);
 		expect(hops('run:fix')).toEqual([
-			['reconciler', 'listener:shipping'],
-			['listener:shipping', 'jobs'],
+			['reconciler', 'rule:shipping'],
+			['rule:shipping', 'jobs'],
 		]);
 		expect(hops('run:asked')).toEqual([['chats', 'jobs']]);
 		expect(hops('turn:resumed')).toEqual([
-			['reconciler', 'listener:resume'],
-			['listener:resume', 'chats'],
+			['reconciler', 'rule:resume'],
+			['rule:resume', 'chats'],
 		]);
 		expect(hops('run:nightly')).toEqual([
-			['reconciler', 'listener:schedules'],
-			['listener:schedules', 'jobs'],
+			['reconciler', 'rule:schedules'],
+			['rule:schedules', 'jobs'],
 		]);
 		expect(offRoute(map)).toEqual([]);
 	});
@@ -248,8 +250,8 @@ describe('explorer', () => {
 		expect(map.byId.get('run:fix')).toMatchObject({
 			cause: 'event:5',
 			hops: [
-				['reconciler', 'listener:shipping'],
-				['listener:shipping', 'jobs'],
+				['reconciler', 'rule:shipping'],
+				['rule:shipping', 'jobs'],
 			],
 		});
 		expect(map.byId.get('event:5')).toMatchObject({
@@ -269,14 +271,14 @@ describe('explorer', () => {
 		expect(map.counts.get('chats')).toBe(4);
 		expect(map.counts.get('jobs')).toBe(6);
 		expect(map.counts.get('you')).toBe(1);
-		expect(map.counts.get('listener:model')).toBe(1);
-		expect(map.counts.get('listener:triggers')).toBe(1);
-		expect(map.counts.get('listener:thens')).toBe(1);
-		expect(map.counts.get('listener:shipping')).toBe(1);
-		expect(map.counts.get('listener:resume')).toBe(1);
-		expect(map.counts.get('listener:schedules')).toBe(1);
+		expect(map.counts.get('rule:model')).toBe(1);
+		expect(map.counts.get('rule:triggers')).toBe(1);
+		expect(map.counts.get('rule:thens')).toBe(1);
+		expect(map.counts.get('rule:shipping')).toBe(1);
+		expect(map.counts.get('rule:resume')).toBe(1);
+		expect(map.counts.get('rule:schedules')).toBe(1);
 		expect(map.wires.get('event:turn-finished>reconciler')).toBe(1);
-		expect(map.wires.get('reconciler>listener:thens')).toBe(1);
+		expect(map.wires.get('reconciler>rule:thens')).toBe(1);
 	});
 
 	it('names what you click and open, the start of Malini and the times reached as the events their rules heard through the Reconciler', () => {
@@ -304,8 +306,8 @@ describe('explorer', () => {
 			decisions: [],
 		});
 		const shipping: readonly Hop[] = [
-			['reconciler', 'listener:shipping'],
-			['listener:shipping', 'jobs'],
+			['reconciler', 'rule:shipping'],
+			['rule:shipping', 'jobs'],
 		];
 
 		expect(EVENT_ROWS.filter((row) => ROW_SOURCES[row] === 'you')).toEqual([
@@ -333,7 +335,7 @@ describe('explorer', () => {
 		expect(map.counts.get('event:button-clicked')).toBe(1);
 		expect(map.counts.get('event:workstream-opened')).toBe(1);
 		expect(map.counts.get('reconciler')).toBe(5);
-		expect(map.counts.get('listener:shipping')).toBe(2);
+		expect(map.counts.get('rule:shipping')).toBe(2);
 		expect(map.counts.get('you')).toBeUndefined();
 		expect(offRoute(map)).toEqual([]);
 		expect(chainItems(map, 'chain').map((item) => item.id)).toEqual([
@@ -347,6 +349,42 @@ describe('explorer', () => {
 		]);
 	});
 
+	it('takes a Check compatibility run from the Malini updated its Compatibility rule heard', () => {
+		const map = explorer({
+			...RECORD,
+			events: [event(11, 'app:updated', 3, { workstreamId: null, chainId: 'update' })],
+			channelCounts: { 'app:updated': 1 },
+			runs: [run('check', 4, { origin: 'compatibility', chainId: 'update', eventIds: [11] })],
+			turns: [],
+			decisions: [],
+		});
+
+		expect(map.byId.get('event:11')).toMatchObject({
+			row: 'malini-updated',
+			hops: [['event:malini-updated', 'reconciler']],
+		});
+		expect(map.byId.get('run:check')).toMatchObject({
+			cause: 'event:11',
+			hops: [
+				['reconciler', 'rule:compatibility'],
+				['rule:compatibility', 'jobs'],
+			],
+		});
+		expect(map.counts.get('rule:compatibility')).toBe(1);
+		expect(map.counts.get('rule:triggers')).toBeUndefined();
+		expect(listed(map, false).map((item) => item.id)).toContain('event:11');
+		expect(offRoute(map)).toEqual([]);
+	});
+
+	it('gives every event a rule hears a row of its own', () => {
+		const heard = RECONCILER_RULES.flatMap((rule) => {
+			const channels = RULE_EVENTS[rule];
+			return channels === 'every' ? [] : channels;
+		});
+
+		expect(heard.filter((channel) => eventRow(channel) === 'other')).toEqual([]);
+	});
+
 	it('lists the facts unless asked for every event, and follows a chain or a part', () => {
 		const map = explorer(RECORD);
 		const ids = (items: readonly { id: string }[]): string[] => items.map((item) => item.id);
@@ -356,7 +394,7 @@ describe('explorer', () => {
 		expect(ids(listed(map, false))).toContain('event:4');
 		expect(ids(listed(map, true))).toHaveLength(map.items.length);
 		expect(ids(chainItems(map, 'other'))).toEqual(['event:4', 'run:orphan', 'turn:resumed']);
-		expect(ids(through(map, 'listener:model'))).toEqual(['decision:wake', 'turn:lead-wake']);
+		expect(ids(through(map, 'rule:model'))).toEqual(['decision:wake', 'turn:lead-wake']);
 		expect(ids(through(map, 'reconciler'))).toEqual([
 			'event:3',
 			'event:1',
