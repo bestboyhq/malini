@@ -1,7 +1,7 @@
 import { pullRequestShipService } from '$lib/pull-requests/infrastructure/services/pull-request-ship.service';
 
-export { keepWorkstreamCurrentCommand };
+export { reportWorkstreamOpenedCommand };
 
-function keepWorkstreamCurrentCommand(workstreamId: string): void {
+function reportWorkstreamOpenedCommand(workstreamId: string): void {
 	void pullRequestShipService.opened(workstreamId).catch(() => undefined);
 }

@@ -2,7 +2,6 @@ import { isShippingJobBuiltin, type JobDefinitionRecord, type JobRunRecord } fro
 import type { MaliniDatabase } from '$main/db/driver';
 import { getJobDefinition, listJobDefinitions } from './platform/job-definitions.repository';
 import {
-	findActiveChildJobRun,
 	findActiveJobRunForSession,
 	getJobRun,
 	latestWorkstreamJobRun,
@@ -54,8 +53,4 @@ export function latestShippingJobRun(
 		.filter(({ builtin }) => isShippingJobBuiltin(builtin))
 		.map(({ id }) => id);
 	return latestWorkstreamJobRun(db, workstreamId, 'merge-queue', shippingJobs);
-}
-
-export function activeThenJobRun(db: MaliniDatabase, parentRunId: string): JobRunRecord | null {
-	return findActiveChildJobRun(db, parentRunId);
 }

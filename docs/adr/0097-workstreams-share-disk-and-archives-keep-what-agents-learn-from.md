@@ -1,4 +1,4 @@
-# 0096 - Workstreams share disk, and archives keep what an agent can learn from
+# 0097 - Workstreams share disk, and archives keep what an agent can learn from
 
 Status: accepted
 

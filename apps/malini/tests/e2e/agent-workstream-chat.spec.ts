@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { UPDATE_FROM_MAIN_TRIGGER_SETTING } from '../../src/contract/pull-requests';
 import { holdAgentRuns, seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -232,10 +231,6 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			null,
 			({ basePath }) => commitManifest(basePath),
 		);
-		await invoke(page, 'app.set-setting', {
-			key: UPDATE_FROM_MAIN_TRIGGER_SETTING,
-			value: 'merging',
-		});
 		const release = holdNpmInstall(app);
 		await openWorkstream(page, 'e2e-agent-merges-workstream');
 
