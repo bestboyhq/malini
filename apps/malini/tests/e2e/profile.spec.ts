@@ -63,6 +63,11 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 		await expect(toggle).toHaveAttribute('aria-checked', 'false');
 		await expect(toggle).toBeEnabled();
 
+		await openUrl(app, 'malini://auth?code=e2e-code&state=meant-for-another-malini');
+		await page.waitForTimeout(500);
+		expect(platform.requests).toEqual([]);
+		await expect(settings.getByText(/^Signed in to Bestboy as/u)).toHaveCount(0);
+
 		await toggle.click();
 		await expect(
 			settings.getByText('Sign in to Bestboy in your browser, then come back.'),

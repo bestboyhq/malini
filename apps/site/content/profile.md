@@ -20,7 +20,7 @@ They show your name and picture from GitHub, and your Bestboy handle once you pu
 
 Turn on **Publish my stats** in Settings, Profile.
 
-1. Malini opens your browser to sign in to Bestboy, with Google or an email code.
+1. Malini opens your browser to sign in to Bestboy, with Google or an email code, and the browser hands you back to Malini through a `malini://` link.
 2. Back in Malini, you choose your profile address, `bestboy.dev/@handle`, filled in with your GitHub login.
 3. Malini sends your numbers, and **Copy link** copies your profile's address.
 
@@ -31,6 +31,9 @@ The first upload after you turn it on goes public at once.
 Turn the switch off, and Malini removes your numbers from bestboy.dev at once and hides your profile.
 **Sign out** does the same first, then signs Malini out of Bestboy.
 When bestboy.dev cannot be reached, Malini keeps trying until it can.
+
+The `malini://` link opens the Malini you installed.
+A link meant for another sign-in, or one that reaches a Malini that never asked for it, changes nothing.
 
 ### Public repositories
 

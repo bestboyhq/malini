@@ -23,7 +23,10 @@ Everything else in 0058 still holds and is restated below.
   `bestboy.ts` is the client and `stats-profile.ts` holds the sign-in, which ignores a state it did not ask for and gives up after 10 minutes.
   The token stays encrypted with `safeStorage` in `bestboy-profile.json` in the app data folder, and never reaches the renderer.
   Packaged builds declare the `malini` scheme in `electron-builder.yml`, and `src/main/index.ts` routes `open-url` and second-instance URLs to the pending sign-in.
-  Dev and test builds never register the scheme, so the installed Malini keeps it, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
+  `pnpm dogfood` is the user's daily Malini and runs `pnpm dev`, so it claims the scheme too: `scripts/dogfood.mjs` passes `MALINI_DOGFOOD=1`, `scripts/dev-bundle.mjs` then declares `malini` in its `Malini.app`, and `claimsUrlScheme` in `src/main/url-scheme.ts` calls `setAsDefaultProtocolClient` only for that run.
+  A plain `pnpm dev`, the e2e harness, `test-malini-app` and every background launch (`MALINI_BACKGROUND_WINDOW=1`) never register it.
+  A callback that still reaches another Malini, such as an agent's test instance, changes nothing there: it holds no pending sign-in, so the `state` check drops it.
+  `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 - **What goes up.** `PUT /api/stats/malini` sends Stats v1, which `src/lib/stats/domain/published-stats.ts` computes from the local database.
   It counts complete local days only, through yesterday, leads with typical values and sends peaks beside them, and takes names only from closed lists: model families, languages, Claude Code's built-in tools, `Browser`, `MCP`, `malini` and `other`, plus the public repositories you picked while GitHub reports them public.
   A trigger on `agent_events` keeps tool calls per run in `agent_run_tool_calls` (migration 73), so a snapshot never scans every event.
@@ -38,6 +41,6 @@ Everything else in 0058 still holds and is restated below.
 - Malini has an optional account for the first time; everything works without it, Copy card included.
 - The platform validates every field of an upload and stores only what it rebuilt from them; Malini computes valid numbers by construction and caps a run's length at 30 days.
 - A profile changes once a day at 03:00 UTC, so when an upload arrives never shows when someone works.
-- A dev build, `pnpm dogfood` included, cannot receive `malini://auth`, so signing in there needs the callback handed to the app.
+- Only the packaged app and `pnpm dogfood` receive `malini://auth`; signing in from any other dev build needs the callback handed to the app.
 - A new field in Stats v1, or a new name in its closed lists, changes the contract on both sides and the docs page `apps/site/content/profile.md`.
-- Enforced by `src/lib/stats/platform/published-stats.test.ts` (the through-yesterday cutoff, a run across midnight, agents at once weighted by time, an orphaned run, the name filters), `src/lib/stats/platform/stats-profile.test.ts` (a retry, the removal before sign-out, a 401), `src/main/db/migrations.test.ts` (tool counts from old and new events) and `tests/e2e/profile.spec.ts` (sign-in, numbers only, a 401, the order of a switch-off, sign-out, copying both cards).
+- Enforced by `src/lib/stats/platform/published-stats.test.ts` (the through-yesterday cutoff, a run across midnight, agents at once weighted by time, an orphaned run, the name filters), `src/lib/stats/platform/stats-profile.test.ts` (a retry, the removal before sign-out, a 401), `src/main/db/migrations.test.ts` (tool counts from old and new events) `src/main/url-scheme.test.ts` and `scripts/dev-bundle.test.mjs` (only dogfood claims the scheme), and `tests/e2e/profile.spec.ts` (a callback nobody asked for is dropped, sign-in, numbers only, a 401, the order of a switch-off, sign-out, copying both cards).

@@ -21,6 +21,7 @@ import { CommandRegistry } from './ipc/registry';
 import { registerModules, type Modules } from './modules';
 import { waitForPreviousInstanceToExit } from './single-instance';
 import { pinStorageName } from './storage-name';
+import { claimsUrlScheme, URL_SCHEME } from './url-scheme';
 import { BACKGROUND_WINDOW, createMainWindow } from './window';
 
 const productName = pinStorageName(app);
@@ -54,7 +55,7 @@ app.on('open-url', (event, url) => {
 });
 
 app.on('second-instance', (_event, argv) => {
-	for (const url of argv.filter((argument) => argument.startsWith('malini://'))) {
+	for (const url of argv.filter((argument) => argument.startsWith(`${URL_SCHEME}://`))) {
 		modules?.openUrl(url);
 	}
 	const [window] = BrowserWindow.getAllWindows();
@@ -70,6 +71,7 @@ async function boot(): Promise<void> {
 		return;
 	}
 	await app.whenReady();
+	if (claimsUrlScheme(app.isPackaged, process.env)) app.setAsDefaultProtocolClient(URL_SCHEME);
 	void removeStaleTemporaryIndexes();
 	const appDataRoot = app.getPath('userData');
 	try {

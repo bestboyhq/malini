@@ -14,13 +14,22 @@ const LSREGISTER =
 const icon = resolve(import.meta.dirname, '../build/icon.png');
 
 /**
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string[]}
+ */
+export function urlSchemes(env) {
+	return env.MALINI_DOGFOOD === '1' ? ['malini'] : [];
+}
+
+/**
  * @param {string} dist
  * @param {string} iconPath
+ * @param {readonly string[]} schemes
  */
-export function bundleStamp(dist, iconPath) {
+export function bundleStamp(dist, iconPath, schemes = []) {
 	const version = readFileSync(join(dist, 'version'), 'utf8').trim();
 	const iconHash = createHash('sha256').update(readFileSync(iconPath)).digest('hex');
-	return `${version} ${DEVELOPMENT_BUNDLE_IDENTIFIER} ${iconHash}\n`;
+	return `${version} ${DEVELOPMENT_BUNDLE_IDENTIFIER} ${iconHash} ${schemes.join(',')}\n`;
 }
 
 /**
@@ -41,8 +50,9 @@ const run = (command, ...args) => execFileSync(command, args, { stdio: 'pipe' })
 /**
  * @param {string} dist
  * @param {string} stamp
+ * @param {readonly string[]} schemes
  */
-function buildBundle(dist, stamp) {
+function buildBundle(dist, stamp, schemes) {
 	const bundle = join(dist, BUNDLE);
 	const iconset = join(dist, 'Malini.iconset');
 	const plist = join(bundle, 'Contents/Info.plist');
@@ -53,6 +63,10 @@ function buildBundle(dist, stamp) {
 	run('plutil', '-replace', 'CFBundleName', '-string', 'Malini', plist);
 	run('plutil', '-replace', 'CFBundleDisplayName', '-string', 'Malini', plist);
 	run('plutil', '-replace', 'CFBundleIdentifier', '-string', DEVELOPMENT_BUNDLE_IDENTIFIER, plist);
+	if (schemes.length > 0) {
+		const types = [{ CFBundleURLName: 'Malini', CFBundleURLSchemes: schemes }];
+		run('plutil', '-replace', 'CFBundleURLTypes', '-json', JSON.stringify(types), plist);
+	}
 	mkdirSync(iconset);
 	for (const size of ICON_SIZES) {
 		const name = `icon_${size}x${size}`;
@@ -71,10 +85,11 @@ function devBundleExecutable() {
 		dirname(createRequire(import.meta.url).resolve('electron/package.json')),
 		'dist',
 	);
-	const stamp = bundleStamp(dist, icon);
+	const schemes = urlSchemes(process.env);
+	const stamp = bundleStamp(dist, icon, schemes);
 	if (isStale(dist, stamp)) {
 		console.log(`dev-bundle: building ${BUNDLE} in ${dist}`);
-		buildBundle(dist, stamp);
+		buildBundle(dist, stamp, schemes);
 	}
 	return join(dist, EXECUTABLE);
 }
