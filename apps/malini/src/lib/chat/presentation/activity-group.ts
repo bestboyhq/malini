@@ -47,13 +47,14 @@ type MachineActivityItem = Extract<RunTimelineItem, { kind: 'tool' | 'command' |
 
 type ItemStatus = 'running' | 'completed' | 'failed';
 
-type ActivityVerbStem = 'explore' | 'edit' | 'run' | 'work';
+type ActivityVerbStem = 'explore' | 'edit' | 'run' | 'work' | 'try';
 
 const VERB_FORMS: Readonly<Record<ActivityVerbStem, { past: string; present: string }>> = {
 	explore: { past: 'Explored', present: 'Exploring' },
 	edit: { past: 'Edited', present: 'Editing' },
 	run: { past: 'Ran', present: 'Running' },
 	work: { past: 'Worked', present: 'Working' },
+	try: { past: 'Tried', present: 'Trying' },
 };
 
 const TOOL_PATH_KEYS = [
@@ -126,17 +127,18 @@ function isMachineActivity(item: RunTimelineItem): item is MachineActivityItem {
 }
 
 function buildActivityGroup(items: readonly MachineActivityItem[]): ActivityGroup {
-	const actions = items.map(itemActionKind);
+	const ran = items.filter((item) => !blockedByAutoMode(item));
+	const actions = ran.map(itemActionKind);
 	const statuses = items.map(itemStatus);
 	const actionKinds = distinct(actions);
-	const forms = VERB_FORMS[verbStem(actionKinds)];
+	const forms = VERB_FORMS[ran.length > 0 ? verbStem(actionKinds) : 'try'];
 
 	return {
 		kind: 'activity-group',
 		key: `activity-${items[0]?.key ?? 'empty'}`,
 		items: [...items],
 		verb: statuses.includes('running') ? forms.present : forms.past,
-		detail: groupDetail(items, actions),
+		detail: ran.length > 0 ? groupDetail(ran, actions) : pluralize(items.length, 'call'),
 		status: groupStatus(statuses),
 		actionKinds,
 		failures: items
@@ -155,6 +157,10 @@ function itemActionKind(item: MachineActivityItem): ToolActionKind {
 		case 'file':
 			return 'edit';
 	}
+}
+
+function blockedByAutoMode(item: MachineActivityItem): boolean {
+	return item.kind === 'tool' && Boolean(item.tool.autoModeReason);
 }
 
 function itemStatus(item: MachineActivityItem): ItemStatus {

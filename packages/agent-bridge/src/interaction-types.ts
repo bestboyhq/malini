@@ -73,6 +73,7 @@ export interface ProviderApprovalRequest {
 	readonly input?: unknown;
 	readonly permission?: ProviderPermissionDescriptor;
 	readonly autoModeRule?: string;
+	readonly autoModeUnavailable?: true;
 	readonly signal?: AbortSignal;
 }
 

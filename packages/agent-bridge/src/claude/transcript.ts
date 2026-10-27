@@ -10,7 +10,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentEvent, BackgroundTask, BackgroundTaskKind } from '../types.js';
 import { isRecord } from '../type-guards.js';
-import { autoModeCategory } from './permissions.js';
+import { AUTO_MODE_UNAVAILABLE, autoModeCategory } from './permissions.js';
 
 export const COMPACTION_TOOL = 'Compact';
 
@@ -115,6 +115,10 @@ export class ClaudeTranscript {
 	markStoppedByUser(): void {
 		this.#stoppedByUser = true;
 		this.#settleInterruptedStream();
+	}
+
+	markUnchecked(toolCallId: string): void {
+		this.#autoModeBlocks.set(toolCallId, AUTO_MODE_UNAVAILABLE);
 	}
 
 	interruptTurn(): void {

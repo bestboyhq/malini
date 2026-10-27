@@ -265,6 +265,7 @@ export type BridgeEvent =
 			input?: unknown;
 			permission?: unknown;
 			autoModeRule?: string;
+			autoModeUnavailable?: boolean;
 			review?: MaliniEditReview;
 	  }
 	| {
@@ -674,6 +675,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('input', f.optionalValue('input')),
 					...optional('permission', f.optionalValue('permission')),
 					...optional('autoModeRule', f.optionalString('autoModeRule')),
+					...optional('autoModeUnavailable', f.optionalBoolean('autoModeUnavailable')),
 				});
 			case 'question.requested':
 				return ok({
