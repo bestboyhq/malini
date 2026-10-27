@@ -6,6 +6,7 @@ export type AskingChild = Readonly<{ sessionId: string; workstreamId: string; jo
 
 const REQUEST_EVENT_TYPES: ReadonlySet<string> = new Set([
 	'approval.requested',
+	'approval.decided',
 	'question.requested',
 	'tool.completed',
 	'run.completed',

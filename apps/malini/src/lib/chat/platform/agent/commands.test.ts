@@ -1057,6 +1057,12 @@ describe('interactions', () => {
 		return { sessionId, runId };
 	}
 
+	function decisionsIn(sessionId: string): unknown[] {
+		return listEventRowsForSession(test.db, sessionId, 0)
+			.filter((row) => row.kind === 'approval.decided')
+			.map((row) => row.payload);
+	}
+
 	it('decides an approval once, then answers the same decision idempotently', async () => {
 		const { sessionId, runId } = await pendingApproval();
 		expect(getSession(test.db, sessionId)?.status).toBe('waiting_for_approval');
@@ -1099,6 +1105,9 @@ describe('interactions', () => {
 				permission,
 			}),
 		).toEqual({ decision: 'allow', scope: 'once', remembered: false });
+		expect(decisionsIn(sessionId)).toEqual([
+			{ approvalId: 'approval-1', decision: 'allow', scope: 'once', remembered: false },
+		]);
 		expect(
 			await invokeError('chat.decide-approval', {
 				sessionId,
@@ -1159,6 +1168,9 @@ describe('interactions', () => {
 				String(ruleId),
 			),
 		).toEqual({ scope: 'session' });
+		expect(decisionsIn(sessionId)).toEqual([
+			{ approvalId: 'approval-1', decision: 'allow', scope: 'session', remembered: true },
+		]);
 		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
 	});
 
@@ -1219,6 +1231,15 @@ describe('interactions', () => {
 		});
 		await waitFor(() => getRun(test.db, blockedRun)?.completedAt !== null);
 		expect(getRun(test.db, blockedRun)?.summary).toBe('approved:allow:always');
+		expect(decisionsIn(blockedSession)).toEqual([
+			{
+				approvalId: 'approval-blocked-1',
+				decision: 'allow',
+				scope: 'once',
+				remembered: false,
+				alwaysAllow: true,
+			},
+		]);
 	});
 
 	async function pendingMaliniApproval(

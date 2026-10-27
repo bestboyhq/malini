@@ -42,6 +42,9 @@ test('a permission request waits for the user, hands the agent their decision, a
 		await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).toBeVisible();
 		await expectAssistantReply(page);
 		expect(await decisionTheAgentGot(page)).toEqual({ decision: 'allow', scope: 'once' });
+		await openWorkstream(page, workstreamId, currentSessionId(page) ?? undefined);
+		await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).toBeVisible();
+		await expect(page.getByText('No longer active')).toHaveCount(0);
 
 		await startFreshChat(page);
 		await sendPrompt(page, 'APPROVAL');
@@ -163,6 +166,8 @@ test('a call auto mode could not check asks once in its chat, and every other ch
 		await expect(page.getByTestId('tool-blocked')).toHaveText(['not checked', 'not checked']);
 		await expect(page.getByTestId('tool-card-failed')).toHaveCount(0);
 		await captureFlow(app, 'unchecked-call-kept-blocked');
+		await openWorkstream(page, outage.workstreamId, currentSessionId(page) ?? undefined);
+		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
 
 		await startFreshChat(page);
 		await sendPrompt(page, 'AUTO_MODE_DOWN');
