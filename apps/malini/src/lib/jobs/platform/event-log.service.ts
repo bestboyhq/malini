@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { EVENT_CATALOG } from '$contract/event-catalog';
 import {
 	CHAT_RUN_CHANGES_CAPTURED_CHANNEL,
@@ -20,7 +20,7 @@ import {
 import type { EventCause } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
-import { canonicalJson, isRecord, nowIso8601 } from '$main/db/rows';
+import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import {
 	chatTurnChainId,
@@ -75,7 +75,6 @@ export type DispatchedEvent = Readonly<{
 	id: number | null;
 	channel: EventChannel;
 	payload: unknown;
-	digest: string | null;
 	chainId: string | null;
 	cause: EventCause | null;
 }>;
@@ -84,10 +83,6 @@ export type EventHandler = (event: DispatchedEvent) => Promise<void>;
 
 export function isLoggedChannel(channel: EventChannel): boolean {
 	return EVENT_CATALOG[channel].logged !== false;
-}
-
-export function eventDigest(payload: unknown): string {
-	return createHash('sha256').update(canonicalJson(payload)).digest('hex');
 }
 
 export function startEventLog(
@@ -129,16 +124,15 @@ export function startEventLog(
 
 	const stopObserving = events.observe((channel, payload) => {
 		if (!isLoggedChannel(channel)) {
-			dispatch({ id: null, channel, payload, digest: null, chainId: null, cause: null });
+			dispatch({ id: null, channel, payload, chainId: null, cause: null });
 			return;
 		}
-		const digest = eventDigest(payload);
 		let logged: DispatchedEvent;
 		try {
-			logged = record(db, channel, payload, digest);
+			logged = record(db, channel, payload);
 		} catch (error) {
 			log(`jobs: could not log ${channel}: ${describeError(error)}`);
-			logged = { id: null, channel, payload, digest, chainId: null, cause: null };
+			logged = { id: null, channel, payload, chainId: null, cause: null };
 		}
 		dispatch(logged);
 	});
@@ -152,12 +146,7 @@ export function pruneEvents(db: MaliniDatabase, now = Date.now()): void {
 	pruneEventLog(db, new Date(now - EVENT_LOG_KEEP_MS).toISOString());
 }
 
-function record(
-	db: MaliniDatabase,
-	channel: EventChannel,
-	payload: unknown,
-	digest: string,
-): DispatchedEvent {
+function record(db: MaliniDatabase, channel: EventChannel, payload: unknown): DispatchedEvent {
 	const emittedAt = nowIso8601();
 	const named = findString(payload, 'workstreamId');
 	const cause = causeOf(db, channel, payload, named, emittedAt);
@@ -166,13 +155,12 @@ function record(
 	const id = insertLoggedEvent(db, {
 		channel,
 		payload: Buffer.byteLength(text, 'utf8') > STORED_PAYLOAD_MAX_BYTES ? 'null' : text,
-		digest,
 		workstreamId: named ?? (cause === null ? null : workstreamOf(db, cause)),
 		cause,
 		chainId,
 		emittedAt,
 	});
-	return { id, channel, payload, digest, chainId, cause };
+	return { id, channel, payload, chainId, cause };
 }
 
 function causeOf(
