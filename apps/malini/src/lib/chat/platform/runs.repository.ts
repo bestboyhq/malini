@@ -9,6 +9,7 @@ import {
 } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { closeTerminalInteractions } from './interactions.repository';
+import { promptPlainText } from './sessions.repository';
 import { invariant } from '$main/errors';
 import { all, column, get, run, scalar } from '$main/db/rows';
 
@@ -366,7 +367,9 @@ function chatTurnFromRow(row: ChatTurnRow): ChatTurnRecord {
 		sessionId: row.session_id,
 		workstreamId: row.workstream_id,
 		chatName: row.display_name,
-		prompt: firstLine(row.prompt).slice(0, CHAT_TURN_PROMPT_CHARS),
+		prompt: firstLine(promptPlainText(row.prompt))
+			.replaceAll(/\s+/gu, ' ')
+			.slice(0, CHAT_TURN_PROMPT_CHARS),
 		status: chatTurnStatus(row.completed_at, row.error),
 		chainId: row.chain_id || row.id,
 		causeEventId: row.cause_event_id,
@@ -447,6 +450,17 @@ export function workChatTurnInWorkstream(
 		finishedSince,
 	);
 	return row ? { runId: row.id, sessionId: row.session_id, chainId: row.chain_id || row.id } : null;
+}
+
+export function sessionRanInChain(db: MaliniDatabase, sessionId: string, chainId: string): boolean {
+	return (
+		get<{ id: string }>(
+			db,
+			'SELECT id FROM agent_runs WHERE session_id = ? AND chain_id = ? LIMIT 1',
+			sessionId,
+			chainId,
+		) !== null
+	);
 }
 
 export function chatTurnChainId(db: MaliniDatabase, runId: string): string | null {

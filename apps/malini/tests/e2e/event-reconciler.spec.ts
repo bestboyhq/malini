@@ -22,7 +22,10 @@ import {
 const LEAD = 'Move apps to Logdash';
 const CHILD = 'Api analytics';
 const WAKE = `Wake “${LEAD}” with this report`;
-const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
+const CHILD_TURN = 'TURN_OUTCOME="The analytics endpoint answers"';
+const CHILD_NEEDS = `${CHILD_TURN} TURN_NEEDS="Pick the Logdash project"`;
+const CHILD_PROMPT = `TITLE="${CHILD}" ${CHILD_NEEDS}`;
+const CHILD_DONE_PROMPT = `TITLE="${CHILD}" ${CHILD_TURN}`;
 const RESENT = 'Rename the settings button';
 const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
@@ -84,7 +87,7 @@ async function allowOnce(page: Page, heading: string): Promise<void> {
 	});
 }
 
-async function leadStartsChild(app: LaunchedApp): Promise<void> {
+async function leadStartsChild(app: LaunchedApp, prompt = CHILD_PROMPT): Promise<void> {
 	const { page } = app;
 	const api = await createSourceRepo(app.root, 'acme/api');
 	await seedWorkstream(page, `file://${api}`, 'e2e-reconcile-api', 'Api work');
@@ -97,7 +100,7 @@ async function leadStartsChild(app: LaunchedApp): Promise<void> {
 	await expect(leadRow(page)).toBeVisible({ timeout: 20_000 });
 	agentCalls(app, {
 		tool: 'workstreams_create',
-		input: { repository: 'acme/api', prompt: CHILD_PROMPT },
+		input: { repository: 'acme/api', prompt },
 	});
 	await allowOnce(page, 'Start a workstream in ‘acme/api’');
 }
@@ -120,12 +123,12 @@ function wokenBy(page: Page, from: string) {
 		.filter({ hasText: `Prompt from ${from}` });
 }
 
-test('a lead chat hears back once a workstream it started ends a turn, and Activity and the Explorer say why', async () => {
+test('a lead chat hears what a workstream it set going needs, even when the model would ask you, and Activity and the Explorer say why', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		reconcilerPicks(app, 'Wake');
+		reconcilerPicks(app, 'Ask you');
 		await leadStartsChild(app);
 
 		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 60_000 });
@@ -137,10 +140,7 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 				.getByText(/Needs: Pick the Logdash project/u)
 				.last(),
 		).toBeVisible();
-		const [asked] = askedChoices(app);
-		expect(asked?.prompt).toContain(`Event: the chat “${CHILD}” finished a turn.`);
-		expect(asked?.prompt).toContain(`Candidates:\n1. Do nothing\n2. ${WAKE}\n3. Ask you`);
-		expect(asked?.pick).toBe(2);
+		expect(askedChoices(app)).toEqual([]);
 		await captureFlow(app, 'reconciler-woken-lead');
 
 		await openJobs(page, '#/jobs/activity');
@@ -153,8 +153,13 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 			page
 				.getByRole('list', { name: 'What Malini could do' })
 				.getByRole('listitem')
-				.filter({ hasText: 'Picked by the model' }),
+				.filter({ hasText: "Picked by Malini's rules" }),
 		).toContainText(WAKE);
+		await expect(
+			page.getByText(
+				`“${LEAD}” set this turn going, so it hears what the turn needs before you do.`,
+			),
+		).toBeVisible();
 		await captureFlow(app, 'reconciler-activity');
 
 		await openJobs(page, '#/jobs/explorer');
@@ -201,19 +206,22 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 	}
 });
 
-test('Malini asks before it acts when the model says so, and does what you pick in Activity', async () => {
+test('Malini asks before it acts when the model says so about a turn you set going, and does what you pick in Activity', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'Ask you');
-		await leadStartsChild(app);
+		await leadStartsChild(app, CHILD_DONE_PROMPT);
+		const statuses = async () => (await decisions(page)).map((decision) => decision.status);
+		await expect.poll(statuses, { timeout: 60_000 }).toEqual(['done']);
 
-		await expect
-			.poll(async () => (await decisions(page)).map((decision) => decision.status), {
-				timeout: 60_000,
-			})
-			.toEqual(['asking']);
+		await childRow(page).click();
+		await sendPrompt(page, CHILD_NEEDS);
+		await expect.poll(statuses, { timeout: 60_000 }).toEqual(['asking', 'done']);
+		expect(askedChoices(app).at(-1)?.prompt).toContain(
+			`The lead chat “${LEAD}” started it, but not this turn.`,
+		);
 		await expect(page.getByTestId('sidebar-jobs-needs-you-count')).toHaveText('1');
 		await openJobs(page, '#/jobs/activity');
 		const ask = page.getByRole('group', {
@@ -280,12 +288,12 @@ test('when the model gives no answer, Malini still wakes the lead, and Activity 
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'FAIL');
-		await leadStartsChild(app);
+		await leadStartsChild(app, CHILD_DONE_PROMPT);
 
 		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 60_000 });
 		await expect(
 			transcript(page)
-				.getByText(/Needs: Pick the Logdash project/u)
+				.getByText(/Outcome: The analytics endpoint answers/u)
 				.last(),
 		).toBeVisible();
 		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);

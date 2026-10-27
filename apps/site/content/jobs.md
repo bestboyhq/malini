@@ -206,7 +206,9 @@ After the rules, the job **Choose a reaction** looks at what no trigger handled 
 - a merge stops on conflicts that nobody in Malini is resolving.
 
 Malini writes down what it sees, in short lines such as "“Api analytics” needs you: Pick the Logdash project" and "“Move apps to Logdash” is idle", and lists what it could do: do nothing, wake the chat that started the work with the turn's report, run the job again, run **Resolve conflicts**, or ask you.
-The model only picks one of them, by number, and Malini checks the pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
+When the chat that started a workstream also set the turn going, in the same chain of events, and the turn needs something or failed, Malini's rules wake that chat without asking the model, since it answers what its plan covers and brings you only what you must decide.
+Otherwise the model picks one of them, by number.
+Malini checks every pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
 When the model can't answer, Malini picks by its own rules: it wakes the chat waiting on the work, or else asks you, and never runs a job.
 
 - **Wake**: the report arrives in the chat that started the work as a prompt from that workstream, beginning "Malini woke you".

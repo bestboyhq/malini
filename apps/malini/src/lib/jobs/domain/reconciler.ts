@@ -89,6 +89,7 @@ export type TurnFinishedSituation = Readonly<{
 	outcome: string | null;
 	needs: string | null;
 	starter: ReconcilerChat | null;
+	starterInChain: boolean;
 	siblings: ReconcilerSiblings;
 	wakes: number;
 }>;
@@ -129,6 +130,16 @@ export function reconcilerQuestion(situation: ReconcilerSituation): ReconcilerQu
 	const candidates = [NOTHING, ...actions(situation)];
 	if (candidates.length < 2) return null;
 	return { facts: facts(situation), candidates };
+}
+
+export function rulesReason(situation: ReconcilerSituation): string | null {
+	if (situation.kind !== 'turn-finished' || !situation.starter || !situation.starterInChain) {
+		return null;
+	}
+	const { needs, starter, status } = situation;
+	if (status === 'cancelled' || (status === 'succeeded' && needs === null)) return null;
+	const heard = status === 'failed' ? 'that the turn failed' : 'what the turn needs';
+	return `“${starter.chatName}” set this turn going, so it hears ${heard} before you do.`;
 }
 
 function actions(situation: ReconcilerSituation): ReconcilerCandidate[] {
@@ -274,7 +285,9 @@ function facts(situation: ReconcilerSituation): string[] {
 				`Event: the chat ${chatIn(situation)} ${situation.status === 'failed' ? 'failed its turn' : 'finished a turn'}.`,
 				`Outcome: ${situation.outcome ?? 'none'}`,
 				`Needs: ${situation.needs ?? 'nothing'}`,
-				...(situation.starter ? starterFacts(situation.starter, situation.siblings) : []),
+				...(situation.starter
+					? starterFacts(situation.starter, situation.starterInChain, situation.siblings)
+					: []),
 				...wakeFacts(situation.starter, situation.wakes),
 			];
 		case 'job-run':
@@ -309,10 +322,14 @@ function chatState(chat: ReconcilerChat): string {
 	return `“${chat.chatName}” is idle; its last turn ended with Outcome: ${oneLine(chat.lastOutcome)}, Needs: ${chat.lastNeeds === null ? 'nothing' : oneLine(chat.lastNeeds)}.`;
 }
 
-function starterFacts(starter: ReconcilerChat, siblings: ReconcilerSiblings): string[] {
+function starterFacts(
+	starter: ReconcilerChat,
+	inChain: boolean,
+	siblings: ReconcilerSiblings,
+): string[] {
 	const others = siblings.total - 1;
 	return [
-		`The ${starter.lead ? 'lead chat' : 'chat'} “${starter.chatName}” started it.`,
+		`The ${starter.lead ? 'lead chat' : 'chat'} “${starter.chatName}” started it${inChain ? ' and set this turn going' : ', but not this turn'}.`,
 		chatState(starter),
 		...(others > 0
 			? [

@@ -86,7 +86,7 @@ A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) 
 
 ### Work it started reports back
 
-When a workstream a chat started ends a turn that failed or needs something, Malini's [reconciler](/malini/docs/jobs.md#reconciler) can wake that chat with the turn's `Outcome:` and `Needs:`, as a prompt from that workstream.
+When a turn a chat set going in a workstream it started fails or needs something, Malini's [reconciler](/malini/docs/jobs.md#reconciler) wakes that chat with the turn's `Outcome:` and `Needs:`, as a prompt from that workstream, up to three times about the same work before it asks you instead.
 The agent answers what its plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and leaves in its own `Needs:` only what you must decide.
 `workstreams_send` reaches only the workstreams the chat started, and only while their chat is idle: a chat on a turn refuses it, and the agent sends it once that turn ends.
 Other Malini chats are reachable only through these tools, since Claude Code's own `ListAgents` and `SendMessage` see only its own agents.
