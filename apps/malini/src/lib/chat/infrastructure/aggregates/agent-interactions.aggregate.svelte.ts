@@ -31,6 +31,7 @@ type RegisteredInteraction =
 			requestId: string;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: true;
 	  }>
 	| Readonly<{
 			kind: 'question';
@@ -160,6 +161,7 @@ export class AgentInteractionCommands {
 					requestId,
 					...(event.permission ? { permission: event.permission } : {}),
 					...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
+					...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
 				});
 			} else {
 				const questionIds = new Set(event.questions.map(({ id }) => id));
@@ -273,6 +275,9 @@ export class AgentInteractionCommands {
 			return false;
 		}
 		const autoModeRule = request?.kind === 'approval' ? request.autoModeRule : undefined;
+		const keptBlockedRunsOn =
+			autoModeRule !== undefined ||
+			(request?.kind === 'approval' && request.autoModeUnavailable === true);
 		const alwaysAllow = input.alwaysAllow === true;
 		if (alwaysAllow && (input.decision !== 'allow' || input.scope !== 'once' || !autoModeRule)) {
 			this.#fail(key, 'Only a call auto mode blocked can be always allowed.');
@@ -301,13 +306,15 @@ export class AgentInteractionCommands {
 				this.#fail(key, 'The remembered approval came back malformed.');
 				return false;
 			}
-			if (input.decision === 'allow') this.#onResolved(input.sessionId, input.runId);
+			if (input.decision === 'allow' || keptBlockedRunsOn) {
+				this.#onResolved(input.sessionId, input.runId);
+			}
 			const remembered = input.decision === 'allow' && result.remembered;
 			this.states = {
 				...this.states,
 				[key]: {
 					status: 'resolved',
-					message: resolvedMessage(input, remembered, autoModeRule !== undefined),
+					message: resolvedMessage(input, remembered, keptBlockedRunsOn),
 					decision: input.decision,
 					requestedScope: input.scope,
 					scopeStored: remembered,
@@ -395,9 +402,9 @@ export class AgentInteractionCommands {
 function resolvedMessage(
 	input: DecideAgentApprovalInput,
 	remembered: boolean,
-	blockedByAutoMode: boolean,
+	keptBlockedRunsOn: boolean,
 ): string {
-	if (input.decision === 'deny') return blockedByAutoMode ? 'Kept blocked' : 'Denied';
+	if (input.decision === 'deny') return keptBlockedRunsOn ? 'Kept blocked' : 'Denied';
 	if (input.alwaysAllow) return 'Always allowed';
 	if (input.updatedInput) return 'Saved after review';
 	if (input.scope === 'once' || !remembered) return 'Allowed once';

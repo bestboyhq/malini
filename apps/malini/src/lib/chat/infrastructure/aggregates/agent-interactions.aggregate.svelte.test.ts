@@ -221,6 +221,37 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
+	it.each([
+		{ name: 'auto mode blocked', flags: { autoModeRule: 'Bash(curl https://example.com)' } },
+		{ name: 'auto mode could not check', flags: { autoModeUnavailable: true } },
+	])('resumes a run that carries on after a call $name stays blocked', async ({ flags }) => {
+		const decideAgentApproval = vi.fn().mockResolvedValue({
+			decision: 'deny',
+			scope: 'once',
+			remembered: false,
+		});
+		const onResolved = vi.fn();
+		const commands = new AgentInteractionCommands(
+			() => ({ decideAgentApproval, answerAgentQuestion: vi.fn() }),
+			onResolved,
+		);
+		commands.sync([envelope(1, { ...externalReadApproval(), ...flags })]);
+
+		await commands.decideApproval({
+			sessionId: 'session-1',
+			runId: 'run-1',
+			approvalId: 'approval-1',
+			decision: 'deny',
+			scope: 'once',
+		});
+
+		expect(onResolved).toHaveBeenCalledWith('session-1', 'run-1');
+		expect(commands.stateFor(approvalReference())).toMatchObject({
+			status: 'resolved',
+			message: 'Kept blocked',
+		});
+	});
+
 	it('shows the decision when the run ends before the bridge confirms it', async () => {
 		let release!: (result: { decision: 'deny'; scope: 'once'; remembered: false }) => void;
 		const decideAgentApproval = vi.fn(

@@ -73,6 +73,7 @@ export type AgentEvent =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: boolean;
 			review?: MaliniEditReview;
 	  }
 	| {

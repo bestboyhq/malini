@@ -19,6 +19,7 @@
 	import { relativizeWorkstreamPath } from './workstream-path';
 	import {
 		backgroundAgentSummary,
+		blockedLabel,
 		compactionLabel,
 		isCompaction,
 		summarizeLiveToolInput,
@@ -241,7 +242,7 @@
 					data-testid="tool-blocked"
 					in:fade={{ duration: 190 }}
 				>
-					blocked · {blockedReason}
+					{blockedLabel(blockedReason)}
 				</span>
 			{:else}
 				{@render duration()}

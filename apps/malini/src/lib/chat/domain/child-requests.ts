@@ -28,14 +28,35 @@ export function askingChildren(
 	}
 	for (const session of childSessions) {
 		if (session.status !== 'waiting_for_approval' || asking.has(session.id)) continue;
-		asking.set(session.id, {
-			sessionId: session.id,
-			workstreamId: session.workstreamId,
-			job: session.origin === 'job' ? session.displayName : null,
-		});
+		asking.set(session.id, askingSession(session));
 	}
 	if (shownSessionId !== null) asking.delete(shownSessionId);
 	return [...asking.values()];
+}
+
+export function waitingElsewhere(
+	shownSessionId: string | null,
+	children: readonly AskingChild[],
+	sessions: readonly SessionRecord[],
+): AskingChild[] {
+	const skipped = new Set([shownSessionId, ...children.map(({ sessionId }) => sessionId)]);
+	return sessions
+		.filter((session) => session.status === 'waiting_for_approval' && !skipped.has(session.id))
+		.map(askingSession);
+}
+
+export function isUncheckedApproval(envelope: EventEnvelope): boolean {
+	return (
+		envelope.event.type === 'approval.requested' && envelope.event.autoModeUnavailable === true
+	);
+}
+
+function askingSession(session: SessionRecord): AskingChild {
+	return {
+		sessionId: session.id,
+		workstreamId: session.workstreamId,
+		job: session.origin === 'job' ? session.displayName : null,
+	};
 }
 
 export function descendantWorkstreamIds(
