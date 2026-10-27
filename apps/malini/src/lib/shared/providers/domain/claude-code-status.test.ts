@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderCapability } from '$contract/agent';
-import { claudeCodeStatus, setupStepFor } from './claude-code-status';
+import { claudeCodeStatus, setupStepFor, usesSubscription } from './claude-code-status';
 
 const capability = (patch: Partial<ProviderCapability>): ProviderCapability => ({
 	state: 'ready',
@@ -32,5 +32,11 @@ describe('Claude Code status', () => {
 			kind: 'unknown',
 			message: 'bridge down',
 		});
+	});
+
+	it('hides per-run cost only for a Claude subscription', () => {
+		expect(usesSubscription(claudeCodeStatus(capability({}), null))).toBe(true);
+		expect(usesSubscription(claudeCodeStatus(capability({ account: {} }), null))).toBe(false);
+		expect(usesSubscription({ kind: 'checking' })).toBe(false);
 	});
 });

@@ -35,3 +35,7 @@ export function setupStepFor(status: ClaudeCodeStatus): ClaudeSetupStep | null {
 	if (status.kind === 'signed-out') return 'sign-in';
 	return null;
 }
+
+export function usesSubscription(status: ClaudeCodeStatus): boolean {
+	return status.kind === 'ready' && Boolean(status.account?.plan);
+}

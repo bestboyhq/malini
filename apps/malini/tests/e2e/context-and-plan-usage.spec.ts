@@ -11,12 +11,14 @@ import {
 
 const HOUR_MS = 3_600_000;
 
-test('a plan limit past 90% shows in the composer and the panel breaks down the context window', async () => {
+test('a plan limit past 90% shows in the composer and the panel breaks down the context window and the last run', async () => {
 	test.setTimeout(120_000);
 	const now = Date.now();
 	const app = await launchMalini({
 		env: {
 			FAKE_BRIDGE_USAGE: JSON.stringify({
+				inputTokens: 12_345,
+				outputTokens: 678,
 				contextTokens: 40_000,
 				contextWindowTokens: 200_000,
 				providerMetrics: {
@@ -83,6 +85,9 @@ test('a plan limit past 90% shows in the composer and the panel breaks down the 
 			'127K',
 			'63.5%',
 		]);
+		await expect(panel.getByRole('region', { name: 'Last run' })).toContainText(
+			'12,345 input · 678 output',
+		);
 		await expect(panel.getByRole('progressbar', { name: '5-hour limit used' })).toHaveAttribute(
 			'aria-valuenow',
 			'93',

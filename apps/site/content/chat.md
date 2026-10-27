@@ -177,7 +177,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 
