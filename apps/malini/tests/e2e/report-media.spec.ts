@@ -99,6 +99,14 @@ test('a before and after shows as one picture that wipes, flips and diffs at one
 		await page.keyboard.press('Escape');
 		await expect(frame.getByRole('button', { name: 'Show all' })).toHaveCount(0);
 
+		await frame.hover();
+		await page.keyboard.down('Control');
+		await page.mouse.wheel(0, -100);
+		await page.keyboard.up('Control');
+		await expect(compare.getByText(/^\d+(\.\d)?× · scroll to pan$/u)).toBeVisible();
+		await frame.getByRole('button', { name: 'Show all' }).click();
+		await expect(compare.getByText('Changed pixels in pink')).toBeVisible();
+
 		await compare.getByRole('button', { name: 'Open in gallery' }).click();
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await gallery.getByRole('img', { name: 'After: pricing page' }).click();

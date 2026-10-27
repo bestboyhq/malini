@@ -62,8 +62,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-**Settings > Accounts** lists the Claude accounts you used on this Mac and checks the one Claude Code is signed in to.
-The same list sits under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
+The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
@@ -109,7 +109,7 @@ Ship several steps that way and each one runs in a chat of its own.
 
 When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture across the chat's full width.
 **Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
-Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, and press Escape to zoom back out.
+Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, or pinch or Ctrl-scroll to zoom anywhere and scroll to pan, and press Escape to zoom back out.
 The expand button opens the picture you see in the gallery.
 Recordings play side by side on one timeline: step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
 

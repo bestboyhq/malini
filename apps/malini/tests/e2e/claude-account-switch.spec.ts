@@ -123,6 +123,19 @@ test('a Claude account added from the context card signs in through the browser 
 		await page.keyboard.press('Escape');
 		await expect(settings).toHaveCount(0);
 
+		const composerAccount = page.getByRole('button', {
+			name: `Claude account: ${PRIVATE_ACCOUNT}`,
+		});
+		await expect(composerAccount).toHaveText(PRIVATE_ACCOUNT);
+		await composerAccount.click();
+		const switcher = page.getByRole('dialog', { name: 'Switch Claude account' });
+		await expect(switcher.locator('[aria-current="true"]')).toContainText(PRIVATE_ACCOUNT);
+		await expect(switcher.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
+		await expect(switcher.getByRole('button', { name: 'Add account' })).toBeVisible();
+		await captureFlow(app, 'claude-account-composer');
+		await page.keyboard.press('Escape');
+		await expect(switcher).toHaveCount(0);
+
 		await page.evaluate(() => {
 			location.hash = '#/settings/privacy';
 		});
@@ -147,6 +160,9 @@ test('a Claude account added from the context card signs in through the browser 
 			.toBe(`auth login with refresh-${WORK_ACCOUNT}\n`);
 		await settingsCurrent.getByRole('button', { name: 'Reveal email address' }).click();
 		await expect(settingsCurrent).toContainText(WORK_ACCOUNT, { timeout: 20_000 });
+		await expect(page.getByRole('button', { name: `Claude account: ${WORK_ACCOUNT}` })).toHaveText(
+			'm***@***',
+		);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

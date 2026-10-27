@@ -9,7 +9,11 @@
 		subscriptionBillingQuery,
 		type AgentModel,
 	} from '$shared/providers/providers.api';
-	import { ModelProfilePicker, RunProfileControls } from '$shared/providers/providers.api';
+	import {
+		ClaudeAccountMenu,
+		ModelProfilePicker,
+		RunProfileControls,
+	} from '$shared/providers/providers.api';
 	import { resetFreshSubmissionIntentCommand } from '$lib/chat/application/commands/reset-fresh-submission-intent.command';
 	import { loadWorkstreamFilesCommand } from '$lib/chat/application/commands/load-workstream-files.command';
 	import { pickAttachmentsCommand } from '$lib/chat/application/commands/pick-attachments.command';
@@ -1277,10 +1281,11 @@
 		</span>
 	{/snippet}
 
-	<div class="flex h-6 justify-end px-3">
+	<div class="flex h-6 min-w-0 items-center gap-3 px-3">
+		<ClaudeAccountMenu />
 		{#if runUsage}
 			<p
-				class="text-2xs flex h-6 items-center gap-1.5 tabular-nums select-none"
+				class="text-2xs ml-auto flex h-6 shrink-0 items-center gap-1.5 tabular-nums select-none"
 				data-testid="chat-run-usage"
 			>
 				<span class="text-fg-tertiary">Last run</span>
