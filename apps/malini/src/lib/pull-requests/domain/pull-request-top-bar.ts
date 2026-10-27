@@ -1,3 +1,4 @@
+import { githubFailure, type GithubFailure } from '$contract/github-failure';
 import type { ShipStep } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
 import {
@@ -30,11 +31,12 @@ export function pullRequestTopBar(
 	surface: RepositorySurface | null,
 	availability: PullRequestAvailability,
 	agentWork: AgentWork | null = null,
+	online = true,
 ): PullRequestTopBar {
 	const read = surface !== null && repositorySurfaceHasBeenRead(surface) ? surface : null;
 	const remoteFailure = surface === null ? null : surfaceFailure(surface);
 	const url = read?.pullRequest?.url ?? ship?.pullRequestUrl ?? null;
-	const status = workstreamStatus(ship, read, availability, surface, url, agentWork);
+	const status = workstreamStatus(ship, read, availability, surface, url, agentWork, online);
 	return {
 		status,
 		menu: topBarMenu(ship, surface, remoteFailure).filter(
@@ -53,14 +55,15 @@ function workstreamStatus(
 	surface: RepositorySurface | null,
 	url: string | null,
 	agentWork: AgentWork | null,
+	online: boolean,
 ): WorkstreamStatus | null {
 	const settle = (settled: WorkstreamStatus | null): WorkstreamStatus | null =>
 		agentWork ? whileAgentWorks(settled, agentWork) : settled;
 	const mergedOnGithub = read?.pullRequest?.state === 'merged';
 	if (ship?.phase === 'needs-you' && !mergedOnGithub) return needsYou(ship, read, url);
-	if (ship?.phase === 'queued') return queued(ship);
+	if (ship?.phase === 'queued') return queued(ship, online);
 	if (ship?.phase === 'draft' && ship.step && ship.pullRequestNumber === null) {
-		return openingDraft(ship);
+		return openingDraft(ship, online);
 	}
 	if (ship?.step && CLEARING_BLOCKERS_STEPS.has(ship.step)) {
 		return clearingBlockers(availability === 'ready' ? shipStatus(ship, read) : null);
@@ -68,7 +71,7 @@ function workstreamStatus(
 	if (availability === 'extension-unavailable') return settle(EXTENSION_OFF);
 	if (availability === 'github-unavailable') return read ? settle(withoutGithub(read)) : null;
 
-	const blocker = connectionBlocker(read, surface);
+	const blocker = connectionBlocker(read, surface, online);
 	if (blocker) return blocker;
 	const operation = read && blockingOperation(read);
 	if (operation) return operation;
@@ -133,32 +136,36 @@ function needsYouAction(
 	return operation ? abortOperation(operation) : null;
 }
 
-function queued(ship: PullRequestShip): WorkstreamStatus {
+function queued(ship: PullRequestShip, online: boolean): WorkstreamStatus {
 	const merging = ship.step === 'merging' || ship.step === 'archiving';
 	return {
 		tone: 'queued',
 		busy: true,
 		label: merging ? 'Merging' : 'Queued for merge',
-		detail: ship.lastError
-			? 'Retrying after an error'
-			: ship.step === null
-				? null
-				: shipStepDetail(ship.step),
+		detail: !online
+			? OFFLINE.label
+			: ship.lastError
+				? 'Retrying after an error'
+				: ship.step === null
+					? null
+					: shipStepDetail(ship.step),
 		tooltip: ship.lastError,
 		action: merging ? null : CANCEL_MERGE,
 	};
 }
 
-function openingDraft(ship: PullRequestShip): WorkstreamStatus {
+function openingDraft(ship: PullRequestShip, online: boolean): WorkstreamStatus {
 	return {
 		tone: 'idle',
 		busy: true,
 		label: 'Opening draft',
-		detail: ship.lastError
-			? 'Retrying after an error'
-			: ship.step === 'waiting-for-agent'
-				? 'After the agent finishes'
-				: null,
+		detail: !online
+			? OFFLINE.label
+			: ship.lastError
+				? 'Retrying after an error'
+				: ship.step === 'waiting-for-agent'
+					? 'After the agent finishes'
+					: null,
 		tooltip: ship.lastError,
 		action: null,
 	};
@@ -220,6 +227,7 @@ function withoutGithub(read: RepositorySurface): WorkstreamStatus {
 function connectionBlocker(
 	read: RepositorySurface | null,
 	surface: RepositorySurface | null,
+	online: boolean,
 ): WorkstreamStatus | null {
 	if (read?.pullRequest?.state === 'unavailable') {
 		return attention('GitHub account not connected', null, CONNECT);
@@ -227,13 +235,39 @@ function connectionBlocker(
 	if (read?.github?.session === 'reconnect-required') {
 		return attention('GitHub sign-in expired', null, RECONNECT);
 	}
+	if (surface?.localError) {
+		return attention("Couldn't read the worktree", surface.localError, RETRY);
+	}
+	if (!online) return OFFLINE;
 	const failure = surface === null ? null : surfaceFailure(surface);
-	if (!failure) return null;
-	return attention(
-		surface?.localError ? "Couldn't read the worktree" : 'GitHub is unreachable',
+	return failure ? githubFailureStatus(failure) : null;
+}
+
+const OFFLINE: WorkstreamStatus = {
+	tone: 'needs-you',
+	busy: false,
+	label: 'Offline',
+	detail: null,
+	tooltip: 'This Mac is offline. Malini reads GitHub again as soon as it is back online.',
+	action: null,
+};
+
+const GITHUB_FAILURE_LABELS: Readonly<Record<GithubFailure, string>> = {
+	unreachable: "Can't reach GitHub",
+	down: 'GitHub is down',
+	'rate-limited': 'GitHub rate limit',
+};
+
+function githubFailureStatus(failure: string): WorkstreamStatus {
+	const kind = githubFailure(failure);
+	const status = attention(
+		kind ? GITHUB_FAILURE_LABELS[kind] : "Couldn't check GitHub",
 		failure,
 		RETRY,
 	);
+	return kind === 'down' || kind === 'unreachable'
+		? { ...status, secondaryAction: GITHUB_STATUS }
+		: status;
 }
 
 function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
@@ -500,6 +534,14 @@ const CONNECT: PullRequestTopBarAction = {
 	label: 'Connect',
 	ariaLabel: 'Connect the repository GitHub account',
 	tone: 'primary',
+	confirmLabel: null,
+};
+
+const GITHUB_STATUS: PullRequestTopBarAction = {
+	kind: 'open-github-status',
+	label: 'Status',
+	ariaLabel: 'Open GitHub Status',
+	tone: 'secondary',
 	confirmLabel: null,
 };
 

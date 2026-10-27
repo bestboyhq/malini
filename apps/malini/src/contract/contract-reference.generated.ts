@@ -292,10 +292,10 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'app:menu-command-chosen',
 			description:
-				"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+				"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 			payloadType: 'MenuCommandChosen',
 			payload:
-				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
+				"type MenuCommand =\n\t'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';\n\ntype MenuCommandChosen = Readonly<{ command: MenuCommand }>;",
 		},
 		{
 			channel: 'app:streaming-changed',
@@ -318,6 +318,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires when a new Malini version has downloaded and installs on the next restart, with that version.',
 			payloadType: 'UpdateStagedPayload',
 			payload: 'type UpdateStagedPayload = Readonly<{ version: string }>;',
+		},
+		{
+			channel: 'app:update-status-changed',
+			description:
+				'Fires when the update status in the sidebar changes: checking or downloading after you chose Check for Updates…, up to date, failed, a version ready to install, or nothing to show. Malini does not keep it in its event log.',
+			payloadType: 'UpdateStatus',
+			payload:
+				"type UpdateStatus = Readonly<\n\t| { state: 'idle' }\n\t| { state: 'checking' }\n\t| { state: 'downloading'; version: string }\n\t| { state: 'up-to-date'; version: string }\n\t| { state: 'failed'; error: string }\n\t| { state: 'ready'; version: string }\n>;",
 		},
 		{
 			channel: 'browser:state-changed',

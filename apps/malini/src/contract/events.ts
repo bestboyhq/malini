@@ -126,7 +126,7 @@ export interface LocalBaseSyncedPayload {
 export type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 export type MenuCommand =
-	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';
 
 export type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 
@@ -152,6 +152,15 @@ export type ContractChanges = Readonly<{
 export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: ContractChanges }>;
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
+
+export type UpdateStatus = Readonly<
+	| { state: 'idle' }
+	| { state: 'checking' }
+	| { state: 'downloading'; version: string }
+	| { state: 'up-to-date'; version: string }
+	| { state: 'failed'; error: string }
+	| { state: 'ready'; version: string }
+>;
 
 export type AppStartedPayload = Readonly<{ version: string }>;
 
@@ -203,6 +212,7 @@ export interface ContractEvents {
 	'app:streaming-changed': StreamingChangedPayload;
 	'app:updated': AppUpdatedPayload;
 	'app:update-staged': UpdateStagedPayload;
+	'app:update-status-changed': UpdateStatus;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
@@ -255,6 +265,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:streaming-changed': null,
 	'app:updated': null,
 	'app:update-staged': null,
+	'app:update-status-changed': null,
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
 	'browser:resize-requested': null,
@@ -329,6 +340,8 @@ export const APP_STREAMING_CHANGED_CHANNEL = 'app:streaming-changed' satisfies E
 export const APP_UPDATED_CHANNEL = 'app:updated' satisfies EventChannel;
 
 export const APP_UPDATE_STAGED_CHANNEL = 'app:update-staged' satisfies EventChannel;
+
+export const APP_UPDATE_STATUS_CHANGED_CHANNEL = 'app:update-status-changed' satisfies EventChannel;
 
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 

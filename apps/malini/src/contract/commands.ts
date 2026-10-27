@@ -32,7 +32,7 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
-import type { MenuCommandChosen, NotificationTarget } from './events';
+import type { MenuCommandChosen, NotificationTarget, UpdateStatus } from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
@@ -675,7 +675,8 @@ export interface ContractCommands {
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
-	'app.staged-update': { args: undefined; result: string | null };
+	'app.update-status': { args: undefined; result: UpdateStatus };
+	'app.check-for-updates': { args: undefined; result: void };
 	'app.restart-to-update': { args: undefined; result: void };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
@@ -879,7 +880,8 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.theme-mode',
 	'app.runtime-info',
 	'app.streaming',
-	'app.staged-update',
+	'app.update-status',
+	'app.check-for-updates',
 	'app.restart-to-update',
 	'stats.activity',
 	'stats.resources',

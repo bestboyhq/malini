@@ -1,3 +1,5 @@
+import { online } from 'svelte/reactivity/window';
+import { GITHUB_STATUS_URL } from '$contract/github-failure';
 import { toast } from '$hyper-ui/components/toast';
 import { aboutWorkstream } from '$shared/errors/toast-subject';
 import { goto } from '$shared/router/navigation';
@@ -38,6 +40,8 @@ function runPullRequestActionCommand(
 		ship,
 		surface,
 		pullRequestAvailabilityOf(pullRequestScopeStore),
+		null,
+		online.current !== false,
 	);
 	const offered = [status?.action?.kind, status?.secondaryAction?.kind];
 	const kind = offered.includes(clicked) ? clicked : null;
@@ -51,6 +55,10 @@ function runPullRequestActionCommand(
 	}
 	if (kind === 'refresh') {
 		refreshRepositorySurfaceCommand();
+		return;
+	}
+	if (kind === 'open-github-status') {
+		openExternalUrl(GITHUB_STATUS_URL);
 		return;
 	}
 	if (kind === 'abort-operation' && surface?.operationInProgress) {
@@ -76,7 +84,7 @@ function runPullRequestActionCommand(
 		openJobTranscript(workstreamId, ship.needsYou.jobRunId, url);
 		return;
 	}
-	if (kind === 'open-pull-request' && url) openPullRequest(url);
+	if (kind === 'open-pull-request' && url) openExternalUrl(url);
 }
 
 function continueOnBase(workstreamId: string, baseBranch: string, mergedHeadSha: string): void {
@@ -95,13 +103,13 @@ function openJobTranscript(workstreamId: string, jobRunId: string, url: string |
 			return;
 		}
 		if (url) {
-			openPullRequest(url);
+			openExternalUrl(url);
 			return;
 		}
 		toast.info('The transcript of that job is no longer available', aboutWorkstream(workstreamId));
 	})();
 }
 
-function openPullRequest(url: string): void {
+function openExternalUrl(url: string): void {
 	void externalUrlService.open(url).catch(() => undefined);
 }

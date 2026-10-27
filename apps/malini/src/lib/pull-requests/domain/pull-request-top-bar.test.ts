@@ -589,14 +589,14 @@ describe('the workstream status', () => {
 			},
 		],
 		[
-			'needs you when GitHub is unreachable, never green',
+			'needs you when GitHub is down, never green',
 			null,
 			open({ checkItems: [passed] }, { pullRequestError: 'HTTP 502' }),
 			'ready',
 			{
 				tone: 'needs-you',
 				busy: false,
-				label: 'GitHub is unreachable',
+				label: 'GitHub is down',
 				detail: null,
 				action: 'Retry',
 			},
@@ -896,6 +896,58 @@ describe('the workstream status', () => {
 				open({ checks: 'failed', checkItems: [{ ...failing, notStartedReason: 'billing' }] }),
 			),
 		).toMatchObject({ label: "CI didn't start", detail: 'Billing', tooltip: null });
+	});
+
+	it.each([
+		[
+			"Couldn't reach GitHub: the connection timed out. Check your internet connection, VPN or proxy.",
+			"Can't reach GitHub",
+			'open-github-status',
+		],
+		[
+			"GitHub is down: it answered HTTP 503. Your connection works; the problem is on GitHub's side.",
+			'GitHub is down',
+			'open-github-status',
+		],
+		[
+			'GitHub hit its rate limit for this account. Malini reads GitHub again once the limit resets.',
+			'GitHub rate limit',
+			undefined,
+		],
+		['gh pr view: gh returned a body that is not JSON', "Couldn't check GitHub", undefined],
+	])('names the GitHub failure "%s" as %s', (failure, label, secondary) => {
+		expect(status(null, open({}, { pullRequestError: failure }))).toMatchObject({
+			tone: 'needs-you',
+			label,
+			tooltip: failure,
+			action: { kind: 'refresh' },
+		});
+		expect(status(null, open({}, { pullRequestError: failure }))?.secondaryAction?.kind).toBe(
+			secondary,
+		);
+	});
+
+	it('says Offline over a stale or failed GitHub read while this Mac is offline', () => {
+		const offline = (shipState: PullRequestShip | null, read: RepositorySurface | null) =>
+			pullRequestTopBar(shipState, read, 'ready', null, false).status;
+		const said = {
+			tone: 'needs-you',
+			label: 'Offline',
+			tooltip: 'This Mac is offline. Malini reads GitHub again as soon as it is back online.',
+			action: null,
+		};
+
+		expect(offline(null, open({ checkItems: [passed] }))).toMatchObject(said);
+		expect(offline(null, open({}, { pullRequestError: "Couldn't reach GitHub" }))).toMatchObject(
+			said,
+		);
+		expect(offline(ship({ phase: 'queued', lastError: 'push failed' }), open())).toMatchObject({
+			label: 'Queued for merge',
+			detail: 'Offline',
+		});
+		expect(offline(null, surface({ localError: 'git status failed' }))?.label).toBe(
+			"Couldn't read the worktree",
+		);
 	});
 
 	it('ships a merge whose conflicts are resolved', () => {

@@ -7,7 +7,9 @@ description: How Malini updates itself, and how the built-in Check compatibility
 
 Malini checks GitHub Releases for a new version on launch, every hour, and when your Mac wakes.
 Updates download in the background and install when you quit.
-**Restart to Update** in the app menu installs the newest release right away, and **Check for Updates…** checks now.
+The bottom of the sidebar is the one place that shows update status, and Malini never opens a dialog about an update.
+Once an update is ready, **Restart to update** there installs the newest release right away.
+**Check for Updates…** in the app menu checks now, and the sidebar shows it checking, downloading, up to date, or failed with **Retry**, opening the sidebar if you had hidden it.
 
 Malini must run from an Applications folder to update itself; started anywhere else, it offers to move itself there.
 Every merged `feat`, `fix`, or `perf` change ships as a release, so updates are small and frequent.

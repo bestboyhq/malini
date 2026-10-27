@@ -9,6 +9,7 @@ export type PullRequestActionKind =
 	| 'cancel-merge'
 	| 'open-pull-request'
 	| 'open-job'
+	| 'open-github-status'
 	| 'reconnect'
 	| 'refresh'
 	| 'abort-operation';

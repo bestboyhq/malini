@@ -6,8 +6,8 @@
 </script>
 
 <SettingsSection
-	title="Agent"
-	description="Every chat runs Claude Code on this Mac, with your sign-in, plan, CLAUDE.md, skills and MCP servers. Clones and pull requests go through your GitHub account."
+	title="Accounts"
+	description="Every chat runs Claude Code on this Mac with the Claude account in use, your CLAUDE.md, skills and MCP servers. Clones and pull requests go through your GitHub account."
 >
 	<div class="flex flex-col gap-1.5">
 		<Well title="Claude Code" headed={false}>

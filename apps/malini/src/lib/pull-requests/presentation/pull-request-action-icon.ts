@@ -10,6 +10,7 @@ const ACTION_ICONS: Readonly<Record<PullRequestActionKind, IconName>> = {
 	'cancel-merge': 'close',
 	'open-pull-request': 'external-link',
 	'open-job': 'arrow-right',
+	'open-github-status': 'external-link',
 	reconnect: 'link',
 	refresh: 'refresh',
 	'abort-operation': 'undo',

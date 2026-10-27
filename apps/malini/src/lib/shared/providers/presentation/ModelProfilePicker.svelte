@@ -2,18 +2,16 @@
 	import { onMount } from 'svelte';
 	import { Button } from '$hyper-ui/components/button';
 	import { Dropdown, DropdownItem } from '$hyper-ui/components/dropdown';
-	import { SensitiveText } from '$hyper-ui/components/sensitive';
 	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
 	import { catalogModelLabel, pickerModels } from '$shared/providers/domain/model-catalog';
 	import type { AgentModel } from '$shared/providers/domain/model-id';
+	import { claudeSignInProgress } from '$shared/providers/domain/claude-accounts';
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
 	import { loadProviderCapabilitiesCommand } from '$shared/providers/application/commands/load-provider-capabilities.command';
 	import { signInToClaudeCommand } from '$shared/providers/application/commands/sign-in-to-claude.command';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
 	import { modelCatalogQuery } from '$shared/providers/application/queries/model-catalog.query.svelte';
-	import { otherClaudeAccountsQuery } from '$shared/providers/application/queries/other-claude-accounts.query.svelte';
-	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
 
 	interface Props {
 		model: AgentModel;
@@ -27,7 +25,7 @@
 	const catalog = $derived(modelCatalogQuery.data);
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
-	const otherAccounts = $derived(otherClaudeAccountsQuery.data);
+	const signInProgress = $derived(claudeSignInProgress(signIn));
 	const models = $derived(pickerModels(catalog, model));
 	const selectedLabel = $derived(catalogModelLabel(catalog, model));
 	const setupNeeded = $derived(status.kind === 'missing' || status.kind === 'signed-out');
@@ -42,9 +40,9 @@
 		if (next !== model) onchange(next);
 	}
 
-	function onSwitch(email: string | null): void {
+	function onSignIn(): void {
 		open = false;
-		signInToClaudeCommand(email);
+		signInToClaudeCommand();
 	}
 
 	function onOpenChange(nextOpen: boolean): void {
@@ -124,20 +122,14 @@
 					</DropdownItem>
 				{/each}
 			</div>
-			{#if signIn !== 'idle'}
+			{#if signInProgress}
 				<div
 					class="border-surface-elevated-border flex items-center justify-between gap-2 border-t px-3 py-2.5"
 					data-testid="chat-model-sign-in"
 				>
 					<p class="text-2xs text-fg-tertiary flex items-center gap-2 leading-4">
 						<BusyIcon size={12} />
-						{#if signIn === 'switching'}
-							Switching accounts…
-						{:else if signIn === 'waiting-for-browser'}
-							Continue in your browser.
-						{:else}
-							Checking the new sign-in…
-						{/if}
+						{signInProgress}
 					</p>
 					{#if signIn === 'waiting-for-browser'}
 						<Button
@@ -163,7 +155,7 @@
 							size="sm"
 							class="shrink-0"
 							ariaLabel="Sign in to Claude Code"
-							onclick={() => onSwitch(null)}
+							onclick={onSignIn}
 						>
 							Sign in
 						</Button>
@@ -179,22 +171,6 @@
 							Set up
 						</Button>
 					{/if}
-				</div>
-			{:else if status.kind === 'ready'}
-				<div
-					class="border-surface-elevated-border border-t p-1.5"
-					role="group"
-					aria-label="Claude account"
-					data-testid="chat-model-account"
-				>
-					<p class="text-2xs text-fg-tertiary truncate px-2.5 pt-1 pb-1.5 leading-4">
-						{#if status.account?.email}
-							Signed in as <SensitiveText text={status.account.email} />
-						{:else}
-							Signed in
-						{/if}
-					</p>
-					<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
 				</div>
 			{/if}
 		{/snippet}

@@ -44,7 +44,7 @@ test('Settings open over the current page, take focus, and close on Escape', asy
 		await page.getByTestId('sidebar-open-settings').click();
 		const dialog = page.getByRole('dialog', { name: 'Settings' });
 		await expect(dialog).toBeVisible();
-		await expect(settingsSection(page, 'Agent')).toHaveAttribute('aria-current', 'page');
+		await expect(settingsSection(page, 'Accounts')).toHaveAttribute('aria-current', 'page');
 		await expect
 			.poll(() => dialog.evaluate((element) => element.matches(':focus-within')))
 			.toBe(true);

@@ -23,7 +23,10 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 		const { workstreamId } = await seedWorkstream(page, source, 'e2e-streamer-ws', 'Streamer');
 		await openWorkstream(page, workstreamId);
 		const streamerMode = page.getByRole('group', { name: 'Streamer mode' });
-		const signedIn = page.getByTestId('claude-code-setup').getByTestId('claude-code-detail');
+		const signedIn = page
+			.getByTestId('claude-code-setup')
+			.getByRole('list', { name: 'Claude accounts' })
+			.locator('[aria-current="true"]');
 		const reveal = signedIn.getByRole('button', { name: 'Reveal email address' });
 
 		await openSettings(page, 'privacy');
@@ -33,7 +36,7 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 		);
 		await streamerMode.getByRole('button', { name: 'Off' }).click();
 		await openSettings(page, '');
-		await expect(signedIn).toContainText('Signed in as e2e@example.com');
+		await expect(signedIn).toContainText('e2e@example.com');
 		await expect(reveal).toHaveCount(0);
 
 		streamingApp = launchStandInObs(app.root);
@@ -53,7 +56,7 @@ test('streamer mode masks personal data on demand, and by itself while a streami
 		await expect(reveal).toBeVisible();
 		await reveal.click();
 		await expect(reveal).toHaveCount(0);
-		await expect(signedIn).toContainText('Signed in as e2e@example.com');
+		await expect(signedIn).toContainText('e2e@example.com');
 
 		await openSettings(page, 'privacy');
 		await streamerMode.getByRole('button', { name: 'Off' }).click();
@@ -156,11 +159,14 @@ test('streamer mode masks an email and a home folder with asterisks, in the comp
 		);
 
 		await openSettings(page, '');
-		const signedIn = page.getByTestId('claude-code-setup').getByTestId('claude-code-detail');
-		await expect(signedIn).toContainText('Signed in as e***@***');
+		const signedIn = page
+			.getByTestId('claude-code-setup')
+			.getByRole('list', { name: 'Claude accounts' })
+			.locator('[aria-current="true"]');
+		await expect(signedIn).toContainText('e***@***');
 		await captureFlow(app, 'streamer-mode-account');
 		await signedIn.getByRole('button', { name: 'Reveal email address' }).click();
-		await expect(signedIn).toContainText('Signed in as e2e@example.com');
+		await expect(signedIn).toContainText('e2e@example.com');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

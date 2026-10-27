@@ -13,6 +13,9 @@
 	import { HoverCard } from '$hyper-ui/components/hover-card';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Icon } from '$hyper-ui/icons';
+	import { ClaudeAccountList, claudeCodeStatusQuery } from '$shared/providers/providers.api';
+	import { goto } from '$shared/router/navigation';
+	import { ACCOUNT_SETTINGS_HREF } from '$shared/router/routes-hrefs';
 	import {
 		contextBreakdown,
 		contextPressure,
@@ -55,6 +58,7 @@
 	const breakdown = $derived(metadata.context ? contextBreakdown(metadata.context) : []);
 	const planLimits = $derived(currentPlanLimits(planUsage, nowMs));
 	const planAlert = $derived(planLimitAlert(planLimits));
+	const signedIn = $derived(claudeCodeStatusQuery.data.kind === 'ready');
 	const triggerLabel = $derived(
 		[
 			contextPercent === null
@@ -336,6 +340,24 @@
 								{/if}
 							</div>
 						{/each}
+					</section>
+				{/if}
+
+				{#if signedIn}
+					<section class="border-border-subtle mt-3 border-t pt-3" aria-label="Claude account">
+						<div class="flex items-center justify-between gap-3">
+							<h3 class="text-fg-default text-sm font-medium">Account</h3>
+							<IconButton
+								variant="ghost"
+								size="xs"
+								ariaLabel="Manage accounts"
+								class="text-fg-tertiary"
+								onclick={() => void goto(ACCOUNT_SETTINGS_HREF)}
+							>
+								<Icon name="settings" size={14} />
+							</IconButton>
+						</div>
+						<ClaudeAccountList class="-mx-1.5 mt-1 -mb-1.5" />
 					</section>
 				{/if}
 			</div>

@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -173,8 +174,6 @@ export function failureOutput(error: unknown): string {
 const AUTH_FAILURE =
 	/authentication failed|could not read (?:username|password)|requested url returned error: 40[13]\b|permission to \S+ denied|invalid username or (?:password|token)|permission denied \(publickey/iu;
 const REPOSITORY_NOT_FOUND = /repository not found|repository '[^']*' not found/iu;
-const REMOTE_UNREACHABLE =
-	/could not resolve (?:host|hostname|proxy)|failed to connect to|couldn't connect to server|connection refused|connection timed out|operation timed out|network is unreachable|no route to host|temporary failure in name resolution|can't assign requested address|no such host|i\/o timeout|connection reset by peer|tls handshake timeout|error connecting to/iu;
 const REMOTE_HAS_NEW_COMMITS =
 	/\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)|updates were rejected because the (?:remote|tip)/iu;
 const MERGE_CONFLICT = /^CONFLICT \(/mu;
@@ -199,7 +198,7 @@ export function gitFailureVerdict(output: string): GitFailureVerdict {
 			message: `GitHub couldn't find ${remoteName(output)}, or this account can't see it. Check the URL, or sign in to GitHub in Settings as an account that can.`,
 		};
 	}
-	if (REMOTE_UNREACHABLE.test(output)) {
+	if (isNetworkFailure(output)) {
 		return {
 			kind: 'git',
 			message: `Couldn't reach ${remoteHost(output)}. Check your connection and try again.`,
@@ -297,7 +296,27 @@ const GH_AUTH_REQUIRED_PATTERN =
 	/not logged in|not signed in|gh auth login|authentication required/iu;
 
 export type GhErrorKind =
-	'not-installed' | 'auth-required' | 'no-pull-request' | 'unreachable' | 'failed';
+	'not-installed' | 'auth-required' | 'no-pull-request' | GithubFailure | 'failed';
+
+function githubFailureMessage(failure: GithubFailure, stderr: string): string {
+	if (failure === 'rate-limited') {
+		return 'GitHub hit its rate limit for this account. Malini reads GitHub again once the limit resets.';
+	}
+	if (failure === 'down') {
+		const status = /\b(?:HTTP|status code:?) (5\d\d)\b/iu.exec(stderr)?.[1];
+		return `GitHub is down: it answered ${status ? `HTTP ${status}` : 'with an internal error'}. Your connection works; the problem is on GitHub's side.`;
+	}
+	return `Couldn't reach GitHub: ${unreachableReason(stderr)}. Check your internet connection, VPN or proxy.`;
+}
+
+function unreachableReason(stderr: string): string {
+	if (/could not resolve|no such host|name resolution|error connecting to/iu.test(stderr)) {
+		return "its address didn't resolve";
+	}
+	if (/timed out|timeout/iu.test(stderr)) return 'the connection timed out';
+	if (/connection refused/iu.test(stderr)) return 'the connection was refused';
+	return 'the connection failed';
+}
 
 function firstMeaningfulGhLine(stderr: string): string {
 	const lines = stderr
@@ -342,12 +361,13 @@ export class GhError extends Error {
 		if (/no pull requests found|no open pull requests/iu.test(stderr)) {
 			return new GhError('no-pull-request', detail, { code, stderr });
 		}
-		if (REMOTE_UNREACHABLE.test(stderr)) {
-			return new GhError(
-				'unreachable',
-				"Couldn't reach GitHub. Check your connection and try again.",
-				{ code, stderr, cause: new Error(detail) },
-			);
+		const failure = githubFailure(stderr);
+		if (failure !== null) {
+			return new GhError(failure, githubFailureMessage(failure, stderr), {
+				code,
+				stderr,
+				cause: new Error(detail),
+			});
 		}
 		return new GhError('failed', detail, { code, stderr });
 	}

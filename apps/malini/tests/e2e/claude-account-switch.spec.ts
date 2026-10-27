@@ -27,7 +27,7 @@ const WORK_ACCOUNT = 'me@work.example';
 
 const PLAN_ALERT = /5-hour limit 93% used/u;
 
-test('a Claude account signs in through the browser once, then the model picker and Settings switch to it in one click', async () => {
+test('a Claude account added from the context card signs in through the browser once, then the card and Settings switch to it in one click', async () => {
 	test.setTimeout(180_000);
 	const claude = mkdtempSync(join(tmpdir(), 'malini-e2e-claude-'));
 	const accountFile = join(claude, 'account');
@@ -79,42 +79,49 @@ test('a Claude account signs in through the browser once, then the model picker 
 		const usage = page.getByRole('button', { name: /^View context and plan usage/u });
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
 
-		const picker = page.getByRole('button', { name: /^Model: / });
-		const account = page.getByRole('group', { name: 'Claude account' });
-		const waiting = page.getByTestId('chat-model-sign-in');
-		await picker.click();
-		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`);
-		await account.getByRole('button', { name: 'Sign in with another account' }).click();
+		const account = page.getByRole('region', { name: 'Claude account' });
+		const accounts = account.getByRole('list', { name: 'Claude accounts' });
+		const current = accounts.locator('[aria-current="true"]');
+		const progress = account.getByRole('status');
+		await usage.hover();
+		await expect(current).toContainText(PRIVATE_ACCOUNT);
+		await expect(current).toContainText('Claude Max');
+		await account.getByRole('button', { name: 'Add account' }).click();
 
-		await picker.click();
-		await expect(waiting).toContainText('Continue in your browser.');
+		await expect(progress).toHaveText('Continue in your browser.');
 		await expect
 			.poll(() => existsSync(argsFile) && readFileSync(argsFile, 'utf8'))
 			.toBe('auth login\n');
 		await captureFlow(app, 'claude-account-waiting-for-browser');
 		writeFileSync(browserDone, '');
-		await expect(account).toContainText(`Signed in as ${WORK_ACCOUNT}`, { timeout: 20_000 });
+		await expect(current).toContainText(WORK_ACCOUNT, { timeout: 20_000 });
 		await expect(usage).not.toHaveAccessibleName(PLAN_ALERT);
-		await expect(
-			account.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }),
-		).toBeVisible();
+		const switchToPrivate = accounts.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` });
+		await expect(switchToPrivate).toBeVisible();
 		await captureFlow(app, 'claude-account-switch-back');
 
 		rmSync(browserDone);
-		await account.getByRole('button', { name: `Switch to ${PRIVATE_ACCOUNT}` }).click();
-		await picker.click();
-		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`, { timeout: 20_000 });
+		await switchToPrivate.click();
+		await expect(current).toContainText(PRIVATE_ACCOUNT, { timeout: 20_000 });
 		expect(readFileSync(argsFile, 'utf8')).toBe(`auth login with refresh-${PRIVATE_ACCOUNT}\n`);
 		await expect(usage).toHaveAccessibleName(PLAN_ALERT);
-		await expect(account.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
+		await expect(accounts.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` })).toBeVisible();
 
-		await account.getByRole('button', { name: 'Sign in with another account' }).click();
-		await picker.click();
-		await expect(waiting).toContainText('Continue in your browser.');
-		await waiting.getByRole('button', { name: 'Cancel signing in to Claude Code' }).click();
-		await expect(account).toContainText(`Signed in as ${PRIVATE_ACCOUNT}`);
+		await account.getByRole('button', { name: 'Add account' }).click();
+		await expect(progress).toHaveText('Continue in your browser.');
+		await account.getByRole('button', { name: 'Cancel signing in to Claude Code' }).click();
+		await expect(progress).toHaveCount(0);
+		await expect(current).toContainText(PRIVATE_ACCOUNT);
+
+		await account.getByRole('button', { name: 'Manage accounts' }).click();
+		const settings = page.getByRole('dialog', { name: 'Settings' });
+		await expect(
+			settings
+				.getByRole('navigation', { name: 'Settings' })
+				.getByRole('link', { name: 'Accounts' }),
+		).toHaveAttribute('aria-current', 'page');
 		await page.keyboard.press('Escape');
-		await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+		await expect(settings).toHaveCount(0);
 
 		await page.evaluate(() => {
 			location.hash = '#/settings/privacy';
@@ -126,22 +133,20 @@ test('a Claude account signs in through the browser once, then the model picker 
 		await page.evaluate(() => {
 			location.hash = '#/settings';
 		});
-		const card = page.getByTestId('claude-code-setup');
-		const detail = card.getByTestId('claude-code-detail');
-		await expect(detail).toContainText('Signed in as m***@***');
-		await card.getByRole('button', { name: 'Switch Claude account' }).click();
-		const accounts = page.getByRole('group', { name: 'Claude accounts' });
-		const switchToWork = accounts.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` });
-		await expect(switchToWork).toHaveText('Switch to m***@***');
-		await expect(switchToWork).toBeVisible();
-		await expect(accounts.getByRole('button', { name: 'Reveal email address' })).toHaveCount(0);
+		const settingsAccounts = page
+			.getByTestId('claude-code-setup')
+			.getByRole('list', { name: 'Claude accounts' });
+		const settingsCurrent = settingsAccounts.locator('[aria-current="true"]');
+		await expect(settingsCurrent).toContainText('m***@***');
+		await expect(settingsAccounts).not.toContainText(WORK_ACCOUNT);
+		await expect(settingsAccounts).not.toContainText(PRIVATE_ACCOUNT);
 		await captureFlow(app, 'claude-account-settings');
-		await switchToWork.click();
+		await settingsAccounts.getByRole('button', { name: `Switch to ${WORK_ACCOUNT}` }).click();
 		await expect
 			.poll(() => readFileSync(argsFile, 'utf8'), { timeout: 20_000 })
 			.toBe(`auth login with refresh-${WORK_ACCOUNT}\n`);
-		await detail.getByRole('button', { name: 'Reveal email address' }).click();
-		await expect(detail).toContainText(`Signed in as ${WORK_ACCOUNT}`, { timeout: 20_000 });
+		await settingsCurrent.getByRole('button', { name: 'Reveal email address' }).click();
+		await expect(settingsCurrent).toContainText(WORK_ACCOUNT, { timeout: 20_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

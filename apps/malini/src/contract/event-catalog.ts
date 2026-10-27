@@ -157,7 +157,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'app:menu-command-chosen': {
 		description:
-			"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+			"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 	},
 	'app:streaming-changed': {
 		description:
@@ -170,6 +170,11 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	'app:update-staged': {
 		description:
 			'Fires when a new Malini version has downloaded and installs on the next restart, with that version.',
+	},
+	'app:update-status-changed': {
+		description:
+			'Fires when the update status in the sidebar changes: checking or downloading after you chose Check for Updates…, up to date, failed, a version ready to install, or nothing to show. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'browser:state-changed': {
 		description:
