@@ -10,6 +10,18 @@ export function requireString(args: unknown, key: string): string {
 	return value;
 }
 
+export function requireStrings(args: unknown, key: string): string[] {
+	const value = field(args, key);
+	const items: readonly unknown[] = Array.isArray(value) ? value : [];
+	const strings = items.filter(
+		(item): item is string => typeof item === 'string' && item.length > 0,
+	);
+	if (strings.length === 0 || strings.length !== items.length) {
+		throw new Error(`invalid args: \`${key}\` must be a non-empty list of non-empty strings`);
+	}
+	return strings;
+}
+
 export function optionalString(args: unknown, key: string): string | null {
 	const value = field(args, key);
 	if (value === undefined || value === null) return null;

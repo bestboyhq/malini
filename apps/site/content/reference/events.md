@@ -428,7 +428,7 @@ type PullRequestChangedEvent = Readonly<{
 
 ## `pull-requests:button-clicked`
 
-Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there.
+Fires when you click Draft, Merge, Retry or Cancel on a workstream's pull request bar, with the `button` and the workstream's new shipping state; the reconciler's Shipping rule takes the workstream from there. Draft all and Merge all on a chat that started workstreams fire it too, with `draft-all` or `merge-all`, the `workstreamIds` to ship and the `chatSessionId` to report to, and the Shipping rule runs Open draft or Merge in each.
 
 Payload: `ShipButtonClickedEvent`
 
@@ -482,11 +482,22 @@ type ShipStateRecord = Readonly<{
 	updatedAt: string;
 }>;
 
-type ShipButtonClickedEvent = Readonly<{
+type ShipAllButton = 'draft-all' | 'merge-all';
+
+type ShipAllClicked = Readonly<{
 	workstreamId: string;
-	button: ShipButton;
-	state: ShipStateRecord | null;
+	button: ShipAllButton;
+	workstreamIds: readonly string[];
+	chatSessionId: string | null;
 }>;
+
+type ShipButtonClickedEvent =
+	| Readonly<{
+			workstreamId: string;
+			button: ShipButton;
+			state: ShipStateRecord | null;
+	  }>
+	| ShipAllClicked;
 ```
 
 ## `pull-requests:workstream-opened`
@@ -506,7 +517,8 @@ Fires whenever a job run waits for you, is queued, starts, needs you, or finishe
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -543,7 +555,8 @@ Fires when a job run starts working, with the run; a run Malini puts back in the
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -580,7 +593,8 @@ Fires once when a job run ends, with the run and its `status`: `succeeded`, `fai
 Payload: `JobRunChangedEvent`
 
 ```ts
-type JobRunOrigin = 'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+type JobRunOrigin =
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
@@ -912,7 +926,7 @@ type StreamingChangedPayload = Readonly<{ streaming: boolean }>;
 
 ## `app:updated`
 
-Fires once at startup after Malini updated to a new version whose events changed, with the old and new version and the events added, removed or whose payload changed.
+Fires once at startup after Malini updated to a new version whose events changed, with the old and new version and the events added, removed or whose payload changed. The reconciler's Compatibility rule runs Check compatibility on it.
 
 Payload: `AppUpdatedPayload`
 

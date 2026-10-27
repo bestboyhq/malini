@@ -62,7 +62,7 @@ export type JobRunStatus =
 	'waiting' | 'queued' | 'running' | 'needs-you' | 'succeeded' | 'failed' | 'cancelled';
 
 export type JobRunOrigin =
-	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler';
+	'merge-queue' | 'manual' | 'trigger' | 'then' | 'schedule' | 'reconciler' | 'compatibility';
 
 export type JobRunRecord = Readonly<{
 	id: string;
@@ -374,14 +374,6 @@ export type TimelineRecord = Readonly<{
 }>;
 
 export const JOB_INTERRUPTED_DETAIL = 'Interrupted when Malini closed';
-
-export const JOBS_RECONCILER_SETTING = 'jobs.reconciler';
-
-export type ReconcilerMode = 'on' | 'off';
-
-export function reconcilerMode(stored: string | null | undefined): ReconcilerMode {
-	return stored === 'off' ? 'off' : 'on';
-}
 
 export const JOBS_MAX_CONCURRENT_SETTING = 'jobs.max-concurrent';
 

@@ -1,4 +1,4 @@
-# 0089 - Auto mode's outages retry quietly, then trust edits
+# 0093 - Auto mode's outages retry quietly, then trust edits
 
 Status: accepted
 

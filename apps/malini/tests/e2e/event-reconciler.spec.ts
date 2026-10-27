@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { JOBS_RECONCILER_SETTING } from '../../src/contract/jobs';
+import type { JobRunRecord } from '../../src/contract/jobs';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -160,9 +160,9 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 		await openJobs(page, '#/jobs/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
-		await map.getByRole('button', { name: 'Reconcile events: 1 decision' }).click();
+		await map.getByRole('button', { name: 'Choose a reaction: 1 decision' }).click();
 		await explorer
-			.getByRole('list', { name: 'Reconcile events' })
+			.getByRole('list', { name: 'Choose a reaction' })
 			.getByRole('button', { name: new RegExp(`^${WAKE}, Api analytics, `, 'u') })
 			.click();
 		const chain = explorer.getByRole('list', { name: 'One chain' });
@@ -175,7 +175,7 @@ test('a lead chat hears back once a workstream it started ends a turn, and Activ
 			chain.getByRole('button', { name: /^Malini woke you: work you started moved on/u }),
 		).toBeVisible();
 		await expect(
-			chain.getByRole('listitem').filter({ hasText: 'Reconcile events woke it' }),
+			chain.getByRole('listitem').filter({ hasText: 'Choose a reaction woke it' }),
 		).toHaveCount(1);
 		await captureFlow(app, 'reconciler-explorer');
 		await explorer.getByRole('button', { name: 'Show all' }).click();
@@ -274,21 +274,36 @@ test('a lead answers what its workstream needs with workstreams_send, into that 
 	}
 });
 
-test('with Reconcile events off, Malini leaves events no trigger handles alone', async () => {
+test('when the model gives no answer, Malini still wakes the lead, and Activity says its rules picked', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		reconcilerPicks(app, 'Wake');
-		await invoke(page, 'app.set-setting', { key: JOBS_RECONCILER_SETTING, value: 'off' });
+		reconcilerPicks(app, 'FAIL');
 		await leadStartsChild(app);
-		await expect(childRow(page)).toBeVisible({ timeout: 60_000 });
-		await childRow(page).click();
-		await expectAssistantReply(page);
 
-		await page.waitForTimeout(3_000);
-		expect(askedChoices(app)).toEqual([]);
-		expect(await decisions(page)).toEqual([]);
+		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 60_000 });
+		await expect(
+			transcript(page)
+				.getByText(/Needs: Pick the Logdash project/u)
+				.last(),
+		).toBeVisible();
+		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);
+		await expect
+			.poll(async () => (await decisions(page))[0], { timeout: 30_000 })
+			.toMatchObject({ status: 'done', decidedBy: 'rules' });
+
+		await openJobs(page, '#/jobs/activity');
+		const row = page.getByRole('button', { name: `Show why Malini decided: ${WAKE}, Done` });
+		await expect(row).toBeVisible({ timeout: 20_000 });
+		await row.click();
+		await expect(
+			page
+				.getByRole('list', { name: 'What Malini could do' })
+				.getByRole('listitem')
+				.filter({ hasText: "Picked by Malini's rules" }),
+		).toContainText(WAKE);
+		await captureFlow(app, 'reconciler-default-wake');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -349,6 +364,58 @@ test('a turn a restart cut short goes on once the Resume rule hears Malini start
 				.getByRole('button', { name: /^HANG until Malini restarts, Resume work, /u }),
 		).toBeVisible();
 		await captureFlow(app, 'malini-started-resume');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Malini updating starts Check compatibility through the Compatibility rule, and the Explorer says why', async () => {
+	test.setTimeout(240_000);
+	const first = await launchMalini();
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root, 'acme/compat');
+		await seedWorkstream(page, `file://${source}`, 'e2e-compat-ws', 'Compat work');
+		await invoke(page, 'app.set-setting', { key: 'app.last-seen-version', value: '0.0.1' });
+		await invoke(page, 'app.set-setting', {
+			key: 'app.last-seen-contract',
+			value: JSON.stringify({ 'jobs:run-changed': 'type JobRunChangedEvent = unknown;' }),
+		});
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		const checks = async (): Promise<JobRunRecord[]> =>
+			(await invoke<JobRunRecord[]>(page, 'jobs.list-runs', undefined)).filter(
+				(run) => run.title === 'Check compatibility',
+			);
+		await expect.poll(async () => (await checks()).length, { timeout: 30_000 }).toBe(1);
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		await expect(map.getByRole('button', { name: 'Malini started: 2 events' })).toBeVisible();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'explorer-malini-updated');
+
+		expect((await checks())[0]).toMatchObject({
+			origin: 'compatibility',
+			workstreamId: 'e2e-compat-ws',
+		});
+		await expect(map.getByRole('button', { name: 'Malini updated: 1 event' })).toBeVisible();
+		await map.getByRole('button', { name: 'Compatibility: 1 started' }).click();
+		await expect(
+			explorer
+				.getByRole('list', { name: 'Compatibility' })
+				.getByRole('listitem')
+				.filter({ hasText: 'Check compatibility' })
+				.filter({ hasText: 'Compatibility heard Malini updated' }),
+		).toHaveCount(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

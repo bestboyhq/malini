@@ -19,8 +19,10 @@ import {
 import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
+	SHIP_ALL_BUTTONS,
 	UPDATE_FROM_MAIN_TRIGGER_SETTING,
 	updateFromMainTrigger,
+	type ShipAllClicked,
 	type ShipButton,
 	type ShipPhase,
 	type ShipStateRecord,
@@ -37,8 +39,8 @@ import {
 	jobDefinition,
 	jobDefinitions,
 	jobRun,
-	latestJobRunInWorkstream,
 	latestLoggedEvent,
+	latestShippingJobRun,
 	setAlarm,
 	type DispatchedEvent,
 } from '$lib/jobs/jobs.platform';
@@ -67,6 +69,7 @@ import {
 	type ShippingMove,
 	type ShippingSnapshot,
 } from '../domain/shipping';
+import { field, requireString, requireStrings } from './args';
 import type { PullRequestOperations } from './pull-request-operations';
 import { PullRequestReader } from './pull-request-reader.service';
 import {
@@ -148,6 +151,8 @@ export class Shipping {
 		if (workstreamId === null) return;
 		switch (channel) {
 			case PULL_REQUESTS_BUTTON_CLICKED_CHANNEL:
+				await this.#buttonClicked(workstreamId, event);
+				return;
 			case JOBS_TIME_REACHED_CHANNEL:
 				this.#wake(workstreamId, event);
 				return;
@@ -319,6 +324,30 @@ export class Shipping {
 		}
 	}
 
+	async #buttonClicked(workstreamId: string, event: DispatchedEvent): Promise<void> {
+		const all = shipAllClicked(event.payload);
+		if (all === null) {
+			this.#wake(workstreamId, event);
+			return;
+		}
+		const builtin = all.button === 'draft-all' ? 'open-draft' : 'merge';
+		const definition = jobDefinitions(this.#context.db).find(
+			(candidate) => candidate.builtin === builtin,
+		);
+		if (!definition) throw new Error(`The built-in ${builtin} job is missing`);
+		await Promise.all(
+			all.workstreamIds.map((started) =>
+				this.#context.commands.call('jobs.run', {
+					definitionId: definition.id,
+					workstreamId: started,
+					origin: 'merge-queue',
+					...(all.chatSessionId === null ? {} : { chatSessionId: all.chatSessionId }),
+					...(event.id === null ? {} : { causeEventId: event.id }),
+				}),
+			),
+		);
+	}
+
 	async #opened(workstreamId: string, event: DispatchedEvent): Promise<void> {
 		const last = this.#openedAt.get(workstreamId);
 		if (last !== undefined && this.#now() - last < this.#delays.openedCheckMs) return;
@@ -451,7 +480,7 @@ export class Shipping {
 		const worktree = await commands.call('repositories.workstream-status', { workstreamId });
 		const settled = this.#settledFor(row, worktree);
 		const job = this.#activeJob(row);
-		const lastJob = latestJobRunInWorkstream(db, workstreamId, 'merge-queue');
+		const lastJob = latestShippingJobRun(db, workstreamId);
 		const recheck = row.phase === 'needs-you';
 		let snapshot: ShippingSnapshot = {
 			phase: recheck ? 'queued' : row.phase,
@@ -1168,6 +1197,18 @@ export class Shipping {
 		this.#reader.watch(workstreamId);
 		clearAlarm(this.#context.db, alarmKey(workstreamId));
 	}
+}
+
+export function shipAllClicked(args: unknown): ShipAllClicked | null {
+	const button = SHIP_ALL_BUTTONS.find((candidate) => candidate === field(args, 'button'));
+	if (button === undefined) return null;
+	return {
+		workstreamId: requireString(args, 'workstreamId'),
+		button,
+		workstreamIds: requireStrings(args, 'workstreamIds'),
+		chatSessionId:
+			(field(args, 'chatSessionId') ?? null) === null ? null : requireString(args, 'chatSessionId'),
+	};
 }
 
 function alarmKey(workstreamId: string): string {

@@ -274,11 +274,7 @@ describe('migrate', () => {
 	it('keeps every job run, and lets a run come from a schedule and name the lead it starts', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
-		const chains = MIGRATIONS.reduce(
-			(found, migration, index) =>
-				migration.includes('CREATE TABLE job_runs_next') ? index : found,
-			-1,
-		);
+		const chains = MIGRATIONS.findIndex((migration) => migration.includes('WITH RECURSIVE chains'));
 		for (const migration of MIGRATIONS.slice(0, chains)) db.exec(migration);
 		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + chains};`);
 		db.exec(`
@@ -328,6 +324,53 @@ describe('migrate', () => {
 		expect(get(db, "SELECT parent_run_id FROM job_runs WHERE id = 'next'")).toEqual({
 			parent_run_id: null,
 		});
+		db.close();
+	});
+
+	it('lets a run come from the Compatibility rule, and keeps every run and the events that started it', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const origin = MIGRATIONS.findIndex((migration) => migration.includes("'compatibility'"));
+		for (const migration of MIGRATIONS.slice(0, origin)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + origin};`);
+		const at = '2026-10-27T00:00:00Z';
+		db.exec(`
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at) VALUES
+			  ('job', 'Triage', 'Triage.', 'opus', 'low', 'workstream', NULL, '${at}', '${at}'),
+			  ('pick', 'Reconcile events', 'Pick one.', 'haiku', 'low', 'workstream', 'reconcile', '${at}', '${at}');
+			INSERT INTO job_runs (id, definition_id, title, origin, status, chain_id, requests, created_at) VALUES
+			  ('first', 'job', 'Triage', 'trigger', 'succeeded', 'chain', 2, '${at}');
+			INSERT INTO job_runs (id, definition_id, title, origin, status, parent_run_id, chain_id, created_at) VALUES
+			  ('next', 'job', 'Triage', 'then', 'queued', 'first', 'chain', '${at}');
+			INSERT INTO job_run_events (job_run_id, event_id) VALUES ('first', 7), ('next', 8);
+			INSERT INTO settings (key, value) VALUES ('jobs.reconciler', 'off'), ('jobs.max-concurrent', '4');
+		`);
+		const runs = all(db, 'SELECT * FROM job_runs ORDER BY id');
+
+		migrate(db);
+
+		expect(all(db, 'SELECT * FROM job_runs ORDER BY id')).toEqual(runs);
+		expect(all(db, 'SELECT job_run_id, event_id FROM job_run_events ORDER BY event_id')).toEqual([
+			{ job_run_id: 'first', event_id: 7 },
+			{ job_run_id: 'next', event_id: 8 },
+		]);
+		expect(get(db, "SELECT name FROM job_definitions WHERE id = 'pick'")).toEqual({
+			name: 'Choose a reaction',
+		});
+		expect(
+			all(db, "SELECT key FROM settings WHERE key IN ('jobs.reconciler', 'jobs.max-concurrent')"),
+		).toEqual([{ key: 'jobs.max-concurrent' }]);
+		db.exec(`INSERT INTO job_runs (id, definition_id, title, origin, status, chain_id, created_at)
+			VALUES ('check', 'job', 'Check compatibility', 'compatibility', 'queued', 'check', '${at}')`);
+		expect(() =>
+			db.exec(`INSERT INTO job_runs (id, definition_id, title, origin, status, chain_id, created_at)
+				VALUES ('odd', 'job', 'Odd', 'elsewhere', 'queued', 'odd', '${at}')`),
+		).toThrow();
+		db.exec("DELETE FROM job_runs WHERE id = 'first'");
+		expect(get(db, "SELECT parent_run_id FROM job_runs WHERE id = 'next'")).toEqual({
+			parent_run_id: null,
+		});
+		expect(all(db, 'SELECT job_run_id FROM job_run_events')).toEqual([{ job_run_id: 'next' }]);
 		db.close();
 	});
 

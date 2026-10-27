@@ -2,7 +2,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 } from '$contract/events';
-import type { ShipButton, ShipChangedEvent } from '$contract/pull-requests';
+import type { ShipAllClicked, ShipButton, ShipChangedEvent } from '$contract/pull-requests';
 import type {
 	PullRequestShip,
 	PullRequestShipChange,
@@ -32,6 +32,10 @@ class PullRequestShipService {
 		return raw === null ? null : PullRequestShipMapper.fromRaw(raw);
 	}
 
+	async clickAll(click: ShipAllClicked): Promise<void> {
+		await invoke('pull-requests.button-clicked', click);
+	}
+
 	async reopen(workstreamId: string, pullRequestNumber: number): Promise<void> {
 		await invoke('pull-requests.reopen', { workstreamId, pullRequestNumber });
 	}
@@ -45,7 +49,9 @@ class PullRequestShipService {
 			listener(PullRequestShipMapper.changeFromRaw(raw));
 		const stops = [
 			onPlatformEvent(PULL_REQUESTS_SHIP_CHANGED_CHANNEL, changed),
-			onPlatformEvent(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, changed),
+			onPlatformEvent(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, (raw) => {
+				if ('state' in raw) changed(raw);
+			}),
 		];
 		return () => {
 			for (const stop of stops) stop();

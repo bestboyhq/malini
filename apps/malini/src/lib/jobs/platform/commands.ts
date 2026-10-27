@@ -343,7 +343,7 @@ export function defineJobCommands(
 		const id = randomUUID();
 		const chainId = chainFor(db, links) ?? id;
 		const repeats =
-			origin === 'merge-queue' ? 0 : countChainJobRuns(db, chainId, definition.id, target);
+			origin === 'merge-queue' ? 0 : countChainJobRuns(db, chainId, definition.id, target, origin);
 		const overBudget = repeats >= JOB_CHAIN_REPEAT_LIMIT;
 		return runner.enqueue(
 			{
@@ -797,7 +797,9 @@ function optionalOrigin(args: unknown): JobRunOrigin {
 	const value = field(args, 'origin');
 	if (value === undefined || value === null) return 'manual';
 	if (!isJobRunOrigin(value))
-		throw invalid('`origin` must be merge-queue, manual, trigger, then, schedule or reconciler');
+		throw invalid(
+			'`origin` must be merge-queue, manual, trigger, then, schedule, reconciler or compatibility',
+		);
 	return value;
 }
 
