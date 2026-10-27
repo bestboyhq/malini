@@ -84,13 +84,17 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 	);
 	const startedOrder = (workstreams: readonly Workstream[]): Workstream[] =>
 		sorted(inSidebarOrder(workstreams, input.workstreamOrder), ordering, keys.workstream);
+	const chatOf = startingChat([
+		...input.leads,
+		...input.contexts.flatMap((repository) => repository.workstreams),
+	]);
 	if (!sectionedGrouping(grouping)) {
 		const folders = focus.kind === 'owner' || (focus.kind === 'all' && grouping === 'owner');
 		const {
 			contexts,
 			leads: topLeads,
 			started,
-		} = nestStarted({ contexts: repositories, leads }, startedOrder);
+		} = nestStarted({ contexts: repositories, leads }, chatOf, startedOrder);
 		return {
 			...branch(contexts, topLeads, focus, ordering, folders, keys),
 			started,
@@ -108,6 +112,7 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 				})),
 				leads: leads.filter(inSection),
 			},
+			chatOf,
 			startedOrder,
 		);
 		const contexts = nested.contexts.filter((repository) => repository.workstreams.length > 0);
@@ -124,40 +129,45 @@ export function sidebarTree(input: SidebarTreeInput): SidebarTree {
 
 function nestStarted(
 	{ contexts, leads }: Listed,
+	chatOf: (workstream: Workstream) => Workstream | undefined,
 	order: (workstreams: readonly Workstream[]) => Workstream[],
 ): Nested {
-	const listed = new Map(
-		[...leads, ...contexts.flatMap((repository) => repository.workstreams)].map((workstream) => [
-			workstream.id,
-			workstream,
-		]),
-	);
-	const parentOf = (workstream: Workstream): Workstream | undefined =>
-		workstream.startedBy === null ? undefined : listed.get(workstream.startedBy);
-	const rooted = (workstream: Workstream): boolean => {
-		const seen = new Set([workstream.id]);
-		for (let parent = parentOf(workstream); parent; parent = parentOf(parent)) {
-			if (seen.has(parent.id)) return false;
-			seen.add(parent.id);
-		}
-		return true;
-	};
+	const listedChats = new Set(leads.map(({ id }) => id));
 	const started = new Map<string, Workstream[]>();
-	for (const workstream of order([...listed.values()])) {
-		const parent = parentOf(workstream);
-		if (!parent || !rooted(workstream)) continue;
-		started.set(parent.id, [...(started.get(parent.id) ?? []), workstream]);
+	for (const workstream of order(contexts.flatMap((repository) => repository.workstreams))) {
+		const chat = chatOf(workstream);
+		if (!chat || !listedChats.has(chat.id)) continue;
+		started.set(chat.id, [...(started.get(chat.id) ?? []), workstream]);
 	}
 	const nestedIds = new Set([...started.values()].flat().map((workstream) => workstream.id));
-	const topLevel = (workstreams: readonly Workstream[]): Workstream[] =>
-		workstreams.filter((workstream) => !nestedIds.has(workstream.id));
 	return {
 		contexts: contexts.map((repository) => ({
 			...repository,
-			workstreams: topLevel(repository.workstreams),
+			workstreams: repository.workstreams.filter((workstream) => !nestedIds.has(workstream.id)),
 		})),
-		leads: topLevel(leads),
+		leads,
 		started,
+	};
+}
+
+function startingChat(
+	workstreams: readonly Workstream[],
+): (workstream: Workstream) => Workstream | undefined {
+	const byId = new Map(workstreams.map((workstream) => [workstream.id, workstream]));
+	const starterOf = (workstream: Workstream): Workstream | undefined =>
+		workstream.startedBy === null ? undefined : byId.get(workstream.startedBy);
+	return (workstream) => {
+		if (workstream.scope !== null) return undefined;
+		const seen = new Set([workstream.id]);
+		for (
+			let starter = starterOf(workstream);
+			starter && !seen.has(starter.id);
+			starter = starterOf(starter)
+		) {
+			if (starter.scope !== null) return starter;
+			seen.add(starter.id);
+		}
+		return undefined;
 	};
 }
 

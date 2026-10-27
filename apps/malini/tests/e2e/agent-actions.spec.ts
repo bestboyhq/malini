@@ -250,10 +250,8 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 		const fetchRow = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
 		);
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch kennel$/u, { timeout: 20_000 });
-		await expect(
-			sidebar.getByRole('list', { name: /^Started by / }).getByTestId('sidebar-workstream'),
-		).toHaveAttribute('data-repository-full-name', kennelName);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u, { timeout: 20_000 });
+		await expect(sidebar.getByRole('list', { name: /^Started by / })).toHaveCount(0);
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
@@ -261,7 +259,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			timeout: 20_000,
 		});
 		await decision(page).getByRole('button', { name: 'Deny' }).click();
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch kennel$/u);
+		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
 		await allowOnce(`Hide ‘${kennelName}’`);

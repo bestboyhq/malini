@@ -973,7 +973,7 @@
 		};
 	}
 
-	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9', 'pl-12', 'pl-15'] as const;
+	const LEVEL_PADDING = ['pl-2', 'pl-6', 'pl-9'] as const;
 	const MAX_PROGRESS_DOTS = 8;
 
 	function moveShortcuts(...more: readonly string[]): string {
@@ -981,7 +981,7 @@
 	}
 
 	function levelPadding(level: number): string {
-		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-15';
+		return LEVEL_PADDING[Math.min(level, LEVEL_PADDING.length - 1)] ?? 'pl-9';
 	}
 
 	type SidebarRow = Readonly<{
@@ -1009,14 +1009,12 @@
 		};
 	}
 
-	function placedRow(workstream: Workstream, parent: SidebarRow | null = null): SidebarRow {
+	function placedRow(workstream: Workstream, nested = false): SidebarRow {
 		const repository = repositoryOfWorkstream.get(workstream.id);
 		if (workstream.scope !== null || !repository) return leadRow(workstream);
-		const { fullName } = repository.repo;
-		const named = parent === null ? flatSections : fullName !== parent.repositoryFullName;
 		return {
-			...repositoryRow(workstream, fullName),
-			repositoryName: named ? repository.name : null,
+			...repositoryRow(workstream, repository.repo.fullName),
+			repositoryName: nested || flatSections ? repository.name : null,
 		};
 	}
 
@@ -1559,7 +1557,7 @@
 				aria-label={`Started by ${row.label}`}
 			>
 				{#each children as child (child.id)}
-					{@render workstreamItem(placedRow(child, row), level + 1, childIds)}
+					{@render workstreamItem(placedRow(child, true), level + 1, childIds)}
 				{/each}
 			</ul>
 		{/if}
