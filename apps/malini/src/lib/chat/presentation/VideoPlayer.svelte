@@ -33,6 +33,8 @@
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
 	let pendingSeek: number | null = null;
+	let loadedSrc: string | undefined;
+	let reloaded: { at: number; playing: boolean; speed: typeof speed } | null = null;
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -43,6 +45,21 @@
 	});
 
 	$effect(() => () => clearTimeout(restTimer));
+
+	$effect.pre(() => {
+		if (video && loadedSrc !== undefined && src !== loadedSrc) {
+			reloaded = { at: video.currentTime, playing: !video.paused, speed };
+		}
+		loadedSrc = src;
+	});
+
+	function resume(): void {
+		if (!video || !reloaded) return;
+		time = Math.min(reloaded.at, video.duration);
+		speed = reloaded.speed;
+		if (reloaded.playing) void video.play().catch(() => {});
+		reloaded = null;
+	}
 
 	function wake(): void {
 		resting = false;
@@ -109,7 +126,6 @@
 			bind:videoHeight
 			{src}
 			aria-label={label}
-			{autoplay}
 			loop
 			playsinline
 			preload="metadata"
@@ -117,6 +133,7 @@
 			onplay={wake}
 			onpause={wake}
 			onseeked={seeked}
+			onloadedmetadata={resume}
 			{onerror}
 		></video>
 		<Button
