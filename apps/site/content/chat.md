@@ -85,10 +85,12 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-The model picker and Settings show the Claude account Claude Code is signed in to, and **Switch to** moves to another account you used before.
-The first switch to an account signs in through your browser.
+The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
+The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+**Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
+Until then, pointing at the chat's gauge names the account it last ran on.
 
 ## Agent access
 
@@ -129,9 +131,9 @@ Ship several steps that way and each one runs in a chat of its own.
 
 ### Before and after
 
-When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture.
+When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture across the chat's full width.
 **Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
-Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, and press Escape to zoom back out.
+Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, or pinch or Ctrl-scroll to zoom anywhere and scroll to pan, and press Escape to zoom back out.
 The expand button opens the picture you see in the gallery.
 Recordings play side by side on one timeline: step a frame at a time, slow them to 0.5× or 0.25×, and jump to the moment the agent marked.
 
@@ -140,6 +142,7 @@ Recordings play side by side on one timeline: step a frame at a time, slow them 
 When you ask for options, or the direction is open, the agent makes two to four variants.
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
+Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
@@ -159,14 +162,14 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 
 - **@** mentions a file, and you can attach, paste, or drop images, GIFs, screen recordings (mp4, mov, webm), and files, up to 100 MB each.
   Claude reads a video through frames it extracts with ffmpeg.
-- Click an image, GIF, or video in a chat to open the gallery: videos play there with their controls, and every image and video of the chat sits in its strip.
+- Click an image, GIF, or video in a chat to open the gallery: videos play there with the same controls, plus a frame step, which fade once the pointer rests for 2 seconds, and Space plays or pauses them; every image and video of the chat sits in its strip.
   Pinch or Ctrl-scroll to zoom and drag to pan, and click the picture or press Escape to close it.
   Malini keeps a copy of every image and video a chat shows, so it still opens after the agent deletes or moves the file.
 - Thinking shows inline, step by step, with a diff for every file the chat changed.
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 

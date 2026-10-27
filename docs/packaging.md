@@ -61,10 +61,12 @@ The zip is named `malini-<version>-arm64-mac.zip`, and `latest-mac.yml` points t
 `electron-builder.yml` publishes to GitHub Releases and bakes the feed into the app as `app-update.yml`.
 `src/lib/app/platform/updates.ts` checks on launch, every hour and on wake, and downloads in the background; Squirrel.Mac verifies the Developer ID signature and installs the update when Malini quits.
 It keeps checking once an update is staged, and stages a newer release over it, since `main` can ship several releases a day.
-The app menu offers Check for Updates… and, once an update is staged, Restart to Update, which checks once more and installs the newest release.
+The app menu offers only Check for Updates…; every update status shows at the bottom of the sidebar and never in a dialog.
+A check you asked for shows there as checking, downloading, up to date or failed with Retry, a check of its own stays silent, and once an update is staged Restart to update checks once more and installs the newest release.
 Squirrel cannot replace an app outside an Applications folder, so a packaged Malini started elsewhere offers to move itself there.
 
-`pnpm --filter malini test:update` builds 0.0.1, 0.0.2 and 0.0.3 under their own name and app id, serves them from a local feed, and proves both paths: quitting 0.0.1 with 0.0.2 staged installs 0.0.2, and Restart to Update, once the feed has moved on to 0.0.3, installs and relaunches 0.0.3.
+`pnpm --filter malini test:update` builds 0.0.1, 0.0.2 and 0.0.3 under their own name and app id, serves them from a local feed, and proves both paths: quitting 0.0.1 with 0.0.2 staged installs 0.0.2, and Restart to update, once the feed has moved on to 0.0.3, installs and relaunches 0.0.3.
+In between, 0.0.2 picks Check for Updates… against a slowed, then failing, then newer feed, and the sidebar shows checking, up to date, failed with Retry, and the download of 0.0.3.
 0.0.1 carries the lowercase product name, the way every release before the rename shipped, and 0.0.2 the capitalized one, so the run also proves that an installed lowercase bundle takes the renamed update in place and that 0.0.2 opens the data folder of 0.0.1 and decrypts a secret 0.0.1 sealed.
 The builds carry `MALINI_BACKGROUND_WINDOW` in `LSEnvironment`, so the relaunched app stays behind every window too.
 It needs a Developer ID identity in the keychain, because Squirrel installs only signed updates.

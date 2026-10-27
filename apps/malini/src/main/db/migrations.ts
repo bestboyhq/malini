@@ -1075,6 +1075,15 @@ UPDATE job_definitions SET name = 'Choose a reaction'
 DELETE FROM settings WHERE key = 'jobs.reconciler';
 `,
 	`
+DROP INDEX idx_event_log_digest;
+ALTER TABLE event_log DROP COLUMN digest;
+`,
+	`ALTER TABLE workstream_ship ADD COLUMN keep_workstream INTEGER NOT NULL DEFAULT 0;`,
+	`
+DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
+ALTER TABLE workstream_ship DROP COLUMN update_requests;
+`,
+	`
 ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
 ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
 `,

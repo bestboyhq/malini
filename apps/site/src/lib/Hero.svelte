@@ -19,7 +19,7 @@
 			<Arrow class="ahead" />
 		</a>
 		<h1 id="hero-title">
-			<span>An agentic development environment</span>
+			<span>Agentic development environment</span>
 			<span class="quiet">for builders moving fast.</span>
 		</h1>
 		{@render children?.()}

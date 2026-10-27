@@ -62,7 +62,7 @@ done
 Rewrite those paths before the first launch: `projects.repo_path` is absolute, and a new workstream otherwise branches off the user's live repository.
 Empty the merge queue too: a snapshot keeps the user's queued pull requests, and the sandbox would mark them ready, push to them and merge them on GitHub.
 
-Block pushes from the copies: opening a copied workstream starts its **Update from main** job, which commits the checkout's uncommitted changes, merges the base branch and pushes to the user's real branch.
+Block pushes from the copies: each copy tracks the user's real branch on GitHub, so a **Draft**, a **Merge** or an agent's push from a copy lands there.
 The `pushInsteadOf` rewrite sends every push from the copies to an unreachable host, while fetches still reach GitHub.
 Send prompts and commit only in workstreams created inside the sandbox; a flow that has to push unsets the rewrite for that run.
 

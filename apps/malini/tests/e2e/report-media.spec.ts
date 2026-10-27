@@ -99,6 +99,14 @@ test('a before and after shows as one picture that wipes, flips and diffs at one
 		await page.keyboard.press('Escape');
 		await expect(frame.getByRole('button', { name: 'Show all' })).toHaveCount(0);
 
+		await frame.hover();
+		await page.keyboard.down('Control');
+		await page.mouse.wheel(0, -100);
+		await page.keyboard.up('Control');
+		await expect(compare.getByText(/^\d+(\.\d)?× · scroll to pan$/u)).toBeVisible();
+		await frame.getByRole('button', { name: 'Show all' }).click();
+		await expect(compare.getByText('Changed pixels in pink')).toBeVisible();
+
 		await compare.getByRole('button', { name: 'Open in gallery' }).click();
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await gallery.getByRole('img', { name: 'After: pricing page' }).click();
@@ -295,6 +303,9 @@ test('variants preview as pictures, looping recordings and live HTML pages', asy
 				timeout: 20_000,
 			})
 			.toBeGreaterThan(0);
+		const controls = offer.getByRole('group', { name: 'Video controls' });
+		await controls.getByRole('button', { name: 'Pause', exact: true }).click();
+		await expect(controls.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 		await offer.getByRole('button', { name: 'Open video Variant B · Motion in gallery' }).click();
 		const gallery = page.getByRole('dialog', { name: 'Image gallery' });
 		await expect(

@@ -83,9 +83,10 @@ The [README](../README.md) has the short version.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands.
-- **While it waits, it works.** The queue runs **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
-- **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
+- **While it waits, it works.** The queue merges main into the branch when GitHub says it is behind or conflicts, and runs **Fix checks**, **Resolve conflicts**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
+- **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
+- **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
   The top bar names the reason, and the merge picks up again on its own once it is resolved.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.

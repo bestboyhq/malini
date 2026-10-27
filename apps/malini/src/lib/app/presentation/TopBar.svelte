@@ -29,6 +29,11 @@
 		type GlobalTopBarStatusHeadline,
 	} from '$shared/shell/global-topbar-actions.svelte';
 	import { disarmOnDismiss } from '$shared/shell/armed-confirmation';
+	import { GITHUB_STATUS_URL } from '$contract/github-failure';
+	import {
+		connectionProblemQuery,
+		watchGithubReachHook,
+	} from '$shared/repositories/repositories.api';
 	import { inspectorDock } from '$shared/shell/inspector-dock.svelte';
 
 	interface Props {
@@ -39,6 +44,7 @@
 
 	onMount(() => {
 		hydrateSidebarCommand();
+		return watchGithubReachHook();
 	});
 
 	const targetPathname = $derived(navigating.to?.url?.pathname ?? page.url.pathname);
@@ -77,10 +83,29 @@
 	let armedDetailId = $state<string | null>(null);
 
 	const PRIMARY_ARM_ID = 'github-primary';
+	const GITHUB_STATUS_ACTION: GlobalTopBarStatusAction = {
+		label: 'Status',
+		ariaLabel: 'Open GitHub Status',
+		tone: 'secondary',
+		icon: 'external-link',
+		disabled: false,
+		onInvoke: () => openExternalUrlCommand(GITHUB_STATUS_URL),
+	};
 	const SECONDARY_ARM_ID = 'github-secondary';
-	const githubHeadline = $derived(githubStatus?.headline ?? null);
-	const githubPrimary = $derived(githubStatus?.action ?? null);
-	const githubSecondary = $derived(githubStatus?.secondaryAction ?? null);
+	const connection = $derived(connectionProblemQuery.data);
+	const githubHeadline = $derived<GlobalTopBarStatusHeadline | null>(
+		connection
+			? { tone: 'needs-you', busy: false, label: connection.label, detail: null, tooltip: null }
+			: (githubStatus?.headline ?? null),
+	);
+	const githubPrimary = $derived(connection ? null : (githubStatus?.action ?? null));
+	const githubSecondary = $derived(
+		connection
+			? connection.github
+				? GITHUB_STATUS_ACTION
+				: null
+			: (githubStatus?.secondaryAction ?? null),
+	);
 	const githubDetailActions = $derived(githubStatus?.detailActions ?? []);
 	const githubRemoteFailure = $derived(githubStatus?.remoteFailure ?? null);
 	const armableIds = $derived([
@@ -364,7 +389,7 @@
 				</button>
 			</Tooltip>
 		{/each}
-		{#if githubStatus}
+		{#if githubStatus || connection}
 			<div
 				bind:this={githubZoneElement}
 				class="topbar-git"
@@ -372,7 +397,7 @@
 				data-testid="global-topbar-github"
 			>
 				{#key githubOwner}
-					{#if githubStatus.reference}
+					{#if githubStatus?.reference}
 						<div class="topbar-git__pill" transition:unfold>
 							{@render githubDisclosure(githubStatus.reference)}
 							{#if githubStatus.url}
@@ -443,6 +468,8 @@
 					{/if}
 				{/key}
 			</div>
+		{/if}
+		{#if githubStatus}
 			<Popover
 				open={githubPopoverOpen}
 				x={githubPopoverAnchor.x}
@@ -942,14 +969,20 @@
 	}
 
 	.topbar-right:not([data-docked]) .topbar-git {
-		height: 40px;
+		height: 32px;
 		border: 0.5px solid var(--zone-edge);
-		border-radius: 10px;
+		border-radius: 8px;
 		background:
 			repeating-linear-gradient(225deg, var(--zone-stripe) 0 1px, transparent 0 50%) 0 0 / 8px 8px,
 			linear-gradient(var(--zone-tint), var(--zone-tint)),
 			color-mix(in srgb, var(--color-surface-150) 68%, transparent);
-		padding: 0 7px;
+		padding: 0 4px 0 10px;
+	}
+
+	.topbar-right:not([data-docked])
+		.topbar-git
+		> :global(:last-child:not(.topbar-git__action-slot)) {
+		margin-right: 6px;
 	}
 
 	.topbar-git__pill {

@@ -7,7 +7,7 @@ import type {
 	JobTrigger,
 	SaveJobDefinitionArgs,
 } from '$contract/jobs';
-import type { Workstream } from '$contract/repositories';
+import type { MergedPullRequest, Workstream } from '$contract/repositories';
 import { isSkillNameList } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
@@ -27,6 +27,7 @@ import {
 	listArchivedWorkstreams,
 	listRepositoryCatalog,
 	listWorkstreams,
+	mergedPullRequestOf,
 	planRepositoryWorkstream,
 	prepareStartedWorkstream,
 	type CatalogRepository,
@@ -324,12 +325,18 @@ async function sendToWorkstream(
 function workstreamStanding(
 	db: MaliniDatabase,
 	workstreamId: string,
-): Readonly<{ working: boolean; outcome: string | null; needs: string | null }> {
+): Readonly<{
+	working: boolean;
+	outcome: string | null;
+	needs: string | null;
+	merged: MergedPullRequest | null;
+}> {
 	const turn = latestWorkstreamTurn(db, workstreamId);
 	return {
 		working: workstreamHasWorkingRun(db, workstreamId),
 		outcome: turn?.outcome ?? null,
 		needs: turn?.need ?? null,
+		merged: mergedPullRequestOf(db, workstreamId),
 	};
 }
 

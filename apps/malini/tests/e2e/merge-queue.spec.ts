@@ -16,6 +16,8 @@ import {
 	sendPrompt,
 } from './harness';
 import {
+	archiveMerged,
+	expectMerged,
 	expectMergedAndArchived,
 	holdAgentRuns,
 	openPullRequestDetail,
@@ -82,6 +84,54 @@ test('Merge marks the draft ready, waits for the checks, merges and archives the
 		]);
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
 		await captureFlow(app, 'merge-queue-merged');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('Keep on a queued merge leaves the workstream open on Merged once it lands', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page, github } = await seedWorkstreamOnFakeGithub(app, 'e2e-merge-keep', null);
+		await openWorkstream(page, 'e2e-merge-keep');
+		await sendPrompt(page, 'EDIT:alpha.txt COMMIT=feat: add alpha');
+		await expectAssistantReply(page);
+		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
+		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
+			timeout: 30_000,
+		});
+		github.setPullRequest({
+			mergeable: 'MERGEABLE',
+			mergeStateStatus: 'CLEAN',
+			statusCheckRollup: RUNNING,
+		});
+		const name = await workstreamName(page, 'e2e-merge-keep');
+		await queueMerge(page);
+		await expect(topBarStatus(page, 'Queued for merge · Waiting for checks')).toBeVisible({
+			timeout: 30_000,
+		});
+		await captureFlow(app, 'merge-queue-keep-offered');
+
+		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).click();
+
+		await expect(topBarStatus(page, 'Queued to merge and keep · Waiting for checks')).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Keep this workstream after it merges' }),
+		).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Cancel the queued merge' })).toBeEnabled();
+		github.setPullRequest({ statusCheckRollup: PASSED });
+
+		await expectMerged(page, 'e2e-merge-keep');
+		expect(github.pullRequest()).toMatchObject({ state: 'MERGED' });
+		await expect(sidebarStatus(page, 'e2e-merge-keep')).toHaveAttribute(
+			'data-workstream-pull-request-state',
+			'merged',
+		);
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'merge-queue-kept-merged');
+		await archiveMerged(page, 'e2e-merge-keep', name);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

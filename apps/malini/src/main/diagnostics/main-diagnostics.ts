@@ -201,7 +201,7 @@ function budgetOf(level: MainDiagnosticLevel): RecordBudget {
 }
 
 const EXPECTED_FAILURE_KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
-	GhError: new Set(['auth-required', 'not-installed', 'unreachable']),
+	GhError: new Set(['auth-required', 'not-installed', 'unreachable', 'down', 'rate-limited']),
 	JobError: new Set(['busy', 'loop']),
 	LifecycleError: new Set(['already_running', 'cancel_race']),
 	ReconcilerError: new Set(['decided']),

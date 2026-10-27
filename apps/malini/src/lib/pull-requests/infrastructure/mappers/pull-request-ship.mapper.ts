@@ -17,6 +17,7 @@ export class PullRequestShipMapper {
 			workstreamId: raw.workstreamId,
 			phase: raw.phase,
 			step: raw.step,
+			keep: raw.keep,
 			pullRequestNumber: raw.pullRequestNumber,
 			pullRequestUrl: raw.pullRequestUrl,
 			needsYou: raw.needsYou,

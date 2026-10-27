@@ -1,9 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { JOBS_MAX_CONCURRENT_SETTING } from '../../src/contract/jobs';
-import {
-	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
-	UPDATE_FROM_MAIN_TRIGGER_SETTING,
-} from '../../src/contract/pull-requests';
+import { MERGE_QUEUE_FIX_ATTEMPTS_SETTING } from '../../src/contract/pull-requests';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -45,7 +42,7 @@ test('Settings open over the current page, take focus, and close on Escape', asy
 		await page.getByTestId('sidebar-open-settings').click();
 		const dialog = page.getByRole('dialog', { name: 'Settings' });
 		await expect(dialog).toBeVisible();
-		await expect(settingsSection(page, 'Agent')).toHaveAttribute('aria-current', 'page');
+		await expect(settingsSection(page, 'Accounts')).toHaveAttribute('aria-current', 'page');
 		await expect
 			.poll(() => dialog.evaluate((element) => element.matches(':focus-within')))
 			.toBe(true);
@@ -89,17 +86,11 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 		await expect(settingsSection(page, 'Jobs')).toHaveAttribute('aria-current', 'page', {
 			timeout: 20_000,
 		});
-		const updates = page.getByRole('combobox', { name: 'Update from main' });
 		await expect(running).toHaveValue('3');
 		await expect(attempts).toHaveValue('7');
-		await expect(updates).toHaveValue('main-moves');
 		await expect(page.getByRole('switch', { name: 'Reconcile events' })).toHaveCount(0);
+		await expect(page.getByRole('combobox', { name: 'Update from main' })).toHaveCount(0);
 		await captureFlow(app, 'settings-jobs');
-
-		await updates.selectOption({ label: 'Only when merging' });
-		await expect
-			.poll(async () => (await storedSettings(page))[UPDATE_FROM_MAIN_TRIGGER_SETTING])
-			.toBe('merging');
 
 		await running.fill('5');
 		await running.press('Enter');
@@ -128,7 +119,6 @@ test('Settings → Jobs shows the defaults, clamps a value out of range, keeps a
 		await openSettings(page, '#/settings/jobs');
 		await expect(running).toHaveValue('10', { timeout: 20_000 });
 		await expect(attempts).toHaveValue('1');
-		await expect(updates).toHaveValue('merging');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

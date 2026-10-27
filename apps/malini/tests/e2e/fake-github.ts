@@ -43,6 +43,7 @@ export interface FakeGithub {
 	pushedHead(): string;
 	pushedSubjects(): string[];
 	setOffline(offline: boolean): void;
+	answerWith(stderr: string | null): void;
 }
 
 export interface PullRequestWorkstream {
@@ -92,7 +93,7 @@ export function topBarStatus(page: Page, name: string | RegExp): Locator {
 }
 
 export function toastSaying(page: Page, text: string): Locator {
-	return page.getByRole('status').filter({ hasText: text });
+	return page.getByTestId('toast').filter({ hasText: text });
 }
 
 export async function queueMerge(page: Page): Promise<void> {
@@ -135,6 +136,37 @@ export async function expectMergedAndArchived(
 	).toBeVisible();
 }
 
+export async function expectMerged(page: Page, workstreamId: string): Promise<void> {
+	await expect(topBarStatus(page, /^Merged/u)).toBeVisible({ timeout: 90_000 });
+	await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: /^Continue on top of the latest / })).toBeEnabled();
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(1);
+	await expect(page.getByRole('heading', { name: 'Repositories' })).toHaveCount(0);
+	await expect(toastSaying(page, 'Merged')).toHaveCount(0);
+}
+
+export async function archiveMerged(
+	page: Page,
+	workstreamId: string,
+	name = WORKSTREAM_NAME,
+): Promise<void> {
+	await page.getByRole('button', { name: 'Archive this workstream' }).click();
+	const row = page
+		.getByRole('list', { name: 'Recently archived' })
+		.locator(`[data-testid="sidebar-archived-workstream"][data-workstream-id="${workstreamId}"]`);
+	await expect(row).toBeVisible({ timeout: 30_000 });
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(0);
+	await expect(row).toContainText(name);
+	await row.hover();
+	await expect(
+		row.getByRole('button', { name: `Open pull request #${PULL_REQUEST_NUMBER} on GitHub` }),
+	).toBeVisible();
+}
+
 export async function commitByHand(worktree: string, file: string): Promise<void> {
 	writeFileSync(join(worktree, file), `${file} committed outside malini\n`);
 	await git(worktree, ['add', file]);
@@ -170,6 +202,7 @@ async function fakeGithubFor(
 	const pullRequestFile = join(state, 'pull-request.json');
 	const callsFile = join(state, 'gh-calls.log');
 	const offline = join(state, 'offline');
+	const failure = join(state, 'github-failure');
 	mkdirSync(state, { recursive: true });
 	await git(state, ['init', '-q', '--bare', remote]);
 	const branch = revParse(seeded.worktree, '--abbrev-ref', 'HEAD');
@@ -271,6 +304,8 @@ async function fakeGithubFor(
 				.split('\n')
 				.filter(Boolean),
 		setOffline: (next) => (next ? writeFileSync(offline, '') : rmSync(offline, { force: true })),
+		answerWith: (stderr) =>
+			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
 	};
 }
 
@@ -352,6 +387,11 @@ const flag = (name) => {
 const out = (value) =>
 	process.stdout.write(typeof value === 'string' ? value : JSON.stringify(value));
 const [command, sub, third] = args;
+const failure = path.join(state, 'github-failure');
+if (command !== 'auth' && fs.existsSync(failure)) {
+	process.stderr.write(fs.readFileSync(failure, 'utf8'));
+	process.exit(1);
+}
 if (command === 'auth' && sub === 'status') {
 	out('github.com\\n  Logged in to github.com account e2e-user (keyring)\\n');
 } else if (command === 'api' && sub === 'user') {

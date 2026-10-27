@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	currentPlanLimits,
+	lastRunAccount,
 	planLimitAlert,
 	planUsageFor,
 	planUsageOf,
@@ -56,6 +57,29 @@ describe('plan usage', () => {
 		expect(planUsageFor(byAccount, 'bob@example.com')).toBeNull();
 		expect(planUsageFor(byAccount, null)).toBe(unattributed);
 		expect(withNewerPlanUsage(byAccount, older)).toBe(byAccount);
+	});
+
+	it('names the account the latest usage report came from', () => {
+		const envelope = (seq: number, account?: string) => ({
+			sessionId: 'session-1',
+			runId: 'run-1',
+			seq,
+			event: {
+				type: 'usage.updated' as const,
+				runId: 'run-1',
+				providerMetrics: {
+					anthropic: { observedAt: '2026-10-12T11:00:00.000Z', rateLimits: [], account },
+				},
+			},
+		});
+
+		expect(lastRunAccount([])).toBeNull();
+		expect(
+			lastRunAccount([envelope(1, 'first@example.com'), envelope(2, 'second@example.com')]),
+		).toBe('second@example.com');
+		expect(lastRunAccount([envelope(1, 'first@example.com'), envelope(2)])).toBe(
+			'first@example.com',
+		);
 	});
 
 	it('forgets a window once it resets and alerts only on the fullest one past 90%', () => {
