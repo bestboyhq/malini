@@ -1019,6 +1019,71 @@ CREATE TABLE alarms (
 );
 CREATE INDEX idx_alarms_due ON alarms(due_at);
 `,
+	`
+CREATE TABLE job_runs_next (
+  id TEXT PRIMARY KEY,
+  definition_id TEXT NOT NULL REFERENCES job_definitions(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  workstream_id TEXT,
+  repository_id TEXT,
+  scope TEXT CHECK (scope IS NULL OR scope = 'home' OR scope LIKE 'owner:_%'),
+  session_id TEXT,
+  agent_run_id TEXT,
+  origin TEXT NOT NULL CHECK (origin IN ('merge-queue','manual','trigger','then','schedule','reconciler','compatibility')),
+  status TEXT NOT NULL CHECK (status IN ('waiting','queued','running','needs-you','succeeded','failed','cancelled')),
+  context TEXT,
+  detail TEXT,
+  parent_run_id TEXT REFERENCES job_runs_next(id) ON DELETE SET NULL,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  requests INTEGER NOT NULL DEFAULT 1 CHECK (requests >= 1),
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  chat_session_id TEXT,
+  chat_after_run_id TEXT
+);
+INSERT INTO job_runs_next
+  (id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id, origin,
+   status, context, detail, parent_run_id, chain_id, requests, created_at, started_at, finished_at,
+   chat_session_id, chat_after_run_id)
+  SELECT id, definition_id, title, workstream_id, repository_id, scope, session_id, agent_run_id,
+    origin, status, context, detail, parent_run_id, chain_id, requests, created_at, started_at,
+    finished_at, chat_session_id, chat_after_run_id
+  FROM job_runs;
+
+CREATE TABLE job_run_events_next (
+  job_run_id TEXT NOT NULL REFERENCES job_runs_next(id) ON DELETE CASCADE,
+  event_id INTEGER NOT NULL,
+  PRIMARY KEY (job_run_id, event_id)
+);
+INSERT INTO job_run_events_next (job_run_id, event_id) SELECT job_run_id, event_id FROM job_run_events;
+
+DROP TABLE job_run_events;
+DROP TABLE job_runs;
+ALTER TABLE job_runs_next RENAME TO job_runs;
+ALTER TABLE job_run_events_next RENAME TO job_run_events;
+CREATE INDEX idx_job_runs_status_created ON job_runs(status, created_at);
+CREATE INDEX idx_job_runs_session ON job_runs(session_id);
+CREATE INDEX idx_job_runs_chat_session ON job_runs(chat_session_id);
+CREATE INDEX idx_job_runs_parent ON job_runs(parent_run_id);
+CREATE INDEX idx_job_runs_definition_origin ON job_runs(definition_id, origin, created_at);
+CREATE INDEX idx_job_runs_chain ON job_runs(chain_id, definition_id);
+CREATE INDEX idx_job_run_events_event ON job_run_events(event_id);
+
+UPDATE job_definitions SET name = 'Choose a reaction'
+  WHERE builtin = 'reconcile' AND name = 'Reconcile events';
+DELETE FROM settings WHERE key = 'jobs.reconciler';
+`,
+	`
+DROP INDEX idx_event_log_digest;
+ALTER TABLE event_log DROP COLUMN digest;
+`,
+	`
+CREATE TABLE agent_event_packs (
+  session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  events BLOB NOT NULL
+);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

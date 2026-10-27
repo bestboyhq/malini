@@ -32,6 +32,7 @@
 	import { chooseSidebarFocusCommand } from '$lib/app/application/commands/choose-sidebar-focus.command';
 	import { toggleSidebarPinCommand } from '$lib/app/application/commands/toggle-sidebar-pin.command';
 	import { toggleGroupCollapsedCommand } from '$lib/app/application/commands/toggle-group-collapsed.command';
+	import { attentionTreeQuery } from '$lib/app/application/queries/attention-tree.query.svelte';
 	import { leadProgressQuery } from '$lib/app/application/queries/lead-progress.query.svelte';
 	import { leadHeadline, progressLabel, type ProgressDot } from '$lib/app/domain/lead-progress';
 	import { ALL_FOCUS, focusStillExists, type SidebarFocus } from '$lib/app/domain/sidebar-focus';
@@ -56,7 +57,6 @@
 	import StagedUpdateButton from './StagedUpdateButton.svelte';
 	import SidebarFocusStrip, { type FocusChoice } from './SidebarFocusStrip.svelte';
 	import { ScratchpadIdeasCount, ScratchpadIdeasPreview } from '$lib/scratchpad/scratchpad.api';
-	import { WorkstreamChatSummary } from '$lib/chat/chat.api';
 	import {
 		archivedWorkstreamsQuery,
 		provisioningRecordQuery,
@@ -100,6 +100,7 @@
 	import WorkstreamRunningCard from './WorkstreamRunningCard.svelte';
 	import SidebarArchived from './SidebarArchived.svelte';
 	import StartedWorkstreams from './StartedWorkstreams.svelte';
+	import { startedShipAction } from './started-ship-action';
 	import { REPOSITORIES_HREF, repositoryHref, workstreamHref } from '$shared/router/routes-hrefs';
 	import StateBlock from '$shared/errors/StateBlock.svelte';
 	import { RepositorySidebarSkeleton } from '$shared/repositories/repositories.api';
@@ -797,6 +798,7 @@
 		needsYou: boolean;
 		hasDraft: boolean;
 		state: Readonly<{ label: string; tone: ChatTone }> | null;
+		attentionFromStarted: boolean;
 	}>;
 
 	const CHAT_TONE_ICON: Readonly<Record<ChatTone, string>> = {
@@ -884,7 +886,12 @@
 		return { phase: 'unknown', label: null };
 	}
 
-	function attentionLabel(attention: ChatAttention): string {
+	function attentionLabel(attention: ChatAttention, fromStarted: boolean): string {
+		if (fromStarted) {
+			if (attention.kind === 'failed') return 'A workstream it started failed';
+			if (attention.kind === 'approval') return 'A workstream it started is waiting for approval';
+			return 'A workstream it started needs your input';
+		}
 		if (attention.kind === 'failed') return 'Agent run needs attention';
 		if (attention.kind === 'approval') return 'Agent is waiting for approval';
 		return 'Agent needs your input';
@@ -899,7 +906,9 @@
 			state.label,
 			pullRequest.label,
 			chat.hasDraft ? 'Unsent draft' : null,
-			chat.needsYou && chat.attention ? attentionLabel(chat.attention) : null,
+			chat.needsYou && chat.attention
+				? attentionLabel(chat.attention, chat.attentionFromStarted)
+				: null,
 		]
 			.filter(Boolean)
 			.join(' · ');
@@ -1051,7 +1060,7 @@
 			sectionOf,
 		});
 		return sidebarWorkstreamIds(focused).some(
-			(workstreamId) => workstreamChatSummaryQuery.data(workstreamId).needsYou,
+			(workstreamId) => attentionTreeQuery.summary(workstreamId).needsYou,
 		);
 	}
 
@@ -1389,6 +1398,9 @@
 	{@const hasChildren = children.length > 0}
 	{@const folded = collapsedGroupIds.has(workstream.id)}
 	{@const childIds = children.map((child) => child.id)}
+	{@const view = workstreamView(workstream, row.label, attentionTreeQuery.summary(workstream.id))}
+	{@const saveable =
+		!isLead && view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
 	<li
 		class={['relative mt-0.5 w-full min-w-0', reorderClass(workstream.id)]}
 		style:transform={reorderTransform(workstream.id)}
@@ -1397,153 +1409,146 @@
 		transition:slide={foldMotion()}
 	>
 		<div class="group/row relative w-full min-w-0">
-			<WorkstreamChatSummary workstreamId={workstream.id}>
-				{#snippet children(chat)}
-					{@const view = workstreamView(workstream, row.label, chat)}
-					{@const saveable =
-						!isLead && view.lifecycle.kind === 'archive' && onSaveWorkstreamForLater !== undefined}
-					{#snippet card()}
-						{@render runningCard(workstream, view)}
-					{/snippet}
-					{#snippet rowLink()}
-						<Tooltip
-							content={card}
-							interactive
-							placement="right"
-							suppressed={!view.running || dots.length > 0}
-							class="w-full min-w-0"
-						>
-							<a
-								draggable="false"
-								href={rowHref(workstream.id, view.targetSessionId)}
-								data-navigation-path-id="expected-path:workstream-sidebar.switch"
-								aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
-								aria-busy={workstream.id === pendingWorkstreamId || undefined}
-								class={[
-									'sidebar-row relative w-full flex-col items-stretch outline-none',
-									rowEndPadding(hasChildren, saveable),
-									levelPadding(level),
-									compact && 'py-1 text-xs',
-									view.chat.attention !== null
-										? 'text-500'
-										: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
-									view.selected
-										? 'sidebar-row-active'
-										: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
-								]}
-								data-active={workstream.id === contextMenu?.workstreamId}
-								{...workstreamLinkData(workstream, row.repositoryFullName, view)}
-								onpointerdown={(event) =>
-									previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
-								onpointerup={() =>
-									scheduleAbandonedDestinationPreviewCleanup(
-										rowHref(workstream.id, view.targetSessionId),
-									)}
-								onpointercancel={() =>
-									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-								onpointerleave={() =>
-									abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
-								onpointerenter={clearRowEnd}
-								onfocus={clearRowEnd}
-								aria-keyshortcuts={moveShortcuts('Shift+F10')}
-								onkeydown={(event) => {
-									if (opensMenu(event)) {
-										openWorkstreamMenu(event, workstream.id);
-										return;
-									}
-									previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
-									void onMoveKey(event, 'workstream', workstream.id, siblingIds);
-								}}
-								onkeyup={(event) =>
-									scheduleKeyboardDestinationPreviewCleanup(
-										event,
-										rowHref(workstream.id, view.targetSessionId),
-									)}
-								onblur={() =>
-									scheduleAbandonedDestinationPreviewCleanup(
-										rowHref(workstream.id, view.targetSessionId),
-									)}
-								onclick={(event) =>
-									beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
-								oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
-							>
-								<span class="relative flex items-center gap-2">
-									{#if isLead}
-										{@render chatGlyph(view, level)}
-									{:else}
-										{@render statusIndicator(view, level)}
-									{/if}
-									<span class="sidebar-row-text gap-1.5">
-										{@render workstreamName(workstream, view)}
-										{#if row.repositoryName}
-											<span
-												class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate group-hover/row:hidden group-has-focus-visible/row:hidden"
-												data-testid="sidebar-row-repository"
-											>
-												{row.repositoryName}
-											</span>
-										{/if}
-										{#if dots.length > 0}
-											{@render progress(dots)}
-										{:else}
-											{@render workstreamTrail(view)}
-										{/if}
-									</span>
-								</span>
-								{#if view.running}
-									<span class="pl-6" transition:slide={foldMotion()}>
-										<WorkstreamRunningLine running={view.running} selected={view.selected} />
+			{#snippet card()}
+				{@render runningCard(workstream, view)}
+			{/snippet}
+			{#snippet rowLink()}
+				<Tooltip
+					content={card}
+					interactive
+					placement="right"
+					suppressed={!view.running || dots.length > 0}
+					class="w-full min-w-0"
+				>
+					<a
+						draggable="false"
+						href={rowHref(workstream.id, view.targetSessionId)}
+						data-navigation-path-id="expected-path:workstream-sidebar.switch"
+						aria-current={workstream.id === activeWorkstreamId ? 'page' : undefined}
+						aria-busy={workstream.id === pendingWorkstreamId || undefined}
+						class={[
+							'sidebar-row relative w-full flex-col items-stretch outline-none',
+							rowEndPadding(hasChildren, saveable),
+							levelPadding(level),
+							compact && 'py-1 text-xs',
+							view.chat.attention !== null
+								? 'text-500'
+								: 'text-fg-tertiary group-hover/row:text-fg-secondary focus-visible:text-fg-secondary data-[active=true]:text-fg-secondary',
+							view.selected
+								? 'sidebar-row-active'
+								: 'group-hover/row:bg-surface-50-hover focus-visible:bg-surface-50-hover data-[active=true]:bg-surface-50-hover',
+						]}
+						data-active={workstream.id === contextMenu?.workstreamId}
+						{...workstreamLinkData(workstream, row.repositoryFullName, view)}
+						onpointerdown={(event) =>
+							previewDestinationFromPointer(event, workstream.id, view.targetSessionId)}
+						onpointerup={() =>
+							scheduleAbandonedDestinationPreviewCleanup(
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onpointercancel={() =>
+							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+						onpointerleave={() =>
+							abandonDestinationPreview(rowHref(workstream.id, view.targetSessionId))}
+						onpointerenter={clearRowEnd}
+						onfocus={clearRowEnd}
+						aria-keyshortcuts={moveShortcuts('Shift+F10')}
+						onkeydown={(event) => {
+							if (opensMenu(event)) {
+								openWorkstreamMenu(event, workstream.id);
+								return;
+							}
+							previewDestinationFromKeyboard(event, workstream.id, view.targetSessionId);
+							void onMoveKey(event, 'workstream', workstream.id, siblingIds);
+						}}
+						onkeyup={(event) =>
+							scheduleKeyboardDestinationPreviewCleanup(
+								event,
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onblur={() =>
+							scheduleAbandonedDestinationPreviewCleanup(
+								rowHref(workstream.id, view.targetSessionId),
+							)}
+						onclick={(event) =>
+							beginWorkstreamNavigation(event, workstream.id, view.label, view.targetSessionId)}
+						oncontextmenu={(event) => openWorkstreamMenu(event, workstream.id)}
+					>
+						<span class="relative flex items-center gap-2">
+							{#if isLead}
+								{@render chatGlyph(view, level)}
+							{:else}
+								{@render statusIndicator(view, level)}
+							{/if}
+							<span class="sidebar-row-text gap-1.5">
+								{@render workstreamName(workstream, view)}
+								{#if row.repositoryName}
+									<span
+										class="text-2xs text-fg-quaternary max-w-24 shrink-0 truncate group-hover/row:hidden group-has-focus-visible/row:hidden"
+										data-testid="sidebar-row-repository"
+									>
+										{row.repositoryName}
 									</span>
 								{/if}
-							</a>
-							{#if hasChildren}
-								{@render foldButton(row, folded)}
-							{/if}
-							{#if saveable}
-								{@render saveForLaterButton(
-									workstream,
-									view,
-									[
-										'absolute h-lh items-center leading-relaxed',
-										hasChildren ? 'right-13' : 'right-7',
-										compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-									].join(' '),
-								)}
-							{/if}
-							{@render archiveButton(
-								workstream,
-								view,
-								[
-									'absolute h-lh items-center leading-relaxed',
-									hasChildren ? 'right-7' : 'right-1',
-									compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
-								].join(' '),
-							)}
-						</Tooltip>
-					{/snippet}
-					{#if dots.length > 0}
-						<HoverCard
-							side="right"
-							align="start"
-							sideOffset={12}
-							openDelay={500}
-							triggerPress="dismiss"
-							triggerClass="w-full min-w-0"
-							panelClass="w-88 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
-							testId="sidebar-started-card"
-						>
-							{#snippet trigger()}
-								{@render rowLink()}
-							{/snippet}
-							{#snippet content()}
-								{@render startedCard(workstream, view, dots)}
-							{/snippet}
-						</HoverCard>
-					{:else}
-						{@render rowLink()}
+								{#if dots.length > 0}
+									{@render progress(dots)}
+								{:else}
+									{@render workstreamTrail(view)}
+								{/if}
+							</span>
+						</span>
+						{#if view.running}
+							<span class="pl-6" transition:slide={foldMotion()}>
+								<WorkstreamRunningLine running={view.running} selected={view.selected} />
+							</span>
+						{/if}
+					</a>
+					{#if hasChildren}
+						{@render foldButton(row, folded)}
 					{/if}
-				{/snippet}
-			</WorkstreamChatSummary>
+					{#if saveable}
+						{@render saveForLaterButton(
+							workstream,
+							view,
+							[
+								'absolute h-lh items-center leading-relaxed',
+								hasChildren ? 'right-13' : 'right-7',
+								compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+							].join(' '),
+						)}
+					{/if}
+					{@render archiveButton(
+						workstream,
+						view,
+						[
+							'absolute h-lh items-center leading-relaxed',
+							hasChildren ? 'right-7' : 'right-1',
+							compact ? 'top-1 text-xs' : 'top-1.5 text-sm',
+						].join(' '),
+					)}
+				</Tooltip>
+			{/snippet}
+			{#if dots.length > 0}
+				<HoverCard
+					side="right"
+					align="start"
+					sideOffset={12}
+					openDelay={500}
+					triggerPress="dismiss"
+					triggerClass="w-full min-w-0"
+					panelClass="w-88 rounded-xl border-[0.5px] border-surface-elevated-border bg-surface-elevated p-1.5"
+					testId="sidebar-started-card"
+				>
+					{#snippet trigger()}
+						{@render rowLink()}
+					{/snippet}
+					{#snippet content()}
+						{@render startedCard(workstream, view, dots)}
+					{/snippet}
+				</HoverCard>
+			{:else}
+				{@render rowLink()}
+			{/if}
 		</div>
 		{#if hasChildren}
 			<ul
@@ -1869,18 +1874,36 @@
 
 {#snippet startedCard(workstream: Workstream, view: WorkstreamView, dots: readonly ProgressDot[])}
 	{@const headline = leadHeadline(dots)}
+	{@const targets = leadProgressQuery.shipTargets(workstream.id)}
+	{@const chatSessionId = () => workstreamChatSummaryQuery.data(workstream.id).sessionId}
+	{@const shipActions = [
+		startedShipAction('draft-all', workstream.id, targets.draft, chatSessionId),
+		startedShipAction('merge-all', workstream.id, targets.merge, chatSessionId),
+	].filter((action) => action !== null)}
 	<div class="flex flex-col gap-1.5">
 		{#if view.running}
 			<div class="border-surface-elevated-border border-b px-1.5 pt-1 pb-2.5">
 				{@render runningCard(workstream, view)}
 			</div>
 		{/if}
-		<div class="flex min-w-0 flex-col gap-0.5 px-2 pt-1">
-			<span class="text-fg-default truncate text-sm font-medium">{view.label}</span>
-			<span class="text-fg-tertiary text-xs">
-				{headline.label}{#if headline.detail}
-					· {headline.detail}{/if}
-			</span>
+		<div class="flex min-w-0 items-center gap-2 px-2 pt-1">
+			<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+				<span class="text-fg-default truncate text-sm font-medium">{view.label}</span>
+				<span class="text-fg-tertiary text-xs">
+					{headline.label}{#if headline.detail}
+						· {headline.detail}{/if}
+				</span>
+			</div>
+			{#each shipActions as action (action.label)}
+				<Button
+					size="xs"
+					variant={action.tone}
+					ariaLabel={action.ariaLabel}
+					onclick={() => action.onInvoke()}
+				>
+					{action.label}
+				</Button>
+			{/each}
 		</div>
 		<div class="max-h-96 overflow-y-auto">
 			<StartedWorkstreams

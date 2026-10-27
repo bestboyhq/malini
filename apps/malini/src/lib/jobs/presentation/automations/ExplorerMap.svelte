@@ -10,7 +10,6 @@
 	import { Icon } from '$hyper-ui/icons';
 	import {
 		EVENT_ROWS,
-		LISTENERS,
 		ROW_SOURCES,
 		wireKey,
 		type Explorer,
@@ -19,14 +18,15 @@
 		type WorkNode,
 		type Working,
 	} from '$lib/jobs/domain/explorer';
+	import { RECONCILER_RULES } from '$lib/jobs/domain/reconciler';
 	import {
-		LISTENER_LABELS,
 		ROW_LOOKS,
+		RULE_LABELS,
 		SOURCE_LABELS,
 		count,
 		explorerClock,
-		listenerNote,
 		nodeLabel,
+		ruleNote,
 	} from './explorer-copy';
 	import { STRUCTURE, mapLayout, type Box, type Flight, type Lit } from './explorer-layout';
 
@@ -185,7 +185,7 @@
 
 	function ruleCount(node: MapNode): string {
 		const value = explorer.counts.get(node) ?? 0;
-		return node === 'listener:model' ? count(value, 'decision') : `${value} started`;
+		return node === 'rule:model' ? count(value, 'decision') : `${value} started`;
 	}
 </script>
 
@@ -373,11 +373,11 @@
 			</Button>
 		</div>
 
-		{#each LISTENERS as listener (listener)}
-			{@const node = `listener:${listener}` as const}
+		{#each RECONCILER_RULES as rule (rule)}
+			{@const node = `rule:${rule}` as const}
 			{@const box = place(node)}
 			{@const idle = (explorer.counts.get(node) ?? 0) === 0}
-			{#if listener === 'model'}
+			{#if rule === 'model'}
 				<span
 					class="text-fg-quaternary text-3xs pointer-events-none absolute flex items-center gap-2 font-mono"
 					style:left="{box.x}px"
@@ -400,7 +400,7 @@
 				<Button
 					bare
 					pressable={false}
-					ariaLabel={`${LISTENER_LABELS[listener]}: ${ruleCount(node)}`}
+					ariaLabel={`${RULE_LABELS[rule]}: ${ruleCount(node)}`}
 					ariaPressed={selectedNode === node}
 					class={ruleTone(node)}
 					onclick={() => onselectnode(node)}
@@ -408,13 +408,13 @@
 				>
 					<span class="flex items-baseline justify-between gap-2">
 						<span class={['text-xs font-medium', idle ? 'text-fg-tertiary' : 'text-fg-default']}>
-							{LISTENER_LABELS[listener]}
+							{RULE_LABELS[rule]}
 						</span>
 						<span class="text-fg-tertiary text-3xs font-mono tabular-nums">
 							{explorer.counts.get(node) ?? 0}
 						</span>
 					</span>
-					<span class="text-fg-tertiary text-2xs truncate">{listenerNote(listener, jobs)}</span>
+					<span class="text-fg-tertiary text-2xs truncate">{ruleNote(rule, jobs)}</span>
 				</Button>
 			</div>
 		{/each}

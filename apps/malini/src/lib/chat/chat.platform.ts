@@ -15,6 +15,7 @@ export {
 	listWorkstreamSnapshotRefs,
 	type WorkstreamSnapshotRefs,
 } from './platform/checkpoints.repository';
+export { unpackRestoredChats } from './platform/event-packs.service';
 export {
 	chatTurnChainId,
 	chatTurnSessionId,

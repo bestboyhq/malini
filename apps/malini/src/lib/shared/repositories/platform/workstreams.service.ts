@@ -14,6 +14,7 @@ import type {
 	Workstream,
 	WorkstreamRetirementReceipt,
 } from '$contract/repositories';
+import { unpackRestoredChats } from '$lib/chat/chat.platform';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
@@ -304,6 +305,7 @@ export async function restoreWorkstream(
 			cleanup === null ? message : `${message}; the checkout could not be rolled back: ${cleanup}`,
 		);
 	}
+	unpackRestoredChats(db);
 	await settleRestoredCheckout(workstreamId, repository, checkout, branch, archived.archivedRef);
 	await restoreKeptFolders(appDataRoot, workstreamId, checkout).catch((error: unknown) =>
 		console.error(

@@ -19,6 +19,14 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
   Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
+- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
+  Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
+  A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
+- The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
+  Those workstreams keep their rows calm, with no unread mark and no amber or red, and play no sound and send no notification when they finish, need you or fail: Malini wakes the chat with their report, or asks you in a notification that opens the chat.
+  An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
+  The chat's row lights up for the most pressing news of the chat and its workstreams, and grouped by Status it sits where the most pressing of them belongs, with its workstreams under it.
+  A pull request of theirs that needs you says so in a toast that names the chat and opens it.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.
 - A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
@@ -95,7 +103,7 @@ What changed and what was verified read as one line each, with an icon for each,
 Reports run from a screenshot and one line to the full write-up.
 Every picture of a report sits in one frame with a tab for each under it, so pictures never stack, and the agent embeds only what you need to see: the variants, the before and after, or one screenshot of what is new.
 A note the agent adds after its report, when a background command ends or another chat writes to it, shows below the report, and the report stays the turn's result: its commit, its pull request title and its notification.
-A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you.
+A **Your turn** list, unread marks, a sound, and a notification tell you which workstream needs you, or which chat, for [the workstreams a chat started](#chats-above-repositories).
 
 ### Next steps
 

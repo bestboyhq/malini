@@ -6,7 +6,6 @@ import { all, get, run } from '$main/db/rows';
 export type NewLoggedEvent = Readonly<{
 	channel: string;
 	payload: string;
-	digest: string;
 	workstreamId: string | null;
 	cause: EventCause | null;
 	chainId: string;
@@ -53,11 +52,10 @@ export function insertLoggedEvent(db: MaliniDatabase, event: NewLoggedEvent): nu
 	return run(
 		db,
 		`INSERT INTO event_log
-		   (channel, payload, digest, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		   (channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		event.channel,
 		event.payload,
-		event.digest,
 		event.workstreamId,
 		event.cause?.kind ?? null,
 		event.cause?.id ?? null,
@@ -74,18 +72,17 @@ export type UnhandledEvent = Readonly<{
 	id: number;
 	channel: string;
 	payload: unknown;
-	digest: string;
 	chainId: string;
 	cause: EventCause | null;
 }>;
 
 export function listUnhandledEvents(db: MaliniDatabase, since: string): UnhandledEvent[] {
-	return all<LoggedEventRow & { digest: string }>(
+	return all<LoggedEventRow>(
 		db,
-		`SELECT ${COLUMNS}, digest FROM event_log
+		`SELECT ${COLUMNS} FROM event_log
 		 WHERE handled_at IS NULL AND emitted_at >= ? ORDER BY id`,
 		since,
-	).map((row) => ({ ...fromRow(row, Number.POSITIVE_INFINITY), digest: row.digest }));
+	).map((row) => fromRow(row, Number.POSITIVE_INFINITY));
 }
 
 export function pruneEventLog(db: MaliniDatabase, before: string): number {
@@ -155,20 +152,18 @@ export function countLoggedEventsSince(
 export function triggeredBefore(
 	db: MaliniDatabase,
 	definitionId: string,
-	channel: string,
-	digest: string,
+	eventId: number | null,
 ): boolean {
 	return (
+		eventId !== null &&
 		get(
 			db,
 			`SELECT 1 FROM job_run_events link
-			 JOIN event_log event ON event.id = link.event_id
 			 JOIN job_runs run ON run.id = link.job_run_id
-			 WHERE run.definition_id = ? AND event.channel = ? AND event.digest = ?
+			 WHERE link.event_id = ? AND run.definition_id = ?
 			 LIMIT 1`,
+			eventId,
 			definitionId,
-			channel,
-			digest,
 		) !== null
 	);
 }

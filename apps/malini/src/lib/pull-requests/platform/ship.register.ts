@@ -1,11 +1,14 @@
-import { PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL } from '$contract/events';
+import {
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+} from '$contract/events';
 import { SHIP_BUTTONS, type ShipButton } from '$contract/pull-requests';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import { requireString } from './args';
 import type { PullRequestOperations } from './pull-request-operations';
-import { Shipping, type ShippingOptions } from './shipping.service';
+import { Shipping, shipAllClicked, type ShippingOptions } from './shipping.service';
 
 export type ShipPlatform = PullRequestsPlatform &
 	Readonly<{ report(workstreamId: string, pullRequest: PullRequestStatusDto): void }>;
@@ -19,9 +22,12 @@ export function registerShip(
 	const shipping = new Shipping(context, operations, options);
 	const workstreamId = (args: unknown): string => requireString(args, 'workstreamId');
 
-	commands.define('pull-requests.button-clicked', (args: unknown) =>
-		shipping.clicked(workstreamId(args), button(args)),
-	);
+	commands.define('pull-requests.button-clicked', (args: unknown) => {
+		const all = shipAllClicked(args);
+		if (all === null) return shipping.clicked(workstreamId(args), button(args));
+		events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, all);
+		return null;
+	});
 	commands.define('pull-requests.open-draft', (args: unknown) =>
 		shipping.openDraft(workstreamId(args)),
 	);

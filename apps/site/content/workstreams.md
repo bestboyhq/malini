@@ -23,6 +23,8 @@ Workstreams share disk space, so you can keep as many as you like.
   A GitHub repository over 1 GB is cloned without the history of its files, and git fetches an old version of a file the first time something reads it.
 - **Archives stay small.** Archiving keeps the commits, uncommitted changes, chats, attachments, every image or recording a chat showed, and the text files up to 10 MB in the `.context` folder, so an agent can still learn from the work.
   It drops the rest of `.context`, such as other screenshots, downloads, builds and dependency folders.
+- **Old chats are packed.** Closing a chat or archiving its workstream compresses the chat's tool calls, their output and the agent's thinking, most of what a chat holds, to about a fifth of their size, and Malini gives the freed space back to the disk.
+  The chat reads the same as before, and restoring the workstream unpacks it.
 - **Malini checks first.** It starts no workstream, clone or restore when the disk has less than 2 GB free, and says how much is free.
 
 ## Malini owns git
@@ -67,6 +69,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns amber when its agent waits on an answer or an approval, and red when its run failed.
+  A workstream a chat started stays calm, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up for it instead.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.

@@ -28,6 +28,7 @@ import type { MainContext } from '$main/context';
 import { openDatabase, type MaliniDatabase } from '$main/db/driver';
 import { BASELINE_USER_VERSION, SCHEMA, migrate } from '$main/db/migrations';
 import { openMigratedDatabase } from '$main/db/open';
+import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
@@ -325,7 +326,7 @@ describe('job definitions', () => {
 			},
 			'open-draft': defaults('Open draft', 'low'),
 			merge: defaults('Merge', 'low'),
-			reconcile: defaults('Reconcile events', 'low', 'haiku'),
+			reconcile: defaults('Choose a reaction', 'low', 'haiku'),
 		});
 	});
 
@@ -378,7 +379,7 @@ describe('job definitions', () => {
 		});
 	});
 
-	it('checks compatibility in the newest workstream when malini updates', async () => {
+	it('checks compatibility in the newest workstream once when malini updates, through its rule, even when it hears the update again after a restart', async () => {
 		const definition = await builtin('check-compatibility');
 		upsertWorkstream(db, {
 			id: 'ws-newest',
@@ -406,11 +407,25 @@ describe('job definitions', () => {
 			if (!found) throw new Error('no compatibility run yet');
 			return found;
 		});
-		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'trigger' });
+		expect(run).toMatchObject({ workstreamId: 'ws-newest', origin: 'compatibility' });
+		expect(jobRunEventIds(db, [run.id]).get(run.id)).toHaveLength(1);
 		await session(run.id);
 		expect(fakes.sendPrompt).toHaveBeenCalledWith(
 			expect.objectContaining({ prompt: expect.stringContaining('"jobs:run-changed"') }),
 		);
+
+		jobs.dispose();
+		db.exec(`UPDATE event_log SET handled_at = NULL WHERE channel = '${APP_UPDATED_CHANNEL}'`);
+		context = harness(db);
+		jobs = registerJobs(context, { log: () => {} });
+		jobs.start();
+		await vi.waitFor(() =>
+			expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toEqual([]),
+		);
+		const runs = await context.commands.call('jobs.list-runs', undefined);
+		expect(runs.filter((entry) => entry.definitionId === definition.id)).toEqual([
+			expect.objectContaining({ id: run.id, requests: 1 }),
+		]);
 	});
 
 	it('tells the review job to list resolved threads the way shipping reads them', async () => {
@@ -1603,7 +1618,6 @@ describe('repeat runs', () => {
 		const read = insertLoggedEvent(db, {
 			channel: 'pull-requests:pull-request-changed',
 			payload: '{}',
-			digest: 'read',
 			workstreamId: 'ws-a',
 			cause: null,
 			chainId: 'chain-of-read',
