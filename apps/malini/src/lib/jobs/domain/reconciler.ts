@@ -1,8 +1,63 @@
+import {
+	APP_STARTED_CHANNEL,
+	APP_UPDATED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
+	type EventChannel,
+} from '$contract/events';
 import type {
 	ReconcilerCandidate,
 	ReconcilerDecider,
 	ReconcilerDecisionRecord,
 } from '$contract/jobs';
+
+export const RECONCILER_RULES = [
+	'triggers',
+	'thens',
+	'shipping',
+	'resume',
+	'schedules',
+	'compatibility',
+	'model',
+] as const;
+
+export type ReconcilerRule = (typeof RECONCILER_RULES)[number];
+
+export const RULE_EVENTS: Readonly<Record<ReconcilerRule, readonly EventChannel[] | 'every'>> = {
+	triggers: 'every',
+	thens: [JOBS_RUN_FINISHED_CHANNEL],
+	shipping: [
+		PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+		PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
+		PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+		CHAT_TURN_FINISHED_CHANNEL,
+		JOBS_RUN_FINISHED_CHANNEL,
+		JOBS_TIME_REACHED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
+		APP_STARTED_CHANNEL,
+	],
+	resume: [APP_STARTED_CHANNEL],
+	schedules: [JOBS_TIME_REACHED_CHANNEL],
+	compatibility: [APP_UPDATED_CHANNEL],
+	model: [
+		CHAT_TURN_FINISHED_CHANNEL,
+		JOBS_RUN_FINISHED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	],
+};
+
+export function ruleHears(rule: ReconcilerRule, channel: EventChannel): boolean {
+	const heard = RULE_EVENTS[rule];
+	return heard === 'every' || heard.includes(channel);
+}
 
 export const RECONCILER_WAKE_LIMIT = 3;
 
@@ -317,17 +372,16 @@ export type ValidatedPick = Readonly<{
 
 export function validatePick(
 	candidates: readonly ReconcilerCandidate[],
-	pick: number,
+	pick: number | null,
 	wakesOf: (sessionId: string) => number,
 ): ValidatedPick {
-	const picked = candidates[pick];
-	if (picked?.kind !== 'wake-chat') {
-		return { candidates, chosen: picked ? pick : 0, decidedBy: 'model', detail: null };
-	}
+	const answer = pick === null || candidates[pick] === undefined ? null : pick;
+	const chosen = answer ?? defaultPick(candidates);
+	const decidedBy: ReconcilerDecider = answer === null ? 'rules' : 'model';
+	const picked = candidates[chosen];
+	if (picked?.kind !== 'wake-chat') return { candidates, chosen, decidedBy, detail: null };
 	const wakes = wakesOf(picked.sessionId);
-	if (wakes < RECONCILER_WAKE_LIMIT) {
-		return { candidates, chosen: pick, decidedBy: 'model', detail: null };
-	}
+	if (wakes < RECONCILER_WAKE_LIMIT) return { candidates, chosen, decidedBy, detail: null };
 	const reason = `Malini already woke this chat ${wakes} times about this work in one chain of events, so it asks you first. ${picked.label}?`;
 	const asking = candidates.findIndex((candidate) => candidate.kind === 'ask-you');
 	if (asking !== -1) return { candidates, chosen: asking, decidedBy: 'rules', detail: reason };
@@ -337,6 +391,13 @@ export function validatePick(
 		decidedBy: 'rules',
 		detail: reason,
 	};
+}
+
+function defaultPick(candidates: readonly ReconcilerCandidate[]): number {
+	const wake = candidates.findIndex((candidate) => candidate.kind === 'wake-chat');
+	if (wake !== -1) return wake;
+	const ask = candidates.findIndex((candidate) => candidate.kind === 'ask-you');
+	return ask === -1 ? 0 : ask;
 }
 
 export function wakesInChain(

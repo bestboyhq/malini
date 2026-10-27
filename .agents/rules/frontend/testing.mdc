@@ -32,6 +32,7 @@ Unit tests exist only where e2e cannot enumerate the cases.
 - Locate by role and accessible name (`getByRole`, `getByLabel`), by text, or by a stable `data-testid`; never by class, tag nesting or DOM position.
 - Assert observable state: visible text, accessible name, `aria-current`, `aria-pressed`, `aria-expanded`, `aria-disabled`, data the app persists (through `invoke` in the harness).
 - To confirm something looks right, take a screenshot with `captureFlow` and look at it.
+  It writes `.context/e2e-<name>.png`; point `MALINI_E2E_CAPTURES` at a new folder under `.context` so a run never overwrites a screenshot an earlier report shows.
 - Every spec ends with `expectCleanConsole`; `app.close()` fails on unexpected error diagnostics.
 - Builds share `apps/malini/out`: run one build and one Playwright process at a time.
 - Specs run in parallel, beside other apps: a timeout covers the product's slowest refresh under load, not the typical case.

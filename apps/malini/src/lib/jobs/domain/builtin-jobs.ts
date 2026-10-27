@@ -193,7 +193,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 			"Queue this workstream's pull request to merge: Malini opens it when there is none, marks it ready, keeps it up to date with its base, fixes failing checks, answers bot reviews and merges it.",
 	},
 	reconcile: {
-		name: 'Reconcile events',
+		name: 'Choose a reaction',
 		model: 'haiku',
 		effort: 'low',
 		instructions: [

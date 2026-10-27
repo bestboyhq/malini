@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { JOBS_MAX_CONCURRENT_SETTING, JOBS_RECONCILER_SETTING } from '$contract/jobs';
+	import { JOBS_MAX_CONCURRENT_SETTING } from '$contract/jobs';
 	import {
 		MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
 		UPDATE_FROM_MAIN_TRIGGERS,
@@ -9,7 +9,6 @@
 		type UpdateFromMainTrigger,
 	} from '$contract/pull-requests';
 	import { Select } from '$hyper-ui/components/select';
-	import { Switch } from '$hyper-ui/components/switch';
 	import { loadJobSettingsCommand } from '$lib/app/application/commands/load-job-settings.command';
 	import { saveJobSettingCommand } from '$lib/app/application/commands/save-job-setting.command';
 	import { jobSettingsQuery } from '$lib/app/application/queries/job-settings.query.svelte';
@@ -26,7 +25,6 @@
 	}));
 
 	const settings = $derived(jobSettingsQuery.data);
-	const reconcilerId = $props.id();
 
 	onMount(() => {
 		loadJobSettingsCommand();
@@ -63,22 +61,6 @@
 			disabled={settings === null}
 			onchange={(value) =>
 				saveJobSettingCommand(UPDATE_FROM_MAIN_TRIGGER_SETTING, updateFromMainTrigger(value))}
-		/>
-	</div>
-	<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-3">
-		<div class="min-w-0">
-			<h3 id={reconcilerId} class="text-fg-default text-sm font-medium">Reconcile events</h3>
-			<p class="text-fg-tertiary text-xs">
-				When no job's trigger handles what happened, such as a workstream you started ending a turn,
-				the Reconcile events job picks what Malini does: wake the chat that started it, run a job
-				again, ask you, or nothing. Every pick shows in Activity.
-			</p>
-		</div>
-		<Switch
-			checked={(settings?.[JOBS_RECONCILER_SETTING] ?? 'on') === 'on'}
-			labelledBy={reconcilerId}
-			disabled={settings === null}
-			onchange={(on) => saveJobSettingCommand(JOBS_RECONCILER_SETTING, on ? 'on' : 'off')}
 		/>
 	</div>
 </div>

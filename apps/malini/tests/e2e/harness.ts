@@ -49,7 +49,9 @@ declare global {
 
 export const APP_ROOT = resolve(__dirname, '../..');
 export const E2E_ROOT = resolve(APP_ROOT, 'tests/e2e');
-export const CONTEXT_ROOT = resolve(APP_ROOT, '../..', '.context');
+export const CONTEXT_ROOT = resolve(
+	process.env['MALINI_E2E_CAPTURES'] ?? join(APP_ROOT, '../..', '.context'),
+);
 const FIXTURE_BRIDGE = join(E2E_ROOT, 'fixtures/fake-bridge.cjs');
 
 export const PULL_REQUEST_FIXTURE = '.e2e-pull-request.json';
