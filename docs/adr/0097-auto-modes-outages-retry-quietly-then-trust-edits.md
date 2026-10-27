@@ -1,4 +1,4 @@
-# 0096 - Auto mode's outages retry quietly, then trust edits
+# 0097 - Auto mode's outages retry quietly, then trust edits
 
 Status: accepted
 

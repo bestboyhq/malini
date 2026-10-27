@@ -8,7 +8,7 @@ import type {
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, nowIso8601, run, type BindValue } from '$main/db/rows';
 
-export type ShipRequest = 'push' | 'update' | 'review';
+export type ShipRequest = 'push' | 'review';
 
 export type ShipRequests = Readonly<Record<ShipRequest, number>>;
 
@@ -65,7 +65,6 @@ interface ShipDbRow {
 	generated_body: string | null;
 	addressed_reviews: string;
 	push_requests: number;
-	update_requests: number;
 	review_requests: number;
 	failures: number;
 	settled_job_run_id: string | null;
@@ -101,11 +100,10 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
 	last_error, next_attempt_at, generated_title, generated_body, addressed_reviews, push_requests,
-	update_requests, review_requests, failures, settled_job_run_id, updated_at`;
+	review_requests, failures, settled_job_run_id, updated_at`;
 
 const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
 	push: 'push_requests',
-	update: 'update_requests',
 	review: 'review_requests',
 };
 
@@ -142,7 +140,6 @@ function fromRow(row: ShipDbRow): ShipRow {
 		addressedReviews: reviewIds(row.addressed_reviews),
 		requests: {
 			push: row.push_requests,
-			update: row.update_requests,
 			review: row.review_requests,
 		},
 		failures: row.failures,
@@ -283,8 +280,7 @@ export function settleShipRequest(
 export function clearShipRequests(db: MaliniDatabase, workstreamId: string): void {
 	run(
 		db,
-		`UPDATE workstream_ship SET push_requests = 0, update_requests = 0, review_requests = 0
-		 WHERE workstream_id = ?`,
+		'UPDATE workstream_ship SET push_requests = 0, review_requests = 0 WHERE workstream_id = ?',
 		workstreamId,
 	);
 }
