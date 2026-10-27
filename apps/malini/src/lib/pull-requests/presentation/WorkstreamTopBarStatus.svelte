@@ -23,6 +23,7 @@
 		PullRequestMenuItemId,
 		PullRequestTopBarAction,
 	} from '$lib/pull-requests/domain/pull-request-action';
+	import { workstreamBusyActionQuery } from '$shared/repositories/repositories.api';
 	import { pullRequestActionIcon } from './pull-request-action-icon';
 
 	interface Props {
@@ -59,8 +60,11 @@
 	const githubStatus = $derived(pullRequestGithubStatusQuery.data);
 	const topBar = $derived(pullRequestTopBarQuery.data(agentWork));
 	const status = $derived(topBar.status);
-	const busy = $derived(pullRequestBusyQuery.data);
-	const claimedBusyLabel = $derived(pullRequestBusyQuery.label);
+	const continuing = $derived(workstreamBusyActionQuery.data(workstreamId) === 'continue');
+	const busy = $derived(pullRequestBusyQuery.data || continuing);
+	const claimedBusyLabel = $derived(
+		pullRequestBusyQuery.data ? pullRequestBusyQuery.label : 'Continuing',
+	);
 	const reference = $derived(
 		githubStatus?.reference ?? (topBar.pullRequestNumber ? `#${topBar.pullRequestNumber}` : null),
 	);

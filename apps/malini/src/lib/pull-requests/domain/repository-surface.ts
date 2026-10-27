@@ -1,4 +1,5 @@
 import type { WorktreeOperation } from '$contract/repositories';
+import type { MergedHead } from '$shared/repositories/domain/workstream';
 import type { PullRequestActivity } from '$shared/repositories/domain/workstream-freshness';
 import type { PullRequestAvailability } from './pull-request-action';
 import type {
@@ -125,6 +126,13 @@ export function repositorySurfaceHasBeenRead(surface: RepositorySurface): boolea
 	if (surface.status === 'idle') return false;
 	if (surface.status !== 'loading' && surface.pullRequestRefreshStatus !== 'loading') return true;
 	return surface.pullRequestRefreshedAt !== null;
+}
+
+export function surfaceMergedHead(surface: RepositorySurface): MergedHead | null {
+	const pullRequest = surface.pullRequest;
+	if (pullRequest?.state !== 'merged' || !pullRequest.headSha || !surface.baseBranch) return null;
+	if (surface.operationInProgress !== null) return null;
+	return { baseBranch: surface.baseBranch, mergedHeadSha: pullRequest.headSha };
 }
 
 const RUNNING_CHECK_STATES: ReadonlySet<string> = new Set([

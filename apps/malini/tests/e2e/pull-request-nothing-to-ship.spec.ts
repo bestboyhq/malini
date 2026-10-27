@@ -35,7 +35,7 @@ test('a workstream equal to its base offers no Draft until a file changes', asyn
 	}
 });
 
-test('a workstream reset to its base after its pull request merged stays merged and offers Continue and Archive, never a new pull request', async () => {
+test('a workstream reset to its base after its pull request merged stays merged and offers Archive, never Continue or a new pull request', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -59,9 +59,7 @@ test('a workstream reset to its base after its pull request merged stays merged 
 			timeout: 30_000,
 		});
 		await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
-		await expect(
-			page.getByRole('button', { name: 'Continue on top of the latest main' }),
-		).toBeEnabled();
+		await expect(page.getByRole('button', { name: /^Continue/u })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /pull request$/u })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Merge', exact: true })).toHaveCount(0);
 		expectCleanConsole(app);

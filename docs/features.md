@@ -90,7 +90,7 @@ The [README](../README.md) has the short version.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
   The top bar names the reason, and the merge picks up again on its own once it is resolved.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
-- **The whole pull request in the top bar.** Checks, changes, and review live one click away, and **Continue** keeps working on the latest base once it merges.
+- **The whole pull request in the top bar.** Checks, changes, and review live one click away, and your next prompt keeps working on the latest base once it merges.
 
 ## Skills, kept tidy
 
