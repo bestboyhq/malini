@@ -46,7 +46,14 @@
 
 	function seek(to: number): void {
 		time = Math.min(duration, Math.max(0, to));
-		both((video) => (video.currentTime = time));
+		both((video) => {
+			if (!video.seeking) video.currentTime = time;
+		});
+	}
+
+	function onseeked(event: Event & { currentTarget: HTMLVideoElement }): void {
+		const video = event.currentTarget;
+		if (!playing && Math.abs(video.currentTime - time) > 1e-3) video.currentTime = time;
 	}
 
 	function follow(): void {
@@ -106,6 +113,7 @@
 				class="block w-full object-contain"
 				style:aspect-ratio={aspect}
 				{onloadedmetadata}
+				{onseeked}
 			></video>
 		{:else}
 			<video
@@ -118,6 +126,7 @@
 				class="block w-full object-contain"
 				style:aspect-ratio={aspect}
 				{onloadedmetadata}
+				{onseeked}
 			></video>
 		{/if}
 		<span

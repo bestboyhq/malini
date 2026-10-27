@@ -1,4 +1,5 @@
 import { watch, type FSWatcher } from 'node:fs';
+import { lstat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { MaliniDatabase } from '$main/db/driver';
 import { getWorkstream, listWorkstreams } from './workstreams.repository';
@@ -23,6 +24,7 @@ export type { WorkstreamFilesChangedPayload };
 export const DEFAULT_FILES_CHANGED_DEBOUNCE_MS = 250;
 export const DEFAULT_FILES_CHANGED_MAX_WAIT_MS = 2_000;
 export const MAX_RECORDED_CHANGED_PATHS = 1_000;
+const MAX_REMEMBERED_STAMPS = 10_000;
 
 const GIT_DIR_HEADS: ReadonlySet<string> = new Set(['HEAD', 'ORIG_HEAD', 'MERGE_HEAD']);
 
@@ -59,6 +61,7 @@ interface WatcherSet {
 	timer: NodeJS.Timeout | null;
 	burstStartedAt: number | null;
 	changedPaths: Set<string> | null;
+	stamps: Map<string, string>;
 	closing: boolean;
 	worktreePath: string | null;
 	facts: GitFacts | null;
@@ -89,6 +92,15 @@ function workstreamIdOf(payload: unknown): string | null {
 function recordChangedPath(paths: Set<string> | null, name: string | null): Set<string> | null {
 	if (paths === null || name === null || paths.size >= MAX_RECORDED_CHANGED_PATHS) return null;
 	return paths.add(name.split(sep).join('/'));
+}
+
+async function stampOf(path: string): Promise<string> {
+	try {
+		const { ino, size, mtimeMs, ctimeMs } = await lstat(path);
+		return `${ino}:${size}:${mtimeMs}:${ctimeMs}`;
+	} catch {
+		return 'missing';
+	}
 }
 
 function firstSegment(relativePath: string): string {
@@ -185,23 +197,49 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 		reportMergeConflict({ workstreamId, baseBranch, conflictedPaths, mergeHead: next.mergeHead });
 	};
 
+	const changedSinceLastReport = async (
+		set: WatcherSet,
+		recorded: ReadonlySet<string>,
+	): Promise<string[]> => {
+		const worktreePath = set.worktreePath;
+		if (worktreePath === null) return [...recorded];
+		const stamped = await Promise.all(
+			[...recorded].map(async (path) => ({ path, stamp: await stampOf(join(worktreePath, path)) })),
+		);
+		// ponytail: forgets every stamp past the cap, so an echo right after that reports once more
+		if (set.stamps.size > MAX_REMEMBERED_STAMPS) set.stamps.clear();
+		const changed = stamped.filter(({ path, stamp }) => set.stamps.get(path) !== stamp);
+		for (const { path, stamp } of changed) set.stamps.set(path, stamp);
+		return changed.map(({ path }) => path);
+	};
+
 	const flush = (set: WatcherSet): void => {
 		set.timer = null;
 		set.burstStartedAt = null;
-		const payload: WorkstreamFilesChangedPayload = {
-			workstreamId: set.workstreamId,
-			changedAt: new Date().toISOString(),
-			paths: set.changedPaths && [...set.changedPaths],
-		};
+		const recorded = set.changedPaths;
+		const gitMoved = set.gitMoved;
 		set.changedPaths = new Set();
-		deps.events.emit(REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL, payload);
-		if (!set.gitMoved) return;
 		set.gitMoved = false;
-		set.reading = reportFactsAfter(set, set.reading);
+		set.reading = reportAfter(set, set.reading, recorded, gitMoved);
 	};
 
-	const reportFactsAfter = async (set: WatcherSet, previous: Promise<void>): Promise<void> => {
+	const reportAfter = async (
+		set: WatcherSet,
+		previous: Promise<void>,
+		recorded: ReadonlySet<string> | null,
+		gitMoved: boolean,
+	): Promise<void> => {
 		await previous;
+		const paths = recorded && (await changedSinceLastReport(set, recorded));
+		if (set.closing) return;
+		if (paths === null || paths.length > 0 || recorded?.size === 0) {
+			deps.events.emit(REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL, {
+				workstreamId: set.workstreamId,
+				changedAt: new Date().toISOString(),
+				paths,
+			});
+		}
+		if (!gitMoved) return;
 		try {
 			await reportFacts(set);
 		} catch (error) {
@@ -259,6 +297,7 @@ export function createWorkstreamWatchers(deps: WorkstreamWatchersDeps): Workstre
 			timer: null,
 			burstStartedAt: null,
 			changedPaths: new Set(),
+			stamps: new Map(),
 			closing: false,
 			worktreePath: null,
 			facts: null,

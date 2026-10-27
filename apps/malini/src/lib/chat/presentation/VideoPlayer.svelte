@@ -32,6 +32,7 @@
 	let videoHeight = $state(0);
 	let resting = $state(false);
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
+	let pendingSeek: number | null = null;
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -58,6 +59,22 @@
 	function step(frames: number): void {
 		video?.pause();
 		time = Math.min(length, Math.max(0, time + frames / FPS));
+	}
+
+	function scrub(): void {
+		if (!video || video.paused) return;
+		video.pause();
+		addEventListener('pointerup', () => void video?.play().catch(() => {}), { once: true });
+	}
+
+	function seek(to: number): void {
+		if (video?.seeking) pendingSeek = to;
+		else time = to;
+	}
+
+	function seeked(): void {
+		if (pendingSeek !== null) time = pendingSeek;
+		pendingSeek = null;
 	}
 
 	function cycleSpeed(): void {
@@ -92,12 +109,14 @@
 			bind:videoHeight
 			{src}
 			aria-label={label}
+			{autoplay}
 			loop
 			playsinline
 			preload="metadata"
 			class="block size-full rounded-[inherit] object-contain"
 			onplay={wake}
 			onpause={wake}
+			onseeked={seeked}
 			{onerror}
 		></video>
 		<Button
@@ -143,7 +162,8 @@
 					step={1 / FPS}
 					marker={null}
 					label="Scrub the recording"
-					onseek={(to) => (time = to)}
+					onseek={seek}
+					ongrab={scrub}
 				/>
 			</span>
 			<span class="text-fg-tertiary shrink-0 px-1 font-mono text-xs tabular-nums">

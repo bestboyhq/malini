@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { cloneFile } from '$main/fs/copy-on-write';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
@@ -240,6 +241,28 @@ describe('createWorkstreamWatchers', () => {
 		expect(emitted[0]?.paths).toContain('.context/shot.png');
 		expect(emitted[1]?.paths).toContain('seed.txt');
 		expect(emitted[1]?.paths).not.toContain('.context/shot.png');
+	});
+
+	it('stays quiet when a file is only cloned, not changed', async () => {
+		const path = join(root, 'ws-1');
+		await initRepo(path);
+		mkdirSync(join(path, '.context'), { recursive: true });
+		seedRow('ws-1', path, 'active');
+		await watchSettled('ws-1');
+
+		writeFileSync(join(path, '.context', 'take.mp4'), 'take\n');
+		await waitFor(() => emitted.length === 1);
+		await sleep(SETTLE_MS);
+		await cloneFile(join(path, '.context', 'take.mp4'), join(root, 'kept-take.mp4'));
+		await sleep(SETTLE_MS);
+		expect(emitted).toHaveLength(1);
+		writeFileSync(join(path, '.context', 'take.mp4'), 'retake\n');
+		await waitFor(() => emitted.length === 2);
+
+		expect(emitted.map((frame) => frame.paths)).toEqual([
+			['.context/take.mp4'],
+			['.context/take.mp4'],
+		]);
 	});
 
 	it('keeps flushing at the max wait while a burst never goes quiet', async () => {

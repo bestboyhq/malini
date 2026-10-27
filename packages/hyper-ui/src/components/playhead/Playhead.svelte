@@ -6,9 +6,10 @@
 		marker: number | null;
 		label: string;
 		onseek: (value: number) => void;
+		ongrab?: () => void;
 	}
 
-	let { value, max, step, marker, label, onseek }: Props = $props();
+	let { value, max, step, marker, label, onseek, ongrab }: Props = $props();
 	const SNAP = 0.025;
 	const share = (at: number): number => (max > 0 ? (at / max) * 100 : 0);
 
@@ -41,6 +42,7 @@
 		{value}
 		aria-label={label}
 		oninput={seek}
+		onpointerdown={ongrab}
 	/>
 </div>
 
