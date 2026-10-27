@@ -245,13 +245,13 @@ export function moveArchivedWorkstream(
 export function recordMergedPullRequest(
 	db: MaliniDatabase,
 	workstreamId: string,
-	pullRequest: MergedPullRequest,
+	pullRequest: MergedPullRequest | null,
 ): void {
 	run(
 		db,
 		'UPDATE workstreams SET merged_pull_request_number = ?, merged_pull_request_url = ? WHERE id = ?',
-		pullRequest.number,
-		pullRequest.url,
+		pullRequest?.number ?? null,
+		pullRequest?.url ?? null,
 		workstreamId,
 	);
 }
@@ -319,4 +319,20 @@ export function deleteWorkstream(db: MaliniDatabase, workstreamId: string): void
 
 export function workstreamWasDeleted(db: MaliniDatabase, workstreamId: string): boolean {
 	return scalar(db, 'SELECT COUNT(*) FROM deleted_workstreams WHERE id = ?', workstreamId) > 0;
+}
+
+export function mergedPullRequestOf(
+	db: MaliniDatabase,
+	workstreamId: string,
+): MergedPullRequest | null {
+	const row = get<
+		Pick<ArchivedWorkstreamRow, 'merged_pull_request_number' | 'merged_pull_request_url'>
+	>(
+		db,
+		'SELECT merged_pull_request_number, merged_pull_request_url FROM workstreams WHERE id = ?',
+		workstreamId,
+	);
+	return row?.merged_pull_request_number == null
+		? null
+		: { number: row.merged_pull_request_number, url: row.merged_pull_request_url };
 }

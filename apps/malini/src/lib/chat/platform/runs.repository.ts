@@ -4,6 +4,7 @@ import {
 	isCancellationError,
 	isInterruptionError,
 	nextSessionStatus,
+	ORPHAN_INTERRUPTED_ERROR,
 	PAUSED_FOR_EXIT_ERROR,
 	type SessionStatus,
 } from '$contract/agent-state-machine';
@@ -342,6 +343,60 @@ export function listRunActivity(db: MaliniDatabase): RunActivity[] {
 		runs: row.runs,
 		jobRuns: row.job_runs,
 		seconds: row.seconds,
+	}));
+}
+
+export interface RunFact {
+	readonly id: string;
+	readonly startedAt: string;
+	readonly completedAt: string | null;
+	readonly endedAt: string | null;
+	readonly job: boolean;
+	readonly model: string | null;
+	readonly workstreamId: string;
+	readonly projectId: string;
+	readonly lead: boolean;
+}
+
+export function listRunFacts(db: MaliniDatabase, before: string): RunFact[] {
+	return all<{
+		id: string;
+		started_at: string;
+		completed_at: string | null;
+		ended_at: string | null;
+		job: number;
+		model: string | null;
+		workstream_id: string;
+		project_id: string;
+		lead: number;
+	}>(
+		db,
+		`SELECT r.id, r.started_at, r.completed_at,
+		        CASE WHEN r.error = ? THEN COALESCE(
+		          (SELECT MAX(e.emitted_at) FROM agent_events e
+		           WHERE e.run_id = r.id
+		             AND e.seq < (SELECT MAX(last.seq) FROM agent_events last WHERE last.run_id = r.id)),
+		          r.started_at)
+		        ELSE r.completed_at END AS ended_at,
+		        s.origin = 'job' AS job, s.model, s.workstream_id, w.project_id,
+		        w.scope IS NOT NULL AS lead
+		 FROM agent_runs r
+		 JOIN agent_sessions s ON s.id = r.session_id
+		 JOIN workstreams w ON w.id = s.workstream_id
+		 WHERE r.started_at < ?
+		 ORDER BY r.started_at ASC`,
+		ORPHAN_INTERRUPTED_ERROR,
+		before,
+	).map((row) => ({
+		id: row.id,
+		startedAt: row.started_at,
+		completedAt: row.completed_at,
+		endedAt: row.ended_at,
+		job: row.job === 1,
+		model: row.model,
+		workstreamId: row.workstream_id,
+		projectId: row.project_id,
+		lead: row.lead === 1,
 	}));
 }
 

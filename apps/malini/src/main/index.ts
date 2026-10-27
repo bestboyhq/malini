@@ -48,7 +48,15 @@ const COMMANDS_CLOSE_BUDGET_MS = 5_000;
 let db: MaliniDatabase | undefined;
 let modules: Modules | undefined;
 
-app.on('second-instance', () => {
+app.on('open-url', (event, url) => {
+	event.preventDefault();
+	modules?.openUrl(url);
+});
+
+app.on('second-instance', (_event, argv) => {
+	for (const url of argv.filter((argument) => argument.startsWith('malini://'))) {
+		modules?.openUrl(url);
+	}
 	const [window] = BrowserWindow.getAllWindows();
 	if (!window) return;
 	if (window.isMinimized()) window.restore();

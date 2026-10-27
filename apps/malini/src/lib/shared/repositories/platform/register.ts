@@ -1,6 +1,9 @@
-import type { BrowserWindow } from 'electron';
+import { net, type BrowserWindow } from 'electron';
 import type { CommitWorkstreamRun, ReadWorkstreamImageArgs } from '$contract/commands';
-import { REPOSITORIES_CHANGED_CHANNEL } from '$contract/events';
+import {
+	REPOSITORIES_CHANGED_CHANNEL,
+	REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL,
+} from '$contract/events';
 import type { StartedContainerInput } from '$contract/system';
 import type { MainContext } from '$main/context';
 import { DEVELOPMENT_BUNDLE_IDENTIFIER, PRODUCTION_BUNDLE_IDENTIFIER } from '$main/docker/labels';
@@ -63,6 +66,7 @@ import {
 	type GhRunner,
 } from './github.service';
 import { GitHubSignIn } from './github-sign-in.service';
+import { GithubReachWatch } from './github-reach';
 import { workstreamMedia } from './image-protocol';
 import { readImageAt, parseWorkstreamId } from './images';
 import { listProjects } from './projects.repository';
@@ -75,7 +79,12 @@ import {
 	type TeardownGuard,
 } from './teardown.service';
 import { createWorkstreamWatchers } from './watcher';
-import { getWorkstream, listWorkstreams, workstreamActiveTimes } from './workstreams.repository';
+import {
+	getWorkstream,
+	listWorkstreams,
+	recordMergedPullRequest,
+	workstreamActiveTimes,
+} from './workstreams.repository';
 import { projectDto, workstreamDto } from './workstream-dto';
 import {
 	archiveWorkstream,
@@ -96,6 +105,7 @@ export interface RepositoriesDeps {
 	readonly credentials?: GitCredentialEnv;
 	readonly shell?: CheckoutShell;
 	readonly ghRunner?: GhRunner;
+	readonly isOnline?: () => boolean;
 	readonly githubSignIn?: GitHubSignIn;
 	readonly folderPicker?: FolderPicker;
 	readonly avatars?: AvatarStoreOptions;
@@ -116,7 +126,12 @@ export function registerRepositories(
 	const { commands, db, events, appDataRoot } = context;
 	const credentials = deps.credentials ?? noPromptCredentialEnv;
 	const shell = deps.shell ?? defaultCheckoutShell;
-	const gh = deps.ghRunner ?? defaultGhRunner;
+	const githubReach = new GithubReachWatch({
+		run: deps.ghRunner ?? defaultGhRunner,
+		isOnline: deps.isOnline ?? (() => net.isOnline()),
+		changed: (reach) => events.emit(REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL, { reach }),
+	});
+	const gh = githubReach.run;
 	const githubSignIn = deps.githubSignIn ?? new GitHubSignIn();
 	const picker = deps.folderPicker ?? defaultFolderPicker;
 	const getMainWindow = deps.getMainWindow ?? (() => null);
@@ -397,7 +412,7 @@ export function registerRepositories(
 
 	commands.define('repositories.restart-workstream-on-base', async (args: unknown) => {
 		const workstreamId = requireString(args, 'workstreamId');
-		return restartWorkstreamOnBase(
+		const restartedSha = await restartWorkstreamOnBase(
 			await checkout(args),
 			recordedBranch(workstreamId),
 			requireString(args, 'baseBranch'),
@@ -407,6 +422,8 @@ export function registerRepositories(
 			credentials,
 			(move) => guardCheckoutMove(workstreamId, move),
 		);
+		recordMergedPullRequest(db, workstreamId, null);
+		return restartedSha;
 	});
 
 	commands.define('repositories.abort-workstream-operation', async (args: unknown) =>
@@ -422,6 +439,7 @@ export function registerRepositories(
 	commands.define('repositories.pick-folder', () => picker.pick(getMainWindow()));
 
 	commands.define('repositories.github-auth-status', () => githubAuthStatus(gh));
+	commands.define('repositories.github-reach', () => githubReach.reach);
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());
 
@@ -532,6 +550,7 @@ export function registerRepositories(
 		provisionDependencies,
 		abortInstall: (workstreamId) => installs.abortAndWait(workstreamId),
 		cancelGitHubSignIn: () => githubSignIn.cancel(),
+		gh,
 		listLiveWorkstreamIds: () =>
 			listWorkstreams(db)
 				.filter((row) => row.status === 'active')

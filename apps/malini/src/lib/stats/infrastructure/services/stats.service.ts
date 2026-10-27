@@ -3,6 +3,7 @@ import type {
 	ResourceHistory,
 	ResourceKindBreakdown,
 	ResourceSample,
+	ShareCard,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from '$contract/stats';
@@ -16,6 +17,10 @@ import { invoke } from '$shared/port/invoke';
 class StatsService {
 	activity(): Promise<ActivityStats> {
 		return invoke('stats.activity', undefined);
+	}
+
+	shareCard(): Promise<ShareCard> {
+		return invoke('stats.share-card', undefined);
 	}
 
 	resources(): Promise<ResourceHistory> {

@@ -13,6 +13,7 @@ const BUSY_LABELS: Readonly<Record<PullRequestShipIntent, string>> = {
 	'queue-merge': 'Queueing merge',
 	'cancel-merge': 'Cancelling merge',
 	'retry-merge': 'Retrying merge',
+	'keep-workstream': 'Keeping the workstream',
 };
 
 const FAILURES: Readonly<Record<PullRequestShipIntent, string>> = {
@@ -20,6 +21,7 @@ const FAILURES: Readonly<Record<PullRequestShipIntent, string>> = {
 	'queue-merge': 'The merge could not be queued',
 	'cancel-merge': 'The merge could not be cancelled',
 	'retry-merge': 'The merge could not be retried',
+	'keep-workstream': 'The workstream could not be kept',
 };
 
 function sendShipIntentCommand(intent: PullRequestShipIntent, workstreamId: string): void {

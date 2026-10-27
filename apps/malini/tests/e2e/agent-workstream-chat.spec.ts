@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { UPDATE_FROM_MAIN_TRIGGER_SETTING } from '../../src/contract/pull-requests';
 import { holdAgentRuns, seedWorkstreamOnFakeGithub } from './fake-github';
 import {
 	captureFlow,
@@ -71,7 +70,7 @@ function holdNpmInstall(app: LaunchedApp): string {
 	const stub = join(app.bin, 'npm');
 	writeFileSync(
 		stub,
-		`#!/bin/sh\nwhile [ ! -f "${release}" ]; do sleep 0.1; done\nmkdir -p node_modules\n`,
+		`#!/bin/sh\nwhile [ ! -f "${release}" ] && [ -d "${app.home}" ]; do sleep 0.1; done\nmkdir -p node_modules\n`,
 	);
 	chmodSync(stub, 0o755);
 	return release;
@@ -232,10 +231,6 @@ test('Merge from the chat that started a workstream waits for its first turn, th
 			null,
 			({ basePath }) => commitManifest(basePath),
 		);
-		await invoke(page, 'app.set-setting', {
-			key: UPDATE_FROM_MAIN_TRIGGER_SETTING,
-			value: 'merging',
-		});
 		const release = holdNpmInstall(app);
 		await openWorkstream(page, 'e2e-agent-merges-workstream');
 

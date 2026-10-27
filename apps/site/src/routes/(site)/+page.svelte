@@ -92,8 +92,8 @@
 		},
 		{
 			icon: 'eye',
-			title: 'Two calls of its own',
-			body: 'Update checks, and anonymous usage data you can turn off. Every big decision is written down.',
+			title: 'Three calls of its own',
+			body: 'Update checks, anonymous usage data you can turn off, and your stats only if you publish them. Every big decision is written down.',
 		},
 	] as const;
 
@@ -111,7 +111,7 @@
 		{
 			question: 'Where does my code go?',
 			answer:
-				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
+				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. Malini needs no account, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev.',
 		},
 		{
 			question: 'Can an agent commit or push on its own?',
@@ -141,7 +141,7 @@
 	];
 </script>
 
-<Head title="Malini: an agentic development environment" description={SITE_DESCRIPTION} path="" />
+<Head title="Malini: agentic development environment" description={SITE_DESCRIPTION} path="" />
 
 <Hero>
 	<p class="lede">

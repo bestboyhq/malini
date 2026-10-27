@@ -32,7 +32,8 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
-import type { MenuCommandChosen, NotificationTarget } from './events';
+import type { GithubReach } from './github-failure';
+import type { MenuCommandChosen, NotificationTarget, UpdateStatus } from './events';
 import type {
 	AgentActionRecord,
 	ChatTurnRecord,
@@ -77,8 +78,14 @@ import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
+	PickRepositoriesArgs,
+	ProfileState,
+	PublicRepository,
+	PublishStatsArgs,
+	PublishStatsResult,
 	ResourceHistory,
 	ResourceKindBreakdown,
+	ShareCard,
 	StopRunningArgs,
 	WorkstreamRunning,
 } from './stats';
@@ -477,6 +484,7 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
@@ -675,13 +683,23 @@ export interface ContractCommands {
 	'app.theme-mode': { args: SetThemeModeArgs; result: void };
 	'app.runtime-info': { args: undefined; result: RuntimeInfo };
 	'app.streaming': { args: undefined; result: boolean };
-	'app.staged-update': { args: undefined; result: string | null };
+	'app.update-status': { args: undefined; result: UpdateStatus };
+	'app.check-for-updates': { args: undefined; result: void };
 	'app.restart-to-update': { args: undefined; result: void };
 	'stats.activity': { args: undefined; result: ActivityStats };
 	'stats.resources': { args: undefined; result: ResourceHistory };
 	'stats.resource-breakdown': { args: undefined; result: readonly ResourceKindBreakdown[] };
 	'stats.workstream-running': { args: undefined; result: readonly WorkstreamRunning[] };
 	'stats.stop-running': { args: StopRunningArgs; result: void };
+	'stats.share-card': { args: undefined; result: ShareCard };
+	'stats.profile': { args: undefined; result: ProfileState };
+	'stats.sign-in': { args: undefined; result: ProfileState };
+	'stats.cancel-sign-in': { args: undefined; result: ProfileState };
+	'stats.publish': { args: PublishStatsArgs; result: PublishStatsResult };
+	'stats.unpublish': { args: undefined; result: ProfileState };
+	'stats.sign-out': { args: undefined; result: ProfileState };
+	'stats.pick-repositories': { args: PickRepositoriesArgs; result: ProfileState };
+	'stats.public-repositories': { args: undefined; result: readonly PublicRepository[] };
 	'sounds.list': { args: undefined; result: CustomSound[] };
 	'sounds.read': { args: SoundIdArgs; result: SoundBytes };
 	'sounds.add': { args: AddSoundArgs; result: CustomSound };
@@ -753,6 +771,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.github-reach',
 	'repositories.start-github-sign-in',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',
@@ -879,13 +898,23 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'app.theme-mode',
 	'app.runtime-info',
 	'app.streaming',
-	'app.staged-update',
+	'app.update-status',
+	'app.check-for-updates',
 	'app.restart-to-update',
 	'stats.activity',
 	'stats.resources',
 	'stats.resource-breakdown',
 	'stats.workstream-running',
 	'stats.stop-running',
+	'stats.share-card',
+	'stats.profile',
+	'stats.sign-in',
+	'stats.cancel-sign-in',
+	'stats.publish',
+	'stats.unpublish',
+	'stats.sign-out',
+	'stats.pick-repositories',
+	'stats.public-repositories',
 	'sounds.list',
 	'sounds.read',
 	'sounds.add',

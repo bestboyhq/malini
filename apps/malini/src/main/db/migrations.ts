@@ -1074,6 +1074,38 @@ UPDATE job_definitions SET name = 'Choose a reaction'
   WHERE builtin = 'reconcile' AND name = 'Reconcile events';
 DELETE FROM settings WHERE key = 'jobs.reconciler';
 `,
+	`
+DROP INDEX idx_event_log_digest;
+ALTER TABLE event_log DROP COLUMN digest;
+`,
+	`ALTER TABLE workstream_ship ADD COLUMN keep_workstream INTEGER NOT NULL DEFAULT 0;`,
+	`
+DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
+ALTER TABLE workstream_ship DROP COLUMN update_requests;
+`,
+	`
+CREATE TABLE agent_run_tool_calls (
+  run_id TEXT NOT NULL,
+  tool TEXT NOT NULL,
+  calls INTEGER NOT NULL CHECK (calls > 0),
+  PRIMARY KEY (run_id, tool)
+);
+INSERT INTO agent_run_tool_calls (run_id, tool, calls)
+  SELECT run_id, COALESCE(json_extract(substr(event, 14), '$.name'), ''), COUNT(*)
+  FROM agent_events
+  WHERE event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(event, 14))
+  GROUP BY 1, 2;
+CREATE TRIGGER agent_events_count_tool_calls AFTER INSERT ON agent_events
+  WHEN NEW.event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(NEW.event, 14))
+BEGIN
+  INSERT INTO agent_run_tool_calls (run_id, tool, calls)
+    VALUES (NEW.run_id, COALESCE(json_extract(substr(NEW.event, 14), '$.name'), ''), 1)
+    ON CONFLICT(run_id, tool) DO UPDATE SET calls = calls + 1;
+END;
+CREATE TRIGGER agent_runs_forget_tool_calls AFTER DELETE ON agent_runs BEGIN
+  DELETE FROM agent_run_tool_calls WHERE run_id = OLD.id;
+END;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

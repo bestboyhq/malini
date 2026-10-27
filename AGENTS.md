@@ -7,10 +7,11 @@ There is no backend service and no cloud.
 `apps/site` is the public site and its LLMs-first docs, markdown in `apps/site/content/`, served at bestboy.dev/malini (ADR 0031); a feature changes its docs page in the same pull request.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
-The app makes two outbound calls of its own.
+The app makes three outbound calls of its own (ADR 0097).
 Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
 It stays silent without `MAIN_VITE_LOGDASH_SITE` and `MAIN_VITE_LOGDASH_API_KEY` in `apps/malini/.env` (see `.env.example`), and the e2e harness turns it off with `MALINI_USAGE_DATA=off`.
 Update checks go to GitHub Releases, from `src/lib/app/platform/updates.ts`, only in a packaged build that carries `app-update.yml`; `pnpm dev`, the e2e harness and `pnpm dist` never check.
+Your stats go to your Bestboy profile at bestboy.dev, from `src/lib/stats/platform/`, only after you turn on **Publish my stats**; the account is optional, and `MALINI_BESTBOY_ORIGIN` points an unpackaged build at a local platform.
 Everything else on GitHub is reached through the `gh` CLI.
 
 ## Rule 1 - A claim of "done" requires native evidence.
@@ -63,7 +64,7 @@ Other domains see it only through `<domain>.api.ts` (renderer) and `<domain>.pla
 | `skills`               | skill usage and on/off switches in Claude settings, a job's skills                  |
 | `extensions`           | extension runtime, host adapters, inspector, directory, configuration, opened files |
 | `browser`              | browser tabs in the inspector and the agent's browser tools                         |
-| `stats`                | resource readout, stats panel, what keeps running in each workstream                |
+| `stats`                | resource readout, stats panel, what keeps running, share cards, your public profile |
 | `scratchpad`           | a repository's scratchpad: ideas that move into new workstreams                     |
 | `$shared/repositories` | shared domain: repositories, clones, workstreams and their lifecycle                |
 | `$shared/providers`    | shared domain: model catalog, model ids, provider auth, capabilities                |

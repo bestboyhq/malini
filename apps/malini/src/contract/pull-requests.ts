@@ -34,6 +34,7 @@ export type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
 	step: ShipStep | null;
+	keep: boolean;
 	pullRequestNumber: number | null;
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
@@ -57,9 +58,9 @@ export type ShipChangedEvent = Readonly<{
 	merged?: ShipMerged;
 }>;
 
-export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel';
+export type ShipButton = 'draft' | 'merge' | 'retry' | 'cancel' | 'keep';
 
-export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel'];
+export const SHIP_BUTTONS: readonly ShipButton[] = ['draft', 'merge', 'retry', 'cancel', 'keep'];
 
 export type ShipAllButton = 'draft-all' | 'merge-all';
 
@@ -124,13 +125,3 @@ export const MERGE_QUEUE_FIX_ATTEMPTS_SETTING = 'merge-queue.fix-attempts';
 export const DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS = 3;
 
 export const MERGE_QUEUE_FIX_ATTEMPTS_RANGE = Object.freeze({ min: 1, max: 20 });
-
-export const UPDATE_FROM_MAIN_TRIGGER_SETTING = 'merge-queue.update-from-main';
-
-export const UPDATE_FROM_MAIN_TRIGGERS = ['main-moves', 'workstream-opened', 'merging'] as const;
-
-export type UpdateFromMainTrigger = (typeof UPDATE_FROM_MAIN_TRIGGERS)[number];
-
-export function updateFromMainTrigger(stored: string | undefined): UpdateFromMainTrigger {
-	return UPDATE_FROM_MAIN_TRIGGERS.find((trigger) => trigger === stored) ?? 'main-moves';
-}

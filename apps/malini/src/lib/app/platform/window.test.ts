@@ -376,6 +376,19 @@ describe('main window state', () => {
 		expect(showsOnADisplay({ x: -1270, y: 0, width: 1280, height: 800 }, workAreas)).toBe(false);
 	});
 
+	it('saves nothing when the window moves after its page is gone', async () => {
+		const { main, created, commands } = setup();
+		if (!main) throw new Error('unreachable');
+		created(main);
+		main.contentsDestroyed = true;
+
+		main.emit('move');
+		main.emit('resize');
+		await commands.windowStateSaved();
+
+		expect(await readMainWindowState(root)).toBeNull();
+	});
+
 	it('saves the last bounds of a resize burst, one write at a time', async () => {
 		const { main, created, commands } = setup();
 		if (!main) throw new Error('unreachable');

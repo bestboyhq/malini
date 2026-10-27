@@ -1,5 +1,6 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserResizeRequest, BrowserState, BrowserTabArgs } from './browser';
+import type { GithubReach } from './github-failure';
 import type {
 	AgentActionChangedEvent,
 	JobDefinitionChangedEvent,
@@ -17,10 +18,12 @@ import type {
 	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
-import type { ResourceSample, WorkstreamRunning } from './stats';
+import type { ProfileState, ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
+
+export type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
 
 export interface RunChangesCapturedPayload {
 	sessionId: string;
@@ -126,7 +129,7 @@ export interface LocalBaseSyncedPayload {
 export type NotificationTarget = Readonly<{ workstreamId: string; sessionId: string }>;
 
 export type MenuCommand =
-	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'settings';
+	'new-workstream' | 'new-chat' | 'open-folder' | 'clone-repository' | 'accounts' | 'settings';
 
 export type MenuCommandChosen = Readonly<{ command: MenuCommand }>;
 
@@ -152,6 +155,15 @@ export type ContractChanges = Readonly<{
 export type AppUpdatedPayload = Readonly<{ from: string; to: string; changes: ContractChanges }>;
 
 export type UpdateStagedPayload = Readonly<{ version: string }>;
+
+export type UpdateStatus = Readonly<
+	| { state: 'idle' }
+	| { state: 'checking' }
+	| { state: 'downloading'; version: string }
+	| { state: 'up-to-date'; version: string }
+	| { state: 'failed'; error: string }
+	| { state: 'ready'; version: string }
+>;
 
 export type AppStartedPayload = Readonly<{ version: string }>;
 
@@ -180,6 +192,7 @@ export interface ContractEvents {
 	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'repositories:changed': EmptyEventPayload;
+	'repositories:github-reach-changed': GithubReachChangedPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
@@ -203,12 +216,14 @@ export interface ContractEvents {
 	'app:streaming-changed': StreamingChangedPayload;
 	'app:updated': AppUpdatedPayload;
 	'app:update-staged': UpdateStagedPayload;
+	'app:update-status-changed': UpdateStatus;
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
 	'extensions:file-open-requested': FileOpenRequestedPayload;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
+	'stats:profile-changed': ProfileState;
 }
 
 export type EventChannel = keyof ContractEvents;
@@ -232,6 +247,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
 	'repositories:changed': null,
+	'repositories:github-reach-changed': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
@@ -255,12 +271,14 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'app:streaming-changed': null,
 	'app:updated': null,
 	'app:update-staged': null,
+	'app:update-status-changed': null,
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
 	'browser:resize-requested': null,
 	'extensions:file-open-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
+	'stats:profile-changed': null,
 };
 
 export function isEventChannel(value: string): value is EventChannel {
@@ -314,6 +332,9 @@ export const REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL =
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
 
+export const REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL =
+	'repositories:github-reach-changed' satisfies EventChannel;
+
 export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
 
 export const APP_CLOSE_REQUESTED_CHANNEL = 'app:close-requested' satisfies EventChannel;
@@ -330,6 +351,8 @@ export const APP_UPDATED_CHANNEL = 'app:updated' satisfies EventChannel;
 
 export const APP_UPDATE_STAGED_CHANNEL = 'app:update-staged' satisfies EventChannel;
 
+export const APP_UPDATE_STATUS_CHANGED_CHANNEL = 'app:update-status-changed' satisfies EventChannel;
+
 export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies EventChannel;
 
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
@@ -343,6 +366,8 @@ export const STATS_RESOURCES_SAMPLED_CHANNEL = 'stats:resources-sampled' satisfi
 
 export const STATS_WORKSTREAM_RUNNING_CHANGED_CHANNEL =
 	'stats:workstream-running-changed' satisfies EventChannel;
+
+export const STATS_PROFILE_CHANGED_CHANNEL = 'stats:profile-changed' satisfies EventChannel;
 
 export const PULL_REQUESTS_SHIP_CHANGED_CHANNEL =
 	'pull-requests:ship-changed' satisfies EventChannel;

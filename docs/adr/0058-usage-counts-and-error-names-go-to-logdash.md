@@ -1,6 +1,6 @@
 # 0058 - Usage counts and error names go to Logdash
 
-Status: accepted
+Status: superseded by 0097
 
 ## Context
 

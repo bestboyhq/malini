@@ -48,6 +48,22 @@ function eventFromBlob(blob: string): AgentEvent {
 	return { kind, payload: parsePayload(payloadJson) };
 }
 
+export interface RunToolCalls {
+	readonly runId: string;
+	readonly tool: string;
+	readonly calls: number;
+}
+
+export function listFinishedRunToolCalls(db: MaliniDatabase, before: string): RunToolCalls[] {
+	return all<{ run_id: string; tool: string; calls: number }>(
+		db,
+		`SELECT t.run_id, t.tool, t.calls FROM agent_run_tool_calls t
+		 JOIN agent_runs r ON r.id = t.run_id
+		 WHERE r.completed_at < ?`,
+		before,
+	).map((row) => ({ runId: row.run_id, tool: row.tool, calls: row.calls }));
+}
+
 export function appendEvent(
 	db: MaliniDatabase,
 	sessionId: string,

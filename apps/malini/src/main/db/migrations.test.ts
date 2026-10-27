@@ -21,6 +21,7 @@ const ALL_TABLES = [
 	'agent_permission_rules',
 	'agent_run_change_files',
 	'agent_run_changes',
+	'agent_run_tool_calls',
 	'agent_runs',
 	'agent_session_changes',
 	'agent_sessions',
@@ -79,7 +80,6 @@ const ALL_INDEXES = [
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
 	'idx_event_log_chain',
-	'idx_event_log_digest',
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
 	'idx_job_experiments_definition',
@@ -374,6 +374,41 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('forgets when to update from main before a merge, and the updates still pending, keeping the rest of shipping', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const dropped = MIGRATIONS.findIndex((migration) =>
+			migration.includes('DROP COLUMN update_requests'),
+		);
+		for (const migration of MIGRATIONS.slice(0, dropped)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + dropped};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO workstream_ship (workstream_id, phase, push_requests, update_requests, review_requests, updated_at)
+			  VALUES ('w', 'draft', 1, 2, 3, '2026-10-27T00:00:00Z');
+			INSERT INTO settings (key, value) VALUES
+			  ('merge-queue.update-from-main', 'main-moves'), ('merge-queue.fix-attempts', '5');
+		`);
+
+		migrate(db);
+
+		expect(get(db, 'SELECT phase, push_requests, review_requests FROM workstream_ship')).toEqual({
+			phase: 'draft',
+			push_requests: 1,
+			review_requests: 3,
+		});
+		expect(
+			all(
+				db,
+				"SELECT name FROM pragma_table_info('workstream_ship') WHERE name = 'update_requests'",
+			),
+		).toEqual([]);
+		expect(all(db, "SELECT key FROM settings WHERE key LIKE 'merge-queue.%'")).toEqual([
+			{ key: 'merge-queue.fix-attempts' },
+		]);
+		db.close();
+	});
+
 	it('drops the always-allowed open draft rules now that the agent runs the Open draft job', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);
@@ -558,6 +593,48 @@ describe('migrate', () => {
 
 		db.exec(`UPDATE agent_events SET event = 'ab' WHERE seq = ${first}`);
 		expect(scalar(db, "SELECT event_bytes FROM agent_runs WHERE id = 'r'")).toBe(8);
+		db.close();
+	});
+
+	it('counts the tool calls of each run, from the events before it and as new ones are written', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES ('s', 'w', 'idle', '2026-07-19T00:00:00Z');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES
+			  ('earlier', 's', 'go', '2026-07-19T00:00:01Z'),
+			  ('later', 's', 'go', '2026-07-19T00:01:00Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash","input":{}}', '2026-07-19T00:00:02Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:03Z'),
+			  ('s', 'earlier', 'tool.completed' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:04Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || 'not json', '2026-07-19T00:00:05Z');
+		`);
+
+		migrate(db);
+		db.exec(`
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES
+			  ('s', 'later', 'tool.started' || char(10) || '{"input":{},"name":"mcp__malini__browser_open"}', '2026-07-19T00:01:01Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:02Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:03Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"toolCallId":"nameless"}', '2026-07-19T00:01:04Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":', '2026-07-19T00:01:05Z');
+		`);
+		expect(
+			all(db, 'SELECT run_id, tool, calls FROM agent_run_tool_calls ORDER BY run_id, tool'),
+		).toEqual([
+			{ run_id: 'earlier', tool: 'Bash', calls: 2 },
+			{ run_id: 'later', tool: '', calls: 1 },
+			{ run_id: 'later', tool: 'Read', calls: 2 },
+			{ run_id: 'later', tool: 'mcp__malini__browser_open', calls: 1 },
+		]);
+
+		db.exec("DELETE FROM agent_runs WHERE id = 'earlier'");
+		expect(scalar(db, "SELECT COUNT(*) FROM agent_run_tool_calls WHERE run_id = 'earlier'")).toBe(
+			0,
+		);
 		db.close();
 	});
 });

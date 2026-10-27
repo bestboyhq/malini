@@ -4,11 +4,10 @@
 	import { CLAUDE_INSTALL_COMMAND } from '$contract/agent';
 	import { Button } from '$hyper-ui/components/button';
 	import { CodeTokens } from '$hyper-ui/components/code-tokens';
-	import { Dropdown } from '$hyper-ui/components/dropdown';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
 	import { BusyIcon, ClaudeIcon, Icon } from '$hyper-ui/icons';
-	import type { ClaudeSignInState } from '$shared/providers/domain/claude-accounts';
+	import { claudeSignInProgress } from '$shared/providers/domain/claude-accounts';
 	import { setupStepFor, type ClaudeCodeStatus } from '$shared/providers/domain/claude-code-status';
 	import { cancelClaudeSignInCommand } from '$shared/providers/application/commands/cancel-claude-sign-in.command';
 	import { copyClaudeInstallCommandCommand } from '$shared/providers/application/commands/copy-claude-install-command.command';
@@ -18,8 +17,7 @@
 	import { watchClaudeCodeSetupHook } from '$shared/providers/application/hooks/watch-claude-code-setup.hook';
 	import { claudeCodeStatusQuery } from '$shared/providers/application/queries/claude-code-status.query.svelte';
 	import { claudeSignInQuery } from '$shared/providers/application/queries/claude-sign-in.query.svelte';
-	import { otherClaudeAccountsQuery } from '$shared/providers/application/queries/other-claude-accounts.query.svelte';
-	import ClaudeAccountSwitchItems from './ClaudeAccountSwitchItems.svelte';
+	import ClaudeAccountList from './ClaudeAccountList.svelte';
 
 	interface Props {
 		step?: boolean;
@@ -28,22 +26,24 @@
 
 	let { step = false, nested = false }: Props = $props();
 	let copied = $state(false);
-	let switchOpen = $state(false);
 	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const status = $derived(claudeCodeStatusQuery.data);
 	const signIn = $derived(claudeSignInQuery.data);
-	const otherAccounts = $derived(otherClaudeAccountsQuery.data);
 	const setupStep = $derived(setupStepFor(status));
-	const detail = $derived(signInDetail(signIn) ?? statusDetail(status));
+	const listsAccounts = $derived(!step && status.kind === 'ready');
+	const detail = $derived(
+		listsAccounts
+			? installedDetail(status)
+			: (claudeSignInProgress(signIn) ?? statusDetail(status)),
+	);
 	const actionSize = $derived(step ? 'md' : 'sm');
 	const actionRadius = $derived(step ? 'full' : 'md');
 
-	function signInDetail(current: ClaudeSignInState): string | null {
-		if (current === 'switching') return 'Switching accounts…';
-		if (current === 'waiting-for-browser') return 'Continue in your browser to finish signing in.';
-		if (current === 'confirming') return 'Checking the new sign-in…';
-		return null;
+	function installedDetail(current: ClaudeCodeStatus): string {
+		return current.kind === 'ready' && current.version
+			? `Installed on this Mac · v${current.version}`
+			: 'Installed on this Mac';
 	}
 
 	function statusDetail(current: ClaudeCodeStatus): string {
@@ -74,11 +74,6 @@
 		copiedTimer = setTimeout(() => (copied = false), 1_500);
 	}
 
-	function onSwitch(email: string | null): void {
-		switchOpen = false;
-		signInToClaudeCommand(email);
-	}
-
 	onMount(() => {
 		const stopWatching = watchClaudeCodeSetupHook();
 		return () => {
@@ -105,38 +100,11 @@
 		{/if}
 	{:else if status.kind === 'checking'}
 		<BusyIcon size={16} />
-	{:else if status.kind === 'ready' && step}
+	{:else if status.kind === 'ready'}
 		<span class="text-success-content flex shrink-0 items-center gap-1 text-xs font-medium">
 			<Icon name="check" size={14} />
 			Ready
 		</span>
-	{:else if status.kind === 'ready'}
-		<Dropdown
-			bind:open={switchOpen}
-			align="end"
-			panelClass="w-72"
-			testId="claude-account-menu"
-			owner="claude-code-setup"
-		>
-			{#snippet trigger()}
-				<Button
-					variant="secondary"
-					size="sm"
-					class="shrink-0"
-					active={switchOpen}
-					ariaLabel="Switch Claude account"
-					ariaHasPopup="menu"
-					ariaExpanded={switchOpen}
-				>
-					Switch account
-				</Button>
-			{/snippet}
-			{#snippet content()}
-				<div role="group" aria-label="Claude accounts">
-					<ClaudeAccountSwitchItems others={otherAccounts} onswitch={onSwitch} />
-				</div>
-			{/snippet}
-		</Dropdown>
 	{:else if setupStep === 'install'}
 		<Button
 			variant="primary"
@@ -208,8 +176,13 @@
 				<h3 class="text-fg-default text-sm font-medium">Claude Code</h3>
 				{@render statusLine('text-fg-tertiary text-xs leading-5')}
 			</div>
-			{@render action()}
+			{#if !listsAccounts}
+				{@render action()}
+			{/if}
 		</div>
+		{#if listsAccounts}
+			<ClaudeAccountList class="border-surface-150-border mt-3 -mb-1.5 border-t-[0.5px] pt-1.5" />
+		{/if}
 	{/if}
 
 	{#if setupStep === 'install' && signIn === 'idle'}

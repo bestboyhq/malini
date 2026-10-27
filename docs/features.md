@@ -83,9 +83,10 @@ The [README](../README.md) has the short version.
   The agent writes the commit subject and the pull request title in your repository's convention, and Malini commits, pushes, and opens it.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands.
-- **While it waits, it works.** The queue runs **Fix checks**, **Update from main**, **Resolve conflicts**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
-- **Blockers clear themselves.** When main moves or a reviewer requests changes, **Update from main** or **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
+- **While it waits, it works.** The queue merges main into the branch when GitHub says it is behind or conflicts, and runs **Fix checks**, **Resolve conflicts**, and **Address review** as needed, then replies to and resolves the review threads it fixed.
+- **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
+- **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
   The top bar names the reason, and the merge picks up again on its own once it is resolved.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.
@@ -141,12 +142,14 @@ The [README](../README.md) has the short version.
 - **What it costs your Mac, right now.** Memory and CPU for Malini, its agents, the tools they started, browser tabs, and Docker, one click from the sidebar.
 - **What you got done.** Agents running, runs today, your streak, six months of activity, and where you work.
   Counted on this Mac only.
+- **Share cards.** Copy a heatmap or a readout card of your stats as a picture, without an account.
+- **A public profile, if you want one.** **Publish my stats** in Settings, Profile puts your numbers on a profile at bestboy.dev, and turning it off removes them.
 
 ## Private by design
 
-There is no Malini account and no Malini server.
+Malini needs no account, and there is no Malini server.
 Your code leaves your Mac only through your own Claude Code, to Anthropic, and the GitHub CLI, to GitHub.
-Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data to Logdash, stored in the EU.
+Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data to Logdash, stored in the EU, and, only after you turn on **Publish my stats**, the numbers on your profile at bestboy.dev.
 Usage data counts the days Malini runs and the agent runs it finishes, and names the errors it hits, such as which command failed on which version.
 It never contains your code, prompts, paths, keys, or error messages, and Logdash stores no IP address.
 Turn it off under Settings, Privacy, Share usage data.

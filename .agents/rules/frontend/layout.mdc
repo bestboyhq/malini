@@ -25,7 +25,7 @@ apps/malini/src/
     skills/            skill usage, turning skills off in Claude settings, the skills a job loads
     extensions/        runtime, host adapters, inspector, directory, configuration, opened files
     browser/           browser tabs in the inspector, the agent's browser tools
-    stats/             sidebar resource readout, stats panel, what keeps running in each workstream
+    stats/             sidebar resource readout, stats panel, what keeps running, share cards, public profile
     scratchpad/        a repository's scratchpad, its ideas move into new workstreams
     shared/                                                                         alias $shared
       repositories/    SHARED DOMAIN: repositories, clones, workstreams and their lifecycle

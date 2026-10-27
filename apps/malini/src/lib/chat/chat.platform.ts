@@ -4,17 +4,20 @@ export {
 	backgroundCommandSource,
 	latestSessionReport,
 	latestWorkstreamTurn,
+	listFinishedRunToolCalls,
 	listOpenBackgroundCommands,
 	sessionHasWorkingRun,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	type BackgroundCommandSource,
 	type OpenBackgroundCommand,
+	type RunToolCalls,
 } from './platform/events.repository';
 export {
 	listWorkstreamSnapshotRefs,
 	type WorkstreamSnapshotRefs,
 } from './platform/checkpoints.repository';
+export { listRunChangedFiles, type RunChangedFile } from './platform/changes.repository';
 export {
 	chatTurnChainId,
 	chatTurnSessionId,
@@ -24,9 +27,11 @@ export {
 	listChatTurnsSince,
 	listOpenRuns,
 	listRunActivity,
+	listRunFacts,
 	workChatTurnInWorkstream,
 	type ChatTurnWork,
 	type RunActivity,
+	type RunFact,
 } from './platform/runs.repository';
 export {
 	getSession,

@@ -76,6 +76,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
 	},
+	'repositories:github-reach-changed': {
+		description:
+			"Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.",
+	},
 	'pull-requests:local-base-synced': {
 		description:
 			"Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.",
@@ -94,7 +98,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'pull-requests:workstream-opened': {
 		description:
-			'Fires when you open a workstream; unless Settings say to update from main only while merging, the Shipping rule runs **Update from main** when the workstream is behind its base branch.',
+			'Fires each time you open a workstream, for jobs to start on. Malini does not update a workstream from main on it: only merging does.',
 	},
 	'jobs:run-changed': {
 		description:
@@ -157,7 +161,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'app:menu-command-chosen': {
 		description:
-			"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
+			"Fires when you pick New Workstream, New Chat, Open Folder…, Clone Repository…, Accounts… or Settings… from Malini's menu bar or its menu bar icon, with which one you picked.",
 	},
 	'app:streaming-changed': {
 		description:
@@ -170,6 +174,11 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	'app:update-staged': {
 		description:
 			'Fires when a new Malini version has downloaded and installs on the next restart, with that version.',
+	},
+	'app:update-status-changed': {
+		description:
+			'Fires when the update status in the sidebar changes: checking or downloading after you chose Check for Updates…, up to date, failed, a version ready to install, or nothing to show. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'browser:state-changed': {
 		description:
@@ -196,6 +205,11 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	'stats:workstream-running-changed': {
 		description:
 			'Fires when what keeps running in any workstream changes, with every workstream that still runs background services, tasks or containers. Malini does not keep it in its event log.',
+		logged: false,
+	},
+	'stats:profile-changed': {
+		description:
+			'Fires when your Bestboy profile changes in Malini: you sign in or out, **Publish my stats** turns on or off, you pick other public repositories, or an upload or a removal of your stats finishes or fails. Malini does not keep it in its event log.',
 		logged: false,
 	},
 };

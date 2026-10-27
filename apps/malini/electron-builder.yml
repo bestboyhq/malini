@@ -23,6 +23,10 @@ extraResources:
   - from: build/tray
     to: build/tray
 asar: true
+protocols:
+  - name: Malini
+    schemes:
+      - malini
 npmRebuild: false
 nodeGypRebuild: false
 mac:

@@ -588,12 +588,12 @@ export class JobRunner {
 
 	async startThen(event: DispatchedEvent): Promise<void> {
 		const { db, commands } = this.#context;
-		if (event.channel !== JOBS_RUN_FINISHED_CHANNEL || event.digest === null) return;
+		if (event.channel !== JOBS_RUN_FINISHED_CHANNEL) return;
 		const runId = findString(isRecord(event.payload) ? event.payload['run'] : null, 'id');
 		const jobRun = runId === null ? null : getJobRun(db, runId);
 		if (jobRun?.status !== 'succeeded' || jobRun.workstreamId === null) return;
 		const thenJobId = getJobDefinition(db, jobRun.definitionId)?.thenJobId ?? null;
-		if (thenJobId === null || triggeredBefore(db, thenJobId, event.channel, event.digest)) return;
+		if (thenJobId === null || triggeredBefore(db, thenJobId, event.id)) return;
 		try {
 			await commands.call('jobs.run', {
 				definitionId: thenJobId,
