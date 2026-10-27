@@ -8,7 +8,6 @@ import {
 import {
 	EMPTY_RUNTIME_METADATA,
 	foldRuntimeMetadata,
-	type RunTokenUsage,
 	type SessionRuntimeMetadata,
 } from './session-runtime-metadata';
 
@@ -16,7 +15,6 @@ export type RedoCheckpointTarget = Readonly<{ restoreSeq: number; toSeq: number 
 
 export type TranscriptFacts = Readonly<{
 	lastRunId: string | null;
-	lastRunUsage: RunTokenUsage | null;
 	runtime: SessionRuntimeMetadata;
 	branchedFromSessionId: string | null;
 	redoCheckpointTarget: RedoCheckpointTarget | null;
@@ -24,7 +22,6 @@ export type TranscriptFacts = Readonly<{
 
 export const EMPTY_TRANSCRIPT_FACTS: TranscriptFacts = Object.freeze({
 	lastRunId: null,
-	lastRunUsage: null,
 	runtime: Object.freeze({ context: null, mcpServers: null }),
 	branchedFromSessionId: null,
 	redoCheckpointTarget: null,
@@ -33,7 +30,6 @@ export const EMPTY_TRANSCRIPT_FACTS: TranscriptFacts = Object.freeze({
 export class TranscriptFactsProjector {
 	#source: EnvelopeSource = EMPTY_ENVELOPE_SOURCE;
 	#lastRunId: string | null = null;
-	#lastRunUsage: RunTokenUsage | null = null;
 	#runtime: SessionRuntimeMetadata = EMPTY_RUNTIME_METADATA;
 	#branchedFromSessionId: string | null = null;
 	#liveTalkSeq = 0;
@@ -63,7 +59,6 @@ export class TranscriptFactsProjector {
 
 	#reset(): void {
 		this.#lastRunId = null;
-		this.#lastRunUsage = null;
 		this.#runtime = EMPTY_RUNTIME_METADATA;
 		this.#branchedFromSessionId = null;
 		this.#liveTalkSeq = 0;
@@ -76,14 +71,6 @@ export class TranscriptFactsProjector {
 		this.#runtime = foldRuntimeMetadata(this.#runtime, envelope);
 		const event = envelope.event;
 		switch (event.type) {
-			case 'usage.updated':
-				if (event.interim === true) return;
-				this.#lastRunUsage = {
-					inputTokens: event.inputTokens ?? 0,
-					outputTokens: event.outputTokens ?? 0,
-					costUsd: event.costUsd ?? null,
-				};
-				return;
 			case 'session.branched':
 				if (this.#branchedFromSessionId === null && event.childSessionId === envelope.sessionId) {
 					this.#branchedFromSessionId = event.parentSessionId;
@@ -118,13 +105,8 @@ export class TranscriptFactsProjector {
 	#publish(): void {
 		const previous = this.#snapshot;
 		const redoCheckpointTarget = this.#redoCheckpointTarget();
-		const lastRunUsage = sameUsage(previous.lastRunUsage, this.#lastRunUsage)
-			? previous.lastRunUsage
-			: this.#lastRunUsage;
-		this.#lastRunUsage = lastRunUsage;
 		if (
 			previous.lastRunId === this.#lastRunId &&
-			previous.lastRunUsage === lastRunUsage &&
 			previous.runtime === this.#runtime &&
 			previous.branchedFromSessionId === this.#branchedFromSessionId &&
 			previous.redoCheckpointTarget === redoCheckpointTarget
@@ -133,20 +115,9 @@ export class TranscriptFactsProjector {
 		}
 		this.#snapshot = {
 			lastRunId: this.#lastRunId,
-			lastRunUsage,
 			runtime: this.#runtime,
 			branchedFromSessionId: this.#branchedFromSessionId,
 			redoCheckpointTarget,
 		};
 	}
-}
-
-function sameUsage(left: RunTokenUsage | null, right: RunTokenUsage | null): boolean {
-	if (left === right) return true;
-	if (!left || !right) return false;
-	return (
-		left.inputTokens === right.inputTokens &&
-		left.outputTokens === right.outputTokens &&
-		left.costUsd === right.costUsd
-	);
 }

@@ -85,8 +85,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
-The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+Point at the gauge in the composer for the account Claude Code is signed in to and every Claude account you used on this Mac, under **Account**.
+The same list sits in **Settings > Accounts**, and **Accounts…** in Malini's menu bar icon opens Settings there.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
