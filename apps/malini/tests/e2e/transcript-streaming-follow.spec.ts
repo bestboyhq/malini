@@ -523,7 +523,7 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 	try {
 		const { page } = app;
 		await longChat(app, 'e2e-streaming-follow-steer-ws');
-		await sendPrompt(page, 'STREAM:400 Keep talking');
+		await sendPrompt(page, 'STREAM:400 LATE_CANCEL Keep talking');
 		await expect(page.getByTestId('chat-message-bubble-live')).toContainText(
 			'Streamed line 6 of 400.',
 			{ timeout: 10_000 },
@@ -542,7 +542,6 @@ test('steering a streaming reply keeps what it streamed above the new prompt, an
 		await untilStill(page);
 		const samples = await stopSampling(page);
 
-		console.log('CLIMB', climb(samples, SCROLL_TOP), JSON.stringify(samples.map((s, i) => [i, ...s.map((v) => Math.round(v))])));
 		await expect(steeredRun).toContainText('Streamed line 6 of 400.');
 		await expect(steeredRun.getByText('Run cancelled')).toBeVisible();
 		expect(
