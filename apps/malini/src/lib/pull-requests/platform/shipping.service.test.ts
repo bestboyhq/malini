@@ -1640,7 +1640,7 @@ describe('shipping a queued merge', () => {
 
 		await click('ws-1', 'merge');
 
-		await until(() => expect(ship('ws-1')?.lastError).toMatch(/Couldn't reach GitHub/u));
+		await until(() => expect(ship('ws-1')?.lastError).toMatch(/GitHub is not responding/u));
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
 		await until(() => expect(archived).toEqual(['ws-1']));
 		const errors = shipEvents.flatMap((event) => (event.state?.lastError ? [event.state] : []));

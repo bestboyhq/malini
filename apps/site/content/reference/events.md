@@ -305,6 +305,20 @@ Payload: `EmptyEventPayload`
 type EmptyEventPayload = Readonly<Record<string, never>>;
 ```
 
+## `repositories:github-reach-changed`
+
+Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.
+
+Payload: `GithubReachChangedPayload`
+
+```ts
+type GithubFailure = 'unreachable' | 'down' | 'rate-limited';
+
+type GithubReach = 'ok' | GithubFailure;
+
+type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
+```
+
 ## `pull-requests:local-base-synced`
 
 Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.

@@ -31,7 +31,7 @@
 		diff: 'Changed pixels in pink',
 	};
 	const MAX_ZOOM = 4;
-	const ZOOM_FILL = 0.5;
+	const ZOOM_FILL = 0.8;
 
 	const beforePath = $derived(workstreamImagePath(comparison.before.src));
 	const afterPath = $derived(workstreamImagePath(comparison.after.src));
@@ -134,10 +134,10 @@
 				alt=""
 				aria-hidden="true"
 				draggable="false"
-				class="invisible block max-h-[20rem] max-w-full"
+				class="invisible block max-h-[70vh] max-w-full"
 			/>
 		{:else}
-			<div class="aspect-[16/10] w-[32rem] max-w-full"></div>
+			<div class="aspect-[16/10] max-h-[70vh] w-screen max-w-full"></div>
 		{/if}
 
 		{@render layer(mode === 'wipe' ? beforeSrc : shownSrc, mode === 'diff')}

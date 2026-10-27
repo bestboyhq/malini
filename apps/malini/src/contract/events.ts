@@ -1,5 +1,6 @@
 import type { LiveEventEnvelope } from './agent';
 import type { BrowserResizeRequest, BrowserState, BrowserTabArgs } from './browser';
+import type { GithubReach } from './github-failure';
 import type {
 	AgentActionChangedEvent,
 	JobDefinitionChangedEvent,
@@ -21,6 +22,8 @@ import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
 export type EmptyEventPayload = Readonly<Record<string, never>>;
+
+export type GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;
 
 export interface RunChangesCapturedPayload {
 	sessionId: string;
@@ -189,6 +192,7 @@ export interface ContractEvents {
 	'repositories:workstream-pushed': WorkstreamPushedPayload;
 	'repositories:clone-progress': CloneProgressPayload;
 	'repositories:changed': EmptyEventPayload;
+	'repositories:github-reach-changed': GithubReachChangedPayload;
 	'pull-requests:local-base-synced': LocalBaseSyncedPayload;
 	'pull-requests:ship-changed': ShipChangedEvent;
 	'pull-requests:pull-request-changed': PullRequestChangedEvent;
@@ -242,6 +246,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'repositories:workstream-pushed': null,
 	'repositories:clone-progress': null,
 	'repositories:changed': null,
+	'repositories:github-reach-changed': null,
 	'pull-requests:local-base-synced': null,
 	'pull-requests:ship-changed': null,
 	'pull-requests:pull-request-changed': null,
@@ -324,6 +329,9 @@ export const REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL =
 
 export const REPOSITORIES_CLONE_PROGRESS_CHANNEL =
 	'repositories:clone-progress' satisfies EventChannel;
+
+export const REPOSITORIES_GITHUB_REACH_CHANGED_CHANNEL =
+	'repositories:github-reach-changed' satisfies EventChannel;
 
 export const APP_STARTED_CHANNEL = 'app:started' satisfies EventChannel;
 

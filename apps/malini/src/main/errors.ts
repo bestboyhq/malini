@@ -306,7 +306,7 @@ function githubFailureMessage(failure: GithubFailure, stderr: string): string {
 		const status = /\b(?:HTTP|status code:?) (5\d\d)\b/iu.exec(stderr)?.[1];
 		return `GitHub is down: it answered ${status ? `HTTP ${status}` : 'with an internal error'}. Your connection works; the problem is on GitHub's side.`;
 	}
-	return `Couldn't reach GitHub: ${unreachableReason(stderr)}. Check your internet connection, VPN or proxy.`;
+	return `GitHub is not responding: ${unreachableReason(stderr)}. Check your internet connection, VPN or proxy.`;
 }
 
 function unreachableReason(stderr: string): string {

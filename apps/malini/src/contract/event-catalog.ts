@@ -76,6 +76,10 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			'Fires when a repository is added, cloned, hidden or shown again, so every list of repositories reloads.',
 	},
+	'repositories:github-reach-changed': {
+		description:
+			"Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.",
+	},
 	'pull-requests:local-base-synced': {
 		description:
 			"Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.",

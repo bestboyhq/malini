@@ -1,4 +1,3 @@
-import { online } from 'svelte/reactivity/window';
 import {
 	pullRequestAvailabilityOf,
 	type PullRequestTopBar,
@@ -18,7 +17,6 @@ class PullRequestTopBarQuery {
 				repositorySurfaceAggregate.presentedSurfaceFor(pullRequestScopeStore.workstreamId),
 				pullRequestAvailabilityOf(pullRequestScopeStore),
 				agentWork,
-				online.current !== false,
 			),
 	);
 }

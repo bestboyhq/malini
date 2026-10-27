@@ -258,13 +258,13 @@ describe('GhError.fromStderr', () => {
 			"its address didn't resolve",
 		],
 	])(
-		'says why GitHub is unreachable for %s and keeps the raw line as its cause',
+		'says why GitHub is not responding for %s and keeps the raw line as its cause',
 		(_, stderr, why) => {
 			const error = GhError.fromStderr(stderr, 1);
 
 			expect(error).toMatchObject({
 				kind: 'unreachable',
-				message: `Couldn't reach GitHub: ${why}. Check your internet connection, VPN or proxy.`,
+				message: `GitHub is not responding: ${why}. Check your internet connection, VPN or proxy.`,
 				stderr,
 			});
 			expect(error.cause).toBeInstanceOf(Error);

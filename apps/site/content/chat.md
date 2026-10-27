@@ -107,7 +107,7 @@ Ship several steps that way and each one runs in a chat of its own.
 
 ### Before and after
 
-When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture.
+When the agent changes something you can see, it captures it before and after, and the report shows the two as one picture across the chat's full width.
 **Wipe** drags a divider across it, **Flip** switches between the two with a click, and **Diff** paints every changed pixel pink.
 Each changed area gets a number, including the ones the agent did not mean to change; click a number to zoom into it, and press Escape to zoom back out.
 The expand button opens the picture you see in the gallery.

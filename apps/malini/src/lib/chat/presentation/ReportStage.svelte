@@ -158,7 +158,7 @@
 	<div
 		class="bg-surface-root outline-border-subtle relative h-full overflow-hidden rounded-md outline-[0.5px] -outline-offset-[0.5px]"
 	>
-		<span class="block aspect-[16/10] max-h-[20rem] w-full" aria-hidden="true"></span>
+		<span class="block aspect-[16/10] max-h-[70vh] w-full" aria-hidden="true"></span>
 		<div class="absolute inset-0 grid place-items-center">
 			<ReportMedia {src} {label} {workstreamId} size="hero" {playing} {imagesrc} />
 		</div>

@@ -32,6 +32,7 @@ import type {
 	BrowserTabArgs,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
+import type { GithubReach } from './github-failure';
 import type { MenuCommandChosen, NotificationTarget, UpdateStatus } from './events';
 import type {
 	AgentActionRecord,
@@ -477,6 +478,7 @@ export interface ContractCommands {
 	};
 	'repositories.workstream-status': { args: WorkstreamIdArgs; result: WorktreeStatus };
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
+	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
@@ -754,6 +756,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.workstream-snapshot',
 	'repositories.workstream-status',
 	'repositories.github-auth-status',
+	'repositories.github-reach',
 	'repositories.start-github-sign-in',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',

@@ -36,10 +36,7 @@
 
 {#if kind === 'page'}
 	<span
-		class={[
-			'relative block overflow-hidden',
-			hero ? 'mx-auto aspect-[16/10] w-full max-w-[32rem]' : 'size-full',
-		]}
+		class={['block overflow-hidden', hero ? 'absolute inset-0' : 'relative size-full']}
 		bind:clientWidth={pageWidth}
 	>
 		<iframe

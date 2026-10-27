@@ -144,6 +144,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payload: 'type EmptyEventPayload = Readonly<Record<string, never>>;',
 		},
 		{
+			channel: 'repositories:github-reach-changed',
+			description:
+				"Fires when GitHub stops or starts answering Malini's `gh` calls, with `reach`: `ok`, `unreachable` when GitHub does not respond, `down` when GitHub answers with a server error, or `rate-limited` when GitHub limits your account.",
+			payloadType: 'GithubReachChangedPayload',
+			payload:
+				"type GithubFailure = 'unreachable' | 'down' | 'rate-limited';\n\ntype GithubReach = 'ok' | GithubFailure;\n\ntype GithubReachChangedPayload = Readonly<{ reach: GithubReach }>;",
+		},
+		{
 			channel: 'pull-requests:local-base-synced',
 			description:
 				"Fires after Malini merges a pull request and tries to bring the repository's local base branch up to date, with the outcome.",
