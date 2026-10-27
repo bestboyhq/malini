@@ -1078,6 +1078,7 @@ DELETE FROM settings WHERE key = 'jobs.reconciler';
 DROP INDEX idx_event_log_digest;
 ALTER TABLE event_log DROP COLUMN digest;
 `,
+	`ALTER TABLE workstream_ship ADD COLUMN keep_workstream INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

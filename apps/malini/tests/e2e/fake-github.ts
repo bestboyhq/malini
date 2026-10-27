@@ -93,7 +93,7 @@ export function topBarStatus(page: Page, name: string | RegExp): Locator {
 }
 
 export function toastSaying(page: Page, text: string): Locator {
-	return page.getByRole('status').filter({ hasText: text });
+	return page.getByTestId('toast').filter({ hasText: text });
 }
 
 export async function queueMerge(page: Page): Promise<void> {
@@ -129,6 +129,37 @@ export async function expectMergedAndArchived(
 	).toHaveCount(0);
 	await expect(page.getByRole('heading', { name: 'Repositories' })).toBeVisible();
 	await expect(toastSaying(page, 'Merged')).toHaveCount(0);
+	await expect(row).toContainText(name);
+	await row.hover();
+	await expect(
+		row.getByRole('button', { name: `Open pull request #${PULL_REQUEST_NUMBER} on GitHub` }),
+	).toBeVisible();
+}
+
+export async function expectMerged(page: Page, workstreamId: string): Promise<void> {
+	await expect(topBarStatus(page, /^Merged/u)).toBeVisible({ timeout: 90_000 });
+	await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: /^Continue on top of the latest / })).toBeEnabled();
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(1);
+	await expect(page.getByRole('heading', { name: 'Repositories' })).toHaveCount(0);
+	await expect(toastSaying(page, 'Merged')).toHaveCount(0);
+}
+
+export async function archiveMerged(
+	page: Page,
+	workstreamId: string,
+	name = WORKSTREAM_NAME,
+): Promise<void> {
+	await page.getByRole('button', { name: 'Archive this workstream' }).click();
+	const row = page
+		.getByRole('list', { name: 'Recently archived' })
+		.locator(`[data-testid="sidebar-archived-workstream"][data-workstream-id="${workstreamId}"]`);
+	await expect(row).toBeVisible({ timeout: 30_000 });
+	await expect(
+		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
+	).toHaveCount(0);
 	await expect(row).toContainText(name);
 	await row.hover();
 	await expect(
