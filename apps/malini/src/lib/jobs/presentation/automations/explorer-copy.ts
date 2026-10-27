@@ -1,7 +1,7 @@
 import { parseAutomationTrigger } from '$contract/automation-trigger';
 import type { EventChannel } from '$contract/events';
 import type { JobDefinitionRecord, LoggedEventRecord, ShippingWait } from '$contract/jobs';
-import type { ShipButton, ShipStep } from '$contract/pull-requests';
+import type { ShipAllButton, ShipButton, ShipStep } from '$contract/pull-requests';
 import type { IconName } from '$hyper-ui/icons';
 import {
 	EVENT_ROWS,
@@ -90,7 +90,9 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 		merge: 'Merge',
 		retry: 'Retry',
 		cancel: 'Cancel',
-	} satisfies Record<ShipButton, string>),
+		'draft-all': 'Draft all',
+		'merge-all': 'Merge all',
+	} satisfies Record<ShipButton | ShipAllButton, string>),
 );
 
 const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(

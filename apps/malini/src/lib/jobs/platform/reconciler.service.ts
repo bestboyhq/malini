@@ -9,6 +9,7 @@ import {
 	JOB_INTERRUPTED_DETAIL,
 	isAgentlessJobBuiltin,
 	isAutomaticJobBuiltin,
+	isShippingJobBuiltin,
 	type JobRunRecord,
 	type ReconcilerCandidate,
 	type ReconcilerDecisionRecord,
@@ -464,9 +465,9 @@ export class Reconciler {
 		const runId = findString(isRecord(payload) ? payload['run'] : null, 'id');
 		const run = runId === null ? null : getJobRun(db, runId);
 		if (!run || (run.status !== 'succeeded' && run.status !== 'failed')) return null;
-		if (run.origin === 'merge-queue') return null;
 		const definition = getJobDefinition(db, run.definitionId);
 		if (!definition || isAutomaticJobBuiltin(definition.builtin)) return null;
+		if (run.origin === 'merge-queue' && isShippingJobBuiltin(definition.builtin)) return null;
 		const chat = this.#chat(run.chatSessionId);
 		if (run.status === 'succeeded' && chat === null) return null;
 		const workstream = run.workstreamId === null ? null : getWorkstream(db, run.workstreamId);
@@ -492,7 +493,13 @@ export class Reconciler {
 			workstreamName: workstream?.name ?? null,
 			chat,
 			retry,
-			runsInChain: countChainJobRuns(db, run.chainId, run.definitionId, retryTarget(run)),
+			runsInChain: countChainJobRuns(
+				db,
+				run.chainId,
+				run.definitionId,
+				retryTarget(run),
+				run.origin,
+			),
 			wakes:
 				chat === null
 					? 0
@@ -602,9 +609,8 @@ function subjectKey(event: DispatchedEvent): string | null {
 	if (channel === JOBS_RUN_FINISHED_CHANNEL) {
 		const run = isRecord(payload) ? payload['run'] : null;
 		const status = isRecord(run) ? run['status'] : null;
-		const origin = isRecord(run) ? run['origin'] : null;
 		const id = findString(run, 'id');
-		if (id === null || origin === 'merge-queue') return null;
+		if (id === null) return null;
 		return status === 'succeeded' || status === 'failed' ? `run:${id}` : null;
 	}
 	if (channel === REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL) {

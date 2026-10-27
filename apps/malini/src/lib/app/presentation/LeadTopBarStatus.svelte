@@ -26,8 +26,8 @@
 			review: null,
 			todos: null,
 			headline: { ...leadHeadline(dots), tooltip: dots.length > 0 ? progressLabel(dots) : null },
-			action: startedShipAction('merge', targets.merge, chatSessionId),
-			secondaryAction: startedShipAction('open-draft', targets.draft, chatSessionId),
+			action: startedShipAction('merge-all', leadId, targets.merge, chatSessionId),
+			secondaryAction: startedShipAction('draft-all', leadId, targets.draft, chatSessionId),
 		});
 	});
 

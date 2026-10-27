@@ -343,7 +343,7 @@ export function defineJobCommands(
 		const id = randomUUID();
 		const chainId = chainFor(db, links) ?? id;
 		const repeats =
-			origin === 'merge-queue' ? 0 : countChainJobRuns(db, chainId, definition.id, target);
+			origin === 'merge-queue' ? 0 : countChainJobRuns(db, chainId, definition.id, target, origin);
 		const overBudget = repeats >= JOB_CHAIN_REPEAT_LIMIT;
 		return runner.enqueue(
 			{

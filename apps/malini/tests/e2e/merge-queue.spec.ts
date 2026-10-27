@@ -218,25 +218,46 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 		await expect(topBarStatus(page, /^1 of 1 merged/u)).toBeVisible({ timeout: 90_000 });
 		expect(github.pullRequest()).toMatchObject({ state: 'MERGED', isDraft: false });
 		await expect(mergeAll).toHaveCount(0);
-		const jobs = await invoke<{ title: string; status: string; chatSessionId: string | null }[]>(
-			page,
-			'jobs.list-runs',
-			undefined,
-		);
+		const jobs = await invoke<
+			{ title: string; status: string; chatSessionId: string | null; origin: string }[]
+		>(page, 'jobs.list-runs', undefined);
 		const sessions = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
 			workstreamId: 'e2e-lead-merges-all',
 		});
 		expect(
 			jobs
 				.filter(({ title }) => title === 'Open draft' || title === 'Merge')
-				.map(({ title, status, chatSessionId }) => [title, status, chatSessionId])
+				.map(({ title, status, chatSessionId, origin }) => [title, status, chatSessionId, origin])
 				.sort(),
 		).toEqual([
-			['Merge', 'succeeded', sessions[0]?.id],
-			['Open draft', 'succeeded', sessions[0]?.id],
+			['Merge', 'succeeded', sessions[0]?.id, 'merge-queue'],
+			['Open draft', 'succeeded', sessions[0]?.id, 'merge-queue'],
 		]);
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'lead-merge-all-merged');
+
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		const shipping = map.getByRole('button', { name: /^Shipping: \d+ started$/u });
+		await expect(shipping).toBeVisible();
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-ship-all-explorer');
+		await map.getByRole('button', { name: 'Button clicked: 2 events' }).click();
+		const clicks = explorer.getByRole('list', { name: 'Button clicked' });
+		await expect(
+			clicks.getByRole('button', { name: /^Button clicked: Draft all, Ship hutch, /u }),
+		).toHaveCount(1);
+		await expect(
+			clicks.getByRole('button', { name: /^Button clicked: Merge all, Ship hutch, /u }),
+		).toHaveCount(1);
+		await shipping.click();
+		const started = explorer
+			.getByRole('list', { name: 'Shipping' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Shipping heard button clicked' });
+		await expect(started.getByRole('button', { name: /^Open draft, /u })).toHaveCount(1);
+		await expect(started.getByRole('button', { name: /^Merge, /u })).toHaveCount(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

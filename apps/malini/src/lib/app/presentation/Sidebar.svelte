@@ -1877,8 +1877,8 @@
 	{@const targets = leadProgressQuery.shipTargets(workstream.id)}
 	{@const chatSessionId = () => workstreamChatSummaryQuery.data(workstream.id).sessionId}
 	{@const shipActions = [
-		startedShipAction('open-draft', targets.draft, chatSessionId),
-		startedShipAction('merge', targets.merge, chatSessionId),
+		startedShipAction('draft-all', workstream.id, targets.draft, chatSessionId),
+		startedShipAction('merge-all', workstream.id, targets.merge, chatSessionId),
 	].filter((action) => action !== null)}
 	<div class="flex flex-col gap-1.5">
 		{#if view.running}

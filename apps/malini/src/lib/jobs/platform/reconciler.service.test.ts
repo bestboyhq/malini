@@ -18,6 +18,7 @@ import { insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import type { JobsPlatform } from '../jobs.platform';
+import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { insertJobRun } from './job-runs.repository';
 import { registerJobs, type JobsOptions } from './register';
 
@@ -419,6 +420,54 @@ describe('the event reconciler', () => {
 			status: 'waiting',
 			chainId: 'lead-turn',
 		});
+	});
+
+	it('tells the chat that a Merge Shipping ran for it failed, and leaves Shipping its own fixes', async () => {
+		const merge = getBuiltinJobDefinition(db, 'merge');
+		const fixChecks = getBuiltinJobDefinition(db, 'fix-checks');
+		if (!merge || !fixChecks) throw new Error('the built-in jobs are missing');
+		const shipped = (id: string, definitionId: string, chatSessionId: string | null) => {
+			const run: JobRunRecord = {
+				id,
+				definitionId,
+				title: id,
+				workstreamId: 'api',
+				repositoryId: null,
+				scope: null,
+				sessionId: null,
+				agentRunId: null,
+				origin: 'merge-queue',
+				status: 'failed',
+				detail: 'This workstream has no changes to ship yet.',
+				parentRunId: null,
+				chatSessionId,
+				chatAfterRunId: null,
+				chainId: 'lead-turn',
+				requests: 1,
+				createdAt: NOW,
+				startedAt: NOW,
+				finishedAt: NOW,
+			};
+			insertJobRun(db, run, null);
+			return run;
+		};
+		picks.push(1);
+		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, {
+			run: shipped('Fix checks', fixChecks.id, null),
+		});
+		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, {
+			run: shipped('Merge', merge.id, 'lead-chat'),
+		});
+
+		const [decision] = await decided(1);
+		expect(decision?.candidates.map((candidate) => candidate.label)).toEqual([
+			'Do nothing',
+			'Tell “Move apps to Logdash” that Merge failed',
+			'Ask you',
+		]);
+		expect(decision?.facts).toContain('It ran 1 time in this chain of events.');
+		await settle();
+		expect(await decisions()).toHaveLength(1);
 	});
 
 	it('offers Resolve conflicts for a merge nobody in Malini was resolving', async () => {

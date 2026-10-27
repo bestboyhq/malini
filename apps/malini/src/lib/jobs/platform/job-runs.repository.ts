@@ -147,15 +147,17 @@ export function countChainJobRuns(
 	chainId: string,
 	definitionId: string,
 	target: Pick<JobRunRecord, 'workstreamId' | 'repositoryId' | 'scope'>,
+	origin: JobRunOrigin,
 ): number {
 	return scalar(
 		db,
 		`SELECT COUNT(*) FROM job_runs
 		 WHERE chain_id = ? AND definition_id = ? AND status != 'cancelled'
-		   AND origin != 'merge-queue'
+		   AND (origin = 'merge-queue') = ?
 		   AND workstream_id IS ? AND repository_id IS ? AND scope IS ?`,
 		chainId,
 		definitionId,
+		origin === 'merge-queue' ? 1 : 0,
 		target.workstreamId,
 		target.repositoryId,
 		target.scope,
@@ -254,13 +256,17 @@ export function latestWorkstreamJobRun(
 	db: MaliniDatabase,
 	workstreamId: string,
 	origin: JobRunOrigin,
+	definitionIds: readonly string[],
 ): JobRunRecord | null {
 	const row = get<JobRunRow>(
 		db,
-		`SELECT ${COLUMNS} FROM job_runs WHERE workstream_id = ? AND origin = ?
+		`SELECT ${COLUMNS} FROM job_runs
+		 WHERE workstream_id = ? AND origin = ?
+		   AND definition_id IN (${definitionIds.map(() => '?').join(', ') || 'NULL'})
 		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		workstreamId,
 		origin,
+		...definitionIds,
 	);
 	return row ? fromRow(row) : null;
 }

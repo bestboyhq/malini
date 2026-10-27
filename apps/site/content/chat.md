@@ -19,7 +19,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
   Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
-- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, run the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
+- **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
