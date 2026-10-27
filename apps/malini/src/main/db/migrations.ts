@@ -1079,6 +1079,10 @@ DROP INDEX idx_event_log_digest;
 ALTER TABLE event_log DROP COLUMN digest;
 `,
 	`ALTER TABLE workstream_ship ADD COLUMN keep_workstream INTEGER NOT NULL DEFAULT 0;`,
+	`
+DELETE FROM settings WHERE key = 'merge-queue.update-from-main';
+ALTER TABLE workstream_ship DROP COLUMN update_requests;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

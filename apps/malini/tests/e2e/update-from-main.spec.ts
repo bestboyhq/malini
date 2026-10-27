@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	expectCleanConsole,
@@ -24,11 +24,11 @@ import {
 const execFileAsync = promisify(execFile);
 const AUTHOR = ['-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e'];
 
-test('a queued merge updates a conflicting branch from main, hands the conflicts to Resolve conflicts and pushes a two-parent merge', async () => {
+test('a workstream behind main stays as it is until you merge it, then the merge updates it from main, hands the conflicts to Resolve conflicts and pushes a two-parent merge', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
-		const { page, github } = await conflictingPullRequest(app, 'e2e-conflict');
+		const { page, worktree, github } = await conflictingPullRequest(app, 'e2e-conflict');
 		const branchHead = github.pushedHead();
 		await openWorkstream(page, 'e2e-conflict');
 		await expect(page.getByRole('button', { name: 'Merge pull request #7' })).toBeEnabled({
@@ -37,6 +37,9 @@ test('a queued merge updates a conflicting branch from main, hands the conflicts
 		await expect(page.getByRole('status').filter({ hasText: 'Conflicts with main' })).toHaveCount(
 			0,
 		);
+		await page.waitForTimeout(2_000);
+		expect(await jobRuns(page)).toEqual([]);
+		expect(await output(worktree, ['rev-parse', 'HEAD'])).toBe(branchHead);
 
 		await queueMerge(page);
 
@@ -56,19 +59,15 @@ test('a queued merge updates a conflicting branch from main, hands the conflicts
 		expect(await output(github.remote, ['show', `${merge}:conflict.txt`])).toBe(
 			'branch line\nmain line',
 		);
-		await expect(page.getByRole('region', { name: 'Jobs: 2 finished recently' })).toBeVisible();
-		const runs = await invoke<
-			{ id: string; title: string; status: string; parentRunId: string | null; detail: string }[]
-		>(page, 'jobs.list-runs', undefined);
-		const update = runs.find(({ title }) => title === 'Update from main');
-		expect(update).toMatchObject({
-			status: 'succeeded',
-			detail: 'Stopped on conflicts in 1 file. Resolve conflicts finishes the merge.',
-		});
-		expect(runs.find(({ title }) => title === 'Resolve conflicts')).toMatchObject({
-			status: 'succeeded',
-			parentRunId: update?.id,
-		});
+		await expect(page.getByRole('region', { name: 'Jobs: 1 finished recently' })).toBeVisible();
+		expect(await jobRuns(page)).toMatchObject([
+			{
+				title: 'Resolve conflicts',
+				status: 'succeeded',
+				origin: 'merge-queue',
+				parentRunId: null,
+			},
+		]);
 		await captureFlow(app, 'update-from-main');
 		expectCleanConsole(app);
 	} finally {
@@ -155,6 +154,12 @@ async function commitFile(repo: string, contents: string, message: string): Prom
 	writeFileSync(join(repo, 'conflict.txt'), contents);
 	await git(repo, ['add', 'conflict.txt']);
 	await git(repo, [...AUTHOR, 'commit', '-qm', message]);
+}
+
+function jobRuns(
+	page: Page,
+): Promise<{ title: string; status: string; origin: string; parentRunId: string | null }[]> {
+	return invoke(page, 'jobs.list-runs', undefined);
 }
 
 async function output(repo: string, args: readonly string[]): Promise<string> {

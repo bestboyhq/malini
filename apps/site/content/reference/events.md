@@ -518,7 +518,7 @@ type ShipButtonClickedEvent =
 
 ## `pull-requests:workstream-opened`
 
-Fires when you open a workstream; unless Settings say to update from main only while merging, the Shipping rule runs **Update from main** when the workstream is behind its base branch.
+Fires each time you open a workstream, for jobs to start on. Malini does not update a workstream from main on it: only merging does.
 
 Payload: `WorkstreamOpenedEvent`
 

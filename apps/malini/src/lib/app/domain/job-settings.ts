@@ -7,9 +7,6 @@ import {
 	DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS,
 	MERGE_QUEUE_FIX_ATTEMPTS_RANGE,
 	MERGE_QUEUE_FIX_ATTEMPTS_SETTING,
-	UPDATE_FROM_MAIN_TRIGGER_SETTING,
-	updateFromMainTrigger,
-	type UpdateFromMainTrigger,
 } from '$contract/pull-requests';
 
 export type JobSettingKey =
@@ -17,10 +14,7 @@ export type JobSettingKey =
 
 export type JobSettingBounds = Readonly<{ min: number; max: number; fallback: number }>;
 
-export type JobSettings = Readonly<
-	Record<JobSettingKey, number> &
-		Record<typeof UPDATE_FROM_MAIN_TRIGGER_SETTING, UpdateFromMainTrigger>
->;
+export type JobSettings = Readonly<Record<JobSettingKey, number>>;
 
 export const JOB_SETTING_BOUNDS: Readonly<Record<JobSettingKey, JobSettingBounds>> = {
 	[JOBS_MAX_CONCURRENT_SETTING]: {
@@ -43,9 +37,6 @@ export function jobSettingsFromStored(stored: Readonly<Record<string, string>>):
 	return {
 		[JOBS_MAX_CONCURRENT_SETTING]: storedJobSetting(JOBS_MAX_CONCURRENT_SETTING, stored),
 		[MERGE_QUEUE_FIX_ATTEMPTS_SETTING]: storedJobSetting(MERGE_QUEUE_FIX_ATTEMPTS_SETTING, stored),
-		[UPDATE_FROM_MAIN_TRIGGER_SETTING]: updateFromMainTrigger(
-			stored[UPDATE_FROM_MAIN_TRIGGER_SETTING],
-		),
 	};
 }
 

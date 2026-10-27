@@ -106,7 +106,7 @@ export type ShellWindow = Pick<
 > & {
 	readonly webContents: Pick<
 		BrowserWindow['webContents'],
-		'setZoomFactor' | 'getZoomFactor' | 'on' | 'reload'
+		'setZoomFactor' | 'getZoomFactor' | 'on' | 'reload' | 'isDestroyed'
 	>;
 };
 
@@ -144,6 +144,10 @@ export interface WindowCommands {
 
 export const CRASH_RELOAD_COOLDOWN_MS = 30_000;
 
+function isGone(window: ShellWindow): boolean {
+	return window.isDestroyed() || window.webContents.isDestroyed();
+}
+
 export function createWindowCommands(deps: WindowDeps): WindowCommands {
 	const { host, events } = deps;
 	let armed = false;
@@ -177,7 +181,7 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		let zoomFactor = window.webContents.getZoomFactor();
 		const restore = async () => {
 			const state = await readMainWindowState(deps.appDataRoot);
-			if (!state || window.isDestroyed()) return;
+			if (!state || isGone(window)) return;
 			if (state.zoomFactor !== undefined) {
 				zoomFactor = state.zoomFactor;
 				window.webContents.setZoomFactor(zoomFactor);
@@ -189,12 +193,12 @@ export function createWindowCommands(deps: WindowDeps): WindowCommands {
 		void restore();
 		// ponytail: zoom is saved with the next move, resize or close, so a main-process crash forgets a zoom change made since; save on the zoom menu items if that bites
 		const persist = () => {
-			if (window.isDestroyed()) return;
+			if (isGone(window)) return;
 			unsavedState = { ...window.getBounds(), zoomFactor: window.webContents.getZoomFactor() };
 			stateSaving ??= saveLatestState();
 		};
 		const keepZoom = () => {
-			if (!window.isDestroyed()) window.webContents.setZoomFactor(zoomFactor);
+			if (!isGone(window)) window.webContents.setZoomFactor(zoomFactor);
 		};
 		window.webContents.on('did-start-navigation', () => {
 			zoomFactor = window.webContents.getZoomFactor();
