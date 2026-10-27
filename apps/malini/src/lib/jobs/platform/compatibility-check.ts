@@ -21,9 +21,7 @@ export async function checkCompatibility(
 		);
 		return;
 	}
-	if (event.digest !== null && triggeredBefore(db, definition.id, event.channel, event.digest)) {
-		return;
-	}
+	if (triggeredBefore(db, definition.id, event.id)) return;
 	await commands.call('jobs.run', {
 		definitionId: definition.id,
 		workstreamId: workstream.id,

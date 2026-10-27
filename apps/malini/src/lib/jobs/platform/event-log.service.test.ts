@@ -21,7 +21,7 @@ import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
 import type { JobsPlatform } from '../jobs.platform';
 import { insertLoggedEvent, linkJobRunEvent } from './event-log.repository';
-import { eventDigest, pruneEvents } from './event-log.service';
+import { pruneEvents } from './event-log.service';
 import { insertJobRun, saveJobRun } from './job-runs.repository';
 import { registerJobs } from './register';
 
@@ -340,7 +340,6 @@ describe('the event log', () => {
 			insertLoggedEvent(db, {
 				channel: PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 				payload: JSON.stringify(payload),
-				digest: eventDigest(payload),
 				workstreamId: 'ws-1',
 				cause: null,
 				chainId: `chain-${emittedAt}`,
@@ -386,7 +385,6 @@ describe('the event log', () => {
 		insertLoggedEvent(db, {
 			channel: JOBS_RUN_FINISHED_CHANNEL,
 			payload: JSON.stringify(payload),
-			digest: eventDigest(payload),
 			workstreamId: 'ws-1',
 			cause: { kind: 'job-run', id: 'fix-1' },
 			chainId: 'chain-of-fix',
@@ -419,7 +417,6 @@ describe('the event log', () => {
 		const old = insertLoggedEvent(db, {
 			channel: REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 			payload: '{}',
-			digest: eventDigest({}),
 			workstreamId: 'ws-1',
 			cause: null,
 			chainId: 'old',
@@ -428,7 +425,6 @@ describe('the event log', () => {
 		const fresh = insertLoggedEvent(db, {
 			channel: REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 			payload: '{}',
-			digest: eventDigest({}),
 			workstreamId: 'ws-1',
 			cause: null,
 			chainId: 'fresh',
