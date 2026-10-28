@@ -1,5 +1,6 @@
 import type { AgentTheme } from '$contract/agent';
 import { APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
+import type { ShipFailure } from '$contract/pull-requests';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
@@ -28,6 +29,7 @@ import { installCheckpoints } from './checkpoints/commands';
 import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
+import { installShellRuns } from './shell-runs/commands';
 
 export interface ChatDeps {
 	readonly resolver: CheckoutResolver;
@@ -40,6 +42,7 @@ export interface ChatDeps {
 	readonly processFactory?: BridgeProcessFactory;
 	readonly bridgeScriptPath?: string;
 	readonly theme?: () => AgentTheme;
+	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly log?: (line: string) => void;
 }
 
@@ -68,6 +71,10 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	const shellRuns = installShellRuns(context, {
+		checkout: deps.resolveWorkstreamCheckout,
+		environment: deps.spawnEnvironment,
+	});
 	const packing = packArchivedChats(context);
 	let mcpServers: McpServerListings | null = null;
 
@@ -102,6 +109,8 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
+		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
+		shellRuns: (sessionId) => shellRuns.report(sessionId),
 		...(deps.browser ? { browser: deps.browser } : {}),
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),
@@ -124,7 +133,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: async () => {
 			stopGrants();
-			await Promise.all([packing.stop(), agent.stop()]);
+			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
@@ -133,8 +142,12 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		stopBackgroundTask: (sessionId, taskId) =>
 			stopBackgroundTask(context.db, agent.runtime, sessionId, taskId),
-		stopWorkstreamBackgroundCommands: (workstreamId) =>
-			stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
+		stopWorkstreamBackgroundCommands: async (workstreamId) => {
+			await Promise.all([
+				stopWorkstreamBackgroundCommands(context.db, agent.runtime, workstreamId),
+				shellRuns.stopWorkstream(workstreamId),
+			]);
+		},
 		nameService: (task) => runAutomaticJob(context.db, 'name-services', task, suggestTitle),
 		nameWorkstream: (task) => runAutomaticJob(context.db, 'name-chats', task, suggestTitle),
 		suggestTitle,

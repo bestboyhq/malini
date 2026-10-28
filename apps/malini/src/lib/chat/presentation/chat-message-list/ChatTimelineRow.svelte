@@ -12,6 +12,8 @@
 	import AgentQuestionRow from './AgentQuestionRow.svelte';
 	import TurnReportCard from '../TurnReportCard.svelte';
 	import { finalTurnReport } from '../turn-result';
+	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
+	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
 	import { noVariantFitsPrompt, variantPickPrompt } from '$lib/chat/domain/variant-pick';
 	import ChatPromptBubble from './ChatPromptBubble.svelte';
 	import ChatToolRow from './ChatToolRow.svelte';
@@ -39,6 +41,20 @@
 	const variantPick = $derived(
 		turnReport ? (transcript.variantPick(run.runId)?.pick ?? null) : null,
 	);
+	const message = $derived(
+		item.kind === 'assistant' ? timelineKey(run, item.contentId ?? item.key) : null,
+	);
+	const codeRuns = $derived(message === null ? undefined : shellRunsQuery.data(message));
+
+	function runCommand(command: string, block: number): void {
+		if (message === null) return;
+		runShellCommandCommand({
+			workstreamId: transcript.workstreamId,
+			sessionId: transcript.sessionId,
+			anchor: { message, block },
+			command,
+		});
+	}
 </script>
 
 {#if item.kind === 'user'}
@@ -128,7 +144,8 @@
 				canopenfile={transcript.canOpenFileMention}
 				imagesrc={transcript.markdownImageSource}
 				onopenimage={transcript.openImageGallery}
-				onruncommand={transcript.runShellCommand}
+				onruncommand={runCommand}
+				coderuns={codeRuns}
 			/>
 		{/if}
 	</div>

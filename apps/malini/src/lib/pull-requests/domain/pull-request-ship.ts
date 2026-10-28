@@ -16,6 +16,10 @@ export type PullRequestShip = Readonly<{
 	pullRequestUrl: string | null;
 	needsYou: ShipNeedsYou | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
+	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;
 
@@ -26,7 +30,13 @@ export type PullRequestShipChange = Readonly<{
 }>;
 
 export type PullRequestShipIntent =
-	'open-draft' | 'queue-merge' | 'cancel-merge' | 'retry-merge' | 'keep-workstream';
+	| 'open-draft'
+	| 'queue-merge'
+	| 'cancel-merge'
+	| 'cancel-draft'
+	| 'retry-merge'
+	| 'retry-now'
+	| 'keep-workstream';
 
 export type PullRequestNeedsYouDestination = 'pull-request' | 'job' | 'repositories';
 

@@ -27,6 +27,7 @@ import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { all, get } from '$main/db/rows';
+import { GitError } from '$main/errors';
 import { createEventBus } from '$main/events';
 import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -348,6 +349,7 @@ let pushes: string[];
 let pulls: string[];
 let archived: string[];
 let pullConflicts: string[];
+let pushRefusal: GitError | null;
 let shaCounter: number;
 let clockOffsetMs: number;
 
@@ -508,6 +510,7 @@ function defineFakes(): void {
 	commands.define('repositories.push-workstream', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
 		expect(Reflect.get(Object(args), 'expectedRepositoryFullName')).toBe('acme/app');
+		if (pushRefusal) throw pushRefusal;
 		const current = worktree(workstreamId);
 		worktrees.set(workstreamId, { ...current, ahead: 0, hasUpstream: true });
 		heads.set(current.branch, current.headSha ?? '');
@@ -790,6 +793,7 @@ beforeEach(() => {
 	pulls = [];
 	archived = [];
 	pullConflicts = [];
+	pushRefusal = null;
 	shaCounter = 0;
 	eventLog = null;
 	clock = null;
@@ -868,6 +872,95 @@ describe('opening a draft', () => {
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 12, step: null }));
 		expect(github.count(['pr', 'create'])).toBe(0);
 		expect(pushes).toEqual([]);
+	});
+});
+
+describe('a push GitHub refuses', () => {
+	const PATIENT = { ...DELAYS, backoffBaseMs: 60_000, backoffCapMs: 60_000 };
+
+	it('records why, since when and how often, and clears it once the push lands', async () => {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+
+		await click('ws-1', 'draft');
+
+		await until(() => expect(ship('ws-1')?.failures).toBeGreaterThanOrEqual(2));
+		const failing = ship('ws-1');
+		expect(failing).toMatchObject({
+			phase: 'draft',
+			step: 'opening-draft',
+			lastError: expect.stringContaining('Run `gh auth refresh -s workflow` once'),
+			githubSaid:
+				'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+		});
+		expect(failing?.failedSince).not.toBeNull();
+		expect(platform.failure('ws-1')).toMatchObject({
+			stage: 'draft',
+			title: "Malini couldn't open the draft",
+		});
+		await until(() => expect(ship('ws-1')?.failures).toBeGreaterThan(failing?.failures ?? 0));
+		expect(ship('ws-1')?.failedSince).toBe(failing?.failedSince);
+
+		pushRefusal = null;
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({
+				pullRequestNumber: 40,
+				lastError: null,
+				githubSaid: null,
+				failures: 0,
+				failedSince: null,
+				nextAttemptAt: null,
+			}),
+		);
+		expect(platform.failure('ws-1')).toBeNull();
+	});
+
+	it('tries again at once on Retry now, instead of waiting out the backoff', async () => {
+		seedWorkstream('ws-1');
+		start(PATIENT);
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
+		pushRefusal = null;
+
+		const retried = await click('ws-1', 'retry');
+
+		expect(retried).toMatchObject({ phase: 'draft', failures: 1, nextAttemptAt: null });
+		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, failures: 0 }));
+	});
+
+	it('stops opening the draft on Cancel', async () => {
+		seedWorkstream('ws-1');
+		start(PATIENT);
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+
+		const cancelled = await click('ws-1', 'cancel');
+
+		expect(cancelled).toMatchObject({
+			phase: 'local',
+			step: null,
+			lastError: null,
+			failures: 0,
+			nextAttemptAt: null,
+		});
+		expect(platform.failure('ws-1')).toBeNull();
+		pushRefusal = null;
+		await settle();
+		expect(github.pulls).toEqual([]);
 	});
 });
 
@@ -1756,3 +1849,16 @@ describe('Draft all and Merge all', () => {
 		expect(jobRuns.size).toBe(0);
 	});
 });
+
+function workflowRefusal(): GitError {
+	return GitError.commandFailed({
+		args: ['push', 'https://github.com/acme/app.git', 'HEAD:malini/ws-1'],
+		exitCode: 1,
+		signal: null,
+		output: [
+			'To https://github.com/acme/app.git',
+			' ! [remote rejected] HEAD -> malini/ws-1 (refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope)',
+			"error: failed to push some refs to 'https://github.com/acme/app.git'",
+		].join('\n'),
+	});
+}

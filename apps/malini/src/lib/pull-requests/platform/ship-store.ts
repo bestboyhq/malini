@@ -36,6 +36,14 @@ export type ShipDeps = Readonly<{
 	running: () => boolean;
 }>;
 
+export const NO_SHIP_FAILURE = {
+	lastError: null,
+	githubSaid: null,
+	failures: 0,
+	failedSince: null,
+	nextAttemptAt: null,
+} as const satisfies ShipPatch;
+
 export function saveShip(
 	deps: ShipDeps,
 	workstreamId: string,

@@ -32,7 +32,6 @@
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
-	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
@@ -440,15 +439,6 @@
 		});
 	}
 
-	function runShellCommand(command: string, language: string | null): void {
-		sendCommandPromptCommand({
-			workstreamId,
-			sessionId,
-			prompt: shellCommandPrompt(command, language),
-			subject: 'Command',
-		});
-	}
-
 	function sendFollowUp(prompt: string, subject: string): void {
 		sendCommandPromptCommand({ workstreamId, sessionId, prompt, subject });
 	}
@@ -581,7 +571,6 @@
 			return implementingPlanKey;
 		},
 		implementPlan,
-		runShellCommand,
 		liveInputJsonForRunningTool,
 		openFileMention,
 		get canOpenFileMention() {

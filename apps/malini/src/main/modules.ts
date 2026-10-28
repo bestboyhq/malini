@@ -120,6 +120,7 @@ export async function registerModules(
 		claudeSettings: () => claudeConfigFiles(buildSpawnEnvironment(), homedir()).settings,
 		browser,
 		theme: () => shellHost.theme(),
+		shippingFailure: (workstreamId) => pullRequests.failure(workstreamId),
 		log,
 		...(overrides.filePicker ? { picker: overrides.filePicker } : {}),
 		...(overrides.bridgeProcessFactory ? { processFactory: overrides.bridgeProcessFactory } : {}),

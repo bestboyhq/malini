@@ -37,6 +37,7 @@ import {
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
+	agentRunWasAlreadyGone,
 	foldedJobContext,
 	isFinishedJobRunStatus,
 	jobPrompt,
@@ -57,7 +58,7 @@ import {
 	listUnfinishedJobRuns,
 	saveJobRun,
 } from './job-runs.repository';
-import { isCancelRaceError, turnEndedOverBackgroundCommands } from '$lib/chat/chat.platform';
+import { turnEndedOverBackgroundCommands } from '$lib/chat/chat.platform';
 import { chooseSessionSkills } from '$lib/skills/skills.platform';
 
 const SAFETY_INTERVAL_MS = 15_000;
@@ -449,7 +450,7 @@ export class JobRunner {
 				pendingRunId: agentRunId,
 			});
 		} catch (error) {
-			if (isCancelRaceError(describeError(error))) return;
+			if (agentRunWasAlreadyGone(error)) return;
 			this.#log(`jobs: could not stop the agent run of \`${jobRunId}\`: ${describeError(error)}`);
 		}
 	}

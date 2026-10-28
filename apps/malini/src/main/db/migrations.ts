@@ -1094,6 +1094,28 @@ ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
 ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
 `,
 	`
+ALTER TABLE workstream_ship ADD COLUMN github_said TEXT;
+ALTER TABLE workstream_ship ADD COLUMN failed_since TEXT;
+`,
+	`
+CREATE TABLE shell_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  workstream_id TEXT NOT NULL,
+  anchor_message TEXT NOT NULL,
+  anchor_block INTEGER NOT NULL,
+  command TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('exited','stopped','failed')),
+  exit_code INTEGER,
+  output TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT NOT NULL,
+  reported INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX idx_shell_runs_anchor ON shell_runs(anchor_message, anchor_block);
+CREATE INDEX idx_shell_runs_session ON shell_runs(session_id);
+`,
+	`
 CREATE TABLE event_log_next (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   channel TEXT NOT NULL,

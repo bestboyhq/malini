@@ -1,3 +1,4 @@
+import type { ShipFailure } from '$contract/pull-requests';
 import type { ShippingRule } from '$lib/jobs/jobs.platform';
 
 export type {
@@ -22,5 +23,6 @@ export {
 
 export interface PullRequestsPlatform {
 	readonly shipping: ShippingRule;
+	failure(workstreamId: string): ShipFailure | null;
 	dispose(): void;
 }

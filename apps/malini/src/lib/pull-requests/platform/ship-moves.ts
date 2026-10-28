@@ -8,7 +8,7 @@ import {
 import type { ShippingJobBuiltin } from '$contract/jobs';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
-import { describeError, isGhError, isGitError } from '$main/errors';
+import { describeError, isGhError, isGitError, remoteRefusal } from '$main/errors';
 import { workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
@@ -41,6 +41,7 @@ import {
 } from './ship.repository';
 import {
 	dropShip,
+	NO_SHIP_FAILURE,
 	saveShip,
 	setShipAlarm,
 	settleShipRequests,
@@ -98,7 +99,7 @@ async function recheck(deps: ShipDeps, state: ShipState, event: DispatchedEvent)
 	const resumed = saveShip(
 		deps,
 		row.workstreamId,
-		{ phase: 'queued', step: null, needsYou: null, lastError: null, nextAttemptAt: null },
+		{ phase: 'queued', step: null, needsYou: null, ...NO_SHIP_FAILURE },
 		'needs-you',
 	);
 	if (resumed !== null) await apply(deps, { ...state, row: resumed }, event);
@@ -110,7 +111,7 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 	switch (move.kind) {
 		case 'idle':
 			settleShipRequests(deps, row);
-			saveShip(deps, workstreamId, { step: null, lastError: move.problem, nextAttemptAt: null });
+			saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: move.problem });
 			return;
 		case 'wait':
 			saveShip(deps, workstreamId, { step: move.step });
@@ -377,9 +378,7 @@ async function runJob(
 		attempts: move.attempt,
 		failureSignature: move.signature,
 		step: jobStep(move.builtin),
-		lastError: null,
-		nextAttemptAt: null,
-		failures: 0,
+		...NO_SHIP_FAILURE,
 		settledJobRunId: null,
 	};
 	const saved =
@@ -482,7 +481,8 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 	if (!row) return;
 	const detail = describeError(error);
 	const failures = row.failures + 1;
-	const due = deps.now() + shipBackoffMs(failures, deps.delays);
+	const now = deps.now();
+	const due = now + shipBackoffMs(failures, deps.delays);
 	if (row.phase === 'needs-you') {
 		saveShip(deps, workstreamId, { failures });
 		setShipAlarm(deps, workstreamId, 'retry', due);
@@ -497,6 +497,7 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 					phase: 'needs-you',
 					step: null,
 					needsYou: { reason: 'github-reconnect', detail, jobRunId: null },
+					...NO_SHIP_FAILURE,
 					failures,
 				},
 				'queued',
@@ -505,18 +506,20 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 			return;
 		}
 		settleShipRequest(deps.context.db, workstreamId, 'push', row.requests.push);
-		saveShip(deps, workstreamId, { step: null, lastError: detail });
+		saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: detail });
 		return;
 	}
 	if (row.phase === 'local') {
 		clearShipRequests(deps.context.db, workstreamId);
-		saveShip(deps, workstreamId, { step: null, lastError: detail });
+		saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: detail });
 		return;
 	}
 	saveShip(deps, workstreamId, {
 		lastError: detail,
-		nextAttemptAt: new Date(due).toISOString(),
+		githubSaid: remoteRefusal(error),
 		failures,
+		failedSince: row.failedSince ?? new Date(now).toISOString(),
+		nextAttemptAt: new Date(due).toISOString(),
 	});
 	setShipAlarm(deps, workstreamId, 'retry', due);
 }
@@ -524,7 +527,7 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 function shipRecovered(deps: ShipDeps, workstreamId: string): void {
 	const row = getShip(deps.context.db, workstreamId);
 	if (row && (row.lastError !== null || row.nextAttemptAt !== null || row.failures > 0)) {
-		saveShip(deps, workstreamId, { lastError: null, nextAttemptAt: null, failures: 0 });
+		saveShip(deps, workstreamId, NO_SHIP_FAILURE);
 	}
 }
 

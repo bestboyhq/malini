@@ -218,6 +218,8 @@ input.on('close', () => { if (heartbeat) clearInterval(heartbeat); process.exit(
 	.replace('__CONTRACT__', BRIDGE_CONTRACT_NAME)
 	.replace('__HEARTBEAT_INTERVAL__', String(BRIDGE_HEARTBEAT_INTERVAL_MS));
 
+export const TEST_BRIDGE_READY_TIMEOUT_MS = 30_000;
+
 export interface FakeBridge {
 	readonly scriptPath: string;
 	readonly dir: string;
@@ -247,6 +249,7 @@ export function writeFakeBridge(): FakeBridge {
 			return {
 				processFactory: factory,
 				spawn: spawnSpec(env),
+				readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 				log: () => {},
 				...overrides,
 			};

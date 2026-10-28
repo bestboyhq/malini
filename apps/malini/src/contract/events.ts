@@ -18,6 +18,7 @@ import type {
 	WorkstreamOpenedEvent,
 } from './pull-requests';
 import type { GitProjectRecord, GitWorkstreamRecord } from './repositories';
+import type { ShellRun } from './shell-runs';
 import type { ResourceSample, WorkstreamRunning } from './stats';
 import type { InstallSkipReason, InstallStatus } from './system';
 
@@ -181,6 +182,7 @@ export interface ContractEvents {
 	'chat:turn-finished': ChatTurnFinishedPayload;
 	'chat:mcp-server-changed': McpServerReport;
 	'chat:mcp-servers-listed': McpServerListing;
+	'chat:shell-run-changed': ShellRun;
 	'repositories:workstream-created': WorktreeAddedPayload;
 	'repositories:workstream-removed': WorktreeRemovedPayload;
 	'repositories:workstream-files-changed': WorkstreamFilesChangedPayload;
@@ -235,6 +237,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'chat:turn-finished': null,
 	'chat:mcp-server-changed': null,
 	'chat:mcp-servers-listed': null,
+	'chat:shell-run-changed': null,
 	'repositories:workstream-created': null,
 	'repositories:workstream-removed': null,
 	'repositories:workstream-files-changed': null,
@@ -299,6 +302,8 @@ export const CHAT_TURN_FINISHED_CHANNEL = 'chat:turn-finished' satisfies EventCh
 export const CHAT_MCP_SERVER_CHANGED_CHANNEL = 'chat:mcp-server-changed' satisfies EventChannel;
 
 export const CHAT_MCP_SERVERS_LISTED_CHANNEL = 'chat:mcp-servers-listed' satisfies EventChannel;
+
+export const CHAT_SHELL_RUN_CHANGED_CHANNEL = 'chat:shell-run-changed' satisfies EventChannel;
 
 export const REPOSITORIES_WORKSTREAM_CREATED_CHANNEL =
 	'repositories:workstream-created' satisfies EventChannel;

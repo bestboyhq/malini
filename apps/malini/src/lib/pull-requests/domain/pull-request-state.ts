@@ -1,5 +1,6 @@
 import { needsYouReasonLabel, type PullRequestShip } from './pull-request-ship';
 import type { RepositorySurface, SurfacePullRequest } from './repository-surface';
+import { shipFailure } from './ship-failure';
 
 export type PullRequestState = 'none' | 'draft' | 'open' | 'merged' | 'closed' | 'unknown';
 
@@ -46,6 +47,8 @@ export function pullRequestBadge(
 	ship: PullRequestShip | null,
 	state: PullRequestState,
 ): PullRequestBadge {
+	const failure = state === 'merged' ? null : shipFailure(ship);
+	if (failure) return { phase: 'needs-you', label: `Needs you · ${failure.label}` };
 	if (ship?.phase === 'queued') return { phase: 'queued', label: 'Merge queued' };
 	if (ship?.phase === 'needs-you') {
 		const reason = ship.needsYou?.reason;

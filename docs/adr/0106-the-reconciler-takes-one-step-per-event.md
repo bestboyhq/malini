@@ -1,4 +1,4 @@
-# 0104 - The reconciler takes one step per event
+# 0106 - The reconciler takes one step per event
 
 Status: accepted
 

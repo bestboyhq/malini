@@ -7,6 +7,7 @@ import { SHIP_BUTTONS, type ShipButton } from '$contract/pull-requests';
 import type { PullRequestStatusDto } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
+import { shipFailure } from '../domain/ship-failure';
 import { DEFAULT_SHIP_DELAYS, type ShipDelays } from '../domain/shipping';
 import { requireString } from './args';
 import type { PullRequestOperations } from './pull-request-operations';
@@ -66,6 +67,7 @@ export function registerShip(
 	return {
 		report: (id, pullRequest) => deps.reader.report(id, pullRequest),
 		shipping: createShippingRule(deps),
+		failure: (id) => shipFailure(getShip(db, id)),
 		dispose: () => {
 			running = false;
 			deps.reader.dispose();

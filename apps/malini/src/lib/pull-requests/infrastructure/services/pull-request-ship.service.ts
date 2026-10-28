@@ -16,7 +16,9 @@ const BUTTONS: Readonly<Record<PullRequestShipIntent, ShipButton>> = {
 	'open-draft': 'draft',
 	'queue-merge': 'merge',
 	'retry-merge': 'retry',
+	'retry-now': 'retry',
 	'cancel-merge': 'cancel',
+	'cancel-draft': 'cancel',
 	'keep-workstream': 'keep',
 };
 
