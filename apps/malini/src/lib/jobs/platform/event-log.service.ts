@@ -126,6 +126,7 @@ export function startEventLog(
 	handle: EventHandler,
 ): { dispose(): void } {
 	const { db, events } = context;
+	let stopped = false;
 
 	const handleAndMark = async (event: DispatchedEvent): Promise<void> => {
 		try {
@@ -133,7 +134,7 @@ export function startEventLog(
 		} catch (error) {
 			log(`jobs: could not handle ${event.channel}: ${describeError(error)}`);
 		}
-		if (event.id === null) return;
+		if (event.id === null || stopped) return;
 		try {
 			markEventHandled(db, event.id, nowIso8601());
 		} catch (error) {
@@ -174,7 +175,12 @@ export function startEventLog(
 
 	replay();
 
-	return { dispose: stopObserving };
+	return {
+		dispose: () => {
+			stopped = true;
+			stopObserving();
+		},
+	};
 }
 
 export function pruneEvents(db: MaliniDatabase, now = Date.now()): void {

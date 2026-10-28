@@ -476,6 +476,37 @@ describe('the event log', () => {
 		expect(recent).toBeGreaterThan(stale);
 	});
 
+	it('leaves an event it was still handling when it stopped for the next start, never touching the database after', async () => {
+		const lines: string[] = [];
+		let hear = (): void => {};
+		const heard = new Promise<void>((resolve) => (hear = resolve));
+		let release = (): void => {};
+		const released = new Promise<void>((resolve) => (release = resolve));
+		jobs = registerJobs(context, {
+			log: (line) => lines.push(line),
+			shipping: {
+				hear: async () => {
+					hear();
+					await released;
+					return [];
+				},
+				decide: async () => null,
+				merging: () => false,
+			},
+		});
+		jobs.start();
+
+		clickMerge();
+		await heard;
+		jobs.dispose();
+		jobs = null;
+		release();
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		expect(all(db, 'SELECT id FROM event_log WHERE handled_at IS NULL')).toHaveLength(1);
+		expect(lines).toEqual([]);
+	});
+
 	it('starts a Then once from the job finished event it hears, even when it hears it again after a restart', async () => {
 		start();
 		const save = (name: string, thenJobId: string | null) =>
