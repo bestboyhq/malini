@@ -265,7 +265,7 @@
 		{/if}
 
 		{#if !endsQuietly && (hasAssistantAnswer || undoTarget || forkAvailable)}
-			<div class="flex h-5 items-center justify-end gap-1.5" data-testid="chat-run-actions">
+			<div class="flex h-6 items-center justify-end gap-1.5" data-testid="chat-run-actions">
 				{@render runActions()}
 			</div>
 		{/if}
