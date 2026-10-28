@@ -607,8 +607,14 @@ test('a prompt in a workstream whose pull request merged on GitHub first starts 
 		await page.getByTestId('chat-composer-submit').click();
 		await expect(topBarStatus(page, '1 file changed')).toBeVisible({ timeout: 60_000 });
 		expect(readFileSync(join(worktree, 'beta.txt'), 'utf8')).not.toBe('');
-		const latestMain = revParse(github.remote, 'refs/heads/main');
-		expect(revParse(worktree, 'HEAD')).toBe(latestMain);
+		await expect
+			.poll(() =>
+				execFileSync('git', ['-C', worktree, 'log', '-1', '--format=%s'], {
+					encoding: 'utf8',
+				}).trim(),
+			)
+			.toBe('feat: add beta');
+		expect(revParse(worktree, 'HEAD^')).toBe(revParse(github.remote, 'refs/heads/main'));
 		const branch = revParse(worktree, '--abbrev-ref', 'HEAD');
 		expect(() => revParse(github.remote, '--verify', `refs/heads/${branch}`)).toThrow();
 		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled();

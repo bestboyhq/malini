@@ -108,7 +108,7 @@ export interface AgentEventEnvelope {
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
 
-export type AgentSessionOrigin = 'user' | 'job';
+export type AgentSessionOrigin = 'user' | 'job' | 'thread';
 
 export interface AgentSessionSummary {
 	id: string;

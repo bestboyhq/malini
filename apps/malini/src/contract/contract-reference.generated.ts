@@ -37,7 +37,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 		{
 			channel: 'chat:turn-finished',
 			description:
-				"Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
+				"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
 			payloadType: 'ChatTurnFinishedPayload',
 			payload:
 				"type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';\n\ninterface ChatTurnFinishedPayload {\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\tstatus: ChatTurnFinishedStatus;\n\toutcome: string | null;\n\tneeds: string | null;\n}",
@@ -365,6 +365,13 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'BrowserResizeRequest',
 			payload:
 				'type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;\n\ntype BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;',
+		},
+		{
+			channel: 'browser:thread-opened',
+			description:
+				'Fires when you open the thread behind a pin on a page in the browser, with its workstream and chat; Malini shows that chat in a tab of its own. Malini does not keep it in its event log.',
+			payloadType: 'BrowserThreadOpened',
+			payload: 'type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;',
 		},
 		{
 			channel: 'extensions:file-open-requested',

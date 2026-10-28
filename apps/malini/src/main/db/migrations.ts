@@ -1146,6 +1146,30 @@ UPDATE job_definitions
   SET trigger_when = 'on repositories:workstream-merge-conflicted', trigger_mode = 'auto'
   WHERE builtin = 'resolve-conflicts' AND trigger_when IS NULL;
 `,
+	`
+CREATE TABLE agent_sessions_next (
+  id TEXT PRIMARY KEY,
+  workstream_id TEXT NOT NULL REFERENCES workstreams(id),
+  model TEXT,
+  status TEXT NOT NULL CHECK (status IN ('idle','running','waiting_for_approval','completed','failed')),
+  started_at TEXT NOT NULL,
+  provider_session_id TEXT,
+  display_name TEXT NOT NULL DEFAULT '',
+  archived_at TEXT,
+  forked_from_session_id TEXT,
+  fork_seq INTEGER,
+  origin TEXT NOT NULL DEFAULT 'user' CHECK (origin IN ('user','job','thread'))
+);
+INSERT INTO agent_sessions_next (id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq, origin)
+SELECT id, workstream_id, model, status, started_at, provider_session_id,
+  display_name, archived_at, forked_from_session_id, fork_seq, origin
+FROM agent_sessions;
+DROP TABLE agent_sessions;
+ALTER TABLE agent_sessions_next RENAME TO agent_sessions;
+CREATE INDEX idx_agent_sessions_workstream_archived_started
+  ON agent_sessions(workstream_id, archived_at, started_at DESC);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;
@@ -1169,10 +1193,15 @@ export function migrate(db: MaliniDatabase): void {
 			`schema version ${existing} predates the first release; open this database once with Malini 0.33.0 to upgrade it`,
 		);
 	}
-	db.transaction(() => {
-		if (existing === 0) db.exec(SCHEMA);
-		const applied = Math.max(existing, BASELINE_USER_VERSION) - BASELINE_USER_VERSION;
-		for (const migration of MIGRATIONS.slice(applied)) db.exec(migration);
-		db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION};`);
-	});
+	db.exec('PRAGMA foreign_keys = OFF;');
+	try {
+		db.transaction(() => {
+			if (existing === 0) db.exec(SCHEMA);
+			const applied = Math.max(existing, BASELINE_USER_VERSION) - BASELINE_USER_VERSION;
+			for (const migration of MIGRATIONS.slice(applied)) db.exec(migration);
+			db.exec(`PRAGMA user_version = ${TARGET_USER_VERSION};`);
+		});
+	} finally {
+		db.exec('PRAGMA foreign_keys = ON;');
+	}
 }

@@ -1,4 +1,8 @@
-import type { BrowserBounds, BrowserTabArgs } from '$contract/browser';
+import type { BrowserBounds, BrowserPickArgs, BrowserTabArgs } from '$contract/browser';
+import { isValidAgentModel, isValidAgentRunProfile } from '$shared/providers/providers.platform';
+
+const MAX_PICK_MODELS = 64;
+const MAX_MODEL_LABEL_CHARS = 80;
 
 export function readWorkstreamId(args: unknown): string {
 	const value = field(args, 'workstreamId');
@@ -43,6 +47,38 @@ export function readRequestId(args: unknown): string {
 		throw new Error('invalid args: `requestId` must be a non-empty string');
 	}
 	return value;
+}
+
+export function readPick(args: unknown): BrowserPickArgs {
+	const model = field(args, 'model');
+	const models = field(args, 'models');
+	const profile = field(args, 'profile');
+	if (!isValidAgentModel(model)) throw new Error('invalid args: `model` must be a model id');
+	if (
+		!Array.isArray(models) ||
+		models.length > MAX_PICK_MODELS ||
+		!models.every(
+			(choice) =>
+				isValidAgentModel(field(choice, 'id')) &&
+				typeof field(choice, 'label') === 'string' &&
+				String(field(choice, 'label')).length <= MAX_MODEL_LABEL_CHARS,
+		)
+	) {
+		throw new Error(
+			`invalid args: \`models\` must list up to ${MAX_PICK_MODELS} models, each an \`id\` and a \`label\``,
+		);
+	}
+	if (!isValidAgentRunProfile(profile))
+		throw new Error('invalid args: `profile` must be a run profile');
+	return {
+		...readTab(args),
+		model,
+		models: models.map((choice) => ({
+			id: String(field(choice, 'id')),
+			label: String(field(choice, 'label')),
+		})),
+		profile,
+	};
 }
 
 export function readUrl(args: unknown): string {

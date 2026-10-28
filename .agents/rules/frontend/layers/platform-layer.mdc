@@ -47,6 +47,7 @@ Database:
 - Everything goes through `context.db` (`MaliniDatabase` from `$main/db/driver`).
 - Schema and migrations live in `$main/db/migrations.ts`.
   Migration constants are history: never edit one, add the next.
+  `migrate` runs them with foreign keys off, so rebuilding a parent table keeps its children; delete what a cascade would have removed yourself.
 - Tests that need tables call `openMigratedDatabase(':memory:')` from `$main/db/open`.
 
 Processes:

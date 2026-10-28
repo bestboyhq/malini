@@ -69,7 +69,7 @@ interface SessionRenamedPayload {
 
 ## `chat:turn-finished`
 
-Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
+Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
 
 Payload: `ChatTurnFinishedPayload`
 
@@ -1071,6 +1071,16 @@ Payload: `BrowserResizeRequest`
 type BrowserTabArgs = Readonly<{ workstreamId: string; tabId: string }>;
 
 type BrowserResizeRequest = BrowserTabArgs & Readonly<{ requestId: string; width: number }>;
+```
+
+## `browser:thread-opened`
+
+Fires when you open the thread behind a pin on a page in the browser, with its workstream and chat; Malini shows that chat in a tab of its own. Malini does not keep it in its event log.
+
+Payload: `BrowserThreadOpened`
+
+```ts
+type BrowserThreadOpened = Readonly<{ workstreamId: string; sessionId: string }>;
 ```
 
 ## `extensions:file-open-requested`

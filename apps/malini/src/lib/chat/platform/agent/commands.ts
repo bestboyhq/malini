@@ -1875,8 +1875,8 @@ function optionalStringArray(args: unknown, key: string): string[] {
 
 function parseSessionIdentity(args: unknown): SessionIdentity {
 	const origin = field(args, 'origin') ?? 'user';
-	if (origin !== 'user' && origin !== 'job') {
-		throw new Error("invalid args: `origin` must be 'user' or 'job'");
+	if (origin !== 'user' && origin !== 'job' && origin !== 'thread') {
+		throw new Error("invalid args: `origin` must be 'user', 'job' or 'thread'");
 	}
 	const requestedName = optionalString(args, 'displayName');
 	if (requestedName === null) return { origin, displayName: null };

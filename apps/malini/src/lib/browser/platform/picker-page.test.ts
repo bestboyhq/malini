@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pickerScript, type PickerCommand } from './picker-page';
 
-const PAGE = `<main id="app"><h1 class="title">Pricing</h1><button class="buy primary" type="button">Buy</button></main>`;
+const PAGE = `<main id="app"><h1 class="title s-Zp10jLLCVhnZ">Pricing</h1><button class="buy primary" type="button">Buy</button></main>`;
 
 const HARNESS = String.raw`(() => {
 	const pageEvents = [];
@@ -52,6 +52,12 @@ const HARNESS = String.raw`(() => {
 			field.value = text;
 			field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 		},
+		choose: (selector, value) => {
+			const select = find(selector);
+			select.value = value;
+			select.dispatchEvent(new Event('change', { bubbles: true }));
+		},
+		value: (selector) => find(selector).value,
 		reset: () => {
 			for (const type of watched) document.removeEventListener(type, record);
 			document.body.innerHTML = '';
@@ -60,9 +66,22 @@ const HARNESS = String.raw`(() => {
 })()`;
 
 const FIELD = 'picker [aria-label="Prompt"]';
+const MODEL = 'picker [aria-label="Model"]';
 const SEND = 'picker [aria-label="Send"]';
+const SENDING = 'picker [aria-label="Sending"]';
 const DIALOG = 'picker [role="dialog"]';
+const ALERT = 'picker [role="alert"]';
 const STATUS = 'picker [role="status"]';
+const MODELS = [
+	{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+	{ id: 'claude-opus-5-5', label: 'Opus 5.5' },
+];
+const ASK: PickerCommand = {
+	kind: 'prompt',
+	models: MODELS,
+	model: 'claude-sonnet-5-5',
+	error: null,
+};
 
 function inPage(code: string): unknown {
 	return globalThis.eval(code);
@@ -86,7 +105,7 @@ afterEach(async () => {
 });
 
 describe('the in-page element picker', () => {
-	it('picks a clicked element, takes a prompt, and leaves the page as it found it', async () => {
+	it('picks a clicked element, takes a prompt, spins while the thread starts, and leaves the page as it found it', async () => {
 		const selecting = run({ kind: 'select', reselect: false });
 		call('move', 'button');
 		call('click', 'button');
@@ -99,7 +118,7 @@ describe('the in-page element picker', () => {
 			viewport: { width: inPage('innerWidth'), height: inPage('innerHeight') },
 		});
 
-		const prompting = run({ kind: 'prompt' });
+		const prompting = run(ASK);
 		let answered = false;
 		void prompting.finally(() => {
 			answered = true;
@@ -108,11 +127,14 @@ describe('the in-page element picker', () => {
 		expect(call('attribute', DIALOG, 'aria-modal')).toBe('true');
 		expect(call('focused')).toBe('Prompt');
 		expect(call('disabled', SEND)).toBe(true);
+		expect(call('value', MODEL)).toBe('claude-sonnet-5-5');
 
 		call('type', FIELD, 'Make it green');
 		expect(call('disabled', SEND)).toBe(false);
 
 		call('press', FIELD, 'Tab', false);
+		expect(call('focused')).toBe('Model');
+		call('press', MODEL, 'Tab', false);
 		expect(call('focused')).toBe('Send');
 		call('press', SEND, 'Tab', false);
 		expect(call('focused')).toBe('Prompt');
@@ -122,25 +144,70 @@ describe('the in-page element picker', () => {
 		expect(answered).toBe(false);
 
 		call('press', FIELD, 'Enter', false);
-		await expect(prompting).resolves.toEqual({ kind: 'send', prompt: 'Make it green' });
+		await expect(prompting).resolves.toEqual({
+			kind: 'send',
+			prompt: 'Make it green',
+			model: 'claude-sonnet-5-5',
+		});
+		expect(call('disabled', SENDING)).toBe(true);
+		expect(call('disabled', FIELD)).toBe(true);
+		call('press', 'body', 'Escape', false);
+		expect(call('pickerOnPage')).toBe(true);
 
+		await run({ kind: 'end' });
 		expect(call('pageEvents')).toEqual([]);
 		expect(call('pickerOnPage')).toBe(false);
 		expect(call('unchanged')).toBe(true);
 	});
 
-	it('sends from the send button', async () => {
+	it('sends from the send button with the model the user chose', async () => {
 		const selecting = run({ kind: 'select', reselect: false });
 		call('click', 'h1');
 		await selecting;
 
-		const prompting = run({ kind: 'prompt' });
+		const prompting = run(ASK);
 		call('type', FIELD, 'Tighter heading');
+		call('choose', MODEL, 'claude-opus-5-5');
 		call('click', SEND);
 
-		await expect(prompting).resolves.toEqual({ kind: 'send', prompt: 'Tighter heading' });
+		await expect(prompting).resolves.toEqual({
+			kind: 'send',
+			prompt: 'Tighter heading',
+			model: 'claude-opus-5-5',
+		});
 		expect(call('pageEvents')).toEqual([]);
-		expect(call('unchanged')).toBe(true);
+	});
+
+	it('keeps the prompt and says why when the thread did not start', async () => {
+		const selecting = run({ kind: 'select', reselect: false });
+		call('click', 'h1');
+		await selecting;
+		const prompting = run(ASK);
+		call('type', FIELD, 'Tighter heading');
+		call('click', SEND);
+		await prompting;
+
+		const retrying = run({ ...ASK, model: 'claude-opus-5-5', error: 'Agent runtime unavailable' });
+
+		expect(call('text', ALERT)).toBe('Agent runtime unavailable');
+		expect(call('value', FIELD)).toBe('Tighter heading');
+		expect(call('value', MODEL)).toBe('claude-opus-5-5');
+		expect(call('disabled', SEND)).toBe(false);
+		expect(call('focused')).toBe('Prompt');
+		call('click', SEND);
+		await expect(retrying).resolves.toMatchObject({ kind: 'send', prompt: 'Tighter heading' });
+	});
+
+	it('hides the pins on the page while it picks', async () => {
+		inPage(
+			'globalThis.__pinsHidden = []; globalThis.__maliniPins = { hide: (hidden) => __pinsHidden.push(hidden) };',
+		);
+		const selecting = run({ kind: 'select', reselect: false });
+		await run({ kind: 'end' });
+		await selecting;
+
+		expect(inPage('__pinsHidden')).toEqual([true, false]);
+		inPage('delete globalThis.__maliniPins');
 	});
 
 	it('cancels on Escape and removes itself', async () => {
@@ -169,7 +236,7 @@ describe('the in-page element picker', () => {
 		call('click', 'button');
 		await selecting;
 
-		const prompting = run({ kind: 'prompt' });
+		const prompting = run(ASK);
 		call('click', 'h1');
 		await expect(prompting).resolves.toEqual({ kind: 'reselect' });
 
