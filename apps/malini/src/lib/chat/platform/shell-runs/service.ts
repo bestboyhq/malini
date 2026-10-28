@@ -22,8 +22,13 @@ import {
 const COLUMNS = 100;
 const ROWS = 30;
 const STDIN_AS_PIPE = '< <(exec /bin/cat)';
-// ponytail: macOS script(1) is the pty, so no native addon; no resize or full-screen programs, node-pty and xterm.js when those matter
-const PSEUDO_TERMINAL = `exec /usr/bin/script -q /dev/null /bin/sh -c 'stty cols ${COLUMNS} rows ${ROWS} 2>/dev/null; exec "$0" -c "$1"' "$0" "$1" ${STDIN_AS_PIPE}`;
+const SIZE_TERMINAL = `stty cols ${COLUMNS} rows ${ROWS} 2>/dev/null`;
+const MACOS_PSEUDO_TERMINAL = `exec /usr/bin/script -q /dev/null /bin/sh -c '${SIZE_TERMINAL}; exec "$0" -c "$1"' "$0" "$1" ${STDIN_AS_PIPE}`;
+const LINUX_PTY_COMMAND = `trap : INT; f=$MALINI_PTY_FEEDER s=$MALINI_PTY_SHELL c=$MALINI_PTY_COMMAND; unset MALINI_PTY_FEEDER MALINI_PTY_SHELL MALINI_PTY_COMMAND; SHELL=$s; ${SIZE_TERMINAL}; "$s" -c "$c"; e=$?; kill "$f"; exit "$e"`;
+const LINUX_PSEUDO_TERMINAL = `exec 3${STDIN_AS_PIPE}; MALINI_PTY_FEEDER=$! MALINI_PTY_SHELL="$0" MALINI_PTY_COMMAND="$1" SHELL=/bin/sh /usr/bin/script -qec '${LINUX_PTY_COMMAND}' /dev/null <&3 3<&-`;
+// ponytail: script(1) is the pty, so no native addon; no resize or full-screen programs, node-pty and xterm.js when those matter
+const PSEUDO_TERMINAL =
+	process.platform === 'darwin' ? MACOS_PSEUDO_TERMINAL : LINUX_PSEUDO_TERMINAL;
 const INTERRUPT = '\u0003';
 const MAX_COMMAND_LENGTH = 64 * 1024;
 const MAX_INPUT_LENGTH = 64 * 1024;
