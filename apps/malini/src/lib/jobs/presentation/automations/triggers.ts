@@ -148,7 +148,6 @@ const BUILTIN_TRIGGER_ICONS: Readonly<Partial<Record<JobBuiltin, IconName>>> = {
 	'name-services': 'terminal',
 	'fix-checks': 'pr-failed',
 	'update-from-main': 'branch',
-	'resolve-conflicts': 'swap',
 	'address-review': 'pr-open',
 	'check-compatibility': 'sparkles',
 	reconcile: 'route',
@@ -203,7 +202,8 @@ const MODE_SUFFIX: Readonly<Record<JobRunMode, string>> = {
 
 const THEN_FIRST: readonly JobBuiltin[] = ['open-draft', 'merge'];
 
-export const UPDATE_FROM_MAIN_THEN = 'Resolve conflicts, when the merge stops on conflicts';
+export const UPDATE_FROM_MAIN_THEN =
+	'Resolve conflicts, on its trigger, when the merge stops on conflicts';
 
 export function triggerById(id: string): Trigger {
 	return TRIGGERS.find((trigger) => trigger.id === id) ?? MANUAL_TRIGGER;

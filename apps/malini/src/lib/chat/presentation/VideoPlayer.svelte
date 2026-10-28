@@ -34,7 +34,8 @@
 	let restTimer: ReturnType<typeof setTimeout> | undefined;
 	let pendingSeek: number | null = null;
 	let loadedSrc: string | undefined;
-	let reloaded: { at: number; playing: boolean; speed: typeof speed } | null = null;
+	let reloaded = $state<{ at: number; playing: boolean; speed: typeof speed } | null>(null);
+	const stopped = $derived(reloaded ? !reloaded.playing : paused);
 	const length = $derived(Number.isFinite(duration) ? duration : 0);
 	const ratio = $derived(videoWidth > 0 && videoHeight > 0 ? videoWidth / videoHeight : 16 / 10);
 
@@ -67,24 +68,38 @@
 		if (autohide && video && !video.paused) restTimer = setTimeout(() => (resting = true), REST_MS);
 	}
 
+	function running(): boolean {
+		return reloaded ? reloaded.playing : video !== undefined && !video.paused;
+	}
+
 	export function toggle(): void {
-		if (!video) return;
-		if (video.paused) void video.play().catch(() => {});
-		else video.pause();
+		if (running()) hold();
+		else play();
+	}
+
+	function hold(): void {
+		if (reloaded) reloaded = { ...reloaded, playing: false };
+		else video?.pause();
+	}
+
+	function play(): void {
+		if (reloaded) reloaded = { ...reloaded, playing: true };
+		else void video?.play().catch(() => {});
 	}
 
 	function step(frames: number): void {
-		video?.pause();
+		hold();
 		time = Math.min(length, Math.max(0, time + frames / FPS));
 	}
 
 	function scrub(): void {
-		if (!video || video.paused) return;
-		video.pause();
-		addEventListener('pointerup', () => void video?.play().catch(() => {}), { once: true });
+		if (!running()) return;
+		hold();
+		addEventListener('pointerup', play, { once: true });
 	}
 
 	function seek(to: number): void {
+		if (reloaded) reloaded = { ...reloaded, at: to };
 		if (video?.seeking) pendingSeek = to;
 		else time = to;
 	}
@@ -138,7 +153,7 @@
 		></video>
 		<Button
 			bare
-			ariaLabel={onopen ? (openLabel ?? label) : paused ? `Play ${label}` : `Pause ${label}`}
+			ariaLabel={onopen ? (openLabel ?? label) : stopped ? `Play ${label}` : `Pause ${label}`}
 			tabindex={onopen ? 0 : -1}
 			class={['absolute inset-0 rounded-[inherit]', onopen ? 'cursor-zoom-in' : 'cursor-default']}
 			onclick={onopen ?? toggle}
@@ -152,12 +167,12 @@
 			aria-label="Video controls"
 		>
 			<MediaToolbarButton
-				tooltip={paused ? 'Play' : 'Pause'}
-				label={paused ? 'Play' : 'Pause'}
+				tooltip={stopped ? 'Play' : 'Pause'}
+				label={stopped ? 'Play' : 'Pause'}
 				square
 				onclick={toggle}
 			>
-				<Icon name={paused ? 'play' : 'pause'} size={14} />
+				<Icon name={stopped ? 'play' : 'pause'} size={14} />
 			</MediaToolbarButton>
 			<span class="hidden items-center @lg/player:flex">
 				<MediaToolbarButton

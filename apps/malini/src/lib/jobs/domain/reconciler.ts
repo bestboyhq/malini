@@ -9,6 +9,7 @@ import {
 	REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 	type EventChannel,
 } from '$contract/events';
@@ -16,6 +17,7 @@ import type {
 	ReconcilerCandidate,
 	ReconcilerDecider,
 	ReconcilerDecisionRecord,
+	WakeAbout,
 } from '$contract/jobs';
 
 export const RECONCILER_RULES = [
@@ -40,6 +42,8 @@ export const RULE_EVENTS: Readonly<Record<ReconcilerRule, readonly EventChannel[
 		JOBS_RUN_FINISHED_CHANNEL,
 		JOBS_TIME_REACHED_CHANNEL,
 		REPOSITORIES_WORKSTREAM_HEAD_MOVED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_PUSHED_CHANNEL,
+		REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 		REPOSITORIES_WORKSTREAM_FILES_CHANGED_CHANNEL,
 		REPOSITORIES_WORKSTREAM_REMOVED_CHANNEL,
 		APP_STARTED_CHANNEL,
@@ -102,6 +106,7 @@ export type JobRunSituation = Readonly<{
 	workstreamId: string | null;
 	workstreamName: string | null;
 	chat: ReconcilerChat | null;
+	handledBy: string | null;
 	retry: Readonly<{ definitionId: string; workstreamId: string; context: string }> | null;
 	runsInChain: number;
 	wakes: number;
@@ -114,6 +119,7 @@ export type ConflictSituation = Readonly<{
 	conflictedPaths: readonly string[];
 	resolverId: string | null;
 	chat: ReconcilerChat | null;
+	handledBy: string | null;
 	wakes: number;
 }>;
 
@@ -124,7 +130,21 @@ export type ReconcilerQuestion = Readonly<{
 	candidates: readonly ReconcilerCandidate[];
 }>;
 
+export type HandledSituation = Readonly<{
+	facts: readonly string[];
+	candidates: readonly ReconcilerCandidate[];
+	reason: string;
+}>;
+
 const NOTHING: ReconcilerCandidate = { kind: 'nothing', label: 'Do nothing' };
+
+export function handledSituation(situation: ReconcilerSituation): HandledSituation | null {
+	const reason =
+		situation.kind === 'conflict' || (situation.kind === 'job-run' && situation.chat === null)
+			? situation.handledBy
+			: null;
+	return reason === null ? null : { facts: facts(situation), candidates: [NOTHING], reason };
+}
 
 export function reconcilerQuestion(situation: ReconcilerSituation): ReconcilerQuestion | null {
 	const candidates = [NOTHING, ...actions(situation)];
@@ -164,6 +184,7 @@ function turnActions(situation: TurnFinishedSituation): ReconcilerCandidate[] {
 						situation.workstreamId,
 						`Wake “${starter.chatName}” with this report`,
 						turnReport(situation),
+						'workstream',
 					),
 				]
 			: []),
@@ -180,8 +201,9 @@ function turnActions(situation: TurnFinishedSituation): ReconcilerCandidate[] {
 }
 
 function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
-	const { chat, retry, status, title } = situation;
+	const { chat, retry, status, title, handledBy } = situation;
 	const verb = status === 'failed' ? 'failed' : 'finished';
+	const yours = handledBy === null;
 	return [
 		...(chat
 			? [
@@ -190,10 +212,11 @@ function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
 						situation.workstreamId ?? chat.workstreamId,
 						`Tell “${chat.chatName}” that ${title} ${verb}`,
 						jobReport(situation),
+						'job',
 					),
 				]
 			: []),
-		...(status === 'failed' && retry
+		...(status === 'failed' && retry && yours
 			? [
 					{
 						kind: 'run-job' as const,
@@ -204,7 +227,7 @@ function jobRunActions(situation: JobRunSituation): ReconcilerCandidate[] {
 					},
 				]
 			: []),
-		...(status === 'failed'
+		...(status === 'failed' && yours
 			? [
 					ask(
 						`${title} failed${situation.workstreamName ? ` in ${situation.workstreamName}` : ''}.`,
@@ -235,7 +258,8 @@ function conflictActions(situation: ConflictSituation): ReconcilerCandidate[] {
 						chat,
 						workstreamId,
 						`Tell “${chat.chatName}” about the conflicts`,
-						`A merge in “${workstreamName}” stopped on conflicts in ${files}: ${conflictedPaths.join(', ')}.`,
+						`A merge in “${workstreamName}”, in work you asked for, stopped on conflicts in ${files}: ${conflictedPaths.join(', ')}.`,
+						'conflict',
 					),
 				]
 			: []),
@@ -248,6 +272,7 @@ function wake(
 	from: string,
 	label: string,
 	report: string,
+	about: WakeAbout,
 ): ReconcilerCandidate {
 	return {
 		kind: 'wake-chat',
@@ -256,6 +281,7 @@ function wake(
 		workstreamId: chat.workstreamId,
 		from,
 		report,
+		about,
 	};
 }
 
@@ -294,6 +320,7 @@ function facts(situation: ReconcilerSituation): string[] {
 			return [
 				`Event: the job ${situation.title}${situation.workstreamName ? ` in “${situation.workstreamName}”` : ''} ${situation.status}.`,
 				...(situation.detail ? [`Its result: ${oneLine(situation.detail)}`] : []),
+				...(situation.handledBy ? [situation.handledBy] : []),
 				...(situation.chat
 					? [`The chat “${situation.chat.chatName}” ran it.`, chatState(situation.chat)]
 					: ['No chat ran it.']),
@@ -304,9 +331,13 @@ function facts(situation: ReconcilerSituation): string[] {
 			return [
 				`Event: a merge in “${situation.workstreamName}” stopped on conflicts in ${situation.conflictedPaths.length} ${situation.conflictedPaths.length === 1 ? 'file' : 'files'}.`,
 				`Conflicted: ${situation.conflictedPaths.slice(0, 8).join(', ')}`,
+				...(situation.handledBy ? [situation.handledBy] : []),
 				...(situation.chat
-					? [`Its chat is “${situation.chat.chatName}”.`, chatState(situation.chat)]
-					: ['No chat works in it.']),
+					? [
+							`“${situation.chat.chatName}” asked for the work that merged.`,
+							chatState(situation.chat),
+						]
+					: ['No chat asked for the work that merged.']),
 				...wakeFacts(situation.chat, situation.wakes),
 			];
 	}
@@ -436,10 +467,15 @@ export function wakesInChain(
 	}).length;
 }
 
-export function wakePrompt(reports: readonly string[]): string {
+export type WakeReport = Readonly<{ report: string; about: WakeAbout }>;
+
+export function wakePrompt(reports: readonly WakeReport[]): string {
+	const started = reports.some(({ about }) => about === 'workstream');
 	return [
-		'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and put what only the user can decide in your Needs line.',
-		...reports,
+		started
+			? 'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and put what only the user can decide in your Needs line.'
+			: 'Malini woke you: work you asked for moved on. Put what only the user can decide in your Needs line.',
+		...reports.map(({ report }) => report),
 	].join('\n\n');
 }
 

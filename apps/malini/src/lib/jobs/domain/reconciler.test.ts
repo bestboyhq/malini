@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ReconcilerCandidate, ReconcilerDecisionRecord } from '$contract/jobs';
 import {
 	RECONCILER_WAKE_LIMIT,
+	handledSituation,
 	outputPick,
 	pickOutput,
 	promptCandidates,
@@ -9,6 +10,7 @@ import {
 	reconcilerQuestion,
 	rulesReason,
 	validatePick,
+	wakePrompt,
 	wakesInChain,
 	type ReconcilerChat,
 	type TurnFinishedSituation,
@@ -104,6 +106,7 @@ describe('reconcilerQuestion', () => {
 			workstreamId: 'api',
 			workstreamName: 'Api analytics',
 			chat: null,
+			handledBy: null,
 			retry: { definitionId: 'fix-checks', workstreamId: 'api', context: 'PR #4' },
 			runsInChain: 1,
 			wakes: 0,
@@ -122,6 +125,7 @@ describe('reconcilerQuestion', () => {
 			conflictedPaths: ['src/a.ts', 'src/b.ts'],
 			resolverId: null,
 			chat: null,
+			handledBy: null,
 			wakes: 0,
 		});
 		expect(conflicted?.candidates).toEqual([
@@ -132,6 +136,69 @@ describe('reconcilerQuestion', () => {
 				reason: 'A merge in Api analytics stopped on conflicts in 2 files.',
 			},
 		]);
+	});
+});
+
+describe('handledSituation', () => {
+	it('records Do nothing with the reason when someone already owns the work, and asks nobody', () => {
+		const conflict = {
+			kind: 'conflict' as const,
+			workstreamId: 'api',
+			workstreamName: 'Api analytics',
+			conflictedPaths: ['src/a.ts'],
+			resolverId: 'resolve',
+			chat: null,
+			handledBy: 'Resolve conflicts is already resolving them.',
+			wakes: 0,
+		};
+		expect(handledSituation(conflict)).toEqual({
+			facts: [
+				'Event: a merge in “Api analytics” stopped on conflicts in 1 file.',
+				'Conflicted: src/a.ts',
+				'Resolve conflicts is already resolving them.',
+				'No chat asked for the work that merged.',
+			],
+			candidates: [{ kind: 'nothing', label: 'Do nothing' }],
+			reason: 'Resolve conflicts is already resolving them.',
+		});
+		expect(handledSituation({ ...conflict, handledBy: null })).toBeNull();
+	});
+
+	it('still lets the chat that ran a job hear how it ended when Merge takes the rest', () => {
+		const failed = {
+			kind: 'job-run' as const,
+			title: 'Resolve conflicts',
+			status: 'failed' as const,
+			detail: 'Timed out',
+			workstreamId: 'api',
+			workstreamName: 'Api analytics',
+			chat: null,
+			handledBy: 'Merge takes Resolve conflicts from here.',
+			retry: { definitionId: 'resolve', workstreamId: 'api', context: '' },
+			runsInChain: 1,
+			wakes: 0,
+		};
+		expect(handledSituation(failed)?.reason).toBe('Merge takes Resolve conflicts from here.');
+		expect(handledSituation({ ...failed, chat: LEAD })).toBeNull();
+		expect(
+			reconcilerQuestion({ ...failed, chat: LEAD })?.candidates.map(({ kind }) => kind),
+		).toEqual(['nothing', 'wake-chat']);
+	});
+});
+
+describe('wakePrompt', () => {
+	it('asks a chat to answer with workstreams_send only about workstreams it started', () => {
+		const job = { report: 'Fix checks, the job you ran, failed.', about: 'job' as const };
+		const child = {
+			report: '“Api analytics”, a workstream you started, finished a turn.',
+			about: 'workstream' as const,
+		};
+		expect(wakePrompt([job])).toBe(
+			'Malini woke you: work you asked for moved on. Put what only the user can decide in your Needs line.\n\nFix checks, the job you ran, failed.',
+		);
+		expect(wakePrompt([job, child]).split('\n\n')[0]).toBe(
+			'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and put what only the user can decide in your Needs line.',
+		);
 	});
 });
 
@@ -160,6 +227,7 @@ describe('rulesReason', () => {
 				conflictedPaths: ['src/a.ts'],
 				resolverId: null,
 				chat: LEAD,
+				handledBy: null,
 				wakes: 0,
 			}),
 		).toBeNull();

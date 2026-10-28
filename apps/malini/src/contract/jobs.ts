@@ -234,12 +234,13 @@ export type ScheduleTimeReached = Readonly<{
 	due: string;
 }>;
 
-export type ShippingWait = 'retry' | 'checks';
+export type ShippingWait = 'retry' | 'checks' | 'idle';
 
 export type ShippingTimeReached = Readonly<{
 	workstreamId: string;
 	wait: ShippingWait;
 	due: string;
+	causeEventId?: number;
 }>;
 
 export type ResumeTimeReached = Readonly<{
@@ -300,7 +301,7 @@ export type JobSuggestedEvent = Readonly<{ suggestion: JobSuggestionRecord }>;
 
 export type JobExperimentChangedEvent = Readonly<{ experiment: JobExperimentRecord }>;
 
-export type EventCauseKind = 'job-run' | 'chat-turn';
+export type EventCauseKind = 'job-run' | 'chat-turn' | 'event';
 
 export type EventCause = Readonly<{ kind: EventCauseKind; id: string }>;
 
@@ -314,6 +315,8 @@ export type LoggedEventRecord = Readonly<{
 	emittedAt: string;
 }>;
 
+export type WakeAbout = 'workstream' | 'job' | 'conflict';
+
 export type ReconcilerCandidate =
 	| Readonly<{ kind: 'nothing'; label: string }>
 	| Readonly<{
@@ -323,6 +326,7 @@ export type ReconcilerCandidate =
 			workstreamId: string;
 			from: string;
 			report: string;
+			about?: WakeAbout;
 	  }>
 	| Readonly<{
 			kind: 'run-job';

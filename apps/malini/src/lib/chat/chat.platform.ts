@@ -1,4 +1,5 @@
 export { AgentRunLeases, type Lease } from './platform/agent/lifecycle';
+export { isCancelRaceError } from './domain/prompt-dispatch-failure';
 export {
 	agentHasReadFile,
 	backgroundCommandSource,
@@ -21,6 +22,7 @@ export {
 	chatTurnSessionId,
 	getRunWorkstreamId,
 	getWorkstreamRun,
+	latestRunEndedAt,
 	listChatTurns,
 	listChatTurnsSince,
 	listOpenRuns,

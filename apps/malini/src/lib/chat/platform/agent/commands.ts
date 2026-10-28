@@ -594,7 +594,7 @@ export async function sendAgentPrompt(
 	log: (line: string) => void = defaultLog,
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
-	await leases.runChangeCaptureSettled(input.workstreamId);
+	if (input.automated === true) await leases.runChangeCaptureSettled(input.workstreamId);
 	await leases.checkoutSettled(input.workstreamId);
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {

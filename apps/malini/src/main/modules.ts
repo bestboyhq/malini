@@ -149,7 +149,7 @@ export async function registerModules(
 	const jobs = registerJobs(context, {
 		suggestTitle: (task, job) => chat.suggestTitle(task, job),
 		choose: (task, job, choices) => chat.choose(task, job, choices),
-		shipping: (event) => pullRequests.handle(event),
+		shipping: pullRequests.shipping,
 		resume: (event) => chat.resume(event),
 	});
 	jobs.start();
