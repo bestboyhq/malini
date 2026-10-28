@@ -235,7 +235,7 @@ describe('session commands', () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
 		expect(await invokeError('chat.start-session', { workstreamId: 'ws-1', origin: 'bot' })).toBe(
-			"invalid args: `origin` must be 'user' or 'job'",
+			"invalid args: `origin` must be 'user', 'job' or 'thread'",
 		);
 		expect(
 			await invokeError('chat.start-session', { workstreamId: 'ws-1', displayName: ' \n ' }),

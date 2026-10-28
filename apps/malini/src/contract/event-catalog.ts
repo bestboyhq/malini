@@ -21,7 +21,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'chat:turn-finished': {
 		description:
-			"Fires when a turn of one of your chats ends, not a job's, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
+			"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
 	},
 	'chat:mcp-server-changed': {
 		description:
@@ -192,6 +192,11 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	'browser:resize-requested': {
 		description:
 			"Fires when an agent asks to make the browser tab you see wider or narrower, with the width it asked for in Malini's pixels; Malini moves the divider between the chat and the inspector to match.",
+	},
+	'browser:thread-opened': {
+		description:
+			'Fires when you open the thread behind a pin on a page in the browser, with its workstream and chat; Malini shows that chat in a tab of its own. Malini does not keep it in its event log.',
+		logged: false,
 	},
 	'extensions:file-open-requested': {
 		description:

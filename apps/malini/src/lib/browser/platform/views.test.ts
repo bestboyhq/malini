@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserResizeRequest, BrowserState } from '$contract/browser';
 import { PREVIEW_LONG_EDGE } from './automation';
 import type { PageContents, PageEvents, PageImage, PageView, Rectangle } from './page';
+import type { PinAction, ThreadPin } from './thread-pins';
 import { BrowserViews, DEFAULT_VIEW_SIZE, NOTHING_OPEN, RESIZE_ANSWER_MS, toDip } from './views';
 
 class FakeWindow {
@@ -62,6 +63,7 @@ class FakeContents implements PageContents {
 	readonly loads: string[] = [];
 	readonly loadFailures: string[] = [];
 	readonly scripts: string[] = [];
+	readonly pinActions: unknown[] = [];
 	actionOutcome: unknown = 'done';
 	static #nextProcessId = 4_000;
 	readonly processId = FakeContents.#nextProcessId++;
@@ -150,7 +152,13 @@ class FakeContents implements PageContents {
 		const code = scripts[0]?.code ?? '';
 		this.scripts.push(code);
 		if (code.includes('"kind":"select"')) return new Promise(() => undefined);
-		if (code.includes('"kind":"end"')) return Promise.resolve(null);
+		if (code.includes('"kind":"end"') || code.includes('"kind":"show"'))
+			return Promise.resolve(null);
+		if (code.includes('"kind":"action"')) {
+			return this.pinActions.length > 0
+				? Promise.resolve(this.pinActions.shift())
+				: new Promise(() => undefined);
+		}
 		return Promise.resolve(this.actionOutcome);
 	}
 }
@@ -192,6 +200,19 @@ class FakeView implements PageView<FakeWindow> {
 }
 
 const TAB = { workstreamId: 'ws-1', tabId: 'tab-1' } as const;
+const PICK = {
+	...TAB,
+	model: 'claude-sonnet-5-5',
+	models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }],
+	profile: { effort: 'medium', mode: 'agent', access: 'auto', report: 'low' },
+} as const;
+const PAGE_PIN = {
+	sessionId: 'session-1',
+	domPath: 'main > p',
+	prompt: 'Remove this line',
+	status: 'working',
+	outcome: null,
+} as const;
 const OTHER_TAB = { workstreamId: 'ws-2', tabId: 'tab-1' } as const;
 
 const roots: string[] = [];
@@ -207,6 +228,8 @@ function setup(zoom = 1) {
 	const opened: unknown[] = [];
 	const resizes: BrowserResizeRequest[] = [];
 	const resets = new Map<FakeWindow, () => void>();
+	const threads: ThreadPin[] = [];
+	const actions: Array<readonly [string, PinAction]> = [];
 	const browser = new BrowserViews<FakeWindow>({
 		getMainWindow: () => window,
 		onScreen: (shown) => shown.onScreen,
@@ -224,6 +247,11 @@ function setup(zoom = 1) {
 		stateChanged: (state) => states.push(state),
 		tabOpened: (tab) => opened.push(tab),
 		resizeRequested: (request) => resizes.push(request),
+		threads: (workstreamId) => (workstreamId === 'ws-1' ? threads : []),
+		startThread: async () => 'session-1',
+		threadAction: async (tab, action) => {
+			actions.push([tab.tabId, action]);
+		},
 	});
 	const viewAt = (index: number): FakeView => {
 		const view = views[index];
@@ -236,6 +264,8 @@ function setup(zoom = 1) {
 		states,
 		opened,
 		resizes,
+		threads,
+		actions,
 		viewAt,
 		resetRenderer(of: FakeWindow): void {
 			resets.get(of)?.();
@@ -651,11 +681,11 @@ describe('BrowserViews', () => {
 
 	it('keeps one pick per view: a new pick or a cancel ends the open one', async () => {
 		const { browser, viewAt, window } = setup();
-		await expect(browser.pick(TAB)).rejects.toThrow('Open a page before picking an element.');
+		await expect(browser.pick(PICK)).rejects.toThrow('Open a page before picking an element.');
 		await browser.open(TAB, 'https://example.com');
 
-		const first = browser.pick(TAB);
-		const second = browser.pick(TAB);
+		const first = browser.pick(PICK);
+		const second = browser.pick(PICK);
 		await expect(first).resolves.toBeNull();
 		browser.cancelPick(TAB);
 		await expect(second).resolves.toBeNull();
@@ -663,6 +693,30 @@ describe('BrowserViews', () => {
 		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));
 		expect(ends).toHaveLength(2);
 		expect(window().focusCount).toBe(2);
+	});
+
+	it('pins the threads started on the page it shows, and hands back what the user does with one', async () => {
+		const { browser, threads, actions, viewAt } = setup();
+		threads.push(
+			{ ...PAGE_PIN, url: 'https://example.com/#pricing' },
+			{ ...PAGE_PIN, sessionId: 'session-2', url: 'https://example.com/other' },
+		);
+		await browser.open(TAB, 'https://example.com/');
+		const { contents } = viewAt(0);
+		contents.pinActions.push({ kind: 'open', sessionId: 'session-1' });
+
+		browser.showThreads('ws-1');
+
+		const shown = contents.scripts.filter((code) => code.includes('"kind":"show"'));
+		expect(shown).toHaveLength(1);
+		expect(shown[0]).toContain('"sessionId":"session-1"');
+		expect(shown[0]).not.toContain('session-2');
+		await expect.poll(() => actions).toEqual([['tab-1', { kind: 'open', sessionId: 'session-1' }]]);
+
+		viewAt(0).events.navigating();
+		threads.splice(0);
+		browser.showThreads('ws-1');
+		expect(contents.scripts.filter((code) => code.includes('"kind":"show"'))).toHaveLength(1);
 	});
 
 	it('asks malini to resize a tab the user sees, then reports the width its page got', async () => {

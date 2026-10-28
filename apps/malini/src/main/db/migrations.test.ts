@@ -409,6 +409,46 @@ describe('migrate', () => {
 		db.close();
 	});
 
+	it('lets a chat be a thread from a page, keeping every chat and what hangs off it', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const rebuilt = MIGRATIONS.findIndex((migration) => migration.includes('agent_sessions_next'));
+		for (const migration of MIGRATIONS.slice(0, rebuilt)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + rebuilt};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO agent_sessions (id, workstream_id, model, status, started_at, display_name, origin)
+			  VALUES ('s', 'w', 'claude-opus-5-5', 'completed', '2026-10-27T00:00:00Z', 'Chat', 'job');
+			INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES ('r', 's', 'hi', '2026-10-27T00:00:00Z');
+			INSERT INTO agent_events (session_id, run_id, event, emitted_at) VALUES ('s', 'r', 'user.message' || char(10) || '{}', '2026-10-27T00:00:00Z');
+			INSERT INTO agent_event_packs (session_id, events) VALUES ('s', x'00');
+		`);
+
+		migrate(db);
+
+		expect(get(db, 'SELECT origin, display_name, status FROM agent_sessions')).toEqual({
+			origin: 'job',
+			display_name: 'Chat',
+			status: 'completed',
+		});
+		expect(scalar(db, 'SELECT count(*) FROM agent_runs')).toBe(1);
+		expect(scalar(db, 'SELECT count(*) FROM agent_events')).toBe(1);
+		expect(scalar(db, 'SELECT count(*) FROM agent_event_packs')).toBe(1);
+		expect(all(db, 'PRAGMA foreign_key_check')).toEqual([]);
+		expect(scalar(db, 'PRAGMA foreign_keys')).toBe(1);
+		db.exec(
+			"INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('t', 'w', 'idle', '2026-10-28T00:00:00Z', 'thread')",
+		);
+		expect(() =>
+			db.exec(
+				"INSERT INTO agent_sessions (id, workstream_id, status, started_at, origin) VALUES ('x', 'w', 'idle', '2026-10-28T00:00:00Z', 'nonsense')",
+			),
+		).toThrow();
+		db.exec("DELETE FROM agent_event_packs WHERE session_id = 's'");
+		expect(() => db.exec("DELETE FROM agent_sessions WHERE id = 's'")).toThrow();
+		db.close();
+	});
+
 	it('drops the always-allowed open draft rules now that the agent runs the Open draft job', () => {
 		const db = openDatabase(':memory:');
 		db.exec(SCHEMA);

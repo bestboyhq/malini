@@ -1,14 +1,17 @@
 import type {
 	BrowserBounds,
-	BrowserElementPrompt,
+	BrowserPickArgs,
 	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserThreadOpened,
+	BrowserThreadStarted,
 } from '$contract/browser';
 import {
 	BROWSER_RESIZE_REQUESTED_CHANNEL,
 	BROWSER_STATE_CHANGED_CHANNEL,
 	BROWSER_TAB_OPENED_CHANNEL,
+	BROWSER_THREAD_OPENED_CHANNEL,
 } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -24,6 +27,10 @@ class BrowserService {
 
 	onTabOpened(listener: (tab: BrowserTabArgs) => void): () => void {
 		return onPlatformEvent(BROWSER_TAB_OPENED_CHANNEL, listener);
+	}
+
+	onThreadOpened(listener: (thread: BrowserThreadOpened) => void): () => void {
+		return onPlatformEvent(BROWSER_THREAD_OPENED_CHANNEL, listener);
 	}
 
 	onResizeRequested(listener: (request: BrowserResizeRequest) => void): () => void {
@@ -62,8 +69,8 @@ class BrowserService {
 		return invoke('browser.reload', tab);
 	}
 
-	pickElement(tab: BrowserTabArgs): Promise<BrowserElementPrompt | null> {
-		return invoke('browser.pick-element', tab);
+	pickElement(args: BrowserPickArgs): Promise<BrowserThreadStarted | null> {
+		return invoke('browser.pick-element', args);
 	}
 
 	cancelPick(tab: BrowserTabArgs): Promise<void> {

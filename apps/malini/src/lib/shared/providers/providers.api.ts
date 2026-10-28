@@ -29,6 +29,7 @@ export {
 	effortsForModel,
 	modelLabel,
 	normalizeReasoningEffort,
+	pickerModels,
 	type AgentModelInfo,
 } from './domain/model-catalog';
 

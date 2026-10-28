@@ -1,5 +1,10 @@
 import type { LiveEventEnvelope } from './agent';
-import type { BrowserResizeRequest, BrowserState, BrowserTabArgs } from './browser';
+import type {
+	BrowserResizeRequest,
+	BrowserState,
+	BrowserTabArgs,
+	BrowserThreadOpened,
+} from './browser';
 import type { GithubReach } from './github-failure';
 import type {
 	AgentActionChangedEvent,
@@ -220,6 +225,7 @@ export interface ContractEvents {
 	'browser:state-changed': BrowserState;
 	'browser:tab-opened': BrowserTabArgs;
 	'browser:resize-requested': BrowserResizeRequest;
+	'browser:thread-opened': BrowserThreadOpened;
 	'extensions:file-open-requested': FileOpenRequestedPayload;
 	'stats:resources-sampled': ResourceSample;
 	'stats:workstream-running-changed': readonly WorkstreamRunning[];
@@ -274,6 +280,7 @@ const EVENT_CHANNEL_INDEX: Readonly<Record<EventChannel, null>> = {
 	'browser:state-changed': null,
 	'browser:tab-opened': null,
 	'browser:resize-requested': null,
+	'browser:thread-opened': null,
 	'extensions:file-open-requested': null,
 	'stats:resources-sampled': null,
 	'stats:workstream-running-changed': null,
@@ -356,6 +363,8 @@ export const BROWSER_STATE_CHANGED_CHANNEL = 'browser:state-changed' satisfies E
 export const BROWSER_TAB_OPENED_CHANNEL = 'browser:tab-opened' satisfies EventChannel;
 
 export const BROWSER_RESIZE_REQUESTED_CHANNEL = 'browser:resize-requested' satisfies EventChannel;
+
+export const BROWSER_THREAD_OPENED_CHANNEL = 'browser:thread-opened' satisfies EventChannel;
 
 export const EXTENSIONS_FILE_OPEN_REQUESTED_CHANNEL =
 	'extensions:file-open-requested' satisfies EventChannel;

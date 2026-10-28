@@ -15,6 +15,16 @@ import {
 	settleAnimations,
 } from './harness';
 
+type PageInput =
+	| {
+			type: 'mouseMove' | 'mouseDown' | 'mouseUp';
+			x: number;
+			y: number;
+			button?: 'left';
+			clickCount?: number;
+	  }
+	| { type: 'char' | 'keyDown' | 'keyUp'; keyCode: string };
+
 async function openTab(page: Page, origin: string, path: string): Promise<void> {
 	await page.getByRole('button', { name: 'Open inspector panel' }).click();
 	await page.getByRole('menuitem', { name: 'New browser tab' }).click();
@@ -256,6 +266,126 @@ test('a new browser tab takes the cursor and explains itself, keeps its page und
 			`${origin.replace('http://', '')}/admin`,
 		);
 		await expect(inspector.getByText('Open a page')).toHaveCount(0);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('a picked element starts its own thread, pinned where you asked, that opens as its own tab and leaves the main chat alone', async () => {
+	test.setTimeout(180_000);
+	const server = createServer((_request, response) => {
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end(
+			'<!doctype html><title>Pricing</title><main style="padding:80px"><h1>Pricing</h1><p>Plans for every team.</p></main>',
+		);
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const inPage = (code: string) =>
+			electronApp.evaluate(
+				({ webContents }, { code, origin }) =>
+					webContents
+						.getAllWebContents()
+						.find((contents) => contents.getURL().startsWith(origin))
+						?.executeJavaScript(code),
+				{ code, origin },
+			);
+		const input = (events: readonly PageInput[]) =>
+			electronApp.evaluate(
+				async ({ webContents }, { events, origin }) => {
+					const contents = webContents
+						.getAllWebContents()
+						.find((candidate) => candidate.getURL().startsWith(origin));
+					if (!contents) throw new Error(`no page at ${origin}`);
+					for (const event of events) {
+						contents.sendInputEvent(event);
+						await new Promise((resolve) => setTimeout(resolve, 20));
+					}
+				},
+				{ events, origin },
+			);
+		const clickAt = async (selector: string) => {
+			const point: { x: number; y: number } = await inPage(`(() => {
+				const found = ${selector};
+				const box = found.getBoundingClientRect();
+				return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+			})()`);
+			await input([
+				{ type: 'mouseMove', ...point },
+				{ type: 'mouseDown', ...point, button: 'left', clickCount: 1 },
+				{ type: 'mouseUp', ...point, button: 'left', clickCount: 1 },
+			]);
+		};
+		const pins = `document.querySelector('malini-pins')?.shadowRoot`;
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-thread-ws',
+			'Browser thread',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+		await sendPrompt(page, 'Hello main chat');
+		await expectAssistantReply(page);
+		const chatTabs = page.getByTestId('chat-agent-tab');
+		await expect(chatTabs).toHaveCount(1);
+
+		await openTab(page, origin, '/pricing');
+		await expect(inspector.getByRole('tab', { name: 'Pricing', selected: true })).toBeVisible();
+		await expect.poll(() => inPage('document.readyState')).toBe('complete');
+		const pick = page.getByRole('button', { name: 'Pick an element' });
+		await expect(pick).toBeEnabled();
+		await pick.click();
+		await expect(pick).toHaveAttribute('aria-pressed', 'true');
+		await expect.poll(() => inPage(`Boolean(document.querySelector('malini-picker'))`)).toBe(true);
+		await clickAt(`document.querySelector('h1')`);
+		await expect
+			.poll(() =>
+				inPage(
+					`document.querySelector('malini-picker').shadowRoot.activeElement?.getAttribute('aria-label')`,
+				),
+			)
+			.toBe('Prompt');
+		await input(
+			[...'Make the title bigger'].map((keyCode) => ({ type: 'char' as const, keyCode })),
+		);
+		await input([
+			{ type: 'keyDown', keyCode: 'Enter' },
+			{ type: 'char', keyCode: '\r' },
+			{ type: 'keyUp', keyCode: 'Enter' },
+		]);
+
+		await expect
+			.poll(() => inPage(`${pins}?.querySelector('button.pin')?.getAttribute('aria-label')`), {
+				timeout: 30_000,
+			})
+			.toBe('Thread: Make the title bigger · Done');
+		await expect(page.getByRole('button', { name: 'Pick an element' })).toHaveAttribute(
+			'aria-pressed',
+			'false',
+		);
+		await expect(chatTabs).toHaveCount(1);
+		await expect(page.getByText('Make the title bigger')).toHaveCount(0);
+
+		await clickAt(`${pins}.querySelector('button.pin')`);
+		await expect.poll(() => inPage(`${pins}.querySelector('[role="dialog"]').hidden`)).toBe(false);
+		await clickAt(
+			`Array.from(${pins}.querySelectorAll('button')).find((button) => button.textContent === 'Open chat')`,
+		);
+		await expect(chatTabs).toHaveCount(2);
+		await expect(page.getByText('Make the title bigger').first()).toBeVisible({ timeout: 20_000 });
+		await captureFlow(app, 'browser-thread-opened');
+
+		await page.locator('[data-testid="chat-agent-tab"][aria-selected="false"]').click();
+		await expect(page.getByText('Hello main chat').first()).toBeVisible();
+		await expect(page.getByText('Make the title bigger')).toHaveCount(0);
+		await expect(chatTabs).toHaveCount(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

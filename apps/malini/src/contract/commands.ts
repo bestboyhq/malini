@@ -24,12 +24,13 @@ import type {
 } from './agent';
 import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
 import type {
-	BrowserElementPrompt,
 	BrowserNavigateArgs,
+	BrowserPickArgs,
 	BrowserResizedArgs,
 	BrowserShowArgs,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserThreadStarted,
 } from './browser';
 import type { DiagnosticEntry, RecentDiagnosticsArgs, ReportToastArgs } from './diagnostics';
 import type { GithubReach } from './github-failure';
@@ -406,7 +407,7 @@ export interface ContractCommands {
 	'browser.reload': { args: BrowserTabArgs; result: void };
 	'browser.state': { args: BrowserTabArgs; result: BrowserState };
 	'browser.snapshot': { args: BrowserTabArgs; result: string | null };
-	'browser.pick-element': { args: BrowserTabArgs; result: BrowserElementPrompt | null };
+	'browser.pick-element': { args: BrowserPickArgs; result: BrowserThreadStarted | null };
 	'browser.cancel-pick': { args: BrowserTabArgs; result: void };
 	'browser.close': { args: BrowserTabArgs; result: void };
 	'browser.resized': { args: BrowserResizedArgs; result: void };

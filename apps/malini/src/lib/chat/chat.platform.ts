@@ -4,11 +4,13 @@ export {
 	backgroundCommandSource,
 	latestSessionReport,
 	latestWorkstreamTurn,
+	listElementThreads,
 	listOpenBackgroundCommands,
 	sessionHasWorkingRun,
 	shownMediaPaths,
 	turnEndedOverBackgroundCommands,
 	type BackgroundCommandSource,
+	type ElementThread,
 	type OpenBackgroundCommand,
 } from './platform/events.repository';
 export {
@@ -32,6 +34,7 @@ export {
 export {
 	getSession,
 	latestSessionForWorkstream,
+	threadWorkstreamId,
 	userSessionWorkstreamId,
 } from './platform/sessions.repository';
 export { workstreamShipContext } from './platform/ship-context.repository';

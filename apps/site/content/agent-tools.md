@@ -27,7 +27,11 @@ Malini moves the divider between the chat and the inspector, the one you drag, a
 The chat and the inspector keep their minimum widths, so the page may end up narrower or wider than asked, and the agent hears how wide it got.
 Only the tab you see resizes: while you look at another tab or workstream, or Malini is hidden, its width stays and the agent hears why.
 
-You can also pick an element on a page, and it lands in your prompt.
+You can also pick an element on a page and ask for a change right there.
+Malini starts a thread of its own for it, on the model you pick in that box, and remembers that model for the next one; your chat stays as it was.
+A pin on the element spins while the thread works, turns amber when it needs you, green when it is done and red when it fails.
+Click the pin for your prompt and the thread's outcome.
+**Open chat** shows the thread in a tab of its own until you switch away, and **Dismiss** removes the pin and stops the thread.
 A page that asks for your microphone or camera asks you first, and Malini remembers your answer until it quits.
 The agent's screenshots work while Malini is hidden, minimized, or behind other windows, so you can keep working elsewhere.
 

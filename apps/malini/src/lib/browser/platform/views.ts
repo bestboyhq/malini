@@ -1,9 +1,12 @@
+import type { AgentRunProfile } from '$contract/agent';
 import type {
 	BrowserBounds,
 	BrowserElementPrompt,
+	BrowserPickArgs,
 	BrowserResizeRequest,
 	BrowserState,
 	BrowserTabArgs,
+	BrowserThreadStarted,
 } from '$contract/browser';
 import type {
 	BrowserPageInfo,
@@ -21,7 +24,15 @@ import {
 	within,
 } from './automation';
 import type { HostWindow, PageContents, PageEvents, PageView, Rectangle } from './page';
-import { pickElement, pickerPage } from './picker';
+import { pickElement, pickerPage, untilAborted } from './picker';
+import {
+	pinsOnPage,
+	pinsPage,
+	readPinAction,
+	type PinAction,
+	type PinsPage,
+	type ThreadPin,
+} from './thread-pins';
 import { BLANK_PAGE, isFileAddress, normalizeBrowserUrl, worktreeFileUrl } from './url';
 
 export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
@@ -39,6 +50,13 @@ export interface BrowserViewsDeps<W extends HostWindow> {
 	stateChanged(state: BrowserState): void;
 	tabOpened(tab: BrowserTabArgs): void;
 	resizeRequested(request: BrowserResizeRequest): void;
+	threads(workstreamId: string): readonly ThreadPin[];
+	startThread(
+		tab: BrowserTabArgs,
+		picked: BrowserElementPrompt,
+		profile: AgentRunProfile,
+	): Promise<string>;
+	threadAction(tab: BrowserTabArgs, action: PinAction): Promise<void>;
 }
 
 interface OpenPick {
@@ -57,6 +75,7 @@ interface Entry<W extends HostWindow> {
 	lastUrl: string;
 	failure: string | null;
 	pick: OpenPick | null;
+	pinActions: AbortController | null;
 }
 
 export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
@@ -156,7 +175,8 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		return image && `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`;
 	}
 
-	async pick(tab: BrowserTabArgs): Promise<BrowserElementPrompt | null> {
+	async pick(args: BrowserPickArgs): Promise<BrowserThreadStarted | null> {
+		const tab = { workstreamId: args.workstreamId, tabId: args.tabId };
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
 		if (!contents || !entry) throw new Error('Open a page before picking an element.');
@@ -166,7 +186,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		}
 		const controller = new AbortController();
 		contents.focus();
-		const picking = pickElement(pickerPage(contents), controller.signal);
+		const picking = pickElement(
+			pickerPage(contents),
+			controller.signal,
+			{ model: args.model, models: args.models },
+			(picked) => this.deps.startThread(tab, picked, args.profile),
+		);
 		const pick: OpenPick = { controller, done: picking.catch(() => null) };
 		entry.pick = pick;
 		try {
@@ -174,6 +199,13 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		} finally {
 			if (entry.pick === pick) entry.pick = null;
 			this.returnFocus(entry);
+			this.showPins(entry);
+		}
+	}
+
+	showThreads(workstreamId: string): void {
+		for (const entry of this.entries.values()) {
+			if (entry.tab.workstreamId === workstreamId) this.showPins(entry);
 		}
 	}
 
@@ -351,7 +383,12 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 					entry.favicon = favicon;
 					this.changed(entry);
 				},
-				navigating: () => entry.pick?.controller.abort(),
+				navigating: () => {
+					entry.pick?.controller.abort();
+					this.stopPins(entry);
+				},
+				ready: () => this.showPins(entry),
+				movedInPage: () => this.showPins(entry),
 				committed: () => {
 					entry.failure = null;
 				},
@@ -362,6 +399,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 				gone: () => {
 					entry.alive = false;
 					entry.pick?.controller.abort();
+					this.stopPins(entry);
 				},
 			}),
 			window: null,
@@ -371,6 +409,7 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 			lastUrl: previous?.lastUrl ?? '',
 			failure: null,
 			pick: null,
+			pinActions: null,
 		};
 		entry.view.setBounds(entry.bounds);
 		entry.view.setBorderRadius(CORNER_RADIUS);
@@ -412,9 +451,44 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		if (entry.view.contents.isFocused()) window.webContents.focus();
 	}
 
+	private showPins(entry: Entry<W>): void {
+		if (!entry.alive || this.entries.get(tabKey(entry.tab)) !== entry) return;
+		const contents = this.openContents(entry.tab);
+		if (!contents || entry.pick) return;
+		const pins = pinsOnPage(this.deps.threads(entry.tab.workstreamId), contents.getURL());
+		if (pins.length === 0 && entry.pinActions === null) return;
+		const page = pinsPage(contents);
+		void page.run({ kind: 'show', pins }).catch(() => undefined);
+		if (entry.pinActions === null) void this.watchPins(entry, page);
+	}
+
+	private async watchPins(entry: Entry<W>, page: PinsPage): Promise<void> {
+		const controller = new AbortController();
+		entry.pinActions = controller;
+		try {
+			for (;;) {
+				const action = readPinAction(
+					await untilAborted(page.run({ kind: 'action' }), controller.signal),
+				);
+				if (action === null || controller.signal.aborted) return;
+				await this.deps.threadAction(entry.tab, action);
+			}
+		} catch {
+			return;
+		} finally {
+			if (entry.pinActions === controller) entry.pinActions = null;
+		}
+	}
+
+	private stopPins(entry: Entry<W>): void {
+		entry.pinActions?.abort();
+		entry.pinActions = null;
+	}
+
 	private dispose(entry: Entry<W>): void {
 		entry.alive = false;
 		entry.pick?.controller.abort();
+		this.stopPins(entry);
 		if (entry.window && !entry.window.isDestroyed()) entry.view.removeFrom(entry.window);
 		entry.view.close();
 	}

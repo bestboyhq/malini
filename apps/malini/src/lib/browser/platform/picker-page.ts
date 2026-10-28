@@ -1,10 +1,17 @@
+export type PickerModel = { readonly id: string; readonly label: string };
+
 export type PickerCommand =
 	| { readonly kind: 'select'; readonly reselect: boolean }
-	| { readonly kind: 'prompt' }
+	| {
+			readonly kind: 'prompt';
+			readonly models: readonly PickerModel[];
+			readonly model: string;
+			readonly error: string | null;
+	  }
 	| { readonly kind: 'end' };
 
 export function pickerScript(command: PickerCommand): string {
-	return `(${PICKER_PROGRAM})(${JSON.stringify(command)}, ${JSON.stringify(PICKER_CSS)})`;
+	return `(${PICKER_PROGRAM})(${JSON.stringify(command)}, ${JSON.stringify(PICKER_CSS)}, ${JSON.stringify(GLYPHS)})`;
 }
 
 export function sourceScript(domPath: string): string {
@@ -12,26 +19,42 @@ export function sourceScript(domPath: string): string {
 }
 
 /* eslint-disable @malini/desktop/no-literal-product-colors */
-const PAGE_PALETTE = {
-	surface: '#312f2d',
+export const PAGE_PALETTE = {
+	surface: '#2a2927',
+	raised: '#312f2d',
 	border: '#42403f',
+	borderSoft: '#42403f99',
 	text: '#f7f5f3',
+	secondary: '#b8b5b2',
 	faint: '#86817e',
 	placeholder: '#74706d',
 	accent: '#3e9df3',
 	accentFill: '#3e9df31f',
 	accentRing: '#3e9df359',
+	success: '#4eda84',
+	attention: '#ffb224',
+	danger: '#fa716f',
 	send: '#fcfbfb',
 	sendHover: '#ede9e7',
 	sendText: '#161413',
-	sendDisabled: '#2a2927',
 	sendDisabledText: '#696563',
 	shadow: '#00000066',
 	shadowNear: '#00000033',
 } as const;
 /* eslint-enable @malini/desktop/no-literal-product-colors */
 
-const SYSTEM_FONT = `-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif`;
+export const GLYPHS = {
+	arrowUp: 'M8 12.75v-9.5M4.25 7 8 3.25 11.75 7',
+	chevronDown: 'M4.25 6.25 8 10l3.75-3.75',
+	check: 'M3.25 8.25l3 3 6.5-6.5',
+	close: 'M4.25 4.25l7.5 7.5M11.75 4.25l-7.5 7.5',
+	element:
+		'M2.25 3.5V2.25H3.5M6 2.25h1M9.5 2.25h1.25V3.5M2.25 6v1M2.25 9.5v1.25H3.5M6.75 6.75 13.5 9.25 10.5 10.5 9.25 13.5Z',
+	alert: 'M8 4.25v4.5M8 11.5h.01',
+	chat: 'M13.25 9.75a2 2 0 0 1-2 2H5.5l-2.75 2v-9a2 2 0 0 1 2-2h6.5a2 2 0 0 1 2 2Z',
+} as const;
+
+export const SYSTEM_FONT = `-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif`;
 const MONO_FONT = `ui-monospace, 'SF Mono', Menlo, monospace`;
 
 const PICKER_CSS = `
@@ -53,43 +76,64 @@ const PICKER_CSS = `
 .tag {
 	position: fixed; top: 0; left: 0; display: flex; align-items: baseline; gap: 6px;
 	box-sizing: border-box; max-width: calc(100vw - 12px); padding: 2px 7px;
-	border: 1px solid ${PAGE_PALETTE.border}; border-radius: 6px; background: ${PAGE_PALETTE.surface};
+	border: 1px solid ${PAGE_PALETTE.border}; border-radius: 6px; background: ${PAGE_PALETTE.raised};
 	box-shadow: 0 2px 8px ${PAGE_PALETTE.shadowNear};
 	font: 500 11px/16px ${MONO_FONT}; white-space: nowrap;
 }
-.tag-name, .panel-name { overflow: hidden; text-overflow: ellipsis; }
-.tag-size, .panel-size { flex: none; color: ${PAGE_PALETTE.faint}; font-weight: 400; }
+.tag-name, .chip-name { overflow: hidden; text-overflow: ellipsis; }
+.tag-size { flex: none; color: ${PAGE_PALETTE.faint}; font-weight: 400; }
 .hint {
 	position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
 	display: flex; gap: 8px; padding: 6px 12px;
-	border: 1px solid ${PAGE_PALETTE.border}; border-radius: 999px; background: ${PAGE_PALETTE.surface};
+	border: 1px solid ${PAGE_PALETTE.border}; border-radius: 999px; background: ${PAGE_PALETTE.raised};
 	box-shadow: 0 8px 24px ${PAGE_PALETTE.shadow}; font-size: 12px; line-height: 16px; white-space: nowrap;
 }
 .hint.bottom { top: auto; bottom: 12px; }
 .hint-keys { color: ${PAGE_PALETTE.faint}; }
 .panel {
-	position: fixed; top: 0; left: 0; display: flex; flex-direction: column; gap: 4px;
-	box-sizing: border-box; padding: 8px 8px 8px 12px;
-	border: 1px solid ${PAGE_PALETTE.border}; border-radius: 12px; background: ${PAGE_PALETTE.surface};
-	box-shadow: 0 12px 32px ${PAGE_PALETTE.shadow}, 0 2px 6px ${PAGE_PALETTE.shadowNear};
-	pointer-events: auto; animation: malini-picker-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+	position: fixed; top: 0; left: 0; display: flex; flex-direction: column;
+	box-sizing: border-box; overflow: hidden;
+	border: 1px solid ${PAGE_PALETTE.borderSoft}; border-radius: 12px; background: ${PAGE_PALETTE.surface};
+	box-shadow: 0 16px 40px ${PAGE_PALETTE.shadow}, 0 2px 8px ${PAGE_PALETTE.shadowNear};
+	pointer-events: auto; transition: border-color 150ms ease-out;
+	animation: malini-picker-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.panel:focus-within {
-	border-color: ${PAGE_PALETTE.accent};
-	box-shadow: 0 0 0 3px ${PAGE_PALETTE.accentRing}, 0 12px 32px ${PAGE_PALETTE.shadow}, 0 2px 6px ${PAGE_PALETTE.shadowNear};
+.panel:hover, .panel:focus-within { border-color: ${PAGE_PALETTE.border}; }
+.chips { display: flex; padding: 10px 12px 0; }
+.chip {
+	display: inline-flex; align-items: center; gap: 5px; max-width: 100%; box-sizing: border-box;
+	height: 22px; padding: 0 7px 0 6px; border: 1px solid ${PAGE_PALETTE.border}; border-radius: 6px;
+	background: ${PAGE_PALETTE.raised}; color: ${PAGE_PALETTE.secondary};
+	font: 12px/16px ${MONO_FONT}; white-space: nowrap;
 }
-.panel-label {
-	display: flex; gap: 6px; padding-right: 4px;
-	color: ${PAGE_PALETTE.faint}; font: 11px/16px ${MONO_FONT}; white-space: nowrap;
-}
+.chip svg { flex: none; width: 12px; height: 12px; color: ${PAGE_PALETTE.faint}; }
 .field {
-	all: unset; display: block; box-sizing: border-box; width: 100%; min-height: 40px; max-height: 160px;
-	overflow-y: auto; padding-right: 4px; color: ${PAGE_PALETTE.text}; font: inherit; line-height: 20px;
-	white-space: pre-wrap; overflow-wrap: anywhere; caret-color: ${PAGE_PALETTE.accent}; cursor: text;
+	all: unset; display: block; box-sizing: border-box; width: 100%; min-height: 48px; max-height: 168px;
+	overflow-y: auto; padding: 8px 14px 4px; color: ${PAGE_PALETTE.text}; font: inherit; font-size: 14px;
+	line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; caret-color: ${PAGE_PALETTE.text};
+	cursor: text;
 }
 .field::placeholder { color: ${PAGE_PALETTE.placeholder}; opacity: 1; }
-.foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.keys { color: ${PAGE_PALETTE.faint}; font-size: 11px; line-height: 16px; }
+.field:disabled { color: ${PAGE_PALETTE.secondary}; cursor: default; }
+.error { padding: 2px 14px 0; color: ${PAGE_PALETTE.danger}; font-size: 12px; line-height: 16px; }
+.foot {
+	display: flex; align-items: center; justify-content: space-between; gap: 8px;
+	height: 44px; box-sizing: border-box; padding: 0 8px 4px;
+}
+.model {
+	position: relative; display: inline-flex; align-items: center; min-width: 0; max-width: 60%;
+	height: 28px; border-radius: 6px; color: ${PAGE_PALETTE.secondary};
+}
+.model:hover { background: ${PAGE_PALETTE.raised}; }
+.model svg { position: absolute; right: 6px; width: 12px; height: 12px; pointer-events: none; }
+.model-select {
+	all: unset; box-sizing: border-box; height: 28px; max-width: 100%; padding: 0 22px 0 8px;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	font: 12px/28px ${SYSTEM_FONT}; color: inherit; cursor: pointer;
+}
+.model-select:focus-visible { border-radius: 6px; box-shadow: 0 0 0 2px ${PAGE_PALETTE.accent}; }
+.model-select:disabled { cursor: default; }
+.model-select option { background: ${PAGE_PALETTE.raised}; color: ${PAGE_PALETTE.text}; }
 .send {
 	all: unset; display: grid; place-items: center; flex: none; box-sizing: border-box;
 	width: 28px; height: 28px; border-radius: 999px;
@@ -99,24 +143,32 @@ const PICKER_CSS = `
 .send:hover:not(:disabled) { background: ${PAGE_PALETTE.sendHover}; }
 .send:active:not(:disabled) { transform: scale(0.94); }
 .send:focus-visible { box-shadow: 0 0 0 2px ${PAGE_PALETTE.surface}, 0 0 0 4px ${PAGE_PALETTE.accent}; }
-.send:disabled { background: ${PAGE_PALETTE.sendDisabled}; color: ${PAGE_PALETTE.sendDisabledText}; cursor: default; }
+.send:disabled { background: transparent; color: ${PAGE_PALETTE.sendDisabledText}; cursor: default; }
+.send.busy:disabled { background: ${PAGE_PALETTE.send}; color: ${PAGE_PALETTE.sendText}; }
 .send svg { width: 16px; height: 16px; }
+.spinner {
+	box-sizing: border-box; width: 14px; height: 14px; border-radius: 999px;
+	border: 2px solid currentColor; border-right-color: transparent;
+	animation: malini-spin 700ms linear infinite;
+}
 .live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @keyframes malini-picker-in { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
+@keyframes malini-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-	.box, .send { transition: none; }
+	.box, .send, .panel { transition: none; }
 	.panel { animation: none; }
+	.spinner { animation-duration: 2s; }
 }
 `;
 
-const PICKER_PROGRAM = String.raw`(command, css) => {
+const PICKER_PROGRAM = String.raw`(command, css, glyphs) => {
 	const KEY = '__maliniPicker';
 	const running = globalThis[KEY];
 	if (command.kind === 'end') {
 		if (running) running.end();
 		return null;
 	}
-	if (command.kind === 'prompt') return running ? running.prompt() : null;
+	if (command.kind === 'prompt') return running ? running.prompt(command) : null;
 	return (running || start()).select(command.reselect === true);
 
 	function start() {
@@ -143,35 +195,37 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		const panel = part('div', 'panel');
 		panel.setAttribute('role', 'dialog');
 		panel.setAttribute('aria-modal', 'true');
-		const panelLabel = part('div', 'panel-label');
-		const panelName = part('span', 'panel-name');
-		const panelSize = part('span', 'panel-size');
-		panelLabel.setAttribute('aria-hidden', 'true');
-		panelLabel.append(panelName, panelSize);
+		const chips = part('div', 'chips');
+		const chip = part('span', 'chip');
+		const chipName = part('span', 'chip-name');
+		chip.append(glyph(glyphs.element), chipName);
+		chips.append(chip);
 		const field = doc.createElement('textarea');
 		field.className = 'field';
 		field.rows = 2;
 		field.maxLength = 4000;
-		field.placeholder = 'Ask about this element…';
+		field.placeholder = 'Describe a change, or ask about it…';
 		field.setAttribute('aria-label', 'Prompt');
-		field.setAttribute('aria-describedby', 'malini-picker-keys');
+		const error = part('div', 'error');
+		error.setAttribute('role', 'alert');
 		const foot = part('div', 'foot');
-		const keys = part('span', 'keys');
-		keys.id = 'malini-picker-keys';
-		keys.textContent = 'Enter to send · Esc to cancel';
+		const model = part('div', 'model');
+		const modelSelect = doc.createElement('select');
+		modelSelect.className = 'model-select';
+		modelSelect.setAttribute('aria-label', 'Model');
+		model.append(modelSelect, glyph(glyphs.chevronDown));
 		const send = doc.createElement('button');
 		send.type = 'button';
 		send.className = 'send';
-		send.setAttribute('aria-label', 'Send');
-		send.append(arrow());
-		foot.append(keys, send);
-		panel.append(panelLabel, field, foot);
+		foot.append(model, send);
+		panel.append(chips, field, error, foot);
 		const live = part('div', 'live');
 		live.setAttribute('role', 'status');
 		layer.append(box, tag, shield, hint, panel, live);
 		root.append(layer);
-		for (const piece of [box, tag, shield, hint, panel]) piece.hidden = true;
+		for (const piece of [box, tag, shield, hint, panel, error]) piece.hidden = true;
 		doc.documentElement.append(host);
+		hidePins(true);
 
 		let mode = 'select';
 		let current = null;
@@ -183,6 +237,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		let scheduled = false;
 		let ended = false;
 		let usedKeys = false;
+		setBusy(false);
 
 		const guards = {
 			mouseover: onMove,
@@ -243,7 +298,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 			});
 		}
 
-		function prompt() {
+		function prompt(request) {
 			return new Promise((resolve) => {
 				finish(null);
 				if (!locked || ended) {
@@ -251,19 +306,53 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 					return;
 				}
 				pending = resolve;
+				if (mode !== 'sending') side = null;
 				mode = 'prompt';
-				side = null;
 				const name = describe(locked);
-				panelName.textContent = name;
-				panelSize.textContent = size(lockedRect);
+				chipName.textContent = name;
+				chip.title = name + ' · ' + size(lockedRect);
 				panel.setAttribute('aria-label', 'Ask about ' + name);
-				field.value = '';
+				fillModels(request.models, request.model);
+				error.textContent = request.error || '';
+				error.hidden = !request.error;
+				setBusy(false);
 				panel.hidden = false;
-				refresh();
 				update();
 				field.focus({ preventScroll: true });
-				announce('Selected ' + name + '. Type a prompt, then press Enter to send.');
+				announce(
+					request.error
+						? 'Not sent: ' + request.error
+						: 'Selected ' + name + '. Type a prompt, then press Enter to send.',
+				);
 			});
+		}
+
+		function fillModels(models, current) {
+			const choices = Array.isArray(models) ? models : [];
+			modelSelect.replaceChildren(
+				...choices.map((choice) => {
+					const option = doc.createElement('option');
+					option.value = choice.id;
+					option.textContent = choice.label;
+					return option;
+				}),
+			);
+			modelSelect.value = current;
+			model.hidden = choices.length === 0;
+		}
+
+		function setBusy(busy) {
+			field.disabled = busy;
+			modelSelect.disabled = busy;
+			send.classList.toggle('busy', busy);
+			send.replaceChildren(busy ? part('span', 'spinner') : glyph(glyphs.arrowUp));
+			send.setAttribute('aria-label', busy ? 'Sending' : 'Send');
+			refresh();
+		}
+
+		function hidePins(hidden) {
+			const pins = globalThis.__maliniPins;
+			if (pins && typeof pins.hide === 'function') pins.hide(hidden);
 		}
 
 		function end() {
@@ -271,6 +360,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 			ended = true;
 			for (const type of Object.keys(guards)) window.removeEventListener(type, guards[type], true);
 			host.remove();
+			hidePins(false);
 			if (globalThis[KEY] === api) delete globalThis[KEY];
 			if (previousFocus && previousFocus.isConnected && typeof previousFocus.focus === 'function') {
 				previousFocus.focus({ preventScroll: true });
@@ -309,8 +399,11 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		function submit() {
 			const text = field.value.trim();
 			if (mode !== 'prompt' || text.length === 0) return;
-			finish({ kind: 'send', prompt: text });
-			end();
+			mode = 'sending';
+			error.hidden = true;
+			setBusy(true);
+			announce('Starting a thread…');
+			finish({ kind: 'send', prompt: text, model: modelSelect.value });
 		}
 
 		function inUi(event) {
@@ -356,6 +449,10 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		}
 
 		function onKey(event) {
+			if (mode === 'sending') {
+				block(event);
+				return;
+			}
 			if (event.key === 'Escape' && !event.isComposing) {
 				block(event);
 				end();
@@ -367,7 +464,12 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 			}
 			if (!inUi(event)) return;
 			event.stopImmediatePropagation();
-			if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+			if (
+				event.key === 'Enter' &&
+				!event.shiftKey &&
+				!event.isComposing &&
+				root.activeElement === field
+			) {
 				event.preventDefault();
 				submit();
 			} else if (event.key === 'Tab') {
@@ -424,14 +526,16 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		}
 
 		function cycleFocus(backwards) {
-			const stops = send.disabled ? [field] : [field, send];
+			const stops = [field, modelSelect, send].filter(
+				(stop) => !stop.disabled && !(stop === modelSelect && model.hidden),
+			);
 			const index = stops.indexOf(root.activeElement);
 			const next = stops[(index + (backwards ? -1 : 1) + stops.length) % stops.length] || field;
 			next.focus();
 		}
 
 		function refresh() {
-			send.disabled = field.value.trim().length === 0;
+			send.disabled = mode === 'sending' || field.value.trim().length === 0;
 			field.style.height = 'auto';
 			field.style.height = Math.min(field.scrollHeight, 160) + 'px';
 			schedule();
@@ -453,7 +557,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 				showTag(rect);
 				cover(rect);
 				placeHint(rect);
-			} else if (mode === 'prompt') {
+			} else if (mode === 'prompt' || mode === 'sending') {
 				const rect = locked.isConnected ? locked.getBoundingClientRect() : lockedRect;
 				outline(rect, true);
 				placePanel(rect);
@@ -514,7 +618,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 		function placePanel(rect) {
 			const margin = 8;
 			const gap = 8;
-			const width = Math.min(340, innerWidth - margin * 2);
+			const width = Math.min(360, innerWidth - margin * 2);
 			panel.style.width = width + 'px';
 			const height = panel.offsetHeight;
 			if (!side) {
@@ -563,7 +667,12 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 
 		function readableClasses(element) {
 			return Array.from(element.classList)
-				.filter((value) => /^[A-Za-z_][\w-]{0,31}$/.test(value) && !value.startsWith('svelte-'))
+				.filter(
+					(value) =>
+						/^[A-Za-z_][\w-]{0,31}$/.test(value) &&
+						!value.startsWith('svelte-') &&
+						!/^(?:s|css|sc|jsx)-(?=[\w-]*\d)[\w-]{5,}$/.test(value),
+				)
 				.slice(0, 2);
 		}
 
@@ -619,7 +728,7 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 			}
 		}
 
-		function arrow() {
+		function glyph(path) {
 			const ns = 'http://www.w3.org/2000/svg';
 			const svg = doc.createElementNS(ns, 'svg');
 			const attributes = {
@@ -632,9 +741,9 @@ const PICKER_PROGRAM = String.raw`(command, css) => {
 				'aria-hidden': 'true',
 			};
 			for (const name of Object.keys(attributes)) svg.setAttribute(name, attributes[name]);
-			const path = doc.createElementNS(ns, 'path');
-			path.setAttribute('d', 'M8 12.75v-9.5M4.25 7 8 3.25 11.75 7');
-			svg.append(path);
+			const line = doc.createElementNS(ns, 'path');
+			line.setAttribute('d', path);
+			svg.append(line);
 			return svg;
 		}
 	}
