@@ -3,7 +3,6 @@ import type { WorktreeOperation } from '$contract/repositories';
 export type PullRequestActionKind =
 	| 'open-draft'
 	| 'queue-merge'
-	| 'continue'
 	| 'archive'
 	| 'reopen'
 	| 'cancel-merge'
@@ -22,6 +21,7 @@ export type PullRequestTopBarAction = Readonly<{
 	ariaLabel: string;
 	tone: 'primary' | 'secondary';
 	confirmLabel: string | null;
+	tooltip?: string;
 }>;
 
 export type WorkstreamStatusTone = 'idle' | 'ready' | 'queued' | 'needs-you' | 'merged';
@@ -36,7 +36,7 @@ export type WorkstreamStatus = Readonly<{
 	secondaryAction?: PullRequestTopBarAction;
 }>;
 
-export type PullRequestMenuItemId = 'retry-merge' | 'cancel-merge' | 'abort-operation' | 'refresh';
+export type PullRequestMenuItemId = 'cancel-merge' | 'abort-operation' | 'refresh';
 
 export type PullRequestMenuItem = Readonly<{
 	id: PullRequestMenuItemId;

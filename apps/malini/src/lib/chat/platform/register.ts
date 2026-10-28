@@ -1,5 +1,5 @@
 import type { AgentTheme } from '$contract/agent';
-import { APP_STARTED_CHANNEL } from '$contract/events';
+import { APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
@@ -15,6 +15,7 @@ import type { BridgeProcessFactory } from './agent/process';
 import { startAgentService, type AgentService, type BrowserAutomation } from './agent/service';
 import { installAttachments, type WorkstreamCheckoutResolver } from './attachments/commands';
 import type { FilePicker } from './attachments/picker';
+import { isRecord } from '$main/db/rows';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
 import { stagedAttachmentExpiryFrom } from './attachments.repository';
 import {
@@ -24,6 +25,7 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
 
@@ -66,6 +68,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	const packing = packArchivedChats(context);
 	let mcpServers: McpServerListings | null = null;
 
 	const agent: AgentService = await startAgentService(context, {
@@ -119,9 +122,9 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 
 	return {
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
-		stop: () => {
+		stop: async () => {
 			stopGrants();
-			return agent.stop();
+			await Promise.all([packing.stop(), agent.stop()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
 		bridgeProcessId: () => {
@@ -137,9 +140,22 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		suggestTitle,
 		choose: async (task, job, choices) => (await agent.ensureReady()).choose(task, job, choices),
 		resume: async (event) => {
+			if (event.channel === JOBS_TIME_REACHED_CHANNEL) {
+				const paused = pausedRunReached(event.payload);
+				if (paused) await agent.continuePausedRun(paused, event.id);
+				return;
+			}
 			if (event.channel !== APP_STARTED_CHANNEL || resumed) return;
 			resumed = true;
 			await agent.continuePausedRuns(event.id);
 		},
 	};
+}
+
+function pausedRunReached(payload: unknown): Readonly<{ sessionId: string; runId: string }> | null {
+	if (!isRecord(payload)) return null;
+	const { wait, sessionId, runId } = payload;
+	return wait === 'resume' && typeof sessionId === 'string' && typeof runId === 'string'
+		? { sessionId, runId }
+		: null;
 }

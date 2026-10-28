@@ -43,6 +43,10 @@ class AgentSessionsService {
 		});
 	}
 
+	continueRun(sessionId: SessionId): Promise<void> {
+		return invoke('chat.continue-run', { sessionId });
+	}
+
 	stopBackgroundTask(sessionId: SessionId, taskId: string): Promise<void> {
 		return invoke('chat.stop-background-task', { sessionId, taskId });
 	}

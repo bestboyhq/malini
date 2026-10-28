@@ -136,6 +136,50 @@ describe('pumpStep', () => {
 		expect(log).toEqual([]);
 	});
 
+	it('backs a turn off an outage six times in a row, each wait longer, then fails it for you', () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		seedSession(test.db, 'sess-1', 'ws-1', 'idle');
+		const correlator = new SessionCorrelator();
+		const step = (event: BridgeEvent) => pumpStep(correlator, test.db, event, () => {});
+		const waits: (number | null)[] = [];
+
+		for (let attempt = 0; attempt < 7; attempt += 1) {
+			const runId = `run-${attempt}`;
+			run(
+				test.db,
+				'INSERT INTO agent_runs (id, session_id, prompt, started_at, automated) VALUES (?, ?, ?, ?, ?)',
+				runId,
+				'sess-1',
+				'Ship it',
+				new Date().toISOString(),
+				attempt === 0 ? 0 : 1,
+			);
+			step({ type: 'run.started', runId, sessionId: 'sess-1' });
+			const before = Date.now();
+			const failed = step({
+				type: 'run.failed',
+				runId,
+				error: 'API Error: 529 Overloaded',
+				failure: { kind: 'overloaded', status: 529 },
+			});
+			const resumeAt = failed?.event['resumeAt'];
+			waits.push(
+				typeof resumeAt === 'string' ? Math.round((Date.parse(resumeAt) - before) / 60_000) : null,
+			);
+			if (attempt < 6) expect(getSession(test.db, 'sess-1')?.status).toBe('idle');
+		}
+
+		expect(waits).toEqual([1, 2, 4, 8, 15, 30, null]);
+		expect(getSession(test.db, 'sess-1')?.status).toBe('failed');
+		expect(get(test.db, "SELECT key FROM alarms WHERE key = 'resume:sess-1'")).toBeNull();
+		expect(
+			get<{ failure_kind: string; resume_at: string | null }>(
+				test.db,
+				"SELECT failure_kind, resume_at FROM agent_runs WHERE id = 'run-6'",
+			),
+		).toEqual({ failure_kind: 'overloaded', resume_at: null });
+	});
+
 	it('keeps the reply of a turn that ended over a background command, so stopping it later completes the run', () => {
 		seedRun();
 		const correlator = new SessionCorrelator();

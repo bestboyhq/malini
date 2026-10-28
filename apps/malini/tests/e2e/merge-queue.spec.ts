@@ -1,4 +1,5 @@
-import { writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import {
@@ -33,6 +34,7 @@ import {
 
 const PASSED = [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }];
 const RUNNING = [{ name: 'test', status: 'IN_PROGRESS', conclusion: null }];
+const KEEP_EXPLAINER = 'Skip archiving after the merge';
 const FAILED = [{ name: 'test', status: 'COMPLETED', conclusion: 'FAILURE' }];
 
 test('Merge marks the draft ready, waits for the checks, merges and archives the workstream', async () => {
@@ -114,6 +116,9 @@ test('Keep on a queued merge leaves the workstream open on Merged once it lands'
 		});
 		await captureFlow(app, 'merge-queue-keep-offered');
 
+		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).hover();
+		await expect(page.getByRole('tooltip')).toHaveText(KEEP_EXPLAINER);
+		await captureFlow(app, 'merge-queue-keep-tooltip');
 		await page.getByRole('button', { name: 'Keep this workstream after it merges' }).click();
 
 		await expect(topBarStatus(page, 'Queued to merge and keep · Waiting for checks')).toBeVisible();
@@ -482,7 +487,7 @@ test('Cancel takes a confirming click in the bar and hands the pull request back
 	}
 });
 
-test('a merge GitHub blocks needs you once in a toast, and Retry in the detail queues it again', async () => {
+test('a merge GitHub blocks needs you once in a toast, offers no blind Retry, and picks up on its own once GitHub unblocks it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -508,9 +513,11 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 		await expect(page.getByTestId('transcript-pane')).toBeVisible({ timeout: 20_000 });
 		expect(new URL(page.url()).hash).toMatch(/^#\/workstreams\/e2e-merge-blocked\b/u);
 
-		github.setPullRequest({ mergeStateStatus: 'CLEAN' });
 		const detail = await openPullRequestDetail(page);
-		await detail.getByRole('button', { name: 'Retry', exact: true }).click();
+		await expect(detail.getByRole('button', { name: 'Cancel merge' })).toBeVisible();
+		await expect(detail.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		github.setPullRequest({ mergeStateStatus: 'CLEAN' });
 
 		await expectMergedAndArchived(page, 'e2e-merge-blocked');
 		expect(mergeCalls(github)).toHaveLength(1);
@@ -520,7 +527,7 @@ test('a merge GitHub blocks needs you once in a toast, and Retry in the detail q
 	}
 });
 
-test('a Fix checks job that keeps failing gives up, says so once, and Open job shows its transcript', async () => {
+test('a Fix checks job that keeps failing gives up, says so once, and Retry merge in the transcript Open job shows queues it again', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -546,15 +553,29 @@ test('a Fix checks job that keeps failing gives up, says so once, and Open job s
 			'page',
 			{ timeout: 20_000 },
 		);
+		const stopped = page.getByRole('region', { name: 'Merge stopped on this job' });
+		await expect(stopped).toContainText('Malini tried 3 times');
+		await captureFlow(app, 'merge-queue-retry-merge-in-job');
+
+		github.setPullRequest({
+			checksHead: github.pushedHead(),
+			statusCheckRollup: FAILED,
+			nextChecks: PASSED,
+		});
+		await stopped.getByRole('button', { name: 'Retry merge' }).click();
+		await expect(stopped).toHaveCount(0, { timeout: 20_000 });
+
+		await expectMergedAndArchived(page, 'e2e-fix-gave-up');
+		expect(mergeCalls(github)).toHaveLength(1);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a pull request merged on GitHub offers Continue, which starts over on the latest main and drafts the next change', async () => {
+test('a prompt in a workstream whose pull request merged on GitHub first starts it over on the latest main, and keeps the prompt when it cannot', async () => {
 	test.setTimeout(180_000);
-	const app = await launchMalini();
+	const app = await launchMalini({ allowedDiagnostics: [/Couldn't reach github\.com/u] });
 	try {
 		const { page, worktree, github } = await seedWorkstreamOnFakeGithub(
 			app,
@@ -571,19 +592,26 @@ test('a pull request merged on GitHub offers Continue, which starts over on the 
 
 		github.setPullRequest({ state: 'MERGED' });
 		await expect(topBarStatus(page, 'Merged')).toBeVisible({ timeout: 45_000 });
-		await page.getByRole('button', { name: 'Continue on top of the latest main' }).click();
+		await expect(page.getByRole('button', { name: /^Continue/u })).toHaveCount(0);
 
-		await expect(topBarStatus(page, 'Build something great')).toBeVisible({ timeout: 30_000 });
-		await expect(page.getByRole('button', { name: 'Archive this workstream' })).toHaveCount(0);
-		await expect(
-			page.getByRole('button', { name: 'Continue on top of the latest main' }),
-		).toHaveCount(0);
+		github.setOffline(true);
+		await sendPrompt(page, 'EDIT:beta.txt COMMIT=feat: add beta');
+		await expect(toastSaying(page, 'Continue failed')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('chat-composer-input')).toContainText(
+			'EDIT:beta.txt COMMIT=feat: add beta',
+		);
+		await expect(topBarStatus(page, 'Merged')).toBeVisible();
+		expect(existsSync(join(worktree, 'beta.txt'))).toBe(false);
 
-		writeFileSync(join(worktree, 'beta.txt'), 'the next change\n');
-		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled({
-			timeout: 30_000,
-		});
-		await expect(topBarStatus(page, '1 file changed')).toBeVisible();
+		github.setOffline(false);
+		await page.getByTestId('chat-composer-submit').click();
+		await expect(topBarStatus(page, '1 file changed')).toBeVisible({ timeout: 60_000 });
+		expect(readFileSync(join(worktree, 'beta.txt'), 'utf8')).not.toBe('');
+		const latestMain = revParse(github.remote, 'refs/heads/main');
+		expect(revParse(worktree, 'HEAD')).toBe(latestMain);
+		const branch = revParse(worktree, '--abbrev-ref', 'HEAD');
+		expect(() => revParse(github.remote, '--verify', `refs/heads/${branch}`)).toThrow();
+		await expect(page.getByRole('button', { name: 'Open a draft pull request' })).toBeEnabled();
 		await captureFlow(app, 'merge-queue-continue-next-change');
 		expectCleanConsole(app);
 	} finally {
@@ -593,4 +621,11 @@ test('a pull request merged on GitHub offers Continue, which starts over on the 
 
 function mergeCalls(github: FakeGithub): string[][] {
 	return github.calls().filter(([command, sub]) => command === 'pr' && sub === 'merge');
+}
+
+function revParse(repo: string, ...args: string[]): string {
+	return execFileSync('git', ['-C', repo, 'rev-parse', ...args], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'ignore'],
+	}).trim();
 }

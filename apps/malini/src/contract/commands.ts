@@ -134,6 +134,8 @@ export type SessionIdArgs = Readonly<{ sessionId: string }>;
 
 export type CancelRunArgs = Readonly<{ sessionId: string; pendingRunId?: string | null }>;
 
+export type ContinueRunArgs = Readonly<{ sessionId: string }>;
+
 export type StopBackgroundTaskArgs = Readonly<{ sessionId: string; taskId: string }>;
 
 export type ModelRefreshArgs = Readonly<{ refresh?: boolean }>;
@@ -439,6 +441,7 @@ export interface ContractCommands {
 		result: WorkstreamRetirementReceipt;
 	};
 	'chat.cancel-run': { args: CancelRunArgs; result: void };
+	'chat.continue-run': { args: ContinueRunArgs; result: void };
 	'repositories.claim-docker-service': {
 		args: ClaimDockerServiceArgs;
 		result: DockerOwnershipHandshake;
@@ -735,6 +738,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.archive-workstream',
 	'repositories.save-workstream-for-later',
 	'chat.cancel-run',
+	'chat.continue-run',
 	'repositories.claim-docker-service',
 	'repositories.commit-workstream',
 	'repositories.create-repository',

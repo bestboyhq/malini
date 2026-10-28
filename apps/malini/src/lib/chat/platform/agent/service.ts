@@ -13,6 +13,7 @@ import { IdSequence } from '../id-sequence';
 import type { AgentRunLeases } from './lifecycle';
 import {
 	PromptsInFlight,
+	continuePausedRun,
 	continuePausedRuns,
 	defineBridgeCommands,
 	type BridgeCommandDeps,
@@ -173,6 +174,10 @@ export interface AgentService {
 	stop(): Promise<void>;
 	closeOpenRunsForExit(): Promise<number>;
 	continuePausedRuns(causeEventId: number | null): Promise<void>;
+	continuePausedRun(
+		paused: Readonly<{ sessionId: string; runId: string }>,
+		causeEventId: number | null,
+	): Promise<void>;
 }
 
 export function selectBridgeScriptPath(resourcesRoot: string, isDev: boolean): string {
@@ -333,6 +338,14 @@ export async function startAgentService(
 		closeOpenRunsForExit,
 		continuePausedRuns: (causeEventId) =>
 			started ? continuePausedRuns(db, sendPrompt, causeEventId, log) : Promise.resolve(),
+		async continuePausedRun(paused, causeEventId) {
+			if (!started) return;
+			try {
+				await continuePausedRun(db, sendPrompt, paused, causeEventId);
+			} catch (error) {
+				log(`agent: could not continue paused run \`${paused.runId}\`: ${describe(error)}`);
+			}
+		},
 		async stop() {
 			stopRecordingDenials();
 			await runtime.pauseOpenRuns(PAUSE_BUDGET_MS);

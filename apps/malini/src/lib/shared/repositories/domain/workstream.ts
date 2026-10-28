@@ -33,6 +33,8 @@ export type Workstream = {
 
 export type MergedPullRequest = Readonly<{ number: number; url: string | null }>;
 
+export type MergedHead = Readonly<{ baseBranch: string; mergedHeadSha: string }>;
+
 export type ArchivedWorkstream = Readonly<{
 	id: WorkstreamId;
 	projectId: string;

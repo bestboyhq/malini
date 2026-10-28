@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: How a Malini chat runs Claude Code - queue or steer prompts, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
+description: How a Malini chat runs Claude Code - queue or steer prompts, pause on limits and outages, plan mode, agent access, model and effort per prompt, undo, edit, and fork.
 ---
 
 Every chat runs your own Claude Code, through the Claude Agent SDK, inside the chat's workstream.
@@ -47,6 +47,21 @@ A prompt sent while a run only waits on them takes the run over, and they keep r
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
 Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
+## Limits and outages
+
+Claude Code already tries again up to 10 times when Claude's API is overloaded, fails, limits requests or can't be reached.
+When a turn still stops on a limit or an outage, Malini pauses it instead of failing it, and the chat says **Paused until** a time, with the reason.
+
+- A usage limit on your Claude plan waits until the limit resets.
+- A rate limit, an overloaded or failing API, or a lost connection tries again after 1, 2, 4, 8, 15 and 30 minutes, and fails after that.
+- An error Malini does not recognize tries again once, after a minute.
+
+The turn then goes on where it stopped: Malini sends your prompt again if Claude had not replied yet, and otherwise asks Claude to continue.
+**Resume now** goes on at once, and a prompt you send replaces the pause.
+A job whose turn pauses keeps running, so a merge that waits on it loses no attempt.
+A turn that only you can fix fails: **Sign in** signs Claude Code in again, and **Try again** goes on once you fixed what the error says, such as billing, the model, or a prompt too long.
+An API key, your own endpoint, Amazon Bedrock or Google Vertex AI pause the same way, because Claude Code reports their errors in the same kinds; only a Claude plan says when its limit resets.
+
 ## Run a command from the chat
 
 Every shell code block the agent writes has a **Run** button next to **Copy**.
@@ -70,8 +85,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
-The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+Point at the gauge in the composer for the account Claude Code is signed in to and every Claude account you used on this Mac, under **Account**.
+The same list sits in **Settings > Accounts**, and **Accounts…** in Malini's menu bar icon opens Settings there.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
@@ -90,6 +105,13 @@ When auto mode blocks a call, the chat asks you instead of failing it, with the 
 **Allow once** lets Claude retry that exact call.
 **Always allow** also adds a permission rule for it to your Claude Code settings, so auto mode lets it through from then on.
 **Keep blocked** leaves the block in place, and the agent carries on without it.
+
+When auto mode cannot check a call because Anthropic's safety check is down, the chat does not ask you right away.
+Malini lets Claude retry the call up to three times over about a minute, so a short outage never reaches you, and each attempt shows as a **not checked** row.
+If the check stays down, the chat trusts edits the way **Sandboxed** does: edits inside the workstream go through, and everything else asks, saying auto mode couldn't check the call.
+Other chats skip the retries while the check is known to be down, and each chat tries auto mode again after five minutes.
+**Keep blocked** on such a call leaves it blocked, and the agent carries on without it.
+Calls that wait in other chats show as one **calls waiting** row above the composer, which says auto mode's safety check is down, and **Answer** shows them one at a time, the way the requests of the work a chat started show.
 
 A chat also answers for the work it started.
 When a job it ran in another workstream, a workstream it started, or a workstream started from those, asks for permission or asks a question, the request takes this chat's composer slot, named after the job or workstream it came from.
@@ -128,7 +150,9 @@ When you ask for options, or the direction is open, the agent makes two to four 
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
+While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
+Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
 Every pick stays in the chat as a step, with what lost and why, and the pull request description lists the decisions; click any variant in it to open it in the gallery.
 Variants and prototypes stay in the workstream's `.context` folder and never reach your code.
@@ -154,7 +178,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 

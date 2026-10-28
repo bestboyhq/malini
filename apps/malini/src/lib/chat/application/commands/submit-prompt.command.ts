@@ -21,7 +21,11 @@ import { chatRoute } from '$lib/chat/infrastructure/stores/chat-route.store.svel
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { pendingPromptStore } from '$lib/chat/infrastructure/stores/pending-prompt.store.svelte';
 import { isValidAgentRunProfile, roleForAgentMode } from '$shared/providers/providers.api';
-import { workstreamReadyForPromptsQuery } from '$shared/repositories/repositories.api';
+import {
+	mergedHeadQuery,
+	restartWorkstreamOnBaseCommand,
+	workstreamReadyForPromptsQuery,
+} from '$shared/repositories/repositories.api';
 
 export { submitPromptCommand };
 
@@ -141,6 +145,7 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 	}
 
 	try {
+		await continueMergedWorkstream(workstreamId);
 		await promptDelivery.dispatch({
 			workstreamId,
 			sessionId,
@@ -172,6 +177,14 @@ async function submitPrompt(input: PromptRequest): Promise<void> {
 			chatSessionStore.bootError = message;
 		}
 		throw error;
+	}
+}
+
+async function continueMergedWorkstream(workstreamId: string): Promise<void> {
+	if (!mergedHeadQuery.data(workstreamId)) return;
+	await new Promise<void>((settled) => restartWorkstreamOnBaseCommand(workstreamId, settled));
+	if (mergedHeadQuery.data(workstreamId)) {
+		throw new Error('The workstream could not move onto its base');
 	}
 }
 

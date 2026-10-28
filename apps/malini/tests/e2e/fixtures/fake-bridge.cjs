@@ -97,6 +97,8 @@ const repliedRuns = new Set();
 const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
+const uncheckedRuns = new Set();
+const UNCHECKED_INPUT = { command: 'node -e "console.log(6*7)"', description: 'Print 6*7' };
 const lastRuns = new Map();
 const askedQuestions = new Map();
 const askQuestion = (sessionId, runId, questionId, toolCallId, prompt, labels) => {
@@ -153,6 +155,8 @@ const completeRun = (sessionId, runId, summary, mentions = [], shownImages = [],
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
 const STREAM_LINE_MS = 100;
+const LATE_CANCEL_MS = 500;
+const lateCancelRuns = new Set();
 const streamedText = new Map();
 const settleStreamedText = (runId) => {
 	const text = streamedText.get(runId);
@@ -653,6 +657,25 @@ const maliniCalls = new Map();
 const themeOfRun = new Map();
 
 const lineageOfRun = new Map();
+const stoppedSessions = new Set();
+const STOPS = {
+	LIMIT_PAUSE: (seconds) => ({
+		error: "You've hit your session limit · resets 3pm",
+		failure: {
+			kind: 'usage-limit',
+			resetsAt: new Date(Date.now() + seconds * 1000).toISOString(),
+			status: 429,
+		},
+	}),
+	OVERLOADED_PAUSE: () => ({
+		error: 'API Error: 529 Overloaded',
+		failure: { kind: 'overloaded', status: 529 },
+	}),
+	SIGNIN_FAIL: () => ({
+		error: 'Claude Code is not signed in. Run `claude auth login` in a terminal, then try again.',
+		failure: { kind: 'sign-in', status: 401 },
+	}),
+};
 const respond = async (sessionId, runId, prompt) => {
 	const worktree = worktrees.get(sessionId);
 	if (prompt.includes('WHICH_THEME')) {
@@ -768,6 +791,48 @@ const respond = async (sessionId, runId, prompt) => {
 				resources: [{ kind: 'service', value: 'ops', boundary: 'external' }],
 			},
 			autoModeRule: BLOCKED_TOOL,
+		});
+		return;
+	}
+	if (prompt.includes('AUTO_MODE_DOWN')) {
+		pendingRuns.set(runId, sessionId);
+		uncheckedRuns.add(runId);
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'tool.failed',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-1',
+			error:
+				'The server-side auto mode classifier gave no verdict (error), so auto mode cannot determine the safety of Bash.',
+			autoModeReason: 'Classifier unavailable',
+		});
+		event({
+			type: 'tool.started',
+			runId,
+			name: 'Bash',
+			toolCallId: 'unchecked-2',
+			input: UNCHECKED_INPUT,
+		});
+		event({
+			type: 'approval.requested',
+			sessionId,
+			runId,
+			approvalId: 'approval-unchecked-1',
+			reason: "Auto mode couldn't check this call: Anthropic's safety check is down.",
+			toolName: 'Bash',
+			input: UNCHECKED_INPUT,
+			permission: {
+				capability: 'execute',
+				resources: [{ kind: 'command', value: UNCHECKED_INPUT.command, boundary: 'unknown' }],
+			},
+			autoModeUnavailable: true,
 		});
 		return;
 	}
@@ -943,6 +1008,7 @@ const respond = async (sessionId, runId, prompt) => {
 		return toolStreamRun(sessionId, runId, Number(toolStream[1]), Number(toolStream[2] ?? 0));
 	}
 	if (stream) {
+		if (prompt.includes('LATE_CANCEL')) lateCancelRuns.add(runId);
 		const report = prompt.includes('CHAT_TURN_REPORT') ? CHAT_TURN_REPORT : '';
 		return streamRun(sessionId, runId, Number(stream[1]), report);
 	}
@@ -973,6 +1039,12 @@ const respond = async (sessionId, runId, prompt) => {
 			runId,
 			text: '1. Add the health route\n2. Cover it with a test',
 		});
+	}
+	const stop = /(LIMIT_PAUSE|OVERLOADED_PAUSE|SIGNIN_FAIL)(?::(\d+))?/.exec(prompt);
+	if (stop && !stoppedSessions.has(sessionId)) {
+		stoppedSessions.add(sessionId);
+		event({ type: 'run.failed', runId, ...STOPS[stop[1]](Number(stop[2] ?? 4)) });
+		return;
 	}
 	if (prompt.includes('ROUTINE_RUN_FAIL')) {
 		event({ type: 'run.failed', runId, error: 'the tests are still red' });
@@ -1187,8 +1259,12 @@ const handle = (command) => {
 			for (const [steered, owner] of pendingRuns) {
 				if (!command.steer || owner !== sessionId) continue;
 				pendingRuns.delete(steered);
-				settleStreamedText(steered);
-				event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				const cancel = () => {
+					settleStreamedText(steered);
+					event({ type: 'run.failed', runId: steered, error: 'cancelled' });
+				};
+				if (lateCancelRuns.delete(steered)) setTimeout(cancel, LATE_CANCEL_MS);
+				else cancel();
 			}
 			const start = () => {
 				event({ type: 'run.started', runId, sessionId });
@@ -1225,6 +1301,34 @@ const handle = (command) => {
 			return ack(command.id);
 		case 'approve': {
 			ack(command.id);
+			if (uncheckedRuns.delete(command.runId)) {
+				event(
+					command.decision === 'allow'
+						? {
+								type: 'tool.completed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								output: '42',
+							}
+						: {
+								type: 'tool.failed',
+								runId: command.runId,
+								name: 'Bash',
+								toolCallId: 'unchecked-2',
+								error:
+									'The user kept this call blocked. Carry on with the rest of the task without it.',
+								autoModeReason: 'Classifier unavailable',
+							},
+				);
+				completeRun(
+					command.sessionId,
+					command.runId,
+					['unchecked', command.decision, command.scope].join(':'),
+				);
+				pendingRuns.delete(command.runId);
+				return;
+			}
 			if (blockedRuns.delete(command.runId)) {
 				event({
 					type: 'tool.failed',

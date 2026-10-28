@@ -7,6 +7,7 @@ import type { AgentLineage, AgentRunProfile } from '../agent-profile.js';
 import type { ProviderContext } from '../providers/types.js';
 import type { AgentEvent } from '../types.js';
 import { fakeClaude, recordedScript, type ScriptStep } from './fixtures/fake-claude.js';
+import { AutoModeOutage, UNCHECKED_CALL_REASON } from './permissions.js';
 import { ClaudeSession } from './session.js';
 
 const READ_AND_BASH_SESSION = 'c0a96268-cd2e-40f9-88f1-f8c53c9cbbc7';
@@ -37,6 +38,7 @@ function harness(
 		readonly executable?: string | null;
 		readonly onEvent?: (event: AgentEvent, session: ClaudeSession) => void;
 		readonly mcpServerStatus?: () => readonly McpServerStatus[];
+		readonly outage?: AutoModeOutage;
 	} = {},
 ) {
 	const claude = fakeClaude(scripts);
@@ -55,6 +57,7 @@ function harness(
 					mcpServerStatus: async () => [...mcpServerStatus()],
 				})
 			: claude.query,
+		...(options.outage ? { outage: options.outage } : {}),
 	});
 	return { session, claude, events };
 }
@@ -428,6 +431,37 @@ describe('ClaudeSession', () => {
 
 		expect(claude.runs).toHaveLength(1);
 		expect(events.at(-1)).toMatchObject({ type: 'run.failed', error: 'model not found' });
+	});
+
+	it.each([
+		['usageLimit', { kind: 'usage-limit', resetsAt: '2026-10-27T14:31:13.000Z', status: 429 }],
+		['rateLimit', { kind: 'rate-limit', status: 429 }],
+		['overloaded', { kind: 'overloaded', status: 529 }],
+		['serverError', { kind: 'server-error', status: 500 }],
+		['network', { kind: 'network' }],
+		['signedOut', { kind: 'sign-in', status: 401 }],
+		['billing', { kind: 'billing', status: 400 }],
+		['promptTooLong', { kind: 'request', status: 400 }],
+	] as const)('says what failed when a turn ends on %s', async (scenario, failure) => {
+		const { session, events } = harness([recordedScript(scenario)]);
+
+		await session.sendPrompt('Say hi in one word.', 'run-1', profile());
+
+		const [failed] = ofType(events, 'run.failed');
+		expect(failed?.failure).toEqual(failure);
+		expect(events.at(-1)).toMatchObject({ type: 'run.failed', runId: 'run-1' });
+	});
+
+	it('reports the signed-out failure in words that say how to sign in', async () => {
+		const { session, events } = harness([recordedScript('signedOut')]);
+
+		await session.sendPrompt('Say hi in one word.', 'run-1', profile());
+
+		expect(events.at(-1)).toMatchObject({
+			type: 'run.failed',
+			error: expect.stringContaining('Claude Code is not signed in'),
+			failure: { kind: 'sign-in' },
+		});
 	});
 
 	it('carries restored history into the first prompt of a new Claude session only', async () => {
@@ -904,6 +938,173 @@ describe('ClaudeSession', () => {
 				'Self-Modification',
 			]);
 			expect(ofType(events, 'command.completed')).toEqual([]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+	});
+
+	describe('a call auto mode could not check', () => {
+		const RETRY = { hookSpecificOutput: { hookEventName: 'PermissionDenied', retry: true } };
+		const NODE = 'node -e "console.log(6*7)"';
+		const RETRY_ALLOWED = {
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'allow',
+				permissionDecisionReason:
+					'The user allowed this call in Malini after auto mode blocked it.',
+			},
+		};
+
+		function allowing(event: AgentEvent, current: ClaudeSession): void {
+			if (event.type !== 'approval.requested') return;
+			void current.respondToApproval({
+				sessionId: event.sessionId,
+				runId: event.runId,
+				approvalId: event.approvalId,
+				decision: 'allow',
+				scope: 'once',
+			});
+		}
+
+		it('retries it without asking, so the next verdict decides', async () => {
+			const { session, claude, events } = harness([recordedScript('classifierBlip')], {
+				outage: new AutoModeOutage([0, 0, 0]),
+			});
+
+			await session.sendPrompt('Run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toEqual([]);
+			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY]);
+			expect(claude.runs[0]?.permissionModes).toEqual([]);
+			expect(ofType(events, 'command.completed')).toMatchObject([{ command: NODE, exitCode: 0 }]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('falls back to acceptEdits once retrying does not help, and asks for the rest', async () => {
+			const { session, claude, events } = harness([recordedScript('classifierOutage')], {
+				outage: new AutoModeOutage([0, 0, 0]),
+				onEvent: allowing,
+			});
+
+			await session.sendPrompt('Write notes, then run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.hookOutputs).toEqual(Array.from({ length: 7 }, () => RETRY));
+			expect(claude.runs[0]?.permissionModes).toEqual(['acceptEdits']);
+			expect(ofType(events, 'approval.requested')).toEqual([
+				{
+					type: 'approval.requested',
+					sessionId: 'session-1',
+					runId: 'run-1',
+					approvalId: 'approval-toolu_01WL9pxVys8RsyF9RnVuipus',
+					reason: UNCHECKED_CALL_REASON,
+					toolName: 'Bash',
+					input: { command: NODE, description: 'Run node to print 6*7' },
+					permission: {
+						capability: 'execute',
+						resources: [{ kind: 'command', value: NODE, boundary: 'unknown' }],
+					},
+					autoModeUnavailable: true,
+				},
+			]);
+			expect(ofType(events, 'file.changed')).toMatchObject([{ path: '/work/repo/notes.txt' }]);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('keeps an unchecked call blocked without stopping the run when the user says so', async () => {
+			const { session, claude, events } = harness([recordedScript('classifierOutage')], {
+				outage: new AutoModeOutage([0, 0, 0]),
+				onEvent: (event, current) => {
+					if (event.type !== 'approval.requested') return;
+					void current.respondToApproval({
+						sessionId: event.sessionId,
+						runId: event.runId,
+						approvalId: event.approvalId,
+						decision: 'deny',
+						scope: 'once',
+					});
+				},
+			});
+
+			await session.sendPrompt('Write notes, then run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(claude.runs[0]?.permissionResults).toEqual([
+				{
+					behavior: 'deny',
+					message:
+						'The user kept this call blocked. Carry on with the rest of the task without it.',
+				},
+			]);
+			expect(claude.runs[0]?.interrupted).toBe(false);
+			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
+		});
+
+		it('goes back to auto mode once the outage is over', async () => {
+			const { session, claude } = harness(
+				[[...recordedScript('classifierOutage'), 'wait-for-prompt']],
+				{ outage: new AutoModeOutage([0, 0, 0], 20), onEvent: allowing },
+			);
+
+			await session.sendPrompt('Write notes, then run node.', 'run-1', profile('agent', 'auto'));
+
+			await vi.waitFor(() =>
+				expect(claude.runs[0]?.permissionModes).toEqual(['acceptEdits', 'auto']),
+			);
+			await session.close();
+		});
+
+		it('falls back at once in another chat while the check is known to be down', async () => {
+			const outage = new AutoModeOutage([0, 0, 0]);
+			const first = harness([recordedScript('classifierOutage')], { outage, onEvent: allowing });
+			await first.session.sendPrompt('Write notes.', 'run-1', profile('agent', 'auto'));
+			const second = harness([recordedScript('classifierBlip')], { outage });
+
+			await second.session.sendPrompt('Run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(second.claude.runs[0]?.hookOutputs).toEqual([RETRY]);
+			expect(second.claude.runs[0]?.permissionModes).toEqual(['acceptEdits']);
+		});
+
+		it('falls back without asking when Claude Code stops the turn for want of a verdict', async () => {
+			const stopped = recordedScript('classifierBlip').map((step) =>
+				typeof step !== 'string' &&
+				'hook' in step &&
+				step.hook.hook_event_name === 'PermissionDenied'
+					? {
+							hook: {
+								...step.hook,
+								reason:
+									'Auto mode unavailable \u2014 stopped after repeated responses with no safety verdict',
+							},
+						}
+					: step,
+			);
+			const { session, claude, events } = harness([stopped], {
+				outage: new AutoModeOutage([0, 0, 0]),
+			});
+
+			await session.sendPrompt('Run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toEqual([]);
+			expect(claude.runs[0]?.hookOutputs).toEqual([]);
+			expect(claude.runs[0]?.permissionModes).toEqual(['acceptEdits']);
+		});
+
+		it('asks the user when auto mode still cannot check a call it fell back for', async () => {
+			const blip = recordedScript('classifierBlip');
+			const script = [...blip.slice(0, 6), ...blip.slice(5)];
+			const outage = new AutoModeOutage([0, 0, 0]);
+			outage.confirm();
+			const { session, claude, events } = harness([script], { outage, onEvent: allowing });
+
+			await session.sendPrompt('Run node.', 'run-1', profile('agent', 'auto'));
+
+			expect(ofType(events, 'approval.requested')).toMatchObject([
+				{
+					reason: UNCHECKED_CALL_REASON,
+					autoModeRule: 'Bash(node -e "console.log\\(6*7\\)")',
+					autoModeUnavailable: true,
+				},
+			]);
+			expect(claude.runs[0]?.hookOutputs).toEqual([RETRY, RETRY, RETRY_ALLOWED]);
 			expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-1' });
 		});
 	});
@@ -1450,9 +1651,10 @@ describe('ClaudeSession', () => {
 		[
 			'Invalid API key · Please run /login',
 			'Claude Code is not signed in. Run `claude auth login` in a terminal, then try again.',
+			{ kind: 'sign-in' },
 		],
-		['API Error: 529 Overloaded', 'API Error: 529 Overloaded'],
-	])('fails a turn Claude Code ended with "%s"', async (reason, error) => {
+		['API Error: 529 Overloaded', 'API Error: 529 Overloaded', { kind: 'overloaded', status: 529 }],
+	])('fails a turn Claude Code ended with "%s"', async (reason, error, reported) => {
 		const script = recordedScript('ask');
 		const failure: SDKResultSuccess = {
 			...recordedSuccess(script),
@@ -1463,7 +1665,12 @@ describe('ClaudeSession', () => {
 
 		await session.sendPrompt('Hello', 'run-1', profile());
 
-		expect(events.at(-1)).toEqual({ type: 'run.failed', runId: 'run-1', error });
+		expect(events.at(-1)).toEqual({
+			type: 'run.failed',
+			runId: 'run-1',
+			error,
+			failure: reported,
+		});
 	});
 
 	it('fails a turn that ends without a result', async () => {
@@ -1476,6 +1683,7 @@ describe('ClaudeSession', () => {
 			type: 'run.failed',
 			runId: 'run-1',
 			error: 'Claude Code stopped without finishing the turn.',
+			failure: { kind: 'unknown' },
 		});
 	});
 });

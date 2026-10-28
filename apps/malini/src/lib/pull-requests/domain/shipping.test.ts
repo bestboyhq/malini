@@ -125,10 +125,8 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 	return {
 		phase: 'queued',
 		pushRequested: false,
-		updateRequested: false,
 		reviewRequested: false,
 		addressedReviews: [],
-		behindBase: null,
 		pullRequestNumber: 7,
 		idle: true,
 		job: null,
@@ -195,6 +193,21 @@ describe('a draft workstream', () => {
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
+	it('never updates from main: a draft behind or conflicting with main only gets pushes', () => {
+		for (const behind of [
+			pullRequest({ mergeableState: 'BEHIND', behindBase: 4 }),
+			pullRequest({ mergeable: false, mergeableState: 'DIRTY', behindBase: 4 }),
+		]) {
+			expect(nextShippingMove(draft({ pullRequest: behind }))).toEqual({
+				kind: 'idle',
+				problem: null,
+			});
+			expect(
+				nextShippingMove(draft({ pullRequest: behind, worktree: { ...worktree, ahead: 1 } })),
+			).toEqual({ kind: 'push' });
+		}
+	});
+
 	it('refuses to push in the middle of a rebase and says why', () => {
 		expect(
 			nextShippingMove(draft({ worktree: { ...worktree, operationInProgress: 'rebase' } })),
@@ -205,7 +218,7 @@ describe('a draft workstream', () => {
 	});
 });
 
-describe('keeping a local or draft workstream current', () => {
+describe('a local or draft workstream before you merge', () => {
 	const local = (overrides: Fixture = {}): ShippingSnapshot =>
 		queued({
 			phase: 'local',
@@ -227,52 +240,6 @@ describe('keeping a local or draft workstream current', () => {
 		).toEqual({ kind: 'commit' });
 		expect(
 			nextShippingMove(local({ pushRequested: true, worktree: { ...worktree, ahead: 3 } })),
-		).toEqual({ kind: 'idle', problem: null });
-	});
-
-	it('reads how far main moved, then commits leftover local work and updates only a workstream that is behind', () => {
-		expect(nextShippingMove(local({ updateRequested: true }))).toEqual({ kind: 'read-base' });
-		expect(nextShippingMove(local({ updateRequested: true, behindBase: 0 }))).toEqual({
-			kind: 'idle',
-			problem: null,
-		});
-		const update = {
-			kind: 'run-job',
-			builtin: 'update-from-main',
-			signature: 'update',
-			attempt: 1,
-		};
-		expect(nextShippingMove(local({ updateRequested: true, behindBase: 4 }))).toEqual(update);
-		expect(
-			nextShippingMove(queued({ phase: 'draft', updateRequested: true, behindBase: 4 })),
-		).toEqual(update);
-		expect(
-			nextShippingMove(
-				local({
-					updateRequested: true,
-					behindBase: 4,
-					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
-				}),
-			),
-		).toEqual({ kind: 'commit' });
-		expect(
-			nextShippingMove(
-				local({
-					updateRequested: true,
-					behindBase: 0,
-					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
-				}),
-			),
-		).toEqual({ kind: 'idle', problem: null });
-		expect(
-			nextShippingMove(
-				queued({
-					phase: 'draft',
-					updateRequested: true,
-					behindBase: 4,
-					worktree: { ...worktree, dirtyPaths: ['a.ts'] },
-				}),
-			),
 		).toEqual({ kind: 'idle', problem: null });
 	});
 
@@ -313,27 +280,6 @@ describe('keeping a local or draft workstream current', () => {
 				requested({ threadResolutionRunId: 'run-fix', addressedReviews: ['PRR_2'] }),
 			),
 		).toEqual({ kind: 'resolve-threads', agentRunId: 'run-fix' });
-	});
-
-	it('reads the pull request after main moved and never updates one that merged or closed', () => {
-		const draft = (overrides: Fixture) =>
-			queued({ phase: 'draft', updateRequested: true, behindBase: 4, ...overrides });
-		expect(nextShippingMove(draft({ pullRequest: null }))).toEqual({ kind: 'read-pull-request' });
-		expect(
-			nextShippingMove(local({ updateRequested: true, behindBase: 4, pullRequest: null })),
-		).toEqual({ kind: 'read-pull-request' });
-		for (const state of ['merged', 'closed'] as const) {
-			expect(nextShippingMove(draft({ pullRequest: pullRequest({ state }) }))).toEqual({
-				kind: 'idle',
-				problem: null,
-			});
-			expect(
-				nextShippingMove(
-					local({ updateRequested: true, behindBase: 4, pullRequest: pullRequest({ state }) }),
-				),
-			).toEqual({ kind: 'idle', problem: null });
-		}
-		expect(nextShippingMove(draft({}))).toMatchObject({ kind: 'run-job' });
 	});
 
 	it('shows the update and conflict jobs while they run', () => {

@@ -90,6 +90,13 @@ function ofType<T extends AgentEvent['type']>(
 }
 
 describe('ClaudeTranscript', () => {
+	it("leaves Claude Code's own API error message to the failed run, so the chat shows it once", () => {
+		const { events, transcript } = replayRecorded('usageLimit');
+
+		expect(events.filter((event) => event.type === 'assistant.message')).toEqual([]);
+		expect(transcript.cursor).not.toBeNull();
+	});
+
 	it('streams text and thinking under the content id of the message that finalizes them', () => {
 		const { events } = replayRecorded('readAndBash');
 

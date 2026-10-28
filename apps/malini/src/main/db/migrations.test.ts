@@ -16,6 +16,7 @@ const ALL_TABLES = [
 	'agent_actions',
 	'agent_attachments',
 	'agent_checkpoints',
+	'agent_event_packs',
 	'agent_events',
 	'agent_interactions',
 	'agent_permission_rules',
@@ -370,6 +371,41 @@ describe('migrate', () => {
 			parent_run_id: null,
 		});
 		expect(all(db, 'SELECT job_run_id FROM job_run_events')).toEqual([{ job_run_id: 'next' }]);
+		db.close();
+	});
+
+	it('forgets when to update from main before a merge, and the updates still pending, keeping the rest of shipping', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const dropped = MIGRATIONS.findIndex((migration) =>
+			migration.includes('DROP COLUMN update_requests'),
+		);
+		for (const migration of MIGRATIONS.slice(0, dropped)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + dropped};`);
+		seedWorkstream(db);
+		db.exec(`
+			INSERT INTO workstream_ship (workstream_id, phase, push_requests, update_requests, review_requests, updated_at)
+			  VALUES ('w', 'draft', 1, 2, 3, '2026-10-27T00:00:00Z');
+			INSERT INTO settings (key, value) VALUES
+			  ('merge-queue.update-from-main', 'main-moves'), ('merge-queue.fix-attempts', '5');
+		`);
+
+		migrate(db);
+
+		expect(get(db, 'SELECT phase, push_requests, review_requests FROM workstream_ship')).toEqual({
+			phase: 'draft',
+			push_requests: 1,
+			review_requests: 3,
+		});
+		expect(
+			all(
+				db,
+				"SELECT name FROM pragma_table_info('workstream_ship') WHERE name = 'update_requests'",
+			),
+		).toEqual([]);
+		expect(all(db, "SELECT key FROM settings WHERE key LIKE 'merge-queue.%'")).toEqual([
+			{ key: 'merge-queue.fix-attempts' },
+		]);
 		db.close();
 	});
 

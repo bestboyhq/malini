@@ -119,6 +119,7 @@ export type GlobalTopBarStatusAction = Readonly<{
 	tone: 'primary' | 'secondary';
 	icon: IconName;
 	confirmLabel?: string | null;
+	tooltip?: string | null;
 	disabled: boolean;
 	onInvoke(): void | Promise<void>;
 }>;

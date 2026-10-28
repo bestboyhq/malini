@@ -11,12 +11,14 @@ import {
 	installDependencies,
 	installWithArgv,
 	recordCompletion,
+	sharedNodeModules,
 	type InstallDeps,
 	type InstallPlan,
 	type WorkstreamInstallStatusPayload,
 } from './provisioning.service';
 import { REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL } from '$contract/events';
 import { removeAll } from '$main/fs/test-support';
+import { realGit } from '$main/git/fixtures.test-support';
 import { ScriptedRunner, sleep, waitFor } from '$main/process/test-support';
 import { recordingEventBus } from './test-support';
 
@@ -240,6 +242,78 @@ describe('install plan detection', () => {
 		]);
 		recordCompletion(dir, planned(dir));
 		expect(existsSync(join(dir, '.malini/sandbox/install-complete'))).toBe(true);
+	});
+});
+
+describe('sharing node_modules between workstreams', () => {
+	const npmProject: Array<[string, string]> = [
+		['package.json', '{"workspaces":["packages/*"]}'],
+		['package-lock.json', '{"lockfileVersion":3}'],
+		['packages/a/package.json', '{}'],
+	];
+
+	async function trackedCheckout(files: Array<[string, string]>): Promise<string> {
+		const dir = checkout(files);
+		await realGit(dir, ['init', '-q']);
+		await realGit(dir, ['add', '-A']);
+		return dir;
+	}
+
+	async function installedSibling(files: Array<[string, string]>): Promise<string> {
+		const sibling = await trackedCheckout(files);
+		for (const [path, contents] of [
+			['node_modules/left-pad/index.js', 'module.exports = 1;\n'],
+			['node_modules/.cache/babel/entry.json', '{"from":"the sibling"}\n'],
+			['packages/a/node_modules/dep/index.js', 'module.exports = 2;\n'],
+		] as const) {
+			mkdirSync(dirname(join(sibling, path)), { recursive: true });
+			writeFileSync(join(sibling, path), contents);
+		}
+		recordCompletion(sibling, planned(sibling));
+		return sibling;
+	}
+
+	it('copies node_modules from a workstream with the same lockfile instead of installing', async () => {
+		const sibling = await installedSibling(npmProject);
+		const dir = await trackedCheckout(npmProject);
+		const { deps, statuses, runner } = harness();
+
+		const outcome = await installDependencies({ ...deps, siblings: () => [sibling] }, 'ws-np', dir);
+
+		expect(outcome).toEqual({ status: 'succeeded' });
+		expect(statuses()).toEqual(['succeeded']);
+		expect(runner.spawns).toHaveLength(0);
+		expect(existsSync(join(dir, 'node_modules', 'left-pad', 'index.js'))).toBe(true);
+		expect(existsSync(join(dir, 'packages', 'a', 'node_modules', 'dep', 'index.js'))).toBe(true);
+		expect(existsSync(join(dir, 'node_modules', '.cache'))).toBe(false);
+		expect(detectInstallPlan(dir)).toEqual({ kind: 'already-installed' });
+	});
+
+	it('installs when no other workstream has the same lockfile', async () => {
+		const sibling = await installedSibling([
+			...npmProject.filter(([path]) => path !== 'package-lock.json'),
+			['package-lock.json', '{"lockfileVersion":3,"packages":{}}'],
+		]);
+		const dir = await trackedCheckout(npmProject);
+		const runner = new ScriptedRunner().onCommand('npm', ['ci'], { kind: 'exit', code: 0 });
+		const { deps } = harness(runner);
+
+		await installDependencies({ ...deps, siblings: () => [sibling] }, 'ws-other', dir);
+
+		expect(runner.last('npm').args).toEqual(['ci', IGNORE_SCRIPTS_FLAG]);
+		expect(existsSync(join(dir, 'node_modules', 'left-pad'))).toBe(false);
+	});
+
+	it('leaves pnpm to share packages through its own store', async () => {
+		const pnpmProject: Array<[string, string]> = [
+			['package.json', '{}'],
+			['pnpm-lock.yaml', 'lockfileVersion: 9'],
+		];
+		const sibling = await installedSibling(pnpmProject);
+		const dir = await trackedCheckout(pnpmProject);
+
+		expect(await sharedNodeModules(dir, planned(dir), [sibling])).toBe(false);
+		expect(existsSync(join(dir, 'node_modules'))).toBe(false);
 	});
 });
 

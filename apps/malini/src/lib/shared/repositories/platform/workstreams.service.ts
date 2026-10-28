@@ -14,10 +14,12 @@ import type {
 	Workstream,
 	WorkstreamRetirementReceipt,
 } from '$contract/repositories';
+import { unpackRestoredChats } from '$lib/chat/chat.platform';
 import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import type { EventBus } from '$main/events';
+import { MINIMUM_FREE_BYTES, requireFreeSpace } from '$main/fs/free-space';
 import { releaseRestoredWork, restoreArchivedWork } from '$main/git/archived-work';
 import type { GitCredentialEnv } from '$main/git/credentials';
 import { ensureAppManagedGitExcludes } from '$main/git/excludes';
@@ -61,6 +63,7 @@ import {
 import { recordedBaseRepository } from './checkout-resolver';
 import { restoreKeptFolders } from './kept-folders';
 import {
+	slimKeptContext,
 	teardownWorkstreamCheckout,
 	type TeardownGuard,
 	type WorkstreamRetirement,
@@ -91,7 +94,11 @@ export interface CreateRepositoryInput {
 	readonly repoUrl: string;
 	readonly githubToken: string | null;
 	readonly defaultBranch: string | null;
+	readonly seedFolder?: string | null;
+	readonly sizeBytes?: number | null;
 }
+
+const BLOBLESS_CLONE_MIN_BYTES = 1e9;
 
 export interface CreateWorkstreamInput {
 	readonly projectRepoPath: string;
@@ -112,12 +119,23 @@ export async function createRepository(
 ): Promise<string> {
 	const { db, events, appDataRoot, credentials } = deps;
 	const repoId = deriveProjectId(input.repoUrl);
+	const seedFolder = input.seedFolder ?? null;
+	const sizeBytes = seedFolder === null ? (input.sizeBytes ?? 0) : 0;
+	const blobless = sizeBytes >= BLOBLESS_CLONE_MIN_BYTES;
+	await requireFreeSpace(
+		appDataRoot,
+		MINIMUM_FREE_BYTES + (blobless ? 0 : sizeBytes),
+		'cloning this repository',
+	);
 	let lastEmittedAt = Date.now() - 100;
 	const outcome = await ensureBaseCloneWithOutcome({
 		repoPath: input.repoUrl,
 		appDataRoot,
 		githubToken: input.githubToken,
 		credentials,
+		seed:
+			seedFolder === null ? null : { folder: seedFolder, branch: input.defaultBranch ?? 'main' },
+		blobless,
 		onProgress: (progress) => {
 			const now = Date.now();
 			const terminal = progress.fraction >= 1;
@@ -154,6 +172,7 @@ export async function createWorkstream(
 	const { projectRepoPath, workstreamId, baseBranch, projectId, name } = input;
 
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
+	await requireFreeSpace(appDataRoot, MINIMUM_FREE_BYTES, 'starting a workstream');
 	const worktreePath = workstreamPath(appDataRoot, workstreamId);
 	const branch = input.branch ?? workstreamBranchName(workstreamId);
 	const start =
@@ -239,6 +258,7 @@ export async function archiveWorkstream(
 	shelf: Exclude<WorkstreamRetirement, 'deleted'>,
 ): Promise<WorkstreamRetirementReceipt> {
 	if (moveArchivedWorkstream(deps.db, workstreamId, shelf === 'saved-for-later')) {
+		if (shelf === 'archived') await slimKeptContext(deps.appDataRoot, workstreamId);
 		return { savedWork: null };
 	}
 	return retireWorkstream(deps, workstreamId, shelf);
@@ -262,6 +282,7 @@ export async function restoreWorkstream(
 	const checkoutExisted = existsSync(checkout);
 	const branchExisted = (await branchList(repository)).includes(branch);
 	await mkdir(workstreamsRoot(appDataRoot), { recursive: true });
+	await requireFreeSpace(appDataRoot, MINIMUM_FREE_BYTES, 'restoring a workstream');
 	try {
 		await restoreArchivedWork({
 			repository,
@@ -284,6 +305,7 @@ export async function restoreWorkstream(
 			cleanup === null ? message : `${message}; the checkout could not be rolled back: ${cleanup}`,
 		);
 	}
+	unpackRestoredChats(db);
 	await settleRestoredCheckout(workstreamId, repository, checkout, branch, archived.archivedRef);
 	await restoreKeptFolders(appDataRoot, workstreamId, checkout).catch((error: unknown) =>
 		console.error(

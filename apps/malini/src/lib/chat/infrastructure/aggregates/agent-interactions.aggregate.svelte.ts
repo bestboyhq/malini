@@ -1,4 +1,6 @@
 import type {
+	AgentApprovalDecision,
+	AgentApprovalScope,
 	AgentPermissionDescriptor,
 	AgentQuestion,
 	AgentQuestionAnswer,
@@ -14,7 +16,7 @@ import {
 	type AgentInteractionReference,
 	type AgentInteractionState,
 } from '$lib/chat/domain/agent-interaction-state';
-import type { EventEnvelope } from '$lib/chat/domain/events';
+import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import { agentInteractions } from '$lib/chat/infrastructure/services/agent-interactions.service';
 import { sessionsAggregate } from './sessions.aggregate.svelte';
 
@@ -23,15 +25,18 @@ type InteractionAgentPort = Readonly<{
 	answerAgentQuestion(input: AnswerAgentQuestionInput): Promise<void>;
 }>;
 
+type RegisteredApproval = Readonly<{
+	kind: 'approval';
+	sessionId: string;
+	runId: string;
+	requestId: string;
+	permission?: AgentPermissionDescriptor;
+	autoModeRule?: string;
+	autoModeUnavailable?: true;
+}>;
+
 type RegisteredInteraction =
-	| Readonly<{
-			kind: 'approval';
-			sessionId: string;
-			runId: string;
-			requestId: string;
-			permission?: AgentPermissionDescriptor;
-			autoModeRule?: string;
-	  }>
+	| RegisteredApproval
 	| Readonly<{
 			kind: 'question';
 			sessionId: string;
@@ -67,6 +72,7 @@ function appendsWithoutInteractionLifecycle(
 		const type = next[index]?.event.type;
 		if (
 			type === 'approval.requested' ||
+			type === 'approval.decided' ||
 			type === 'question.requested' ||
 			type === 'run.completed' ||
 			type === 'run.failed'
@@ -117,12 +123,23 @@ export class AgentInteractionCommands {
 		const invalid = new Map<string, string>();
 		const answeredToolCalls = new Set<string>();
 		const questionToolCalls = new Map<string, string>();
+		const decisions = new Map<string, ApprovalDecided>();
 
 		for (const envelope of envelopes) {
 			if (sessionId !== undefined && envelope.sessionId !== sessionId) continue;
 			const event = envelope.event;
 			if (event.type === 'run.completed' || event.type === 'run.failed') {
 				terminalRuns.add(runKey(envelope.sessionId, envelope.runId));
+				continue;
+			}
+			if (event.type === 'approval.decided') {
+				const reference = {
+					kind: 'approval',
+					sessionId: envelope.sessionId,
+					runId: envelope.runId,
+					requestId: event.approvalId,
+				} satisfies AgentInteractionReference;
+				decisions.set(agentInteractionKey(reference), event);
 				continue;
 			}
 			if (event.type === 'tool.completed' && event.toolCallId) {
@@ -160,6 +177,7 @@ export class AgentInteractionCommands {
 					requestId,
 					...(event.permission ? { permission: event.permission } : {}),
 					...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
+					...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
 				});
 			} else {
 				const questionIds = new Set(event.questions.map(({ id }) => id));
@@ -199,7 +217,10 @@ export class AgentInteractionCommands {
 		for (const [key, request] of requests) {
 			const current = nextStates[key];
 			const toolCall = questionToolCalls.get(key);
-			if (toolCall && answeredToolCalls.has(toolCall)) {
+			const decided = decisions.get(key);
+			if (decided && request.kind === 'approval') {
+				if (current?.status !== 'resolved') nextStates[key] = decidedState(decided, request);
+			} else if (toolCall && answeredToolCalls.has(toolCall)) {
 				if (current?.status !== 'resolved') nextStates[key] = ANSWERED_STATE;
 			} else if (terminalRuns.has(runKey(request.sessionId, request.runId))) {
 				if (current?.status !== 'resolved' && current?.status !== 'submitting') {
@@ -273,6 +294,7 @@ export class AgentInteractionCommands {
 			return false;
 		}
 		const autoModeRule = request?.kind === 'approval' ? request.autoModeRule : undefined;
+		const keptBlockedRunsOn = request?.kind === 'approval' && runsOnWhenKeptBlocked(request);
 		const alwaysAllow = input.alwaysAllow === true;
 		if (alwaysAllow && (input.decision !== 'allow' || input.scope !== 'once' || !autoModeRule)) {
 			this.#fail(key, 'Only a call auto mode blocked can be always allowed.');
@@ -301,13 +323,24 @@ export class AgentInteractionCommands {
 				this.#fail(key, 'The remembered approval came back malformed.');
 				return false;
 			}
-			if (input.decision === 'allow') this.#onResolved(input.sessionId, input.runId);
+			if (input.decision === 'allow' || keptBlockedRunsOn) {
+				this.#onResolved(input.sessionId, input.runId);
+			}
 			const remembered = input.decision === 'allow' && result.remembered;
 			this.states = {
 				...this.states,
 				[key]: {
 					status: 'resolved',
-					message: resolvedMessage(input, remembered, autoModeRule !== undefined),
+					message: resolvedMessage(
+						{
+							decision: input.decision,
+							scope: input.scope,
+							alwaysAllow,
+							reviewed: input.updatedInput !== undefined,
+						},
+						remembered,
+						keptBlockedRunsOn,
+					),
 					decision: input.decision,
 					requestedScope: input.scope,
 					scopeStored: remembered,
@@ -392,16 +425,44 @@ export class AgentInteractionCommands {
 	}
 }
 
+type ApprovalDecided = Extract<AgentEvent, { type: 'approval.decided' }>;
+
+type Decision = Readonly<{
+	decision: AgentApprovalDecision;
+	scope: AgentApprovalScope;
+	alwaysAllow?: boolean;
+	reviewed?: boolean;
+}>;
+
+function runsOnWhenKeptBlocked(request: RegisteredApproval): boolean {
+	return request.autoModeRule !== undefined || request.autoModeUnavailable === true;
+}
+
+function decidedState(
+	decided: ApprovalDecided,
+	request: RegisteredApproval,
+): AgentInteractionState {
+	const remembered = decided.decision === 'allow' && decided.remembered;
+	return {
+		status: 'resolved',
+		message: resolvedMessage(decided, remembered, runsOnWhenKeptBlocked(request)),
+		decision: decided.decision,
+		requestedScope: decided.scope,
+		scopeStored: remembered,
+		...(decided.alwaysAllow ? { alwaysAllowed: true } : {}),
+	};
+}
+
 function resolvedMessage(
-	input: DecideAgentApprovalInput,
+	decided: Decision,
 	remembered: boolean,
-	blockedByAutoMode: boolean,
+	keptBlockedRunsOn: boolean,
 ): string {
-	if (input.decision === 'deny') return blockedByAutoMode ? 'Kept blocked' : 'Denied';
-	if (input.alwaysAllow) return 'Always allowed';
-	if (input.updatedInput) return 'Saved after review';
-	if (input.scope === 'once' || !remembered) return 'Allowed once';
-	return SCOPE_MESSAGES[input.scope];
+	if (decided.decision === 'deny') return keptBlockedRunsOn ? 'Kept blocked' : 'Denied';
+	if (decided.alwaysAllow) return 'Always allowed';
+	if (decided.reviewed) return 'Saved after review';
+	if (decided.scope === 'once' || !remembered) return 'Allowed once';
+	return SCOPE_MESSAGES[decided.scope];
 }
 
 type QuestionAnswerValidation =

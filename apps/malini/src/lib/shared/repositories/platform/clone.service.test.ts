@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -151,6 +151,131 @@ describe('ensureBaseClone', () => {
 			classifyCloneError(GitError.git("fatal: destination path 'x' already exists")).kind,
 		).toBe('not-a-repo');
 		expect(classifyCloneError(GitError.git('boom')).kind).toBe('git');
+	});
+
+	it('clones from the local folder, shares its packs, and ends up exactly where the remote is', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = await seedRemote(dir);
+		const folder = join(dir, 'folder');
+		await realGit(dir, ['clone', '-q', remote, folder]);
+		await realGit(folder, ['config', 'user.email', 't@example.com']);
+		await realGit(folder, ['config', 'user.name', 't']);
+		await writeFile(join(folder, 'unpushed.txt'), 'local only\n');
+		await realGit(folder, ['add', '.']);
+		await realGit(folder, ['commit', '-q', '-m', 'unpushed']);
+		await realGit(folder, ['tag', 'local-tag']);
+		await realGit(folder, ['checkout', '-q', '-b', 'feature']);
+		await realGit(folder, ['repack', '-a', '-d', '-q']);
+		await writeFile(join(remote, 'later.txt'), 'later\n');
+		await realGit(remote, ['add', '.']);
+		await realGit(remote, ['commit', '-q', '-m', 'later']);
+		const remoteTip = (await realGit(remote, ['rev-parse', 'HEAD'])).trim();
+
+		const { path } = await ensureBaseCloneWithOutcome({
+			repoPath: remote,
+			appDataRoot: join(dir, 'app-data'),
+			githubToken: null,
+			credentials: noPromptCredentialEnv,
+			onProgress: () => undefined,
+			seed: { folder, branch: 'main' },
+		});
+
+		expect((await realGit(path, ['remote', 'get-url', 'origin'])).trim()).toBe(remote);
+		expect((await realGit(path, ['rev-parse', 'HEAD', 'origin/main'])).trim().split('\n')).toEqual([
+			remoteTip,
+			remoteTip,
+		]);
+		expect((await realGit(path, ['branch', '--format=%(refname:short)'])).trim()).toBe('main');
+		expect((await realGit(path, ['tag', '--list'])).trim()).toBe('');
+		expect(existsSync(join(path, 'later.txt'))).toBe(true);
+		expect(existsSync(join(path, 'unpushed.txt'))).toBe(false);
+		const packs = join(path, '.git', 'objects', 'pack');
+		const shared = (await readdir(packs)).filter((name) => name.endsWith('.pack'));
+		expect(shared.length).toBeGreaterThan(0);
+		for (const pack of shared) {
+			expect((await stat(join(packs, pack))).nlink).toBeGreaterThan(1);
+			expect(existsSync(join(packs, pack.replace(/\.pack$/u, '.keep')))).toBe(true);
+		}
+	});
+
+	it('fails without a second clone when the remote the folder points at cannot be reached', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = await seedRemote(dir);
+		const folder = join(dir, 'folder');
+		await realGit(dir, ['clone', '-q', remote, folder]);
+		const clones: string[][] = [];
+		const restore = installGitRunnerForTests(async (args, env, previous) => {
+			if (args.includes('clone')) clones.push([...args]);
+			return previous(args, env);
+		});
+		cleanups.push(async () => restore());
+		const appData = join(dir, 'app-data');
+
+		await expect(
+			ensureBaseCloneWithOutcome({
+				repoPath: join(dir, 'gone.git'),
+				appDataRoot: appData,
+				githubToken: null,
+				credentials: noPromptCredentialEnv,
+				onProgress: () => undefined,
+				seed: { folder, branch: 'main' },
+			}),
+		).rejects.toMatchObject({ kind: 'git' });
+		expect(clones).toHaveLength(1);
+		expect(existsSync(join(appData, 'repositories', 'gone'))).toBe(false);
+	});
+
+	it('clones from the remote when the local folder is a shallow clone', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = await seedRemote(dir);
+		const folder = join(dir, 'folder');
+		await realGit(dir, ['clone', '-q', '--depth', '1', `file://${remote}`, folder]);
+
+		const { path } = await ensureBaseCloneWithOutcome({
+			repoPath: remote,
+			appDataRoot: join(dir, 'app-data'),
+			githubToken: null,
+			credentials: noPromptCredentialEnv,
+			onProgress: () => undefined,
+			seed: { folder, branch: 'main' },
+		});
+
+		expect((await realGit(path, ['rev-parse', '--is-shallow-repository'])).trim()).toBe('false');
+		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
+	});
+
+	it('clones blobless with GitHub sign-in kept for the blobs it fetches later', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const remote = await seedRemote(dir);
+		await realGit(remote, ['config', 'uploadpack.allowFilter', 'true']);
+
+		const { path } = await ensureBaseCloneWithOutcome({
+			repoPath: `file://${remote}`,
+			appDataRoot: join(dir, 'app-data'),
+			githubToken: null,
+			credentials: noPromptCredentialEnv,
+			onProgress: () => undefined,
+			blobless: true,
+		});
+
+		expect((await realGit(path, ['config', 'remote.origin.partialclonefilter'])).trim()).toBe(
+			'blob:none',
+		);
+		expect(
+			(
+				await realGit(path, [
+					'config',
+					'--local',
+					'--get-all',
+					'credential.https://github.com.helper',
+				])
+			).split('\n'),
+		).toEqual(['', '!gh auth git-credential', '']);
+		expect(existsSync(join(path, 'seed.txt'))).toBe(true);
 	});
 });
 

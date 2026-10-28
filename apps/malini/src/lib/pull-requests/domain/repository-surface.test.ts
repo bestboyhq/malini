@@ -3,9 +3,16 @@ import type { ExtensionPullRequestContext } from '@malini/extension-api';
 import type { RepositorySurfaceState } from '@malini-extension/repository';
 
 import { RepositorySurfaceMapper } from '$lib/pull-requests/infrastructure/mappers/repository-surface.mapper';
-import { pullRequestRefreshActivity } from './repository-surface';
+import {
+	pullRequestRefreshActivity,
+	surfaceMergedHead,
+	type RepositorySurface,
+} from './repository-surface';
 
-function activity(pullRequest: Partial<ExtensionPullRequestContext> | null): string {
+function read(
+	pullRequest: Partial<ExtensionPullRequestContext> | null,
+	overrides: Partial<RepositorySurfaceState> = {},
+): RepositorySurface {
 	const surface: RepositorySurfaceState = {
 		status: 'ready',
 		workstreamId: 'workstream-1',
@@ -42,8 +49,13 @@ function activity(pullRequest: Partial<ExtensionPullRequestContext> | null): str
 		todoStatus: 'ready',
 		todoOpenCount: 0,
 		todoError: null,
+		...overrides,
 	};
-	return pullRequestRefreshActivity(RepositorySurfaceMapper.fromRaw(surface));
+	return RepositorySurfaceMapper.fromRaw(surface);
+}
+
+function activity(pullRequest: Partial<ExtensionPullRequestContext> | null): string {
+	return pullRequestRefreshActivity(read(pullRequest));
 }
 
 const check = {
@@ -83,5 +95,23 @@ describe('how eagerly the open workstream reads its pull request', () => {
 
 	it.each(['merged', 'closed'] as const)('stops reading a %s pull request', (state) => {
 		expect(activity({ state, includesLocalHead: false, checks: 'pending' })).toBe('finished');
+	});
+});
+
+describe('where a merged workstream continues from', () => {
+	it('continues on top of its base from the head that merged', () => {
+		expect(surfaceMergedHead(read({ state: 'merged' }))).toEqual({
+			baseBranch: 'main',
+			mergedHeadSha: 'head-7',
+		});
+	});
+
+	it('leaves a workstream that is not merged, has no merged head or is mid-operation alone', () => {
+		expect(surfaceMergedHead(read({}))).toBeNull();
+		expect(surfaceMergedHead(read(null))).toBeNull();
+		expect(surfaceMergedHead(read({ state: 'merged', headSha: null }))).toBeNull();
+		expect(
+			surfaceMergedHead(read({ state: 'merged' }, { operationInProgress: 'rebase' })),
+		).toBeNull();
 	});
 });

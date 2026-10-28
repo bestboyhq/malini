@@ -336,6 +336,32 @@ export function autoModeCategory(reason: string | undefined): string {
 	return reason?.trim().replace(/^\[(.+)\]$/su, '$1') || 'no reason given';
 }
 
+export const AUTO_MODE_UNAVAILABLE = 'Classifier unavailable';
+export const AUTO_MODE_STOPPED = 'Auto mode unavailable';
+export const UNCHECKED_CALL_REASON =
+	"Auto mode couldn't check this call: Anthropic's safety check is down.";
+
+export class AutoModeOutage {
+	#until = 0;
+
+	constructor(
+		readonly retryDelaysMs: readonly number[] = [5_000, 10_000, 20_000],
+		readonly lastsMs = 5 * 60_000,
+	) {}
+
+	get down(): boolean {
+		return Date.now() < this.#until;
+	}
+
+	get remainingMs(): number {
+		return Math.max(0, this.#until - Date.now());
+	}
+
+	confirm(): void {
+		this.#until = Date.now() + this.lastsMs;
+	}
+}
+
 export function retryKey(toolName: string, input: unknown): string {
 	const command = toolName === 'Bash' && isRecord(input) ? input['command'] : undefined;
 	return `${toolName}\u0000${typeof command === 'string' ? command : JSON.stringify(input)}`;

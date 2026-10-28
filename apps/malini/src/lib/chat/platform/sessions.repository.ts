@@ -307,6 +307,7 @@ export function listSessionSummaries(
 		                WHEN r.completed_at IS NULL THEN
 		                    CASE WHEN s.status = 'waiting_for_approval'
 		                        THEN 'waiting_for_approval' ELSE 'running' END
+		                WHEN r.resume_at IS NOT NULL THEN 'idle'
 		                WHEN r.error IS NOT NULL THEN 'failed'
 		                ELSE 'completed'
 		            END

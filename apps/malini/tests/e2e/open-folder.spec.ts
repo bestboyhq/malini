@@ -55,7 +55,9 @@ test('opening a folder lands on its scratchpad and clones it in the background',
 
 test('a folder whose clone fails still opens, and offers a retry', async () => {
 	test.setTimeout(120_000);
-	const app = await launchMalini({ allowedDiagnostics: [/repository 'upstream' does not exist/u] });
+	const app = await launchMalini({
+		allowedDiagnostics: [/'upstream' does not appear to be a git repository/u],
+	});
 	try {
 		const { page } = app;
 		const setup = page.getByTestId('onboarding');
@@ -74,7 +76,7 @@ test('a folder whose clone fails still opens, and offers a retry', async () => {
 
 		const failure = page.getByRole('alert').filter({ hasText: 'Could not clone this repository' });
 		await expect(failure).toBeVisible({ timeout: 30_000 });
-		await expect(failure).toContainText("Repository 'upstream' does not exist");
+		await expect(failure).toContainText("'upstream' does not appear to be a git repository");
 		await captureFlow(app, 'open-folder-clone-failed');
 
 		await createSourceRepo(app.root, 'upstream');

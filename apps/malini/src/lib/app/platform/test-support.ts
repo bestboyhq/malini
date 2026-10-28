@@ -112,6 +112,7 @@ export interface FakeWindow {
 	zoom: number;
 	minimized: boolean;
 	destroyed: boolean;
+	contentsDestroyed: boolean;
 }
 
 function asShellWindow(window: unknown): ShellWindow;
@@ -160,7 +161,11 @@ export function createFakeWindow(): FakeWindow {
 			setZoomFactor: (zoom: number) => {
 				fake.zoom = zoom;
 			},
-			getZoomFactor: () => fake.zoom,
+			getZoomFactor: () => {
+				if (fake.contentsDestroyed) throw new TypeError('Object has been destroyed');
+				return fake.zoom;
+			},
+			isDestroyed: () => fake.contentsDestroyed,
 			reload: () => {
 				fake.calls.push('reload');
 			},
@@ -176,6 +181,7 @@ export function createFakeWindow(): FakeWindow {
 		zoom: 1,
 		minimized: false,
 		destroyed: false,
+		contentsDestroyed: false,
 		emit(event) {
 			const payload = {
 				defaultPrevented: false,

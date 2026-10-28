@@ -33,6 +33,7 @@ export function thoughtLabel(durationSeconds: number | null): string {
 }
 
 export function terminalLabel(run: RunGroup): string {
+	if (run.terminal === 'paused') return 'Run paused';
 	if (run.terminal === 'cancelled') {
 		return run.terminalText === PAUSED_FOR_EXIT_ERROR ? 'Run paused' : 'Run cancelled';
 	}

@@ -1,10 +1,15 @@
-import type { AgentBackgroundTask } from '$contract/agent';
+import type { AgentBackgroundTask, RunFailure } from '$contract/agent';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { McpServerReport } from '$contract/mcp-servers';
 import type { StagedAgentAttachment } from './composer-actions';
 import type { AgentElementReference } from './element-reference';
 import type { AgentTranscriptReference } from './transcript-reference';
-import type { AgentPermissionDescriptor, AgentQuestion } from './agent-interaction';
+import type {
+	AgentApprovalDecision,
+	AgentApprovalScope,
+	AgentPermissionDescriptor,
+	AgentQuestion,
+} from './agent-interaction';
 
 export type SessionStatus = 'idle' | 'running' | 'waiting_for_approval' | 'completed' | 'failed';
 
@@ -73,7 +78,18 @@ export type AgentEvent =
 			input?: unknown;
 			permission?: AgentPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: boolean;
 			review?: MaliniEditReview;
+	  }
+	| {
+			type: 'approval.decided';
+			runId: string;
+			approvalId: string;
+			decision: AgentApprovalDecision;
+			scope: AgentApprovalScope;
+			remembered: boolean;
+			alwaysAllow?: boolean;
+			reviewed?: boolean;
 	  }
 	| {
 			type: 'question.requested';
@@ -110,7 +126,14 @@ export type AgentEvent =
 			handedOff?: boolean;
 	  }
 	| { type: 'run.completed'; runId: string; summary: string; handedOff?: boolean }
-	| { type: 'run.failed'; runId: string; error: string; handedOff?: boolean }
+	| {
+			type: 'run.failed';
+			runId: string;
+			error: string;
+			failure?: RunFailure;
+			resumeAt?: string;
+			handedOff?: boolean;
+	  }
 	| { type: 'assistant.delta'; runId: string; contentId: string; text: string }
 	| { type: 'thinking.delta'; runId: string; contentId: string; text: string }
 	| {

@@ -3,6 +3,7 @@ export {
 	isWorkstreamCheckoutUsable,
 	type ArchivedWorkstream,
 	type CreatedWorkstream,
+	type MergedHead,
 	type MergedPullRequest,
 	type Workstream,
 	type WorkstreamChangeTarget,
@@ -158,6 +159,7 @@ export { loadRepositoryAvatarCommand } from './application/commands/load-reposit
 export { moveInSidebarCommand } from './application/commands/move-in-sidebar.command';
 export { loadWorkstreamDiffCommand } from './application/commands/load-workstream-diff.command';
 export { loadWorkstreamGitStatusCommand } from './application/commands/load-workstream-git-status.command';
+export { noteMergedHeadCommand } from './application/commands/note-merged-head.command';
 export { openRepositoryFolderCommand } from './application/commands/open-repository-folder.command';
 export { openWorkstreamInEditorCommand } from './application/commands/open-workstream-in-editor.command';
 export { loadRepositoriesScopeCommand } from './application/commands/load-repositories-scope.command';
@@ -200,6 +202,7 @@ export { changeTotalsQuery } from './application/queries/change-totals.query.sve
 export { connectedRepositoriesQuery } from './application/queries/connected-repositories.query.svelte';
 export { dependencyInstallQuery } from './application/queries/dependency-install.query.svelte';
 export { hiddenRepositoriesQuery } from './application/queries/hidden-repositories.query.svelte';
+export { mergedHeadQuery } from './application/queries/merged-head.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
 export { connectionProblemQuery } from './application/queries/connection-problem.query.svelte';

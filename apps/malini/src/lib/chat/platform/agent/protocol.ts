@@ -8,6 +8,7 @@ import {
 } from '$contract/protocol-contract.generated';
 import {
 	AGENT_BACKGROUND_TASK_KINDS,
+	RUN_FAILURE_KINDS,
 	type AgentAccount,
 	type AgentBackgroundTask,
 	type AgentBackgroundTaskKind,
@@ -20,6 +21,7 @@ import {
 	type AgentTheme,
 	type ProviderCapability,
 	type ProviderCapabilityState,
+	type RunFailure,
 } from '$contract/agent';
 import type { SkillRecord, SkillSource, TurnedOffSkills } from '$contract/skills';
 import type { MaliniEditReview } from '$contract/approvals';
@@ -265,6 +267,7 @@ export type BridgeEvent =
 			input?: unknown;
 			permission?: unknown;
 			autoModeRule?: string;
+			autoModeUnavailable?: boolean;
 			review?: MaliniEditReview;
 	  }
 	| {
@@ -309,6 +312,8 @@ export type BridgeEvent =
 			type: 'run.failed';
 			runId: string;
 			error: string;
+			failure?: RunFailure;
+			resumeAt?: string;
 			providerCursor?: string;
 			handedOff?: boolean;
 	  }
@@ -489,6 +494,17 @@ class Fields {
 	private missing(key: string, expected: string): string {
 		return `${this.frame}: field \`${key}\` must be ${expected}`;
 	}
+}
+
+function runFailure(value: Record<string, unknown> | undefined): RunFailure | undefined {
+	const kind = RUN_FAILURE_KINDS.find((candidate) => candidate === value?.['kind']);
+	if (value === undefined || kind === undefined) return undefined;
+	const { resetsAt, status } = value;
+	return {
+		kind,
+		...(typeof resetsAt === 'string' && !Number.isNaN(Date.parse(resetsAt)) ? { resetsAt } : {}),
+		...(typeof status === 'number' && Number.isInteger(status) ? { status } : {}),
+	};
 }
 
 function optional<T>(key: string, value: T | undefined): Record<string, T> {
@@ -674,6 +690,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					...optional('input', f.optionalValue('input')),
 					...optional('permission', f.optionalValue('permission')),
 					...optional('autoModeRule', f.optionalString('autoModeRule')),
+					...optional('autoModeUnavailable', f.optionalBoolean('autoModeUnavailable')),
 				});
 			case 'question.requested':
 				return ok({
@@ -727,6 +744,7 @@ export function decodeBridgeEvent(value: unknown): Decoded<BridgeEvent> {
 					type: kind,
 					runId: f.string('runId'),
 					error: f.string('error'),
+					...optional('failure', runFailure(f.optionalRecord('failure'))),
 					...optional('providerCursor', f.optionalString('providerCursor')),
 					...optional('handedOff', f.optionalBoolean('handedOff')),
 				});

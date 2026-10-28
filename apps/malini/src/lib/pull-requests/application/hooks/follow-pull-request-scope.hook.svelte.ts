@@ -1,7 +1,7 @@
 import { untrack } from 'svelte';
-import { keepWorkstreamCurrentCommand } from '$lib/pull-requests/application/commands/keep-workstream-current.command';
 import { loadRepositorySurfaceCommand } from '$lib/pull-requests/application/commands/load-repository-surface.command';
 import { releasePullRequestScopeCommand } from '$lib/pull-requests/application/commands/release-pull-request-scope.command';
+import { reportWorkstreamOpenedCommand } from '$lib/pull-requests/application/commands/report-workstream-opened.command';
 import {
 	trackPullRequestScopeCommand,
 	type PullRequestScope,
@@ -16,7 +16,7 @@ export function followPullRequestScopeHook(readScope: () => PullRequestScope): (
 			untrack(() => trackPullRequestScopeCommand(scope));
 			if (scope.workstreamId && scope.workstreamId !== openedWorkstreamId) {
 				openedWorkstreamId = scope.workstreamId;
-				untrack(() => keepWorkstreamCurrentCommand(scope.workstreamId));
+				untrack(() => reportWorkstreamOpenedCommand(scope.workstreamId));
 			}
 			const activation =
 				scope.extensionReady && scope.workstreamId

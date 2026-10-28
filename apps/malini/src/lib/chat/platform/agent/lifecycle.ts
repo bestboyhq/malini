@@ -29,7 +29,8 @@ export type LifecycleErrorKind =
 	| 'start_snapshot_failed'
 	| 'db'
 	| 'cancel_race'
-	| 'cancel_persistence_timeout';
+	| 'cancel_persistence_timeout'
+	| 'nothing_to_continue';
 
 export class LifecycleError extends Error {
 	override readonly name = 'LifecycleError';
@@ -68,6 +69,8 @@ export class LifecycleError extends Error {
 				return `cancel race: ${detail}`;
 			case 'cancel_persistence_timeout':
 				return `cancel persistence timeout: ${detail}`;
+			case 'nothing_to_continue':
+				return 'This chat has no stopped turn to continue.';
 		}
 	}
 }

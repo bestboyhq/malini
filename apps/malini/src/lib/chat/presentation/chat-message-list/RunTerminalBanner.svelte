@@ -1,24 +1,43 @@
 <script lang="ts">
+	import { Button } from '$hyper-ui/components/button';
 	import { Icon } from '$hyper-ui/icons';
 	import { IconButton } from '$hyper-ui/components/icon-button';
 	import { Tooltip } from '$hyper-ui/components/tooltip';
+	import { claudeSignInQuery, signInToClaudeCommand } from '$shared/providers/providers.api';
+	import { continueRunCommand } from '$lib/chat/application/commands/continue-run.command';
+	import { runContinuationQuery } from '$lib/chat/application/queries/run-continuation.query.svelte';
 	import { splitRunErrorText, type RunGroup } from '../render-state';
 	import MarkdownText from '../MarkdownText.svelte';
+	import { failedRunNextStep, pauseReason, pauseTitle } from './run-stop-copy';
 	import { terminalLabel } from './transcript-labels';
 	import { transcriptContext } from './transcript-context';
 
 	interface Props {
 		run: RunGroup;
+		latest?: boolean;
 	}
 
-	let { run }: Props = $props();
+	let { run, latest = false }: Props = $props();
 
 	const transcript = transcriptContext();
 	const { stageEnter, timelineKey } = transcript;
 	const errorDisplay = $derived(splitRunErrorText(run.terminalText));
+	const failureKind = $derived(run.failure?.kind ?? null);
+	const nextStep = $derived(failureKind === null ? null : failedRunNextStep(failureKind));
+	const continuing = $derived(runContinuationQuery.continuing);
+	const signingIn = $derived(claudeSignInQuery.data !== 'idle');
+	const canContinue = $derived(latest && !transcript.chatRunInFlight);
+	const canTryAgain = $derived(
+		canContinue && runContinuationQuery.origin(transcript.sessionId) !== 'job',
+	);
+	const canSignIn = $derived(latest && failureKind === 'sign-in');
+
+	function continueRun(): void {
+		continueRunCommand(transcript.sessionId);
+	}
 </script>
 
-{#if run.terminal === 'cancelled'}
+{#if run.terminal === 'cancelled' || (run.terminal === 'paused' && !latest)}
 	<div
 		class="border-surface-50-border bg-surface-50 text-2xs text-fg-secondary flex items-center gap-1.5 rounded-md border-[0.5px] px-2.5 py-1 font-medium tabular-nums"
 		use:stageEnter={timelineKey(run, 'terminal')}
@@ -26,8 +45,47 @@
 		data-terminal="failed"
 		data-terminal-state={run.terminal}
 	>
-		<Icon name="circle-slash" size={12} class="shrink-0" />
+		<Icon name={run.terminal === 'paused' ? 'pause' : 'circle-slash'} size={12} class="shrink-0" />
 		<span class="tracking-wide uppercase">{terminalLabel(run)}</span>
+	</div>
+{:else if run.terminal === 'paused' && run.resumeAt !== null}
+	<div
+		class="border-surface-50-border bg-surface-50 flex w-full items-start gap-2.5 self-start rounded-md border-[0.5px] px-3 py-2.5 text-xs"
+		use:stageEnter={timelineKey(run, 'terminal')}
+		role="status"
+		data-message-kind="terminal"
+		data-terminal="paused"
+		data-terminal-state={run.terminal}
+		data-testid="chat-run-paused"
+	>
+		<span class="text-fg-tertiary mt-0.5 grid h-5 w-5 shrink-0 place-items-center">
+			<Icon name="pause" size={13} />
+		</span>
+		<div class="min-w-0 flex-1">
+			<div class="text-fg-default font-medium">{pauseTitle(run.resumeAt, new Date())}</div>
+			<div class="text-fg-secondary mt-0.5 leading-5">
+				{pauseReason(failureKind ?? 'unknown')}
+			</div>
+			{#if errorDisplay.primary}
+				<div
+					class="text-2xs text-fg-tertiary mt-1 line-clamp-2 break-words select-text"
+					data-testid="chat-run-paused-error"
+				>
+					{errorDisplay.primary}
+				</div>
+			{/if}
+		</div>
+		{#if canContinue}
+			<Button
+				variant="secondary"
+				size="sm"
+				disabled={continuing}
+				ariaBusy={continuing}
+				onclick={continueRun}
+			>
+				Resume now
+			</Button>
+		{/if}
 	</div>
 {:else}
 	<div
@@ -83,6 +141,35 @@
 						</div>
 					</details>
 				{/if}
+			{/if}
+			{#if nextStep}
+				<div class="text-2xs text-error-content/80 mt-1">{nextStep}</div>
+			{/if}
+			{#if canSignIn || canTryAgain}
+				<div class="mt-2 flex items-center gap-1.5">
+					{#if canSignIn}
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={signingIn}
+							ariaBusy={signingIn}
+							onclick={() => signInToClaudeCommand()}
+						>
+							Sign in
+						</Button>
+					{/if}
+					{#if canTryAgain}
+						<Button
+							variant="secondary"
+							size="sm"
+							disabled={continuing}
+							ariaBusy={continuing}
+							onclick={continueRun}
+						>
+							Try again
+						</Button>
+					{/if}
+				</div>
 			{/if}
 		</div>
 		{#if run.terminalText}

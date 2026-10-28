@@ -3,6 +3,7 @@ import {
 	APP_STARTED_CHANNEL,
 	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_RUN_FINISHED_CHANNEL,
+	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
 	type ChatTurnFinishedPayload,
@@ -382,6 +383,11 @@ describe('the event reconciler', () => {
 
 		context.events.emit(APP_STARTED_CHANNEL, { version: '0.0.0-test' });
 		context.events.emit(PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL, { workstreamId: 'api' });
+		context.events.emit(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, {
+			workstreamId: 'api',
+			button: 'merge',
+			state: null,
+		});
 		finish('lead-chat', 'lead-turn');
 
 		await vi.waitFor(() => expect(heard).toHaveLength(4));
@@ -390,7 +396,7 @@ describe('the event reconciler', () => {
 			'resume app:started',
 			'shipping app:started',
 			'shipping chat:turn-finished',
-			'shipping pull-requests:workstream-opened',
+			'shipping pull-requests:button-clicked',
 		]);
 	});
 

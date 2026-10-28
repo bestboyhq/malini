@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+	captureFlow,
 	createSourceRepo,
 	currentSessionId,
 	expectAssistantReply,
@@ -41,6 +42,9 @@ test('a permission request waits for the user, hands the agent their decision, a
 		await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).toBeVisible();
 		await expectAssistantReply(page);
 		expect(await decisionTheAgentGot(page)).toEqual({ decision: 'allow', scope: 'once' });
+		await openWorkstream(page, workstreamId, currentSessionId(page) ?? undefined);
+		await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).toBeVisible();
+		await expect(page.getByText('No longer active')).toHaveCount(0);
 
 		await startFreshChat(page);
 		await sendPrompt(page, 'APPROVAL');
@@ -113,6 +117,84 @@ test('a call auto mode blocks asks the user, and Always allow hands Claude the r
 		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
 		await expectAssistantReply(page);
 		expect(await runSummary()).toBe('blocked:deny:once');
+
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a call auto mode could not check asks once in its chat, and every other chat answers it from one row', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const source = await createSourceRepo(app.root);
+		const outage = await seedWorkstream(
+			page,
+			source,
+			'e2e-auto-mode-down-ws',
+			'Auto mode outage workstream',
+		);
+		const elsewhere = await seedWorkstream(
+			page,
+			source,
+			'e2e-auto-mode-elsewhere-ws',
+			'Elsewhere workstream',
+		);
+		const unchecked = "Auto mode couldn't check this call: Anthropic's safety check is down.";
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+		const runSummary = async (sessionId: string): Promise<unknown> => {
+			const events = await listEvents(page, sessionId);
+			const completed = events.filter((entry) => entry.event.type === 'run.completed').at(-1);
+			return completed?.event.type === 'run.completed' ? completed.event.summary : null;
+		};
+
+		await openWorkstream(page, elsewhere.workstreamId);
+		await sendPrompt(page, 'Plan the release');
+		await expectAssistantReply(page);
+
+		await openWorkstream(page, outage.workstreamId);
+		await sendPrompt(page, 'AUTO_MODE_DOWN');
+		await expect(decision).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText(unchecked)).toBeVisible();
+		await expect(decision.getByRole('button', { name: 'Deny' })).toHaveCount(0);
+		await decision.getByRole('button', { name: 'Keep blocked' }).click();
+		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
+		await expectAssistantReply(page);
+		expect(await runSummary(currentSessionId(page) ?? '')).toBe('unchecked:deny:once');
+		await expect(page.getByTestId('tool-blocked')).toHaveText(['not checked', 'not checked']);
+		await expect(page.getByTestId('tool-card-failed')).toHaveCount(0);
+		await captureFlow(app, 'unchecked-call-kept-blocked');
+		await openWorkstream(page, outage.workstreamId, currentSessionId(page) ?? undefined);
+		await expect(page.getByRole('status').filter({ hasText: 'Kept blocked' })).toBeVisible();
+
+		await startFreshChat(page);
+		await sendPrompt(page, 'AUTO_MODE_DOWN');
+		await expect(decision).toBeVisible({ timeout: 20_000 });
+		const waitingChat = currentSessionId(page) ?? '';
+
+		await openWorkstream(page, elsewhere.workstreamId);
+		const waiting = page.getByRole('button', { name: 'Answer: 1 call waiting' });
+		await expect(waiting).toBeVisible({ timeout: 30_000 });
+		await expect(waiting).toContainText("auto mode's safety check is down (Anthropic)");
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
+		await captureFlow(app, 'unchecked-calls-waiting');
+		await waiting.click();
+		const asking = page.getByRole('region', { name: 'Auto mode outage workstream needs you' });
+		await expect(asking.getByText(unchecked)).toBeVisible();
+		await expect(page.getByTestId('chat-composer')).toBeHidden();
+		await captureFlow(app, 'unchecked-calls-queue');
+		await asking
+			.getByRole('group', { name: 'Permission decision' })
+			.getByRole('button', { name: 'Allow once' })
+			.click();
+		await expect(asking).toHaveCount(0, { timeout: 20_000 });
+		await expect(waiting).toHaveCount(0);
+		await expect(page.getByTestId('chat-composer')).toBeVisible();
+		await expect
+			.poll(() => runSummary(waitingChat), { timeout: 20_000 })
+			.toBe('unchecked:allow:once');
 
 		expectCleanConsole(app);
 	} finally {

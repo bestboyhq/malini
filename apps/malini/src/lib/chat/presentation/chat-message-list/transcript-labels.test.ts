@@ -15,6 +15,8 @@ function run(terminal: RunGroup['terminal']): RunGroup {
 		items: [],
 		terminal,
 		terminalText: '',
+		failure: null,
+		resumeAt: null,
 		turnEnded: terminal === 'completed',
 		superseded: false,
 		obsoleted: false,
@@ -74,8 +76,9 @@ describe('how a run ended', () => {
 		expect(terminalLabel(run('failed'))).toBe('Run failed');
 	});
 
-	it('says a run malini closed on is paused, not cancelled', () => {
+	it('says a run malini closed on, or a limit paused, is paused, not cancelled', () => {
 		const paused = { ...run('cancelled'), terminalText: PAUSED_FOR_EXIT_ERROR };
 		expect(terminalLabel(paused)).toBe('Run paused');
+		expect(terminalLabel(run('paused'))).toBe('Run paused');
 	});
 });

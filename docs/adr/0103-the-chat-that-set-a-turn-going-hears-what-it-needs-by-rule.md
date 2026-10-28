@@ -1,4 +1,4 @@
-# 0096 - The chat that set a turn going hears what it needs, by rule
+# 0103 - The chat that set a turn going hears what it needs, by rule
 
 Status: accepted
 

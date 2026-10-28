@@ -18,6 +18,7 @@ import {
 } from './pull-request-ship';
 import {
 	repositorySurfaceHasBeenRead,
+	surfaceMergedHead,
 	type RepositorySurface,
 	type SurfacePullRequest,
 	type SurfacePullRequestCheck,
@@ -90,7 +91,7 @@ function shipStatus(
 ): WorkstreamStatus | null {
 	if (!read) return ship?.pullRequestNumber ? openBeforeRead(ship.pullRequestNumber, ship) : null;
 	const pullRequest = read.pullRequest;
-	if (pullRequest?.state === 'merged') return merged(read, pullRequest);
+	if (pullRequest?.state === 'merged') return merged(read);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return {
 			...openStatus(pullRequest),
@@ -114,14 +115,18 @@ function needsYou(
 	const operation = read?.operationInProgress ?? null;
 	const explanation =
 		ship.needsYou?.detail.trim() || (reason ? needsYouReasonDescription(reason) : '');
+	const nextStep =
+		reason === 'fix-gave-up' && ship.needsYou?.jobRunId ? RETRY_IN_JOB : NEEDS_YOU_NEXT_STEP;
 	return attention(
 		reason ? needsYouReasonLabel(reason, operation) : null,
-		[sentence(explanation), NEEDS_YOU_NEXT_STEP].filter(Boolean).join(' '),
+		[sentence(explanation), nextStep].filter(Boolean).join(' '),
 		needsYouAction(ship, operation, url),
 	);
 }
 
 const NEEDS_YOU_NEXT_STEP = 'The merge picks up again on its own once this is resolved.';
+
+const RETRY_IN_JOB = 'Open the job to see why, and retry the merge from there.';
 
 function needsYouAction(
 	ship: PullRequestShip,
@@ -257,23 +262,12 @@ function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
 	);
 }
 
-function merged(read: RepositorySurface, pullRequest: SurfacePullRequest): WorkstreamStatus {
+function merged(read: RepositorySurface): WorkstreamStatus {
+	const head = surfaceMergedHead(read);
 	return {
 		...line('merged', 'Merged', null),
+		tooltip: head ? `Your next prompt continues on top of the latest ${head.baseBranch}` : null,
 		action: ARCHIVE,
-		...(read.baseBranch && pullRequest.headSha
-			? { secondaryAction: continueOnBase(read.baseBranch) }
-			: {}),
-	};
-}
-
-function continueOnBase(baseBranch: string): PullRequestTopBarAction {
-	return {
-		kind: 'continue',
-		label: 'Continue',
-		ariaLabel: `Continue on top of the latest ${baseBranch}`,
-		tone: 'secondary',
-		confirmLabel: null,
 	};
 }
 
@@ -417,14 +411,11 @@ function topBarMenu(
 	const operation = surface?.operationInProgress ?? null;
 	const numbered = Boolean(surface?.pullRequest?.number ?? ship?.pullRequestNumber);
 	return [
-		...(ship?.phase === 'needs-you' ? [RETRY_MERGE] : []),
 		...(merging ? [CANCEL_MERGE_ITEM] : []),
 		...(operation ? [abortOperationItem(operation)] : []),
 		...(surface && (numbered || remoteFailure) ? [REFRESH] : []),
 	];
 }
-
-const RETRY_MERGE: PullRequestMenuItem = { id: 'retry-merge', label: 'Retry', confirmLabel: null };
 
 const CANCEL_MERGE_ITEM: PullRequestMenuItem = {
 	id: 'cancel-merge',
@@ -482,6 +473,7 @@ const KEEP: PullRequestTopBarAction = {
 	ariaLabel: 'Keep this workstream after it merges',
 	tone: 'secondary',
 	confirmLabel: null,
+	tooltip: 'Skip archiving after the merge',
 };
 
 const OPEN_PULL_REQUEST: PullRequestTopBarAction = {

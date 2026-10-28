@@ -221,6 +221,86 @@ describe('AgentInteractionCommands', () => {
 		});
 	});
 
+	it.each([
+		{ name: 'auto mode blocked', flags: { autoModeRule: 'Bash(curl https://example.com)' } },
+		{ name: 'auto mode could not check', flags: { autoModeUnavailable: true } },
+	])('resumes a run that carries on after a call $name stays blocked', async ({ flags }) => {
+		const decideAgentApproval = vi.fn().mockResolvedValue({
+			decision: 'deny',
+			scope: 'once',
+			remembered: false,
+		});
+		const onResolved = vi.fn();
+		const commands = new AgentInteractionCommands(
+			() => ({ decideAgentApproval, answerAgentQuestion: vi.fn() }),
+			onResolved,
+		);
+		commands.sync([envelope(1, { ...externalReadApproval(), ...flags })]);
+
+		await commands.decideApproval({
+			sessionId: 'session-1',
+			runId: 'run-1',
+			approvalId: 'approval-1',
+			decision: 'deny',
+			scope: 'once',
+		});
+
+		expect(onResolved).toHaveBeenCalledWith('session-1', 'run-1');
+		expect(commands.stateFor(approvalReference())).toMatchObject({
+			status: 'resolved',
+			message: 'Kept blocked',
+		});
+	});
+
+	it.each([
+		{ decided: { decision: 'allow', scope: 'once', remembered: false }, message: 'Allowed once' },
+		{
+			decided: { decision: 'allow', scope: 'workstream', remembered: true },
+			message: 'Allowed for this workstream',
+		},
+		{ decided: { decision: 'deny', scope: 'once', remembered: false }, message: 'Denied' },
+		{
+			decided: { decision: 'allow', scope: 'once', remembered: false, reviewed: true },
+			message: 'Saved after review',
+		},
+		{
+			flags: { autoModeRule: 'Bash(curl https://example.com)' },
+			decided: { decision: 'allow', scope: 'once', remembered: false, alwaysAllow: true },
+			message: 'Always allowed',
+		},
+		{
+			flags: { autoModeUnavailable: true },
+			decided: { decision: 'deny', scope: 'once', remembered: false },
+			message: 'Kept blocked',
+		},
+	] as const)(
+		'replays $message from the transcript of a finished run',
+		({ decided, message, ...rest }) => {
+			const flags = 'flags' in rest ? rest.flags : {};
+			const commands = new AgentInteractionCommands(() => ({
+				decideAgentApproval: vi.fn(),
+				answerAgentQuestion: vi.fn(),
+			}));
+
+			commands.sync([
+				envelope(1, { ...externalReadApproval(), ...flags }),
+				envelope(2, {
+					type: 'approval.decided',
+					runId: 'run-1',
+					approvalId: 'approval-1',
+					...decided,
+				}),
+				envelope(3, { type: 'run.completed', runId: 'run-1', summary: 'done' }),
+			]);
+
+			expect(commands.stateFor(approvalReference())).toMatchObject({
+				status: 'resolved',
+				message,
+				decision: decided.decision,
+			});
+		},
+	);
+
 	it('shows the decision when the run ends before the bridge confirms it', async () => {
 		let release!: (result: { decision: 'deny'; scope: 'once'; remembered: false }) => void;
 		const decideAgentApproval = vi.fn(

@@ -1,6 +1,24 @@
 import { BRIDGE_EVENT_TYPES } from './generated/protocol-contract.js';
 import type { AgentQuestion, ProviderPermissionDescriptor } from './interaction-types.js';
 
+export type RunFailureKind =
+	| 'usage-limit'
+	| 'rate-limit'
+	| 'overloaded'
+	| 'server-error'
+	| 'network'
+	| 'sign-in'
+	| 'billing'
+	| 'model'
+	| 'request'
+	| 'unknown';
+
+export type RunFailure = {
+	kind: RunFailureKind;
+	resetsAt?: string;
+	status?: number;
+};
+
 export type AgentEvent =
 	| { type: 'run.started'; runId: string; sessionId: string }
 	| { type: 'user.message'; runId: string; text: string }
@@ -68,6 +86,7 @@ export type AgentEvent =
 			input?: unknown;
 			permission?: ProviderPermissionDescriptor;
 			autoModeRule?: string;
+			autoModeUnavailable?: true;
 	  }
 	| {
 			type: 'question.requested';
@@ -115,6 +134,7 @@ export type AgentEvent =
 			type: 'run.failed';
 			runId: string;
 			error: string;
+			failure?: RunFailure;
 			providerCursor?: string;
 			handedOff?: boolean;
 	  }

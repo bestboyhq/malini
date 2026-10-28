@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
@@ -37,7 +37,7 @@ import { workstreamLineage } from './lineage.service';
 import { getProject, upsertProject } from './projects.repository';
 import { registerRepositories, type RepositoriesDeps } from './register';
 import { listRepositoryCatalog } from './repository-catalog';
-import { archivedLeftoversCleared } from './teardown.service';
+import { archivedLeftoversCleared, sweepArchivedLeftovers } from './teardown.service';
 import {
 	deleteWorkstream,
 	getWorkstream,
@@ -50,6 +50,44 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
 	while (cleanups.length > 0) await cleanups.pop()?.();
 });
+
+const EVERY_CONTEXT_FILE = [
+	'Build.app/Contents/Info.plist',
+	'clone/.git/HEAD',
+	'clone/README.md',
+	'huge.log',
+	'node_modules/pkg/index.js',
+	'notes.md',
+	'review/plan.html',
+	'review/shot.png',
+];
+const KEPT_CONTEXT = ['clone/README.md', 'notes.md', 'review/plan.html'];
+
+async function writeContextFixture(root: string): Promise<void> {
+	const files: Record<string, string | Buffer> = {
+		'Build.app/Contents/Info.plist': '<plist/>\n',
+		'clone/.git/HEAD': 'ref: refs/heads/main\n',
+		'clone/README.md': 'readme\n',
+		'huge.log': 'x'.repeat(10 * 1024 * 1024 + 1),
+		'node_modules/pkg/index.js': 'module.exports = 1;\n',
+		'notes.md': 'notes\n',
+		'review/plan.html': '<p>plan</p>\n',
+		'review/shot.png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]),
+	};
+	for (const [path, contents] of Object.entries(files)) {
+		await mkdir(dirname(join(root, '.context', path)), { recursive: true });
+		await writeFile(join(root, '.context', path), contents);
+	}
+}
+
+async function contextFiles(root: string): Promise<string[]> {
+	const context = join(root, '.context');
+	const entries = await readdir(context, { recursive: true, withFileTypes: true });
+	return entries
+		.filter((entry) => entry.isFile())
+		.map((entry) => relative(context, join(entry.parentPath, entry.name)))
+		.sort();
+}
 
 const silentShell: CheckoutShell = {
 	reveal: async () => {},
@@ -500,16 +538,14 @@ describe('the workstream commands', () => {
 		expect(await savedForLater()).toBeUndefined();
 	});
 
-	it('brings back the ignored .context and the chat attachments when a workstream is restored', async () => {
+	it('brings back the notes in .context and the chat attachments when a workstream is restored', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
 		const { base, checkout } = await workstreamFixture(dir, 'ws-kept');
 		const { invoke, db } = harness(dir);
 		seed(db, 'ws-kept', base, checkout);
-		await writeFile(join(base, '.git', 'info', 'exclude'), '*.png\n');
-		await mkdir(join(checkout, '.context', 'review'), { recursive: true });
-		await writeFile(join(checkout, '.context', 'review', 'shot.png'), 'shot\n');
-		await writeFile(join(checkout, '.context', 'notes.md'), 'notes\n');
+		await writeFile(join(base, '.git', 'info', 'exclude'), '.context/\n');
+		await writeContextFixture(checkout);
 		await writeAttachmentFixture(checkout);
 
 		await invoke('repositories.archive-workstream', { workstreamId: 'ws-kept' });
@@ -517,12 +553,47 @@ describe('the workstream commands', () => {
 		expect(existsSync(checkout)).toBe(false);
 		await invoke('repositories.restore-workstream', { workstreamId: 'ws-kept' });
 
-		expect(await readFile(join(checkout, '.context', 'review', 'shot.png'), 'utf8')).toBe('shot\n');
-		expect(await readFile(join(checkout, '.context', 'notes.md'), 'utf8')).toBe('notes\n');
+		expect(await contextFiles(checkout)).toEqual(KEPT_CONTEXT);
 		expect(
 			await readFile(join(checkout, AGENT_ATTACHMENTS_PATH, 'att-test', 'payload.txt'), 'utf8'),
 		).toBe('private transport bytes\n');
 		expect(existsSync(join(dir, 'workstreams', '.kept', 'ws-kept'))).toBe(false);
+	});
+
+	it('keeps all of .context while a workstream waits saved for later, and slims it once archived', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-shelf');
+		const { invoke, db } = harness(dir);
+		seed(db, 'ws-shelf', base, checkout);
+		await writeFile(join(base, '.git', 'info', 'exclude'), '.context/\n');
+		await writeContextFixture(checkout);
+		const kept = join(dir, 'workstreams', '.kept', 'ws-shelf');
+
+		await invoke('repositories.save-workstream-for-later', { workstreamId: 'ws-shelf' });
+		expect(await contextFiles(kept)).toEqual(EVERY_CONTEXT_FILE);
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-shelf' });
+
+		expect(await contextFiles(kept)).toEqual(KEPT_CONTEXT);
+	});
+
+	it('slims the .context an archived workstream kept from before, once, when Malini starts', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-old');
+		const { invoke, db } = harness(dir);
+		seed(db, 'ws-old', base, checkout);
+		await writeFile(join(base, '.git', 'info', 'exclude'), '.context/\n');
+		await invoke('repositories.archive-workstream', { workstreamId: 'ws-old' });
+		await archivedLeftoversCleared();
+		const kept = join(dir, 'workstreams', '.kept', 'ws-old');
+		await rm(join(kept, '.pruned'), { force: true });
+		await writeContextFixture(kept);
+
+		await sweepArchivedLeftovers(db, dir);
+
+		expect(await contextFiles(kept)).toEqual(KEPT_CONTEXT);
+		expect(existsSync(join(kept, '.pruned'))).toBe(true);
 	});
 
 	it('drops the folders an archived workstream kept once it is deleted', async () => {

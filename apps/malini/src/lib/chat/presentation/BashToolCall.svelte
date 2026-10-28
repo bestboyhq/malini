@@ -12,6 +12,7 @@
 	import ToolLabel from './ToolLabel.svelte';
 	import ToolOutputText from './ToolOutputText.svelte';
 	import {
+		blockedLabel,
 		shellCommandLabel,
 		shellExitCode,
 		toolFailureReason,
@@ -110,7 +111,7 @@
 				data-testid="tool-blocked"
 				in:fade={{ duration: 190 }}
 			>
-				blocked · {blockedReason}
+				{blockedLabel(blockedReason)}
 			</span>
 		{:else if exitLabel}
 			<span
