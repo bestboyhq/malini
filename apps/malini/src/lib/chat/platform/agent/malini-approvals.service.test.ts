@@ -61,6 +61,9 @@ describe('assessMaliniApproval', () => {
 		expect(action(db, 'workstreams_create', { repository: 'acme/site' })).toBe(
 			'workstreams.create',
 		);
+		expect(action(db, 'workstreams_send', { workstream: 'ws-1', prompt: 'Go.' })).toBe(
+			'workstreams.send',
+		);
 		expect(action(db, 'workstreams_archive', { workstream: 'ws-1' })).toBe('workstreams.archive');
 		expect(action(db, 'pull_requests_open_draft', {})).toBeNull();
 		expect(action(db, 'jobs_run', { job: 'release notes' })).toBe('jobs.run:notes');

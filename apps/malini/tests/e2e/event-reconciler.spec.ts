@@ -243,7 +243,7 @@ test('Malini asks before it acts when the model says so, and does what you pick 
 	}
 });
 
-test('a lead answers what its workstream needs with workstreams_send, into that chat', async () => {
+test('a lead answers what its workstream needs with workstreams_send, into that chat, and can always allow it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
@@ -260,7 +260,22 @@ test('a lead answers what its workstream needs with workstreams_send, into that 
 			tool: 'workstreams_send',
 			input: { workstream: CHILD, prompt: 'Report to the acme Logdash project.' },
 		});
-		await allowOnce(page, `Send a prompt to ‘${CHILD}’`);
+		await sendPrompt(page, 'MALINI_TOOL');
+		await expect(page.getByRole('heading', { name: `Send a prompt to ‘${CHILD}’` })).toBeVisible({
+			timeout: 20_000,
+		});
+		await page
+			.getByRole('group', { name: 'Permission decision' })
+			.getByRole('button', { name: 'Always allow' })
+			.last()
+			.click();
+		await page
+			.getByRole('menu', { name: 'Always allow' })
+			.getByRole('menuitem', { name: 'Allow for this chat' })
+			.click();
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Allowed for this chat' }),
+		).not.toHaveCount(0, { timeout: 20_000 });
 
 		await childRow(page).click();
 		await expect(
