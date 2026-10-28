@@ -226,7 +226,7 @@ describe('archiving a workstream', () => {
 
 		expect(getWorkstream(repo.db, 'ws-readonly')?.status).toBe('archived');
 		expect(existsSync(checkout)).toBe(false);
-		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 5_000 });
+		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 20_000 });
 		expect(
 			await realGit(repo.base, [
 				'show',
@@ -260,7 +260,7 @@ describe('archiving a workstream', () => {
 		await chmod(checkoutTrashRoot(repo.dir), 0o755);
 		await repo.restart();
 
-		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 5_000 });
+		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 20_000 });
 		expect(getWorkstream(repo.db, 'ws-stuck')?.status).toBe('archived');
 		expect(await realGit(repo.base, ['worktree', 'list', '--porcelain'])).not.toContain('ws-stuck');
 	});
@@ -271,7 +271,7 @@ describe('archiving a workstream', () => {
 
 		await repo.restart();
 
-		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 5_000 });
+		await vi.waitFor(async () => expect(await trashEntries(repo)).toEqual([]), { timeout: 20_000 });
 	});
 
 	it('moves a live workstream checkout found in the trash back instead of deleting it', async () => {

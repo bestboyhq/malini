@@ -89,6 +89,7 @@ export interface BridgeSupervisorConfig {
 	readonly processFactory: BridgeProcessFactory;
 	readonly spawn: BridgeSpawnSpec;
 	readonly protocolRequired?: boolean;
+	readonly readyTimeoutMs?: number;
 	readonly now?: () => number;
 	readonly log?: (line: string) => void;
 }
@@ -180,6 +181,7 @@ export class BridgeSupervisor {
 	private readonly protocolRequired: boolean;
 	private readonly commandIds = new IdSequence();
 	private readonly now: () => number;
+	private readonly readyTimeoutMs: number;
 	private readonly log: (line: string) => void;
 	private child: BridgeProcess | null;
 	private pidValue: number;
@@ -207,6 +209,7 @@ export class BridgeSupervisor {
 		this.config = config;
 		this.protocolRequired = config.protocolRequired ?? true;
 		this.now = config.now ?? Date.now;
+		this.readyTimeoutMs = config.readyTimeoutMs ?? BRIDGE_READY_TIMEOUT_MS;
 		this.log = config.log ?? ((line) => console.error(line));
 		this.child = child;
 		this.pidValue = child.pid;
@@ -226,7 +229,7 @@ export class BridgeSupervisor {
 		supervisor.attach(child);
 		if (!supervisor.protocolRequired) return supervisor;
 
-		const deadline = supervisor.now() + BRIDGE_READY_TIMEOUT_MS;
+		const deadline = supervisor.now() + supervisor.readyTimeoutMs;
 		while (supervisor.now() < deadline) {
 			if (supervisor.isHealthy()) return supervisor;
 			if (supervisor.ready || supervisor.protocolErrorText !== null || !supervisor.childIsAlive()) {
@@ -885,7 +888,7 @@ export class BridgeSupervisor {
 			return 'agent bridge process exited';
 		}
 		if (this.protocolRequired && !this.ready) {
-			return `agent bridge did not send ${BRIDGE_CONTRACT_NAME} v${BRIDGE_PROTOCOL_VERSION} readiness within ${BRIDGE_READY_TIMEOUT_MS}ms`;
+			return `agent bridge did not send ${BRIDGE_CONTRACT_NAME} v${BRIDGE_PROTOCOL_VERSION} readiness within ${this.readyTimeoutMs}ms`;
 		}
 		if (this.protocolRequired) {
 			const age = this.now() - this.lastHeartbeatMs;

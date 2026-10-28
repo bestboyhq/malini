@@ -125,6 +125,31 @@ type McpServerListing = Readonly<{
 }>;
 ```
 
+## `chat:shell-run-changed`
+
+Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, `anchor`: the message and the code block in it it ran from, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.
+
+Payload: `ShellRun`
+
+```ts
+type ShellRunAnchor = Readonly<{ message: string; block: number }>;
+
+type ShellRunState = 'running' | 'exited' | 'stopped' | 'failed';
+
+type ShellRun = Readonly<{
+	id: string;
+	workstreamId: string;
+	sessionId: string;
+	anchor: ShellRunAnchor;
+	command: string;
+	state: ShellRunState;
+	exitCode: number | null;
+	output: string;
+	startedAt: string;
+	finishedAt: string | null;
+}>;
+```
+
 ## `repositories:workstream-created`
 
 Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.
@@ -386,6 +411,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;
@@ -494,6 +522,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;

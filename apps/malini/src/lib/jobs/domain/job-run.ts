@@ -5,7 +5,7 @@ import {
 	type JobRunRecord,
 	type JobRunStatus,
 } from '$contract/jobs';
-import { isAlreadyActiveError } from '$lib/chat/domain/prompt-dispatch-failure';
+import { isAlreadyActiveError, isCancelRaceError } from '$lib/chat/domain/prompt-dispatch-failure';
 
 export const JOB_CONTEXT_MAX_BYTES = 64 * 1024;
 
@@ -61,4 +61,8 @@ export function jobsMaxConcurrent(setting: string | null | undefined): number {
 
 export function workstreamWasBusy(error: unknown): boolean {
 	return error instanceof Error && isAlreadyActiveError(error.message);
+}
+
+export function agentRunWasAlreadyGone(error: unknown): boolean {
+	return error instanceof Error && isCancelRaceError(error.message);
 }

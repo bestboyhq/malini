@@ -74,6 +74,8 @@ The [README](../README.md) has the short version.
 - **Know your limits.** The context window breakdown and your plan usage, five-hour and weekly, are one click from the composer, next to MCP server status.
   Plan usage follows the Claude account you're signed in to.
   **Switch to** in the model picker changes accounts in one click: Malini keeps every account you used signed in, so your browser opens only for the first switch to an account, or when Claude asks you to sign in again.
+- **Run a code block.** **Run** on the agent's shell code block runs it at once in the workstream, in a terminal you can type into, with its output, **Stop** and the exit code inside the code block.
+  The agent reads its output with your next prompt.
 - **Undo, edit, fork.** Every run can be undone.
   Edit an earlier message to resend from there, or fork to a new chat while the agent is still busy.
 
@@ -87,6 +89,8 @@ The [README](../README.md) has the short version.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
+- **A failing step says why.** While Malini retries a push or a merge, the top bar and the sidebar turn amber with what failed and since when, and a note above the composer says why, with what GitHub said, **Retry now** and **Cancel draft**.
+  The agent reads the same note, so asking it why gets the real reason.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
   The top bar names the reason, and the merge picks up again on its own once it is resolved.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.

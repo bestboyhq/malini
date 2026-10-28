@@ -6,6 +6,7 @@ export type PullRequestActionKind =
 	| 'archive'
 	| 'reopen'
 	| 'cancel-merge'
+	| 'retry-now'
 	| 'keep'
 	| 'open-pull-request'
 	| 'open-job'

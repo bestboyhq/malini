@@ -37,6 +37,7 @@ import {
 	resolveConnectedRepository,
 } from '$shared/repositories/repositories.platform';
 import {
+	agentRunWasAlreadyGone,
 	foldedJobContext,
 	isFinishedJobRunStatus,
 	jobPrompt,
@@ -491,6 +492,7 @@ export class JobRunner {
 				pendingRunId: agentRunId,
 			});
 		} catch (error) {
+			if (agentRunWasAlreadyGone(error)) return;
 			this.#log(`jobs: could not stop the agent run of \`${jobRunId}\`: ${describeError(error)}`);
 		}
 	}

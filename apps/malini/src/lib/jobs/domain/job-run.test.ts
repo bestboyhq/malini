@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { describe, expect, it } from 'vitest';
-import { JOB_CONTEXT_MAX_BYTES, truncateJobContext } from './job-run';
+import { agentRunWasAlreadyGone, JOB_CONTEXT_MAX_BYTES, truncateJobContext } from './job-run';
 
 describe('truncateJobContext', () => {
 	it('keeps a context that fits as it is', () => {
@@ -15,5 +15,12 @@ describe('truncateJobContext', () => {
 		expect(Buffer.byteLength(truncateJobContext('😀'.repeat(JOB_CONTEXT_MAX_BYTES)))).toBe(
 			JOB_CONTEXT_MAX_BYTES,
 		);
+	});
+});
+
+describe('agentRunWasAlreadyGone', () => {
+	it('tells a cancel that found no run apart from a cancel that failed', () => {
+		expect(agentRunWasAlreadyGone(new Error('cancel race: no active run for session'))).toBe(true);
+		expect(agentRunWasAlreadyGone(new Error('bridge unavailable: socket closed'))).toBe(false);
 	});
 });
