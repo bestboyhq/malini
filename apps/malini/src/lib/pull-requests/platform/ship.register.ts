@@ -43,6 +43,7 @@ export function registerShip(
 	return {
 		report: (id, pullRequest) => shipping.report(id, pullRequest),
 		handle: (event) => shipping.handle(event),
+		failure: (id) => shipping.failure(id),
 		dispose: () => shipping.dispose(),
 	};
 }

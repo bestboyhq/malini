@@ -1,5 +1,6 @@
 import type { AgentTheme } from '$contract/agent';
 import { APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
+import type { ShipFailure } from '$contract/pull-requests';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
 import type { CheckoutResolver } from '$shared/repositories/repositories.platform';
@@ -40,6 +41,7 @@ export interface ChatDeps {
 	readonly processFactory?: BridgeProcessFactory;
 	readonly bridgeScriptPath?: string;
 	readonly theme?: () => AgentTheme;
+	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
 	readonly log?: (line: string) => void;
 }
 
@@ -102,6 +104,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		},
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
+		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
 		...(deps.browser ? { browser: deps.browser } : {}),
 		...(deps.processFactory ? { processFactory: deps.processFactory } : {}),
 		...(deps.bridgeScriptPath ? { bridgeScriptPath: deps.bridgeScriptPath } : {}),

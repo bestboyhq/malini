@@ -17,6 +17,7 @@ import { startAgentService, type AgentService } from './agent/service';
 import {
 	createTestContext,
 	seedWorkstream,
+	TEST_BRIDGE_READY_TIMEOUT_MS,
 	waitFor,
 	writeFakeBridge,
 	type FakeBridge,
@@ -60,6 +61,7 @@ async function boot(env: Record<string, string> = {}): Promise<void> {
 	service = await startAgentService(test.context, {
 		processFactory: fake.supervisorConfig().processFactory,
 		bridgeScriptPath: fake.scriptPath,
+		readyTimeoutMs: TEST_BRIDGE_READY_TIMEOUT_MS,
 		spawnEnvironment: () => ({ PATH: process.env['PATH'] ?? '/usr/bin:/bin', ...env }),
 		leases,
 		hooks: {

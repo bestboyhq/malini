@@ -12,7 +12,9 @@ const BUSY_LABELS: Readonly<Record<PullRequestShipIntent, string>> = {
 	'open-draft': 'Opening draft',
 	'queue-merge': 'Queueing merge',
 	'cancel-merge': 'Cancelling merge',
+	'cancel-draft': 'Cancelling draft',
 	'retry-merge': 'Retrying merge',
+	'retry-now': 'Retrying',
 	'keep-workstream': 'Keeping the workstream',
 };
 
@@ -20,7 +22,9 @@ const FAILURES: Readonly<Record<PullRequestShipIntent, string>> = {
 	'open-draft': 'The draft pull request could not be opened',
 	'queue-merge': 'The merge could not be queued',
 	'cancel-merge': 'The merge could not be cancelled',
+	'cancel-draft': 'The draft could not be cancelled',
 	'retry-merge': 'The merge could not be retried',
+	'retry-now': 'Malini could not retry',
 	'keep-workstream': 'The workstream could not be kept',
 };
 

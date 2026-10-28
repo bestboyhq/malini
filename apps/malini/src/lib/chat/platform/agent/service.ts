@@ -66,10 +66,12 @@ export interface AgentServiceDeps {
 	readonly spawnEnvironment: () => Readonly<Record<string, string>>;
 	readonly leases: AgentRunLeases;
 	readonly bridgeScriptPath?: string;
+	readonly readyTimeoutMs?: number;
 	readonly verifyAttachment?: SendPromptHooks['verifyAttachment'];
 	readonly collectAttachmentGarbage?: SendPromptHooks['collectAttachmentGarbage'];
 	readonly prepareAttachments?: SendPromptHooks['prepareAttachments'];
 	readonly theme?: SendPromptHooks['theme'];
+	readonly shippingFailure?: SendPromptHooks['shippingFailure'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
 	readonly log?: (line: string) => void;
@@ -243,6 +245,7 @@ export async function startAgentService(
 					MALINI_AGENT_BRIDGE_PRIVATE_RUNTIME_ROOT: privateRuntimeRoot,
 				},
 			},
+			...(deps.readyTimeoutMs === undefined ? {} : { readyTimeoutMs: deps.readyTimeoutMs }),
 			log,
 		},
 		hooks: {
@@ -308,6 +311,7 @@ export async function startAgentService(
 				: {}),
 			...(deps.prepareAttachments ? { prepareAttachments: deps.prepareAttachments } : {}),
 			...(deps.theme ? { theme: deps.theme } : {}),
+			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,

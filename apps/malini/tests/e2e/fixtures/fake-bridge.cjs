@@ -1104,6 +1104,18 @@ const respond = async (sessionId, runId, prompt) => {
 		pendingRuns.set(runId, sessionId);
 		return;
 	}
+	if (prompt.includes('ECHO_SHIPPING')) {
+		const shipping = /<workstream_shipping>(.*)<\/workstream_shipping>/.exec(prompt);
+		const note = shipping ? JSON.parse(shipping[1]) : null;
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			note ? '\n\nShipping note: ' + note.title + '. ' + note.reason : '\n\nNo shipping note',
+		);
+	}
 	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
 	const replyPath = replyFile && worktree ? nodePath.join(worktree, replyFile[1]) : null;
 	if (replyPath && fs.existsSync(replyPath)) {

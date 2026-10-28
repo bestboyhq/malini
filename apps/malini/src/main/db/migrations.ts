@@ -1093,6 +1093,10 @@ CREATE TABLE agent_event_packs (
 ALTER TABLE agent_runs ADD COLUMN failure_kind TEXT;
 ALTER TABLE agent_runs ADD COLUMN resume_at TEXT;
 `,
+	`
+ALTER TABLE workstream_ship ADD COLUMN github_said TEXT;
+ALTER TABLE workstream_ship ADD COLUMN failed_since TEXT;
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

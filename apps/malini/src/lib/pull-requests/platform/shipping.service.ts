@@ -22,13 +22,14 @@ import {
 	SHIP_ALL_BUTTONS,
 	type ShipAllClicked,
 	type ShipButton,
+	type ShipFailure,
 	type ShipPhase,
 	type ShipStateRecord,
 } from '$contract/pull-requests';
 import type { PullRequestStatusDto, WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
-import { describeError, isGhError, isGitError } from '$main/errors';
+import { describeError, isGhError, isGitError, remoteRefusal } from '$main/errors';
 import { workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	clearAlarm,
@@ -65,6 +66,7 @@ import {
 	type ShippingSnapshot,
 } from '../domain/shipping';
 import { field, requireString, requireStrings } from './args';
+import { shipFailure } from '../domain/ship-failure';
 import type { PullRequestOperations } from './pull-request-operations';
 import { PullRequestReader } from './pull-request-reader.service';
 import {
@@ -104,6 +106,14 @@ type MoveContext = Readonly<{
 const MAX_MOVES_PER_WAKE = 10;
 
 const FRESH_READ_MS = 2_000;
+
+const NO_FAILURE = {
+	lastError: null,
+	githubSaid: null,
+	failures: 0,
+	failedSince: null,
+	nextAttemptAt: null,
+} as const satisfies ShipPatch;
 
 export class Shipping {
 	readonly #context: MainContext;
@@ -187,6 +197,10 @@ export class Shipping {
 		return listShips(this.#context.db).map(shipRecord);
 	}
 
+	failure(workstreamId: string): ShipFailure | null {
+		return shipFailure(getShip(this.#context.db, workstreamId));
+	}
+
 	async clicked(workstreamId: string, button: ShipButton): Promise<ShipStateRecord | null> {
 		this.#reader.forget(workstreamId);
 		switch (button) {
@@ -195,9 +209,9 @@ export class Shipping {
 			case 'merge':
 				return this.queueMerge(workstreamId, button);
 			case 'retry':
-				return this.#retryMerge(workstreamId);
+				return this.#retry(workstreamId);
 			case 'cancel':
-				return this.#cancelMerge(workstreamId);
+				return this.#cancel(workstreamId);
 			case 'keep':
 				return this.#keepWorkstream(workstreamId);
 		}
@@ -215,9 +229,7 @@ export class Shipping {
 		return this.#upsert(workstreamId, click, {
 			phase: 'draft',
 			step: row?.pullRequestNumber == null ? 'opening-draft' : 'pushing',
-			lastError: null,
-			nextAttemptAt: null,
-			failures: 0,
+			...NO_FAILURE,
 		});
 	}
 
@@ -238,9 +250,7 @@ export class Shipping {
 			attempts: 0,
 			failureSignature: null,
 			needsYou: null,
-			lastError: null,
-			nextAttemptAt: null,
-			failures: 0,
+			...NO_FAILURE,
 		});
 	}
 
@@ -249,9 +259,10 @@ export class Shipping {
 		this.#forget(workstreamId);
 	}
 
-	async #retryMerge(workstreamId: string): Promise<ShipStateRecord> {
+	async #retry(workstreamId: string): Promise<ShipStateRecord> {
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
+		if (shipFailure(row)) return this.#retryNow(row);
 		if (row.phase !== 'needs-you') return this.#unchanged(row, 'retry');
 		const saved = this.#save(
 			workstreamId,
@@ -262,15 +273,19 @@ export class Shipping {
 				queuedAt: row.queuedAt ?? new Date(this.#now()).toISOString(),
 				attempts: 0,
 				failureSignature: null,
-				lastError: null,
-				nextAttemptAt: null,
-				failures: 0,
+				...NO_FAILURE,
 			},
 			undefined,
 			'retry',
 		);
 		if (!saved) throw new ShipError('not-queued', 'Nothing is queued to merge in this workstream.');
 		return shipRecord(saved);
+	}
+
+	#retryNow(row: ShipRow): ShipStateRecord {
+		clearAlarm(this.#context.db, alarmKey(row.workstreamId));
+		const saved = this.#save(row.workstreamId, { nextAttemptAt: null }, row.phase, 'retry');
+		return shipRecord(saved ?? row);
 	}
 
 	#keepWorkstream(workstreamId: string): ShipStateRecord {
@@ -282,13 +297,14 @@ export class Shipping {
 		return this.#upsert(workstreamId, 'keep', { keep: true });
 	}
 
-	async #cancelMerge(workstreamId: string): Promise<ShipStateRecord | null> {
+	async #cancel(workstreamId: string): Promise<ShipStateRecord | null> {
 		const row = getShip(this.#context.db, workstreamId);
 		if (!row) {
 			this.#clicked(workstreamId, 'cancel', null);
 			return null;
 		}
-		if (row.phase === 'draft' || row.phase === 'local') return this.#unchanged(row, 'cancel');
+		if (row.phase === 'local') return this.#unchanged(row, 'cancel');
+		if (row.phase === 'draft') return this.#cancelDraft(row);
 		const saved = this.#save(
 			workstreamId,
 			{
@@ -300,22 +316,36 @@ export class Shipping {
 				attempts: 0,
 				failureSignature: null,
 				activeJobRunId: null,
-				lastError: null,
-				nextAttemptAt: null,
-				failures: 0,
+				...NO_FAILURE,
 			},
 			undefined,
 			'cancel',
 		);
-		clearShipRequests(this.#context.db, workstreamId);
-		clearAlarm(this.#context.db, alarmKey(workstreamId));
-		this.#reader.watch(workstreamId);
+		this.#stopTrying(workstreamId);
 		if (row.activeJobRunId) {
 			await this.#context.commands
 				.call('jobs.cancel-run', { jobRunId: row.activeJobRunId })
 				.catch(() => undefined);
 		}
 		return saved ? shipRecord(saved) : null;
+	}
+
+	#cancelDraft(row: ShipRow): ShipStateRecord {
+		if (row.step === null && !shipFailure(row)) return this.#unchanged(row, 'cancel');
+		const saved = this.#save(
+			row.workstreamId,
+			{ ...(row.pullRequestNumber === null ? { phase: 'local' } : {}), step: null, ...NO_FAILURE },
+			'draft',
+			'cancel',
+		);
+		this.#stopTrying(row.workstreamId);
+		return shipRecord(saved ?? row);
+	}
+
+	#stopTrying(workstreamId: string): void {
+		clearShipRequests(this.#context.db, workstreamId);
+		clearAlarm(this.#context.db, alarmKey(workstreamId));
+		this.#reader.watch(workstreamId);
 	}
 
 	#resume(event: DispatchedEvent): void {
@@ -533,7 +563,7 @@ export class Shipping {
 		if (unchanged) return false;
 		const resumed = this.#save(
 			row.workstreamId,
-			{ phase: 'queued', step: null, needsYou: null, lastError: null, nextAttemptAt: null },
+			{ phase: 'queued', step: null, needsYou: null, ...NO_FAILURE },
 			'needs-you',
 		);
 		return resumed !== null;
@@ -544,7 +574,7 @@ export class Shipping {
 		switch (move.kind) {
 			case 'idle':
 				this.#settleRequests(context.row);
-				this.#save(workstreamId, { step: null, lastError: move.problem, nextAttemptAt: null });
+				this.#save(workstreamId, { step: null, ...NO_FAILURE, lastError: move.problem });
 				return false;
 			case 'wait':
 				this.#save(workstreamId, { step: move.step });
@@ -795,9 +825,7 @@ export class Shipping {
 			attempts: attempt,
 			failureSignature: signature,
 			step: jobStep(builtin),
-			lastError: null,
-			nextAttemptAt: null,
-			failures: 0,
+			...NO_FAILURE,
 			settledJobRunId: null,
 		};
 		const saved =
@@ -898,7 +926,8 @@ export class Shipping {
 		if (!row) return;
 		const detail = describeError(error);
 		const failures = row.failures + 1;
-		const due = this.#now() + shipBackoffMs(failures, this.#delays);
+		const now = this.#now();
+		const due = now + shipBackoffMs(failures, this.#delays);
 		if (row.phase === 'needs-you') {
 			this.#save(workstreamId, { failures });
 			this.#alarm(workstreamId, 'retry', due);
@@ -912,6 +941,7 @@ export class Shipping {
 						phase: 'needs-you',
 						step: null,
 						needsYou: { reason: 'github-reconnect', detail, jobRunId: null },
+						...NO_FAILURE,
 						failures,
 					},
 					'queued',
@@ -920,18 +950,20 @@ export class Shipping {
 				return;
 			}
 			settleShipRequest(this.#context.db, workstreamId, 'push', row.requests.push);
-			this.#save(workstreamId, { step: null, lastError: detail });
+			this.#save(workstreamId, { step: null, ...NO_FAILURE, lastError: detail });
 			return;
 		}
 		if (row.phase === 'local') {
 			clearShipRequests(this.#context.db, workstreamId);
-			this.#save(workstreamId, { step: null, lastError: detail });
+			this.#save(workstreamId, { step: null, ...NO_FAILURE, lastError: detail });
 			return;
 		}
 		this.#save(workstreamId, {
 			lastError: detail,
-			nextAttemptAt: new Date(due).toISOString(),
+			githubSaid: remoteRefusal(error),
 			failures,
+			failedSince: row.failedSince ?? new Date(now).toISOString(),
+			nextAttemptAt: new Date(due).toISOString(),
 		});
 		this.#alarm(workstreamId, 'retry', due);
 	}
@@ -939,7 +971,7 @@ export class Shipping {
 	#recovered(workstreamId: string): void {
 		const row = getShip(this.#context.db, workstreamId);
 		if (row && (row.lastError !== null || row.nextAttemptAt !== null || row.failures > 0)) {
-			this.#save(workstreamId, { lastError: null, nextAttemptAt: null, failures: 0 });
+			this.#save(workstreamId, NO_FAILURE);
 		}
 	}
 

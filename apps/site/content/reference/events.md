@@ -386,6 +386,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;
@@ -494,6 +497,9 @@ type ShipStateRecord = Readonly<{
 	attempts: number;
 	activeJobRunId: string | null;
 	lastError: string | null;
+	githubSaid: string | null;
+	failures: number;
+	failedSince: string | null;
 	nextAttemptAt: string | null;
 	updatedAt: string;
 }>;

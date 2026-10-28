@@ -1,3 +1,4 @@
+import type { ShipFailure } from '$contract/pull-requests';
 import type { DispatchedEvent } from '$lib/jobs/jobs.platform';
 
 export type {
@@ -22,5 +23,6 @@ export {
 
 export interface PullRequestsPlatform {
 	handle(event: DispatchedEvent): Promise<void>;
+	failure(workstreamId: string): ShipFailure | null;
 	dispose(): void;
 }

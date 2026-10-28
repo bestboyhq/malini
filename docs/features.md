@@ -87,6 +87,8 @@ The [README](../README.md) has the short version.
 - **Blockers clear themselves.** When a reviewer requests changes, **Address review** runs on its own while you keep working, and the top bar says **Clearing blockers**.
   Each review is addressed once, then Malini waits for the reviewer.
 - **Main moving starts nothing.** A workstream behind main stays as it is while you work, and Malini merges main into it only once you merge it.
+- **A failing step says why.** While Malini retries a push or a merge, the top bar and the sidebar turn amber with what failed and since when, and a note above the composer says why, with what GitHub said, **Retry now** and **Cancel draft**.
+  The agent reads the same note, so asking it why gets the real reason.
 - **Needs you, only when it does.** A reviewer asks something only you can answer, a fix gave up, GitHub blocks the merge, or your GitHub sign-in expired, which you fix from the GitHub card in Settings.
   The top bar names the reason, and the merge picks up again on its own once it is resolved.
 - **Closed on GitHub?** **Reopen** brings the same pull request back, with its number and reviews, or **Archive** puts the workstream away.

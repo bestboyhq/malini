@@ -8,6 +8,7 @@ const ACTION_ICONS: Readonly<Record<PullRequestActionKind, IconName>> = {
 	archive: 'archive',
 	reopen: 'pr-open',
 	'cancel-merge': 'close',
+	'retry-now': 'refresh',
 	keep: 'lock',
 	'open-pull-request': 'external-link',
 	'open-job': 'arrow-right',
