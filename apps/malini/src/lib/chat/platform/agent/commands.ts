@@ -618,7 +618,7 @@ export async function sendAgentPrompt(
 	log: (line: string) => void = defaultLog,
 ): Promise<string> {
 	ensureBridgeReady(supervisor);
-	await leases.runChangeCaptureSettled(input.workstreamId);
+	if (!queuedByTheRenderer(input)) await leases.runChangeCaptureSettled(input.workstreamId);
 	await leases.checkoutSettled(input.workstreamId);
 	const lease = leases.acquireRun(db, input.workstreamId, input.sessionId, input.steer === true);
 	try {
@@ -626,6 +626,10 @@ export async function sendAgentPrompt(
 	} finally {
 		lease.release();
 	}
+}
+
+function queuedByTheRenderer(input: SendPromptInput): boolean {
+	return (input.clientRequestId?.trim() ?? '') !== '';
 }
 
 async function sendAgentPromptLeased(

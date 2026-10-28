@@ -439,6 +439,32 @@ describe('prompt round trips', () => {
 		await invoke('chat.cancel-run', { sessionId: first });
 	});
 
+	it('hands a composer prompt back to its queue while the last turn saves its changes, and holds any other prompt until then', async () => {
+		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
+		const leases = new AgentRunLeases();
+		await boot({}, { leases });
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'ws-1' });
+		const capture = leases.acquireRunChangeCapture('ws-1');
+
+		expect(
+			await invokeError('chat.send-prompt', {
+				sessionId,
+				prompt: 'From the composer',
+				clientRequestId: 'request-1',
+			}),
+		).toContain('already has an active run');
+		const held = invokeString('chat.send-prompt', { sessionId, prompt: 'From a job' });
+		await new Promise((settle) => setTimeout(settle, 50));
+		expect(scalar(test.db, 'SELECT COUNT(*) FROM agent_runs WHERE session_id = ?', sessionId)).toBe(
+			0,
+		);
+
+		capture.release();
+		const runId = await held;
+		await waitFor(() => getRun(test.db, runId)?.completedAt !== null);
+		expect(getRun(test.db, runId)).toMatchObject({ summary: 'done', error: null });
+	});
+
 	it('steers a running chat: the new prompt joins the live run instead of waiting for it', async () => {
 		seedWorkstream(test.db, test.appDataRoot, 'ws-1');
 		await boot();
