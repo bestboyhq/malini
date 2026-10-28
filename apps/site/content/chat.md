@@ -74,6 +74,7 @@ Its output opens inside the code block, under the command, as it prints, with ho
 - **Run** hides while the command runs; once it ends, **Run** runs it again and replaces its output, and **×** clears it.
 - The agent reads what you ran with your next prompt: each command, how it ended, and the end of its output, so "it failed, why?" gets an answer from the real output.
 - Archiving the workstream or quitting Malini stops what still runs.
+  A code block keeps its last output when Malini restarts, until you clear it or delete the chat.
 - Full-screen programs such as `vim` or `top` do not draw; run them in your own terminal.
 
 ## Compact the conversation

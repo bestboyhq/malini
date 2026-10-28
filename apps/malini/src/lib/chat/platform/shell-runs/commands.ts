@@ -6,11 +6,12 @@ import { ShellRuns, type ShellRunsDeps } from './service';
 
 export function installShellRuns(
 	context: MainContext,
-	deps: Omit<ShellRunsDeps, 'changed'>,
+	deps: Omit<ShellRunsDeps, 'changed' | 'db'>,
 ): ShellRuns {
-	const { commands, events } = context;
+	const { commands, events, db } = context;
 	const shellRuns = new ShellRuns({
 		...deps,
+		db,
 		changed: (run) => events.emit(CHAT_SHELL_RUN_CHANGED_CHANNEL, run),
 	});
 

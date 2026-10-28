@@ -3,14 +3,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ShellRun } from '$contract/shell-runs';
+import type { MaliniDatabase } from '$main/db/driver';
+import { openChatTestDatabase, seedChatSession, seedChatWorkstream } from '../test-support';
 import { ShellRuns } from './service';
 
 const WAIT_MS = 10_000;
 
-function startShellRuns(): { shellRuns: ShellRuns; latest: (id: string) => ShellRun | undefined } {
+function startShellRuns(db = seededDatabase()): {
+	shellRuns: ShellRuns;
+	db: MaliniDatabase;
+	latest: (id: string) => ShellRun | undefined;
+} {
 	const checkout = realpathSync(mkdtempSync(join(tmpdir(), 'malini-shell-runs-')));
 	const seen = new Map<string, ShellRun>();
 	const shellRuns = new ShellRuns({
+		db,
 		checkout: () => checkout,
 		environment: () => ({ PATH: process.env['PATH'] ?? '', HOME: checkout, SHELL: '/bin/zsh' }),
 		changed: (run) => seen.set(run.id, run),
@@ -19,7 +26,14 @@ function startShellRuns(): { shellRuns: ShellRuns; latest: (id: string) => Shell
 		await shellRuns.stopAll();
 		rmSync(checkout, { recursive: true, force: true });
 	});
-	return { shellRuns, latest: (id) => seen.get(id) };
+	return { shellRuns, db, latest: (id) => seen.get(id) };
+}
+
+function seededDatabase(): MaliniDatabase {
+	const db = openChatTestDatabase();
+	seedChatWorkstream(db, workstream.workstreamId, '/tmp/ws-1');
+	seedChatSession(db, workstream.sessionId, workstream.workstreamId);
+	return db;
 }
 
 async function until<T>(read: () => T | undefined, accept: (value: T) => boolean): Promise<T> {
@@ -148,6 +162,32 @@ describe('ShellRuns', () => {
 		const again = await shellRuns.start({ ...workstream, anchor, command: 'sleep 30' });
 		expect(again.id).toBe(second.id);
 		expect(shellRuns.list()).toHaveLength(1);
+	});
+
+	it('keeps finished runs, and whether the agent read them, across a restart', async () => {
+		const { shellRuns, db, latest } = startShellRuns();
+		const finish = async (command: string, anchor = block().anchor): Promise<ShellRun> => {
+			const started = await shellRuns.start({ ...workstream, anchor, command });
+			return until(
+				() => latest(started.id),
+				(run) => run.state !== 'running',
+			);
+		};
+		const read = await finish('echo read');
+		shellRuns.report(workstream.sessionId);
+		const unread = await finish('echo unread');
+		const cleared = await finish('echo cleared');
+		shellRuns.dismiss(cleared.id);
+		const rerun = await finish('echo rerun', read.anchor);
+
+		const restarted = startShellRuns(db).shellRuns;
+
+		expect(restarted.list()).toEqual([unread, rerun]);
+		expect(restarted.report(workstream.sessionId)).toEqual([
+			{ command: 'echo unread', state: 'exited', exitCode: 0, output: 'unread\n' },
+			{ command: 'echo rerun', state: 'exited', exitCode: 0, output: 'rerun\n' },
+		]);
+		expect(startShellRuns(db).shellRuns.report(workstream.sessionId)).toEqual([]);
 	});
 
 	it('refuses an empty command', async () => {

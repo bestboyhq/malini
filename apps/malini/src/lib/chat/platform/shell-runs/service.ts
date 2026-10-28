@@ -6,11 +6,18 @@ import type {
 	ShellRunAnchor,
 	ShellRunState,
 } from '$contract/shell-runs';
+import type { MaliniDatabase } from '$main/db/driver';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { preferredShell } from '$main/process/environment';
 import { killProcessGroup } from '$main/process/process-group';
 import { terminalText } from '$lib/chat/domain/terminal-text';
+import {
+	deleteShellRun,
+	markShellRunReported,
+	storeShellRun,
+	storedShellRuns,
+} from './shell-runs.repository';
 
 const COLUMNS = 100;
 const ROWS = 30;
@@ -31,6 +38,7 @@ export type ReportedShellRun = Readonly<
 >;
 
 export interface ShellRunsDeps {
+	readonly db: MaliniDatabase;
 	readonly checkout: (workstreamId: string) => Promise<string> | string;
 	readonly environment: () => Readonly<Record<string, string>>;
 	readonly changed: (run: ShellRun) => void;
@@ -54,6 +62,19 @@ export class ShellRuns {
 
 	constructor(deps: ShellRunsDeps) {
 		this.#deps = deps;
+		for (const { run, reported } of storedShellRuns(deps.db)) {
+			this.#entries.set(run.id, {
+				run,
+				child: null,
+				raw: '',
+				clipped: false,
+				stopping: false,
+				reported,
+				publish: null,
+				ended: Promise.resolve(),
+				end: () => undefined,
+			});
+		}
 	}
 
 	async start(args: RunShellCommandArgs): Promise<ShellRun> {
@@ -120,15 +141,24 @@ export class ShellRuns {
 		if (this.#entry(runId).child !== null)
 			throw new Error('Stop the command before you dismiss it');
 		this.#entries.delete(runId);
+		this.#write('forget the command', (db) => deleteShellRun(db, runId));
 	}
 
 	report(sessionId: string): ReportedShellRun[] {
 		const reported: ReportedShellRun[] = [];
 		for (const entry of this.#entries.values()) {
 			if (entry.run.sessionId !== sessionId || entry.reported) continue;
-			if (entry.child === null) entry.reported = true;
-			const { command, state, exitCode } = entry.run;
-			reported.push({ command, state, exitCode, output: tail(rendered(entry)) });
+			const { id, command, state, exitCode, output } = entry.run;
+			if (entry.child === null) {
+				entry.reported = true;
+				this.#write('note that the agent read the command', (db) => markShellRunReported(db, id));
+			}
+			reported.push({
+				command,
+				state,
+				exitCode,
+				output: tail(entry.child === null ? output : rendered(entry)),
+			});
 		}
 		return reported;
 	}
@@ -214,7 +244,19 @@ export class ShellRuns {
 		entry.publish = null;
 		entry.child = null;
 		this.#publish(entry, { state, exitCode, finishedAt: nowIso8601() });
+		if (this.#entries.has(entry.run.id)) {
+			const stored = { run: entry.run, reported: entry.reported };
+			this.#write('keep the command output', (db) => storeShellRun(db, stored));
+		}
 		entry.end();
+	}
+
+	#write(what: string, write: (db: MaliniDatabase) => void): void {
+		try {
+			write(this.#deps.db);
+		} catch (error) {
+			console.error(`malini: could not ${what}: ${describeError(error)}`);
+		}
 	}
 
 	#signal(entry: Entry, signal: NodeJS.Signals): void {

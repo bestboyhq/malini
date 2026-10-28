@@ -29,7 +29,11 @@ The platform rule allows no native addons, so `node-pty` is out, and Node hands 
   `ShellRuns.start` returns the block's run while it still runs, so a second click starts nothing, and replaces a finished one, so the block shows only its latest output.
 - **The agent reads what ran.**
   `sendAgentPrompt` appends `<user_shell_commands>` with each command of the chat that it has not reported yet: how it ended and the last 4,000 characters of its output; a finished command is reported once, a running one with every prompt until it ends.
-- Runs live in main-process memory only, and the agent's instructions say its shell code blocks have this button.
+- **A finished run outlives Malini.**
+  `ShellRuns` writes a run to the `shell_runs` table when it ends, with whether the agent has read it, and loads them all when Malini starts.
+  A unique index on the anchor keeps one row per code block, **×** deletes the row, and deleting the chat deletes its runs.
+  Quitting stops a running command first, so it is kept as `stopped`.
+- The agent's instructions say its shell code blocks have this button.
 
 ## Consequences
 
@@ -37,6 +41,6 @@ The platform rule allows no native addons, so `node-pty` is out, and Node hands 
 - What Run does is no longer bound by the chat's access level, and it has no checkpoint to undo: the user clicked a command they can read, as they would paste it into a terminal.
 - The terminal never resizes, and full-screen programs such as `vim` do not draw; `node-pty` with xterm.js is the upgrade if those matter.
 - The runner depends on macOS `script(1)` and `/bin/bash`; another platform needs its own terminal.
-- A run's output is gone after Malini restarts.
+- A code block shows its last output after Malini restarts, and the agent hears about a run it had not read with the next prompt; a command still running when Malini crashes is lost.
 - Run again on a block replaces its finished run, so the agent hears only the latest one if the user did not prompt in between.
-- Enforced by `src/lib/chat/platform/shell-runs/service.test.ts` (checkout and exit code, a terminal that takes typed answers, Stop, what the agent is told, one run per code block), `src/lib/chat/domain/terminal-text.test.ts`, `src/lib/chat/platform/agent/commands.test.ts` (the prompt block), `packages/agent-bridge/src/claude/instructions.test.ts` and `tests/e2e/shell-run.spec.ts`.
+- Enforced by `src/lib/chat/platform/shell-runs/service.test.ts` (checkout and exit code, a terminal that takes typed answers, Stop, what the agent is told, one run per code block, finished runs and what the agent read across a restart), `src/lib/chat/domain/terminal-text.test.ts`, `src/lib/chat/platform/agent/commands.test.ts` (the prompt block), `packages/agent-bridge/src/claude/instructions.test.ts` and `tests/e2e/shell-run.spec.ts`.

@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -84,6 +84,70 @@ test('Run executes a code block in place: its output streams inside the block, t
 		await expect(reply).toContainText(`hi Simon in ${basename(worktree)}`);
 		await expect(reply).not.toContainText('serving');
 
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a code block keeps its finished run across a Malini restart, and the agent still reads it', async () => {
+	test.setTimeout(120_000);
+	const first = await launchMalini();
+	let workstreamId = '';
+	let sessionId = '';
+	const blocks = (page: Page): Locator[] =>
+		[0, 1].map((index) => page.getByTestId('markdown-code-block').nth(index));
+	try {
+		const { page } = first;
+		const source = await createSourceRepo(first.root);
+		({ workstreamId } = await seedWorkstream(
+			page,
+			source,
+			'e2e-shell-keep-ws',
+			'Shell keep workstream',
+		));
+		await openWorkstream(page, workstreamId);
+		await sendPrompt(page, 'SHELL_BLOCKS');
+		await expectAssistantReply(page);
+		sessionId = currentSessionId(page) ?? '';
+		const [askBlock, serveBlock] = blocks(page);
+		if (!askBlock || !serveBlock) throw new Error('the reply has no code blocks');
+
+		await askBlock.getByRole('button', { name: 'Run command' }).click();
+		const askOutput = askBlock.getByRole('log', { name: 'Output' });
+		await expect(askOutput).toContainText('Your name?', { timeout: 20_000 });
+		await askOutput.click();
+		await page.keyboard.type('Ada');
+		await page.keyboard.press('Enter');
+		await expect(askBlock.getByTestId('shell-run-status')).toHaveText('exit 0');
+		await serveBlock.getByRole('button', { name: 'Run command' }).click();
+		await expect(serveBlock.getByRole('log', { name: 'Output' })).toContainText('serving', {
+			timeout: 20_000,
+		});
+		expectCleanConsole(first);
+		await first.quit();
+	} catch (error) {
+		await first.close();
+		throw error;
+	}
+
+	const app = await launchMalini({ profile: first.root });
+	try {
+		const { page } = app;
+		await openWorkstream(page, workstreamId, sessionId);
+		const [askBlock, serveBlock] = blocks(page);
+		if (!askBlock || !serveBlock) throw new Error('the reply has no code blocks');
+		await expect(askBlock.getByTestId('shell-run-status')).toHaveText('exit 0', {
+			timeout: 20_000,
+		});
+		await expect(askBlock.getByRole('log', { name: 'Output' })).toContainText('hi Ada in');
+		await expect(serveBlock.getByTestId('shell-run-status')).toHaveText('stopped');
+		await captureFlow(app, 'shell-run-restored');
+
+		await sendPrompt(page, 'ECHO_SHELL_RUNS what ran?');
+		const reply = page.getByTestId('chat-message-bubble').last();
+		await expect(reply).toContainText('You ran: exited 0 Your name? Ada', { timeout: 30_000 });
+		await expect(reply).toContainText('You ran: stopped');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

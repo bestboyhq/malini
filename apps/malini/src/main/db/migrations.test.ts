@@ -48,6 +48,7 @@ const ALL_TABLES = [
 	'reconciler_decisions',
 	'scratchpads',
 	'settings',
+	'shell_runs',
 	'skill_choices',
 	'workstream_commit_runs',
 	'workstream_opened_files',
@@ -97,6 +98,8 @@ const ALL_INDEXES = [
 	'idx_reconciler_decisions_created',
 	'idx_reconciler_decisions_event',
 	'idx_reconciler_decisions_open',
+	'idx_shell_runs_anchor',
+	'idx_shell_runs_session',
 	'idx_workstreams_started_by',
 ];
 
