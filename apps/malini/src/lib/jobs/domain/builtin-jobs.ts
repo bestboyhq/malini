@@ -4,6 +4,7 @@ import {
 	type JobBuiltin,
 	type JobDefinitionRecord,
 	type JobRunsIn,
+	type JobTrigger,
 } from '$contract/jobs';
 import { DEFAULT_AGENT_MODEL } from '$shared/providers/domain/model-id';
 
@@ -14,6 +15,7 @@ export type BuiltinJobDefaults = Readonly<{
 	effort: AgentReasoningEffort;
 	runsIn?: JobRunsIn;
 	then?: JobBuiltin;
+	trigger?: JobTrigger;
 }>;
 
 export const BUILTIN_JOB_KEYS: readonly JobBuiltin[] = [
@@ -116,6 +118,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 		name: 'Resolve conflicts',
 		model: DEFAULT_AGENT_MODEL,
 		effort: 'high',
+		trigger: { when: 'on repositories:workstream-merge-conflicted', mode: 'auto' },
 		instructions: [
 			"Finish merging this workstream's base branch into it: resolve every merge conflict.",
 			'',
@@ -211,6 +214,7 @@ export const BUILTIN_JOBS: Readonly<Record<JobBuiltin, BuiltinJobDefaults>> = {
 };
 
 const TRIGGERABLE_BUILTINS: ReadonlySet<JobBuiltin> = new Set([
+	'resolve-conflicts',
 	'update-docs',
 	'open-draft',
 	'merge',

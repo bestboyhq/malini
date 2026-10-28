@@ -17,6 +17,7 @@ import {
 	type ElectronApplication,
 	type Locator,
 	type Page,
+	test,
 } from '@playwright/test';
 import type { DiagnosticEntry } from '../../src/contract/diagnostics';
 import {
@@ -329,7 +330,7 @@ async function closeOrExplain(
 	const child = electronApp.process();
 	const table = await processTable();
 	const tree = processTree(table, child.pid ?? -1);
-	const mainThread = await mainThreadStack(child.pid ?? -1);
+	const { mainThread, everyThread } = await sampleThreads(child.pid ?? -1);
 	for (const line of tree) {
 		const pid = Number(line.trim().split(/\s+/u)[0]);
 		if (Number.isSafeInteger(pid) && pid > 0) {
@@ -349,7 +350,7 @@ async function closeOrExplain(
 			`the app did not quit within ${QUIT_BUDGET_MS} ms (exit code ${String(child.exitCode)}, signal ${String(child.signalCode)})`,
 			'process tree:',
 			...tree,
-			'main thread:',
+			`main thread (every thread, with addresses to symbolicate: ${everyThread}):`,
 			...mainThread,
 			'last output:',
 			output.join('').split('\n').slice(-60).join('\n'),
@@ -367,20 +368,26 @@ async function processTable(): Promise<string> {
 	}
 }
 
-async function mainThreadStack(pid: number): Promise<string[]> {
+async function sampleThreads(pid: number): Promise<{ mainThread: string[]; everyThread: string }> {
+	const everyThread = test.info().outputPath('quit-stall-sample.txt');
 	try {
 		const { stdout } = await execFileAsync('sample', [String(pid), '1'], {
 			maxBuffer: 64 * 1024 * 1024,
 		});
+		mkdirSync(test.info().outputPath(), { recursive: true });
+		writeFileSync(everyThread, stdout);
 		const lines = stdout.split('\n');
 		const start = lines.findIndex((line) => line.includes('com.apple.main-thread'));
-		if (start < 0) return [];
+		if (start < 0) return { mainThread: [], everyThread };
 		const end = lines.findIndex((line, index) => index > start && /^ {4}\d+ Thread_/u.test(line));
-		return lines
-			.slice(start, end < 0 ? undefined : end)
-			.map((line) => line.replace(/\s+\[0x[0-9a-f]+\]$/u, ''));
+		return {
+			mainThread: lines
+				.slice(start, end < 0 ? undefined : end)
+				.map((line) => line.replace(/\s+\[0x[0-9a-f]+\]$/u, '')),
+			everyThread,
+		};
 	} catch (error) {
-		return [String(error)];
+		return { mainThread: [String(error)], everyThread };
 	}
 }
 

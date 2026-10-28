@@ -98,7 +98,11 @@ const SHIP_BUTTONS: ReadonlyMap<string, string> = new Map(
 );
 
 const SHIPPING_WAITS: ReadonlyMap<string, string> = new Map(
-	Object.entries({ retry: 'Retry', checks: 'Checks rerun' } satisfies Record<ShippingWait, string>),
+	Object.entries({
+		retry: 'Retry',
+		checks: 'Checks rerun',
+		idle: 'Agent settled',
+	} satisfies Record<ShippingWait, string>),
 );
 
 const YOU_DID: Readonly<Partial<Record<EventRow, string>>> = {

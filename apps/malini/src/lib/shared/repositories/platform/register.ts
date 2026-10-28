@@ -356,6 +356,7 @@ export function registerRepositories(
 				commitMessage,
 			);
 			if (freshRun) recordCommitRun(db, workstreamId, freshRun.id, sha);
+			await watchers.refresh(workstreamId);
 			return sha;
 		} catch (error) {
 			const text = failureOutput(error);
@@ -370,13 +371,15 @@ export function registerRepositories(
 		const workstreamId = requireString(args, 'workstreamId');
 		const expectedRepositoryFullName = requireString(args, 'expectedRepositoryFullName');
 		const githubToken = optionalString(args, 'githubToken');
-		return pushWorkstreamBranch(
+		const pushed = await pushWorkstreamBranch(
 			await checkout(args),
 			recordedBranch(workstreamId),
 			expectedRepositoryFullName,
 			githubToken,
 			credentials,
 		);
+		await watchers.refresh(workstreamId);
+		return pushed;
 	});
 
 	commands.define('repositories.pull-workstream', async (args: unknown) => {
@@ -392,6 +395,7 @@ export function registerRepositories(
 			credentials,
 			(move) => guardCheckoutMove(workstreamId, move),
 		);
+		await watchers.refresh(workstreamId);
 		const { operationInProgress, conflictedPaths } = await statusCollector(worktree);
 		const mergeHead =
 			operationInProgress === 'merge' && conflictedPaths.length > 0

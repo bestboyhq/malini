@@ -10,11 +10,13 @@ import {
 	isAgentlessJobBuiltin,
 	isAutomaticJobBuiltin,
 	isShippingJobBuiltin,
+	type EventCause,
 	type JobRunRecord,
 	type ReconcilerCandidate,
 	type ReconcilerDecisionRecord,
 } from '$contract/jobs';
 import type { MainContext } from '$main/context';
+import type { MaliniDatabase } from '$main/db/driver';
 import { isRecord, nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import {
@@ -32,10 +34,12 @@ import {
 	listWorkstreams,
 	workstreamLeads,
 } from '$shared/repositories/repositories.platform';
+import type { ShippingRule } from '../jobs.platform';
 import { isRunnableJob } from '../domain/builtin-jobs';
 import { workstreamWasBusy } from '../domain/job-run';
 import {
 	RECONCILER_RULES,
+	handledSituation,
 	outputPick,
 	pickOutput,
 	reconcilerPrompt,
@@ -45,6 +49,7 @@ import {
 	validatePick,
 	wakePrompt,
 	wakesInChain,
+	type HandledSituation,
 	type ReconcilerChat,
 	type ReconcilerQuestion,
 	type ReconcilerRule,
@@ -52,9 +57,11 @@ import {
 } from '../domain/reconciler';
 import { startingSessionId } from './agent-actions.repository';
 import { runAutomaticJob, type ChooseWithJob } from './automatic-jobs.service';
-import { findString, type DispatchedEvent } from './event-log.service';
+import { getLoggedEvent } from './event-log.repository';
+import { findString, withHandledEvent, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
 import {
+	activeWorkstreamJobRun,
 	countChainJobRuns,
 	findPendingJobRun,
 	getJobRun,
@@ -79,21 +86,26 @@ export class ReconcilerError extends Error {
 	}
 }
 
-const HANDLED_CONFLICT_BUILTINS = new Set(['update-from-main', 'resolve-conflicts']);
-
 const WAKE_RETRY_MS = 3_000;
+
+const CAUSE_HOPS = 12;
 
 const WAKE_RETRIES = 20;
 
 type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
+
+type ShippingTurn = { event: DispatchedEvent; done: Promise<void> };
+
+type ShippingQueue = { tail: Promise<void>; next: ShippingTurn | null };
 
 type Rule = Exclude<ReconcilerRule, 'model'>;
 
 const RULES = RECONCILER_RULES.filter((rule): rule is Rule => rule !== 'model');
 
 export type ReconcilerRules = Readonly<
-	Record<Exclude<Rule, 'triggers'>, (event: DispatchedEvent) => Promise<void>> & {
+	Record<Exclude<Rule, 'triggers' | 'shipping'>, (event: DispatchedEvent) => Promise<void>> & {
 		triggers: (event: DispatchedEvent) => Promise<boolean>;
+		shipping: ShippingRule;
 	}
 >;
 
@@ -103,6 +115,7 @@ export class Reconciler {
 	readonly #choose: ChooseWithJob;
 	readonly #rules: ReconcilerRules;
 	readonly #queue = new Map<string, QueuedEvent>();
+	readonly #shippingQueues = new Map<string, ShippingQueue>();
 	readonly #flushing = new Set<string>();
 	readonly #wakeRetries = new Map<string, number>();
 	readonly #timers = new Set<NodeJS.Timeout>();
@@ -155,19 +168,70 @@ export class Reconciler {
 
 	async handle(event: DispatchedEvent): Promise<void> {
 		const heard = RULES.filter((rule) => ruleHears(rule, event.channel));
-		const handled = await Promise.all(heard.map((rule) => this.#apply(rule, event)));
+		const matched = heard.includes('triggers') && (await this.#apply('triggers', event)) === true;
+		await Promise.all(
+			heard.filter((rule) => rule !== 'triggers').map((rule) => this.#apply(rule, event)),
+		);
 		if (!ruleHears('model', event.channel)) return;
-		await this.#consider(event, handled[heard.indexOf('triggers')] === true);
+		await this.#consider(event, matched);
 	}
 
 	async #apply(rule: Rule, event: DispatchedEvent): Promise<unknown> {
 		try {
+			if (rule === 'shipping') return await this.#ship(event);
 			return await this.#rules[rule](event);
 		} catch (error) {
 			this.#log(
 				`jobs: the ${rule} rule could not handle ${event.channel}: ${describeError(error)}`,
 			);
 			return false;
+		}
+	}
+
+	async #ship(event: DispatchedEvent): Promise<void> {
+		const workstreamIds = await this.#rules.shipping.hear(event);
+		await Promise.all(workstreamIds.map((id) => this.#decideShipping(id, event)));
+	}
+
+	#decideShipping(workstreamId: string, event: DispatchedEvent): Promise<void> {
+		const queued = this.#shippingQueues.get(workstreamId);
+		if (queued?.next) {
+			queued.next.event = event;
+			return queued.next.done;
+		}
+		const turn: ShippingTurn = { event, done: Promise.resolve() };
+		turn.done = this.#takeTurn(workstreamId, turn, queued?.tail ?? Promise.resolve());
+		this.#shippingQueues.set(workstreamId, { tail: turn.done, next: turn });
+		void turn.done.finally(() => {
+			if (this.#shippingQueues.get(workstreamId)?.tail === turn.done) {
+				this.#shippingQueues.delete(workstreamId);
+			}
+		});
+		return turn.done;
+	}
+
+	async #takeTurn(
+		workstreamId: string,
+		turn: ShippingTurn,
+		previous: Promise<void>,
+	): Promise<void> {
+		await previous;
+		const current = this.#shippingQueues.get(workstreamId);
+		if (current?.next === turn) current.next = null;
+		await this.#shipOnce(workstreamId, turn.event);
+	}
+
+	async #shipOnce(workstreamId: string, event: DispatchedEvent): Promise<void> {
+		if (this.#stopped) return;
+		try {
+			await withHandledEvent(event, async () => {
+				const decision = await this.#rules.shipping.decide(workstreamId);
+				await decision?.act(event);
+			});
+		} catch (error) {
+			this.#log(
+				`jobs: the shipping rule could not decide for \`${workstreamId}\`: ${describeError(error)}`,
+			);
 		}
 	}
 
@@ -218,7 +282,7 @@ export class Reconciler {
 				const [key, { event, done }] = next.value;
 				this.#queue.delete(key);
 				try {
-					await this.#reconcile(event);
+					await withHandledEvent(event, () => this.#reconcile(event));
 				} catch (error) {
 					this.#log(
 						`jobs: the reconciler could not decide on ${event.channel}: ${describeError(error)}`,
@@ -237,8 +301,14 @@ export class Reconciler {
 		const { db } = this.#context;
 		if (event.id === null || event.chainId === null || decidedEvent(db, event.id)) return;
 		const situation = this.#situation(event, event.chainId);
-		const question = situation === null ? null : reconcilerQuestion(situation);
-		if (situation === null || question === null) return;
+		if (situation === null) return;
+		const handled = handledSituation(situation);
+		if (handled !== null) {
+			this.#recordHandled(event, event.id, event.chainId, handled);
+			return;
+		}
+		const question = reconcilerQuestion(situation);
+		if (question === null) return;
 		const ruled = rulesReason(situation);
 		const { pick, detail } =
 			ruled === null ? await this.#ask(question) : { pick: null, detail: ruled };
@@ -266,6 +336,34 @@ export class Reconciler {
 		};
 		insertDecision(db, decision);
 		await this.#carryOut(decision);
+	}
+
+	#recordHandled(
+		event: DispatchedEvent,
+		eventId: number,
+		chainId: string,
+		handled: HandledSituation,
+	): void {
+		const now = nowIso8601();
+		const decision: ReconcilerDecisionRecord = {
+			id: randomUUID(),
+			eventId,
+			channel: event.channel,
+			chainId,
+			workstreamId: findString(event.payload, 'workstreamId'),
+			facts: handled.facts,
+			candidates: handled.candidates,
+			pick: null,
+			chosen: 0,
+			decidedBy: 'rules',
+			status: 'done',
+			detail: handled.reason,
+			jobRunId: null,
+			createdAt: now,
+			finishedAt: now,
+		};
+		insertDecision(this.#context.db, decision);
+		this.#emit(decision);
 	}
 
 	async #ask(
@@ -370,7 +468,9 @@ export class Reconciler {
 			try {
 				await commands.call('chat.send-prompt', {
 					sessionId,
-					prompt: wakePrompt(waiting.map(({ wake }) => wake.report)),
+					prompt: wakePrompt(
+						waiting.map(({ wake }) => ({ report: wake.report, about: wake.about ?? 'workstream' })),
+					),
 					automated: true,
 					chainId: first.decision.chainId,
 					causeEventId: first.decision.eventId,
@@ -472,10 +572,12 @@ export class Reconciler {
 		if (!run || (run.status !== 'succeeded' && run.status !== 'failed')) return null;
 		const definition = getJobDefinition(db, run.definitionId);
 		if (!definition || isAutomaticJobBuiltin(definition.builtin)) return null;
-		if (run.origin === 'merge-queue' && isShippingJobBuiltin(definition.builtin)) return null;
 		const chat = this.#chat(run.chatSessionId);
 		if (run.status === 'succeeded' && chat === null) return null;
 		const workstream = run.workstreamId === null ? null : getWorkstream(db, run.workstreamId);
+		const merging = run.workstreamId !== null && this.#rules.shipping.merging(run.workstreamId);
+		const shipped =
+			isShippingJobBuiltin(definition.builtin) && (merging || run.origin === 'merge-queue');
 		const retry =
 			run.status === 'failed' &&
 			run.workstreamId !== null &&
@@ -497,6 +599,7 @@ export class Reconciler {
 			workstreamId: run.workstreamId,
 			workstreamName: workstream?.name ?? null,
 			chat,
+			handledBy: shipped ? `${merging ? 'Merge' : 'Shipping'} takes ${run.title} from here.` : null,
 			retry,
 			runsInChain: countChainJobRuns(
 				db,
@@ -518,29 +621,23 @@ export class Reconciler {
 		const workstream = workstreamId === null ? null : getWorkstream(db, workstreamId);
 		const paths = isRecord(event.payload) ? event.payload['conflictedPaths'] : null;
 		if (!workstream || !Array.isArray(paths)) return null;
-		if (event.cause?.kind === 'job-run') {
-			const cause = getJobRun(db, event.cause.id);
-			const builtin = cause ? getJobDefinition(db, cause.definitionId)?.builtin : null;
-			if (cause?.origin === 'merge-queue' || (builtin && HANDLED_CONFLICT_BUILTINS.has(builtin))) {
-				return null;
-			}
-		}
 		const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
 		const resolving =
-			resolver !== null &&
-			findPendingJobRun(db, resolver.id, {
-				workstreamId: workstream.id,
-				repositoryId: null,
-				scope: null,
-			}) !== null;
-		const chat = this.#chat(latestSessionForWorkstream(db, workstream.id)?.id ?? null);
+			resolver !== null && activeWorkstreamJobRun(db, workstream.id, [resolver.id]) !== null;
+		const merging = this.#rules.shipping.merging(workstream.id);
+		const chat = this.#chat(requesterSessionId(db, event.cause));
 		return {
 			kind: 'conflict',
 			workstreamId: workstream.id,
 			workstreamName: workstream.name,
 			conflictedPaths: paths.filter((path): path is string => typeof path === 'string'),
-			resolverId: resolving ? null : (resolver?.id ?? null),
+			resolverId: resolver?.id ?? null,
 			chat,
+			handledBy: resolving
+				? 'Resolve conflicts is already resolving them.'
+				: merging
+					? `Merge resolves them while it merges “${workstream.name}”.`
+					: null,
 			wakes:
 				chat === null
 					? 0
@@ -621,6 +718,16 @@ function subjectKey(event: DispatchedEvent): string | null {
 	if (channel === REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL) {
 		const workstreamId = findString(payload, 'workstreamId');
 		return workstreamId === null ? null : `conflict:${workstreamId}`;
+	}
+	return null;
+}
+
+function requesterSessionId(db: MaliniDatabase, cause: EventCause | null): string | null {
+	let current = cause;
+	for (let hop = 0; current !== null && hop < CAUSE_HOPS; hop += 1) {
+		if (current.kind === 'chat-turn') return null;
+		if (current.kind === 'job-run') return getJobRun(db, current.id)?.chatSessionId ?? null;
+		current = getLoggedEvent(db, Number(current.id))?.cause ?? null;
 	}
 	return null;
 }

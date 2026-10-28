@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { EVENT_CATALOG } from '$contract/event-catalog';
@@ -11,6 +12,7 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_CREATED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 	REPOSITORIES_WORKSTREAM_SETUP_STATUS_CHANNEL,
@@ -30,7 +32,10 @@ import {
 } from '$lib/chat/chat.platform';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
 import {
+	eventChainId,
+	getLoggedEvent,
 	insertLoggedEvent,
+	latestLoggedEvent,
 	listUnhandledEvents,
 	markEventHandled,
 	pruneEventLog,
@@ -57,8 +62,12 @@ const SETUP_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	REPOSITORIES_WORKSTREAM_INSTALL_STATUS_CHANNEL,
 ]);
 
-const SHIPPING_CHANNELS: ReadonlySet<EventChannel> = new Set([
+const YOUR_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
+	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
+]);
+
+const SHIPPING_CHANNELS: ReadonlySet<EventChannel> = new Set([
 	PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	PULL_REQUESTS_SHIP_CHANGED_CHANNEL,
 	JOBS_TIME_REACHED_CHANNEL,
@@ -81,6 +90,32 @@ export type DispatchedEvent = Readonly<{
 
 export type EventHandler = (event: DispatchedEvent) => Promise<void>;
 
+type Handling = { readonly id: number; open: boolean };
+
+const handling = new AsyncLocalStorage<Handling>();
+
+export async function withHandledEvent<T>(
+	event: DispatchedEvent,
+	work: () => Promise<T>,
+): Promise<T> {
+	if (event.id === null) return outsideHandledEvents(work);
+	const scope: Handling = { id: event.id, open: true };
+	try {
+		return await handling.run(scope, work);
+	} finally {
+		scope.open = false;
+	}
+}
+
+export function outsideHandledEvents<T>(work: () => T): T {
+	return handling.exit(work);
+}
+
+export function handledEvent(): number | null {
+	const scope = handling.getStore();
+	return scope?.open === true ? scope.id : null;
+}
+
 export function isLoggedChannel(channel: EventChannel): boolean {
 	return EVENT_CATALOG[channel].logged !== false;
 }
@@ -91,14 +126,15 @@ export function startEventLog(
 	handle: EventHandler,
 ): { dispose(): void } {
 	const { db, events } = context;
+	let stopped = false;
 
 	const handleAndMark = async (event: DispatchedEvent): Promise<void> => {
 		try {
-			await handle(event);
+			await withHandledEvent(event, () => handle(event));
 		} catch (error) {
 			log(`jobs: could not handle ${event.channel}: ${describeError(error)}`);
 		}
-		if (event.id === null) return;
+		if (event.id === null || stopped) return;
 		try {
 			markEventHandled(db, event.id, nowIso8601());
 		} catch (error) {
@@ -139,7 +175,12 @@ export function startEventLog(
 
 	replay();
 
-	return { dispose: stopObserving };
+	return {
+		dispose: () => {
+			stopped = true;
+			stopObserving();
+		},
+	};
 }
 
 export function pruneEvents(db: MaliniDatabase, now = Date.now()): void {
@@ -185,13 +226,30 @@ function causeOf(
 	) {
 		return turnCause(db, findString(payload, 'sessionId'), findString(payload, 'runId'));
 	}
-	const since = SHIPPING_CHANNELS.has(channel)
-		? ANY_TIME
-		: new Date(Date.parse(emittedAt) - WORK_GRACE_MS).toISOString();
+	if (YOUR_CHANNELS.has(channel)) return null;
+	const alarmCause = channel === JOBS_TIME_REACHED_CHANNEL ? setBy(payload) : null;
+	if (alarmCause !== null) return { kind: 'event', id: String(alarmCause) };
+	const handled = handledEvent();
+	if (handled !== null) return { kind: 'event', id: String(handled) };
+	if (workstreamId !== null && SHIPPING_CHANNELS.has(channel)) {
+		return shippingWork(db, workstreamId);
+	}
+	const since = new Date(Date.parse(emittedAt) - WORK_GRACE_MS).toISOString();
 	return (
 		(workstreamId === null ? null : workIn(db, workstreamId, since)) ??
 		(SETUP_CHANNELS.has(channel) ? starterWork(db, payload, since) : null)
 	);
+}
+
+function setBy(payload: unknown): number | null {
+	const id = isRecord(payload) ? payload['causeEventId'] : null;
+	return typeof id === 'number' && Number.isInteger(id) ? id : null;
+}
+
+function shippingWork(db: MaliniDatabase, workstreamId: string): EventCause | null {
+	const click = latestLoggedEvent(db, PULL_REQUESTS_BUTTON_CLICKED_CHANNEL, workstreamId);
+	if (click === null) return workIn(db, workstreamId, ANY_TIME);
+	return workIn(db, workstreamId, click.emittedAt) ?? { kind: 'event', id: String(click.id) };
 }
 
 function turnCause(
@@ -227,13 +285,25 @@ function starterWork(db: MaliniDatabase, payload: unknown, since: string): Event
 }
 
 function chainOf(db: MaliniDatabase, cause: EventCause): string | null {
-	return cause.kind === 'job-run' ? jobRunChainId(db, cause.id) : chatTurnChainId(db, cause.id);
+	switch (cause.kind) {
+		case 'job-run':
+			return jobRunChainId(db, cause.id);
+		case 'chat-turn':
+			return chatTurnChainId(db, cause.id);
+		case 'event':
+			return eventChainId(db, Number(cause.id));
+	}
 }
 
 function workstreamOf(db: MaliniDatabase, cause: EventCause): string | null {
-	return cause.kind === 'job-run'
-		? (getJobRun(db, cause.id)?.workstreamId ?? null)
-		: getRunWorkstreamId(db, cause.id);
+	switch (cause.kind) {
+		case 'job-run':
+			return getJobRun(db, cause.id)?.workstreamId ?? null;
+		case 'chat-turn':
+			return getRunWorkstreamId(db, cause.id);
+		case 'event':
+			return getLoggedEvent(db, Number(cause.id))?.workstreamId ?? null;
+	}
 }
 
 export function findString(payload: unknown, key: string): string | null {

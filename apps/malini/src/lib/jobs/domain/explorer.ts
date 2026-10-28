@@ -1,5 +1,6 @@
 import type { EventChannel } from '$contract/events';
 import type {
+	EventCause,
 	LoggedEventRecord,
 	ReconcilerDecisionRecord,
 	TimelineChatTurn,
@@ -216,12 +217,7 @@ function eventItem(event: LoggedEventRecord): ExplorerItem {
 		at: Date.parse(event.emittedAt),
 		end: null,
 		chainId: event.chainId,
-		cause:
-			event.cause === null
-				? null
-				: event.cause.kind === 'job-run'
-					? runId(event.cause.id)
-					: turnId(event.cause.id),
+		cause: event.cause === null ? null : causeId(event.cause),
 		workstreamId: event.workstreamId,
 		hops: [[`event:${row}`, 'reconciler']],
 	};
@@ -386,6 +382,17 @@ function countWires(items: readonly ExplorerItem[]): Map<string, number> {
 
 function isMerged(payload: unknown): boolean {
 	return typeof payload === 'object' && payload !== null && 'merged' in payload;
+}
+
+function causeId(cause: EventCause): string {
+	switch (cause.kind) {
+		case 'job-run':
+			return runId(cause.id);
+		case 'chat-turn':
+			return turnId(cause.id);
+		case 'event':
+			return `event:${cause.id}`;
+	}
 }
 
 function eventId(id: number): string {

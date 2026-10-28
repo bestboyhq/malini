@@ -1,6 +1,6 @@
 # 0086 - Shipping is events and handlers, not a merge queue
 
-Status: accepted
+Status: superseded by 0106
 
 ## Context
 
