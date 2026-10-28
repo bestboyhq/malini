@@ -82,6 +82,7 @@
 			{workstreamId}
 			{pullRequestShipped}
 			{jobRuns}
+			timeline={Boolean(workstream?.scope)}
 			oncloseworkstream={closeWorkstream}
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)

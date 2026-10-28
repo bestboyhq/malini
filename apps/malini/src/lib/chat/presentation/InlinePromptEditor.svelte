@@ -2,7 +2,7 @@
 	import { Editor } from '@tiptap/core';
 	import { closeHistory } from '@tiptap/pm/history';
 	import type { EditorState, Transaction } from '@tiptap/pm/state';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { isPromptChipKind, type PromptChipRef } from '$lib/chat/domain/prompt-chip';
 	import { DropdownLayer } from '$hyper-ui/components/dropdown-layer';
 	import { sensitiveMasking } from '$hyper-ui/components/sensitive';
@@ -65,6 +65,14 @@
 	let host: HTMLDivElement | null = $state(null);
 
 	let editor = $state<Editor | null>(null);
+	let shownPlaceholder = untrack(() => placeholder);
+
+	$effect(() => {
+		const next = placeholder;
+		if (next === shownPlaceholder || !editor) return;
+		shownPlaceholder = next;
+		editor.view.dispatch(editor.state.tr);
+	});
 	let editorFocused = $state(false);
 
 	let knownRefKeys = new Set<string>();
@@ -301,7 +309,10 @@
 		if (!host) return;
 		editor = new Editor({
 			element: host,
-			extensions: promptEditorExtensions({ placeholder, chipOpener: (ref) => chipOpener?.(ref) }),
+			extensions: promptEditorExtensions({
+				placeholder: () => shownPlaceholder,
+				chipOpener: (ref) => chipOpener?.(ref),
+			}),
 			editable: !disabled,
 			content: markdownToPromptDoc(value).toJSON(),
 			editorProps: {

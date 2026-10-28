@@ -9,6 +9,7 @@ import {
 
 export { JOB_CONTEXT_MAX_BYTES } from './domain/job-run';
 export { clearAlarm, setAlarm } from './platform/alarms.repository';
+export { startingSessionId } from './platform/agent-actions.repository';
 export { latestLoggedEvent } from './platform/event-log.repository';
 export type { DispatchedEvent } from './platform/event-log.service';
 export {

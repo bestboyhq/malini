@@ -8,12 +8,15 @@ export class AgentEventMapper {
 	}
 
 	static fromRaw(raw: RawAgentEventEnvelope): EventEnvelope {
-		return {
-			sessionId: raw.sessionId,
-			runId: raw.runId,
-			seq: raw.seq,
-			event: isAgentEvent(raw.event) ? raw.event : { type: 'unknown', raw: raw.event },
-		};
+		return withTime(
+			{
+				sessionId: raw.sessionId,
+				runId: raw.runId,
+				seq: raw.seq,
+				event: isAgentEvent(raw.event) ? raw.event : { type: 'unknown', raw: raw.event },
+			},
+			raw.emittedAt,
+		);
 	}
 
 	static fromLive(payload: unknown): EventEnvelope | null {
@@ -22,16 +25,24 @@ export class AgentEventMapper {
 		if (typeof sessionId !== 'string' || typeof runId !== 'string' || typeof seq !== 'number') {
 			return null;
 		}
-		const envelope: EventEnvelope = {
-			sessionId,
-			runId,
-			seq,
-			event: isAgentEvent(event) ? event : { type: 'unknown', raw: event },
-		};
+		const envelope: EventEnvelope = withTime(
+			{
+				sessionId,
+				runId,
+				seq,
+				event: isAgentEvent(event) ? event : { type: 'unknown', raw: event },
+			},
+			payload.emittedAt,
+		);
 		if (payload.ephemeral !== true) return envelope;
 		const ephemeral: EphemeralEnvelope = { ...envelope, ephemeral: true };
 		return ephemeral;
 	}
+}
+
+function withTime(envelope: EventEnvelope, emittedAt: unknown): EventEnvelope {
+	const at = typeof emittedAt === 'string' ? Date.parse(emittedAt) : Number.NaN;
+	return Number.isFinite(at) ? { ...envelope, at } : envelope;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

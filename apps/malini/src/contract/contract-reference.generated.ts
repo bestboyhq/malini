@@ -10,7 +10,7 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'Fires for every event an agent run streams in a chat, such as text, tool calls, approvals and the end of the run, in sequence order. Malini does not keep it in its event log.',
 			payloadType: 'LiveEventEnvelope',
 			payload:
-				'interface AgentEventEnvelope {\n\tsessionId: string;\n\trunId: string;\n\tseq: number;\n\tevent: Record<string, unknown>;\n}\n\ntype LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };',
+				'interface AgentEventEnvelope {\n\tsessionId: string;\n\trunId: string;\n\tseq: number;\n\tevent: Record<string, unknown>;\n\temittedAt?: string;\n}\n\ntype LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };',
 		},
 		{
 			channel: 'chat:run-changes-captured',
@@ -41,6 +41,22 @@ export const CONTRACT_REFERENCE: ContractReference = {
 			payloadType: 'ChatTurnFinishedPayload',
 			payload:
 				"type ChatTurnFinishedStatus = 'succeeded' | 'failed' | 'cancelled';\n\ninterface ChatTurnFinishedPayload {\n\tworkstreamId: string;\n\tsessionId: string;\n\trunId: string;\n\tstatus: ChatTurnFinishedStatus;\n\toutcome: string | null;\n\tneeds: string | null;\n}",
+		},
+		{
+			channel: 'chat:lead-decision-changed',
+			description:
+				'Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.',
+			payloadType: 'LeadDecisionChangedEvent',
+			payload:
+				"type LeadDecisionPicture = Readonly<{ workstreamId: string; path: string }>;\n\ntype LeadDecisionOption = Readonly<{\n\tlabel: string;\n\tnote: string | null;\n\tpicture: LeadDecisionPicture | null;\n}>;\n\ntype LeadDecisionDecider = 'you' | 'lead';\n\ntype LeadDecisionAnswer = Readonly<{\n\toption: number;\n\tby: LeadDecisionDecider;\n\treason: string | null;\n\tat: string;\n}>;\n\ntype LeadDecision = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tworkstreamId: string;\n\ttopic: string;\n\tquestion: string;\n\twhy: string | null;\n\toptions: readonly LeadDecisionOption[];\n\trecommended: number;\n\tmeanwhile: string | null;\n\taskedAt: string;\n\tanswer: LeadDecisionAnswer | null;\n}>;\n\ntype LeadDecisionChangedEvent = Readonly<{ decision: LeadDecision }>;",
+		},
+		{
+			channel: 'chat:delivery-changed',
+			description:
+				'Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.',
+			payloadType: 'ChatDeliveryChangedEvent',
+			payload:
+				"type ChatDeliveryStatus = 'waiting' | 'delivered' | 'failed';\n\ntype ChatDelivery = Readonly<{\n\tid: string;\n\tsessionId: string;\n\tfromSessionId: string | null;\n\tstatus: ChatDeliveryStatus;\n\trunId: string | null;\n\tdetail: string | null;\n\tcreatedAt: string;\n\tdeliveredAt: string | null;\n}>;\n\ntype ChatDeliveryChangedEvent = Readonly<{ delivery: ChatDelivery }>;",
 		},
 		{
 			channel: 'chat:mcp-server-changed',

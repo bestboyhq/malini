@@ -220,25 +220,30 @@ describe('lead chats', () => {
 		expect((await listRepositoryCatalog(db)).map((repository) => repository.fullName)).toEqual([
 			'acme/api',
 		]);
+		const sibling = (id: string) => ({
+			repository: 'acme/api',
+			branch: `malini/${id}`,
+			path: expect.stringMatching(new RegExp(`${id}$`, 'u')),
+		});
 		expect(await workstreamLineage(db, 'child-1')).toEqual({
 			lead: null,
-			startedBy: { name: acme.name, lead: true },
-			siblings: [
-				{
-					repository: 'acme/api',
-					branch: 'malini/child-2',
-					path: expect.stringMatching(/child-2$/u),
-				},
-			],
+			startedBy: { name: acme.name, lead: true, plan: null },
+			siblings: [sibling('child-2')],
 		});
+		const plan = join(acme.path, '.context', 'plan.md');
 		expect(await workstreamLineage(db, acme.id)).toEqual({
 			lead: {
 				owner: 'acme',
 				repositories: [{ repository: 'acme/api', branch: 'main', path: projectRepoPath }],
+				workstreams: [sibling('child-2'), sibling('child-1')],
+				plan,
 			},
 			startedBy: null,
 			siblings: [],
 		});
+		await mkdir(dirname(plan), { recursive: true });
+		await writeFile(plan, '# Plan\n');
+		expect((await workstreamLineage(db, 'child-1'))?.startedBy?.plan).toBe(plan);
 		expect((await workstreamLineage(db, home.id))?.lead?.repositories).toHaveLength(1);
 		expect(await workstreamLineage(db, 'solo')).toBeNull();
 	});

@@ -101,6 +101,9 @@ import {
 	type RunLease,
 } from './lifecycle';
 import type { AgentLineage } from '$contract/agent';
+import type { WorkstreamReport } from '$contract/deliveries';
+import { parseWorkstreamReport } from '../../domain/deliveries';
+import { leadBriefFor } from '../lead-brief.service';
 import type {
 	AgentQuestionAnswer,
 	AgentRunProfile,
@@ -580,6 +583,8 @@ export interface SendPromptInput {
 	readonly from?: string | null;
 	readonly chainId?: string | null;
 	readonly causeEventId?: number | null;
+	readonly reports?: readonly WorkstreamReport[];
+	readonly decisions?: readonly string[];
 	readonly worktree: string;
 }
 
@@ -673,6 +678,8 @@ async function sendAgentPromptLeased(
 			payload['transcriptReferences'] = withTranscripts.references;
 		if (withElements.references.length > 0) payload['elementReferences'] = withElements.references;
 		if (input.from) payload['from'] = input.from;
+		if (input.reports && input.reports.length > 0) payload['reports'] = input.reports;
+		if (input.decisions && input.decisions.length > 0) payload['decisions'] = input.decisions;
 	};
 	decorate(userMessagePayload);
 	userMessagePayload['checkpointId'] = checkpointId;
@@ -705,7 +712,14 @@ async function sendAgentPromptLeased(
 		await hooks.captureRunFinish(runId);
 		return runId;
 	}
-	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
+	const fresh = !lease.handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
+	const resumePoint = lease.handsOff
+		? {}
+		: fresh
+			? { freshConversation: true as const }
+			: providerResumePoint(db, sessionId);
+	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
+	if (brief !== null) bridgePrompt = `${brief}\n\n${bridgePrompt}`;
 	const skills = skillsForRun(db, sessionId);
 	const lineage = await lineageForRun(db, workstreamId, log);
 	lease.release();
@@ -972,6 +986,7 @@ export function listAgentEventPage(
 					row.runId,
 					row.seq,
 					eventJsonFromKindPayload(row.kind, row.payload),
+					row.at,
 				),
 			),
 		),
@@ -1622,6 +1637,8 @@ export function defineBridgeCommands(
 				from: promptSender(args),
 				chainId: optionalString(args, 'chainId'),
 				causeEventId: optionalCauseEventId(args),
+				reports: optionalArray(args, 'reports').map(requireReport),
+				decisions: optionalStringArray(args, 'decisions'),
 				worktree,
 			},
 			deps.hooks,
@@ -1824,6 +1841,12 @@ function requireNumber(args: unknown, key: string): number {
 		throw new Error(`invalid args: \`${key}\` must be a number`);
 	}
 	return value;
+}
+
+function requireReport(value: unknown): WorkstreamReport {
+	const report = parseWorkstreamReport(value);
+	if (report === null) throw new Error('invalid args: `reports` must hold workstream reports');
+	return report;
 }
 
 function optionalArray(args: unknown, key: string): unknown[] {

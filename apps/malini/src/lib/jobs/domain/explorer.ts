@@ -301,7 +301,7 @@ function turnItem(
 		chainId: turn.chainId,
 		cause: turnCause(turn, turns, wakes),
 		workstreamId: turn.workstreamId,
-		hops: turnHops(turn),
+		hops: turnHops(turn, wakes),
 	};
 }
 
@@ -326,14 +326,23 @@ function turnCause(
 	return starter ? turnId(starter.runId) : null;
 }
 
-function turnHops(turn: TimelineChatTurn): Hop[] {
+function turnHops(
+	turn: TimelineChatTurn,
+	wakes: ReadonlyMap<number, ReconcilerDecisionRecord>,
+): Hop[] {
 	if (turn.resumed) {
 		return [
 			['reconciler', 'rule:resume'],
 			['rule:resume', 'chats'],
 		];
 	}
-	if (turn.causeEventId !== null) return [['rule:model', 'chats']];
+	if (turn.causeEventId !== null && wakes.has(turn.causeEventId)) return [['rule:model', 'chats']];
+	if (turn.causeEventId !== null) {
+		return [
+			['reconciler', 'rule:deliveries'],
+			['rule:deliveries', 'chats'],
+		];
+	}
 	return turn.from === null ? [['you', 'chats']] : [['chats', 'chats']];
 }
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentBackgroundTask } from '$contract/agent';
 import { listEventRowsForSession } from '../events.repository';
 import { getInteraction } from '../interactions.repository';
@@ -25,6 +25,8 @@ import {
 	type TestContext,
 } from './test-support';
 
+const NOW = '2026-10-28T09:00:00.000Z';
+
 let test: TestContext;
 let fake: FakeBridge;
 const cleanups: Array<() => Promise<void> | void> = [];
@@ -35,6 +37,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	vi.useRealTimers();
 	while (cleanups.length > 0) await cleanups.pop()?.();
 	fake.cleanup();
 	test.cleanup();
@@ -90,7 +93,9 @@ describe('pumpStep', () => {
 		seedOpenRun(test.db, 'run-1', 'sess-1');
 	}
 
-	it('persists durable events with the row seq, skips ephemeral ones, and closes the run on a terminal event', () => {
+	it('persists durable events with the row seq and when Malini recorded them, skips ephemeral ones, and closes the run on a terminal event', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(NOW);
 		seedRun();
 		const correlator = new SessionCorrelator();
 		const log: string[] = [];
@@ -102,6 +107,7 @@ describe('pumpStep', () => {
 			runId: 'run-1',
 			seq: 1,
 			event: { type: 'run.started', runId: 'run-1', sessionId: 'sess-1' },
+			emittedAt: NOW,
 		});
 		expect(getSession(test.db, 'sess-1')?.status).toBe('running');
 		expect(step({ type: 'assistant.delta', runId: 'run-1', contentId: 'c', text: 'par' })).toEqual({

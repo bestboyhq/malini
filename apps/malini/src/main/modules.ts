@@ -151,6 +151,10 @@ export async function registerModules(
 		choose: (task, job, choices) => chat.choose(task, job, choices),
 		shipping: (event) => pullRequests.handle(event),
 		resume: (event) => chat.resume(event),
+		deliveries: (event) => chat.deliveries(event),
+		deliver: async (wake) => {
+			await chat.deliver({ ...wake, kind: 'report' });
+		},
 	});
 	jobs.start();
 	app.announceUpdate();

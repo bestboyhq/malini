@@ -44,6 +44,7 @@ export const RULE_LABELS: Readonly<Record<ReconcilerRule, string>> = {
 	thens: 'Thens',
 	shipping: 'Shipping',
 	resume: 'Resume',
+	deliveries: 'Deliveries',
 	schedules: 'Schedules',
 	compatibility: 'Compatibility',
 	model: 'Choose a reaction',
@@ -233,7 +234,9 @@ export function itemWhy(item: ExplorerItem, explorer: Explorer): string {
 	switch (item.kind) {
 		case 'turn':
 			if (item.turn.resumed) return 'Malini resumed it';
-			if (item.turn.causeEventId !== null) return 'Choose a reaction woke it';
+			if (item.turn.causeEventId !== null) {
+				return cause?.kind === 'decision' ? 'Choose a reaction woke it' : 'Deliveries woke it';
+			}
 			if (item.turn.from !== null) {
 				return `Asked by ${explorer.workstreams.get(item.turn.from)?.name ?? 'a chat'}`;
 			}

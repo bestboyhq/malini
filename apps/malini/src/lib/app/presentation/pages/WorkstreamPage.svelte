@@ -13,7 +13,9 @@
 	import { openBrowserTabCommand } from '$lib/browser/application/commands/open-browser-tab.command';
 	import { browserTabsQuery } from '$lib/browser/application/queries/browser-tabs.query.svelte';
 	import { browserTabPanels } from '$lib/browser/browser.api';
-	import { WorkstreamChatBridge } from '$lib/chat/chat.api';
+	import { activeSessionQuery } from '$lib/chat/application/queries/active-session.query.svelte';
+	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
+	import { LeadDecisionsList, WorkstreamChatBridge } from '$lib/chat/chat.api';
 	import { announceWorkstreamLifecycleCommand } from '$lib/extensions/application/commands/announce-workstream-lifecycle.command';
 	import { extensionActivationGenerationQuery } from '$lib/extensions/application/queries/extension-activation-generation.query.svelte';
 	import { extensionRuntimeReadyQuery } from '$lib/extensions/application/queries/extension-runtime-ready.query.svelte';
@@ -66,6 +68,8 @@
 	const startedWorkstreamIds = $derived(
 		workstream?.scope ? leadProgressQuery.startedIds(workstreamId) : [],
 	);
+	const leadSessionId = $derived(workstream?.scope ? activeSessionQuery.data : null);
+	const leadDecisionCount = $derived(leadDecisionsQuery.data(leadSessionId).length);
 	const project = $derived(workstreamProjectQuery.data(workstreamId));
 	const repositoryContext = $derived(repositoryContextQuery.data(workstreamId));
 	const worktreePending = $derived(worktreePendingQuery.data(workstreamId));
@@ -148,13 +152,21 @@
 	oncreationannounced={consumeWorkstreamCreationCommand}
 	onruntimeretry={retryRepositoryScope}
 	browserOnly={Boolean(workstream?.scope)}
-	dock={startedWorkstreamIds.length > 0 ? startedWorkstreamsDock : undefined}
+	dock={startedWorkstreamIds.length > 0 || leadDecisionCount > 0
+		? startedWorkstreamsDock
+		: undefined}
 	{builtInPanels}
 	{panelActions}
 />
 
 {#snippet startedWorkstreamsDock()}
 	<StartedWorkstreams workstreamIds={startedWorkstreamIds} framed={false} />
+	{#if leadSessionId && leadDecisionCount > 0}
+		{#if startedWorkstreamIds.length > 0}
+			<div class="bg-surface-150 mx-2 my-1.5 h-px" aria-hidden="true"></div>
+		{/if}
+		<LeadDecisionsList sessionId={leadSessionId} />
+	{/if}
 {/snippet}
 
 <WorkstreamPathContextMenu {workstreamId} />

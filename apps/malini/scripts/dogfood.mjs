@@ -1,5 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 const POLL_MS = 15_000;
 const STOP_TIMEOUT_MS = 60_000;
@@ -7,6 +9,15 @@ const FIRST_RETRY_MS = 5_000;
 const LAST_RETRY_MS = 5 * 60_000;
 const RENDERER_PORT = '5798';
 const appRoot = resolve(import.meta.dirname, '..');
+const DATABASE = join(homedir(), 'Library', 'Application Support', 'malini', 'malini.sqlite');
+
+const OPEN_RUNS = `SELECT (
+	SELECT e.event FROM agent_events e
+	WHERE e.run_id = r.id AND e.event LIKE 'background.updated' || char(10) || '%'
+	ORDER BY e.seq DESC LIMIT 1
+) AS background
+FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+WHERE r.completed_at IS NULL AND s.archived_at IS NULL`;
 
 const OUTSIDE_THE_WATCH = [
 	/(^|\/)package\.json$/,
@@ -24,6 +35,39 @@ const OUTSIDE_THE_WATCH = [
  */
 export function needsFreshDevServer(changedFiles) {
 	return changedFiles.some((file) => OUTSIDE_THE_WATCH.some((pattern) => pattern.test(file)));
+}
+
+/**
+ * @param {string} database
+ * @returns {number}
+ */
+export function agentsMidTurn(database) {
+	let db;
+	try {
+		db = new DatabaseSync(database, { readOnly: true });
+	} catch {
+		return 0;
+	}
+	try {
+		return db
+			.prepare(OPEN_RUNS)
+			.all()
+			.filter((row) => !waitsOnlyOnCommands(row['background'])).length;
+	} finally {
+		db.close();
+	}
+}
+
+/** @param {unknown} event */
+function waitsOnlyOnCommands(event) {
+	if (typeof event !== 'string') return false;
+	const background = JSON.parse(event.slice(event.indexOf('\n') + 1));
+	return (
+		background.waiting === true &&
+		Array.isArray(background.tasks) &&
+		background.tasks.length > 0 &&
+		background.tasks.every((/** @type {{ kind?: unknown }} */ task) => task.kind === 'command')
+	);
 }
 
 /** @param {string[]} args */
@@ -70,6 +114,7 @@ let retry = null;
 let retryMs = FIRST_RETRY_MS;
 let dependenciesStale = true;
 let reportedDivergence = '';
+let heldUpdate = '';
 let quitting = false;
 
 function start() {
@@ -151,6 +196,15 @@ function advance(target) {
 async function follow() {
 	const update = incoming();
 	if (!update) return;
+	const working = app ? agentsMidTurn(DATABASE) : 0;
+	if (working > 0) {
+		if (heldUpdate !== update.target) {
+			say(`holding the update until no agent is mid-turn (${working} working)`);
+		}
+		heldUpdate = update.target;
+		return;
+	}
+	heldUpdate = '';
 	retryMs = FIRST_RETRY_MS;
 	const fresh = needsFreshDevServer(update.changed);
 	if (fresh) await stop();

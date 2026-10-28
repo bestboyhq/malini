@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-	CHAT_TURN_FINISHED_CHANNEL,
 	JOBS_DECISION_CHANGED_CHANNEL,
 	JOBS_RUN_FINISHED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
@@ -21,10 +20,8 @@ import {
 	getSession,
 	latestSessionForWorkstream,
 	latestSessionReport,
-	latestWorkstreamTurn,
 	sessionHasWorkingRun,
 	userSessionWorkstreamId,
-	workChatTurnInWorkstream,
 } from '$lib/chat/chat.platform';
 import {
 	getWorkstream,
@@ -32,7 +29,6 @@ import {
 	workstreamLeads,
 } from '$shared/repositories/repositories.platform';
 import { isRunnableJob } from '../domain/builtin-jobs';
-import { workstreamWasBusy } from '../domain/job-run';
 import {
 	RECONCILER_RULES,
 	outputPick,
@@ -41,14 +37,13 @@ import {
 	reconcilerQuestion,
 	ruleHears,
 	validatePick,
-	wakePrompt,
 	wakesInChain,
+	type ChatWake,
 	type ReconcilerChat,
 	type ReconcilerQuestion,
 	type ReconcilerRule,
 	type ReconcilerSituation,
 } from '../domain/reconciler';
-import { startingSessionId } from './agent-actions.repository';
 import { runAutomaticJob, type ChooseWithJob } from './automatic-jobs.service';
 import { findString, type DispatchedEvent } from './event-log.service';
 import { getBuiltinJobDefinition, getJobDefinition } from './job-definitions.repository';
@@ -79,10 +74,6 @@ export class ReconcilerError extends Error {
 
 const HANDLED_CONFLICT_BUILTINS = new Set(['update-from-main', 'resolve-conflicts']);
 
-const WAKE_RETRY_MS = 3_000;
-
-const WAKE_RETRIES = 20;
-
 type QueuedEvent = Readonly<{ event: DispatchedEvent; done: () => void }>;
 
 type Rule = Exclude<ReconcilerRule, 'model'>;
@@ -95,17 +86,16 @@ export type ReconcilerRules = Readonly<
 	}
 >;
 
+export type DeliverWake = (wake: ChatWake) => Promise<void>;
+
 export class Reconciler {
 	readonly #context: MainContext;
 	readonly #log: (line: string) => void;
 	readonly #choose: ChooseWithJob;
 	readonly #rules: ReconcilerRules;
+	readonly #deliver: DeliverWake;
 	readonly #queue = new Map<string, QueuedEvent>();
-	readonly #flushing = new Set<string>();
-	readonly #wakeRetries = new Map<string, number>();
-	readonly #timers = new Set<NodeJS.Timeout>();
 	#working: Promise<void> | null = null;
-	#unsubscribe: (() => void) | null = null;
 	#stopped = false;
 
 	constructor(
@@ -113,23 +103,20 @@ export class Reconciler {
 		log: (line: string) => void,
 		choose: ChooseWithJob,
 		rules: ReconcilerRules,
+		deliver: DeliverWake,
 	) {
 		this.#context = context;
 		this.#log = log;
 		this.#choose = choose;
 		this.#rules = rules;
+		this.#deliver = deliver;
 	}
 
 	start(): void {
-		this.#unsubscribe = this.#context.events.subscribe(
-			CHAT_TURN_FINISHED_CHANNEL,
-			({ sessionId }) => this.#background(this.#flushWakes(sessionId)),
-		);
-		const sessions = new Set<string>();
 		for (const decision of listPendingDecisions(this.#context.db)) {
 			const chosen = decision.candidates[decision.chosen];
 			if (chosen?.kind === 'wake-chat') {
-				sessions.add(chosen.sessionId);
+				this.#background(this.#wake(decision, chosen));
 				continue;
 			}
 			this.#save({
@@ -139,16 +126,11 @@ export class Reconciler {
 				finishedAt: nowIso8601(),
 			});
 		}
-		for (const sessionId of sessions) this.#background(this.#flushWakes(sessionId));
 	}
 
 	dispose(): void {
 		this.#stopped = true;
-		this.#unsubscribe?.();
-		this.#unsubscribe = null;
 		this.#queue.clear();
-		for (const timer of this.#timers) clearTimeout(timer);
-		this.#timers.clear();
 	}
 
 	async handle(event: DispatchedEvent): Promise<void> {
@@ -297,9 +279,30 @@ export class Reconciler {
 			return asking;
 		}
 		if (candidate.kind === 'run-job') return this.#runJob(decision, candidate);
-		const pending = this.#save({ ...decision, status: 'pending', finishedAt: null });
-		await this.#flushWakes(candidate.sessionId);
-		return getDecision(this.#context.db, decision.id) ?? pending;
+		return this.#wake(decision, candidate);
+	}
+
+	async #wake(
+		decision: ReconcilerDecisionRecord,
+		wake: Extract<ReconcilerCandidate, { kind: 'wake-chat' }>,
+	): Promise<ReconcilerDecisionRecord> {
+		try {
+			await this.#deliver({
+				sessionId: wake.sessionId,
+				prompt: wake.report,
+				fromWorkstreamId: wake.from === wake.workstreamId ? null : wake.from,
+				chainId: decision.chainId,
+				causeEventId: decision.eventId,
+			});
+			return this.#save({ ...decision, status: 'done', finishedAt: nowIso8601() });
+		} catch (error) {
+			return this.#save({
+				...decision,
+				status: 'failed',
+				detail: `Malini could not wake the chat: ${describeError(error)}`,
+				finishedAt: nowIso8601(),
+			});
+		}
 	}
 
 	async #runJob(
@@ -336,83 +339,8 @@ export class Reconciler {
 		}
 	}
 
-	async #flushWakes(sessionId: string): Promise<void> {
-		const { db, commands } = this.#context;
-		if (this.#flushing.has(sessionId) || this.#stopped) return;
-		this.#flushing.add(sessionId);
-		try {
-			const waiting = listPendingDecisions(db).flatMap((decision) => {
-				const chosen = decision.candidates[decision.chosen];
-				return chosen?.kind === 'wake-chat' && chosen.sessionId === sessionId
-					? [{ decision, wake: chosen }]
-					: [];
-			});
-			const first = waiting[0];
-			if (!first) return;
-			const session = getSession(db, sessionId);
-			if (!session || session.archivedAt !== null) {
-				for (const { decision } of waiting) {
-					this.#save({
-						...decision,
-						status: 'failed',
-						detail: 'That chat is gone.',
-						finishedAt: nowIso8601(),
-					});
-				}
-				return;
-			}
-			if (sessionHasWorkingRun(db, sessionId)) return;
-			const from = waiting.find(({ wake }) => wake.from !== wake.workstreamId)?.wake.from;
-			try {
-				await commands.call('chat.send-prompt', {
-					sessionId,
-					prompt: wakePrompt(waiting.map(({ wake }) => wake.report)),
-					automated: true,
-					chainId: first.decision.chainId,
-					causeEventId: first.decision.eventId,
-					...(from === undefined ? {} : { from }),
-				});
-			} catch (error) {
-				if (workstreamWasBusy(error) && this.#retryWakes(sessionId)) return;
-				for (const { decision } of waiting) {
-					this.#save({
-						...decision,
-						status: 'failed',
-						detail: `Malini could not wake the chat: ${describeError(error)}`,
-						finishedAt: nowIso8601(),
-					});
-				}
-				return;
-			}
-			this.#wakeRetries.delete(sessionId);
-			for (const { decision } of waiting) {
-				this.#save({ ...decision, status: 'done', finishedAt: nowIso8601() });
-			}
-		} finally {
-			this.#flushing.delete(sessionId);
-		}
-	}
-
-	#retryWakes(sessionId: string): boolean {
-		const tries = (this.#wakeRetries.get(sessionId) ?? 0) + 1;
-		if (tries > WAKE_RETRIES) {
-			this.#wakeRetries.delete(sessionId);
-			return false;
-		}
-		this.#wakeRetries.set(sessionId, tries);
-		const timer = setTimeout(() => {
-			this.#timers.delete(timer);
-			this.#background(this.#flushWakes(sessionId));
-		}, WAKE_RETRY_MS);
-		timer.unref();
-		this.#timers.add(timer);
-		return true;
-	}
-
 	#situation(event: DispatchedEvent, chainId: string): ReconcilerSituation | null {
 		switch (event.channel) {
-			case CHAT_TURN_FINISHED_CHANNEL:
-				return this.#turnSituation(event.payload, chainId);
 			case JOBS_RUN_FINISHED_CHANNEL:
 				return this.#jobRunSituation(event.payload, chainId);
 			case REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL:
@@ -420,44 +348,6 @@ export class Reconciler {
 			default:
 				return null;
 		}
-	}
-
-	#turnSituation(payload: unknown, chainId: string): ReconcilerSituation | null {
-		const { db } = this.#context;
-		const workstreamId = findString(payload, 'workstreamId');
-		const sessionId = findString(payload, 'sessionId');
-		const status = isRecord(payload) ? payload['status'] : null;
-		if (workstreamId === null || sessionId === null) return null;
-		if (status !== 'succeeded' && status !== 'failed' && status !== 'cancelled') return null;
-		const workstream = getWorkstream(db, workstreamId);
-		if (!workstream?.startedBy) return null;
-		const starter = this.#chat(
-			startingSessionId(db, workstreamId) ??
-				latestSessionForWorkstream(db, workstream.startedBy)?.id ??
-				null,
-		);
-		if (starter === null || starter.workstreamId === workstreamId) return null;
-		const siblings = listWorkstreams(db).filter(
-			(other) => other.startedBy === starter.workstreamId && other.scope === null,
-		);
-		const now = nowIso8601();
-		return {
-			kind: 'turn-finished',
-			workstreamId,
-			workstreamName: workstream.name,
-			chatName: getSession(db, sessionId)?.displayName ?? workstream.name,
-			status,
-			outcome: findString(payload, 'outcome'),
-			needs: findString(payload, 'needs'),
-			starter,
-			siblings: {
-				total: siblings.length,
-				working: siblings.filter((other) => workChatTurnInWorkstream(db, other.id, now) !== null)
-					.length,
-				needYou: siblings.filter((other) => latestWorkstreamTurn(db, other.id)?.need).length,
-			},
-			wakes: wakesInChain(listChainDecisions(db, chainId), starter.sessionId, workstreamId),
-		};
 	}
 
 	#jobRunSituation(payload: unknown, chainId: string): ReconcilerSituation | null {
@@ -557,7 +447,6 @@ export class Reconciler {
 			chatName: session.displayName,
 			workstreamName: workstream.name,
 			working: sessionHasWorkingRun(db, session.id),
-			lead: workstream.scope !== null,
 			lastOutcome: latest?.outcome ?? null,
 			lastNeeds: latest?.needs ?? null,
 		};
@@ -595,17 +484,13 @@ export class Reconciler {
 		this.#context.events.emit(JOBS_DECISION_CHANGED_CHANNEL, { decision });
 	}
 
-	#background(work: Promise<void>): void {
+	#background(work: Promise<unknown>): void {
 		void work.catch((error: unknown) => this.#log(`jobs: ${describeError(error)}`));
 	}
 }
 
 function subjectKey(event: DispatchedEvent): string | null {
 	const { channel, payload } = event;
-	if (channel === CHAT_TURN_FINISHED_CHANNEL) {
-		const sessionId = findString(payload, 'sessionId');
-		return sessionId === null ? null : `turn:${sessionId}`;
-	}
 	if (channel === JOBS_RUN_FINISHED_CHANNEL) {
 		const run = isRecord(payload) ? payload['run'] : null;
 		const status = isRecord(run) ? run['status'] : null;

@@ -215,7 +215,9 @@ test('Draft all and Merge all on a chat ship the workstreams it started once the
 		);
 		await openWorkstream(page, 'e2e-lead-merges-all');
 		await sendPrompt(page, 'Plan it');
-		await expectAssistantReply(page);
+		await expect(page.getByTestId('lead-timeline')).toContainText('Hello from the fake bridge', {
+			timeout: 30_000,
+		});
 
 		await openWorkstream(page, 'e2e-lead-merges-child');
 		holdAgentRuns(app, true);

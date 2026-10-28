@@ -21,6 +21,7 @@ interface AgentEventEnvelope {
 	runId: string;
 	seq: number;
 	event: Record<string, unknown>;
+	emittedAt?: string;
 }
 
 type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };
@@ -84,6 +85,70 @@ interface ChatTurnFinishedPayload {
 	outcome: string | null;
 	needs: string | null;
 }
+```
+
+## `chat:lead-decision-changed`
+
+Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.
+
+Payload: `LeadDecisionChangedEvent`
+
+```ts
+type LeadDecisionPicture = Readonly<{ workstreamId: string; path: string }>;
+
+type LeadDecisionOption = Readonly<{
+	label: string;
+	note: string | null;
+	picture: LeadDecisionPicture | null;
+}>;
+
+type LeadDecisionDecider = 'you' | 'lead';
+
+type LeadDecisionAnswer = Readonly<{
+	option: number;
+	by: LeadDecisionDecider;
+	reason: string | null;
+	at: string;
+}>;
+
+type LeadDecision = Readonly<{
+	id: string;
+	sessionId: string;
+	workstreamId: string;
+	topic: string;
+	question: string;
+	why: string | null;
+	options: readonly LeadDecisionOption[];
+	recommended: number;
+	meanwhile: string | null;
+	askedAt: string;
+	answer: LeadDecisionAnswer | null;
+}>;
+
+type LeadDecisionChangedEvent = Readonly<{ decision: LeadDecision }>;
+```
+
+## `chat:delivery-changed`
+
+Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.
+
+Payload: `ChatDeliveryChangedEvent`
+
+```ts
+type ChatDeliveryStatus = 'waiting' | 'delivered' | 'failed';
+
+type ChatDelivery = Readonly<{
+	id: string;
+	sessionId: string;
+	fromSessionId: string | null;
+	status: ChatDeliveryStatus;
+	runId: string | null;
+	detail: string | null;
+	createdAt: string;
+	deliveredAt: string | null;
+}>;
+
+type ChatDeliveryChangedEvent = Readonly<{ delivery: ChatDelivery }>;
 ```
 
 ## `chat:mcp-server-changed`

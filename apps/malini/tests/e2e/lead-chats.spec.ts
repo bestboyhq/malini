@@ -31,17 +31,21 @@ function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
 }
 
-async function allowOnce(page: Page, heading: string): Promise<void> {
-	await sendPrompt(page, 'MALINI_TOOL');
-	await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 20_000 });
-	await page
-		.getByRole('group', { name: 'Permission decision' })
-		.getByRole('button', { name: 'Allow once' })
-		.last()
-		.click();
-	await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).not.toHaveCount(0, {
-		timeout: 20_000,
-	});
+async function startUnasked(
+	app: LaunchedApp,
+	starts: readonly Readonly<{ repository: string; prompt: string }>[],
+): Promise<void> {
+	const reply = `Started ${starts.length} without asking`;
+	writeFileSync(
+		join(app.home, 'lead-calls.json'),
+		JSON.stringify({
+			calls: starts.map((input) => ({ tool: 'workstreams_create', input })),
+			reply,
+		}),
+	);
+	await sendPrompt(app.page, 'LEAD_CALLS');
+	await expect(transcript(app.page).getByText(reply)).toBeVisible({ timeout: 30_000 });
+	await expect(app.page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 }
 
 async function startChat(page: Page, scope: 'home' | string, title: string): Promise<void> {
@@ -126,16 +130,10 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 		await sendPrompt(page, 'WHICH_LINEAGE');
 		await lastReply(page, 'Lead: Home reads acme/api, solo/site');
 
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: { repository: 'acme/api', prompt: 'WHICH_LINEAGE TITLE="Api analytics"' },
-		});
-		await allowOnce(page, 'Start a workstream in ‘acme/api’');
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: { repository: 'solo/site', prompt: 'WHICH_LINEAGE TITLE="Site analytics"' },
-		});
-		await allowOnce(page, 'Start a workstream in ‘solo/site’');
+		await startUnasked(app, [
+			{ repository: 'acme/api', prompt: 'WHICH_LINEAGE TITLE="Api analytics"' },
+			{ repository: 'solo/site', prompt: 'WHICH_LINEAGE TITLE="Site analytics"' },
+		]);
 
 		const startedIn = (repository: string) =>
 			sidebar(page).locator(
@@ -161,9 +159,10 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 		await expect(sidebar(page).getByRole('link', { name: 'Open solo/site' })).toBeVisible();
 		await expect(sidebar(page).getByRole('link', { name: 'Open acme/api' })).toBeVisible();
 		await expect(lead.getByTestId('sidebar-progress')).toHaveAccessibleName(/^2 workstreams/u);
-		await expect(transcript(page).getByTestId('started-workstreams')).toHaveCount(2);
-		await expect(transcript(page).getByRole('link', { name: /^acme\/api, / })).toBeVisible();
-		await expect(transcript(page).getByRole('link', { name: /^solo\/site, / })).toBeVisible();
+		const startedLine = transcript(page).locator('[data-timeline-entry="started"]');
+		await expect(startedLine).toContainText('Lead started');
+		await expect(startedLine.getByRole('link', { name: /^api, / })).toBeVisible();
+		await expect(startedLine.getByRole('link', { name: /^site, / })).toBeVisible();
 		await expect(page.getByTestId('global-topbar-github-headline')).toHaveAccessibleName(
 			/^0 of 2 merged/u,
 			{ timeout: 20_000 },
@@ -246,15 +245,13 @@ test('a workstream a chat started stays quiet in the sidebar, and the chat says 
 		await seedWorkstream(page, `file://${api}`, 'e2e-quiet-api', 'Api work');
 		await page.reload();
 		await startChat(page, 'home', 'Ship analytics');
-		agentCalls(app, {
-			tool: 'workstreams_create',
-			input: {
+		await startUnasked(app, [
+			{
 				repository: 'acme/api',
 				prompt:
 					'TITLE="Api analytics" TURN_OUTCOME="The endpoint answers" TURN_NEEDS="Pick the Logdash project"',
 			},
-		});
-		await allowOnce(page, 'Start a workstream in ‘acme/api’');
+		]);
 
 		const lead = sidebar(page).getByTestId('sidebar-chat').filter({ hasText: 'Ship analytics' });
 		const child = sidebar(page)

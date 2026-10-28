@@ -5,22 +5,36 @@
 	interface Props {
 		count: number;
 		unchecked?: boolean;
+		decisions?: boolean;
 		onanswer: () => void;
 	}
 
-	let { count, unchecked = false, onanswer }: Props = $props();
+	let { count, unchecked = false, decisions = false, onanswer }: Props = $props();
 
 	const requests = $derived(
 		unchecked
 			? `${count} ${count === 1 ? 'call' : 'calls'} waiting`
-			: `${count} ${count === 1 ? 'request needs' : 'requests need'} you`,
+			: decisions
+				? `${count} ${count === 1 ? 'decision waits' : 'decisions wait'} for you`
+				: `${count} ${count === 1 ? 'request needs' : 'requests need'} you`,
 	);
 	const source = $derived(
-		unchecked ? "auto mode's safety check is down (Anthropic)" : 'from work this chat started',
+		unchecked
+			? "auto mode's safety check is down (Anthropic)"
+			: decisions
+				? 'the work goes on meanwhile'
+				: 'from work this chat started',
+	);
+	const testId = $derived(
+		unchecked
+			? 'unchecked-calls-waiting'
+			: decisions
+				? 'lead-decisions-waiting'
+				: 'child-requests-waiting',
 	);
 </script>
 
-<div class="p-1" data-testid={unchecked ? 'unchecked-calls-waiting' : 'child-requests-waiting'}>
+<div class="p-1" data-testid={testId}>
 	<Button
 		bare
 		ariaLabel={`Answer: ${requests}`}

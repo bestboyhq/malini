@@ -195,22 +195,22 @@ It hands each event to the rules first:
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, and **Checks rerun**, the minute a fix gives its failing checks to run again.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
+- **Deliveries** hears **Turn finished**: it sends the report of every turn a workstream a chat started ends to that chat, with its `Outcome:`, its `Needs:` and the pictures it embeds, and hands each chat what waits for it once its turn ends.
+  Everything sent to a chat waits in Malini while that chat is on a turn, and arrives as one prompt when the turn ends: reports, prompts another chat sent it with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back), and your answers to its [decisions](/malini/docs/chat.md#decisions).
+  What waits survives a restart: on **Malini started**, Resume sends it on once it has continued the turns the restart cut short.
 - **Schedules** start a job on the **Time reached** its schedule names.
 - **Compatibility** runs **Check compatibility** on **Malini updated**, once per update. See [Updates](/malini/docs/updates.md#compatibility).
 
 After the rules, the job **Choose a reaction** looks at what no trigger handled and may need a hand:
 
-- a turn ends in a workstream a chat started,
 - a job a chat ran finishes or fails,
 - a merge stops on conflicts that nobody in Malini is resolving.
 
-Malini writes down what it sees, in short lines such as "“Api analytics” needs you: Pick the Logdash project" and "“Move apps to Logdash” is idle", and lists what it could do: do nothing, wake the chat that started the work with the turn's report, run the job again, run **Resolve conflicts**, or ask you.
-The model only picks one of them, by number, and Malini checks the pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
-When the model can't answer, Malini picks by its own rules: it wakes the chat waiting on the work, or else asks you, and never runs a job.
+Malini writes down what it sees, in short lines such as "Run the tests failed in Api work" and "“Api work” is idle", and lists what it could do: do nothing, tell the chat that ran the job, or works where the merge stopped, run the job again, run **Resolve conflicts**, or ask you.
+The model only picks one of them, by number, and Malini checks the pick before it acts: it tells a chat at most three times about the same work in one chain, and asks you after that.
+When the model can't answer, Malini picks by its own rules: it tells the chat waiting on the work, or else asks you, and never runs a job.
 
-- **Wake**: the report arrives in the chat that started the work as a prompt from that workstream, beginning "Malini woke you".
-  When that chat is on a turn, the report waits and arrives with any others when the turn ends.
-  The agent answers its workstreams with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back).
+- **Tell**: the news reaches that chat through Deliveries, beginning "Malini woke you", and waits while the chat is on a turn.
 - **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification, which opens the work, or the top-most chat that started it.
 - **Run again** asks first, unless the job runs on its own.
 

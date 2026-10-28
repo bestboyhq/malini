@@ -593,6 +593,18 @@ const stopBackgroundCommand = (sessionId) => {
 };
 const HELD_RUNS = nodePath.join(env.HOME || '/tmp', 'hold-agent-runs');
 const CHOICE_FILE = nodePath.join(env.HOME || '/tmp', 'malini-choice.txt');
+const PRE_APPROVED_TOOLS = new Set([
+	'jobs_list',
+	'events_list',
+	'repositories_list',
+	'workstreams_list',
+	'workstreams_create',
+	'workstreams_send',
+	'decisions_ask',
+	'decisions_answer',
+	'plan_write',
+	'files_open',
+]);
 
 function fakePick(prompt, choices) {
 	let wanted = '';
@@ -657,6 +669,32 @@ const maliniCalls = new Map();
 const themeOfRun = new Map();
 
 const lineageOfRun = new Map();
+const briefOfRun = new Map();
+const freshRuns = new Set();
+const leadCalls = new Map();
+const BRIEF = /^<malini_timeline>\n[\s\S]*?\n<\/malini_timeline>\n\n/u;
+const callLeadTool = (sessionId, runId) => {
+	const lead = leadCalls.get(runId);
+	const call = lead?.calls[lead.next];
+	if (!lead || !call) return;
+	event({
+		type: 'tool.started',
+		runId,
+		name: 'mcp__malini__' + call.tool,
+		input: call.input,
+		toolCallId: 'lead-call-' + runId + '-' + lead.next,
+		ts: Date.now(),
+	});
+	write({
+		type: 'bridge.platform_request',
+		protocolVersion: version,
+		requestId: 'platform-' + runId,
+		sessionId,
+		runId,
+		tool: call.tool,
+		input: call.input,
+	});
+};
 const stoppedSessions = new Set();
 const STOPS = {
 	LIMIT_PAUSE: (seconds) => ({
@@ -688,6 +726,30 @@ const respond = async (sessionId, runId, prompt) => {
 		event({ type: 'run.completed', runId, summary: 'done' });
 		event({ type: 'session.state', sessionId, status: 'completed' });
 		return;
+	}
+	if (prompt.includes('WHICH_BRIEF')) {
+		const brief = briefOfRun.get(runId);
+		const lines = brief
+			? brief
+					.split('\n')
+					.filter((line) => line.startsWith('['))
+					.map((line) => line.replace(/^\[[^\]]+\] /u, ''))
+			: ['Brief: none'];
+		event({
+			type: 'assistant.message',
+			runId,
+			contentId: 'c1',
+			text: ['Fresh: ' + (freshRuns.has(runId) ? 'yes' : 'no'), ...lines].join('\n\n'),
+		});
+		event({ type: 'run.completed', runId, summary: 'done' });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+		return;
+	}
+	if (prompt.includes('LEAD_CALLS')) {
+		const planned = JSON.parse(fs.readFileSync(nodePath.join(env.HOME, 'lead-calls.json'), 'utf8'));
+		pendingRuns.set(runId, sessionId);
+		leadCalls.set(runId, { sessionId, calls: planned.calls, reply: planned.reply, next: 0 });
+		return callLeadTool(sessionId, runId);
 	}
 	if (prompt.includes('WHICH_LINEAGE')) {
 		const lineage = lineageOfRun.get(runId);
@@ -864,6 +926,18 @@ const respond = async (sessionId, runId, prompt) => {
 		const commitLine = /COMMIT=([^"\n]+?)(?:"|$)/.exec(prompt);
 		pendingRuns.set(runId, sessionId);
 		maliniCalls.set(runId, { sessionId, ...call, commit: commitLine ? commitLine[1] : null });
+		if (PRE_APPROVED_TOOLS.has(call.tool)) {
+			write({
+				type: 'bridge.platform_request',
+				protocolVersion: version,
+				requestId: 'platform-' + runId,
+				sessionId,
+				runId,
+				tool: call.tool,
+				input: call.input,
+			});
+			return;
+		}
 		event({
 			type: 'approval.requested',
 			sessionId,
@@ -1247,7 +1321,11 @@ const handle = (command) => {
 			if (command.prompt.includes('REFUSED_PROMPT'))
 				return ack(command.id, 'the agent refused this');
 			ack(command.id);
-			const { sessionId, runId, prompt } = command;
+			const { sessionId, runId } = command;
+			const brief = BRIEF.exec(command.prompt)?.[0] ?? null;
+			const prompt = brief === null ? command.prompt : command.prompt.slice(brief.length);
+			if (brief !== null) briefOfRun.set(runId, brief);
+			if (command.freshConversation) freshRuns.add(runId);
 			if (prompt.includes('CRASH')) process.exit(3);
 			lastRuns.set(sessionId, runId);
 			if (command.skills) skillsOfRun.set(runId, command.skills);
@@ -1536,6 +1614,26 @@ const handle = (command) => {
 		case 'platform_result': {
 			ack(command.id);
 			const runId = command.requestId.replace(/^platform-/, '');
+			const lead = leadCalls.get(runId);
+			if (lead) {
+				const call = lead.calls[lead.next];
+				event({
+					type: 'tool.completed',
+					runId,
+					name: 'mcp__malini__' + (call?.tool ?? 'unknown'),
+					output: command.ok ? command.text : command.error,
+					toolCallId: 'lead-call-' + runId + '-' + lead.next,
+					ts: Date.now(),
+				});
+				lead.next += 1;
+				if (lead.next < lead.calls.length) return callLeadTool(lead.sessionId, runId);
+				leadCalls.delete(runId);
+				pendingRuns.delete(runId);
+				event({ type: 'assistant.message', runId, contentId: 'c1', text: lead.reply });
+				event({ type: 'run.completed', runId, summary: lead.reply });
+				event({ type: 'session.state', sessionId: lead.sessionId, status: 'completed' });
+				return;
+			}
 			const malini = maliniCalls.get(runId);
 			if (!malini) return;
 			maliniCalls.delete(runId);

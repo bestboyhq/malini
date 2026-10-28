@@ -120,7 +120,7 @@ The [README](../README.md) has the short version.
   Type **/** in the composer to run one from a chat, and its result lands in that chat.
 - **The built-in jobs are yours to edit.** Reset brings back the original.
 - **Suggestions from your own habits.** Malini notices the prompts you keep repeating and offers to make them a job: **Make it a job** or **Dismiss**.
-- **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools, and every write waits for your approval.
+- **Ask the agent for it.** In a chat, the agent lists, saves, and runs jobs with its Malini tools: saving one waits for your approval, and so does running one outside the work the chat started, or any that ships.
   A trigger it adds starts Off.
 - **A Job center** shows what's running and what just finished.
   Settings decides how many jobs run at once.

@@ -14,7 +14,7 @@ import { JobRunner } from './job-runner.service';
 import { createJobSchedules } from './job-schedules.service';
 import { startJobTriggers } from './job-triggers.service';
 import { pruneDecisions } from './reconciler-decisions.repository';
-import { Reconciler } from './reconciler.service';
+import { Reconciler, type DeliverWake } from './reconciler.service';
 import { suggestJobsFromPrompts } from './suggestions.service';
 
 const HOUSEKEEPING_MS = 60 * 60 * 1_000;
@@ -27,6 +27,8 @@ export interface JobsOptions {
 	readonly choose?: ChooseWithJob;
 	readonly shipping?: (event: DispatchedEvent) => Promise<void>;
 	readonly resume?: (event: DispatchedEvent) => Promise<void>;
+	readonly deliveries?: (event: DispatchedEvent) => Promise<void>;
+	readonly deliver?: DeliverWake;
 }
 
 const NO_RULE = (): Promise<void> => Promise.resolve();
@@ -49,14 +51,22 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	settleInterruptedAgentActions(context.db, nowIso8601());
 	const triggers = startJobTriggers(context, log);
 	const schedules = createJobSchedules(context, log);
-	const reconciler = new Reconciler(context, log, choose, {
-		triggers: (event) => triggers.handle(event),
-		thens: (event) => runner.startThen(event),
-		shipping: options.shipping ?? NO_RULE,
-		resume: options.resume ?? NO_RULE,
-		schedules: (event) => schedules.handle(event),
-		compatibility: (event) => checkCompatibility(context, event, log),
-	});
+	const reconciler = new Reconciler(
+		context,
+		log,
+		choose,
+		{
+			triggers: (event) => triggers.handle(event),
+			thens: (event) => runner.startThen(event),
+			shipping: options.shipping ?? NO_RULE,
+			resume: options.resume ?? NO_RULE,
+			deliveries: options.deliveries ?? NO_RULE,
+			schedules: (event) => schedules.handle(event),
+			compatibility: (event) => checkCompatibility(context, event, log),
+		},
+		options.deliver ??
+			(() => Promise.reject(new Error('Delivering prompts is not available in this Malini.'))),
+	);
 	defineJobCommands(context, runner, experiments, reconciler);
 	const eventLog = startEventLog(context, log, (event) => reconciler.handle(event));
 	const stopSuggesting = suggestJobsFromPrompts(context, log);
