@@ -23,6 +23,7 @@ import {
 	latestSessionReport,
 	latestWorkstreamTurn,
 	sessionHasWorkingRun,
+	sessionRanInChain,
 	userSessionWorkstreamId,
 	workChatTurnInWorkstream,
 } from '$lib/chat/chat.platform';
@@ -40,6 +41,7 @@ import {
 	reconcilerPrompt,
 	reconcilerQuestion,
 	ruleHears,
+	rulesReason,
 	validatePick,
 	wakePrompt,
 	wakesInChain,
@@ -236,8 +238,10 @@ export class Reconciler {
 		if (event.id === null || event.chainId === null || decidedEvent(db, event.id)) return;
 		const situation = this.#situation(event, event.chainId);
 		const question = situation === null ? null : reconcilerQuestion(situation);
-		if (question === null) return;
-		const { pick, failure } = await this.#ask(question);
+		if (situation === null || question === null) return;
+		const ruled = rulesReason(situation);
+		const { pick, detail } =
+			ruled === null ? await this.#ask(question) : { pick: null, detail: ruled };
 		const workstreamId = findString(event.payload, 'workstreamId');
 		const chainDecisions = listChainDecisions(db, event.chainId);
 		const validated = validatePick(question.candidates, pick, (sessionId) =>
@@ -255,7 +259,7 @@ export class Reconciler {
 			chosen: validated.chosen,
 			decidedBy: validated.decidedBy,
 			status: 'pending',
-			detail: validated.detail ?? failure,
+			detail: validated.detail ?? detail,
 			jobRunId: null,
 			createdAt: nowIso8601(),
 			finishedAt: null,
@@ -266,7 +270,7 @@ export class Reconciler {
 
 	async #ask(
 		question: ReconcilerQuestion,
-	): Promise<Readonly<{ pick: number | null; failure: string | null }>> {
+	): Promise<Readonly<{ pick: number | null; detail: string | null }>> {
 		const labels = question.candidates.map((candidate) => candidate.label);
 		try {
 			const output = await runAutomaticJob(
@@ -276,9 +280,9 @@ export class Reconciler {
 				async (task, job) => pickOutput(labels, await this.#choose(task, job, labels.length)),
 			);
 			const picked = outputPick(output);
-			return { pick: picked === null ? null : picked - 1, failure: null };
+			return { pick: picked === null ? null : picked - 1, detail: null };
 		} catch (error) {
-			return { pick: null, failure: `Malini could not ask the model: ${describeError(error)}` };
+			return { pick: null, detail: `Malini could not ask the model: ${describeError(error)}` };
 		}
 	}
 
@@ -450,6 +454,7 @@ export class Reconciler {
 			outcome: findString(payload, 'outcome'),
 			needs: findString(payload, 'needs'),
 			starter,
+			starterInChain: sessionRanInChain(db, starter.sessionId, chainId),
 			siblings: {
 				total: siblings.length,
 				working: siblings.filter((other) => workChatTurnInWorkstream(db, other.id, now) !== null)

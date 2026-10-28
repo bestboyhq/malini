@@ -165,6 +165,11 @@ function childTurn(id: string, sessionId = 'api-chat'): string {
 	return id;
 }
 
+function ownTurn(id: string): string {
+	turn(id, 'api-chat', null, NOW);
+	return id;
+}
+
 function decisions(): Promise<ReconcilerDecisionRecord[]> {
 	return context.commands.call('jobs.list-decisions', undefined);
 }
@@ -187,6 +192,9 @@ describe('the event reconciler', () => {
 
 		await vi.waitFor(() => expect(sent).toHaveLength(1));
 		expect(asked[0]).toContain('Event: the chat “Api analytics” finished a turn.');
+		expect(asked[0]).toContain(
+			'The lead chat “Move apps to Logdash” started it and set this turn going.',
+		);
 		expect(asked[0]).toContain('Candidates:\n1. Do nothing\n2. Wake “Move apps to Logdash”');
 		expect(sent[0]).toMatchObject({
 			sessionId: 'lead-chat',
@@ -230,8 +238,11 @@ describe('the event reconciler', () => {
 
 	it('asks you when the model picks it, and carries out what you pick once', async () => {
 		picks.push(3);
-		finish('api-chat', childTurn('api-turn'), { needs: 'Which Logdash project?' });
+		finish('api-chat', ownTurn('api-turn'), { needs: 'Which Logdash project?' });
 		const [asking] = await decided(1);
+		expect(asked[0]).toContain(
+			'The lead chat “Move apps to Logdash” started it, but not this turn.',
+		);
 		expect(asking).toMatchObject({ status: 'asking', finishedAt: null });
 		expect(asking?.candidates[2]).toEqual({
 			kind: 'ask-you',
@@ -272,7 +283,7 @@ describe('the event reconciler', () => {
 
 	it('settles a decision Malini quit in the middle of when it starts again', async () => {
 		picks.push(3);
-		finish('api-chat', childTurn('api-turn'), { needs: 'Which Logdash project?' });
+		finish('api-chat', ownTurn('api-turn'), { needs: 'Which Logdash project?' });
 		const [asking] = await decided(1);
 		run(
 			db,
@@ -317,7 +328,7 @@ describe('the event reconciler', () => {
 	});
 
 	it('wakes the chat that started the work by its own rules when it cannot ask the model', async () => {
-		finish('api-chat', childTurn('api-turn'), { needs: 'Which Logdash project?' });
+		finish('api-chat', childTurn('api-turn'));
 
 		await vi.waitFor(() => expect(sent).toHaveLength(1));
 		const [decision] = await decided(1);
@@ -325,8 +336,37 @@ describe('the event reconciler', () => {
 		expect(decision?.detail).toBe('Malini could not ask the model: Claude Code is not installed');
 		expect(sent[0]).toMatchObject({
 			sessionId: 'lead-chat',
+			prompt: expect.stringContaining('Outcome: Added the analytics endpoint'),
+		});
+	});
+
+	it('wakes the chat that set a turn going with what the turn needs or its failure, without the model, until the wakes run out', async () => {
+		finish('api-chat', childTurn('api-turn-1'), { needs: 'Which Logdash project?' });
+		await vi.waitFor(() => expect(sent).toHaveLength(1));
+		expect(sent[0]).toMatchObject({
+			sessionId: 'lead-chat',
+			chainId: 'lead-turn',
+			from: 'api',
 			prompt: expect.stringContaining('Needs: Which Logdash project?'),
 		});
+		const [needed] = await decided(1);
+		expect(needed).toMatchObject({ status: 'done', pick: null, chosen: 1, decidedBy: 'rules' });
+		expect(needed?.detail).toBe(
+			'“Move apps to Logdash” set this turn going, so it hears what the turn needs before you do.',
+		);
+
+		finish('api-chat', childTurn('api-turn-2'), { status: 'failed', outcome: null });
+		await vi.waitFor(() => expect(sent).toHaveLength(2));
+		expect(sent[1]?.['prompt']).toEqual(expect.stringContaining('failed its turn'));
+		finish('api-chat', childTurn('api-turn-3'), { needs: 'Which Logdash project?' });
+		await vi.waitFor(() => expect(sent).toHaveLength(3));
+		finish('api-chat', childTurn('api-turn-4'), { needs: 'Which Logdash project?' });
+		const [fourth] = await decided(4);
+
+		expect(asked).toEqual([]);
+		expect(sent).toHaveLength(3);
+		expect(fourth).toMatchObject({ status: 'asking', decidedBy: 'rules', pick: null });
+		expect(fourth?.detail).toContain('Malini already woke this chat 3 times about this work');
 	});
 
 	it('hands each event only to the rules that hear it', async () => {

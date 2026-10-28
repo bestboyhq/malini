@@ -7,6 +7,7 @@ import {
 	promptCandidates,
 	reconcilerPrompt,
 	reconcilerQuestion,
+	rulesReason,
 	validatePick,
 	wakesInChain,
 	type ReconcilerChat,
@@ -34,6 +35,7 @@ function finishedTurn(overrides: Partial<TurnFinishedSituation> = {}): TurnFinis
 		outcome: 'Added the analytics endpoint',
 		needs: null,
 		starter: LEAD,
+		starterInChain: true,
 		siblings: { total: 2, working: 1, needYou: 0 },
 		wakes: 0,
 		...overrides,
@@ -66,9 +68,12 @@ describe('reconcilerQuestion', () => {
 		expect(question?.facts).toEqual(
 			expect.arrayContaining([
 				'Event: the chat “Api analytics” finished a turn.',
-				'The lead chat “Move apps to Logdash” started it.',
+				'The lead chat “Move apps to Logdash” started it and set this turn going.',
 				'“Move apps to Logdash” started 2 workstreams: 1 working, 0 need you, 1 not working.',
 			]),
+		);
+		expect(reconcilerQuestion(finishedTurn({ starterInChain: false }))?.facts).toContain(
+			'The lead chat “Move apps to Logdash” started it, but not this turn.',
 		);
 	});
 
@@ -127,6 +132,37 @@ describe('reconcilerQuestion', () => {
 				reason: 'A merge in Api analytics stopped on conflicts in 2 files.',
 			},
 		]);
+	});
+});
+
+describe('rulesReason', () => {
+	it('wakes the chat that set a turn going by rule when the turn needs something or failed', () => {
+		expect(rulesReason(finishedTurn({ needs: 'Which project?' }))).toBe(
+			'“Move apps to Logdash” set this turn going, so it hears what the turn needs before you do.',
+		);
+		expect(rulesReason(finishedTurn({ status: 'failed' }))).toBe(
+			'“Move apps to Logdash” set this turn going, so it hears that the turn failed before you do.',
+		);
+	});
+
+	it('leaves the pick to the model for a turn that needs nothing, or one its starter did not set going', () => {
+		expect(rulesReason(finishedTurn())).toBeNull();
+		expect(
+			rulesReason(finishedTurn({ needs: 'Which project?', starterInChain: false })),
+		).toBeNull();
+		expect(rulesReason(finishedTurn({ status: 'failed', starter: null }))).toBeNull();
+		expect(rulesReason(finishedTurn({ status: 'cancelled', needs: 'Which project?' }))).toBeNull();
+		expect(
+			rulesReason({
+				kind: 'conflict',
+				workstreamId: 'api',
+				workstreamName: 'Api analytics',
+				conflictedPaths: ['src/a.ts'],
+				resolverId: null,
+				chat: LEAD,
+				wakes: 0,
+			}),
+		).toBeNull();
 	});
 });
 
