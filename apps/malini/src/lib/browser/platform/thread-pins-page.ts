@@ -390,13 +390,15 @@ const PINS_PROGRAM = String.raw`(command, css, glyphs) => {
 		}
 
 		function resolve(domPath) {
-			const parts = String(domPath).split(' > ');
-			while (parts.length > 0) {
-				try {
-					const found = doc.querySelector(parts.join(' > '));
-					if (found) return found;
-				} catch {}
-				parts.pop();
+			const exact = String(domPath).split(' > ');
+			const unclassed = exact.map((piece) => piece.replace(/^([^.#:]+)(?:\.[\w-]+)+/, '$1'));
+			for (let depth = exact.length; depth > 0; depth -= 1) {
+				for (const parts of [exact, unclassed]) {
+					try {
+						const found = doc.querySelector(parts.slice(0, depth).join(' > '));
+						if (found) return found;
+					} catch {}
+				}
 			}
 			return null;
 		}

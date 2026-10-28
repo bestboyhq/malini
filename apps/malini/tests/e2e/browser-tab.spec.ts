@@ -1,8 +1,10 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { createServer as createViteServer } from 'vite';
 import {
 	captureFlow,
 	createSourceRepo,
@@ -24,6 +26,87 @@ type PageInput =
 			clickCount?: number;
 	  }
 	| { type: 'char' | 'keyDown' | 'keyUp'; keyCode: string };
+
+interface WebPage {
+	inPage(code: string): Promise<unknown>;
+	input(events: readonly PageInput[]): Promise<void>;
+	clickAt(element: string): Promise<void>;
+}
+
+const PINS = `document.querySelector('malini-pins')?.shadowRoot`;
+
+function webPage(electronApp: ElectronApplication, origin: string): WebPage {
+	const inPage = (code: string): Promise<unknown> =>
+		electronApp.evaluate(
+			({ webContents }, { code, origin }) =>
+				webContents
+					.getAllWebContents()
+					.find((contents) => contents.getURL().startsWith(origin))
+					?.executeJavaScript(code),
+			{ code, origin },
+		);
+	const input = (events: readonly PageInput[]): Promise<void> =>
+		electronApp.evaluate(
+			async ({ webContents }, { events, origin }) => {
+				const contents = webContents
+					.getAllWebContents()
+					.find((candidate) => candidate.getURL().startsWith(origin));
+				if (!contents) throw new Error(`no page at ${origin}`);
+				for (const event of events) {
+					contents.sendInputEvent(event);
+					await new Promise((resolve) => setTimeout(resolve, 20));
+				}
+			},
+			{ events, origin },
+		);
+	const clickAt = async (element: string): Promise<void> => {
+		const point = (await inPage(`(() => {
+			const box = (${element}).getBoundingClientRect();
+			return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+		})()`)) as { x: number; y: number };
+		await input([
+			{ type: 'mouseMove', ...point },
+			{ type: 'mouseDown', ...point, button: 'left', clickCount: 1 },
+			{ type: 'mouseUp', ...point, button: 'left', clickCount: 1 },
+		]);
+	};
+	return { inPage, input, clickAt };
+}
+
+async function askAboutElement(
+	page: Page,
+	web: WebPage,
+	selector: string,
+	prompt: string,
+): Promise<void> {
+	await expect.poll(() => web.inPage('document.readyState')).toBe('complete');
+	const pick = page.getByRole('button', { name: 'Pick an element', exact: true });
+	await expect(pick).toBeEnabled();
+	await pick.click();
+	await expect(pick).toHaveAttribute('aria-pressed', 'true');
+	await expect
+		.poll(() => web.inPage(`Boolean(document.querySelector('malini-picker'))`))
+		.toBe(true);
+	await web.clickAt(`document.querySelector(${JSON.stringify(selector)})`);
+	await expect
+		.poll(() =>
+			web.inPage(
+				`document.querySelector('malini-picker').shadowRoot.activeElement?.getAttribute('aria-label')`,
+			),
+		)
+		.toBe('Prompt');
+	await web.input([...prompt].map((keyCode) => ({ type: 'char' as const, keyCode })));
+	await web.input([
+		{ type: 'keyDown', keyCode: 'Enter' },
+		{ type: 'char', keyCode: '\r' },
+		{ type: 'keyUp', keyCode: 'Enter' },
+	]);
+	await expect
+		.poll(() => web.inPage(`${PINS}?.querySelector('button.pin')?.getAttribute('aria-label')`), {
+			timeout: 30_000,
+		})
+		.toBe(`Thread: ${prompt} · Done`);
+}
 
 async function openTab(page: Page, origin: string, path: string): Promise<void> {
 	await page.getByRole('button', { name: 'Open inspector panel' }).click();
@@ -289,42 +372,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 	const app = await launchMalini();
 	try {
 		const { page, electronApp } = app;
-		const inPage = (code: string) =>
-			electronApp.evaluate(
-				({ webContents }, { code, origin }) =>
-					webContents
-						.getAllWebContents()
-						.find((contents) => contents.getURL().startsWith(origin))
-						?.executeJavaScript(code),
-				{ code, origin },
-			);
-		const input = (events: readonly PageInput[]) =>
-			electronApp.evaluate(
-				async ({ webContents }, { events, origin }) => {
-					const contents = webContents
-						.getAllWebContents()
-						.find((candidate) => candidate.getURL().startsWith(origin));
-					if (!contents) throw new Error(`no page at ${origin}`);
-					for (const event of events) {
-						contents.sendInputEvent(event);
-						await new Promise((resolve) => setTimeout(resolve, 20));
-					}
-				},
-				{ events, origin },
-			);
-		const clickAt = async (selector: string) => {
-			const point: { x: number; y: number } = await inPage(`(() => {
-				const found = ${selector};
-				const box = found.getBoundingClientRect();
-				return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
-			})()`);
-			await input([
-				{ type: 'mouseMove', ...point },
-				{ type: 'mouseDown', ...point, button: 'left', clickCount: 1 },
-				{ type: 'mouseUp', ...point, button: 'left', clickCount: 1 },
-			]);
-		};
-		const pins = `document.querySelector('malini-pins')?.shadowRoot`;
+		const web = webPage(electronApp, origin);
 		const seeded = await seedWorkstream(
 			page,
 			await createSourceRepo(app.root),
@@ -341,34 +389,7 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 
 		await openTab(page, origin, '/pricing');
 		await expect(inspector.getByRole('tab', { name: 'Pricing', selected: true })).toBeVisible();
-		await expect.poll(() => inPage('document.readyState')).toBe('complete');
-		const pick = page.getByRole('button', { name: 'Pick an element' });
-		await expect(pick).toBeEnabled();
-		await pick.click();
-		await expect(pick).toHaveAttribute('aria-pressed', 'true');
-		await expect.poll(() => inPage(`Boolean(document.querySelector('malini-picker'))`)).toBe(true);
-		await clickAt(`document.querySelector('h1')`);
-		await expect
-			.poll(() =>
-				inPage(
-					`document.querySelector('malini-picker').shadowRoot.activeElement?.getAttribute('aria-label')`,
-				),
-			)
-			.toBe('Prompt');
-		await input(
-			[...'Make the title bigger'].map((keyCode) => ({ type: 'char' as const, keyCode })),
-		);
-		await input([
-			{ type: 'keyDown', keyCode: 'Enter' },
-			{ type: 'char', keyCode: '\r' },
-			{ type: 'keyUp', keyCode: 'Enter' },
-		]);
-
-		await expect
-			.poll(() => inPage(`${pins}?.querySelector('button.pin')?.getAttribute('aria-label')`), {
-				timeout: 30_000,
-			})
-			.toBe('Thread: Make the title bigger · Done');
+		await askAboutElement(page, web, 'h1', 'Make the title bigger');
 		await expect(page.getByRole('button', { name: 'Pick an element' })).toHaveAttribute(
 			'aria-pressed',
 			'false',
@@ -376,10 +397,12 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 		await expect(chatTabs).toHaveCount(1);
 		await expect(page.getByText('Make the title bigger')).toHaveCount(0);
 
-		await clickAt(`${pins}.querySelector('button.pin')`);
-		await expect.poll(() => inPage(`${pins}.querySelector('[role="dialog"]').hidden`)).toBe(false);
-		await clickAt(
-			`Array.from(${pins}.querySelectorAll('button')).find((button) => button.textContent === 'Open chat')`,
+		await web.clickAt(`${PINS}.querySelector('button.pin')`);
+		await expect
+			.poll(() => web.inPage(`${PINS}.querySelector('[role="dialog"]').hidden`))
+			.toBe(false);
+		await web.clickAt(
+			`Array.from(${PINS}.querySelectorAll('button')).find((button) => button.textContent === 'Open chat')`,
 		);
 		await expect(chatTabs).toHaveCount(2);
 		await expect(page.getByText('Make the title bigger').first()).toBeVisible({ timeout: 20_000 });
@@ -393,6 +416,86 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 	} finally {
 		await app.close();
 		server.close();
+	}
+});
+
+test('a thread pin stays on its element when a Vite dev server hot-updates the page, changes its classes, or reloads it', async () => {
+	test.setTimeout(180_000);
+	const site = realpathSync(mkdtempSync(join(tmpdir(), 'malini-hmr-site-')));
+	const writeIndex = (title: string): void =>
+		writeFileSync(
+			join(site, 'index.html'),
+			`<!doctype html><title>${title}</title><style>main { padding: 80px; } h1 { display: inline-block; margin: 0; font: 700 36px system-ui; } h1.text-6xl { font-size: 60px; }</style><main><div id="app"></div></main><script type="module" src="/main.js"></script>`,
+		);
+	const writeApp = (size: string, line: string): void =>
+		writeFileSync(
+			join(site, 'main.js'),
+			`document.querySelector('#app').innerHTML = '<h1 class="${size} font-bold">Pricing</h1><p>${line}</p>';\nimport.meta.hot?.accept();\n`,
+		);
+	writeIndex('Pricing');
+	writeApp('text-4xl', 'Plans for every team.');
+	const vite = await createViteServer({
+		configFile: false,
+		root: site,
+		logLevel: 'error',
+		server: { host: 'localhost', port: 0 },
+	});
+	await vite.listen();
+	const origin = (vite.resolvedUrls?.local[0] ?? '').replace(/\/$/u, '');
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const web = webPage(electronApp, origin);
+		const pinOnHeading = () =>
+			web.inPage(`(() => {
+				const pin = ${PINS}?.querySelector('button.pin');
+				const heading = document.querySelector('h1')?.getClientRects()[0];
+				if (!pin || pin.hidden || !heading) return false;
+				const box = pin.getBoundingClientRect();
+				return Math.abs(box.left + box.width / 2 - heading.right) <= box.width
+					&& Math.abs(box.top + box.height / 2 - heading.top) <= box.height;
+			})()`);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-hmr-ws',
+			'Browser hot reload',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+		await openTab(page, origin, '/');
+		await expect(inspector.getByRole('tab', { name: 'Pricing', selected: true })).toBeVisible();
+		await askAboutElement(page, web, 'h1', 'Make the title bigger');
+		await expect.poll(pinOnHeading).toBe(true);
+		await web.inPage('window.stillThisDocument = true');
+
+		writeApp('text-4xl', 'Plans for every team, billed yearly.');
+		await expect
+			.poll(() => web.inPage(`document.querySelector('p')?.textContent`))
+			.toBe('Plans for every team, billed yearly.');
+		expect(await web.inPage('window.stillThisDocument')).toBe(true);
+		await expect.poll(pinOnHeading).toBe(true);
+
+		writeApp('text-6xl', 'Plans for every team, billed yearly.');
+		await expect
+			.poll(() => web.inPage(`document.querySelector('h1')?.className`))
+			.toBe('text-6xl font-bold');
+		expect(await web.inPage('window.stillThisDocument')).toBe(true);
+		await expect.poll(pinOnHeading).toBe(true);
+
+		writeIndex('Pricing plans');
+		await expect(
+			inspector.getByRole('tab', { name: 'Pricing plans', selected: true }),
+		).toBeVisible();
+		expect(await web.inPage('window.stillThisDocument')).toBeUndefined();
+		await expect.poll(pinOnHeading).toBe(true);
+		await captureFlow(app, 'browser-thread-pin-after-reload');
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+		await vite.close();
+		rmSync(site, { recursive: true, force: true });
 	}
 });
 
