@@ -85,9 +85,17 @@ describe('jobTriggerLook', () => {
 			'A pull request merges',
 		);
 		expect(jobTriggerLook(job('a')).label).toBe('When you run it');
-		expect(jobTriggerLook(job('r', { builtin: 'resolve-conflicts' }))).toEqual({
-			label: 'A merge stops on conflicts while shipping',
-			icon: 'swap',
+		expect(
+			jobTriggerLook(
+				job('r', {
+					builtin: 'resolve-conflicts',
+					trigger: { when: 'on repositories:workstream-merge-conflicted', mode: 'auto' },
+				}),
+			),
+		).toMatchObject({ label: 'A merge stops on conflicts', icon: 'swap' });
+		expect(jobTriggerLook(job('n', { builtin: 'name-chats' }))).toEqual({
+			label: 'You start a chat',
+			icon: 'chat',
 		});
 	});
 });

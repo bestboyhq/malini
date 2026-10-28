@@ -68,7 +68,7 @@
 						pressable={false}
 						ariaLabel={`${itemTitle(item)}, ${place}, ${clock}`}
 						ariaPressed={selected}
-						class="focus-visible:ring-border-default grid h-8 min-w-0 flex-1 grid-cols-[44px_16px_minmax(0,1fr)_minmax(0,190px)_minmax(0,160px)] items-center gap-2.5 rounded-lg px-2 text-left text-xs outline-none focus-visible:ring-2"
+						class="focus-visible:ring-border-default grid h-8 min-w-0 flex-1 grid-cols-[44px_16px_minmax(0,1fr)_minmax(0,190px)_minmax(0,220px)] items-center gap-2.5 rounded-lg px-2 text-left text-xs outline-none focus-visible:ring-2"
 						onclick={() => onselect(item)}
 						data-testid="explorer-event"
 					>
@@ -92,6 +92,8 @@
 								<Icon name="external-link" size={13} />
 							</IconButton>
 						</Tooltip>
+					{:else}
+						<span aria-hidden="true" class="size-6 shrink-0"></span>
 					{/if}
 				</li>
 			{/each}

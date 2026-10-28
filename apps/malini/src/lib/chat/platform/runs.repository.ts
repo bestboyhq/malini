@@ -535,6 +535,18 @@ export function workChatTurnInWorkstream(
 	return row ? { runId: row.id, sessionId: row.session_id, chainId: row.chain_id || row.id } : null;
 }
 
+export function latestRunEndedAt(db: MaliniDatabase, workstreamId: string): string | null {
+	return (
+		get<{ ended: string | null }>(
+			db,
+			`SELECT MAX(r.completed_at) AS ended
+			 FROM agent_runs r JOIN agent_sessions s ON s.id = r.session_id
+			 WHERE s.workstream_id = ? AND r.obsoleted_at IS NULL`,
+			workstreamId,
+		)?.ended ?? null
+	);
+}
+
 export function sessionRanInChain(db: MaliniDatabase, sessionId: string, chainId: string): boolean {
 	return (
 		get<{ id: string }>(

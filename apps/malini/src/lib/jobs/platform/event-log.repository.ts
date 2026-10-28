@@ -100,6 +100,25 @@ export function eventChainId(db: MaliniDatabase, id: number): string | null {
 	);
 }
 
+export function heardBack(
+	db: MaliniDatabase,
+	eventId: number | null,
+	channels: readonly EventChannel[],
+): boolean {
+	return (
+		eventId !== null &&
+		get(
+			db,
+			`SELECT 1 FROM event_log
+			 WHERE cause_kind = 'event' AND cause_id = ?
+			   AND channel IN (SELECT value FROM json_each(?))
+			 LIMIT 1`,
+			String(eventId),
+			JSON.stringify(channels),
+		) !== null
+	);
+}
+
 export function getLoggedEvent(db: MaliniDatabase, id: number): LoggedEventRecord | null {
 	const row = get<LoggedEventRow>(db, `SELECT ${COLUMNS} FROM event_log WHERE id = ?`, id);
 	return row ? fromRow(row, Number.POSITIVE_INFINITY) : null;

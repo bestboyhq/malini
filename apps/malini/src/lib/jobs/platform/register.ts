@@ -2,7 +2,7 @@ import type { AutomaticJobBuiltin } from '$contract/jobs';
 import type { MainContext } from '$main/context';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
-import type { JobsPlatform } from '../jobs.platform';
+import type { JobsPlatform, ShippingRule } from '../jobs.platform';
 import { pickOutput, promptCandidates } from '../domain/reconciler';
 import { defineJobCommands, seedBuiltinJobs } from './commands';
 import { settleInterruptedAgentActions } from './agent-actions.repository';
@@ -25,11 +25,17 @@ export interface JobsOptions {
 	readonly log?: (line: string) => void;
 	readonly suggestTitle?: SuggestWithJob;
 	readonly choose?: ChooseWithJob;
-	readonly shipping?: (event: DispatchedEvent) => Promise<void>;
+	readonly shipping?: ShippingRule;
 	readonly resume?: (event: DispatchedEvent) => Promise<void>;
 }
 
 const NO_RULE = (): Promise<void> => Promise.resolve();
+
+const NO_SHIPPING: ShippingRule = {
+	hear: () => Promise.resolve([]),
+	decide: () => Promise.resolve(null),
+	merging: () => false,
+};
 
 export function registerJobs(context: MainContext, options: JobsOptions = {}): JobsPlatform {
 	const log = options.log ?? ((line: string) => console.error(line));
@@ -52,7 +58,7 @@ export function registerJobs(context: MainContext, options: JobsOptions = {}): J
 	const reconciler = new Reconciler(context, log, choose, {
 		triggers: (event) => triggers.handle(event),
 		thens: (event) => runner.startThen(event),
-		shipping: options.shipping ?? NO_RULE,
+		shipping: options.shipping ?? NO_SHIPPING,
 		resume: options.resume ?? NO_RULE,
 		schedules: (event) => schedules.handle(event),
 		compatibility: (event) => checkCompatibility(context, event, log),

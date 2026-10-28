@@ -1116,6 +1116,37 @@ CREATE UNIQUE INDEX idx_shell_runs_anchor ON shell_runs(anchor_message, anchor_b
 CREATE INDEX idx_shell_runs_session ON shell_runs(session_id);
 `,
 	`
+CREATE TABLE event_log_next (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  workstream_id TEXT,
+  cause_kind TEXT CHECK (cause_kind IS NULL OR cause_kind IN ('job-run','chat-turn','event')),
+  cause_id TEXT,
+  chain_id TEXT NOT NULL CHECK (length(chain_id) > 0),
+  emitted_at TEXT NOT NULL,
+  handled_at TEXT,
+  CHECK ((cause_kind IS NULL) = (cause_id IS NULL))
+);
+INSERT INTO event_log_next
+  (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at)
+  SELECT id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at
+  FROM event_log;
+DELETE FROM sqlite_sequence WHERE name = 'event_log_next';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'event_log_next', seq FROM sqlite_sequence WHERE name = 'event_log';
+DROP TABLE event_log;
+ALTER TABLE event_log_next RENAME TO event_log;
+CREATE INDEX idx_event_log_emitted ON event_log(emitted_at);
+CREATE INDEX idx_event_log_chain ON event_log(chain_id);
+CREATE INDEX idx_event_log_unhandled ON event_log(emitted_at) WHERE handled_at IS NULL;
+CREATE INDEX idx_event_log_workstream_channel ON event_log(workstream_id, channel);
+CREATE INDEX idx_event_log_cause ON event_log(cause_kind, cause_id);
+
+UPDATE job_definitions
+  SET trigger_when = 'on repositories:workstream-merge-conflicted', trigger_mode = 'auto'
+  WHERE builtin = 'resolve-conflicts' AND trigger_when IS NULL;
+`,
+	`
 CREATE TABLE agent_sessions_next (
   id TEXT PRIMARY KEY,
   workstream_id TEXT NOT NULL REFERENCES workstreams(id),

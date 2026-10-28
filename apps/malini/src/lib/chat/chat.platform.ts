@@ -23,6 +23,7 @@ export {
 	chatTurnSessionId,
 	getRunWorkstreamId,
 	getWorkstreamRun,
+	latestRunEndedAt,
 	listChatTurns,
 	listChatTurnsSince,
 	listOpenRuns,

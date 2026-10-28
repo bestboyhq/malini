@@ -80,9 +80,11 @@ const ALL_INDEXES = [
 	'idx_alarms_due',
 	'idx_docker_containers_bundle_released',
 	'idx_docker_containers_project_service',
+	'idx_event_log_cause',
 	'idx_event_log_chain',
 	'idx_event_log_emitted',
 	'idx_event_log_unhandled',
+	'idx_event_log_workstream_channel',
 	'idx_job_experiments_definition',
 	'idx_job_outputs_definition_created',
 	'idx_job_run_events_event',
@@ -374,6 +376,50 @@ describe('migrate', () => {
 			parent_run_id: null,
 		});
 		expect(all(db, 'SELECT job_run_id FROM job_run_events')).toEqual([{ job_run_id: 'next' }]);
+		db.close();
+	});
+
+	it('lets an event be the cause of another, keeping every event and its id, and turns on Resolve conflicts on a conflict', () => {
+		const db = openDatabase(':memory:');
+		db.exec(SCHEMA);
+		const rebuilt = MIGRATIONS.findIndex((migration) => migration.includes('event_log_next'));
+		for (const migration of MIGRATIONS.slice(0, rebuilt)) db.exec(migration);
+		db.exec(`PRAGMA user_version = ${BASELINE_USER_VERSION + rebuilt};`);
+		const at = '2026-10-28T11:09:32.707Z';
+		db.exec(`
+			INSERT INTO event_log (id, channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at, handled_at)
+			  VALUES (18147, 'pull-requests:pull-request-changed', '{}', 'w', 'job-run', 'run', 'chain', '${at}', '${at}'),
+			         (18148, 'repositories:workstream-merge-conflicted', '{}', 'w', NULL, NULL, 'own', '${at}', NULL);
+			DELETE FROM event_log WHERE id = 18148;
+			INSERT INTO job_definitions (id, name, instructions, model, effort, runs_in, builtin, created_at, updated_at) VALUES
+			  ('resolve', 'Resolve conflicts', 'Resolve.', 'opus', 'high', 'workstream', 'resolve-conflicts', '${at}', '${at}'),
+			  ('fix', 'Fix checks', 'Fix.', 'opus', 'medium', 'workstream', 'fix-checks', '${at}', '${at}');
+		`);
+		const events = all(db, 'SELECT * FROM event_log ORDER BY id');
+
+		migrate(db);
+
+		expect(all(db, 'SELECT * FROM event_log ORDER BY id')).toEqual(events);
+		db.exec(`INSERT INTO event_log (channel, payload, workstream_id, cause_kind, cause_id, chain_id, emitted_at)
+			VALUES ('repositories:workstream-merge-conflicted', '{}', 'w', 'event', '18147', 'chain', '${at}')`);
+		expect(get(db, 'SELECT MAX(id) AS id FROM event_log')).toEqual({ id: 18149 });
+		expect(() =>
+			db.exec(`INSERT INTO event_log (channel, payload, cause_kind, cause_id, chain_id, emitted_at)
+				VALUES ('app:started', '{}', 'elsewhere', 'x', 'chain', '${at}')`),
+		).toThrow();
+		expect(
+			all(
+				db,
+				"SELECT id, trigger_when, trigger_mode FROM job_definitions WHERE id IN ('fix', 'resolve') ORDER BY id",
+			),
+		).toEqual([
+			{ id: 'fix', trigger_when: null, trigger_mode: null },
+			{
+				id: 'resolve',
+				trigger_when: 'on repositories:workstream-merge-conflicted',
+				trigger_mode: 'auto',
+			},
+		]);
 		db.close();
 	});
 

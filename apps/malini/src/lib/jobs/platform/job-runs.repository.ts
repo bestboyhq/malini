@@ -242,18 +242,33 @@ export function countStartedOrQueuedJobRuns(db: MaliniDatabase, definitionId: st
 export function latestWorkstreamJobRun(
 	db: MaliniDatabase,
 	workstreamId: string,
-	origin: JobRunOrigin,
 	definitionIds: readonly string[],
 ): JobRunRecord | null {
 	const row = get<JobRunRow>(
 		db,
 		`SELECT ${COLUMNS} FROM job_runs
-		 WHERE workstream_id = ? AND origin = ?
-		   AND definition_id IN (${definitionIds.map(() => '?').join(', ') || 'NULL'})
+		 WHERE workstream_id = ?
+		   AND definition_id IN (SELECT value FROM json_each(?))
 		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		workstreamId,
-		origin,
-		...definitionIds,
+		JSON.stringify(definitionIds),
+	);
+	return row ? fromRow(row) : null;
+}
+
+export function activeWorkstreamJobRun(
+	db: MaliniDatabase,
+	workstreamId: string,
+	definitionIds: readonly string[],
+): JobRunRecord | null {
+	const row = get<JobRunRow>(
+		db,
+		`SELECT ${COLUMNS} FROM job_runs
+		 WHERE workstream_id = ? AND status IN ('waiting', 'queued', 'running', 'needs-you')
+		   AND definition_id IN (SELECT value FROM json_each(?))
+		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		workstreamId,
+		JSON.stringify(definitionIds),
 	);
 	return row ? fromRow(row) : null;
 }

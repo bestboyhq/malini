@@ -26,8 +26,8 @@ import type { WorktreeStatus } from '$contract/repositories';
 import type { MainContext } from '$main/context';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
+import { all, get } from '$main/db/rows';
 import { GitError } from '$main/errors';
-import { all } from '$main/db/rows';
 import { createEventBus } from '$main/events';
 import { workstreamPath } from '$main/git/paths';
 import { CommandRegistry } from '$main/ipc/registry';
@@ -39,6 +39,8 @@ import {
 } from '$lib/jobs/platform/job-definitions.repository';
 import { insertJobRun, saveJobRun } from '$lib/jobs/platform/job-runs.repository';
 import { createJobSchedules, type JobSchedules } from '$lib/jobs/platform/job-schedules.service';
+import { startJobTriggers, type JobTriggers } from '$lib/jobs/platform/job-triggers.service';
+import { Reconciler } from '$lib/jobs/platform/reconciler.service';
 import type { PullRequestsPlatform } from '../pull-requests.platform';
 import type { GhRunner } from './pull-requests.service';
 import { registerPullRequests } from './register';
@@ -54,6 +56,8 @@ const DELAYS = {
 };
 
 const SETTLE_MS = 150;
+
+const NO_RULE = (): Promise<void> => Promise.resolve();
 
 const WAIT = { timeout: 8_000, interval: 15 };
 
@@ -331,6 +335,8 @@ let github: FakeGithub;
 let platform: PullRequestsPlatform;
 let eventLog: { dispose(): void } | null;
 let clock: JobSchedules | null;
+let triggers: JobTriggers | null;
+let reconciler: Reconciler;
 let worktrees: Map<string, WorktreeStatus>;
 let openRuns: Set<string>;
 let jobRuns: Map<string, JobRunRecord>;
@@ -487,6 +493,12 @@ function defineFakes(): void {
 			headSha: sha,
 		});
 		commits.push({ workstreamId, message, runId, sha });
+		events.emit('repositories:workstream-head-moved', {
+			workstreamId,
+			branch: current.branch,
+			head: sha,
+			previousHead: current.headSha ?? null,
+		});
 		if (runId) {
 			db.prepare(
 				`INSERT OR IGNORE INTO workstream_commit_runs (workstream_id, run_id, commit_sha, committed_at)
@@ -504,12 +516,18 @@ function defineFakes(): void {
 		heads.set(current.branch, current.headSha ?? '');
 		pushes.push(workstreamId);
 		github.pushed(current.branch, current.headSha ?? '');
+		events.emit('repositories:workstream-pushed', {
+			workstreamId,
+			branch: current.branch,
+			head: current.headSha ?? '',
+		});
 		return current.branch;
 	});
 	commands.define('repositories.pull-workstream', (args: unknown) => {
 		const workstreamId = String(Reflect.get(Object(args), 'workstreamId'));
 		const current = worktree(workstreamId);
 		pulls.push(workstreamId);
+		const merged = { ...current, ahead: current.ahead + 1, headSha: nextSha() };
 		worktrees.set(
 			workstreamId,
 			pullConflicts.length > 0
@@ -521,8 +539,22 @@ function defineFakes(): void {
 						conflictedPaths: [...pullConflicts],
 						conflictMarkerPaths: [...pullConflicts],
 					}
-				: { ...current, ahead: current.ahead + 1, headSha: nextSha() },
+				: merged,
 		);
+		if (pullConflicts.length > 0) {
+			events.emit('repositories:workstream-merge-conflicted', {
+				workstreamId,
+				baseBranch: 'main',
+				conflictedPaths: [...pullConflicts],
+			});
+		} else {
+			events.emit('repositories:workstream-head-moved', {
+				workstreamId,
+				branch: current.branch,
+				head: merged.headSha,
+				previousHead: current.headSha ?? null,
+			});
+		}
 		return 'abc1234';
 	});
 	commands.define('repositories.archive-workstream', (args: unknown) => {
@@ -618,19 +650,39 @@ function seedDefinitions(): void {
 
 function start(delays: typeof DELAYS = DELAYS): void {
 	const now = (): number => Date.now() + clockOffsetMs;
-	const shipping = registerPullRequests(context, {
+	platform = registerPullRequests(context, {
 		runner: github.run,
 		ship: { delays, now },
 	});
-	platform = shipping;
+	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
+	triggers = startJobTriggers(context, () => {});
+	const schedules = clock;
+	const yourTriggers = triggers;
+	reconciler = new Reconciler(
+		context,
+		() => {},
+		() => Promise.reject(new Error('There is no model in these tests.')),
+		{
+			triggers: (event) => yourTriggers.handle(event),
+			thens: NO_RULE,
+			shipping: platform.shipping,
+			resume: NO_RULE,
+			schedules: (event) => schedules.handle(event),
+			compatibility: NO_RULE,
+		},
+	);
+	listen();
+	clock.start();
+	context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion });
+}
+
+function listen(): void {
+	const heard = reconciler;
 	eventLog = startEventLog(
 		context,
 		() => {},
-		(event) => shipping.handle(event),
+		(event) => heard.handle(event),
 	);
-	clock = createJobSchedules(context, () => {}, { alarmCheckMs: 10, now });
-	clock.start();
-	context.events.emit(APP_STARTED_CHANNEL, { version: context.appVersion });
 }
 
 function stop(): void {
@@ -638,6 +690,9 @@ function stop(): void {
 	clock = null;
 	eventLog?.dispose();
 	eventLog = null;
+	triggers?.dispose();
+	triggers = null;
+	reconciler.dispose();
 	platform.dispose();
 }
 
@@ -681,6 +736,20 @@ function readsLogged(): { id: number; payload: Record<string, unknown> }[] {
 		'SELECT id, payload FROM event_log WHERE channel = ? ORDER BY id',
 		PULL_REQUESTS_PULL_REQUEST_CHANGED_CHANNEL,
 	).map((row) => ({ id: row.id, payload: JSON.parse(row.payload) }));
+}
+
+function latestLogged(channel: string): {
+	id: number;
+	cause_kind: string | null;
+	chain_id: string;
+} {
+	const row = get<{ id: number; cause_kind: string | null; chain_id: string }>(
+		db,
+		'SELECT id, cause_kind, chain_id FROM event_log WHERE channel = ? ORDER BY id DESC LIMIT 1',
+		channel,
+	);
+	if (!row) throw new Error(`no ${channel} logged`);
+	return row;
 }
 
 function activeJob(): JobRunRecord {
@@ -728,6 +797,7 @@ beforeEach(() => {
 	shaCounter = 0;
 	eventLog = null;
 	clock = null;
+	triggers = null;
 	clockOffsetMs = 0;
 	runCounter = 0;
 	seedDefinitions();
@@ -738,6 +808,8 @@ beforeEach(() => {
 afterEach(() => {
 	clock?.dispose();
 	eventLog?.dispose();
+	triggers?.dispose();
+	reconciler?.dispose();
 	platform?.dispose();
 	db.close();
 	rmSync(root, { recursive: true, force: true });
@@ -1104,6 +1176,7 @@ describe('shipping a queued merge', () => {
 
 		await until(() => expect(archived).toEqual(['ws-1']));
 		expect(readsLogged().map(({ payload }) => [payload['state'], payload['checks']])).toEqual([
+			['draft', 'success'],
 			['draft', 'failed'],
 			['open', 'failed'],
 			['open', 'success'],
@@ -1130,7 +1203,8 @@ describe('shipping a queued merge', () => {
 			},
 		]);
 		expect(github.only().isDraft).toBe(true);
-		await platform.handle({
+		listen();
+		await reconciler.handle({
 			id: null,
 			channel: PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 			payload: clicks[0],
@@ -1326,6 +1400,45 @@ describe('shipping a queued merge', () => {
 		expect(pulls).toEqual(['ws-1']);
 		const job = activeJob();
 		expect(job.definitionId).toBe('def-resolve-conflicts');
+
+		pullConflicts = [];
+		finishJob(job.id, 'succeeded', { resolveConflicts: true });
+
+		await until(() => expect(archived).toEqual(['ws-1']));
+		expect(commits.at(-1)).toMatchObject({
+			message: 'Merge main into malini/ws-1',
+			runId: job.agentRunId,
+		});
+	});
+
+	it('waits for the Resolve conflicts its trigger starts on the conflict, in the chain of your click, then commits the merge', async () => {
+		db.prepare(
+			`UPDATE job_definitions SET trigger_when = 'on repositories:workstream-merge-conflicted',
+			 trigger_mode = 'auto' WHERE id = 'def-resolve-conflicts'`,
+		).run();
+		await queueWithDraft();
+		Object.assign(github.only(), {
+			isDraft: false,
+			mergeable: 'CONFLICTING',
+			mergeStateStatus: 'DIRTY',
+		});
+		pullConflicts = ['src/search.ts'];
+
+		await click('ws-1', 'merge');
+
+		await until(() => expect(ship('ws-1')?.step).toBe('resolving-conflicts'));
+		const job = activeJob();
+		expect(job).toMatchObject({ definitionId: 'def-resolve-conflicts', origin: 'trigger' });
+		const merge = latestLogged(PULL_REQUESTS_BUTTON_CLICKED_CHANNEL);
+		const conflict = latestLogged('repositories:workstream-merge-conflicted');
+		expect(merge.cause_kind).toBeNull();
+		expect(conflict).toMatchObject({ cause_kind: 'event', chain_id: merge.chain_id });
+		expect(jobCauses.get(job.id)).toBe(conflict.id);
+		await settle();
+		expect(
+			[...jobRuns.values()].filter((run) => run.definitionId === 'def-resolve-conflicts'),
+		).toHaveLength(1);
+		expect(all(db, 'SELECT id FROM reconciler_decisions')).toEqual([]);
 
 		pullConflicts = [];
 		finishJob(job.id, 'succeeded', { resolveConflicts: true });
