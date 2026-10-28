@@ -27,6 +27,7 @@ export {
 	listChatTurnsSince,
 	listOpenRuns,
 	listRunActivity,
+	sessionRanInChain,
 	workChatTurnInWorkstream,
 	type ChatTurnWork,
 	type RunActivity,

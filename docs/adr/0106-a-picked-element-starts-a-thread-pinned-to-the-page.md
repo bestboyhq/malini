@@ -1,4 +1,4 @@
-# 0103 - A picked element starts a thread pinned to the page
+# 0106 - A picked element starts a thread pinned to the page
 
 Status: accepted
 

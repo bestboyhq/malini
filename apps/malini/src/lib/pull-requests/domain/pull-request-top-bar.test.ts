@@ -79,6 +79,10 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
+		nextAttemptAt: null,
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides,
 	};
@@ -894,7 +898,42 @@ describe('the workstream status', () => {
 		});
 	});
 
-	it('says why the last attempt failed while malini retries it, and stays quiet otherwise', () => {
+	it('names what failed and since when while malini retries it, with Retry now', () => {
+		const retrying = {
+			lastError: "Couldn't reach github.com.",
+			failures: 5,
+			failedSince: localTime(23, 6),
+			nextAttemptAt: localTime(23, 22),
+		};
+		expect(
+			status(ship({ step: 'opening-draft', pullRequestNumber: null, ...retrying }), null),
+		).toEqual({
+			tone: 'needs-you',
+			busy: false,
+			label: "Couldn't open draft",
+			detail: '5 tries since 23:06',
+			tooltip: "Couldn't reach github.com.",
+			action: {
+				kind: 'retry-now',
+				label: 'Retry now',
+				ariaLabel: 'Retry now instead of waiting',
+				tone: 'primary',
+				confirmLabel: null,
+			},
+		});
+		expect(
+			status(ship({ phase: 'queued', step: 'merging', ...retrying, failures: 1 }), null),
+		).toMatchObject({ label: "Couldn't merge", detail: '1 try since 23:06' });
+		expect(status(ship({ step: 'pushing', ...retrying }), open())).toMatchObject({
+			tone: 'needs-you',
+			label: "Couldn't push",
+		});
+		expect(
+			status(ship({ phase: 'queued', step: 'merging', ...retrying }), open({ state: 'merged' })),
+		).toMatchObject({ tone: 'queued', label: 'Merging', action: null });
+	});
+
+	it('keeps a problem malini is not retrying in the tooltip', () => {
 		expect(
 			status(ship({ step: 'opening-draft', pullRequestNumber: null }), null)?.tooltip,
 		).toBeNull();
@@ -909,7 +948,8 @@ describe('the workstream status', () => {
 				null,
 			),
 		).toMatchObject({
-			detail: 'Retrying after an error',
+			label: 'Opening draft',
+			detail: null,
 			tooltip: "Couldn't reach github.com.",
 		});
 		expect(
@@ -1025,3 +1065,7 @@ describe('the pull request detail menu', () => {
 		expect(topBar(null, surface())).toMatchObject({ pullRequestNumber: null, url: null });
 	});
 });
+
+function localTime(hour: number, minute: number): string {
+	return new Date(2026, 9, 27, hour, minute).toISOString();
+}

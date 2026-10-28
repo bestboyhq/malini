@@ -12,7 +12,8 @@
 	import { JobCenter } from '$lib/jobs/jobs.api';
 	import { mergeStoppedOnJobQuery } from '$lib/pull-requests/application/queries/merge-stopped-on-job.query.svelte';
 	import { pullRequestBadgesQuery } from '$lib/pull-requests/application/queries/pull-request-badges.query.svelte';
-	import { MergeStoppedOnJob } from '$lib/pull-requests/pull-requests.api';
+	import { shipFailureQuery } from '$lib/pull-requests/application/queries/ship-failure.query.svelte';
+	import { MergeStoppedOnJob, ShipFailureNotice } from '$lib/pull-requests/pull-requests.api';
 	import { addScratchpadIdeaCommand } from '$lib/scratchpad/application/commands/add-scratchpad-idea.command';
 	import {
 		WorkstreamTitle,
@@ -63,6 +64,7 @@
 	);
 
 	const mergeStop = $derived(mergeStoppedOnJobQuery.data(workstreamId));
+	const shipFailure = $derived(shipFailureQuery.data(workstreamId));
 	const stoppedHere = $derived(
 		mergeStop !== null &&
 			chatSessionId !== null &&
@@ -86,7 +88,7 @@
 			onsavetoscratchpad={repositoryFullName
 				? (idea: string) => addScratchpadIdeaCommand(repositoryFullName, idea)
 				: undefined}
-			notice={stoppedHere ? mergeStoppedNotice : undefined}
+			notice={stoppedHere || shipFailure ? workstreamNotice : undefined}
 		>
 			{#snippet header(presentedWorkstreamId: string)}
 				<WorkstreamLineage workstreamId={presentedWorkstreamId} />
@@ -104,8 +106,10 @@
 	{/snippet}
 </InspectorSplit>
 
-{#snippet mergeStoppedNotice()}
-	{#if mergeStop}
+{#snippet workstreamNotice()}
+	{#if stoppedHere && mergeStop}
 		<MergeStoppedOnJob {workstreamId} detail={mergeStop.detail} />
+	{:else if shipFailure}
+		<ShipFailureNotice {workstreamId} failure={shipFailure} />
 	{/if}
 {/snippet}

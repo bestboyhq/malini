@@ -1104,6 +1104,47 @@ const respond = async (sessionId, runId, prompt) => {
 		pendingRuns.set(runId, sessionId);
 		return;
 	}
+	if (prompt.includes('ECHO_SHIPPING')) {
+		const shipping = /<workstream_shipping>(.*)<\/workstream_shipping>/.exec(prompt);
+		const note = shipping ? JSON.parse(shipping[1]) : null;
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			note ? '\n\nShipping note: ' + note.title + '. ' + note.reason : '\n\nNo shipping note',
+		);
+	}
+	if (prompt.includes('SHELL_BLOCKS')) {
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			'\n\n```sh\nprintf \'Your name? \'; read name; echo "hi $name in $(basename "$PWD")"\n```' +
+				'\n\n```sh\necho serving; sleep 300\n```',
+		);
+	}
+	if (prompt.includes('ECHO_SHELL_RUNS')) {
+		const block = /<user_shell_commands>(.*)<\/user_shell_commands>/.exec(prompt);
+		const runs = block ? JSON.parse(block[1]) : [];
+		return completeRun(
+			sessionId,
+			runId,
+			'done',
+			[],
+			[],
+			runs.length === 0
+				? '\n\nNo shell runs'
+				: runs
+						.map(
+							(run) => '\n\nYou ran: ' + run.state + ' ' + run.exitCode + ' ' + run.output.trim(),
+						)
+						.join(''),
+		);
+	}
 	const replyFile = /REPLY_FILE:([^\s]+)/.exec(prompt);
 	const replyPath = replyFile && worktree ? nodePath.join(worktree, replyFile[1]) : null;
 	if (replyPath && fs.existsSync(replyPath)) {

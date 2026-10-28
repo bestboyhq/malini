@@ -18,7 +18,7 @@ import {
 
 const UNREACHABLE = "Couldn't reach github.com. Check your connection and try again.";
 
-test('a queued merge that cannot reach github.com says so in its tooltip and retries the push until it lands', async () => {
+test('a queued merge that cannot reach github.com says so in the chat and retries the push until it lands', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini({ allowedDiagnostics: [/Couldn't reach github\.com/u] });
 	try {
@@ -36,8 +36,11 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 		const name = await workstreamName(page, 'e2e-offline');
 		await queueMerge(page);
 
-		const queued = topBarStatus(page, 'Queued for merge · Retrying after an error');
+		const queued = topBarStatus(page, /^Couldn't push · \d+ tr(?:y|ies) since \d\d:\d\d$/u);
 		await expect(queued).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByRole('region', { name: "Malini couldn't push" })).toContainText(
+			UNREACHABLE,
+		);
 		await queued.hover({ force: true });
 		const tooltip = page.getByRole('tooltip');
 		await expect(tooltip).toHaveText(UNREACHABLE, { timeout: 30_000 });
@@ -59,7 +62,7 @@ test('a queued merge that cannot reach github.com says so in its tooltip and ret
 	}
 });
 
-test('Open draft without network says github.com is unreachable in its tooltip and opens the draft once it is back', async () => {
+test('Open draft without network says github.com is unreachable in the chat and opens the draft once it is back', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini({ allowedDiagnostics: [/Couldn't reach github\.com/u] });
 	try {
@@ -71,8 +74,11 @@ test('Open draft without network says github.com is unreachable in its tooltip a
 
 		await page.getByRole('button', { name: 'Open a draft pull request' }).click();
 
-		const opening = topBarStatus(page, 'Opening draft · Retrying after an error');
+		const opening = topBarStatus(page, /^Couldn't open draft · \d+ tr(?:y|ies) since \d\d:\d\d$/u);
 		await expect(opening).toBeVisible({ timeout: 30_000 });
+		await expect(
+			page.getByRole('region', { name: "Malini couldn't open the draft" }),
+		).toContainText(UNREACHABLE);
 		await opening.hover({ force: true });
 		await expect(page.getByRole('tooltip')).toHaveText(UNREACHABLE, { timeout: 30_000 });
 		await expect(toastSaying(page, 'Pull request action failed')).toHaveCount(0);

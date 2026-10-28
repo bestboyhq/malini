@@ -158,6 +158,9 @@ function shipState(): ShipStateRecord {
 		attempts: 0,
 		activeJobRunId: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
 		nextAttemptAt: null,
 		updatedAt: NOW,
 	};

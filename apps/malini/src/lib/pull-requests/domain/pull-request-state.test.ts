@@ -12,6 +12,10 @@ function ship(overrides: Partial<PullRequestShip> = {}): PullRequestShip {
 		pullRequestUrl: 'https://github.com/acme/web/pull/42',
 		needsYou: null,
 		lastError: null,
+		githubSaid: null,
+		failures: 0,
+		failedSince: null,
+		nextAttemptAt: null,
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides,
 	};
@@ -48,6 +52,22 @@ describe('pullRequestBadge', () => {
 				),
 			).toEqual({ phase: 'needs-you', label: 'Needs you · GitHub blocks the merge' });
 		}
+	});
+
+	it('turns a step Malini keeps retrying into needs you, until GitHub reports it merged', () => {
+		const failing = { lastError: 'GitHub refused the push.', failures: 2 };
+		expect(
+			pullRequestBadge(
+				ship({ pullRequestNumber: null, step: 'opening-draft', ...failing }),
+				'none',
+			),
+		).toEqual({ phase: 'needs-you', label: "Needs you · Couldn't open draft" });
+		expect(
+			pullRequestBadge(ship({ phase: 'queued', step: 'merging', ...failing }), 'open'),
+		).toEqual({ phase: 'needs-you', label: "Needs you · Couldn't merge" });
+		expect(
+			pullRequestBadge(ship({ phase: 'queued', step: 'merging', ...failing }), 'merged').phase,
+		).toBe('queued');
 	});
 
 	it('calls a draft row a draft until GitHub reports it open, merged or closed', () => {
