@@ -121,6 +121,8 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 		await expect(status).toContainText(`Could not open ${new URL(origin).host}`);
 		await expect(status).toContainText('ERR_CONNECTION_REFUSED');
 		await expect.poll(pageShown).toBe(false);
+		const pick = page.getByRole('button', { name: 'Pick an element' });
+		await expect(pick).toBeDisabled();
 
 		await new Promise<void>((resolve) =>
 			server.listen(Number(new URL(origin).port), 'localhost', resolve),
@@ -129,6 +131,7 @@ test('a browser tab says why its page did not load, hides the page meanwhile, an
 		await expect(inspector.getByRole('tab', { name: 'Late server' })).toBeVisible();
 		await expect(status).toHaveCount(0);
 		await expect.poll(pageShown).toBe(true);
+		await expect(pick).toBeEnabled();
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
@@ -388,6 +391,62 @@ test('a picked element starts its own thread, pinned where you asked, that opens
 		await expect(chatTabs).toHaveCount(1);
 		expectCleanConsole(app);
 	} finally {
+		await app.close();
+		server.close();
+	}
+});
+
+test('picking an element on a page that is still loading waits for the page instead of failing', async () => {
+	test.setTimeout(120_000);
+	let respond = (): void => undefined;
+	const responding = new Promise<void>((resolve) => {
+		respond = resolve;
+	});
+	const server = createServer(async (_request, response) => {
+		await responding;
+		response.writeHead(200, { 'content-type': 'text/html' });
+		response.end('<!doctype html><title>Late page</title><h1>Late page</h1>');
+	});
+	await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
+	const origin = `http://localhost:${(server.address() as AddressInfo).port}`;
+	const app = await launchMalini();
+	try {
+		const { page, electronApp } = app;
+		const pickerShown = () =>
+			electronApp.evaluate(
+				({ webContents }, origin) =>
+					webContents
+						.getAllWebContents()
+						.find((contents) => contents.getURL().startsWith(origin))
+						?.executeJavaScript(`Boolean(document.querySelector('malini-picker'))`) ?? false,
+				origin,
+			);
+		const seeded = await seedWorkstream(
+			page,
+			await createSourceRepo(app.root),
+			'e2e-browser-late-pick-ws',
+			'Browser late pick',
+		);
+		await openWorkstream(page, seeded.workstreamId);
+		const inspector = page.getByRole('region', { name: 'Inspector' });
+		await expect(inspector.getByRole('tab', { name: 'Files' })).toBeVisible({ timeout: 20_000 });
+
+		await openTab(page, origin, '/late');
+		const pick = page.getByRole('button', { name: 'Pick an element' });
+		await expect(pick).toBeEnabled();
+		await pick.click();
+		await expect(pick).toHaveAttribute('aria-pressed', 'true');
+		respond();
+
+		await expect(inspector.getByRole('tab', { name: 'Late page', selected: true })).toBeVisible();
+		await expect.poll(pickerShown).toBe(true);
+		await expect(pick).toHaveAttribute('aria-pressed', 'true');
+		await pick.click();
+		await expect(pick).toHaveAttribute('aria-pressed', 'false');
+		await expect.poll(pickerShown).toBe(false);
+		expectCleanConsole(app);
+	} finally {
+		respond();
 		await app.close();
 		server.close();
 	}

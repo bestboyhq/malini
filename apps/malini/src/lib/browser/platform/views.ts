@@ -18,6 +18,7 @@ import {
 	captureFrame,
 	clickSelector,
 	openUrl,
+	pageLoaded,
 	saveScreenshot,
 	settleAfterAction,
 	typeIntoSelector,
@@ -39,6 +40,7 @@ export const DEFAULT_VIEW_SIZE = { width: 1_280, height: 800 } as const;
 export const CORNER_RADIUS = 16;
 export const NOTHING_OPEN = 'Nothing is open in the browser yet. Call browser_open first.';
 export const RESIZE_ANSWER_MS = 5_000;
+const PICK_WITHOUT_PAGE = 'Open a page before picking an element.';
 
 export interface BrowserViewsDeps<W extends HostWindow> {
 	getMainWindow(): W | null;
@@ -179,19 +181,15 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 		const tab = { workstreamId: args.workstreamId, tabId: args.tabId };
 		const contents = this.openContents(tab);
 		const entry = this.entries.get(tabKey(tab));
-		if (!contents || !entry) throw new Error('Open a page before picking an element.');
+		if (!entry || (!contents && !entry.view.contents.isLoading())) {
+			throw new Error(PICK_WITHOUT_PAGE);
+		}
 		while (entry.pick) {
 			entry.pick.controller.abort();
 			await entry.pick.done;
 		}
 		const controller = new AbortController();
-		contents.focus();
-		const picking = pickElement(
-			pickerPage(contents),
-			controller.signal,
-			{ model: args.model, models: args.models },
-			(picked) => this.deps.startThread(tab, picked, args.profile),
-		);
+		const picking = this.pickOnceLoaded(entry, controller.signal, args);
 		const pick: OpenPick = { controller, done: picking.catch(() => null) };
 		entry.pick = pick;
 		try {
@@ -297,6 +295,24 @@ export class BrowserViews<W extends HostWindow> implements BrowserPlatform {
 
 	resized(requestId: string): void {
 		this.resizes.get(requestId)?.();
+	}
+
+	private async pickOnceLoaded(
+		entry: Entry<W>,
+		signal: AbortSignal,
+		args: BrowserPickArgs,
+	): Promise<BrowserThreadStarted | null> {
+		await untilAborted(pageLoaded(entry.view.contents), signal);
+		if (signal.aborted || entry.failure) return null;
+		const contents = this.openContents(entry.tab);
+		if (!contents) throw new Error(PICK_WITHOUT_PAGE);
+		contents.focus();
+		return pickElement(
+			pickerPage(contents),
+			signal,
+			{ model: args.model, models: args.models },
+			(picked) => this.deps.startThread(entry.tab, picked, args.profile),
+		);
 	}
 
 	private inTurn<T>(tab: BrowserTabArgs, work: () => Promise<T>): Promise<T> {

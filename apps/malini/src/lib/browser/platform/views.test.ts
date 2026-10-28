@@ -59,6 +59,7 @@ class FakeContents implements PageContents {
 	title = '';
 	destroyed = false;
 	focused = false;
+	loading = false;
 	reloads = 0;
 	readonly loads: string[] = [];
 	readonly loadFailures: string[] = [];
@@ -105,7 +106,7 @@ class FakeContents implements PageContents {
 	}
 
 	isLoading(): boolean {
-		return false;
+		return this.loading;
 	}
 
 	isDestroyed(): boolean {
@@ -684,7 +685,10 @@ describe('BrowserViews', () => {
 		await expect(browser.pick(PICK)).rejects.toThrow('Open a page before picking an element.');
 		await browser.open(TAB, 'https://example.com');
 
+		const selects = () =>
+			viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"select"'));
 		const first = browser.pick(PICK);
+		await expect.poll(selects).toHaveLength(1);
 		const second = browser.pick(PICK);
 		await expect(first).resolves.toBeNull();
 		browser.cancelPick(TAB);
@@ -693,6 +697,30 @@ describe('BrowserViews', () => {
 		const ends = viewAt(0).contents.scripts.filter((code) => code.includes('"kind":"end"'));
 		expect(ends).toHaveLength(2);
 		expect(window().focusCount).toBe(2);
+	});
+
+	it('waits for a page still loading before it picks, and ends the pick quietly when that page fails', async () => {
+		const { browser, viewAt } = setup();
+		browser.show(TAB, { x: 0, y: 0, width: 100, height: 100 });
+		const { contents, events } = viewAt(0);
+		const selects = () => contents.scripts.filter((code) => code.includes('"kind":"select"'));
+		contents.loading = true;
+
+		const picking = browser.pick(PICK);
+		await new Promise((resolve) => setTimeout(resolve, 120));
+		expect(selects()).toEqual([]);
+		contents.url = 'https://example.com/';
+		contents.loading = false;
+		await expect.poll(() => selects()).toHaveLength(1);
+		browser.cancelPick(TAB);
+		await expect(picking).resolves.toBeNull();
+
+		contents.loading = true;
+		const failing = browser.pick(PICK);
+		events.failed('ERR_NAME_NOT_RESOLVED');
+		contents.loading = false;
+		await expect(failing).resolves.toBeNull();
+		expect(selects()).toHaveLength(1);
 	});
 
 	it('pins the threads started on the page it shows, and hands back what the user does with one', async () => {

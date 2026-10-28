@@ -193,7 +193,7 @@
 				variant={picking ? 'primary-soft' : 'ghost'}
 				size="md"
 				ariaPressed={picking}
-				disabled={!hasPage}
+				disabled={!hasPage || failure !== null}
 				onclick={onPickToggle}
 			>
 				<Icon name="pick-element" size={14} />

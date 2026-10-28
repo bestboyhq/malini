@@ -62,6 +62,10 @@ export async function typeIntoSelector(
 	await settleAfterAction(contents);
 }
 
+export function pageLoaded(contents: PageContents): Promise<void> {
+	return settled(contents, Date.now() + OPEN_TIMEOUT_MS);
+}
+
 export async function settleAfterAction(contents: PageContents): Promise<void> {
 	await delay(NAVIGATION_GRACE_MS);
 	await settled(contents, Date.now() + ACTION_SETTLE_MS);
