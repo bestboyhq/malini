@@ -20,8 +20,13 @@ The platform rule allows no native addons, so `node-pty` is out, and Node hands 
   `terminalText` drops escape sequences, keeps what a carriage return wrote last and applies echoed backspaces; the service keeps the last 256 KB and emits `chat:shell-run-changed`, unlogged, at most every 100 ms and once when the command ends.
 - **Stop is Control-C first.**
   `chat.stop-shell-run` writes Control-C into the terminal, then sends SIGTERM to the process group after 2 s and SIGKILL after 4 s; `stopWorkstreamBackgroundCommands` and `chat.stop()` end what still runs when a workstream is archived or Malini quits.
-- **A card above the composer.**
-  `ShellRunCard` sits in the composer tray: the command, its elapsed time or exit code, the output as it prints, a hidden input that the output focuses on click, **Stop**, **Run again** and **×**, which runs `chat.dismiss-shell-run`.
+- **The output runs inside its code block, like a tool call.**
+  The user: "they could run in the exact same place where they already are in the chat … not at the bottom, not anywhere else, just inline".
+  Each run carries an `anchor`: the message's timeline key and the index of the code block in it.
+  `MarkdownText` mounts `ShellRunCard` into that block, under the code: its elapsed time or exit code, the output as it prints, a hidden input that the output focuses on click, **Stop**, and **×**, which runs `chat.dismiss-shell-run`.
+  **Run** hides while the block's command runs and runs it again once it ends.
+- **One run per code block.**
+  `ShellRuns.start` returns the block's run while it still runs, so a second click starts nothing, and replaces a finished one, so the block shows only its latest output.
 - **The agent reads what ran.**
   `sendAgentPrompt` appends `<user_shell_commands>` with each command of the chat that it has not reported yet: how it ended and the last 4,000 characters of its output; a finished command is reported once, a running one with every prompt until it ends.
 - Runs live in main-process memory only, and the agent's instructions say its shell code blocks have this button.
@@ -33,4 +38,5 @@ The platform rule allows no native addons, so `node-pty` is out, and Node hands 
 - The terminal never resizes, and full-screen programs such as `vim` do not draw; `node-pty` with xterm.js is the upgrade if those matter.
 - The runner depends on macOS `script(1)` and `/bin/bash`; another platform needs its own terminal.
 - A run's output is gone after Malini restarts.
-- Enforced by `src/lib/chat/platform/shell-runs/service.test.ts` (checkout and exit code, a terminal that takes typed answers, Stop, what the agent is told), `src/lib/chat/domain/terminal-text.test.ts`, `src/lib/chat/platform/agent/commands.test.ts` (the prompt block), `packages/agent-bridge/src/claude/instructions.test.ts` and `tests/e2e/shell-run.spec.ts`.
+- Run again on a block replaces its finished run, so the agent hears only the latest one if the user did not prompt in between.
+- Enforced by `src/lib/chat/platform/shell-runs/service.test.ts` (checkout and exit code, a terminal that takes typed answers, Stop, what the agent is told, one run per code block), `src/lib/chat/domain/terminal-text.test.ts`, `src/lib/chat/platform/agent/commands.test.ts` (the prompt block), `packages/agent-bridge/src/claude/instructions.test.ts` and `tests/e2e/shell-run.spec.ts`.

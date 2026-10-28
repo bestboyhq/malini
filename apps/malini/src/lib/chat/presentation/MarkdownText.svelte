@@ -715,6 +715,8 @@
 </script>
 
 <script lang="ts">
+	import { getAllContexts, untrack } from 'svelte';
+	import type { ShellRun } from '$contract/shell-runs';
 	import { revealSensitiveCode } from '$hyper-ui/components/code-tokens';
 	import { revealSensitiveTarget, sensitiveMasking } from '$hyper-ui/components/sensitive';
 	import { tooltip } from '$hyper-ui/components/tooltip';
@@ -724,6 +726,7 @@
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { readFileMentionTarget, type FileMentionTarget } from './file-mention-links';
 	import { GALLERY_IMAGE_ATTRIBUTE } from './workstream-images';
+	import ShellRunCard from './ShellRunCard.svelte';
 
 	interface Props {
 		text: string;
@@ -744,7 +747,8 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string) => void) | undefined;
+		onruncommand?: ((command: string, block: number) => void) | undefined;
+		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
 	}
 
 	let {
@@ -757,6 +761,7 @@
 		imagesrc,
 		onopenimage,
 		onruncommand,
+		coderuns,
 	}: Props = $props();
 
 	const COPY_SELECTOR = '[data-testid="markdown-code-copy"]';
@@ -764,17 +769,25 @@
 	const CODE_BLOCK_ROOT_SELECTOR = '[data-testid="markdown-code-block"]';
 	const COPY_ANCHOR_SELECTOR = '[data-code-copy]';
 	const RUN_ANCHOR_ATTRIBUTE = 'data-code-run';
+	const RUN_OUTPUT_ATTRIBUTE = 'data-code-run-output';
 	const ACTION_ANCHOR_SELECTOR = `${COPY_ANCHOR_SELECTOR}, [${RUN_ANCHOR_ATTRIBUTE}]`;
 	const RUN_TOOLTIP = { text: 'Run in this workstream', placement: 'top' } as const;
 	const COPIED_MS = 1_500;
 
-	type MarkdownTextUpdate = StreamingMarkdownUpdate & MarkdownDecorations;
+	type MarkdownTextUpdate = StreamingMarkdownUpdate &
+		MarkdownDecorations & { codeRuns: ReadonlyMap<number, ShellRun> | undefined };
+	type CodeRunOutput = {
+		host: HTMLElement;
+		props: { run: ShellRun };
+		instance: ReturnType<typeof mount>;
+	};
 	type CopyRequest = { id: ChatRequestId; button: Element };
 	type TooltipHandle = ReturnType<typeof tooltip>;
 
 	let copyRequest = $state<CopyRequest | null>(null);
 	const copyOutcome = $derived(chatRequestQuery.data(copyRequest?.id ?? null));
 	const actionTooltips = new Map<Element, TooltipHandle>();
+	const contexts = getAllContexts();
 
 	$effect(() => {
 		const request = copyRequest;
@@ -812,14 +825,50 @@
 		return true;
 	}
 
-	function runCode(target: Element): boolean {
-		const code = target
-			.closest(RUN_SELECTOR)
-			?.closest(CODE_BLOCK_ROOT_SELECTOR)
-			?.querySelector(CODE_BLOCK_SELECTOR);
-		if (!code) return false;
-		onruncommand?.(code.textContent ?? '');
+	function runCode(target: Element, container: Element): boolean {
+		const block = target.closest(RUN_SELECTOR)?.closest(CODE_BLOCK_ROOT_SELECTOR);
+		const code = block?.querySelector(CODE_BLOCK_SELECTOR);
+		if (!block || !code) return false;
+		const index = [...container.querySelectorAll(CODE_BLOCK_ROOT_SELECTOR)].indexOf(block);
+		onruncommand?.(code.textContent ?? '', index);
 		return true;
+	}
+
+	function codeRunOutputs(container: HTMLElement): {
+		show: (runs: ReadonlyMap<number, ShellRun> | undefined) => void;
+		destroy: () => void;
+	} {
+		const outputs = new Map<Element, CodeRunOutput>();
+		const remove = (block: Element, output: CodeRunOutput): void => {
+			void unmount(output.instance);
+			output.host.remove();
+			outputs.delete(block);
+		};
+		const show = (runs: ReadonlyMap<number, ShellRun> | undefined): void => {
+			if (outputs.size === 0 && !runs?.size) return;
+			const blocks = [...container.querySelectorAll(CODE_BLOCK_ROOT_SELECTOR)];
+			for (const [block, output] of outputs) {
+				const run = runs?.get(blocks.indexOf(block));
+				if (run && output.host.parentElement === block) output.props.run = run;
+				else remove(block, output);
+			}
+			runs?.forEach((run, index) => {
+				const block = blocks[index];
+				if (!block || outputs.has(block)) return;
+				const host = document.createElement('div');
+				host.setAttribute(RUN_OUTPUT_ATTRIBUTE, '');
+				block.append(host);
+				const props = $state({ run });
+				const instance = mount(ShellRunCard, { target: host, props, context: contexts });
+				outputs.set(block, { host, props, instance });
+			});
+		};
+		return {
+			show: (runs) => untrack(() => show(runs)),
+			destroy: () => {
+				for (const [block, output] of outputs) remove(block, output);
+			},
+		};
 	}
 
 	function streamingMarkdown(
@@ -831,26 +880,33 @@
 			copyButton: codeCopyButtonMarkup().button,
 			runButton: onruncommand ? codeRunButtonMarkup() : '',
 		});
+		const outputs = codeRunOutputs(node);
 		const render = ({
 			canOpenFile,
 			imageSource,
 			galleryImages,
+			codeRuns,
 			...update
 		}: MarkdownTextUpdate): void => {
 			renderer.decorate({ canOpenFile, imageSource, galleryImages });
 			renderer.update(update);
+			outputs.show(codeRuns);
 		};
 		render(initial);
 		return {
 			update: render,
-			destroy: () => renderer.destroy(),
+			destroy: () => {
+				outputs.destroy();
+				renderer.destroy();
+			},
 		};
 	}
 
 	function onLinkClick(event: MouseEvent): void {
 		if (revealSensitiveCode(event) || revealSensitiveTarget(event)) return;
 		if (!(event.target instanceof Element)) return;
-		if (copyCode(event.target) || runCode(event.target)) return;
+		if (!(event.currentTarget instanceof Element)) return;
+		if (copyCode(event.target) || runCode(event.target, event.currentTarget)) return;
 		if (openGalleryImage(event.target)) return;
 		const anchor = event.target.closest('a');
 		if (!(anchor instanceof HTMLAnchorElement)) return;
@@ -953,6 +1009,7 @@
 		canOpenFile: canopenfile,
 		imageSource: imagesrc,
 		galleryImages: onopenimage !== undefined,
+		codeRuns: coderuns,
 	}}
 ></div>
 
@@ -968,7 +1025,8 @@
 		overflow-wrap: inherit;
 	}
 
-	.markdown-text[data-streaming] :global([data-code-run]) {
+	.markdown-text[data-streaming] :global([data-code-run]),
+	.markdown-text :global(:has(> [data-code-run-output] [data-state='running']) [data-code-run]) {
 		display: none;
 	}
 

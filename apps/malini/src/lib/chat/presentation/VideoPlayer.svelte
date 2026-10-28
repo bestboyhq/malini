@@ -91,6 +91,7 @@
 			bind:videoWidth
 			bind:videoHeight
 			{src}
+			{autoplay}
 			aria-label={label}
 			loop
 			playsinline

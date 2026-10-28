@@ -1,9 +1,12 @@
 export type ShellRunState = 'running' | 'exited' | 'stopped' | 'failed';
 
+export type ShellRunAnchor = Readonly<{ message: string; block: number }>;
+
 export type ShellRun = Readonly<{
 	id: string;
 	workstreamId: string;
 	sessionId: string;
+	anchor: ShellRunAnchor;
 	command: string;
 	state: ShellRunState;
 	exitCode: number | null;
@@ -15,6 +18,7 @@ export type ShellRun = Readonly<{
 export type RunShellCommandArgs = Readonly<{
 	workstreamId: string;
 	sessionId: string;
+	anchor: ShellRunAnchor;
 	command: string;
 }>;
 

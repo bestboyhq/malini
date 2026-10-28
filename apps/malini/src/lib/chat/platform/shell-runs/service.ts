@@ -1,6 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { RunShellCommandArgs, ShellRun, ShellRunState } from '$contract/shell-runs';
+import type {
+	RunShellCommandArgs,
+	ShellRun,
+	ShellRunAnchor,
+	ShellRunState,
+} from '$contract/shell-runs';
 import { nowIso8601 } from '$main/db/rows';
 import { describeError } from '$main/errors';
 import { preferredShell } from '$main/process/environment';
@@ -51,13 +56,17 @@ export class ShellRuns {
 		this.#deps = deps;
 	}
 
-	async start({ workstreamId, sessionId, command }: RunShellCommandArgs): Promise<ShellRun> {
+	async start(args: RunShellCommandArgs): Promise<ShellRun> {
+		const { workstreamId, command } = args;
 		if (command.trim().length === 0 || command.length > MAX_COMMAND_LENGTH) {
 			throw new Error(`invalid args: \`command\` must hold 1 to ${MAX_COMMAND_LENGTH} characters`);
 		}
 		const cwd = await this.#deps.checkout(workstreamId);
+		const previous = this.#anchoredAt(args.anchor);
+		if (previous?.child) return previous.run;
+		if (previous) this.#entries.delete(previous.run.id);
 		const env = { ...this.#deps.environment(), TERM: 'xterm-256color' };
-		const entry = this.#register({ workstreamId, sessionId, command });
+		const entry = this.#register(args);
 		let child: ChildProcessWithoutNullStreams;
 		try {
 			child = spawn(
@@ -159,6 +168,13 @@ export class ShellRuns {
 		this.#entries.set(entry.run.id, entry);
 		this.#deps.changed(entry.run);
 		return entry;
+	}
+
+	#anchoredAt({ message, block }: ShellRunAnchor): Entry | undefined {
+		for (const entry of this.#entries.values()) {
+			if (entry.run.anchor.message === message && entry.run.anchor.block === block) return entry;
+		}
+		return undefined;
 	}
 
 	#entry(runId: string): Entry {

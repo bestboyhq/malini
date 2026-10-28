@@ -4,7 +4,11 @@ class ShellRunsAggregate {
 	runs: ReadonlyMap<string, ShellRun> = $state.raw(new Map());
 
 	changed(run: ShellRun): void {
-		this.runs = new Map(this.runs).set(run.id, run);
+		const runs = new Map(this.runs);
+		for (const [id, other] of runs) {
+			if (id !== run.id && sameAnchor(other, run)) runs.delete(id);
+		}
+		this.runs = runs.set(run.id, run);
 	}
 
 	started(run: ShellRun): void {
@@ -20,6 +24,10 @@ class ShellRunsAggregate {
 		runs.delete(runId);
 		this.runs = runs;
 	}
+}
+
+function sameAnchor(left: ShellRun, right: ShellRun): boolean {
+	return left.anchor.message === right.anchor.message && left.anchor.block === right.anchor.block;
 }
 
 export const shellRunsAggregate = new ShellRunsAggregate();

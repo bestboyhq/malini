@@ -49,7 +49,6 @@
 	import { sessionChangesTargetQuery } from '$lib/chat/application/queries/session-changes-target.query.svelte';
 	import { sessionChangesQuery } from '$lib/chat/application/queries/session-changes.query.svelte';
 	import { sessionEnvelopesQuery } from '$lib/chat/application/queries/session-envelopes.query.svelte';
-	import { shellRunsQuery } from '$lib/chat/application/queries/shell-runs.query.svelte';
 	import { waitingElsewhereQuery } from '$lib/chat/application/queries/waiting-elsewhere.query.svelte';
 	import { isUncheckedApproval } from '$lib/chat/domain/child-requests';
 	import { agentDraftScopeKey } from '$lib/chat/domain/draft';
@@ -67,7 +66,6 @@
 	import AgentProcessDiedBanner from './AgentProcessDiedBanner.svelte';
 	import AgentQuestionPanel from './AgentQuestionPanel.svelte';
 	import BackgroundTaskList from './BackgroundTaskList.svelte';
-	import ShellRunCard from './ShellRunCard.svelte';
 	import ChatChangedFiles from './ChatChangedFiles.svelte';
 	import ChatColdShell from './ChatColdShell.svelte';
 	import ChatComposer from './ChatComposer.svelte';
@@ -138,7 +136,6 @@
 	const model = $derived(activeModelQuery.data);
 	const profile = $derived(runProfileQuery.data);
 	const backgroundWork = $derived(backgroundWorkQuery.data(sessionId));
-	const shellRuns = $derived(shellRunsQuery.data(sessionId));
 	const handsOffBackgroundWork = $derived(
 		backgroundWork?.waiting === true && !(sessionId && pendingPromptQuery.data(sessionId)),
 	);
@@ -497,7 +494,7 @@
 							{/if}
 							<div class="chat-stage-inset flex flex-col">
 								<div bind:borderBoxSize={traySize}>
-									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || backgroundWork || shellRuns.length > 0 || jobRuns.length > 0 || queuedPrompts.length > 0}
+									{#if notice || (showsSessionChanges && sessionChanges) || childRequestsWaiting || uncheckedCallsWaiting || backgroundWork || jobRuns.length > 0 || queuedPrompts.length > 0}
 										<div class="chat-column px-7" transition:slide={foldMotion()}>
 											<div
 												class="border-surface-50-border bg-surface-50 divide-surface-50-border divide-y-[0.5px] overflow-hidden rounded-t-xl border-x-[0.5px] border-t-[0.5px]"
@@ -552,12 +549,6 @@
 														/>
 													</div>
 												{/if}
-
-												{#each shellRuns as run (run.id)}
-													<div transition:slide={foldMotion()}>
-														<ShellRunCard {run} />
-													</div>
-												{/each}
 
 												{#if queuedPrompts.length > 0}
 													<div transition:slide={foldMotion()}>

@@ -40,10 +40,21 @@ afterEach(async () => {
 
 const workstream = { workstreamId: 'ws-1', sessionId: 'session-1' };
 
+let blocks = 0;
+
+function block(): { anchor: { message: string; block: number } } {
+	blocks += 1;
+	return { anchor: { message: 'message-1', block: blocks } };
+}
+
 describe('ShellRuns', () => {
 	it('runs the command in the checkout and keeps its exit code', async () => {
 		const { shellRuns, latest } = startShellRuns();
-		const started = await shellRuns.start({ ...workstream, command: 'pwd; echo done; exit 3' });
+		const started = await shellRuns.start({
+			...workstream,
+			...block(),
+			command: 'pwd; echo done; exit 3',
+		});
 		expect(started.state).toBe('running');
 
 		const finished = await until(
@@ -59,6 +70,7 @@ describe('ShellRuns', () => {
 		const { shellRuns, latest } = startShellRuns();
 		const started = await shellRuns.start({
 			...workstream,
+			...block(),
 			command: 'test -t 0 && printf "name? "; read name; echo "hi $name"',
 		});
 		await until(
@@ -78,7 +90,11 @@ describe('ShellRuns', () => {
 
 	it('interrupts a command the user stops', async () => {
 		const { shellRuns, latest } = startShellRuns();
-		const started = await shellRuns.start({ ...workstream, command: 'echo started; sleep 30' });
+		const started = await shellRuns.start({
+			...workstream,
+			...block(),
+			command: 'echo started; sleep 30',
+		});
 		await until(
 			() => latest(started.id),
 			(run) => run.output.includes('started'),
@@ -97,12 +113,12 @@ describe('ShellRuns', () => {
 
 	it('tells the agent about a finished command once and a running one each time', async () => {
 		const { shellRuns, latest } = startShellRuns();
-		const finished = await shellRuns.start({ ...workstream, command: 'echo ok' });
+		const finished = await shellRuns.start({ ...workstream, ...block(), command: 'echo ok' });
 		await until(
 			() => latest(finished.id),
 			(run) => run.state === 'exited',
 		);
-		const running = await shellRuns.start({ ...workstream, command: 'sleep 30' });
+		const running = await shellRuns.start({ ...workstream, ...block(), command: 'sleep 30' });
 
 		expect(shellRuns.report(workstream.sessionId)).toEqual([
 			{ command: 'echo ok', state: 'exited', exitCode: 0, output: 'ok\n' },
@@ -116,8 +132,28 @@ describe('ShellRuns', () => {
 		expect(latest(running.id)?.state).toBe('stopped');
 	});
 
+	it('keeps one run per code block: Run again replaces a finished run, never a running one', async () => {
+		const { shellRuns, latest } = startShellRuns();
+		const anchor = { message: 'message-2', block: 0 };
+		const first = await shellRuns.start({ ...workstream, anchor, command: 'echo first' });
+		await until(
+			() => latest(first.id),
+			(run) => run.state === 'exited',
+		);
+
+		const second = await shellRuns.start({ ...workstream, anchor, command: 'sleep 30' });
+		expect(second.id).not.toBe(first.id);
+		expect(shellRuns.list().map((run) => run.id)).toEqual([second.id]);
+
+		const again = await shellRuns.start({ ...workstream, anchor, command: 'sleep 30' });
+		expect(again.id).toBe(second.id);
+		expect(shellRuns.list()).toHaveLength(1);
+	});
+
 	it('refuses an empty command', async () => {
 		const { shellRuns } = startShellRuns();
-		await expect(shellRuns.start({ ...workstream, command: '  ' })).rejects.toThrow('invalid args');
+		await expect(shellRuns.start({ ...workstream, ...block(), command: '  ' })).rejects.toThrow(
+			'invalid args',
+		);
 	});
 });

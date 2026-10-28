@@ -13,7 +13,7 @@ import {
 	sendPrompt,
 } from './harness';
 
-test('Run executes a code block in the workstream at once, takes typed answers, stops, and the agent reads what it printed', async () => {
+test('Run executes a code block in place: its output streams inside the block, takes typed answers, reruns, stops, and the agent reads what it printed', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -39,10 +39,12 @@ test('Run executes a code block in the workstream at once, takes typed answers, 
 		await expect(page.getByRole('tooltip', { name: 'Run in this workstream' })).toBeVisible();
 		await askBlock.getByRole('button', { name: 'Run command' }).click();
 
-		const ask = page.getByTestId('shell-run').filter({ hasText: 'read name' });
+		const ask = askBlock.getByTestId('shell-run');
 		const askOutput = ask.getByRole('log', { name: 'Output' });
 		await expect(askOutput).toContainText('Your name?', { timeout: 20_000 });
 		await expect(ask).toHaveAttribute('data-state', 'running');
+		await expect(askBlock.getByRole('button', { name: 'Run command' })).toBeHidden();
+		await expect(page.getByTestId('shell-run')).toHaveCount(1);
 		await askOutput.click();
 		await expect(ask.getByRole('textbox', { name: /^Type into / })).toBeFocused();
 		await page.keyboard.type('Simon');
@@ -50,17 +52,25 @@ test('Run executes a code block in the workstream at once, takes typed answers, 
 		await page.keyboard.press('Enter');
 		await expect(askOutput).toContainText(`hi Simon in ${basename(worktree)}`);
 		await expect(ask.getByTestId('shell-run-status')).toHaveText('exit 0');
+		await expect(askBlock.getByRole('button', { name: 'Run command' })).toBeVisible();
 
 		await serveBlock.getByRole('button', { name: 'Run command' }).click();
-		const serve = page.getByTestId('shell-run').filter({ hasText: 'sleep 300' });
+		const serve = serveBlock.getByTestId('shell-run');
 		await expect(serve.getByRole('log', { name: 'Output' })).toContainText('serving', {
 			timeout: 20_000,
 		});
 		await captureFlow(app, 'shell-run-running');
 		await serve.getByRole('button', { name: 'Stop command' }).click();
 		await expect(serve.getByTestId('shell-run-status')).toHaveText('stopped', { timeout: 20_000 });
-		await serve.getByRole('button', { name: 'Dismiss command' }).click();
+
+		await serveBlock.getByRole('button', { name: 'Run command' }).click();
+		await expect(serve).toHaveAttribute('data-state', 'running');
+		await expect(serve).toHaveCount(1);
+		await serve.getByRole('button', { name: 'Stop command' }).click();
+		await expect(serve.getByTestId('shell-run-status')).toHaveText('stopped', { timeout: 20_000 });
+		await serve.getByRole('button', { name: 'Clear output' }).click();
 		await expect(serve).toHaveCount(0);
+		await expect(ask).toHaveCount(1);
 
 		const prompts = async (): Promise<string[]> =>
 			(await listEvents(page, sessionId)).flatMap(({ event }) =>

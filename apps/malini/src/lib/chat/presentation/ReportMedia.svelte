@@ -71,6 +71,7 @@
 		<video
 			bind:this={video}
 			src={source}
+			autoplay={moving && size === 'tile'}
 			muted
 			loop
 			playsinline

@@ -34,7 +34,7 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 	},
 	'chat:shell-run-changed': {
 		description:
-			"Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.",
+			"Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, `anchor`: the message and the code block in it it ran from, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.",
 		logged: false,
 	},
 	'repositories:workstream-created': {

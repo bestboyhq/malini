@@ -1,4 +1,5 @@
 import { CHAT_SHELL_RUN_CHANGED_CHANNEL } from '$contract/events';
+import type { ShellRunAnchor } from '$contract/shell-runs';
 import type { MainContext } from '$main/context';
 import { isRecord } from '$main/db/rows';
 import { ShellRuns, type ShellRunsDeps } from './service';
@@ -17,6 +18,7 @@ export function installShellRuns(
 		shellRuns.start({
 			workstreamId: requireId(args, 'workstreamId'),
 			sessionId: requireId(args, 'sessionId'),
+			anchor: requireAnchor(args),
 			command: requireString(args, 'command'),
 		}),
 	);
@@ -43,4 +45,13 @@ function requireId(args: unknown, key: string): string {
 	const value = requireString(args, key);
 	if (value.length === 0) throw new Error(`invalid args: \`${key}\` must be a non-empty string`);
 	return value;
+}
+
+function requireAnchor(args: unknown): ShellRunAnchor {
+	const anchor = isRecord(args) ? args['anchor'] : undefined;
+	const block = isRecord(anchor) ? anchor['block'] : undefined;
+	if (typeof block !== 'number' || !Number.isSafeInteger(block) || block < 0) {
+		throw new Error('invalid args: `anchor.block` must be a non-negative integer');
+	}
+	return { message: requireId(anchor, 'message'), block };
 }

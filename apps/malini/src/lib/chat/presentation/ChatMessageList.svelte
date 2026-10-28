@@ -6,7 +6,6 @@
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
 	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
-	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shipInForkCommand } from '$lib/chat/application/commands/ship-in-fork.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
@@ -440,10 +439,6 @@
 		});
 	}
 
-	function runShellCommand(command: string): void {
-		runShellCommandCommand({ workstreamId, sessionId, command });
-	}
-
 	function sendFollowUp(prompt: string, subject: string): void {
 		sendCommandPromptCommand({ workstreamId, sessionId, prompt, subject });
 	}
@@ -576,7 +571,6 @@
 			return implementingPlanKey;
 		},
 		implementPlan,
-		runShellCommand,
 		liveInputJsonForRunningTool,
 		openFileMention,
 		get canOpenFileMention() {

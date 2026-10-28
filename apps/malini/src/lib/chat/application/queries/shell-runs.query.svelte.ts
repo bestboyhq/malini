@@ -3,14 +3,16 @@ import { shellRunsAggregate } from '$lib/chat/infrastructure/aggregates/shell-ru
 
 export { shellRunsQuery };
 
+const NO_RUNS: ReadonlyMap<number, ShellRun> = new Map();
+
 class ShellRunsQuery {
-	public readonly data: (sessionId: string | null) => readonly ShellRun[] = $derived(
-		(sessionId: string | null) =>
-			sessionId === null
-				? []
-				: [...shellRunsAggregate.runs.values()]
-						.filter((run) => run.sessionId === sessionId)
-						.sort((left, right) => left.startedAt.localeCompare(right.startedAt)),
+	public readonly data: (message: string) => ReadonlyMap<number, ShellRun> = $derived(
+		(message: string) => {
+			const runs = [...shellRunsAggregate.runs.values()].filter(
+				(run) => run.anchor.message === message,
+			);
+			return runs.length === 0 ? NO_RUNS : new Map(runs.map((run) => [run.anchor.block, run]));
+		},
 	);
 }
 

@@ -18,6 +18,7 @@
 
 <script lang="ts">
 	import { onDestroy, onMount, untrack } from 'svelte';
+	import type { ShellRun } from '$contract/shell-runs';
 	import type { FileMentionTarget } from './file-mention-links';
 	import MarkdownText from './MarkdownText.svelte';
 	import {
@@ -37,7 +38,8 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string) => void) | undefined;
+		onruncommand?: ((command: string, block: number) => void) | undefined;
+		coderuns?: ReadonlyMap<number, ShellRun> | undefined;
 	}
 
 	let {
@@ -52,6 +54,7 @@
 		imagesrc,
 		onopenimage,
 		onruncommand,
+		coderuns,
 	}: Props = $props();
 
 	const FALLBACK_CHARACTER_WIDTH_PX = 7;
@@ -240,6 +243,7 @@
 			{imagesrc}
 			{onopenimage}
 			{onruncommand}
+			{coderuns}
 		/>
 	{/if}
 </div>

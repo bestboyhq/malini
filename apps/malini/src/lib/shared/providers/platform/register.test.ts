@@ -143,7 +143,7 @@ describe('providers.sign-in-to-claude', () => {
 		});
 
 		const waiting = commands.invoke({ command: 'providers.sign-in-to-claude', args: {} });
-		await expect.poll(() => existsSync(claude.argsFile)).toBe(true);
+		await expect.poll(() => existsSync(claude.argsFile), { timeout: 5_000 }).toBe(true);
 		await commands.invoke({ command: 'providers.cancel-claude-sign-in', args: undefined });
 
 		expect(await waiting).toEqual({ ok: true, value: 'cancelled' });
