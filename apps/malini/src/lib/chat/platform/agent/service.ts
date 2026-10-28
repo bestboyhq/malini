@@ -72,6 +72,7 @@ export interface AgentServiceDeps {
 	readonly prepareAttachments?: SendPromptHooks['prepareAttachments'];
 	readonly theme?: SendPromptHooks['theme'];
 	readonly shippingFailure?: SendPromptHooks['shippingFailure'];
+	readonly shellRuns?: SendPromptHooks['shellRuns'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
 	readonly log?: (line: string) => void;
@@ -312,6 +313,7 @@ export async function startAgentService(
 			...(deps.prepareAttachments ? { prepareAttachments: deps.prepareAttachments } : {}),
 			...(deps.theme ? { theme: deps.theme } : {}),
 			...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
+			...(deps.shellRuns ? { shellRuns: deps.shellRuns } : {}),
 			captureCheckpoint: deps.hooks.captureCheckpoint,
 			captureRunFinish: (runId) => runtime.notifyRunFinished(runId, 'not-delivered'),
 			closing: () => runtime.wasStopped,

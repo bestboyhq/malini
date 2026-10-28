@@ -744,7 +744,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string, language: string | null) => void) | undefined;
+		onruncommand?: ((command: string) => void) | undefined;
 	}
 
 	let {
@@ -765,7 +765,7 @@
 	const COPY_ANCHOR_SELECTOR = '[data-code-copy]';
 	const RUN_ANCHOR_ATTRIBUTE = 'data-code-run';
 	const ACTION_ANCHOR_SELECTOR = `${COPY_ANCHOR_SELECTOR}, [${RUN_ANCHOR_ATTRIBUTE}]`;
-	const RUN_TOOLTIP = { text: 'Run in this chat', placement: 'top' } as const;
+	const RUN_TOOLTIP = { text: 'Run in this workstream', placement: 'top' } as const;
 	const COPIED_MS = 1_500;
 
 	type MarkdownTextUpdate = StreamingMarkdownUpdate & MarkdownDecorations;
@@ -818,7 +818,7 @@
 			?.closest(CODE_BLOCK_ROOT_SELECTOR)
 			?.querySelector(CODE_BLOCK_SELECTOR);
 		if (!code) return false;
-		onruncommand?.(code.textContent ?? '', codeLanguage(code));
+		onruncommand?.(code.textContent ?? '');
 		return true;
 	}
 

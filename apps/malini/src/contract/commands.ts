@@ -75,6 +75,7 @@ import type {
 import type { ListSkillsArgs, SkillRecord, SkillUsageReport, SwitchSkillArgs } from './skills';
 import type { RuntimeInfo } from './runtime';
 import type { SaveScratchpadArgs, ScratchpadArgs } from './scratchpad';
+import type { RunShellCommandArgs, ShellInputArgs, ShellRun, ShellRunArgs } from './shell-runs';
 import type { AddSoundArgs, CustomSound, PickedSound, SoundBytes, SoundIdArgs } from './sounds';
 import type {
 	ActivityStats,
@@ -645,6 +646,11 @@ export interface ContractCommands {
 		result: StagedAgentAttachment;
 	};
 	'chat.stop-background-task': { args: StopBackgroundTaskArgs; result: void };
+	'chat.run-shell-command': { args: RunShellCommandArgs; result: ShellRun };
+	'chat.shell-runs': { args: undefined; result: ShellRun[] };
+	'chat.write-shell-input': { args: ShellInputArgs; result: void };
+	'chat.stop-shell-run': { args: ShellRunArgs; result: void };
+	'chat.dismiss-shell-run': { args: ShellRunArgs; result: void };
 	'chat.start-session': { args: StartAgentSessionArgs; result: string };
 	'extensions.stat-workstream-file': {
 		args: ExtensionFileArgs;
@@ -867,6 +873,11 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'chat.stage-fork-transcript',
 	'chat.start-session',
 	'chat.stop-background-task',
+	'chat.run-shell-command',
+	'chat.shell-runs',
+	'chat.write-shell-input',
+	'chat.stop-shell-run',
+	'chat.dismiss-shell-run',
 	'extensions.stat-workstream-file',
 	'extensions.write-workstream-file',
 	'app.focus-window',

@@ -7,6 +7,7 @@ import {
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { AgentEventPage } from '$contract/commands';
 import type { ShipFailure } from '$contract/pull-requests';
+import type { ReportedShellRun } from '../shell-runs/service';
 import type { CommandRegistry } from '$main/ipc/registry';
 import type { MaliniDatabase } from '$main/db/driver';
 import {
@@ -189,6 +190,7 @@ export interface SendPromptHooks {
 	readonly notifyWorkstreamRenamed?: (workstreamId: string, name: string) => void;
 	readonly theme?: () => AgentTheme;
 	readonly shippingFailure?: (workstreamId: string) => ShipFailure | null;
+	readonly shellRuns?: (sessionId: string) => readonly ReportedShellRun[];
 }
 
 function invalidContext(detail: string): LifecycleError {
@@ -367,6 +369,16 @@ export function promptWithShippingFailure(prompt: string, failure: ShipFailure |
 		`${prompt}\n\n<workstream_shipping>${serialized}</workstream_shipping>\n` +
 		'This is the note Malini shows in the chat while it retries shipping this workstream, and it keeps retrying on its own. ' +
 		'When the user asks why the pull request is not open or merged, answer from it; the user can press Retry now or Cancel in that note.'
+	);
+}
+
+export function promptWithShellRuns(prompt: string, runs: readonly ReportedShellRun[]): string {
+	if (runs.length === 0) return prompt;
+	const serialized = escapeDelimiters(JSON.stringify(runs));
+	return (
+		`${prompt}\n\n<user_shell_commands>${serialized}</user_shell_commands>\n` +
+		"The user ran these commands themselves from the Run button on your code blocks, in this workstream's checkout, since you last heard about them; one still `running` keeps running. " +
+		'Read their output before you answer, and never run them again unless the user asks.'
 	);
 }
 
@@ -673,9 +685,9 @@ async function sendAgentPromptLeased(
 	});
 	let bridgePrompt = promptWithVerifiedAttachments(withTranscripts.prompt, verifiedAttachments);
 	const withElements = promptWithElementReferences(bridgePrompt, input.elementReferences ?? []);
-	bridgePrompt = promptWithShippingFailure(
-		withElements.prompt,
-		hooks.shippingFailure?.(workstreamId) ?? null,
+	bridgePrompt = promptWithShellRuns(
+		promptWithShippingFailure(withElements.prompt, hooks.shippingFailure?.(workstreamId) ?? null),
+		hooks.shellRuns?.(sessionId) ?? [],
 	);
 
 	run(db, "UPDATE agent_sessions SET status = 'running' WHERE id = ?", sessionId);

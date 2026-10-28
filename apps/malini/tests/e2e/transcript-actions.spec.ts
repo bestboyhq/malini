@@ -5,10 +5,8 @@ import {
 	captureFlow,
 	createSourceRepo,
 	expectAssistantReply,
-	currentSessionId,
 	expectCleanConsole,
 	launchMalini,
-	listEvents,
 	openWorkstream,
 	seedWorkstream,
 	sendPrompt,
@@ -35,7 +33,7 @@ async function untilScrollRests(scroller: Locator): Promise<void> {
 	);
 }
 
-test('a failed command says why on its row, an edit shows its size on its row, and a shell code block copies its code and runs it in the chat', async () => {
+test('a failed command says why on its row, an edit shows its size on its row, and a shell code block copies its code', async () => {
 	test.setTimeout(120_000);
 	const app = await launchMalini();
 	try {
@@ -60,23 +58,6 @@ test('a failed command says why on its row, an edit shows its size on its row, a
 		await expect
 			.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
 			.toBe('pnpm --filter malini test');
-
-		const codeBlock = page.getByTestId('markdown-code-block');
-		await codeBlock.getByRole('button', { name: 'Run command' }).hover();
-		await expect(page.getByRole('tooltip', { name: 'Run in this chat' })).toBeVisible();
-		await captureFlow(app, 'transcript-code-run');
-		await codeBlock.getByRole('button', { name: 'Run command' }).click();
-		const sessionId = currentSessionId(page);
-		if (!sessionId) throw new Error('the chat has no session');
-		await expect
-			.poll(async () =>
-				(await listEvents(page, sessionId)).flatMap(({ event }) =>
-					event.type === 'user.message' ? [String(event['text'])] : [],
-				),
-			)
-			.toEqual(['BASH_FAIL EDIT_TOOL CODE', 'Run this:\n```sh\npnpm --filter malini test\n```']);
-		await expect(page.locator('[data-message-kind="user"]').last()).toContainText('Run this:');
-		await captureFlow(app, 'transcript-code-run-sent');
 
 		expectCleanConsole(app);
 	} finally {

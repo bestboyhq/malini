@@ -6,6 +6,7 @@
 	import { openAttachmentFileCommand } from '$lib/chat/application/commands/open-attachment-file.command';
 	import { redoCheckpointCommand } from '$lib/chat/application/commands/redo-checkpoint.command';
 	import { sendCommandPromptCommand } from '$lib/chat/application/commands/send-command-prompt.command';
+	import { runShellCommandCommand } from '$lib/chat/application/commands/run-shell-command.command';
 	import { shipInForkCommand } from '$lib/chat/application/commands/ship-in-fork.command';
 	import { rememberTranscriptAnchorCommand } from '$lib/chat/application/commands/remember-transcript-anchor.command';
 	import { rememberTranscriptHeightsCommand } from '$lib/chat/application/commands/remember-transcript-heights.command';
@@ -32,7 +33,6 @@
 	import { newChatRequestId, type ChatRequestId } from '$lib/chat/domain/chat-request';
 	import { redoFailureOffersBranch } from '$lib/chat/domain/checkpoint-requests';
 	import type { StagedAgentAttachment } from '$lib/chat/domain/composer-actions';
-	import { shellCommandPrompt } from '$lib/chat/domain/shell-command-prompt';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import type { SessionId } from '$lib/chat/domain/session';
 	import type { TranscriptAnchor } from '$lib/chat/domain/transcript-anchor';
@@ -440,13 +440,8 @@
 		});
 	}
 
-	function runShellCommand(command: string, language: string | null): void {
-		sendCommandPromptCommand({
-			workstreamId,
-			sessionId,
-			prompt: shellCommandPrompt(command, language),
-			subject: 'Command',
-		});
+	function runShellCommand(command: string): void {
+		runShellCommandCommand({ workstreamId, sessionId, command });
 	}
 
 	function sendFollowUp(prompt: string, subject: string): void {

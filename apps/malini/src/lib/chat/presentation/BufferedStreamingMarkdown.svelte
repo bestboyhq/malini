@@ -37,7 +37,7 @@
 		canopenfile?: ((path: string) => boolean) | undefined;
 		imagesrc?: ((path: string) => string | null) | undefined;
 		onopenimage?: ((id: string) => void) | undefined;
-		onruncommand?: ((command: string, language: string | null) => void) | undefined;
+		onruncommand?: ((command: string) => void) | undefined;
 	}
 
 	let {

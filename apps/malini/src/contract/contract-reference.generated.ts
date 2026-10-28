@@ -59,6 +59,14 @@ export const CONTRACT_REFERENCE: ContractReference = {
 				'type McpServerReport = Readonly<{\n\tname: string;\n\tstatus: string;\n\terror?: string;\n\tsource?: string;\n\ttoolCount?: number;\n}>;\n\ntype McpServerListing = Readonly<{\n\tworkstreamId: string | null;\n\tservers: readonly McpServerReport[];\n\tsettled: boolean;\n\terror?: string;\n}>;',
 		},
 		{
+			channel: 'chat:shell-run-changed',
+			description:
+				"Fires when you run a command from a code block's Run button, while it prints, and when it ends, with the command, its output so far, and `state`: `running`, `exited` with its `exitCode`, `stopped`, or `failed` when it could not start. Malini does not keep it in its event log.",
+			payloadType: 'ShellRun',
+			payload:
+				"type ShellRunState = 'running' | 'exited' | 'stopped' | 'failed';\n\ntype ShellRun = Readonly<{\n\tid: string;\n\tworkstreamId: string;\n\tsessionId: string;\n\tcommand: string;\n\tstate: ShellRunState;\n\texitCode: number | null;\n\toutput: string;\n\tstartedAt: string;\n\tfinishedAt: string | null;\n}>;",
+		},
+		{
 			channel: 'repositories:workstream-created',
 			description:
 				'Fires when a new workstream exists: its git worktree is checked out and it is ready for chats. `workstream.scope` is `home` or `owner:<owner>` for a chat that leads work above repositories, and `workstream.startedBy` is the id of the workstream whose chat started it.',
