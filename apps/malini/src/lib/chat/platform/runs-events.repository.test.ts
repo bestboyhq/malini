@@ -600,7 +600,7 @@ describe('what keeps running in a workstream', () => {
 });
 
 describe('chat turns', () => {
-	it('lists the chat turns that called Malini, or the latest ones too, never a job session, with their status', () => {
+	it('lists the chat turns that called Malini, or the latest ones too, never a job session, with their status and the words of their prompt', () => {
 		const db = openMigratedDatabase(':memory:');
 		db.exec(`
 			INSERT INTO projects (id, name, repo_path, default_branch, created_at) VALUES ('p', 'p', '/tmp/p', 'main', '2026-10-23T00:00:00Z');
@@ -610,7 +610,7 @@ describe('chat turns', () => {
 			  ('job', 'w', 'idle', '2026-10-23T00:00:00Z', 'Fix checks', 'job');
 			INSERT INTO agent_runs (id, session_id, prompt, started_at, completed_at, error, obsoleted_at) VALUES
 			  ('called', 'chat', '
-  Clone acme/site
+  [[attachment:att-1]] Clone [[context:src/site.ts]] acme/site
 then hide it', '2026-10-23T10:00:00Z', '2026-10-23T10:01:00Z', NULL, NULL),
 			  ('failed', 'chat', 'Try again', '2026-10-23T11:00:00Z', '2026-10-23T11:01:00Z', 'boom', NULL),
 			  ('running', 'chat', 'Keep going', '2026-10-23T12:00:00Z', NULL, NULL, NULL),
