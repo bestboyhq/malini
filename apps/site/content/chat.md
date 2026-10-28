@@ -94,8 +94,8 @@ Pick Fable, Opus, Sonnet, or Haiku, and an effort from Low to Max, for every pro
 
 ## Claude accounts
 
-The account Claude Code is signed in to always shows under the composer, on the left: click it for every Claude account you used on this Mac.
-The same list sits in **Settings > Accounts** and under **Account** when you point at the gauge in the composer, and **Accounts…** in Malini's menu bar icon opens Settings there.
+Point at the gauge in the composer for the account Claude Code is signed in to and every Claude account you used on this Mac, under **Account**.
+The same list sits in **Settings > Accounts**, and **Accounts…** in Malini's menu bar icon opens Settings there.
 **Add account** signs in to another account through your browser, and **Switch** moves to an account you used before.
 After that, Malini keeps the account you leave signed in, encrypted on your Mac, so switching back takes one click, and your browser opens only when Claude asks you to sign in again.
 A switch applies to Claude Code everywhere, in your terminal too, and each chat moves to the new account with its next prompt.
@@ -159,6 +159,7 @@ When you ask for options, or the direction is open, the agent makes two to four 
 Each variant is a tab under the report's frame, and the before and after sits past a divider; the variant you chose keeps its ring while you look at the evidence.
 Click a picture or recording in the frame to open it in the gallery.
 Point at a recording to show its controls: play or pause, scrub, change the volume from the speaker button, and slow it to 0.5× or 0.25×.
+While you hold the playhead, the recording stops on the frame under it, and it plays on when you let go.
 A variant can be a picture, a recording that plays on a loop, or an HTML page that runs live, so you can judge motion before you pick.
 Every HTML variant carries the same switcher at the bottom center of the page, so you can flip between them in the browser with a click or the arrow keys.
 Pick one, say why if you like, and the agent builds on it; **None fit** asks for new ones.
@@ -186,7 +187,7 @@ The trash button beside one of yours removes it once you click **Remove**, and a
 - A tool call's command, file, and duration fade in as they arrive.
 - Every edit, write, and read is a file badge: point at it for a card with what the edit changed, the file it wrote, or the lines it read, and click to keep the card open.
 - The chat follows the reply while you point at a step, and holds still while you point into one you expanded.
-- Point at the gauge or the plug in the composer for the context window breakdown, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
+- Point at the gauge or the plug in the composer for the context window breakdown, the tokens the last run used, your plan usage (five-hour and weekly), the Claude account in use, and the status of your MCP servers, read live from the chat's Claude Code.
 
 ## Undo, edit, slice and fork
 

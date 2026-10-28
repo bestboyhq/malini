@@ -139,7 +139,7 @@ export async function expectMergedAndArchived(
 export async function expectMerged(page: Page, workstreamId: string): Promise<void> {
 	await expect(topBarStatus(page, /^Merged/u)).toBeVisible({ timeout: 90_000 });
 	await expect(page.getByRole('button', { name: 'Archive this workstream' })).toBeEnabled();
-	await expect(page.getByRole('button', { name: /^Continue on top of the latest / })).toBeEnabled();
+	await expect(page.getByRole('button', { name: /^Continue/u })).toHaveCount(0);
 	await expect(
 		page.locator(`[data-testid="sidebar-workstream"][data-workstream-id="${workstreamId}"]`),
 	).toHaveCount(1);

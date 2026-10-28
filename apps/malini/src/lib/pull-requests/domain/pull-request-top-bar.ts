@@ -18,6 +18,7 @@ import {
 } from './pull-request-ship';
 import {
 	repositorySurfaceHasBeenRead,
+	surfaceMergedHead,
 	type RepositorySurface,
 	type SurfacePullRequest,
 	type SurfacePullRequestCheck,
@@ -93,7 +94,7 @@ function shipStatus(
 ): WorkstreamStatus | null {
 	if (!read) return ship?.pullRequestNumber ? openBeforeRead(ship.pullRequestNumber, ship) : null;
 	const pullRequest = read.pullRequest;
-	if (pullRequest?.state === 'merged') return merged(read, pullRequest);
+	if (pullRequest?.state === 'merged') return merged(read);
 	if (pullRequest && publishedPullRequest(pullRequest)) {
 		return {
 			...openStatus(pullRequest),
@@ -267,23 +268,12 @@ function blockingOperation(read: RepositorySurface): WorkstreamStatus | null {
 	);
 }
 
-function merged(read: RepositorySurface, pullRequest: SurfacePullRequest): WorkstreamStatus {
+function merged(read: RepositorySurface): WorkstreamStatus {
+	const head = surfaceMergedHead(read);
 	return {
 		...line('merged', 'Merged', null),
+		tooltip: head ? `Your next prompt continues on top of the latest ${head.baseBranch}` : null,
 		action: ARCHIVE,
-		...(read.baseBranch && pullRequest.headSha
-			? { secondaryAction: continueOnBase(read.baseBranch) }
-			: {}),
-	};
-}
-
-function continueOnBase(baseBranch: string): PullRequestTopBarAction {
-	return {
-		kind: 'continue',
-		label: 'Continue',
-		ariaLabel: `Continue on top of the latest ${baseBranch}`,
-		tone: 'secondary',
-		confirmLabel: null,
 	};
 }
 
@@ -489,6 +479,7 @@ const KEEP: PullRequestTopBarAction = {
 	ariaLabel: 'Keep this workstream after it merges',
 	tone: 'secondary',
 	confirmLabel: null,
+	tooltip: 'Skip archiving after the merge',
 };
 
 const OPEN_PULL_REQUEST: PullRequestTopBarAction = {

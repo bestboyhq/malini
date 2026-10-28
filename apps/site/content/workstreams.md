@@ -122,7 +122,9 @@ Like every workstream, each one stays on its own commits while main moves, and m
   A turn without a commit subject commits under the pull request title or the files it changed, and a pull request without a title takes the chat's title or the files changed, never your prompt or the agent's reply.
 - **Merge** queues it: push, mark ready, update from main, wait for checks and review, and merge with the repository's own merge method.
   The workstream archives itself when it lands and moves to **Recently archived**.
-  **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive** and **Continue**.
+  **Keep**, beside **Cancel** while the merge is queued, leaves it open on **Merged** instead, with **Archive**.
+- **Your next prompt continues it.** A prompt you send in a workstream on **Merged** first moves its branch onto the latest main, and the agent works from there.
+  When it cannot, because you are offline or GitHub does not answer, a toast says why and the composer keeps your prompt.
 - **It runs on events.** **Draft**, **Merge**, **Cancel** and **Keep** each log a **Button clicked**, and the [Reconciler](/malini/docs/jobs.md#reconciler)'s **Shipping** rule takes the workstream from there.
   It moves only when Malini logs something, such as a turn or a job that ends, a change on GitHub, or a wait that ends, and it picks up where it left off after a restart.
   A chat or a job ships with the **Open draft** or **Merge** job, and that job finishing moves the workstream on.

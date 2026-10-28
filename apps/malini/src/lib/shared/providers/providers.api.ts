@@ -64,7 +64,6 @@ export { subscriptionBillingQuery } from './application/queries/subscription-bil
 
 export { default as AgentAccessSettings } from './presentation/AgentAccessSettings.svelte';
 export { default as ClaudeAccountList } from './presentation/ClaudeAccountList.svelte';
-export { default as ClaudeAccountMenu } from './presentation/ClaudeAccountMenu.svelte';
 export { default as ClaudeCodeSetup } from './presentation/ClaudeCodeSetup.svelte';
 export { default as ModelDefaultsSettings } from './presentation/ModelDefaultsSettings.svelte';
 export { default as ModelProfilePicker } from './presentation/ModelProfilePicker.svelte';

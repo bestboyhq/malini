@@ -1,11 +1,11 @@
-# 0103 - Run executes a code block in a terminal Malini owns
+# 0104 - Run executes a code block in a terminal Malini owns
 
 Status: accepted
 
 ## Context
 
 Since #5 (8895e7f), **Run** on a shell code block sent `Run this:` with the command back to the same chat, so the agent ran it under the chat's access level and the run could be undone.
-It waited behind a busy agent, spent a turn on a command the user had already read, and could not run what the agent hands the user because only the user can run it: `gh auth refresh -s workflow` (0102) needs a terminal, and `gh` refuses to prompt without one.
+It waited behind a busy agent, spent a turn on a command the user had already read, and could not run what the agent hands the user because only the user can run it: `gh auth refresh -s workflow` (0103) needs a terminal, and `gh` refuses to prompt without one.
 The user: "whenever I click run button on a bash script, it should just execute. It shouldn't tell agents to run it … Malini should spawn some process".
 The platform rule allows no native addons, so `node-pty` is out, and Node hands a child a socket for stdin, which macOS `script(1)` refuses as a terminal's input.
 
