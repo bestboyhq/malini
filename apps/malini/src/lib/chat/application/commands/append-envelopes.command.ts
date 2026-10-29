@@ -6,6 +6,7 @@ import { agentPromptQueue } from '$lib/chat/infrastructure/aggregates/prompt-que
 import { sessionsAggregate } from '$lib/chat/infrastructure/aggregates/sessions.aggregate.svelte';
 import { transcriptAggregate } from '$lib/chat/infrastructure/aggregates/transcript.aggregate.svelte';
 import { sessionActivation } from '$lib/chat/infrastructure/services/session-activation.service';
+import { workstreamChatsPreloader } from '$lib/chat/infrastructure/services/workstream-chats-preloader.service';
 import { chatSessionStore } from '$lib/chat/infrastructure/stores/chat-session.store.svelte';
 import { planUsageStore } from '$lib/chat/infrastructure/stores/plan-usage.store.svelte';
 import { streamingStore } from '$lib/chat/infrastructure/stores/streaming.store.svelte';
@@ -16,7 +17,10 @@ export { appendEnvelopesCommand };
 function appendEnvelopesCommand(batch: readonly EventEnvelope[]): void {
 	if (batch.length === 0) return;
 	const sessionIds = new Set<SessionId>(batch.map((envelope) => envelope.sessionId));
-	for (const sessionId of sessionIds) sessionActivation.ensureRecord(sessionId);
+	for (const sessionId of sessionIds) {
+		sessionActivation.ensureRecord(sessionId);
+		workstreamChatsPreloader.placeChat(sessionId);
+	}
 
 	const accepted = transcriptAggregate.append(batch);
 	if (accepted.length === 0) return;

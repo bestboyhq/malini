@@ -347,6 +347,11 @@ test('allowing what a workstream it started asks stops the lead chat from waitin
 			'Api reads',
 			lead.id,
 		);
+		const childStatus = sidebar(page)
+			.getByRole('link', { name: /Api reads/u })
+			.getByRole('status');
+		await expect(childStatus).toBeVisible();
+		await page.waitForTimeout(1_000);
 		const childSession = await invoke<string>(page, 'chat.start-session', {
 			workstreamId: child.workstreamId,
 		});
@@ -359,6 +364,7 @@ test('allowing what a workstream it started asks stops the lead chat from waitin
 		const decision = page.getByRole('group', { name: 'Permission decision' });
 		await expect(decision).toBeVisible({ timeout: 30_000 });
 		await expect(status).toHaveAccessibleName(/A workstream it started is waiting for approval/u);
+		await expect(childStatus).toHaveAccessibleName('Workstream status: Approval');
 
 		await decision.getByRole('button', { name: 'Allow once' }).click();
 		await expect(decision).toHaveCount(0);

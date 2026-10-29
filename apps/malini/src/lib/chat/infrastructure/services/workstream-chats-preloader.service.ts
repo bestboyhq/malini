@@ -42,11 +42,20 @@ class WorkstreamChatsPreloader {
 	readonly #replaying = new Map<SessionId, TranscriptReplay>();
 	readonly #warmOrder = new Map<SessionId, true>();
 	readonly #listedWithoutChatsAt = new Map<string, number>();
+	readonly #placedChats = new Set<SessionId>();
+	#workstreamIds: readonly string[] = [];
 
 	preload(workstreamIds: readonly string[]): void {
+		this.#workstreamIds = workstreamIds;
 		const seq = ++this.#seq;
 		this.#cancel();
 		void this.#hydrate(workstreamIds, seq);
+	}
+
+	placeChat(sessionId: SessionId): void {
+		if (chatIsKnown(sessionId) || this.#placedChats.has(sessionId)) return;
+		this.#placedChats.add(sessionId);
+		void this.#place(this.#workstreamIds);
 	}
 
 	warm(workstreamId: string, sessionId: SessionId | null): void {
@@ -115,13 +124,24 @@ class WorkstreamChatsPreloader {
 	async #hydrate(workstreamIds: readonly string[], seq: number): Promise<void> {
 		const batches = await listSessionBatches(workstreamIds);
 		if (seq !== this.#seq) return;
+		this.#applyListing(workstreamIds, batches);
+		this.#scheduleAfterPaint(workstreamIds, batches, seq);
+	}
+
+	async #place(workstreamIds: readonly string[]): Promise<void> {
+		this.#applyListing(workstreamIds, await listSessionBatches(workstreamIds));
+	}
+
+	#applyListing(
+		workstreamIds: readonly string[],
+		batches: readonly (readonly ChatSessionSummary[])[],
+	): void {
 		batches.forEach((summaries, index) => {
 			const workstreamId = workstreamIds[index];
 			if (workstreamId) this.#rememberListing(workstreamId, summaries);
 			hydrateSummaries(summaries);
 		});
 		agentLifecycleMonitor.flushKnownSessions();
-		this.#scheduleAfterPaint(workstreamIds, batches, seq);
 	}
 
 	#scheduleAfterPaint(
