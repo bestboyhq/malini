@@ -19,6 +19,14 @@ describe('shipFailure', () => {
 			tries: 5,
 			since: '23:06',
 			nextTry: '23:22',
+			waitsFor: null,
+		});
+	});
+
+	it('names no next try while it waits for you to clear the cause', () => {
+		expect(shipFailure(ship({ waitsFor: 'workflow-scope', nextAttemptAt: null }))).toMatchObject({
+			nextTry: null,
+			waitsFor: 'workflow-scope',
 		});
 	});
 
@@ -77,6 +85,9 @@ describe('failure copy', () => {
 		expect(failureTries(now)).toBe('5 tries');
 		expect(failureNextTry(failure)).toBe('next at 23:22');
 		expect(failureNextTry(now)).toBe('retrying now');
+		expect(failureNextTry({ ...failure, nextTry: null, waitsFor: 'workflow-permission' })).toBe(
+			'waits for you',
+		);
 	});
 
 	it('splits a reason into text and the code it quotes', () => {
@@ -101,6 +112,7 @@ function ship(overrides: Partial<ShipFailureSource> = {}): ShipFailureSource {
 		failures: 5,
 		failedSince: localTime(23, 6),
 		nextAttemptAt: localTime(23, 22),
+		waitsFor: null,
 		updatedAt: localTime(23, 14),
 		...overrides,
 	};

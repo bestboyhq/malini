@@ -6,6 +6,12 @@
 	import { sendShipIntentCommand } from '$lib/pull-requests/application/commands/send-ship-intent.command';
 	import { pullRequestBusyQuery } from '$lib/pull-requests/application/queries/pull-request-busy.query.svelte';
 	import { codeSpans, failureNextTry, failureTries } from '$lib/pull-requests/domain/ship-failure';
+	import {
+		allowGithubWorkflowChangesCommand,
+		cancelGithubSignInCommand,
+		GitHubDeviceCode,
+		githubSignInQuery,
+	} from '$shared/repositories/repositories.api';
 
 	interface Props {
 		workstreamId: string;
@@ -18,6 +24,8 @@
 
 	const busy = $derived(pullRequestBusyQuery.data);
 	const reason = $derived(codeSpans(failure.reason));
+	const signIn = $derived(githubSignInQuery.data);
+	const allowing = $derived(signIn.kind !== 'idle' && signIn.flow === 'workflow-access');
 </script>
 
 <section
@@ -49,16 +57,34 @@
 			{failureTries(failure)} so far · {failureNextTry(failure)} · your agent reads this note too
 		</p>
 		<div class="mt-2 flex items-center gap-1.5">
-			<Button
-				variant="secondary"
-				size="sm"
-				disabled={busy}
-				ariaBusy={busy}
-				onclick={() => sendShipIntentCommand('retry-now', workstreamId)}
-			>
-				Retry now
-			</Button>
-			{#if failure.stage === 'draft'}
+			{#if failure.waitsFor === 'workflow-scope'}
+				<Button
+					variant="secondary"
+					size="sm"
+					disabled={busy || allowing}
+					loading={allowing}
+					ariaBusy={allowing}
+					onclick={allowGithubWorkflowChangesCommand}
+				>
+					Allow workflow changes
+				</Button>
+			{/if}
+			{#if allowing}
+				{#if signIn.kind !== 'confirming'}
+					<Button variant="ghost" size="sm" onclick={cancelGithubSignInCommand}>Cancel</Button>
+				{/if}
+			{:else}
+				<Button
+					variant={failure.waitsFor === 'workflow-scope' ? 'ghost' : 'secondary'}
+					size="sm"
+					disabled={busy}
+					ariaBusy={busy}
+					onclick={() => sendShipIntentCommand('retry-now', workstreamId)}
+				>
+					Retry now
+				</Button>
+			{/if}
+			{#if failure.stage === 'draft' && !allowing}
 				<Button
 					variant="ghost"
 					size="sm"
@@ -87,6 +113,9 @@
 				</Button>
 			{/if}
 		</div>
+		{#if allowing && signIn.kind === 'waiting'}
+			<GitHubDeviceCode userCode={signIn.userCode} />
+		{/if}
 		{#if failure.githubSaid && githubSaidOpen}
 			<p
 				class="text-2xs text-fg-tertiary mt-1.5 font-mono leading-relaxed break-words whitespace-pre-wrap select-text"

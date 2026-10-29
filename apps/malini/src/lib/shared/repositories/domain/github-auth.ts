@@ -21,11 +21,13 @@ export type GitHubDeviceCode = Readonly<{ userCode: string; verificationUri: str
 
 export type GitHubSignInOutcome = 'signed-in' | 'cancelled';
 
+export type GitHubDeviceFlow = 'sign-in' | 'workflow-access';
+
 export type GitHubSignInState =
 	| Readonly<{ kind: 'idle' }>
-	| Readonly<{ kind: 'starting' }>
-	| (Readonly<{ kind: 'waiting' }> & GitHubDeviceCode)
-	| Readonly<{ kind: 'confirming' }>;
+	| Readonly<{ kind: 'starting'; flow: GitHubDeviceFlow }>
+	| (Readonly<{ kind: 'waiting'; flow: GitHubDeviceFlow }> & GitHubDeviceCode)
+	| Readonly<{ kind: 'confirming'; flow: GitHubDeviceFlow }>;
 
 export type RepositoryImportSource =
 	Readonly<{ kind: 'local-folder'; path: string }> | Readonly<{ kind: 'clone-url'; url: string }>;

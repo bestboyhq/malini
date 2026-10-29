@@ -8,7 +8,7 @@ import {
 import type { ShippingJobBuiltin } from '$contract/jobs';
 import type { WorktreeStatus } from '$contract/repositories';
 import { isRecord } from '$main/db/rows';
-import { describeError, isGhError, isGitError, remoteRefusal } from '$main/errors';
+import { describeError, isGhError, isGitError, remoteRefusal, workflowRefusal } from '$main/errors';
 import { workstreamShipContext } from '$lib/chat/chat.platform';
 import {
 	heardBack,
@@ -94,7 +94,9 @@ async function recheck(deps: ShipDeps, state: ShipState, event: DispatchedEvent)
 		return;
 	}
 	const unchanged =
-		(move.kind === 'needs-you' && move.reason === row.needsYou?.reason) || move.kind === 'backoff';
+		(move.kind === 'needs-you' && move.reason === row.needsYou?.reason) ||
+		move.kind === 'backoff' ||
+		move.kind === 'held';
 	if (unchanged) return;
 	const resumed = saveShip(
 		deps,
@@ -120,6 +122,8 @@ async function apply(deps: ShipDeps, state: ShipState, event: DispatchedEvent): 
 			return;
 		case 'backoff':
 			setShipAlarm(deps, workstreamId, 'retry', state.snapshot.backoffUntil ?? deps.now());
+			return;
+		case 'held':
 			return;
 		case 'read-pull-request':
 			saveShip(deps, workstreamId, { step: 'waiting-for-github' });
@@ -514,14 +518,16 @@ export function shipFailed(deps: ShipDeps, workstreamId: string, error: unknown)
 		saveShip(deps, workstreamId, { step: null, ...NO_SHIP_FAILURE, lastError: detail });
 		return;
 	}
+	const waitsFor = workflowRefusal(error);
 	saveShip(deps, workstreamId, {
 		lastError: detail,
 		githubSaid: remoteRefusal(error),
 		failures,
 		failedSince: row.failedSince ?? new Date(now).toISOString(),
-		nextAttemptAt: new Date(due).toISOString(),
+		nextAttemptAt: waitsFor === null ? new Date(due).toISOString() : null,
+		waitsFor,
 	});
-	setShipAlarm(deps, workstreamId, 'retry', due);
+	if (waitsFor === null) setShipAlarm(deps, workstreamId, 'retry', due);
 }
 
 function shipRecovered(deps: ShipDeps, workstreamId: string): void {

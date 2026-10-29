@@ -881,10 +881,8 @@ describe('a push GitHub refuses', () => {
 	it('records why, since when and how often, and clears it once the push lands', async () => {
 		seedWorkstream('ws-1');
 		start();
-		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
-			'.github/workflows/map-tiles.yml',
-		]);
-		pushRefusal = workflowRefusal();
+		finishUserRun('ws-1', 'Commit: Add the map tiles', ['src/map-tiles.ts']);
+		pushRefusal = hookRefusal();
 
 		await click('ws-1', 'draft');
 
@@ -893,9 +891,9 @@ describe('a push GitHub refuses', () => {
 		expect(failing).toMatchObject({
 			phase: 'draft',
 			step: 'opening-draft',
-			lastError: expect.stringContaining('Run `gh auth refresh -s workflow` once'),
-			githubSaid:
-				'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+			lastError: 'GitHub refused the push: pre-receive hook declined.',
+			githubSaid: 'pre-receive hook declined',
+			waitsFor: null,
 		});
 		expect(failing?.failedSince).not.toBeNull();
 		expect(platform.failure('ws-1')).toMatchObject({
@@ -923,10 +921,8 @@ describe('a push GitHub refuses', () => {
 	it('tries again at once on Retry now, instead of waiting out the backoff', async () => {
 		seedWorkstream('ws-1');
 		start(PATIENT);
-		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
-			'.github/workflows/map-tiles.yml',
-		]);
-		pushRefusal = workflowRefusal();
+		finishUserRun('ws-1', 'Commit: Add the map tiles', ['src/map-tiles.ts']);
+		pushRefusal = hookRefusal();
 		await click('ws-1', 'draft');
 		await until(() => expect(ship('ws-1')?.failures).toBe(1));
 		expect(ship('ws-1')?.nextAttemptAt).not.toBeNull();
@@ -936,6 +932,64 @@ describe('a push GitHub refuses', () => {
 
 		expect(retried).toMatchObject({ phase: 'draft', failures: 1, nextAttemptAt: null });
 		await until(() => expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, failures: 0 }));
+	});
+
+	it('waits for you on a workflow your gh sign-in cannot change, and goes on once you retry', async () => {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal();
+
+		await click('ws-1', 'draft');
+
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+		expect(ship('ws-1')).toMatchObject({
+			phase: 'draft',
+			step: 'opening-draft',
+			lastError: expect.stringContaining('Run `gh auth refresh -s workflow` once'),
+			githubSaid:
+				'refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope',
+			nextAttemptAt: null,
+			waitsFor: 'workflow-scope',
+		});
+		expect(platform.failure('ws-1')).toMatchObject({ nextTry: null, waitsFor: 'workflow-scope' });
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.backoffCapMs * 3));
+		expect(ship('ws-1')?.failures).toBe(1);
+		pushRefusal = null;
+
+		const retried = await click('ws-1', 'retry');
+
+		expect(retried).toMatchObject({ failures: 1, waitsFor: null });
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({ pullRequestNumber: 40, failures: 0, waitsFor: null }),
+		);
+	});
+
+	it('waits for you to give a token the workflow permission, the same way', async () => {
+		seedWorkstream('ws-1');
+		start();
+		finishUserRun('ws-1', 'Commit: Add the map tiles workflow', [
+			'.github/workflows/map-tiles.yml',
+		]);
+		pushRefusal = workflowRefusal('a Personal Access Token');
+		await click('ws-1', 'draft');
+		await until(() => expect(ship('ws-1')?.failures).toBe(1));
+		await click('ws-1', 'merge');
+		await until(() => expect(ship('ws-1')?.phase).toBe('queued'));
+
+		await until(() =>
+			expect(ship('ws-1')).toMatchObject({
+				phase: 'queued',
+				failures: 1,
+				nextAttemptAt: null,
+				waitsFor: 'workflow-permission',
+				lastError: expect.stringContaining("your GitHub token can't change workflows"),
+			}),
+		);
+		await new Promise((resolve) => setTimeout(resolve, DELAYS.backoffCapMs * 3));
+		expect(ship('ws-1')?.failures).toBe(1);
 	});
 
 	it('stops opening the draft on Cancel', async () => {
@@ -956,6 +1010,7 @@ describe('a push GitHub refuses', () => {
 			lastError: null,
 			failures: 0,
 			nextAttemptAt: null,
+			waitsFor: null,
 		});
 		expect(platform.failure('ws-1')).toBeNull();
 		pushRefusal = null;
@@ -1850,14 +1905,24 @@ describe('Draft all and Merge all', () => {
 	});
 });
 
-function workflowRefusal(): GitError {
+function workflowRefusal(actor = 'an OAuth App'): GitError {
+	return refusal(
+		`refusing to allow ${actor} to create or update workflow \`.github/workflows/map-tiles.yml\` without \`workflow\` scope`,
+	);
+}
+
+function hookRefusal(): GitError {
+	return refusal('pre-receive hook declined');
+}
+
+function refusal(reason: string): GitError {
 	return GitError.commandFailed({
 		args: ['push', 'https://github.com/acme/app.git', 'HEAD:malini/ws-1'],
 		exitCode: 1,
 		signal: null,
 		output: [
 			'To https://github.com/acme/app.git',
-			' ! [remote rejected] HEAD -> malini/ws-1 (refusing to allow an OAuth App to create or update workflow `.github/workflows/map-tiles.yml` without `workflow` scope)',
+			` ! [remote rejected] HEAD -> malini/ws-1 (${reason})`,
 			"error: failed to push some refs to 'https://github.com/acme/app.git'",
 		].join('\n'),
 	});

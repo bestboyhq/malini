@@ -399,6 +399,8 @@ type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
+type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+
 type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
@@ -415,6 +417,7 @@ type ShipStateRecord = Readonly<{
 	failures: number;
 	failedSince: string | null;
 	nextAttemptAt: string | null;
+	waitsFor: ShipWaitsFor | null;
 	updatedAt: string;
 }>;
 
@@ -510,6 +513,8 @@ type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
+type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+
 type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
@@ -526,6 +531,7 @@ type ShipStateRecord = Readonly<{
 	failures: number;
 	failedSince: string | null;
 	nextAttemptAt: string | null;
+	waitsFor: ShipWaitsFor | null;
 	updatedAt: string;
 }>;
 

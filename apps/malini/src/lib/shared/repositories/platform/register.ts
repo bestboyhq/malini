@@ -453,6 +453,10 @@ export function registerRepositories(
 
 	commands.define('repositories.start-github-sign-in', () => githubSignIn.start());
 
+	commands.define('repositories.start-github-workflow-access', () =>
+		githubSignIn.start('workflow-access'),
+	);
+
 	commands.define('repositories.finish-github-sign-in', () => githubSignIn.finish());
 
 	commands.define('repositories.cancel-github-sign-in', () => githubSignIn.cancel());
