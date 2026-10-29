@@ -544,6 +544,51 @@ const followUpTurnRun = (sessionId, runId, commit) => {
 	event({ type: 'run.completed', runId, summary: FOLLOW_UP_REPLY });
 	event({ type: 'session.state', sessionId, status: 'completed' });
 };
+const BACKGROUND_COMMAND_ENDS = 'end-background-command';
+const BACKGROUND_TURN_ENDS = 'end-background-turn';
+const released = (name) => {
+	const path = nodePath.join(env.HOME, name);
+	if (!fs.existsSync(path)) return false;
+	fs.rmSync(path);
+	return true;
+};
+const goesOnAfterBackgroundCommand = (sessionId, runId) => {
+	startBackgroundCommand(sessionId, runId);
+	waitOnBackgroundCommand(sessionId, runId, 'Started the e2e suite in the background.');
+	const toolCallId = 'fix-' + runId;
+	let resumed = false;
+	const timer = setInterval(() => {
+		if (!pendingRuns.has(runId)) return clearInterval(timer);
+		if (!resumed) {
+			if (!released(BACKGROUND_COMMAND_ENDS)) return;
+			resumed = true;
+			backgroundCommands.delete(sessionId);
+			event({ type: 'background.updated', runId, waiting: false, tasks: [] });
+			event({
+				type: 'tool.started',
+				runId,
+				name: 'Bash',
+				toolCallId,
+				input: { command: 'pnpm test', description: 'Rerun the flaky test' },
+			});
+			return;
+		}
+		if (!released(BACKGROUND_TURN_ENDS)) return;
+		clearInterval(timer);
+		pendingRuns.delete(runId);
+		const worktree = worktrees.get(sessionId);
+		if (worktree) {
+			fs.writeFileSync(nodePath.join(worktree, 'flaky.txt'), 'fixed\n');
+			event({ type: 'file.changed', runId, path: 'flaky.txt' });
+		}
+		event({ type: 'tool.completed', runId, name: 'Bash', toolCallId, output: 'passed' });
+		const report =
+			'Fixed the flaky test.\n\nOutcome: The e2e suite passes\nNeeds: nothing\nCommit: test: fix the flaky test';
+		event({ type: 'assistant.message', runId, contentId: 'report-' + runId, text: report });
+		event({ type: 'run.completed', runId, summary: report });
+		event({ type: 'session.state', sessionId, status: 'completed' });
+	}, 50);
+};
 const busyBackgroundCommandRun = (sessionId, runId) => {
 	startBackgroundCommand(sessionId, runId);
 	pendingRuns.set(runId, sessionId);
@@ -997,6 +1042,7 @@ const respond = async (sessionId, runId, prompt) => {
 	if (prompt.includes('FOLLOW_UP_TURN')) {
 		return followUpTurnRun(sessionId, runId, /COMMIT=([^"\n]+)/.exec(prompt)?.[1]);
 	}
+	if (prompt.includes('BACKGROUND_GOES_ON')) return goesOnAfterBackgroundCommand(sessionId, runId);
 	if (prompt.includes('BACKGROUND_BUSY')) return busyBackgroundCommandRun(sessionId, runId);
 	if (prompt.includes('BACKGROUND_AGENT')) {
 		return backgroundAgentRun(sessionId, runId, nodePath.join(env.HOME, BACKGROUND_RELEASE));

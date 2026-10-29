@@ -6,6 +6,8 @@ import {
 } from '$contract/agent-state-machine';
 import type { ChatTurnFinishedPayload } from '$contract/events';
 import type { MaliniDatabase } from '$main/db/driver';
+import { isRecord } from '$main/db/rows';
+import { resumesTurn } from '../domain/background-work';
 import { parseTurnReport } from '../domain/turn-report';
 import { turnEndedOverBackgroundCommands } from './events.repository';
 import { userSessionWorkstreamId } from './sessions.repository';
@@ -23,11 +25,14 @@ export class FinishedTurns {
 
 	after({ sessionId, runId, event }: AgentEventEnvelope): ChatTurnFinishedPayload | null {
 		const type = event['type'];
-		if (
-			type !== 'run.completed' &&
-			type !== 'run.failed' &&
-			!turnEndedOverBackgroundCommands(event)
-		) {
+		if (typeof type === 'string' && resumesTurn({ type })) {
+			this.#announced.delete(runId);
+			return null;
+		}
+		const backgroundCommands = turnEndedOverBackgroundCommands(event)
+			? descriptions(event['tasks'])
+			: null;
+		if (type !== 'run.completed' && type !== 'run.failed' && backgroundCommands === null) {
 			return null;
 		}
 		const error = typeof event['error'] === 'string' ? event['error'] : null;
@@ -51,6 +56,15 @@ export class FinishedTurns {
 						: 'failed',
 			outcome: report.outcome,
 			needs: report.needs.length > 0 ? report.needs.join('; ') : null,
+			backgroundCommands,
 		};
 	}
+}
+
+function descriptions(tasks: unknown): string[] {
+	if (!Array.isArray(tasks)) return [];
+	return tasks.flatMap((task: unknown) => {
+		const description = isRecord(task) ? task['description'] : null;
+		return typeof description === 'string' && description.trim() !== '' ? [description.trim()] : [];
+	});
 }

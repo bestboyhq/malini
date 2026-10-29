@@ -11,6 +11,7 @@
 	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
 	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
 	import { leadWorkQuery } from '$lib/chat/application/queries/lead-work.query.svelte';
+	import { backgroundCommandsPhrase } from '$lib/chat/domain/background-work';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
 	import AgentInteractionCard from './AgentInteractionCard.svelte';
@@ -205,7 +206,14 @@
 		{#if entry.status === 'failed'}
 			<span class="text-error-content">failed its turn:</span>
 		{/if}
-		<span class="text-fg-secondary">{entry.outcome ?? 'finished a turn'}</span>
+		<span class="text-fg-secondary">
+			{entry.outcome ?? (entry.backgroundCommands ? 'ended its turn' : 'finished a turn')}
+		</span>
+		{#if entry.backgroundCommands}
+			<span class="text-fg-tertiary">
+				· waits on {backgroundCommandsPhrase(entry.backgroundCommands)}
+			</span>
+		{/if}
 		{#if entry.needs}
 			<span class="text-fg-tertiary">· asks the lead: {entry.needs}</span>
 		{/if}

@@ -78,6 +78,7 @@ When the plan changes, the lead tells the workstreams it affects.
 A run stays open while its background commands and subagents run, and you can stop each one.
 A prompt sent while a run only waits on them takes the run over, and they keep running, unless you changed the access, mode, report or skills: then Claude Code restarts and they stop.
 A turn that ends while only background commands run, such as a dev server, shows its report at once and ships its commit.
+When the agent goes on once one of them ends, the end of that turn counts as a turn too: it reports, ships its commit, and hands the chat what waited for it.
 Whatever closes that run later, stopping it, quitting, a crash or archiving the workstream, leaves it done, and Malini does not resume it on the next start.
 
 ## Limits and outages

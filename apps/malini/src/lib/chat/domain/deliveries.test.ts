@@ -5,6 +5,7 @@ import {
 	deliveryBatch,
 	parseWorkstreamReport,
 	REPORTS_PREAMBLE,
+	reportedTurnEnd,
 	reportForLead,
 	reportMedia,
 	workstreamReport,
@@ -173,10 +174,38 @@ describe('workstreamReport', () => {
 			needs: 'Which region?',
 		} as const;
 
-		expect(workstreamReport({ ...turn, summary: null })).toEqual({ ...turn, media: [] });
+		expect(workstreamReport({ ...turn, summary: null, backgroundCommands: null })).toEqual({
+			...turn,
+			media: [],
+		});
 		expect(
-			workstreamReport({ ...turn, summary: '![Chart](shots/chart.png)\n\nOutcome: Half done' }),
+			workstreamReport({
+				...turn,
+				summary: '![Chart](shots/chart.png)\n\nOutcome: Half done',
+				backgroundCommands: null,
+			}),
 		).toEqual({ ...turn, media: [{ src: 'shots/chart.png', label: 'Chart' }] });
+		expect(
+			workstreamReport({ ...turn, summary: null, backgroundCommands: ['Dev server'] }),
+		).toEqual({ ...turn, media: [], backgroundCommands: ['Dev server'] });
+	});
+});
+
+describe('reportedTurnEnd', () => {
+	it('says a turn finished or failed, or names the background commands it waits on', () => {
+		expect(reportedTurnEnd({ status: 'succeeded' })).toBe('finished a turn');
+		expect(reportedTurnEnd({ status: 'failed' })).toBe('failed its turn');
+		expect(reportedTurnEnd({ status: 'succeeded', backgroundCommands: ['Wait for CI'] })).toBe(
+			'is waiting on its background command “Wait for CI”, and reports again if it continues',
+		);
+		expect(
+			reportedTurnEnd({ status: 'succeeded', backgroundCommands: ['Dev server', 'Watch'] }),
+		).toBe(
+			'is waiting on its background commands “Dev server” and “Watch”, and reports again if it continues',
+		);
+		expect(reportedTurnEnd({ status: 'succeeded', backgroundCommands: [] })).toBe(
+			'is waiting on a background command, and reports again if it continues',
+		);
 	});
 });
 
@@ -184,6 +213,8 @@ describe('parseWorkstreamReport', () => {
 	it('reads a stored report back', () => {
 		const stored = { ...report('api'), media: [{ src: 'shots/a.png', label: 'Chart' }] };
 		expect(parseWorkstreamReport(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+		const waiting = { ...report('api'), backgroundCommands: ['Dev server'] };
+		expect(parseWorkstreamReport(JSON.parse(JSON.stringify(waiting)))).toEqual(waiting);
 	});
 
 	it('refuses what is no report, and repairs the fields it can', () => {
@@ -200,6 +231,7 @@ describe('parseWorkstreamReport', () => {
 				outcome: 42,
 				needs: ['a'],
 				media: [{ src: 'shots/a.png', label: 'Chart' }, { src: 'shots/b.png' }, 'shots/c.png'],
+				backgroundCommands: ['Dev server', 7, null],
 			}),
 		).toEqual({
 			workstreamId: 'api',
@@ -208,6 +240,7 @@ describe('parseWorkstreamReport', () => {
 			outcome: null,
 			needs: null,
 			media: [{ src: 'shots/a.png', label: 'Chart' }],
+			backgroundCommands: ['Dev server'],
 		});
 		expect(
 			parseWorkstreamReport({ workstreamId: 'api', runId: 'api-turn', status: 'failed' }),

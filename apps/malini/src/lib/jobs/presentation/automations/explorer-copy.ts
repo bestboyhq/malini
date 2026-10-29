@@ -142,7 +142,8 @@ const EVENT_NAMES: Readonly<Record<string, (payload: Payload) => string>> = {
 } satisfies Partial<Record<EventChannel, (payload: Payload) => string>>;
 
 const EVENT_DETAILS: Readonly<Record<string, (payload: Payload) => string | null>> = {
-	'chat:turn-finished': (payload) => text(payload['outcome']),
+	'chat:turn-finished': (payload) =>
+		text(payload['outcome']) ?? waitsOn(payload['backgroundCommands']),
 	'chat:session-renamed': (payload) => quoted(payload['name']),
 	'repositories:workstream-renamed': (payload) => quoted(payload['name']),
 	'repositories:workstream-head-moved': (payload) => sha(payload['head']),
@@ -453,6 +454,12 @@ function sha(value: unknown): string | null {
 function quoted(value: unknown): string | null {
 	const name = text(value);
 	return name === null ? null : `“${name}”`;
+}
+
+function waitsOn(commands: unknown): string | null {
+	if (!Array.isArray(commands)) return null;
+	const names = strings(commands).flatMap((name) => quoted(name) ?? []);
+	return `waits on ${names.length === 0 ? 'a background command' : LIST.format(names)}`;
 }
 
 function whole(value: unknown): number {

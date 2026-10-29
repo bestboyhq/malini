@@ -428,6 +428,7 @@ function finishUserRun(workstreamId: string, summary: string, dirtyPaths: string
 		status: 'succeeded',
 		outcome: null,
 		needs: null,
+		backgroundCommands: null,
 	});
 	return runId;
 }

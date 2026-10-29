@@ -20,6 +20,7 @@ export type TimelineReport = Readonly<{
 	outcome: string | null;
 	needs: string | null;
 	media: readonly WorkstreamReportMedia[];
+	backgroundCommands?: readonly string[];
 }>;
 
 export type TimelineSent = Timed &
@@ -168,9 +169,9 @@ function runEntries(run: RunGroup, current: boolean): TimelineEntry[] {
 function promptEntry(item: Extract<RenderItem, { kind: 'user' }>, current: boolean) {
 	const at = item.at ?? null;
 	if (item.reports && item.reports.length > 0) {
-		const reports = item.reports.map((report) => ({
+		const reports = item.reports.map((report, index) => ({
 			...report,
-			key: `${item.key}-${report.runId}`,
+			key: `${item.key}-${index}`,
 			name: null,
 		}));
 		return { kind: 'reports' as const, key: item.key, at, current, reports };

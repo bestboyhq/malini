@@ -70,7 +70,7 @@ interface SessionRenamedPayload {
 
 ## `chat:turn-finished`
 
-Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.
+Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you. A turn that ends while only background commands run fires it at once, naming them in `backgroundCommands`, and fires it again when the agent goes on after them and ends; `backgroundCommands` is `null` once the run itself ended.
 
 Payload: `ChatTurnFinishedPayload`
 
@@ -84,6 +84,7 @@ interface ChatTurnFinishedPayload {
 	status: ChatTurnFinishedStatus;
 	outcome: string | null;
 	needs: string | null;
+	backgroundCommands: readonly string[] | null;
 }
 ```
 

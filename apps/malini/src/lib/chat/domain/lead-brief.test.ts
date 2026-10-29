@@ -218,12 +218,21 @@ describe('leadBrief', () => {
 		expect(entries(text)).toHaveLength(7);
 	});
 
-	it('folds the reports of finished turns into lines and skips decision answers and continuations', () => {
+	it('folds the reports of ended turns into lines and skips decision answers and continuations', () => {
 		const text = brief(
 			events(
 				user('run-1', 'Ship both', 0),
 				user('run-2', 'Malini woke you: work you started moved on.', 10, {
 					reports: [
+						{
+							workstreamId: 'ws-api',
+							runId: 'api-turn',
+							status: 'succeeded',
+							outcome: null,
+							needs: null,
+							media: [],
+							backgroundCommands: ['Run the e2e suite'],
+						},
 						{
 							workstreamId: 'ws-api',
 							runId: 'api-turn',
@@ -250,7 +259,7 @@ describe('leadBrief', () => {
 		);
 
 		expect(text).toContain(
-			'] “Api analytics” finished a turn. Outcome: Added the endpoint. Needs: nothing.\n“A workstream” failed its turn. Outcome: none. Needs: Which project?.',
+			'] “Api analytics” is waiting on its background command “Run the e2e suite”, and reports again if it continues. Outcome: none. Needs: nothing.\n“Api analytics” finished a turn. Outcome: Added the endpoint. Needs: nothing.\n“A workstream” failed its turn. Outcome: none. Needs: Which project?.',
 		);
 		expect(text).not.toContain('Malini woke you');
 		expect(text).not.toContain('Decided “Stack”');

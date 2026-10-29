@@ -90,6 +90,7 @@ A [chat above your repositories](/malini/docs/chat.md#chats-above-repositories) 
 ### Work it started reports back
 
 Every turn a workstream a chat started ends reaches that chat as a report from that workstream, through the [Deliveries rule](/malini/docs/jobs.md#reconciler): its `Outcome:`, its `Needs:`, the rest of its report, and the pictures it embeds.
+A turn that ends while only background commands run reports at once that it waits on them, by name, and the agent reports again if it goes on once they end.
 Reports that arrive while the chat works wait, and come as one prompt once its turn ends.
 The agent answers what its plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and brings you only what you must decide.
 `workstreams_send` reaches only the workstreams the chat started.

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -13,6 +14,7 @@ import {
 	type LaunchedApp,
 	type MaliniEvent,
 } from './harness';
+import { seedWorkstreamOnFakeGithub } from './fake-github';
 
 const PNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -132,6 +134,98 @@ test('a chat at Home reads as a timeline, starts workstreams without asking, and
 			),
 		).toBeVisible();
 		await expect(timeline(page).getByText('The user: Plan it TITLE="Profile build"')).toBeVisible();
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a lead hears a turn that ends over a background command, and again when it goes on, which delivers what waited and commits', async () => {
+	test.setTimeout(240_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-goes-on-api', 'Api work');
+		await page.reload();
+		const lead = await startLead(page, 'Suite lead');
+		const child = 'e2e-goes-on-child';
+		const { worktree } = await seedWorkstreamOnFakeGithub(
+			app,
+			child,
+			null,
+			async () => {},
+			lead.id,
+		);
+		const childSession = await invoke<string>(page, 'chat.start-session', { workstreamId: child });
+
+		leadCalls(
+			app,
+			[{ tool: 'workstreams_send', input: { workstream: child, prompt: 'BACKGROUND_GOES_ON' } }],
+			'Sent it the suite.\n\nOutcome: The suite is on its way',
+		);
+		await sendPrompt(page, 'LEAD_CALLS');
+		const reports = timeline(page).getByTestId('timeline-report');
+		await expect(reports.first()).toContainText(
+			'ended its turn · waits on its background command “Run the e2e suite”',
+			{ timeout: 30_000 },
+		);
+
+		writeFileSync(join(app.home, 'end-background-command'), '');
+		await expect
+			.poll(() => invoke(page, 'chat.workstream-has-working-run', { workstreamId: child }))
+			.toBe(true);
+		leadCalls(
+			app,
+			[
+				{
+					tool: 'workstreams_send',
+					input: { workstream: child, prompt: 'TURN_OUTCOME="Noted the follow-up"' },
+				},
+			],
+			'Sent the follow-up.\n\nOutcome: The follow-up waits for the suite',
+		);
+		await sendPrompt(page, 'LEAD_CALLS');
+		const followUp = timeline(page)
+			.locator('[data-timeline-entry="sent"]')
+			.filter({ hasText: 'Noted the follow-up' });
+		await expect(followUp).toContainText('waits for its turn to end', { timeout: 30_000 });
+		await captureFlow(app, 'lead-timeline-background-wait');
+
+		writeFileSync(join(app.home, 'end-background-turn'), '');
+		await expect(followUp).toContainText('delivered', { timeout: 30_000 });
+		await expect(reports.filter({ hasText: 'The e2e suite passes' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(reports.filter({ hasText: 'Noted the follow-up' })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect
+			.poll(
+				() =>
+					execFileSync('git', ['-C', worktree, 'log', '--format=%s'], { encoding: 'utf8' })
+						.trim()
+						.split('\n')[0],
+				{ timeout: 30_000 },
+			)
+			.toBe('test: fix the flaky test');
+		const leadSession = await sessionOf(page, lead.id);
+		const reported = (await prompts(page, leadSession)).flatMap((prompt) =>
+			Array.isArray(prompt['reports']) ? prompt['reports'] : [],
+		);
+		const goesOn = (await prompts(page, childSession)).length;
+		expect(goesOn).toBe(2);
+		expect(
+			reported.map((report: Record<string, unknown>) => [
+				report['outcome'],
+				report['backgroundCommands'] ?? null,
+			]),
+		).toEqual([
+			[null, ['Run the e2e suite']],
+			['The e2e suite passes', null],
+			['Noted the follow-up', null],
+		]);
+		await captureFlow(app, 'lead-timeline-background-went-on');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

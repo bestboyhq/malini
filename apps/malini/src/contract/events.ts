@@ -72,6 +72,7 @@ export interface ChatTurnFinishedPayload {
 	status: ChatTurnFinishedStatus;
 	outcome: string | null;
 	needs: string | null;
+	backgroundCommands: readonly string[] | null;
 }
 
 export interface SessionRenamedPayload {
