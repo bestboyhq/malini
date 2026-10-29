@@ -16,8 +16,10 @@ export function docHref(path: string): string {
 	return `${HOME}${path}`;
 }
 
-export function demoHref(page: 'app' | 'card', hash: string): string {
-	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}#${hash}`;
+export type DemoPlay = 'hero' | 'work' | 'sweep' | 'cycle';
+
+export function demoHref(page: 'app' | 'card', hash: string, play?: DemoPlay): string {
+	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}${play ? `?play=${play}` : ''}#${hash}`;
 }
 
 export type Link = Readonly<{

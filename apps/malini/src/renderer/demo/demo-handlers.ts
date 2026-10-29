@@ -3,19 +3,27 @@ import type {
 	AgentSessionChanges,
 	ProviderCapability,
 } from '$contract/agent';
-import type { PullRequestStatusDto, WorkstreamImageRead } from '$contract/repositories';
+import type {
+	OwnerAvatar,
+	PullRequestStatusDto,
+	WorkstreamImageRead,
+} from '$contract/repositories';
 import type { DemoEmit, DemoHandlers } from './demo-bridge';
 import { demoMediaUrl } from './demo-media';
+import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
-	DEMO_DAY,
-	PROJECTS,
-	sessionId,
+	clickShipButton,
+	createLead,
+	pullRequestUrl,
+	sendPrompt,
 	sessionSummaries,
-	workstreamDtos,
-	workstreamFiles,
+	shipOf,
+	startSession,
+	shipStates,
+	transcript,
 	workstreamOf,
-} from './demo-data';
-import { clickShipButton, sendPrompt, shipOf, shipStates, transcript } from './demo-live';
+	workstreams,
+} from './demo-live';
 
 const NOW = `${DEMO_DAY}T10:45:00.000Z`;
 
@@ -23,7 +31,17 @@ async function readImage(path: string): Promise<WorkstreamImageRead> {
 	const url = demoMediaUrl(path);
 	if (!url) return { status: 'missing' };
 	const data = new Uint8Array(await (await fetch(url)).arrayBuffer());
-	return { status: 'ready', bytes: { mediaType: 'image/webp', data } };
+	return {
+		status: 'ready',
+		bytes: { mediaType: path.endsWith('.mp4') ? 'video/mp4' : 'image/webp', data },
+	};
+}
+
+async function ownerAvatar(): Promise<OwnerAvatar | null> {
+	const url = demoMediaUrl(`${OWNER}.webp`);
+	if (!url) return null;
+	const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+	return { mediaType: 'image/webp', base64: btoa(String.fromCharCode(...bytes)) };
 }
 
 const EFFORTS: AgentReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -71,7 +89,7 @@ function pullRequestStatus(workstreamId: string): PullRequestStatusDto {
 	return {
 		state: number === null ? 'not_open' : 'open',
 		number,
-		url: number === null ? null : `https://github.com/acme/pull/${number}`,
+		url: number === null ? null : pullRequestUrl(workstreamId, number),
 		title: workstream?.name ?? null,
 		draft: ship?.phase === 'draft',
 		headRef: workstream?.branch ?? '',
@@ -134,12 +152,13 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 		message: null,
 	}),
 	'repositories.list-repositories': () => PROJECTS,
-	'repositories.list-workstreams': () => workstreamDtos(),
+	'repositories.list-workstreams': () => workstreams(),
+	'repositories.create-lead': (args) => createLead(args),
 	'repositories.list-archived-workstreams': () => [],
 	'repositories.list-hidden': () => [],
 	'repositories.list-clones': () => [],
-	'repositories.owner-avatar': () => null,
-	'repositories.workstream-files': ({ workstreamId }) => workstreamFiles(workstreamId),
+	'repositories.owner-avatar': ({ owner }) => (owner === OWNER ? ownerAvatar() : null),
+	'repositories.workstream-files': ({ workstreamId }) => filesOf(workstreamOf(workstreamId)),
 	'repositories.workstream-change-totals': ({ workstreamId }) => totals(workstreamId),
 	'repositories.workstream-snapshot': ({ workstreamId }) => ({
 		patch: '',
@@ -173,7 +192,7 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'chat.tool-output': () => null,
 	'extensions.stat-workstream-file': () => null,
 	'extensions.list-workstream-files': ({ workstreamId }) =>
-		workstreamFiles(workstreamId).map((file) => file.path),
+		filesOf(workstreamOf(workstreamId)).map((file) => file.path),
 	'pull-requests.workstream-opened': () => null,
 	'jobs.list-definitions': () => [],
 	'jobs.list-runs': () => [],
@@ -181,8 +200,8 @@ export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
 	'jobs.list-suggestions': () => [],
 	'jobs.list-agent-actions': () => [],
 	'chat.list-sessions': ({ workstreamId }) => sessionSummaries(workstreamId),
-	'chat.get-or-create-session': ({ workstreamId }) => sessionId(workstreamId),
-	'chat.start-session': ({ workstreamId }) => sessionId(workstreamId),
+	'chat.get-or-create-session': ({ workstreamId, model }) => startSession(workstreamId, model),
+	'chat.start-session': ({ workstreamId, model }) => startSession(workstreamId, model),
 	'chat.activate-session': () => undefined,
 	'chat.send-prompt': ({ sessionId: id, prompt, clientRequestId }) =>
 		sendPrompt(emit, id, prompt, clientRequestId),

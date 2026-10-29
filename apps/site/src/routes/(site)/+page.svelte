@@ -178,7 +178,7 @@
 	id="report"
 	beat={beat('report', 'Reports')}
 	title="No more walls of text."
-	body="Every turn ends in a report you read in seconds: the outcome on top, then one line for what changed, one for what the agent checked, and what it would do next. Earlier turns fold into a line each."
+	body="Every turn ends in a report you read in seconds: what is true now, a picture or recording that shows it, then one line for what changed and one for how the agent checked it."
 	href={doc('chat#reports')}
 	linkLabel="How reports work"
 	checks={['Your turn shows only when it needs you', 'Ship a next step, or note it for later']}
@@ -210,13 +210,13 @@
 
 <FeatureRow
 	id="variants"
-	beat={beat('variants', 'Variants')}
+	beat={beat('variants', 'Experiments')}
 	mirrored
-	title="Prototype-native development."
-	body="When the direction is open, the agent makes two to four variants before it builds anything. Pick one, say why if you like, and it builds that one for real. Prototypes never reach your code."
+	title="Experiment first. Build the winner."
+	body="Malini takes the scientific approach to building. An open question becomes a small experiment: a few variants side by side, judged by you. The winner gets built, and the rest never touch your code."
 	href={doc('chat#variants')}
 	linkLabel="How variants work"
-	checks={['Pictures, recordings, or live HTML pages', 'None fit? Ask for new ones']}
+	checks={['Pictures, recordings, or live pages', 'None fit? Run another round']}
 	panel={variantsPanel}
 />
 
@@ -338,13 +338,18 @@
 {/snippet}
 
 {#snippet reportPanel()}
-	<DemoCard workstream="ws-rate-limit" title="A Malini report: three turns, each in one line" />
+	<DemoCard
+		workstream="ws-grip-captions"
+		title="An agent works on Grip, then reports with a recording of the change"
+		play="work"
+	/>
 {/snippet}
 
 {#snippet comparePanel()}
 	<DemoCard
-		workstream="ws-checkout"
-		title="A Malini report with the checkout before and after the change"
+		workstream="ws-tony-og"
+		title="A Malini report with Tony’s Open Graph image before and after the change"
+		play="sweep"
 	/>
 {/snippet}
 
@@ -358,8 +363,9 @@
 
 {#snippet variantsPanel()}
 	<DemoCard
-		workstream="ws-pricing"
-		title="A Malini report with three pricing page variants to pick"
+		workstream="ws-og-lead"
+		title="A Malini report with three Open Graph image directions to pick from"
+		play="cycle"
 	/>
 {/snippet}
 

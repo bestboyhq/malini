@@ -1,4 +1,4 @@
-const MEDIA = import.meta.glob<string>('./media/*.webp', {
+const MEDIA = import.meta.glob<string>('./media/*.{webp,mp4}', {
 	eager: true,
 	query: '?url',
 	import: 'default',

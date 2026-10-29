@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { demoHref } from './links';
+	import { demoHref, type DemoPlay } from './links';
 
-	let { workstream, title }: { workstream: string; title: string } = $props();
+	let { workstream, title, play }: { workstream: string; title: string; play?: DemoPlay } =
+		$props();
 
 	let ready = $state(false);
 </script>
 
 <iframe
-	src={demoHref('card', workstream)}
+	src={demoHref('card', workstream, play)}
 	{title}
 	loading="lazy"
 	class:ready

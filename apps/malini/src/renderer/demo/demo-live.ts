@@ -1,9 +1,26 @@
-import type { AgentEventEnvelope } from '$contract/agent';
+import type { AgentEventEnvelope, AgentSessionSummary } from '$contract/agent';
+import type { CreateLeadArgs } from '$contract/commands';
 import { runIdForPromptRequest } from '$contract/chat-identity';
 import type { ShipButton, ShipStateRecord } from '$contract/pull-requests';
+import type { WorkstreamDto } from '$contract/repositories';
 import type { AgentEvent } from '$lib/chat/domain/events';
 import type { DemoEmit } from './demo-bridge';
-import { sessionEnvelopes, WORKSTREAMS } from './demo-data';
+import {
+	closingEvents,
+	envelopesOf,
+	LEAD_PROMPT,
+	LEAD_REPORT,
+	OWNER,
+	openingEvents,
+	PROJECTS,
+	sessionId,
+	STARTED,
+	toolEvents,
+	workstreamDto,
+	WORKSTREAMS,
+	type DemoWorkstream,
+	type StartedWorkstream,
+} from './demo-data';
 
 const DEMO_REPLY = [
 	'- Changed: nothing, this chat runs in your browser on demo data',
@@ -13,15 +30,258 @@ const DEMO_REPLY = [
 	'Needs: nothing',
 ].join('\n');
 
+const listed: DemoWorkstream[] = [...WORKSTREAMS];
+const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
+const models = new Map<string, string>();
+let leadReported: () => void = () => {};
+export const leadReport = new Promise<void>((resolve) => (leadReported = resolve));
+
+export function workstreams(): WorkstreamDto[] {
+	return listed.map(workstreamDto);
+}
+
+export function workstreamOf(id: string): DemoWorkstream | undefined {
+	return listed.find((workstream) => workstream.id === id);
+}
+
+export function sessionSummaries(workstreamId: string): AgentSessionSummary[] {
+	const workstream = workstreamOf(workstreamId);
+	const id = sessionId(workstreamId);
+	if (!workstream || transcript(id).length === 0) return [];
+	return [
+		{
+			id,
+			workstreamId,
+			displayName: workstream.name,
+			model: models.get(id) ?? 'opus',
+			status: statuses.get(id) ?? (workstream.runs.length > 0 ? 'completed' : 'idle'),
+			startedAt: workstream.runs[0]?.startedAt ?? workstream.activeAt,
+			origin: 'user',
+		},
+	];
+}
+
+export function startSession(workstreamId: string, model: string | undefined): string {
+	const id = sessionId(workstreamId);
+	if (model && !models.has(id)) models.set(id, model);
+	return id;
+}
 
 export function transcript(id: string): AgentEventEnvelope[] {
 	let envelopes = transcripts.get(id);
 	if (!envelopes) {
-		envelopes = sessionEnvelopes(id);
+		const workstream = listed.find((candidate) => sessionId(candidate.id) === id);
+		envelopes = workstream ? envelopesOf(workstream) : [];
 		transcripts.set(id, envelopes);
 	}
 	return envelopes;
+}
+
+function append(emit: DemoEmit, id: string, runId: string, event: AgentEvent): void {
+	const envelopes = transcript(id);
+	const envelope = { sessionId: id, runId, seq: envelopes.length + 1, event };
+	envelopes.push(envelope);
+	emit('chat:agent-event', envelope);
+}
+
+function stream(emit: DemoEmit, id: string, runId: string, contentId: string, text: string): void {
+	emit('chat:agent-event', {
+		sessionId: id,
+		runId,
+		seq: -1,
+		event: { type: 'assistant.delta', runId, contentId, text },
+		ephemeral: true,
+	});
+}
+
+type Step = readonly [number, () => void];
+
+function play(steps: readonly Step[]): void {
+	let delay = 0;
+	for (const [wait, step] of steps) {
+		delay += wait;
+		setTimeout(step, delay);
+	}
+}
+
+function reply(emit: DemoEmit, id: string, runId: string, text: string, streamed: boolean): Step[] {
+	const contentId = `${runId}-reply`;
+	const chunks = streamed ? text.split(/(?<=\s)/u) : [];
+	return [
+		...chunks.map((chunk): Step => [18, () => stream(emit, id, runId, contentId, chunk)]),
+		[200, () => append(emit, id, runId, { type: 'assistant.message', runId, text, contentId })],
+		[0, () => append(emit, id, runId, { type: 'run.completed', runId, summary: '' })],
+	];
+}
+
+function opening(
+	emit: DemoEmit,
+	id: string,
+	runId: string,
+	prompt: string,
+	clientRequestId: string | undefined,
+): Step[] {
+	return [
+		[0, () => append(emit, id, runId, { type: 'run.started', runId, sessionId: id })],
+		[
+			0,
+			() =>
+				append(emit, id, runId, {
+					type: 'user.message',
+					runId,
+					text: prompt,
+					...(clientRequestId ? { clientRequestId } : {}),
+				}),
+		],
+	];
+}
+
+function tool(
+	emit: DemoEmit,
+	id: string,
+	runId: string,
+	toolCallId: string,
+	name: string,
+	input: Record<string, unknown>,
+	output: string,
+	ms: number,
+): Step[] {
+	return [
+		[0, () => append(emit, id, runId, { type: 'tool.started', runId, name, input, toolCallId })],
+		[
+			ms,
+			() => append(emit, id, runId, { type: 'tool.completed', runId, name, output, toolCallId }),
+		],
+	];
+}
+
+export function createLead(args: CreateLeadArgs): WorkstreamDto {
+	const lead: DemoWorkstream = {
+		id: args.workstreamId,
+		projectId: 'malini-lead-space',
+		name: args.name,
+		branch: 'main',
+		activeAt: new Date().toISOString(),
+		files: [],
+		tree: [],
+		runs: [],
+		ship: null,
+		scope: args.scope,
+	};
+	listed.unshift(lead);
+	return workstreamDto(lead);
+}
+
+function rename(emit: DemoEmit, workstreamId: string, name: string): void {
+	const index = listed.findIndex((workstream) => workstream.id === workstreamId);
+	const workstream = listed[index];
+	if (!workstream) return;
+	listed[index] = { ...workstream, name };
+	emit('repositories:workstream-renamed', { workstreamId, name });
+}
+
+function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done: () => void): void {
+	const workstream: DemoWorkstream = {
+		...started,
+		startedBy: leadId,
+		activeAt: new Date().toISOString(),
+		runs: started.runs.map((run) => ({ ...run, from: leadId })),
+	};
+	const id = sessionId(workstream.id);
+	const run = workstream.runs[0];
+	statuses.set(id, 'running');
+	transcripts.set(
+		id,
+		run
+			? [
+					...openingEvents(workstream.id, run),
+					...toolEvents(workstream.id, run.id, run.tools, Date.now()),
+				].map((event, index) => ({ sessionId: id, runId: run.id, seq: index + 1, event }))
+			: [],
+	);
+	listed.push(workstream);
+	const project = PROJECTS.find((candidate) => candidate.id === workstream.projectId);
+	const dto = workstreamDto(workstream);
+	emit('repositories:workstream-created', {
+		workstreamId: workstream.id,
+		project: {
+			id: workstream.projectId,
+			name: project?.name ?? workstream.projectId,
+			repoPath: project?.repoPath ?? '',
+			defaultBranch: 'main',
+			createdAt: project?.createdAt ?? dto.createdAt,
+		},
+		workstream: {
+			id: dto.id,
+			projectId: dto.projectId,
+			name: dto.name,
+			path: dto.path,
+			branch: dto.branch,
+			baseBranch: dto.baseBranch,
+			status: dto.status,
+			createdAt: dto.createdAt,
+			scope: null,
+			startedBy: leadId,
+		},
+	});
+	setTimeout(() => {
+		statuses.set(id, 'completed');
+		if (run) for (const event of closingEvents(run)) append(emit, id, run.id, event);
+		done();
+	}, started.workMs);
+}
+
+function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): Step[] {
+	let waiting = STARTED.length;
+	const done = (): void => {
+		if (--waiting > 0) return;
+		play([
+			[900, () => undefined],
+			...reply(emit, id, runId, LEAD_REPORT, false),
+			[0, () => leadReported()],
+		]);
+	};
+	return [
+		[400, () => rename(emit, leadId, 'OG image directions')],
+		...tool(
+			emit,
+			id,
+			runId,
+			`${runId}-list`,
+			'mcp__malini__workstreams_list',
+			{ repository: OWNER },
+			'[{"name":"New OG image","repository":"bestboyhq/tony","working":false}]',
+			700,
+		),
+		...STARTED.flatMap((started): Step[] => {
+			const toolCallId = `${runId}-start-${started.id}`;
+			const name = 'mcp__malini__workstreams_create';
+			const repository = `${OWNER}/${started.projectId}`;
+			const input = { repository, prompt: started.runs[0]?.prompt ?? '' };
+			const output = JSON.stringify({
+				id: started.id,
+				name: started.name,
+				repository,
+				branch: started.branch,
+				baseBranch: 'main',
+				chat: sessionId(started.id),
+			});
+			return [
+				[
+					500,
+					() => append(emit, id, runId, { type: 'tool.started', runId, name, input, toolCallId }),
+				],
+				[
+					350,
+					() => {
+						start(emit, leadId, started, done);
+						append(emit, id, runId, { type: 'tool.completed', runId, name, toolCallId, output });
+					},
+				],
+			];
+		}),
+	];
 }
 
 let runs = 0;
@@ -33,45 +293,15 @@ export function sendPrompt(
 	clientRequestId: string | undefined,
 ): string {
 	const runId = runIdForPromptRequest(clientRequestId) ?? `run-demo-${++runs}`;
-	const envelopes = transcript(id);
-	const toolCallId = `${runId}-read`;
-	const contentId = `${runId}-reply`;
-	const steps: [number, AgentEvent][] = [
-		[0, { type: 'run.started', runId, sessionId: id }],
-		[
-			0,
-			{
-				type: 'user.message',
-				runId,
-				text: prompt,
-				...(clientRequestId ? { clientRequestId } : {}),
-			},
-		],
-		[
-			700,
-			{ type: 'tool.started', runId, name: 'Read', input: { file_path: 'AGENTS.md' }, toolCallId },
-		],
-		[900, { type: 'tool.completed', runId, name: 'Read', output: 'ok', toolCallId }],
-		...DEMO_REPLY.split(/(?<=\s)/u).map((text): [number, AgentEvent] => [
-			24,
-			{ type: 'assistant.delta', runId, contentId, text },
-		]),
-		[200, { type: 'assistant.message', runId, text: DEMO_REPLY, contentId }],
-		[0, { type: 'run.completed', runId, summary: '' }],
-	];
-	let delay = 0;
-	for (const [wait, event] of steps) {
-		delay += wait;
-		setTimeout(() => {
-			if (event.type === 'assistant.delta') {
-				emit('chat:agent-event', { sessionId: id, runId, seq: -1, event, ephemeral: true });
-				return;
-			}
-			const envelope = { sessionId: id, runId, seq: envelopes.length + 1, event };
-			envelopes.push(envelope);
-			emit('chat:agent-event', envelope);
-		}, delay);
-	}
+	const lead = listed.find((workstream) => sessionId(workstream.id) === id && workstream.scope);
+	const scripted = lead && prompt.trim() === LEAD_PROMPT && transcript(id).length === 0;
+	const work = scripted
+		? leadSteps(emit, lead.id, id, runId)
+		: [
+				...tool(emit, id, runId, `${runId}-read`, 'Read', { file_path: 'AGENTS.md' }, 'ok', 900),
+				...reply(emit, id, runId, DEMO_REPLY, true),
+			];
+	play([...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...work]);
 	return runId;
 }
 
@@ -83,6 +313,10 @@ const ships = new Map<string, ShipStateRecord>(
 	),
 );
 
+export function pullRequestUrl(workstreamId: string, number: number): string {
+	return `https://github.com/${OWNER}/${workstreamOf(workstreamId)?.projectId ?? 'malini'}/pull/${number}`;
+}
+
 function shipState(
 	workstreamId: string,
 	ship: Pick<ShipStateRecord, 'phase' | 'step' | 'pullRequestNumber'>,
@@ -91,7 +325,8 @@ function shipState(
 		workstreamId,
 		...ship,
 		keep: false,
-		pullRequestUrl: `https://github.com/acme/pull/${ship.pullRequestNumber}`,
+		pullRequestUrl:
+			ship.pullRequestNumber === null ? null : pullRequestUrl(workstreamId, ship.pullRequestNumber),
 		needsYou: null,
 		queuedAt: ship.phase === 'queued' ? NOW : null,
 		attempts: 0,
@@ -113,7 +348,7 @@ export function shipOf(workstreamId: string): ShipStateRecord | null {
 	return ships.get(workstreamId) ?? null;
 }
 
-const PULL_REQUEST_NUMBER = 418;
+const PULL_REQUEST_NUMBER = 118;
 
 export function clickShipButton(
 	emit: DemoEmit,
