@@ -20,7 +20,7 @@ The mock-ups drift every time the app changes; the real renderer cannot.
   The media are real: Grip's captions recording from its site, Tony's real hero as the before, and Open Graph directions drawn from the real app icons and screenshots, as WebP and MP4 files in `media/`.
 - `app.html` mounts the whole `App` and draws the macOS traffic lights the native window would.
   With `?play=hero`, `demo-script.ts` drives it like a person in about twenty seconds: the hero opens on a new chat in bestboyhq with the prompt already in the composer, a drawn cursor sends it, and the chat starts a workstream in malini, grip, tony and platform that nest under it.
-  Without waiting for them, the cursor opens Tony's hero before and after, wipes it and presses Merge, then returns to the chat as it reports three directions and steps through them while Tony's pull request merges in the sidebar.
+  Once the last one shows, without waiting for their work, the cursor opens Tony's hero before and after, wipes it and presses Merge, then returns to the chat as it reports three directions and steps through them while Tony's pull request merges in the sidebar.
   The cursor glides on a curved, minimum-jerk path.
   A real click or key press stops the script, and reduced motion skips it.
 - `card.html` mounts `TurnReportCard` alone for the workstream named in its hash, scaled to fit its frame.

@@ -124,7 +124,8 @@ export async function playHero(): Promise<void> {
 		place({ x: box.left - 180, y: box.top - 90 });
 		await wait(1_100);
 		await click(send);
-		await wait(2_400);
+		await find('[data-workstream-id="ws-og-platform"]');
+		await wait(500);
 		await click(await find('[data-workstream-id="ws-tony-hero"]'), 0.4);
 		await wait(900);
 		await drag(await find('input[aria-label="Wipe between before and after"]'));
