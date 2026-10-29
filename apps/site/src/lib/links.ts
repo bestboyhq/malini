@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import { asset, resolve } from '$app/paths';
 
 export const SITE_URL = 'https://bestboy.dev/malini';
@@ -13,6 +14,12 @@ export const HOME = resolve('/').replace(/\/$/u, '');
 
 export function docHref(path: string): string {
 	return `${HOME}${path}`;
+}
+
+export type DemoPlay = 'hero' | 'tour' | 'sweep' | 'cycle';
+
+export function demoHref(page: 'app' | 'card', hash: string, play?: DemoPlay): string {
+	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}${play ? `?play=${play}` : ''}#${hash}`;
 }
 
 export type Link = Readonly<{
