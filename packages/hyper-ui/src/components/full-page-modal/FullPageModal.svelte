@@ -80,7 +80,10 @@
 		use:overlaySurface
 	>
 		<div
-			class={['absolute inset-0 bg-black/80', isClosing ? 'animate-fadeOut' : 'animate-fadeIn']}
+			class={[
+				'absolute inset-0 bg-black/80 backdrop-blur-md',
+				isClosing ? 'animate-fadeOut' : 'animate-fadeIn',
+			]}
 			role="presentation"
 			onclick={startClose}
 		></div>

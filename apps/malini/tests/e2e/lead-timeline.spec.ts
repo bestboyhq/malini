@@ -330,3 +330,92 @@ test('a prompt for a workstream that is on a turn waits for that turn, then arri
 		await app.close();
 	}
 });
+
+test('allowing what a workstream it started asks stops the lead chat from waiting on you while that workstream works on', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-held-api', 'Api work');
+		await page.reload();
+		const lead = await startLead(page, 'Profile reads');
+		const child = await seedWorkstream(
+			page,
+			`file://${api}`,
+			'e2e-held-child',
+			'Api reads',
+			lead.id,
+		);
+		const childSession = await invoke<string>(page, 'chat.start-session', {
+			workstreamId: child.workstreamId,
+		});
+		await invoke(page, 'chat.send-prompt', { sessionId: childSession, prompt: 'APPROVAL_HOLD' });
+
+		const status = sidebar(page)
+			.getByTestId('sidebar-chat')
+			.filter({ hasText: 'Profile reads' })
+			.getByTestId('sidebar-chat-status');
+		const decision = page.getByRole('group', { name: 'Permission decision' });
+		await expect(decision).toBeVisible({ timeout: 30_000 });
+		await expect(status).toHaveAccessibleName(/A workstream it started is waiting for approval/u);
+
+		await decision.getByRole('button', { name: 'Allow once' }).click();
+		await expect(decision).toHaveCount(0);
+		await expect(status).not.toHaveAccessibleName(/waiting for approval/u);
+		const ended = (await listEvents(page, childSession)).some(
+			({ event }) => event['type'] === 'run.completed',
+		);
+		expect(ended).toBe(false);
+
+		writeFileSync(join(app.home, 'release-approval'), '');
+		await expect
+			.poll(async () =>
+				(await listEvents(page, childSession)).some(
+					({ event }) => event['type'] === 'run.completed',
+				),
+			)
+			.toBe(true);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+test('a lead relays a picture a workstream it started took, and its alt keeps the quotes in it', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-relay-api', 'Api work');
+		await page.reload();
+		const lead = await startLead(page, 'Profile pictures');
+		const child = await seedWorkstream(
+			page,
+			`file://${api}`,
+			'e2e-relay-child',
+			'Api hero',
+			lead.id,
+		);
+		mkdirSync(join(child.worktree, '.context'), { recursive: true });
+		const picture = join(child.worktree, '.context', 'hero-a.png');
+		writeFileSync(picture, PNG);
+
+		leadCalls(
+			app,
+			[{ tool: 'plan_write', input: { text: '# Plan\n\nThe hero reads A.' } }],
+			`The hero now reads A.\n\n![Hero "A" in dark mode](${picture})\n\nOutcome: The hero reads A`,
+		);
+		await sendPrompt(page, 'LEAD_CALLS');
+
+		const relayed = timeline(page).getByRole('img', { name: 'Hero "A" in dark mode' });
+		await expect(relayed).toBeVisible({ timeout: 30_000 });
+		await expect
+			.poll(() => relayed.evaluate((image: HTMLImageElement) => image.naturalWidth > 0))
+			.toBe(true);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});

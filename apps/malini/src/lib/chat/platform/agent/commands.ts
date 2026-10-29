@@ -712,29 +712,28 @@ async function sendAgentPromptLeased(
 		await hooks.captureRunFinish(runId);
 		return runId;
 	}
-	const fresh = !lease.handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
-	const resumePoint = lease.handsOff
-		? {}
-		: fresh
-			? { freshConversation: true as const }
-			: providerResumePoint(db, sessionId);
-	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
-	if (brief !== null) bridgePrompt = `${brief}\n\n${bridgePrompt}`;
-	const skills = skillsForRun(db, sessionId);
-	const lineage = await lineageForRun(db, workstreamId, log);
+	let turn: PreparedTurn;
+	try {
+		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, log);
+	} catch (error) {
+		const errorMessage = `could not prepare the turn: ${describe(error)}`;
+		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
+		await hooks.captureRunFinish(runId);
+		throw new LifecycleError('db', errorMessage);
+	}
 	lease.release();
 	const undelivered = await handPromptToBridge(supervisor, hooks.closing, {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),
 		sessionId,
 		runId,
-		prompt: bridgePrompt,
+		prompt: turn.prompt,
 		...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
-		...resumePoint,
-		...(skills === null ? {} : { skills }),
+		...turn.resumePoint,
+		...(turn.skills === null ? {} : { skills: turn.skills }),
 		...(input.steer === true ? { steer: true } : {}),
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
-		...(lineage === null ? {} : { lineage }),
+		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
@@ -757,6 +756,30 @@ async function sendAgentPromptLeased(
 		}
 	}
 	return runId;
+}
+
+type PreparedTurn = Awaited<ReturnType<typeof preparedTurn>>;
+
+async function preparedTurn(
+	db: MaliniDatabase,
+	{ sessionId, workstreamId }: SendPromptInput,
+	runId: string,
+	handsOff: boolean,
+	prompt: string,
+	log: (line: string) => void,
+) {
+	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
+	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
+	return {
+		prompt: brief === null ? prompt : `${brief}\n\n${prompt}`,
+		resumePoint: handsOff
+			? {}
+			: fresh
+				? { freshConversation: true as const }
+				: providerResumePoint(db, sessionId),
+		skills: skillsForRun(db, sessionId),
+		lineage: await lineageForRun(db, workstreamId, log),
+	};
 }
 
 async function handPromptToBridge(

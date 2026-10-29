@@ -98,6 +98,8 @@ const blockedRuns = new Set();
 const BLOCKED_TOOL = 'mcp__ops__set_member_role';
 const BLOCKED_INPUT = { org: 'acme', member: 'vendor-sync-bot', role: 'owner' };
 const uncheckedRuns = new Set();
+const heldApprovals = new Set();
+const APPROVAL_RELEASE = 'release-approval';
 const UNCHECKED_INPUT = { command: 'node -e "console.log(6*7)"', description: 'Print 6*7' };
 const lastRuns = new Map();
 const askedQuestions = new Map();
@@ -955,6 +957,7 @@ const respond = async (sessionId, runId, prompt) => {
 	}
 	if (prompt.includes('APPROVAL')) {
 		pendingRuns.set(runId, sessionId);
+		if (prompt.includes('APPROVAL_HOLD')) heldApprovals.add(runId);
 		event({
 			type: 'approval.requested',
 			sessionId,
@@ -1465,12 +1468,21 @@ const handle = (command) => {
 				name: 'read_file',
 				output: { decision: command.decision, scope: command.scope },
 			});
-			completeRun(
-				command.sessionId,
-				command.runId,
-				'approved:' + command.decision + ':' + command.scope,
-			);
-			pendingRuns.delete(command.runId);
+			const finish = () => {
+				completeRun(
+					command.sessionId,
+					command.runId,
+					'approved:' + command.decision + ':' + command.scope,
+				);
+				pendingRuns.delete(command.runId);
+			};
+			if (!heldApprovals.delete(command.runId)) return finish();
+			const release = nodePath.join(env.HOME, APPROVAL_RELEASE);
+			const holding = setInterval(() => {
+				if (!fs.existsSync(release)) return;
+				clearInterval(holding);
+				finish();
+			}, 50);
 			return;
 		}
 		case 'answer_question': {

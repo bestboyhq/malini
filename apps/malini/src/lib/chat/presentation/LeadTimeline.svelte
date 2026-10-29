@@ -9,6 +9,7 @@
 	} from '$lib/chat/application/commands/focus-lead-decision.command';
 	import { agentInteractionStateQuery } from '$lib/chat/application/queries/agent-interaction-state.query.svelte';
 	import { leadDecisionsQuery } from '$lib/chat/application/queries/lead-decisions.query.svelte';
+	import { workstreamImageSourceHook } from '$lib/chat/application/hooks/workstream-image-source.hook.svelte';
 	import { leadWorkQuery } from '$lib/chat/application/queries/lead-work.query.svelte';
 	import type { EventEnvelope } from '$lib/chat/domain/events';
 	import { workstreamNameQuery } from '$shared/repositories/repositories.api';
@@ -55,6 +56,7 @@
 	const decisions = $derived(leadDecisionsQuery.data(sessionId));
 	const deliveryOf = $derived(leadDecisionsQuery.delivery);
 	const nameOf = $derived(workstreamNameQuery.data);
+	const replyImageSource = workstreamImageSourceHook(() => workstreamId);
 	const working = $derived(leadWorkQuery.working(workstreamId));
 	const entries = $derived(leadTimeline(renderState.runs, decisions));
 	const rows = $derived(timelineRows(entries, Date.now()));
@@ -387,6 +389,7 @@
 			<MarkdownText
 				text={parts.body}
 				mode="markdown"
+				imagesrc={replyImageSource()}
 				class="text-fg-agent-message-strong mt-1 text-sm leading-6"
 			/>
 			{#if !entry.latest}{@render toggleButton(entry.key, 'Show message', 'Hide message')}{/if}

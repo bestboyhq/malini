@@ -10,7 +10,7 @@ vi.mock('electron', () => ({
 
 import { appendEvent, listEventRowsForSession, listTimelineEventRows } from '../events.repository';
 import { getInteraction } from '../interactions.repository';
-import { get, isRecord, run, scalar } from '$main/db/rows';
+import { all, get, isRecord, run, scalar } from '$main/db/rows';
 import { getRun, insertRun } from '../runs.repository';
 import { getSession } from '../sessions.repository';
 import { getWorkstream } from '$shared/repositories/repositories.platform';
@@ -1618,6 +1618,27 @@ describe('lead chats', () => {
 		expect(brief).not.toContain('The user: Also the site');
 		expect(brief.endsWith('\n</malini_timeline>\n\nAlso the site')).toBe(true);
 		expect(getRun(test.db, second)?.summary).toBe('done');
+	});
+
+	it('closes the turn as failed when its timeline cannot be read, so the chat never waits on it', async () => {
+		seedLead();
+		const sent = await bootRecording();
+		const sessionId = await invokeString('chat.start-session', { workstreamId: 'lead' });
+		run(test.db, 'DROP TABLE lead_decisions');
+
+		await expect(
+			invokeString('chat.send-prompt', { sessionId, prompt: 'Plan the move' }),
+		).rejects.toThrow('could not prepare the turn: no such table: lead_decisions');
+
+		const [turn] = all<{ completed_at: string | null; error: string | null }>(
+			test.db,
+			'SELECT completed_at, error FROM agent_runs WHERE session_id = ?',
+			sessionId,
+		);
+		expect(turn?.completed_at).not.toBeNull();
+		expect(turn?.error).toContain('no such table: lead_decisions');
+		expect(getSession(test.db, sessionId)?.status).toBe('idle');
+		expect(prompts(sent)).toEqual([]);
 	});
 
 	it('keeps resuming Claude in a repository chat, with the prompt as typed', async () => {
