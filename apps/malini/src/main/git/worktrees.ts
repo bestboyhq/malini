@@ -13,6 +13,7 @@ import {
 import { describeError, GitError } from '$main/errors';
 import { cloneInto } from '$main/fs/copy-on-write';
 import { isInsideDirectory } from '$main/fs/paths';
+import { fastForwardCheckout } from './remote';
 import { runGit } from './run';
 
 const projectLocks = new Map<string, Promise<void>>();
@@ -134,6 +135,7 @@ export async function addWorktree(
 ): Promise<void> {
 	validateBranch(branchName);
 	await withProjectLock(deriveProjectId(basePath), async () => {
+		await advanceBaseCheckout(basePath);
 		try {
 			await runGit([
 				'-C',
@@ -160,6 +162,24 @@ export async function addWorktree(
 	await populateCheckout(basePath, worktreePath);
 }
 
+async function advanceBaseCheckout(basePath: string): Promise<void> {
+	let upstream: string;
+	try {
+		upstream = (
+			await runGit(['-C', basePath, 'rev-parse', '--symbolic-full-name', '@{upstream}'])
+		).trim();
+	} catch {
+		return;
+	}
+	const outcome = await fastForwardCheckout(basePath, upstream).catch((error: unknown) =>
+		describeError(error),
+	);
+	if (outcome === 'current' || outcome === 'advanced') return;
+	console.warn(
+		`malini: could not fast-forward \`${basePath}\` to \`${upstream}\`, so new workstreams write the files it lacks: ${outcome}`,
+	);
+}
+
 export async function populateCheckout(repository: string, checkout: string): Promise<void> {
 	if (!(await lstat(join(checkout, '.git'))).isFile()) {
 		throw GitError.unsafePath(`not a linked worktree: ${checkout}`);
@@ -172,7 +192,6 @@ export async function populateCheckout(repository: string, checkout: string): Pr
 	await runGit(['-C', checkout, 'reset', '-q', '--hard', 'HEAD']);
 }
 
-// ponytail: clones from the base's own checkout, which stays at the commit it was cloned at; files changed since then are written fresh, so fast-forward that checkout if they add up
 async function cloneTrackedEntries(repository: string, checkout: string): Promise<void> {
 	const listed = await runGit(['-C', checkout, 'ls-tree', '-z', 'HEAD']);
 	const sources = listed.split('\0').flatMap((entry) => {
