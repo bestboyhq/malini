@@ -3,7 +3,7 @@ import { LOGDASH_SITE } from '../src/lib/logdash.ts';
 export type Env = Readonly<{ ASSETS: Readonly<{ fetch(request: Request): Promise<Response> }> }>;
 
 const CANONICAL_HOST = 'bestboy.dev';
-const IMMUTABLE_PREFIX = '/malini/_app/immutable/';
+const IMMUTABLE_PREFIXES = ['/malini/_app/immutable/', '/malini/demo/assets/'];
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const PAGE = 'public, max-age=0, stale-while-revalidate=86400';
 const LOGDASH_SCRIPT = '/malini/_ld/script.js';
@@ -86,7 +86,7 @@ async function logdashEvents(request: Request): Promise<Response> {
 }
 
 function cacheControl(pathname: string): string | null {
-	if (pathname.startsWith(IMMUTABLE_PREFIX)) return IMMUTABLE;
+	if (IMMUTABLE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return IMMUTABLE;
 	const file = pathname.slice(pathname.lastIndexOf('/') + 1);
 	return file === '__data.json' || !file.includes('.') ? PAGE : null;
 }
