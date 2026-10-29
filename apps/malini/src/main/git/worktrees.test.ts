@@ -198,6 +198,27 @@ describe('addWorktree', () => {
 		expect(await realGit(wt, ['status', '--porcelain', '--ignored'])).toBe('');
 	});
 
+	it('fast-forwards the base checkout to its upstream so the next workstream clones current files', async () => {
+		const dir = await tempDir();
+		cleanups.push(() => removeDir(dir));
+		const { base, checkout } = await workstreamFixture(dir, 'ws-pusher');
+		await writeFile(join(checkout, 'landed.txt'), 'landed on main\n');
+		await realGit(checkout, ['add', '.']);
+		await realGit(checkout, ['commit', '-q', '-m', 'landed']);
+		await realGit(checkout, ['push', '-q', 'origin', 'HEAD:main']);
+		await realGit(base, ['fetch', '-q', 'origin']);
+
+		const wt = join(dir, 'workstreams', 'ws-next');
+		await addWorktree(base, wt, workstreamBranchName('ws-next'), 'origin/main');
+
+		expect((await realGit(base, ['rev-parse', 'HEAD'])).trim()).toBe(
+			(await realGit(base, ['rev-parse', 'origin/main'])).trim(),
+		);
+		expect(await readFile(join(base, 'landed.txt'), 'utf8')).toBe('landed on main\n');
+		expect(await readFile(join(wt, 'landed.txt'), 'utf8')).toBe('landed on main\n');
+		expect(await realGit(wt, ['status', '--porcelain', '--ignored'])).toBe('');
+	});
+
 	it('leaves a submodule folder empty even when the base checked it out', async () => {
 		const dir = await tempDir();
 		cleanups.push(() => removeDir(dir));
