@@ -1,6 +1,6 @@
 # 0058 - Usage counts and error names go to Logdash
 
-Status: superseded by 0119
+Status: superseded by 0121
 
 ## Context
 

@@ -1141,12 +1141,11 @@ function finalizeRepositoryTree(
 		})
 		.sort((left, right) => {
 			if (left.type !== right.type) return left.type === 'directory' ? -1 : 1;
-			return left.name.localeCompare(right.name, undefined, {
-				numeric: true,
-				sensitivity: 'base',
-			});
+			return TREE_NAME_ORDER.compare(left.name, right.name);
 		});
 }
+
+const TREE_NAME_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 function renderDiffView(diff: RepositoryViewState['diff'] & {}, close: () => void): HTMLElement {
 	const view = document.createElement('section');

@@ -2,30 +2,27 @@
 	import { GitHubIcon, Icon } from '@malini/hyper-ui/icons';
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
+	import DemoCard from '$lib/DemoCard.svelte';
+	import DemoTour from '$lib/DemoTour.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
-	import QueueMock from '$lib/QueueMock.svelte';
-	import JobMock from '$lib/JobMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
-	import TerminalMock from '$lib/TerminalMock.svelte';
 	import { docHref, DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '$lib/links';
-	import type { PageProps } from './$types';
-
-	let { data }: PageProps = $props();
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
 	const BEATS = [
 		'how',
-		'chat',
+		'report',
+		'compare',
 		'browser',
+		'chats',
+		'variants',
 		'ship',
 		'merge',
-		'jobs',
 		'open',
-		'docs',
 		'faq',
 		'start',
 	] as const;
@@ -109,6 +106,11 @@
 				'macOS 13 or later on Apple silicon, and git. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
 		},
 		{
+			question: 'Will Malini run on Windows?',
+			answer:
+				'We want it to, but none of us use Windows every day. Windows support needs a power user who lives there to lead it. If that is you, open an issue on GitHub and it is yours to shape.',
+		},
+		{
 			question: 'Where does my code go?',
 			answer:
 				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. Malini needs no account, and there is no Malini server. Malini makes three calls of its own: update checks to GitHub Releases, anonymous usage data that never includes your code, prompts, paths, or keys, which you can turn off under Settings, Privacy, and, only if you turn on Publish my stats, the numbers on your public profile at bestboy.dev, with the public catalog of skill and server names it may show.',
@@ -180,26 +182,63 @@
 </SectionHeading>
 
 <FeatureRow
-	id="chat"
-	beat={beat('chat', 'Chat')}
-	title="Keep typing while it works."
-	body="Enter queues a prompt after the current run. Cmd+Enter steers it now, and background commands keep running. Edit, reorder, or delete what is waiting."
-	href={doc('chat')}
-	linkLabel="How the chat works"
-	checks={['A model and an effort for every prompt', 'Undo any run, or fork it to a new chat']}
-	panel={chatPanel}
+	id="report"
+	beat={beat('report', 'Reports')}
+	title="No more walls of text."
+	body="Every turn ends in a report you read in seconds: what is true now, a picture or recording that shows it, then one line for what changed and one for how the agent checked it."
+	href={doc('chat#reports')}
+	linkLabel="How reports work"
+	checks={['Your turn shows only when it needs you', 'Ship a next step, or note it for later']}
+	panel={reportPanel}
+/>
+
+<FeatureRow
+	id="compare"
+	beat={beat('compare', 'Before and after')}
+	mirrored
+	title="See what changed in seconds."
+	body="When the agent changes something you can see, it captures it before and after. Wipe across, flip between, or diff the two, and every changed area gets a number, including the ones it did not mean to change."
+	href={doc('chat#before-and-after')}
+	linkLabel="How before and after works"
+	checks={['Wipe, Flip, or Diff', 'Recordings play side by side on one timeline']}
+	panel={comparePanel}
 />
 
 <FeatureRow
 	id="browser"
 	beat={beat('browser', 'Browser')}
-	mirrored
 	title="The browser agents enjoy using."
 	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
 	linkLabel="What the agent can do"
-	checks={['Pick an element and it lands in your prompt', 'The same tabs for you and the agent']}
+	checks={['Pick an element and start a thread on it', 'The same tabs for you and the agent']}
 	panel={browserPanel}
+/>
+
+<FeatureRow
+	id="chats"
+	beat={beat('chats', 'Chats')}
+	mirrored
+	title="Chat at any resolution."
+	body="Start a chat above everything you own, and it plans across every organization and private repository, one workstream per change. Open any of them to work on one branch, or pick an element in its browser and talk about just that."
+	href={doc('chat#chats-above-repositories')}
+	linkLabel="Where you can chat"
+	checks={[
+		'A chat above repositories starts the workstreams',
+		'Pick an element, chat about just that',
+	]}
+	panel={chatsPanel}
+/>
+
+<FeatureRow
+	id="variants"
+	beat={beat('variants', 'Experiments')}
+	title="Experiment first. Build the winner."
+	body="An open question becomes a small experiment: a few variants side by side, judged by you. The winner gets built, and the rest never touch your code."
+	href={doc('chat#variants')}
+	linkLabel="How variants work"
+	checks={['Pictures, recordings, or live pages', 'None fit? Run another round']}
+	panel={variantsPanel}
 />
 
 <SectionHeading
@@ -219,18 +258,6 @@
 	linkLabel="How a merge works"
 	checks={['Says Needs you only when it must', 'Merges exactly the commit that passed']}
 	panel={mergePanel}
-/>
-
-<FeatureRow
-	id="jobs"
-	beat={beat('jobs', 'Jobs')}
-	mirrored
-	title="You approve it. Malini runs it."
-	body="A job is a saved task, like Fix checks or Open draft. Its When starts it when something happens, and its Then runs the next job. Tell the agent what should happen when a pull request merges, and it writes the job. You approve every save, and its trigger starts Off."
-	href={doc('jobs')}
-	linkLabel="How jobs work"
-	checks={['Off, then Ask me first, then On its own', 'Triggers on any event Malini emits']}
-	panel={jobPanel}
 />
 
 <SectionHeading
@@ -261,21 +288,6 @@
 		</ul>
 	{/snippet}
 </SectionHeading>
-
-<FeatureRow
-	id="docs"
-	beat={beat('docs', 'Docs')}
-	title="Docs your agent can read too."
-	body="Add .md to any docs URL for plain markdown. Your agent reads the same pages you do, and every event Malini emits is documented."
-	href={docHref('/docs')}
-	linkLabel="Read the docs"
-	checks={[
-		'llms.txt and llms-full.txt, built from the docs',
-		'The events reference is generated from the code',
-	]}
-	header={terminalHeader}
-	panel={terminalPanel}
-/>
 
 <section id="faq" class="beat" aria-labelledby="faq-title">
 	<div class="wrap">
@@ -346,33 +358,42 @@
 	</svg>
 {/snippet}
 
-{#snippet chatPanel()}
-	<QueueMock />
+{#snippet reportPanel()}
+	<DemoCard
+		workstream="ws-grip-captions"
+		title="A Malini report on Grip with a recording of the change"
+	/>
+{/snippet}
+
+{#snippet comparePanel()}
+	<DemoCard
+		workstream="ws-tony-hero"
+		title="A Malini report with Tony’s hero before and after the change"
+		play="sweep"
+	/>
 {/snippet}
 
 {#snippet browserPanel()}
 	<BrowserMock />
 {/snippet}
 
+{#snippet chatsPanel()}
+	<DemoTour
+		workstream="ws-tony-hero"
+		title="Malini on demo data: a chat at Home starts three workstreams, then you pick an element in one of them and give it feedback"
+	/>
+{/snippet}
+
 {#snippet mergePanel()}
 	<MergeQueueMock />
 {/snippet}
 
-{#snippet jobPanel()}
-	<JobMock />
-{/snippet}
-
-{#snippet terminalHeader()}
-	<span class="dots" aria-hidden="true">
-		<span></span>
-		<span></span>
-		<span></span>
-	</span>
-	<span class="terminal-title">Terminal</span>
-{/snippet}
-
-{#snippet terminalPanel()}
-	<TerminalMock llms={data.llms} doc={data.doc} />
+{#snippet variantsPanel()}
+	<DemoCard
+		workstream="ws-og-lead"
+		title="A Malini report with three Open Graph image directions to pick from"
+		play="cycle"
+	/>
 {/snippet}
 
 <style>
@@ -472,22 +493,6 @@
 		justify-content: center;
 		gap: 12px;
 		margin-top: 12px;
-	}
-
-	.terminal-title {
-		color: var(--app-fg-3);
-	}
-
-	.dots {
-		display: inline-flex;
-		gap: 6px;
-	}
-
-	.dots span {
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: var(--app-line-strong);
 	}
 
 	.faq {

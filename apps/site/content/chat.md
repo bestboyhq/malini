@@ -27,7 +27,8 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
   Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
   An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
-  The chat's row lights up for the most pressing news of the chat and its workstreams, and grouped by Status it sits where the most pressing of them belongs, with its workstreams under it.
+  The chat's row lights up for the chat's own turns and for a request of theirs that waits in it, never for a turn they end, so it shows only what you have to do.
+  Grouped by Status it sits where the most pressing of the chat and its workstreams belongs, with its workstreams under it.
   A pull request of theirs that needs you says so in a toast that names the chat and opens it.
 - It has no repository, so it shows no **Files**.
   Its inspector opens only for a page its agent opens, in a browser tab beside the chat, and goes away with the last tab.

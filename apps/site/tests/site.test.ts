@@ -94,10 +94,12 @@ test('the worker drops trailing slashes with a permanent redirect', async () => 
 });
 
 test('the worker caches immutable assets for a year and lets pages revalidate in the background', async () => {
-	const asset = await get('https://bestboy.dev/malini/_app/immutable/assets/0.abc.css');
-	assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+	for (const path of ['/_app/immutable/assets/0.abc.css', '/demo/assets/main-abc.js']) {
+		const asset = await get(`${SITE}${path}`);
+		assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable', path);
+	}
 	const swr = 'public, max-age=0, stale-while-revalidate=86400';
-	for (const path of ['', '/docs/jobs', '/docs/jobs/__data.json', '/__data.json']) {
+	for (const path of ['', '/docs/jobs', '/docs/jobs/__data.json', '/__data.json', '/demo/app']) {
 		assert.equal((await get(`${SITE}${path}`)).headers.get('Cache-Control'), swr, path);
 	}
 	assert.equal((await get(`${SITE}/docs/jobs.md`)).headers.get('Cache-Control'), null);
@@ -187,6 +189,15 @@ test('the Open Graph view stays out of search', () => {
 	const html = read('og.html');
 	assert.match(html, /<meta name="robots" content="noindex"/u);
 	assert.doesNotMatch(html, /rel="canonical"/u);
+});
+
+test('the landing page embeds the app and its reports from the demo build', () => {
+	const frames = [
+		...read('index.html').matchAll(/<iframe src="\/malini\/demo\/(\w+)(?:\?play=\w+)?#/gu),
+	];
+	assert.deepEqual([...new Set(frames.map(([, page]) => page))].toSorted(), ['app', 'card']);
+	for (const page of ['app', 'card'])
+		assert.ok(existsSync(join(build, 'demo', `${page}.html`)), page);
 });
 
 test('the hero is the only README image the site uses', () => {
