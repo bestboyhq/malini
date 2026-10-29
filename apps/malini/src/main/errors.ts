@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import { githubFailure, isNetworkFailure, type GithubFailure } from '$contract/github-failure';
+import type { ShipWaitsFor } from '$contract/pull-requests';
 
 export function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return (
@@ -206,6 +207,13 @@ export function remoteRefusal(error: unknown): string | null {
 		.map((match) => (match[1] ?? '').trim())
 		.filter((line) => line.length > 0 && !REMOTE_PROGRESS.test(line));
 	return [...new Set([...said, reason])].join('\n').slice(0, REMOTE_SAID_MAX_CHARS);
+}
+
+export function workflowRefusal(error: unknown): ShipWaitsFor | null {
+	if (!(error instanceof GitError) || error.detail === undefined) return null;
+	const actor = WORKFLOW_REFUSED.exec(error.detail)?.[1];
+	if (actor === undefined) return null;
+	return actor === 'OAuth App' ? 'workflow-scope' : 'workflow-permission';
 }
 
 function refusedPush(output: string, reason: string): string {

@@ -489,6 +489,7 @@ export interface ContractCommands {
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
 	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
+	'repositories.start-github-workflow-access': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
@@ -776,6 +777,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.github-auth-status',
 	'repositories.github-reach',
 	'repositories.start-github-sign-in',
+	'repositories.start-github-workflow-access',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',
 	'pull-requests.create',

@@ -370,8 +370,9 @@ export function promptWithShippingFailure(prompt: string, failure: ShipFailure |
 	const serialized = escapeDelimiters(JSON.stringify(failure));
 	return (
 		`${prompt}\n\n<workstream_shipping>${serialized}</workstream_shipping>\n` +
-		'This is the note Malini shows in the chat while it retries shipping this workstream, and it keeps retrying on its own. ' +
-		'When the user asks why the pull request is not open or merged, answer from it; the user can press Retry now or Cancel in that note.'
+		'This is the note Malini shows in the chat while shipping this workstream fails. ' +
+		'Malini retries on its own at `nextTry`, except when `waitsFor` is set: then only the user can clear the cause, and Malini waits for them to press a button in that note. ' +
+		'When the user asks why the pull request is not open or merged, answer from it; the user can press Retry now or Cancel in that note, and Allow workflow changes when `waitsFor` is `workflow-scope`.'
 	);
 }
 

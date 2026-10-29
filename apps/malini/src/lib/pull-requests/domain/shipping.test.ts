@@ -147,6 +147,7 @@ function queued(overrides: Fixture = {}): ShippingSnapshot {
 		attempts: 0,
 		fixAttemptLimit: 3,
 		backoffUntil: null,
+		waitsForYou: false,
 		now: 1_000,
 		read: read !== null,
 		pullRequest: read === null ? null : pullRequestChange('ws-1', read, reviewFeedback),
@@ -361,6 +362,10 @@ describe('a queued workstream', () => {
 	it('stays put while backing off from an error', () => {
 		expect(nextShippingMove(queued({ backoffUntil: 5_000 }))).toEqual({ kind: 'backoff' });
 		expect(nextShippingMove(queued({ backoffUntil: 500 }))).toMatchObject({ kind: 'merge' });
+	});
+
+	it('holds still while a refusal waits for you, however long ago it failed', () => {
+		expect(nextShippingMove(queued({ waitsForYou: true }))).toEqual({ kind: 'held' });
 	});
 
 	it('waits while the agent or its own job is busy, showing the job step', () => {
@@ -933,7 +938,7 @@ describe('when Malini reads GitHub on its own', () => {
 		phase: 'local' | 'draft' | 'queued' | 'needs-you',
 		step: Parameters<typeof pullRequestReadEvery>[0]['step'] = null,
 		activeJobRunId: string | null = null,
-	) => pullRequestReadEvery({ phase, step, activeJobRunId }, DEFAULT_SHIP_DELAYS);
+	) => pullRequestReadEvery({ phase, step, activeJobRunId, waitsFor: null }, DEFAULT_SHIP_DELAYS);
 
 	it('reads only while shipping waits on GitHub, as often as the wait needs', () => {
 		expect(ship('local')).toBeNull();
@@ -949,5 +954,19 @@ describe('when Malini reads GitHub on its own', () => {
 		expect(ship('queued', 'waiting-for-agent')).toBeNull();
 		expect(ship('queued', 'fixing-checks')).toBeNull();
 		expect(ship('queued', null, 'job-1')).toBeNull();
+	});
+
+	it('never reads while a refusal waits for you: only you can clear it', () => {
+		expect(
+			pullRequestReadEvery(
+				{
+					phase: 'queued',
+					step: 'opening-draft',
+					activeJobRunId: null,
+					waitsFor: 'workflow-scope',
+				},
+				DEFAULT_SHIP_DELAYS,
+			),
+		).toBeNull();
 	});
 });

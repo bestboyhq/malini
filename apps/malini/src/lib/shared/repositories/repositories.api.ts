@@ -143,8 +143,10 @@ export { workstreamCount } from './domain/workstream-retirement';
 
 export { workstreamsForRepository } from './domain/repository-connection';
 
+export { allowGithubWorkflowChangesCommand } from './application/commands/allow-github-workflow-changes.command';
 export { archiveSavedWorkstreamCommand } from './application/commands/archive-saved-workstream.command';
 export { archiveWorkstreamCommand } from './application/commands/archive-workstream.command';
+export { cancelGithubSignInCommand } from './application/commands/cancel-github-sign-in.command';
 export { clearRepositoryConnectErrorCommand } from './application/commands/clear-repository-connect-error.command';
 export { answerRepositoryConnectionRequestCommand } from './application/commands/answer-repository-connection-request.command';
 export { connectRepositoryCommand } from './application/commands/connect-repository.command';
@@ -205,6 +207,7 @@ export { hiddenRepositoriesQuery } from './application/queries/hidden-repositori
 export { mergedHeadQuery } from './application/queries/merged-head.query.svelte';
 export { githubAuthErrorQuery } from './application/queries/github-auth-error.query.svelte';
 export { githubAuthQuery } from './application/queries/github-auth.query.svelte';
+export { githubSignInQuery } from './application/queries/github-sign-in.query.svelte';
 export { connectionProblemQuery } from './application/queries/connection-problem.query.svelte';
 export { projectsQuery } from './application/queries/projects.query.svelte';
 export { provisioningRecordQuery } from './application/queries/provisioning-record.query.svelte';
@@ -242,6 +245,7 @@ export {
 	default as ConnectRepositoryContextMenu,
 	type ConnectRepositoryContextMenuTarget,
 } from './presentation/ConnectRepositoryContextMenu.svelte';
+export { default as GitHubDeviceCode } from './presentation/GitHubDeviceCode.svelte';
 export { default as GitHubSetup } from './presentation/GitHubSetup.svelte';
 export { default as RemoveRepositoryButton } from './presentation/RemoveRepositoryButton.svelte';
 export { default as RepositoryAvatar } from './presentation/RepositoryAvatar.svelte';

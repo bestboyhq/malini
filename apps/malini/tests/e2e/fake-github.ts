@@ -44,6 +44,7 @@ export interface FakeGithub {
 	pushedSubjects(): string[];
 	setOffline(offline: boolean): void;
 	answerWith(stderr: string | null): void;
+	approveDevice(): void;
 }
 
 export interface PullRequestWorkstream {
@@ -306,6 +307,7 @@ async function fakeGithubFor(
 		setOffline: (next) => (next ? writeFileSync(offline, '') : rmSync(offline, { force: true })),
 		answerWith: (stderr) =>
 			stderr === null ? rmSync(failure, { force: true }) : writeFileSync(failure, stderr),
+		approveDevice: () => writeFileSync(join(state, 'device-approved'), ''),
 	};
 }
 
@@ -394,6 +396,13 @@ if (command !== 'auth' && fs.existsSync(failure)) {
 }
 if (command === 'auth' && sub === 'status') {
 	out('github.com\\n  Logged in to github.com account e2e-user (keyring)\\n');
+} else if (command === 'auth' && sub === 'refresh') {
+	process.stderr.write('! First copy your one-time code: E2E0-C0DE\\n');
+	process.stderr.write('Open this URL to continue in your web browser: https://github.com/login/device\\n');
+	const approved = path.join(state, 'device-approved');
+	const waitForApproval = () =>
+		fs.existsSync(approved) ? process.exit(0) : setTimeout(waitForApproval, 100);
+	waitForApproval();
 } else if (command === 'api' && sub === 'user') {
 	out('e2e-user\\n');
 } else if (command === 'api' && sub === 'graphql') {

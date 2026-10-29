@@ -8,33 +8,9 @@ import {
 	expectCleanConsole,
 	invoke,
 	launchMalini,
-	type LaunchedApp,
+	recordBrowserAndClipboard,
+	recordedBrowserAndClipboard,
 } from './harness';
-
-async function recordBrowserAndClipboard(app: LaunchedApp): Promise<void> {
-	await app.electronApp.evaluate(({ clipboard, shell }) => {
-		const record: { opened: string[]; copied: string[] } = { opened: [], copied: [] };
-		Reflect.set(globalThis, '__githubSignIn', record);
-		shell.openExternal = async (url) => {
-			record.opened.push(url);
-		};
-		clipboard.writeText = async (text) => {
-			record.copied.push(text);
-		};
-	});
-}
-
-function recorded(app: LaunchedApp): Promise<{ opened: string[]; copied: string[] }> {
-	return app.electronApp.evaluate(() => {
-		const record: unknown = Reflect.get(globalThis, '__githubSignIn');
-		const opened: unknown = Reflect.get(Object(record), 'opened');
-		const copied: unknown = Reflect.get(Object(record), 'copied');
-		return {
-			opened: Array.isArray(opened) ? opened.map(String) : [],
-			copied: Array.isArray(copied) ? copied.map(String) : [],
-		};
-	});
-}
 
 test('setup signs in to GitHub with a one-time code, without a terminal', async () => {
 	test.setTimeout(120_000);
@@ -63,7 +39,7 @@ test('setup signs in to GitHub with a one-time code, without a terminal', async 
 
 		await expect(github.getByLabel('One-time code')).toHaveText('E2E0-C0DE');
 		await expect
-			.poll(() => recorded(app))
+			.poll(() => recordedBrowserAndClipboard(app))
 			.toEqual({ opened: ['https://github.com/login/device'], copied: ['E2E0-C0DE'] });
 		await captureFlow(app, 'github-sign-in-code');
 

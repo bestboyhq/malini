@@ -1170,6 +1170,7 @@ ALTER TABLE agent_sessions_next RENAME TO agent_sessions;
 CREATE INDEX idx_agent_sessions_workstream_archived_started
   ON agent_sessions(workstream_id, archived_at, started_at DESC);
 `,
+	`ALTER TABLE workstream_ship ADD COLUMN waits_for TEXT;`,
 	`
 CREATE TABLE lead_decisions (
   id TEXT PRIMARY KEY,

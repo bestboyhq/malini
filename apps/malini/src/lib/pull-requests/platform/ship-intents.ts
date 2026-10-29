@@ -109,7 +109,13 @@ function retry(deps: ShipDeps, workstreamId: string): ShipStateRecord {
 
 function retryNow(deps: ShipDeps, row: ShipRow): ShipStateRecord {
 	clearAlarm(deps.context.db, shipAlarmKey(row.workstreamId));
-	const saved = saveShip(deps, row.workstreamId, { nextAttemptAt: null }, row.phase, 'retry');
+	const saved = saveShip(
+		deps,
+		row.workstreamId,
+		{ nextAttemptAt: null, waitsFor: null },
+		row.phase,
+		'retry',
+	);
 	return shipRecord(saved ?? row);
 }
 

@@ -27,4 +27,4 @@ The user: "my expectation as a user is that I will feel like there is a single c
 - Reports and answers that land during one turn reach the chat as one prompt, so it acts on all of them together.
 - A chat that never ends its turn holds everything sent to it, and the sender's timeline shows it waiting.
 - The hold on a first prompt lives in memory: a restart during setup sends that prompt at boot, before the workstream finishes setting up.
-- Enforced by `deliveries.service.test.ts`, `deliveries.test.ts`, `workstreams-send.test.ts`, `src/main/db/migrations.test.ts` (migration 79) and `tests/e2e/lead-timeline.spec.ts` ("a prompt for a workstream that is on a turn waits for that turn, then arrives without asking").
+- Enforced by `deliveries.service.test.ts`, `deliveries.test.ts`, `workstreams-send.test.ts`, `src/main/db/migrations.test.ts` (migration 80) and `tests/e2e/lead-timeline.spec.ts` ("a prompt for a workstream that is on a turn waits for that turn, then arrives without asking").

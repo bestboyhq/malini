@@ -143,7 +143,10 @@ Like every workstream, each one stays on its own commits while main moves, and m
   The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
   A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.
   The agent reads the same note with your next prompt, so asking it why the pull request is not open gets the real reason.
-  When GitHub refuses a push that adds or changes a workflow file because your `gh` sign-in lacks the `workflow` scope, the note says to run `gh auth refresh -s workflow` once; the next try then goes through.
+- **A workflow refusal waits for you.** GitHub refuses a push that adds or changes a file under `.github/workflows/` when the sign-in that pushes lacks the `workflow` scope, and no retry fixes that, so Malini stops trying and the note says **waits for you**.
+  When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way setup signs you in, and once you approve it every workstream waiting on it pushes again on its own.
+  Running `gh auth refresh -s workflow` in a terminal works too; then press **Retry now**.
+  When a personal access token or a GitHub App pushes instead, give it the workflow permission on GitHub, then press **Retry now**.
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.

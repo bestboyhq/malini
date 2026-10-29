@@ -18,6 +18,7 @@ function ship(workstreamId: string, overrides: Partial<PullRequestShip> = {}): P
 		failures: 0,
 		failedSince: null,
 		nextAttemptAt: null,
+		waitsFor: null,
 		updatedAt: '2026-01-01T00:00:00.000Z',
 		...overrides,
 	};

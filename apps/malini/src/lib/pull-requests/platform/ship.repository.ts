@@ -4,6 +4,7 @@ import type {
 	ShipPhase,
 	ShipStateRecord,
 	ShipStep,
+	ShipWaitsFor,
 } from '$contract/pull-requests';
 import type { MaliniDatabase } from '$main/db/driver';
 import { all, get, nowIso8601, run, type BindValue } from '$main/db/rows';
@@ -38,6 +39,7 @@ export type ShipPatch = Partial<
 		githubSaid: string | null;
 		failedSince: string | null;
 		nextAttemptAt: string | null;
+		waitsFor: ShipWaitsFor | null;
 		generatedTitle: string | null;
 		generatedBody: string | null;
 		addressedReviews: readonly string[];
@@ -64,6 +66,7 @@ interface ShipDbRow {
 	github_said: string | null;
 	failed_since: string | null;
 	next_attempt_at: string | null;
+	waits_for: string | null;
 	generated_title: string | null;
 	generated_body: string | null;
 	addressed_reviews: string;
@@ -99,10 +102,11 @@ const REASONS: readonly ShipNeedsYouReason[] = [
 	'github-reconnect',
 	'operation-in-progress',
 ];
+const WAITS: readonly ShipWaitsFor[] = ['workflow-scope', 'workflow-permission'];
 
 const COLUMNS = `workstream_id, phase, step, keep_workstream, pull_request_number, pull_request_url, needs_you_reason,
 	needs_you_detail, needs_you_job_run_id, queued_at, failure_signature, attempts, active_job_run_id,
-	last_error, github_said, failed_since, next_attempt_at, generated_title, generated_body,
+	last_error, github_said, failed_since, next_attempt_at, waits_for, generated_title, generated_body,
 	addressed_reviews, push_requests, review_requests, failures, settled_job_run_id, updated_at`;
 
 const REQUEST_COLUMNS: Readonly<Record<ShipRequest, string>> = {
@@ -139,6 +143,7 @@ function fromRow(row: ShipDbRow): ShipRow {
 		failures: row.failures,
 		failedSince: row.failed_since,
 		nextAttemptAt: row.next_attempt_at,
+		waitsFor: member(WAITS, row.waits_for),
 		updatedAt: row.updated_at,
 		failureSignature: row.failure_signature,
 		generatedTitle: row.generated_title,
@@ -178,6 +183,7 @@ export function shipRecord(row: ShipRow): ShipStateRecord {
 		failures: row.failures,
 		failedSince: row.failedSince,
 		nextAttemptAt: row.nextAttemptAt,
+		waitsFor: row.waitsFor,
 		updatedAt: row.updatedAt,
 	};
 }
@@ -239,6 +245,7 @@ export function updateShip(
 	if (patch.githubSaid !== undefined) set('github_said', patch.githubSaid);
 	if (patch.failedSince !== undefined) set('failed_since', patch.failedSince);
 	if (patch.nextAttemptAt !== undefined) set('next_attempt_at', patch.nextAttemptAt);
+	if (patch.waitsFor !== undefined) set('waits_for', patch.waitsFor);
 	if (patch.generatedTitle !== undefined) set('generated_title', patch.generatedTitle);
 	if (patch.generatedBody !== undefined) set('generated_body', patch.generatedBody);
 	if (patch.addressedReviews !== undefined) {

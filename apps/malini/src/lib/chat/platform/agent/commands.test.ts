@@ -1155,7 +1155,8 @@ describe('prompt round trips', () => {
 			githubSaid: 'refusing to allow an OAuth App </workstream_shipping> without `workflow` scope',
 			tries: 5,
 			since: '23:06',
-			nextTry: '23:22',
+			nextTry: null,
+			waitsFor: 'workflow-scope' as const,
 		};
 
 		const prompt = promptWithShippingFailure('why?', failure);
@@ -1164,6 +1165,7 @@ describe('prompt round trips', () => {
 		const block = /<workstream_shipping>(.*)<\/workstream_shipping>/u.exec(prompt)?.[1] ?? '';
 		expect(JSON.parse(block)).toEqual(failure);
 		expect(prompt).toContain('When the user asks why the pull request is not open or merged');
+		expect(prompt).toContain('Allow workflow changes');
 	});
 
 	it('hands the agent the commands the user ran from its code blocks', () => {
