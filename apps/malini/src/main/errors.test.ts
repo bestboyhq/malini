@@ -7,6 +7,7 @@ import {
 	gitFailureVerdict,
 	isNotFoundError,
 	remoteRefusal,
+	workflowRefusal as workflowRefusalOf,
 	type GitCommandFailure,
 } from './errors';
 
@@ -218,6 +219,26 @@ describe('remoteRefusal', () => {
 	it('has nothing to say for a failure GitHub did not refuse', () => {
 		expect(remoteRefusal(GitError.commandFailed(refusedPush(DNS_FAILURE)))).toBeNull();
 		expect(remoteRefusal(new Error('boom'))).toBeNull();
+	});
+});
+
+describe('workflowRefusal', () => {
+	const refused = (actor: string, without: string): GitError =>
+		GitError.commandFailed(refusedPush(workflowRefusal(actor, without)));
+
+	it('tells a gh sign-in without the workflow scope from a token Malini cannot widen', () => {
+		expect(workflowRefusalOf(refused('OAuth App', 'workflow` scope'))).toBe('workflow-scope');
+		expect(workflowRefusalOf(refused('Personal Access Token', 'workflow` scope'))).toBe(
+			'workflow-permission',
+		);
+		expect(workflowRefusalOf(refused('GitHub App', 'workflows` permission'))).toBe(
+			'workflow-permission',
+		);
+	});
+
+	it('leaves every other failure to the usual retries', () => {
+		expect(workflowRefusalOf(GitError.commandFailed(refusedPush(RULES_REFUSAL)))).toBeNull();
+		expect(workflowRefusalOf(new Error('boom'))).toBeNull();
 	});
 });
 

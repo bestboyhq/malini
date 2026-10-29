@@ -26,6 +26,7 @@ export class PullRequestShipMapper {
 			failures: raw.failures,
 			failedSince: raw.failedSince,
 			nextAttemptAt: raw.nextAttemptAt,
+			waitsFor: raw.waitsFor,
 			updatedAt: raw.updatedAt,
 		};
 	}

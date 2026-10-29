@@ -30,6 +30,8 @@ export type ShipNeedsYou = Readonly<{
 	jobRunId: string | null;
 }>;
 
+export type ShipWaitsFor = 'workflow-scope' | 'workflow-permission';
+
 export type ShipStateRecord = Readonly<{
 	workstreamId: string;
 	phase: ShipPhase;
@@ -46,6 +48,7 @@ export type ShipStateRecord = Readonly<{
 	failures: number;
 	failedSince: string | null;
 	nextAttemptAt: string | null;
+	waitsFor: ShipWaitsFor | null;
 	updatedAt: string;
 }>;
 
@@ -58,6 +61,7 @@ export type ShipFailure = Readonly<{
 	tries: number;
 	since: string;
 	nextTry: string | null;
+	waitsFor: ShipWaitsFor | null;
 }>;
 
 export type ShipWorkstreamArgs = Readonly<{ workstreamId: string }>;

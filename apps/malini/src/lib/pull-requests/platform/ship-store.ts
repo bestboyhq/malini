@@ -42,6 +42,7 @@ export const NO_SHIP_FAILURE = {
 	failures: 0,
 	failedSince: null,
 	nextAttemptAt: null,
+	waitsFor: null,
 } as const satisfies ShipPatch;
 
 export function saveShip(

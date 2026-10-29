@@ -61,7 +61,20 @@ describe('GitHubSignIn', () => {
 		});
 		expect(await signIn.finish()).toBe('signed-in');
 		expect((await readFile(join(state, 'args'), 'utf8')).trim()).toBe(
-			'auth login --web --hostname github.com --git-protocol https --skip-ssh-key',
+			'auth login --web --hostname github.com --git-protocol https --skip-ssh-key --scopes workflow',
+		);
+	});
+
+	it('adds the workflow scope to an existing sign-in through the same device code', async () => {
+		const { signIn, state } = await fakeGh();
+
+		const code = await signIn.start('workflow-access');
+		await answer(state, 'approve');
+
+		expect(code.userCode).toBe('45D6-E7E4');
+		expect(await signIn.finish()).toBe('signed-in');
+		expect((await readFile(join(state, 'args'), 'utf8')).trim()).toBe(
+			'auth refresh --hostname github.com --scopes workflow',
 		);
 	});
 

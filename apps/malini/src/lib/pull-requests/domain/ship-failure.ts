@@ -11,6 +11,7 @@ export type ShipFailureSource = Pick<
 	| 'failures'
 	| 'failedSince'
 	| 'nextAttemptAt'
+	| 'waitsFor'
 	| 'updatedAt'
 >;
 
@@ -61,7 +62,9 @@ export function shipFailure(ship: ShipFailureSource | null): ShipFailure | null 
 		githubSaid: ship.githubSaid,
 		tries: ship.failures,
 		since: clock(ship.failedSince ?? ship.updatedAt),
-		nextTry: ship.nextAttemptAt === null ? null : clock(ship.nextAttemptAt),
+		nextTry:
+			ship.waitsFor !== null || ship.nextAttemptAt === null ? null : clock(ship.nextAttemptAt),
+		waitsFor: ship.waitsFor,
 	};
 }
 
@@ -70,6 +73,7 @@ export function failureTries(failure: ShipFailure): string {
 }
 
 export function failureNextTry(failure: ShipFailure): string {
+	if (failure.waitsFor !== null) return 'waits for you';
 	return failure.nextTry === null ? 'retrying now' : `next at ${failure.nextTry}`;
 }
 
