@@ -4,11 +4,16 @@
 	import type { Snippet } from 'svelte';
 	import Arrow from '$lib/Arrow.svelte';
 	import Glow, { type Layer } from '$lib/Glow.svelte';
-	import { GITHUB_URL } from '$lib/links';
+	import { demoHref, GITHUB_URL } from '$lib/links';
 
 	let { og = false, children }: { og?: boolean; children?: Snippet } = $props();
 
 	const HORIZON: readonly Layer[] = [{ box: [0, -0.46, 1, 0.9], peak: [0.42, 0.86], start: 0.18 }];
+	const APP_WIDTH = 1280;
+	const APP_HEIGHT = 860;
+
+	let width = $state(APP_WIDTH);
+	let ready = $state(false);
 </script>
 
 <section class="hero" class:og aria-labelledby="hero-title" data-place="hero">
@@ -30,14 +35,31 @@
 			<Glow layers={HORIZON} opacity={0.85} />
 		</div>
 		<div class="wrap window">
-			<img
-				class="shot"
-				src={hero}
-				width="2560"
-				height="1600"
-				alt="The Malini window: six workstreams across malini, grip, and tony in the sidebar, a finished chat, and Draft and Merge above 2 changed files"
-				fetchpriority="high"
-			/>
+			{#if og}
+				<img
+					class="shot"
+					src={hero}
+					width="2560"
+					height="1600"
+					alt="The Malini window: six workstreams across malini, grip, and tony in the sidebar, a finished chat, and Draft and Merge above 2 changed files"
+				/>
+			{:else}
+				<div
+					class="shot app"
+					bind:clientWidth={width}
+					style:--fit={width / APP_WIDTH}
+					style:aspect-ratio="{APP_WIDTH} / {APP_HEIGHT}"
+				>
+					<iframe
+						src={demoHref('app', '/workstreams/ws-checkout')}
+						width={APP_WIDTH}
+						height={APP_HEIGHT}
+						title="Malini, running in your browser on demo data"
+						class:ready
+						onload={() => (ready = true)}
+					></iframe>
+				</div>
+			{/if}
 		</div>
 	</div>
 </section>
@@ -176,6 +198,24 @@
 			0 32px 64px -24px rgb(0 0 0 / 0.45);
 	}
 
+	.app {
+		overflow: hidden;
+		background: light-dark(#fbfbfb, #191919);
+	}
+
+	iframe {
+		display: block;
+		border: 0;
+		transform-origin: 0 0;
+		scale: var(--fit);
+		opacity: 0;
+		transition: opacity 500ms var(--enter-ease);
+	}
+
+	iframe.ready {
+		opacity: 1;
+	}
+
 	.og .intro {
 		padding-top: 56px;
 	}
@@ -221,6 +261,10 @@
 	@media (max-width: 639px) {
 		.plate {
 			padding: 40px 0;
+		}
+
+		iframe {
+			pointer-events: none;
 		}
 
 		.window {

@@ -2,30 +2,25 @@
 	import { GitHubIcon, Icon } from '@malini/hyper-ui/icons';
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
+	import DemoCard from '$lib/DemoCard.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
 	import MergeQueueMock from '$lib/MergeQueueMock.svelte';
-	import QueueMock from '$lib/QueueMock.svelte';
-	import JobMock from '$lib/JobMock.svelte';
 	import SectionHeading from '$lib/SectionHeading.svelte';
-	import TerminalMock from '$lib/TerminalMock.svelte';
 	import { docHref, DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '$lib/links';
-	import type { PageProps } from './$types';
-
-	let { data }: PageProps = $props();
 
 	const doc = (slug: string): string => docHref(`/docs/${slug}`);
 
 	const BEATS = [
 		'how',
-		'chat',
+		'report',
+		'compare',
 		'browser',
+		'variants',
 		'ship',
 		'merge',
-		'jobs',
 		'open',
-		'docs',
 		'faq',
 		'start',
 	] as const;
@@ -180,26 +175,49 @@
 </SectionHeading>
 
 <FeatureRow
-	id="chat"
-	beat={beat('chat', 'Chat')}
-	title="Keep typing while it works."
-	body="Enter queues a prompt after the current run. Cmd+Enter steers it now, and background commands keep running. Edit, reorder, or delete what is waiting."
-	href={doc('chat')}
-	linkLabel="How the chat works"
-	checks={['A model and an effort for every prompt', 'Undo any run, or fork it to a new chat']}
-	panel={chatPanel}
+	id="report"
+	beat={beat('report', 'Reports')}
+	title="No more walls of text."
+	body="Every turn ends in a report you read in seconds: the outcome on top, then one line for what changed, one for what the agent checked, and what it would do next. Earlier turns fold into a line each."
+	href={doc('chat#reports')}
+	linkLabel="How reports work"
+	checks={['Your turn shows only when it needs you', 'Ship a next step, or note it for later']}
+	panel={reportPanel}
+/>
+
+<FeatureRow
+	id="compare"
+	beat={beat('compare', 'Before and after')}
+	mirrored
+	title="See what changed in seconds."
+	body="When the agent changes something you can see, it captures it before and after. Wipe across, flip between, or diff the two, and every changed area gets a number, including the ones it did not mean to change."
+	href={doc('chat#before-and-after')}
+	linkLabel="How before and after works"
+	checks={['Wipe, Flip, or Diff', 'Recordings play side by side on one timeline']}
+	panel={comparePanel}
 />
 
 <FeatureRow
 	id="browser"
 	beat={beat('browser', 'Browser')}
-	mirrored
 	title="The browser agents enjoy using."
 	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
 	linkLabel="What the agent can do"
 	checks={['Pick an element and it lands in your prompt', 'The same tabs for you and the agent']}
 	panel={browserPanel}
+/>
+
+<FeatureRow
+	id="variants"
+	beat={beat('variants', 'Variants')}
+	mirrored
+	title="Prototype-native development."
+	body="When the direction is open, the agent makes two to four variants before it builds anything. Pick one, say why if you like, and it builds that one for real. Prototypes never reach your code."
+	href={doc('chat#variants')}
+	linkLabel="How variants work"
+	checks={['Pictures, recordings, or live HTML pages', 'None fit? Ask for new ones']}
+	panel={variantsPanel}
 />
 
 <SectionHeading
@@ -219,18 +237,6 @@
 	linkLabel="How a merge works"
 	checks={['Says Needs you only when it must', 'Merges exactly the commit that passed']}
 	panel={mergePanel}
-/>
-
-<FeatureRow
-	id="jobs"
-	beat={beat('jobs', 'Jobs')}
-	mirrored
-	title="You approve it. Malini runs it."
-	body="A job is a saved task, like Fix checks or Open draft. Its When starts it when something happens, and its Then runs the next job. Tell the agent what should happen when a pull request merges, and it writes the job. You approve every save, and its trigger starts Off."
-	href={doc('jobs')}
-	linkLabel="How jobs work"
-	checks={['Off, then Ask me first, then On its own', 'Triggers on any event Malini emits']}
-	panel={jobPanel}
 />
 
 <SectionHeading
@@ -261,21 +267,6 @@
 		</ul>
 	{/snippet}
 </SectionHeading>
-
-<FeatureRow
-	id="docs"
-	beat={beat('docs', 'Docs')}
-	title="Docs your agent can read too."
-	body="Add .md to any docs URL for plain markdown. Your agent reads the same pages you do, and every event Malini emits is documented."
-	href={docHref('/docs')}
-	linkLabel="Read the docs"
-	checks={[
-		'llms.txt and llms-full.txt, built from the docs',
-		'The events reference is generated from the code',
-	]}
-	header={terminalHeader}
-	panel={terminalPanel}
-/>
 
 <section id="faq" class="beat" aria-labelledby="faq-title">
 	<div class="wrap">
@@ -346,8 +337,15 @@
 	</svg>
 {/snippet}
 
-{#snippet chatPanel()}
-	<QueueMock />
+{#snippet reportPanel()}
+	<DemoCard workstream="ws-rate-limit" title="A Malini report: three turns, each in one line" />
+{/snippet}
+
+{#snippet comparePanel()}
+	<DemoCard
+		workstream="ws-checkout"
+		title="A Malini report with the checkout before and after the change"
+	/>
 {/snippet}
 
 {#snippet browserPanel()}
@@ -358,21 +356,11 @@
 	<MergeQueueMock />
 {/snippet}
 
-{#snippet jobPanel()}
-	<JobMock />
-{/snippet}
-
-{#snippet terminalHeader()}
-	<span class="dots" aria-hidden="true">
-		<span></span>
-		<span></span>
-		<span></span>
-	</span>
-	<span class="terminal-title">Terminal</span>
-{/snippet}
-
-{#snippet terminalPanel()}
-	<TerminalMock llms={data.llms} doc={data.doc} />
+{#snippet variantsPanel()}
+	<DemoCard
+		workstream="ws-pricing"
+		title="A Malini report with three pricing page variants to pick"
+	/>
 {/snippet}
 
 <style>
@@ -472,22 +460,6 @@
 		justify-content: center;
 		gap: 12px;
 		margin-top: 12px;
-	}
-
-	.terminal-title {
-		color: var(--app-fg-3);
-	}
-
-	.dots {
-		display: inline-flex;
-		gap: 6px;
-	}
-
-	.dots span {
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: var(--app-line-strong);
 	}
 
 	.faq {

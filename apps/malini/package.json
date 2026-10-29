@@ -11,6 +11,8 @@
 		"dev": "node scripts/generate-contract-reference.mjs && install-electron && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-bundle.mjs electron-vite dev --watch",
 		"dogfood": "node scripts/dogfood.mjs",
 		"build": "node scripts/generate-contract-reference.mjs && electron-vite build",
+		"build:demo": "vite build --config vite.demo.config.ts",
+		"dev:demo": "vite --config vite.demo.config.ts",
 		"start": "install-electron && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/dev-bundle.mjs electron-vite preview",
 		"check": "node ../../packages/agent-bridge/scripts/generate-protocol.mjs --check && node scripts/generate-contract-reference.mjs --check && svelte-check --tsconfig ./tsconfig.web.json && tsc -p tsconfig.node.json --noEmit",
 		"lint": "pnpm run test:scripts && eslint .",
