@@ -35,7 +35,7 @@ describe('lead progress', () => {
 		expect(inputs.map(progressDot)).toEqual([
 			'merged',
 			'merged',
-			'needs',
+			'blocked',
 			'needs',
 			'failed',
 			'failed',
@@ -49,6 +49,7 @@ describe('lead progress', () => {
 		expect(progressLabel(['merged', 'merged', 'needs'])).toBe(
 			'3 workstreams: 2 merged, 1 needs you',
 		);
+		expect(progressLabel(['blocked', 'needs'])).toBe('2 workstreams: 2 need you');
 		expect(progressLabel(['running'])).toBe('1 workstream: 1 working');
 		expect(progressLabel(['running', 'merged', 'archived'])).toBe(
 			'3 workstreams: 1 merged, 1 working, 1 archived',
@@ -56,7 +57,7 @@ describe('lead progress', () => {
 		expect(progressLabel([])).toBe('0 workstreams');
 	});
 
-	it('heads a lead chat with what merged and what needs the user', () => {
+	it('heads a lead chat with what merged, and calls only a stuck merge or a failure a problem', () => {
 		expect(leadHeadline([])).toEqual({
 			tone: 'idle',
 			busy: false,
@@ -64,11 +65,16 @@ describe('lead progress', () => {
 			detail: null,
 		});
 		expect(leadHeadline(['merged', 'needs', 'running'])).toEqual({
-			tone: 'needs-you',
+			tone: 'asks',
 			busy: true,
 			label: '1 of 3 merged',
 			detail: '1 needs you · 1 working',
 		});
+		expect(leadHeadline(['blocked', 'needs'])).toMatchObject({
+			tone: 'needs-you',
+			detail: '2 need you',
+		});
+		expect(leadHeadline(['needs', 'failed'])).toMatchObject({ tone: 'needs-you' });
 		expect(leadHeadline(['merged', 'merged'])).toMatchObject({ tone: 'merged', detail: null });
 		expect(leadHeadline(['idle', 'running'])).toMatchObject({ tone: 'idle', busy: true });
 		expect(leadHeadline(['merged', 'archived'])).toMatchObject({
@@ -80,13 +86,24 @@ describe('lead progress', () => {
 
 	it('names where each workstream stands', () => {
 		expect([
+			standingLabel('blocked', 'needs-you'),
+			standingLabel('needs', 'none'),
 			standingLabel('merged', 'none'),
 			standingLabel('running', 'queued'),
 			standingLabel('running', 'none'),
 			standingLabel('idle', 'open'),
 			standingLabel('idle', 'draft'),
 			standingLabel('idle', 'none'),
-		]).toEqual(['Merged', 'Merging', 'Working', 'In review', 'Draft', 'Waiting']);
+		]).toEqual([
+			'Needs you',
+			'Needs you',
+			'Merged',
+			'Merging',
+			'Working',
+			'In review',
+			'Draft',
+			'Waiting',
+		]);
 	});
 
 	it('drafts and merges only the workstreams that have work and are not shipping yet', () => {
@@ -115,6 +132,7 @@ describe('lead progress', () => {
 
 	it('files a chat by the most pressing state of the work it started', () => {
 		expect(treeDot('idle', ['merged', 'needs', 'running'])).toBe('needs');
+		expect(treeDot('needs', ['blocked'])).toBe('blocked');
 		expect(treeDot('running', ['failed'])).toBe('failed');
 		expect(treeDot('idle', ['running', 'merged'])).toBe('running');
 		expect(treeDot('merged', ['idle'])).toBe('merged');

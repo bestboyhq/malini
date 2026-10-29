@@ -222,7 +222,7 @@
 			{/if}
 			{#if needsYou}
 				<span
-					class="bg-warning-content absolute top-[3px] right-[3px] h-1.5 w-1.5 rounded-full"
+					class="bg-brand-icon absolute top-[3px] right-[3px] h-1.5 w-1.5 rounded-full"
 					aria-hidden="true"
 					data-testid="sidebar-focus-attention"
 				></span>

@@ -41,8 +41,8 @@
 		class="hover:bg-surface-50-hover focus-visible:ring-border-default/50 flex h-7 w-full cursor-pointer items-center gap-2 rounded-xl pr-2 pl-2 text-left text-xs outline-none focus-visible:ring-2"
 		onclick={onanswer}
 	>
-		<span class="text-warning-content grid size-4 shrink-0 place-items-center" aria-hidden="true">
-			<Icon name={unchecked ? 'shield-alert' : 'alert'} size={13} />
+		<span class="text-brand-icon grid size-4 shrink-0 place-items-center" aria-hidden="true">
+			<Icon name={unchecked ? 'shield-alert' : 'dot'} size={13} />
 		</span>
 		<span class="min-w-0 flex-1 truncate">
 			<span class="text-fg-default font-medium">{requests}</span>

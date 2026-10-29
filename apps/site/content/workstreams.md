@@ -65,10 +65,12 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   The chevron on the chat's row folds them, and Malini remembers.
   Under a pin that leaves the chat out, or in a Status or Day section the chat is not in, the workstream sits under its repository.
 - A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.
+  A needs-you dot is blue when the workstream asks you something, and amber when its merge stopped on a problem.
   Hover the row to list them with where each stands.
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
-  A row's icon turns amber when its agent waits on an answer or an approval, and red when its run failed.
+  A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.
+  Amber means a problem, such as a pull request Malini could not merge.
   A workstream a chat started stays calm, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up for it instead.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.

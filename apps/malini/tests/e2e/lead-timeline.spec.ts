@@ -412,7 +412,9 @@ test('a lead relays a picture a workstream it started took, and its alt keeps th
 		const relayed = timeline(page).getByRole('img', { name: 'Hero "A" in dark mode' });
 		await expect(relayed).toBeVisible({ timeout: 30_000 });
 		await expect
-			.poll(() => relayed.evaluate((image: HTMLImageElement) => image.naturalWidth > 0))
+			.poll(() =>
+				relayed.evaluate((image) => Number('naturalWidth' in image ? image.naturalWidth : 0) > 0),
+			)
 			.toBe(true);
 		expectCleanConsole(app);
 	} finally {

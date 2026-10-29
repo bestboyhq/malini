@@ -36,7 +36,7 @@ export type StatusInput = Readonly<{
 }>;
 
 export function statusSection({ dot, pullRequest, activeAt, now }: StatusInput): StatusSectionKey {
-	if (dot === 'needs' || dot === 'failed') return 'needs-you';
+	if (dot === 'blocked' || dot === 'needs' || dot === 'failed') return 'needs-you';
 	if (dot === 'running') return 'in-progress';
 	if (dot === 'merged') return 'merged';
 	if (activeAt < startOfDay(now, STALE_AFTER_DAYS)) return 'stale';

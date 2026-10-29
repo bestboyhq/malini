@@ -221,7 +221,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 						dots.map((dot) => dot.getAttribute('data-progress-dot')).join(' '),
 					),
 			)
-			.toMatch(/^(merged|needs|failed|running|idle) archived$/u);
+			.toMatch(/^(merged|blocked|needs|failed|running|idle) archived$/u);
 		await lead.hover();
 		await expect(progress).toBeVisible();
 		const started = page

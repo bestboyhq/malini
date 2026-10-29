@@ -241,8 +241,8 @@ Click a part of the map to list what passed through it.
 **Every event** adds the rest, such as file changes, tool calls, and jobs starting and finishing.
 A chat turn or a job run opens its transcript.
 
-Only words carry color: failed is red, needs you is amber, merged is purple.
-Blue marks what moves and what you picked.
+Only words carry color: failed is red, needs you is blue, merged is purple.
+Blue also marks what moves and what you picked.
 
 ## Built-in jobs
 

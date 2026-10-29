@@ -61,7 +61,7 @@ export const SOURCE_LABELS: Readonly<Record<Source, string>> = {
 
 const MERGED: Mark = { label: 'merged', tone: 'text-merged-content' };
 const FAILED: Mark = { label: 'failed', tone: 'text-error-content' };
-const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-warning-content' };
+const NEEDS_YOU: Mark = { label: 'needs you', tone: 'text-brand-foreground' };
 const SHORT_SHA = 7;
 const HOUR_FORMAT = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 const LIST = new Intl.ListFormat('en', { type: 'conjunction' });

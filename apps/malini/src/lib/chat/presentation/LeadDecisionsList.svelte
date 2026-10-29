@@ -37,7 +37,7 @@
 						onclick={() => focusLeadDecisionCommand(decision.id)}
 					>
 						<span class="grid size-3.5 shrink-0 place-items-center" aria-hidden="true">
-							<span class="text-warning-content size-1.5 rounded-full bg-current"></span>
+							<span class="bg-brand-icon size-1.5 rounded-full"></span>
 						</span>
 						<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
 							{decision.topic}

@@ -17,6 +17,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - It opens at once and sets itself up behind the chat.
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
 - The top bar counts how many of the workstreams it started merged and which need you.
+  A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
   Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
   **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
@@ -24,7 +25,7 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
-  Those workstreams keep their rows calm, with no unread mark and no amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
+  Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
   An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
   The chat's row lights up for the most pressing news of the chat and its workstreams, and grouped by Status it sits where the most pressing of them belongs, with its workstreams under it.
   A pull request of theirs that needs you says so in a toast that names the chat and opens it.

@@ -68,7 +68,7 @@
 					<div
 						class="border-surface-150-border/60 flex h-10 items-center gap-1.5 border-b pr-2 pl-3.5 text-xs"
 					>
-						<Icon name="alert" size={13} class="text-warning-content shrink-0" />
+						<Icon name="dot" size={13} class="text-brand-icon shrink-0" />
 						<span class="text-fg-default min-w-0 flex-1 truncate font-medium">
 							{changing ? `Change: ${current.topic}` : current.topic}
 						</span>
