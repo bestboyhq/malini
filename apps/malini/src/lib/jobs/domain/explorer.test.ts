@@ -109,8 +109,8 @@ function run(id: string, minute: number, fields: Partial<TimelineJobRun> = {}): 
 
 const wake: ReconcilerDecisionRecord = {
 	id: 'wake',
-	eventId: 1,
-	channel: 'chat:turn-finished',
+	eventId: 12,
+	channel: 'jobs:run-finished',
 	chainId: 'chain',
 	workstreamId: 'api',
 	facts: [],
@@ -118,11 +118,11 @@ const wake: ReconcilerDecisionRecord = {
 		{ kind: 'nothing', label: 'Do nothing' },
 		{
 			kind: 'wake-chat',
-			label: 'Wake “Lead” with this report',
+			label: 'Tell “Lead” that asked finished',
 			sessionId: 'lead-chat',
 			workstreamId: 'lead',
 			from: 'api',
-			report: 'Done',
+			report: 'asked, the job you ran in “Api analytics”, finished.',
 		},
 	],
 	pick: 1,
@@ -131,8 +131,8 @@ const wake: ReconcilerDecisionRecord = {
 	status: 'done',
 	detail: null,
 	jobRunId: null,
-	createdAt: at(13),
-	finishedAt: at(13),
+	createdAt: at(27),
+	finishedAt: at(27),
 };
 
 const RECORD: TimelineRecord = {
@@ -148,10 +148,11 @@ const RECORD: TimelineRecord = {
 			payload: { workstreamId: 'api', state: null, merged: { pullRequestNumber: 7 } },
 			chainId: 'other',
 		}),
+		event(12, 'jobs:run-finished', 26, { cause: { kind: 'job-run', id: 'asked' } }),
 	],
 	channelCounts: {
 		'chat:turn-finished': 5,
-		'jobs:run-finished': 1,
+		'jobs:run-finished': 2,
 		'repositories:workstream-files-changed': 9,
 		'pull-requests:ship-changed': 1,
 	},
@@ -166,7 +167,8 @@ const RECORD: TimelineRecord = {
 	turns: [
 		turn('lead-turn', 'lead', 5),
 		turn('api-turn', 'api', 10, { from: 'lead' }),
-		turn('lead-wake', 'lead', 14, { causeEventId: 1, from: 'api' }),
+		turn('lead-wake', 'lead', 14, { from: 'api' }),
+		turn('lead-told', 'lead', 28, { causeEventId: 12, from: 'api' }),
 		turn('resumed', 'site', 50, { resumed: true, chainId: 'other', finishedAt: null }),
 	],
 	decisions: [wake],
@@ -184,8 +186,10 @@ describe('explorer', () => {
 
 		expect(cause('turn:api-turn')).toBe('turn:lead-turn');
 		expect(cause('event:1')).toBe('turn:api-turn');
-		expect(cause('decision:wake')).toBe('event:1');
-		expect(cause('turn:lead-wake')).toBe('decision:wake');
+		expect(cause('turn:lead-wake')).toBe('turn:api-turn');
+		expect(cause('event:12')).toBe('run:asked');
+		expect(cause('decision:wake')).toBe('event:12');
+		expect(cause('turn:lead-told')).toBe('decision:wake');
 		expect(cause('run:announce')).toBe('event:2');
 		expect(cause('run:notes')).toBe('run:fix');
 		expect(cause('run:asked')).toBe('turn:lead-wake');
@@ -206,8 +210,10 @@ describe('explorer', () => {
 		expect(hops('event:2')).toEqual([['event:job-finished', 'reconciler']]);
 		expect(hops('event:3')).toEqual([['event:files-changed', 'reconciler']]);
 		expect(hops('event:4')).toEqual([['event:other', 'reconciler']]);
+		expect(hops('event:12')).toEqual([['event:job-finished', 'reconciler']]);
+		expect(hops('turn:lead-wake')).toEqual([['chats', 'chats']]);
 		expect(hops('decision:wake')).toEqual([['reconciler', 'rule:model']]);
-		expect(hops('turn:lead-wake')).toEqual([['rule:model', 'chats']]);
+		expect(hops('turn:lead-told')).toEqual([['rule:model', 'chats']]);
 		expect(hops('run:announce')).toEqual([
 			['reconciler', 'rule:triggers'],
 			['rule:triggers', 'jobs'],
@@ -230,6 +236,23 @@ describe('explorer', () => {
 			['reconciler', 'rule:schedules'],
 			['rule:schedules', 'jobs'],
 		]);
+		expect(offRoute(map)).toEqual([]);
+	});
+
+	it('routes a turn a report woke through Deliveries, from the Turn finished it reported', () => {
+		const map = explorer({
+			...RECORD,
+			turns: [...RECORD.turns, turn('lead-reported', 'lead', 16, { causeEventId: 1, from: 'api' })],
+		});
+
+		expect(map.byId.get('turn:lead-reported')).toMatchObject({
+			cause: 'event:1',
+			hops: [
+				['reconciler', 'rule:deliveries'],
+				['rule:deliveries', 'chats'],
+			],
+		});
+		expect(map.counts.get('rule:deliveries')).toBe(1);
 		expect(offRoute(map)).toEqual([]);
 	});
 
@@ -265,11 +288,11 @@ describe('explorer', () => {
 		const map = explorer(RECORD);
 
 		expect(map.counts.get('event:turn-finished')).toBe(5);
-		expect(map.counts.get('event:job-finished')).toBe(1);
+		expect(map.counts.get('event:job-finished')).toBe(2);
 		expect(map.counts.get('event:files-changed')).toBe(9);
 		expect(map.counts.get('event:other')).toBe(1);
-		expect(map.counts.get('reconciler')).toBe(16);
-		expect(map.counts.get('chats')).toBe(4);
+		expect(map.counts.get('reconciler')).toBe(17);
+		expect(map.counts.get('chats')).toBe(5);
 		expect(map.counts.get('jobs')).toBe(6);
 		expect(map.counts.get('you')).toBe(1);
 		expect(map.counts.get('rule:model')).toBe(1);
@@ -395,15 +418,16 @@ describe('explorer', () => {
 		expect(ids(listed(map, false))).toContain('event:4');
 		expect(ids(listed(map, true))).toHaveLength(map.items.length);
 		expect(ids(chainItems(map, 'other'))).toEqual(['event:4', 'run:orphan', 'turn:resumed']);
-		expect(ids(through(map, 'rule:model'))).toEqual(['decision:wake', 'turn:lead-wake']);
+		expect(ids(through(map, 'rule:model'))).toEqual(['decision:wake', 'turn:lead-told']);
 		expect(ids(through(map, 'reconciler'))).toEqual([
 			'event:3',
 			'event:1',
-			'decision:wake',
 			'run:fix',
 			'event:2',
 			'run:announce',
 			'run:notes',
+			'event:12',
+			'decision:wake',
 			'event:4',
 			'run:nightly',
 			'turn:resumed',

@@ -81,7 +81,7 @@
 				<span class="min-w-0 flex-1 truncate text-left">{section.label}</span>
 				{#if section.value === 'activity' && waiting > 0}
 					<span
-						class="bg-warning text-warning-content text-2xs grid min-w-4 place-items-center rounded-full px-1 tabular-nums"
+						class="bg-brand text-brand-content text-2xs grid min-w-4 place-items-center rounded-full px-1 tabular-nums"
 					>
 						{waiting}
 						<span class="sr-only">waiting for you</span>
@@ -118,7 +118,7 @@
 							{job.name}
 						</span>
 						{#if runs.some((run) => run.status === 'needs-you' || run.status === 'waiting')}
-							<Icon name="alert" size={12} class="text-warning-content shrink-0" />
+							<Icon name="dot" size={12} class="text-brand-icon shrink-0" />
 							<span class="sr-only">Needs you</span>
 						{:else if runs.some((run) => run.status === 'running')}
 							<BusyIcon size={11} />

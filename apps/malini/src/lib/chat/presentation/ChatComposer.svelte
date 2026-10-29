@@ -88,7 +88,7 @@
 		forceFreshSession?: boolean;
 		disabled?: boolean;
 		backendSelectionDisabled?: boolean;
-		placeholder?: string;
+		placeholder?: string | undefined;
 		transcriptReferences?: AgentTranscriptReference[];
 		elementReferences?: AgentElementReference[];
 		oncancel?: () => void;

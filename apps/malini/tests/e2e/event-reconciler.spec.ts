@@ -21,15 +21,18 @@ import {
 
 const LEAD = 'Move apps to Logdash';
 const CHILD = 'Api analytics';
-const WAKE = `Wake “${LEAD}” with this report`;
-const CHILD_TURN = 'TURN_OUTCOME="The analytics endpoint answers"';
-const CHILD_NEEDS = `${CHILD_TURN} TURN_NEEDS="Pick the Logdash project"`;
-const CHILD_PROMPT = `TITLE="${CHILD}" ${CHILD_NEEDS}`;
-const CHILD_DONE_PROMPT = `TITLE="${CHILD}" ${CHILD_TURN}`;
+const CHILD_PROMPT = `TITLE="${CHILD}" TURN_OUTCOME="The analytics endpoint answers" TURN_NEEDS="Pick the Logdash project"`;
+const JOB = 'Run the tests';
+const TELL = new RegExp(`^Tell “.+” that ${JOB} failed$`, 'u');
+const TOLD = new RegExp(`^Show why Malini decided: Tell “.+” that ${JOB} failed, Done$`, 'u');
+const WOKEN = /^Malini woke you: work you started moved on/u;
+const WOKEN_ABOUT_JOB = /^Malini woke you: work you asked for moved on/u;
 const RESENT = 'Rename the settings button';
 const GIT = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
 
 type Decision = Readonly<{ id: string; status: string; decidedBy: string; channel: string }>;
+
+type LeadCall = Readonly<{ tool: string; input: Record<string, unknown> }>;
 
 function sidebar(page: Page) {
 	return page.getByRole('navigation', { name: 'Connected repositories' });
@@ -39,7 +42,7 @@ function transcript(page: Page) {
 	return page.getByTestId('transcript-pane');
 }
 
-function agentCalls(app: LaunchedApp, call: { tool: string; input: Record<string, unknown> }) {
+function agentCalls(app: LaunchedApp, call: LeadCall) {
 	writeFileSync(join(app.home, 'malini-tool.json'), JSON.stringify(call));
 }
 
@@ -74,20 +77,22 @@ function askedChoices(app: LaunchedApp): Array<Readonly<{ prompt: string; pick: 
 		.map((line) => JSON.parse(line));
 }
 
-async function allowOnce(page: Page, heading: string): Promise<void> {
-	await sendPrompt(page, 'MALINI_TOOL');
-	await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 20_000 });
-	await page
-		.getByRole('group', { name: 'Permission decision' })
-		.getByRole('button', { name: 'Allow once' })
-		.last()
-		.click();
-	await expect(page.getByRole('status').filter({ hasText: 'Allowed once' })).not.toHaveCount(0, {
-		timeout: 20_000,
+async function leadCalls(app: LaunchedApp, calls: readonly LeadCall[]): Promise<void> {
+	const { page } = app;
+	const reply = `${calls.map(({ tool }) => tool).join(' and ')} done`;
+	writeFileSync(join(app.home, 'lead-calls.json'), JSON.stringify({ calls, reply }));
+	await expect(page.getByTestId('chat-composer-submit')).not.toHaveAccessibleName(
+		'Stop current run',
+		{ timeout: 30_000 },
+	);
+	await sendPrompt(page, 'LEAD_CALLS');
+	await expect(transcript(page).getByText(reply, { exact: true })).toBeVisible({
+		timeout: 30_000,
 	});
+	await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
 }
 
-async function leadStartsChild(app: LaunchedApp, prompt = CHILD_PROMPT): Promise<void> {
+async function leadStartsChild(app: LaunchedApp): Promise<void> {
 	const { page } = app;
 	const api = await createSourceRepo(app.root, 'acme/api');
 	await seedWorkstream(page, `file://${api}`, 'e2e-reconcile-api', 'Api work');
@@ -95,14 +100,33 @@ async function leadStartsChild(app: LaunchedApp, prompt = CHILD_PROMPT): Promise
 	const before = page.url();
 	await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
 	await expect.poll(() => page.url()).not.toBe(before);
-	await expect(transcript(page)).toBeVisible({ timeout: 20_000 });
 	await sendPrompt(page, `Plan it TITLE="${LEAD}"`);
 	await expect(leadRow(page)).toBeVisible({ timeout: 20_000 });
-	agentCalls(app, {
-		tool: 'workstreams_create',
-		input: { repository: 'acme/api', prompt },
+	await leadCalls(app, [
+		{ tool: 'workstreams_create', input: { repository: 'acme/api', prompt: CHILD_PROMPT } },
+	]);
+}
+
+async function chatRunsFailingJob(app: LaunchedApp): Promise<string> {
+	const { page } = app;
+	const api = await createSourceRepo(app.root, 'acme/api');
+	const { workstreamId } = await seedWorkstream(
+		page,
+		`file://${api}`,
+		'e2e-reconcile-api',
+		'Api work',
+	);
+	await invoke(page, 'jobs.save-definition', {
+		name: JOB,
+		instructions: 'ROUTINE_RUN_FAIL',
+		model: 'opus',
+		effort: 'high',
+		runsIn: 'workstream',
 	});
-	await allowOnce(page, 'Start a workstream in ‘acme/api’');
+	await openWorkstream(page, workstreamId);
+	agentCalls(app, { tool: 'jobs_run', input: { job: JOB } });
+	await sendPrompt(page, 'MALINI_TOOL');
+	return workstreamId;
 }
 
 function leadRow(page: Page) {
@@ -123,152 +147,114 @@ function wokenBy(page: Page, from: string) {
 		.filter({ hasText: `Prompt from ${from}` });
 }
 
-test('a lead chat hears what a workstream it set going needs, even when the model would ask you, and Activity and the Explorer say why', async () => {
+test('a lead chat hears every turn a workstream it started ends, and the Explorer says Deliveries woke it', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
-		reconcilerPicks(app, 'Ask you');
 		await leadStartsChild(app);
 
-		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 60_000 });
-		await expect(
-			transcript(page).getByText(/^Malini woke you: work you started moved on/u),
-		).toBeVisible();
-		await expect(
-			transcript(page)
-				.getByText(/Needs: Pick the Logdash project/u)
-				.last(),
-		).toBeVisible();
+		const report = transcript(page).getByTestId('timeline-report');
+		await expect(report).toContainText('The analytics endpoint answers', { timeout: 60_000 });
+		await expect(report).toContainText('asks the lead: Pick the Logdash project');
 		expect(askedChoices(app)).toEqual([]);
-		await captureFlow(app, 'reconciler-woken-lead');
-
-		await openJobs(page, '#/jobs/activity');
-		const row = page.getByRole('button', {
-			name: `Show why Malini decided: ${WAKE}, Done`,
-		});
-		await expect(row).toBeVisible({ timeout: 20_000 });
-		await row.click();
-		await expect(
-			page
-				.getByRole('list', { name: 'What Malini could do' })
-				.getByRole('listitem')
-				.filter({ hasText: "Picked by Malini's rules" }),
-		).toContainText(WAKE);
-		await expect(
-			page.getByText(
-				`“${LEAD}” set this turn going, so it hears what the turn needs before you do.`,
-			),
-		).toBeVisible();
-		await captureFlow(app, 'reconciler-activity');
+		expect(await decisions(page)).toEqual([]);
+		await captureFlow(app, 'deliveries-report-to-lead');
 
 		await openJobs(page, '#/jobs/explorer');
 		const explorer = page.getByTestId('automations-explorer');
 		const map = explorer.getByRole('region', { name: 'System map' });
-		await map.getByRole('button', { name: 'Choose a reaction: 1 decision' }).click();
-		await explorer
-			.getByRole('list', { name: 'Choose a reaction' })
-			.getByRole('button', { name: new RegExp(`^${WAKE}, Api analytics, `, 'u') })
-			.click();
+		await map.getByRole('button', { name: 'Deliveries: 1 started' }).click();
+		const delivered = explorer
+			.getByRole('list', { name: 'Deliveries' })
+			.getByRole('listitem')
+			.filter({ hasText: 'Deliveries woke it' });
+		await expect(delivered).toHaveCount(1);
+		await delivered.getByRole('button').first().click();
 		const chain = explorer.getByRole('list', { name: 'One chain' });
 		await expect(
 			chain.getByRole('button', {
 				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
 			}),
 		).toBeVisible();
-		await expect(
-			chain.getByRole('button', { name: /^Malini woke you: work you started moved on/u }),
-		).toBeVisible();
-		await expect(
-			chain.getByRole('listitem').filter({ hasText: 'Choose a reaction woke it' }),
-		).toHaveCount(1);
-		await captureFlow(app, 'reconciler-explorer');
-		await explorer.getByRole('button', { name: 'Show all' }).click();
-		await map.getByRole('button', { name: /^Turn finished: \d+ events?$/u }).click();
-		await expect(
-			explorer.getByRole('list', { name: 'Turn finished' }).getByRole('button', {
-				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
-			}),
-		).toBeVisible();
-		await map.getByRole('button', { name: /^Reconciler: \d+ events?$/u }).click();
-		const reconciled = explorer.getByRole('list', { name: 'Reconciler' });
-		await expect(
-			reconciled.getByRole('button', {
-				name: /^Turn finished: The analytics endpoint answers, Api analytics, /u,
-			}),
-		).toBeVisible();
-		await expect(
-			reconciled.getByRole('button', { name: new RegExp(`^${WAKE}, `, 'u') }),
-		).toBeVisible();
+		await expect(chain.getByRole('button', { name: WOKEN })).toBeVisible();
+		await captureFlow(app, 'deliveries-explorer');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('Malini asks before it acts when the model says so about a turn you set going, and does what you pick in Activity', async () => {
+test('Malini asks before it acts on a failed job when the model says so, and does what you pick in Activity', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'Ask you');
-		await leadStartsChild(app, CHILD_DONE_PROMPT);
-		const statuses = async () => (await decisions(page)).map((decision) => decision.status);
-		await expect.poll(statuses, { timeout: 60_000 }).toEqual(['done']);
+		const workstreamId = await chatRunsFailingJob(app);
 
-		await childRow(page).click();
-		await sendPrompt(page, CHILD_NEEDS);
-		await expect.poll(statuses, { timeout: 60_000 }).toEqual(['asking', 'done']);
-		expect(askedChoices(app).at(-1)?.prompt).toContain(
-			`The lead chat “${LEAD}” started it, but not this turn.`,
+		await expect
+			.poll(async () => (await decisions(page)).map((decision) => decision.status), {
+				timeout: 60_000,
+			})
+			.toEqual(['asking']);
+		await expect(page.getByRole('group', { name: 'Permission decision' })).toHaveCount(0);
+		const [asked] = askedChoices(app);
+		expect(asked?.prompt).toContain(`Event: the job ${JOB} in “Api work” failed.`);
+		expect(asked?.prompt).toMatch(
+			new RegExp(
+				`Candidates:\\n1\\. Do nothing\\n2\\. Tell “.+” that ${JOB} failed\\n3\\. Run ${JOB} again\\n4\\. Ask you`,
+				'u',
+			),
 		);
+		expect(asked?.pick).toBe(4);
 		await expect(page.getByTestId('sidebar-jobs-needs-you-count')).toHaveText('1');
 		await openJobs(page, '#/jobs/activity');
-		const ask = page.getByRole('group', {
-			name: `Malini asks: “${CHILD}” needs you: Pick the Logdash project`,
-		});
+		const ask = page.getByRole('group', { name: `Malini asks: ${JOB} failed in Api work.` });
 		await expect(ask).toBeVisible({ timeout: 20_000 });
 		await captureFlow(app, 'reconciler-asks-you');
-		await ask.getByRole('button', { name: WAKE }).click();
+		await ask.getByRole('button', { name: TELL }).click();
 
 		await expect(ask).toHaveCount(0);
 		await expect
 			.poll(async () => (await decisions(page))[0], { timeout: 30_000 })
 			.toMatchObject({ status: 'done', decidedBy: 'you' });
-		await page.getByRole('button', { name: `Show why Malini decided: ${WAKE}, Done` }).click();
+		await page.getByRole('button', { name: TOLD }).click();
 		await expect(
 			page
 				.getByRole('list', { name: 'What Malini could do' })
 				.getByRole('listitem')
 				.filter({ hasText: 'Picked by you' }),
-		).toContainText(WAKE);
-		await page.goBack();
-		await leadRow(page).click();
-		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 30_000 });
+		).toContainText(`that ${JOB} failed`);
+		await openWorkstream(page, workstreamId);
+		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
 	}
 });
 
-test('a lead answers what its workstream needs with workstreams_send, into that chat', async () => {
+test('a lead answers what its workstream needs with workstreams_send, into that chat, without asking', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		await leadStartsChild(app);
-		await expect(childRow(page)).toBeVisible({ timeout: 60_000 });
-		await expect
-			.poll(async () => (await decisions(page)).map((decision) => decision.status), {
-				timeout: 60_000,
-			})
-			.toEqual(['done']);
+		await expect(transcript(page).getByTestId('timeline-report')).toContainText(
+			'The analytics endpoint answers',
+			{ timeout: 60_000 },
+		);
 
-		agentCalls(app, {
-			tool: 'workstreams_send',
-			input: { workstream: CHILD, prompt: 'Report to the acme Logdash project.' },
-		});
-		await allowOnce(page, `Send a prompt to ‘${CHILD}’`);
+		await leadCalls(app, [
+			{
+				tool: 'workstreams_send',
+				input: { workstream: CHILD, prompt: 'Report to the acme Logdash project.' },
+			},
+		]);
+		await expect(transcript(page).locator('[data-timeline-entry="sent"]')).toContainText(
+			'delivered',
+			{ timeout: 30_000 },
+		);
 
 		await childRow(page).click();
 		await expect(
@@ -282,27 +268,23 @@ test('a lead answers what its workstream needs with workstreams_send, into that 
 	}
 });
 
-test('when the model gives no answer, Malini still wakes the lead, and Activity says its rules picked', async () => {
+test('when the model gives no answer on a failed job, Malini decides by its rules, and Activity and the Explorer say why', async () => {
 	test.setTimeout(240_000);
 	const app = await launchMalini();
 	try {
 		const { page } = app;
 		reconcilerPicks(app, 'FAIL');
-		await leadStartsChild(app, CHILD_DONE_PROMPT);
+		const workstreamId = await chatRunsFailingJob(app);
 
-		await expect(wokenBy(page, CHILD)).toBeVisible({ timeout: 60_000 });
-		await expect(
-			transcript(page)
-				.getByText(/Outcome: The analytics endpoint answers/u)
-				.last(),
-		).toBeVisible();
-		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);
 		await expect
-			.poll(async () => (await decisions(page))[0], { timeout: 30_000 })
+			.poll(async () => (await decisions(page))[0], { timeout: 60_000 })
 			.toMatchObject({ status: 'done', decidedBy: 'rules' });
+		expect(askedChoices(app).map(({ pick }) => pick)).toEqual([null]);
+		await openWorkstream(page, workstreamId);
+		await expect(transcript(page).getByText(WOKEN_ABOUT_JOB)).toBeVisible({ timeout: 30_000 });
 
 		await openJobs(page, '#/jobs/activity');
-		const row = page.getByRole('button', { name: `Show why Malini decided: ${WAKE}, Done` });
+		const row = page.getByRole('button', { name: TOLD });
 		await expect(row).toBeVisible({ timeout: 20_000 });
 		await row.click();
 		await expect(
@@ -310,8 +292,27 @@ test('when the model gives no answer, Malini still wakes the lead, and Activity 
 				.getByRole('list', { name: 'What Malini could do' })
 				.getByRole('listitem')
 				.filter({ hasText: "Picked by Malini's rules" }),
-		).toContainText(WAKE);
+		).toContainText(`that ${JOB} failed`);
 		await captureFlow(app, 'reconciler-default-wake');
+
+		await openJobs(page, '#/jobs/explorer');
+		const explorer = page.getByTestId('automations-explorer');
+		const map = explorer.getByRole('region', { name: 'System map' });
+		await map.getByRole('button', { name: 'Choose a reaction: 1 decision' }).click();
+		await explorer
+			.getByRole('list', { name: 'Choose a reaction' })
+			.getByRole('button', { name: new RegExp(`^Tell “.+” that ${JOB} failed, Api work, `, 'u') })
+			.click();
+		const chain = explorer.getByRole('list', { name: 'One chain' });
+		await expect(
+			chain.getByRole('listitem').filter({
+				has: page.getByRole('button', { name: new RegExp(`^${JOB}, Api work, `, 'u') }),
+			}),
+		).toContainText('A chat ran it');
+		await expect(
+			chain.getByRole('listitem').filter({ hasText: 'Choose a reaction woke it' }),
+		).toHaveCount(1);
+		await captureFlow(app, 'reconciler-explorer');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();

@@ -667,9 +667,11 @@ function start(delays: typeof DELAYS = DELAYS): void {
 			thens: NO_RULE,
 			shipping: platform.shipping,
 			resume: NO_RULE,
+			deliveries: NO_RULE,
 			schedules: (event) => schedules.handle(event),
 			compatibility: NO_RULE,
 		},
+		() => Promise.reject(new Error('There are no chats in these tests.')),
 	);
 	listen();
 	clock.start();

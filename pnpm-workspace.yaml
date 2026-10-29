@@ -29,6 +29,7 @@ catalog:
   typescript-eslint: ^8.70.0
   eslint-config-prettier: ^10.1.8
   prettier: ^3.8.0
+  marked: ^18.1.1
   # One copy for hyper-ui and the repository extension: CodeMirror breaks with two of @codemirror/state.
   '@codemirror/commands': ^6.11.1
   '@codemirror/merge': ^6.12.3

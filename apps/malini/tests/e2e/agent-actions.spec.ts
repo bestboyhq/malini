@@ -206,7 +206,7 @@ test('an agent edit to a job that runs on its own waits for a review of each cha
 	}
 });
 
-test('an agent clones a repository, starts a workstream in it and hides it, and Activity shows every call with its outcome', async () => {
+test('an agent clones a repository, starts and archives a workstream in it without asking, hides it, and Activity shows every call with its outcome', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini({ env: { FAKE_BRIDGE_TITLE: 'Fetch' } });
 	try {
@@ -246,7 +246,7 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			tool: 'workstreams_create',
 			input: { repository: kennelName, prompt: 'Add a fetch command' },
 		});
-		await allowOnce(`Start a workstream in ‘${kennelName}’`);
+		await sendPrompt(page, 'MALINI_TOOL');
 		const fetchRow = sidebar.locator(
 			`[data-testid="sidebar-workstream"][data-repository-full-name="${kennelName}"]`,
 		);
@@ -255,11 +255,8 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 
 		agentCalls(app, { tool: 'workstreams_archive', input: { workstream: 'Fetch' } });
 		await sendPrompt(page, 'MALINI_TOOL');
-		await expect(page.getByRole('heading', { name: 'Archive ‘Fetch’' })).toBeVisible({
-			timeout: 20_000,
-		});
-		await decision(page).getByRole('button', { name: 'Deny' }).click();
-		await expect(fetchRow).toHaveAccessibleName(/ Fetch$/u);
+		await expect(fetchRow).toHaveCount(0, { timeout: 30_000 });
+		await expect(decision(page)).toHaveCount(0);
 
 		agentCalls(app, { tool: 'repositories_hide', input: { repository: kennelName } });
 		await allowOnce(`Hide ‘${kennelName}’`);
@@ -269,7 +266,6 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 			})
 			.toBe(1);
 		await expect(sidebar.getByRole('link', { name: `Open ${kennelName}` })).toHaveCount(0);
-		await expect(fetchRow).toHaveCount(0);
 
 		await openJobs(page, '#/jobs/activity');
 		const activity = page.getByTestId('automations-activity');
@@ -287,8 +283,9 @@ test('an agent clones a repository, starts a workstream in it and hides it, and 
 		await expect(calls.nth(0)).toContainText(`Hide ‘${kennelName}’`);
 		await expect(calls.nth(0)).toContainText('You allowed it');
 		await expect(calls.nth(1)).toContainText('Archive ‘Fetch’');
-		await expect(calls.nth(1)).toContainText('You denied it');
+		await expect(calls.nth(1)).not.toContainText('You ');
 		await expect(calls.nth(2)).toContainText(`Start a workstream in ‘${kennelName}’`);
+		await expect(calls.nth(2)).not.toContainText('You ');
 		await expect(calls.nth(3)).toContainText(`Clone ‘file://${kennel}’`);
 		await calls
 			.nth(2)

@@ -103,7 +103,7 @@ export type GlobalTopBarStatusNote = Readonly<{
 	tone: GlobalTopBarStatusTone;
 }>;
 
-export type GlobalTopBarZoneTone = 'idle' | 'ready' | 'queued' | 'needs-you' | 'merged';
+export type GlobalTopBarZoneTone = 'idle' | 'asks' | 'ready' | 'queued' | 'needs-you' | 'merged';
 
 export type GlobalTopBarStatusHeadline = Readonly<{
 	tone: GlobalTopBarZoneTone;

@@ -1,4 +1,5 @@
 import type { AgentBackgroundTask, RunFailure } from '$contract/agent';
+import type { WorkstreamReport } from '$contract/deliveries';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { McpServerReport } from '$contract/mcp-servers';
 import type { StagedAgentAttachment } from './composer-actions';
@@ -29,6 +30,8 @@ export type AgentEvent =
 			})[];
 			elementReferences?: AgentElementReference[];
 			from?: string;
+			reports?: WorkstreamReport[];
+			decisions?: string[];
 	  }
 	| { type: 'assistant.message'; runId: string; text: string; contentId?: string }
 	| { type: 'thinking.message'; runId: string; contentId: string; text: string }
@@ -196,4 +199,5 @@ export type EventEnvelope = {
 	runId: string;
 	seq: number;
 	event: AgentEvent;
+	at?: number;
 };

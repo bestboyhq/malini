@@ -178,7 +178,7 @@
 		{:else}
 			<div class="flex items-start gap-2.5">
 				<span class="grid h-5 w-4 shrink-0 place-items-center" aria-hidden="true">
-					<Icon name="shield-alert" class="text-warning-content" size={15} />
+					<Icon name="shield-alert" class="text-brand-icon" size={15} />
 				</span>
 				<div class="min-w-0 flex-1">
 					<h3 id={headingId} class="text-fg-default text-sm leading-5 font-medium">{headline}</h3>

@@ -88,6 +88,14 @@ export function listWorkstreams(db: MaliniDatabase): Workstream[] {
 	).map(workstreamFromRow);
 }
 
+export function listStartedWorkstreams(db: MaliniDatabase, starterId: string): Workstream[] {
+	return all<WorkstreamRow>(
+		db,
+		`SELECT ${WORKSTREAM_COLUMNS} FROM workstreams WHERE started_by = ?`,
+		starterId,
+	).map(workstreamFromRow);
+}
+
 export function workstreamActiveTimes(db: MaliniDatabase): Map<string, string> {
 	return new Map(
 		all<{ workstream_id: string; active_at: string }>(

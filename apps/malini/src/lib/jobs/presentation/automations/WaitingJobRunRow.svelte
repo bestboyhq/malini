@@ -48,7 +48,7 @@
 	data-job-run-id={run.id}
 >
 	<span
-		class="bg-warning text-warning-content grid size-7 shrink-0 place-items-center rounded-md"
+		class="bg-brand/10 text-brand-foreground grid size-7 shrink-0 place-items-center rounded-md"
 		aria-hidden="true"
 	>
 		<Icon name="question" size={14} />

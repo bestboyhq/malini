@@ -65,7 +65,7 @@
 		</p>
 		<p class="mt-2.5 text-xs leading-relaxed">
 			{#if turn?.need}
-				<span class="text-warning-content font-medium">Needs you</span>
+				<span class="text-brand-foreground font-medium">Needs you</span>
 				<span class="text-fg-tertiary">·</span>
 				<span class="text-fg-secondary">{turn.need}</span>
 			{:else if turn}

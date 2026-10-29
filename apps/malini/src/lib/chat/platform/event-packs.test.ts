@@ -18,6 +18,7 @@ import {
 	listEventRowsForSession,
 	listEventRowsOfKinds,
 	toolCallOutput,
+	type AgentEventRow,
 } from './events.repository';
 import { insertRun } from './runs.repository';
 import { archiveSession, insertSession } from './sessions.repository';
@@ -81,6 +82,39 @@ function seedChat(db: MaliniDatabase, workstreamId: string, sessionId: string): 
 		for (const [kind, payload] of events) appendEvent(db, sessionId, runId, kind, payload);
 		appendEvent(db, sessionId, runId, 'run.completed', { summary: prompt });
 	});
+	run(
+		db,
+		`UPDATE agent_events
+		 SET emitted_at = strftime('%Y-%m-%dT%H:%M:%fZ', '2026-10-27T10:00:00Z', seq || ' seconds')
+		 WHERE session_id = ?`,
+		sessionId,
+	);
+}
+
+type Transcript = ReturnType<typeof transcript>;
+
+function recordedTimes(db: MaliniDatabase): Map<number, string> {
+	return new Map(
+		all<{ seq: number; emitted_at: string }>(db, 'SELECT seq, emitted_at FROM agent_events').map(
+			(row) => [row.seq, row.emitted_at],
+		),
+	);
+}
+
+function readBackPacked(
+	db: MaliniDatabase,
+	before: Transcript,
+	recorded: ReadonlyMap<number, string>,
+): Transcript {
+	const loose = new Set(
+		all<{ seq: number }>(db, 'SELECT seq FROM agent_events').map((row) => row.seq),
+	);
+	const timed = (rows: readonly AgentEventRow[]): AgentEventRow[] =>
+		rows.map((row) => {
+			const at = recorded.get(row.seq);
+			return loose.has(row.seq) || at === undefined ? row : { ...row, at };
+		});
+	return { ...before, rows: timed(before.rows), tail: timed(before.tail) };
 }
 
 function transcript(db: MaliniDatabase, sessionId: string) {
@@ -141,12 +175,16 @@ function restoreWorkstream(db: MaliniDatabase, workstreamId: string): void {
 }
 
 describe('archived chat packs', () => {
-	it('packs the tool calls, their output and the thinking of a closed chat, and reads it back unchanged', () => {
+	it('packs the tool calls, their output and the thinking of a closed chat, and reads it back unchanged, with when Malini recorded each event', () => {
 		const db = openMigratedDatabase(':memory:');
 		seedWorkstream(db, 'ws');
 		seedChat(db, 'ws', 'chat');
 		const before = transcript(db, 'chat');
+		const recorded = recordedTimes(db);
 		expect(before.lastTurn.complete).toBe(false);
+		expect(before.lastTurn.envelopes.map(({ seq, emittedAt }) => [seq, emittedAt])).toEqual(
+			before.lastTurn.envelopes.map(({ seq }) => [seq, recorded.get(seq)]),
+		);
 
 		archiveSession(db, 'chat', '2026-10-27T11:00:00Z');
 		packSessionEvents(db, 'chat');
@@ -161,7 +199,7 @@ describe('archived chat packs', () => {
 			'assistant.message',
 			'run.completed',
 		]);
-		expect(transcript(db, 'chat')).toEqual(before);
+		expect(transcript(db, 'chat')).toEqual(readBackPacked(db, before, recorded));
 		const pack = get<{ events: Uint8Array }>(db, 'SELECT events FROM agent_event_packs');
 		expect(pack?.events.byteLength).toBeLessThan(BUILD_LOG.length / 20);
 
@@ -176,6 +214,7 @@ describe('archived chat packs', () => {
 		seedChat(db, 'ws', 'chat');
 		const stored = storedEvents(db);
 		const before = transcript(db, 'chat');
+		const recorded = recordedTimes(db);
 
 		packSessionEvents(db, 'chat');
 		expect(packedChats(db)).toEqual([]);
@@ -185,7 +224,7 @@ describe('archived chat packs', () => {
 		packSessionEvents(db, 'chat');
 		unpackSessionEvents(db, 'chat');
 		expect(packedChats(db)).toEqual(['chat']);
-		expect(transcript(db, 'chat')).toEqual(before);
+		expect(transcript(db, 'chat')).toEqual(readBackPacked(db, before, recorded));
 
 		restoreWorkstream(db, 'ws');
 		unpackSessionEvents(db, 'chat');

@@ -202,26 +202,25 @@ It hands each event to your triggers first, then to its own rules at once:
   A wait it sets ends in a **Time reached**: **Retry** after a failed step, 30 seconds at first and twice as long each time, up to 10 minutes, or after a step that brought nothing back, **Checks rerun**, the minute a fix gives its failing checks to run again, and **Agent settled**, the 5 seconds after an agent's turn ends that let a prompt you queued start first.
 - **Resume** continues the turns a restart cut short when Malini logs **Malini started**, in the chain they belong to, and sends again a prompt Claude had not replied to yet.
   It also continues a turn a usage limit or an outage paused, on the **Time reached** the pause set, with that event as its cause. See [Limits and outages](/malini/docs/chat.md#limits-and-outages).
+- **Deliveries** hears **Turn finished**: it sends the report of every turn a workstream a chat started ends to that chat, with its `Outcome:`, its `Needs:` and the pictures it embeds, and hands each chat what waits for it once its turn ends.
+  Everything sent to a chat waits in Malini while that chat is on a turn, and arrives as one prompt when the turn ends: reports, prompts another chat sent it with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back), and your answers to its [decisions](/malini/docs/chat.md#decisions).
+  What waits survives a restart: on **Malini started**, Resume sends it on once it has continued the turns the restart cut short.
 - **Schedules** start a job on the **Time reached** its schedule names.
 - **Compatibility** runs **Check compatibility** on **Malini updated**, once per update. See [Updates](/malini/docs/updates.md#compatibility).
 
 After the rules, the job **Choose a reaction** looks at what no trigger handled and may need a hand:
 
-- a turn ends in a workstream a chat started,
 - a job a chat ran finishes or fails,
 - a merge stops on conflicts while **Resolve conflicts** is off.
 
 When work already owns the event, **Resolve conflicts** on the conflicts, or Merge taking over a shipping job that failed, Malini records that it does nothing, and why, without asking the model: every event it looks at leaves a decision, and none is skipped in silence.
-Otherwise Malini writes down what it sees, in short lines such as "“Api analytics” needs you: Pick the Logdash project" and "“Move apps to Logdash” is idle", and lists what it could do: do nothing, wake the chat that asked for the work with its report, run the job again, run **Resolve conflicts**, or ask you.
-When the chat that started a workstream also set the turn going, in the same chain of events, and the turn needs something or failed, Malini's rules wake that chat without asking the model, since it answers what its plan covers and brings you only what you must decide.
-Otherwise the model picks one of them, by number.
-Malini checks every pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
+Otherwise Malini writes down what it sees, in short lines such as "Run the tests failed in Api work" and "“Api work” is idle", and lists what it could do: do nothing, wake the chat that asked for the work with its report, run the job again, run **Resolve conflicts**, or ask you.
+The model only picks one of them, by number, and Malini checks the pick before it acts: it wakes a chat at most three times about the same work in one chain, and asks you after that.
 When the model can't answer, Malini picks by its own rules: it wakes the chat waiting on the work, or else asks you, and never runs a job.
 
-- **Wake**: the report arrives in the chat that asked for the work, beginning "Malini woke you": the chat that started the workstream, ran the job, or ran the work whose merge stopped on conflicts.
+- **Wake**: the report reaches the chat that asked for the work through Deliveries, beginning "Malini woke you: work you asked for moved on": the chat that ran the job, or ran the work whose merge stopped on conflicts.
   A chat is never woken only because it works in that workstream.
   When that chat is on a turn, the report waits and arrives with any others when the turn ends.
-  The agent answers the workstreams it started with [`workstreams_send`](/malini/docs/agent-tools.md#work-it-started-reports-back); a report about a job or a conflict says "work you asked for moved on" instead.
 - **Ask you**: the question waits under **Waiting for you** in Activity, with a button for each thing Malini could do, counts on the Jobs badge, and sends a notification, which opens the work, or the top-most chat that started it.
 - **Run again** asks first, unless the job runs on its own.
 
@@ -252,8 +251,8 @@ Click a part of the map to list what passed through it.
 **Every event** adds the rest, such as file changes, tool calls, and jobs starting and finishing.
 A chat turn or a job run opens its transcript.
 
-Only words carry color: failed is red, needs you is amber, merged is purple.
-Blue marks what moves and what you picked.
+Only words carry color: failed is red, needs you is blue, merged is purple.
+Blue also marks what moves and what you picked.
 
 ## Built-in jobs
 

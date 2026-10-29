@@ -124,6 +124,9 @@ describe('malini MCP server', () => {
 					{ name: 'workstreams_create' },
 					{ name: 'workstreams_send' },
 					{ name: 'workstreams_archive' },
+					{ name: 'decisions_ask' },
+					{ name: 'decisions_answer' },
+					{ name: 'plan_write' },
 					{ name: 'files_open' },
 				],
 			},
@@ -225,7 +228,7 @@ describe('malini MCP server', () => {
 		});
 	});
 
-	it('pre-approves the browser, the read tools and opening a file for the user, never a tool that changes Malini', () => {
+	it('pre-approves the browser, the read tools, the work a chat starts in its own tree, its decisions, its plan and opening a file, never another tool that changes Malini', () => {
 		const { allowedTools } = maliniTools(
 			async () => ({ ok: true }),
 			async () => ({ ok: true }),
@@ -236,6 +239,11 @@ describe('malini MCP server', () => {
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',
 			'mcp__malini__workstreams_list',
+			'mcp__malini__workstreams_create',
+			'mcp__malini__workstreams_send',
+			'mcp__malini__decisions_ask',
+			'mcp__malini__decisions_answer',
+			'mcp__malini__plan_write',
 			'mcp__malini__files_open',
 		]);
 	});
@@ -308,6 +316,100 @@ describe('malini MCP server', () => {
 			?.inputSchema?.properties?.when?.description;
 		expect(jobsSave).toContain('`on <channel>`');
 		expect(jobsSave).toContain('null for a job that runs only when asked');
+	});
+
+	it('describes the decision and plan tools to the agent, with the size of every field', async () => {
+		const { call } = await connect(async () => ({ ok: true }));
+
+		const listed = await call('tools/list', {});
+		const tools =
+			'result' in listed && Array.isArray(listed.result['tools']) ? listed.result['tools'] : [];
+		const schemaOf = (name: string): unknown =>
+			tools.find((tool: { name?: unknown }) => tool.name === name)?.inputSchema;
+		const text = (minLength: number, maxLength?: number) => ({
+			type: 'string',
+			minLength,
+			...(maxLength === undefined ? {} : { maxLength }),
+			description: expect.any(String),
+		});
+		const optionNumber = {
+			type: 'integer',
+			minimum: 1,
+			maximum: 4,
+			description: expect.any(String),
+		};
+
+		expect(schemaOf('decisions_ask')).toMatchObject({
+			properties: {
+				topic: text(1, 40),
+				question: text(1, 200),
+				why: text(1, 300),
+				options: {
+					type: 'array',
+					minItems: 2,
+					maxItems: 4,
+					items: {
+						type: 'object',
+						properties: { label: text(1, 60), note: text(1, 120), picture: text(1) },
+						required: ['label'],
+					},
+					description: expect.any(String),
+				},
+				recommended: optionNumber,
+				meanwhile: text(1, 120),
+				decided: { type: 'boolean', description: expect.any(String) },
+			},
+			required: ['topic', 'question', 'options', 'recommended'],
+		});
+		expect(schemaOf('decisions_answer')).toMatchObject({
+			properties: { decision: text(1), option: optionNumber, reason: text(1, 300) },
+			required: ['decision', 'option'],
+		});
+		expect(schemaOf('plan_write')).toMatchObject({
+			properties: { text: text(1) },
+			required: ['text'],
+		});
+	});
+
+	it('sends a decision, its answer and the plan to malini, and refuses one out of range before it gets there', async () => {
+		const { call, platformCalls } = await connect(
+			async () => ({ ok: true }),
+			async ({ tool }) => ({ ok: true, text: `[${tool}]` }),
+		);
+		const decision = {
+			topic: 'Agent hours',
+			question: 'Keep agent hours on your cards?',
+			options: [
+				{ label: 'Keep them', picture: '/workstreams/w1/.context/keep.png' },
+				{ label: 'Drop them', note: 'Cards get shorter' },
+			],
+			recommended: 2,
+			meanwhile: 'Building without agent hours meanwhile',
+		};
+		const answer = { decision: 'decision-1', option: 1, reason: 'Clients ask for them' };
+
+		const asked = await call('tools/call', { name: 'decisions_ask', arguments: decision });
+		await call('tools/call', { name: 'decisions_answer', arguments: answer });
+		await call('tools/call', { name: 'plan_write', arguments: { text: '# Plan' } });
+		const refused = await Promise.all([
+			call('tools/call', {
+				name: 'decisions_ask',
+				arguments: { ...decision, options: [{ label: 'Keep them' }] },
+			}),
+			call('tools/call', { name: 'decisions_ask', arguments: { ...decision, recommended: 5 } }),
+			call('tools/call', { name: 'decisions_answer', arguments: { ...answer, option: 0 } }),
+			call('tools/call', { name: 'plan_write', arguments: { text: '' } }),
+		]);
+
+		expect(platformCalls).toEqual([
+			{ tool: 'decisions_ask', input: decision },
+			{ tool: 'decisions_answer', input: answer },
+			{ tool: 'plan_write', input: { text: '# Plan' } },
+		]);
+		expect(asked).toMatchObject({
+			result: { content: [{ type: 'text', text: '[decisions_ask]' }] },
+		});
+		for (const result of refused) expect(result).toMatchObject({ result: { isError: true } });
 	});
 
 	it('sends each job tool call to malini and returns its answer as text', async () => {

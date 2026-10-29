@@ -29,8 +29,8 @@ export const ORDERING_ICONS: Readonly<Record<SidebarOrdering, IconName>> = {
 export const SECTION_ICONS: Readonly<
 	Record<SidebarSectionKey, Readonly<{ name: IconName; tone: string }> | null>
 > = {
-	'needs-you': { name: 'alert', tone: 'text-warning-content' },
-	'in-progress': { name: 'contrast', tone: 'text-brand-icon' },
+	'needs-you': { name: 'dot', tone: 'text-brand-icon' },
+	'in-progress': { name: 'contrast', tone: 'text-fg-secondary' },
 	'in-review': { name: 'pr-open', tone: 'text-fg-tertiary' },
 	idle: { name: 'circle', tone: 'text-fg-tertiary' },
 	stale: { name: 'clock', tone: 'text-fg-quaternary' },

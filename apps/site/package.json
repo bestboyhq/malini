@@ -28,7 +28,7 @@
 		"daisyui": "catalog:",
 		"electron": "catalog:",
 		"eslint": "catalog:",
-		"marked": "^15.0.12",
+		"marked": "catalog:",
 		"shiki": "^4.5.0",
 		"svelte": "catalog:",
 		"svelte-check": "^4.7.6",

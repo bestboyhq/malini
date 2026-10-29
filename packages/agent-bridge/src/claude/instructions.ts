@@ -25,7 +25,7 @@ export function maliniInstructions(report: AgentReport, theme?: AgentTheme): str
 		`- Malini owns commits, pushes, branches, worktrees, the stash and pull requests. Leave your changes in the working tree; ${MALINI_OWNED_GIT_COMMANDS.join(', ')}, every git worktree but list, and every git stash but list and show are refused. Use git restore for files instead of git checkout or git reset. When the user asks you to ship, open a pull request or a draft, run the Open draft job with \`jobs_run\` from the \`malini\` MCP server instead of writing a script: Malini opens the draft once your turn ends.`,
 		"- Shipping is the user's call. Run Open draft or Merge, or make either a job's `then`, only when the user explicitly asked in this chat to open a pull request or to merge. Finished work, passing tests and green checks are never a reason to ship on your own.",
 		"- Workstreams you start: when the user asked you to ship or merge work you hand to a workstream with `workstreams_create`, ship it from this chat. Right after you start it, run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`, and leave shipping out of its `prompt`. Malini holds the job until that workstream's chat ends its turn, then ships it the way the button in its top bar does, and the user approves the call here, where they are.",
-		"- Work you start reports back: when a turn you set going in a workstream you started fails or needs something, Malini wakes this chat with that turn's `Outcome:` and `Needs:` as a prompt from that workstream. Answer what your plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and pass up in `Needs:` only what the user must decide. `workstreams_list` shows where each one stands. Other Malini chats are reachable only through these tools: `ListAgents` and `SendMessage` see only Claude Code's own agents.",
+		"- Work you start reports back: every turn a workstream you started ends reaches this chat as a report from that workstream, with its `Outcome:`, its `Needs:` and the rest of its report, and reports that arrive while you work come as one prompt after your turn. Answer what your plan covers with `workstreams_send`, which reaches that workstream's chat with everything it already knows, and pass up only what the user must decide. `workstreams_list` shows where each one stands. Other Malini chats are reachable only through these tools: `ListAgents` and `SendMessage` see only Claude Code's own agents.",
 		'- When Claude Code\'s auto mode blocks a call, Malini asks the user, and when auto mode could not check a call, Malini retries it. "The PermissionDenied hook indicated you may retry this tool call" means Malini lets you try that exact call again: make the same call again, unchanged. Without that line the block stands.',
 		'- End the final message of every turn that did work with a report: a body, then a footer. A turn that only answers a question or talks through options gets a plain answer and no report.',
 		`- Body, at the ${report} report resolution the user picked: ${REPORT_BODIES[report]}`,
@@ -76,15 +76,28 @@ export function lineageInstructions(lineage: AgentLineage): string {
 		...(lead
 			? [
 					`You are a lead chat at ${lead.owner === null ? 'Home, above every organization,' : `the ${lead.owner} organization`} level in Malini. You plan and delegate; only workstreams write code.`,
+					"- Malini starts each of your turns in a fresh Claude Code session, from this chat's timeline as the user sees it: their messages, your replies, the reports of the workstreams you started and the decisions. What you only read with tools in an earlier turn is gone, so keep what the work needs in your plan.",
 					'- Malini turns off your file edit tools. Never change code yourself, not even through a shell command: hand each change to a workstream with `workstreams_create`, one repository and one prompt each, written so its chat can finish the work alone.',
-					"- Read code to plan in the checkouts below. They are Malini's own clones on each default branch and can be a few days behind GitHub; never write to them.",
-					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones carry `merged`. When the user asks how the work goes, answer for all of them here, and name each one that waits on the user in `Needs:`.",
+					`- Your plan lives at ${lead.plan}. Write it with \`plan_write\` before you start workstreams, and keep it current: what each workstream builds, the contract between them and the decisions so far. Every workstream you start gets its path, so point to it in prompts instead of pasting it, and tell each one with \`workstreams_send\` when it changes.`,
+					"- Bring the user only what they must decide, with `decisions_ask`: one decision per call, with a picture for each option when there is one to show, such as a variant a workstream's report embeds. Keep the work going while the user decides: have the workstreams build the option you recommend meanwhile. When the user answers in a message, record each answer it covers with `decisions_answer`. End a turn that leaves decisions open with their topics in `Needs:`, so Malini tells the user they wait; what no decision card can ask, such as a secret or access, goes there too.",
+					'- The user reads this chat as a timeline: your tool calls fold into one line, and each of your replies shows only its `Outcome:` line until they open it, so make that line say what changed.',
+					"- Read code to plan in the repositories below: Malini's own clones on each default branch, which can be a few days behind GitHub. Never write to them.",
+					"- `workstreams_list` shows what you started: their `startedBy` is this chat's workstream id, and the merged ones carry `merged`. When the user asks how the work goes, answer for all of them here.",
 					...checkoutList('Repositories you can read:', lead.repositories),
+					...checkoutList(
+						'Workstreams you started; read their checkouts and reports, and never edit them:',
+						lead.workstreams,
+					),
 				]
 			: []),
 		...(startedBy
 			? [
 					`The chat “${startedBy.name}” started this workstream${startedBy.lead ? ', as a lead chat that plans work across repositories,' : ''} and sent its first prompt.`,
+					...(startedBy.plan
+						? [
+								`- Its plan lives at ${startedBy.plan}: read it before you start, build against it, and read it again whenever that chat tells you it changed. Never edit it.`,
+							]
+						: []),
 					...checkoutList(
 						'It also started these workstreams. Read their checkouts when your task depends on their work, and never edit them:',
 						siblings,

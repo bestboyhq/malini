@@ -15,7 +15,7 @@ import { SensitiveMask } from './sensitive-mask';
 import { StripPrivateUse } from './strip-private-use';
 
 export type PromptEditorExtensionOptions = {
-	placeholder: string;
+	placeholder: string | (() => string);
 	chipOpener?: PromptChipOpener | undefined;
 };
 

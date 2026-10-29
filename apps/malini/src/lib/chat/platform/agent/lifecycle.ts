@@ -99,6 +99,7 @@ export function camelEnvelopeJson(
 		envelope.runId,
 		seq,
 		eventJsonFromKindPayload(envelope.eventKind, envelope.eventPayload),
+		nowIso8601(),
 	);
 }
 
