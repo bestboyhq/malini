@@ -3,18 +3,30 @@ import type {
 	ProfileState,
 	PublishedStats,
 	PublishStatsResult,
+	StatsPart,
 	StatsUpload,
 } from '$contract/stats';
 import { localDate, shiftDate } from '../domain/activity';
+import type { StatsCatalog } from '../domain/catalog-names';
 import { handleProblem, normalizedHandle } from '../domain/handle';
+import { sharedStats } from '../domain/published-stats';
 import { BestboyError, type Bestboy } from './bestboy';
-import { settled, SIGNED_OUT, type ProfileStore, type SavedProfile } from './profile-store';
+import {
+	settled,
+	SIGNED_OUT,
+	type ProfileStore,
+	type SavedCatalog,
+	type SavedProfile,
+} from './profile-store';
 
 export interface StatsProfileDeps {
 	readonly bestboy: Bestboy;
 	readonly store: ProfileStore;
 	openExternal(url: string): Promise<void>;
-	readStats(picked: readonly string[]): Promise<PublishedStats | null>;
+	readStats(
+		picked: readonly string[],
+		catalog: StatsCatalog | null,
+	): Promise<PublishedStats | null>;
 	githubLogin(): Promise<string | null>;
 	changed(state: ProfileState): void;
 	readonly now?: () => Date;
@@ -44,6 +56,8 @@ export class StatsProfile {
 	#retry: NodeJS.Timeout | null = null;
 	#picksSettle: NodeJS.Timeout | null = null;
 	#check: NodeJS.Timeout | null = null;
+	#catalog: SavedCatalog | null | undefined;
+	#catalogTriedOn: string | null = null;
 
 	constructor(deps: StatsProfileDeps) {
 		this.#deps = deps;
@@ -72,7 +86,7 @@ export class StatsProfile {
 	}
 
 	state(): ProfileState {
-		const { token, account, profile, publishing, picked } = this.#saved;
+		const { token, account, profile, publishing, picked, sharedParts } = this.#saved;
 		return {
 			account: token ? account : null,
 			profile,
@@ -82,6 +96,7 @@ export class StatsProfile {
 			publishing,
 			upload: this.#upload,
 			pickedRepositories: picked,
+			sharedParts,
 			suggestedHandle: profile?.handle ?? this.#login?.toLowerCase() ?? null,
 		};
 	}
@@ -179,16 +194,24 @@ export class StatsProfile {
 	}
 
 	async pick(names: readonly unknown[]): Promise<ProfileState> {
-		const picked = pickedRepositories(names);
-		await this.#save({ ...this.#saved, picked });
-		if (this.#saved.publishing === 'on') {
-			if (this.#picksSettle) clearTimeout(this.#picksSettle);
-			this.#picksSettle = setTimeout(() => {
-				this.#picksSettle = null;
-				void this.#serial(() => this.#sendStats(true));
-			}, PICKS_SETTLE_MS);
-		}
+		await this.#save({ ...this.#saved, picked: pickedRepositories(names) });
+		this.#resendSoon();
 		return this.#emit();
+	}
+
+	async share(part: StatsPart, on: boolean): Promise<ProfileState> {
+		await this.#save({ ...this.#saved, sharedParts: { ...this.#saved.sharedParts, [part]: on } });
+		this.#resendSoon();
+		return this.#emit();
+	}
+
+	#resendSoon(): void {
+		if (this.#saved.publishing !== 'on') return;
+		if (this.#picksSettle) clearTimeout(this.#picksSettle);
+		this.#picksSettle = setTimeout(() => {
+			this.#picksSettle = null;
+			void this.#serial(() => this.#sendStats(true));
+		}, PICKS_SETTLE_MS);
 	}
 
 	#keepUp(force: boolean): void {
@@ -199,24 +222,39 @@ export class StatsProfile {
 	}
 
 	async #sendStats(force: boolean): Promise<void> {
-		const { token, publishing, publishedThrough, picked } = this.#saved;
+		const { token, publishing, publishedThrough, picked, sharedParts } = this.#saved;
 		if (publishing !== 'on' || !token) return;
 		const through = shiftDate(localDate(this.#now()), -1);
 		if (!force && publishedThrough !== null && publishedThrough >= through) return;
 		this.#setUpload({ state: 'sending' });
 		try {
-			const stats = await this.#deps.readStats(picked);
+			const stats = await this.#deps.readStats(picked, await this.#freshCatalog());
 			if (stats === null) {
 				this.#setUpload({ state: 'no-full-day' });
 				return;
 			}
-			await this.#deps.bestboy.putStats(token, stats);
+			await this.#deps.bestboy.putStats(token, sharedStats(stats, sharedParts));
 			this.#retryMs = FIRST_RETRY_MS;
 			await this.#save({ ...this.#saved, publishedThrough: stats.through });
 			this.#setUpload({ state: 'published', through: stats.through });
 		} catch (error) {
 			await this.#failed(error, () => this.#sendStats(true));
 		}
+	}
+
+	async #freshCatalog(): Promise<StatsCatalog | null> {
+		if (this.#catalog === undefined) this.#catalog = await this.#deps.store.loadCatalog();
+		const today = localDate(this.#now());
+		if (this.#catalog?.fetchedOn !== today && this.#catalogTriedOn !== today) {
+			this.#catalogTriedOn = today;
+			try {
+				this.#catalog = { fetchedOn: today, catalog: await this.#deps.bestboy.catalog() };
+				await this.#deps.store.saveCatalog(this.#catalog);
+			} catch {
+				return this.#catalog?.catalog ?? null;
+			}
+		}
+		return this.#catalog?.catalog ?? null;
 	}
 
 	async #removeStats(): Promise<void> {

@@ -24,6 +24,7 @@ type PlatformRequest = Readonly<{
 	body: unknown;
 	authorization: string | null;
 	contentType: string | null;
+	acceptEncoding: string | null;
 }>;
 
 type FakeBestboy = Readonly<{
@@ -44,6 +45,7 @@ const STATS_KEYS = [
 	'repositories',
 	'since',
 	'skills',
+	'techniques',
 	'through',
 	'tools',
 	'totals',
@@ -125,6 +127,29 @@ test('Publish my stats signs in to Bestboy, uploads numbers only, signs in again
 			private: { repositories: 1, runs: 1 },
 		});
 		expect(JSON.stringify(stats)).not.toContain('Count this run');
+		expect(
+			platform.requests
+				.filter(({ path }) => path === '/api/catalog')
+				.map(({ method, authorization, acceptEncoding }) => [
+					method,
+					authorization,
+					acceptEncoding?.includes('gzip'),
+				]),
+		).toEqual([['GET', null, true]]);
+
+		const shown = settings.getByRole('region', { name: 'What your profile shows' });
+		await shown.getByRole('checkbox', { name: /^Skills /u }).click();
+		await expect(shown.getByRole('checkbox', { name: /^Skills /u })).not.toBeChecked();
+		await expect
+			.poll(() => platform.requests.filter(({ path }) => path === '/api/stats/malini').length, {
+				timeout: 20_000,
+			})
+			.toBe(3);
+		const withoutSkills = statsBody(
+			platform.requests.filter(({ path }) => path === '/api/stats/malini').at(-1)?.body,
+		);
+		expect(Object.keys(withoutSkills).sort()).toEqual(STATS_KEYS.filter((key) => key !== 'skills'));
+		await captureFlow(app, 'profile-parts');
 
 		await toggle.click();
 		await expect(toggle).toHaveAttribute('aria-checked', 'false');
@@ -270,6 +295,7 @@ async function fakeBestboy(): Promise<FakeBestboy> {
 				body,
 				authorization,
 				contentType: request.headers['content-type'] ?? null,
+				acceptEncoding: request.headers['accept-encoding'] ?? null,
 			});
 			const reply = (status: number, value?: unknown): void => {
 				response.writeHead(status, { 'content-type': 'application/json' });

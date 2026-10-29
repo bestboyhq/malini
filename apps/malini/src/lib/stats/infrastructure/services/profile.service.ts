@@ -1,4 +1,9 @@
-import type { ProfileState, PublicRepository, PublishStatsResult } from '$contract/stats';
+import type {
+	ProfileState,
+	PublicRepository,
+	PublishStatsResult,
+	StatsPart,
+} from '$contract/stats';
 import { STATS_PROFILE_CHANGED_CHANNEL } from '$contract/events';
 import { onPlatformEvent } from '$shared/port/events';
 import { invoke } from '$shared/port/invoke';
@@ -30,6 +35,10 @@ class ProfileService {
 
 	pickRepositories(repositories: readonly string[]): Promise<ProfileState> {
 		return invoke('stats.pick-repositories', { repositories });
+	}
+
+	sharePart(part: StatsPart, on: boolean): Promise<ProfileState> {
+		return invoke('stats.share-part', { part, on });
 	}
 
 	publicRepositories(): Promise<readonly PublicRepository[]> {

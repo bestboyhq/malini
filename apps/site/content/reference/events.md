@@ -1253,6 +1253,12 @@ type StatsUpload =
 	| Readonly<{ state: 'no-full-day' }>
 	| Readonly<{ state: 'failed'; reason: string; retrying: boolean }>;
 
+const STATS_PARTS = ['techniques', 'tools', 'models', 'languages', 'mcpServers', 'skills'] as const;
+
+type StatsPart = (typeof STATS_PARTS)[number];
+
+type SharedParts = Readonly<Record<StatsPart, boolean>>;
+
 type ProfileState = Readonly<{
 	account: BestboyAccount | null;
 	profile: BestboyProfile | null;
@@ -1262,6 +1268,7 @@ type ProfileState = Readonly<{
 	publishing: StatsPublishing;
 	upload: StatsUpload;
 	pickedRepositories: readonly string[];
+	sharedParts: SharedParts;
 	suggestedHandle: string | null;
 }>;
 ```

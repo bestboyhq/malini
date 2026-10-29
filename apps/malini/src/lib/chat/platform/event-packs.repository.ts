@@ -94,6 +94,44 @@ export function unpackSessionEvents(db: MaliniDatabase, sessionId: string): void
 	});
 }
 
+export function packsWithUncountedToolCalls(db: MaliniDatabase): string[] {
+	return column(
+		db,
+		'SELECT session_id FROM agent_event_packs WHERE tool_calls_counted = 0 ORDER BY rowid',
+	);
+}
+
+export function countPackedToolCalls(db: MaliniDatabase, sessionId: string): void {
+	db.transaction(() => {
+		const pack = packOf(db, sessionId);
+		if (!pack) return;
+		run(
+			db,
+			'DELETE FROM agent_run_tool_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE session_id = ?)',
+			sessionId,
+		);
+		run(
+			db,
+			`INSERT INTO agent_run_tool_calls (run_id, tool, skill, calls)
+			 SELECT run_id, tool, CASE tool WHEN 'Skill' THEN skill ELSE '' END, COUNT(*) FROM (
+			   SELECT run_id,
+			     COALESCE(json_extract(substr(event, 14), '$.name'), '') AS tool,
+			     COALESCE(json_extract(substr(event, 14), '$.input.skill'), '') AS skill
+			   FROM (
+			     SELECT run_id, event FROM agent_events WHERE session_id = ?
+			     UNION ALL
+			     SELECT json_extract(value, '$.runId'), json_extract(value, '$.event') FROM json_each(?)
+			   )
+			   WHERE event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(event, 14))
+			 )
+			 GROUP BY 1, 2, 3`,
+			sessionId,
+			brotliDecompressSync(pack).toString(),
+		);
+		run(db, 'UPDATE agent_event_packs SET tool_calls_counted = 1 WHERE session_id = ?', sessionId);
+	});
+}
+
 export function archivedSessionsToPack(db: MaliniDatabase): string[] {
 	return column(
 		db,

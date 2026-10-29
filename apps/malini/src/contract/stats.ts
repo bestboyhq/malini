@@ -88,6 +88,29 @@ export type RepositoryGroup = Readonly<{ repositories: number; runs: number }>;
 
 export type PublishedDay = Readonly<{ date: string; runs: number; agents: number }>;
 
+export type StatsTechniques = Readonly<{
+	browserRuns: number;
+	subagentRuns: number;
+	skillRuns: number;
+	mcpRuns: number;
+	webRuns: number;
+}>;
+
+export const STATS_PARTS = [
+	'techniques',
+	'tools',
+	'models',
+	'languages',
+	'mcpServers',
+	'skills',
+] as const;
+
+export type StatsPart = (typeof STATS_PARTS)[number];
+
+export type SharedParts = Readonly<Record<StatsPart, boolean>>;
+
+export type SharePartArgs = Readonly<{ part: StatsPart; on: boolean }>;
+
 export type PublishedStats = Readonly<{
 	version: 1;
 	through: string;
@@ -114,6 +137,7 @@ export type PublishedStats = Readonly<{
 		linesPerChange: Readonly<{ p50: number }>;
 		runsPerWorkstream: Readonly<{ p50: number }>;
 	}>;
+	techniques: StatsTechniques;
 	models: readonly NamedCount[];
 	languages: readonly NamedCount[];
 	tools: readonly NamedCount[];
@@ -122,6 +146,9 @@ export type PublishedStats = Readonly<{
 	repositories: readonly NamedCount[];
 	otherRepositories: Readonly<{ public: RepositoryGroup; private: RepositoryGroup }>;
 }>;
+
+export type SharedStats = Omit<PublishedStats, StatsPart> &
+	Partial<Pick<PublishedStats, StatsPart>>;
 
 export type ShareCard = Readonly<{
 	stats: PublishedStats | null;
@@ -156,6 +183,7 @@ export type ProfileState = Readonly<{
 	publishing: StatsPublishing;
 	upload: StatsUpload;
 	pickedRepositories: readonly string[];
+	sharedParts: SharedParts;
 	suggestedHandle: string | null;
 }>;
 

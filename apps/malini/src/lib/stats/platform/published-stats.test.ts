@@ -3,6 +3,7 @@ import { ORPHAN_INTERRUPTED_ERROR } from '$contract/agent-state-machine';
 import type { MaliniDatabase } from '$main/db/driver';
 import { openMigratedDatabase } from '$main/db/open';
 import { run } from '$main/db/rows';
+import { catalogNames, NO_SETUP } from '../domain/catalog-names';
 import { readPublishedStats } from './published-stats';
 
 const NOW = new Date(2026, 9, 15, 10);
@@ -62,8 +63,12 @@ describe('readPublishedStats', () => {
 		seedChange(db, 'ws-malini', 'job', 'r2', at(13, 11, 30), [['src/app.ts', 1, 1]]);
 		seedChange(db, 'ws-secret', 'secret', 'r3', at(15, 1), [['src/model.py', 100, 0]]);
 
-		const stats = await readPublishedStats(db, NOW, ['bestboyhq/malini'], (name) =>
-			Promise.resolve(PUBLIC.includes(name)),
+		const stats = await readPublishedStats(
+			db,
+			NOW,
+			['bestboyhq/malini'],
+			(name) => Promise.resolve(PUBLIC.includes(name)),
+			catalogNames(null, NO_SETUP),
 		);
 
 		expect(stats).toEqual({
@@ -96,6 +101,7 @@ describe('readPublishedStats', () => {
 				linesPerChange: { p50: 2 },
 				runsPerWorkstream: { p50: 1 },
 			},
+			techniques: { browserRuns: 1, subagentRuns: 0, skillRuns: 1, mcpRuns: 1, webRuns: 0 },
 			models: [
 				{ name: 'opus', count: 2 },
 				{ name: 'fable', count: 1 },
@@ -134,7 +140,15 @@ describe('readPublishedStats', () => {
 		seedSession(db, 'chat', 'ws-malini', 'user', 'opus');
 		seedRun(db, 'today', 'chat', at(15, 8), at(15, 9));
 
-		expect(await readPublishedStats(db, NOW, [], () => Promise.resolve(true))).toBeNull();
+		expect(
+			await readPublishedStats(
+				db,
+				NOW,
+				[],
+				() => Promise.resolve(true),
+				catalogNames(null, NO_SETUP),
+			),
+		).toBeNull();
 	});
 });
 

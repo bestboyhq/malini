@@ -2,6 +2,12 @@ export const SCREENSHOT_TOOL = 'mcp__malini__browser_screenshot';
 
 export const SKILL_TOOL = 'Skill';
 
+export const BROWSER_TOOL_PREFIX = 'mcp__malini__browser_';
+
+export const SUBAGENT_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task']);
+
+export const WEB_TOOLS: ReadonlySet<string> = new Set(['WebSearch', 'WebFetch']);
+
 const MODEL_FAMILIES = ['opus', 'sonnet', 'haiku', 'fable'] as const;
 
 const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
@@ -35,8 +41,6 @@ const BUILT_IN_TOOLS: ReadonlySet<string> = new Set([
 	'Workflow',
 	'Write',
 ]);
-
-const MALINI_TOOL_PREFIX = 'mcp__malini__';
 
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
 	ts: 'TypeScript',
@@ -116,14 +120,9 @@ export function modelFamily(model: string | null): string {
 
 export function toolGroup(tool: string): string {
 	if (BUILT_IN_TOOLS.has(tool)) return tool;
-	if (tool.startsWith(`${MALINI_TOOL_PREFIX}browser_`)) return 'Browser';
+	if (tool.startsWith(BROWSER_TOOL_PREFIX)) return 'Browser';
 	if (tool.startsWith('mcp__')) return 'MCP';
 	return 'other';
-}
-
-export function mcpServerGroup(tool: string): string | null {
-	if (!tool.startsWith('mcp__')) return null;
-	return tool.startsWith(MALINI_TOOL_PREFIX) ? 'malini' : 'other';
 }
 
 export function languageOf(path: string): string {

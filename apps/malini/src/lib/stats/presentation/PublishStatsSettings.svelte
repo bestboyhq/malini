@@ -18,6 +18,7 @@
 	import { profileStateQuery } from '$lib/stats/application/queries/profile-state.query.svelte';
 	import { publishFlowQuery } from '$lib/stats/application/queries/publish-flow.query.svelte';
 	import PublicRepositoryPicker from './PublicRepositoryPicker.svelte';
+	import SharedPartsPicker from './SharedPartsPicker.svelte';
 	import { publishTime, uploadLine } from './profile-copy';
 
 	const WHAT_IS_SENT_URL = 'https://bestboy.dev/malini/docs/profile';
@@ -161,6 +162,9 @@
 					</Button>
 				</div>
 			</div>
+			{#if profileState}
+				<SharedPartsPicker parts={profileState.sharedParts} />
+			{/if}
 			<PublicRepositoryPicker picked={profileState?.pickedRepositories ?? []} />
 		{:else if status}
 			<div class="flex items-center justify-between gap-3 px-4 py-3">

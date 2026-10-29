@@ -1215,24 +1215,39 @@ CREATE INDEX idx_agent_deliveries_from ON agent_deliveries(from_session_id, crea
 CREATE TABLE agent_run_tool_calls (
   run_id TEXT NOT NULL,
   tool TEXT NOT NULL,
+  skill TEXT NOT NULL,
   calls INTEGER NOT NULL CHECK (calls > 0),
-  PRIMARY KEY (run_id, tool)
+  PRIMARY KEY (run_id, tool, skill)
 );
-INSERT INTO agent_run_tool_calls (run_id, tool, calls)
-  SELECT run_id, COALESCE(json_extract(substr(event, 14), '$.name'), ''), COUNT(*)
-  FROM agent_events
-  WHERE event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(event, 14))
-  GROUP BY 1, 2;
+INSERT INTO agent_run_tool_calls (run_id, tool, skill, calls)
+  SELECT run_id, tool, CASE tool WHEN 'Skill' THEN skill ELSE '' END, COUNT(*) FROM (
+    SELECT run_id,
+      COALESCE(json_extract(substr(event, 14), '$.name'), '') AS tool,
+      COALESCE(json_extract(substr(event, 14), '$.input.skill'), '') AS skill
+    FROM agent_events
+    WHERE event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(event, 14))
+  )
+  GROUP BY 1, 2, 3;
 CREATE TRIGGER agent_events_count_tool_calls AFTER INSERT ON agent_events
   WHEN NEW.event LIKE 'tool.started' || char(10) || '%' AND json_valid(substr(NEW.event, 14))
 BEGIN
-  INSERT INTO agent_run_tool_calls (run_id, tool, calls)
-    VALUES (NEW.run_id, COALESCE(json_extract(substr(NEW.event, 14), '$.name'), ''), 1)
-    ON CONFLICT(run_id, tool) DO UPDATE SET calls = calls + 1;
+  INSERT INTO agent_run_tool_calls (run_id, tool, skill, calls)
+    VALUES (
+      NEW.run_id,
+      COALESCE(json_extract(substr(NEW.event, 14), '$.name'), ''),
+      CASE json_extract(substr(NEW.event, 14), '$.name')
+        WHEN 'Skill' THEN COALESCE(json_extract(substr(NEW.event, 14), '$.input.skill'), '')
+        ELSE ''
+      END,
+      1
+    )
+    ON CONFLICT(run_id, tool, skill) DO UPDATE SET calls = calls + 1;
 END;
 CREATE TRIGGER agent_runs_forget_tool_calls AFTER DELETE ON agent_runs BEGIN
   DELETE FROM agent_run_tool_calls WHERE run_id = OLD.id;
 END;
+ALTER TABLE agent_event_packs ADD COLUMN tool_calls_counted INTEGER NOT NULL DEFAULT 1;
+UPDATE agent_event_packs SET tool_calls_counted = 0;
 `,
 ];
 

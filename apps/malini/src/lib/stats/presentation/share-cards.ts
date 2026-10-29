@@ -15,7 +15,6 @@ type Palette = Readonly<{
 	strong: string;
 	blue: string;
 	brightBlue: string;
-	grain: string;
 }>;
 
 type Images = Readonly<{ icon: HTMLImageElement; avatar: HTMLImageElement | null }>;
@@ -38,24 +37,6 @@ const MONO = '"Geist Mono Variable", ui-monospace, Menlo, monospace';
 const LEVEL_ALPHA = [0.38, 0.52, 0.72, 1] as const;
 const HEATMAP_WEEKS = 10;
 const READOUT_DAYS = 21;
-const GLOW_STOPS = [
-	[0, 0.11],
-	[0.17, 0.0858],
-	[0.34, 0.055],
-	[0.51, 0.0264],
-	[0.68, 0.0077],
-	[0.85, 0],
-] as const;
-const GRAIN_STOPS = [
-	[0, 1],
-	[0.17, 0.78],
-	[0.34, 0.5],
-	[0.51, 0.24],
-	[0.68, 0.07],
-	[0.85, 0],
-] as const;
-const GRAIN_TILE = 180;
-const GRAIN_OPACITY = 0.3;
 
 const numberFormat = new Intl.NumberFormat('en-US');
 const dayFormat = new Intl.DateTimeFormat('en-US', {
@@ -95,6 +76,8 @@ export async function shareCardPng(
 	context.beginPath();
 	context.roundRect(0, 0, WIDTH, HEIGHT, 28);
 	context.clip();
+	context.fillStyle = palette.root;
+	context.fillRect(0, 0, WIDTH, HEIGHT);
 	if (kind === 'heatmap') drawHeatmapCard(context, palette, images, card, stats);
 	else drawReadoutCard(context, palette, images, card, stats);
 	context.restore();
@@ -114,8 +97,6 @@ function drawHeatmapCard(
 	card: ShareCard,
 	stats: PublishedStats,
 ): void {
-	context.drawImage(glowBackground(palette), 0, 0, WIDTH, HEIGHT);
-
 	drawAvatar(context, palette, images.avatar, card, 64, 52, 48);
 	const name = card.name ?? card.handle ?? '';
 	text(context, name, 126, 52, { size: 22, weight: 600, color: palette.strong, lineHeight: 26.4 });
@@ -231,15 +212,6 @@ function drawReadoutCard(
 	card: ShareCard,
 	stats: PublishedStats,
 ): void {
-	context.fillStyle = palette.root;
-	context.fillRect(0, 0, WIDTH, HEIGHT);
-	context.save();
-	context.globalAlpha = 0.012;
-	context.fillStyle = palette.strong;
-	for (let x = 31; x < WIDTH; x += 32) context.fillRect(x, 0, 1, HEIGHT);
-	for (let y = 31; y < HEIGHT; y += 32) context.fillRect(0, y, WIDTH, 1);
-	context.restore();
-
 	const prompt = `malini stats --since ${sinceArgument(stats.since, stats.through)}`;
 	text(context, '~ ', 64, 48, { size: 18, mono: true, color: palette.tertiary, lineHeight: 22 });
 	const tildeWidth = measure(context, '~ ', { size: 18, mono: true, color: palette.tertiary });
@@ -429,88 +401,6 @@ function drawBrand(
 	});
 }
 
-function glowBackground(palette: Palette): HTMLCanvasElement {
-	const canvas = document.createElement('canvas');
-	canvas.width = WIDTH * SCALE;
-	canvas.height = HEIGHT * SCALE;
-	const context = canvas.getContext('2d');
-	if (!context) return canvas;
-	const [rootRed, rootGreen, rootBlue] = channels(palette.root);
-	const [glowRed, glowGreen, glowBlue] = channels(palette.blue);
-	const [grainRed, grainGreen, grainBlue] = channels(palette.grain);
-	const grain = grainTile();
-	const image = context.createImageData(canvas.width, canvas.height);
-	const centerX = 0.84 * canvas.width;
-	const centerY = 0.68 * canvas.height;
-	const radiusX = 640 * SCALE;
-	const radiusY = 460 * SCALE;
-	for (let y = 0; y < canvas.height; y += 1) {
-		for (let x = 0; x < canvas.width; x += 1) {
-			const reach = Math.hypot((x + 0.5 - centerX) / radiusX, (y + 0.5 - centerY) / radiusY);
-			const glow = along(GLOW_STOPS, reach);
-			const speck =
-				along(GRAIN_STOPS, reach) *
-				GRAIN_OPACITY *
-				(grain[
-					(Math.floor(y / SCALE) % GRAIN_TILE) * GRAIN_TILE + (Math.floor(x / SCALE) % GRAIN_TILE)
-				] ?? 0);
-			const offset = (y * canvas.width + x) * 4;
-			image.data[offset] = mix(mix(rootRed, glowRed, glow), grainRed, speck);
-			image.data[offset + 1] = mix(mix(rootGreen, glowGreen, glow), grainGreen, speck);
-			image.data[offset + 2] = mix(mix(rootBlue, glowBlue, glow), grainBlue, speck);
-			image.data[offset + 3] = 255;
-		}
-	}
-	context.putImageData(image, 0, 0);
-	return canvas;
-}
-
-function grainTile(): Float32Array {
-	const tile = new Float32Array(GRAIN_TILE * GRAIN_TILE);
-	let seed = 0x6d2b79f5;
-	const random = (): number => {
-		seed = (seed + 0x6d2b79f5) | 0;
-		let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-		value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-		return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-	};
-	for (let index = 0; index < tile.length; index += 1) {
-		const noise = (random() + random() + random()) / 3;
-		tile[index] = Math.min(1, Math.max(0, 1.6 * noise - 0.45));
-	}
-	return tile;
-}
-
-function along(stops: readonly (readonly [number, number])[], reach: number): number {
-	let previous = stops[0] ?? [0, 0];
-	for (const stop of stops) {
-		if (reach <= stop[0]) {
-			const span = stop[0] - previous[0];
-			return span <= 0
-				? stop[1]
-				: previous[1] + ((reach - previous[0]) / span) * (stop[1] - previous[1]);
-		}
-		previous = stop;
-	}
-	return previous[1];
-}
-
-function mix(from: number, to: number, amount: number): number {
-	return from + (to - from) * amount;
-}
-
-function channels(color: string): readonly [number, number, number] {
-	const canvas = document.createElement('canvas');
-	canvas.width = 1;
-	canvas.height = 1;
-	const context = canvas.getContext('2d', { willReadFrequently: true });
-	if (!context) return [0, 0, 0];
-	context.fillStyle = color;
-	context.fillRect(0, 0, 1, 1);
-	const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data;
-	return [red, green, blue];
-}
-
 function text(
 	context: CanvasRenderingContext2D,
 	value: string,
@@ -552,7 +442,6 @@ function cardPalette(): Palette {
 		strong: token('--color-grey-100'),
 		blue: token('--ds-blue-700-dark'),
 		brightBlue: token('--ds-blue-600-dark'),
-		grain: token('--ds-blue-900-dark'),
 	};
 }
 

@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { rename, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { BestboyAccount, BestboyProfile, StatsPublishing } from '$contract/stats';
+import type { BestboyAccount, BestboyProfile, SharedParts, StatsPublishing } from '$contract/stats';
 import { isRecord } from '$main/db/rows';
+import { parseCatalog, type StatsCatalog } from '../domain/catalog-names';
 
 export const PROFILE_FILE = 'bestboy-profile.json';
+export const CATALOG_FILE = 'bestboy-catalog.json';
+
+export type SavedCatalog = Readonly<{ fetchedOn: string; catalog: StatsCatalog }>;
 
 export interface TokenCipher {
 	isEncryptionAvailable(): boolean;
@@ -19,7 +23,17 @@ export type SavedProfile = Readonly<{
 	publishing: StatsPublishing;
 	publishedThrough: string | null;
 	picked: readonly string[];
+	sharedParts: SharedParts;
 }>;
+
+export const EVERY_PART: SharedParts = {
+	techniques: true,
+	tools: true,
+	models: true,
+	languages: true,
+	mcpServers: true,
+	skills: true,
+};
 
 export const SIGNED_OUT: SavedProfile = {
 	token: '',
@@ -28,6 +42,7 @@ export const SIGNED_OUT: SavedProfile = {
 	publishing: 'off',
 	publishedThrough: null,
 	picked: [],
+	sharedParts: EVERY_PART,
 };
 
 export class ProfileStore {
@@ -35,8 +50,11 @@ export class ProfileStore {
 	readonly #cipher: TokenCipher;
 	#writes: Promise<void> = Promise.resolve();
 
+	readonly #catalogPath: string;
+
 	constructor(appDataRoot: string, cipher: TokenCipher) {
 		this.#path = join(appDataRoot, PROFILE_FILE);
+		this.#catalogPath = join(appDataRoot, CATALOG_FILE);
 		this.#cipher = cipher;
 	}
 
@@ -59,7 +77,23 @@ export class ProfileStore {
 			picked: Array.isArray(saved['picked'])
 				? saved['picked'].filter((name): name is string => typeof name === 'string')
 				: [],
+			sharedParts: sharedParts(saved['sharedParts']),
 		};
+	}
+
+	async loadCatalog(): Promise<SavedCatalog | null> {
+		try {
+			const saved: unknown = JSON.parse(await readFile(this.#catalogPath, 'utf8'));
+			if (!isRecord(saved) || typeof saved['fetchedOn'] !== 'string') return null;
+			const catalog = parseCatalog(saved['catalog']);
+			return catalog ? { fetchedOn: saved['fetchedOn'], catalog } : null;
+		} catch {
+			return null;
+		}
+	}
+
+	saveCatalog(saved: SavedCatalog): Promise<void> {
+		return this.#write(this.#catalogPath, JSON.stringify(saved));
 	}
 
 	canSeal(): boolean {
@@ -70,13 +104,16 @@ export class ProfileStore {
 		const sealed = profile.token
 			? this.#cipher.encryptString(profile.token).toString('base64')
 			: '';
-		const text = JSON.stringify({ ...profile, token: sealed });
-		const temporary = `${this.#path}.tmp`;
+		return this.#write(this.#path, JSON.stringify({ ...profile, token: sealed }));
+	}
+
+	#write(path: string, text: string): Promise<void> {
+		const temporary = `${path}.tmp`;
 		const previous = this.#writes;
 		this.#writes = (async () => {
 			await settled(previous);
 			await writeFile(temporary, text, { mode: 0o600 });
-			await rename(temporary, this.#path);
+			await rename(temporary, path);
 		})();
 		return this.#writes;
 	}
@@ -113,6 +150,18 @@ function profile(value: unknown): BestboyProfile | null {
 		handle: typeof handle === 'string' ? handle : null,
 		public: value['public'] === true,
 		url: typeof url === 'string' ? url : null,
+	};
+}
+
+function sharedParts(value: unknown): SharedParts {
+	if (!isRecord(value)) return EVERY_PART;
+	return {
+		techniques: value['techniques'] !== false,
+		tools: value['tools'] !== false,
+		models: value['models'] !== false,
+		languages: value['languages'] !== false,
+		mcpServers: value['mcpServers'] !== false,
+		skills: value['skills'] !== false,
 	};
 }
 

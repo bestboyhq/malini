@@ -16,6 +16,7 @@ import { packArchivedChats, unpackRestoredChats } from './event-packs.service';
 import {
 	appendEvent,
 	listEventRowsForSession,
+	listFinishedRunToolCalls,
 	listEventRowsOfKinds,
 	toolCallOutput,
 	type AgentEventRow,
@@ -174,6 +175,29 @@ function restoreWorkstream(db: MaliniDatabase, workstreamId: string): void {
 	);
 }
 
+const PACKED_TOOL_CALLS = [
+	{ runId: 'chat-run-1', tool: 'Bash', skill: '', calls: 1 },
+	{ runId: 'chat-run-2', tool: 'Grep', skill: '', calls: 1 },
+	{ runId: 'chat-run-2', tool: 'Read', skill: '', calls: 1 },
+	{ runId: 'chat-run-2', tool: 'Skill', skill: 'adr', calls: 1 },
+];
+
+function chatPackedBeforeCounting(): MaliniDatabase {
+	const db = openMigratedDatabase(':memory:');
+	seedWorkstream(db, 'ws');
+	seedChat(db, 'ws', 'chat');
+	appendEvent(db, 'chat', 'chat-run-2', 'tool.started', {
+		name: 'Skill',
+		toolCallId: 'skill',
+		input: { skill: 'adr' },
+	});
+	archiveWorkstream(db, 'ws');
+	packSessionEvents(db, 'chat');
+	db.exec('DELETE FROM agent_run_tool_calls; UPDATE agent_event_packs SET tool_calls_counted = 0');
+	appendEvent(db, 'chat', 'chat-run-2', 'tool.started', { name: 'Grep', toolCallId: 'late' });
+	return db;
+}
+
 describe('archived chat packs', () => {
 	it('packs the tool calls, their output and the thinking of a closed chat, and reads it back unchanged, with when Malini recorded each event', () => {
 		const db = openMigratedDatabase(':memory:');
@@ -236,6 +260,42 @@ describe('archived chat packs', () => {
 		expect(all(db, 'SELECT run_id, tool, calls FROM agent_run_tool_calls ORDER BY 1, 2')).toEqual(
 			toolCalls,
 		);
+		db.close();
+	});
+
+	it('counts the tool calls of chats packed before Malini counted them, once', async () => {
+		const db = chatPackedBeforeCounting();
+		const events = createEventBus({ forwardToWindows: false });
+
+		for (let pass = 0; pass < 2; pass += 1) {
+			const packing = packArchivedChats({ db, events });
+			await vi.waitFor(() =>
+				expect(scalar(db, 'SELECT SUM(tool_calls_counted) FROM agent_event_packs')).toBe(1),
+			);
+			await packing.stop();
+			expect(
+				all(db, 'SELECT run_id, tool, skill, calls FROM agent_run_tool_calls ORDER BY 1, 2, 3'),
+			).toEqual(
+				PACKED_TOOL_CALLS.map(({ runId, tool, skill, calls }) => ({
+					run_id: runId,
+					tool,
+					skill,
+					calls,
+				})),
+			);
+		}
+		db.close();
+	});
+
+	it('counts packed chats before it reads the tool calls of finished runs', () => {
+		const db = chatPackedBeforeCounting();
+
+		expect(
+			listFinishedRunToolCalls(db, '2026-10-28T00:00:00Z').sort(
+				(left, right) =>
+					left.runId.localeCompare(right.runId) || left.tool.localeCompare(right.tool),
+			),
+		).toEqual(PACKED_TOOL_CALLS);
 		db.close();
 	});
 

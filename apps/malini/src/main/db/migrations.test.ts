@@ -705,7 +705,8 @@ describe('migrate', () => {
 			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash","input":{}}', '2026-07-19T00:00:02Z'),
 			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:03Z'),
 			  ('s', 'earlier', 'tool.completed' || char(10) || '{"name":"Bash"}', '2026-07-19T00:00:04Z'),
-			  ('s', 'earlier', 'tool.started' || char(10) || 'not json', '2026-07-19T00:00:05Z');
+			  ('s', 'earlier', 'tool.started' || char(10) || 'not json', '2026-07-19T00:00:05Z'),
+			  ('s', 'earlier', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"adr"}}', '2026-07-19T00:00:06Z');
 		`);
 
 		migrate(db);
@@ -715,15 +716,24 @@ describe('migrate', () => {
 			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:02Z'),
 			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read"}', '2026-07-19T00:01:03Z'),
 			  ('s', 'later', 'tool.started' || char(10) || '{"toolCallId":"nameless"}', '2026-07-19T00:01:04Z'),
-			  ('s', 'later', 'tool.started' || char(10) || '{"name":', '2026-07-19T00:01:05Z');
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":', '2026-07-19T00:01:05Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"adr"}}', '2026-07-19T00:01:06Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Skill","input":{"skill":"svelte:svelte-code-writer"}}', '2026-07-19T00:01:07Z'),
+			  ('s', 'later', 'tool.started' || char(10) || '{"name":"Read","input":{"skill":"not a skill call"}}', '2026-07-19T00:01:08Z');
 		`);
 		expect(
-			all(db, 'SELECT run_id, tool, calls FROM agent_run_tool_calls ORDER BY run_id, tool'),
+			all(
+				db,
+				'SELECT run_id, tool, skill, calls FROM agent_run_tool_calls ORDER BY run_id, tool, skill',
+			),
 		).toEqual([
-			{ run_id: 'earlier', tool: 'Bash', calls: 2 },
-			{ run_id: 'later', tool: '', calls: 1 },
-			{ run_id: 'later', tool: 'Read', calls: 2 },
-			{ run_id: 'later', tool: 'mcp__malini__browser_open', calls: 1 },
+			{ run_id: 'earlier', tool: 'Bash', skill: '', calls: 2 },
+			{ run_id: 'earlier', tool: 'Skill', skill: 'adr', calls: 1 },
+			{ run_id: 'later', tool: '', skill: '', calls: 1 },
+			{ run_id: 'later', tool: 'Read', skill: '', calls: 3 },
+			{ run_id: 'later', tool: 'Skill', skill: 'adr', calls: 1 },
+			{ run_id: 'later', tool: 'Skill', skill: 'svelte:svelte-code-writer', calls: 1 },
+			{ run_id: 'later', tool: 'mcp__malini__browser_open', skill: '', calls: 1 },
 		]);
 
 		db.exec("DELETE FROM agent_runs WHERE id = 'earlier'");
