@@ -13,6 +13,11 @@ export const PRE_APPROVED_PLATFORM_TOOLS = [
 	'events_list',
 	'repositories_list',
 	'workstreams_list',
+	'workstreams_create',
+	'workstreams_send',
+	'decisions_ask',
+	'decisions_answer',
+	'plan_write',
 	'files_open',
 ] as const satisfies readonly PlatformTool[];
 
@@ -97,7 +102,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'jobs_run',
-			`Start a job now. A \`workstream\` job runs in this chat's workstream, or in \`workstream\` when you pass one, such as a workstream you started; a \`new-workstream\` job gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle, so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does. The run shows in this chat. Jobs are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} ${ASKS} Returns the queued run as JSON.`,
+			`Start a job now. A \`workstream\` job runs in this chat's workstream, or in \`workstream\` when you pass one, such as a workstream you started; a \`new-workstream\` job gets a fresh workstream of that workstream's repository. It starts once that workstream's chat is idle, so Merge right after workstreams_create merges what its first turn makes, as the Merge button in its top bar does. The run shows in this chat. Jobs are processes with steps, such as Merge, which waits for checks, fixes them and resolves conflicts before it merges. ${SHIP_ONLY_WHEN_ASKED} In this chat's workstream or one it started, a job runs without asking unless it is Open draft or Merge or its Then leads to one; the user approves those, and every job elsewhere, in the chat unless they always allow it. Returns the queued run as JSON.`,
 			{
 				job: z.string().min(1).describe('Id or exact name of the job, from jobs_list'),
 				context: z
@@ -167,7 +172,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_create',
-			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with jobs_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. ${ASKS}`,
+			`Start a workstream of a repository, with a chat in it that the user lands on there: its own git worktree on a fresh branch from the default branch, or from \`base\`: a tag, branch or commit such as a release. Malini clones the repository first when it has not yet, then updates the branch and installs dependencies while the sidebar shows it setting up, and sends \`prompt\` as that chat's first message once it is set up. Malini names the workstream and the chat from that prompt, records that this chat's workstream started it, and tells its chat about the other workstreams this chat started. Use it instead of git worktree, git checkout or a branch of your own to change code in another repository, such as a fork, or apart from this chat's branch. Returns the workstream as JSON with its id, name, repository, branch, base branch, base and chat, the id of that chat. When the user asked for that work shipped, run Open draft or Merge there yourself with jobs_run and this id in \`workstream\`, rather than asking its chat to. A clone that takes longer fails the call: wait for it with repositories_clone, then call this again. It needs no approval: what a chat starts stays in its own tree.`,
 			{
 				repository: z
 					.string()
@@ -191,7 +196,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_send',
-			`Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini sends it only while that chat is idle: when it is on a turn, the call fails, so send it once that turn ends. ${ASKS} Returns the workstream and the chat it reached as JSON.`,
+			"Send a prompt to the chat of a workstream this chat started with workstreams_create, such as the answer to what it needs or a follow-up task. It arrives in that chat as a prompt from this chat, and that chat keeps everything it already knows. Malini delivers it at once when that chat is idle, or as soon as its turn ends, even after a restart, and prompts waiting for the same turn arrive as one. It needs no approval. Returns the workstream, its chat and the delivery as JSON, with the delivery's status: `delivered`, or `waiting` for that chat's turn to end.",
 			{
 				workstream: z
 					.string()
@@ -210,7 +215,7 @@ export function platformTools(request: PlatformToolRequester) {
 		),
 		tool(
 			'workstreams_archive',
-			`Archive a workstream: Malini saves its uncommitted work and branch, removes its worktree, and lists it under Archived in the sidebar, where the user can restore it. You cannot archive this chat's own workstream, and no tool deletes one. ${ASKS}`,
+			`Archive a workstream: Malini saves its uncommitted work and branch, removes its worktree, and lists it under Archived in the sidebar, where the user can restore it. You cannot archive this chat's own workstream, and no tool deletes one. A workstream this chat started, or one those started, archives without asking; the user approves any other in the chat unless they always allow it.`,
 			{
 				workstream: z
 					.string()
@@ -218,6 +223,97 @@ export function platformTools(request: PlatformToolRequester) {
 					.describe('Id or exact name of the workstream, from workstreams_list'),
 			},
 			(input) => call('workstreams_archive', input),
+		),
+		tool(
+			'decisions_ask',
+			"Ask the user a decision only they can make, from a chat at Home or in an organization. It shows as a card at the bottom of this chat, one decision at a time, with a picture for each option, and returns at once with the decision's id: keep the work going while the user decides, have the workstreams build the option you recommend meanwhile, and say so in `meanwhile`. The answer reaches you as a prompt when the user picks an option on the card, or inside their message, where you record it with decisions_answer. Ask one decision per call, and only what your plan cannot settle. Set `decided` to record a call you made yourself instead: the user sees it decided and can change it. Returns the decision as JSON.",
+			{
+				topic: z
+					.string()
+					.min(1)
+					.max(40)
+					.describe('A few words naming the decision, for example "Agent hours"'),
+				question: z
+					.string()
+					.min(1)
+					.max(200)
+					.describe('The question in one sentence, for example "Keep agent hours on your cards?"'),
+				why: z
+					.string()
+					.min(1)
+					.max(300)
+					.optional()
+					.describe('One sentence on why it matters to the user'),
+				options: z
+					.array(
+						z.object({
+							label: z.string().min(1).max(60).describe('The option in a few words'),
+							note: z
+								.string()
+								.min(1)
+								.max(120)
+								.optional()
+								.describe('One line on what choosing it means'),
+							picture: z
+								.string()
+								.min(1)
+								.optional()
+								.describe(
+									'Absolute path to a screenshot, a recording (.mp4, .webm) or an HTML page of this option inside the checkout of a workstream this chat started, such as one its report embeds. Leave it out when there is nothing to show.',
+								),
+						}),
+					)
+					.min(2)
+					.max(4)
+					.describe('Two to four options, the one you recommend among them'),
+				recommended: z
+					.number()
+					.int()
+					.min(1)
+					.max(4)
+					.describe('The number of the option you recommend, counting from 1'),
+				meanwhile: z
+					.string()
+					.min(1)
+					.max(120)
+					.optional()
+					.describe(
+						'What the workstreams build while the user decides, for example "Building without agent hours meanwhile"',
+					),
+				decided: z
+					.boolean()
+					.optional()
+					.describe(
+						'true to record a decision you already took yourself: Malini shows it decided on your recommendation, and the user can change it',
+					),
+			},
+			(input) => call('decisions_ask', input),
+		),
+		tool(
+			'decisions_answer',
+			"Record the user's answer to a decision you asked with decisions_ask, when they answered it in a message rather than on its card. Malini shows it decided in this chat, with their reason. Record each decision their message covers, and leave the rest open. Returns the decision as JSON.",
+			{
+				decision: z.string().min(1).describe('Id of the decision, from decisions_ask'),
+				option: z
+					.number()
+					.int()
+					.min(1)
+					.max(4)
+					.describe('The number of the option the user chose, counting from 1'),
+				reason: z
+					.string()
+					.min(1)
+					.max(300)
+					.optional()
+					.describe('Their reason, in their words, when they gave one'),
+			},
+			(input) => call('decisions_answer', input),
+		),
+		tool(
+			'plan_write',
+			"Write the plan of a chat at Home or in an organization: what each workstream builds, the contract between them and the decisions so far. Malini keeps it in one file, gives its path to every workstream this chat starts, and shows it in this chat. Each call replaces the whole plan, so pass all of it, and tell the workstreams that build against it with workstreams_send when it changes. Returns the plan's path.",
+			{ text: z.string().min(1).describe('The whole plan, in Markdown') },
+			(input) => call('plan_write', input),
 		),
 		tool(
 			'files_open',

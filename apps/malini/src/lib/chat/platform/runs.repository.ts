@@ -547,17 +547,6 @@ export function latestRunEndedAt(db: MaliniDatabase, workstreamId: string): stri
 	);
 }
 
-export function sessionRanInChain(db: MaliniDatabase, sessionId: string, chainId: string): boolean {
-	return (
-		get<{ id: string }>(
-			db,
-			'SELECT id FROM agent_runs WHERE session_id = ? AND chain_id = ? LIMIT 1',
-			sessionId,
-			chainId,
-		) !== null
-	);
-}
-
 export function chatTurnChainId(db: MaliniDatabase, runId: string): string | null {
 	const row = get<{ id: string; chain_id: string }>(
 		db,

@@ -7,6 +7,7 @@ import {
 	isGitHubAuthRequiredError,
 	type GitHubAuthStatus,
 	type GitHubDeviceCode,
+	type GitHubDeviceFlow,
 	type GitHubSignInOutcome,
 	type RepositoryImportSource,
 } from '$shared/repositories/domain/github-auth';
@@ -32,8 +33,10 @@ class GithubService {
 		);
 	}
 
-	startSignIn(): Promise<GitHubDeviceCode> {
-		return invoke('repositories.start-github-sign-in', undefined);
+	startSignIn(flow: GitHubDeviceFlow): Promise<GitHubDeviceCode> {
+		return flow === 'sign-in'
+			? invoke('repositories.start-github-sign-in', undefined)
+			: invoke('repositories.start-github-workflow-access', undefined);
 	}
 
 	finishSignIn(): Promise<GitHubSignInOutcome> {

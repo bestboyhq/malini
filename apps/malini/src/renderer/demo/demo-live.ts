@@ -494,6 +494,7 @@ function shipState(
 		failures: 0,
 		failedSince: null,
 		nextAttemptAt: null,
+		waitsFor: null,
 		updatedAt: NOW,
 	};
 }

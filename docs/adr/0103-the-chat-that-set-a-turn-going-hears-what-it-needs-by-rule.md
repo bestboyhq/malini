@@ -1,6 +1,6 @@
 # 0103 - The chat that set a turn going hears what it needs, by rule
 
-Status: accepted
+Status: superseded by 0110
 
 ## Context
 

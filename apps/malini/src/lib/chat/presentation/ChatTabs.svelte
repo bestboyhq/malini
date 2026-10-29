@@ -381,7 +381,7 @@
 	function sessionTone(session: SessionRecord): string {
 		switch (identityOf(session).activity) {
 			case 'needs-approval':
-				return 'text-warning-content';
+				return 'text-brand-icon';
 			case 'failed':
 				return 'text-error-content';
 			default:

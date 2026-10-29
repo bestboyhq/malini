@@ -8,6 +8,8 @@ import {
 	recordAgentAction,
 	type AgentActionContext,
 } from '$lib/jobs/jobs.platform';
+import { listWorkstreams } from '$shared/repositories/repositories.platform';
+import { descendantWorkstreamIds } from '../../domain/child-requests';
 import { getInteraction } from '../interactions.repository';
 import { hasActivePermissionRule } from '../permissions.repository';
 import {
@@ -76,6 +78,57 @@ export function assessMaliniApproval(
 		default:
 			return ASK;
 	}
+}
+
+export function allowedInTree(
+	db: MaliniDatabase,
+	toolName: string | undefined,
+	input: unknown,
+	callerWorkstreamId: string,
+): boolean {
+	if (!toolName?.startsWith(MALINI_TOOL_PREFIX)) return false;
+	const field = (key: string): string | undefined => {
+		const value: unknown = typeof input === 'object' && input ? Reflect.get(input, key) : null;
+		return typeof value === 'string' ? value : undefined;
+	};
+	const open = listWorkstreams(db);
+	const tree = descendantWorkstreamIds(callerWorkstreamId, open);
+	const target = (reference: string | undefined): string | null => {
+		if (reference === undefined) return null;
+		const wanted = reference.trim().toLocaleLowerCase();
+		const named = open.filter(
+			(workstream) => workstream.id === reference || workstream.name.toLocaleLowerCase() === wanted,
+		);
+		return named.length === 1 ? (named[0]?.id ?? null) : null;
+	};
+	switch (toolName.slice(MALINI_TOOL_PREFIX.length)) {
+		case 'workstreams_archive': {
+			const archived = target(field('workstream'));
+			return archived !== null && tree.has(archived);
+		}
+		case 'jobs_run': {
+			const definitions = jobDefinitions(db);
+			const [job, ...others] = jobsNamed(definitions, field('job') ?? '');
+			if (!job || others.length > 0 || shipsWork(definitions, job)) return false;
+			const runsIn =
+				field('workstream') === undefined ? callerWorkstreamId : target(field('workstream'));
+			return runsIn === callerWorkstreamId || (runsIn !== null && tree.has(runsIn));
+		}
+		default:
+			return false;
+	}
+}
+
+function shipsWork(
+	definitions: readonly JobDefinitionRecord[],
+	job: JobDefinitionRecord,
+	visited = new Set<string>(),
+): boolean {
+	if (job.builtin === 'open-draft' || job.builtin === 'merge') return true;
+	if (job.thenJobId === null || visited.has(job.id)) return false;
+	visited.add(job.id);
+	const next = definitions.find((definition) => definition.id === job.thenJobId);
+	return next !== undefined && shipsWork(definitions, next, visited);
 }
 
 export function jobsNamed(

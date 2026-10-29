@@ -239,6 +239,7 @@ async function decideFromState(
 		attempts: row.attempts,
 		fixAttemptLimit: working ? DEFAULT_MERGE_QUEUE_FIX_ATTEMPTS : await fixAttemptLimit(deps),
 		backoffUntil: row.nextAttemptAt === null ? null : Date.parse(row.nextAttemptAt),
+		waitsForYou: row.waitsFor !== null,
 		now: deps.now(),
 		read: false,
 		pullRequest: null,

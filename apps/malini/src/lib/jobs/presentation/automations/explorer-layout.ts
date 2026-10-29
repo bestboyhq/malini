@@ -20,6 +20,7 @@ export const STRUCTURE: readonly Hop[] = [
 	['rule:thens', 'jobs'],
 	['rule:shipping', 'jobs'],
 	['rule:resume', 'chats'],
+	['rule:deliveries', 'chats'],
 	['rule:schedules', 'jobs'],
 	['rule:compatibility', 'jobs'],
 	['rule:model', 'chats'],

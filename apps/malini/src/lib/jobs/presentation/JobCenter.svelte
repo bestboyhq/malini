@@ -101,14 +101,14 @@
 					{#if running > 0}
 						<BusyIcon size={12} />
 					{:else if needsYou > 0}
-						<Icon name="alert" size={13} class="text-warning-content" />
+						<Icon name="dot" size={13} class="text-brand-icon" />
 					{:else}
 						<Icon name="checklist" size={13} />
 					{/if}
 				</span>
 				<span class="min-w-0 flex-1 truncate">
 					<span class="text-fg-default font-medium">Jobs</span>
-					<span class={needsYou > 0 ? 'text-warning-content' : 'text-fg-tertiary'}>
+					<span class={needsYou > 0 ? 'text-brand-foreground' : 'text-fg-tertiary'}>
 						· {summary}
 					</span>
 				</span>

@@ -22,6 +22,7 @@ import {
 import { reapOrphansOnExit, reapOrphansOnStartup } from './lifecycle';
 import { createElectronNodeProcessFactory, type BridgeProcessFactory } from './process';
 import { recordDeniedMaliniCall } from './malini-approvals.service';
+import { ChatDeliveries } from '../deliveries.service';
 import { answerPlatformRequest } from './platform-tools';
 import {
 	browserResultCommand,
@@ -75,6 +76,7 @@ export interface AgentServiceDeps {
 	readonly shellRuns?: SendPromptHooks['shellRuns'];
 	readonly hooks: BridgeRuntimeHooks & Pick<SendPromptHooks, 'captureCheckpoint'>;
 	readonly browser?: BrowserAutomation;
+	readonly deliveries?: ChatDeliveries;
 	readonly log?: (line: string) => void;
 }
 
@@ -214,6 +216,7 @@ export async function startAgentService(
 	const log = deps.log ?? ((line: string) => console.error(line));
 	const { db } = context;
 	const sending = new PromptsInFlight();
+	const deliveries = deps.deliveries ?? new ChatDeliveries(context, log);
 
 	try {
 		log(`agent: reaped ${reapOrphansOnStartup(db)} orphaned run(s) on startup`);
@@ -272,6 +275,7 @@ export async function startAgentService(
 							events: context.events,
 							appDataRoot: context.appDataRoot,
 							sending,
+							deliveries,
 							log,
 						}),
 					)

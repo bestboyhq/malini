@@ -6,8 +6,8 @@ Aliases: `$main` (node only), `$lib` (`src/lib`), `$shared` (`src/lib/shared`), 
 There is no backend service and no cloud.
 `apps/site` is the public site and its LLMs-first docs, markdown in `apps/site/content/`, served at bestboy.dev/malini (ADR 0031); a feature changes its docs page in the same pull request.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
-Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0108).
-Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0109).
+Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0119).
+Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0120).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
 The app makes two outbound calls of its own.
 Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).
@@ -98,7 +98,7 @@ Every event channel has one description in `$contract/event-catalog.ts`; `pnpm -
 corepack enable pnpm           # once; package.json pins pnpm 12 and pnpm 10 cannot self-switch to it
 pnpm install
 pnpm dev                       # electron-vite dev: main, preload and renderer with HMR
-pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge
+pnpm dogfood                   # the user's daily Malini: runs this checkout of main and applies every merge once no agent is mid-turn
 pnpm --filter malini test:e2e   # builds, then Playwright launches the app
 pnpm dist                      # unsigned .app under apps/malini/release/
 pnpm --filter malini test:update   # signed builds update themselves from a local feed

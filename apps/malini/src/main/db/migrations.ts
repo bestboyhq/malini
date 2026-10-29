@@ -1170,6 +1170,47 @@ ALTER TABLE agent_sessions_next RENAME TO agent_sessions;
 CREATE INDEX idx_agent_sessions_workstream_archived_started
   ON agent_sessions(workstream_id, archived_at, started_at DESC);
 `,
+	`ALTER TABLE workstream_ship ADD COLUMN waits_for TEXT;`,
+	`
+CREATE TABLE lead_decisions (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  topic TEXT NOT NULL,
+  question TEXT NOT NULL,
+  why TEXT,
+  options TEXT NOT NULL,
+  recommended INTEGER NOT NULL,
+  meanwhile TEXT,
+  asked_at TEXT NOT NULL,
+  answer_option INTEGER,
+  answer_by TEXT CHECK (answer_by IS NULL OR answer_by IN ('you','lead')),
+  answer_reason TEXT,
+  answered_at TEXT,
+  CHECK ((answer_option IS NULL) = (answer_by IS NULL) AND (answer_by IS NULL) = (answered_at IS NULL))
+);
+CREATE INDEX idx_lead_decisions_session ON lead_decisions(session_id, asked_at);
+
+CREATE TABLE agent_deliveries (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('prompt','report','decision')),
+  prompt TEXT NOT NULL,
+  from_session_id TEXT,
+  from_workstream_id TEXT,
+  report TEXT,
+  decision_id TEXT,
+  profile TEXT,
+  chain_id TEXT,
+  cause_event_id INTEGER,
+  status TEXT NOT NULL CHECK (status IN ('waiting','delivered','failed')),
+  run_id TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL,
+  delivered_at TEXT
+);
+CREATE INDEX idx_agent_deliveries_waiting ON agent_deliveries(session_id, status, created_at);
+CREATE INDEX idx_agent_deliveries_from ON agent_deliveries(from_session_id, created_at);
+`,
 ];
 
 export const TARGET_USER_VERSION = BASELINE_USER_VERSION + MIGRATIONS.length;

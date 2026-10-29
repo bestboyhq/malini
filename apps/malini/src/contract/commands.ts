@@ -23,6 +23,8 @@ import type {
 	StagedAgentAttachmentBytes,
 } from './agent';
 import type { PermissionGrantRecord, RevokePermissionGrantArgs } from './approvals';
+import type { AnswerLeadDecisionArgs, LeadDecision, ListLeadDecisionsArgs } from './leads';
+import type { ChatDelivery, ListChatDeliveriesArgs, WorkstreamReport } from './deliveries';
 import type {
 	BrowserNavigateArgs,
 	BrowserPickArgs,
@@ -181,6 +183,8 @@ export type SendAgentPromptArgs = Readonly<{
 	from?: string;
 	chainId?: string;
 	causeEventId?: number;
+	reports?: readonly WorkstreamReport[];
+	decisions?: readonly string[];
 }>;
 
 export type AnswerAgentQuestionArgs = Readonly<{
@@ -485,6 +489,7 @@ export interface ContractCommands {
 	'repositories.github-auth-status': { args: undefined; result: AuthStatusDto };
 	'repositories.github-reach': { args: undefined; result: GithubReach };
 	'repositories.start-github-sign-in': { args: undefined; result: GitHubDeviceCodeDto };
+	'repositories.start-github-workflow-access': { args: undefined; result: GitHubDeviceCodeDto };
 	'repositories.finish-github-sign-in': { args: undefined; result: GitHubSignInOutcome };
 	'repositories.cancel-github-sign-in': { args: undefined; result: void };
 	'pull-requests.create': { args: CreatePullRequestArgs; result: PullRequestStatusDto };
@@ -552,6 +557,9 @@ export interface ContractCommands {
 	'repositories.set-hidden': { args: SetRepositoryHiddenArgs; result: void };
 	'chat.list-events': { args: ListAgentEventsArgs; result: AgentEventEnvelope[] };
 	'chat.list-event-page': { args: ListAgentEventPageArgs; result: AgentEventPage };
+	'chat.list-lead-decisions': { args: ListLeadDecisionsArgs; result: LeadDecision[] };
+	'chat.answer-lead-decision': { args: AnswerLeadDecisionArgs; result: LeadDecision };
+	'chat.list-deliveries': { args: ListChatDeliveriesArgs; result: ChatDelivery[] };
 	'chat.tool-output': { args: ToolOutputArgs; result: string | null };
 	'chat.list-sessions': { args: WorkstreamIdArgs; result: AgentSessionSummary[] };
 	'extensions.list-sources': { args: undefined; result: ExtensionSourceSnapshot[] };
@@ -769,6 +777,7 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.github-auth-status',
 	'repositories.github-reach',
 	'repositories.start-github-sign-in',
+	'repositories.start-github-workflow-access',
 	'repositories.finish-github-sign-in',
 	'repositories.cancel-github-sign-in',
 	'pull-requests.create',
@@ -821,6 +830,9 @@ export const COMMAND_NAMES: readonly CommandName[] = [
 	'repositories.set-hidden',
 	'chat.list-events',
 	'chat.list-event-page',
+	'chat.list-lead-decisions',
+	'chat.answer-lead-decision',
+	'chat.list-deliveries',
 	'chat.tool-output',
 	'chat.list-sessions',
 	'extensions.list-sources',

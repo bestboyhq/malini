@@ -505,6 +505,33 @@ export function openedUrls(app: LaunchedApp): Promise<string[]> {
 	});
 }
 
+export async function recordBrowserAndClipboard(app: LaunchedApp): Promise<void> {
+	await app.electronApp.evaluate(({ clipboard, shell }) => {
+		const record: { opened: string[]; copied: string[] } = { opened: [], copied: [] };
+		Reflect.set(globalThis, '__githubSignIn', record);
+		shell.openExternal = async (url) => {
+			record.opened.push(url);
+		};
+		clipboard.writeText = async (text) => {
+			record.copied.push(text);
+		};
+	});
+}
+
+export function recordedBrowserAndClipboard(
+	app: LaunchedApp,
+): Promise<{ opened: string[]; copied: string[] }> {
+	return app.electronApp.evaluate(() => {
+		const record: unknown = Reflect.get(globalThis, '__githubSignIn');
+		const opened: unknown = Reflect.get(Object(record), 'opened');
+		const copied: unknown = Reflect.get(Object(record), 'copied');
+		return {
+			opened: Array.isArray(opened) ? opened.map(String) : [],
+			copied: Array.isArray(copied) ? copied.map(String) : [],
+		};
+	});
+}
+
 export async function openWorkstream(
 	page: Page,
 	workstreamId: string,

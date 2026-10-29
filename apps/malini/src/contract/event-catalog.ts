@@ -23,6 +23,15 @@ export const EVENT_CATALOG: Readonly<Record<EventChannel, EventCatalogEntry>> = 
 		description:
 			"Fires when a turn of one of your chats ends, not a job's or a thread's you started from a page, with how it ended and the `Outcome:` and `Needs:` lines of its report; `needs` is `null` when the turn needs nothing from you.",
 	},
+	'chat:lead-decision-changed': {
+		description:
+			'Fires when a chat at Home or in an organization asks you a decision, records one it took itself, or when you or that chat answer or change one, with the decision, its options and its answer.',
+	},
+	'chat:delivery-changed': {
+		description:
+			'Fires when Malini holds a prompt for a chat that is on a turn, delivers it once that turn ends, or cannot deliver it, such as a prompt one chat sends the chat of a workstream it started. Malini does not keep it in its event log.',
+		logged: false,
+	},
 	'chat:mcp-server-changed': {
 		description:
 			'Fires when a sign-in to an MCP server ends, or a retry outside a chat reads its status, with the server and its new status; every open chat reconnects a server that connected.',

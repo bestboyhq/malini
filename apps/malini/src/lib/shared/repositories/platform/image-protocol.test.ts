@@ -130,6 +130,80 @@ describe('workstreamMedia', () => {
 	});
 });
 
+describe('a lead', () => {
+	it('shows what a workstream it started shows, by its absolute path', async () => {
+		const db = openMigratedDatabase(':memory:');
+		const lead = join(root, 'lead');
+		const started = join(root, 'started');
+		mkdirSync(join(started, '.context'), { recursive: true });
+		mkdirSync(lead, { recursive: true });
+		const shot = join(started, '.context', 'variant-a.png');
+		writeFileSync(shot, PNG);
+		writeFileSync(join(root, 'elsewhere.png'), PNG);
+		upsertProject(db, {
+			id: 'proj',
+			name: 'proj',
+			repoPath: join(root, 'repo'),
+			defaultBranch: 'main',
+			createdAt: NOW,
+		});
+		const workstream = (id: string, path: string, startedBy: string | null) =>
+			upsertWorkstream(db, {
+				id,
+				projectId: 'proj',
+				name: id,
+				path,
+				branch: `malini/${id}`,
+				baseBranch: 'main',
+				status: 'active',
+				createdAt: NOW,
+				scope: startedBy === null ? 'home' : null,
+				startedBy,
+			});
+		workstream('ws-lead', lead, null);
+		workstream('ws-started', started, 'ws-lead');
+		run(
+			db,
+			'INSERT INTO agent_sessions (id, workstream_id, status, started_at) VALUES (?, ?, ?, ?)',
+			'sess-lead',
+			'ws-lead',
+			'running',
+			NOW,
+		);
+		run(
+			db,
+			'INSERT INTO agent_runs (id, session_id, prompt, started_at) VALUES (?, ?, ?, ?)',
+			'run-lead',
+			'sess-lead',
+			'relay it',
+			NOW,
+		);
+		const events = createEventBus({ forwardToWindows: false });
+		const resolve = workstreamMedia(
+			{ db, events, appDataRoot },
+			{ resolveCheckout: (id) => Promise.resolve(id === 'ws-lead' ? lead : started) },
+		);
+
+		expect(await resolve('ws-lead', shot)).toBe(shot);
+		await expect(resolve('ws-lead', join(root, 'elsewhere.png'))).rejects.toThrow(
+			'escapes the workstream',
+		);
+
+		events.emit('chat:agent-event', {
+			sessionId: 'sess-lead',
+			runId: 'run-lead',
+			seq: 1,
+			event: { runId: 'run-lead', type: 'assistant.message', text: `![A](${shot})` },
+		});
+		await vi.waitFor(async () => {
+			expect(await shownFile(appDataRoot, 'ws-started', '.context/variant-a.png')).not.toBeNull();
+		});
+		rmSync(join(started, '.context'), { recursive: true });
+		const kept = await resolve('ws-lead', shot);
+		expect(kept && readFileSync(kept)).toEqual(PNG);
+	});
+});
+
 describe('a shown file', () => {
 	it('is never a copied link, outlives a restore, and goes with its workstream', async () => {
 		const checkout = join(root, 'checkout');

@@ -18,6 +18,7 @@ import {
 } from '$lib/chat/domain/agent-interaction-state';
 import type { AgentEvent, EventEnvelope } from '$lib/chat/domain/events';
 import { agentInteractions } from '$lib/chat/infrastructure/services/agent-interactions.service';
+import { agentActivity } from './agent-activity.aggregate.svelte';
 import { sessionsAggregate } from './sessions.aggregate.svelte';
 
 type InteractionAgentPort = Readonly<{
@@ -98,8 +99,10 @@ export class AgentInteractionCommands {
 
 	constructor(
 		resolveAgentPort: () => InteractionAgentPort = () => agentInteractions,
-		onResolved: (sessionId: string, runId: string) => void = (sessionId, runId) =>
-			sessionsAggregate.resumeRunAfterInteraction(sessionId, runId),
+		onResolved: (sessionId: string, runId: string) => void = (sessionId, runId) => {
+			sessionsAggregate.resumeRunAfterInteraction(sessionId, runId);
+			agentActivity.clearForRun(sessionId, runId);
+		},
 	) {
 		this.#resolveAgentPort = resolveAgentPort;
 		this.#onResolved = onResolved;
@@ -268,6 +271,15 @@ export class AgentInteractionCommands {
 		);
 	}
 
+	#resolved(key: string, sessionId: string, runId: string): void {
+		const othersWait = [...this.#requests].some(([other, request]) => {
+			if (other === key || request.sessionId !== sessionId || request.runId !== runId) return false;
+			const { status } = this.states[other] ?? IDLE_STATE;
+			return status !== 'resolved' && status !== 'stale';
+		});
+		if (!othersWait) this.#onResolved(sessionId, runId);
+	}
+
 	async decideApproval(input: DecideAgentApprovalInput): Promise<boolean> {
 		const reference = {
 			kind: 'approval',
@@ -324,7 +336,7 @@ export class AgentInteractionCommands {
 				return false;
 			}
 			if (input.decision === 'allow' || keptBlockedRunsOn) {
-				this.#onResolved(input.sessionId, input.runId);
+				this.#resolved(key, input.sessionId, input.runId);
 			}
 			const remembered = input.decision === 'allow' && result.remembered;
 			this.states = {
@@ -382,7 +394,7 @@ export class AgentInteractionCommands {
 				answers: validation.answers,
 			});
 			if (this.states[key]?.status === 'stale') return false;
-			this.#onResolved(input.sessionId, input.runId);
+			this.#resolved(key, input.sessionId, input.runId);
 			this.states = { ...this.states, [key]: ANSWERED_STATE };
 			return true;
 		} catch (error) {

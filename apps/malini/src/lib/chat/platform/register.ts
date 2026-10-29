@@ -1,5 +1,10 @@
 import type { AgentTheme } from '$contract/agent';
-import { APP_STARTED_CHANNEL, JOBS_TIME_REACHED_CHANNEL } from '$contract/events';
+import {
+	APP_STARTED_CHANNEL,
+	CHAT_TURN_FINISHED_CHANNEL,
+	JOBS_TIME_REACHED_CHANNEL,
+	type ChatTurnFinishedPayload,
+} from '$contract/events';
 import type { ShipFailure } from '$contract/pull-requests';
 import type { SkillRecord, TurnedOffSkills } from '$contract/skills';
 import type { MainContext } from '$main/context';
@@ -26,6 +31,8 @@ import {
 	verifyStagedFile,
 } from './attachments/service';
 import { installCheckpoints } from './checkpoints/commands';
+import { ChatDeliveries } from './deliveries.service';
+import { installLeadDecisions } from './lead-decisions.service';
 import { packArchivedChats } from './event-packs.service';
 import { installPermissionGrants } from './grants/commands';
 import { defineMcpServerCommands, type McpServerListings } from './mcp-servers';
@@ -58,6 +65,8 @@ export interface ChatPlatform {
 	suggestTitle: SuggestWithJob;
 	choose: ChooseWithJob;
 	resume(event: DispatchedEvent): Promise<void>;
+	deliveries(event: DispatchedEvent): Promise<void>;
+	deliver: ChatDeliveries['deliver'];
 }
 
 export async function registerChat(context: MainContext, deps: ChatDeps): Promise<ChatPlatform> {
@@ -71,6 +80,8 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		...(deps.picker ? { picker: deps.picker } : {}),
 	});
 	const stopGrants = installPermissionGrants(context);
+	const deliveries = new ChatDeliveries(context, deps.log ?? ((line) => console.error(line)));
+	installLeadDecisions(context, deliveries);
 	const shellRuns = installShellRuns(context, {
 		checkout: deps.resolveWorkstreamCheckout,
 		environment: deps.spawnEnvironment,
@@ -107,6 +118,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			},
 			onMcpServers: (listing) => mcpServers?.received(listing),
 		},
+		deliveries,
 		...(deps.log ? { log: deps.log } : {}),
 		...(deps.theme ? { theme: deps.theme } : {}),
 		...(deps.shippingFailure ? { shippingFailure: deps.shippingFailure } : {}),
@@ -133,6 +145,7 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 		closeOpenRunsForExit: () => agent.closeOpenRunsForExit(),
 		stop: async () => {
 			stopGrants();
+			deliveries.stop();
 			await Promise.all([packing.stop(), agent.stop(), shellRuns.stopAll()]);
 		},
 		listSkills: async (cwd, turnedOff) => (await agent.ensureReady()).listSkills(cwd, turnedOff),
@@ -161,7 +174,34 @@ export async function registerChat(context: MainContext, deps: ChatDeps): Promis
 			if (event.channel !== APP_STARTED_CHANNEL || resumed) return;
 			resumed = true;
 			await agent.continuePausedRuns(event.id);
+			await deliveries.flushAll();
 		},
+		deliveries: async (event) => {
+			const turn = finishedTurn(event);
+			if (turn) await deliveries.turnFinished(turn, event.id);
+		},
+		deliver: (delivery) => deliveries.deliver(delivery),
+	};
+}
+
+function finishedTurn(event: DispatchedEvent): ChatTurnFinishedPayload | null {
+	if (event.channel !== CHAT_TURN_FINISHED_CHANNEL || !isRecord(event.payload)) return null;
+	const { workstreamId, sessionId, runId, status, outcome, needs } = event.payload;
+	if (
+		typeof workstreamId !== 'string' ||
+		typeof sessionId !== 'string' ||
+		typeof runId !== 'string' ||
+		(status !== 'succeeded' && status !== 'failed' && status !== 'cancelled')
+	) {
+		return null;
+	}
+	return {
+		workstreamId,
+		sessionId,
+		runId,
+		status,
+		outcome: typeof outcome === 'string' ? outcome : null,
+		needs: typeof needs === 'string' ? needs : null,
 	};
 }
 

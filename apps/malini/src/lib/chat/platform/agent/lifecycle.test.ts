@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { appendEvent, listEventRowsForSession } from '../events.repository';
 import { getInteraction, recordPendingInteraction } from '../interactions.repository';
 import { get, run, scalar } from '$main/db/rows';
@@ -26,6 +26,8 @@ import {
 	type TestContext,
 } from './test-support';
 
+const NOW = '2026-10-28T09:00:00.000Z';
+
 let test: TestContext;
 let leases: AgentRunLeases;
 
@@ -35,6 +37,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.useRealTimers();
 	test.cleanup();
 });
 
@@ -45,7 +48,9 @@ function seedRunning(runId = 'run-1', sessionId = 'sess-1', workstreamId = 'ws-1
 }
 
 describe('envelopes', () => {
-	it('persists then emits with the seq the row got, in pump shape', () => {
+	it('persists then emits with the seq the row got, in pump shape, stamped with when Malini made it', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(NOW);
 		seedRunning();
 		const emitted: Array<[SyntheticEventEnvelope, number]> = [];
 		const envelope: SyntheticEventEnvelope = {
@@ -65,6 +70,7 @@ describe('envelopes', () => {
 			runId: 'run-1',
 			seq,
 			event: { type: 'run.failed', error: 'x', runId: 'run-1' },
+			emittedAt: NOW,
 		});
 		expect(
 			camelEnvelopeJson(
@@ -76,6 +82,7 @@ describe('envelopes', () => {
 			runId: 'run-1',
 			seq: 9,
 			event: { type: 'user.message', text: 'hi', runId: 'run-1' },
+			emittedAt: NOW,
 		});
 	});
 });

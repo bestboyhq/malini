@@ -8,7 +8,7 @@ import { JOB_RUN_STATUS, type JobRunStatusLook } from '../job-run-status';
 
 export const DECISION_STATUS: Readonly<Record<ReconcilerDecisionStatus, JobRunStatusLook>> = {
 	pending: { label: 'Waits for that chat', icon: 'clock', tone: 'text-fg-tertiary' },
-	asking: { label: 'Asks you', icon: 'question', tone: 'text-warning-content' },
+	asking: { label: 'Asks you', icon: 'question', tone: 'text-brand-icon' },
 	done: JOB_RUN_STATUS.succeeded,
 	dismissed: { label: 'Dismissed', icon: 'circle-slash', tone: 'text-fg-tertiary' },
 	failed: JOB_RUN_STATUS.failed,

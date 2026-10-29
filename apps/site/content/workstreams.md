@@ -17,6 +17,7 @@ Two agents never edit one checkout, so they never clobber each other.
 Workstreams share disk space, so you can keep as many as you like.
 
 - **Checkouts are copy-on-write.** A new or restored workstream clones its files from the repository's clone, so a file takes no extra space until an agent changes it.
+  Malini first moves that clone to the latest default branch it fetched, so files that changed there are shared too.
 - **Dependencies are shared.** With npm or yarn, a workstream copies `node_modules` the same way from another workstream with the same lockfile, instead of installing again.
   pnpm and bun share packages through their own store.
 - **One clone per repository.** A repository you open from a folder on your Mac is cloned from that folder and shares its git objects, then fetches the rest from its remote.
@@ -65,10 +66,12 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
   The chevron on the chat's row folds them, and Malini remembers.
   Under a pin that leaves the chat out, or in a Status or Day section the chat is not in, the workstream sits under its repository.
 - A row that started workstreams shows a dot for each: merged, needs you, failed, working, or waiting, then a dot for each archived one, filled when it merged and hollow when it did not.
+  A needs-you dot is blue when the workstream asks you something, and amber when its merge stopped on a problem.
   Hover the row to list them with where each stands.
   On that chat's page, the top right lists them under the count.
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
-  A row's icon turns amber when its agent waits on an answer or an approval, and red when its run failed.
+  A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.
+  Amber means a problem, such as a pull request Malini could not merge.
   A workstream a chat started stays calm, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up for it instead.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
@@ -140,7 +143,10 @@ Like every workstream, each one stays on its own commits while main moves, and m
   The top bar and the workstream in the sidebar turn amber and say what failed and since when, such as **Couldn't open draft · 3 tries since 14:02**.
   A note above the composer says why, how many times Malini tried and when it tries next, with **Retry now**, **Cancel draft** while it opens a draft, and **What GitHub said** when GitHub refused the push.
   The agent reads the same note with your next prompt, so asking it why the pull request is not open gets the real reason.
-  When GitHub refuses a push that adds or changes a workflow file because your `gh` sign-in lacks the `workflow` scope, the note says to run `gh auth refresh -s workflow` once; the next try then goes through.
+- **A workflow refusal waits for you.** GitHub refuses a push that adds or changes a file under `.github/workflows/` when the sign-in that pushes lacks the `workflow` scope, and no retry fixes that, so Malini stops trying and the note says **waits for you**.
+  When your `gh` sign-in lacks the scope, **Allow workflow changes** in the note shows a one-time code and opens GitHub, the same way setup signs you in, and once you approve it every workstream waiting on it pushes again on its own.
+  Running `gh auth refresh -s workflow` in a terminal works too; then press **Retry now**.
+  When a personal access token or a GitHub App pushes instead, give it the workflow permission on GitHub, then press **Retry now**.
 - **Offline or GitHub down, it says which, on every page.** The top right corner says **Offline** as soon as your Mac loses its connection, and Malini reads GitHub again the moment it is back.
   Online, it says **GitHub is not responding** when GitHub doesn't answer, **GitHub is down** when it answers with a server error, or **GitHub rate limit reached** when it limits your account, and **Status** opens githubstatus.com.
   It clears on its own once GitHub answers again: Malini asks every 30 seconds while it waits.

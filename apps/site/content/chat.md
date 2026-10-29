@@ -16,14 +16,16 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 
 - It opens at once and sets itself up behind the chat.
   A prompt you send before it is ready waits in the queue, and a setup that fails says why above the chat, with **Retry setup** and **Remove**.
-- Its transcript shows the workstreams it started in a **Workstreams** card, each with where it stands, and the top bar counts how many merged and which need you.
+- The top bar counts how many of the workstreams it started merged and which need you.
+  A question or a decision turns only that count blue; the top bar turns amber when a merge stopped on a problem or a run failed.
   Under that count, the chat lists every workstream it started: lines added and removed while it is open, and when it merged once it lands.
   Click one to go there, or hover it and click its pull request number to open the pull request on GitHub.
+  **Your decisions**, under that list, holds every [decision](#decisions) the chat asked you, the open ones first.
 - **Draft all** and **Merge all**, beside that count and in the card that opens when you hover the chat's row in the sidebar, log a **Button clicked**, and the [Shipping rule](/malini/docs/jobs.md#reconciler) runs the **Open draft** or **Merge** [job](/malini/docs/jobs.md#run-a-job) in every workstream the chat started that has something to ship: changes, a pull request, or an agent still at work.
   Each run waits above the chat's composer and starts once that workstream's agent ends its turn, so one click ships everything the chat delegated.
   A workstream already shipping, queued to merge, waiting on you or merged is left out, and the buttons go away once none is left.
 - The chat speaks for the work it started, and for the work that work started, up to the top-most chat still open.
-  Those workstreams keep their rows calm, with no unread mark and no amber or red, and play no sound and send no notification when they finish, need you or fail: Malini wakes the chat with their report, or asks you in a notification that opens the chat.
+  Those workstreams keep their rows calm, with no unread mark and no blue, amber or red, and play no sound and send no notification when they finish, need you or fail: every turn they end reports to the chat, and the chat asks you what only you can decide.
   An approval or a question only you can answer still plays the sound, and its notification names the chat and opens it, where the request waits.
   The chat's row lights up for the most pressing news of the chat and its workstreams, and grouped by Status it sits where the most pressing of them belongs, with its workstreams under it.
   A pull request of theirs that needs you says so in a toast that names the chat and opens it.
@@ -32,7 +34,37 @@ It starts a [workstream](/malini/docs/workstreams.md) for each change, with one 
 - A workstream the chat starts sits under the chat's row in the sidebar, beside every workstream those start in turn, and the chat's row shows a dot for each it started, archived ones last.
   Hover the chat's row to list them.
   It shows **Started by** with a link back to that chat and the other workstreams it started, and its first prompt says **Prompt from** and names the chat.
-- The agent in that workstream knows which chat started it, and reads the checkouts of the other workstreams that chat started.
+- The agent in that workstream knows which chat started it, reads the chat's [plan](#one-plan), and reads the checkouts of the other workstreams that chat started.
+
+### The timeline
+
+The chat reads as a timeline: one line for each thing that happened, with its time, on one rail.
+Your messages, the reports of the workstreams it started, what the lead started, sent, archived or ran, and the decisions all sit on it, and **Now** marks what is going on at the moment.
+Past turns fade; point at a line to read it.
+Everything the lead read or ran between two messages folds into one line, such as **Lead worked · 4 steps**, and **Show work** lists the steps.
+The lead's latest message shows in full, and each earlier one folds to its Outcome line until you open it.
+A report shows the pictures its workstream embedded; click one to see it full size and flip through the rest.
+An approval the lead waits on, such as running **Merge**, shows as a card on the timeline.
+
+Every turn of the lead starts a fresh Claude Code session from what the timeline shows, with the model, effort and access you picked.
+So a chat that runs for days never fills its context, and the lead keeps what the work needs in its plan.
+
+### Decisions
+
+The lead brings you what only you can decide, one decision at a time, in a card above the composer.
+Each option shows its picture, or its name when it has none, and the lead marks the one it recommends and says what it builds meanwhile.
+Click an option to pick it, or open an option full size to flip between them with the arrow keys and pick one with an optional reason, which the lead hears.
+An option can be a whole page, which opens live.
+**‹ 1 of 3 ›** moves between open decisions, and **Later**, or Escape, folds them into a **decisions wait for you** row above the composer.
+The composer stays under the card: write to the lead in your own words, and it records the decisions your message answers.
+A decision sits on the timeline once made, with **Change** to pick again, and the lead hears every pick and every change.
+The lead names open decisions in its `Needs:` line, so its row says it needs you and Malini plays the sound and sends the notification.
+
+### One plan
+
+The lead keeps one plan, `.context/plan.md` in its own folder: what each workstream builds, the contract between them and the decisions so far.
+It writes the plan before it starts workstreams, and every workstream it starts gets the plan's path and reads it before it begins.
+When the plan changes, the lead tells the workstreams it affects.
 
 ## Queue or steer
 
@@ -108,6 +140,8 @@ Until then, pointing at the chat's gauge names the account it last ran on.
 - **Full access** never asks.
 
 When the agent asks, approve once, or always for the chat, the workstream, or everywhere.
+Malini's own tools ask only outside the chat's own work: archiving a workstream the chat started, or running a job in its workstream or one it started, goes through without asking, unless the job opens a draft or merges.
+See [how often Malini's tools ask](/malini/docs/agent-tools.md#you-decide-how-often-it-asks).
 **Settings > Agent access** lists everything you always allow, and **Revoke** takes it back.
 
 When auto mode blocks a call, the chat asks you instead of failing it, with the reason auto mode gave.

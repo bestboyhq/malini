@@ -23,9 +23,22 @@ export interface AgentCheckout {
 	path: string;
 }
 
+export interface AgentLead {
+	owner: string | null;
+	repositories: AgentCheckout[];
+	workstreams: AgentCheckout[];
+	plan: string;
+}
+
+export interface AgentStarter {
+	name: string;
+	lead: boolean;
+	plan: string | null;
+}
+
 export interface AgentLineage {
-	lead: { owner: string | null; repositories: AgentCheckout[] } | null;
-	startedBy: { name: string; lead: boolean } | null;
+	lead: AgentLead | null;
+	startedBy: AgentStarter | null;
 	siblings: AgentCheckout[];
 }
 
@@ -104,6 +117,7 @@ export interface AgentEventEnvelope {
 	runId: string;
 	seq: number;
 	event: Record<string, unknown>;
+	emittedAt?: string;
 }
 
 export type LiveEventEnvelope = AgentEventEnvelope & { ephemeral?: true };

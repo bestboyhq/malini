@@ -57,7 +57,7 @@ import {
 	type BridgeAgentRequest,
 	type BridgeEvent,
 } from './protocol';
-import { withMaliniApproval } from './malini-approvals.service';
+import { allowedInTree, withMaliniApproval } from './malini-approvals.service';
 import {
 	persistedBridgeSession,
 	persistedBridgeSessions,
@@ -142,7 +142,9 @@ export function envelopeWithSeq(resolved: ResolvedEnvelope, seq: number): LiveEv
 		seq,
 		event: { ...resolved.event },
 	};
-	return resolved.ephemeral ? { ...envelope, ephemeral: true } : envelope;
+	return resolved.ephemeral
+		? { ...envelope, ephemeral: true }
+		: { ...envelope, emittedAt: nowIso8601() };
 }
 
 interface RecordedBridgeInteraction {
@@ -197,6 +199,23 @@ export function recordBridgeInteractionRequest(
 	return { outcome, normalizedPermission };
 }
 
+function safelyAllowedInTree(
+	db: MaliniDatabase,
+	toolName: string | undefined,
+	input: unknown,
+	workstreamId: string,
+	log: (line: string) => void,
+): boolean {
+	try {
+		return allowedInTree(db, toolName, input, workstreamId);
+	} catch (error) {
+		log(
+			`agent: could not tell whether \`${toolName ?? 'a call'}\` stays in its tree: ${describe(error)}`,
+		);
+		return false;
+	}
+}
+
 function suppressed(outcome: InteractionRecordOutcome): boolean {
 	return outcome === 'dispatching' || outcome === 'resolved' || outcome === 'closed';
 }
@@ -229,8 +248,13 @@ export async function tryAutoApprove(
 		log(`agent: could not match remembered permission for \`${approvalId}\`: ${describe(error)}`);
 		return false;
 	}
-	if (!rule) return false;
-	const response = { decision: 'allow', scope: rule.scope, permission };
+	const inTree =
+		!rule && safelyAllowedInTree(db, event.toolName, event.input, identity.workstreamId, log);
+	if (!rule && !inTree) return false;
+	const scope = rule ? rule.scope : 'once';
+	const response = rule
+		? { decision: 'allow', scope, permission }
+		: { decision: 'allow', scope, permission, tree: true };
 	try {
 		const outcome = prepareInteractionResponse(db, {
 			kind: 'approval',
@@ -265,7 +289,7 @@ export async function tryAutoApprove(
 			runId,
 			approvalId,
 			decision: 'allow',
-			scope: rule.scope,
+			scope,
 		});
 	} catch (error) {
 		abortInteractionDispatch(db, 'approval', sessionId, runId, approvalId, response);
@@ -282,10 +306,10 @@ export async function tryAutoApprove(
 			requestId: approvalId,
 			intendedResponse: response,
 			decision: 'allow',
-			scope: rule.scope,
+			scope,
 			source: 'auto',
 			decidedAt: nowIso8601(),
-			matchedRuleId: rule.id,
+			matchedRuleId: rule?.id ?? null,
 		});
 	} catch (error) {
 		log(

@@ -206,7 +206,7 @@ describe('ClaudeSession', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'run.completed', runId: 'run-2' });
 	});
 
-	it('hands Claude the malini browser, read and file-opening tools pre-approved and the report resolution of each prompt', async () => {
+	it('hands Claude the malini browser, read, workstream, decision, plan and file-opening tools pre-approved and the report resolution of each prompt', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, claude } = harness([script, script]);
 
@@ -230,6 +230,11 @@ describe('ClaudeSession', () => {
 			'mcp__malini__events_list',
 			'mcp__malini__repositories_list',
 			'mcp__malini__workstreams_list',
+			'mcp__malini__workstreams_create',
+			'mcp__malini__workstreams_send',
+			'mcp__malini__decisions_ask',
+			'mcp__malini__decisions_answer',
+			'mcp__malini__plan_write',
 			'mcp__malini__files_open',
 		]);
 		expect(claude.runs.map(({ mcpPermissionModes }) => mcpPermissionModes)).toEqual([
@@ -263,20 +268,22 @@ describe('ClaudeSession', () => {
 		]);
 	});
 
-	it('keeps a lead chat to reading and planning, and hands a started workstream its siblings', async () => {
+	it('keeps a lead chat to reading and planning what it started, and hands a started workstream its plan and siblings', async () => {
 		const script = recordedScript('readAndBash');
 		const { session, claude } = harness([script, script]);
 		const lead: AgentLineage = {
 			lead: {
 				owner: 'acme',
 				repositories: [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }],
+				workstreams: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
+				plan: '/plans/lead-1/plan.md',
 			},
 			startedBy: null,
 			siblings: [],
 		};
 		const child: AgentLineage = {
 			lead: null,
-			startedBy: { name: 'Unify footers', lead: true },
+			startedBy: { name: 'Unify footers', lead: true, plan: '/plans/lead-1/plan.md' },
 			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
 		};
 		const withLineage = (lineage: AgentLineage) =>
@@ -288,14 +295,20 @@ describe('ClaudeSession', () => {
 		expect(claude.runs[0]?.options.disallowedTools).toEqual(
 			expect.arrayContaining(['Edit', 'Write', 'NotebookEdit']),
 		);
-		expect(claude.runs[0]?.options.additionalDirectories).toEqual(['/clones/acme-api']);
+		expect(claude.runs[0]?.options.additionalDirectories).toEqual([
+			'/clones/acme-api',
+			'/workstreams/w2',
+		]);
 		expect(claude.runs[0]?.options.systemPrompt).toEqual(
 			expect.objectContaining({
 				append: expect.stringContaining('the acme organization level'),
 			}),
 		);
 		expect(claude.runs[1]?.options.disallowedTools).not.toContain('Edit');
-		expect(claude.runs[1]?.options.additionalDirectories).toEqual(['/workstreams/w2']);
+		expect(claude.runs[1]?.options.additionalDirectories).toEqual([
+			'/workstreams/w2',
+			'/plans/lead-1',
+		]);
 		expect(claude.runs[1]?.options.systemPrompt).toEqual(
 			expect.objectContaining({
 				append: expect.stringContaining('The chat “Unify footers” started this workstream'),

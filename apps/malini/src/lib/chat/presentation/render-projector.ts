@@ -447,6 +447,11 @@ export class IncrementalRenderProjector {
 						? { elementReferences: sanitizeAgentElementReferences(event.elementReferences) }
 						: {}),
 					...(event.from ? { from: event.from } : {}),
+					...(event.reports?.length
+						? { reports: event.reports.map((report) => ({ ...report })) }
+						: {}),
+					...(event.decisions?.length ? { decisions: [...event.decisions] } : {}),
+					...(envelope.at === undefined ? {} : { at: envelope.at }),
 				});
 				return;
 			}
@@ -464,6 +469,7 @@ export class IncrementalRenderProjector {
 					seq: envelope.seq,
 					text: event.text,
 					...(event.contentId ? { contentId: event.contentId } : {}),
+					...(envelope.at === undefined ? {} : { at: envelope.at }),
 				});
 				return;
 			case 'tool.started': {

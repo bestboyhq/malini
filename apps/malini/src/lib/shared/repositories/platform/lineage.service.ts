@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AgentCheckout, AgentLineage } from '$contract/agent';
+import { LEAD_PLAN_PATH } from '$contract/leads';
 import type { Workstream } from '$contract/repositories';
 import type { MaliniDatabase } from '$main/db/driver';
 import { leadScopeOwns, parseLeadScope } from '../domain/lead-scope';
@@ -38,6 +41,10 @@ export async function workstreamLineage(
 		branch: sibling.branch,
 		path: sibling.path,
 	});
+	const open = listWorkstreams(db);
+	const startedBy = (starterId: string): Workstream[] =>
+		open.filter((other) => other.startedBy === starterId && other.scope === null);
+	const parentPlan = parent === null ? null : leadPlanPath(parent.path);
 	return {
 		lead:
 			scope === null
@@ -47,18 +54,26 @@ export async function workstreamLineage(
 						repositories: catalog
 							.filter((repository) => leadScopeOwns(scope, repositoryOwner(repository.fullName)))
 							.flatMap(repositoryCheckouts),
+						workstreams: startedBy(workstream.id).map(workstreamCheckout),
+						plan: leadPlanPath(workstream.path),
 					},
-		startedBy: parent === null ? null : { name: parent.name, lead: parent.scope !== null },
+		startedBy:
+			parent === null
+				? null
+				: {
+						name: parent.name,
+						lead: parent.scope !== null,
+						plan: parentPlan !== null && existsSync(parentPlan) ? parentPlan : null,
+					},
 		siblings:
 			parent === null
 				? []
-				: listWorkstreams(db)
-						.filter(
-							(sibling) =>
-								sibling.startedBy === parent.id &&
-								sibling.id !== workstream.id &&
-								sibling.scope === null,
-						)
+				: startedBy(parent.id)
+						.filter((sibling) => sibling.id !== workstream.id)
 						.map(workstreamCheckout),
 	};
+}
+
+export function leadPlanPath(worktree: string): string {
+	return join(worktree, LEAD_PLAN_PATH);
 }

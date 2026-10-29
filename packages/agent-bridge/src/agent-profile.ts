@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 import { isOneOf, isRecord } from './type-guards.js';
 
 export const AGENT_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -46,11 +47,14 @@ export interface AgentCheckout {
 export interface AgentLead {
 	readonly owner: string | null;
 	readonly repositories: readonly AgentCheckout[];
+	readonly workstreams: readonly AgentCheckout[];
+	readonly plan: string;
 }
 
 export interface AgentStarter {
 	readonly name: string;
 	readonly lead: boolean;
+	readonly plan: string | null;
 }
 
 export interface AgentLineage {
@@ -68,19 +72,24 @@ export function isAgentLineage(value: unknown): value is AgentLineage {
 		(lead === null ||
 			(isRecord(lead) &&
 				(lead.owner === null || isText(lead.owner)) &&
-				isCheckoutList(lead.repositories))) &&
+				isCheckoutList(lead.repositories) &&
+				isCheckoutList(lead.workstreams) &&
+				isText(lead.plan))) &&
 		(startedBy === null ||
-			(isRecord(startedBy) && isText(startedBy.name) && typeof startedBy.lead === 'boolean')) &&
+			(isRecord(startedBy) &&
+				isText(startedBy.name) &&
+				typeof startedBy.lead === 'boolean' &&
+				(startedBy.plan === null || isText(startedBy.plan)))) &&
 		isCheckoutList(siblings)
 	);
 }
 
 export function lineageDirectories(lineage: AgentLineage | undefined): string[] {
 	if (!lineage) return [];
-	const paths = [...(lineage.lead?.repositories ?? []), ...lineage.siblings].map(
-		({ path }) => path,
-	);
-	return [...new Set(paths)];
+	const { lead, startedBy, siblings } = lineage;
+	const checkouts = [...(lead?.repositories ?? []), ...(lead?.workstreams ?? []), ...siblings];
+	const plans = startedBy?.plan ? [dirname(startedBy.plan)] : [];
+	return [...new Set([...checkouts.map(({ path }) => path), ...plans])];
 }
 
 function isCheckoutList(value: unknown): value is AgentCheckout[] {

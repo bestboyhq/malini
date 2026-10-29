@@ -103,6 +103,9 @@ import {
 	type RunLease,
 } from './lifecycle';
 import type { AgentLineage } from '$contract/agent';
+import type { WorkstreamReport } from '$contract/deliveries';
+import { parseWorkstreamReport } from '../../domain/deliveries';
+import { leadBriefFor } from '../lead-brief.service';
 import type {
 	AgentQuestionAnswer,
 	AgentRunProfile,
@@ -367,8 +370,9 @@ export function promptWithShippingFailure(prompt: string, failure: ShipFailure |
 	const serialized = escapeDelimiters(JSON.stringify(failure));
 	return (
 		`${prompt}\n\n<workstream_shipping>${serialized}</workstream_shipping>\n` +
-		'This is the note Malini shows in the chat while it retries shipping this workstream, and it keeps retrying on its own. ' +
-		'When the user asks why the pull request is not open or merged, answer from it; the user can press Retry now or Cancel in that note.'
+		'This is the note Malini shows in the chat while shipping this workstream fails. ' +
+		'Malini retries on its own at `nextTry`, except when `waitsFor` is set: then only the user can clear the cause, and Malini waits for them to press a button in that note. ' +
+		'When the user asks why the pull request is not open or merged, answer from it; the user can press Retry now or Cancel in that note, and Allow workflow changes when `waitsFor` is `workflow-scope`.'
 	);
 }
 
@@ -604,6 +608,8 @@ export interface SendPromptInput {
 	readonly from?: string | null;
 	readonly chainId?: string | null;
 	readonly causeEventId?: number | null;
+	readonly reports?: readonly WorkstreamReport[];
+	readonly decisions?: readonly string[];
 	readonly worktree: string;
 }
 
@@ -705,6 +711,8 @@ async function sendAgentPromptLeased(
 			payload['transcriptReferences'] = withTranscripts.references;
 		if (withElements.references.length > 0) payload['elementReferences'] = withElements.references;
 		if (input.from) payload['from'] = input.from;
+		if (input.reports && input.reports.length > 0) payload['reports'] = input.reports;
+		if (input.decisions && input.decisions.length > 0) payload['decisions'] = input.decisions;
 	};
 	decorate(userMessagePayload);
 	userMessagePayload['checkpointId'] = checkpointId;
@@ -737,22 +745,28 @@ async function sendAgentPromptLeased(
 		await hooks.captureRunFinish(runId);
 		return runId;
 	}
-	const resumePoint = lease.handsOff ? {} : providerResumePoint(db, sessionId);
-	const skills = skillsForRun(db, sessionId);
-	const lineage = await lineageForRun(db, workstreamId, log);
+	let turn: PreparedTurn;
+	try {
+		turn = await preparedTurn(db, input, runId, lease.handsOff, bridgePrompt, log);
+	} catch (error) {
+		const errorMessage = `could not prepare the turn: ${describe(error)}`;
+		handleSendPromptHandoffFailure(db, sessionId, runId, errorMessage, emit);
+		await hooks.captureRunFinish(runId);
+		throw new LifecycleError('db', errorMessage);
+	}
 	lease.release();
 	const undelivered = await handPromptToBridge(supervisor, hooks.closing, {
 		cmd: 'send_prompt',
 		id: supervisor.nextCommandId(),
 		sessionId,
 		runId,
-		prompt: bridgePrompt,
+		prompt: turn.prompt,
 		...(input.profile === null || input.profile === undefined ? {} : { profile: input.profile }),
-		...resumePoint,
-		...(skills === null ? {} : { skills }),
+		...turn.resumePoint,
+		...(turn.skills === null ? {} : { skills: turn.skills }),
 		...(input.steer === true ? { steer: true } : {}),
 		...(hooks.theme ? { theme: hooks.theme() } : {}),
-		...(lineage === null ? {} : { lineage }),
+		...(turn.lineage === null ? {} : { lineage: turn.lineage }),
 	});
 	if (undelivered !== null) {
 		handleSendPromptHandoffFailure(db, sessionId, runId, undelivered, emit);
@@ -775,6 +789,30 @@ async function sendAgentPromptLeased(
 		}
 	}
 	return runId;
+}
+
+type PreparedTurn = Awaited<ReturnType<typeof preparedTurn>>;
+
+async function preparedTurn(
+	db: MaliniDatabase,
+	{ sessionId, workstreamId }: SendPromptInput,
+	runId: string,
+	handsOff: boolean,
+	prompt: string,
+	log: (line: string) => void,
+) {
+	const fresh = !handsOff && (getWorkstream(db, workstreamId)?.scope ?? null) !== null;
+	const brief = fresh ? leadBriefFor(db, sessionId, runId) : null;
+	return {
+		prompt: brief === null ? prompt : `${brief}\n\n${prompt}`,
+		resumePoint: handsOff
+			? {}
+			: fresh
+				? { freshConversation: true as const }
+				: providerResumePoint(db, sessionId),
+		skills: skillsForRun(db, sessionId),
+		lineage: await lineageForRun(db, workstreamId, log),
+	};
 }
 
 async function handPromptToBridge(
@@ -1004,6 +1042,7 @@ export function listAgentEventPage(
 					row.runId,
 					row.seq,
 					eventJsonFromKindPayload(row.kind, row.payload),
+					row.at,
 				),
 			),
 		),
@@ -1654,6 +1693,8 @@ export function defineBridgeCommands(
 				from: promptSender(args),
 				chainId: optionalString(args, 'chainId'),
 				causeEventId: optionalCauseEventId(args),
+				reports: optionalArray(args, 'reports').map(requireReport),
+				decisions: optionalStringArray(args, 'decisions'),
 				worktree,
 			},
 			deps.hooks,
@@ -1856,6 +1897,12 @@ function requireNumber(args: unknown, key: string): number {
 		throw new Error(`invalid args: \`${key}\` must be a number`);
 	}
 	return value;
+}
+
+function requireReport(value: unknown): WorkstreamReport {
+	const report = parseWorkstreamReport(value);
+	if (report === null) throw new Error('invalid args: `reports` must hold workstream reports');
+	return report;
 }
 
 function optionalArray(args: unknown, key: string): unknown[] {

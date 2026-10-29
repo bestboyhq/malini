@@ -35,7 +35,7 @@
 			<Icon name="checklist" size={15} />
 			{#if needsYou > 0}
 				<span
-					class="bg-warning text-warning-content ring-border-default absolute -right-1.5 -bottom-1 grid min-h-3 min-w-3 place-items-center rounded-full px-0.5 text-[8px] leading-3 font-medium tabular-nums ring-1"
+					class="bg-brand text-brand-content ring-border-default absolute -right-1.5 -bottom-1 grid min-h-3 min-w-3 place-items-center rounded-full px-0.5 text-[8px] leading-3 font-medium tabular-nums ring-1"
 					aria-hidden="true"
 					data-testid="sidebar-jobs-needs-you-count"
 				>

@@ -35,6 +35,12 @@ describe('systemPromptAppend', () => {
 			'run Open draft or Merge, whichever they asked for, with `jobs_run` and its id in `workstream`',
 		);
 		expect(prompt).toContain("Malini holds the job until that workstream's chat ends its turn");
+		expect(prompt).toContain(
+			'every turn a workstream you started ends reaches this chat as a report from that workstream',
+		);
+		expect(prompt).toContain(
+			'reports that arrive while you work come as one prompt after your turn',
+		);
 		expect(prompt).toContain('Answer what your plan covers with `workstreams_send`');
 		expect(prompt).toContain('A trigger you add starts Off until the user turns it on');
 		expect(prompt).toContain('every shell code block you write has a Run button');
@@ -72,30 +78,79 @@ describe('systemPromptAppend', () => {
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('- Theme:');
 	});
 
-	it('tells a lead chat to plan and delegate, and a workstream it started about its siblings', () => {
+	it('tells a lead chat to plan, delegate and bring the user decisions, in this order', () => {
 		const lead = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
 			lead: {
 				owner: null,
 				repositories: [{ repository: 'acme/api', branch: 'main', path: '/clones/acme-api' }],
+				workstreams: [{ repository: 'acme/web', branch: 'malini/w1', path: '/workstreams/w1' }],
+				plan: '/plans/lead-1/plan.md',
 			},
 			startedBy: null,
 			siblings: [],
 		});
-		expect(lead).toContain('You are a lead chat at Home, above every organization, level');
-		expect(lead).toContain('Malini turns off your file edit tools');
-		expect(lead).toContain('one repository and one prompt each');
-		expect(lead).toContain('- acme/api on main: /clones/acme-api');
+		const lineage = lead.slice(lead.indexOf('<malini_lineage>'));
 
+		expect(lineage.split('\n').map((line) => line.split(' ').slice(0, 4).join(' '))).toEqual([
+			'<malini_lineage>',
+			'You are a lead',
+			'- Malini starts each',
+			'- Malini turns off',
+			'- Your plan lives',
+			'- Bring the user',
+			'- The user reads',
+			'- Read code to',
+			'- `workstreams_list` shows what',
+			'Repositories you can read:',
+			'- acme/api on main:',
+			'Workstreams you started; read',
+			'- acme/web on malini/w1:',
+			'</malini_lineage>',
+		]);
+		expect(lineage).toContain('You are a lead chat at Home, above every organization, level');
+		expect(lineage).toContain(
+			"- Malini starts each of your turns in a fresh Claude Code session, from this chat's timeline as the user sees it: their messages, your replies, the reports of the workstreams you started and the decisions. What you only read with tools in an earlier turn is gone, so keep what the work needs in your plan.",
+		);
+		expect(lineage).toContain('one repository and one prompt each');
+		expect(lineage).toContain(
+			'- Your plan lives at /plans/lead-1/plan.md. Write it with `plan_write` before you start workstreams, and keep it current: what each workstream builds, the contract between them and the decisions so far. Every workstream you start gets its path, so point to it in prompts instead of pasting it, and tell each one with `workstreams_send` when it changes.',
+		);
+		expect(lineage).toContain(
+			"- Bring the user only what they must decide, with `decisions_ask`: one decision per call, with a picture for each option when there is one to show, such as a variant a workstream's report embeds. Keep the work going while the user decides: have the workstreams build the option you recommend meanwhile. When the user answers in a message, record each answer it covers with `decisions_answer`. End a turn that leaves decisions open with their topics in `Needs:`, so Malini tells the user they wait; what no decision card can ask, such as a secret or access, goes there too.",
+		);
+		expect(lineage).toContain(
+			'- The user reads this chat as a timeline: your tool calls fold into one line, and each of your replies shows only its `Outcome:` line until they open it, so make that line say what changed.',
+		);
+		expect(lineage).toContain(
+			'Repositories you can read:\n- acme/api on main: /clones/acme-api\nWorkstreams you started; read their checkouts and reports, and never edit them:\n- acme/web on malini/w1: /workstreams/w1',
+		);
+	});
+
+	it('hands a workstream a lead started its plan and siblings, and names no plan when it has none', () => {
 		const child = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
 			lead: null,
-			startedBy: { name: 'Unify footers', lead: true },
+			startedBy: { name: 'Unify footers', lead: true, plan: '/plans/lead-1/plan.md' },
 			siblings: [{ repository: 'acme/web', branch: 'malini/w2', path: '/workstreams/w2' }],
 		});
 		expect(child).not.toContain('You are a lead chat');
 		expect(child).toContain(
-			'The chat “Unify footers” started this workstream, as a lead chat that plans work across repositories, and sent its first prompt.',
+			[
+				'The chat “Unify footers” started this workstream, as a lead chat that plans work across repositories, and sent its first prompt.',
+				'- Its plan lives at /plans/lead-1/plan.md: read it before you start, build against it, and read it again whenever that chat tells you it changed. Never edit it.',
+				'It also started these workstreams.',
+			].join('\n'),
 		);
 		expect(child).toContain('never edit them:\n- acme/web on malini/w2: /workstreams/w2');
+
+		const withoutPlan = systemPromptAppend('/nonexistent/worktree', 'medium', undefined, {
+			lead: null,
+			startedBy: { name: 'Fix the footer', lead: false, plan: null },
+			siblings: [],
+		});
+		expect(withoutPlan).toContain(
+			'The chat “Fix the footer” started this workstream and sent its first prompt.\n</malini_lineage>',
+		);
+		expect(withoutPlan).not.toContain('Its plan lives at');
 		expect(systemPromptAppend('/nonexistent/worktree', 'medium')).not.toContain('<malini_lineage>');
 	});
 });

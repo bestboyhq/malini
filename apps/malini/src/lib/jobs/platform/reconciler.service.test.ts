@@ -6,7 +6,6 @@ import {
 	PULL_REQUESTS_BUTTON_CLICKED_CHANNEL,
 	PULL_REQUESTS_WORKSTREAM_OPENED_CHANNEL,
 	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
-	type ChatTurnFinishedPayload,
 } from '$contract/events';
 import type { JobRunRecord, ReconcilerDecisionRecord } from '$contract/jobs';
 import type { MainContext } from '$main/context';
@@ -18,6 +17,7 @@ import { CommandRegistry } from '$main/ipc/registry';
 import { insertRun } from '$lib/chat/platform/runs.repository';
 import { insertSession } from '$lib/chat/platform/sessions.repository';
 import { upsertProject, upsertWorkstream } from '$shared/repositories/repositories.platform';
+import type { ChatWake } from '../domain/reconciler';
 import type { JobsPlatform } from '../jobs.platform';
 import { getBuiltinJobDefinition } from './job-definitions.repository';
 import { insertJobRun } from './job-runs.repository';
@@ -25,21 +25,24 @@ import { registerJobs, type JobsOptions } from './register';
 
 const NOW = '2026-10-26T09:00:00.000Z';
 
+const REPORT =
+	'Publish docs, the job you ran in “Api analytics”, failed.\n\nThe docs host timed out';
+
 let db: MaliniDatabase;
 let context: MainContext;
 let jobs: JobsPlatform;
 let picks: number[];
 let asked: string[];
-let sent: Array<Readonly<Record<string, unknown>>>;
-let busyWakes: number;
+let delivered: ChatWake[];
+let undeliverable: string | null;
 let notified: unknown[];
 
 beforeEach(() => {
 	db = openMigratedDatabase(':memory:');
 	picks = [];
 	asked = [];
-	sent = [];
-	busyWakes = 0;
+	delivered = [];
+	undeliverable = null;
 	notified = [];
 	seed();
 	boot();
@@ -50,7 +53,7 @@ afterEach(() => {
 	db.close();
 });
 
-function boot(rules: Pick<JobsOptions, 'shipping' | 'resume'> = {}): void {
+function boot(rules: Pick<JobsOptions, 'shipping' | 'resume' | 'deliveries'> = {}): void {
 	context = {
 		db,
 		commands: new CommandRegistry(),
@@ -66,14 +69,6 @@ function boot(rules: Pick<JobsOptions, 'shipping' | 'resume'> = {}): void {
 		notified.push(args);
 	});
 	context.commands.define('chat.workstream-has-working-run', () => true);
-	context.commands.define('chat.send-prompt', (args: unknown) => {
-		if (busyWakes > 0) {
-			busyWakes -= 1;
-			throw new Error('Workstream `lead` already has an active run');
-		}
-		sent.push(Object(args));
-		return `wake-${sent.length}`;
-	});
 	jobs = registerJobs(context, {
 		log: () => {},
 		choose: async (task) => {
@@ -81,6 +76,10 @@ function boot(rules: Pick<JobsOptions, 'shipping' | 'resume'> = {}): void {
 			const pick = picks.shift();
 			if (pick === undefined) throw new Error('Claude Code is not installed');
 			return pick;
+		},
+		deliver: async (wake) => {
+			if (undeliverable !== null) throw new Error(undeliverable);
+			delivered.push(wake);
 		},
 		...rules,
 	});
@@ -143,31 +142,63 @@ function turn(
 	});
 }
 
-function finish(
-	sessionId: string,
-	runId: string,
-	report: Partial<ChatTurnFinishedPayload> = {},
-): void {
-	const workstreamId = sessionId.replace(/-chat$/u, '');
+function finish(sessionId: string, runId: string): void {
 	context.events.emit(CHAT_TURN_FINISHED_CHANNEL, {
-		workstreamId,
+		workstreamId: sessionId.replace(/-chat$/u, ''),
 		sessionId,
 		runId,
 		status: 'succeeded',
 		outcome: 'Added the analytics endpoint',
 		needs: null,
-		...report,
 	});
 }
 
-function childTurn(id: string, sessionId = 'api-chat'): string {
-	turn(id, sessionId, 'lead-turn', NOW);
+function childTurn(id: string): string {
+	turn(id, 'api-chat', 'lead-turn', NOW);
 	return id;
 }
 
-function ownTurn(id: string): string {
-	turn(id, 'api-chat', null, NOW);
-	return id;
+async function publishDocs(): Promise<string> {
+	const job = await context.commands.call('jobs.save-definition', {
+		name: 'Publish docs',
+		instructions: 'Publish the docs.',
+		model: 'opus',
+		effort: 'low',
+		runsIn: 'workstream',
+	});
+	return job.id;
+}
+
+function finishJob(
+	definitionId: string,
+	id: string,
+	fields: Partial<JobRunRecord> = {},
+): JobRunRecord {
+	const finished: JobRunRecord = {
+		id,
+		definitionId,
+		title: 'Publish docs',
+		workstreamId: 'api',
+		repositoryId: null,
+		scope: null,
+		sessionId: null,
+		agentRunId: null,
+		origin: 'manual',
+		status: 'failed',
+		detail: 'The docs host timed out',
+		parentRunId: null,
+		chatSessionId: 'lead-chat',
+		chatAfterRunId: 'lead-turn',
+		chainId: 'lead-turn',
+		requests: 1,
+		createdAt: NOW,
+		startedAt: NOW,
+		finishedAt: NOW,
+		...fields,
+	};
+	insertJobRun(db, finished, 'Version 2.1');
+	context.events.emit(JOBS_RUN_FINISHED_CHANNEL, { run: finished });
+	return finished;
 }
 
 function decisions(): Promise<ReconcilerDecisionRecord[]> {
@@ -176,14 +207,43 @@ function decisions(): Promise<ReconcilerDecisionRecord[]> {
 
 async function decided(count: number): Promise<ReconcilerDecisionRecord[]> {
 	await vi.waitFor(async () => expect(await decisions()).toHaveLength(count));
-	const listed = await decisions();
 	await vi.waitFor(async () =>
 		expect((await decisions()).every((decision) => decision.status !== 'pending')).toBe(true),
 	);
-	return listed;
+	return decisions();
 }
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 30));
+
+function updateFromMain(): void {
+	const updater = getBuiltinJobDefinition(db, 'update-from-main');
+	if (!updater) throw new Error('the built-in jobs are missing');
+	insertJobRun(
+		db,
+		{
+			id: 'update',
+			definitionId: updater.id,
+			title: 'Update from main',
+			workstreamId: 'api',
+			repositoryId: null,
+			scope: null,
+			sessionId: null,
+			agentRunId: null,
+			origin: 'manual',
+			status: 'running',
+			detail: null,
+			parentRunId: null,
+			chatSessionId: 'lead-chat',
+			chatAfterRunId: null,
+			chainId: 'lead-turn',
+			requests: 1,
+			createdAt: NOW,
+			startedAt: NOW,
+			finishedAt: null,
+		},
+		null,
+	);
+}
 
 async function switchResolveConflicts(mode: 'off' | 'auto'): Promise<void> {
 	const resolver = getBuiltinJobDefinition(db, 'resolve-conflicts');
@@ -195,27 +255,17 @@ async function switchResolveConflicts(mode: 'off' | 'auto'): Promise<void> {
 }
 
 describe('the event reconciler', () => {
-	it('wakes the chat that started the work with the report of its finished turn', async () => {
+	it('wakes the chat that ran a job with its report, in the chain and for the event it heard, when the model picks it', async () => {
 		picks.push(2);
-		finish('api-chat', childTurn('api-turn'));
+		finishJob(await publishDocs(), 'publish-1');
 
-		await vi.waitFor(() => expect(sent).toHaveLength(1));
-		expect(asked[0]).toContain('Event: the chat “Api analytics” finished a turn.');
-		expect(asked[0]).toContain(
-			'The lead chat “Move apps to Logdash” started it and set this turn going.',
-		);
-		expect(asked[0]).toContain('Candidates:\n1. Do nothing\n2. Wake “Move apps to Logdash”');
-		expect(sent[0]).toMatchObject({
-			sessionId: 'lead-chat',
-			automated: true,
-			chainId: 'lead-turn',
-			from: 'api',
-			causeEventId: expect.any(Number),
-			prompt: expect.stringContaining('Outcome: Added the analytics endpoint'),
-		});
 		const [decision] = await decided(1);
+		expect(asked[0]).toContain('Event: the job Publish docs in “Api analytics” failed.');
+		expect(asked[0]).toContain(
+			'Candidates:\n1. Do nothing\n2. Tell “Move apps to Logdash” that Publish docs failed\n3. Run Publish docs again\n4. Ask you',
+		);
 		expect(decision).toMatchObject({
-			channel: CHAT_TURN_FINISHED_CHANNEL,
+			channel: JOBS_RUN_FINISHED_CHANNEL,
 			chainId: 'lead-turn',
 			workstreamId: 'api',
 			pick: 1,
@@ -223,50 +273,39 @@ describe('the event reconciler', () => {
 			decidedBy: 'model',
 			status: 'done',
 		});
-	});
-
-	it('holds a wake while that chat works, then sends every report waiting for it as one prompt', async () => {
-		turn('lead-working', 'lead-chat', null, null);
-		picks.push(2, 2);
-		finish('api-chat', childTurn('api-turn'));
-		await vi.waitFor(async () => expect(await decisions()).toHaveLength(1));
-		finish('site-chat', childTurn('site-turn', 'site-chat'), { outcome: 'Added the site beacon' });
-		await vi.waitFor(async () => expect(await decisions()).toHaveLength(2));
-		await settle();
-		expect(sent).toEqual([]);
-		expect((await decisions()).map((decision) => decision.status)).toEqual(['pending', 'pending']);
-
-		run(db, 'UPDATE agent_runs SET completed_at = ? WHERE id = ?', NOW, 'lead-working');
-		finish('lead-chat', 'lead-working');
-
-		await vi.waitFor(() => expect(sent).toHaveLength(1));
-		expect(sent[0]?.['prompt']).toEqual(expect.stringContaining('Added the analytics endpoint'));
-		expect(sent[0]?.['prompt']).toEqual(expect.stringContaining('Added the site beacon'));
-		expect((await decided(2)).map((decision) => decision.status)).toEqual(['done', 'done']);
+		expect(delivered).toEqual([
+			{
+				sessionId: 'lead-chat',
+				prompt: REPORT,
+				fromWorkstreamId: 'api',
+				chainId: 'lead-turn',
+				causeEventId: decision?.eventId,
+			},
+		]);
 	});
 
 	it('asks you when the model picks it, and carries out what you pick once', async () => {
-		picks.push(3);
-		finish('api-chat', ownTurn('api-turn'), { needs: 'Which Logdash project?' });
+		picks.push(4);
+		finishJob(await publishDocs(), 'publish-1');
 		const [asking] = await decided(1);
-		expect(asked[0]).toContain(
-			'The lead chat “Move apps to Logdash” started it, but not this turn.',
-		);
 		expect(asking).toMatchObject({ status: 'asking', finishedAt: null });
-		expect(asking?.candidates[2]).toEqual({
+		expect(asking?.candidates[3]).toEqual({
 			kind: 'ask-you',
 			label: 'Ask you',
-			reason: '“Api analytics” needs you: Which Logdash project?',
+			reason: 'Publish docs failed in Api analytics.',
 		});
-		expect(notified).toEqual([
-			{
-				options: {
-					title: 'Malini asks you',
-					body: '“Api analytics” needs you: Which Logdash project?',
-					opens: { workstreamId: 'lead', sessionId: 'lead-chat' },
+		await vi.waitFor(() =>
+			expect(notified).toEqual([
+				{
+					options: {
+						title: 'Malini asks you',
+						body: 'Publish docs failed in Api analytics.',
+						opens: { workstreamId: 'lead', sessionId: 'lead-chat' },
+					},
 				},
-			},
-		]);
+			]),
+		);
+		expect(delivered).toEqual([]);
 
 		const done = await context.commands.call('jobs.decide', {
 			decisionId: asking?.id ?? '',
@@ -274,108 +313,137 @@ describe('the event reconciler', () => {
 		});
 
 		expect(done).toMatchObject({ status: 'done', decidedBy: 'you', chosen: 1 });
-		expect(sent).toHaveLength(1);
+		expect(delivered).toEqual([
+			{
+				sessionId: 'lead-chat',
+				prompt: REPORT,
+				fromWorkstreamId: 'api',
+				chainId: 'lead-turn',
+				causeEventId: asking?.eventId,
+			},
+		]);
 		await expect(
 			context.commands.call('jobs.decide', { decisionId: asking?.id ?? '', candidate: 0 }),
 		).rejects.toThrow('This was already decided.');
 	});
 
-	it('keeps a wake while that chat is still wrapping up its turn, and sends it once it can', async () => {
-		busyWakes = 1;
+	it('saves a wake failed, with why, when Malini cannot deliver it to the chat', async () => {
+		undeliverable = 'That chat is gone.';
 		picks.push(2);
-		finish('api-chat', childTurn('api-turn'));
+		finishJob(await publishDocs(), 'publish-1');
 
-		await vi.waitFor(() => expect(sent).toHaveLength(1), { timeout: 8_000 });
-		expect(busyWakes).toBe(0);
-		expect((await decided(1)).map((decision) => decision.status)).toEqual(['done']);
+		const [decision] = await decided(1);
+
+		expect(decision).toMatchObject({
+			chosen: 1,
+			status: 'failed',
+			detail: 'Malini could not wake the chat: That chat is gone.',
+			finishedAt: expect.any(String),
+		});
+		expect(delivered).toEqual([]);
 	});
 
-	it('settles a decision Malini quit in the middle of when it starts again', async () => {
-		picks.push(3);
-		finish('api-chat', ownTurn('api-turn'), { needs: 'Which Logdash project?' });
-		const [asking] = await decided(1);
-		run(
-			db,
-			"UPDATE reconciler_decisions SET status = 'pending', chosen = 0, decided_by = 'you' WHERE id = ?",
-			asking?.id ?? '',
-		);
+	it('delivers a wake Malini quit in the middle of when it starts again, and fails any other decision it was carrying out', async () => {
+		const definitionId = await publishDocs();
+		picks.push(4, 4);
+		finishJob(definitionId, 'publish-api');
+		finishJob(definitionId, 'publish-site', { workstreamId: 'site' });
+		const asking = await decided(2);
+		const wake = asking.find((decision) => decision.workstreamId === 'api');
+		const rerun = asking.find((decision) => decision.workstreamId === 'site');
+		const pending = (id: string | undefined, chosen: number) =>
+			run(
+				db,
+				"UPDATE reconciler_decisions SET status = 'pending', chosen = ?, decided_by = 'you' WHERE id = ?",
+				chosen,
+				id ?? '',
+			);
+		pending(wake?.id, 1);
+		pending(rerun?.id, 2);
 		jobs.dispose();
 
 		boot();
 
-		expect(await decisions()).toEqual([
-			expect.objectContaining({
-				id: asking?.id,
-				status: 'failed',
-				detail: 'Interrupted when Malini closed',
-			}),
+		expect(await decided(2)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: wake?.id, status: 'done' }),
+				expect.objectContaining({
+					id: rerun?.id,
+					status: 'failed',
+					detail: 'Interrupted when Malini closed',
+				}),
+			]),
+		);
+		expect(delivered).toEqual([
+			{
+				sessionId: 'lead-chat',
+				prompt: REPORT,
+				fromWorkstreamId: 'api',
+				chainId: 'lead-turn',
+				causeEventId: wake?.eventId,
+			},
 		]);
 	});
 
-	it('asks you before waking a chat a fourth time about the same work in one chain', async () => {
+	it('asks you before waking a chat a fourth time about the same work in one chain, and still wakes it about other work', async () => {
+		const definitionId = await publishDocs();
 		for (const index of [1, 2, 3, 4]) {
 			picks.push(2);
-			finish('api-chat', childTurn(`api-turn-${index}`));
+			finishJob(definitionId, `publish-${index}`);
 			await vi.waitFor(async () => expect(await decisions()).toHaveLength(index));
 		}
 		const listed = await decided(4);
 
-		expect(sent).toHaveLength(3);
-		expect(listed[0]).toMatchObject({ status: 'asking', decidedBy: 'rules', pick: 1 });
-		expect(listed[0]?.detail).toContain('Malini already woke this chat 3 times about this work');
+		expect(delivered).toHaveLength(3);
+		expect(listed.filter((decision) => decision.status === 'asking')).toEqual([
+			expect.objectContaining({
+				decidedBy: 'rules',
+				pick: 1,
+				detail: expect.stringContaining('Malini already woke this chat 3 times about this work'),
+			}),
+		]);
 		expect(asked.at(-1)).toContain('about this work 3 of 3 times in this chain of events');
+
+		picks.push(2);
+		finishJob(definitionId, 'publish-site', { workstreamId: 'site' });
+
+		await vi.waitFor(() => expect(delivered).toHaveLength(4));
+		expect(delivered.at(-1)).toMatchObject({ sessionId: 'lead-chat', fromWorkstreamId: 'site' });
 	});
 
-	it('wakes a chat about each piece of work it started, however many it started in one chain', async () => {
-		picks.push(2, 2);
-		finish('api-chat', childTurn('api-turn'));
-		await vi.waitFor(() => expect(sent).toHaveLength(1));
-		finish('site-chat', childTurn('site-turn', 'site-chat'));
+	it('wakes the chat that ran a job by its own rules when it cannot ask the model', async () => {
+		finishJob(await publishDocs(), 'publish-1');
 
-		await vi.waitFor(() => expect(sent).toHaveLength(2));
-		expect(sent.map((prompt) => prompt['from'])).toEqual(['api', 'site']);
-	});
-
-	it('wakes the chat that started the work by its own rules when it cannot ask the model', async () => {
-		finish('api-chat', childTurn('api-turn'));
-
-		await vi.waitFor(() => expect(sent).toHaveLength(1));
 		const [decision] = await decided(1);
-		expect(decision).toMatchObject({ status: 'done', pick: null, chosen: 1, decidedBy: 'rules' });
-		expect(decision?.detail).toBe('Malini could not ask the model: Claude Code is not installed');
-		expect(sent[0]).toMatchObject({
-			sessionId: 'lead-chat',
-			prompt: expect.stringContaining('Outcome: Added the analytics endpoint'),
+
+		expect(decision).toMatchObject({
+			status: 'done',
+			pick: null,
+			chosen: 1,
+			decidedBy: 'rules',
+			detail: 'Malini could not ask the model: Claude Code is not installed',
 		});
+		expect(delivered).toEqual([
+			expect.objectContaining({ sessionId: 'lead-chat', prompt: REPORT }),
+		]);
 	});
 
-	it('wakes the chat that set a turn going with what the turn needs or its failure, without the model, until the wakes run out', async () => {
-		finish('api-chat', childTurn('api-turn-1'), { needs: 'Which Logdash project?' });
-		await vi.waitFor(() => expect(sent).toHaveLength(1));
-		expect(sent[0]).toMatchObject({
-			sessionId: 'lead-chat',
-			chainId: 'lead-turn',
-			from: 'api',
-			prompt: expect.stringContaining('Needs: Which Logdash project?'),
+	it('makes no decision on a turn that ended in a started workstream, and never asks the model about it', async () => {
+		const delivering: string[] = [];
+		jobs.dispose();
+		boot({
+			deliveries: async ({ channel }) => {
+				delivering.push(channel);
+			},
 		});
-		const [needed] = await decided(1);
-		expect(needed).toMatchObject({ status: 'done', pick: null, chosen: 1, decidedBy: 'rules' });
-		expect(needed?.detail).toBe(
-			'“Move apps to Logdash” set this turn going, so it hears what the turn needs before you do.',
-		);
 
-		finish('api-chat', childTurn('api-turn-2'), { status: 'failed', outcome: null });
-		await vi.waitFor(() => expect(sent).toHaveLength(2));
-		expect(sent[1]?.['prompt']).toEqual(expect.stringContaining('failed its turn'));
-		finish('api-chat', childTurn('api-turn-3'), { needs: 'Which Logdash project?' });
-		await vi.waitFor(() => expect(sent).toHaveLength(3));
-		finish('api-chat', childTurn('api-turn-4'), { needs: 'Which Logdash project?' });
-		const [fourth] = await decided(4);
+		finish('api-chat', childTurn('api-turn'));
 
+		await vi.waitFor(() => expect(delivering).toEqual([CHAT_TURN_FINISHED_CHANNEL]));
+		await settle();
 		expect(asked).toEqual([]);
-		expect(sent).toHaveLength(3);
-		expect(fourth).toMatchObject({ status: 'asking', decidedBy: 'rules', pick: null });
-		expect(fourth?.detail).toContain('Malini already woke this chat 3 times about this work');
+		expect(await decisions()).toEqual([]);
+		expect(delivered).toEqual([]);
 	});
 
 	it('hands each event only to the rules that hear it', async () => {
@@ -393,6 +461,9 @@ describe('the event reconciler', () => {
 				decide: async () => null,
 				merging: () => false,
 			},
+			deliveries: async ({ channel }) => {
+				heard.push(`deliveries ${channel}`);
+			},
 		});
 
 		context.events.emit(APP_STARTED_CHANNEL, { version: '0.0.0-test' });
@@ -404,9 +475,10 @@ describe('the event reconciler', () => {
 		});
 		finish('lead-chat', 'lead-turn');
 
-		await vi.waitFor(() => expect(heard).toHaveLength(4));
+		await vi.waitFor(() => expect(heard).toHaveLength(5));
 		await settle();
 		expect([...heard].sort()).toEqual([
+			'deliveries chat:turn-finished',
 			'resume app:started',
 			'shipping app:started',
 			'shipping chat:turn-finished',
@@ -414,55 +486,31 @@ describe('the event reconciler', () => {
 		]);
 	});
 
-	it('stays out of events a trigger handles', async () => {
+	it('stays out of a job run a trigger handles', async () => {
 		await context.commands.call('jobs.save-definition', {
-			name: 'Review the site',
+			name: 'Review the failure',
 			instructions: 'Review it.',
 			model: 'opus',
 			effort: 'low',
 			runsIn: 'workstream',
-			trigger: { when: 'on chat:turn-finished where workstreamId is site', mode: 'ask' },
+			trigger: { when: 'on jobs:run-finished where run.status is failed', mode: 'ask' },
 		});
-		picks.push(2);
-		finish('site-chat', childTurn('site-turn', 'site-chat'));
-		await settle();
+		finishJob(await publishDocs(), 'publish-1');
 
+		await vi.waitFor(async () =>
+			expect(await context.commands.call('jobs.list-runs', undefined)).toContainEqual(
+				expect.objectContaining({ origin: 'trigger', status: 'waiting' }),
+			),
+		);
+		await settle();
 		expect(asked).toEqual([]);
 		expect(await decisions()).toEqual([]);
 	});
 
 	it('offers to run a failed job again, in the chain of the run that failed, and waits for you', async () => {
-		const job = await context.commands.call('jobs.save-definition', {
-			name: 'Publish docs',
-			instructions: 'Publish the docs.',
-			model: 'opus',
-			effort: 'low',
-			runsIn: 'workstream',
-		});
-		const failed: JobRunRecord = {
-			id: 'publish-1',
-			definitionId: job.id,
-			title: 'Publish docs',
-			workstreamId: 'api',
-			repositoryId: null,
-			scope: null,
-			sessionId: null,
-			agentRunId: null,
-			origin: 'manual',
-			status: 'failed',
-			detail: 'The docs host timed out',
-			parentRunId: null,
-			chatSessionId: 'lead-chat',
-			chatAfterRunId: 'lead-turn',
-			chainId: 'lead-turn',
-			requests: 1,
-			createdAt: NOW,
-			startedAt: NOW,
-			finishedAt: NOW,
-		};
-		insertJobRun(db, failed, 'Version 2.1');
+		const definitionId = await publishDocs();
 		picks.push(3);
-		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, { run: failed });
+		finishJob(definitionId, 'publish-1');
 
 		const [decision] = await decided(1);
 		expect(decision?.candidates.map((candidate) => candidate.label)).toEqual([
@@ -474,7 +522,7 @@ describe('the event reconciler', () => {
 		const runs = await context.commands.call('jobs.list-runs', undefined);
 		const again = runs.find((candidate) => candidate.id === decision?.jobRunId);
 		expect(again).toMatchObject({
-			definitionId: job.id,
+			definitionId,
 			workstreamId: 'api',
 			origin: 'reconciler',
 			status: 'waiting',
@@ -486,38 +534,17 @@ describe('the event reconciler', () => {
 		const merge = getBuiltinJobDefinition(db, 'merge');
 		const fixChecks = getBuiltinJobDefinition(db, 'fix-checks');
 		if (!merge || !fixChecks) throw new Error('the built-in jobs are missing');
-		const shipped = (id: string, definitionId: string, chatSessionId: string | null) => {
-			const run: JobRunRecord = {
-				id,
-				definitionId,
+		const shipped = (id: string, definitionId: string, chatSessionId: string | null) =>
+			finishJob(definitionId, id, {
 				title: id,
-				workstreamId: 'api',
-				repositoryId: null,
-				scope: null,
-				sessionId: null,
-				agentRunId: null,
 				origin: 'merge-queue',
-				status: 'failed',
 				detail: 'This workstream has no changes to ship yet.',
-				parentRunId: null,
 				chatSessionId,
 				chatAfterRunId: null,
-				chainId: 'lead-turn',
-				requests: 1,
-				createdAt: NOW,
-				startedAt: NOW,
-				finishedAt: NOW,
-			};
-			insertJobRun(db, run, null);
-			return run;
-		};
+			});
 		picks.push(1);
-		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, {
-			run: shipped('Fix checks', fixChecks.id, null),
-		});
-		context.events.emit(JOBS_RUN_FINISHED_CHANNEL, {
-			run: shipped('Merge', merge.id, 'lead-chat'),
-		});
+		shipped('Fix checks', fixChecks.id, null);
+		shipped('Merge', merge.id, 'lead-chat');
 
 		const listed = await decided(2);
 		const merged = listed.find((decision) => decision.candidates.length > 1);
@@ -555,38 +582,12 @@ describe('the event reconciler', () => {
 		await settle();
 		expect(asked).toEqual([]);
 		expect(await decisions()).toEqual([]);
-		expect(sent).toEqual([]);
+		expect(delivered).toEqual([]);
 	});
 
 	it('with its trigger off, offers Resolve conflicts and tells only the chat that asked for the work', async () => {
 		await switchResolveConflicts('off');
-		const updater = getBuiltinJobDefinition(db, 'update-from-main');
-		if (!updater) throw new Error('the built-in jobs are missing');
-		insertJobRun(
-			db,
-			{
-				id: 'update',
-				definitionId: updater.id,
-				title: 'Update from main',
-				workstreamId: 'api',
-				repositoryId: null,
-				scope: null,
-				sessionId: null,
-				agentRunId: null,
-				origin: 'manual',
-				status: 'running',
-				detail: null,
-				parentRunId: null,
-				chatSessionId: 'lead-chat',
-				chatAfterRunId: null,
-				chainId: 'lead-turn',
-				requests: 1,
-				createdAt: NOW,
-				startedAt: NOW,
-				finishedAt: null,
-			},
-			null,
-		);
+		updateFromMain();
 		picks.push(2, 1);
 		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
 			workstreamId: 'api',
@@ -637,12 +638,38 @@ describe('the event reconciler', () => {
 		});
 		expect(decision?.facts).toContain('Resolve conflicts is already resolving them.');
 		expect(asked).toEqual([]);
-		expect(sent).toEqual([]);
+		expect(delivered).toEqual([]);
+	});
+
+	it('tells the chat that asked for the work about its conflicts, from the conflicted workstream', async () => {
+		await switchResolveConflicts('off');
+		updateFromMain();
+		picks.push(3);
+		context.events.emit(REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL, {
+			workstreamId: 'api',
+			baseBranch: 'main',
+			conflictedPaths: ['src/shared.ts'],
+		});
+
+		const [decision] = await decided(1);
+
+		expect(decision).toMatchObject({ chosen: 2, status: 'done' });
+		expect(delivered).toEqual([
+			{
+				sessionId: 'lead-chat',
+				prompt:
+					'A merge in “Api analytics”, in work you asked for, stopped on conflicts in 1 file: src/shared.ts.',
+				fromWorkstreamId: 'api',
+				chainId: decision?.chainId,
+				causeEventId: decision?.eventId,
+			},
+		]);
 	});
 
 	it('lays out the events, turns, decisions and workstreams of a time window for the timeline', async () => {
+		childTurn('api-turn');
 		picks.push(2);
-		finish('api-chat', childTurn('api-turn'));
+		finishJob(await publishDocs(), 'publish-1');
 		await decided(1);
 
 		const timeline = await context.commands.call('jobs.list-timeline', {
@@ -651,9 +678,9 @@ describe('the event reconciler', () => {
 
 		expect(timeline.events).toContainEqual(
 			expect.objectContaining({
-				channel: CHAT_TURN_FINISHED_CHANNEL,
+				channel: JOBS_RUN_FINISHED_CHANNEL,
 				workstreamId: 'api',
-				cause: { kind: 'chat-turn', id: 'api-turn' },
+				cause: { kind: 'job-run', id: 'publish-1' },
 				chainId: 'lead-turn',
 			}),
 		);

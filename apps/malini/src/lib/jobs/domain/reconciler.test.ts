@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import {
+	CHAT_TURN_FINISHED_CHANNEL,
+	JOBS_RUN_FINISHED_CHANNEL,
+	REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL,
+} from '$contract/events';
 import type { ReconcilerCandidate, ReconcilerDecisionRecord } from '$contract/jobs';
 import {
 	RECONCILER_WAKE_LIMIT,
@@ -8,12 +13,13 @@ import {
 	promptCandidates,
 	reconcilerPrompt,
 	reconcilerQuestion,
-	rulesReason,
+	ruleHears,
 	validatePick,
-	wakePrompt,
 	wakesInChain,
+	type ConflictSituation,
+	type JobRunSituation,
 	type ReconcilerChat,
-	type TurnFinishedSituation,
+	type ReconcilerQuestion,
 } from './reconciler';
 
 const LEAD: ReconcilerChat = {
@@ -22,136 +28,236 @@ const LEAD: ReconcilerChat = {
 	chatName: 'Move apps to Logdash',
 	workstreamName: 'Home',
 	working: false,
-	lead: true,
 	lastOutcome: 'Started two workstreams',
 	lastNeeds: null,
 };
 
-function finishedTurn(overrides: Partial<TurnFinishedSituation> = {}): TurnFinishedSituation {
+const API: ReconcilerChat = {
+	sessionId: 'api-chat',
+	workstreamId: 'api',
+	chatName: 'Api analytics',
+	workstreamName: 'Api analytics',
+	working: true,
+	lastOutcome: null,
+	lastNeeds: null,
+};
+
+const TELL_LEAD = 'Tell “Move apps to Logdash” that Publish docs failed';
+
+function jobRun(overrides: Partial<JobRunSituation> = {}): JobRunSituation {
 	return {
-		kind: 'turn-finished',
+		kind: 'job-run',
+		title: 'Publish docs',
+		status: 'failed',
+		detail: 'The docs host timed out',
 		workstreamId: 'api',
 		workstreamName: 'Api analytics',
-		chatName: 'Api analytics',
-		status: 'succeeded',
-		outcome: 'Added the analytics endpoint',
-		needs: null,
-		starter: LEAD,
-		starterInChain: true,
-		siblings: { total: 2, working: 1, needYou: 0 },
+		chat: LEAD,
+		handledBy: null,
+		retry: { definitionId: 'publish-docs', workstreamId: 'api', context: 'Version 2.1' },
+		runsInChain: 1,
 		wakes: 0,
 		...overrides,
 	};
 }
 
+function conflict(overrides: Partial<ConflictSituation> = {}): ConflictSituation {
+	return {
+		kind: 'conflict',
+		workstreamId: 'api',
+		workstreamName: 'Api analytics',
+		conflictedPaths: ['src/a.ts', 'src/b.ts'],
+		resolverId: 'resolve-conflicts',
+		chat: API,
+		handledBy: null,
+		wakes: 0,
+		...overrides,
+	};
+}
+
+function question(situation: JobRunSituation | ConflictSituation): ReconcilerQuestion {
+	const asked = reconcilerQuestion(situation);
+	if (!asked) throw new Error('expected a question');
+	return asked;
+}
+
 function decision(
 	candidates: readonly ReconcilerCandidate[],
 	chosen: number,
-	workstreamId: string,
+	workstreamId: string | null,
 	status: ReconcilerDecisionRecord['status'] = 'done',
 ): Pick<ReconcilerDecisionRecord, 'candidates' | 'chosen' | 'status' | 'workstreamId'> {
 	return { candidates, chosen, status, workstreamId };
 }
 
+function overBudget(label: string): string {
+	return `Malini already woke this chat ${RECONCILER_WAKE_LIMIT} times about this work in one chain of events, so it asks you first. ${label}?`;
+}
+
+describe('the rules', () => {
+	it('hands a finished turn to Deliveries, never the model, which hears finished jobs and merge conflicts', () => {
+		expect(ruleHears('deliveries', CHAT_TURN_FINISHED_CHANNEL)).toBe(true);
+		expect(ruleHears('model', CHAT_TURN_FINISHED_CHANNEL)).toBe(false);
+		expect(ruleHears('model', JOBS_RUN_FINISHED_CHANNEL)).toBe(true);
+		expect(ruleHears('model', REPOSITORIES_WORKSTREAM_MERGE_CONFLICTED_CHANNEL)).toBe(true);
+		expect(ruleHears('deliveries', JOBS_RUN_FINISHED_CHANNEL)).toBe(false);
+		expect(ruleHears('triggers', CHAT_TURN_FINISHED_CHANNEL)).toBe(true);
+	});
+});
+
 describe('reconcilerQuestion', () => {
-	it('offers to wake the chat that started the work, with the turn report it would send', () => {
-		const question = reconcilerQuestion(finishedTurn());
-
-		expect(question?.candidates.map((candidate) => candidate.label)).toEqual([
-			'Do nothing',
-			'Wake “Move apps to Logdash” with this report',
-		]);
-		expect(question?.candidates[1]).toMatchObject({
-			kind: 'wake-chat',
-			sessionId: 'lead-chat',
-			from: 'api',
-			report: expect.stringContaining('Outcome: Added the analytics endpoint'),
-		});
-		expect(question?.facts).toEqual(
-			expect.arrayContaining([
-				'Event: the chat “Api analytics” finished a turn.',
-				'The lead chat “Move apps to Logdash” started it and set this turn going.',
-				'“Move apps to Logdash” started 2 workstreams: 1 working, 0 need you, 1 not working.',
-			]),
+	it('offers to tell the chat that ran a job how it ended, with the report it would send', () => {
+		const finished = question(
+			jobRun({ status: 'succeeded', detail: 'Published 12 pages', retry: null }),
 		);
-		expect(reconcilerQuestion(finishedTurn({ starterInChain: false }))?.facts).toContain(
-			'The lead chat “Move apps to Logdash” started it, but not this turn.',
-		);
-	});
 
-	it('offers to ask the user when the turn needs something or failed, and nothing for a cancelled turn', () => {
-		expect(
-			reconcilerQuestion(finishedTurn({ needs: 'Which project?' }))?.candidates.at(-1),
-		).toEqual({
-			kind: 'ask-you',
-			label: 'Ask you',
-			reason: '“Api analytics” needs you: Which project?',
-		});
-		expect(
-			reconcilerQuestion(finishedTurn({ status: 'failed', starter: null }))?.candidates,
-		).toEqual([
-			{ kind: 'nothing', label: 'Do nothing' },
-			{ kind: 'ask-you', label: 'Ask you', reason: '“Api analytics” failed.' },
-		]);
-		expect(reconcilerQuestion(finishedTurn({ status: 'cancelled' }))).toBeNull();
-		expect(reconcilerQuestion(finishedTurn({ starter: null }))).toBeNull();
-	});
-
-	it('offers to run a failed job again only when Malini can, and to resolve conflicts once', () => {
-		const failed = reconcilerQuestion({
-			kind: 'job-run',
-			title: 'Fix checks',
-			status: 'failed',
-			detail: 'Timed out',
-			workstreamId: 'api',
-			workstreamName: 'Api analytics',
-			chat: null,
-			handledBy: null,
-			retry: { definitionId: 'fix-checks', workstreamId: 'api', context: 'PR #4' },
-			runsInChain: 1,
-			wakes: 0,
-		});
-		expect(failed?.candidates.map((candidate) => candidate.kind)).toEqual([
-			'nothing',
-			'run-job',
-			'ask-you',
-		]);
-		expect(failed?.facts).toContain('It ran 1 time in this chain of events.');
-
-		const conflicted = reconcilerQuestion({
-			kind: 'conflict',
-			workstreamId: 'api',
-			workstreamName: 'Api analytics',
-			conflictedPaths: ['src/a.ts', 'src/b.ts'],
-			resolverId: null,
-			chat: null,
-			handledBy: null,
-			wakes: 0,
-		});
-		expect(conflicted?.candidates).toEqual([
+		expect(finished.candidates).toEqual([
 			{ kind: 'nothing', label: 'Do nothing' },
 			{
-				kind: 'ask-you',
-				label: 'Ask you',
-				reason: 'A merge in Api analytics stopped on conflicts in 2 files.',
+				kind: 'wake-chat',
+				label: 'Tell “Move apps to Logdash” that Publish docs finished',
+				sessionId: 'lead-chat',
+				workstreamId: 'lead',
+				from: 'api',
+				report: 'Publish docs, the job you ran in “Api analytics”, finished.\n\nPublished 12 pages',
+				about: 'job',
 			},
 		]);
+		expect(finished.facts).toEqual([
+			'Event: the job Publish docs in “Api analytics” succeeded.',
+			'Its result: Published 12 pages',
+			'The chat “Move apps to Logdash” ran it.',
+			'“Move apps to Logdash” is idle; its last turn ended with Outcome: Started two workstreams, Needs: nothing.',
+			'It ran 1 time in this chain of events.',
+			'Malini woke “Move apps to Logdash” about this work 0 of 3 times in this chain of events.',
+		]);
+	});
+
+	it('offers to run a failed job again and to ask you, and leaves a finished job nobody waits on alone', () => {
+		expect(question(jobRun()).candidates).toEqual([
+			{ kind: 'nothing', label: 'Do nothing' },
+			expect.objectContaining({ kind: 'wake-chat', label: TELL_LEAD }),
+			{
+				kind: 'run-job',
+				label: 'Run Publish docs again',
+				definitionId: 'publish-docs',
+				workstreamId: 'api',
+				context: 'Version 2.1',
+			},
+			{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed in Api analytics.' },
+		]);
+		expect(question(jobRun({ chat: null, retry: null, runsInChain: 2 }))).toEqual({
+			facts: [
+				'Event: the job Publish docs in “Api analytics” failed.',
+				'Its result: The docs host timed out',
+				'No chat ran it.',
+				'It ran 2 times in this chain of events.',
+			],
+			candidates: [
+				{ kind: 'nothing', label: 'Do nothing' },
+				{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed in Api analytics.' },
+			],
+		});
+		expect(reconcilerQuestion(jobRun({ status: 'succeeded', chat: null }))).toBeNull();
+	});
+
+	it('tells the chat about a job that ran in no workstream from that chat’s own workstream', () => {
+		const homeless = question(
+			jobRun({ workstreamId: null, workstreamName: null, detail: null, retry: null }),
+		);
+
+		expect(homeless.facts[0]).toBe('Event: the job Publish docs failed.');
+		expect(homeless.candidates.slice(1)).toEqual([
+			expect.objectContaining({
+				kind: 'wake-chat',
+				from: 'lead',
+				report: 'Publish docs, the job you ran, failed.',
+			}),
+			{ kind: 'ask-you', label: 'Ask you', reason: 'Publish docs failed.' },
+		]);
+	});
+
+	it('cuts a long job result to a short report and a one-line fact', () => {
+		const long = question(jobRun({ detail: `  Timed out\n\n${'x'.repeat(700)}  ` }));
+
+		expect(long.candidates[1]).toMatchObject({
+			report: `Publish docs, the job you ran in “Api analytics”, failed.\n\nTimed out\n\n${'x'.repeat(589)}`,
+		});
+		expect(long.facts).toContain(`Its result: Timed out ${'x'.repeat(590)}`);
+	});
+
+	it('offers Resolve conflicts unless it already runs, then to tell the chat working there, then to ask you', () => {
+		expect(question(conflict())).toEqual({
+			facts: [
+				'Event: a merge in “Api analytics” stopped on conflicts in 2 files.',
+				'Conflicted: src/a.ts, src/b.ts',
+				'“Api analytics” asked for the work that merged.',
+				'“Api analytics” is working now.',
+				'Malini woke “Api analytics” about this work 0 of 3 times in this chain of events.',
+			],
+			candidates: [
+				{ kind: 'nothing', label: 'Do nothing' },
+				{
+					kind: 'run-job',
+					label: 'Run Resolve conflicts',
+					definitionId: 'resolve-conflicts',
+					workstreamId: 'api',
+					context: 'The merge stopped on conflicts in: src/a.ts, src/b.ts',
+				},
+				{
+					kind: 'wake-chat',
+					label: 'Tell “Api analytics” about the conflicts',
+					sessionId: 'api-chat',
+					workstreamId: 'api',
+					from: 'api',
+					report:
+						'A merge in “Api analytics”, in work you asked for, stopped on conflicts in 2 files: src/a.ts, src/b.ts.',
+					about: 'conflict',
+				},
+				{
+					kind: 'ask-you',
+					label: 'Ask you',
+					reason: 'A merge in Api analytics stopped on conflicts in 2 files.',
+				},
+			],
+		});
+		expect(
+			question(conflict({ resolverId: null, chat: null, conflictedPaths: ['src/a.ts'] })),
+		).toEqual({
+			facts: [
+				'Event: a merge in “Api analytics” stopped on conflicts in 1 file.',
+				'Conflicted: src/a.ts',
+				'No chat asked for the work that merged.',
+			],
+			candidates: [
+				{ kind: 'nothing', label: 'Do nothing' },
+				{
+					kind: 'ask-you',
+					label: 'Ask you',
+					reason: 'A merge in Api analytics stopped on conflicts in 1 file.',
+				},
+			],
+		});
+	});
+
+	it('names at most eight conflicted files to the model', () => {
+		const paths = Array.from({ length: 10 }, (_, index) => `src/${index}.ts`);
+
+		expect(question(conflict({ conflictedPaths: paths })).facts[1]).toBe(
+			`Conflicted: ${paths.slice(0, 8).join(', ')}`,
+		);
 	});
 });
 
 describe('handledSituation', () => {
 	it('records Do nothing with the reason when someone already owns the work, and asks nobody', () => {
-		const conflict = {
-			kind: 'conflict' as const,
-			workstreamId: 'api',
-			workstreamName: 'Api analytics',
-			conflictedPaths: ['src/a.ts'],
+		const owned = conflict({
 			resolverId: 'resolve',
 			chat: null,
+			conflictedPaths: ['src/a.ts'],
 			handledBy: 'Resolve conflicts is already resolving them.',
-			wakes: 0,
-		};
-		expect(handledSituation(conflict)).toEqual({
+		});
+		expect(handledSituation(owned)).toEqual({
 			facts: [
 				'Event: a merge in “Api analytics” stopped on conflicts in 1 file.',
 				'Conflicted: src/a.ts',
@@ -161,137 +267,87 @@ describe('handledSituation', () => {
 			candidates: [{ kind: 'nothing', label: 'Do nothing' }],
 			reason: 'Resolve conflicts is already resolving them.',
 		});
-		expect(handledSituation({ ...conflict, handledBy: null })).toBeNull();
+		expect(handledSituation({ ...owned, handledBy: null })).toBeNull();
 	});
 
 	it('still lets the chat that ran a job hear how it ended when Merge takes the rest', () => {
-		const failed = {
-			kind: 'job-run' as const,
+		const failed = jobRun({
 			title: 'Resolve conflicts',
-			status: 'failed' as const,
-			detail: 'Timed out',
-			workstreamId: 'api',
-			workstreamName: 'Api analytics',
 			chat: null,
 			handledBy: 'Merge takes Resolve conflicts from here.',
-			retry: { definitionId: 'resolve', workstreamId: 'api', context: '' },
-			runsInChain: 1,
-			wakes: 0,
-		};
+		});
 		expect(handledSituation(failed)?.reason).toBe('Merge takes Resolve conflicts from here.');
 		expect(handledSituation({ ...failed, chat: LEAD })).toBeNull();
-		expect(
-			reconcilerQuestion({ ...failed, chat: LEAD })?.candidates.map(({ kind }) => kind),
-		).toEqual(['nothing', 'wake-chat']);
+		expect(question({ ...failed, chat: LEAD }).candidates.map(({ kind }) => kind)).toEqual([
+			'nothing',
+			'wake-chat',
+		]);
 	});
 });
 
-describe('wakePrompt', () => {
-	it('asks a chat to answer with workstreams_send only about workstreams it started', () => {
-		const job = { report: 'Fix checks, the job you ran, failed.', about: 'job' as const };
-		const child = {
-			report: '“Api analytics”, a workstream you started, finished a turn.',
-			about: 'workstream' as const,
-		};
-		expect(wakePrompt([job])).toBe(
-			'Malini woke you: work you asked for moved on. Put what only the user can decide in your Needs line.\n\nFix checks, the job you ran, failed.',
-		);
-		expect(wakePrompt([job, child]).split('\n\n')[0]).toBe(
-			'Malini woke you: work you started moved on. Answer what your plan covers with workstreams_send, and put what only the user can decide in your Needs line.',
-		);
-	});
-});
-
-describe('rulesReason', () => {
-	it('wakes the chat that set a turn going by rule when the turn needs something or failed', () => {
-		expect(rulesReason(finishedTurn({ needs: 'Which project?' }))).toBe(
-			'“Move apps to Logdash” set this turn going, so it hears what the turn needs before you do.',
-		);
-		expect(rulesReason(finishedTurn({ status: 'failed' }))).toBe(
-			'“Move apps to Logdash” set this turn going, so it hears that the turn failed before you do.',
-		);
-	});
-
-	it('leaves the pick to the model for a turn that needs nothing, or one its starter did not set going', () => {
-		expect(rulesReason(finishedTurn())).toBeNull();
-		expect(
-			rulesReason(finishedTurn({ needs: 'Which project?', starterInChain: false })),
-		).toBeNull();
-		expect(rulesReason(finishedTurn({ status: 'failed', starter: null }))).toBeNull();
-		expect(rulesReason(finishedTurn({ status: 'cancelled', needs: 'Which project?' }))).toBeNull();
-		expect(
-			rulesReason({
-				kind: 'conflict',
-				workstreamId: 'api',
-				workstreamName: 'Api analytics',
-				conflictedPaths: ['src/a.ts'],
-				resolverId: null,
-				chat: LEAD,
-				handledBy: null,
-				wakes: 0,
-			}),
-		).toBeNull();
-	});
-});
-
-describe('the state of the chat that started the work', () => {
+describe('the state of the chat a wake would reach', () => {
 	it('quotes the report of its last turn only when that turn stated one', () => {
-		const facts = (lastOutcome: string | null) =>
-			reconcilerQuestion(finishedTurn({ starter: { ...LEAD, lastOutcome } }))?.facts ?? [];
+		const facts = (chat: ReconcilerChat) => question(jobRun({ chat })).facts;
 
-		expect(facts(null)).toContain('“Move apps to Logdash” is idle.');
-		expect(facts('Started two workstreams')).toContain(
-			'“Move apps to Logdash” is idle; its last turn ended with Outcome: Started two workstreams, Needs: nothing.',
+		expect(facts({ ...LEAD, lastOutcome: null })).toContain('“Move apps to Logdash” is idle.');
+		expect(facts({ ...LEAD, lastNeeds: 'Which   Logdash\nproject?' })).toContain(
+			'“Move apps to Logdash” is idle; its last turn ended with Outcome: Started two workstreams, Needs: Which Logdash project?.',
 		);
-		expect(
-			reconcilerQuestion(finishedTurn({ starter: { ...LEAD, working: true } }))?.facts,
-		).toContain('“Move apps to Logdash” is working now.');
-	});
-});
-
-describe('the chat a turn ended in', () => {
-	it('names its workstream only when the chat has a name of its own', () => {
-		expect(
-			reconcilerQuestion(finishedTurn({ chatName: 'Endpoint review', needs: 'Which project?' }))
-				?.facts[0],
-		).toBe('Event: the chat “Endpoint review” in “Api analytics” finished a turn.');
+		expect(facts({ ...LEAD, working: true })).toContain('“Move apps to Logdash” is working now.');
 	});
 });
 
 describe('the prompt and the pick', () => {
 	it('numbers the candidates after the facts and reads a pick back by its number', () => {
-		const question = reconcilerQuestion(finishedTurn({ needs: 'Which project?' }));
-		if (!question) throw new Error('expected a question');
-		const prompt = reconcilerPrompt(question);
+		const asked = question(jobRun());
+		const prompt = reconcilerPrompt(asked);
 		const labels = promptCandidates(prompt);
 
-		expect(labels).toEqual([
-			'Do nothing',
-			'Wake “Move apps to Logdash” with this report',
-			'Ask you',
-		]);
-		expect(pickOutput(labels, 2)).toBe('2. Wake “Move apps to Logdash” with this report');
+		expect(prompt).toBe(
+			[
+				...asked.facts,
+				'',
+				'Candidates:',
+				'1. Do nothing',
+				`2. ${TELL_LEAD}`,
+				'3. Run Publish docs again',
+				'4. Ask you',
+			].join('\n'),
+		);
+		expect(labels).toEqual(asked.candidates.map((candidate) => candidate.label));
+		expect(pickOutput(labels, 3)).toBe('3. Run Publish docs again');
 		expect(outputPick(pickOutput(labels, 3))).toBe(3);
-		expect(outputPick('Wake the lead')).toBeNull();
+		expect(outputPick('Run it again')).toBeNull();
 		expect(outputPick(null)).toBeNull();
+		expect(promptCandidates('Event: the job Publish docs failed.')).toEqual([]);
 	});
 });
 
 describe('validatePick', () => {
-	const question = reconcilerQuestion(finishedTurn());
-	const candidates = question?.candidates ?? [];
+	const candidates = question(jobRun()).candidates;
 
-	it('keeps the model’s pick while the chat has wakes left', () => {
+	it('keeps the model’s pick while the chat has wakes left, and any pick that wakes no chat', () => {
 		expect(validatePick(candidates, 1, () => RECONCILER_WAKE_LIMIT - 1)).toEqual({
 			candidates,
 			chosen: 1,
 			decidedBy: 'model',
 			detail: null,
 		});
+		expect(validatePick(candidates, 2, () => RECONCILER_WAKE_LIMIT)).toEqual({
+			candidates,
+			chosen: 2,
+			decidedBy: 'model',
+			detail: null,
+		});
 		expect(validatePick(candidates, 0, () => 0)).toMatchObject({ chosen: 0, decidedBy: 'model' });
 	});
 
-	it('wakes the chat waiting on the work, else asks you, when the model gives no pick', () => {
+	it('wakes the chat waiting on the work, else asks you, else does nothing, when the model gives no pick', () => {
+		const unattended = question(jobRun({ chat: null })).candidates;
+		const quiet = candidates.filter(
+			(candidate) => candidate.kind === 'nothing' || candidate.kind === 'run-job',
+		);
+
 		expect(validatePick(candidates, null, () => 0)).toEqual({
 			candidates,
 			chosen: 1,
@@ -299,39 +355,50 @@ describe('validatePick', () => {
 			detail: null,
 		});
 		expect(validatePick(candidates, 7, () => 0)).toMatchObject({ chosen: 1, decidedBy: 'rules' });
-		const unstarted =
-			reconcilerQuestion(finishedTurn({ starter: null, status: 'failed' }))?.candidates ?? [];
-		const asked = validatePick(unstarted, null, () => 0);
-
-		expect(unstarted[asked.chosen]).toMatchObject({ kind: 'ask-you' });
-		expect(asked.decidedBy).toBe('rules');
+		expect(unattended[validatePick(unattended, null, () => 0).chosen]).toMatchObject({
+			kind: 'ask-you',
+		});
+		expect(validatePick(quiet, null, () => 0)).toMatchObject({ chosen: 0, decidedBy: 'rules' });
 	});
 
-	it('asks the user instead of waking a chat that used up its wakes', () => {
-		const validated = validatePick(candidates, 1, () => RECONCILER_WAKE_LIMIT);
+	it('asks you instead of waking a chat that used up its wakes, whoever picked the wake', () => {
+		const told = question(jobRun({ status: 'succeeded', retry: null })).candidates;
+		const finished = 'Tell “Move apps to Logdash” that Publish docs finished';
 
-		expect(validated.decidedBy).toBe('rules');
-		expect(validated.candidates[validated.chosen]).toMatchObject({
-			kind: 'ask-you',
-			reason: expect.stringContaining('Wake “Move apps to Logdash” with this report?'),
+		expect(validatePick(candidates, 1, () => RECONCILER_WAKE_LIMIT)).toEqual({
+			candidates,
+			chosen: 3,
+			decidedBy: 'rules',
+			detail: overBudget(TELL_LEAD),
 		});
-		expect(validated.candidates.slice(0, candidates.length)).toEqual(candidates);
+		expect(validatePick(candidates, null, () => RECONCILER_WAKE_LIMIT)).toMatchObject({
+			chosen: 3,
+			decidedBy: 'rules',
+		});
+		expect(validatePick(told, 1, () => RECONCILER_WAKE_LIMIT)).toEqual({
+			candidates: [...told, { kind: 'ask-you', label: 'Ask you', reason: overBudget(finished) }],
+			chosen: 2,
+			decidedBy: 'rules',
+			detail: overBudget(finished),
+		});
 	});
 });
 
 describe('wakesInChain', () => {
 	it('counts the wakes of one chat about one piece of work, never the others', () => {
-		const wake = reconcilerQuestion(finishedTurn())?.candidates ?? [];
+		const candidates = question(jobRun()).candidates;
 		const decisions = [
-			decision(wake, 1, 'api'),
-			decision(wake, 1, 'api', 'pending'),
-			decision(wake, 1, 'site'),
-			decision(wake, 1, 'api', 'failed'),
-			decision(wake, 0, 'api'),
+			decision(candidates, 1, 'api'),
+			decision(candidates, 1, 'api', 'pending'),
+			decision(candidates, 1, 'site'),
+			decision(candidates, 1, null),
+			decision(candidates, 1, 'api', 'failed'),
+			decision(candidates, 2, 'api'),
 		];
 
 		expect(wakesInChain(decisions, 'lead-chat', 'api')).toBe(2);
 		expect(wakesInChain(decisions, 'lead-chat', 'site')).toBe(1);
-		expect(wakesInChain(decisions, 'other-chat', 'api')).toBe(0);
+		expect(wakesInChain(decisions, 'lead-chat', null)).toBe(1);
+		expect(wakesInChain(decisions, 'api-chat', 'api')).toBe(0);
 	});
 });

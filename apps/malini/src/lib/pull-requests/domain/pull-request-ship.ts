@@ -3,6 +3,7 @@ import type {
 	ShipNeedsYouReason,
 	ShipPhase,
 	ShipStep,
+	ShipWaitsFor,
 } from '$contract/pull-requests';
 import type { WorktreeOperation } from '$contract/repositories';
 import { worktreeOperationNoun } from './pull-request-action';
@@ -20,6 +21,7 @@ export type PullRequestShip = Readonly<{
 	failures: number;
 	failedSince: string | null;
 	nextAttemptAt: string | null;
+	waitsFor: ShipWaitsFor | null;
 	updatedAt: string;
 }>;
 

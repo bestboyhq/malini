@@ -1,4 +1,5 @@
 import type { RunFailure } from '$contract/agent';
+import type { WorkstreamReport } from '$contract/deliveries';
 import { isCancellationError } from '$contract/agent-state-machine';
 import type { MaliniEditReview } from '$contract/approvals';
 import type { AgentPermissionDescriptor, AgentQuestion } from '$lib/chat/domain/agent-interaction';
@@ -82,9 +83,19 @@ export type RenderItem =
 			transcriptReferences?: AgentTranscriptReference[];
 			elementReferences?: AgentElementReference[];
 			from?: string;
+			reports?: WorkstreamReport[];
+			decisions?: string[];
+			at?: number;
 	  }
 	| { kind: 'plan'; key: string; seq: number; text: string }
-	| { kind: 'assistant'; key: string; seq: number; text: string; contentId?: string }
+	| {
+			kind: 'assistant';
+			key: string;
+			seq: number;
+			text: string;
+			contentId?: string;
+			at?: number;
+	  }
 	| { kind: 'handoff'; key: string; seq: number }
 	| { kind: 'tool'; key: string; seq: number; tool: ToolAggregate }
 	| { kind: 'file'; key: string; seq: number; path: string }
@@ -125,6 +136,7 @@ export type RenderItem =
 			autoModeRule?: string;
 			autoModeUnavailable?: true;
 			review?: MaliniEditReview;
+			at?: number;
 	  }
 	| {
 			kind: 'question';
@@ -376,6 +388,7 @@ export function renderInteractionItem(
 				: {}),
 			...(event.autoModeRule ? { autoModeRule: event.autoModeRule } : {}),
 			...(event.autoModeUnavailable ? { autoModeUnavailable: true } : {}),
+			...(envelope.at === undefined ? {} : { at: envelope.at }),
 		};
 	}
 	if (event.type === 'question.requested') {
@@ -542,6 +555,11 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 						? { elementReferences: sanitizeAgentElementReferences(event.elementReferences) }
 						: {}),
 					...(event.from ? { from: event.from } : {}),
+					...(event.reports?.length
+						? { reports: event.reports.map((report) => ({ ...report })) }
+						: {}),
+					...(event.decisions?.length ? { decisions: [...event.decisions] } : {}),
+					...(env.at === undefined ? {} : { at: env.at }),
 				});
 				break;
 			}
@@ -560,6 +578,7 @@ export function foldEnvelopes(envelopes: readonly EventEnvelope[]): RenderState 
 					seq: env.seq,
 					text: event.text,
 					...(event.contentId ? { contentId: event.contentId } : {}),
+					...(env.at === undefined ? {} : { at: env.at }),
 				});
 				break;
 			}
