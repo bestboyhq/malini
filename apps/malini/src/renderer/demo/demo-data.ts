@@ -278,7 +278,7 @@ export const LEAD_PROMPT =
 
 export const LEAD_ID = 'ws-og-lead';
 
-export type StartedWorkstream = DemoWorkstream & Readonly<{ workMs: number }>;
+export type StartedWorkstream = DemoWorkstream & Readonly<{ workMs: number; thought: string }>;
 
 const startedRun = (
 	id: string,
@@ -333,6 +333,7 @@ const prototype = (
 		tree: TREES[repository] ?? [],
 		ship: null,
 		workMs,
+		thought: `Three directions for ${product}: its icon on the brand horizon, the real app beside the headline, and one loud line of type. I will read the current /og route first so each one keeps what already works.`,
 		runs: [
 			startedRun(
 				id,
@@ -355,52 +356,16 @@ const prototype = (
 };
 
 export const STARTED: readonly StartedWorkstream[] = [
-	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 5_200),
-	prototype('ws-og-grip', 'Grip', 'site/src/routes', 6_400),
-	prototype('ws-og-tony', 'Tony', 'site/src/routes', 5_800),
-	{
-		id: 'ws-og-platform',
-		projectId: 'platform',
-		name: 'One OG view for every site',
-		branch: 'malini/one-og-view-for-every-site',
-		activeAt: at('10:45'),
-		files: [
-			{ path: 'og/OgImage.svelte', additions: 84, deletions: 0 },
-			{ path: 'og/render.ts', additions: 61, deletions: 0 },
-		],
-		tree: TREES['platform'] ?? [],
-		ship: null,
-		workMs: 5_000,
-		runs: [
-			{
-				id: 'run-ws-og-platform-1',
-				prompt:
-					'Draw every direction from one Open Graph view in platform, so malini, grip and tony share it.',
-				from: LEAD_ID,
-				startedAt: at('10:44'),
-				tools: [
-					{ name: 'Read', input: { file_path: 'docs/design.md' } },
-					{ name: 'Write', input: { file_path: 'og/OgImage.svelte', content: '' } },
-					{ name: 'Write', input: { file_path: 'og/render.ts', content: '' } },
-				],
-				report: [
-					'- Changed: `og/OgImage.svelte` draws the icon, product and type directions from one set of props',
-					'- Verified: it renders all three sites at 1200 by 630 with the fonts from `docs/design.md`',
-					'',
-					'Outcome: Every Bestboy site can draw its OG image from one view',
-					'Needs: nothing',
-				].join('\n'),
-				usage: { inputTokens: 31_050, outputTokens: 2_480 },
-			},
-		],
-	},
+	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 9_200),
+	prototype('ws-og-grip', 'Grip', 'site/src/routes', 10_800),
+	prototype('ws-og-tony', 'Tony', 'site/src/routes', 10_200),
 ];
 
 export const LEAD_REPORT = [
 	directions('malini-', 'Malini'),
 	'',
 	'- Changed: nothing on any `main`, the prototypes live in their workstreams',
-	'- Verified: malini, grip and tony each rendered all three, drawn from one view in `platform`',
+	'- Verified: malini, grip and tony each rendered all three at 1200 by 630',
 	'',
 	'Outcome: Three OG directions for every Bestboy site are ready',
 	'Needs: pick the direction for malini, grip and tony',

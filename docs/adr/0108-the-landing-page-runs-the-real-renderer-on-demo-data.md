@@ -19,7 +19,7 @@ The mock-ups drift every time the app changes; the real renderer cannot.
   `demo-live.ts` keeps the state that changes: the workstream list, session statuses and transcripts, and shipping; it creates an organization chat for `repositories.create-lead`, plays that chat's run when it gets the scripted prompt, streams a short reply to any other prompt, and answers Draft and Merge.
   The media are real: Grip's captions recording from its site, Tony's real hero as the before, and Open Graph directions drawn from the real app icons and screenshots, as WebP and MP4 files in `media/`.
 - `app.html` mounts the whole `App` and draws the macOS traffic lights the native window would.
-  With `?play=hero`, `demo-script.ts` drives it like a person in about twenty seconds: the hero opens on a new chat in bestboyhq with the prompt already in the composer, a drawn cursor sends it, and the chat starts a workstream in malini, grip, tony and platform that nest under it.
+  With `?play=hero`, `demo-script.ts` drives it like a person in about twenty-five seconds: the hero opens on a new chat in bestboyhq with the prompt already in the composer, a drawn cursor sends it, and the chat starts a prototype-only workstream in malini, grip and tony that nest under it.
   Once the last one shows, without waiting for their work, the cursor opens Tony's hero before and after, wipes it and presses Merge, then returns to the chat as it reports three directions and steps through them while Tony's pull request merges in the sidebar.
   The cursor glides on a curved, minimum-jerk path.
   A real click or key press stops the script, and reduced motion skips it.

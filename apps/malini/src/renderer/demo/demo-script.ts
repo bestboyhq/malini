@@ -124,7 +124,7 @@ export async function playHero(): Promise<void> {
 		place({ x: box.left - 180, y: box.top - 90 });
 		await wait(1_100);
 		await click(send);
-		await find('[data-workstream-id="ws-og-platform"]');
+		await find('[data-workstream-id="ws-og-tony"]');
 		await wait(500);
 		await click(await find('[data-workstream-id="ws-tony-hero"]'), 0.4);
 		await wait(900);

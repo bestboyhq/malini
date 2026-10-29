@@ -227,13 +227,14 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 	);
 	if (run) {
 		const tools = toolEvents(workstream.id, run.id, run.tools, Date.now());
-		const gap = started.workMs / (tools.length + 1);
-		play(
-			tools.map((event, index): Step => [
+		const gap = started.workMs / (tools.length + 2);
+		play([
+			...think(emit, id, run.id, 'plan', started.thought),
+			...tools.map((event, index): Step => [
 				index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4),
 				() => append(emit, id, run.id, event),
 			]),
-		);
+		]);
 	}
 	listed.push(workstream);
 	const project = PROJECTS.find((candidate) => candidate.id === workstream.projectId);
@@ -278,7 +279,7 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 				id,
 				runId,
 				'compare',
-				'All four are back with the same three directions. I will show them on Malini.',
+				'All three are back with the same three directions. I will show them on Malini.',
 			),
 			[300, () => undefined],
 			...reply(emit, id, runId, LEAD_REPORT, false),
@@ -310,7 +311,7 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			id,
 			runId,
 			'split',
-			'One workstream per site, and platform for the view they share.',
+			'One workstream per site, each prototyping the same three directions.',
 		),
 		...STARTED.flatMap((started): Step[] => {
 			const toolCallId = `${runId}-start-${started.id}`;
@@ -408,7 +409,7 @@ export function shipOf(workstreamId: string): ShipStateRecord | null {
 
 const PULL_REQUEST_NUMBER = 118;
 
-const MERGING_MS = 3_200;
+const MERGING_MS = 5_600;
 const MERGED_MS = 1_800;
 
 const merged = new Map<string, number>();
