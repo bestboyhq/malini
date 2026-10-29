@@ -9,6 +9,7 @@ import {
 	closingEvents,
 	envelopesOf,
 	LEAD_PROMPT,
+	LEAD_WORKSTREAM,
 	LEAD_REPORT,
 	OWNER,
 	openingEvents,
@@ -30,7 +31,10 @@ const DEMO_REPLY = [
 	'Needs: nothing',
 ].join('\n');
 
-const listed: DemoWorkstream[] = [...WORKSTREAMS];
+const listed: DemoWorkstream[] = [
+	{ ...LEAD_WORKSTREAM, name: 'New chat', runs: [] },
+	...WORKSTREAMS,
+];
 const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
 const models = new Map<string, string>();
@@ -100,7 +104,7 @@ function think(emit: DemoEmit, id: string, runId: string, key: string, text: str
 	const words = text.split(/(?<=\s)/u);
 	return [
 		...words.map((chunk): Step => [
-			40 + Math.random() * 50,
+			18 + Math.random() * 24,
 			() =>
 				emit('chat:agent-event', {
 					sessionId: id,
@@ -110,7 +114,7 @@ function think(emit: DemoEmit, id: string, runId: string, key: string, text: str
 					ephemeral: true,
 				}),
 		]),
-		[300, () => append(emit, id, runId, { type: 'thinking.message', runId, contentId, text })],
+		[150, () => append(emit, id, runId, { type: 'thinking.message', runId, contentId, text })],
 	];
 }
 
@@ -260,7 +264,7 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 		statuses.set(id, 'completed');
 		if (run) for (const event of closingEvents(run)) append(emit, id, run.id, event);
 		done();
-	}, started.workMs + 400);
+	}, started.workMs);
 }
 
 function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): Step[] {
@@ -268,15 +272,15 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 	const done = (): void => {
 		if (--waiting > 0) return;
 		play([
-			[1_200, () => undefined],
+			[400, () => undefined],
 			...think(
 				emit,
 				id,
 				runId,
 				'compare',
-				'All four are back. Every site rendered the same three directions from the shared view, so I will show them on Malini and let the pick apply to all of them.',
+				'All four are back with the same three directions. I will show them on Malini.',
 			),
-			[700, () => undefined],
+			[300, () => undefined],
 			...reply(emit, id, runId, LEAD_REPORT, false),
 			[0, () => leadReported()],
 		]);
@@ -287,10 +291,9 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			id,
 			runId,
 			'plan',
-			'They want Open Graph directions for every Bestboy site. I will check what is already in flight in bestboyhq, then give each site its own workstream and put the shared view in platform.',
+			'Open Graph directions for every Bestboy site. First, what is already in flight.',
 		),
-		[200, () => rename(emit, leadId, 'OG image directions')],
-		[500, () => undefined],
+		[100, () => rename(emit, leadId, 'OG image directions')],
 		...tool(
 			emit,
 			id,
@@ -299,15 +302,15 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			'mcp__malini__workstreams_list',
 			{ repository: OWNER },
 			'[{"name":"Show the words in the hero","repository":"bestboyhq/tony","working":false}]',
-			1_100,
+			600,
 		),
-		[600, () => undefined],
+		[200, () => undefined],
 		...think(
 			emit,
 			id,
 			runId,
 			'split',
-			'Nothing touches the OG images yet. Four workstreams: malini, grip, tony, and platform for the view they share.',
+			'One workstream per site, and platform for the view they share.',
 		),
 		...STARTED.flatMap((started): Step[] => {
 			const toolCallId = `${runId}-start-${started.id}`;
@@ -324,11 +327,11 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			});
 			return [
 				[
-					700,
+					250,
 					() => append(emit, id, runId, { type: 'tool.started', runId, name, input, toolCallId }),
 				],
 				[
-					1_000,
+					350,
 					() => {
 						start(emit, leadId, started, done);
 						append(emit, id, runId, { type: 'tool.completed', runId, name, toolCallId, output });
@@ -405,6 +408,38 @@ export function shipOf(workstreamId: string): ShipStateRecord | null {
 
 const PULL_REQUEST_NUMBER = 118;
 
+const MERGING_MS = 3_200;
+const MERGED_MS = 1_800;
+
+const merged = new Map<string, number>();
+
+export function mergedPullRequest(workstreamId: string): number | null {
+	return merged.get(workstreamId) ?? null;
+}
+
+function setShip(emit: DemoEmit, workstreamId: string, state: ShipStateRecord | null): void {
+	if (state) ships.set(workstreamId, state);
+	else ships.delete(workstreamId);
+	emit('pull-requests:ship-changed', { workstreamId, state });
+}
+
+function land(emit: DemoEmit, workstreamId: string, number: number): void {
+	setShip(
+		emit,
+		workstreamId,
+		shipState(workstreamId, { phase: 'queued', step: 'merging', pullRequestNumber: number }),
+	);
+	setTimeout(() => {
+		merged.set(workstreamId, number);
+		ships.delete(workstreamId);
+		emit('pull-requests:ship-changed', {
+			workstreamId,
+			state: null,
+			merged: { pullRequestNumber: number, pullRequestUrl: pullRequestUrl(workstreamId, number) },
+		});
+	}, MERGED_MS);
+}
+
 export function clickShipButton(
 	emit: DemoEmit,
 	workstreamId: string,
@@ -421,8 +456,7 @@ export function clickShipButton(
 						pullRequestNumber: number,
 					})
 				: null;
-	if (next) ships.set(workstreamId, next);
-	else ships.delete(workstreamId);
-	emit('pull-requests:ship-changed', { workstreamId, state: next });
+	setShip(emit, workstreamId, next);
+	if (button === 'merge') setTimeout(() => land(emit, workstreamId, number), MERGING_MS);
 	return next;
 }

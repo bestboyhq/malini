@@ -19,14 +19,15 @@ The mock-ups drift every time the app changes; the real renderer cannot.
   `demo-live.ts` keeps the state that changes: the workstream list, session statuses and transcripts, and shipping; it creates an organization chat for `repositories.create-lead`, plays that chat's run when it gets the scripted prompt, streams a short reply to any other prompt, and answers Draft and Merge.
   The media are real: Grip's captions recording from its site, Tony's real hero as the before, and Open Graph directions drawn from the real app icons and screenshots, as WebP and MP4 files in `media/`.
 - `app.html` mounts the whole `App` and draws the macOS traffic lights the native window would.
-  With `?play=hero`, `demo-script.ts` drives it like a person: a drawn cursor opens a new chat in bestboyhq, types the prompt and sends it, the chat thinks, starts a workstream in malini, grip, tony and platform that nest under it and work for several seconds each, it reports three directions, the cursor steps through them and opens Tony's hero before and after.
-  The cursor glides on a curved, minimum-jerk path and types with a person's rhythm.
+  With `?play=hero`, `demo-script.ts` drives it like a person in about twenty seconds: the hero opens on a new chat in bestboyhq with the prompt already in the composer, a drawn cursor sends it, and the chat starts a workstream in malini, grip, tony and platform that nest under it.
+  Without waiting for them, the cursor opens Tony's hero before and after, wipes it and presses Merge, then returns to the chat as it reports three directions and steps through them while Tony's pull request merges in the sidebar.
+  The cursor glides on a curved, minimum-jerk path.
   A real click or key press stops the script, and reduced motion skips it.
 - `card.html` mounts `TurnReportCard` alone for the workstream named in its hash, scaled to fit its frame.
   `?play=work` shows the prompt and the tool calls arriving with a running clock, then the report; `?play=sweep` sweeps the before and after wipe; `?play=cycle` steps through the variants.
   Each plays while most of the card is in view and, except `work`, stops at the first touch.
   Both mute sounds through `app.list-settings`, and both pass a wheel turn that nothing inside can scroll to the page around them.
-- `apps/malini/vite.demo.config.ts` merges the electron-vite renderer config, aliases `$contract/workstream-images` to `demo-workstream-images.ts` so report images load from the bundle instead of the `malini-image:` protocol, and builds both pages into `apps/site/static/demo/`, which git ignores.
+- `apps/malini/vite.demo.config.ts` merges the electron-vite renderer config without its font preload, which warns in an iframe still out of view, aliases `$contract/workstream-images` to `demo-workstream-images.ts` so report images load from the bundle instead of the `malini-image:` protocol, and builds both pages into `apps/site/static/demo/`, which git ignores.
   `pnpm --filter malini build:demo` builds it, `dev:demo` serves it, and the site's `dev` and `build` scripts build it first.
 - The site embeds the pages as iframes: `Hero.svelte` shows `app` with `?play=hero` at 1280 by 860 scaled to the column, interactive above 640px wide; `DemoCard.svelte` shows `card` in the Reports (`work`), Before and after (`sweep`) and Experiments (`cycle`) rows.
   `demoHref` in `links.ts` names `/malini/demo/app` in production and `app.html` under `vite dev`.

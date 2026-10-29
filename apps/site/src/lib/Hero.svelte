@@ -51,7 +51,7 @@
 					style:aspect-ratio="{APP_WIDTH} / {APP_HEIGHT}"
 				>
 					<iframe
-						src={demoHref('app', '/workstreams/ws-malini-push', 'hero')}
+						src={demoHref('app', '/workstreams/ws-og-lead', 'hero')}
 						width={APP_WIDTH}
 						height={APP_HEIGHT}
 						title="Malini, running in your browser on demo data"

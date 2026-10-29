@@ -355,9 +355,9 @@ const prototype = (
 };
 
 export const STARTED: readonly StartedWorkstream[] = [
-	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 9_000),
-	prototype('ws-og-grip', 'Grip', 'site/src/routes', 11_500),
-	prototype('ws-og-tony', 'Tony', 'site/src/routes', 10_200),
+	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 5_200),
+	prototype('ws-og-grip', 'Grip', 'site/src/routes', 6_400),
+	prototype('ws-og-tony', 'Tony', 'site/src/routes', 5_800),
 	{
 		id: 'ws-og-platform',
 		projectId: 'platform',
@@ -370,7 +370,7 @@ export const STARTED: readonly StartedWorkstream[] = [
 		],
 		tree: TREES['platform'] ?? [],
 		ship: null,
-		workMs: 8_200,
+		workMs: 5_000,
 		runs: [
 			{
 				id: 'run-ws-og-platform-1',

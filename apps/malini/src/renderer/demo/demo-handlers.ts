@@ -14,6 +14,7 @@ import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
 	clickShipButton,
 	createLead,
+	mergedPullRequest,
 	pullRequestUrl,
 	sendPrompt,
 	sessionSummaries,
@@ -85,9 +86,10 @@ function sessionChanges(workstreamId: string, id: string): AgentSessionChanges {
 function pullRequestStatus(workstreamId: string): PullRequestStatusDto {
 	const workstream = workstreamOf(workstreamId);
 	const ship = shipOf(workstreamId);
-	const number = ship?.pullRequestNumber ?? null;
+	const landed = mergedPullRequest(workstreamId);
+	const number = landed ?? ship?.pullRequestNumber ?? null;
 	return {
-		state: number === null ? 'not_open' : 'open',
+		state: landed !== null ? 'merged' : number === null ? 'not_open' : 'open',
 		number,
 		url: number === null ? null : pullRequestUrl(workstreamId, number),
 		title: workstream?.name ?? null,

@@ -1,7 +1,7 @@
-import { LEAD_PROMPT, OWNER } from './demo-data';
+import { LEAD_PROMPT } from './demo-data';
 import { leadReport } from './demo-live';
 
-const DRAG_MS = 4_200;
+const DRAG_MS = 2_200;
 
 class Stopped extends Error {}
 
@@ -9,12 +9,18 @@ type Point = Readonly<{ x: number; y: number }>;
 
 const smooth = (t: number): number => t * t * t * (10 + t * (6 * t - 15));
 
-function typingPause(character: string, next: string | undefined): number {
-	if (character === '.' || character === ',') return 260 + Math.random() * 220;
-	if (character === ' ' && next !== undefined && /[A-Z]/u.test(next))
-		return 140 + Math.random() * 120;
-	if (character === ' ') return 55 + Math.random() * 70;
-	return 32 + Math.random() * 48;
+function inView(): Promise<void> {
+	return new Promise((resolve) => {
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (!entry?.isIntersecting) return;
+				observer.disconnect();
+				resolve();
+			},
+			{ threshold: 0.6 },
+		);
+		observer.observe(document.documentElement);
+	});
 }
 
 function showCursor(): HTMLElement | null {
@@ -99,7 +105,7 @@ export async function playHero(): Promise<void> {
 		cursor.dataset['pressed'] = '';
 		const started = await frame();
 		for (let now = started; now - started < DRAG_MS; now = await frame()) {
-			const value = 50 + 36 * Math.sin((2 * Math.PI * (now - started)) / DRAG_MS);
+			const value = 50 + 32 * Math.sin((2 * Math.PI * (now - started)) / DRAG_MS);
 			wipe.value = String(value);
 			wipe.dispatchEvent(new Event('input', { bubbles: true }));
 			place({ x: box.left + (box.width * value) / 100, y: box.top + box.height / 2 });
@@ -108,43 +114,31 @@ export async function playHero(): Promise<void> {
 	};
 
 	try {
-		await wait(2_000);
-		const owner = await find(`[aria-label="New chat in ${OWNER}"]`);
-		await moveTo(owner, -6);
-		await wait(500);
-		owner.focus({ focusVisible: true });
-		await wait(450);
-		await click(owner);
+		await inView();
 		const editor = await find('[data-testid="chat-composer-input"]');
-		await wait(600);
-		await moveTo(editor, 0.2);
 		editor.focus();
-		await wait(500);
-		const characters = [...LEAD_PROMPT];
-		for (const [index, character] of characters.entries()) {
-			document.execCommand('insertText', false, character);
-			await wait(typingPause(character, characters[index + 1]));
-		}
-		await wait(800);
-		await click(await find('[data-testid="chat-composer-submit"]:not([disabled])'));
-		await wait(1_600);
-		await moveTo(await find('[data-testid="sidebar-chat"]'), 0.55);
-		await find('[data-testid="started-workstreams"]');
+		document.execCommand('selectAll');
+		document.execCommand('insertText', false, LEAD_PROMPT);
+		const send = await find('[data-testid="chat-composer-submit"]:not([disabled])');
+		const box = send.getBoundingClientRect();
+		place({ x: box.left - 180, y: box.top - 90 });
+		await wait(1_100);
+		await click(send);
 		await wait(2_400);
-		await moveTo(await find('[data-testid="started-workstreams"]'), 0.7);
+		await click(await find('[data-workstream-id="ws-tony-hero"]'), 0.4);
+		await wait(900);
+		await drag(await find('input[aria-label="Wipe between before and after"]'));
+		await click(await find('button[aria-label="Merge"]'));
+		await wait(800);
+		await click(await find('[data-workstream-id="ws-og-lead"]'), 0.4);
 		await leadReport;
-		await wait(2_200);
+		await wait(1_100);
 		for (const index of [1, 2]) {
 			const tab = document.querySelectorAll<HTMLElement>('[role="tablist"] [role="tab"]')[index];
 			if (!tab) break;
 			await click(tab);
-			await wait(2_400);
+			await wait(1_700);
 		}
-		await wait(800);
-		await click(await find('[data-workstream-id="ws-tony-hero"]'), 0.4);
-		await wait(2_200);
-		await drag(await find('input[aria-label="Wipe between before and after"]'));
-		await wait(900);
 		cursor.dataset['gone'] = '';
 	} catch (error) {
 		if (!(error instanceof Stopped)) throw error;
