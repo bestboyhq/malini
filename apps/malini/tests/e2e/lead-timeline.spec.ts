@@ -37,16 +37,24 @@ function leadCalls(app: LaunchedApp, calls: readonly LeadCall[], reply: string):
 	writeFileSync(join(app.home, 'lead-calls.json'), JSON.stringify({ calls, reply }));
 }
 
-async function startLead(page: Page, title: string): Promise<Workstream> {
+async function startLead(page: Page, title: string, owner?: string): Promise<Workstream> {
 	const before = page.url();
-	await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+	if (owner) {
+		await sidebar(page).getByTestId('sidebar-owner-folder').filter({ hasText: owner }).hover();
+		await sidebar(page)
+			.getByRole('button', { name: `New chat in ${owner}` })
+			.click();
+	} else {
+		await sidebar(page).getByRole('button', { name: 'New chat', exact: true }).click();
+	}
 	await expect.poll(() => page.url()).not.toBe(before);
 	await sendPrompt(page, `Plan it TITLE="${title}"`);
 	await expect(sidebar(page).getByTestId('sidebar-chat').filter({ hasText: title })).toBeVisible({
 		timeout: 20_000,
 	});
 	await expect(timeline(page)).toBeVisible({ timeout: 20_000 });
-	const lead = (await workstreams(page)).find((workstream) => workstream.scope === 'home');
+	const scope = owner ? `owner:${owner}` : 'home';
+	const lead = (await workstreams(page)).find((workstream) => workstream.scope === scope);
 	if (!lead) throw new Error('the lead chat has no workstream');
 	return lead;
 }
@@ -325,6 +333,62 @@ test('a prompt for a workstream that is on a turn waits for that turn, then arri
 				),
 			)
 			.toBe(true);
+		expectCleanConsole(app);
+	} finally {
+		await app.close();
+	}
+});
+
+async function recordNotifications(app: LaunchedApp): Promise<() => Promise<string[]>> {
+	await app.electronApp.evaluate(({ Notification }) => {
+		const shown: string[] = [];
+		Object.assign(globalThis, { shownNotifications: shown });
+		Notification.prototype.show = function record(this: InstanceType<typeof Notification>): void {
+			shown.push(`${this.title}: ${this.body}`);
+		};
+	});
+	return () =>
+		app.electronApp.evaluate(() => Reflect.get(globalThis, 'shownNotifications') as string[]);
+}
+
+test('a lead chat in an organization notifies you when auto mode blocks its call while you work in another workstream', async () => {
+	test.setTimeout(180_000);
+	const app = await launchMalini();
+	try {
+		const { page } = app;
+		const api = await createSourceRepo(app.root, 'acme/api');
+		await seedWorkstream(page, `file://${api}`, 'e2e-notify-api', 'Api work');
+		await page.reload();
+		const lead = await startLead(page, 'Profile notices', 'acme');
+		await expect(timeline(page).getByText('Hello from the fake bridge').last()).toBeVisible({
+			timeout: 30_000,
+		});
+		const elsewhere = sidebar(page)
+			.getByTestId('sidebar-workstream')
+			.filter({ hasText: 'Api work' });
+		await elsewhere.click();
+		await expect(elsewhere).toHaveAttribute('aria-current', 'page');
+		await page.evaluate(() => Reflect.set(document, 'hasFocus', () => true));
+		const shown = await recordNotifications(app);
+
+		const child = await seedWorkstream(
+			page,
+			`file://${api}`,
+			'e2e-notify-child',
+			'Api AUTO_MODE_BLOCK',
+			lead.id,
+		);
+		const childSession = await invoke<string>(page, 'chat.start-session', {
+			workstreamId: child.workstreamId,
+		});
+		await invoke(page, 'chat.send-prompt', {
+			sessionId: childSession,
+			prompt: 'TURN_OUTCOME="Built it"',
+		});
+
+		await expect
+			.poll(shown, { timeout: 60_000 })
+			.toEqual(['Profile notices is waiting: Blocked by auto mode: Permission Grant']);
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
