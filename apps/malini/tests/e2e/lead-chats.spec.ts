@@ -236,7 +236,7 @@ test('a Home chat starts workstreams in two organizations, which fold under it a
 	}
 });
 
-test('a workstream a chat started stays quiet in the sidebar, and the chat says what it needs', async () => {
+test('a workstream a chat started stays quiet, its needs reach that chat, and the chat lights up when it needs you', async () => {
 	test.setTimeout(180_000);
 	const app = await launchMalini();
 	try {
@@ -257,13 +257,14 @@ test('a workstream a chat started stays quiet in the sidebar, and the chat says 
 		const child = sidebar(page)
 			.getByTestId('sidebar-workstream')
 			.filter({ hasText: 'Api analytics' });
-		await expect(child.getByRole('status', { name: /^Workstream status: Needs you/u })).toBeVisible(
-			{ timeout: 60_000 },
+		await expect(child.getByRole('status')).toHaveAccessibleName('Workstream status: Ready', {
+			timeout: 60_000,
+		});
+		await expect(lead.getByRole('status')).toHaveAccessibleName('Chat status: Ready');
+		await expect(page.getByTestId('timeline-report')).toContainText(
+			'asks the lead: Pick the Logdash project',
 		);
-		await expect(child.getByRole('status', { name: /needs your input/u })).toHaveCount(0);
-		await expect(
-			lead.getByRole('status', { name: /· A workstream it started needs your input$/u }),
-		).toBeVisible();
+		await expect(lead.getByRole('status')).toHaveAccessibleName('Chat status: Ready');
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'lead-quiet-children');
 
@@ -273,20 +274,50 @@ test('a workstream a chat started stays quiet in the sidebar, and the chat says 
 			.click();
 		await choose(page, 'Grouping', 'Status');
 		await page.keyboard.press('Escape');
-		const needsYou = sidebar(page)
+		await expect(sidebar(page).getByRole('button', { name: /^Needs you, /u })).toHaveCount(0);
+		const idle = sidebar(page)
 			.getByTestId('sidebar-section')
-			.filter({ has: page.getByRole('button', { name: /^Needs you, /u }) });
+			.filter({ has: page.getByRole('button', { name: /^Idle, /u }) });
 		await expect(
-			needsYou.getByTestId('sidebar-chat').filter({ hasText: 'Ship analytics' }),
+			idle.getByTestId('sidebar-chat').filter({ hasText: 'Ship analytics' }),
 		).toBeVisible();
 		await expect(
-			needsYou
+			idle
 				.getByRole('list', { name: 'Started by Ship analytics' })
 				.getByTestId('sidebar-workstream')
 				.filter({ hasText: 'Api analytics' }),
 		).toBeVisible();
 		await page.mouse.move(0, 0);
 		await captureFlow(app, 'lead-quiet-children-status');
+
+		const workstreams = await invoke<{ id: string; scope: string | null }[]>(
+			page,
+			'repositories.list-workstreams',
+			undefined,
+		);
+		const leadId = workstreams.find((workstream) => workstream.scope === 'home')?.id;
+		const [leadChat] = await invoke<{ id: string }[]>(page, 'chat.list-sessions', {
+			workstreamId: leadId,
+		});
+		const elsewhere = sidebar(page)
+			.getByTestId('sidebar-workstream')
+			.filter({ hasText: 'Api work' });
+		await elsewhere.click();
+		await expect(elsewhere).toHaveAttribute('aria-current', 'page');
+		await invoke(page, 'chat.send-prompt', { sessionId: leadChat?.id, prompt: 'AUTO_MODE_BLOCK' });
+		const needsYou = sidebar(page)
+			.getByTestId('sidebar-section')
+			.filter({ has: page.getByRole('button', { name: /^Needs you, /u }) });
+		await expect(
+			needsYou
+				.getByTestId('sidebar-chat')
+				.filter({ hasText: 'Ship analytics' })
+				.getByRole('status'),
+		).toHaveAccessibleName('Chat status: Approval · Agent is waiting for approval', {
+			timeout: 30_000,
+		});
+		await page.mouse.move(0, 0);
+		await captureFlow(app, 'lead-needs-you');
 		expectCleanConsole(app);
 	} finally {
 		await app.close();
