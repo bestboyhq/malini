@@ -218,7 +218,7 @@
 	beat={beat('variants', 'Experiments')}
 	mirrored
 	title="Experiment first. Build the winner."
-	body="Malini takes the scientific approach to building. An open question becomes a small experiment: a few variants side by side, judged by you. The winner gets built, and the rest never touch your code."
+	body="An open question becomes a small experiment: a few variants side by side, judged by you. The winner gets built, and the rest never touch your code."
 	href={doc('chat#variants')}
 	linkLabel="How variants work"
 	checks={['Pictures, recordings, or live pages', 'None fit? Run another round']}
