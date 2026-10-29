@@ -9,6 +9,7 @@ import type {
 	WorkstreamImageRead,
 } from '$contract/repositories';
 import type { DemoEmit, DemoHandlers } from './demo-bridge';
+import { browserHandlers } from './demo-browser';
 import { demoMediaUrl } from './demo-media';
 import { DEMO_DAY, filesOf, OWNER, PROJECTS } from './demo-data';
 import {
@@ -122,6 +123,7 @@ function totals(workstreamId: string): { additions: number; deletions: number; f
 }
 
 export const demoHandlers = (emit: DemoEmit): DemoHandlers => ({
+	...browserHandlers(emit),
 	'app.take-notification-target': () => null,
 	'app.take-menu-command': () => null,
 	'app.runtime-info': () => ({

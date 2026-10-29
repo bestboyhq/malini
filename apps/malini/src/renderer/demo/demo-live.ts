@@ -5,6 +5,8 @@ import type { ShipButton, ShipStateRecord } from '$contract/pull-requests';
 import type { WorkstreamDto } from '$contract/repositories';
 import type { AgentEvent } from '$lib/chat/domain/events';
 import type { DemoEmit } from './demo-bridge';
+import { openPage } from './demo-browser';
+import { DEMO_PLAY } from './demo-play';
 import {
 	closingEvents,
 	envelopesOf,
@@ -22,6 +24,7 @@ import {
 	type DemoWorkstream,
 	type StartedWorkstream,
 } from './demo-data';
+import { TOUR_FEEDBACK, TOUR_LEAD, TOUR_THREAD_REPORT } from './demo-tour-data';
 
 const DEMO_REPLY = [
 	'- Changed: nothing, this chat runs in your browser on demo data',
@@ -31,10 +34,37 @@ const DEMO_REPLY = [
 	'Needs: nothing',
 ].join('\n');
 
+type LeadScript = Readonly<{
+	prompt: string;
+	name: string;
+	plan: string;
+	inFlight: string;
+	split: string;
+	started: readonly StartedWorkstream[];
+	compare: string;
+	report: string;
+}>;
+
+const OG_LEAD: LeadScript = {
+	prompt: LEAD_PROMPT,
+	name: 'OG image directions',
+	plan: 'Open Graph directions for every Bestboy site. First, what is already in flight.',
+	inFlight: '[{"name":"Show the words in the hero","repository":"bestboyhq/tony","working":false}]',
+	split: 'One workstream per site, each prototyping the same three directions.',
+	started: STARTED,
+	compare: 'All three are back with the same three directions. I will show them on Malini.',
+	report: LEAD_REPORT,
+};
+
+const LEAD_SCRIPTS: readonly LeadScript[] = [OG_LEAD, TOUR_LEAD];
+
+const REPLIES: ReadonlyMap<string, string> = new Map([[TOUR_FEEDBACK, TOUR_THREAD_REPORT]]);
+
 const listed: DemoWorkstream[] = [
-	{ ...LEAD_WORKSTREAM, name: 'New chat', runs: [] },
+	...(DEMO_PLAY === 'tour' ? [] : [{ ...LEAD_WORKSTREAM, name: 'New chat', runs: [] }]),
 	...WORKSTREAMS,
 ];
+const threads = new Map<string, Readonly<{ workstreamId: string; model: string; name: string }>>();
 const statuses = new Map<string, AgentSessionSummary['status']>();
 const transcripts = new Map<string, AgentEventEnvelope[]>();
 const models = new Map<string, string>();
@@ -52,18 +82,51 @@ export function workstreamOf(id: string): DemoWorkstream | undefined {
 export function sessionSummaries(workstreamId: string): AgentSessionSummary[] {
 	const workstream = workstreamOf(workstreamId);
 	const id = sessionId(workstreamId);
-	if (!workstream || transcript(id).length === 0) return [];
-	return [
-		{
-			id,
-			workstreamId,
-			displayName: workstream.name,
-			model: models.get(id) ?? 'opus',
-			status: statuses.get(id) ?? (workstream.runs.length > 0 ? 'completed' : 'idle'),
-			startedAt: workstream.runs[0]?.startedAt ?? workstream.activeAt,
-			origin: 'user',
-		},
-	];
+	if (!workstream) return [];
+	const own: AgentSessionSummary[] =
+		transcript(id).length === 0
+			? []
+			: [
+					{
+						id,
+						workstreamId,
+						displayName: workstream.name,
+						model: models.get(id) ?? 'opus',
+						status: statuses.get(id) ?? (workstream.runs.length > 0 ? 'completed' : 'idle'),
+						startedAt: workstream.runs[0]?.startedAt ?? workstream.activeAt,
+						origin: 'user',
+					},
+				];
+	const pinned = [...threads].flatMap(([thread, about]): AgentSessionSummary[] =>
+		about.workstreamId === workstreamId
+			? [
+					{
+						id: thread,
+						workstreamId,
+						displayName: about.name,
+						model: about.model,
+						status: statuses.get(thread) ?? 'running',
+						startedAt: NOW,
+						origin: 'thread',
+					},
+				]
+			: [],
+	);
+	return [...own, ...pinned];
+}
+
+export function startThread(
+	emit: DemoEmit,
+	workstreamId: string,
+	prompt: string,
+	model: string,
+): string {
+	const id = `thread-${workstreamId}-${threads.size + 1}`;
+	threads.set(id, { workstreamId, model, name: prompt.split(/[.!?]/u)[0] ?? prompt });
+	statuses.set(id, 'running');
+	transcripts.set(id, []);
+	sendPrompt(emit, id, prompt, undefined);
+	return id;
 }
 
 export function startSession(workstreamId: string, model: string | undefined): string {
@@ -134,7 +197,13 @@ function reply(emit: DemoEmit, id: string, runId: string, text: string, streamed
 	return [
 		...chunks.map((chunk): Step => [18, () => stream(emit, id, runId, contentId, chunk)]),
 		[200, () => append(emit, id, runId, { type: 'assistant.message', runId, text, contentId })],
-		[0, () => append(emit, id, runId, { type: 'run.completed', runId, summary: '' })],
+		[
+			0,
+			() => {
+				if (statuses.has(id)) statuses.set(id, 'completed');
+				append(emit, id, runId, { type: 'run.completed', runId, summary: '' });
+			},
+		],
 	];
 }
 
@@ -225,6 +294,10 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 				}))
 			: [],
 	);
+	if (started.opens) {
+		const url = started.opens;
+		setTimeout(() => openPage(emit, workstream.id, url), started.workMs * 0.82);
+	}
 	if (run) {
 		const tools = toolEvents(workstream.id, run.id, run.tools, Date.now());
 		const gap = started.workMs / (tools.length + 2);
@@ -268,33 +341,27 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 	}, started.workMs);
 }
 
-function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): Step[] {
-	let waiting = STARTED.length;
+function leadSteps(
+	emit: DemoEmit,
+	leadId: string,
+	id: string,
+	runId: string,
+	script: LeadScript,
+): Step[] {
+	let waiting = script.started.length;
 	const done = (): void => {
 		if (--waiting > 0) return;
 		play([
 			[400, () => undefined],
-			...think(
-				emit,
-				id,
-				runId,
-				'compare',
-				'All three are back with the same three directions. I will show them on Malini.',
-			),
+			...think(emit, id, runId, 'compare', script.compare),
 			[300, () => undefined],
-			...reply(emit, id, runId, LEAD_REPORT, false),
+			...reply(emit, id, runId, script.report, false),
 			[0, () => leadReported()],
 		]);
 	};
 	return [
-		...think(
-			emit,
-			id,
-			runId,
-			'plan',
-			'Open Graph directions for every Bestboy site. First, what is already in flight.',
-		),
-		[100, () => rename(emit, leadId, 'OG image directions')],
+		...think(emit, id, runId, 'plan', script.plan),
+		[100, () => rename(emit, leadId, script.name)],
 		...tool(
 			emit,
 			id,
@@ -302,18 +369,12 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			`${runId}-list`,
 			'mcp__malini__workstreams_list',
 			{ repository: OWNER },
-			'[{"name":"Show the words in the hero","repository":"bestboyhq/tony","working":false}]',
+			script.inFlight,
 			600,
 		),
 		[200, () => undefined],
-		...think(
-			emit,
-			id,
-			runId,
-			'split',
-			'One workstream per site, each prototyping the same three directions.',
-		),
-		...STARTED.flatMap((started): Step[] => {
+		...think(emit, id, runId, 'split', script.split),
+		...script.started.flatMap((started): Step[] => {
 			const toolCallId = `${runId}-start-${started.id}`;
 			const name = 'mcp__malini__workstreams_create';
 			const repository = `${OWNER}/${started.projectId}`;
@@ -353,13 +414,51 @@ export function sendPrompt(
 ): string {
 	const runId = runIdForPromptRequest(clientRequestId) ?? `run-demo-${++runs}`;
 	const lead = listed.find((workstream) => sessionId(workstream.id) === id && workstream.scope);
-	const scripted = lead && prompt.trim() === LEAD_PROMPT && transcript(id).length === 0;
-	const work = scripted
-		? leadSteps(emit, lead.id, id, runId)
-		: [
-				...tool(emit, id, runId, `${runId}-read`, 'Read', { file_path: 'AGENTS.md' }, 'ok', 900),
-				...reply(emit, id, runId, DEMO_REPLY, true),
-			];
+	const script =
+		lead && transcript(id).length === 0
+			? LEAD_SCRIPTS.find((candidate) => candidate.prompt === prompt.trim())
+			: undefined;
+	const answer = REPLIES.get(prompt.trim());
+	const work =
+		lead && script
+			? leadSteps(emit, lead.id, id, runId, script)
+			: answer
+				? [
+						...tool(
+							emit,
+							id,
+							runId,
+							`${runId}-read`,
+							'Read',
+							{ file_path: 'site/src/lib/Footer.svelte' },
+							'ok',
+							700,
+						),
+						...tool(
+							emit,
+							id,
+							runId,
+							`${runId}-edit`,
+							'Edit',
+							{ file_path: 'site/src/lib/Footer.svelte' },
+							'ok',
+							1_100,
+						),
+						...reply(emit, id, runId, answer, true),
+					]
+				: [
+						...tool(
+							emit,
+							id,
+							runId,
+							`${runId}-read`,
+							'Read',
+							{ file_path: 'AGENTS.md' },
+							'ok',
+							900,
+						),
+						...reply(emit, id, runId, DEMO_REPLY, true),
+					];
 	play([...opening(emit, id, runId, prompt, clientRequestId), [700, () => undefined], ...work]);
 	return runId;
 }

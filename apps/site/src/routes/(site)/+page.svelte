@@ -3,6 +3,7 @@
 	import BeatLabel, { type Beat } from '$lib/BeatLabel.svelte';
 	import BrowserMock from '$lib/BrowserMock.svelte';
 	import DemoCard from '$lib/DemoCard.svelte';
+	import DemoTour from '$lib/DemoTour.svelte';
 	import FeatureRow from '$lib/FeatureRow.svelte';
 	import Head from '$lib/Head.svelte';
 	import Hero from '$lib/Hero.svelte';
@@ -17,6 +18,7 @@
 		'report',
 		'compare',
 		'browser',
+		'chats',
 		'variants',
 		'ship',
 		'merge',
@@ -209,14 +211,28 @@
 	body="Browser tabs sit next to your files. The agent opens pages, clicks, types, and takes screenshots. The tabs it opens appear beside yours."
 	href={doc('agent-tools')}
 	linkLabel="What the agent can do"
-	checks={['Pick an element and it lands in your prompt', 'The same tabs for you and the agent']}
+	checks={['Pick an element and start a thread on it', 'The same tabs for you and the agent']}
 	panel={browserPanel}
+/>
+
+<FeatureRow
+	id="chats"
+	beat={beat('chats', 'Chats')}
+	mirrored
+	title="Chat at any resolution."
+	body="Start a chat above everything you own, and it plans across every organization and private repository, one workstream per change. Open any of them to work on one branch, or pick an element in its browser and talk about just that."
+	href={doc('chat#chats-above-repositories')}
+	linkLabel="Where you can chat"
+	checks={[
+		'A chat above repositories starts the workstreams',
+		'Pick an element, chat about just that',
+	]}
+	panel={chatsPanel}
 />
 
 <FeatureRow
 	id="variants"
 	beat={beat('variants', 'Experiments')}
-	mirrored
 	title="Experiment first. Build the winner."
 	body="An open question becomes a small experiment: a few variants side by side, judged by you. The winner gets built, and the rest never touch your code."
 	href={doc('chat#variants')}
@@ -359,6 +375,13 @@
 
 {#snippet browserPanel()}
 	<BrowserMock />
+{/snippet}
+
+{#snippet chatsPanel()}
+	<DemoTour
+		workstream="ws-tony-hero"
+		title="Malini on demo data: a chat at Home starts three workstreams, then you pick an element in one of them and give it feedback"
+	/>
 {/snippet}
 
 {#snippet mergePanel()}

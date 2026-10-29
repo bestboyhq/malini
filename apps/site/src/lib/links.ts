@@ -16,7 +16,7 @@ export function docHref(path: string): string {
 	return `${HOME}${path}`;
 }
 
-export type DemoPlay = 'hero' | 'sweep' | 'cycle';
+export type DemoPlay = 'hero' | 'tour' | 'sweep' | 'cycle';
 
 export function demoHref(page: 'app' | 'card', hash: string, play?: DemoPlay): string {
 	return `${asset(dev ? `/demo/${page}.html` : `/demo/${page}`)}${play ? `?play=${play}` : ''}#${hash}`;

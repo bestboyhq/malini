@@ -1,105 +1,18 @@
 import { LEAD_PROMPT } from './demo-data';
-import { smooth, WIPE_MS, wipeAt } from './demo-attract';
+import { WIPE_MS, wipeAt } from './demo-attract';
+import { drawnCursor, inView, Stopped } from './demo-cursor';
 import { leadReport } from './demo-live';
 
-class Stopped extends Error {}
-
-type Point = Readonly<{ x: number; y: number }>;
-
-function inView(): Promise<void> {
-	return new Promise((resolve) => {
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (!entry?.isIntersecting) return;
-				observer.disconnect();
-				resolve();
-			},
-			{ threshold: 0.6 },
-		);
-		observer.observe(document.documentElement);
-	});
-}
-
-function showCursor(): HTMLElement | null {
-	const cursor = document.querySelector<HTMLElement>('.demo-cursor');
-	if (!cursor) return null;
-	cursor.hidden = false;
-	return cursor;
-}
-
 export async function playHero(): Promise<void> {
-	if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-	const cursor = showCursor();
+	const cursor = drawnCursor({ x: innerWidth * 0.62, y: innerHeight * 0.74 });
 	if (!cursor) return;
-	let stopped = false;
-	let at: Point = { x: innerWidth * 0.62, y: innerHeight * 0.74 };
-	const place = (point: Point): void => {
-		at = point;
-		cursor.style.translate = `${point.x}px ${point.y}px`;
-	};
-	place(at);
-	const stop = (event: Event): void => {
-		if (!event.isTrusted) return;
-		stopped = true;
-		cursor.hidden = true;
-	};
-	addEventListener('pointerdown', stop, { capture: true });
-	addEventListener('keydown', stop, { capture: true });
-
-	const wait = async (ms: number): Promise<void> => {
-		await new Promise((resolve) => setTimeout(resolve, ms));
-		if (stopped) throw new Stopped();
-	};
-	const frame = async (): Promise<number> => {
-		const now = await new Promise<number>((resolve) => requestAnimationFrame(resolve));
-		if (stopped) throw new Stopped();
-		return now;
-	};
-	const find = async (selector: string): Promise<HTMLElement> => {
-		for (;;) {
-			const element = document.querySelector(selector);
-			if (element instanceof HTMLElement && element.getClientRects().length > 0) return element;
-			await wait(100);
-		}
-	};
-	const glide = async (to: Point): Promise<void> => {
-		const from = at;
-		const distance = Math.hypot(to.x - from.x, to.y - from.y);
-		const duration = Math.min(1_250, 420 + distance * 0.75);
-		const bend = Math.min(60, distance * 0.12) / (distance || 1);
-		const control = {
-			x: (from.x + to.x) / 2 - (to.y - from.y) * bend,
-			y: (from.y + to.y) / 2 + (to.x - from.x) * bend,
-		};
-		const started = await frame();
-		for (let now = started; now - started < duration; now = await frame()) {
-			const t = smooth((now - started) / duration);
-			const u = 1 - t;
-			place({
-				x: u * u * from.x + 2 * u * t * control.x + t * t * to.x,
-				y: u * u * from.y + 2 * u * t * control.y + t * t * to.y,
-			});
-		}
-		place(to);
-	};
-	const moveTo = async (element: HTMLElement, dx = 0.5): Promise<void> => {
-		const box = element.getBoundingClientRect();
-		await glide({ x: box.left + box.width * dx, y: box.top + box.height / 2 });
-		await wait(120 + Math.random() * 120);
-	};
-	const click = async (element: HTMLElement, dx = 0.5): Promise<void> => {
-		await moveTo(element, dx);
-		cursor.dataset['pressed'] = '';
-		await wait(130);
-		delete cursor.dataset['pressed'];
-		element.click();
-	};
+	const { find, frame, glide, place, wait, click } = cursor;
 	const drag = async (wipe: HTMLElement): Promise<void> => {
 		if (!(wipe instanceof HTMLInputElement)) return;
 		const box = wipe.getBoundingClientRect();
 		await glide({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
 		await wait(250);
-		cursor.dataset['pressed'] = '';
+		cursor.element.dataset['pressed'] = '';
 		const started = await frame();
 		for (let now = started; now - started < WIPE_MS; now = await frame()) {
 			const value = wipeAt(now - started);
@@ -107,7 +20,7 @@ export async function playHero(): Promise<void> {
 			wipe.dispatchEvent(new Event('input', { bubbles: true }));
 			place({ x: box.left + (box.width * value) / 100, y: box.top + box.height / 2 });
 		}
-		delete cursor.dataset['pressed'];
+		delete cursor.element.dataset['pressed'];
 	};
 
 	try {
@@ -136,7 +49,7 @@ export async function playHero(): Promise<void> {
 			await click(tab);
 			await wait(1_700);
 		}
-		cursor.dataset['gone'] = '';
+		cursor.element.dataset['gone'] = '';
 	} catch (error) {
 		if (!(error instanceof Stopped)) throw error;
 	}

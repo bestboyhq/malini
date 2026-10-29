@@ -7,6 +7,7 @@ There is no backend service and no cloud.
 `apps/site` is the public site and its LLMs-first docs, markdown in `apps/site/content/`, served at bestboy.dev/malini (ADR 0031); a feature changes its docs page in the same pull request.
 Its look copies `docs/design.md` in `bestboyhq/platform`, the design every Bestboy site shares (ADR 0042).
 Its landing page embeds the real renderer, built from `apps/malini/src/renderer/demo` with a demo `window.malini` on made-up data (ADR 0108).
+Its Chats card tours that renderer with a camera, a scripted cursor and a demo browser (ADR 0109).
 Its Worker passes Logdash web analytics through `/malini/_ld/`, and the site counts visits and downloads there (ADR 0059).
 The app makes two outbound calls of its own.
 Usage counts and error names go to Logdash, from `src/lib/app/platform/usage-data.ts` (ADR 0058).

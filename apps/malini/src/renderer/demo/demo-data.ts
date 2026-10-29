@@ -279,7 +279,8 @@ export const LEAD_PROMPT =
 
 export const LEAD_ID = 'ws-og-lead';
 
-export type StartedWorkstream = DemoWorkstream & Readonly<{ workMs: number; thought: string }>;
+export type StartedWorkstream = DemoWorkstream &
+	Readonly<{ workMs: number; thought: string; opens?: string }>;
 
 const startedRun = (
 	id: string,
