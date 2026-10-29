@@ -17,9 +17,10 @@ The mock-ups drift every time the app changes; the real renderer cannot.
   `demo-bridge.ts` builds a `window.malini` from a handler per `CommandName`, typed by `$contract`, and an `EventTarget` for `on`; a command with no handler rejects with "The demo shows Malini on made-up data. Download Malini to do this."
   `demo-data.ts` holds the demo: the real `bestboyhq` repositories (malini, platform, grip, tony), three workstreams whose transcripts are `AgentEvent`s ending in reports, the organization chat's run and the three workstreams it starts.
   `demo-live.ts` keeps the state that changes: the workstream list, session statuses and transcripts, and shipping; it creates an organization chat for `repositories.create-lead`, plays that chat's run when it gets the scripted prompt, streams a short reply to any other prompt, and answers Draft and Merge.
-  The media are real: Grip's captions recording from its site, Tony's Open Graph image as the before, and Open Graph directions drawn from the real app icons and screenshots, as WebP and MP4 files in `media/`.
+  The media are real: Grip's captions recording from its site, Tony's real hero as the before, and Open Graph directions drawn from the real app icons and screenshots, as WebP and MP4 files in `media/`.
 - `app.html` mounts the whole `App` and draws the macOS traffic lights the native window would.
-  With `?play=hero`, `demo-script.ts` drives it like a person: a drawn cursor opens a new chat in bestboyhq, types the prompt and sends it, the chat starts a workstream in malini, grip and platform that nest under it and finish, it reports three directions, and the cursor opens Tony's before and after.
+  With `?play=hero`, `demo-script.ts` drives it like a person: a drawn cursor opens a new chat in bestboyhq, types the prompt and sends it, the chat thinks, starts a workstream in malini, grip, tony and platform that nest under it and work for several seconds each, it reports three directions, the cursor steps through them and opens Tony's hero before and after.
+  The cursor glides on a curved, minimum-jerk path and types with a person's rhythm.
   A real click or key press stops the script, and reduced motion skips it.
 - `card.html` mounts `TurnReportCard` alone for the workstream named in its hash, scaled to fit its frame.
   `?play=work` shows the prompt and the tool calls arriving with a running clock, then the report; `?play=sweep` sweeps the before and after wipe; `?play=cycle` steps through the variants.

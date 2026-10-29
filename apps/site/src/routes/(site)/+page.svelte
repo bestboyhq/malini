@@ -347,8 +347,8 @@
 
 {#snippet comparePanel()}
 	<DemoCard
-		workstream="ws-tony-og"
-		title="A Malini report with Tony’s Open Graph image before and after the change"
+		workstream="ws-tony-hero"
+		title="A Malini report with Tony’s hero before and after the change"
 		play="sweep"
 	/>
 {/snippet}

@@ -84,7 +84,10 @@ const TREES: Readonly<Record<string, readonly string[]>> = {
 		'AGENTS.md',
 		'Package.swift',
 		'README.md',
+		'build/icon.png',
 		'site/scripts/og.ts',
+		'site/src/lib/Hero.svelte',
+		'site/src/lib/Pill.svelte',
 		'site/src/lib/assets/og.png',
 		'site/src/lib/assets/og.sha256',
 		'site/src/routes/og/+page.svelte',
@@ -210,56 +213,59 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 		],
 	},
 	{
-		id: 'ws-tony-og',
+		id: 'ws-tony-hero',
 		projectId: 'tony',
-		name: 'New OG image',
-		branch: 'malini/new-og-image',
+		name: 'Show the words in the hero',
+		branch: 'malini/show-the-words-in-the-hero',
 		activeAt: at('10:34'),
 		files: [
-			{ path: 'site/src/routes/og/+page.svelte', additions: 38, deletions: 52 },
-			{ path: 'site/src/lib/assets/og.sha256', additions: 3, deletions: 3 },
+			{ path: 'site/src/lib/Pill.svelte', additions: 31, deletions: 4 },
+			{ path: 'site/src/lib/Hero.svelte', additions: 6, deletions: 1 },
 		],
 		tree: TREES['tony'] ?? [],
 		ship: null,
 		runs: [
 			{
-				id: 'run-tony-og-1',
+				id: 'run-tony-hero-1',
 				prompt:
-					'Our OG image is just the hero again. Put the Tony icon on the brand horizon instead, and show me before and after.',
+					'The hero pill listens, but you never see what it heard. Show the words landing above it, and show me before and after.',
 				startedAt: at('10:28'),
 				tools: [
-					{ name: 'Read', input: { file_path: 'site/src/routes/og/+page.svelte' } },
+					{ name: 'Read', input: { file_path: 'site/src/lib/Pill.svelte' } },
 					{
 						name: 'Edit',
 						input: {
-							file_path: 'site/src/routes/og/+page.svelte',
-							old_string: '<Hero og />',
-							new_string: '<OgIcon name="Tony" line="Hold a key. Speak. Let go." />',
+							file_path: 'site/src/lib/Pill.svelte',
+							old_string: '<img class="moving"',
+							new_string: '<p class="heard">{heard}</p>\n\t<img class="moving"',
 						},
 					},
 					{
 						name: 'Bash',
-						input: { command: 'pnpm og', description: 'Render the Open Graph image' },
-						output: 'Wrote src/lib/assets/og.png and og.sha256',
+						input: { command: 'pnpm test', description: 'Run the site tests' },
+						output: '✓ tests/site.test.ts (14 tests) 1.3s',
 					},
 					{
 						name: 'Bash',
-						input: { command: 'pnpm test og', description: 'Run the Open Graph tests' },
-						output: '✓ tests/og.test.ts (2 tests) 640ms',
+						input: {
+							command: 'npx playwright screenshot --color-scheme=dark /tony hero.png',
+							description: 'Capture the hero before and after',
+						},
+						output: 'Saved .context/tony-hero-before.webp and .context/tony-hero-after.webp',
 					},
 				],
 				report: [
-					'![Before: the old Tony OG image, the hero headline again](.context/tony-og-before.webp)',
-					'![After: the Tony icon on the brand horizon](.context/tony-og-after.webp)',
+					'![Before: the Tony hero, the pill alone on its stage](.context/tony-hero-before.webp)',
+					'![After: the words Tony heard land above the pill](.context/tony-hero-after.webp)',
 					'',
-					'- Changed: `/og` draws the app icon, the name and the tagline on the brand horizon',
-					'- Verified: `pnpm og` rendered it at 1200 by 630, and `pnpm test og` passes',
-					'- Next: draw Grip and Malini from the same view',
+					'- Changed: the stage shows the sentence the pill hears, word by word, above it',
+					'- Verified: `pnpm test` passes, and the hero reads right in light and dark',
+					'- Next: time each word to the bars in the pill',
 					'',
-					'Outcome: Tony’s OG image leads with the icon, not the hero',
+					'Outcome: Tony’s hero shows what you said, not only that it listened',
 					'Needs: nothing',
-					'Commit: feat(site): lead the Open Graph image with the Tony icon',
-					'Pull request: feat(site): lead the Open Graph image with the Tony icon',
+					'Commit: feat(site): show the words Tony hears in the hero',
+					'Pull request: feat(site): show the words Tony hears in the hero',
 				].join('\n'),
 				usage: { inputTokens: 39_460, outputTokens: 1_520 },
 			},
@@ -296,8 +302,9 @@ const directions = (prefix: string, product: string): string =>
 		`![Variant C: Type - one loud line, the family of icons below](.context/${prefix}og-type.webp)`,
 	].join('\n');
 
-const prototypeTools = (site: string): readonly DemoTool[] => [
+const prototypeTools = (site: string, icon: string): readonly DemoTool[] => [
 	{ name: 'Read', input: { file_path: `${site}/og/+page.svelte` } },
+	{ name: 'Read', input: { file_path: icon } },
 	{ name: 'Write', input: { file_path: '.context/og/directions.html', content: '' } },
 	{
 		name: 'Bash',
@@ -309,59 +316,48 @@ const prototypeTools = (site: string): readonly DemoTool[] => [
 	},
 ];
 
+const prototype = (
+	id: string,
+	product: string,
+	site: string,
+	workMs: number,
+): StartedWorkstream => {
+	const repository = product.toLowerCase();
+	return {
+		id,
+		projectId: repository,
+		name: `OG directions for ${product}`,
+		branch: `malini/og-directions-for-${repository}`,
+		activeAt: at('10:45'),
+		files: [],
+		tree: TREES[repository] ?? [],
+		ship: null,
+		workMs,
+		runs: [
+			startedRun(
+				id,
+				product,
+				prototypeTools(
+					site,
+					repository === 'malini' ? 'apps/malini/build/icon.png' : 'build/icon.png',
+				),
+				[
+					directions(`${repository}-`, product),
+					'',
+					`- Changed: three prototypes under \`.context/og/\`, nothing in \`${site.split('/src')[0]}\` yet`,
+					'',
+					`Outcome: Three ${product} OG directions are ready to pick`,
+					'Needs: pick the direction to build into `/og`',
+				].join('\n'),
+			),
+		],
+	};
+};
+
 export const STARTED: readonly StartedWorkstream[] = [
-	{
-		id: 'ws-og-malini',
-		projectId: 'malini',
-		name: 'OG directions for Malini',
-		branch: 'malini/og-directions-for-malini',
-		activeAt: at('10:45'),
-		files: [],
-		tree: TREES['malini'] ?? [],
-		ship: null,
-		workMs: 4_200,
-		runs: [
-			startedRun(
-				'ws-og-malini',
-				'Malini',
-				prototypeTools('apps/site/src/routes'),
-				[
-					directions('', 'Malini'),
-					'',
-					'- Changed: three prototypes under `.context/og/`, nothing in `apps/site` yet',
-					'',
-					'Outcome: Three Malini OG directions are ready to pick',
-					'Needs: pick the direction to build into `/og`',
-				].join('\n'),
-			),
-		],
-	},
-	{
-		id: 'ws-og-grip',
-		projectId: 'grip',
-		name: 'OG directions for Grip',
-		branch: 'malini/og-directions-for-grip',
-		activeAt: at('10:45'),
-		files: [],
-		tree: TREES['grip'] ?? [],
-		ship: null,
-		workMs: 4_600,
-		runs: [
-			startedRun(
-				'ws-og-grip',
-				'Grip',
-				prototypeTools('site/src/routes'),
-				[
-					directions('grip-', 'Grip'),
-					'',
-					'- Changed: three prototypes under `.context/og/`, nothing in `site` yet',
-					'',
-					'Outcome: Three Grip OG directions are ready to pick',
-					'Needs: pick the direction to build into `/og`',
-				].join('\n'),
-			),
-		],
-	},
+	prototype('ws-og-malini', 'Malini', 'apps/site/src/routes', 9_000),
+	prototype('ws-og-grip', 'Grip', 'site/src/routes', 11_500),
+	prototype('ws-og-tony', 'Tony', 'site/src/routes', 10_200),
 	{
 		id: 'ws-og-platform',
 		projectId: 'platform',
@@ -374,12 +370,12 @@ export const STARTED: readonly StartedWorkstream[] = [
 		],
 		tree: TREES['platform'] ?? [],
 		ship: null,
-		workMs: 3_800,
+		workMs: 8_200,
 		runs: [
 			{
 				id: 'run-ws-og-platform-1',
 				prompt:
-					'Draw every direction from one OG view in platform, so malini, grip and tony share it.',
+					'Draw every direction from one Open Graph view in platform, so malini, grip and tony share it.',
 				from: LEAD_ID,
 				startedAt: at('10:44'),
 				tools: [
@@ -401,10 +397,10 @@ export const STARTED: readonly StartedWorkstream[] = [
 ];
 
 export const LEAD_REPORT = [
-	directions('', 'Malini'),
+	directions('malini-', 'Malini'),
 	'',
 	'- Changed: nothing on any `main`, the prototypes live in their workstreams',
-	'- Verified: all three draw from one view in `platform`, the way Tony’s new image already does',
+	'- Verified: malini, grip and tony each rendered all three, drawn from one view in `platform`',
 	'',
 	'Outcome: Three OG directions for every Bestboy site are ready',
 	'Needs: pick the direction for malini, grip and tony',

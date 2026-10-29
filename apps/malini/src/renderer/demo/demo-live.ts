@@ -95,6 +95,25 @@ function stream(emit: DemoEmit, id: string, runId: string, contentId: string, te
 	});
 }
 
+function think(emit: DemoEmit, id: string, runId: string, key: string, text: string): Step[] {
+	const contentId = `${runId}-${key}`;
+	const words = text.split(/(?<=\s)/u);
+	return [
+		...words.map((chunk): Step => [
+			40 + Math.random() * 50,
+			() =>
+				emit('chat:agent-event', {
+					sessionId: id,
+					runId,
+					seq: -1,
+					event: { type: 'thinking.delta', runId, contentId, text: chunk },
+					ephemeral: true,
+				}),
+		]),
+		[300, () => append(emit, id, runId, { type: 'thinking.message', runId, contentId, text })],
+	];
+}
+
 type Step = readonly [number, () => void];
 
 function play(steps: readonly Step[]): void {
@@ -194,12 +213,24 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 	transcripts.set(
 		id,
 		run
-			? [
-					...openingEvents(workstream.id, run),
-					...toolEvents(workstream.id, run.id, run.tools, Date.now()),
-				].map((event, index) => ({ sessionId: id, runId: run.id, seq: index + 1, event }))
+			? openingEvents(workstream.id, run).map((event, index) => ({
+					sessionId: id,
+					runId: run.id,
+					seq: index + 1,
+					event,
+				}))
 			: [],
 	);
+	if (run) {
+		const tools = toolEvents(workstream.id, run.id, run.tools, Date.now());
+		const gap = started.workMs / (tools.length + 1);
+		play(
+			tools.map((event, index): Step => [
+				index === 0 ? gap : gap * (index % 2 === 0 ? 1.6 : 0.4),
+				() => append(emit, id, run.id, event),
+			]),
+		);
+	}
 	listed.push(workstream);
 	const project = PROJECTS.find((candidate) => candidate.id === workstream.projectId);
 	const dto = workstreamDto(workstream);
@@ -229,7 +260,7 @@ function start(emit: DemoEmit, leadId: string, started: StartedWorkstream, done:
 		statuses.set(id, 'completed');
 		if (run) for (const event of closingEvents(run)) append(emit, id, run.id, event);
 		done();
-	}, started.workMs);
+	}, started.workMs + 400);
 }
 
 function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): Step[] {
@@ -237,13 +268,29 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 	const done = (): void => {
 		if (--waiting > 0) return;
 		play([
-			[900, () => undefined],
+			[1_200, () => undefined],
+			...think(
+				emit,
+				id,
+				runId,
+				'compare',
+				'All four are back. Every site rendered the same three directions from the shared view, so I will show them on Malini and let the pick apply to all of them.',
+			),
+			[700, () => undefined],
 			...reply(emit, id, runId, LEAD_REPORT, false),
 			[0, () => leadReported()],
 		]);
 	};
 	return [
-		[400, () => rename(emit, leadId, 'OG image directions')],
+		...think(
+			emit,
+			id,
+			runId,
+			'plan',
+			'They want Open Graph directions for every Bestboy site. I will check what is already in flight in bestboyhq, then give each site its own workstream and put the shared view in platform.',
+		),
+		[200, () => rename(emit, leadId, 'OG image directions')],
+		[500, () => undefined],
 		...tool(
 			emit,
 			id,
@@ -251,8 +298,16 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			`${runId}-list`,
 			'mcp__malini__workstreams_list',
 			{ repository: OWNER },
-			'[{"name":"New OG image","repository":"bestboyhq/tony","working":false}]',
-			700,
+			'[{"name":"Show the words in the hero","repository":"bestboyhq/tony","working":false}]',
+			1_100,
+		),
+		[600, () => undefined],
+		...think(
+			emit,
+			id,
+			runId,
+			'split',
+			'Nothing touches the OG images yet. Four workstreams: malini, grip, tony, and platform for the view they share.',
 		),
 		...STARTED.flatMap((started): Step[] => {
 			const toolCallId = `${runId}-start-${started.id}`;
@@ -269,11 +324,11 @@ function leadSteps(emit: DemoEmit, leadId: string, id: string, runId: string): S
 			});
 			return [
 				[
-					500,
+					700,
 					() => append(emit, id, runId, { type: 'tool.started', runId, name, input, toolCallId }),
 				],
 				[
-					350,
+					1_000,
 					() => {
 						start(emit, leadId, started, done);
 						append(emit, id, runId, { type: 'tool.completed', runId, name, toolCallId, output });
