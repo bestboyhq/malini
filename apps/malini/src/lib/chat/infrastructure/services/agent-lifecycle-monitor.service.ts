@@ -179,11 +179,11 @@ export class AgentLifecycleMonitor {
 		});
 		if (!decision) return true;
 		const { lead } = context;
-		const announced = lead === null || decision.kind === 'approval';
-		if (announced) this.dependencies.sound(attentionSoundSignal(decision.kind));
+		if (lead && decision.kind !== 'approval') return true;
+		this.dependencies.sound(attentionSoundSignal(decision.kind));
 		const focused = this.dependencies.appFocused();
 		if (focused && envelope.sessionId === this.#shownChatId) return true;
-		if (!this.dependencies.markAttention(owner, decision) || !announced) return true;
+		if (!this.dependencies.markAttention(owner, decision)) return true;
 		const notice = lead
 			? {
 					workstreamId: lead.workstreamId,

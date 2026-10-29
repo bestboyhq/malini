@@ -1,6 +1,6 @@
 # 0034 - Site mock-ups use the app's design system
 
-Status: accepted
+Status: superseded by 0108
 
 ## Context
 

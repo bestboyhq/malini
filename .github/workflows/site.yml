@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - apps/site/**
+      - apps/malini/**
+      - packages/**
+      - extensions/**
       - .github/readme/**
       - .github/workflows/site.yml
       - pnpm-lock.yaml
