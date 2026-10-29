@@ -381,6 +381,8 @@ export type TimelineRow =
 	| Readonly<{ kind: 'entry'; key: string; time: string; entry: TimelineEntry }>;
 
 const DAY_MS = 86_400_000;
+const TIME = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+const DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 const FOOTER_LINE =
 	/^\s*(?:[-*]\s+)?(?:\*\*|__)?(?:outcome|needs|commit|pull request)(?:\*\*|__)?\s*:/iu;
 
@@ -395,8 +397,7 @@ export function timelineRows(entries: readonly TimelineEntry[], now: number): Ti
 			shown = '';
 			rows.push({ kind: 'day', key: `day-${day}`, label: dayLabel(date, now) });
 		}
-		const time =
-			date === null ? '' : date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+		const time = date === null ? '' : TIME.format(date);
 		rows.push({ kind: 'entry', key: entry.key, time: time === shown ? '' : time, entry });
 		if (time !== '') shown = time;
 	}
@@ -430,5 +431,5 @@ export function replyParts(text: string): Readonly<{ summary: string; body: stri
 function dayLabel(date: Date, now: number): string {
 	if (date.toDateString() === new Date(now).toDateString()) return 'Today';
 	if (date.toDateString() === new Date(now - DAY_MS).toDateString()) return 'Yesterday';
-	return date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+	return DAY.format(date);
 }
