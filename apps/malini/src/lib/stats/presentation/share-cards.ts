@@ -212,6 +212,13 @@ function drawReadoutCard(
 	card: ShareCard,
 	stats: PublishedStats,
 ): void {
+	context.save();
+	context.globalAlpha = 0.012;
+	context.fillStyle = palette.strong;
+	for (let x = 31; x < WIDTH; x += 32) context.fillRect(x, 0, 1, HEIGHT);
+	for (let y = 31; y < HEIGHT; y += 32) context.fillRect(0, y, WIDTH, 1);
+	context.restore();
+
 	const prompt = `malini stats --since ${sinceArgument(stats.since, stats.through)}`;
 	text(context, '~ ', 64, 48, { size: 18, mono: true, color: palette.tertiary, lineHeight: 22 });
 	const tildeWidth = measure(context, '~ ', { size: 18, mono: true, color: palette.tertiary });
