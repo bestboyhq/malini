@@ -1,16 +1,34 @@
-const SWEEP_MS = 4_800;
-const SWEEP_REST_MS = 1_600;
+const SWEEP_REST_MS = 2_200;
+const WIPE: readonly (readonly [number, number])[] = [
+	[0, 50],
+	[420, 20],
+	[1_150, 20],
+	[1_700, 80],
+	[2_450, 80],
+	[2_900, 50],
+];
+export const WIPE_MS = 2_900;
 const CYCLE_MS = 2_600;
 
 type Stop = () => void;
 
-export type DemoPlay = 'work' | 'sweep' | 'cycle';
+export type DemoPlay = 'sweep' | 'cycle';
 
-const PLAYS: readonly DemoPlay[] = ['work', 'sweep', 'cycle'];
+const PLAYS: readonly DemoPlay[] = ['sweep', 'cycle'];
 
 export function playOf(value: string | null): DemoPlay | null {
 	if (matchMedia('(prefers-reduced-motion: reduce)').matches) return null;
 	return PLAYS.find((play) => play === value) ?? null;
+}
+
+export const smooth = (t: number): number => t * t * t * (10 + t * (6 * t - 15));
+
+export function wipeAt(ms: number): number {
+	const next = WIPE.findIndex(([at]) => at > ms);
+	const to = WIPE[next];
+	const from = WIPE[next - 1];
+	if (!to || !from) return 50;
+	return from[1] + (to[1] - from[1]) * smooth((ms - from[0]) / (to[0] - from[0]));
 }
 
 export function whileWatched(view: HTMLElement, run: () => Stop, stopOnTouch: boolean): Stop {
@@ -44,9 +62,9 @@ export function sweepWipe(view: HTMLElement): Stop {
 	const origin = performance.now();
 	let frame = requestAnimationFrame(function sweep(now) {
 		const wipe = view.querySelector('input[type="range"]');
-		const t = (now - origin) % (SWEEP_MS + SWEEP_REST_MS);
-		if (wipe instanceof HTMLInputElement && t < SWEEP_MS) {
-			wipe.value = String(50 + 38 * Math.sin((2 * Math.PI * t) / SWEEP_MS));
+		const t = (now - origin) % (WIPE_MS + SWEEP_REST_MS);
+		if (wipe instanceof HTMLInputElement && t < WIPE_MS) {
+			wipe.value = String(wipeAt(t));
 			wipe.dispatchEvent(new Event('input', { bubbles: true }));
 		}
 		frame = requestAnimationFrame(sweep);

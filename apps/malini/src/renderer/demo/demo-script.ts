@@ -1,13 +1,10 @@
 import { LEAD_PROMPT } from './demo-data';
+import { smooth, WIPE_MS, wipeAt } from './demo-attract';
 import { leadReport } from './demo-live';
-
-const DRAG_MS = 2_200;
 
 class Stopped extends Error {}
 
 type Point = Readonly<{ x: number; y: number }>;
-
-const smooth = (t: number): number => t * t * t * (10 + t * (6 * t - 15));
 
 function inView(): Promise<void> {
 	return new Promise((resolve) => {
@@ -104,8 +101,8 @@ export async function playHero(): Promise<void> {
 		await wait(250);
 		cursor.dataset['pressed'] = '';
 		const started = await frame();
-		for (let now = started; now - started < DRAG_MS; now = await frame()) {
-			const value = 50 + 32 * Math.sin((2 * Math.PI * (now - started)) / DRAG_MS);
+		for (let now = started; now - started < WIPE_MS; now = await frame()) {
+			const value = wipeAt(now - started);
 			wipe.value = String(value);
 			wipe.dispatchEvent(new Event('input', { bubbles: true }));
 			place({ x: box.left + (box.width * value) / 100, y: box.top + box.height / 2 });
@@ -121,8 +118,7 @@ export async function playHero(): Promise<void> {
 		document.execCommand('insertText', false, LEAD_PROMPT);
 		const send = await find('[data-testid="chat-composer-submit"]:not([disabled])');
 		const box = send.getBoundingClientRect();
-		place({ x: box.left - 180, y: box.top - 90 });
-		await wait(1_100);
+		place({ x: box.left - 140, y: box.top - 70 });
 		await click(send);
 		await find('[data-workstream-id="ws-og-tony"]');
 		await wait(500);

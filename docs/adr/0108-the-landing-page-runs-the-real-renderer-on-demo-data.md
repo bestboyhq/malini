@@ -24,12 +24,12 @@ The mock-ups drift every time the app changes; the real renderer cannot.
   The cursor glides on a curved, minimum-jerk path.
   A real click or key press stops the script, and reduced motion skips it.
 - `card.html` mounts `TurnReportCard` alone for the workstream named in its hash, scaled to fit its frame.
-  `?play=work` shows the prompt and the tool calls arriving with a running clock, then the report; `?play=sweep` sweeps the before and after wipe; `?play=cycle` steps through the variants.
-  Each plays while most of the card is in view and, except `work`, stops at the first touch.
+  `?play=sweep` moves the before and after wipe quickly left, then right, and rests, the way a person checks a change; `?play=cycle` steps through the variants.
+  Each plays while most of the card is in view and stops at the first touch.
   Both mute sounds through `app.list-settings`, and both pass a wheel turn that nothing inside can scroll to the page around them.
 - `apps/malini/vite.demo.config.ts` merges the electron-vite renderer config without its font preload, which warns in an iframe still out of view, aliases `$contract/workstream-images` to `demo-workstream-images.ts` so report images load from the bundle instead of the `malini-image:` protocol, and builds both pages into `apps/site/static/demo/`, which git ignores.
   `pnpm --filter malini build:demo` builds it, `dev:demo` serves it, and the site's `dev` and `build` scripts build it first.
-- The site embeds the pages as iframes: `Hero.svelte` shows `app` with `?play=hero` at 1280 by 860 scaled to the column, interactive above 640px wide; `DemoCard.svelte` shows `card` in the Reports (`work`), Before and after (`sweep`) and Experiments (`cycle`) rows.
+- The site embeds the pages as iframes: `Hero.svelte` shows `app` with `?play=hero` at 1280 by 860 scaled to the column, interactive above 640px wide; `DemoCard.svelte` shows `card` in the Reports (still), Before and after (`sweep`) and Experiments (`cycle`) rows.
   `demoHref` in `links.ts` names `/malini/demo/app` in production and `app.html` under `vite dev`.
   Prerender skips exactly `/malini/demo/app` and `/malini/demo/card`, the Worker caches `/malini/demo/assets/` for a year, and the Site workflow also deploys when `apps/malini`, `packages` or `extensions` change.
 - `<Hero og />` keeps `hero.webp`, so the Open Graph image and its source hash (0087) stay independent of the app.

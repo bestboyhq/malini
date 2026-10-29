@@ -104,6 +104,11 @@
 				'macOS 13 or later on Apple silicon, and git. Malini ships the GitHub CLI, and setup installs Claude Code if you don’t have it.',
 		},
 		{
+			question: 'Will Malini run on Windows?',
+			answer:
+				'We want it to, but none of us use Windows every day. Windows support needs a power user who lives there to lead it. If that is you, open an issue on GitHub and it is yours to shape.',
+		},
+		{
 			question: 'Where does my code go?',
 			answer:
 				'To the agent you run and to GitHub through the GitHub CLI. Today the agent is your own Claude Code, so your code goes to Anthropic. There is no Malini account and no Malini server. Malini makes two calls of its own: update checks to GitHub Releases, and anonymous usage data that never includes your code, prompts, paths, or keys. Turn it off under Settings, Privacy.',
@@ -340,8 +345,7 @@
 {#snippet reportPanel()}
 	<DemoCard
 		workstream="ws-grip-captions"
-		title="An agent works on Grip, then reports with a recording of the change"
-		play="work"
+		title="A Malini report on Grip with a recording of the change"
 	/>
 {/snippet}
 

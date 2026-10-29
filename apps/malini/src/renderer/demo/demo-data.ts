@@ -202,6 +202,7 @@ export const WORKSTREAMS: readonly DemoWorkstream[] = [
 					'',
 					'- Changed: a caption shows when its word starts, 180 ms sooner than before',
 					'- Verified: `npm test -- transcript` passes, and the clip above is a real recording',
+					'- Next: hold each caption until the next word starts, so short words do not flash',
 					'',
 					'Outcome: Captions land on the word as it is spoken',
 					'Needs: nothing',
@@ -422,7 +423,7 @@ export function reportedWorkstream(id: string): DemoWorkstream | undefined {
 	return [...WORKSTREAMS, ...STARTED, LEAD_WORKSTREAM].find((workstream) => workstream.id === id);
 }
 
-export function toolInput(workstreamId: string, tool: DemoTool): Record<string, unknown> {
+function toolInput(workstreamId: string, tool: DemoTool): Record<string, unknown> {
 	const path = tool.input['file_path'];
 	if (typeof path !== 'string' || path.startsWith('/')) return tool.input;
 	return { ...tool.input, file_path: `${WORKSTREAM_PATH(workstreamId)}/${path}` };
