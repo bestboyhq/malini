@@ -886,11 +886,7 @@
 	}
 
 	function attentionLabel(attention: ChatAttention, fromStarted: boolean): string {
-		if (fromStarted) {
-			if (attention.kind === 'failed') return 'A workstream it started failed';
-			if (attention.kind === 'approval') return 'A workstream it started is waiting for approval';
-			return 'A workstream it started needs your input';
-		}
+		if (fromStarted) return 'A workstream it started is waiting for approval';
 		if (attention.kind === 'failed') return 'Agent run needs attention';
 		if (attention.kind === 'approval') return 'Agent is waiting for approval';
 		return 'Agent needs your input';

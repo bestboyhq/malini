@@ -263,7 +263,7 @@ describe('AgentLifecycleMonitor', () => {
 		expect(harness.notifications).toEqual([]);
 	});
 
-	it('leaves a started workstream quiet and asks for its approvals in the name of the chat that leads it', () => {
+	it('leaves the turns of a started workstream to the chat that leads it, which asks for its approvals', () => {
 		const harness = monitorHarness();
 		harness.sessions.set('session-child', { workstreamId: 'stream-child', status: 'running' });
 		harness.contexts.set('stream-child', {
@@ -280,13 +280,23 @@ describe('AgentLifecycleMonitor', () => {
 				summary: 'Done.\n\nOutcome: Shipped\nNeeds: Pick a name',
 			}),
 		);
-		expect(harness.attentions.get('session-child')?.kind).toBe('input');
+		expect(harness.attentions.get('session-child')).toBeUndefined();
 		expect(harness.sound).not.toHaveBeenCalled();
 		expect(harness.notifications).toEqual([]);
 
-		harness.emit(envelope('session-child', 'run-2', 2, { type: 'run.started', runId: 'run-2' }));
 		harness.emit(
-			envelope('session-child', 'run-2', 3, {
+			envelope('session-child', 'run-fail', 2, {
+				type: 'run.failed',
+				runId: 'run-fail',
+				error: 'boom',
+			}),
+		);
+		expect(harness.attentions.get('session-child')).toBeUndefined();
+		expect(harness.sound).not.toHaveBeenCalled();
+
+		harness.emit(envelope('session-child', 'run-2', 3, { type: 'run.started', runId: 'run-2' }));
+		harness.emit(
+			envelope('session-child', 'run-2', 4, {
 				type: 'approval.requested',
 				runId: 'run-2',
 				approvalId: 'approval-2',
@@ -304,9 +314,9 @@ describe('AgentLifecycleMonitor', () => {
 		]);
 
 		harness.monitor.setShown('home', 'home-chat');
-		harness.emit(envelope('session-child', 'run-3', 4, { type: 'run.started', runId: 'run-3' }));
+		harness.emit(envelope('session-child', 'run-3', 5, { type: 'run.started', runId: 'run-3' }));
 		harness.emit(
-			envelope('session-child', 'run-3', 5, {
+			envelope('session-child', 'run-3', 6, {
 				type: 'approval.requested',
 				runId: 'run-3',
 				approvalId: 'approval-3',

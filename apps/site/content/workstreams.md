@@ -72,7 +72,7 @@ Agents write code, and Malini writes the history: it commits, pushes, and opens 
 - Lines added and removed, unread marks, queued prompts, and pull request status on every workstream.
   A row's icon turns blue when its agent waits on an answer or an approval, and red when its run failed.
   Amber means a problem, such as a pull request Malini could not merge.
-  A workstream a chat started stays calm, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up for it instead.
+  A workstream a chat started stays calm: its turns report to the chat, and [the chat's row](/malini/docs/chat.md#chats-above-repositories) lights up only for an approval or a question of its that waits there.
 - **Settings → Appearance → Sidebar density** picks **Comfortable** or **Compact** rows.
 - Sorted by **Manual**, drag to reorder, or use **⌥↑** and **⌥↓**.
   An owner moves with everything under it.
